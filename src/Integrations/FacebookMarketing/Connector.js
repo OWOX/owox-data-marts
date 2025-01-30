@@ -6,49 +6,49 @@
  */
 
 var FacebookMarketingConnector = class FacebookMarketingConnector extends AbstractConnector {
-
-  constructor( config ) {
-  
-    super( config.mergeParameters({
-      AccessToken:{
-        isRequired: true,
-        requiredType: "string",
-      },
-      AccoundIDs: {
-        isRequired: true,
-      },
-      Fields: {
-        isRequired: true
-      },      
-      ReimportLookbackWindow: {
-        requiredType: "number",
-        isRequired: true,
-        default: 2
-      },
-      CleanUpToKeepWindow: {
-        requiredType: "number"
-      },
-      MaxFetchingDays: {
-        requiredType: "number",
-        isRequired: true,
-        default: 31
-      }
-    }));
+  //---- constructor -------------------------------------------------
+    constructor(config) {
     
-    this.fieldsSchema = FacebookMarketingFieldsSchema;
-  
-  }
+      super( config.mergeParameters({
+        AccessToken:{
+          isRequired: true,
+          requiredType: "string",
+        },
+        AccoundIDs: {
+          isRequired: true,
+        },
+        Fields: {
+          isRequired: true
+        },      
+        ReimportLookbackWindow: {
+          requiredType: "number",
+          isRequired: true,
+          default: 2
+        },
+        CleanUpToKeepWindow: {
+          requiredType: "number"
+        },
+        MaxFetchingDays: {
+          requiredType: "number",
+          isRequired: true,
+          default: 31
+        }
+      }));
+      
+      this.fieldsSchema = FacebookMarketingFieldsSchema;
     
-    /*
-    @param nodeName string
-    @param accountId string
-    @param fields array
-    @param startDate date
+    }
+    //----------------------------------------------------------------
     
-    @return data array
-    
-    */
-    fetchData(nodeName, accountId, fields, startDate = null)  {
+  //---- fetchData ---------------------------------------------------
+    /**
+     * @param nodeName string
+     * @param accountId string
+     * @param fields array
+     * @param startDate date
+     * @return data array
+     */
+    fetchData(nodeName, accountId, fields, startDate = null) {
     
       console.log(`${nodeName}, ${accountId}, ${fields}, ${startDate}`);
   
@@ -132,6 +132,7 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
       return allData;
     
     }
+    //----------------------------------------------------------------
   
   
-  }
+}
