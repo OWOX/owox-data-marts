@@ -364,7 +364,7 @@ var GoogleSheetsStorage = class GoogleSheetsStorage extends AbstractStorage {
       this.SHEET.getRange(1, columnIndex).setValue(columnName); 
     
       // appling format to column if it is specified in schema
-      if( this.schema != null && "GoogleSheetsFormat" in this.schema[columnName] ) { 
+      if( this.schema != null && columnName in this.schema  && "GoogleSheetsFormat" in this.schema[columnName] ) { 
     
           let columnLetter = String.fromCharCode(64 + columnIndex);
           console.log(
