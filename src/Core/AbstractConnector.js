@@ -99,7 +99,21 @@ class AbstractConnector {
         
         return this._validateResponse(response);
       }
-      
+
+      if (this.config.Environment.value === ENVIRONMENT.NODE_JS) {
+        const response = request("GET", url, { ...options, muteHttpExceptions: true });
+        const blobResponse = {
+          getAllHeaders: () => response.headers,
+          getAs: (contentType) => response.body,
+          getBlob: () => response.body,
+          getContent: () => response.body,
+          getContentText: () => response.body,
+          getHeaders: () => response.headers,
+          getResponseCode: () => response.statusCode
+        }
+        return this._validateResponse(blobResponse);
+      }
+
       throw new UnsupportedEnvironmentException(`Unsupported environment: ${this.config.Environment.value}`);
     }
     

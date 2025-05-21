@@ -386,11 +386,36 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
     executeQuery(query) {
       
       console.log(query);
-
+      if (this.config.Environment.value === ENVIRONMENT.APPS_SCRIPT) {
       return BigQuery.Jobs.query(
           {"query": query,  useLegacySql: false}, 
           this.config.ProjectID.value
-      );
+        );
+      }
+
+      if (this.config.Environment.value === ENVIRONMENT.NODE_JS) {
+        let result = undefined;
+        let error = undefined;
+        const bigqueryClient = new BigQuery();
+
+        const options = {
+          query: query,
+          useLegacySql: false,
+        };
+        bigqueryClient.createQueryJob(options)
+          .then(([job]) => job.getQueryResults())
+          .then(([rows]) => rows)
+          .then(value => { result = value })
+          .catch(e => { error = e });
+
+        deasync.loopWhile(() => result === undefined && error === undefined)
+
+        if (error !== undefined) {
+          throw error;
+        }
+
+        return result;
+      }
     }
 
   //---- obfuscateSpecialCharacters ----------------------------------
