@@ -34,6 +34,10 @@ class AbstractConfig {
         return ENVIRONMENT.APPS_SCRIPT;
       }
 
+      if (typeof process !== 'undefined') {
+        return ENVIRONMENT.NODE_JS;
+      }
+
       return ENVIRONMENT.UNKNOWN;
     }
 

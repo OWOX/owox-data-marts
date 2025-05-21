@@ -7,6 +7,17 @@
 
 var TikTokAdsPipeline = class TikTokAdsPipeline extends AbstractPipeline {
 
+  constructor(config, connector, storageName="GoogleBigQueryStorage") {
+    super(config.mergeParameters({
+      DestinationTableNamePrefix: {
+        default: ""
+      }
+    }),
+    connector);
+
+    this.storageName = storageName;
+  }
+
   startImportProcess() {
     try {
       // Getting advertiser IDs by splitting the configuration value by commas or semicolons
@@ -568,17 +579,14 @@ var TikTokAdsPipeline = class TikTokAdsPipeline extends AbstractPipeline {
         }
       }
 
-      // Create storage instance (Google Sheets is the default storage)
-      this.storages[nodeName] = new GoogleSheetsStorage(
+      this.storages[ nodeName ] = new globalThis[ this.storageName ](
         this.config.mergeParameters({ 
-          DestinationSheetName: { value: nodeName },
-          currentValues: { 
-            // Pass any values that might be needed for default values
-            advertiser_id: this.connector.currentAdvertiserId
-          }
+          DestinationSheetName: {value: nodeName},
+          DestinationTableName: {value: this.config.DestinationTableNamePrefix.value + nodeName.replace(/[^a-zA-Z0-9_]/g, "_") }
         }),
         uniqueFields,
-        this.connector.fieldsSchema[nodeName]["fields"] || {}
+        this.connector.fieldsSchema[ nodeName ]["fields"],
+        `${this.connector.fieldsSchema[ nodeName ]["description"]} ${this.connector.fieldsSchema[ nodeName ]["documentation"]}`
       );
     }
 

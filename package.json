@@ -1,0 +1,22 @@
+{
+  "name": "owox-data-marts",
+  "version": "1.0.0",
+  "description": "OWOX Data Marts",
+  "homepage": "https://github.com/OWOX/js-data-connectors#readme",
+  "bugs": {
+    "url": "https://github.com/OWOX/js-data-connectors/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OWOX/js-data-connectors.git"
+  },
+  "license": "MIT",
+  "author": "OWOX",
+  "type": "commonjs",
+  "workspaces": [
+    "platform/*"
+  ],
+  "scripts": {
+    "runner:local": "npm run runner --workspace=platform/runner"
+  }
+}

@@ -23,6 +23,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
       },
       AdvertiserIDs: {
         isRequired: true,
+        requiredType: "string",
       },
       Objects: {
         isRequired: true,
@@ -323,11 +324,8 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
       }
       
       try {
-        const response = UrlFetchApp.fetch(pageUrl, { 
-          headers: headers,
-          muteHttpExceptions: true
-        });
-        
+        const response = this.urlFetchWithRetry(pageUrl, { headers: headers });
+
         const responseCode = response.getResponseCode();
         
         if (responseCode !== 200) {

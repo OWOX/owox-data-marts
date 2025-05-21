@@ -36,6 +36,10 @@ class AbstractPipeline {
         throw error;
 
       }
+
+      if (storage !== null) {
+        this.storageName = storage.constructor.name;
+      }
       
       this.config = config;
       this.connector = connector;
