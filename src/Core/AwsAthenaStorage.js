@@ -102,8 +102,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
       this.athenaClient = new AthenaClient({ region, credentials });
       
     } catch (error) {
-      throw new Error(`Failed to initialize AWS SDK v3: ${error.message}. Make sure the following packages are installed:
-      npm install @aws-sdk/client-s3 @aws-sdk/client-athena @aws-sdk/lib-storage`);
+      throw new Error(`Failed to initialize AWS SDK v3: ${error.message}. Make sure the 'npm install' command was executed.`);
     }
   }
 

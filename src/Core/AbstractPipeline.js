@@ -37,6 +37,7 @@ class AbstractPipeline {
 
       }
 
+      // if created directly, storageName is not passed as a parameter and we need to set it dynamically
       if (storage !== null) {
         this.storageName = storage.constructor.name;
       }

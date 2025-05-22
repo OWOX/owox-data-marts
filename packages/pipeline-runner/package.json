@@ -1,9 +1,9 @@
 {
-  "name": "@owox-data-marts/runner",
+  "name": "@owox/pipeline-runner",
   "version": "1.0.0",
-  "description": "Runners for OWOX Data Marts",
+  "description": "Runners for OWOX Data Marts integration pipelines",
   "scripts": {
-    "runner": "node src/local-runner.js"
+    "pipeline-runner-node": "node src/local-runner.js"
   },
   "dependencies": {
     "@google-cloud/bigquery": "^8.0.0",
