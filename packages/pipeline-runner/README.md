@@ -1,10 +1,10 @@
-# Local Runner for Data Pipelines
+# Pipeline NodeJS Runner for Integration Pipelines
 
-A Node.js utility for running OWOX Data Marts pipelines locally.
+A Node.js utility for running OWOX Data Marts integration pipelines.
 
 ## Overview
 
-The local runner allows you to execute data pipelines on your local machine, which is useful for running, development, testing, and debugging.
+The nodeJS pipeline runner allows you to execute data pipelines on your machine, which is useful for running, development, testing, and debugging.
 
 ## Installation
 
@@ -15,21 +15,21 @@ npm install
 
 ## Usage
 
-To run a pipeline locally:
+To run a pipeline:
 
 ```bash
-npm run runner:local -- path/to/pipeline-config.json
+npm run pipeline-runner:node -- path/to/pipeline-config.json
 ```
 
 Or from within the runner directory:
 
 ```bash
-npm run runner -- path/to/pipeline-config.json
+npm run pipeline-runner-node -- path/to/pipeline-config.json
 ```
 
 ## Pipeline Configuration
 
-Pipelines are defined using JSON configuration files. These files specify the data source integration, storage destination, and all necessary configuration parameters.
+Pipelines are defined using JSON configuration files. These files specify the data source integration, storage, and all necessary configuration parameters.
 
 ### Example Configurations
 
@@ -176,7 +176,7 @@ The local runner:
 3. Instantiates the specified connector and pipeline
 4. Executes the pipeline
 
-## Supported Storage Destinations
+## Supported Storage
 
 - Google BigQuery
 - AWS Athena

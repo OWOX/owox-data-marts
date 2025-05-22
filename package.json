@@ -1,22 +1,21 @@
 {
   "name": "owox-data-marts",
-  "version": "1.0.0",
+  "version": "0.0.0",
   "description": "OWOX Data Marts",
-  "homepage": "https://github.com/OWOX/js-data-connectors#readme",
+  "homepage": "https://github.com/OWOX/owox-data-marts#readme",
   "bugs": {
-    "url": "https://github.com/OWOX/js-data-connectors/issues"
+    "url": "https://github.com/OWOX/owox-data-marts/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/OWOX/js-data-connectors.git"
+    "url": "git+https://github.com/OWOX/owox-data-marts.git"
   },
-  "license": "MIT",
+  "license": "ELv2",
   "author": "OWOX",
-  "type": "commonjs",
   "workspaces": [
-    "platform/*"
+    "packages/*"
   ],
   "scripts": {
-    "runner:local": "npm run runner --workspace=platform/runner"
+    "pipeline-runner:node": "npm run pipeline-runner-node --workspace=packages/pipeline-runner"
   }
 }

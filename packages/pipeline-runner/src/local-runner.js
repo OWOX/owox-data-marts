@@ -79,7 +79,6 @@ class Evaluator {
         try {
           new vm.Script(code).runInThisContext();
         } catch (e) {
-        //   console.error(e);
           this.notEvaluatedFiles.push(filePath);
         }
       }
