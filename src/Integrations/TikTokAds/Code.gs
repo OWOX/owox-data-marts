@@ -5,43 +5,83 @@
  * file that was distributed with this source code.
  */
 
+
+// Google Sheets Range with config data. Must me referes to a table with three columns: name, value and comment
+var CONFIG_RANGE = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Config').getRange("A:C");
+
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('OWOX')
+    .addItem('▶ Import New Data', 'startImportProcess')
+    .addItem('🔑 Manage Credentials', 'manageCredentials')
+    .addSubMenu(SpreadsheetApp.getUi().createMenu('⏰ Schedule')
+      .addItem('Set Daily Schedule (5 AM)', 'createDailyTrigger')
+      .addItem('Set Hourly Schedule', 'createHourlyTrigger')
+      .addItem('Set Custom Schedule', 'createCustomTrigger')
+      .addItem('Delete All Schedules', 'deleteTriggers'))
+    .addItem('📋 Update Fields Sheet', 'updateFieldsSheet')
+    .addItem('🧹 CleanUp Expired Data', 'cleanUpExpiredData')
+    .addItem('✔️ Test Connection', 'testConnection')
+    .addItem('🔎 Get OAuth URL', 'getOAuthUrl')
+    .addToUi();
+}
+
 /**
  * Runs the import process based on the configuration in the Google Sheet.
  */
 function startImportProcess() {
-  try {
-    console.log("Starting TikTok Ads import process...");
+  const config = new OWOX.GoogleSheetsConfig(CONFIG_RANGE);
+  const properties = PropertiesService.getDocumentProperties().getProperties();
+  const connector = new OWOX.TikTokAdsConnector(config.setParametersValues(properties));
+  const pipeline = new OWOX.TikTokAdsPipeline(
+    config,
+    connector,
+    "GoogleSheetsStorage"
+    // "GoogleBigQueryStorage"
+  );
 
-    // Get the active spreadsheet and the 'Config' sheet
-    var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-    var configSheet = spreadsheet.getSheetByName('Config');
-    
-    if (!configSheet) {
-      throw new Error("Config sheet not found in the active spreadsheet");
-    }
-    
-    // Get the config range (assuming parameters are in columns A and B)
-    var configRange = configSheet.getRange("A:B");
+  pipeline.run();
+}
 
-    var config = new GoogleSheetsConfig(configRange);
-    var connector = new TikTokAdsConnector(config);
-    
-    // Ensure app_id and app_secret are explicitly initialized
-    connector.appId = config.AppId && config.AppId.value ? config.AppId.value : null;
-    connector.appSecret = config.AppSecret && config.AppSecret.value ? config.AppSecret.value : null;
-    
-    var pipeline = new TikTokAdsPipeline(config, connector);
+function manageCredentials(credentials) {
+  const ui = SpreadsheetApp.getUi();
+  const props = PropertiesService.getDocumentProperties();
 
-    config.logMessage("🔄 Import process started...");
-    pipeline.startImportProcess();
-    config.logMessage("✅ Import process finished successfully");
-  } catch (error) {
-    console.error(`Error during import process: ${error}`);
-    console.error(error.stack);
-    if (config) {
-      config.logMessage(`❌ Error: ${error.message}`);
-    }
+  if (!credentials) {
+    // Show credentials dialog
+    const config = new OWOX.GoogleSheetsConfig(CONFIG_RANGE);
+    const connector = new OWOX.TikTokAdsConnector(config);
+    return config.showCredentialsDialog(connector, props);
   }
+
+  try {
+    // Save credentials in the spreadsheet-bound properties
+    Object.entries(credentials).forEach(([key, value]) => {
+      if (value) {
+        props.setProperty(key, value);
+      } else {
+        props.deleteProperty(key);
+      }
+    });
+    
+    console.log('Saved properties:', props.getProperties());
+    ui.alert('✅ Credentials saved successfully');
+  } catch (e) {
+    console.error('Error saving credentials:', e);
+    ui.alert('❌ Error saving credentials: ' + e.message);
+  }
+}
+
+function updateFieldsSheet() {
+  const config = new OWOX.GoogleSheetsConfig( CONFIG_RANGE );
+
+  config.updateFieldsSheet(
+    new OWOX.TikTokAdsConnector(config.setParametersValues({
+      "AccessToken": "undefined", 
+      "AppId": "undefined",
+      "AppSecret": "AppSecret", 
+      "Fields": "undefined"
+    }))
+  );
 }
 
 /**
@@ -70,7 +110,7 @@ function createDailyTrigger() {
     // Get the config range (assuming parameters are in columns A and B)
     var configRange = configSheet.getRange("A:B");
     
-    var config = new GoogleSheetsConfig(configRange);
+    var config = new OWOX.GoogleSheetsConfig(configRange);
     config.logMessage("✅ Daily trigger set to run at 5 AM");
   } catch (error) {
     console.error(`Error creating trigger: ${error}`);
@@ -106,7 +146,7 @@ function createHourlyTrigger() {
     // Get the config range (assuming parameters are in columns A and B)
     var configRange = configSheet.getRange("A:B");
     
-    var config = new GoogleSheetsConfig(configRange);
+    var config = new OWOX.GoogleSheetsConfig(configRange);
     config.logMessage("✅ Hourly trigger set");
   } catch (error) {
     console.error(`Error creating trigger: ${error}`);
@@ -137,7 +177,7 @@ function createCustomTrigger() {
     var configRange = configSheet.getRange("A:B");
     
     // Get the custom schedule configuration
-    var config = new GoogleSheetsConfig(configRange);
+    var config = new OWOX.GoogleSheetsConfig(configRange);
     var customHour = parseInt((config.ScheduleHour && config.ScheduleHour.value) || "5", 10);
     var customMinute = parseInt((config.ScheduleMinute && config.ScheduleMinute.value) || "0", 10);
     
@@ -177,82 +217,6 @@ function deleteTriggers() {
 }
 
 /**
- * Shows the available object schemas for the TikTok Ads API.
- */
-function showAvailableObjects() {
-  try {
-    // Get the active spreadsheet and the 'Config' sheet
-    var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-    var configSheet = spreadsheet.getSheetByName('Config');
-    
-    if (!configSheet) {
-      throw new Error("Config sheet not found in the active spreadsheet");
-    }
-    
-    // Get the config range (assuming parameters are in columns A and B)
-    var configRange = configSheet.getRange("A:B");
-    
-    var config = new GoogleSheetsConfig(configRange);
-    var connector = new TikTokAdsConnector(config);
-    
-    var schemas = connector.getFieldsSchema();
-    
-    var output = "Available TikTok Ads API Objects:\n\n";
-    
-    for (var nodeName in schemas) {
-      output += "• " + nodeName + " - " + schemas[nodeName].title + "\n";
-      output += "  " + schemas[nodeName].description + "\n";
-      output += "  Unique Keys: " + schemas[nodeName].uniqueKeys.join(", ") + "\n\n";
-    }
-    
-    output += "\nData Level Options for ad_insights:\n";
-    output += "• AUCTION_ADVERTISER - Aggregate data at the advertiser level\n";
-    output += "• AUCTION_CAMPAIGN - Aggregate data at the campaign level\n";
-    output += "• AUCTION_ADGROUP - Aggregate data at the ad group level\n";
-    output += "• AUCTION_AD - Detailed data at the ad level (default)\n\n";
-    output += "Important: TikTok API limits dimensions to 1-4 elements. The connector automatically uses optimal dimensions for each data level.\n";
-    output += "Required dimensions for each data level:\n";
-    output += "• AUCTION_ADVERTISER: stat_time_day\n";
-    output += "• AUCTION_CAMPAIGN: campaign_id, stat_time_day\n";
-    output += "• AUCTION_ADGROUP: adgroup_id, stat_time_day\n";
-    output += "• AUCTION_AD: ad_id, stat_time_day\n\n";
-    output += "Valid metrics for ad_insights (these must be separate from dimensions):\n";
-    
-    // Get valid metrics from connector
-    const validMetrics = connector.getValidAdInsightsMetrics();
-    
-    // Group metrics by category for readability
-    const metricCategories = {
-      "Cost metrics": ["spend", "cpc", "cpm", "cpr", "cpa", "cost_per_conversion", "cost_per_1000_reached"],
-      "Performance metrics": ["impressions", "clicks", "ctr", "reach", "frequency", "viewable_impression", 
-                             "viewable_rate", "video_play_actions", "video_watched_2s", "video_watched_6s",
-                             "average_video_play", "average_video_play_per_user", "video_views_p25", 
-                             "video_views_p50", "video_views_p75", "video_views_p100", "profile_visits",
-                             "profile_visits_rate", "likes", "comments", "shares", "follows", "landing_page_views"],
-      "Conversion metrics": ["conversion", "cost_per_conversion", "conversion_rate", "conversion_1d_click", 
-                            "conversion_7d_click", "conversion_28d_click"]
-    };
-    
-    for (const category in metricCategories) {
-      const categoryMetrics = metricCategories[category].filter(metric => validMetrics.includes(metric));
-      if (categoryMetrics.length > 0) {
-        output += `• ${category}: ${categoryMetrics.join(", ")}\n`;
-      }
-    }
-    
-    output += "\nNote: Configure the DataLevel parameter in the Config sheet to change the data aggregation level.";
-    
-    config.logMessage(output);
-  } catch (error) {
-    console.error(`Error showing available objects: ${error}`);
-    console.error(error.stack);
-    if (config) {
-      config.logMessage(`❌ Error: ${error.message}`);
-    }
-  }
-}
-
-/**
  * Tests the connection to the TikTok Ads API.
  */
 function testConnection() {
@@ -268,8 +232,8 @@ function testConnection() {
     // Get the config range (assuming parameters are in columns A and B)
     var configRange = configSheet.getRange("A:B");
     
-    var config = new GoogleSheetsConfig(configRange);
-    var connector = new TikTokAdsConnector(config);
+    var config = new OWOX.GoogleSheetsConfig(configRange);
+    var connector = new OWOX.TikTokAdsConnector(config);
     
     // Try to fetch advertiser data
     var advertiserIds = String(config.AdvertiserIDs && config.AdvertiserIDs.value || "").split(/[,;]\s*/);
@@ -344,7 +308,7 @@ function getOAuthUrl() {
     // Get the config range (assuming parameters are in columns A and B)
     var configRange = configSheet.getRange("A:B");
     
-    var config = new GoogleSheetsConfig(configRange);
+    var config = new OWOX.GoogleSheetsConfig(configRange);
     var appId = config.AppId && config.AppId.value;
     var appSecret = config.AppSecret && config.AppSecret.value;
     var redirectUri = (config.RedirectUri && config.RedirectUri.value) || ScriptApp.getService().getUrl();
@@ -382,7 +346,7 @@ function getOAuthUrl() {
 /**
  * Cleans up old data based on CleanUpToKeepWindow configuration.
  */
-function cleanupOldData() {
+function cleanUpExpiredData() {
   try {
     // Get the active spreadsheet and the 'Config' sheet
     var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
@@ -395,12 +359,12 @@ function cleanupOldData() {
     // Get the config range (assuming parameters are in columns A and B)
     var configRange = configSheet.getRange("A:B");
     
-    var config = new GoogleSheetsConfig(configRange);
-    var connector = new TikTokAdsConnector(config);
-    var pipeline = new TikTokAdsPipeline(config, connector);
+    var config = new OWOX.GoogleSheetsConfig(configRange);
+    var connector = new OWOX.TikTokAdsConnector(config);
+    var pipeline = new OWOX.TikTokAdsPipeline(config, connector);
     
     config.logMessage("🔄 Starting data cleanup process...");
-    pipeline.cleanupOldData();
+    pipeline.cleanUpExpiredData();
     config.logMessage("✅ Data cleanup completed");
   } catch (error) {
     console.error(`Error during data cleanup: ${error}`);
@@ -410,31 +374,3 @@ function cleanupOldData() {
     }
   }
 }
-
-/**
- * Runs when the spreadsheet is opened. Sets up the custom menu.
- */
-function onOpen() {
-  SpreadsheetApp.getUi()
-    .createMenu('OWOX')
-    .addItem('Run Import Process', 'startImportProcess')
-    .addSeparator()
-    .addItem('Test Connection', 'testConnection')
-    .addItem('Show Available Objects', 'showAvailableObjects')
-    .addSeparator()
-    .addSubMenu(SpreadsheetApp.getUi().createMenu('Schedule')
-      .addItem('Set Daily Schedule (5 AM)', 'createDailyTrigger')
-      .addItem('Set Hourly Schedule', 'createHourlyTrigger')
-      .addItem('Set Custom Schedule', 'createCustomTrigger')
-      .addItem('Delete All Schedules', 'deleteTriggers'))
-    .addItem('Clean Up Old Data', 'cleanupOldData')
-    .addItem('Get OAuth URL', 'getOAuthUrl')
-    .addToUi();
-}
-
-/**
- * Runs when the spreadsheet is installed (as a copy from a template).
- */
-function onInstall() {
-  onOpen();
-} 
