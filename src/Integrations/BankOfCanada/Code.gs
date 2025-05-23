@@ -11,7 +11,7 @@ var CONFIG_RANGE = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Config'
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('OWOX')
     .addItem('▶ Import New Data', 'importNewData')
-    .addItem('🧹 CleanUp Expired Data', 'cleanUpExpiredDate')
+    .addItem('🧹 CleanUp Expired Data', 'cleanUpExpiredData')
     .addItem('🔑 Manage Credentials', 'manageCredentials')
     .addItem('⏰ Schedule', 'scheduleRuns')
     .addToUi();
@@ -24,8 +24,8 @@ function importNewData() {
 
   const pipeline = new OWOX.BankOfCanadaPipeline(
     config,                                               // pipeline configuration
-    new OWOX.BankOfCanadaConnector(config),                   // connector 
-    new OWOX.GoogleSheetsStorage(config, ["date", "label"])   // storage 
+    new OWOX.BankOfCanadaConnector(config),                 // connector 
+    new OWOX.GoogleSheetsStorage(config, ["date", "label"]) // storage 
   );
 
   pipeline.run();
@@ -39,5 +39,21 @@ function cleanUpExpiredData() {
     ["date", "label"] 
   );
   storage.cleanUpExpiredData("date");
+
+}
+
+
+
+function scheduleRuns() {
+
+  const ui = SpreadsheetApp.getUi();
+
+  const response = ui.alert(
+    'Schedule Runs',
+    'To schedule runs, you need to add a time trigger. Details: https://github.com/OWOX/js-data-connectors/issues/47',
+    ui.ButtonSet.OK_CANCEL
+  );
+
+  
 
 }

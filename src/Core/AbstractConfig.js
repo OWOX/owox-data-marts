@@ -11,15 +11,32 @@ class AbstractConfig {
      * @param (object) with config data. Properties are parameters names, values are values
      */
     constructor(configData) {
+      this.addParameter('Environment', {
+        value: AbstractConfig.detectEnvironment(),
+        requiredType: "number"
+      });
 
       for(var name in configData) {
         this.addParameter(name, configData[name]);
       };
 
       return this;
-
     }
     //----------------------------------------------------------------
+
+  //---- static helper -------------------------------------------------
+    /**
+     * Determines the runtime environment
+     * @returns {ENVIRONMENT} The detected environment
+     */
+    static detectEnvironment() {
+      if (typeof UrlFetchApp !== 'undefined') {
+        return ENVIRONMENT.APPS_SCRIPT;
+      }
+
+      return ENVIRONMENT.UNKNOWN;
+    }
+
 
   //---- mergeParameters ---------------------------------------------
     /**
@@ -88,26 +105,19 @@ class AbstractConfig {
      */
     validate() {
 
-
         // validating config
         for (let name in this) {
 
           let parameter = this[ name ];
 
-            // if parameter's value is required
-          if( parameter.isRequired == true) {
-
-            // there is no parameter value
-            if( !parameter.value && parameter.value !== 0 ) {
-              
-              // there is default value
-              if( "default" in parameter ) {
-                parameter.value = parameter.default;
-              } else {
-                throw new Error(parameter.errorMessage ? parameter.errorMessage : `Unable to load the configuration. The parameter ‘${name}’ is required but was provided with an empty value`)
-              }
-              
-            }
+          // there is default value, but there is no original value
+          if( "default" in parameter && (!parameter.value && parameter.value !== 0) ) {
+            parameter.value = parameter.default;
+          }
+          
+          // if parameter's value is required but value is absent
+          if( (!parameter.value && parameter.value !== 0) && parameter.isRequired == true) {
+            throw new Error(parameter.errorMessage ? parameter.errorMessage : `Unable to load the configuration. The parameter ‘${name}’ is required but was provided with an empty value`)
           }
 
           // there is a type restriction for parameter values

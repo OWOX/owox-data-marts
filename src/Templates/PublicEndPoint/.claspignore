@@ -3,3 +3,6 @@
 !appsscript.json
 !Core/Abstract*.js
 !Core/GoogleSheets*.js
+!Core/Exceptions.js
+!Constants/*.js
+!Views/**/*

@@ -1,4 +1,4 @@
-To receive data from the Bank of Canada source, please make a copy of the file ["Bank of Canada. Template"](https://docs.google.com/spreadsheets/d/1yHHAUhH9OeFoIULGDmWUSAkfVmjb8eY4XeHzbYvu14s/edit?usp=sharing) (*File -> Make a copy*). 
+To receive data from the Bank of Canada source, please make a copy of the file ["Bank of Canada. Template"](https://docs.google.com/spreadsheets/d/1yHHAUhH9OeFoIULGDmWUSAkfVmjb8eY4XeHzbYvu14s/copy). 
 
 Fill in the required start date.  
 

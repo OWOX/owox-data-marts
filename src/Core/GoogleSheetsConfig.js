@@ -6,6 +6,7 @@
  */
 
 var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
+
   //---- constructor -------------------------------------------------
     constructor(configRange) {
     
@@ -52,9 +53,16 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
       configObject.Log.timeZone = configRange.getSheet().getParent().getSpreadsheetTimeZone();
     
       super(configObject);
+
+      this.mergeParameters({
+          MaxRunTimeout: {
+            isRequired: true,
+            requiredType: "number",
+            default: 30
+          }
+      });
     
     }
-    //----------------------------------------------------------------
     
   //---- updateCurrentStatus -----------------------------------------
     /**
@@ -239,7 +247,7 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
       
     }
     //----------------------------------------------------------------
-  
+
   //---- getFieldsCountByGroupName -----------------------------------
     /**
      * @param GoogleSheetsConfig object
@@ -316,7 +324,7 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
       
       let formattedDate = Utilities.formatDate(new Date(), this.Log.timeZone, "yyyy-MM-dd HH:mm:ss"); // Format the date
     
-      // Read the existing log message if it shouldn’t be removed
+      // Read the existing log message if it shouldn't be removed
       let currentLog = removeExistingMessage ? "" : this.Log.cell.getValue();
     
       currentLog ? currentLog += "\n" : "";
@@ -337,5 +345,17 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
       this.updateLastImportDate();
     
     }
-    //----------------------------------------------------------------
-  }  
+
+    showCredentialsDialog(connector) {
+      const ui = SpreadsheetApp.getUi();
+      
+      const template = HtmlService.createTemplateFromFile('Views/credentials-input-dialog');
+      template.connector = connector;
+      
+      const html = template.evaluate()
+        .setWidth(400)
+        .setHeight(450);
+      
+      ui.showModalDialog(html, `${connector.constructor.name} Credentials`);
+    }
+}

@@ -33,7 +33,7 @@ constructor(config) {
       MaxFetchingDays: {
         requiredType: "number",
         isRequired: true,
-        value: 30
+        default: 30
       },
       Symbols: {
         requiredType: "string",
