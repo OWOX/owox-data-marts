@@ -30,21 +30,48 @@
  * const formattedDate = EnvironmentAdapter.formatDate(new Date(), "America/New_York", "yyyy-MM-dd");
  */
 class EnvironmentAdapter {
+    
+    /**
+     * Mac algorithm constants.
+     * 
+     * @type {Object}
+     */
+        static get MacAlgorithm() {
+            return {
+                HMAC_SHA_256: "HMAC_SHA_256",
+                HMAC_SHA_384: "HMAC_SHA_384", 
+                HMAC_SHA_512: "HMAC_SHA_512",
+                HMAC_SHA_1: "HMAC_SHA_1",
+                HMAC_MD5: "HMAC_MD5"
+            };
+        }
 
-    static {
+    
+    constructor() {
         this.environment = this.getEnvironment();
     }
+    
 
     /**
      * Get the current environment.
+     * Detects whether code is running in Google Apps Script or Node.js environment.
      * 
-     * @returns {ENVIRONMENT}
+     * @returns {ENVIRONMENT} The detected environment (APPS_SCRIPT, NODE, or UNKNOWN)
+     * @throws {UnsupportedEnvironmentException} If environment cannot be determined
      */
     static getEnvironment() {
-        if (this.environment !== 'undefined') return this.environment;
-        if (typeof UrlFetchApp !== 'undefined') return ENVIRONMENT.APPS_SCRIPT;
-        if (typeof process !== 'undefined') return ENVIRONMENT.NODE;
-        return ENVIRONMENT.UNKNOWN;
+        if (typeof this.environment !== 'undefined') {
+            return this.environment;
+        }
+        if (typeof UrlFetchApp !== 'undefined') {
+            this.environment = ENVIRONMENT.APPS_SCRIPT;
+        } else if (typeof process !== 'undefined') {
+            this.environment = ENVIRONMENT.NODE;
+        } else {
+            this.environment = ENVIRONMENT.UNKNOWN;
+        }
+
+        return this.environment;
     }
 
     /**
@@ -84,10 +111,8 @@ class EnvironmentAdapter {
      */
     static sleep(ms) {
         if (this.getEnvironment() === ENVIRONMENT.APPS_SCRIPT) {
-            EnvironmentAdapter.sleep(ms);
-        } 
-
-        if (this.getEnvironment() === ENVIRONMENT.NODE) {
+            Utilities.sleep(ms);
+        } else if (this.getEnvironment() === ENVIRONMENT.NODE) {
             let done = false;
             new Promise(resolve => {
                 setTimeout(() => {
@@ -97,9 +122,9 @@ class EnvironmentAdapter {
             });
 
             deasync.loopWhile(() => !done);
+        } else {
+            throw new UnsupportedEnvironmentException("Unsupported environment");
         }
-
-        throw new UnsupportedEnvironmentException("Unsupported environment");
     }
 
 
@@ -115,14 +140,12 @@ class EnvironmentAdapter {
      */
     static formatDate(date, timezone, format) {
         if (this.getEnvironment() === ENVIRONMENT.APPS_SCRIPT) {
-            return EnvironmentAdapter.formatDate(date, timezone, format);
+            return Utilities.formatDate(date, timezone, format);
+        } else if (this.getEnvironment() === ENVIRONMENT.NODE) {
+            return date.toISOString().split("T")[0];
+        } else {
+            throw new UnsupportedEnvironmentException("Unsupported environment");
         }
-
-        if (this.getEnvironment() === ENVIRONMENT.NODE) {
-            return date.toISOString().split("T")[0];;
-        }
-
-        throw new UnsupportedEnvironmentException("Unsupported environment");
     }
 
 
@@ -135,14 +158,12 @@ class EnvironmentAdapter {
      */
     static getUuid() {
         if (this.getEnvironment() === ENVIRONMENT.APPS_SCRIPT) {
-            return EnvironmentAdapter.getUuid();
-        }
-
-        if (this.getEnvironment() === ENVIRONMENT.NODE) {
+            return Utilities.getUuid();
+        } else if (this.getEnvironment() === ENVIRONMENT.NODE) {
             return crypto.randomUUID();
+        } else {
+            throw new UnsupportedEnvironmentException("Unsupported environment");
         }
-
-        throw new UnsupportedEnvironmentException("Unsupported environment");
     }
 
     /**
@@ -155,14 +176,12 @@ class EnvironmentAdapter {
      */
     static base64Encode(data) {
         if (this.getEnvironment() === ENVIRONMENT.APPS_SCRIPT) {
-            return EnvironmentAdapter.base64Encode(data);
-        }
-
-        if (this.getEnvironment() === ENVIRONMENT.NODE) {
+            return Utilities.base64Encode(data);
+        } else if (this.getEnvironment() === ENVIRONMENT.NODE) {
             return Buffer.from(data).toString('base64');
+        } else {
+            throw new UnsupportedEnvironmentException("Unsupported environment");
         }
-
-        throw new UnsupportedEnvironmentException("Unsupported environment");
     }
 
 
@@ -179,16 +198,23 @@ class EnvironmentAdapter {
     static computeHmacSignature(algorithm, data, key) {
         if (this.getEnvironment() === ENVIRONMENT.APPS_SCRIPT) {
             if (typeof algorithm === 'string') {
-                algorithm = EnvironmentAdapter.MacAlgorithm[algorithm];
+                algorithm = Utilities.MacAlgorithm[algorithm];
             }
-            return EnvironmentAdapter.computeHmacSignature(algorithm, data, key);
+            return Utilities.computeHmacSignature(algorithm, data, key);
+        } else if (this.getEnvironment() === ENVIRONMENT.NODE) {
+            // Convert Apps Script algorithm names to Node.js format
+            const algorithmMap = {
+                'HMAC_SHA_256': 'sha256',
+                'HMAC_SHA_384': 'sha384', 
+                'HMAC_SHA_512': 'sha512',
+                'HMAC_SHA_1': 'sha1',
+                'HMAC_MD5': 'md5'
+            };
+            const nodeAlgorithm = algorithmMap[algorithm] || algorithm.toLowerCase().replace('hmac_', '');
+            return crypto.createHmac(nodeAlgorithm, key).update(data).digest('hex');
+        } else {
+            throw new UnsupportedEnvironmentException("Unsupported environment");
         }
-
-        if (this.getEnvironment() === ENVIRONMENT.NODE) {
-            return crypto.createHmac(algorithm, key).update(data).digest('hex');
-        }
-
-        throw new UnsupportedEnvironmentException("Unsupported environment");
     }
 
     /**
@@ -218,9 +244,9 @@ class EnvironmentAdapter {
      * @param {Object} response
      * @returns {FetchResponse}
      */
-    static async _wrapNodeResponse(response) {
-        const headers = Object.fromEntries(response.headers.entries());
-        const text = await response.text();
+    static _wrapNodeResponse(response) {
+        const headers = response.headers || {};
+        const text = response.body ? response.body.toString() : '';
         return {
             getHeaders: () => headers,
             getAsJson: () => {
@@ -229,7 +255,7 @@ class EnvironmentAdapter {
             },
             getContent: () => text,
             getContentText: () => text,
-            getResponseCode: () => response.status
+            getResponseCode: () => response.statusCode
         };
     }
 
