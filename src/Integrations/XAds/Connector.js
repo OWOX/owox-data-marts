@@ -223,7 +223,7 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
       this._tweetsCache.delete(accountId);
     }
 
-    const all = this._fetchPages({
+    let all = this._fetchPages({
       accountId,
       nodeName,
       fields,
@@ -232,6 +232,13 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
         : {},
       pageSize
     });
+
+    if (nodeName === 'campaigns' && fields.includes('account_id')) {
+      all = all.map(item => ({
+        ...item,
+        account_id: accountId
+      }));
+    }
 
     if (nodeName === 'promoted_tweets') {
       this._setCacheData(this._promotedTweetsCache, accountId, all, fields);
@@ -391,17 +398,46 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
     const finalUrl = url + qs;
 
     const oauth = this._generateOAuthHeader({ method: 'GET', url, params });
-    const resp  = UrlFetchApp.fetch(finalUrl, {
+    
+    Utilities.sleep(300);
+    
+    const resp = this.urlFetchWithRetry(finalUrl, {
       method: 'GET',
       headers: { Authorization: oauth, 'Content-Type': 'application/json' },
       muteHttpExceptions: true
     });
 
-    const code = resp.getResponseCode(), body = resp.getContentText();
-    if (code < 200 || code >= 300) {
-      throw new Error(`X Ads API error ${code}: ${body}`);
+    return JSON.parse(resp.getContentText());
+  }
+
+  /**
+   * Determines if a X Ads API error is valid for retry
+   * Based on X Ads API error codes and HTTP status codes
+   * 
+   * @param {HttpRequestException} error - The error to check
+   * @return {boolean} True if the error should trigger a retry, false otherwise
+   */
+  isValidToRetry(error) {
+    console.log(`isValidToRetry() called`);
+    console.log(`error.statusCode = ${error.statusCode}`);
+    console.log(`error.payload = ${JSON.stringify(error.payload)}`);
+
+    // Retry on server errors (5xx)
+    if (error.statusCode && error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN) {
+      return true;
     }
-    return JSON.parse(body);
+
+    // Retry on rate limits (429)
+    if (error.statusCode === HTTP_STATUS.TOO_MANY_REQUESTS) {
+      return true;
+    }
+
+    // Retry on network errors or timeouts
+    if (!error.statusCode) {
+      return true;
+    }
+
+    return false;
   }
 
   _getData(path, nodeName, fields, extraParams = {}) {

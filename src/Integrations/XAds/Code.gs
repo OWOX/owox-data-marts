@@ -34,7 +34,7 @@ function updateFieldsSheet() {
       "ConsumerSecret": "undefined", 
       "AccessToken": "undefined", 
       "AccessTokenSecret": "undefined", 
-      "DataSources": "undefined"
+      "Fields": "undefined"
     }))
   );
 }

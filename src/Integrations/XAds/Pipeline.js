@@ -89,7 +89,8 @@ var XAdsPipeline = class XAdsPipeline extends AbstractPipeline {
       this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for ${accountId} on ${formattedDate}`);
   
       if (data.length > 0) {
-        storage.saveData(data);
+        const preparedData = this.addMissingFieldsToData(data, fields);
+        storage.saveData(preparedData);
       }
 
       this.config.updateLastRequstedDate(currentDate);
@@ -109,7 +110,8 @@ var XAdsPipeline = class XAdsPipeline extends AbstractPipeline {
     this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for ${accountId}`);
 
     if (data && data.length) {
-      storage.saveData(data);
+      const preparedData = this.addMissingFieldsToData(data, fields);
+      storage.saveData(preparedData);
     }
   }
 
