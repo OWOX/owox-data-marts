@@ -14,11 +14,9 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
         requiredType: "string",
       },
       AppId: {
-        isRequired: true,
         requiredType: "string",
       },
       AppSecret: {
-        isRequired: true,
         requiredType: "string",
       },
       AdvertiserIDs: {
