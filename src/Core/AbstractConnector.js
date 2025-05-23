@@ -167,12 +167,12 @@ class AbstractConnector {
      */
     _shouldRetry(error, attempt) {
       if (attempt >= this.config.MaxFetchRetries.value) {
-        console.log(`Maximum retry attempts (${this.config.MaxFetchRetries.value}) reached.`);
+        this.config.logMessage(`Maximum retry attempts (${this.config.MaxFetchRetries.value}) reached.`);
         return false;
       }
       
       const retryable = this.isValidToRetry(error);
-      console.log(`Attempt ${attempt}: isValidToRetry = ${retryable}`);
+      this.config.logMessage(`Attempt ${attempt}: isValidToRetry = ${retryable}`);
       
       return retryable;
     }
