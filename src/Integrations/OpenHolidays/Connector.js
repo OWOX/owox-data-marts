@@ -37,8 +37,8 @@ var OpenHolidaysConnector = class OpenHolidaysConnector extends AbstractConnecto
 
       let countryIsoCode = this.config.countryIsoCode.value;
       let languageIsoCode = this.config.languageIsoCode.value;
-      let startDate = Utilities.formatDate(this.config.StartDate.value, "UTC", "yyyy-MM-dd");
-      let endDate = Utilities.formatDate(this.config.EndDate.value, "UTC", "yyyy-MM-dd");
+      let startDate = EnvironmentAdapter.formatDate(this.config.StartDate.value, "UTC", "yyyy-MM-dd");
+      let endDate = EnvironmentAdapter.formatDate(this.config.EndDate.value, "UTC", "yyyy-MM-dd");
 
         const url = `https://openholidaysapi.org/PublicHolidays?countryIsoCode=${countryIsoCode}&languageIsoCode=${languageIsoCode}&validFrom=${startDate}&validTo=${endDate}`;
         this.config.logMessage(`🔄 This url: ${url}`);

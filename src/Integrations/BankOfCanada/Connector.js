@@ -51,8 +51,8 @@ fetchData(startDate, endDate)  {
 
   let data = [];
   
-  const start_date = Utilities.formatDate(startDate, "UTC", "yyyy-MM-dd");
-  const end_date = Utilities.formatDate(endDate, "UTC", "yyyy-MM-dd");
+  const start_date = EnvironmentAdapter.formatDate(startDate, "UTC", "yyyy-MM-dd");
+  const end_date = EnvironmentAdapter.formatDate(endDate, "UTC", "yyyy-MM-dd");
 
   const url = `https://www.bankofcanada.ca/valet/observations/group/FX_RATES_DAILY/json?start_date=${start_date}&end_date=${end_date}`;
     

@@ -155,7 +155,7 @@ var TikTokAdsPipeline = class TikTokAdsPipeline extends AbstractPipeline {
       const currentDate = new Date(startDate);
       currentDate.setDate(currentDate.getDate() + daysShift);
       
-      const formattedDate = Utilities.formatDate(currentDate, "UTC", "yyyy-MM-dd");
+      const formattedDate = EnvironmentAdapter.formatDate(currentDate, "UTC", "yyyy-MM-dd");
       
       this.config.logMessage(`Processing data for date: ${formattedDate}`);
       
@@ -252,7 +252,7 @@ var TikTokAdsPipeline = class TikTokAdsPipeline extends AbstractPipeline {
     // Get cutoff date
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - keepDays);
-    const formattedCutoffDate = Utilities.formatDate(cutoffDate, "UTC", "yyyy-MM-dd");
+    const formattedCutoffDate = EnvironmentAdapter.formatDate(cutoffDate, "UTC", "yyyy-MM-dd");
     
     // Initialize storages for all time series nodes
     for (var nodeName in this.connector.fieldsSchema) {

@@ -95,7 +95,7 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
       let timeRange = null;
   
       if( startDate ) {
-        formattedDate = Utilities.formatDate(startDate, "UTC", "yyyy-MM-dd");
+        formattedDate = EnvironmentAdapter.formatDate(startDate, "UTC", "yyyy-MM-dd");
         timeRange = encodeURIComponent(JSON.stringify({since:formattedDate, until:formattedDate}));
       }
   

@@ -224,7 +224,7 @@ class AbstractConnector {
      */
     sleep(milliseconds) {
       if (this.config.Environment.value === ENVIRONMENT.APPS_SCRIPT) {
-        Utilities.sleep(milliseconds);
+        EnvironmentAdapter.sleep(milliseconds);
       } else {
         throw new UnsupportedEnvironmentException(`Unsupported environment: ${this.config.Environment.value}`);
       }

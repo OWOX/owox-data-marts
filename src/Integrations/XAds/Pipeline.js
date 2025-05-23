@@ -82,7 +82,7 @@ var XAdsPipeline = class XAdsPipeline extends AbstractPipeline {
       const currentDate = new Date(startDate);
       currentDate.setDate(currentDate.getDate() + i);
       
-      const formattedDate = Utilities.formatDate(currentDate, "UTC", "yyyy-MM-dd");
+      const formattedDate = EnvironmentAdapter.formatDate(currentDate, "UTC", "yyyy-MM-dd");
 
       const data = this.connector.fetchData({ nodeName, accountId, start_time: formattedDate, end_time: formattedDate, fields });
   
