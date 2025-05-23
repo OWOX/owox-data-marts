@@ -30,7 +30,7 @@ To use the TikTok Ads connector, you need to obtain an access token from the Tik
 2. Fill in the required information:
    - App name
    - App description
-   - Advertiser redirect URL (this can be a placeholder like `https://localhost:8080` if you're just generating a token)
+   - Advertiser redirect URL (this can be a placeholder like `http://localhost:8080` if you're just generating a token)
 3. Chose access to the following scopes of permission:
    - Read Ad Account Information
    - Read Campaigns

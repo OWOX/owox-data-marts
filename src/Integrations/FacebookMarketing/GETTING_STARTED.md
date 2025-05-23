@@ -69,6 +69,6 @@ To import more data:
 If you encounter any issues:
 
 1. Check the "Logs" sheet for specific error messages
-2. Please [visit Q&A](https://github.com/OWOX/js-data-connectors/discussions/categories/q-a) first
-3. If you want to report a bug, please [open an issue](https://github.com/OWOX/js-data-connectors/issues)
-4. Join the [discussion forum](https://github.com/OWOX/js-data-connectors/discussions) to ask questions or propose improvements 
+2. Please [visit Q&A](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) first
+3. If you want to report a bug, please [open an issue](https://github.com/OWOX/owox-data-marts/issues)
+4. Join the [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions or propose improvements 
