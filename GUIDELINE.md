@@ -1,6 +1,6 @@
 # Project Guidelines
 
-This document is describing the project guidelines for the project.
+This document is describing the connectors guidelines for the project.
 
 ## EnvironmentAdapter
 
@@ -15,8 +15,10 @@ The `EnvironmentAdapter` class provides a unified interface for environment-spec
 ### Key Features
 
 - **Environment detection**: Automatically detects the runtime environment
+- **Environment-specific code**: Use environment-specific code for each environment
 - **Unified HTTP requests**: Consistent API for making HTTP requests
 - **Response wrapping**: Unified response interface across platforms
+- **Utility functions**: Date formatting, UUID generation, encoding, and more
 
 ### Table of Contents
 
@@ -29,14 +31,6 @@ The `EnvironmentAdapter` class provides a unified interface for environment-spec
 7. [Utility Methods](#utility-methods)
 8. [Error Handling](#error-handling)
 9. [Troubleshooting](#troubleshooting)
-
-### Key Features
-
-- **Cross-platform compatibility**: Works in both Google Apps Script and Node.js
-- **Unified HTTP requests**: Consistent API for making HTTP requests
-- **Environment detection**: Automatic detection of runtime environment
-- **Response wrapping**: Unified response interface across platforms
-- **Utility functions**: Date formatting, UUID generation, encoding, and more
 
 ### Getting Started
 
