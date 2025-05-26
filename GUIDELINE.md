@@ -10,9 +10,7 @@ The `EnvironmentAdapter` class provides a unified interface for environment-spec
 
 ### Motivation
 
-- Need to use Apps Script specific classes in Node.js
-- Need to use Node.js specific classes in Apps Script
-- Need to use both in the same codebase
+- Use singe connectors source code in both environments: Node.js and Apps Script
 
 ### Key Features
 
@@ -24,9 +22,9 @@ The `EnvironmentAdapter` class provides a unified interface for environment-spec
 
 1. [Key Features](#key-features)
 2. [Getting Started](#getting-started)
-3. [API Reference](#api-reference)
-4. [Usage Examples](#usage-examples)
-5. [Environment Detection](#environment-detection)
+3. [Essential EnvironmentAdapter Rules for Data Analysts](#essential-environmentadapter-rules-for-data-analysts)
+4. [API Reference](#api-reference)
+5. [Usage Examples](#usage-examples)
 6. [HTTP Requests](#http-requests)
 7. [Utility Methods](#utility-methods)
 8. [Error Handling](#error-handling)
@@ -67,6 +65,96 @@ var ENVIRONMENT = {
 class UnsupportedEnvironmentException extends AbstractException {}
 ```
 
+### Essential EnvironmentAdapter Rules for Data Analysts
+
+#### What You Must Know
+
+**EnvironmentAdapter** is a required class that makes your connector work in both Google Apps Script and Node.js environments. You MUST use it for all HTTP requests and environment-specific operations.
+
+#### What NOT to Do
+
+❌ Never use `fetch()` directly  
+❌ Never use `UrlFetchApp` directly  
+❌ Never use `Utilities` directly  
+❌ Never skip error checking on API responses  
+❌ Never make requests without proper headers  
+❌ Never ignore rate limits  
+
+#### Must Remember
+
+1. **Always use EnvironmentAdapter.fetch()** for any HTTP request
+2. **Always check response.getResponseCode()** before processing data
+3. **Always handle errors** with try-catch blocks
+4. **Always respect API rate limits** with sleep() between requests
+5. **Always include proper headers** especially for authentication
+6. **Always use EnvironmentAdapter utilities** for date formatting, UUID generation, encoding, and more
+
+### Core Rules
+
+#### 1. Always Use EnvironmentAdapter for HTTP Requests
+
+```javascript
+// ✅ CORRECT - Use this for all API calls
+const response = EnvironmentAdapter.fetch("https://api.example.com/data");
+
+// ❌ WRONG - Never use direct fetch() or UrlFetchApp
+const response = fetch("https://api.example.com/data");
+
+// ❌ WRONG - Never use direct fetch() or UrlFetchApp
+const response = UrlFetchApp.fetch("https://api.example.com/data");
+```
+
+#### 2. Standard Response Handling Pattern
+
+```javascript
+const response = EnvironmentAdapter.fetch(url, options);
+
+// Check if request succeeded
+if (response.getResponseCode() === 200) {
+    const data = response.getAsJson();  // For JSON APIs
+    // Process your data here
+} else {
+    // Handle error
+    console.error("API request failed:", response.getResponseCode());
+}
+```
+
+#### 3. Required Request Format for APIs
+
+```javascript
+const options = {
+    method: "GET",  // or "POST", "PUT", etc.
+    headers: {
+        "Authorization": "Bearer your-token",
+        "Content-Type": "application/json"
+    }
+};
+
+// For POST requests with data
+const postOptions = {
+    method: "POST",
+    headers: {
+        "Content-Type": "application/json"
+    },
+    payload: JSON.stringify({
+        // your data here
+    })
+};
+```
+
+#### 4. Utility Functions
+
+```javascript
+// Generate unique IDs
+const id = EnvironmentAdapter.getUuid();
+
+// Wait between API calls (to avoid rate limits)
+EnvironmentAdapter.sleep(1000); // Wait 1 second
+
+// Encode data
+const encoded = EnvironmentAdapter.base64Encode("your-data");
+```
+
 ### API Reference
 
 #### Static Methods
@@ -75,7 +163,7 @@ class UnsupportedEnvironmentException extends AbstractException {}
 
 Returns the current runtime environment.
 
-```typescript
+```javascript
 static getEnvironment(): ENVIRONMENT
 ```
 
@@ -85,7 +173,7 @@ static getEnvironment(): ENVIRONMENT
 
 Makes HTTP requests with unified response interface.
 
-```typescript
+```javascript
 static fetch(url: string, options: Object = {}): FetchResponse
 ```
 
@@ -102,7 +190,7 @@ static fetch(url: string, options: Object = {}): FetchResponse
 
 Pauses execution for specified milliseconds.
 
-```typescript
+```javascript
 static sleep(ms: number): void
 ```
 
@@ -116,7 +204,7 @@ static sleep(ms: number): void
 
 Formats a date according to environment capabilities.
 
-```typescript
+```javascript
 static formatDate(date: Date, timezone: string, format: string): string
 ```
 
@@ -134,7 +222,7 @@ static formatDate(date: Date, timezone: string, format: string): string
 
 Generates a UUID string.
 
-```typescript
+```javascript
 static getUuid(): string
 ```
 
@@ -144,7 +232,7 @@ static getUuid(): string
 
 Encodes data to base64.
 
-```typescript
+```javascript
 static base64Encode(data: string): string
 ```
 
@@ -158,7 +246,7 @@ static base64Encode(data: string): string
 
 Computes HMAC signature.
 
-```typescript
+```javascript
 static computeHmacSignature(algorithm: string, data: string, key: string): string
 ```
 
@@ -171,21 +259,6 @@ static computeHmacSignature(algorithm: string, data: string, key: string): strin
 **Returns**: HMAC signature as hex string
 
 ### Usage Examples
-
-#### Environment Detection
-
-```javascript
-// Check current environment
-const env = EnvironmentAdapter.getEnvironment();
-
-if (env === ENVIRONMENT.APPS_SCRIPT) {
-    console.log("Running in Google Apps Script");
-} else if (env === ENVIRONMENT.NODE) {
-    console.log("Running in Node.js");
-} else {
-    console.log("Unknown environment");
-}
-```
 
 #### Making HTTP Requests
 
@@ -298,35 +371,13 @@ EnvironmentAdapter.sleep(2000); // Wait 2 seconds
 console.log("Operation completed after delay");
 ```
 
-#### Environment Detection
-
-The `EnvironmentAdapter` automatically detects the runtime environment:
-
-- **Google Apps Script**: Detected by presence of `UrlFetchApp`
-- **Node.js**: Detected by presence of `process` object
-- **Unknown**: When neither is detected
-
-```javascript
-// Manual environment checking
-switch (EnvironmentAdapter.getEnvironment()) {
-    case ENVIRONMENT.APPS_SCRIPT:
-        // Apps Script specific code
-        break;
-    case ENVIRONMENT.NODE:
-        // Node.js specific code
-        break;
-    default:
-        throw new Error("Unsupported environment");
-}
-```
-
 ### HTTP Requests
 
 #### FetchResponse Interface
 
 All HTTP requests return a `FetchResponse` object with these methods:
 
-```typescript
+```javascript
 interface FetchResponse {
     getHeaders(): Object;           // Get response headers
     getAsJson(): any;              // Parse response as JSON
