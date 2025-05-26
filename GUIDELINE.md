@@ -97,10 +97,10 @@ class UnsupportedEnvironmentException extends AbstractException {}
 // ✅ CORRECT - Use this for all API calls
 const response = EnvironmentAdapter.fetch("https://api.example.com/data");
 
-// ❌ WRONG - Never use direct fetch() or UrlFetchApp
+// ❌ WRONG - Never use direct fetch()
 const response = fetch("https://api.example.com/data");
 
-// ❌ WRONG - Never use direct fetch() or UrlFetchApp
+// ❌ WRONG - Never use direct UrlFetchApp.fetch()
 const response = UrlFetchApp.fetch("https://api.example.com/data");
 ```
 
