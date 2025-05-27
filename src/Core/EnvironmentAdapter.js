@@ -259,5 +259,47 @@ class EnvironmentAdapter {
         };
     }
 
+    /**
+     * Parse CSV string into array of arrays
+     * 
+     * @param {string} csvString - The CSV string to parse
+     * @returns {Array<Array<string>>} Parsed CSV data
+     * @throws {UnsupportedEnvironmentException} If the environment is not supported
+     */
+    static parseCsv(csvString) {
+        if (this.getEnvironment() === ENVIRONMENT.APPS_SCRIPT) {
+            return Utilities.parseCsv(csvString);
+        } else if (this.getEnvironment() === ENVIRONMENT.NODE) {
+            // Simple CSV parsing for Node.js
+            return csvString
+                .split('\n')
+                .map(line => line.split(',')
+                .map(cell => cell.trim()));
+        } else {
+            throw new UnsupportedEnvironmentException("Unsupported environment");
+        }
+    }
+
+    /**
+     * Unzip a blob/buffer
+     * 
+     * @param {Blob|Buffer} data - The data to unzip
+     * @returns {Array<{getDataAsString: Function}>} Array of file-like objects with getDataAsString method
+     * @throws {UnsupportedEnvironmentException} If the environment is not supported
+     */
+    static unzip(data) {
+        if (this.getEnvironment() === ENVIRONMENT.APPS_SCRIPT) {
+            return Utilities.unzip(data);
+        } else if (this.getEnvironment() === ENVIRONMENT.NODE) {
+            const zlib = require('zlib');
+            const unzipped = zlib.unzipSync(data);
+            return [{
+                getDataAsString: () => unzipped.toString()
+            }];
+        } else {
+            throw new UnsupportedEnvironmentException("Unsupported environment");
+        }
+    }
+
 }
 

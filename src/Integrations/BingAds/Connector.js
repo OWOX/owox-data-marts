@@ -106,7 +106,7 @@ var BingAdsConnector = class BingAdsConnector extends AbstractConnector {
       }
     };
     
-    const response = UrlFetchApp.fetch(url, options);
+    const response = EnvironmentAdapter.fetch(url, options);
     const responseObject = JSON.parse(response.getContentText());
     this.config.AccessToken = {
       value: responseObject.access_token
@@ -199,7 +199,7 @@ var BingAdsConnector = class BingAdsConnector extends AbstractConnector {
       })
     };
 
-    const submitResponse = UrlFetchApp.fetch(submitUrl, submitOptions);
+    const submitResponse = EnvironmentAdapter.fetch(submitUrl, submitOptions);
     const submitResult = JSON.parse(submitResponse.getContentText());
     const requestId = submitResult.DownloadRequestId;
 
@@ -222,19 +222,19 @@ var BingAdsConnector = class BingAdsConnector extends AbstractConnector {
 
     let pollResult;
     do {
-      Utilities.sleep(5000); // Wait 5 seconds between polls
-      const pollResponse = UrlFetchApp.fetch(pollUrl, pollOptions);
+      EnvironmentAdapter.sleep(5000); // Wait 5 seconds between polls
+      const pollResponse = EnvironmentAdapter.fetch(pollUrl, pollOptions);
       pollResult = JSON.parse(pollResponse.getContentText());
     } while (pollResult.RequestStatus !== "Completed");
 
     // Step 3: Download and process the file
-    const downloadResponse = UrlFetchApp.fetch(pollResult.ResultFileUrl);
-    const files = Utilities.unzip(downloadResponse.getBlob());
+    const downloadResponse = EnvironmentAdapter.fetch(pollResult.ResultFileUrl);
+    const files = EnvironmentAdapter.unzip(downloadResponse.getBlob());
     
     // Process all data from the files
     const allData = [];
     for (const file of files) {
-      const csvData = Utilities.parseCsv(file.getDataAsString());
+      const csvData = EnvironmentAdapter.parseCsv(file.getDataAsString());
 
       const filteredCsv = csvData.filter((row, idx) =>
         idx === 0 || row[0] !== "Format Version"
@@ -304,7 +304,7 @@ var BingAdsConnector = class BingAdsConnector extends AbstractConnector {
     };
 
     // Submit report request
-    const submitResponse = UrlFetchApp.fetch(submitUrl, submitOptions);
+    const submitResponse = EnvironmentAdapter.fetch(submitUrl, submitOptions);
 
     // Check report status
     const pollUrl = "https://reporting.api.bingads.microsoft.com/Reporting/v13/GenerateReport/Poll";
@@ -313,13 +313,16 @@ var BingAdsConnector = class BingAdsConnector extends AbstractConnector {
     
     let pollResponseObject;
     do {
-      const pollResponse = UrlFetchApp.fetch(pollUrl, pollOptions);
+      const pollResponse = EnvironmentAdapter.fetch(pollUrl, pollOptions);
       pollResponseObject = JSON.parse(pollResponse.getContentText());
+      if (pollResponseObject.ReportRequestStatus.Status != "Success") {
+        EnvironmentAdapter.sleep(5000); // Wait 5 seconds between polls
+      }
     } while (pollResponseObject.ReportRequestStatus.Status != "Success");
 
     // Download and process report
-    const downloadResponse = UrlFetchApp.fetch(pollResponseObject.ReportRequestStatus.ReportDownloadUrl);
-    const csvData = Utilities.parseCsv(Utilities.unzip(downloadResponse.getBlob())[0].getDataAsString());
+    const downloadResponse = EnvironmentAdapter.fetch(pollResponseObject.ReportRequestStatus.ReportDownloadUrl);
+    const csvData = EnvironmentAdapter.parseCsv(EnvironmentAdapter.unzip(downloadResponse.getBlob())[0].getDataAsString());
 
     // Transform CSV to JSON
     const result = [];

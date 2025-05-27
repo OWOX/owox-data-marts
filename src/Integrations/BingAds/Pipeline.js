@@ -77,8 +77,8 @@ var BingAdsPipeline = class BingAdsPipeline extends AbstractPipeline {
     const endDate = new Date(startDate);
     endDate.setDate(endDate.getDate() + daysToFetch - 1);
     
-    const formattedStartDate = Utilities.formatDate(startDate, "UTC", "yyyy-MM-dd");
-    const formattedEndDate = Utilities.formatDate(endDate, "UTC", "yyyy-MM-dd");
+    const formattedStartDate = EnvironmentAdapter.formatDate(startDate, "UTC", "yyyy-MM-dd");
+    const formattedEndDate = EnvironmentAdapter.formatDate(endDate, "UTC", "yyyy-MM-dd");
 
     const data = this.connector.fetchData({ 
       nodeName, 
