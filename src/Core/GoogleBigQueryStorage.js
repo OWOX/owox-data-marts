@@ -324,11 +324,11 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
             if( ( columnType.toUpperCase() == "DATE") && (record[ columnName ] instanceof Date) ) {
 
-              columnValue = Utilities.formatDate( record[ columnName ], "UTC", "yyyy-MM-dd" );
+              columnValue = EnvironmentAdapter.formatDate( record[ columnName ], "UTC", "yyyy-MM-dd" );
 
             } else if( (columnType.toUpperCase() == "DATETIME") && (record[ columnName ] instanceof Date) ) {
 
-              columnValue = Utilities.formatDate( record[ columnName ], "UTC", "yyyy-MM-dd HH:mm:ss" );
+              columnValue = EnvironmentAdapter.formatDate( record[ columnName ], "UTC", "yyyy-MM-dd HH:mm:ss" );
 
             } else {
 

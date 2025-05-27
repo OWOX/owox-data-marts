@@ -61,7 +61,7 @@ class TiktokMarketingApiProvider {
         if (jsonData.code !== this.SUCCESS_CODE) {
           if (jsonData.code === this.RATE_LIMIT_CODE) {
             console.error("TikTok Marketing API rate limit exceeded. Retrying...");
-            Utilities.sleep(backoff);
+            EnvironmentAdapter.sleep(backoff);
             backoff *= 2;
             continue;
           }
@@ -71,7 +71,7 @@ class TiktokMarketingApiProvider {
         return jsonData;
       } catch (error) {
         if (retries < this.MAX_RETRIES - 1 && error.message.includes('rate limit')) {
-          Utilities.sleep(backoff);
+          EnvironmentAdapter.sleep(backoff);
           backoff *= 2;
         } else {
           throw error;
@@ -100,7 +100,7 @@ class TiktokMarketingApiProvider {
       page++;
 
       if (hasMorePages) {
-        Utilities.sleep(100);
+        EnvironmentAdapter.sleep(100);
       }
     }
 
