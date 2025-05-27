@@ -6,200 +6,333 @@
  */
 // API Documentation: https://learn.microsoft.com/en-us/advertising/reporting-service/reporting-service-reference
 
-var BingConnector = class BingConnector extends AbstractConnector {
-  //---- constructor -------------------------------------------------
-    constructor(config) {
-      //fields parsing
-        let fields = config.Fields.value.split(",");
-        let storageKeys = [];
-        let storageFields = {};
-        for (var i = 0; i < fields.length; i++) {
-          fields[i] = fields[i].trim();
-          if (fields[i].indexOf("Id") != -1) storageKeys.push(fields[i]);
-          storageFields[fields[i]] = {
-            type: "string",
-            description: ""
-          };
-        }
-        if (fields.includes("TimePeriod")) storageKeys.push("TimePeriod");
+var BingAdsConnector = class BingAdsConnector extends AbstractConnector {
+  constructor(config) {
+    super(config.mergeParameters({
+      DeveloperToken: {
+        isRequired: true,
+        requiredType: "string",
+        displayName: "Developer Token",
+        description: "Your Bing Ads API Developer Token"
+      },
+      ClientID: {
+        isRequired: true,
+        requiredType: "string",
+        displayName: "Client ID",
+        description: "Your Bing Ads API Client ID"
+      },
+      ClientSecret: {
+        isRequired: true,
+        requiredType: "string",
+        displayName: "Client Secret",
+        description: "Your Bing Ads API Client Secret"
+      },
+      RefreshToken: {
+        isRequired: true,
+        requiredType: "string",
+        displayName: "Refresh Token",
+        description: "Your Bing Ads API Refresh Token"
+      },
+      AccountID: {
+        isRequired: true,
+        requiredType: "string",
+        displayName: "Account ID",
+        description: "Your Bing Ads Account ID"
+      },
+      CustomerID: {
+        isRequired: true,
+        requiredType: "string",
+        displayName: "Customer ID",
+        description: "Your Bing Ads Customer ID"
+      },
+      ReimportLookbackWindow: {
+        requiredType: "number",
+        isRequired: true,
+        default: 2,
+        displayName: "Reimport Lookback Window",
+        description: "Number of days to look back when reimporting data"
+      },
+      MaxFetchingDays: {
+        requiredType: "number",
+        isRequired: true,
+        default: 30,
+        displayName: "Max Fetching Days",
+        description: "Maximum number of days to fetch data for"
+      },
+      ReportTimezone: {
+        requiredType: "string",
+        default: "GreenwichMeanTimeDublinEdinburghLisbonLondon",
+        displayName: "Report Timezone",
+        description: "Timezone for the report data"
+      },
+      Aggregation: {
+        requiredType: "string",
+        default: "Daily",
+        displayName: "Aggregation",
+        description: "Aggregation for reports (e.g. Daily, Weekly, Monthly)"
+      }
+    }));
 
-      super(config.mergeParameters({
-        AccountID: {
-          isRequired: true,
-          requiredType: "string"
-        },
-        CustomerID: {
-          isRequired: true,
-          requiredType: "string"
-        },
-        DeveloperToken: {
-          isRequired: true,
-          requiredType: "string"
-        },
-        ClientID: {
-          isRequired: true,
-          requiredType: "string"
-        },
-        ClientSecret: {
-          isRequired: true,
-          requiredType: "string"
-        },
-        RefreshToken: {
-          isRequired: true,
-          requiredType: "string"
-        },
-        StartDate: {
-          isRequired: true,
-          requiredType: "date",
-          default: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-        },
-        EndDate: {
-          requiredType: "date",
-        },
-        Fields: { //for Bing Ads API
-          isRequired: true,
-          value: fields
-        },
-        Schema: { //for Google Sheets Storage
-          isRequired: true,
-          value: storageFields
-        },
-        UniqueKeys: { //for Google Sheets Storage
-          isRequired: true,
-          value: storageKeys
-        },
-        ReportTimezone: {
-          isRequired: true,
-          requiredType: "string"
-        },
-        ReimportLookbackWindow: {
-          requiredType: "number",
-          isRequired: true
-        },
-        MaxFetchingDays: {
-          requiredType: "number",
-          isRequired: true,
-          value: 30
-        }
-      }));
+    this.fieldsSchema = BingAdsFieldsSchema;
+  }
+
+  /**
+   * Returns credential fields for this connector
+   */
+  getCredentialFields() {
+    return {
+      DeveloperToken: this.config.DeveloperToken,
+      ClientID: this.config.ClientID,
+      ClientSecret: this.config.ClientSecret,
+      RefreshToken: this.config.RefreshToken
+    };
+  }
+
+  /**
+   * Get access token using refresh token
+   */
+  getAccessToken() {
+    const url = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
+    const options = {
+      "method": 'post',
+      "contentType": "application/x-www-form-urlencoded",
+      "headers": {"Content-Type": "application/x-www-form-urlencoded"},
+      "payload": {
+        "client_id": this.config.ClientID.value,
+        "scope": "https://ads.microsoft.com/ads.manage",
+        "refresh_token": this.config.RefreshToken.value,
+        "grant_type": "refresh_token",
+        "client_secret": this.config.ClientSecret.value
+      }
+    };
+    
+    const response = UrlFetchApp.fetch(url, options);
+    const responseObject = JSON.parse(response.getContentText());
+    this.config.AccessToken = {
+      value: responseObject.access_token
+    };
+  }
+
+  /**
+   * Single entry point for all fetches
+   * @param {Object} opts
+   * @param {string} opts.nodeName
+   * @param {string} opts.accountId
+   * @param {Array<string>} opts.fields
+   * @param {string} [opts.start_time]
+   * @param {string} [opts.end_time]
+   * @returns {Array<Object>}
+   */
+  fetchData({ nodeName, accountId, fields = [], start_time, end_time }) {
+    if (this.fieldsSchema[nodeName].uniqueKeys) {
+      const uniqueKeys = this.fieldsSchema[nodeName].uniqueKeys;
+      const missingKeys = uniqueKeys.filter(key => !fields.includes(key));
+      
+      if (missingKeys.length > 0) {
+        throw new Error(`Missing required unique fields for endpoint '${nodeName}'. Missing fields: ${missingKeys.join(', ')}`);
+      }
     }
-    //----------------------------------------------------------------
-  
-  //---- getAccessToken ----------------------------------------------
-    getAccessToken() {
-      // request configuration
-        const url = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
-        const options = {
-          "method": 'post',
-          "contentType": "application/x-www-form-urlencoded",
-          "headers": {"Content-Type": "application/x-www-form-urlencoded"},
-          "payload": {
-            "client_id": this.config.ClientID.value,
-            "scope": "https://ads.microsoft.com/ads.manage",
-            "refresh_token": this.config.RefreshToken.value,
-            "grant_type": "refresh_token",
-            "client_secret": this.config.ClientSecret.value
-          }
-          //'muteHttpExceptions': true
-        };
-      
-      // request execution
-        const response = UrlFetchApp.fetch(url, options);
-      
-      // access token updating
-        const responseObject = JSON.parse(response.getContentText());
-        const accessToken = responseObject.access_token;
-        this.config.AccessToken = {
-          value: accessToken
-        };
+
+    switch (nodeName) {
+      case 'ad_performance_report':
+        return this._fetchAdPerformanceReport({ accountId, fields, start_time, end_time });
+      case 'campaigns':
+        return this._fetchCampaigns({ accountId, fields });
+      default:
+        throw new Error(`Unknown node: ${nodeName}`);
     }
-    //----------------------------------------------------------------
-  
-  //---- fetchData ---------------------------------------------------
-    /**
-     * @param date The requested date as a Date object
-     * @return data array
-     */
-    fetchData(startDate, endDate) {
-      // initialization
-        let data = [];
-      
-      // date range definition
-        const dateRange = {
-          "CustomDateRangeStart": {
-            "Day": startDate.getDate(),
-            "Month": startDate.getMonth()+1,
-            "Year": startDate.getFullYear()
-          },
-          "CustomDateRangeEnd": {
-            "Day": endDate.getDate(),
-            "Month": endDate.getMonth()+1,
-            "Year": endDate.getFullYear()
-          },
-          "ReportTimeZone": this.config.ReportTimezone.value
-        };
+  }
 
-      // access token updating
-        this.getAccessToken();
-
-      // report request configuration
-        const submitUrl = "https://reporting.api.bingads.microsoft.com/Reporting/v13/GenerateReport/Submit";
-        const reportRequest = {
-          "ExcludeColumnHeaders": false,
-          "ExcludeReportFooter": true,
-          "ExcludeReportHeader": true,
-          "ReportName": "Custom Report",
-          "ReturnOnlyCompleteData": false,
-          "Type": "AdPerformanceReportRequest",
-          "Aggregation": this.config.Aggregation.value,
-          "Columns": this.config.Fields.value,
-          "Scope": {"AccountIds": [Number(this.config.AccountID.value)]},
-          "Time": dateRange
-        };
-        const submitOptions = {
-          "method": "post",
-          "contentType": "application/json",
-          "headers": {
-            "Authorization": "Bearer "+this.config.AccessToken.value,
-            "CustomerAccountId": this.config.CustomerID.value+"|"+this.config.AccountID.value,
-            "CustomerId": this.config.CustomerID.value,
-            "DeveloperToken": this.config.DeveloperToken.value
-          },
-          "payload": JSON.stringify({"ReportRequest": reportRequest})
-          //"muteHttpExceptions": true
-        };
-
-      // report request execution
-        const submitResponse = UrlFetchApp.fetch(submitUrl, submitOptions);
-
-      // report request status check
-        var pollUrl = "https://reporting.api.bingads.microsoft.com/Reporting/v13/GenerateReport/Poll";
-        var pollOptions = JSON.parse(JSON.stringify(submitOptions));
-        pollOptions.payload = submitResponse.getContentText();
-        do {
-          const pollResponse = UrlFetchApp.fetch(pollUrl, pollOptions);
-          var pollResponseObject = JSON.parse(pollResponse.getContentText());
-        } while (pollResponseObject.ReportRequestStatus.Status != "Success");
-        
-      // report downloading
-        const downloadResponse = UrlFetchApp.fetch(pollResponseObject.ReportRequestStatus.ReportDownloadUrl);
-
-      // unzip and parsing data
-        const csvData = Utilities.parseCsv(Utilities.unzip(downloadResponse.getBlob())[0].getDataAsString());
-
-      // csv to json data transformation
-        for (var column = 0; column < csvData[0].length; column++) {
-          csvData[0][column] = csvData[0][column].replaceAll(/[^a-zA-Z0-9]/gi, "");
-        }
-        for (var row = 1; row < csvData.length; row++) {
-          var temporaryObject = {};
-          for (var column = 0; column < csvData[0].length; column++) {
-            temporaryObject[csvData[0][column]] = csvData[row][column];
-          }
-          data.push(temporaryObject);
-        }
-        
+  /**
+   * Filter data to include only specified fields
+   * @param {Array<Object>} data - Array of data objects
+   * @param {Array<string>} fields - Array of field names to include
+   * @returns {Array<Object>} Filtered data
+   * @private
+   */
+  _filterByFields(data, fields) {
+    if (!fields || !fields.length) {
       return data;
     }
-    //----------------------------------------------------------------
-}
+
+    return data.map(row => {
+      const filteredRow = {};
+      fields.forEach(field => {
+        if (field in row) {
+          filteredRow[field] = row[field];
+        }
+      });
+      return filteredRow;
+    });
+  }
+
+  /**
+   * Fetch campaign data using the Bulk API
+   * @param {Object} options
+   * @param {string} options.accountId - Account ID
+   * @param {Array<string>} options.fields - Fields to fetch
+   * @returns {Array<Object>} Array of campaign data
+   */
+  _fetchCampaigns({ accountId, fields }) {
+    // Update access token
+    this.getAccessToken();
+
+    // Step 1: Submit download request
+    const submitUrl = "https://bulk.api.bingads.microsoft.com/Bulk/v13/Campaigns/DownloadByAccountIds";
+    const submitOptions = {
+      "method": "post",
+      "contentType": "application/json",
+      "headers": {
+        "Authorization": "Bearer " + this.config.AccessToken.value,
+        "DeveloperToken": this.config.DeveloperToken.value,
+        "CustomerId": this.config.CustomerID.value,
+        "CustomerAccountId": accountId,
+        "Content-Type": "application/json"
+      },
+      "payload": JSON.stringify({
+        "AccountIds": [Number(accountId)],
+        "CompressionType": "Zip",
+        "DataScope": "EntityData",
+        "DownloadEntities": ["Keywords", "AdGroups", "Campaigns", "AssetGroups"],
+        "DownloadFileType": "Csv",
+        "FormatVersion": "6.0"
+      })
+    };
+
+    const submitResponse = UrlFetchApp.fetch(submitUrl, submitOptions);
+    const submitResult = JSON.parse(submitResponse.getContentText());
+    const requestId = submitResult.DownloadRequestId;
+
+    // Step 2: Poll for completion
+    const pollUrl = "https://bulk.api.bingads.microsoft.com/Bulk/v13/BulkDownloadStatus/Query";
+    const pollOptions = {
+      "method": "post",
+      "contentType": "application/json",
+      "headers": {
+        "Authorization": "Bearer " + this.config.AccessToken.value,
+        "DeveloperToken": this.config.DeveloperToken.value,
+        "CustomerId": this.config.CustomerID.value,
+        "CustomerAccountId": accountId,
+        "Content-Type": "application/json"
+      },
+      "payload": JSON.stringify({
+        "RequestId": requestId
+      })
+    };
+
+    let pollResult;
+    do {
+      Utilities.sleep(5000); // Wait 5 seconds between polls
+      const pollResponse = UrlFetchApp.fetch(pollUrl, pollOptions);
+      pollResult = JSON.parse(pollResponse.getContentText());
+    } while (pollResult.RequestStatus !== "Completed");
+
+    // Step 3: Download and process the file
+    const downloadResponse = UrlFetchApp.fetch(pollResult.ResultFileUrl);
+    const files = Utilities.unzip(downloadResponse.getBlob());
+    
+    // Process all data from the files
+    const allData = [];
+    for (const file of files) {
+      const csvData = Utilities.parseCsv(file.getDataAsString());
+
+      const filteredCsv = csvData.filter((row, idx) =>
+        idx === 0 || row[0] !== "Format Version"
+      );
+
+      const rawHeaders = filteredCsv[0];
+      const headers = rawHeaders.map(h => h.replace(/[^a-zA-Z0-9]/g, ""));
+
+      for (let i = 1; i < filteredCsv.length; i++) {
+        const rowObj = {};
+        for (let j = 0; j < headers.length; j++) {
+          rowObj[headers[j]] = filteredCsv[i][j];
+        }
+        allData.push(rowObj);
+      }
+    }
+
+    return this._filterByFields(allData, fields);
+  }
+
+  /**
+   * Fetch ad performance report data
+   */
+  _fetchAdPerformanceReport({ accountId, fields, start_time, end_time }) {
+    // Update access token
+    this.getAccessToken();
+
+    const dateRange = {
+      "CustomDateRangeStart": {
+        "Day": new Date(start_time).getDate(),
+        "Month": new Date(start_time).getMonth() + 1,
+        "Year": new Date(start_time).getFullYear()
+      },
+      "CustomDateRangeEnd": {
+        "Day": new Date(end_time).getDate(),
+        "Month": new Date(end_time).getMonth() + 1,
+        "Year": new Date(end_time).getFullYear()
+      },
+      "ReportTimeZone": this.config.ReportTimezone.value
+    };
+
+    // Report request configuration
+    const submitUrl = "https://reporting.api.bingads.microsoft.com/Reporting/v13/GenerateReport/Submit";
+    const reportRequest = {
+      "ExcludeColumnHeaders": false,
+      "ExcludeReportFooter": true,
+      "ExcludeReportHeader": true,
+      "ReportName": "Ad Performance Report",
+      "ReturnOnlyCompleteData": false,
+      "Type": "AdPerformanceReportRequest",
+      "Aggregation": this.config.Aggregation.value,
+      "Columns": fields,
+      "Scope": {"AccountIds": [Number(accountId)]},
+      "Time": dateRange
+    };
+
+    const submitOptions = {
+      "method": "post",
+      "contentType": "application/json",
+      "headers": {
+        "Authorization": "Bearer " + this.config.AccessToken.value,
+        "CustomerAccountId": this.config.CustomerID.value + "|" + accountId,
+        "CustomerId": this.config.CustomerID.value,
+        "DeveloperToken": this.config.DeveloperToken.value
+      },
+      "payload": JSON.stringify({"ReportRequest": reportRequest})
+    };
+
+    // Submit report request
+    const submitResponse = UrlFetchApp.fetch(submitUrl, submitOptions);
+
+    // Check report status
+    const pollUrl = "https://reporting.api.bingads.microsoft.com/Reporting/v13/GenerateReport/Poll";
+    const pollOptions = JSON.parse(JSON.stringify(submitOptions));
+    pollOptions.payload = submitResponse.getContentText();
+    
+    let pollResponseObject;
+    do {
+      const pollResponse = UrlFetchApp.fetch(pollUrl, pollOptions);
+      pollResponseObject = JSON.parse(pollResponse.getContentText());
+    } while (pollResponseObject.ReportRequestStatus.Status != "Success");
+
+    // Download and process report
+    const downloadResponse = UrlFetchApp.fetch(pollResponseObject.ReportRequestStatus.ReportDownloadUrl);
+    const csvData = Utilities.parseCsv(Utilities.unzip(downloadResponse.getBlob())[0].getDataAsString());
+
+    // Transform CSV to JSON
+    const result = [];
+    const headers = csvData[0].map(header => header.replaceAll(/[^a-zA-Z0-9]/gi, ""));
+    
+    for (let i = 1; i < csvData.length; i++) {
+      const row = {};
+      for (let j = 0; j < headers.length; j++) {
+        row[headers[j]] = csvData[i][j];
+      }
+      result.push(row);
+    }
+
+    return this._filterByFields(result, fields);
+  }
+};
