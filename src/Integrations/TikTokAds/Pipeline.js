@@ -6,6 +6,15 @@
  */
 
 var TikTokAdsPipeline = class TikTokAdsPipeline extends AbstractPipeline {
+  constructor(config, connector, storageName = "GoogleSheetsStorage") {
+    super(config.mergeParameters({
+      DestinationTableNamePrefix: {
+        default: "tiktok_ads_"
+      }
+    }), connector);
+
+    this.storageName = storageName;
+  }
 
   startImportProcess() {
     try {

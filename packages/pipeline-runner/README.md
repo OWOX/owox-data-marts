@@ -65,6 +65,9 @@ Pipelines are defined using JSON configuration files. These files specify the da
             },
             "ReimportLookbackWindow": {
                 "value": 5
+            },
+            "Fields": {
+                "value": "campaigns campaign_id, campaigns campaign_name"
             }
         }
     },
@@ -126,6 +129,9 @@ Pipelines are defined using JSON configuration files. These files specify the da
             },
             "ReimportLookbackWindow": {
                 "value": 1
+            },
+            "Fields": {
+                "value": "campaigns campaign_id, campaigns campaign_name"
             }
         }
     },
