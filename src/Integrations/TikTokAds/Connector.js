@@ -150,10 +150,10 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
     let formattedEndDate = null;
     
     if (startDate) {
-      formattedStartDate = Utilities.formatDate(startDate, "UTC", "yyyy-MM-dd");
+      formattedStartDate = EnvironmentAdapter.formatDate(startDate, "UTC", "yyyy-MM-dd");
       // If no end date is provided, use start date as end date (single day)
       formattedEndDate = endDate 
-        ? Utilities.formatDate(endDate, "UTC", "yyyy-MM-dd") 
+        ? EnvironmentAdapter.formatDate(endDate, "UTC", "yyyy-MM-dd") 
         : formattedStartDate;
     }
 

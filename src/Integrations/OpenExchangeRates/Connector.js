@@ -67,7 +67,7 @@ constructor(config) {
       symbols = '&symbols=' + String(this.config.Symbols.value).replace(/[^A-Z,]/g,"");
     }
    
-    var date = Utilities.formatDate(date, "UTC", "yyyy-MM-dd"); // The requested date in YYYY-MM-DD format (required)
+    var date = EnvironmentAdapter.formatDate(date, "UTC", "yyyy-MM-dd"); // The requested date in YYYY-MM-DD format (required)
     const url = `https://openexchangerates.org/api/historical/${date}.json?base=${base}${symbols}&app_id=${app_id}`;
     
     this.config.logMessage(`🔄 Fetching rates for ${date}`);
