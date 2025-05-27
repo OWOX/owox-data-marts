@@ -5,7 +5,6 @@
  * file that was distributed with this source code.
  */
 
-
 // Google Sheets Range with config data. Must me referes to a table with three columns: name, value and comment
 var CONFIG_RANGE = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Config').getRange("A:C");
 
