@@ -44,7 +44,7 @@ class TiktokMarketingApiProvider {
 
     for (let retries = 0; retries < this.MAX_RETRIES; retries++) {
       try {
-        const response = UrlFetchApp.fetch(url, {
+        const response = EnvironmentAdapter.fetch(url, {
           method: method,
           headers: headers,
           body: data ? JSON.stringify(data) : null,

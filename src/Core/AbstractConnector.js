@@ -72,7 +72,8 @@ class AbstractConnector {
     urlFetchWithRetry(url, options) {
       for (let attempt = 1; attempt <= this.config.MaxFetchRetries.value; attempt++) {
         try {
-          return this._executeRequest(url, options);
+          const response = EnvironmentAdapter.fetch(url, { ...options, muteHttpExceptions: true });
+          return this._validateResponse(response);
         }
         catch (error) {
           if (!this._shouldRetry(error, attempt)) {
@@ -82,25 +83,6 @@ class AbstractConnector {
           this._waitBeforeRetry(attempt);
         }
       }
-    }
-    
-  //---- _executeRequest --------------------------------------------
-    /**
-     * Executes the HTTP request based on the current environment
-     * @param {string} url - The URL to fetch
-     * @param {Object} options - Options for the fetch request
-     * @return {HTTPResponse} The response object
-     * @throws {HttpRequestException} If the request fails or returns an error status
-     * @private
-     */
-    _executeRequest(url, options) {
-      if (this.config.Environment.value === ENVIRONMENT.APPS_SCRIPT) {
-        const response = UrlFetchApp.fetch(url, { ...options, muteHttpExceptions: true });
-        
-        return this._validateResponse(response);
-      }
-      
-      throw new UnsupportedEnvironmentException(`Unsupported environment: ${this.config.Environment.value}`);
     }
     
   //---- _validateResponse ------------------------------------------
