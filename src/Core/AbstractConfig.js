@@ -35,7 +35,7 @@ class AbstractConfig {
       }
 
       if (typeof process !== 'undefined') {
-        return ENVIRONMENT.NODE_JS;
+        return ENVIRONMENT.NODE;
       }
 
       return ENVIRONMENT.UNKNOWN;

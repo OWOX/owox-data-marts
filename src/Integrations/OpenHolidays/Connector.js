@@ -46,7 +46,7 @@ var OpenHolidaysConnector = class OpenHolidaysConnector extends AbstractConnecto
         this.config.logMessage(`🔄 Fetching public holidays from OpenHolidays API`);
 
         try {
-            const response = UrlFetchApp.fetch(url, { method: 'get', muteHttpExceptions: true });
+            const response = EnvironmentAdapter.fetch(url, { method: 'get', muteHttpExceptions: true });
             const holidays = JSON.parse(response.getContentText());
 
             if (!holidays || !holidays.length) {

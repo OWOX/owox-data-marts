@@ -58,7 +58,7 @@ fetchData(startDate, endDate)  {
     
   this.config.logMessage(`🔄 Fetching data from ${start_date} to ${end_date}`);
 
-  var response = UrlFetchApp.fetch(url, {'method': 'get', 'muteHttpExceptions': true} );
+  var response = EnvironmentAdapter.fetch(url, {'method': 'get', 'muteHttpExceptions': true} );
   var rates = JSON.parse( response.getContentText() );
 
   rates["observations"].forEach((observation) => {

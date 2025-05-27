@@ -31,6 +31,35 @@ npm run pipeline-runner-node -- path/to/pipeline-config.json
 
 Pipelines are defined using JSON configuration files. These files specify the data source integration, storage, and all necessary configuration parameters.
 
+### Configuration Structure
+
+The pipeline configuration JSON file has the following structure:
+
+```json
+
+{
+    "name": "PipelineName", // The class name of the pipeline 
+    "description": "Pipeline Description", // The description of the pipeline
+    "integration": {
+        "name": "ConnectorName", // The class name of the connector
+        "directory": "ConnectorDirectoryName", // The connector directory name 
+        "config": {  // The connector configuration parameters. The parameters are defined in the connector constructor.
+            "ParameterName": {
+                "value": "ParameterValue"
+            }
+        }
+    },
+    "storage": {
+        "name": "StorageName", // The class name of the storage
+        "config": {  // The storage configuration parameters. The parameters are defined in the storage constructor.
+            "ParameterName": {
+                "value": "ParameterValue"
+            }
+        }
+    }
+}
+```
+
 ### Example Configurations
 
 #### TikTok Ads to Google BigQuery
@@ -41,6 +70,7 @@ Pipelines are defined using JSON configuration files. These files specify the da
     "description": "TikTok Ads Pipeline from xxx to Google BigQuery",
     "integration": {
         "name": "TikTokAdsConnector",
+        "directory": "TikTokAds",
         "config": {
             "AccessToken": {
                 "value": "YOUR_ACCESS_TOKEN"
@@ -105,6 +135,7 @@ Pipelines are defined using JSON configuration files. These files specify the da
     "description": "TikTok Ads Pipeline from xxx to AWS Athena",
     "integration": {
         "name": "TikTokAdsConnector",
+        "directory": "TikTokAds",
         "config": {
             "AccessToken": {
                 "value": "YOUR_ACCESS_TOKEN"

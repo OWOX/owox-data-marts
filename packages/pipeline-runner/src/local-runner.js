@@ -68,12 +68,20 @@ class Evaluator {
   
   evalFolder(folder) {
     console.log(`Evaluating folder: ${folder}`);
-    fs.readdirSync(folder).forEach((file) => {
+    const files = fs.readdirSync(folder);
+    
+    files.forEach((file) => {
       const filePath = path.resolve(folder, file);
       const stat = fs.statSync(filePath);
       if (stat.isDirectory()) {
         this.evalFolder(filePath);
-      } else if (file.endsWith(".js")) {
+      }
+    });
+
+    files.forEach((file) => {
+      const filePath = path.resolve(folder, file);
+      const stat = fs.statSync(filePath);
+      if (file.endsWith(".js")) {
         console.log(`Evaluating file: ${filePath}`);
         let code = fs.readFileSync(filePath, "utf-8");
         try {
@@ -85,11 +93,18 @@ class Evaluator {
     });
   }
   
-  eval() {
+  evalIntegration(integrationDirectory = "") {
+    this.evalFolder(path.resolve(this.DIR_INTEGRATIONS, integrationDirectory));
+    this.forceEval();
+  }
+
+  evalCore() {
     this.evalFolder(this.DIR_CONSTANTS);
     this.evalFolder(this.DIR_CORE);
-    this.evalFolder(this.DIR_INTEGRATIONS);
+    this.forceEval();
+  }
 
+  forceEval() {
     if (this.notEvaluatedFiles.length > 0) {
       for (const file of this.notEvaluatedFiles) {
         try {
@@ -118,8 +133,7 @@ if (process.argv.length < 3) {
 }
 
 const evaluator = new Evaluator();
-evaluator.eval();
-
+evaluator.evalCore();
 
 class NodeJsConfig extends AbstractConfig {
     constructor(filePath) {
@@ -135,12 +149,17 @@ class NodeJsConfig extends AbstractConfig {
       super(config);
 
       this.pipelineName = {value: rawConfig.name};
+      this.integrationDirectory = {value: rawConfig.integration.directory};
       this.integrationName = {value: rawConfig.integration.name};
       this.storageName = {value: rawConfig.storage.name};
     }
 
     getPipelineName() {
       return this.pipelineName.value;
+    }
+
+    getIntegrationDirectory() {
+      return this.integrationDirectory.value;
     }
 
     getIntegrationName() {
@@ -180,8 +199,11 @@ class NodeJsConfig extends AbstractConfig {
     }
   }
 
+
 const configFilePath = process.argv[2];
 const config = new NodeJsConfig(configFilePath);
+evaluator.evalIntegration(config.getIntegrationDirectory());
+
 const connector = new globalThis[config.getIntegrationName()](config);
 const pipeline = new globalThis[config.getPipelineName()](config, connector, config.getStorageName());
   

@@ -74,7 +74,7 @@ constructor(config) {
   
     console.log(url);
   
-    var response = UrlFetchApp.fetch(url, {'method': 'get', 'muteHttpExceptions': true} );
+    var response = EnvironmentAdapter.fetch(url, {'method': 'get', 'muteHttpExceptions': true} );
     var historical = JSON.parse( response.getContentText() );
   
     for (var currency in historical["rates"]) {

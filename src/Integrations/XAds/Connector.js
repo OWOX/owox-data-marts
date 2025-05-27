@@ -391,7 +391,7 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
     const finalUrl = url + qs;
 
     const oauth = this._generateOAuthHeader({ method: 'GET', url, params });
-    const resp  = UrlFetchApp.fetch(finalUrl, {
+    const resp  = EnvironmentAdapter.fetch(finalUrl, {
       method: 'GET',
       headers: { Authorization: oauth, 'Content-Type': 'application/json' },
       muteHttpExceptions: true
