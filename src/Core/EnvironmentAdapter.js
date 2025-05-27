@@ -218,48 +218,6 @@ class EnvironmentAdapter {
     }
 
     /**
-     * Wraps the response from the Apps Script environment.
-     * Not use directly, only for internal purposes.
-     * 
-     * @param {Object} response
-     * @returns {FetchResponse}
-     */
-    static _wrapAppsScriptResponse(response) {
-        return {
-            getHeaders: () => response.getAllHeaders(),
-            getAsJson: () => {
-                try { return JSON.parse(response.getContentText()); }
-                catch (e) { throw new Error("Invalid JSON response"); }
-            },
-            getContent: () => response.getContent(),
-            getContentText: () => response.getContentText(),
-            getResponseCode: () => response.getResponseCode()
-        };
-    }
-
-    /**
-     * Wraps the response from the Node environment.
-     * Not use directly, only for internal purposes.
-     * 
-     * @param {Object} response
-     * @returns {FetchResponse}
-     */
-    static _wrapNodeResponse(response) {
-        const headers = response.headers || {};
-        const text = response.body ? response.body.toString() : '';
-        return {
-            getHeaders: () => headers,
-            getAsJson: () => {
-                try { return JSON.parse(text); }
-                catch (e) { throw new Error("Invalid JSON response"); }
-            },
-            getContent: () => text,
-            getContentText: () => text,
-            getResponseCode: () => response.statusCode
-        };
-    }
-
-    /**
      * Parse CSV string into array of arrays
      * 
      * @param {string} csvString - The CSV string to parse
@@ -299,6 +257,50 @@ class EnvironmentAdapter {
         } else {
             throw new UnsupportedEnvironmentException("Unsupported environment");
         }
+    }
+
+    /**
+     * Wraps the response from the Apps Script environment.
+     * Not use directly, only for internal purposes.
+     * 
+     * @param {Object} response
+     * @returns {FetchResponse}
+     */
+    static _wrapAppsScriptResponse(response) {
+        return {
+            getHeaders: () => response.getAllHeaders(),
+            getAsJson: () => {
+                try { return JSON.parse(response.getContentText()); }
+                catch (e) { throw new Error("Invalid JSON response"); }
+            },
+            getContent: () => response.getContent(),
+            getContentText: () => response.getContentText(),
+            getBlob: () => response.getBlob(),
+            getResponseCode: () => response.getResponseCode()
+        };
+    }
+
+    /**
+     * Wraps the response from the Node environment.
+     * Not use directly, only for internal purposes.
+     * 
+     * @param {Object} response
+     * @returns {FetchResponse}
+     */
+    static _wrapNodeResponse(response) {
+        const headers = response.headers || {};
+        const text = response.body ? response.body.toString() : '';
+        return {
+            getHeaders: () => headers,
+            getAsJson: () => {
+                try { return JSON.parse(text); }
+                catch (e) { throw new Error("Invalid JSON response"); }
+            },
+            getContent: () => text,
+            getContentText: () => text,
+            getBlob: () => response.body,
+            getResponseCode: () => response.statusCode
+        };
     }
 
 }

@@ -72,12 +72,12 @@ var BingAdsConnector = class BingAdsConnector extends AbstractConnector {
         description: "Aggregation for reports (e.g. Daily, Weekly, Monthly)"
       }
     }));
-
     this.fieldsSchema = BingAdsFieldsSchema;
   }
 
   /**
    * Returns credential fields for this connector
+   * @returns {Object}
    */
   getCredentialFields() {
     return {
@@ -89,28 +89,25 @@ var BingAdsConnector = class BingAdsConnector extends AbstractConnector {
   }
 
   /**
-   * Get access token using refresh token
+   * Retrieve and store an OAuth access token using the refresh token
    */
   getAccessToken() {
-    const url = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
-    const options = {
-      "method": 'post',
-      "contentType": "application/x-www-form-urlencoded",
-      "headers": {"Content-Type": "application/x-www-form-urlencoded"},
-      "payload": {
-        "client_id": this.config.ClientID.value,
-        "scope": "https://ads.microsoft.com/ads.manage",
-        "refresh_token": this.config.RefreshToken.value,
-        "grant_type": "refresh_token",
-        "client_secret": this.config.ClientSecret.value
+    const tokenUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
+    const tokenOptions = {
+      method: 'post',
+      contentType: 'application/x-www-form-urlencoded',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      payload: {
+        client_id: this.config.ClientID.value,
+        scope: 'https://ads.microsoft.com/ads.manage',
+        refresh_token: this.config.RefreshToken.value,
+        grant_type: 'refresh_token',
+        client_secret: this.config.ClientSecret.value
       }
     };
-    
-    const response = EnvironmentAdapter.fetch(url, options);
-    const responseObject = JSON.parse(response.getContentText());
-    this.config.AccessToken = {
-      value: responseObject.access_token
-    };
+    const resp = EnvironmentAdapter.fetch(tokenUrl, tokenOptions);
+    const json = JSON.parse(resp.getContentText());
+    this.config.AccessToken = { value: json.access_token };
   }
 
   /**
@@ -124,218 +121,195 @@ var BingAdsConnector = class BingAdsConnector extends AbstractConnector {
    * @returns {Array<Object>}
    */
   fetchData({ nodeName, accountId, fields = [], start_time, end_time }) {
-    if (this.fieldsSchema[nodeName].uniqueKeys) {
-      const uniqueKeys = this.fieldsSchema[nodeName].uniqueKeys;
-      const missingKeys = uniqueKeys.filter(key => !fields.includes(key));
-      
-      if (missingKeys.length > 0) {
-        throw new Error(`Missing required unique fields for endpoint '${nodeName}'. Missing fields: ${missingKeys.join(', ')}`);
+    const schema = this.fieldsSchema[nodeName];
+    if (schema.uniqueKeys) {
+      const missingKeys = schema.uniqueKeys.filter(key => !fields.includes(key));
+      if (missingKeys.length) {
+        throw new Error(`Missing unique fields for '${nodeName}': ${missingKeys.join(', ')}`);
       }
     }
-
     switch (nodeName) {
-      case 'ad_performance_report':
-        return this._fetchAdPerformanceReport({ accountId, fields, start_time, end_time });
       case 'campaigns':
-        return this._fetchCampaigns({ accountId, fields });
+        return this._fetchCampaignData({ accountId, fields });
+      case 'ad_performance_report':
+        return this._fetchAdPerformanceData({ accountId, fields, start_time, end_time });
       default:
         throw new Error(`Unknown node: ${nodeName}`);
     }
   }
 
   /**
-   * Filter data to include only specified fields
-   * @param {Array<Object>} data - Array of data objects
-   * @param {Array<string>} fields - Array of field names to include
-   * @returns {Array<Object>} Filtered data
+   * Fetch campaign data using the Bulk API
+   * @param {Object} opts
+   * @param {string} opts.accountId
+   * @param {Array<string>} opts.fields
+   * @returns {Array<Object>}
    * @private
    */
-  _filterByFields(data, fields) {
-    if (!fields || !fields.length) {
-      return data;
-    }
+  _fetchCampaignData({ accountId, fields }) {
+    this.getAccessToken();
+    const submitUrl = 'https://bulk.api.bingads.microsoft.com/Bulk/v13/Campaigns/DownloadByAccountIds';
+    const submitOpts = {
+      method: 'post',
+      contentType: 'application/json',
+      headers: {
+        Authorization: `Bearer ${this.config.AccessToken.value}`,
+        DeveloperToken: this.config.DeveloperToken.value,
+        CustomerId: this.config.CustomerID.value,
+        CustomerAccountId: accountId,
+        'Content-Type': 'application/json'
+      },
+      payload: JSON.stringify({
+        AccountIds: [Number(accountId)],
+        CompressionType: 'Zip',
+        DataScope: 'EntityData',
+        DownloadEntities: ['Keywords','AdGroups','Campaigns','AssetGroups'],
+        DownloadFileType: 'Csv',
+        FormatVersion: '6.0'
+      })
+    };
+    const submitResp = EnvironmentAdapter.fetch(submitUrl, submitOpts);
+    const requestId = JSON.parse(submitResp.getContentText()).DownloadRequestId;
 
-    return data.map(row => {
-      const filteredRow = {};
-      fields.forEach(field => {
-        if (field in row) {
-          filteredRow[field] = row[field];
-        }
+    const pollUrl = 'https://bulk.api.bingads.microsoft.com/Bulk/v13/BulkDownloadStatus/Query';
+    const pollOpts = Object.assign({}, submitOpts, { payload: JSON.stringify({ RequestId: requestId }) });
+    const pollResult = this._pollUntilStatus({ url: pollUrl, options: pollOpts, isDone: status => status.RequestStatus === 'Completed' });
+
+    const csvRows = this._downloadCsvRows(pollResult.ResultFileUrl);
+    const records = this._csvRowsToObjects(csvRows);
+    return this._filterByFields(records, fields);
+  }
+
+  /**
+   * Fetch ad performance report data using the Reporting API
+   * @param {Object} opts
+   * @param {string} opts.accountId
+   * @param {Array<string>} opts.fields
+   * @param {string} opts.start_time
+   * @param {string} opts.end_time
+   * @returns {Array<Object>}
+   * @private
+   */
+  _fetchAdPerformanceData({ accountId, fields, start_time, end_time }) {
+    this.getAccessToken();
+    const dateRange = {
+      CustomDateRangeStart: { Day: new Date(start_time).getDate(), Month: new Date(start_time).getMonth() + 1, Year: new Date(start_time).getFullYear() },
+      CustomDateRangeEnd: { Day: new Date(end_time).getDate(), Month: new Date(end_time).getMonth() + 1, Year: new Date(end_time).getFullYear() },
+      ReportTimeZone: this.config.ReportTimezone.value
+    };
+    const submitUrl = 'https://reporting.api.bingads.microsoft.com/Reporting/v13/GenerateReport/Submit';
+    const requestBody = {
+      ExcludeColumnHeaders: false,
+      ExcludeReportFooter: true,
+      ExcludeReportHeader: true,
+      ReportName: 'Ad Performance Report',
+      ReturnOnlyCompleteData: false,
+      Type: 'AdPerformanceReportRequest',
+      Aggregation: this.config.Aggregation.value,
+      Columns: fields,
+      Scope: { AccountIds: [Number(accountId)] },
+      Time: dateRange
+    };
+    const submitOpts = {
+      method: 'post',
+      contentType: 'application/json',
+      headers: {
+        Authorization: `Bearer ${this.config.AccessToken.value}`,
+        CustomerAccountId: `${this.config.CustomerID.value}|${accountId}`,
+        CustomerId: this.config.CustomerID.value,
+        DeveloperToken: this.config.DeveloperToken.value
+      },
+      payload: JSON.stringify({ ReportRequest: requestBody })
+    };
+    const submitResp = EnvironmentAdapter.fetch(submitUrl, submitOpts);
+
+    const pollUrl = 'https://reporting.api.bingads.microsoft.com/Reporting/v13/GenerateReport/Poll';
+    const pollOpts = Object.assign({}, submitOpts, { payload: submitResp.getContentText() });
+    const pollResult = this._pollUntilStatus({ url: pollUrl, options: pollOpts, isDone: status => status.ReportRequestStatus.Status === 'Success' });
+
+    const csvRows = this._downloadCsvRows(pollResult.ReportRequestStatus.ReportDownloadUrl);
+    const records = this._csvRowsToObjects(csvRows);
+    return this._filterByFields(records, fields);
+  }
+
+  /**
+   * Poll the given URL until the provided isDone callback returns true, or until 30 minutes have elapsed
+   * @param {Object} opts
+   * @param {string} opts.url
+   * @param {Object} opts.options
+   * @param {function(Object): boolean} opts.isDone
+   * @param {number} [opts.interval=5000]
+   * @returns {Object}
+   * @private
+   */
+  _pollUntilStatus({ url, options, isDone, interval = 5000 }) {
+    const startTime = Date.now();
+    const timeout = 30 * 60 * 1000; // 30 minutes in ms
+    let statusResult;
+    do {
+      if (Date.now() - startTime > timeout) {
+        throw new Error('Polling timed out after 30 minutes');
+      }
+      EnvironmentAdapter.sleep(interval);
+      const response = EnvironmentAdapter.fetch(url, options);
+      statusResult = JSON.parse(response.getContentText());
+    } while (!isDone(statusResult));
+    return statusResult;
+  }
+
+  /**
+   * Download, unzip and parse CSV rows from the given URL
+   * @param {string} url
+   * @returns {Array<Array<string>>}
+   * @private
+   */
+  _downloadCsvRows(url) {
+    const response = EnvironmentAdapter.fetch(url);
+    const files = EnvironmentAdapter.unzip(response.getBlob());
+    const allRows = [];
+    files.forEach(file => {
+      const csvText = file.getDataAsString();
+      const rows = EnvironmentAdapter.parseCsv(csvText);
+      allRows.push(...rows);
+    });
+    return allRows;
+  }
+
+  /**
+   * Convert a 2D array of CSV rows into an array of objects
+   * @param {Array<Array<string>>} csvRows
+   * @returns {Array<Object>}
+   * @private
+   */
+  _csvRowsToObjects(csvRows) {
+    const filteredRows = csvRows.filter((row, idx) => idx === 0 || row[0] !== 'Format Version');
+    const headerNames = filteredRows[0].map(rawHeader => rawHeader.replace(/[^a-zA-Z0-9]/g, ''));
+    return filteredRows.slice(1).map(rowValues => {
+      const record = {};
+      headerNames.forEach((headerName, colIndex) => {
+        record[headerName] = rowValues[colIndex];
       });
-      return filteredRow;
+      return record;
     });
   }
 
   /**
-   * Fetch campaign data using the Bulk API
-   * @param {Object} options
-   * @param {string} options.accountId - Account ID
-   * @param {Array<string>} options.fields - Fields to fetch
-   * @returns {Array<Object>} Array of campaign data
+   * Filter data to include only specified fields
+   * @param {Array<Object>} data
+   * @param {Array<string>} fields
+   * @returns {Array<Object>}
+   * @private
    */
-  _fetchCampaigns({ accountId, fields }) {
-    // Update access token
-    this.getAccessToken();
-
-    // Step 1: Submit download request
-    const submitUrl = "https://bulk.api.bingads.microsoft.com/Bulk/v13/Campaigns/DownloadByAccountIds";
-    const submitOptions = {
-      "method": "post",
-      "contentType": "application/json",
-      "headers": {
-        "Authorization": "Bearer " + this.config.AccessToken.value,
-        "DeveloperToken": this.config.DeveloperToken.value,
-        "CustomerId": this.config.CustomerID.value,
-        "CustomerAccountId": accountId,
-        "Content-Type": "application/json"
-      },
-      "payload": JSON.stringify({
-        "AccountIds": [Number(accountId)],
-        "CompressionType": "Zip",
-        "DataScope": "EntityData",
-        "DownloadEntities": ["Keywords", "AdGroups", "Campaigns", "AssetGroups"],
-        "DownloadFileType": "Csv",
-        "FormatVersion": "6.0"
-      })
-    };
-
-    const submitResponse = EnvironmentAdapter.fetch(submitUrl, submitOptions);
-    const submitResult = JSON.parse(submitResponse.getContentText());
-    const requestId = submitResult.DownloadRequestId;
-
-    // Step 2: Poll for completion
-    const pollUrl = "https://bulk.api.bingads.microsoft.com/Bulk/v13/BulkDownloadStatus/Query";
-    const pollOptions = {
-      "method": "post",
-      "contentType": "application/json",
-      "headers": {
-        "Authorization": "Bearer " + this.config.AccessToken.value,
-        "DeveloperToken": this.config.DeveloperToken.value,
-        "CustomerId": this.config.CustomerID.value,
-        "CustomerAccountId": accountId,
-        "Content-Type": "application/json"
-      },
-      "payload": JSON.stringify({
-        "RequestId": requestId
-      })
-    };
-
-    let pollResult;
-    do {
-      EnvironmentAdapter.sleep(5000); // Wait 5 seconds between polls
-      const pollResponse = EnvironmentAdapter.fetch(pollUrl, pollOptions);
-      pollResult = JSON.parse(pollResponse.getContentText());
-    } while (pollResult.RequestStatus !== "Completed");
-
-    // Step 3: Download and process the file
-    const downloadResponse = EnvironmentAdapter.fetch(pollResult.ResultFileUrl);
-    const files = EnvironmentAdapter.unzip(downloadResponse.getBlob());
-    
-    // Process all data from the files
-    const allData = [];
-    for (const file of files) {
-      const csvData = EnvironmentAdapter.parseCsv(file.getDataAsString());
-
-      const filteredCsv = csvData.filter((row, idx) =>
-        idx === 0 || row[0] !== "Format Version"
-      );
-
-      const rawHeaders = filteredCsv[0];
-      const headers = rawHeaders.map(h => h.replace(/[^a-zA-Z0-9]/g, ""));
-
-      for (let i = 1; i < filteredCsv.length; i++) {
-        const rowObj = {};
-        for (let j = 0; j < headers.length; j++) {
-          rowObj[headers[j]] = filteredCsv[i][j];
+  _filterByFields(data, fields) {
+    if (!fields.length) return data;
+    return data.map(record => {
+      const filteredRecord = {};
+      fields.forEach(fieldName => {
+        if (fieldName in record) {
+          filteredRecord[fieldName] = record[fieldName];
         }
-        allData.push(rowObj);
-      }
-    }
-
-    return this._filterByFields(allData, fields);
-  }
-
-  /**
-   * Fetch ad performance report data
-   */
-  _fetchAdPerformanceReport({ accountId, fields, start_time, end_time }) {
-    // Update access token
-    this.getAccessToken();
-
-    const dateRange = {
-      "CustomDateRangeStart": {
-        "Day": new Date(start_time).getDate(),
-        "Month": new Date(start_time).getMonth() + 1,
-        "Year": new Date(start_time).getFullYear()
-      },
-      "CustomDateRangeEnd": {
-        "Day": new Date(end_time).getDate(),
-        "Month": new Date(end_time).getMonth() + 1,
-        "Year": new Date(end_time).getFullYear()
-      },
-      "ReportTimeZone": this.config.ReportTimezone.value
-    };
-
-    // Report request configuration
-    const submitUrl = "https://reporting.api.bingads.microsoft.com/Reporting/v13/GenerateReport/Submit";
-    const reportRequest = {
-      "ExcludeColumnHeaders": false,
-      "ExcludeReportFooter": true,
-      "ExcludeReportHeader": true,
-      "ReportName": "Ad Performance Report",
-      "ReturnOnlyCompleteData": false,
-      "Type": "AdPerformanceReportRequest",
-      "Aggregation": this.config.Aggregation.value,
-      "Columns": fields,
-      "Scope": {"AccountIds": [Number(accountId)]},
-      "Time": dateRange
-    };
-
-    const submitOptions = {
-      "method": "post",
-      "contentType": "application/json",
-      "headers": {
-        "Authorization": "Bearer " + this.config.AccessToken.value,
-        "CustomerAccountId": this.config.CustomerID.value + "|" + accountId,
-        "CustomerId": this.config.CustomerID.value,
-        "DeveloperToken": this.config.DeveloperToken.value
-      },
-      "payload": JSON.stringify({"ReportRequest": reportRequest})
-    };
-
-    // Submit report request
-    const submitResponse = EnvironmentAdapter.fetch(submitUrl, submitOptions);
-
-    // Check report status
-    const pollUrl = "https://reporting.api.bingads.microsoft.com/Reporting/v13/GenerateReport/Poll";
-    const pollOptions = JSON.parse(JSON.stringify(submitOptions));
-    pollOptions.payload = submitResponse.getContentText();
-    
-    let pollResponseObject;
-    do {
-      const pollResponse = EnvironmentAdapter.fetch(pollUrl, pollOptions);
-      pollResponseObject = JSON.parse(pollResponse.getContentText());
-      if (pollResponseObject.ReportRequestStatus.Status != "Success") {
-        EnvironmentAdapter.sleep(5000); // Wait 5 seconds between polls
-      }
-    } while (pollResponseObject.ReportRequestStatus.Status != "Success");
-
-    // Download and process report
-    const downloadResponse = EnvironmentAdapter.fetch(pollResponseObject.ReportRequestStatus.ReportDownloadUrl);
-    const csvData = EnvironmentAdapter.parseCsv(EnvironmentAdapter.unzip(downloadResponse.getBlob())[0].getDataAsString());
-
-    // Transform CSV to JSON
-    const result = [];
-    const headers = csvData[0].map(header => header.replaceAll(/[^a-zA-Z0-9]/gi, ""));
-    
-    for (let i = 1; i < csvData.length; i++) {
-      const row = {};
-      for (let j = 0; j < headers.length; j++) {
-        row[headers[j]] = csvData[i][j];
-      }
-      result.push(row);
-    }
-
-    return this._filterByFields(result, fields);
+      });
+      return filteredRecord;
+    });
   }
 };
