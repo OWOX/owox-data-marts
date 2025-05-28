@@ -314,7 +314,7 @@ var LinkedInConnector = class LinkedInConnector extends AbstractConnector {
     const mergedHeaders = { ...defaultHeaders, ...headers };
     const authUrl = `${url}${url.includes('?') ? '&' : '?'}oauth2_access_token=${this.config.AccessToken.value}`;
     
-    const response = UrlFetchApp.fetch(authUrl, { headers: mergedHeaders });
+    const response = EnvironmentAdapter.fetch(authUrl, { headers: mergedHeaders });
     const result = JSON.parse(response.getContentText());
     
     console.log(`LinkedIn ${this.apiType} API Response:`, JSON.stringify(result, null, 2));

@@ -123,7 +123,7 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
    * @returns {Array<Object>}
    */
   fetchData({ nodeName, accountId, fields = [], start_time, end_time }) {
-    Utilities.sleep(this.config.AdsApiDelay.value * 1000);
+    EnvironmentAdapter.sleep(this.config.AdsApiDelay.value * 1000);
 
     switch (nodeName) {
       case 'accounts': {
@@ -334,7 +334,7 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
     // extend end_time by one day
     const e = new Date(end_time);
     e.setDate(e.getDate() + 1);
-    const endStr = Utilities.formatDate(e, 'UTC', 'yyyy-MM-dd');
+    const endStr = EnvironmentAdapter.formatDate(e, 'UTC', 'yyyy-MM-dd');
 
     const result = [];
     for (let i = 0; i < ids.length; i += this.config.StatsMaxEntityIds.value) {
@@ -485,7 +485,7 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
     const { ConsumerKey, ConsumerSecret, AccessToken, AccessTokenSecret } = this.config;
     const oauth = {
       oauth_consumer_key: ConsumerKey.value,
-      oauth_nonce: Utilities.getUuid().replace(/-/g,''),
+      oauth_nonce: EnvironmentAdapter.getUuid().replace(/-/g,''),
       oauth_signature_method:'HMAC-SHA1',
       oauth_timestamp: Math.floor(Date.now()/1000),
       oauth_token: AccessToken.value,
@@ -502,9 +502,9 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
       )
     ].join('&');
     const signingKey = encodeURIComponent(ConsumerSecret.value) + '&' + encodeURIComponent(AccessTokenSecret.value);
-    oauth.oauth_signature = Utilities.base64Encode(
-      Utilities.computeHmacSignature(
-        Utilities.MacAlgorithm.HMAC_SHA_1,
+    oauth.oauth_signature = EnvironmentAdapter.base64Encode(
+      EnvironmentAdapter.computeHmacSignature(
+        EnvironmentAdapter.MacAlgorithm.HMAC_SHA_1,
         baseString,
         signingKey
       )

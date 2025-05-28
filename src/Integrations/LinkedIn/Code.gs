@@ -1,3 +1,10 @@
+/**
+ * Copyright (c) OWOX, Inc.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
 // Google Sheets Range with config data. Must refer to a table with three columns: name, value and comment
 var CONFIG_RANGE = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Config').getRange("A:C");
 

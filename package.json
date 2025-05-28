@@ -1,0 +1,21 @@
+{
+  "name": "owox-data-marts",
+  "version": "0.0.0",
+  "description": "OWOX Data Marts",
+  "homepage": "https://github.com/OWOX/owox-data-marts#readme",
+  "bugs": {
+    "url": "https://github.com/OWOX/owox-data-marts/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OWOX/owox-data-marts.git"
+  },
+  "license": "ELv2",
+  "author": "OWOX",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "pipeline-runner:node": "npm run pipeline-runner-node --workspace=packages/pipeline-runner"
+  }
+}
