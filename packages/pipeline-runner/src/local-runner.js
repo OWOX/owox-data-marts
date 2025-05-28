@@ -8,6 +8,9 @@ global.deasync = deasync;
 const request = require("sync-request");
 global.request = request;
 
+const AdmZip = require('adm-zip');
+global.AdmZip = AdmZip;
+
 const {BigQuery} = require('@google-cloud/bigquery');
 global.BigQuery = BigQuery;
 
