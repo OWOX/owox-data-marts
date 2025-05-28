@@ -93,17 +93,21 @@ var BingAdsConnector = class BingAdsConnector extends AbstractConnector {
    */
   getAccessToken() {
     const tokenUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
+    const form = {
+      client_id: this.config.ClientID.value,
+      scope: 'https://ads.microsoft.com/ads.manage',
+      refresh_token: this.config.RefreshToken.value,
+      grant_type: 'refresh_token',
+      client_secret: this.config.ClientSecret.value
+    };
     const tokenOptions = {
       method: 'post',
       contentType: 'application/x-www-form-urlencoded',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      payload: {
-        client_id: this.config.ClientID.value,
-        scope: 'https://ads.microsoft.com/ads.manage',
-        refresh_token: this.config.RefreshToken.value,
-        grant_type: 'refresh_token',
-        client_secret: this.config.ClientSecret.value
-      }
+      payload: form,
+      body: Object.entries(form)
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+        .join('&') // TODO: body is for Node.js; refactor to centralize JSON option creation
     };
     const resp = EnvironmentAdapter.fetch(tokenUrl, tokenOptions);
     const json = JSON.parse(resp.getContentText());
@@ -149,6 +153,14 @@ var BingAdsConnector = class BingAdsConnector extends AbstractConnector {
   _fetchCampaignData({ accountId, fields }) {
     this.getAccessToken();
     const submitUrl = 'https://bulk.api.bingads.microsoft.com/Bulk/v13/Campaigns/DownloadByAccountIds';
+    const downloadBody = {
+      AccountIds: [Number(accountId)],
+      CompressionType: 'Zip',
+      DataScope: 'EntityData',
+      DownloadEntities: ['Keywords','AdGroups','Campaigns','AssetGroups'],
+      DownloadFileType: 'Csv',
+      FormatVersion: '6.0'
+    };
     const submitOpts = {
       method: 'post',
       contentType: 'application/json',
@@ -159,25 +171,19 @@ var BingAdsConnector = class BingAdsConnector extends AbstractConnector {
         CustomerAccountId: accountId,
         'Content-Type': 'application/json'
       },
-      payload: JSON.stringify({
-        AccountIds: [Number(accountId)],
-        CompressionType: 'Zip',
-        DataScope: 'EntityData',
-        DownloadEntities: ['Keywords','AdGroups','Campaigns','AssetGroups'],
-        DownloadFileType: 'Csv',
-        FormatVersion: '6.0'
-      })
+      payload: JSON.stringify(downloadBody),
+      body: JSON.stringify(downloadBody) // TODO: body is for Node.js; refactor to centralize JSON option creation
     };
     const submitResp = EnvironmentAdapter.fetch(submitUrl, submitOpts);
     const requestId = JSON.parse(submitResp.getContentText()).DownloadRequestId;
 
     const pollUrl = 'https://bulk.api.bingads.microsoft.com/Bulk/v13/BulkDownloadStatus/Query';
-    const pollOpts = Object.assign({}, submitOpts, { payload: JSON.stringify({ RequestId: requestId }) });
-    const pollResult = this._pollUntilStatus({ url: pollUrl, options: pollOpts, isDone: status => status.RequestStatus === 'Completed' });
+    const pollOpts = Object.assign({}, submitOpts, { payload: JSON.stringify({ RequestId: requestId }), body: JSON.stringify({ RequestId: requestId }) });
+    const pollResult = BingAdsHelper.pollUntilStatus({ url: pollUrl, options: pollOpts, isDone: status => status.RequestStatus === 'Completed' });
 
-    const csvRows = this._downloadCsvRows(pollResult.ResultFileUrl);
-    const records = this._csvRowsToObjects(csvRows);
-    return this._filterByFields(records, fields);
+    const csvRows = BingAdsHelper.downloadCsvRows(pollResult.ResultFileUrl);
+    const records = BingAdsHelper.csvRowsToObjects(csvRows);
+    return BingAdsHelper.filterByFields(records, fields);
   }
 
   /**
@@ -217,99 +223,20 @@ var BingAdsConnector = class BingAdsConnector extends AbstractConnector {
         Authorization: `Bearer ${this.config.AccessToken.value}`,
         CustomerAccountId: `${this.config.CustomerID.value}|${accountId}`,
         CustomerId: this.config.CustomerID.value,
-        DeveloperToken: this.config.DeveloperToken.value
+        DeveloperToken: this.config.DeveloperToken.value,
+        'Content-Type': 'application/json'
       },
-      payload: JSON.stringify({ ReportRequest: requestBody })
+      payload: JSON.stringify({ ReportRequest: requestBody }),
+      body: JSON.stringify({ ReportRequest: requestBody }) // TODO: body is for Node.js; refactor to centralize JSON option creation
     };
     const submitResp = EnvironmentAdapter.fetch(submitUrl, submitOpts);
 
     const pollUrl = 'https://reporting.api.bingads.microsoft.com/Reporting/v13/GenerateReport/Poll';
-    const pollOpts = Object.assign({}, submitOpts, { payload: submitResp.getContentText() });
-    const pollResult = this._pollUntilStatus({ url: pollUrl, options: pollOpts, isDone: status => status.ReportRequestStatus.Status === 'Success' });
+    const pollOpts = Object.assign({}, submitOpts, { payload: submitResp.getContentText(), body: submitResp.getContentText() });
+    const pollResult = BingAdsHelper.pollUntilStatus({ url: pollUrl, options: pollOpts, isDone: status => status.ReportRequestStatus.Status === 'Success' });
 
-    const csvRows = this._downloadCsvRows(pollResult.ReportRequestStatus.ReportDownloadUrl);
-    const records = this._csvRowsToObjects(csvRows);
-    return this._filterByFields(records, fields);
-  }
-
-  /**
-   * Poll the given URL until the provided isDone callback returns true, or until 30 minutes have elapsed
-   * @param {Object} opts
-   * @param {string} opts.url
-   * @param {Object} opts.options
-   * @param {function(Object): boolean} opts.isDone
-   * @param {number} [opts.interval=5000]
-   * @returns {Object}
-   * @private
-   */
-  _pollUntilStatus({ url, options, isDone, interval = 5000 }) {
-    const startTime = Date.now();
-    const timeout = 30 * 60 * 1000; // 30 minutes in ms
-    let statusResult;
-    do {
-      if (Date.now() - startTime > timeout) {
-        throw new Error('Polling timed out after 30 minutes');
-      }
-      EnvironmentAdapter.sleep(interval);
-      const response = EnvironmentAdapter.fetch(url, options);
-      statusResult = JSON.parse(response.getContentText());
-    } while (!isDone(statusResult));
-    return statusResult;
-  }
-
-  /**
-   * Download, unzip and parse CSV rows from the given URL
-   * @param {string} url
-   * @returns {Array<Array<string>>}
-   * @private
-   */
-  _downloadCsvRows(url) {
-    const response = EnvironmentAdapter.fetch(url);
-    const files = EnvironmentAdapter.unzip(response.getBlob());
-    const allRows = [];
-    files.forEach(file => {
-      const csvText = file.getDataAsString();
-      const rows = EnvironmentAdapter.parseCsv(csvText);
-      allRows.push(...rows);
-    });
-    return allRows;
-  }
-
-  /**
-   * Convert a 2D array of CSV rows into an array of objects
-   * @param {Array<Array<string>>} csvRows
-   * @returns {Array<Object>}
-   * @private
-   */
-  _csvRowsToObjects(csvRows) {
-    const filteredRows = csvRows.filter((row, idx) => idx === 0 || row[0] !== 'Format Version');
-    const headerNames = filteredRows[0].map(rawHeader => rawHeader.replace(/[^a-zA-Z0-9]/g, ''));
-    return filteredRows.slice(1).map(rowValues => {
-      const record = {};
-      headerNames.forEach((headerName, colIndex) => {
-        record[headerName] = rowValues[colIndex];
-      });
-      return record;
-    });
-  }
-
-  /**
-   * Filter data to include only specified fields
-   * @param {Array<Object>} data
-   * @param {Array<string>} fields
-   * @returns {Array<Object>}
-   * @private
-   */
-  _filterByFields(data, fields) {
-    if (!fields.length) return data;
-    return data.map(record => {
-      const filteredRecord = {};
-      fields.forEach(fieldName => {
-        if (fieldName in record) {
-          filteredRecord[fieldName] = record[fieldName];
-        }
-      });
-      return filteredRecord;
-    });
+    const csvRows = BingAdsHelper.downloadCsvRows(pollResult.ReportRequestStatus.ReportDownloadUrl);
+    const records = BingAdsHelper.csvRowsToObjects(csvRows);
+    return BingAdsHelper.filterByFields(records, fields);
   }
 };
