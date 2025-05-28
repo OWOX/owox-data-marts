@@ -208,9 +208,7 @@ class TiktokMarketingApiProvider {
       end_date: endDate
     };
 
-    const url = this.buildUrl('report/integrated/get/', params);
-    const response = this.makeRequest({ url, method: 'GET' });
-    return response.data.list;
+    return this.handlePagination('report/integrated/get/', params);
   }
   
   getAudiences(advertiserId) {
@@ -219,8 +217,6 @@ class TiktokMarketingApiProvider {
       advertiser_id: advertiserId
     };
 
-    const url = this.buildUrl('dmp/custom_audience/list/', params);
-    const response = this.makeRequest({ url, method: 'GET' });
-    return response.data.list;
+    return this.handlePagination('dmp/custom_audience/list/', params);
   }
 }
