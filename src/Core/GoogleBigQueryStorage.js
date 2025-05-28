@@ -392,8 +392,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
           this.config.ProjectID.value
         );
       }
-
-      if (this.config.Environment.value === ENVIRONMENT.NODE_JS) {
+      if (this.config.Environment.value === ENVIRONMENT.NODE) {
         let result = undefined;
         let error = undefined;
         const bigqueryClient = new BigQuery();

@@ -168,6 +168,7 @@ class AbstractPipeline {
      * calculates start date and days to fetch time series data
      * @return StartData (date) and daysToFetch (integer)
      */
+  // TODO (Node version): ensure config dates are actual Date objects — if they’re strings, wrap with new Date(...)
     getStartDateAndDaysToFetch() {
 
       let startDate = this.config.StartDate.value;
