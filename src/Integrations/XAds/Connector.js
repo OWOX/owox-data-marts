@@ -399,7 +399,7 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
 
     const oauth = this._generateOAuthHeader({ method: 'GET', url, params });
     
-    Utilities.sleep(300);
+    EnvironmentAdapter.sleep(300);
     
     const resp = this.urlFetchWithRetry(finalUrl, {
       method: 'GET',
