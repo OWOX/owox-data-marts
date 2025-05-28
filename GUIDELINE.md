@@ -252,6 +252,38 @@ static computeHmacSignature(algorithm: string, data: string, key: string): strin
 
 **Returns**: HMAC signature as hex string
 
+#### `parseCsv(csvString)`
+
+Parses CSV string into array of arrays.
+
+```javascript
+static parseCsv(csvString: string): Array<Array<string>>
+```
+
+**Parameters**:
+
+- `csvString` (string): The CSV string to parse
+
+**Returns**: Array of arrays containing parsed CSV data
+
+**Note**: Each inner array represents a row, with cells as string values
+
+#### `unzip(data)`
+
+Unzips blob/buffer data.
+
+```javascript
+static unzip(data: Blob|Buffer): Array<{getDataAsString: Function}>
+```
+
+**Parameters**:
+
+- `data` (Blob|Buffer): The data to unzip
+
+**Returns**: Array of file-like objects with `getDataAsString` method
+
+**Note**: In Node.js environment requires `adm-zip` package
+
 ### Usage Examples
 
 #### Making HTTP Requests
@@ -363,6 +395,34 @@ console.log("HMAC signature:", signature);
 console.log("Starting operation...");
 EnvironmentAdapter.sleep(2000); // Wait 2 seconds
 console.log("Operation completed after delay");
+```
+
+##### Parse CSV
+
+```javascript
+const csvString = "name,age,city\nJohn,30,New York\nJane,25,London";
+const parsedData = EnvironmentAdapter.parseCsv(csvString);
+console.log("Parsed CSV:", parsedData);
+// Output: [
+//   ["name", "age", "city"],
+//   ["John", "30", "New York"],
+//   ["Jane", "25", "London"]
+// ]
+```
+
+##### Unzip Data
+
+```javascript
+// Assuming you have zip data from an API response or file
+const response = EnvironmentAdapter.fetch("https://example.com/data.zip");
+const zipData = response.getContent();
+const unzippedFiles = EnvironmentAdapter.unzip(zipData);
+
+// Read contents of each file
+unzippedFiles.forEach(file => {
+    const content = file.getDataAsString();
+    console.log("File content:", content);
+});
 ```
 
 ### HTTP Requests
