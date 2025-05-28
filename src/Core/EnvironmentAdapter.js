@@ -5,6 +5,7 @@
  * @property {function(): string|Buffer} getContent
  * @property {function(): string} getContentText
  * @property {function(): number} getResponseCode
+ * @property {function(): any} getBlob
  */
 
 /**
@@ -221,16 +222,17 @@ class EnvironmentAdapter {
      * Parse CSV string into array of arrays
      * 
      * @param {string} csvString - The CSV string to parse
+     * @param {string} [delimiter=','] - The delimiter to use for parsing CSV
      * @returns {Array<Array<string>>} Parsed CSV data
      * @throws {UnsupportedEnvironmentException} If the environment is not supported
      */
-    static parseCsv(csvString) {
+    static parseCsv(csvString, delimiter = ',') {
         if (this.getEnvironment() === ENVIRONMENT.APPS_SCRIPT) {
-            return Utilities.parseCsv(csvString);
+            return Utilities.parseCsv(csvString, delimiter);
         } else if (this.getEnvironment() === ENVIRONMENT.NODE) {
             return csvString
                 .split('\n')
-                .map(line => line.split(',')
+                .map(line => line.split(delimiter)
                 .map(cell => cell.trim()));
         } else {
             throw new UnsupportedEnvironmentException("Unsupported environment");
@@ -302,4 +304,3 @@ class EnvironmentAdapter {
     }
 
 }
-
