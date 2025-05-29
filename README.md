@@ -8,7 +8,7 @@ With just a few clicks and no coding, you can easily set up automated data impor
 - **Security-Friendly**: Being open-source, no credentials need to be shared with third-party products.
 - **Unlimited Customization**: Scheduling and data schemas can be adjusted at any time.
 - **Streamlined Tech Stack**: Connectors can be developed and customized via Apps Script. Google Sheets is more than enough to run your own data pipelines
-- **Free**: Distributed under the ELv2 license, it allows free use for internal organizational services or providing paid services to clients, as long as it is not used to build a competing product.
+- **Free**: The Connectors are distributed under MIT license and the Core functionality is distributed under ELv2 license, it allows free use for internal organizational services or providing paid services to clients, as long as it is not used to build a competing product.
 - **Serverless**: neither Google Cloud nor computing resources are required to run it
 
 #### Data Sources
