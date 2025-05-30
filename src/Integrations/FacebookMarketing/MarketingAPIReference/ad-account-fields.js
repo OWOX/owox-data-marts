@@ -268,4 +268,4 @@ var adAccountFields = {
   'type': 'map<string, int32>'
 }
 
-}
+}  

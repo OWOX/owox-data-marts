@@ -5,7 +5,6 @@
  * file that was distributed with this source code.
  */
 
-
 // Google Sheets Range with config data. Must me referes to a table with three columns: name, value and comment
 var CONFIG_RANGE = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Config').getRange("A:C");
 
@@ -27,7 +26,8 @@ function importNewData() {
     config,                                                           // pipeline configuration
     new OWOX.FacebookMarketingConnector( config.setParametersValues(  // connector with parameter's values added from properties 
       PropertiesService.getDocumentProperties().getProperties()
-    ) )
+    ) ),
+   // "GoogleBigQueryStorage"
   );
 
   pipeline.run();
@@ -49,9 +49,7 @@ function updateFieldsSheet() {
   const config = new OWOX.GoogleSheetsConfig( CONFIG_RANGE );
 
   config.updateFieldsSheet(
-    new OWOX.FacebookMarketingConnector( 
-      config.setParametersValues( {"AccoundIDs": "undefined", "AccessToken": "undefined", "Fields": "undefined"} )
-    )
+    new OWOX.FacebookMarketingConnector( config.setParametersValues( {"AccessToken": "undefined", "Fields": "undefined"} ))
   );
 
 }
@@ -86,20 +84,5 @@ function manageCredentials() {
     }
     
   } 
-
-}
-
-
-function scheduleRuns() {
-
-  const ui = SpreadsheetApp.getUi();
-
-  const response = ui.alert(
-    'Schedule Runs',
-    'To schedule runs, you need to add a time trigger. Details: https://github.com/OWOX/js-data-connectors/issues/47',
-    ui.ButtonSet.OK_CANCEL
-  );
-
-  
 
 }

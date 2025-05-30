@@ -6,6 +6,7 @@
  */
 
 var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
+
   //---- constructor -------------------------------------------------
     constructor(configRange) {
     
@@ -52,9 +53,16 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
       configObject.Log.timeZone = configRange.getSheet().getParent().getSpreadsheetTimeZone();
     
       super(configObject);
+
+      this.mergeParameters({
+          MaxRunTimeout: {
+            isRequired: true,
+            requiredType: "number",
+            default: 30
+          }
+      });
     
     }
-    //----------------------------------------------------------------
     
   //---- updateCurrentStatus -----------------------------------------
     /**
@@ -94,7 +102,7 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
     updateLastImportDate() {
       
       this.LastImportDate.cell.setValue( 
-        Utilities.formatDate(new Date(), this.Log.timeZone, "yyyy-MM-dd HH:mm:ss") 
+        EnvironmentAdapter.formatDate(new Date(), this.Log.timeZone, "yyyy-MM-dd HH:mm:ss") 
       );
     
     }
@@ -112,7 +120,7 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
       && ( !this.LastRequestedDate.value || date.getTime() != this.LastRequestedDate.value.getTime() ) ) {
     
         this.LastRequestedDate.value = new Date(date.getTime() );
-        this.LastRequestedDate.cell.setValue( Utilities.formatDate(date, this.Log.timeZone, "yyyy-MM-dd HH:mm:ss") );
+        this.LastRequestedDate.cell.setValue( EnvironmentAdapter.formatDate(date, this.Log.timeZone, "yyyy-MM-dd HH:mm:ss") );
     
       }
     
@@ -239,7 +247,7 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
       
     }
     //----------------------------------------------------------------
-  
+
   //---- getFieldsCountByGroupName -----------------------------------
     /**
      * @param GoogleSheetsConfig object
@@ -266,7 +274,7 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
         // status contains "progress"
         if( this.CurrentStatus.cell.getValue().indexOf("progress") !== -1 ) {
 
-          let diff = ( new Date() - new Date( Utilities.formatDate(this.LastImportDate.cell.getValue(), this.Log.timeZone, "yyyy-MM-dd HH:mm:ss") ) ) / (1000 * 60);
+          let diff = ( new Date() - new Date( EnvironmentAdapter.formatDate(this.LastImportDate.cell.getValue(), this.Log.timeZone, "yyyy-MM-dd HH:mm:ss") ) ) / (1000 * 60);
           
           // script is running to long, it might be confidered as not running
           isInProgress = (diff < this.MaxRunTimeout.value);
@@ -314,9 +322,9 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
     
       console.log(message);
       
-      let formattedDate = Utilities.formatDate(new Date(), this.Log.timeZone, "yyyy-MM-dd HH:mm:ss"); // Format the date
+      let formattedDate = EnvironmentAdapter.formatDate(new Date(), this.Log.timeZone, "yyyy-MM-dd HH:mm:ss"); // Format the date
     
-      // Read the existing log message if it shouldn’t be removed
+      // Read the existing log message if it shouldn't be removed
       let currentLog = removeExistingMessage ? "" : this.Log.cell.getValue();
     
       currentLog ? currentLog += "\n" : "";
@@ -337,5 +345,17 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
       this.updateLastImportDate();
     
     }
-    //----------------------------------------------------------------
-  }  
+
+    showCredentialsDialog(connector) {
+      const ui = SpreadsheetApp.getUi();
+      
+      const template = HtmlService.createTemplateFromFile('Views/credentials-input-dialog');
+      template.connector = connector;
+      
+      const html = template.evaluate()
+        .setWidth(400)
+        .setHeight(450);
+      
+      ui.showModalDialog(html, `${connector.constructor.name} Credentials`);
+    }
+}

@@ -9,7 +9,7 @@ var GoogleSheetsStorage = class GoogleSheetsStorage extends AbstractStorage {
   //---- constructor -------------------------------------------------
     /**
      * Asbstract class making Google Sheets data active in Apps Script to simplity read/write operations
-     * @param config (object) instance of Sheet
+     * @param config (object) instance of AbscractConfig
      * @param uniqueKeyColumns (mixed) a name of column with unique key or array with columns names
      * @param schema (object) object with structure like {fieldName: {type: "number", description: "smth" } }
      */
@@ -23,11 +23,6 @@ var GoogleSheetsStorage = class GoogleSheetsStorage extends AbstractStorage {
           DestinationSheetName: {
             isRequired: true,
             default: "Data"
-          },
-          MaxRunTimeout: {
-            isRequired: true,
-            requiredType: "number",
-            default: 30
           }
         }),
         uniqueKeyColumns,
@@ -96,9 +91,9 @@ var GoogleSheetsStorage = class GoogleSheetsStorage extends AbstractStorage {
       if( !this.SHEET ) {
       
         // destination sheet is a default one (the same as config's sheet)
-        if( !config.DestinationSpreadsheet.value ) {
+        if( !config.DestinationSpreadsheet || !config.DestinationSpreadsheet.value ) {
     
-          config.DestinationSpreadsheet.spreadsheet = config.DestinationSpreadsheet.cell.getSheet().getParent();
+          config.DestinationSpreadsheet = {"spreadsheet": config.configSpreadsheet};
     
         // destination spreadsheet is defined in config and must me used instead of config's sheet
         } else {
@@ -202,7 +197,7 @@ var GoogleSheetsStorage = class GoogleSheetsStorage extends AbstractStorage {
       
       data.map((row) => {
       
-        // if there are new columns in the first row it should be added first
+        // if there are new columns it should be added first (new columns might appears in any row)
         let newFields = Object.keys(row).filter( column => !this.columnNames.includes(column) );
       
         // create new columns that are in data but absent in a Sheet
@@ -217,7 +212,7 @@ var GoogleSheetsStorage = class GoogleSheetsStorage extends AbstractStorage {
           };
         } else {
           this.addRecord(row, true);
-          recordsAdded += this.saveRecordsAddedToBuffer(100);
+          recordsAdded += this.saveRecordsAddedToBuffer(100); // @TODO; saveRecordsAddedToBuffer must be in config
         }
       })
       
@@ -334,24 +329,7 @@ var GoogleSheetsStorage = class GoogleSheetsStorage extends AbstractStorage {
     
     }
     //----------------------------------------------------------------
-  
-  //---- stringifyNeastedFields --------------------------------------
-    /**
-     * Because Google SHeets can store only flat structure, cast JSON fields to string format
-     * @param record (object) object with row data to cast
-     * @return record (object) object with casted fields
-     */
-    stringifyNeastedFields(record) {
-    
-      for(var field in record) {
-        if( typeof record[field] == "object" && !(record[field] instanceof Date) ) {
-          record[ field ] = JSON.stringify(record[ field ]);
-        }
-      }
-      return record;
-    }
-    //----------------------------------------------------------------
-  
+ 
   //---- addHeader ---------------------------------------------------
     /**
      * Adding header to sheet
@@ -377,16 +355,73 @@ var GoogleSheetsStorage = class GoogleSheetsStorage extends AbstractStorage {
      * @param columnIndex (integer) optional; column index
      */
     addColumn(columnName, columnIndex = 1) {
-    
-      // header of the column at the desider index is not empty
-      if( this.SHEET.getRange(`A${columnIndex}`).getValue() != "" ) {
-        this.SHEET.insertColumns(columnIndex);
+
+      // Get the number of columns in the sheet
+      const numColumns = this.SHEET.getMaxColumns();
+      
+      // Check if columnIndex is out of bounds
+      if (columnIndex <= 0 || columnIndex > numColumns + 1) {
+
+        throw new Error(`Column index ${columnIndex} is out of bounds (1-${numColumns+1})`);
+
       }
-    
+      
+      // Check if column at the desired index exists and is empty
+      if (columnIndex <= numColumns) {
+
+        const headerValue = this.SHEET.getRange(1, columnIndex).getValue();
+        
+        if (headerValue !== "") {
+          // Header cell is not empty, need to insert a new column
+          // Look for an empty column
+          
+          // Helper function to find the first empty column
+          const findFirstEmptyColumn = (startIndex) => {
+            let index = startIndex;
+            let foundEmpty = false;
+            
+            while(index <= numColumns) {
+              if(this.SHEET.getRange(1, index).getValue() === "") {
+                foundEmpty = true;
+                break;
+              }
+              index++;
+            }
+            
+            return {
+              columnIndex: index,
+              foundEmpty: foundEmpty
+            };
+          };
+          
+          const result = findFirstEmptyColumn(columnIndex);
+          
+          if (!result.foundEmpty) {
+
+            // If no empty column was found, add one at the end
+            this.SHEET.insertColumnAfter(numColumns);
+            columnIndex = numColumns + 1;
+
+          } else {
+
+            // Empty column found, insert at that position
+            this.SHEET.insertColumnBefore(result.columnIndex);
+            columnIndex = result.columnIndex;
+
+          }
+        }
+      } else {
+
+        // Column index is beyond current sheet, add a new column at the end
+        this.SHEET.insertColumnAfter(numColumns);
+        columnIndex = numColumns + 1;
+
+      }
+
       this.SHEET.getRange(1, columnIndex).setValue(columnName); 
     
       // appling format to column if it is specified in schema
-      if( this.schema != null && columnName in this.schema  && "GoogleSheetsFormat" in this.schema[columnName] ) { 
+      if( this.schema != null && columnName in this.schema && "GoogleSheetsFormat" in this.schema[columnName] ) { 
     
           let columnLetter = String.fromCharCode(64 + columnIndex);
           console.log(
@@ -401,7 +436,6 @@ var GoogleSheetsStorage = class GoogleSheetsStorage extends AbstractStorage {
       }
       
       this.columnNames.push(columnName);
-      
     }
     //----------------------------------------------------------------
   
@@ -504,6 +538,17 @@ var GoogleSheetsStorage = class GoogleSheetsStorage extends AbstractStorage {
     
       return equal;
     
+    }
+    //----------------------------------------------------------------
+  
+  //---- areHeadersNeeded ------------------------------------------
+    /**
+     * Checks if storage is empty and adds headers if needed
+     * if destination sheet is empty than header should be created based on unique key columns list
+     * @return {boolean} true if headers were added, false if they already existed
+     */
+    areHeadersNeeded() {
+      return this.isEmpty();
     }
     //----------------------------------------------------------------
 }

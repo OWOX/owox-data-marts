@@ -1,5 +1,0 @@
-{
-  "timeZone": "Etc/UTC",
-  "exceptionLogging": "STACKDRIVER",
-  "runtimeVersion": "V8"
-}

@@ -36,6 +36,11 @@ class AbstractPipeline {
         throw error;
 
       }
+
+      // if created directly, storageName is not passed as a parameter and we need to set it dynamically
+      if (storage !== null) {
+        this.storageName = storage.constructor.name;
+      }
       
       this.config = config;
       this.connector = connector;
@@ -66,11 +71,10 @@ class AbstractPipeline {
           this.config.updateLastImportDate();
           this.config.logMessage("🟢 Start importing new data");
 
-          // if destination sheet is empty than header should be created based on unique key columns list
-          if( this.storage !== null && this.storage.isEmpty() ) {        
-            this.storage.addHeader(this.uniqueKeyColumns);  // @TODO: this is needed for Google Sheets Storage only
-            this.config.logMessage(`Column(s) for unique key was added: ${this.uniqueKeyColumns}`);
-          }  
+          if (this.storage !== null && this.storage.areHeadersNeeded()) {
+            this.storage.addHeader(this.storage.uniqueKeyColumns);
+            this.config.logMessage(`Column(s) for unique key was added: ${this.storage.uniqueKeyColumns}`);
+          }
 
           this.startImportProcess();
 
@@ -129,12 +133,42 @@ class AbstractPipeline {
 
     }
     //----------------------------------------------------------------
+    
+  //---- addMissingFieldsToData ---------------------------------
+    /**
+     * Ensures all fields selected in the configuration are present in each data record.
+     * This is useful when API returns data without some fields that were selected.
+     * 
+     * @param {Array} data - Array of data records from the API
+     * @param {Array} selectedFields - Array of field names selected in the configuration
+     * @returns {Array} - Data with all selected fields present in each record
+     */
+    addMissingFieldsToData(data, selectedFields) {
+      if (!data || !data.length || !selectedFields || !selectedFields.length) {
+        return data;
+      }
+      
+      return data.map(record => {
+        const result = { ...record };
+        
+        // Add null values for any selected fields missing from the record
+        selectedFields.forEach(fieldName => {
+          if (!(fieldName in result)) {
+            result[fieldName] = null;
+          }
+        });
+        
+        return result;
+      });
+    }
+    //----------------------------------------------------------------
 
   //---- getStartDateAndDaysToFetch ----------------------------------
     /**
      * calculates start date and days to fetch time series data
      * @return StartData (date) and daysToFetch (integer)
      */
+  // TODO (Node version): ensure config dates are actual Date objects — if they’re strings, wrap with new Date(...)
     getStartDateAndDaysToFetch() {
 
       let startDate = this.config.StartDate.value;

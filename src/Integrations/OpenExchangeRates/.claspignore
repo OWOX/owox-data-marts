@@ -1,5 +1,11 @@
 **/**
 !Integrations/OpenExchangeRates/*.js
+!Integrations/OpenExchangeRates/**/*.js
 !appsscript.json
 !Core/Abstract*.js
+!Core/*Storage.js
 !Core/GoogleSheets*.js
+!Core/Exceptions.js
+!Core/EnvironmentAdapter.js
+!Constants/*.js
+!Views/**/*

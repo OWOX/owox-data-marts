@@ -26,7 +26,17 @@ function importNewData() {
     new OWOX.OpenExchangeRatesConnector(config.setParametersValues(       // connector with parameter's values added from properties 
       PropertiesService.getDocumentProperties().getProperties()
     )),                          
-    new OWOX.GoogleSheetsStorage(config, ["date", "base", "currency"] )   // storage 
+    // Storage for Google Sheets
+    new OWOX.GoogleSheetsStorage(
+      config, 
+      OWOX.OpenExchangeRatesFieldsSchema['historical'].uniqueKeys
+    ),
+    // Storage for BigQuery
+    // new OWOX.GoogleBigQueryStorage(
+    //   config, 
+    //   OWOX.OpenExchangeRatesFieldsSchema['historical'].uniqueKeys,
+    //   OWOX.OpenExchangeRatesFieldsSchema['historical'].fields.bigQuery
+    // )
   );
 
   pipeline.run();
@@ -37,7 +47,7 @@ function cleanUpExpiredData() {
 
   const storage = new OWOX.GoogleSheetsStorage( 
     new OWOX.GoogleSheetsConfig( CONFIG_RANGE ),
-    ["date", "base", "currency"] 
+    OWOX.OpenExchangeRatesFieldsSchema['historical'].uniqueKeys
   );
   storage.cleanUpExpiredData("date");
 

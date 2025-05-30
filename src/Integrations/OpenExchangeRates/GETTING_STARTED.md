@@ -1,4 +1,4 @@
-To receive data from the OpenExchangeRates source, please make a copy of the file ["Open Exchange Rates. Template"](https://docs.google.com/spreadsheets/d/1rvjCh_aGAcYgZRPzrePhkginVH6pJ5GoyN51z5HJD_I/edit?usp=sharing) (*File -> Make a copy*). 
+To receive data from the OpenExchangeRates source, please make a copy of the file ["Open Exchange Rates. Template"](https://docs.google.com/spreadsheets/d/1rvjCh_aGAcYgZRPzrePhkginVH6pJ5GoyN51z5HJD_I/copy). 
 
 Fill in the required information:
 

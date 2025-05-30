@@ -1,0 +1,20 @@
+{
+  "name": "@owox/pipeline-runner",
+  "version": "1.0.0",
+  "description": "Runners for OWOX Data Marts integration pipelines",
+  "scripts": {
+    "pipeline-runner-node": "node src/local-runner.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-athena": "3.810.0",
+    "@aws-sdk/client-s3": "^3.810.0",
+    "@aws-sdk/lib-storage": "3.810.0",
+    "@google-cloud/bigquery": "^8.0.0",
+    "adm-zip": "^0.5.16",
+    "deasync": "^0.1.30",
+    "sync-request": "^6.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.3.1"
+  }
+}
