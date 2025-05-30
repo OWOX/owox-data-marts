@@ -45,6 +45,11 @@ var CriteoAdsConnector = class CriteoAdsConnector extends AbstractConnector {
       MaxFetchingDays: {
         requiredType: "number",
         value: 30
+      },
+      ApiVersion: {
+        requiredType: "string",
+        value: "2025-04",
+        description: "Criteo API version"
       }
     }));
 
@@ -146,7 +151,7 @@ var CriteoAdsConnector = class CriteoAdsConnector extends AbstractConnector {
    * @private
    */
   _makeApiRequest(requestBody) {
-    const apiUrl = 'https://api.criteo.com/2024-10/statistics/report';
+    const apiUrl = `https://api.criteo.com/${this.config.ApiVersion.value}/statistics/report`;
     const options = {
       method: 'post',
       headers: {
