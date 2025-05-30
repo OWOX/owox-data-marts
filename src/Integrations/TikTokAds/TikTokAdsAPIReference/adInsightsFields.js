@@ -28,13 +28,14 @@ var adInsightsFields = {
   },
   'stat_time_day': {
     'description': 'Statistics Date',
-    'type': 'datetime'
+    'type': 'datetime',
+    'GoogleBigQueryType': 'date',
+    'GoogleBigQueryPartitioned': true
   },
   'date_start': {
     'description': 'Start Date',
     'type': 'datetime',
-    'GoogleBigQueryType': 'date',
-    'GoogleBigQueryPartitioned': true
+    'GoogleBigQueryType': 'date'
   },
   'date_end': {
     'description': 'End Date',

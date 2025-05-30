@@ -686,12 +686,6 @@ var adStatisticsFields = {
     'type': 'Decimal',
     'fieldType': 'metric'
   },
-  'Date': {
-    'description': 'The date of the statistics data.',
-    'type': 'Date',
-    'fieldType': 'metric',
-    'GoogleBigQueryType': 'date'
-  },
   'Day': {
     'description': 'The day of the statistics data (YYYY-MM-DD format).',
     'type': 'Date',
