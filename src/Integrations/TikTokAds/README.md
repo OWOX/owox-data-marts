@@ -77,7 +77,7 @@ For detailed setup instructions, see the [Getting Started Guide](GETTING_STARTED
 If you encounter any issues or have questions about this connector:
 
 - Check the documentation first
-- Visit the [GitHub repository](https://github.com/OWOX/js-data-connectors)
+- Visit the [GitHub repository](https://github.com/OWOX/owox-data-marts)
 - Open an issue if you've found a bug
 - Join the discussion forum to ask questions
 

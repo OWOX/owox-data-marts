@@ -9,7 +9,7 @@ Fill in the required information:
 
 You'll receive the data for the selected *Start* and *End* Dates.
 
-![Open Holidays Start Date](/src/Integrations/OpenHolidays/res/holidays_date.png)
+![Open Holidays Start Date](res/holidays_date.png)
 
 You can find country codes [here](https://www.iso.org/obp/ui/#search). Please, use the **Alpha-2 code** for the connector. 
 [List of supported countries](https://www.openholidaysapi.org/en/). The data will be empty if you choose a country not on the list.  
@@ -18,8 +18,8 @@ You can find country codes [here](https://www.iso.org/obp/ui/#search). Please, u
 
 Press *OWOX -> Import New Data*.
 
-![Open Holidays Import](/src/Integrations/OpenHolidays/res/holidays_import.png)
+![Open Holidays Import](res/holidays_import.png)
 
 When the Log data shows "**Import is finished**", the import process is complete, and your data will be available in the **Data** tab.
 
-![Open Holidays Import Finished](/src/Integrations/OpenHolidays/res/holidays_finished.png)
+![Open Holidays Import Finished](res/holidays_finished.png)

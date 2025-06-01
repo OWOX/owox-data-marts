@@ -126,7 +126,7 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
           break;
   
         default:
-          throw new Error(`End point for ${nodeName} is not implemented yet. Feel free add idea here: https://github.com/OWOX/js-data-connectors/discussions/categories/ideas`);
+          throw new Error(`End point for ${nodeName} is not implemented yet. Feel free add idea here: https://github.com/OWOX/owox-data-marts/discussions/categories/ideas`);
       }
   
       url += `&access_token=${this.config.AccessToken.value}`;

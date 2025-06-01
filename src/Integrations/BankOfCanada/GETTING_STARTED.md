@@ -5,15 +5,15 @@ To receive data from the Bank of Canada source, start by making a copy of the fo
 
 Fill in the required **Start Date**.  
 
-![Bank of Canada Start Date](/src/Integrations/BankOfCanada/res/bank_date.png)
+![Bank of Canada Start Date](res/bank_date.png)
 
 Go to: **OWOX → Import New Data**
 
-![Bank of Canada Import](/src/Integrations/BankOfCanada/res/bank_import.png)
+![Bank of Canada Import](res/bank_import.png)
 
 The import process is complete when the Log data displays **"Import is finished"**. Your data will appear in the **Data** tab.
 
-![Open Exchange Rates Finished](/src/Integrations/BankOfCanada/res/bank_finished.png)
+![Bank of Canada Finished](res/bank_finished.png)
 
 If you encounter any issues:
 

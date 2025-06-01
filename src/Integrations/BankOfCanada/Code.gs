@@ -50,7 +50,7 @@ function scheduleRuns() {
 
   const response = ui.alert(
     'Schedule Runs',
-    'To schedule runs, you need to add a time trigger. Details: https://github.com/OWOX/js-data-connectors/issues/47',
+    'To schedule runs, you need to add a time trigger. Details: https://github.com/OWOX/owox-data-marts/issues/47',
     ui.ButtonSet.OK_CANCEL
   );
 

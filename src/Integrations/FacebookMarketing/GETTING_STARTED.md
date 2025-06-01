@@ -15,45 +15,45 @@ Fill in the required information:
 The import will begin from the selected **Start Date**.  
 > ⚠️ **Note:** Using a long date range may cause the import to fail due to the high volume of data.
 
-![Facebook Start Date](/src/Integrations/FacebookMarketing/res/fb_startdate.png)
+![Facebook Start Date](res/fb_startdate.png)
 
 You can find your **Account ID** on the **Account Overview** page in [Meta Ads Manager](https://adsmanager.facebook.com/adsmanager/manage/accounts).  
 
-![Facebook Account ID](/src/Integrations/FacebookMarketing/res/fb_accountid.png)
+![Facebook Account ID](res/fb_accountid.png)
 
 Copy and paste the ID into the spreadsheet:  
 
-![Account ID](/src/Integrations/FacebookMarketing/res/fb_pasteid.png)
+![Account ID](res/fb_pasteid.png)
 
 Some fields are pre-filled by default.  
 To include additional fields, go to the **Fields** tab and check the boxes next to the fields you want to include.
 
-![Facebook Fields](/src/Integrations/FacebookMarketing/res/fb_fields.png)
+![Facebook Fields](res/fb_fields.png)
 
-If you’re using the **Google BigQuery** template, also provide:
+If you're using the **Google BigQuery** template, also provide:
 
 - **Destination Dataset ID** in the format: `projectid.datasetid`
 - **Destination Location**
 
 > ℹ️ If the specified dataset doesn't exist, it will be created automatically.
 
-![Facebook Dataset](/src/Integrations/FacebookMarketing/res/facebook_dataset.png)
+![Facebook Dataset](res/facebook_dataset.png)
 
 Open the menu: **OWOX → Manage Credentials**
 
-![Facebook Credentials](/src/Integrations/FacebookMarketing/res/fb_credentials.png)
+![Facebook Credentials](res/fb_credentials.png)
 
-Enter your credentials obtained by following this guide: [**How to obtain the access token for the Facebook connector**](https://github.com/OWOX/owox-data-marts/blob/main/src/Integrations/FacebookMarketing/CREDENTIALS.md)
+Enter your credentials obtained by following this guide: [**How to obtain the access token for the Facebook connector**](src/Integrations/FacebookMarketing/CREDENTIALS.md)
 
-![Facebook Token](/src/Integrations/FacebookMarketing/res/fb_token.png)
+![Facebook Token](res/fb_token.png)
 
 Once your credentials are saved, go to: **OWOX → Import New Data**
 
-![Facebook Import Data](/src/Integrations/FacebookMarketing/res/fb_import.png)
+![Facebook Import Data](res/fb_import.png)
 
 The import process is complete when the Log data displays **"Import is finished"**. 
 
-![Facebook Finished](/src/Integrations/FacebookMarketing/res/fb_success.png)
+![Facebook Finished](res/fb_success.png)
 
 Access Your Data:
 

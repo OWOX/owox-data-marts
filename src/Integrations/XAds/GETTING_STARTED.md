@@ -20,19 +20,19 @@ The **Account ID** is: `18ce55in6wt`
 
 To include more fields, go to the **Fields** tab and check the boxes next to the fields you want to include.
 
-If you’re using the **Google BigQuery** template, also fill in:
+If you're using the **Google BigQuery** template, also fill in:
 - **Destination Dataset ID** in the format: `projectid.datasetid`
 - **Destination Location**
 
-![X Ads Start Settings](/src/Integrations/XAds/res/xads_start.png)
+![X Ads Start Settings](res/xads_start.png)
 
 Open the menu: **OWOX → Manage Credentials**
 
-Enter your credentials obtained by following this guide: [**How to obtain the credentials for the X Ads connector**](https://github.com/OWOX/js-data-connectors/blob/main/src/Integrations/XAds/CREDENTIALS.md).
+Enter your credentials obtained by following this guide: [**How to obtain the credentials for the X Ads connector**](CREDENTIALS.md).
 
 Click the **Save** button.
 
-![X Ads Credentials](/src/Integrations/XAds/res/xads_credentials.png)
+![X Ads Credentials](res/xads_credentials.png)
 
 Once your credentials are saved, click: **OWOX → Import New Data**
 
@@ -42,7 +42,7 @@ The process is complete when the **Log** sheet shows the message:
 If you encounter any issues:
 
 1. Check the "Logs" sheet for specific error messages
-2. Please [visit Q&A](https://github.com/OWOX/js-data-connectors/discussions/categories/q-a) first
-3. If you want to report a bug, please [open an issue](https://github.com/OWOX/js-data-connectors/issues)
-4. Join the [discussion forum](https://github.com/OWOX/js-data-connectors/discussions) to ask questions or propose improvements 
+2. Please [visit Q&A](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) first
+3. If you want to report a bug, please [open an issue](https://github.com/OWOX/owox-data-marts/issues)
+4. Join the [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions or propose improvements 
 

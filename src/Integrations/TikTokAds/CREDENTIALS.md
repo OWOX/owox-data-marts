@@ -22,7 +22,7 @@ To use the TikTok Ads connector, you need to obtain an access token from the Tik
    - Type of your company
 5. Press "Next" and complete the application
 
-![TikTok Become a Developer](/src/Integrations/TikTokAds/res/tiktok_developer.png)
+![TikTok Become a Developer](res/tiktok_developer.png)
 
 ### 2. Configure the App
 
@@ -39,13 +39,13 @@ To use the TikTok Ads connector, you need to obtain an access token from the Tik
    - Read Custom Audiences
 4. Press "Submit"
 
-![TikTok Create App](/src/Integrations/TikTokAds/res/tiktok_createapp.png)
+![TikTok Create App](res/tiktok_createapp.png)
 
 ### 3. Generate an Access Token
 
 1. Copy Advertiser authorization URL and open the URL in your browser.
 
-![TikTok URL](/src/Integrations/TikTokAds/res/tiktok_url.png)
+![TikTok URL](res/tiktok_url.png)
 
 2. After authentication, you'll see the link with the `auth_code`.
 3. Exchange this code for an access token by making a POST request to:

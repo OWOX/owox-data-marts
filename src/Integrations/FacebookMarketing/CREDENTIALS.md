@@ -2,47 +2,47 @@
 
 1. Visit the [Meta for Developers](https://developers.facebook.com/) site and log in with your Facebook account.
 
-![Facebook login portal](/src/Integrations/FacebookMarketing/res/facebook_login_portal.png)
+![Facebook login portal](res/facebook_login_portal.png)
 
-![Facebook login page](/src/Integrations/FacebookMarketing/res/facebook_login.png)
+![Facebook login page](res/facebook_login.png)
 
 2. Navigate to **My Apps** and click the **Create App** button.
 
-![Facebook My apps](/src/Integrations/FacebookMarketing/res/facebook_myapps.png)
+![Facebook My apps](res/facebook_myapps.png)
 
-![Facebook creating app](/src/Integrations/FacebookMarketing/res/facebook_createapp.png)
+![Facebook creating app](res/facebook_createapp.png)
 
 3. Enter the **App Name** in the provided field.
 
-![Facebook app name](/src/Integrations/FacebookMarketing/res/facebook_appname.png)
+![Facebook app name](res/facebook_appname.png)
 
 4. Select **Other** as the use case.  
 
-![Facebook Other use case](/src/Integrations/FacebookMarketing/res/facebook_other.png)
+![Facebook Other use case](res/facebook_other.png)
 
 5. Select **Business** as the app type and click **Next**.  
 
-![Facebook Business app type](/src/Integrations/FacebookMarketing/res/facebook_business.png)
+![Facebook Business app type](res/facebook_business.png)
 
 6. Choose the appropriate **Business Portfolio**, then click the **Create App** button.  
 
-![Facebook Business portfolio option](/src/Integrations/FacebookMarketing/res/facebook_portfolio.png)
+![Facebook Business portfolio option](res/facebook_portfolio.png)
 
 7. Navigate to **App Settings → Basic**, and initiate the **Business Verification** process. 
 
-![Facebook Business Verification](/src/Integrations/FacebookMarketing/res/facebook_verification.png)
+![Facebook Business Verification](res/facebook_verification.png)
 
 8. If prompted, connect your app to a business portfolio. 
 
-![Facebook Connect](/src/Integrations/FacebookMarketing/res/facebook_connect.png)
+![Facebook Connect](res/facebook_connect.png)
 
 Click **Start Business Verification**.  
 
-![Facebook Start Verification](/src/Integrations/FacebookMarketing/res/facebook_start_verification.png)
+![Facebook Start Verification](res/facebook_start_verification.png)
 
 9. On the next page, locate the **Business Verification** section and click the button to proceed with the verification process.  
 
-![Facebook Portfolio Verification](/src/Integrations/FacebookMarketing/res/facebook_portver.png)
+![Facebook Portfolio Verification](res/facebook_portver.png)
 
 10. Fill in the form with accurate **contact** and **organizational** information about your business.
 
@@ -50,12 +50,12 @@ Click **Start Business Verification**.
 
 After submitting the form, the review process may take up to **2 business days**.  
 
-![Facebook Submitted](/src/Integrations/FacebookMarketing/res/facebook_submitted.png)
+![Facebook Submitted](res/facebook_submitted.png)
 
 11. Once your business is successfully verified, return to the [Developers Portal](https://developers.facebook.com/).  
 In your app dashboard, locate **Marketing API** and click **Set Up**.  
 
-![Facebook Marketing API set up](/src/Integrations/FacebookMarketing/res/facebook_setup.png)
+![Facebook Marketing API set up](res/facebook_setup.png)
 
 12. Grant the required token permissions: 
     - `ads_read`  
@@ -63,18 +63,18 @@ In your app dashboard, locate **Marketing API** and click **Set Up**.
    
    These permissions authorize your app to access advertising data from your Facebook account.  
 
-![Facebook permissions granting](/src/Integrations/FacebookMarketing/res/facebook_checkbox.png)
+![Facebook permissions granting](res/facebook_checkbox.png)
 
 13. Click the **Get Token** button.
 
-![Facebook getting token](/src/Integrations/FacebookMarketing/res/facebook_gettoken.png)
+![Facebook getting token](res/facebook_gettoken.png)
 
 14. Copy and securely save the generated access token.  
     If needed, you can regenerate it later by navigating to **Marketing API > Tools**.
 
-![Facebook saving token](/src/Integrations/FacebookMarketing/res/facebook_token.png)
+![Facebook saving token](res/facebook_token.png)
 
-11. Once you have the access token, you can use it as described in the [Getting Started guide](/src/Integrations/FacebookMarketing/GETTING_STARTED.md).
+11. Once you have the access token, you can use it as described in the [Getting Started guide](GETTING_STARTED.md).
 
 If you encounter any issues:
 

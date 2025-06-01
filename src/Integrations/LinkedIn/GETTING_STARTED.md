@@ -15,15 +15,15 @@ Fill in required information:
 The import will begin from the selected **Start Date**.  
 > ⚠️ Note: Choosing a long date range may cause the import to fail due to high data volume.
 
-![LinkedIn Start Date](/src/Integrations/LinkedIn/res/linkedin_date.png)
+![LinkedIn Start Date](res/linkedin_date.png)
 
 You can find your **Account URN** on the homepage of your LinkedIn Ads account:
 
-![LinkedIn Account URN](/src/Integrations/LinkedIn/res/linkedin_account.png)
+![LinkedIn Account URN](res/linkedin_account.png)
 
 Copy and paste the URN into the appropriate field in the spreadsheet:
 
-![Account URN](/src/Integrations/LinkedIn/res/linkedin_pasteurn.png)
+![Account URN](res/linkedin_pasteurn.png)
 
 To obtain **Organization URN**, go to [LinkedIn Campaign Manager](https://www.linkedin.com/campaignmanager).
 
@@ -37,22 +37,22 @@ Here, `123456` is the Organization URN.
 
 To include fields, go to the **Fields** tab and check the boxes next to the fields you want to include.
 
-![LinkedIn Fields](/src/Integrations/LinkedIn/res/linkedin_fields.png)
+![LinkedIn Fields](res/linkedin_fields.png)
 
 Go to the menu: **OWOX → Manage Credentials**
 
-![LinkedIn Credentials](/src/Integrations/LinkedIn/res/linkedin_credentials.png)
+![LinkedIn Credentials](res/linkedin_credentials.png)
 
-Enter your Access Token obtained by following this tutorial: [**How to obtain the Access Token for the LinkedIn Ads / LinkedIn Pages connector**](https://github.com/OWOX/js-data-connectors/blob/main/src/Integrations/LinkedIn/CREDENTIALS.md).
+Enter your Access Token obtained by following this tutorial: [**How to obtain the credentials for the LinkedIn Ads / LinkedIn Pages connector**](CREDENTIALS.md).
 
-![LinkedIn Token](/src/Integrations/LinkedIn/res/linkedin_token.png)
+![LinkedIn Token](res/linkedin_token.png)
 
 Click **OK**. Once your credentials are saved, click: **OWOX → Import New Data**
 
-![LinkedIn Import Data](/src/Integrations/LinkedIn/res/linkedin_import.png)
+![LinkedIn Import Data](res/linkedin_import.png)
 
 The process is complete when the **Log** sheet shows the message:  
 **"Import is finished"**  
 Your data will appear in new tabs, named after the corresponding data types (e.g., *adAccount*, *adCampaignGroups*).
 
-![LinkedIn Finished](/src/Integrations/LinkedIn/res/linkedin_success.png)
+![LinkedIn Finished](res/linkedin_success.png)
