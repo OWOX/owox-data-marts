@@ -5,18 +5,10 @@
  * file distributed with this source code.
  */
 
-class RedditConnector extends AbstractConnector {
+class RedditAdsConnector extends AbstractConnector {
   
   constructor(config) {
     super(config.mergeParameters({
-      AppName: {
-        // can be enabled as required
-        requiredType: "string",
-      },
-      AppCode: {
-        isRequired: true,
-        requiredType: "string",
-      },
       ClientId: {
         isRequired: true,
         requiredType: "string",
@@ -34,10 +26,9 @@ class RedditConnector extends AbstractConnector {
         requiredType: "string",
       },
       AccessToken: {
-        // isRequired: true,
         requiredType: "string",
       },
-      AccountIDs: { // corrected from "AccoundIDs"
+      AccountIDs: {
         isRequired: true,
       },
       Fields: {
@@ -102,68 +93,40 @@ class RedditConnector extends AbstractConnector {
       return { success: false, message: "Request failed: " + e.toString() };
     }
   }
-  
+
   /**
-   * Sends an HTTP request with error handling for token expiration (401) and rate limits (429).
-   *
-   * @param {string} url - The URL to fetch.
-   * @param {Object} options - The options for the HTTP request.
-   * @returns {HTTPResponse} The HTTP response object.
+   * Determines if a Reddit Ads API error is valid for retry
+   * Based on Reddit API error codes and HTTP status codes
+   * 
+   * @param {HttpRequestException} error - The error to check
+   * @return {boolean} True if the error should trigger a retry, false otherwise
    */
-  sendRequest(url, options) {
-    let response = UrlFetchApp.fetch(url, options);
-    let code = response.getResponseCode();
-  
-    // Handle unauthorized error (token expired)
-    if (code === 401) {
-      this.config.logMessage("Access token expired. Refreshing token...");
-      const newTokenResponse = this.getRedditAccessToken(
-        this.config.ClientId.value,
-        this.config.ClientSecret.value,
-        this.config.RedirectUri.value,
-        this.config.RefreshToken.value
-      );
-  
-      if (newTokenResponse.success) {
-        this.config.AccessToken.value = newTokenResponse.accessToken;
-        options.headers["Authorization"] = "Bearer " + this.config.AccessToken.value;
-        response = UrlFetchApp.fetch(url, options);
-        code = response.getResponseCode();
-      } else {
-        this.config.logMessage("Failed to refresh token: " + newTokenResponse.message);
-        throw new Error("Could not refresh Reddit Access Token.");
-      }
+  isValidToRetry(error) {
+    console.log(`isValidToRetry() called`);
+    console.log(`error.statusCode = ${error.statusCode}`);
+    console.log(`error.payload = ${JSON.stringify(error.payload)}`);
+
+    // Retry on server errors (5xx)
+    if (error.statusCode && error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN) {
+      return true;
     }
-  
-    // Handle rate limit error (429 Too Many Requests)
-    if (code === 429) {
-      this.config.logMessage("Rate limit exceeded. Retrying...");
-      const delays = [5000, 10000, 20000];
-      let success = false;
-  
-      for (let i = 0; i < delays.length; i++) {
-        Utilities.sleep(delays[i]);
-        this.config.logMessage(`Retry attempt ${i + 1} after ${delays[i] / 1000} seconds...`);
-  
-        try {
-          response = UrlFetchApp.fetch(url, options);
-          code = response.getResponseCode();
-          if (code !== 429) {
-            success = true;
-            break;
-          }
-        } catch (e) {
-          this.config.logMessage(`Retry ${i + 1} failed: ${e.message}`);
-        }
-      }
-  
-      if (!success) {
-        this.config.logMessage("Failed to bypass rate limit after 3 attempts.");
-        throw new Error("Rate limit exceeded. Please try again later.");
-      }
+
+    // Retry on rate limits (429)
+    if (error.statusCode === HTTP_STATUS.TOO_MANY_REQUESTS) {
+      return true;
     }
-  
-    return response;
+
+    // Retry on unauthorized errors (401) - token might need refreshing
+    if (error.statusCode === HTTP_STATUS.UNAUTHORIZED) {
+      return true;
+    }
+
+    // Retry on network errors or timeouts
+    if (!error.statusCode) {
+      return true;
+    }
+
+    return false;
   }
   
   /**
@@ -178,6 +141,18 @@ class RedditConnector extends AbstractConnector {
   fetchData(nodeName, accountId, fields, startDate = null) {
     Logger.log(`Fetching data from ${nodeName}/${accountId}/${fields} for ${startDate}`);
   
+    // Refresh access token before making requests
+    const tokenResponse = this.getRedditAccessToken(
+      this.config.ClientId.value,
+      this.config.ClientSecret.value,
+      this.config.RedirectUri.value,
+      this.config.RefreshToken.value
+    );
+    
+    if (tokenResponse.success) {
+      this.config.AccessToken.value = tokenResponse.accessToken;
+    }
+
     const baseUrl = 'https://ads-api.reddit.com/api/v3/';
     let formattedDate = startDate ? Utilities.formatDate(startDate, "UTC", "yyyy-MM-dd") : null;
   
@@ -414,29 +389,48 @@ class RedditConnector extends AbstractConnector {
   
     // Loop to handle pagination
     while (nextPageURL) {
-      const response = this.sendRequest(nextPageURL, options);
-      const jsonData = JSON.parse(response.getContentText());
+      try {
+        const response = this.urlFetchWithRetry(nextPageURL, options);
+        const jsonData = JSON.parse(response.getContentText());
   
-      if ("data" in jsonData) {
-        nextPageURL = jsonData.pagination ? jsonData.pagination.next_url : null;
+        if ("data" in jsonData) {
+          nextPageURL = jsonData.pagination ? jsonData.pagination.next_url : null;
   
-        if (jsonData && jsonData.data && jsonData.data.metrics) {
-          for (const key in jsonData.data.metrics) {
-            jsonData.data.metrics[key] = this.castRecordFields(nodeName, jsonData.data.metrics[key]);
+          if (jsonData && jsonData.data && jsonData.data.metrics) {
+            for (const key in jsonData.data.metrics) {
+              jsonData.data.metrics[key] = this.castRecordFields(nodeName, jsonData.data.metrics[key]);
+            }
+            allData = allData.concat(jsonData.data.metrics);
+          } else {
+            for (const key in jsonData.data) {
+              jsonData.data[key] = this.castRecordFields(nodeName, jsonData.data[key]);
+            }
+            allData = allData.concat(jsonData.data);
           }
-          allData = allData.concat(jsonData.data.metrics);
         } else {
-          for (const key in jsonData.data) {
-            jsonData.data[key] = this.castRecordFields(nodeName, jsonData.data[key]);
+          nextPageURL = null;
+          for (const key in jsonData) {
+            jsonData[key] = this.castRecordFields(nodeName, jsonData[key]);
           }
-          allData = allData.concat(jsonData.data);
+          allData = allData.concat(jsonData);
         }
-      } else {
-        nextPageURL = null;
-        for (const key in jsonData) {
-          jsonData[key] = this.castRecordFields(nodeName, jsonData[key]);
+      } catch (error) {
+        // Handle token refresh for 401 errors
+        if (error.statusCode === HTTP_STATUS.UNAUTHORIZED) {
+          const newTokenResponse = this.getRedditAccessToken(
+            this.config.ClientId.value,
+            this.config.ClientSecret.value,
+            this.config.RedirectUri.value,
+            this.config.RefreshToken.value
+          );
+          
+          if (newTokenResponse.success) {
+            this.config.AccessToken.value = newTokenResponse.accessToken;
+            options.headers["Authorization"] = "Bearer " + this.config.AccessToken.value;
+            continue; // Retry the request
+          }
         }
-        allData = allData.concat(jsonData);
+        throw error;
       }
     }
   
@@ -487,5 +481,17 @@ class RedditConnector extends AbstractConnector {
       }
     }
     return record;
+  }
+
+  /**
+   * Returns credential fields for this connector
+   */
+  getCredentialFields() {
+    return {
+      ClientId: this.config.ClientId,
+      ClientSecret: this.config.ClientSecret,
+      RedirectUri: this.config.RedirectUri,
+      RefreshToken: this.config.RefreshToken
+    };
   }
 }

@@ -5,171 +5,148 @@
  * file that was distributed with this source code.
  */
 
-var RedditPipeline = class RedditPipeline extends AbstractPipeline {
+var RedditAdsPipeline = class RedditAdsPipeline extends AbstractPipeline {
+  constructor(config, connector, storageName = "GoogleSheetsStorage") {
+    super(config.mergeParameters({
+      DestinationTableNamePrefix: {
+        default: ""
+      }
+    }), connector);
 
+    this.storageName = storageName;
+  }
 
-  startImportProcess() {
-    
-    // Getting account IDs by splitting the configuration value by commas
-    let accountsIds = String(this.config.AccountIDs.value).split(/[,;]\s*/);
-  
-  
-  
-  
-    // Getting an object of nodes whose fields array needs to be fetched from
-    let fields = this.config.Fields.value.split(", ").reduce( (acc, pair) => {
-      let [key, value] = pair.split(" ");
-      (acc[key] = acc[key] || []).push( value.trim() );
-      return acc;
-    }, {});
-  
-    // console.log(fields);
-
-    let timeSeriesNodes = {};
-    
-    // Data must be imported differently depending on whether it is time-series or not
-    for(var nodeName in fields) {
-      // node’s data is time-series, so add the name of the node to timeSeriesNodes array to process it later
-      if( nodeName in this.connector.fieldsSchema
-        && "fields" in this.connector.fieldsSchema[nodeName]
-        && "date" in this.connector.fieldsSchema[nodeName]["fields"] ) {
-          timeSeriesNodes[nodeName] = fields[nodeName];
-      // node's data is catalog like, it must be imported right away
-      } else {
-        this.startImportProcessOfCatalogData(nodeName, accountsIds, fields[ nodeName ]);
-         
-      }
-    }
-  
-    // if there are some time series nodes to import
-    if( Object.keys(timeSeriesNodes).length > 0 ) {
-      let startDate = null;
-      let daysToFetch = null;
-      [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
-  
-      if( daysToFetch > 0 ) {
-        this.startImportProcessOfTimeSeriesData(accountsIds, timeSeriesNodes, startDate, daysToFetch);
-      }
-      
-    }
-  
-    
-  }
-    
-  /*
-  
-  Imports catalog (not time seriesed) data 
-  
-  @param nodeName string Node name
-  @param accountsIds array list of account ids
-  @param fields array list of fields 
-  
-  */
-  startImportProcessOfCatalogData(nodeName, accountIds, fields) {
-  
-    for(var i in accountIds) {
-      
-      let accountId = accountIds[i];
-  
-      let data = this.connector.fetchData(nodeName, accountId, fields);
-      if( data.length ) {
-        this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for account ${accountId}`);
-        this.getStorageByNode(nodeName, fields ).saveData( data );
-      }
-  
-    }
-  
-  }
-    
-  /*
-  
-  Imports time series (not catalog) data 
-  
-  @param accountsIds (array) list of account ids
-  @param timeSeriesNodes (object) of properties, each is array of fields
-  @param startDate (Data) start date 
-  @param daysToFetch (integer) days to import
-  
-  */
-  startImportProcessOfTimeSeriesData(accountsIds, timeSeriesNodes, startDate, daysToFetch = 1) {
-  
-    // start requesting data day by day from startDate to startDate + MaxFetchingDays
-    for(var daysShift = 0; daysShift < daysToFetch; daysShift++) {
-  
-    //this.config.logMessage(`Start importing data for ${Utilities.formatDate(startDate, "UTC", "yyyy-MM-dd")}`);
-  
-      // itterating accounts  
-      for (let accountId of accountsIds) {
-  
-        //this.config.logMessage(`Start importing data for ${Utilities.formatDate(startDate, "UTC", "yyyy-MM-dd")}: ${accountId}`);
-      
-        // itteration nodes to fetch data
-        for(var nodeName in timeSeriesNodes) {
-          
-          this.config.logMessage(`Start importing data for ${Utilities.formatDate(startDate, "UTC", "yyyy-MM-dd")}: ${accountId}/${nodeName}`);
-  
-          // fetching new data from a data source  
-          let data = this.connector.fetchData(nodeName, accountId, timeSeriesNodes[ nodeName ], startDate);
-  
-            // there are fetched records to update
-          if( !data.length ) {      
-            
-            if( daysShift == 0) {
-              this.config.logMessage(`ℹ️ No records have been fetched`);
-            }
-  
-          } else {
-  
-            this.config.logMessage(`${data.length} records were fetched`);
-            this.getStorageByNode(nodeName, timeSeriesNodes[ nodeName ] ).saveData(data);
-  
-          }
-          
-        }
-      
-      }
-  
-      this.config.updateLastRequstedDate(startDate);
-      startDate.setDate( startDate.getDate() + 1);  // let's move on to the next date
-  
-    }    
-  }
-    
   /**
-   *
-   * @param nodeName string name of the node
-   * @param requestedFields array list of requested fields
-   * 
-   * @return AbstractStorage 
-   * 
+   * Main method - entry point for the import process
+   * Processes all nodes defined in the fields configuration
    */
-  getStorageByNode(nodeName, requestedFields) {
+  startImportProcess() {
+    const fields = RedditAdsHelper.parseFields(this.config.Fields.value);    
+    const accountIds = RedditAdsHelper.parseAccountIds(this.config.AccountIDs.value);
+
+    for (const accountId of accountIds) {
+      for (const nodeName in fields) {
+        this.processNode({
+          nodeName,
+          accountId,
+          fields: fields[nodeName] || []
+        });
+      }
+    }
+  }
+
+  /**
+   * Process a single node for a specific account
+   * @param {Object} options - Processing options
+   * @param {string} options.nodeName - Name of the node to process
+   * @param {string} options.accountId - Account ID
+   * @param {Array<string>} options.fields - Array of fields to fetch
+   */
+  processNode({ nodeName, accountId, fields }) {
+    const storage = this.getStorageByNode(nodeName);
+    if (this.connector.fieldsSchema[nodeName].isTimeSeries) {
+      this.processTimeSeriesNode({
+        nodeName,
+        accountId,
+        fields,
+        storage
+      });
+    } else {
+      this.processCatalogNode({
+        nodeName,
+        accountId,
+        fields,
+        storage
+      });
+    }
+  }
+
+  /**
+   * Process a time series node (e.g., reports)
+   * @param {Object} options - Processing options
+   * @param {string} options.nodeName - Name of the node
+   * @param {string} options.accountId - Account ID
+   * @param {Array<string>} options.fields - Array of fields to fetch
+   * @param {Object} options.storage - Storage instance
+   */
+  processTimeSeriesNode({ nodeName, accountId, fields, storage }) {
+    const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
   
-    // initiate blank object for storages
-    if( !("storages" in this) ) {
+    if (daysToFetch <= 0) {
+      console.log('No days to fetch for time series data');
+      return;
+    }
+  
+    for (let i = 0; i < daysToFetch; i++) {
+      const currentDate = new Date(startDate);
+      currentDate.setDate(currentDate.getDate() + i);
+      
+      const formattedDate = EnvironmentAdapter.formatDate(currentDate, "UTC", "yyyy-MM-dd");
+
+      this.config.logMessage(`Start importing data for ${formattedDate}: ${accountId}/${nodeName}`);
+
+      const data = this.connector.fetchData(nodeName, accountId, fields, currentDate);
+  
+      if (!data.length) {      
+        if (i == 0) {
+          this.config.logMessage(`ℹ️ No records have been fetched`);
+        }
+      } else {
+        this.config.logMessage(`${data.length} records were fetched`);
+        const preparedData = this.addMissingFieldsToData(data, fields);
+        storage.saveData(preparedData);
+      }
+
+      this.config.updateLastRequstedDate(currentDate);
+    }
+  }
+  
+  /**
+   * Process a catalog node (e.g., campaigns, ads)
+   * @param {Object} options - Processing options
+   * @param {string} options.nodeName - Name of the node
+   * @param {string} options.accountId - Account ID
+   * @param {Array<string>} options.fields - Array of fields to fetch
+   * @param {Object} options.storage - Storage instance
+   */
+  processCatalogNode({ nodeName, accountId, fields, storage }) {
+    const data = this.connector.fetchData(nodeName, accountId, fields);
+    this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for account ${accountId}`);
+
+    if (data && data.length) {
+      const preparedData = this.addMissingFieldsToData(data, fields);
+      storage.saveData(preparedData);
+    }
+  }
+
+  /**
+   * Get storage instance for a node
+   * @param {string} nodeName - Name of the node
+   * @returns {Object} Storage instance
+   */
+  getStorageByNode(nodeName) {
+    if (!("storages" in this)) {
       this.storages = {};
     }
-  
-    if( !(nodeName in this.storages) ) {
-  
-      if( !("uniqueKeys" in this.connector.fieldsSchema[ nodeName ]) ) {
-        throw new Error(`Unique keys for '${nodeName}' are not defined in fields schema`);
+
+    if (!(nodeName in this.storages)) {
+      if (!("uniqueKeys" in this.connector.fieldsSchema[nodeName])) {
+        throw new Error(`Unique keys for '${nodeName}' are not defined in the fields schema`);
       }
-  
-      let uniqueFields = this.connector.fieldsSchema[ nodeName ]["uniqueKeys"];
-  
-      // @TODO: GoogleSheets shoudn't be hardcoded here
-      this.storages[ nodeName ] = new GoogleSheetsStorage( 
-        this.config.mergeParameters({ DestinationSheetName: {value: nodeName} }), 
+
+      const uniqueFields = this.connector.fieldsSchema[nodeName].uniqueKeys;
+
+      this.storages[nodeName] = new globalThis[this.storageName](
+        this.config.mergeParameters({
+          DestinationSheetName: { value: nodeName },
+          DestinationTableName: { value: this.config.DestinationTableNamePrefix.value + nodeName.replace(/[^a-zA-Z0-9_]/g, "_") }
+        }),
         uniqueFields,
-        this.connector.fieldsSchema[ nodeName ]["fields"]
+        this.connector.fieldsSchema[nodeName].fields,
+        `${this.connector.fieldsSchema[nodeName].description} ${this.connector.fieldsSchema[nodeName].documentation}`
       );
-  
     }
-  
-    return this.storages[ nodeName ];
-  
+
+    return this.storages[nodeName];
   }
-    
-    
-  }
+};
