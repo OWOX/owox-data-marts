@@ -37,7 +37,7 @@ global.Utilities = {
 class Evaluator {
 
   // TODO: make it relative to the package.json
-  DIR_SRC = path.resolve(__dirname, "../../../src");
+  DIR_SRC = path.resolve(__dirname, "../../connectors/src");
   DIR_CORE = path.resolve(this.DIR_SRC, "Core");
   DIR_INTEGRATIONS = path.resolve(this.DIR_SRC, "Integrations");
   DIR_CONSTANTS = path.resolve(this.DIR_SRC, "Constants");
