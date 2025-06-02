@@ -18,12 +18,6 @@ npm install
 To run a pipeline:
 
 ```bash
-npm run pipeline-runner:node -- path/to/pipeline-config.json
-```
-
-Or from within the runner directory:
-
-```bash
 npm run pipeline-runner-node -- path/to/pipeline-config.json
 ```
 
@@ -221,7 +215,7 @@ The local runner:
 ## Supported Data Sources
 
 - TikTok Ads
-- And others defined in the `src/Integrations` directory (Not tested)
+- And others defined in the `packages/connectors/src/Integrations` directory (Not tested)
 
 ## Dependencies
 

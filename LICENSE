@@ -1,1 +1,4 @@
-Source code in this repository is covered by (i) the [Elastic License 2.0](licenses/Elasticv2.md), or (ii) the [MIT License](licenses/MIT.md), as specified in the applicable header. The default license throughout the repository is the "Elastic License 2.0", unless the header specifies a different license.
+The project uses a dual-license model:
+
+- Connectors (packages/connectors) are distributed under the MIT License (licenses/MIT.md)
+- Platform (all other files and directories) is distributed under the ELv2 License (licenses/Elasticv2.md)

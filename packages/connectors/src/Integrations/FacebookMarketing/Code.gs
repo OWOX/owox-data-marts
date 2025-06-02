@@ -61,7 +61,7 @@ function manageCredentials() {
   const currentKey = Properties.getProperty('AccessToken');
   const response = ui.prompt(
     currentKey ? 'Update your Access Token' : 'Add your Access Token',
-    'To import data from Facebook Marketing API, you need to add an Access Token. Here’s how you can get it: https://github.com/OWOX/owox-data-marts/tree/main/src/Integrations/FacebookMarketing',
+    'To import data from Facebook Marketing API, you need to add an Access Token. Here's how you can get it: https://github.com/OWOX/owox-data-marts/tree/main/packages/connectors/src/Integrations/FacebookMarketing',
     ui.ButtonSet.OK_CANCEL
   );
 

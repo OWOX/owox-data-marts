@@ -4,7 +4,7 @@ No vendors. No lock-in. No permissions sharing with 3-rd parties.
 Just JavaScript + full control for you.
 
 [🌐 Website](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) | [💬 Join Community](https://github.com/OWOX/owox-data-marts/discussions) | [🆘 Create an Issue](https://github.com/OWOX/owox-data-marts/issues)
-![JavaScript Open-Source Connectors](res/main-cover.png)
+![JavaScript Open-Source Connectors](packages/connectors/res/main-cover.png)
 
 ## ✨ Why We Built This
 We believe every **data analyst should have the power to automate their data collection & reporting** — without begging for engineering help, paying for expensive SaaS tools, or exposing credentials to vendors.
@@ -25,15 +25,15 @@ Whether you're an analyst at an agency, a startup, or in a huge enterprise, this
 ### Data Sources
 | Name | Status | Links
 | ------------ | ------ | ----
-| Facebook Ads | 🟢 Public | [Google Drive](https://drive.google.com/drive/u/0/folders/1_x556pta5lKtKbTltIrPEDkNqAn78jM4), [Source Code](src/Integrations/FacebookMarketing), [Readme](src/Integrations/FacebookMarketing/README.md) 
-| Open Exchange Rates | 🟢 Public | [Google Drive](https://drive.google.com/drive/u/0/folders/1akutchS-Txr5PwToMzHrikTXd_GTs-84), [Source Code](src/Integrations/OpenExchangeRates), [Readme](src/Integrations/OpenExchangeRates/README.md)
-| Bank of Canada | 🟢 Public | [Google Drive](https://drive.google.com/drive/u/0/folders/18c9OHHmdZs-evtU1bWd6pIqdXjnANRmv), [Source Code](src/Integrations/BankOfCanada), [Readme](src/Integrations/BankOfCanada/README.md)
-| LinkedIn Ads & LinkedIn Pages | 🟢 Public | [Google Drive](https://drive.google.com/drive/folders/1anKRhqJpSWEoeDZvJtrNLgfsGfgSBtIm), [Source Code](src/Integrations/LinkedIn), [Readme](src/Integrations/LinkedIn/README.md)
-| TikTok Ads | 🟢 Public | [Google Drive](https://drive.google.com/drive/folders/1zYBdx4Lm496mrCmwSNG3t82weWZRJb0o), [Source Code](src/Integrations/TikTokAds), [Readme](src/Integrations/TikTokAds/README.md)
-| X Ads (former Twitter Ads) | 🟢 Public | [Google Drive](https://drive.google.com/drive/folders/16PMllaU704wrjHH45MlOBjQWZdxNhxZN), [Source Code](src/Integrations/XAds), [Readme](src/Integrations/XAds/README.md)
-| Criteo Ads | 🟡 In Development | [Branch](https://github.com/OWOX/owox-data-marts/tree/criteo-alpha), [Discussion](https://github.com/OWOX/owox-data-marts/discussions/54), [Readme](src/Integrations/CriteoAds/README.md)
-| Bing Ads | 🟡 In Development | [Branch](https://github.com/OWOX/owox-data-marts/tree/bing-ads-attempt-1), [Discussion](https://github.com/OWOX/owox-data-marts/tree/bing-ads-attempt-1), [Readme](src/Integrations/BingAds/README.md)
-| Reddit Ads | 🟡 In Development | [Branch](https://github.com/OWOX/owox-data-marts/tree/reddit_connector_v0.1), [Discussion](https://github.com/OWOX/owox-data-marts/discussions/2), [Readme](src/Integrations/RedditAds/README.md) 
+| Facebook Ads | 🟢 Public | [Google Drive](https://drive.google.com/drive/u/0/folders/1_x556pta5lKtKbTltIrPEDkNqAn78jM4), [Source Code](packages/connectors/src/Integrations/FacebookMarketing), [Readme](packages/connectors/src/Integrations/FacebookMarketing/README.md) 
+| Open Exchange Rates | 🟢 Public | [Google Drive](https://drive.google.com/drive/u/0/folders/1akutchS-Txr5PwToMzHrikTXd_GTs-84), [Source Code](packages/connectors/src/Integrations/OpenExchangeRates), [Readme](packages/connectors/src/Integrations/OpenExchangeRates/README.md)
+| Bank of Canada | 🟢 Public | [Google Drive](https://drive.google.com/drive/u/0/folders/18c9OHHmdZs-evtU1bWd6pIqdXjnANRmv), [Source Code](packages/connectors/src/Integrations/BankOfCanada), [Readme](packages/connectors/src/Integrations/BankOfCanada/README.md)
+| LinkedIn Ads & LinkedIn Pages | 🟢 Public | [Google Drive](https://drive.google.com/drive/folders/1anKRhqJpSWEoeDZvJtrNLgfsGfgSBtIm), [Source Code](packages/connectors/src/Integrations/LinkedIn), [Readme](packages/connectors/src/Integrations/LinkedIn/README.md)
+| TikTok Ads | 🟢 Public | [Google Drive](https://drive.google.com/drive/folders/1zYBdx4Lm496mrCmwSNG3t82weWZRJb0o), [Source Code](packages/connectors/src/Integrations/TikTokAds), [Readme](packages/connectors/src/Integrations/TikTokAds/README.md)
+| X Ads (former Twitter Ads) | 🟢 Public | [Google Drive](https://drive.google.com/drive/folders/16PMllaU704wrjHH45MlOBjQWZdxNhxZN), [Source Code](packages/connectors/src/Integrations/XAds), [Readme](packages/connectors/src/Integrations/XAds/README.md)
+| Criteo Ads | 🟡 In Development | [Branch](https://github.com/OWOX/owox-data-marts/tree/criteo-alpha), [Discussion](https://github.com/OWOX/owox-data-marts/discussions/54), [Readme](packages/connectors/src/Integrations/CriteoAds/README.md)
+| Bing Ads | 🟡 In Development | [Branch](https://github.com/OWOX/owox-data-marts/tree/bing-ads-attempt-1), [Discussion](https://github.com/OWOX/owox-data-marts/tree/bing-ads-attempt-1), [Readme](packages/connectors/src/Integrations/BingAds/README.md)
+| Reddit Ads | 🟡 In Development | [Branch](https://github.com/OWOX/owox-data-marts/tree/reddit_connector_v0.1), [Discussion](https://github.com/OWOX/owox-data-marts/discussions/2), [Readme](packages/connectors/src/Integrations/RedditAds/README.md) 
 | Hotline | ⚪️ In Discussion | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/55)
 | Shopify Ads | ⚪️ In Discussion | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/63)
 | Google Business Profile | ⚪️ In Discussion | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/61)
@@ -47,7 +47,7 @@ Whether you're an analyst at an agency, a startup, or in a huge enterprise, this
 If you find an integration missing, you can share your use case and request it [here](https://github.com/OWOX/owox-data-marts/discussions)
 
 ## 🧰 How It Works
-- 🎯 Pick your platform (e.g. Facebook Ads) from [existing integrations](src/Integrations)
+- 🎯 Pick your platform (e.g. Facebook Ads) from [existing integrations](packages/connectors/src/Integrations)
 - 🧾 Make a copy of the Template from the [table above]
 - 🔐 Add your API credentials directly to the sheet — **they stay private**
 - 🚀 Run the Apps Script to pull your data
@@ -63,7 +63,7 @@ If you experience any **issues** or want to report a bug, please open an [issue]
 Want to build a connector? 
 We'd love your help.
 **To contribute to existing integrations or create a new one**:
-- 📘 Read the [Contributor guide](CONTRIBUTING.md) 
+- 📘 Read the [Contributor guide](packages/connectors/CONTRIBUTING.md) 
 - 📌 Check open [connector requests](https://github.com/OWOX/owox-data-marts/issues) 
 
 All you need to get started is basic knowledge of Apps Script and a GitHub login.
@@ -78,6 +78,11 @@ Need help or want to connect with others?
 We're building this **with the community**, not just for it.
 
 ## 📌 License
-OWOX Data Marts is distributed under the ELv2 (Elastic License 2.0) — free for internal or client use, not for resale in a competing product.
+
+OWOX Data Marts is free for internal or client use, not for resale in a competing product. The project uses a dual-license model:
+
+- **Connectors** (`packages/connectors`) are distributed under the [MIT License](licenses/MIT.md)
+- **Platform** (all other files and directories) is distributed under the [ELv2 License](licenses/Elasticv2.md)
+
 
 ⭐ **Like this project?** [Star the repo here »](https://github.com/OWOX/owox-data-marts)
