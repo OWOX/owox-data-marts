@@ -9,7 +9,7 @@ var RedditAdsPipeline = class RedditAdsPipeline extends AbstractPipeline {
   constructor(config, connector, storageName = "GoogleSheetsStorage") {
     super(config.mergeParameters({
       DestinationTableNamePrefix: {
-        default: ""
+        default: "reddit_ads_"
       }
     }), connector);
 
@@ -139,7 +139,7 @@ var RedditAdsPipeline = class RedditAdsPipeline extends AbstractPipeline {
       this.storages[nodeName] = new globalThis[this.storageName](
         this.config.mergeParameters({
           DestinationSheetName: { value: nodeName },
-          DestinationTableName: { value: this.config.DestinationTableNamePrefix.value + nodeName.replace(/[^a-zA-Z0-9_]/g, "_") }
+          DestinationTableName: { value: this.config.DestinationTableNamePrefix.value + RedditAdsHelper.sanitizeNodeName(nodeName) }
         }),
         uniqueFields,
         this.connector.fieldsSchema[nodeName].fields,
