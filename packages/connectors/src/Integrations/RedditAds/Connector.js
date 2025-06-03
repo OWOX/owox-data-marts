@@ -24,6 +24,10 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
         isRequired: true,
         requiredType: "string",
       },
+      UserAgent: {
+        isRequired: true,
+        requiredType: "string",
+      },
       AccessToken: {
         requiredType: "string",
       },
@@ -89,6 +93,7 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
     // Base headers for all requests
     let headers = {
       "Accept": "application/json",
+      "User-Agent": this.config.UserAgent.value,
       "Authorization": "Bearer " + this.config.AccessToken.value
     };
 
@@ -182,6 +187,7 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
     const url = "https://www.reddit.com/api/v1/access_token";
     const headers = {
       "Content-Type": "application/x-www-form-urlencoded",
+      "User-Agent": this.config.UserAgent.value,
       "Authorization": "Basic " + EnvironmentAdapter.base64Encode(clientId + ":" + clientSecret)
     };
     const payload = {
@@ -565,7 +571,8 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
       ClientId: this.config.ClientId,
       ClientSecret: this.config.ClientSecret,
       RedirectUri: this.config.RedirectUri,
-      RefreshToken: this.config.RefreshToken
+      RefreshToken: this.config.RefreshToken,
+      UserAgent: this.config.UserAgent
     };
   }
 

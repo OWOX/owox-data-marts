@@ -39,7 +39,8 @@ function updateFieldsSheet() {
     new OWOX.RedditAdsConnector(config.setParametersValues({
       "ClientId": "undefined", 
       "ClientSecret": "undefined", 
-      "RedirectUri": "undefined", 
+      "RedirectUri": "undefined",
+      "UserAgent": "undefined", 
       "RefreshToken": "undefined", 
       "Fields": "undefined"
     }))

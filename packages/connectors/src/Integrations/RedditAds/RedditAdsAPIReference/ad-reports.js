@@ -20,7 +20,9 @@ var reportFields = {
   },
   'date': {
     'description': 'The date for this metric.',
-    'type': 'datetime'
+    'type': 'datetime',
+    'GoogleBigQueryType': 'date', 
+    'GoogleBigQueryPartitioned': true
   },
   'dma': {
     'description': '[ONLY in DMA based report] The Designated Market Area (DMA) targeted for the reports.',
