@@ -16,6 +16,6 @@
     "packages/*"
   ],
   "scripts": {
-    "pipeline-runner:node": "npm run pipeline-runner-node --workspace=packages/pipeline-runner"
+    "pipeline-runner-node": "npm run pipeline-runner-node --workspace=packages/pipeline-runner"
   }
 }
