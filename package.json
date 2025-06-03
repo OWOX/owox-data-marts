@@ -13,6 +13,7 @@
   "license": "ELv2",
   "author": "OWOX",
   "workspaces": [
+    "apps/*",
     "packages/*"
   ],
   "scripts": {
