@@ -25,7 +25,14 @@ var RedditFieldsSchema = {
     "description": "Retrieve ad groups and their details.",
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Groups",
     "fields": adGroupFields,
-    "uniqueKeys": ["id"]
+    "uniqueKeys": ["id"],
+    "parameters": {
+      "pageSize": {
+        "description": "Number of results to return per page",
+        "type": "integer",
+        "default": 10
+      }
+    }
   },
   "ads": {
     "overview": "Ad",

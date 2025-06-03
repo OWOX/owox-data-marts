@@ -98,13 +98,7 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
     };
 
     // Get endpoint configuration
-    const endpointsMap = this.getEndpointsMap();
-    
-    // Check if the endpoint for the given nodeName is implemented
-    if (!(nodeName in endpointsMap)) {
-      throw new Error(`Endpoint for ${nodeName} is not implemented yet. Please add your idea at: https://github.com/OWOX/js-data-connectors/discussions/categories/ideas`);
-    }
-    
+    const endpointsMap = this.getEndpointsMap(); 
     const endpointConfig = endpointsMap[nodeName]({ accountId, formattedDate, fields });
     const finalUrl = baseUrl + endpointConfig.url;
     const reqMethod = endpointConfig.method || 'get';
@@ -235,10 +229,12 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
         url: 'me',
         method: 'get'
       }),
-      'ad-group': ({ accountId }) => ({
-        url: `ad_accounts/${accountId}/ad_groups?page.size=10`,
-        method: 'get'
-      }),
+      'ad-group': ({ accountId }) => {
+        return {
+          url: `ad_accounts/${accountId}/ad_groups?page.size=${this.fieldsSchema['ad-group'].parameters.pageSize.default}`,
+          method: 'get'
+        };
+      },
       'ads': ({ accountId }) => ({
         url: `ad_accounts/${accountId}/ads`,
         method: 'get'
