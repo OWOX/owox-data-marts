@@ -42,7 +42,7 @@ Whether you're an analyst at an agency, a startup, or in a huge enterprise, this
 | Name | Status | Links
 | ------------ | ------ | ----
 | Google Sheets | 🟢 Public  | [Issues](https://github.com/OWOX/owox-data-marts/issues?q=is%3Aissue%20state%3Aopen%20label%3AGoogleSheets)
-| Google BigQuery | 🟢 Public | [Issues]https://github.com/OWOX/owox-data-marts/(issues?q=state%3Aopen%20%20label%3AGoogleBigQuery)
+| Google BigQuery | 🟢 Public | [Issues](https://github.com/OWOX/owox-data-marts/issues?q=state%3Aopen%20%20label%3AGoogleBigQuery)
 
 If you find an integration missing, you can share your use case and request it [here](https://github.com/OWOX/owox-data-marts/discussions)
 
