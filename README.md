@@ -3,7 +3,7 @@ Collect any marketing, financial, or CRM data into Google Sheets or BigQuery —
 No vendors. No lock-in. No permissions sharing with 3-rd parties. 
 Just JavaScript + full control for you.
 
-[🌐 Website](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) | [💬 Join Community](discussions) | [🆘 Create an Issue](issues)
+[🌐 Website](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) | [💬 Join Community](https://github.com/OWOX/owox-data-marts/discussions) | [🆘 Create an Issue](https://github.com/OWOX/owox-data-marts/issues)
 ![JavaScript Open-Source Connectors](packages/connectors/res/main-cover.png)
 
 ## ✨ Why We Built This
@@ -33,18 +33,18 @@ Whether you're an analyst at an agency, a startup, or in a huge enterprise, this
 | X Ads (former Twitter Ads) | 🟢 Public | [Google Drive](https://drive.google.com/drive/folders/16PMllaU704wrjHH45MlOBjQWZdxNhxZN), [Source Code](packages/connectors/src/Integrations/XAds), [Readme](packages/connectors/src/Integrations/XAds/README.md)
 | Criteo Ads | 🟢 Public | [Source Code](packages/connectors/src/Integrations/CriteoAds), [Readme](packages/connectors/src/Integrations/CriteoAds/README.md)
 | Bing Ads | 🟢 Public | [Source Code](packages/connectors/src/Integrations/BingAds), [Readme](packages/connectors/src/Integrations/BingAds/README.md)
-| Reddit Ads | 🟡 In Development | [Branch](tree/reddit_connector_v0.1), [Discussion](discussions/2), [Readme](packages/connectors/src/Integrations/RedditAds/README.md) 
-| Hotline | ⚪️ In Discussion | [Discussion](discussions/55)
-| Shopify Ads | ⚪️ In Discussion | [Discussion](discussions/63)
-| Google Business Profile | ⚪️ In Discussion | [Discussion](discussions/61)
+| Reddit Ads | 🟡 In Development | [Branch](https://github.com/OWOX/owox-data-marts/tree/reddit_connector_v0.1), [Discussion](https://github.com/OWOX/owox-data-marts/discussions/2), [Readme](packages/connectors/src/Integrations/RedditAds/README.md) 
+| Hotline | ⚪️ In Discussion | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/55)
+| Shopify Ads | ⚪️ In Discussion | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/63)
+| Google Business Profile | ⚪️ In Discussion | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/61)
 
 ### Data Storage Options
 | Name | Status | Links
 | ------------ | ------ | ----
-| Google Sheets | 🟢 Public  | [Issues](issues?q=is%3Aissue%20state%3Aopen%20label%3AGoogleSheets)
-| Google BigQuery | 🟢 Public | [Issues](issues?q=state%3Aopen%20%20label%3AGoogleBigQuery)
+| Google Sheets | 🟢 Public  | [Issues](https://github.com/OWOX/owox-data-marts/issues?q=is%3Aissue%20state%3Aopen%20label%3AGoogleSheets)
+| Google BigQuery | 🟢 Public | [Issues]https://github.com/OWOX/owox-data-marts/(issues?q=state%3Aopen%20%20label%3AGoogleBigQuery)
 
-If you find an integration missing, you can share your use case and request it [here](discussions)
+If you find an integration missing, you can share your use case and request it [here](https://github.com/OWOX/owox-data-marts/discussions)
 
 ## 🧰 How It Works
 - 🎯 Pick your platform (e.g. Facebook Ads) from [existing integrations](packages/connectors/src/Integrations)
@@ -53,18 +53,18 @@ If you find an integration missing, you can share your use case and request it [
 - 🚀 Run the Apps Script to pull your data
 - 📅 Schedule it (optional) for daily/weekly refreshes
 
-If you experience any **issues** or want to report a bug, please open an [issue](issues).
+If you experience any **issues** or want to report a bug, please open an [issue](https://github.com/OWOX/owox-data-marts/issues).
 
 **To become a part of the Core team**, please start by submitting a pull request to the Core part of the product. Understanding TypeScript, Git, and software development is required.
 
-**To get support**, please [visit Q&A](discussions/categories/q-a) first. 
+**To get support**, please [visit Q&A](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) first. 
 
 ## 🧑‍💻 Contribute or Build Your Own
 Want to build a connector? 
 We'd love your help.
 **To contribute to existing integrations or create a new one**:
 - 📘 Read the [Contributor guide](packages/connectors/CONTRIBUTING.md) 
-- 📌 Check open [connector requests](issues) 
+- 📌 Check open [connector requests](https://github.com/OWOX/owox-data-marts/issues) 
 
 All you need to get started is basic knowledge of Apps Script and a GitHub login.
 No software installation is required on your computer.
@@ -73,7 +73,7 @@ Whether you're adding a new API, tweaking one, or improving docs, we'll support 
 
 ## 🌍 Join the Community
 Need help or want to connect with others?
-- 💬 [Join our Community](discussions)
+- 💬 [Join our Community](https://github.com/OWOX/owox-data-marts/discussions)
 - 🗨️ Ask questions or suggest features
 We're building this **with the community**, not just for it.
 
