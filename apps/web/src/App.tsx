@@ -1,7 +1,13 @@
-import './App.css';
+import './styles/App.css';
+import Logo from './components/Logo';
 
 function App() {
-  return <>OWOX</>;
+  return (
+    <div className="app-container">
+      <Logo />
+      <div>OWOX</div>
+    </div>
+  );
 }
 
 export default App;
