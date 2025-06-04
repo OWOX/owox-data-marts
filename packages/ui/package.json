@@ -7,7 +7,10 @@
     "lint": "eslint . --max-warnings 0"
   },
   "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.14",
+    "@radix-ui/react-separator": "^1.1.7",
     "@radix-ui/react-slot": "^1.2.3",
+    "@radix-ui/react-tooltip": "^1.2.7",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.475.0",
@@ -19,12 +22,12 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@owox/eslint-config": "../eslint-config",
+    "@owox/typescript-config": "../typescript-config",
     "@tailwindcss/postcss": "^4.0.8",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@owox/eslint-config": "../eslint-config",
-    "@owox/typescript-config": "../typescript-config",
     "tailwindcss": "^4.0.8",
     "typescript": "^5.7.3"
   },
