@@ -2,7 +2,7 @@
   "name": "@workspace/typescript-config",
   "version": "0.0.0",
   "private": true,
-  "license": "PROPRIETARY",
+  "license": "ELv2",
   "publishConfig": {
     "access": "public"
   }
