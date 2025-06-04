@@ -7,20 +7,8 @@ interface LogoProps {
   className?: string;
 }
 
-const Logo: React.FC<LogoProps> = ({ 
-  width = 45, 
-  height = 36, 
-  className = '' 
-}) => {
-  return (
-    <img 
-      src={logoSvg} 
-      alt="OWOX Logo" 
-      width={width} 
-      height={height} 
-      className={className}
-    />
-  );
+const Logo: React.FC<LogoProps> = ({ width = 45, height = 36, className = '' }) => {
+  return <img src={logoSvg} alt="OWOX Logo" width={width} height={height} className={className} />;
 };
 
 export default Logo;

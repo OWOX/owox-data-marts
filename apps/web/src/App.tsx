@@ -1,13 +1,11 @@
 import './styles/App.css';
-import Logo from './components/Logo';
+import { RouterProvider, createBrowserRouter } from 'react-router-dom';
+import routes from './routes';
 
 function App() {
-  return (
-    <div className="app-container">
-      <Logo />
-      <div>OWOX</div>
-    </div>
-  );
+  const router = createBrowserRouter(routes);
+
+  return <RouterProvider router={router} />;
 }
 
 export default App;
