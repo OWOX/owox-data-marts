@@ -1,5 +1,5 @@
 {
-  "name": "@workspace/eslint-config",
+  "name": "@owox/eslint-config",
   "version": "0.0.0",
   "type": "module",
   "private": true,

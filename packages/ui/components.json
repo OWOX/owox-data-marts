@@ -11,10 +11,10 @@
   },
   "iconLibrary": "lucide",
   "aliases": {
-    "components": "@workspace/ui/components",
-    "utils": "@workspace/ui/lib/utils",
-    "hooks": "@workspace/ui/hooks",
-    "lib": "@workspace/ui/lib",
-    "ui": "@workspace/ui/components"
+    "components": "@owox/ui/components",
+    "utils": "@owox/ui/lib/utils",
+    "hooks": "@owox/ui/hooks",
+    "lib": "@owox/ui/lib",
+    "ui": "@owox/ui/components"
   }
 }

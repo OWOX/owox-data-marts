@@ -27,8 +27,8 @@
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.24.1",
     "@typescript-eslint/parser": "^8.24.1",
-    "@workspace/eslint-config": "/packages/eslint-config",
-    "@workspace/typescript-config": "/packages/typescript-config",
+    "@owox/eslint-config": "/packages/eslint-config",
+    "@owox/typescript-config": "/packages/typescript-config",
     "eslint": "^9.28.0",
     "prettier": "^3.5.3",
     "prettier-plugin-tailwindcss": "^0.6.12",
