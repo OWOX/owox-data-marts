@@ -20,23 +20,25 @@ The import will begin from the selected **Start Date**.
 
 ![Bing Start Date](res/bing_startdate.png)
 
-You can find your **Account ID** and **Customer ID** in the URL of your Bing Ads account. Go to [https://ads.microsoft.com/](https://ads.microsoft.com/) and log in to your Bing Ads account. The **URL** of your account contains the **Account ID** and **Customer ID**. 
+Log in to your Bing Ads account at [https://ads.microsoft.com/](https://ads.microsoft.com/).  
+Your **Account ID** and **Customer ID** can be found in the account URL.
 
 ![Bing Add Account](res/bing_addaccount.png)
 
-Copy and paste both values.
+Copy and paste both values into the template.
 
 ![Account ID](res/bing_pasteid.png)
 
-To include fields, go to the **Fields** tab and check the boxes next to the fields you want to include.
+Go to the **Fields** tab and check the boxes next to the fields you want to include.  
 
 ![Bing Fields](res/bing_fields.png)
 
-Choose the Report Aggregation Value. Please, refer to the [Microsoft Ads help center](https://learn.microsoft.com/en-us/advertising/reporting-service/reportaggregation?view=bingads-13) to learn more. 
+Select the **Report Aggregation** value.  
+Refer to the [Microsoft Ads documentation](https://learn.microsoft.com/en-us/advertising/reporting-service/reportaggregation?view=bingads-13) to learn more.  
 
 ![Bing Aggregation](res/bing_aggregation.png)
 
-Choose the Report Time Zone. This field Ddefines possible values for the time zone that you want the Reporting service to use for the selected date range.
+Choose the **Report Time Zone** to define the timezone for the reporting date range.
 
 ![Bing Time Zone](res/bing_timezone.png)
 
@@ -61,7 +63,8 @@ Once your credentials are saved, go to: **OWOX → Import New Data**
 
 ![Bing Import Data](res/bing_import.png)
 
-The import process is complete when the Log data displays **"Import is finished"**. 
+The import process is complete when the **Log** sheet displays:  
+**"Import is finished"**  
 
 ![Bing Finished](res/bing_finished.png)
 
