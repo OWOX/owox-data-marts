@@ -10,10 +10,18 @@ import {
     SidebarMenuItem,
     SidebarMenuButton,
   } from "@owox/ui/components/sidebar"
-import { Home } from "lucide-react"
+import { Home, ChevronsUpDown } from "lucide-react"
 import { createElement } from "react"
 import { ThemeToggle } from "./theme-toggle"
 import Logo from "./Logo"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@owox/ui/components/dropdown-menu"
+import { SidebarHeaderDropdown } from "./sidebar-header-dropdown"
   
   // Menu items.
 const items = [
@@ -28,7 +36,7 @@ const items = [
     return (
       <Sidebar>
         <SidebarHeader>
-          <Logo />
+          <SidebarHeaderDropdown />
         </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
