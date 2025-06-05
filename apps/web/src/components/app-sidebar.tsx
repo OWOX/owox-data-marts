@@ -1,46 +1,46 @@
 import {
-    Sidebar,
-    SidebarContent,
-    SidebarFooter,
-    SidebarGroup,
-    SidebarHeader,
-    SidebarGroupLabel,
-    SidebarGroupContent,
-    SidebarMenu,
-    SidebarMenuItem,
-    SidebarMenuButton,
-  } from "@owox/ui/components/sidebar"
-import { Home, ChevronsUpDown } from "lucide-react"
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarHeader,
+  SidebarGroupContent,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarRail,
+} from "@owox/ui/components/sidebar"
+import { Home } from "lucide-react"
 import { createElement } from "react"
 import { ThemeToggle } from "./theme-toggle"
-import Logo from "./Logo"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@owox/ui/components/dropdown-menu"
 import { SidebarHeaderDropdown } from "./sidebar-header-dropdown"
-  
-  // Menu items.
-const items = [
-    {
-      title: "Home",
-      url: "#",
-      icon: Home,
-    }, 
-  ]
 
-  export function AppSidebar() {
-    return (
-      <Sidebar>
-        <SidebarHeader>
+// Типи для підтримки пропсів
+type AppSidebarProps = {
+  variant?: 'sidebar' | 'floating' | 'inset';
+  collapsible?: 'offcanvas' | 'icon' | 'none';
+};
+
+const items = [
+  {
+    title: "Home",
+    url: "#",
+    icon: Home,
+  },
+];
+
+export function AppSidebar({
+  variant = 'inset',
+  collapsible = 'icon',
+}: AppSidebarProps) {
+  return (
+    <Sidebar variant={variant} collapsible={collapsible}>
+      <SidebarHeader>
           <SidebarHeaderDropdown />
-        </SidebarHeader>
+      </SidebarHeader>
+
       <SidebarContent>
         <SidebarGroup>
-          {/*<SidebarGroupLabel>Application</SidebarGroupLabel>*/}
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => (
@@ -57,9 +57,11 @@ const items = [
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
       <SidebarFooter className="p-2">
         <ThemeToggle />
       </SidebarFooter>
+      <SidebarRail />
     </Sidebar>
-    )
-  }
+  );
+}
