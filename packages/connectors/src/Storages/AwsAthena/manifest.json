@@ -1,0 +1,17 @@
+{
+    "name": "AwsAthenaStorage",
+    "description": "Storage for AWS Athena",
+    "version": "0.0.0",
+    "author": "OWOX, Inc.",
+    "license": "MIT",
+    "environment": {
+        "node": {
+            "enabled": true,
+            "dependencies": {
+                "@aws-sdk/client-athena": "3.810.0",
+                "@aws-sdk/client-s3": "^3.810.0",
+                "@aws-sdk/lib-storage": "3.810.0"
+            }
+        }
+    }
+}
