@@ -63,6 +63,8 @@ Once your credentials are saved, go to: **OWOX → Import New Data**
 
 The import process is complete when the Log data displays **"Import is finished"**. 
 
+![Bing Finished](res/bing_finished.png)
+
 Access Your Data:
 
 - In the **Google Sheets** template, the data will appear in new tabs labeled with the corresponding data types.  
