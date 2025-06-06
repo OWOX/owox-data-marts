@@ -9,7 +9,7 @@ function MainLayout() {
       <SidebarProvider>
         <AppSidebar variant="inset" collapsible="icon" />
         <SidebarInset>
-          <div className="flex justify-between p-4 w-full h-full">
+          <div className="flex h-full w-full justify-between p-4">
             <SidebarTrigger />
             <Outlet />
           </div>

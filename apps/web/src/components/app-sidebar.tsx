@@ -9,34 +9,31 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarRail,
-} from "@owox/ui/components/sidebar"
-import { Home } from "lucide-react"
-import { createElement } from "react"
-import { ThemeToggle } from "./theme-toggle"
-import { SidebarHeaderDropdown } from "./sidebar-header-dropdown"
+} from '@owox/ui/components/sidebar';
+import { Home } from 'lucide-react';
+import { createElement } from 'react';
+import { ThemeToggle } from './theme-toggle';
+import { SidebarHeaderDropdown } from './sidebar-header-dropdown';
 
-// Типи для підтримки пропсів
-type AppSidebarProps = {
+// Prop types support
+interface AppSidebarProps {
   variant?: 'sidebar' | 'floating' | 'inset';
   collapsible?: 'offcanvas' | 'icon' | 'none';
-};
+}
 
 const items = [
   {
-    title: "Home",
-    url: "#",
+    title: 'Home',
+    url: '#',
     icon: Home,
   },
 ];
 
-export function AppSidebar({
-  variant = 'inset',
-  collapsible = 'icon',
-}: AppSidebarProps) {
+export function AppSidebar({ variant = 'inset', collapsible = 'icon' }: AppSidebarProps) {
   return (
     <Sidebar variant={variant} collapsible={collapsible}>
       <SidebarHeader>
-          <SidebarHeaderDropdown />
+        <SidebarHeaderDropdown />
       </SidebarHeader>
 
       <SidebarContent>

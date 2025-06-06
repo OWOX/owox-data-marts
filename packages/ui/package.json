@@ -7,6 +7,10 @@
     "lint": "eslint . --max-warnings 0"
   },
   "dependencies": {
+    "@floating-ui/react-dom": "^2.1.3",
+    "@radix-ui/primitive": "^1.1.2",
+    "@radix-ui/react-arrow": "^1.1.7",
+    "@radix-ui/react-collection": "^1.1.7",
     "@radix-ui/react-dialog": "^1.1.14",
     "@radix-ui/react-dropdown-menu": "^2.1.15",
     "@radix-ui/react-separator": "^1.1.7",
@@ -14,10 +18,13 @@
     "@radix-ui/react-tooltip": "^1.2.7",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "detect-node-es": "^1.1.0",
+    "get-nonce": "^1.0.1",
     "lucide-react": "^0.475.0",
     "next-themes": "^0.4.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "set-cookie-parser": "^2.7.1",
     "tailwind-merge": "^3.0.1",
     "tw-animate-css": "^1.2.4",
     "zod": "^3.24.2"
