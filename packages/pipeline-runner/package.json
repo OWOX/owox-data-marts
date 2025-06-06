@@ -11,10 +11,8 @@
     "@aws-sdk/lib-storage": "3.810.0",
     "@google-cloud/bigquery": "^8.0.0",
     "adm-zip": "^0.5.16",
+    "deasync": "^0.1.30",
     "sync-request": "^6.1.0"
-  },
-  "optionalDependencies": {
-    "deasync": "^0.1.30"
   },
   "devDependencies": {
     "@types/node": "^20.3.1"
