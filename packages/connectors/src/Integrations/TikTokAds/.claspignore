@@ -8,3 +8,4 @@
 !Constants/*.js
 !Views/**/*
 !Storages/**/*.js
+!Configs/AppsScript/*.js
