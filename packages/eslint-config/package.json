@@ -6,7 +6,9 @@
   "exports": {
     "./base": "./base.js",
     "./react-internal": "./react-internal.js",
-    "./vite": "./vite.js"
+    "./vite": "./vite.js",
+    "./node": "./node.js",
+    "./nestjs": "./nestjs.js"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.24.1",
