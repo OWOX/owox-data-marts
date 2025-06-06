@@ -16,7 +16,7 @@ Library files connected to templates are updated automaticaly based on Github re
 
 Library contatins two types of files: 
 - `Core/*` — Core scripts, which are the same for all integrations, are primarily written in TypeScript (at least, it will be soon!)
-- `Integrations/*` — Data source-specific files are primarily written in Apps Script. You may need to modify them to suit your custom requirements.
+- `Sources/*` — Data source-specific files are primarily written in Apps Script. You may need to modify them to suit your custom requirements.
 
 ![Google Sheets Files Schema](res/google-sheets-files-links.png)
 
@@ -32,14 +32,14 @@ To create integration with a new data source, do the following:
 ## UML
 ![Google Sheets UML](res/google-sheets-uml.svg)
 ### Pipeline
-`Pipeline` is responsible for data transfer orchestrations. There are three parameters required to create a `Pipeline`: `Config`, `Connector`, and `Storage`.  
+`Pipeline` is responsible for data transfer orchestrations. There are three parameters required to create a `Pipeline`: `Config`, `Source`, and `Storage`.  
 For most data sources, it is enough to override the `startImportProcess()` method.
 
 It must be an instance of `AbstractPipeline`
 
-### Connector
-`Connector` is responsible for fetching data from the Data Source. This object has a `fetchData()` method, which is required for data source-specific implementation.
-It must be an instance of `AbstractConnector`
+### Source
+`Source` is responsible for fetching data from the Data Source. This object has a `fetchData()` method, which is required for data source-specific implementation.
+It must be an instance of `AbstractSource`
 
 ### Storage
 `Storage` is responsible for adding new data and updating existing data in storage. Currently, only Google Sheets is supported as a data storage option.

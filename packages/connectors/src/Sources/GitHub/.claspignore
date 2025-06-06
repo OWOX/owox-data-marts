@@ -1,6 +1,6 @@
 **/**
-!Sources/PublicEndPoint/*.js
-!Sources/PublicEndPoint/**/*.js
+!Sources/GitHub/*.js
+!Sources/GitHub/**/*.js
 !appsscript.json
 !Core/Abstract*.js
 !Core/*Storage.js
