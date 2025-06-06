@@ -22,17 +22,17 @@ Whether you're an analyst at an agency, a startup, or in a huge enterprise, this
 
 ## 🔌 Available Connectors
 
-### Data Sources
+#### Data Sources
 | Name | Status | Links
 | ------------ | ------ | ----
 | Facebook Ads | 🟢 Public | [Google Drive](https://drive.google.com/drive/u/0/folders/1_x556pta5lKtKbTltIrPEDkNqAn78jM4), [Source Code](packages/connectors/src/Integrations/FacebookMarketing), [Readme](packages/connectors/src/Integrations/FacebookMarketing/README.md) 
 | Open Exchange Rates | 🟢 Public | [Google Drive](https://drive.google.com/drive/u/0/folders/1akutchS-Txr5PwToMzHrikTXd_GTs-84), [Source Code](packages/connectors/src/Integrations/OpenExchangeRates), [Readme](packages/connectors/src/Integrations/OpenExchangeRates/README.md)
 | Bank of Canada | 🟢 Public | [Google Drive](https://drive.google.com/drive/u/0/folders/18c9OHHmdZs-evtU1bWd6pIqdXjnANRmv), [Source Code](packages/connectors/src/Integrations/BankOfCanada), [Readme](packages/connectors/src/Integrations/BankOfCanada/README.md)
-| LinkedIn Ads & LinkedIn Pages | 🟢 Public | [Google Drive](https://drive.google.com/drive/folders/1anKRhqJpSWEoeDZvJtrNLgfsGfgSBtIm), [Source Code](packages/connectors/src/Integrations/LinkedIn), [Readme](packages/connectors/src/Integrations/LinkedIn/README.md)
+| LinkedIn Ads & LinkedIn Pages | 🟢 Public | [Google Drive](https://drive.google.com/drive/folders/1anKRhqJpSWEoeDZvJtrNLgfsGfgSBtIm), [Source Code](tree/main/src/Integrations/LinkedIn), [Readme](packages/connectors/src/Integrations/LinkedIn/README.md)
 | TikTok Ads | 🟢 Public | [Google Drive](https://drive.google.com/drive/folders/1zYBdx4Lm496mrCmwSNG3t82weWZRJb0o), [Source Code](packages/connectors/src/Integrations/TikTokAds), [Readme](packages/connectors/src/Integrations/TikTokAds/README.md)
 | X Ads (former Twitter Ads) | 🟢 Public | [Google Drive](https://drive.google.com/drive/folders/16PMllaU704wrjHH45MlOBjQWZdxNhxZN), [Source Code](packages/connectors/src/Integrations/XAds), [Readme](packages/connectors/src/Integrations/XAds/README.md)
-| Criteo Ads | 🟡 In Development | [Branch](https://github.com/OWOX/owox-data-marts/tree/criteo-alpha), [Discussion](https://github.com/OWOX/owox-data-marts/discussions/54), [Readme](packages/connectors/src/Integrations/CriteoAds/README.md)
-| Bing Ads | 🟡 In Development | [Branch](https://github.com/OWOX/owox-data-marts/tree/bing-ads-attempt-1), [Discussion](https://github.com/OWOX/owox-data-marts/tree/bing-ads-attempt-1), [Readme](packages/connectors/src/Integrations/BingAds/README.md)
+| Criteo Ads | 🟢 Public | [Google Drive](https://drive.google.com/drive/folders/12C7MZDyUb5fnI9IIxD8o_qvLecOD7TyQ?usp=sharing), [Source Code](packages/connectors/src/Integrations/CriteoAds), [Readme](packages/connectors/src/Integrations/CriteoAds/README.md)
+| Bing Ads | 🟢 Public | [Google Drive](https://drive.google.com/drive/folders/1AmLYbXj72CpDeamfCecvIXJgvKwIpoOS?usp=sharing), [Source Code](packages/connectors/src/Integrations/BingAds), [Readme](packages/connectors/src/Integrations/BingAds/README.md)
 | Reddit Ads | 🟡 In Development | [Branch](https://github.com/OWOX/owox-data-marts/tree/reddit_connector_v0.1), [Discussion](https://github.com/OWOX/owox-data-marts/discussions/2), [Readme](packages/connectors/src/Integrations/RedditAds/README.md) 
 | Hotline | ⚪️ In Discussion | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/55)
 | Shopify Ads | ⚪️ In Discussion | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/63)
