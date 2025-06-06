@@ -5,6 +5,7 @@ This document describes the structure of the OWOX Data Marts monorepo, which is 
 ## Overview
 
 The monorepo is divided into two main sections:
+
 - `apps/` - Contains deployable applications and runtimes
 - `packages/` - Contains shared libraries and configurations
 
@@ -12,28 +13,34 @@ The monorepo is divided into two main sections:
 
 ```
 owox-data-marts/
-├── apps/                # Deployable applications
-│   ├── web/             # Frontend web application
-│   │   ├── src/         # Source code
-│   │   └── dist/        # Build artifacts
+├── apps/                  # Deployable applications
+│   ├── web/               # Frontend web application
+│   │   ├── src/           # Source code
+│   │   └── dist/          # Build artifacts
 │   │
-│   ├── backend/         # Backend API and platform runtime
-│   │   └── src/         # Source code
+│   ├── backend/           # Backend API and platform runtime
+│   │   └── src/           # Source code
 │   │
-│   └── cli/             # Command-line interface tool
-│       └── src/         # Source code
+│   └── cli/               # Command-line interface tool
+│       └── src/           # Source code
 │
-├── packages/            # Shared libraries and configurations
-│   ├── ui/              # Shared UI components and design system
-│   │   └── src/         # Source code
+├── packages/              # Shared libraries and configurations
+│   ├── ui/                # Shared UI components and design system
+│   │   └── src/           # Source code
 │   │
-│   ├── connectors/      # Data connectors and API integrations
-│   │   └── src/         # Source code
+│   ├── connectors/        # Data connectors and API integrations
+│   │   └── src/           # Source code
 │   │
-│   ├── pipeline-runner/ # Core pipeline execution logic
-│   │   └── src/         # Source code
+│   ├── eslint-config/     # Shared ESLint configurations
 │   │
-│   └── linter-config/   # Shared linting configurations
+│   ├── linter-config/     # Shared linting configurations
+│   │
+│   ├── pipeline-runner/   # Core pipeline execution logic
+│   │   └── src/           # Source code
+│   │
+│   ├── prettier-config/   # Shared Prettier configurations
+│   │
+│   └── typescript-config/ # Shared TypeScript configurations
 │
 └── docs/                # Project documentation
 ```
@@ -41,18 +48,21 @@ owox-data-marts/
 ## Applications (`apps/`)
 
 ### Web Application (`apps/web/`)
+
 - React-based frontend application
 - Serves the main user interface
 - Consumes shared UI components from `packages/ui`
 - Build artifacts are served by the backend
 
 ### Backend (`apps/backend/`)
+
 - NestJS-based backend API
 - Serves the web application's build artifacts
 - Implements platform runtime
 - Uses shared packages for data connectors and pipeline execution
 
 ### CLI Tool (`apps/cli/`)
+
 - Command-line interface for platform management
 - Published as global npm package (`owox`)
 - Reuses backend logic and connectors
@@ -61,20 +71,24 @@ owox-data-marts/
 ## Shared Packages (`packages/`)
 
 ### UI Package (`packages/ui/`)
+
 - Shared React components
 - Implements shadcn/ui-based design system
 - Tailwind CSS styling
 - Used by the web application and other frontends outside of this monorepo
 
 ### Connectors (`packages/connectors/`)
+
 - Data Source integrations
 - Shared across backend and CLI
 
 ### Pipeline Runner (`packages/pipeline-runner/`)
+
 - Core logic for pipeline execution
 - Used by backend and CLI
 
 ### Linter Config (`packages/linter-config/`)
+
 - Shared ESLint and Prettier configurations
 - Used by all apps and packages
 - Ensures consistent code style
