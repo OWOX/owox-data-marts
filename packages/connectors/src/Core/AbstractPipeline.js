@@ -7,13 +7,13 @@
 
 class AbstractPipeline {
   //---- constructor -------------------------------------------------
-    constructor(config, connector, storage = null) {
+    constructor(config, source, storage = null) {
 
       if( typeof config.setParametersValues !== "function" ) { 
         throw new Error(`Unable to create a Pipeline. The first parameter must inherit from the AbstractConfig class`);
         
-      } else if( typeof connector.fetchData !== "function" ) {
-        throw new Error(`Unable to create a Pipeline. The second parameter must inherit from the AbstractConnector class`);
+      } else if( typeof source.fetchData !== "function" ) {
+        throw new Error(`Unable to create a Pipeline. The second parameter must inherit from the AbstractSource class`);
 
       // storage might be null in case it will be dynmicaly assigned in Pipeline.startImportProcess()
       } else if ( storage !== null && !(storage instanceof AbstractStorage) ) {
@@ -43,7 +43,7 @@ class AbstractPipeline {
       }
       
       this.config = config;
-      this.connector = connector;
+      this.source = source;
       this.storage = storage;
 
     }
@@ -114,7 +114,7 @@ class AbstractPipeline {
       endDate.setDate(startDate.getDate() + daysToFetch);
 
       // fetching new data from a data source
-      let data = this.connector.fetchData(startDate, endDate);
+      let data = this.source.fetchData(startDate, endDate);
 
       // there are fetched records to update
       if( !data.length ) {      

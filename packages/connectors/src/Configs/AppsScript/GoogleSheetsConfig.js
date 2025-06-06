@@ -130,10 +130,10 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
   //---- updateFieldsSheet -------------------------------------------
     /**
      * Updating the content of the fields list to simplify the selection of fields for import
-     * @param connector AbstractConnector
+     * @param connector AbstractSource
      * @param sheetName string, Fields by default
      */
-    updateFieldsSheet(connector, sheetName = "Fields") {
+    updateFieldsSheet(source, sheetName = "Fields") {
     
       this.validate();
     
@@ -147,7 +147,7 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
       )
     
       // getting schema fields from connector. Must be two level object 
-      var groups = connector.getFieldsSchema();
+      var groups = source.getFieldsSchema();
     
       // updating content of the fields config sheet
       var data = [];
@@ -346,16 +346,16 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
     
     }
 
-    showCredentialsDialog(connector) {
+    showCredentialsDialog(source) {
       const ui = SpreadsheetApp.getUi();
       
       const template = HtmlService.createTemplateFromFile('Views/credentials-input-dialog');
-      template.connector = connector;
+      template.connector = source;
       
       const html = template.evaluate()
         .setWidth(400)
         .setHeight(450);
       
-      ui.showModalDialog(html, `${connector.constructor.name} Credentials`);
+      ui.showModalDialog(html, `${source.constructor.name} Credentials`);
     }
 }

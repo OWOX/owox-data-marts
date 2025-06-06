@@ -1,0 +1,11 @@
+**/**
+!Sources/OpenExchangeRates/*.js
+!Sources/OpenExchangeRates/**/*.js
+!appsscript.json
+!Core/Abstract*.js
+!Core/Exceptions.js
+!Core/EnvironmentAdapter.js
+!Constants/*.js
+!Views/**/*
+!Storages/**/*.js
+!Configs/AppsScript/*.js

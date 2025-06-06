@@ -1,6 +1,6 @@
 **/**
-!Integrations/Token-Based/*.js
-!Integrations/Token-Based/**/*.js
+!Sources/Token-Based/*.js
+!Sources/Token-Based/**/*.js
 !appsscript.json
 !Core/Abstract*.js
 !Core/*Storage.js
