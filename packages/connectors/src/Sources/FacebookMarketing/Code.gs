@@ -27,7 +27,6 @@ function importNewData() {
     new OWOX.FacebookMarketingSource( config.setParametersValues(  // source with parameter's values added from properties 
       PropertiesService.getDocumentProperties().getProperties()
     ) ),
-    "GoogleSheetsStorage"
    // "GoogleBigQueryStorage"
   );
 

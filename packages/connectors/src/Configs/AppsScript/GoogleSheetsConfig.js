@@ -350,7 +350,7 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
       const ui = SpreadsheetApp.getUi();
       
       const template = HtmlService.createTemplateFromFile('Views/credentials-input-dialog');
-      template.connector = source;
+      template.source = source;
       
       const html = template.evaluate()
         .setWidth(400)
