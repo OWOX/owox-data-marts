@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-var TikTokAdsPipeline = class TikTokAdsPipeline extends AbstractPipeline {
+var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
   constructor(config, source, storageName = "GoogleSheetsStorage") {
     super(config.mergeParameters({
       DestinationTableNamePrefix: {

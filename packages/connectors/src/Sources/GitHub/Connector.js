@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-var GitHubPipeline = class GitHubPipeline extends AbstractPipeline {
+var GitHubConnector = class GitHubConnector extends AbstractConnector {
 
  /**
      * A method for calling from Root script for determining parameters needed to fetch new data.

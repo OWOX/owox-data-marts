@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-var FacebookMarketingPipeline = class FacebookMarketingPipeline extends AbstractPipeline {
+var FacebookMarketingConnector = class FacebookMarketingConnector extends AbstractConnector {
 
   // ---- constructor ------------------------------------
       constructor(config, source, storageName = "GoogleSheetsStorage") {

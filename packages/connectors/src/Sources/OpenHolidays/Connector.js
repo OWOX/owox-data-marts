@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-var OpenHolidaysPipeline = class OpenHolidaysPipeline extends AbstractPipeline {
+var OpenHolidaysConnector = class OpenHolidaysConnector extends AbstractConnector {
     startImportProcess() {
         this.config.logMessage("🔄 Starting import process for public holidays");
         const data = this.source.fetchData();

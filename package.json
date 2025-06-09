@@ -17,7 +17,7 @@
     "packages/*"
   ],
   "scripts": {
-    "pipeline-runner-node": "npm run pipeline-runner-node --workspace=packages/pipeline-runner",
+    "connector-runner-node": "npm run connector-runner-node --workspace=packages/connector-runner",
     "dev:web": "npm run dev -w @owox/web",
     "dev:backend": "npm run dev -w @owox/backend",
     "dev": "npm-run-all --parallel dev:web dev:backend",

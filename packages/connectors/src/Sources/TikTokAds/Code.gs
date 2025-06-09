@@ -31,14 +31,14 @@ function startImportProcess() {
   const config = new OWOX.GoogleSheetsConfig(CONFIG_RANGE);
   const properties = PropertiesService.getDocumentProperties().getProperties();
   const source = new OWOX.TikTokAdsSource(config.setParametersValues(properties));
-  const pipeline = new OWOX.TikTokAdsPipeline(
+  const connector = new OWOX.TikTokAdsConnector(
     config,
     source,
     "GoogleSheetsStorage"
     // "GoogleBigQueryStorage"
   );
 
-  pipeline.run();
+  connector.run();
 }
 
 function manageCredentials(credentials) {
@@ -360,10 +360,10 @@ function cleanUpExpiredData() {
     
     var config = new OWOX.GoogleSheetsConfig(configRange);
     var source = new OWOX.TikTokAdsSource(config);
-    var pipeline = new OWOX.TikTokAdsPipeline(config, source);
+    var connector = new OWOX.TikTokAdsConnector(config, source);
     
     config.logMessage("🔄 Starting data cleanup process...");
-    pipeline.cleanUpExpiredData();
+    connector.cleanUpExpiredData();
     config.logMessage("✅ Data cleanup completed");
   } catch (error) {
     console.error(`Error during data cleanup: ${error}`);
@@ -373,3 +373,5 @@ function cleanUpExpiredData() {
     }
   }
 }
+
+

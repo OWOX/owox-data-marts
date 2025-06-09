@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-var BankOfCanadaPipeline = class BankOfCanadaPipeline extends AbstractPipeline {
+var BankOfCanadaConnector = class BankOfCanadaConnector extends AbstractConnector {
 
 
 }

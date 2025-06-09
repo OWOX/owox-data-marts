@@ -22,14 +22,14 @@ function importNewData() {
   const properties = PropertiesService.getDocumentProperties().getProperties();
     const source = new OWOX.XAdsSource(config.setParametersValues(properties));
 
-  const pipeline = new OWOX.XAdsPipeline(
+  const connector = new OWOX.XAdsConnector(
     config, 
     source,
     "GoogleSheetsStorage"
     // "GoogleBigQueryStorage"
   );
 
-  pipeline.run();
+  connector.run();
 } 
 
 function updateFieldsSheet() {

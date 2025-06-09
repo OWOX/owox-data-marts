@@ -1,9 +1,9 @@
 {
   "name": "@owox/pipeline-runner",
   "version": "1.0.0",
-  "description": "Runners for OWOX Data Marts integration pipelines",
+  "description": "Runners for OWOX Data Marts integration connectors",
   "scripts": {
-    "pipeline-runner-node": "node src/local-runner.js"
+    "connector-runner-node": "node src/local-runner.js"
   },
   "dependencies": {
     "@aws-sdk/client-athena": "3.810.0",

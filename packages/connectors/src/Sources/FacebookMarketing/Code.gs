@@ -22,7 +22,7 @@ function importNewData() {
 
   const config = new OWOX.GoogleSheetsConfig( CONFIG_RANGE );
   
-  const pipeline = new OWOX.FacebookMarketingPipeline(
+  const connector = new OWOX.FacebookMarketingConnector(
     config,                                                           // pipeline configuration
     new OWOX.FacebookMarketingSource( config.setParametersValues(  // source with parameter's values added from properties 
       PropertiesService.getDocumentProperties().getProperties()
@@ -30,7 +30,7 @@ function importNewData() {
    // "GoogleBigQueryStorage"
   );
 
-  pipeline.run();
+  connector.run();
 
 }
 

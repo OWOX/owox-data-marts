@@ -21,8 +21,8 @@ function importNewData() {
 
   const config = new OWOX.GoogleSheetsConfig( CONFIG_RANGE );
   
-  const pipeline = new OWOX.OpenExchangeRatesPipeline(
-    config,                                                           // pipeline configuration
+  const connector = new OWOX.OpenExchangeRatesConnector(
+    config,                                                           // connector configuration
     new OWOX.OpenExchangeRatesSource(config.setParametersValues(       // source with parameter's values added from properties 
       PropertiesService.getDocumentProperties().getProperties()
     )),                          
@@ -39,7 +39,7 @@ function importNewData() {
     // )
   );
 
-  pipeline.run();
+  connector.run();
 
 }
 

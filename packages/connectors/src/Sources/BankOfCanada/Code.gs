@@ -22,13 +22,13 @@ function importNewData() {
 
   const config = new OWOX.GoogleSheetsConfig( CONFIG_RANGE );
 
-  const pipeline = new OWOX.BankOfCanadaPipeline(
-    config,                                               // pipeline configuration
+  const connector = new OWOX.BankOfCanadaConnector(
+    config,                                               // connector configuration
     new OWOX.BankOfCanadaSource(config),                 // source 
     new OWOX.GoogleSheetsStorage(config, ["date", "label"]) // storage 
   );
 
-  pipeline.run();
+  connector.run();
 
 }
 

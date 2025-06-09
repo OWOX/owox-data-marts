@@ -5,11 +5,11 @@
  * file that was distributed with this source code.
  */
 
-var RedditAdsPipeline = class RedditAdsPipeline extends AbstractPipeline {
+var BingAdsConnector = class BingAdsConnector extends AbstractConnector {
   constructor(config, source, storageName = "GoogleSheetsStorage") {
     super(config.mergeParameters({
       DestinationTableNamePrefix: {
-        default: "reddit_ads_"
+        default: "bing_ads_"
       }
     }), source);
 
@@ -21,17 +21,14 @@ var RedditAdsPipeline = class RedditAdsPipeline extends AbstractPipeline {
    * Processes all nodes defined in the fields configuration
    */
   startImportProcess() {
-    const fields = RedditAdsHelper.parseFields(this.config.Fields.value);    
-    const accountIds = RedditAdsHelper.parseAccountIds(this.config.AccountIDs.value);
+    const fields = BingAdsHelper.parseFields(this.config.Fields.value);    
 
-    for (const accountId of accountIds) {
-      for (const nodeName in fields) {
-        this.processNode({
-          nodeName,
-          accountId,
-          fields: fields[nodeName] || []
-        });
-      }
+    for (const nodeName in fields) {
+      this.processNode({
+        nodeName,
+        accountId: this.config.AccountID.value,
+        fields: fields[nodeName] || []
+      });
     }
   }
 
@@ -44,7 +41,7 @@ var RedditAdsPipeline = class RedditAdsPipeline extends AbstractPipeline {
    */
   processNode({ nodeName, accountId, fields }) {
     const storage = this.getStorageByNode(nodeName);
-    if (this.connector.fieldsSchema[nodeName].isTimeSeries) {
+    if (this.source.fieldsSchema[nodeName].isTimeSeries) {
       this.processTimeSeriesNode({
         nodeName,
         accountId,
@@ -62,7 +59,7 @@ var RedditAdsPipeline = class RedditAdsPipeline extends AbstractPipeline {
   }
 
   /**
-   * Process a time series node (e.g., reports)
+   * Process a time series node (e.g., ad performance report)
    * @param {Object} options - Processing options
    * @param {string} options.nodeName - Name of the node
    * @param {string} options.accountId - Account ID
@@ -76,33 +73,33 @@ var RedditAdsPipeline = class RedditAdsPipeline extends AbstractPipeline {
       console.log('No days to fetch for time series data');
       return;
     }
-  
-    for (let i = 0; i < daysToFetch; i++) {
-      const currentDate = new Date(startDate);
-      currentDate.setDate(currentDate.getDate() + i);
-      
-      const formattedDate = EnvironmentAdapter.formatDate(currentDate, "UTC", "yyyy-MM-dd");
 
-      this.config.logMessage(`Start importing data for ${formattedDate}: ${accountId}/${nodeName}`);
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + daysToFetch - 1);
+    
+    const formattedStartDate = EnvironmentAdapter.formatDate(startDate, "UTC", "yyyy-MM-dd");
+    const formattedEndDate = EnvironmentAdapter.formatDate(endDate, "UTC", "yyyy-MM-dd");
 
-              const data = this.source.fetchData(nodeName, accountId, fields, currentDate);
-  
-      if (!data.length) {      
-        if (i == 0) {
-          this.config.logMessage(`ℹ️ No records have been fetched`);
-        }
-      } else {
-        this.config.logMessage(`${data.length} records were fetched`);
-        const preparedData = this.addMissingFieldsToData(data, fields);
-        storage.saveData(preparedData);
-      }
+    const data = this.source.fetchData({ 
+      nodeName, 
+      accountId, 
+      start_time: formattedStartDate, 
+      end_time: formattedEndDate, 
+      fields 
+    });
 
-      this.config.updateLastRequstedDate(currentDate);
+    this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for ${accountId} from ${formattedStartDate} to ${formattedEndDate}`);
+
+    if (data.length > 0) {
+      const preparedData = this.addMissingFieldsToData(data, fields);
+      storage.saveData(preparedData);
     }
+
+    this.config.updateLastRequstedDate(endDate);
   }
   
   /**
-   * Process a catalog node (e.g., campaigns, ads)
+   * Process a catalog node
    * @param {Object} options - Processing options
    * @param {string} options.nodeName - Name of the node
    * @param {string} options.accountId - Account ID
@@ -110,8 +107,8 @@ var RedditAdsPipeline = class RedditAdsPipeline extends AbstractPipeline {
    * @param {Object} options.storage - Storage instance
    */
   processCatalogNode({ nodeName, accountId, fields, storage }) {
-          const data = this.source.fetchData(nodeName, accountId, fields);
-    this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for account ${accountId}`);
+    const data = this.source.fetchData({ nodeName, accountId, fields });
+    this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for ${accountId}`);
 
     if (data && data.length) {
       const preparedData = this.addMissingFieldsToData(data, fields);
@@ -139,7 +136,7 @@ var RedditAdsPipeline = class RedditAdsPipeline extends AbstractPipeline {
       this.storages[nodeName] = new globalThis[this.storageName](
         this.config.mergeParameters({
           DestinationSheetName: { value: nodeName },
-          DestinationTableName: { value: this.config.DestinationTableNamePrefix.value + RedditAdsHelper.sanitizeNodeName(nodeName) }
+          DestinationTableName: {value: this.config.DestinationTableNamePrefix.value + nodeName},
         }),
         uniqueFields,
         this.source.fieldsSchema[nodeName].fields,

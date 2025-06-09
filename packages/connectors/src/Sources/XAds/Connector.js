@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-var XAdsPipeline = class XAdsPipeline extends AbstractPipeline {
+var XAdsConnector = class XAdsConnector extends AbstractConnector {
   constructor(config, source, storageName = "GoogleSheetsStorage") {
     super(config.mergeParameters({
       DestinationTableNamePrefix: {

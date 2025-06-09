@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-var LinkedInPipeline = class LinkedInPipeline extends AbstractPipeline {
+var LinkedInConnector = class LinkedInConnector extends AbstractConnector {
   constructor(config, source, storageName = "GoogleSheetsStorage") {
     super(config.mergeParameters({
       DestinationTableNamePrefix: {

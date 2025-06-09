@@ -39,7 +39,7 @@ class Evaluator {
   // TODO: make it relative to the package.json
   DIR_SRC = path.resolve(__dirname, "../../connectors/src");
   DIR_CORE = path.resolve(this.DIR_SRC, "Core");
-  DIR_INTEGRATIONS = path.resolve(this.DIR_SRC, "Integrations");
+  DIR_SOURCES = path.resolve(this.DIR_SRC, "Sources");
   DIR_CONSTANTS = path.resolve(this.DIR_SRC, "Constants");
 
   constructor() {
@@ -97,7 +97,7 @@ class Evaluator {
   }
   
   evalIntegration(integrationDirectory = "") {
-    this.evalFolder(path.resolve(this.DIR_INTEGRATIONS, integrationDirectory));
+    this.evalFolder(path.resolve(this.DIR_SOURCES, integrationDirectory));
     this.forceEval();
   }
 
@@ -124,7 +124,7 @@ class Evaluator {
       process.exit(1);
     }
     
-    this.getAllSubclasses(AbstractPipeline).forEach((subclass) => {
+    this.getAllSubclasses(AbstractConnector).forEach((subclass) => {
       console.log(`Subclass: ${subclass}`);
     });
   }
@@ -142,39 +142,39 @@ class NodeJsConfig extends AbstractConfig {
     constructor(filePath) {
       const rawConfig = JSON.parse(fs.readFileSync(filePath, "utf-8"));
       let config = {};
-      console.log(`Create config for pipeline ${rawConfig.name}`);
+      console.log(`Create config for connector ${rawConfig.name}`);
 
       config = {
-        ...rawConfig.integration.config,
+        ...rawConfig.source.config,
         ...rawConfig.storage.config,
       }
 
       super(config);
 
-      this.pipelineName = {value: rawConfig.name};
-      this.integrationDirectory = {value: rawConfig.integration.directory};
-      this.integrationName = {value: rawConfig.integration.name};
+      this.connectorName = {value: rawConfig.name};
+      this.sourceDirectory = {value: rawConfig.source.directory};
+      this.sourceName = {value: rawConfig.source.name};
       this.storageName = {value: rawConfig.storage.name};
     }
 
-    getPipelineName() {
-      return this.pipelineName.value;
+    getConnectorName() {
+      return this.connectorName.value;
     }
 
-    getIntegrationDirectory() {
-      return this.integrationDirectory.value;
+    getSourceDirectory() {
+      return this.sourceDirectory.value;
     }
 
-    getIntegrationName() {
-      return this.integrationName.value;
+    getSourceName() {
+      return this.sourceName.value;
     }
 
     getStorageName() {
       return this.storageName.value;
     }
 
-    getIntegrationConfig() {
-      return this.rawConfig.integration.config;
+    getSourceConfig() {
+      return this.rawConfig.source.config;
     }
 
     updateCurrentStatus(status) {
@@ -205,9 +205,9 @@ class NodeJsConfig extends AbstractConfig {
 
 const configFilePath = process.argv[2];
 const config = new NodeJsConfig(configFilePath);
-evaluator.evalIntegration(config.getIntegrationDirectory());
+evaluator.evalIntegration(config.getSourceDirectory());
 
-const connector = new globalThis[config.getIntegrationName()](config);
-const pipeline = new globalThis[config.getPipelineName()](config, connector, config.getStorageName());
+const source = new globalThis[config.getSourceName()](config);
+const connector = new globalThis[config.getConnectorName()](config, source, config.getStorageName());
   
-pipeline.run();
+connector.run();

@@ -1,10 +1,10 @@
-# Pipeline NodeJS Runner for Integration Pipelines
+# NodeJS Runner for Connectors
 
-A Node.js utility for running OWOX Data Marts integration pipelines.
+A Node.js utility for running OWOX Data Marts connectors.
 
 ## Overview
 
-The nodeJS pipeline runner allows you to execute data pipelines on your machine, which is useful for running, development, testing, and debugging.
+The nodeJS connector runner allows you to execute data connectors on your machine, which is useful for running, development, testing, and debugging.
 
 ## Installation
 
@@ -15,25 +15,25 @@ npm install
 
 ## Usage
 
-To run a pipeline:
+To run a connector:
 
 ```bash
-npm run pipeline-runner-node -- path/to/pipeline-config.json
+npm run connector-runner-node -- path/to/connector-config.json
 ```
 
-## Pipeline Configuration
+## Connector Configuration
 
-Pipelines are defined using JSON configuration files. These files specify the data source integration, storage, and all necessary configuration parameters.
+Connectors are defined using JSON configuration files. These files specify the data source integration, storage, and all necessary configuration parameters.
 
 ### Configuration Structure
 
-The pipeline configuration JSON file has the following structure:
+The connector configuration JSON file has the following structure:
 
 ```json
 
 {
-    "name": "PipelineName", // The class name of the pipeline 
-    "description": "Pipeline Description", // The description of the pipeline
+    "name": "ConnectorName", // The class name of the connector 
+    "description": "Connector Description", // The description of the connector
     "integration": {
         "name": "ConnectorName", // The class name of the connector
         "directory": "ConnectorDirectoryName", // The connector directory name 
@@ -60,8 +60,8 @@ The pipeline configuration JSON file has the following structure:
 
 ```json
 {
-    "name": "TikTokAdsPipeline",
-    "description": "TikTok Ads Pipeline from xxx to Google BigQuery",
+    "name": "TikTokAdsConnector",
+    "description": "TikTok Ads Connector from xxx to Google BigQuery",
     "integration": {
         "name": "TikTokAdsConnector",
         "directory": "TikTokAds",
@@ -125,8 +125,8 @@ The pipeline configuration JSON file has the following structure:
 
 ```json
 {
-    "name": "TikTokAdsPipeline",
-    "description": "TikTok Ads Pipeline from xxx to AWS Athena",
+    "name": "TikTokAdsConnector",
+    "description": "TikTok Ads Connector from xxx to AWS Athena",
     "integration": {
         "name": "TikTokAdsConnector",
         "directory": "TikTokAds",
@@ -204,8 +204,8 @@ The local runner:
 
 1. Evaluates all JavaScript files in the relevant directories
 2. Creates a configuration object from the provided JSON file
-3. Instantiates the specified connector and pipeline
-4. Executes the pipeline
+3. Instantiates the specified connector and connector
+4. Executes the connector
 
 ## Supported Storage
 
@@ -215,7 +215,7 @@ The local runner:
 ## Supported Data Sources
 
 - TikTok Ads
-- And others defined in the `packages/connectors/src/Integrations` directory (Not tested)
+- And others defined in the `packages/connectors/src/Sources` directory (Not tested)
 
 ## Dependencies
 

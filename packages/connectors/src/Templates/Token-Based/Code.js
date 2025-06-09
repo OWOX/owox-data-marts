@@ -15,15 +15,15 @@ function importNewData() {
 
   const config = new OWOX.GoogleSheetsConfig( CONFIG_RANGE );
 
-  const pipeline = new OWOX.YOUR_DATA_SOURCEPipeline(
-    config,                                               // pipeline configuration
-    new OWOX.YOUR_DATA_SOURCEConnector(config.setParametersValues(       // connector with parameter's values added from properties 
+  const connector = new OWOX.YOUR_DATA_SOURCEConnector(
+    config,                                               // connector configuration
+    new OWOX.YOUR_DATA_SOURCESource(config.setParametersValues(       // source with parameter's values added from properties 
       PropertiesService.getDocumentProperties().getProperties()
     )), 
     new OWOX.GoogleSheetsStorage(config, ["date"]) // storage 
   );
 
-  pipeline.run();
+  connector.run();
 
 }
 

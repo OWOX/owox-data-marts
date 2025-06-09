@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-var CriteoAdsPipeline = class CriteoAdsPipeline extends AbstractPipeline {
+var CriteoAdsConnector = class CriteoAdsConnector extends AbstractConnector {
   constructor(config, source, storageName = "GoogleSheetsStorage") {
     super(config.mergeParameters({
       DestinationTableNamePrefix: {

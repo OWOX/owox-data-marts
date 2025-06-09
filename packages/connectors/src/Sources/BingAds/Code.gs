@@ -22,14 +22,14 @@ function importNewData() {
   const properties = PropertiesService.getDocumentProperties().getProperties();
     const source = new OWOX.BingAdsSource(config.setParametersValues(properties));
 
-  const pipeline = new OWOX.BingAdsPipeline(
+  const connector = new OWOX.BingAdsConnector(
     config, 
     source,
     "GoogleSheetsStorage"
     // "GoogleBigQueryStorage"
   );
 
-  pipeline.run();
+  connector.run();
 } 
 
 function updateFieldsSheet() {

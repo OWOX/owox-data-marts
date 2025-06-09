@@ -21,13 +21,14 @@ function onOpen() {
 function importNewData() {
     const config = new OpenHolidays_Integration.GoogleSheetsConfig(CONFIG_RANGE);
 
-    const pipeline = new OpenHolidays_Integration.OpenHolidaysPipeline(
+  const connector = new OpenHolidays_Integration.OpenHolidaysConnector(
         config,
         new OpenHolidays_Integration.OpenHolidaysSource(config),
         new OpenHolidays_Integration.GoogleSheetsStorage(config, ["id"])
     );
 
-    pipeline.run();
+  connector.run();
+
 }
 
 function cleanUpExpiredData() {

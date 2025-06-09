@@ -22,14 +22,14 @@ function importNewData() {
   const properties = PropertiesService.getDocumentProperties().getProperties();
     const source = new OWOX.CriteoAdsSource(config.setParametersValues(properties));
 
-  const pipeline = new OWOX.CriteoAdsPipeline(
+  const connector = new OWOX.CriteoAdsConnector(
     config, 
     source,
     "GoogleSheetsStorage"
     // "GoogleBigQueryStorage"
   );
 
-  pipeline.run();
+  connector.run();
 } 
 
 function updateFieldsSheet() {

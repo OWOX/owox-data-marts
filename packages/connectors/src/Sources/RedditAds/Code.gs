@@ -22,14 +22,14 @@ function importNewData() {
   const properties = PropertiesService.getDocumentProperties().getProperties();
     const source = new OWOX.RedditAdsSource(config.setParametersValues(properties));
 
-  const pipeline = new OWOX.RedditAdsPipeline(
+  const connector = new OWOX.RedditAdsConnector(
     config, 
     source,
     "GoogleSheetsStorage"
     // "GoogleBigQueryStorage"
   );
 
-  pipeline.run();
+  connector.run();
 } 
 
 function updateFieldsSheet() {

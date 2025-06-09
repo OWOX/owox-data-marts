@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-var YOUR_DATE_SOURCE_Pipeline = class YOUR_DATE_SOURCE_Pipeline extends AbstractPipeline {
+var YOUR_DATE_SOURCE_Connector = class YOUR_DATE_SOURCE_Connector extends AbstractConnector {
 
 
 }

@@ -5,19 +5,19 @@
  * file that was distributed with this source code.
  */
 
-class AbstractPipeline {
+class AbstractConnector {
   //---- constructor -------------------------------------------------
     constructor(config, source, storage = null) {
 
       if( typeof config.setParametersValues !== "function" ) { 
-        throw new Error(`Unable to create a Pipeline. The first parameter must inherit from the AbstractConfig class`);
+        throw new Error(`Unable to create a Connector. The first parameter must inherit from the AbstractConfig class`);
         
       } else if( typeof source.fetchData !== "function" ) {
-        throw new Error(`Unable to create a Pipeline. The second parameter must inherit from the AbstractSource class`);
+        throw new Error(`Unable to create a Connector. The second parameter must inherit from the AbstractSource class`);
 
-      // storage might be null in case it will be dynmicaly assigned in Pipeline.startImportProcess()
+      // storage might be null in case it will be dynmicaly assigned in Connector.startImportProcess()
       } else if ( storage !== null && !(storage instanceof AbstractStorage) ) {
-        throw new Error(`Unable to create a Pipeline. The third parameter must inherit from the AbstractStorage class`);
+        throw new Error(`Unable to create a Connector. The third parameter must inherit from the AbstractStorage class`);
       }
 
       try {

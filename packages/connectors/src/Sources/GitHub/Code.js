@@ -21,15 +21,15 @@ function importNewData() {
 
   const config = new OWOX.GoogleSheetsConfig( CONFIG_RANGE );
 
-  const pipeline = new OWOX.GitHubPipeline(
-    config,                                               // pipeline configuration
-    new OWOX.GitHubConnector(config.setParametersValues(       // connector with parameter's values added from properties 
+  const connector = new OWOX.GitHubConnector(
+    config,                                               // connector configuration
+    new OWOX.GitHubSource(config.setParametersValues(       // source with parameter's values added from properties 
       PropertiesService.getDocumentProperties().getProperties()
     )), 
     new OWOX.GoogleSheetsStorage(config, ["date"]) // storage 
   );
 
-  pipeline.run();
+  connector.run();
 
 }
 

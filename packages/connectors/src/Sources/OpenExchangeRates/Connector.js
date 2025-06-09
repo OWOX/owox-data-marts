@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-var OpenExchangeRatesPipeline = class OpenExchangeRatesPipeline extends AbstractPipeline {
+var OpenExchangeRatesConnector = class OpenExchangeRatesConnector extends AbstractConnector {
 
 
 /*

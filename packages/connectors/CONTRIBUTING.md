@@ -31,11 +31,12 @@ To create integration with a new data source, do the following:
 6. [Add all relevant files](https://docs.github.com/en/repositories/working-with-files/managing-files/adding-a-file-to-a-repository) to the created folder. You can also do this from a web browser
 ## UML
 ![Google Sheets UML](res/google-sheets-uml.svg)
-### Pipeline
-`Pipeline` is responsible for data transfer orchestrations. There are three parameters required to create a `Pipeline`: `Config`, `Source`, and `Storage`.  
-For most data sources, it is enough to override the `startImportProcess()` method.
+### Connector
+`Connector` is responsible for data transfer orchestrations. There are three parameters required to create a `Connector`: `Config`, `Source`, and `Storage`.
 
-It must be an instance of `AbstractPipeline`
+All data connectors are stored in `src/Sources/[SOURCE_NAME]/Connector.js`.
+
+It must be an instance of `AbstractConnector`
 
 ### Source
 `Source` is responsible for fetching data from the Data Source. This object has a `fetchData()` method, which is required for data source-specific implementation.

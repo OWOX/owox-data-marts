@@ -22,14 +22,14 @@ function importNewData() {
   const properties = PropertiesService.getDocumentProperties().getProperties();
     const source = new OWOX.LinkedInSource(config.setParametersValues(properties));
 
-  const pipeline = new OWOX.LinkedInPipeline(
+  const connector = new OWOX.LinkedInConnector(
     config, 
     source,
     "GoogleSheetsStorage"
     // "GoogleBigQueryStorage"
   );
 
-  pipeline.run();
+  connector.run();
 }
 
 function updateFieldsSheet() {
