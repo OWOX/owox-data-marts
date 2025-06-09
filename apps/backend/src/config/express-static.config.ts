@@ -3,7 +3,7 @@ import { join } from 'path';
 import { Request, Response, NextFunction } from 'express';
 
 export function setupStaticAssets(app: NestExpressApplication, pathPrefix: string): void {
-  const distPath = join(__dirname, '..', '..', 'web', 'dist');
+  const distPath = join(__dirname, '..', '..', '..', 'web', 'dist');
   // Serve static files from Vite frontend (after build)
   app.useStaticAssets(distPath);
 
