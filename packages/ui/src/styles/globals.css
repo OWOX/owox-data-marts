@@ -43,6 +43,29 @@
   --sidebar-ring: oklch(0.708 0 0);
   --sidebar-active: oklch(1 0 0);
   --sidebar-active-foreground: oklch(0.145 0 0);
+
+  /* Brand Blue Color Scale based on brand-blue-500: oklch(0.6179 0.2295 250.87) */
+  --brand-blue-50: oklch(0.985 0.03 250.87);
+  --brand-blue-50-foreground: oklch(0.20 0 0);
+  --brand-blue-100: oklch(0.955 0.05 250.87);
+  --brand-blue-100-foreground: oklch(0.20 0 0);
+  --brand-blue-200: oklch(0.90 0.08 250.87);
+  --brand-blue-200-foreground: oklch(0.20 0 0);
+  --brand-blue-300: oklch(0.80 0.14 250.87);
+  --brand-blue-300-foreground: oklch(1 0 0);
+  --brand-blue-400: oklch(0.70 0.19 250.87);
+  --brand-blue-400-foreground: oklch(1 0 0);
+  --brand-blue-500: oklch(0.6179 0.2295 250.87);
+  --brand-blue-500-foreground: oklch(1 0 0);
+  --brand-blue-600: oklch(0.54 0.23 250.87);
+  --brand-blue-600-foreground: oklch(1 0 0);
+  --brand-blue-700: oklch(0.44 0.20 250.87);
+  --brand-blue-700-foreground: oklch(1 0 0);
+  --brand-blue-800: oklch(0.36 0.17 250.87);
+  --brand-blue-800-foreground: oklch(1 0 0);
+  --brand-blue-900: oklch(0.28 0.14 250.87);
+  --brand-blue-900-foreground: oklch(1 0 0);
+
 }
 
 .dark {
@@ -80,6 +103,28 @@
   --sidebar-ring: oklch(0.439 0 0);
   --sidebar-active: oklch(0.269 0 0);
   --sidebar-active-foreground: oklch(0.985 0 0);
+
+  /* Brand Blue Color Scale — Dark Theme */
+  --brand-blue-50: oklch(0.36 0.17 250.87);
+  --brand-blue-50-foreground: oklch(1 0 0);
+  --brand-blue-100: oklch(0.40 0.17 250.87);
+  --brand-blue-100-foreground: oklch(1 0 0);
+  --brand-blue-200: oklch(0.44 0.20 250.87);
+  --brand-blue-200-foreground: oklch(1 0 0);
+  --brand-blue-300: oklch(0.50 0.22 250.87);
+  --brand-blue-300-foreground: oklch(1 0 0);
+  --brand-blue-400: oklch(0.56 0.23 250.87);
+  --brand-blue-400-foreground: oklch(1 0 0);
+  --brand-blue-500: oklch(0.6179 0.2295 250.87);
+  --brand-blue-500-foreground: oklch(1 0 0);
+  --brand-blue-600: oklch(0.54 0.23 250.87);
+  --brand-blue-600-foreground: oklch(1 0 0);
+  --brand-blue-700: oklch(0.44 0.20 250.87);
+  --brand-blue-700-foreground: oklch(1 0 0);
+  --brand-blue-800: oklch(0.36 0.17 250.87);
+  --brand-blue-800-foreground: oklch(1 0 0);
+  --brand-blue-900: oklch(0.28 0.14 250.87);
+  --brand-blue-900-foreground: oklch(1 0 0);
 }
 
 @theme inline {
@@ -121,6 +166,26 @@
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-active: var(--sidebar-active);
   --color-sidebar-active-foreground: var(--sidebar-active-foreground);
+  --color-brand-blue-50: var(--brand-blue-50);
+  --color-brand-blue-100: var(--brand-blue-100);
+  --color-brand-blue-200: var(--brand-blue-200);
+  --color-brand-blue-300: var(--brand-blue-300);
+  --color-brand-blue-400: var(--brand-blue-400);
+  --color-brand-blue-500: var(--brand-blue-500);
+  --color-brand-blue-600: var(--brand-blue-600);
+  --color-brand-blue-700: var(--brand-blue-700);
+  --color-brand-blue-800: var(--brand-blue-800);
+  --color-brand-blue-900: var(--brand-blue-900);
+  --color-brand-blue-50-foreground: var(--brand-blue-50-foreground);
+  --color-brand-blue-100-foreground: var(--brand-blue-100-foreground);
+  --color-brand-blue-200-foreground: var(--brand-blue-200-foreground);
+  --color-brand-blue-300-foreground: var(--brand-blue-300-foreground);
+  --color-brand-blue-400-foreground: var(--brand-blue-400-foreground);
+  --color-brand-blue-500-foreground: var(--brand-blue-500-foreground);
+  --color-brand-blue-600-foreground: var(--brand-blue-600-foreground);
+  --color-brand-blue-700-foreground: var(--brand-blue-700-foreground);
+  --color-brand-blue-800-foreground: var(--brand-blue-800-foreground);
+  --color-brand-blue-900-foreground: var(--brand-blue-900-foreground);
 }
 
 @layer base {
@@ -130,26 +195,4 @@
   body {
     @apply bg-background text-foreground;
   }
-  :root {
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
-  }
- 
-  .dark {
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.439 0 0);
-  }
 }
-
