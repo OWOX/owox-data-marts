@@ -7,9 +7,9 @@ function MainLayout() {
   return (
     <ThemeProvider>
       <SidebarProvider>
-        <AppSidebar variant="inset" collapsible="icon" />
+        <AppSidebar variant='inset' collapsible='icon' />
         <SidebarInset>
-          <div className="flex h-full w-full justify-between p-4">
+          <div className='flex h-full w-full justify-between p-4'>
             <SidebarTrigger />
             <Outlet />
           </div>

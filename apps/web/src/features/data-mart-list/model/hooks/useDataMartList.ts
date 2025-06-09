@@ -7,7 +7,7 @@ export function useDataMartList() {
   const { state, dispatch } = useDataMartListContext();
 
   const mapToListItems = (data: DataMartListItem[]): DataMartListItem[] => {
-    return data.map((dmart) => ({
+    return data.map(dmart => ({
       id: dmart.id,
       title: dmart.title,
       storageType: dmart.storageType,

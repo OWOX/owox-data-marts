@@ -40,7 +40,7 @@ export function AppSidebar({ variant = 'inset', collapsible = 'icon' }: AppSideb
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => (
+              {items.map(item => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <a href={item.url}>
@@ -55,7 +55,7 @@ export function AppSidebar({ variant = 'inset', collapsible = 'icon' }: AppSideb
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-2">
+      <SidebarFooter className='p-2'>
         <ThemeToggle />
       </SidebarFooter>
       <SidebarRail />

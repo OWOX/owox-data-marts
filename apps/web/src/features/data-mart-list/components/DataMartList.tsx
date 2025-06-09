@@ -16,7 +16,7 @@ export function DataMartList() {
 
   return (
     <div>
-      {items.map((item) => (
+      {items.map(item => (
         <DataMartListItemComponent key={item.id} item={item} />
       ))}
     </div>

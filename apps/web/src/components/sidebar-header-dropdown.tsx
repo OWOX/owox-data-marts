@@ -27,7 +27,7 @@ const menuItems: MenuItem[] = [
   {
     title: 'GitHub Community',
     href: 'https://github.com/OWOX/owox-data-marts',
-    // eslint-disable-next-line
+
     icon: Github, // Deprecated icon
   },
   {
@@ -70,38 +70,38 @@ export function SidebarHeaderDropdown() {
   }, []);
 
   return (
-    <div data-slot="sidebar-header" data-sidebar="header" className="flex flex-col gap-2">
+    <div data-slot='sidebar-header' data-sidebar='header' className='flex flex-col gap-2'>
       <ul
-        data-slot="sidebar-menu"
-        data-sidebar="menu"
-        className="flex w-full min-w-0 flex-col gap-1"
+        data-slot='sidebar-menu'
+        data-sidebar='menu'
+        className='flex w-full min-w-0 flex-col gap-1'
       >
         <li
-          data-slot="sidebar-menu-item"
-          data-sidebar="menu-item"
-          className="group/menu-item relative"
+          data-slot='sidebar-menu-item'
+          data-sidebar='menu-item'
+          className='group/menu-item relative'
         >
           <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
             <DropdownMenuTrigger asChild>
               <button
                 ref={triggerRef}
-                type="button"
-                data-slot="dropdown-menu-trigger"
-                data-sidebar="menu-button"
-                data-size="lg"
+                type='button'
+                data-slot='dropdown-menu-trigger'
+                data-sidebar='menu-button'
+                data-size='lg'
                 data-active={isOpen ? 'true' : 'false'}
-                aria-haspopup="menu"
+                aria-haspopup='menu'
                 aria-expanded={isOpen}
                 data-state={isOpen ? 'open' : 'closed'}
                 className={`peer/menu-button ring-sidebar-ring active:bg-sidebar-accent active:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex h-12 w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-hidden transition-[width,height,padding] group-has-data-[sidebar=menu-action]/menu-item:pr-8 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-0! focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:font-medium [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0`}
               >
-                <div className="text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-md border bg-white dark:bg-white/10">
+                <div className='text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-md border bg-white dark:bg-white/10'>
                   <Logo width={24} height={24} />
                 </div>
 
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">OWOX Data Marts</span>
-                  <span className="text-muted-foreground truncate text-xs">Community Edition</span>
+                <div className='grid flex-1 text-left text-sm leading-tight'>
+                  <span className='truncate font-medium'>OWOX Data Marts</span>
+                  <span className='text-muted-foreground truncate text-xs'>Community Edition</span>
                 </div>
 
                 <ChevronDown
@@ -113,10 +113,10 @@ export function SidebarHeaderDropdown() {
             </DropdownMenuTrigger>
 
             <DropdownMenuContent
-              align="start"
+              align='start'
               sideOffset={8}
               style={{ width: width > 0 ? width : undefined }}
-              className="w-[var(--radix-dropdown-trigger-width)]"
+              className='w-[var(--radix-dropdown-trigger-width)]'
             >
               {menuItems.map((item, index) => {
                 if (item.type === 'separator') {
@@ -129,11 +129,11 @@ export function SidebarHeaderDropdown() {
                   <DropdownMenuItem key={item.href} asChild>
                     <a
                       href={item.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2"
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      className='flex items-center gap-2'
                     >
-                      <Icon className="size-4" />
+                      <Icon className='size-4' />
                       {item.title}
                     </a>
                   </DropdownMenuItem>
