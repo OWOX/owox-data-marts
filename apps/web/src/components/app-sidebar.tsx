@@ -24,12 +24,13 @@ interface AppSidebarProps {
 const items = [
   {
     title: 'Home',
-    url: '#',
+    url: '/data-marts/',
     icon: Home,
   },
 ];
 
 export function AppSidebar({ variant = 'inset', collapsible = 'icon' }: AppSidebarProps) {
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
   return (
     <Sidebar variant={variant} collapsible={collapsible}>
       <SidebarHeader>
@@ -40,16 +41,29 @@ export function AppSidebar({ variant = 'inset', collapsible = 'icon' }: AppSideb
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map(item => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <a href={item.url}>
-                      {createElement(item.icon)}
-                      <span>{item.title}</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {items.map(item => {
+                const isActive = pathname === item.url;
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <a
+                        href={item.url}
+                        className={`flex items-center gap-2 rounded-md p-2 transition-colors ${
+                          isActive
+                            ? 'bg-sidebar-active text-sidebar-active-foreground hover:bg-sidebar-active hover:text-sidebar-active-foreground font-medium shadow-sm'
+                            : 'hover:bg-sidebar-active hover:text-sidebar-active-foreground'
+                        }`}
+                      >
+                        {createElement(item.icon, {
+                          className: 'size-4 shrink-0 transition-all ',
+                          strokeWidth: isActive ? 2.25 : 2,
+                        })}
+                        <span>{item.title}</span>
+                      </a>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
