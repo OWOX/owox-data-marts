@@ -15,6 +15,7 @@ export function ThemeToggle() {
         <Button
           variant='ghost'
           size='icon'
+          className='hover:bg-sidebar-accent hover:text-sidebar-accent-foreground dark:hover:bg-sidebar-accent dark:hover:text-sidebar-accent-foreground'
           onClick={() => {
             setTheme(theme === 'light' ? 'dark' : 'light');
           }}
