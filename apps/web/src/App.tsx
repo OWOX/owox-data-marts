@@ -3,7 +3,7 @@ import routes from './routes';
 import './styles/App.css';
 
 // 1. Невикористана змінна
-const unusedVariable = 'test';
+const unusedVariable = 'test15';
 
 function App() {
   const router = createBrowserRouter(routes);
