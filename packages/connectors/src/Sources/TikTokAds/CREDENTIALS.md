@@ -30,13 +30,16 @@ To use the TikTok Ads source, you need to obtain an access token from the TikTok
 2. Fill in the required information:
    - App name
    - App description
+   Example: _'Company Name provides financial control for e-commerce shops. Accurately tracking advertising costs across platforms is crucial. TikTok API access is needed to pull detailed cost data from TikTok advertising accounts using the OWOX Data Mart connector. This API access is fundamental for automatic correlation of TikTok ad spend with sales performance data. Without it, precise ROI analysis and ad budget optimization on TikTok are limited, requiring manual data entry and preventing real-time financial insights'._
    - Advertiser redirect URL (this can be a placeholder like `http://localhost:8080` if you're just generating a token)
-3. Chose access to the following scopes of permission:
-   - Read Ad Account Information
-   - Read Campaigns
-   - Read Ad Groups
-   - Read Ads
-   - Read Custom Audiences
+
+3. Chose access to the following scopes of permission. Use the search bar or find the necessary scopes manually:
+   - Ad Account Management -> Ad Account Information -> Read Ad Account Information
+   - Ads Management -> Campaign -> Read Campaigns
+   - Audience Management -> Read Custom Audiences
+   - Ads Management -> Ad -> Read Ads
+   - Reporting (all levels)
+   
 4. Press "Submit"
 
 ![TikTok Create App](res/tiktok_createapp.png)
@@ -53,9 +56,11 @@ To use the TikTok Ads source, you need to obtain an access token from the TikTok
    https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/
    ```
    with the following parameters:
-   - `app_id`: Your app ID
+   - `app_id`: Your app ID in "APPID" format
    - `auth_code`: The code from the redirect
    - `secret`: Your app secret
+
+![TikTok Get query](res/tiktok_get.png)
 
 ## Getting Advertiser IDs
 

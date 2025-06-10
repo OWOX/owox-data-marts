@@ -1,6 +1,6 @@
 # TikTok Ads Source
 
-This source allows you to import data from the TikTok Ads platform into Google Sheets. It provides access to advertiser information, campaigns, ad groups, ads, performance metrics, and custom audiences.
+This source allows you to import data from the TikTok Ads platform into Google Sheets / Google BigQuery. It provides access to advertiser information, campaigns, ad groups, ads, performance metrics, and custom audiences.
 
 ## Features
 
@@ -60,27 +60,30 @@ The source provides access to the following data types:
 
 ## Requirements
 
-- A Google account with access to Google Sheets
-- A TikTok Business account with advertiser access
-- API access token with appropriate permissions
+- A **Google account** with access to Google Sheets
+- A **TikTok Business account** with advertiser-level access
+- For the **Google BigQuery** template:
+  - A **Google Cloud project** with access to BigQuery
+- An **API access token** with the necessary permissions to retrieve TikTok Ads data
 
 ## Setup
 
-1. Make a copy of the TikTok Ads Source template (link to be added when published)
+1. Make a copy of the TikTok Ads Source template
 2. Configure your API credentials and desired fields
 3. Run the source manually or set up a schedule
 
 For detailed setup instructions, see the [Getting Started Guide](GETTING_STARTED.md).
 
-## Support
+## Support & Feedback
 
-If you encounter any issues or have questions about this source:
+- Having issues? Check the [**Q&A Section**](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) first.
+- Found a bug? [**Open an issue**](https://github.com/OWOX/owox-data-marts/issues)
+- Want to suggest a feature or a new integration? [**Submit a request**](https://github.com/OWOX/owox-data-marts/discussions)
 
-- Check the documentation first
-- Visit the [GitHub repository](https://github.com/OWOX/owox-data-marts)
-- Open an issue if you've found a bug
-- Join the discussion forum to ask questions
+## Other Data Sources
+
+Looking for other data sources? Check out our [full list of data sources](../../../README.md#data-sources).
 
 ## License
 
-This source is part of the JavaScript Open-Source Sources project and is distributed under the ELv2 license. See the LICENSE file for details. 
+This source is part of the OWOX Data Marts project and is distributed under the ELv2 license. See the [LICENSE](/home/vp/github/js-data-connectors/LICENSE) file for details. 
