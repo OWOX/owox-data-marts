@@ -63,3 +63,5 @@ export class DataStorageApiService extends ApiService {
     return this.delete(`/${id}`);
   }
 }
+
+export const dataStorageApiService = new DataStorageApiService();
