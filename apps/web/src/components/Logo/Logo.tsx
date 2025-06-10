@@ -1,4 +1,3 @@
-import React from 'react';
 import logoSvg from '../../assets/logo.svg';
 
 interface LogoProps {
@@ -7,8 +6,6 @@ interface LogoProps {
   className?: string;
 }
 
-const Logo: React.FC<LogoProps> = ({ width = 45, height = 36, className = '' }) => {
+export const Logo = ({ width = 45, height = 36, className = '' }: LogoProps) => {
   return <img src={logoSvg} alt='OWOX Logo' width={width} height={height} className={className} />;
 };
-
-export default Logo;
