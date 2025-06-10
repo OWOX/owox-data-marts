@@ -118,11 +118,25 @@ function main() {
     console.log('');
     console.log('🎉 Setup complete!');
     console.log('');
+    console.log('📋 LINTING WORKFLOW:');
+    console.log('  • ESLint runs in validation mode (no auto-fix)');
+    console.log('  • Commits are blocked if ESLint finds errors');
+    console.log('  • Prettier runs only after successful ESLint validation');
+    console.log('  • Developers have full control over code quality fixes');
+    console.log('');
     console.log('Next steps:');
     console.log('1. Ensure you have the required dependencies installed at the root level');
     console.log('2. Add the following scripts to your root package.json:');
     console.log('   "lint-staged": "lint-staged"');
+    console.log('   "lint": "eslint ."');
+    console.log('   "lint:fix": "eslint . --fix"');
+    console.log('   "format": "prettier --write ."');
     console.log('3. Create lint-staged.config.js file in the root');
+    console.log('');
+    console.log('💡 Quick commands after blocked commit:');
+    console.log('   npm run lint        # Check ESLint errors');
+    console.log('   npm run lint:fix    # Auto-fix simple issues');
+    console.log('   npm run format      # Format with Prettier');
     console.log('');
     console.log('Pre-commit hook is now active! 🚀');
   } catch (error) {

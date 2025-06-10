@@ -2,24 +2,56 @@
 
 Git hooks, lint-staged validation configuration for OWOX Data Marts workspace.
 
+## 🚀 **Quick Demo**
+
+```bash
+# Developer tries to commit code with linting errors
+git commit -m "Add new feature"
+
+✖ eslint found issues:
+  src/component.ts
+    12:5  error  'unused' is defined but never used
+    25:10 error  Missing return type annotation
+
+✖ lint-staged was interrupted by ESLint errors
+# Commit blocked! 🛑
+
+# Developer fixes issues and retries
+git add . && git commit -m "Add new feature"
+✅ Commit successful! Code is clean and formatted
+```
+
 ## 📋 **Table of Contents**
 
 - [Overview](#overview)
+- [Quick Start](#quick-start)
 - [Architecture](#architecture)
-- [Quick Setup](#quick-setup)
 - [Available Configurations](#available-configurations)
-- [Git Hooks](#git-hooks)
 - [Integration Examples](#integration-examples)
+- [Linting Workflow](#linting-workflow)
 - [Troubleshooting](#troubleshooting)
-- [Open Source & Contributing](#open-source--contributing)
-- [Technical Specifications](#technical-specifications)
+- [FAQ](#faq)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Overview
 
-This package provides a comprehensive linting and git workflow setup for the OWOX Data Marts monorepo, including:
+This package provides a comprehensive linting and git workflow setup for the OWOX Data
+Marts, including:
 
-- **Husky**: Git hooks management
-- **lint-staged**: Run linters on staged files only
+- **🪝 Husky**: Git hooks management with zero-config setup
+- **⚡ lint-staged**: Run linters on staged files only (performance optimized)
+- **🎯 ESLint Integration**: Code quality validation without auto-fixing
+- **🎨 Prettier Integration**: Consistent code formatting
+- **🔧 Multiple Configurations**: Tailored setups for different project types
+
+### Key Features
+
+- 🚫 **Commit blocking** when code quality issues are found
+- 🎯 **Developer control** - no silent auto-fixing
+- ⚡ **Performance optimized** - only processes changed files
+- 🔧 **Flexible configurations** for different project types
+- 📚 **Educational approach** - learn from linting errors
 
 ## 🏗️ **Architecture**
 
@@ -29,18 +61,22 @@ This package provides a comprehensive linting and git workflow setup for the OWO
 graph TD
     A["Developer commits"] --> B["Pre-commit Hook"]
     B --> C["lint-staged"]
-    C --> D["ESLint --fix"]
-    C --> E["Prettier --write"]
-    D --> F["Files staged"]
-    E --> F
-    F --> G["Commit successful"]
+    C --> D["ESLint validation"]
+    D --> E{ESLint errors?}
+    E -->|Yes| F["❌ Commit blocked"]
+    E -->|No| G["Prettier --write"]
+    G --> H["Files staged"]
+    H --> I["✅ Commit successful"]
+    F --> J["Developer fixes issues"]
+    J --> K["Stage fixes"]
+    K --> A
 ```
 
 ### Package Structure
 
 ```
 @owox/linter-config/
-├── lint-staged.js       # 4 configurations (universal, backend, web, connectors)
+├── lint-staged.js       # 4 configurations (base, backend, web, connectors)
 ├── husky.js             # Git hooks setup
 └── scripts/setup.js     # Automated installation
 ```
@@ -51,7 +87,7 @@ graph TD
 - **Peer**: eslint ^9.0.0, prettier ^3.0.0
 - **Node.js**: >=22.0.0 (ES Modules support)
 
-## Quick Setup
+## ⚡ **Quick Start**
 
 ### 1. Install dependencies
 
@@ -119,9 +155,10 @@ export default webConfig;
 
 Runs `lint-staged` on all staged files to ensure:
 
-- ESLint validation and auto-fixing for JS/TS files
-- Prettier formatting for all supported file types
+- ESLint validation for JS/TS files (without auto-fixing for better developer control)
+- Prettier formatting for all supported file types (only if ESLint validation passes)
 - Only changed files are processed (performance optimization)
+- Commit is blocked if ESLint finds any errors
 
 ## 🔗 **Integration Examples**
 
@@ -136,8 +173,8 @@ export default backendConfig;
 
 **What it does:**
 
-- Validates TypeScript files with ESLint
-- Formats JSON and Markdown files with Prettier
+- Validates TypeScript files with ESLint (no auto-fix)
+- Formats files with Prettier only if ESLint validation passes
 - Optimized for server-side development
 
 ### Web (React)
@@ -151,8 +188,8 @@ export default webConfig;
 
 **What it does:**
 
-- Handles TSX/JSX React components
-- Formats CSS/SCSS style files
+- Validates TSX/JSX React components with ESLint (no auto-fix)
+- Formats CSS/SCSS and other files with Prettier only after successful validation
 - Includes web-specific ESLint rules
 
 ### Connectors (JavaScript)
@@ -166,9 +203,9 @@ export default connectorsConfig;
 
 **What it does:**
 
-- Optimized for JavaScript modules
+- Validates JavaScript modules with ESLint (no auto-fix)
 - Handles .mjs ES modules
-- Lightweight for utility packages
+- Formats files with Prettier only after successful validation
 
 ### Custom Configuration
 
@@ -183,6 +220,68 @@ export default {
 };
 ```
 
+## 🔧 **Linting Workflow**
+
+### How it works
+
+1. **ESLint validation**: Runs without `--fix` flag to validate code quality
+2. **Commit blocking**: If ESLint finds errors, commit is blocked
+3. **Prettier formatting**: Only runs if ESLint validation passes
+4. **Developer control**: You see and fix all linting issues manually
+
+### When commit is blocked
+
+```bash
+✖ eslint found issues:
+  src/component.ts
+    12:5  error  'unused' is defined but never used  @typescript-eslint/no-unused-vars
+    25:10 error  Missing return type annotation        @typescript-eslint/explicit-function-return-type
+
+✖ lint-staged was interrupted by ESLint errors
+```
+
+**To fix:**
+
+1. Review ESLint errors in your IDE or terminal
+2. Fix issues manually (recommended) or run `npm run lint:fix`
+3. Stage your fixes: `git add .`
+4. Retry commit: `git commit`
+
+### Quick commands
+
+```bash
+# Check what ESLint would complain about
+npm run lint
+
+# Auto-fix simple issues (when you're confident)
+npm run lint:fix
+
+# Format with Prettier after fixing ESLint issues
+npm run format
+```
+
+### Best practices
+
+✅ **Recommended workflow:**
+
+1. Write code in your IDE with ESLint integration
+2. Fix issues as you code (real-time feedback)
+3. Commit - pre-commit hook validates everything is clean
+4. If blocked, review and fix issues manually
+
+✅ **For learning ESLint rules:**
+
+1. Read error messages carefully
+2. Look up rules in ESLint documentation
+3. Discuss with team if rule should be modified
+4. Contribute to rule improvements
+
+❌ **Not recommended:**
+
+- Blindly running `npm run lint:fix` without understanding changes
+- Disabling ESLint rules without team discussion
+- Using `--no-verify` to skip hooks
+
 ## Troubleshooting
 
 ### Hooks not running
@@ -196,6 +295,43 @@ export default {
 1. Ensure all required tools are installed (ESLint, Prettier)
 2. Check that project-specific configurations exist
 3. Verify file patterns in lint-staged config
+4. Check ESLint configuration if validation fails
+
+## ❓ **FAQ**
+
+### Why doesn't ESLint auto-fix issues?
+
+We believe developers should understand and manually fix code quality issues. This approach:
+
+- Improves code quality understanding
+- Prevents hiding of serious issues
+- Helps learn and improve ESLint rules
+- Gives full control over code changes
+
+### Can I disable the pre-commit hook temporarily?
+
+```bash
+# For a single commit
+git commit --no-verify -m "Emergency fix"
+
+# Disable permanently (not recommended)
+mv .husky/pre-commit .husky/pre-commit.disabled
+```
+
+### How do I add custom ESLint rules?
+
+Create or modify your ESLint configuration file in your project root and the lint-staged will automatically use it.
+
+### What if I disagree with an ESLint rule?
+
+1. Discuss with your team
+2. Check if the rule can be configured differently
+3. Consider disabling specific rules in your ESLint config
+4. Contribute feedback to improve the shared configuration
+
+### Performance concerns with large files?
+
+lint-staged only processes **staged files**, making it very fast even in large projects. Typically 10x faster than linting entire codebase.
 
 ## Development
 
@@ -268,5 +404,6 @@ Root package.json scripts
 ### Performance Characteristics
 
 - **Lint-staged**: Only processes changed files (~10x faster)
-- **ESLint**: Auto-fix enabled for common issues
-- **Prettier**: Consistent formatting across file types
+- **ESLint**: Validation-only mode for better developer control
+- **Prettier**: Runs only after successful ESLint validation
+- **Fail-fast**: Commits blocked immediately on lint errors

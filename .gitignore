@@ -27,6 +27,7 @@ yarn-error.log*
 .idea/
 .vscode/
 .cursor/
+.cursorignore
 *.swp
 *.swo
 .DS_Store

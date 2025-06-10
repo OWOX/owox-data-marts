@@ -3,6 +3,8 @@
  *
  * This config runs different tools on different file types during pre-commit
  * to ensure code quality and consistent formatting across the workspace.
+ *
+ * ESLint validates first (without --fix), then Prettier formats only if validation passes
  */
 
 /**
@@ -10,11 +12,11 @@
  * @type {Record<string, string | string[]>}
  */
 export const config = {
-  // TypeScript files: ESLint + Prettier
-  '**/*.{ts,tsx}': ['eslint --fix', 'prettier --write'],
+  // TypeScript files: ESLint validation then Prettier formatting
+  '**/*.{ts,tsx}': ['eslint', 'prettier --write'],
 
-  // JavaScript files: ESLint + Prettier
-  '**/*.{js,jsx,mjs,cjs}': ['eslint --fix', 'prettier --write'],
+  // JavaScript files: ESLint validation then Prettier formatting
+  '**/*.{js,jsx,mjs,cjs}': ['eslint', 'prettier --write'],
 
   // JSON files: Prettier only
   '**/*.json': ['prettier --write'],
@@ -33,7 +35,7 @@ export const config = {
  * Configuration optimized for backend projects
  */
 export const backendConfig = {
-  '**/*.ts': ['eslint --fix', 'prettier --write'],
+  '**/*.ts': ['eslint', 'prettier --write'],
   '**/*.{json,md}': ['prettier --write'],
 };
 
@@ -41,8 +43,8 @@ export const backendConfig = {
  * Configuration optimized for web projects
  */
 export const webConfig = {
-  '**/*.{ts,tsx}': ['eslint --fix', 'prettier --write'],
-  '**/*.{js,jsx}': ['eslint --fix', 'prettier --write'],
+  '**/*.{ts,tsx}': ['eslint', 'prettier --write'],
+  '**/*.{js,jsx}': ['eslint', 'prettier --write'],
   '**/*.{json,md,css,scss}': ['prettier --write'],
 };
 
@@ -50,6 +52,6 @@ export const webConfig = {
  * Configuration for connectors (JavaScript-heavy)
  */
 export const connectorsConfig = {
-  '**/*.{js,mjs}': ['eslint --fix', 'prettier --write'],
+  '**/*.{js,mjs}': ['eslint', 'prettier --write'],
   '**/*.{json,md}': ['prettier --write'],
 };
