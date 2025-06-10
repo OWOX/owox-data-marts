@@ -1,7 +1,8 @@
 export interface DataStorageCredentialsDto {
-  serviceAccount?: string;
+  // Google BigQuery credentials
+  serviceAccount?: string; // JSON as string for a service account
+
+  // AWS Athena credentials
   accessKeyId?: string;
   secretAccessKey?: string;
-  projectId?: string;
-  region?: string;
 }

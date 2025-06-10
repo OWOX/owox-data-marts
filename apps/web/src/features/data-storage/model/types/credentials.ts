@@ -1,15 +1,8 @@
-export interface BaseDataStorageCredentials {
-  name?: string;
-}
-
-export interface GoogleBigQueryCredentials extends BaseDataStorageCredentials {
-  projectId: string;
+export interface GoogleBigQueryCredentials {
   serviceAccount: string;
-  location: string;
 }
 
-export interface AwsAthenaCredentials extends BaseDataStorageCredentials {
-  region: string;
+export interface AwsAthenaCredentials {
   accessKeyId: string;
   secretAccessKey: string;
 }
@@ -19,7 +12,7 @@ export type DataStorageCredentials = GoogleBigQueryCredentials | AwsAthenaCreden
 export function isGoogleBigQueryCredentials(
   credentials: DataStorageCredentials
 ): credentials is GoogleBigQueryCredentials {
-  return 'serviceAccount' in credentials && 'projectId' in credentials && 'location' in credentials;
+  return 'serviceAccount' in credentials;
 }
 
 export function isAwsAthenaCredentials(

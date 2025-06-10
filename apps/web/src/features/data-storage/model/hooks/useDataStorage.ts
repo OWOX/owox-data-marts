@@ -1,6 +1,5 @@
 import { DataStorageActionType, useDataStorageContext } from '../context';
 import { useCallback } from 'react';
-import { dataStorageApiService } from '../../api';
 import {
   mapDataStorageFromDto,
   mapDataStorageListFromDto,
@@ -14,7 +13,9 @@ export function useDataStorage() {
   const fetchDataStorages = useCallback(async () => {
     dispatch({ type: DataStorageActionType.FETCH_STORAGES_START });
     try {
-      const response = await dataStorageApiService.getDataStorages();
+      // Use mock API service instead of real one
+      const { mockDataStorageApiService } = await import('../../api/mock/mockDataStorageService');
+      const response = await mockDataStorageApiService.getDataStorages();
       dispatch({
         type: DataStorageActionType.FETCH_STORAGES_SUCCESS,
         payload: response.map(mapDataStorageListFromDto),
@@ -31,7 +32,9 @@ export function useDataStorage() {
     async (id: string) => {
       dispatch({ type: DataStorageActionType.FETCH_STORAGE_START });
       try {
-        const response = await dataStorageApiService.getDataStorageById(id);
+        // Use mock API service instead of real one
+        const { mockDataStorageApiService } = await import('../../api/mock/mockDataStorageService');
+        const response = await mockDataStorageApiService.getDataStorageById(id);
         const dataStorage = mapDataStorageFromDto(response);
         dispatch({ type: DataStorageActionType.FETCH_STORAGE_SUCCESS, payload: dataStorage });
       } catch (error) {
@@ -48,29 +51,41 @@ export function useDataStorage() {
     async (data: Omit<DataStorage, 'id' | 'createdAt' | 'modifiedAt'>) => {
       dispatch({ type: DataStorageActionType.CREATE_STORAGE_START });
       try {
+        // Use mock API service instead of real one
+        const { mockDataStorageApiService } = await import('../../api/mock/mockDataStorageService');
         const request = mapToCreateDataStorageRequest(data);
-        const response = await dataStorageApiService.createDataStorage(request);
+        const response = await mockDataStorageApiService.createDataStorage(request);
         dispatch({
           type: DataStorageActionType.CREATE_STORAGE_SUCCESS,
           payload: mapDataStorageFromDto(response),
         });
-      } catch (error) {}
+      } catch (error) {
+        dispatch({
+          type: DataStorageActionType.CREATE_STORAGE_ERROR,
+          payload: error instanceof Error ? error.message : 'Failed to create data storage',
+        });
+      }
     },
     [dispatch]
   );
 
-  const deleteDataStorage = useCallback(async (id: DataStorage['id']) => {
-    dispatch({ type: DataStorageActionType.DELETE_STORAGE_START });
-    try {
-      await dataStorageApiService.deleteDataStorage(id);
-      dispatch({ type: DataStorageActionType.DELETE_STORAGE_SUCCESS, payload: id });
-    } catch (error) {
-      dispatch({
-        type: DataStorageActionType.DELETE_STORAGE_ERROR,
-        payload: error instanceof Error ? error.message : 'Failed to delete data storage',
-      });
-    }
-  }, []);
+  const deleteDataStorage = useCallback(
+    async (id: DataStorage['id']) => {
+      dispatch({ type: DataStorageActionType.DELETE_STORAGE_START });
+      try {
+        // Use mock API service instead of real one
+        const { mockDataStorageApiService } = await import('../../api/mock/mockDataStorageService');
+        await mockDataStorageApiService.deleteDataStorage(id);
+        dispatch({ type: DataStorageActionType.DELETE_STORAGE_SUCCESS, payload: id });
+      } catch (error) {
+        dispatch({
+          type: DataStorageActionType.DELETE_STORAGE_ERROR,
+          payload: error instanceof Error ? error.message : 'Failed to delete data storage',
+        });
+      }
+    },
+    [dispatch]
+  );
 
   return {
     dataStorages: state.dataStorages,

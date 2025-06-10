@@ -1,4 +1,9 @@
-import type { DataStorageListItemResponseDto, DataStorageResponseDto } from '../../api/types';
+import type {
+  AwsAthenaConfigDto,
+  DataStorageListItemResponseDto,
+  DataStorageResponseDto,
+  GoogleBigQueryConfigDto,
+} from '../../api/types';
 import { DataStorageType } from '../types/data-storage-type.enum.ts';
 import type {
   AwsAthenaDataStorage,
@@ -32,7 +37,11 @@ export function mapDataStorageFromDto(dto: DataStorageResponseDto) {
         type: DataStorageType.GOOGLE_BIGQUERY,
         credentials: {
           serviceAccount: dto.credentials.serviceAccount,
-          projectId: dto.credentials.projectId,
+        },
+        config: {
+          projectId: (dto.config as GoogleBigQueryConfigDto).projectId,
+          location: (dto.config as GoogleBigQueryConfigDto).location,
+          datasetId: (dto.config as GoogleBigQueryConfigDto).datasetId,
         },
       } as GoogleBigQueryDataStorage;
 
@@ -43,11 +52,15 @@ export function mapDataStorageFromDto(dto: DataStorageResponseDto) {
         credentials: {
           accessKeyId: dto.credentials.accessKeyId,
           secretAccessKey: dto.credentials.secretAccessKey,
-          region: dto.credentials.region,
+        },
+        config: {
+          databaseName: (dto.config as AwsAthenaConfigDto).databaseName,
+          region: (dto.config as AwsAthenaConfigDto).region,
+          outputBucket: (dto.config as AwsAthenaConfigDto).outputBucket,
         },
       } as AwsAthenaDataStorage;
     default:
-      throw new Error(`Unknown data storage type: ${dto.type}`);
+      throw new Error(`Unknown data storage type: ${String(dto.type)}`);
   }
 }
 
