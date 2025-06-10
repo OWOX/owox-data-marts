@@ -4,6 +4,7 @@ import Home from '../pages/Home';
 import About from '../pages/About';
 import NotFound from '../pages/NotFound';
 import DataMartsPage from '../pages/DataMartsPage';
+import { DataStoragePage } from '../pages/data-storage';
 
 const routes: RouteObject[] = [
   {
@@ -21,6 +22,10 @@ const routes: RouteObject[] = [
       {
         path: 'data-marts',
         element: <DataMartsPage />,
+      },
+      {
+        path: 'data-storage',
+        element: <DataStoragePage />,
       },
       {
         path: '*',
