@@ -1,92 +1,91 @@
 # Getting Started with TikTok Ads Source
 
-This guide will help you set up and start using the TikTok Ads Source to import your advertising data into Google Sheets / Google BigQuery.
+This comprehensive guide will walk you through the process of setting up and utilizing the TikTok Ads Source to import your valuable advertising data directly into Google Sheets or Google BigQuery.
 
 ## Prerequisites
 
-Before you begin, ensure you have the following:
+Before you begin the setup, ensure you have the following in place:
 
-1. A **Google account** with access to Google Sheets
-2. A **TikTok For Business account** with access to the advertising data you want to import
-3. For the **Google BigQuery** template:
-   - A **Google Cloud project** with access to BigQuery
-4. A valid **Access Token** for the TikTok Business API  
-   → See [CREDENTIALS.md](CREDENTIALS.md) for detailed instructions on how to obtain it.
+1.  A **Google account** with active access to Google Sheets.
+2.  A **TikTok For Business account** with the necessary permissions to access the advertising data you intend to import.
+3.  **For the Google BigQuery template only:**
+    * A **Google Cloud project** with BigQuery API enabled and appropriate access permissions.
+4.  A valid **Access Token** for the TikTok Business API.
+    * Refer to the [**TikTok Ads Source Authentication Guide**](CREDENTIALS.md) for detailed, step-by-step instructions on how to obtain this token.
 
 ## Setup Instructions
 
 ### 1. Copy the Template
 
-To begin importing data from TikTok Ads, start by making a copy of one of the following templates:
+To initiate the data import process from TikTok Ads, begin by creating a copy of one of the following pre-configured templates:
 
-- [**TikTok Ads → Google Sheets. Template**](https://docs.google.com/spreadsheets/d/15AujaJ_x-ibEqs2u3DwvC8qV0hYC7oO1b1LGLEen1mQ/copy)
-- [**TikTok Ads → Google BigQuery. Template**](https://docs.google.com/spreadsheets/d/1I7cThXo24rwaQgx2H2Jsh0Z5Acv2ydh7bDtdEP8mBEQ/copy)
+* [**TikTok Ads → Google Sheets Template**](https://docs.google.com/spreadsheets/d/15AujaJ_x-ibEqs2u3DwvC8qV0hYC7oO1b1LGLEen1mQ/copy)
+* [**TikTok Ads → Google BigQuery Template**](https://docs.google.com/spreadsheets/d/1I7cThXo24rwaQgx2H2Jsh0Z5Acv2ydh7bDtdEP8mBEQ/copy)
 
 ### 2. Configure the Source
 
-1. In your copy of the spreadsheet, go to the "Config" sheet
-2. Fill in the required configuration parameters:
-- **Start Date**
-- **Advertiser IDs**
-- **Fields**
-- **Destination Dataset ID** (for **Google BigQuery** template)
-- **Destination Location** (for **Google BigQuery** template)
+Once you have copied the template, proceed with the configuration steps:
 
-The import will begin from the selected **Start Date**.  
-> ⚠️ **Note:** Using a long date range may cause the import to fail due to the high volume of data.
+1.  In your newly copied spreadsheet, navigate to the "Config" sheet.
+2.  Populate the essential configuration parameters:
+    * **Start Date:** The date from which the import will begin.
+        > ⚠️ **Note:** Specifying an excessively long date range may lead to import failures due to the high volume of data.
+    * **Advertiser IDs:** The unique identifiers for the TikTok ad accounts you wish to pull data from.
+    * **Fields:** The specific data fields you want to include in your import.
+    * **Destination Dataset ID:** (Applicable only for the **Google BigQuery** template)
+    * **Destination Location:** (Applicable only for the **Google BigQuery** template)
 
 ![TikTok Start Date](res/tiktok_startdate.png)
 
-You can find your **Advertiser ID** on the left bar in [TikTok for Business](https://ads.tiktok.com/).  
+You can easily locate your **Advertiser ID** on the left-hand navigation bar within your [TikTok for Business dashboard](https://ads.tiktok.com/).
 
 ![TikTok Advertiser ID](res/tiktok_advid.png)
 
-Copy and paste the ID into the spreadsheet:  
+Copy the Advertiser ID and paste it into the designated field in your spreadsheet:
 
 ![Advertiser ID](res/tiktok_pasteid.png)
 
-Some fields are pre-filled by default.  
-To include additional fields, go to the **Fields** tab and check the boxes next to the fields you want to include.
+Several common data fields are pre-selected by default. To include additional fields in your import, go to the "Fields" tab and check the boxes next to the desired fields.
 
 ![TikTok Fields](res/tiktok_fields.png)
 
-If you're using the **Google BigQuery** template, also provide:
+If you are using the **Google BigQuery** template, you must also specify:
 
-- **Destination Dataset ID** in the format: `projectid.datasetid`
-- **Destination Location**
+* **Destination Dataset ID** in the format: `projectid.datasetid`
+* **Destination Location** (e.g., `US`, `EU`)
 
-> ℹ️ If the specified dataset doesn't exist, it will be created automatically.
+> ℹ️ **Important:** If the specified BigQuery dataset does not already exist in your Google Cloud project, it will be automatically created during the import process.
 
 ![TikTok Dataset](res/tiktok_dataset.png)
 
-Open the menu: **OWOX → Manage Credentials**
+Next, access the custom menu: **OWOX → Manage Credentials**.
 
 ![TikTok Credentials](res/tiktok_credentials.png)
 
-Enter your credentials obtained by following [**TikTok Ads Source Authentication Guide**](CREDENTIALS.md)
+Enter your TikTok Business API credentials that you obtained by following the instructions in the [**TikTok Ads Source Authentication Guide**](CREDENTIALS.md).
 
 ![TikTok Token](res/tiktok_token.png)
 
 ### 3. Run the Source
 
-There are several ways to run the source:
+You have multiple options for executing the data import:
 
-1. **Manual Run**:
-   - From the custom menu, select "OWOX" > "Import New Data"
-   - The import will start immediately and display progress in the "Logs" sheet
+1.  **Manual Run:**
+    * From the custom menu, select "OWOX" > "Import New Data"
+    * The import will commence immediately, and its progress will be displayed in the "Logs" sheet within your spreadsheet.
 
-2. **Scheduled Run**:
-   - To set up a daily run, select "OWOX" > "Schedule" > "Set Daily Schedule"
-   - To set up an hourly run, select "OWOX" > "Schedule" > "Set Hourly Schedule"
-   - To remove all scheduled runs, select "OWOX" > "Schedule" > "Delete All Schedules"
+2.  **Scheduled Run:**
+    * **Daily Schedule:** To set up an automatic daily import, select "OWOX" > "Schedule" > "Set Daily Schedule"
+    * **Hourly Schedule:** To configure an automatic hourly import, select "OWOX" > "Schedule" > "Set Hourly Schedule"
+    * **Remove Schedules:** To disable all existing scheduled runs, select "OWOX" > "Schedule" > "Delete All Schedules"
 
 ![TikTok Import](res/tiktok_import.png)
 
-### Getting Help
+## Getting Help
 
-If you encounter issues not covered in this guide:
+Should you encounter any issues or questions not addressed in this guide:
 
-1. Check the "Logs" sheet for specific error messages
-2. Please [visit Q&A](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) first
-3. If you want to report a bug, please [open an issue](https://github.com/OWOX/owox-data-marts/issues)
-4. Join the [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions or propose improvements 
+1.  **Check Logs:** Review the "Logs" sheet in your spreadsheet for specific error messages, which can often provide clues to the problem.
+2.  **Visit Q&A:** Before opening a new issue, please check the existing discussions and answers in our [Q&A section](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a).
+3.  **Report a Bug:** If you identify a bug, please [open an issue](https://github.com/OWOX/owox-data-marts/issues) on our GitHub repository.
+4.  **Join the Discussion:** Feel free to join our [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions, share insights, or propose improvements to the source.
