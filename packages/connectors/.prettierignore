@@ -1,0 +1,9 @@
+# Ignore build output
+dist/
+
+# Ignore source files (as mentioned in the original config)
+src/
+
+# Standard ignores
+node_modules/
+*.log 
