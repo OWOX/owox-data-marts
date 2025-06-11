@@ -39,15 +39,15 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
         let nodeFields = fields[nodeName];
         
         // Ensure schema exists for this node
-        if (!this.connector.fieldsSchema || !this.connector.fieldsSchema[nodeName]) {
+        if (!this.source.fieldsSchema || !this.source.fieldsSchema[nodeName]) {
           this.config.logMessage(`⚠️ Unknown object type: ${nodeName}. Skipping.`);
           continue;
         }
         
         // Node's data is time-series if it has a date_start field in its schema
-        if ("fields" in this.connector.fieldsSchema[nodeName] &&
-            ("date_start" in this.connector.fieldsSchema[nodeName]["fields"] ||
-             "stat_time_day" in this.connector.fieldsSchema[nodeName]["fields"])) {
+        if ("fields" in this.source.fieldsSchema[nodeName] &&
+            ("date_start" in this.source.fieldsSchema[nodeName]["fields"] ||
+             "stat_time_day" in this.source.fieldsSchema[nodeName]["fields"])) {
           
           timeSeriesNodes[nodeName] = nodeFields;
         } else {
@@ -208,7 +208,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
     }
 
     if (!(nodeName in this.storages)) {
-      if (!("uniqueKeys" in this.connector.fieldsSchema[nodeName])) {
+      if (!("uniqueKeys" in this.source.fieldsSchema[nodeName])) {
         throw new Error(`Unique keys for '${nodeName}' are not defined in fields schema`);
       }
 
@@ -221,7 +221,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
           DestinationTableName: {value: this.config.DestinationTableNamePrefix.value + nodeName},
           currentValues: { 
             // Pass any values that might be needed for default values
-            advertiser_id: this.connector.currentAdvertiserId
+            advertiser_id: this.source.currentAdvertiserId
           }
         }),
         uniqueFields,
@@ -255,11 +255,11 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
     const formattedCutoffDate = EnvironmentAdapter.formatDate(cutoffDate, "UTC", "yyyy-MM-dd");
     
     // Initialize storages for all time series nodes
-    for (var nodeName in this.connector.fieldsSchema) {
+    for (var nodeName in this.source.fieldsSchema) {
       // Check if it's a time series node
-      if ("fields" in this.connector.fieldsSchema[nodeName] &&
-          ("date_start" in this.connector.fieldsSchema[nodeName]["fields"] ||
-           "stat_time_day" in this.connector.fieldsSchema[nodeName]["fields"])) {
+      if ("fields" in this.source.fieldsSchema[nodeName] &&
+          ("date_start" in this.source.fieldsSchema[nodeName]["fields"] ||
+           "stat_time_day" in this.source.fieldsSchema[nodeName]["fields"])) {
         
         try {
           const storage = this.getStorageByNode(nodeName, []);

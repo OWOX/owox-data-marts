@@ -44,7 +44,7 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
    */
   processNode({ nodeName, accountId, fields }) {
     const storage = this.getStorageByNode(nodeName);
-    if (this.connector.fieldsSchema[nodeName].isTimeSeries) {
+    if (this.source.fieldsSchema[nodeName].isTimeSeries) {
       this.processTimeSeriesNode({
         nodeName,
         accountId,
