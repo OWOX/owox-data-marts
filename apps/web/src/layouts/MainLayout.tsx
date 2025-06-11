@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import {
   SidebarInset,
@@ -7,6 +8,10 @@ import {
 } from '@owox/ui/components/sidebar';
 import { AppSidebar } from '../components/app-sidebar';
 import { ThemeProvider } from '../components/theme-provider';
+import { storageService } from '../services/localstorage.service';
+
+// Constants
+const SIDEBAR_STATE_KEY = 'sidebar_state';
 
 function MainLayoutContent() {
   const { state, isMobile } = useSidebar();
@@ -31,9 +36,24 @@ function MainLayoutContent() {
 }
 
 function MainLayout() {
+  // Read initial state from localStorage using our service
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    // Get value as boolean, default to true if not found
+    return (storageService.get(SIDEBAR_STATE_KEY, 'boolean') as boolean) ?? true;
+  });
+
+  // Save state to localStorage using our service
+  const handleSidebarChange = (open: boolean) => {
+    setSidebarOpen(open);
+    storageService.set(SIDEBAR_STATE_KEY, open);
+  };
+
   return (
     <ThemeProvider>
-      <SidebarProvider>
+      <SidebarProvider 
+        open={sidebarOpen} 
+        onOpenChange={handleSidebarChange}
+      >
         <MainLayoutContent />
       </SidebarProvider>
     </ThemeProvider>
