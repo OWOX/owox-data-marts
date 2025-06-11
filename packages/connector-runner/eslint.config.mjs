@@ -3,9 +3,8 @@ import eslintConfigPrettier from 'eslint-config-prettier';
 import globals from 'globals';
 
 export default [
-  // Configuration for CommonJS files in src/
   {
-    files: ['src/**/*.js'],
+    files: ['**/*.js'],
     languageOptions: {
       globals: {
         ...globals.node,
@@ -15,7 +14,6 @@ export default [
     },
     rules: {
       ...js.configs.recommended.rules,
-      // Allow unused variables starting with underscore
       'no-unused-vars': [
         'error',
         {
@@ -23,13 +21,22 @@ export default [
           argsIgnorePattern: '^_',
         },
       ],
+      'no-console': 'off',
+      'no-undef': 'off',
     },
   },
-  // Configuration for ES modules at root level
-  // Apply prettier config to all files
-  eslintConfigPrettier,
-  // Ignore patterns
   {
-    ignores: ['dist/**', 'node_modules/**', 'src/**/*'],
+    files: ['**/*.mjs'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+      ecmaVersion: 2022,
+      sourceType: 'module',
+    },
+    rules: {
+      ...js.configs.recommended.rules,
+    },
   },
+  eslintConfigPrettier,
 ];

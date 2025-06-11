@@ -143,12 +143,13 @@ class ConnectorBuilder {
     // Get all core files
     const coreFiles = await glob('src/Core/*.js', { cwd: this.rootDir });
     const constantFiles = await glob('src/Constants/*.js', { cwd: this.rootDir });
+    const configFiles = await glob('src/Configs/**/*.js', { cwd: this.rootDir });
 
     const allCoreClasses = [];
     const allConstants = [];
 
     // Process each file
-    for (const file of [...coreFiles, ...constantFiles]) {
+    for (const file of [...coreFiles, ...constantFiles, ...configFiles]) {
       const filePath = path.join(this.rootDir, file);
       const fileContent = await fs.readFile(filePath, 'utf8');
       const classNames = this.extractClassNames(fileContent);

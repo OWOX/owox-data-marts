@@ -1,10 +1,18 @@
 # NodeJS Runner for Connectors
 
-A Node.js utility for running OWOX Data Marts connectors.
+A Node.js utility for running OWOX Data Marts connectors in isolated environments.
 
 ## Overview
 
-The nodeJS connector runner allows you to execute data connectors on your machine, which is useful for running, development, testing, and debugging.
+The NodeJS connector runner allows you to execute data connectors on your machine in isolated Node.js environments. This is particularly useful for development, testing, debugging, and production runs of data integration pipelines.
+
+### Key Features
+
+- **Isolated Environment Creation**: Creates separate Node.js environments for each connector run
+- **Automatic Dependency Management**: Installs required dependencies for each connector
+- **Configuration Validation**: Validates connector and storage configurations
+- **Storage Support**: Supports multiple storage backends (Google BigQuery, AWS Athena)
+- **Resource Cleanup**: Automatically cleans up temporary files and dependencies after execution
 
 ## Installation
 
@@ -15,28 +23,43 @@ npm install
 
 ## Usage
 
+### Basic Usage
+
 To run a connector:
 
 ```bash
 npm run connector-runner-node -- path/to/connector-config.json
 ```
 
-## Connector Configuration
+### Programmatic Usage
 
-Connectors are defined using JSON configuration files. These files specify the data source integration, storage, and all necessary configuration parameters.
+```javascript
+const ConnectorRunner = require('@owox/connector-runner');
 
-### Configuration Structure
+const runner = new ConnectorRunner();
+const datamartId = 'my-datamart';
+const runId = 'run-' + Date.now();
+const config = {
+  name: "TikTokAdsConnector",
+  source: { /* source config */ },
+  storage: { /* storage config */ }
+};
+
+await runner.run(datamartId, runId, config);
+```
+
+## Configuration Structure
+
+### Configuration Schema
 
 The connector configuration JSON file has the following structure:
 
 ```json
-
 {
     "name": "ConnectorName", // The class name of the connector 
     "description": "Connector Description", // The description of the connector
     "integration": {
-        "name": "ConnectorName", // The class name of the connector
-        "directory": "ConnectorDirectoryName", // The connector directory name 
+        "name": "ConnectorName", // The name of the connector. (Conector dir name)
         "config": {  // The connector configuration parameters. The parameters are defined in the connector constructor.
             "ParameterName": {
                 "value": "ParameterValue"
@@ -44,7 +67,7 @@ The connector configuration JSON file has the following structure:
         }
     },
     "storage": {
-        "name": "StorageName", // The class name of the storage
+        "name": "StorageName", // The name of the storage. (Storage dir name)
         "config": {  // The storage configuration parameters. The parameters are defined in the storage constructor.
             "ParameterName": {
                 "value": "ParameterValue"
@@ -54,17 +77,29 @@ The connector configuration JSON file has the following structure:
 }
 ```
 
-### Example Configurations
+> **Note**: The configuration structure has been updated from the legacy `integration` field to `source` for better clarity.
 
-#### TikTok Ads to Google BigQuery
+### Configuration Parameters
+
+- **`name`** (string): The class name of the connector
+- **`description`** (string): Description of the connector
+- **`source`** (object): Source configuration
+  - **`name`** (string): The name of the source connector (corresponds to directory name in `packages/connectors/src/Sources`)
+  - **`config`** (object): Source-specific configuration parameters
+- **`storage`** (object): Storage configuration
+  - **`name`** (string): The name of the storage backend (corresponds to directory name in `packages/connectors/src/Storages`)
+  - **`config`** (object): Storage-specific configuration parameters
+
+## Example Configurations
+
+### TikTok Ads to Google BigQuery
 
 ```json
 {
     "name": "TikTokAdsConnector",
-    "description": "TikTok Ads Connector from xxx to Google BigQuery",
-    "integration": {
-        "name": "TikTokAdsConnector",
-        "directory": "TikTokAds",
+    "description": "TikTok Ads Connector to Google BigQuery",
+    "source": {
+        "name": "TikTokAds",
         "config": {
             "AccessToken": {
                 "value": "YOUR_ACCESS_TOKEN"
@@ -96,7 +131,7 @@ The connector configuration JSON file has the following structure:
         }
     },
     "storage": {
-        "name": "GoogleBigQueryStorage",
+        "name": "GoogleBigQuery",
         "config": {
             "DestinationLocation": {
                 "value": "US"
@@ -121,15 +156,14 @@ The connector configuration JSON file has the following structure:
 }
 ```
 
-#### TikTok Ads to AWS Athena
+### TikTok Ads to AWS Athena
 
 ```json
 {
     "name": "TikTokAdsConnector",
-    "description": "TikTok Ads Connector from xxx to AWS Athena",
-    "integration": {
-        "name": "TikTokAdsConnector",
-        "directory": "TikTokAds",
+    "description": "TikTok Ads Connector to AWS Athena",
+    "source": {
+        "name": "TikTokAds",
         "config": {
             "AccessToken": {
                 "value": "YOUR_ACCESS_TOKEN"
@@ -161,7 +195,7 @@ The connector configuration JSON file has the following structure:
         }
     },
     "storage": {
-        "name": "AwsAthenaStorage",
+        "name": "AwsAthena",
         "config": {
             "AWSRegion": {
                 "value": "us-east-1"
@@ -198,28 +232,141 @@ The connector configuration JSON file has the following structure:
 }
 ```
 
-## How It Works
+## Architecture
 
-The local runner:
+```mermaid
+src/
+├── core/
+│   ├── interfaces/                 # Abstract interfaces for extensibility
+│   │   ├── execution-environment.js
+│   │   ├── dependency-manager.js
+│   │   └── template-renderer.js
+│   └── domain/                     # Domain objects and business logic
+│       └── run-context.js
+├── infrastructure/                 # Implementation details
+│   ├── environments/
+│   │   └── nodejs-environment.js   # Node.js execution environment
+│   ├── dependencies/
+│   │   └── npm-dependency-manager.js
+│   └── templates/
+│       └── nodejs-template-renderer.js
+├── application/                    # Application services and DTOs
+│   ├── services/
+│   │   └── connector-execution-service.js
+│   └── dto/
+│       └── run-config.js
+└── cli/
+    └── connector-runner-cli.js     # Command line interface
+```
 
-1. Evaluates all JavaScript files in the relevant directories
-2. Creates a configuration object from the provided JSON file
-3. Instantiates the specified connector and connector
-4. Executes the connector
+### Core Components
 
-## Supported Storage
+The connector runner consists of several key components:
 
-- Google BigQuery
-- AWS Athena
+#### ConnectorRunner (`src/index.js`)
 
-## Supported Data Sources
+Main orchestrator class that:
 
-- TikTok Ads
-- And others defined in the `packages/connectors/src/Sources` directory (Not tested)
+- Validates configuration parameters
+- Creates isolated environments for each run
+- Manages connector execution lifecycle
+- Handles cleanup after execution
+
+#### Environment (`src/environment.js`)
+
+Manages isolated Node.js environments:
+
+- Creates temporary directories for each run
+- Installs required dependencies
+- Generates runner templates
+- Cleans up resources after execution
+
+#### RunConfig DTOs (`src/dto/run-config.js`)
+
+Data Transfer Objects for configuration validation:
+
+- `RunConfig`: Main configuration wrapper
+- `SourceConfig`: Source-specific configuration
+- `StorageConfig`: Storage-specific configuration
+
+#### Runner Template (`src/templates/runner-template.js`)
+
+Generates execution templates that:
+
+- Import required dependencies as globals
+- Set up OWOX connector libraries
+- Execute the specified connector pipeline
+
+### Execution Flow
+
+1. **Configuration Validation**: Validates the provided JSON configuration
+2. **Environment Setup**: Creates an isolated Node.js environment with required dependencies
+3. **Template Generation**: Generates a runner script with proper imports and configuration
+4. **Connector Execution**: Spawns a Node.js process to run the connector
+5. **Cleanup**: Removes temporary files and dependencies
+
+### Isolation Strategy
+
+Each connector run operates in a completely isolated environment:
+
+- Separate working directories under `../../dist/data-marts/conectivity/runs`
+- Independent `package.json` and `node_modules`
+- Environment variables for configuration passing
+- Automatic cleanup after execution
+
+## Supported Components
+
+### Storage Backends
+
+- **Google BigQuery**: Full support for BigQuery destinations
+- **AWS Athena**: Full support for Athena with S3 backing
+
+### Data Sources
+
+The runner supports all connectors defined in `packages/connectors/src/Sources`:
+
+- **TikTok Ads**: Comprehensive advertising data
+- **Facebook Marketing**: Social media advertising metrics  
+- **LinkedIn Ads**: Professional advertising platform
+- **X (Twitter) Ads**: Social media advertising
+- **Reddit Ads**: Community-based advertising
+- **Bing Ads**: Search engine advertising
+- **Criteo Ads**: Retargeting and display advertising
+- **GitHub**: Development platform data
+- **Bank of Canada**: Financial data
+- **Open Exchange Rates**: Currency exchange data
+- **Open Holidays**: Holiday calendar data
+
+> **Note**: While all sources are supported by the architecture, not all have been thoroughly tested in production environments.
 
 ## Dependencies
 
-- @google-cloud/bigquery: For BigQuery storage
-- AWS SDK (client-s3, client-athena, lib-storage): For AWS storage
-- sync-request: For synchronous HTTP requests
-- deasync: For synchronous JavaScript operations
+### Core Dependencies
+
+- **@google-cloud/bigquery**: Google BigQuery client library
+- **@aws-sdk/client-athena**, **@aws-sdk/client-s3**, **@aws-sdk/lib-storage**: AWS SDK components
+- **sync-request**: Synchronous HTTP requests
+- **deasync**: Synchronous JavaScript operations
+- **adm-zip**: ZIP file handling
+
+### Development Dependencies
+
+- **@types/node**: TypeScript definitions for Node.js
+
+## Development
+
+### Linting and Formatting
+
+```bash
+# Run ESLint
+npm run lint
+
+# Fix linting issues
+npm run lint:fix
+
+# Format code with Prettier
+npm run format
+
+# Check formatting
+npm run format:check
+```
