@@ -49,7 +49,7 @@ export const config = [
   },
   // Config files can be CommonJS
   {
-    files: ['*.config.cjs', 'eslint.config.cjs'],
+    files: ['*.config.cjs', 'eslint.config.cjs', '*.config.mjs', 'eslint.config.cjs'],
     languageOptions: {
       sourceType: 'commonjs',
       globals: {
