@@ -1,11 +1,9 @@
-import React from 'react';
-
 interface GitHubIconProps {
   className?: string;
   size?: number;
 }
 
-export const GitHubIcon: React.FC<GitHubIconProps> = ({ className, size = 24 }) => {
+export const GitHubIcon = ({ className, size = 24 }: GitHubIconProps) => {
   return (
     <svg
       role='img'
