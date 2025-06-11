@@ -17,7 +17,7 @@ export const config = {
       files: ['*.tsx', '*.jsx'],
       options: {
         jsxSingleQuote: true,
-        jsxBracketSameLine: false,
+        bracketSameLine: false,
       },
     },
     {

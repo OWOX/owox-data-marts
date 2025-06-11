@@ -1,7 +1,4 @@
-import js from '@eslint/js';
-import eslintConfigPrettier from 'eslint-config-prettier';
 import globals from 'globals';
-import tseslint from 'typescript-eslint';
 
 import { config as baseConfig } from './base.js';
 
@@ -47,16 +44,17 @@ export const config = [
       'no-console': 'warn',
     },
   },
-  // Config files can be CommonJS
+  // Config files should use ES modules
   {
-    files: ['*.config.cjs', 'eslint.config.cjs'],
+    files: ['*.config.mjs', 'eslint.config.mjs', '*.config.js'],
     languageOptions: {
-      sourceType: 'commonjs',
+      sourceType: 'module',
       globals: {
-        require: 'readonly',
-        module: 'readonly',
-        __dirname: 'readonly',
+        ...globals.node,
       },
+    },
+    rules: {
+      'no-console': 'off', // Allow console in config files
     },
   },
 ];
