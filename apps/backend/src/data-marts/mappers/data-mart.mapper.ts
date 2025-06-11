@@ -23,7 +23,7 @@ export class DataMartMapper {
   }
 
   toDomainDtoList(entities: DataMart[]): DataMartDto[] {
-    return entities.map((entity) => this.toDomainDto(entity));
+    return entities.map(entity => this.toDomainDto(entity));
   }
 
   toCreateResponse(dto: DataMartDto): CreateDataMartResponseApiDto {
@@ -44,6 +44,6 @@ export class DataMartMapper {
   }
 
   toResponseList(dtos: DataMartDto[]): DataMartResponseApiDto[] {
-    return dtos.map((dto) => this.toResponse(dto));
+    return dtos.map(dto => this.toResponse(dto));
   }
 }
