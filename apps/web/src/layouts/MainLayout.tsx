@@ -37,9 +37,9 @@ function MainLayoutContent() {
 
 function MainLayout() {
   // Read initial state from localStorage using our service
-  const [sidebarOpen, setSidebarOpen] = useState(() => {
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
     // Get value as boolean, default to true if not found
-    return (storageService.get(SIDEBAR_STATE_KEY, 'boolean') as boolean) ?? true;
+    return storageService.get(SIDEBAR_STATE_KEY, 'boolean') ?? true;
   });
 
   // Save state to localStorage using our service
@@ -50,10 +50,7 @@ function MainLayout() {
 
   return (
     <ThemeProvider>
-      <SidebarProvider 
-        open={sidebarOpen} 
-        onOpenChange={handleSidebarChange}
-      >
+      <SidebarProvider open={sidebarOpen} onOpenChange={handleSidebarChange}>
         <MainLayoutContent />
       </SidebarProvider>
     </ThemeProvider>
