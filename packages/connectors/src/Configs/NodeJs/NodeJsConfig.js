@@ -1,0 +1,175 @@
+/**
+ * Copyright (c) OWOX, Inc.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+/**
+ * NodeJsConfig - Configuration handler for Node.js runtime environment
+ * 
+ * This class extends AbstractConfig to provide Node.js-specific implementation
+ * for managing data connector configurations. It handles configuration parameters
+ * for both data sources and storage destinations, and provides logging and status
+ * tracking functionality optimized for Node.js environments.
+ * 
+ * Key features:
+ * - Merges source and storage configurations
+ * - Provides JSON-formatted console logging for structured output
+ * - Tracks import status and dates
+ * - Manages data connector execution lifecycle
+ */
+class NodeJsConfig extends AbstractConfig {
+    
+    /**
+     * Constructor - Initialize NodeJS configuration
+     * 
+     * @param {Object} config - Configuration object containing source and storage configs
+     * @param {Object} config.source - Source configuration object
+     * @param {string} config.source.name - Name of the data source connector
+     * @param {Object} config.source.config - Source-specific configuration parameters
+     * @param {Object} config.storage - Storage configuration object  
+     * @param {string} config.storage.name - Name of the storage destination
+     * @param {Object} config.storage.config - Storage-specific configuration parameters
+     */
+    constructor(config) {
+      super({
+        ...config.source.config,
+        ...config.storage.config,
+      });
+  
+      this.sourceName = { value: config.source.name };
+      this.storageName = { value: config.storage.name };
+    }
+  
+    /**
+     * Get the name of the configured data source
+     * 
+     * @returns {string} The name of the data source connector
+     */
+    getSourceName() {
+      return this.sourceName.value;
+    }
+  
+    /**
+     * Get the name of the configured storage destination
+     * 
+     * @returns {string} The name of the storage destination
+     */
+    getStorageName() {
+      return this.storageName.value;
+    }
+  
+    /**
+     * Update and log the current execution status
+     * 
+     * Outputs structured JSON log entry to console for external monitoring
+     * and tracking of connector execution status.
+     * 
+     * @param {string} status - Current status of the data connector execution
+     */
+    updateCurrentStatus(status) {
+      const at = new Date();
+      console.log(
+        JSON.stringify({
+          type: 'updateCurrentStatus',
+          at: at.toISOString().split('T')[0] + ' ' + at.toISOString().split('T')[1].split('.')[0],
+          status: status,
+        })
+      );
+    }
+  
+    /**
+     * Update and log the last import attempt date
+     * 
+     * Records when the data import was last attempted, regardless of success/failure.
+     * Useful for tracking import frequency and debugging scheduling issues.
+     */
+    updateLastImportDate() {
+      const at = new Date();
+      console.log(
+        JSON.stringify({
+          type: 'updateLastImportDate',
+          at: at.toISOString().split('T')[0] + ' ' + at.toISOString().split('T')[1].split('.')[0],
+          date: at.toISOString().split('T')[0],
+        })
+      );
+    }
+  
+    /**
+     * Update and log the last requested date for data retrieval
+     * 
+     * Records the specific date that was requested from the data source.
+     * This helps track which date ranges have been processed and prevents
+     * duplicate data requests.
+     * 
+     * @param {string} date - The date that was requested (typically in YYYY-MM-DD format)
+     */
+    updateLastRequstedDate(date) {
+      const at = new Date();
+      console.log(
+        JSON.stringify({
+          type: 'updateLastRequstedDate',
+          at: at.toISOString().split('T')[0] + ' ' + at.toISOString().split('T')[1].split('.')[0],
+          date: date,
+        })
+      );
+    }
+  
+    /**
+     * Check if the connector is currently in progress
+     * 
+     * In this Node.js implementation, this always returns false as Node.js
+     * processes are typically short-lived and don't maintain persistent state.
+     * The status is logged for monitoring purposes.
+     * 
+     * @returns {boolean} Always returns false for Node.js environment
+     */
+    isInProgress() {
+      const at = new Date();
+      console.log(
+        JSON.stringify({
+          type: 'isInProgress',
+          at: at.toISOString().split('T')[0] + ' ' + at.toISOString().split('T')[1].split('.')[0],
+          status: 'in_progress',
+        })
+      );
+      return false;
+    }
+  
+    /**
+     * Add a warning status to the current execution
+     * 
+     * Logs warning status for non-fatal issues that occurred during execution.
+     * Warnings indicate problems that didn't stop execution but may require attention.
+     */
+    addWarningToCurrentStatus() {
+      const at = new Date();
+      console.log(
+        JSON.stringify({
+          type: 'addWarningToCurrentStatus',
+          at: at.toISOString().split('T')[0] + ' ' + at.toISOString().split('T')[1].split('.')[0],
+          status: 'warning',
+        })
+      );
+    }
+  
+    /**
+     * Log a custom message with timestamp
+     * 
+     * Provides structured logging for custom messages during connector execution.
+     * All log entries use consistent JSON format for easy parsing by log aggregators.
+     * 
+     * @param {string} message - The message to log
+     */
+    logMessage(message) {
+      const at = new Date();
+      console.log(
+        JSON.stringify({
+          type: 'log',
+          at: at.toISOString().split('T')[0] + ' ' + at.toISOString().split('T')[1].split('.')[0],
+          message: message,
+        })
+      );
+    }
+  }
