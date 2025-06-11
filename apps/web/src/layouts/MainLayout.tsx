@@ -24,7 +24,7 @@ function MainLayoutContent() {
       <SidebarInset>
         <div className='relative h-full w-full'>
           {showTrigger && (
-            <div className='absolute top-4 left-2 z-10 md:hidden'>
+            <div className='absolute top-7 left-4 z-10 md:hidden'>
               <SidebarTrigger />
             </div>
           )}

@@ -2,7 +2,7 @@
 export * from './api';
 
 // Context
-export { DataMartListProvider } from './model/context';
+// export { DataMartListProvider } from './model/context';
 
 // Components
 export * from './components';
@@ -15,3 +15,7 @@ export * from './model/types';
 
 // Utils
 export * from './utils';
+
+// export { DataMartList } from './components/DataMartList'
+// export { DataMartListProvider } from './components/DataMartListProvider'
+export { DataMartTable } from './components/DataMartTable/DataMartTable';
