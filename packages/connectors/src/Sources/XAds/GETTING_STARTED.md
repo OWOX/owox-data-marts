@@ -24,6 +24,8 @@ If you're using the **Google BigQuery** template, also fill in:
 - **Destination Dataset ID** in the format: `projectid.datasetid`
 - **Destination Location**
 
+> ℹ️ If the specified dataset doesn't exist, it will be created automatically.
+
 ![X Ads Start Settings](res/xads_start.png)
 
 Open the menu: **OWOX → Manage Credentials**
@@ -39,10 +41,19 @@ Once your credentials are saved, click: **OWOX → Import New Data**
 The process is complete when the **Log** sheet shows the message:  
 **"Import is finished"**  
 
+Access Your Data:
+
+- In the **Google Sheets** template, the data will appear in new tabs labeled with the corresponding data types (e.g., *accounts*).  
+
+![X Ads Finished](res/xads_finished.png)
+
+- In the **Google BigQuery** template, the data will be written to the dataset specified earlier.
+
+![X Ads Finished](res/xads_gbq.png)
+
 If you encounter any issues:
 
 1. Check the "Logs" sheet for specific error messages
 2. Please [visit Q&A](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) first
 3. If you want to report a bug, please [open an issue](https://github.com/OWOX/owox-data-marts/issues)
-4. Join the [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions or propose improvements 
-
+4. Join the [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions or propose improvements
