@@ -1,5 +1,4 @@
-// import { DataMartList, DataMartListProvider } from '../features/data-mart-list'
-import { DataMartTable } from '../features/data-mart-list/components/DataMartTable/DataMartTable';
+import { DataMartTable } from '../features/data-mart-list';
 import { columns } from '../features/data-mart-list/components/DataMartTable/columns';
 import { type DataMart } from '../features/data-mart-list/components/DataMartTable/types';
 
@@ -154,9 +153,6 @@ export default function DataMartsPage() {
         <h1 className='text-2xl font-medium'>Data Marts</h1>
       </header>
       <div className='px-4 sm:px-12'>
-        {/* <DataMartListProvider>
-          <DataMartList />
-        </DataMartListProvider> */}
         <DataMartTable columns={columns} data={data} />
       </div>
     </div>
