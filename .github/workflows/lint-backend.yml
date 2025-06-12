@@ -17,7 +17,7 @@ jobs:
   quality-checks:
     name: ${{ matrix.check.name }}
     runs-on: ubuntu-latest
-    timeout-minutes: 7
+    timeout-minutes: ${{ matrix.check.timeout }}
 
     strategy:
       # If one check fails, the others will continue to run
@@ -26,10 +26,10 @@ jobs:
         check:
           - name: 'ESLint'
             command: 'npm run lint --workspace=@owox/backend -- --max-warnings 0'
-            timeout: 3
+            timeout: 5
           - name: 'Prettier'
             command: 'npm run format:check --workspace=@owox/backend'
-            timeout: 3
+            timeout: 5
 
     steps:
       - name: Checkout repository

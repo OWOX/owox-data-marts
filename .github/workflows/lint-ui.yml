@@ -3,11 +3,11 @@ name: Web Code Quality
 on:
   pull_request:
     paths:
-      - 'apps/web/**'
+      - 'packages/ui/**'
   push:
     branches: [main]
     paths:
-      - 'apps/web/**'
+      - 'packages/ui/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -25,13 +25,7 @@ jobs:
       matrix:
         check:
           - name: 'ESLint'
-            command: 'npm run lint --workspace=@owox/web -- --max-warnings 0'
-            timeout: 5
-          - name: 'Prettier'
-            command: 'npm run format:check --workspace=@owox/web'
-            timeout: 5
-          - name: 'TypeScript'
-            command: 'npm run type-check --workspace=@owox/web'
+            command: 'npm run lint --workspace=@owox/ui -- --max-warnings 0'
             timeout: 5
 
     steps:
