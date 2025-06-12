@@ -71,13 +71,9 @@ In the **API Key and Secret** section:
 
 Click **Send**. The response will look like:
 
-`
-oauth_token=E4MQKQAAAAAB1yCFAAABl2OHH80&
-oauth_token_secret=UlDQaqOoJHj1VvLQ8fQH6Iq686rEFww2&
-oauth_callback_confirmed=true
-`
+`oauth_token=E4MQKQAAAAAB1yCFAAABl2OHH80&oauth_token_secret=UlDQaqOoJHj1VvLQ8fQH6Iq686rEFww2&oauth_callback_confirmed=true`
 
-6. Copy the `oauth_token` value and insert it into the following URL:
+6. Copy the `oauth_token` value (`E4MQKQAAAAAB1yCFAAABl2OHH80` in the example above) and insert it into the following URL:
 
 `https://api.twitter.com/oauth/authorize?oauth_token=YOUR_OAUTH_TOKEN`
 
@@ -104,12 +100,7 @@ You will be redirected to a URL containing `oauth_token` and `oauth_verifier`.
 
 Click **Send**. The response will include your permanent tokens:
 
-`
-oauth_token=1534231826281152515-kDGnM70as1fh6xoYWK9HvlwtDHHqe8&
-oauth_token_secret=KiXVKSyHifVoVm7vq3iC7zjclE1ocqvgpouS95RuLXM61&
-user_id=1534231826281152213&
-screen_name=examplename
-`
+`oauth_token=1534231826281152515-kDGnM70as1fh6xoYWK9HvlwtDHHqe8&oauth_token_secret=KiXVKSyHifVoVm7vq3iC7zjclE1ocqvgpouS95RuLXM61&user_id=1534231826281152213&screen_name=examplename`
 
 8. You now have all the credentials required to use the X Ads connector:
 
