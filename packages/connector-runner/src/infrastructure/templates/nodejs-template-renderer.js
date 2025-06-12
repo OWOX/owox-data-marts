@@ -5,33 +5,35 @@ const TemplateRenderer = require('../../core/interfaces/template-renderer');
  * Generates execution templates for Node.js environments
  */
 class NodeJsTemplateRenderer extends TemplateRenderer {
-    /**
-     * Render the execution template with the given dependencies
-     * @param {Array} dependencies - List of dependencies to include in template
-     * @returns {string} Rendered template content
-     */
-    render(dependencies) {
-        return `
+  /**
+   * Render the execution template with the given dependencies
+   * @param {Array} dependencies - List of dependencies to include in template
+   * @returns {string} Rendered template content
+   */
+  render(dependencies) {
+    return `
             ${this._getDependencies(dependencies)}
             ${this._getOwoxLibs()}
             ${this._getMain()}
 
             main().catch(console.error);
         `;
-    }
+  }
 
-    _getDependencies(dependencies) {
-        return dependencies.map(dependency => {
-            let dep = `const ${dependency.global_is ? '': '{'} ${dependency.global} ${dependency.global_is ? '': '}'} = require('${dependency.name}');\n`;
-            for (const global of dependency.global) {
-                dep += `global.${global} = ${global};\n`;
-            }
-            return dep;
-        }).join('\n');
-    }
+  _getDependencies(dependencies) {
+    return dependencies
+      .map(dependency => {
+        let dep = `const ${dependency.global_is ? '' : '{'} ${dependency.global} ${dependency.global_is ? '' : '}'} = require('${dependency.name}');\n`;
+        for (const global of dependency.global) {
+          dep += `global.${global} = ${global};\n`;
+        }
+        return dep;
+      })
+      .join('\n');
+  }
 
-    _getOwoxLibs() {
-        return `
+  _getOwoxLibs() {
+    return `
             const OWOX = require('@owox/connectors');
             const { Core, Connectors, Storages } = OWOX;
 
@@ -55,10 +57,10 @@ class NodeJsTemplateRenderer extends TemplateRenderer {
                 });
             });
         `;
-    }
+  }
 
-    _getMain() {
-        return `
+  _getMain() {
+    return `
         async function main() {
             const envConfig = JSON.parse(process.env.OW_CONFIG);
             const datamartId = process.env.OW_DATAMART_ID;
@@ -92,7 +94,7 @@ class NodeJsTemplateRenderer extends TemplateRenderer {
             console.log('Pipeline execution completed');
         }
         `;
-    }
+  }
 }
 
-module.exports = NodeJsTemplateRenderer; 
+module.exports = NodeJsTemplateRenderer;
