@@ -1,5 +1,5 @@
 /**
- * Lint-staged configuration for OWOX Data Marts monorepo
+ * Lint-staged configuration for OWOX Data Marts
  *
  * This config runs different tools on different file types during pre-commit
  * to ensure code quality and consistent formatting across the workspace.
@@ -8,50 +8,72 @@
  */
 
 /**
- * Base lint-staged configuration
- * @type {Record<string, string | string[]>}
+ * Creates ESLint command for specific workspace
+ * @param {string} workspace - workspace path (e.g., 'apps/backend')
+ * @param {string} configFile - eslint config file name
+ * @returns {Function} lint-staged command function
  */
-export const config = {
-  // TypeScript files: ESLint validation then Prettier formatting
-  '**/*.{ts,tsx}': ['eslint', 'prettier --write'],
+function createWorkspaceEslintCommand(workspace, configFile) {
+  return filenames => {
+    const workspaceRegex = new RegExp(`^.*/${workspace}/`);
+    const relativePaths = filenames.map(f => f.replace(workspaceRegex, ''));
+    return `bash -c "cd ${workspace} && npx eslint --config ${configFile} ${relativePaths.join(' ')}"`;
+  };
+}
 
-  // JavaScript files: ESLint validation then Prettier formatting
-  '**/*.{js,jsx,mjs,cjs}': ['eslint', 'prettier --write'],
-
-  // JSON files: Prettier only
-  '**/*.json': ['prettier --write'],
-
-  // Markdown files: Prettier only
-  '**/*.md': ['prettier --write'],
-
-  // CSS/SCSS files: Prettier only
-  '**/*.{css,scss}': ['prettier --write'],
-
-  // YAML files: Prettier only
-  '**/*.{yml,yaml}': ['prettier --write'],
+/**
+ * Workspace configurations map
+ * Defines ESLint config for each workspace
+ */
+const workspaces = {
+  'apps/backend': {
+    patterns: '**/*.{ts,tsx}',
+    eslintConfig: './eslint.config.mjs',
+  },
+  'apps/web': {
+    patterns: '**/*.{ts,tsx,js,jsx}',
+    eslintConfig: './eslint.config.js',
+  },
+  // 'packages/connector-runner': {
+  //   patterns: '**/*.{js,mjs}',
+  //   eslintConfig: './eslint.config.mjs',
+  // },
+  // 'packages/connectors': {
+  //   patterns: '**/*.{js,mjs}',
+  //   eslintConfig: './eslint.config.js',
+  // },
+  'packages/ui': {
+    patterns: '**/*.{ts,tsx}',
+    eslintConfig: './eslint.config.js',
+  },
 };
 
 /**
- * Configuration optimized for backend projects
+ * Generate main configuration from workspaces map
  */
-export const backendConfig = {
-  '**/*.ts': ['eslint', 'prettier --write'],
-  '**/*.{json,md}': ['prettier --write'],
-};
+function generateConfig() {
+  const mainConfig = {};
+
+  // Add workspace-specific patterns
+  Object.entries(workspaces).forEach(([workspace, { patterns, eslintConfig }]) => {
+    const pattern = `${workspace}/${patterns}`;
+    mainConfig[pattern] = [
+      createWorkspaceEslintCommand(workspace, eslintConfig),
+      'prettier --write',
+    ];
+  });
+
+  // Add global prettier-only patterns
+  const prettierOnlyPatterns = ['**/*.json', '**/*.md', '**/*.{css,scss}', '**/*.{yml,yaml}'];
+
+  prettierOnlyPatterns.forEach(pattern => {
+    mainConfig[pattern] = ['prettier --write'];
+  });
+
+  return mainConfig;
+}
 
 /**
- * Configuration optimized for web projects
+ * Main workspace-aware configuration
  */
-export const webConfig = {
-  '**/*.{ts,tsx}': ['eslint', 'prettier --write'],
-  '**/*.{js,jsx}': ['eslint', 'prettier --write'],
-  '**/*.{json,md,css,scss}': ['prettier --write'],
-};
-
-/**
- * Configuration for connectors (JavaScript-heavy)
- */
-export const connectorsConfig = {
-  '**/*.{js,mjs}': ['eslint', 'prettier --write'],
-  '**/*.{json,md}': ['prettier --write'],
-};
+export const config = generateConfig();

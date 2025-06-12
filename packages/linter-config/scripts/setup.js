@@ -97,7 +97,7 @@ function createPreCommitHook() {
     mkdirSync(huskyDir, { recursive: true });
   }
 
-  const command = 'npm run lint-staged';
+  const command = 'npm run lint:staged';
   const hookContent = generateHookContent(command);
   const hookPath = join(huskyDir, 'pre-commit');
 
@@ -127,11 +127,11 @@ function main() {
     console.log('Next steps:');
     console.log('1. Ensure you have the required dependencies installed at the root level');
     console.log('2. Add the following scripts to your root package.json:');
-    console.log('   "lint-staged": "lint-staged"');
+    console.log('   "lint:staged": "lint-staged"');
     console.log('   "lint": "eslint ."');
     console.log('   "lint:fix": "eslint . --fix"');
     console.log('   "format": "prettier --write ."');
-    console.log('3. Create lint-staged.config.js file in the root');
+    console.log('3. Create lint-staged.config.mjs file in the root (wrapper for package export)');
     console.log('');
     console.log('💡 Quick commands after blocked commit:');
     console.log('   npm run lint        # Check ESLint errors');

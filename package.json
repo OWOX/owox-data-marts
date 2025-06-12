@@ -24,9 +24,9 @@
     "serve": "npm run build --workspaces --if-present && npm run serve --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "lint:fix": "npm run lint:fix --workspaces --if-present",
+    "lint:staged": "lint-staged --config lint-staged.config.mjs",
     "format": "npm run format --workspaces --if-present",
     "format:check": "npm run format:check --workspaces --if-present",
-    "lint-staged": "lint-staged --config lint-staged.config.mjs",
     "setup:linting": "npm run setup --workspace=@owox/linter-config",
     "prepare": "husky",
     "postinstall": "npm run setup:linting || echo 'Warning:  Git hooks setup failed'"

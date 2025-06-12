@@ -29,11 +29,11 @@ export const config = [
       '@typescript-eslint/interface-name-prefix': 'off',
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
-      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-explicit-any': 'error',
 
       // Dependency injection patterns
       '@typescript-eslint/no-unused-vars': [
-        'warn',
+        'error',
         {
           argsIgnorePattern: '^_',
           varsIgnorePattern: '^_',
@@ -41,7 +41,7 @@ export const config = [
       ],
 
       // Allow console for debugging (but warn)
-      'no-console': 'warn',
+      'no-console': 'error',
     },
   },
   // Config files should use ES modules

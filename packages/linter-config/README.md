@@ -114,17 +114,17 @@ This will:
 ```json
 {
   "scripts": {
-    "lint-staged": "lint-staged",
+    "lint:staged": "lint-staged",
     "setup:linting": "npm run setup --workspace=@owox/linter-config"
   }
 }
 ```
 
-### 4. Create configuration files
+### 4. Configuration
 
-Create these files in your project root:
+Create a minimal wrapper file in your project root:
 
-**lint-staged.config.js:**
+**lint-staged.config.mjs:**
 
 ```js
 import { config } from '@owox/linter-config/lint-staged';
@@ -132,11 +132,13 @@ import { config } from '@owox/linter-config/lint-staged';
 export default config;
 ```
 
+This wrapper is needed because `lint-staged` requires `export default` syntax, while the package exports using named exports.
+
 ## Available Configurations
 
 ### Lint-staged Configurations
 
-- `config` - Universal configuration for all file types
+- `config` - **🆕 Smart workspace-aware configuration** with automatic workspace detection
 - `backendConfig` - Optimized for NestJS backend projects
 - `webConfig` - Optimized for React web projects
 - `connectorsConfig` - Optimized for JavaScript connector projects
@@ -144,9 +146,48 @@ export default config;
 **Usage:**
 
 ```js
-import { webConfig } from '@owox/linter-config/lint-staged';
+import { config } from '@owox/linter-config/lint-staged';
 
-export default webConfig;
+export default config;
+```
+
+### 🎯 **Smart Workspace Detection** ⭐
+
+The main `config` now automatically detects and handles different workspace configurations:
+
+**How it works:**
+
+1. **Automatic file grouping** - Files are grouped by their workspace location
+2. **Workspace-specific ESLint** - Each workspace uses its own ESLint configuration
+3. **Intelligent fallback** - Files outside specific workspaces use root ESLint
+4. **Zero configuration** - No manual setup needed for new workspaces
+
+**Supported workspaces:**
+
+- `apps/backend` → Uses `eslint.config.mjs` (TypeScript)
+- `apps/web` → Uses `eslint.config.js` (React)
+- `packages/connector-runner` → Uses `eslint.config.mjs` (Node.js CommonJS)
+- `packages/connectors` → Uses `eslint.config.js` (Node.js CommonJS)
+- `packages/ui` → Uses `eslint.config.js` (TypeScript components)
+
+**Benefits:**
+
+- ✅ **Zero configuration overhead** - Just use `config` and it works
+- ✅ **Automatic workspace detection** - No manual file patterns needed
+- ✅ **Proper error context** - ESLint runs in the correct workspace directory
+- ✅ **Easy to extend** - Add new workspaces by updating the WORKSPACES object
+- ✅ **Best practices** - All logic contained in the linter-config package
+
+**Adding new workspaces:**
+Simply update the `WORKSPACES` object in `lint-staged.js`:
+
+```js
+const WORKSPACES = {
+  'packages/new-package': {
+    config: 'eslint.config.js',
+    extensions: ['.js', '.ts'],
+  },
+};
 ```
 
 ## Git Hooks
@@ -209,8 +250,10 @@ export default connectorsConfig;
 
 ### Custom Configuration
 
+If you need to customize the lint-staged configuration, you can create a custom config file:
+
 ```js
-// Custom project lint-staged.config.js
+// lint-staged.config.js (only if customization is needed)
 import { config } from '@owox/linter-config/lint-staged';
 
 // Extend base config
@@ -218,6 +261,16 @@ export default {
   ...config,
   '**/*.{py,rb}': ["echo 'Non-JS files ignored'"],
 };
+```
+
+Then update your package.json to use the custom config:
+
+```json
+{
+  "scripts": {
+    "lint:staged": "lint-staged --config lint-staged.config.js"
+  }
+}
 ```
 
 ## 🔧 **Linting Workflow**
