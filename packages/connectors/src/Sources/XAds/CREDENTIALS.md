@@ -12,7 +12,7 @@ To use the X Ads connector, you need to generate the required API credentials by
 
 To begin using the X Ads API, you need to request access. Follow the steps below to complete the process. 
 
-Fill out the official [X Ads API Access Request Form](https://docs.google.com/forms/d/e/1FAIpQLSftPYn1PeCkopGzlc-EW7mvwUm-S1P94RANGv6qncehoHJWKg/viewform)  
+Fill out the official [X Ads API Access Request Form](https://docs.google.com/forms/d/e/1FAIpQLSftPYn1PeCkopGzlc-EW7mvwUm-S1P94RANGv6qncehoHJWKg/viewform). 
 
 Alternatively, you can [direct message @AdsSupport](https://ads.x.com/en/help) for assistance.
 
@@ -21,6 +21,7 @@ You’ll need to provide your **X Developer App ID**, which can be found on your
    ![X Ads App ID](res/xads_appid.png)
 
 Describe how you intend to use the API.  
+
 Here’s an example:
 
 > _"We are advertisers looking to connect with the X Ads API to access campaign data for analysis and optimization. The data will be pulled via the OWOX Data Marts platform and used to support strategic decision-making across our marketing efforts."_
@@ -45,7 +46,7 @@ Under **App Permissions**, select **Read and write**.
 
 Set the **Callback URI** to: `http://localhost`
 
-Leave other fields as default and click **Save**.  
+Leave other fields (including **Type of App**) as default and click **Save**.  
 
    ![X Ads Localhost](res/xads_localhost.png)
 
@@ -55,10 +56,6 @@ In the **API Key and Secret** section:
    - Click **Regenerate**
    - Save your **API Key** and **API Secret**
    
-In the **Access Token and Secret** section:
-   - Click **Generate**
-   - Save your **Access Token** and **Access Token Secret**
-
 ![X Ads Tokens](res/xads_tokens.png)
 
 5. Make a **POST** request to `https://api.twitter.com/oauth/request_token`.
@@ -66,16 +63,18 @@ In the **Access Token and Secret** section:
 **In the Authorization tab, use the following OAuth 1.0 settings:**
 
 - **Signature Method**: HMAC-SHA1  
-- **Consumer Key**: your **API Key** from Step 3  
-- **Consumer Secret**: your **API Secret** from Step 3  
-- **Callback URL**: `http://localhost` (must match the one from Step 2)  
+- **Consumer Key**: your **API Key** from Step 4  
+- **Consumer Secret**: your **API Secret** from Step 4  
+- **Callback URL**: `http://localhost` (must match the one from Step 3)  
 
 ![X Ads Postman](res/xads_postman.png)
 
 Click **Send**. The response will look like:
 
 `
-oauth_token=E4MQKQAAAAAB1yCFAAABl2OHH80&oauth_token_secret=UlDQaqOoJHj1VvLQ8fQH6Iq686rEFww2&oauth_callback_confirmed=true
+oauth_token=E4MQKQAAAAAB1yCFAAABl2OHH80&
+oauth_token_secret=UlDQaqOoJHj1VvLQ8fQH6Iq686rEFww2&
+oauth_callback_confirmed=true
 `
 
 6. Copy the `oauth_token` value and insert it into the following URL:
@@ -83,9 +82,11 @@ oauth_token=E4MQKQAAAAAB1yCFAAABl2OHH80&oauth_token_secret=UlDQaqOoJHj1VvLQ8fQH6
 `https://api.twitter.com/oauth/authorize?oauth_token=YOUR_OAUTH_TOKEN`
 
 Open the URL in your browser and click **Authorize App**.  
+
    ![X Ads Authorize](res/xads_authorize.png)
 
 You will be redirected to a URL containing `oauth_token` and `oauth_verifier`.  
+
    ![X Ads Verifier](res/xads_verifier.png)
 
 7. Make a **POST** request to `https://api.twitter.com/oauth/access_token`.
@@ -103,8 +104,12 @@ You will be redirected to a URL containing `oauth_token` and `oauth_verifier`.
 
 Click **Send**. The response will include your permanent tokens:
 
-`oauth_token=1534231826281152515-kDGnM70as1fh6xoYWK9HvlwtDHHqe8&oauth_token_secret=KiXVKSyHifVoVm7vq3iC7zjclE1ocqvgpouS95RuLXM61&user_id=1534231826281152213&
-screen_name=examplename`
+`
+oauth_token=1534231826281152515-kDGnM70as1fh6xoYWK9HvlwtDHHqe8&
+oauth_token_secret=KiXVKSyHifVoVm7vq3iC7zjclE1ocqvgpouS95RuLXM61&
+user_id=1534231826281152213&
+screen_name=examplename
+`
 
 8. You now have all the credentials required to use the X Ads connector:
 
