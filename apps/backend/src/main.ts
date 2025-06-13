@@ -11,12 +11,16 @@ const PATH_PREFIX = 'api';
 const DEFAULT_PORT = 3000;
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    logger: ['error', 'warn', 'log'],
+  });
 
   app.setGlobalPrefix(PATH_PREFIX);
   setupGlobalPipes(app);
   setupSwagger(app);
   setupStaticAssets(app, PATH_PREFIX);
+
+  app.enableShutdownHooks();
 
   await app.listen(process.env.PORT ? Number(process.env.PORT) : DEFAULT_PORT);
   logger.log(`Application is running on: ${await app.getUrl()}`);
