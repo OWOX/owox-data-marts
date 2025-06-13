@@ -83,7 +83,7 @@ var BingAdsConnector = class BingAdsConnector extends AbstractConnector {
       
       this.config.logMessage(`Processing ${nodeName} for ${accountId} on ${formattedDate} (day ${dayOffset + 1} of ${daysToFetch})`);
 
-      const data = this.connector.fetchData({ 
+      const data = this.source.fetchData({ 
         nodeName, 
         accountId, 
         start_time: formattedDate, 
@@ -115,7 +115,7 @@ var BingAdsConnector = class BingAdsConnector extends AbstractConnector {
    * @param {Object} options.storage - Storage instance
    */
   processCatalogNode({ nodeName, accountId, fields, storage }) {
-    const data = this.connector.fetchData({ 
+    const data = this.source.fetchData({ 
       nodeName, 
       accountId, 
       fields,
