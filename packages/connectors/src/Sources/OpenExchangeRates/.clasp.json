@@ -1,4 +1,14 @@
 {
-    "scriptId":"1ADh_XajaB6vwJsRb4QRsxmMbWaz_NtDj3tYW7uw02FwW88ykvdZT2SYw",
-    "rootDir":"../../"
+  "scriptId": "1ADh_XajaB6vwJsRb4QRsxmMbWaz_NtDj3tYW7uw02FwW88ykvdZT2SYw",
+  "rootDir": "../../",
+  "filePushOrder": [
+    "../../Constants/CommonConstants.js",
+    "../../Constants/HttpConstants.js",
+    "../../Core/AbstractConfig.js",
+    "../../Core/AbstractConnector.js",
+    "../../Core/AbstractSource.js",
+    "../../Core/AbstractStorage.js",
+    "../../Core/EnvironmentAdapter.js",
+    "../../Core/Exceptions.js"
+  ]
 }
