@@ -15,6 +15,15 @@ export class DataStorage {
   @Column()
   type: DataStorageType;
 
+  @Column()
+  projectId: string;
+
+  @Column({ type: 'json', nullable: true })
+  credentials?: Record<string, unknown>;
+
+  @Column({ type: 'json', nullable: true })
+  config?: Record<string, unknown>;
+
   @CreateDateColumn()
   createdAt: Date;
 

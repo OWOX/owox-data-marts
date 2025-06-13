@@ -1,0 +1,39 @@
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { DataStorage } from '../entities/data-storage.entity';
+import { Repository } from 'typeorm';
+import { DataStorageMapper } from '../mappers/data-storage.mapper';
+import { DataStorageDto } from '../dto/domain/data-storage.dto';
+import { UpdateDataStorageCommand } from '../dto/domain/update-data-storage.command';
+import { DataStorageService } from '../services/data-storage.service';
+import { DataStorageAccessService } from '../services/data-storage-access.service';
+
+@Injectable()
+export class UpdateDataStorageService {
+  constructor(
+    @InjectRepository(DataStorage)
+    private readonly dataStorageRepository: Repository<DataStorage>,
+    private readonly dataStorageService: DataStorageService,
+    private readonly dataStorageMapper: DataStorageMapper,
+    private readonly dataStorageAccessService: DataStorageAccessService
+  ) {}
+
+  async run(
+    projectId: string,
+    id: string,
+    command: UpdateDataStorageCommand
+  ): Promise<DataStorageDto> {
+    const dataStorageEntity = await this.dataStorageService.getByIdAndProjectId(projectId, id);
+    await this.dataStorageAccessService.checkAccess(
+      dataStorageEntity.type,
+      command.config,
+      command.credentials
+    );
+
+    dataStorageEntity.credentials = command.credentials;
+    dataStorageEntity.config = command.config;
+
+    const updatedDataStorageEntity = await this.dataStorageRepository.save(dataStorageEntity);
+    return this.dataStorageMapper.toDomainDto(updatedDataStorageEntity);
+  }
+}

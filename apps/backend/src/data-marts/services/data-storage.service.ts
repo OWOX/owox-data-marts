@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataStorage } from '../entities/data-storage.entity';
@@ -22,5 +22,15 @@ export class DataStorageService {
     }
 
     return storage;
+  }
+
+  async getByIdAndProjectId(projectId: string, id: string): Promise<DataStorage> {
+    const entity = await this.dataStorageRepository.findOne({ where: { id, projectId } });
+
+    if (!entity) {
+      throw new NotFoundException(`DataStorage with id ${id} and projectId ${projectId} not found`);
+    }
+
+    return entity;
   }
 }
