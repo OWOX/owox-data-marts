@@ -1,4 +1,3 @@
-// features/data-mart-list/model/context/reducer.ts
 import type { DataMartListState, DataMartListAction } from './types';
 
 export const initialState: DataMartListState = {
