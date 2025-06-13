@@ -8,6 +8,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { DataStorage } from './data-storage.entity';
+import { DataMartStatus } from '../enums/data-mart-status.enum';
 
 @Entity()
 export class DataMart {
@@ -20,6 +21,18 @@ export class DataMart {
   @ManyToOne(() => DataStorage, { eager: true, cascade: true })
   @JoinColumn()
   storage: DataStorage;
+
+  @Column({ type: 'json', nullable: true })
+  definition?: Record<string, unknown>;
+
+  @Column()
+  status: DataMartStatus;
+
+  @Column()
+  projectId: string;
+
+  @Column()
+  createdById: string;
 
   @CreateDateColumn()
   createdAt: Date;
