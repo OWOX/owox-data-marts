@@ -1,6 +1,6 @@
-import { ApiService } from '../../../services';
-import type { CreateDataMartRequestDto, UpdateDataMartRequestDto } from '../../../shared';
-import type { DataMartResponseDto, DataMartListResponseDto } from '../../../shared';
+import { ApiService } from './index.ts';
+import type { CreateDataMartRequestDto, UpdateDataMartRequestDto } from '../shared';
+import type { DataMartResponseDto, DataMartListResponseDto } from '../shared';
 
 /**
  * Data Mart Service
