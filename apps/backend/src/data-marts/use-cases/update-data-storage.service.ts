@@ -6,7 +6,7 @@ import { DataStorageMapper } from '../mappers/data-storage.mapper';
 import { DataStorageDto } from '../dto/domain/data-storage.dto';
 import { UpdateDataStorageCommand } from '../dto/domain/update-data-storage.command';
 import { DataStorageService } from '../services/data-storage.service';
-import { DataStorageAccessService } from '../services/data-storage-access.service';
+import { DataStorageAccessFacade } from '../data-storage-types/facades/data-storage-access.facade';
 
 @Injectable()
 export class UpdateDataStorageService {
@@ -15,7 +15,7 @@ export class UpdateDataStorageService {
     private readonly dataStorageRepository: Repository<DataStorage>,
     private readonly dataStorageService: DataStorageService,
     private readonly dataStorageMapper: DataStorageMapper,
-    private readonly dataStorageAccessService: DataStorageAccessService
+    private readonly dataStorageAccessFacade: DataStorageAccessFacade
   ) {}
 
   async run(
@@ -24,7 +24,7 @@ export class UpdateDataStorageService {
     command: UpdateDataStorageCommand
   ): Promise<DataStorageDto> {
     const dataStorageEntity = await this.dataStorageService.getByIdAndProjectId(projectId, id);
-    await this.dataStorageAccessService.checkAccess(
+    await this.dataStorageAccessFacade.checkAccess(
       dataStorageEntity.type,
       command.config,
       command.credentials

@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataStorage } from '../entities/data-storage.entity';
-import { DataStorageType } from '../enums/data-storage-type.enum';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 
 @Injectable()
 export class DataStorageService {

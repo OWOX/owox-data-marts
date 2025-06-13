@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsObject } from 'class-validator';
+import { DataStorageConfig } from '../../data-storage-types/data-storage-config.type';
 
 export class UpdateDataStorageApiDto {
   @ApiProperty({
@@ -16,5 +17,5 @@ export class UpdateDataStorageApiDto {
     description: 'Configuration specific to the storage type',
   })
   @IsObject()
-  config: Record<string, unknown>;
+  config: DataStorageConfig;
 }

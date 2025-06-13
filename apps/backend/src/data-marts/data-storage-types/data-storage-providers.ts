@@ -1,14 +1,10 @@
-import {
-  BigQueryTitleGenerator,
-  AthenaTitleGenerator,
-  DataStorageTitleGenerator,
-} from '../services/data-storage-title.generator';
-import {
-  BigQueryAccessValidator,
-  AthenaAccessValidator,
-  DataStorageAccessValidator,
-} from '../services/data-storage-access.validator';
-import { DataStorageType } from '../enums/data-storage-type.enum';
+import { DataStorageTitleGenerator } from './interfaces/data-storage-title-generator.interface';
+import { DataStorageAccessValidator } from './interfaces/data-storage-access-validator.interface';
+import { BigQueryTitleGenerator } from './bigquery/services/bigquery-title.generator';
+import { AthenaTitleGenerator } from './athena/services/athena-title.generator';
+import { BigQueryAccessValidator } from './bigquery/services/bigquery-access.validator';
+import { AthenaAccessValidator } from './athena/services/athena-access.validator';
+import { DataStorageType } from './enums/data-storage-type.enum';
 import { TypeResolver } from '../../common/resolver/type-resolver';
 
 export const DATA_STORAGE_TITLE_GENERATOR_RESOLVER = Symbol(

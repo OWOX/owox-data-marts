@@ -5,12 +5,12 @@ import { CreateDataStorageCommand } from '../dto/domain/create-data-storage.comm
 import { UpdateDataStorageApiDto } from '../dto/presentation/update-data-storage-api.dto';
 import { UpdateDataStorageCommand } from '../dto/domain/update-data-storage.command';
 import { DataStorageResponseApiDto } from '../dto/presentation/data-storage-response-api.dto';
-import { DataStorageTitleService } from '../services/data-storage-title.service';
+import { DataStorageTitleFacade } from '../data-storage-types/facades/data-storage-title.facade';
 import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class DataStorageMapper {
-  constructor(private readonly dataStorageTitleService: DataStorageTitleService) {}
+  constructor(private readonly dataStorageTitleFacade: DataStorageTitleFacade) {}
 
   toCreateCommand(dto: CreateDataStorageApiDto): CreateDataStorageCommand {
     return new CreateDataStorageCommand(dto.type);
@@ -23,7 +23,7 @@ export class DataStorageMapper {
   toDomainDto(dataStorage: DataStorage): DataStorageDto {
     return new DataStorageDto(
       dataStorage.id,
-      this.dataStorageTitleService.generate(dataStorage.type, dataStorage.config),
+      this.dataStorageTitleFacade.generate(dataStorage.type, dataStorage.config),
       dataStorage.type,
       dataStorage.projectId,
       dataStorage.credentials,

@@ -6,4 +6,4 @@ export const AthenaConfigSchema = z.object({
   outputBucket: z.string().min(1, 'outputBucket is required'),
 });
 
-export type AthenaConfigDto = z.infer<typeof AthenaConfigSchema>;
+export type AthenaConfig = z.infer<typeof AthenaConfigSchema>;

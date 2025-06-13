@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { DataStorageType } from '../../enums/data-storage-type.enum';
+import { DataStorageType } from '../../data-storage-types/enums/data-storage-type.enum';
 
 export class DataStorageResponseApiDto {
   @ApiProperty({ example: 'abc123e4-5678-90ab-cdef-1234567890ab' })
