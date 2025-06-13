@@ -39,4 +39,7 @@ export default [
     },
   },
   eslintConfigPrettier,
+  {
+    ignores: ['dist/**', 'node_modules/**', 'coverage/**'],
+  },
 ];

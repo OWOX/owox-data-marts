@@ -234,7 +234,7 @@ The connector configuration JSON file has the following structure:
 
 ## Architecture
 
-```mermaid
+```text
 src/
 ├── core/
 │   ├── interfaces/                 # Abstract interfaces for extensibility
@@ -313,45 +313,6 @@ Each connector run operates in a completely isolated environment:
 - Independent `package.json` and `node_modules`
 - Environment variables for configuration passing
 - Automatic cleanup after execution
-
-## Supported Components
-
-### Storage Backends
-
-- **Google BigQuery**: Full support for BigQuery destinations
-- **AWS Athena**: Full support for Athena with S3 backing
-
-### Data Sources
-
-The runner supports all connectors defined in `packages/connectors/src/Sources`:
-
-- **TikTok Ads**: Comprehensive advertising data
-- **Facebook Marketing**: Social media advertising metrics  
-- **LinkedIn Ads**: Professional advertising platform
-- **X (Twitter) Ads**: Social media advertising
-- **Reddit Ads**: Community-based advertising
-- **Bing Ads**: Search engine advertising
-- **Criteo Ads**: Retargeting and display advertising
-- **GitHub**: Development platform data
-- **Bank of Canada**: Financial data
-- **Open Exchange Rates**: Currency exchange data
-- **Open Holidays**: Holiday calendar data
-
-> **Note**: While all sources are supported by the architecture, not all have been thoroughly tested in production environments.
-
-## Dependencies
-
-### Core Dependencies
-
-- **@google-cloud/bigquery**: Google BigQuery client library
-- **@aws-sdk/client-athena**, **@aws-sdk/client-s3**, **@aws-sdk/lib-storage**: AWS SDK components
-- **sync-request**: Synchronous HTTP requests
-- **deasync**: Synchronous JavaScript operations
-- **adm-zip**: ZIP file handling
-
-### Development Dependencies
-
-- **@types/node**: TypeScript definitions for Node.js
 
 ## Development
 

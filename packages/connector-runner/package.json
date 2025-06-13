@@ -16,9 +16,18 @@
     "lint": "eslint . --config ./eslint.config.mjs",
     "lint:fix": "eslint . --fix --config ./eslint.config.mjs",
     "format": "prettier --write \"**/*.{js,mjs}\"",
-    "format:check": "prettier --check \"**/*.{js,mjs}\""
+    "format:check": "prettier --check \"**/*.{js,mjs}\"",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "dependencies": {
     "@owox/connectors": "file:../connectors"
+  },
+  "devDependencies": {
+    "jest": "^30.0.0",
+    "jest-environment-node": "^30.0.0",
+    "mock-fs": "^5.5.0",
+    "sinon": "^21.0.0"
   }
 }
