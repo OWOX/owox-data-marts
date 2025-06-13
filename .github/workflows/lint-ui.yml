@@ -1,4 +1,4 @@
-name: Web Code Quality
+name: UI Code Quality
 
 on:
   pull_request:

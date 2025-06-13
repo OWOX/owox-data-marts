@@ -16,6 +16,9 @@
     "apps/*",
     "packages/*"
   ],
+  "engines": {
+    "node": ">=22.16.0"
+  },
   "scripts": {
     "connector-runner-node": "npm run connector-runner-node --workspace=packages/connector-runner",
     "dev:web": "npm run dev -w @owox/web",

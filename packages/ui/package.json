@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "type": "module",
   "private": true,
+  "engines": {
+    "node": ">=22.16.0"
+  },
   "scripts": {
     "lint": "eslint . --max-warnings 0"
   },
