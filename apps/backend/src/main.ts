@@ -5,6 +5,7 @@ import { Logger } from '@nestjs/common';
 import { setupSwagger } from './config/swagger.config';
 import { setupGlobalPipes } from './config/global-pipes.config';
 import { setupStaticAssets } from './config/express-static.config';
+import { BaseExceptionFilter } from './common/exceptions/base-exception.filter';
 
 const logger = new Logger('Bootstrap');
 const PATH_PREFIX = 'api';
@@ -14,6 +15,7 @@ const DEFAULT_PORT = 3000;
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
+  app.useGlobalFilters(new BaseExceptionFilter());
   app.setGlobalPrefix(PATH_PREFIX);
   setupGlobalPipes(app);
   setupSwagger(app, SWAGGER_PATH);

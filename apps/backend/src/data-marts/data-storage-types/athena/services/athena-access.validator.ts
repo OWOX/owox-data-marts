@@ -1,10 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
-import { AthenaConfig, AthenaConfigSchema } from '../schemas/athena-config.schema';
-import {
-  AthenaCredentialsDto,
-  AthenaCredentialsSchema,
-} from '../schemas/athena-credentials.schema';
+import { AthenaConfigSchema } from '../schemas/athena-config.schema';
+import { AthenaCredentialsSchema } from '../schemas/athena-credentials.schema';
 import {
   DataStorageAccessValidator,
   ValidationResult,
@@ -20,15 +17,22 @@ export class AthenaAccessValidator implements DataStorageAccessValidator {
     config: DataStorageConfig,
     credentials: Record<string, unknown>
   ): Promise<ValidationResult> {
-    try {
-      // Todo implement real validation
-      const _athenaConfig: AthenaConfig = AthenaConfigSchema.parse(config);
-      const _athenaCredentials: AthenaCredentialsDto = AthenaCredentialsSchema.parse(credentials);
-
-      return new ValidationResult(true);
-    } catch (e) {
-      this.logger.warn('Invalid config or credentials', e);
-      return new ValidationResult(false, 'Invalid config or credentials', e.message);
+    const configOpt = AthenaConfigSchema.safeParse(config);
+    if (!configOpt.success) {
+      this.logger.warn('Invalid config', configOpt.error);
+      return new ValidationResult(false, 'Invalid config', { errors: configOpt.error.errors });
     }
+
+    const credentialsOpt = AthenaCredentialsSchema.safeParse(credentials);
+    if (!credentialsOpt.success) {
+      this.logger.warn('Invalid credentials', credentialsOpt.error);
+      return new ValidationResult(false, 'Invalid credentials', {
+        errors: credentialsOpt.error.errors,
+      });
+    }
+
+    // Todo implement real validation
+
+    return new ValidationResult(true);
   }
 }

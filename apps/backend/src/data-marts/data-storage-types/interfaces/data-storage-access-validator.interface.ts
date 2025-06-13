@@ -13,6 +13,6 @@ export class ValidationResult {
   constructor(
     public readonly valid: boolean,
     public readonly errorMessage?: string,
-    public readonly reason?: string
+    public readonly reason?: Record<string, unknown>
   ) {}
 }
