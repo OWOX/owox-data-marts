@@ -13,8 +13,8 @@ const DependencyManager = require('../../core/interfaces/dependency-manager');
  */
 const DEFAULT_DEPENDENCIES = [
   {
-    name: 'deasync',
-    version: '0.1.30',
+    name: '@kaciras/deasync',
+    version: '1.1.0',
     global: ['deasync'],
     global_is: true,
   },
