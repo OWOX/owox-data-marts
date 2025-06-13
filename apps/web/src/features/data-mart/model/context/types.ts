@@ -12,7 +12,7 @@ export type DataMartAction =
   | { type: 'FETCH_DATA_MART_SUCCESS'; payload: DataMart }
   | { type: 'FETCH_DATA_MART_ERROR'; payload: string }
   | { type: 'CREATE_DATA_MART_START' }
-  | { type: 'CREATE_DATA_MART_SUCCESS'; payload: DataMart }
+  | { type: 'CREATE_DATA_MART_SUCCESS'; payload: Pick<DataMart, 'id' | 'title'> }
   | { type: 'CREATE_DATA_MART_ERROR'; payload: string }
   | { type: 'UPDATE_DATA_MART_START' }
   | { type: 'UPDATE_DATA_MART_SUCCESS'; payload: DataMart }
@@ -24,7 +24,7 @@ export type DataMartAction =
 
 export interface DataMartContextType extends DataMartState {
   getDataMart: (id: string) => Promise<void>;
-  createDataMart: (data: CreateDataMartRequestDto) => Promise<void>;
+  createDataMart: (data: CreateDataMartRequestDto) => Promise<Pick<DataMart, 'id' | 'title'>>;
   updateDataMart: (id: string, data: UpdateDataMartRequestDto) => Promise<void>;
   deleteDataMart: (id: string) => Promise<void>;
   reset: () => void;

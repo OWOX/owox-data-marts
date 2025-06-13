@@ -1,7 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { z } from 'zod';
 import type { CreateDataMartRequestDto, UpdateDataMartRequestDto } from '../../../../shared';
 import { useDataMartContext } from '../context';
+import type { DataMart } from '../types';
 
 // Validation schema
 const dataMartSchema = z.object({
@@ -38,12 +39,11 @@ export function useDataMartForm() {
 
   // Function to handle create submission
   const handleCreate = useCallback(
-    async (data: CreateDataMartRequestDto) => {
+    async (data: CreateDataMartRequestDto): Promise<Pick<DataMart, 'id' | 'title'> | null> => {
       if (validateForm(data as unknown as Record<string, unknown>)) {
-        await createDataMart(data);
-        return true;
+        return await createDataMart(data);
       }
-      return false;
+      return null;
     },
     [createDataMart, validateForm]
   );

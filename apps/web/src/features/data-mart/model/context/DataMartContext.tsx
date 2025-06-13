@@ -3,7 +3,7 @@ import type { CreateDataMartRequestDto, UpdateDataMartRequestDto } from '../../.
 import { dataMartService } from '../../api';
 import { DataMartContext } from './context';
 import { initialState, reducer } from './reducer';
-import { mapDataMartFromDto } from '../mappers';
+import { mapDataMartFromDto, mapLimitedDataMartFromDto } from '../mappers';
 
 // Props interface
 interface DataMartProviderProps {
@@ -34,13 +34,15 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     try {
       dispatch({ type: 'CREATE_DATA_MART_START' });
       const response = await dataMartService.createDataMart(data);
-      const dataMart = mapDataMartFromDto(response);
+      const dataMart = mapLimitedDataMartFromDto(response);
       dispatch({ type: 'CREATE_DATA_MART_SUCCESS', payload: dataMart });
+      return dataMart;
     } catch (error) {
       dispatch({
         type: 'CREATE_DATA_MART_ERROR',
         payload: error instanceof Error ? error.message : 'Failed to create data mart',
       });
+      throw error;
     }
   };
 

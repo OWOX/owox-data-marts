@@ -16,8 +16,9 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
     case 'DELETE_DATA_MART_START':
       return { ...state, isLoading: true, error: null };
 
-    case 'FETCH_DATA_MART_SUCCESS':
     case 'CREATE_DATA_MART_SUCCESS':
+      return { ...state, isLoading: false, error: null };
+    case 'FETCH_DATA_MART_SUCCESS':
     case 'UPDATE_DATA_MART_SUCCESS':
       return { ...state, isLoading: false, error: null, dataMart: action.payload };
 

@@ -5,8 +5,8 @@ import { DataStorageType } from '../shared';
 export default function CreateDataMartPage() {
   const navigate = useNavigate();
 
-  const handleSuccess = () => {
-    void navigate('/data-marts');
+  const handleSuccess = (response: { id: string }) => {
+    void navigate(`/data-marts/${response.id}/data-setup`);
   };
 
   return (

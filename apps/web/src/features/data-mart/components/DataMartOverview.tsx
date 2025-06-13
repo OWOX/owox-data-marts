@@ -9,7 +9,7 @@ export function DataMartOverview() {
 
   return (
     <div>
-      <Textarea value={description} style={{ whiteSpace: 'pre-wrap' }}></Textarea>
+      <Textarea defaultValue={description} style={{ whiteSpace: 'pre-wrap' }}></Textarea>
     </div>
   );
 }

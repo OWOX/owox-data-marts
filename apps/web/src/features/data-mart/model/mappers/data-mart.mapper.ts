@@ -13,3 +13,17 @@ export function mapDataMartFromDto(dto: DataMartResponseDto): DataMart {
     modifiedAt: new Date(dto.modifiedAt),
   };
 }
+
+/**
+ * Maps a limited data mart response (after creation) to a domain model
+ * Contains only id and title fields
+ */
+export function mapLimitedDataMartFromDto(dto: {
+  id: string;
+  title: string;
+}): Pick<DataMart, 'id' | 'title'> {
+  return {
+    id: dto.id,
+    title: dto.title,
+  };
+}

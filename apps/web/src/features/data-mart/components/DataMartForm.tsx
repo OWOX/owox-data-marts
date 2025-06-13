@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DataStorageType } from '../../../shared';
-import { useDataMartForm } from '../model';
+import { type DataMart, useDataMartForm } from '../model';
 import { useDataMartContext } from '../model';
 
 interface DataMartFormProps {
@@ -9,7 +9,7 @@ interface DataMartFormProps {
     title: string;
     storage: DataStorageType;
   };
-  onSuccess?: () => void;
+  onSuccess?: (response: Pick<DataMart, 'id' | 'title'>) => void;
 }
 
 export function DataMartForm({ initialData, onSuccess }: DataMartFormProps) {
@@ -42,19 +42,20 @@ export function DataMartForm({ initialData, onSuccess }: DataMartFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    let success: boolean;
-
     if (initialData?.id) {
       // Update existing data mart
-      success = await handleUpdate(initialData.id, formData);
+      const success = await handleUpdate(initialData.id, formData);
+      if (success && onSuccess) {
+        //onSuccess(success);
+      }
     } else {
       // Create new data mart
-      success = await handleCreate(formData);
-    }
-
-    if (success && onSuccess) {
-      onSuccess();
+      const response = await handleCreate(formData);
+      if (response) {
+        if (onSuccess) {
+          onSuccess(response);
+        }
+      }
     }
   };
 

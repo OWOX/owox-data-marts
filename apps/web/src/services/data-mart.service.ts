@@ -1,5 +1,9 @@
 import { ApiService } from './index.ts';
-import type { CreateDataMartRequestDto, UpdateDataMartRequestDto } from '../shared';
+import type {
+  CreateDataMartRequestDto,
+  CreateDataMartResponseDto,
+  UpdateDataMartRequestDto,
+} from '../shared';
 import type { DataMartResponseDto, DataMartListResponseDto } from '../shared';
 
 /**
@@ -36,8 +40,8 @@ export class DataMartService extends ApiService {
    * @param data Data mart creation data
    * @returns Promise with created data mart
    */
-  async createDataMart(data: CreateDataMartRequestDto): Promise<DataMartResponseDto> {
-    return this.post<DataMartResponseDto>('', data);
+  async createDataMart(data: CreateDataMartRequestDto): Promise<CreateDataMartResponseDto> {
+    return this.post<CreateDataMartResponseDto>('', data);
   }
 
   /**
