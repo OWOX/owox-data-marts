@@ -11,8 +11,8 @@ export function useDataMartList() {
       id: dmart.id,
       title: dmart.title,
       storageType: dmart.storageType,
-      createdAt: dmart.createdAt,
-      modifiedAt: dmart.modifiedAt,
+      createdAt: new Date(dmart.createdAt),
+      modifiedAt: new Date(dmart.modifiedAt),
     }));
   };
 

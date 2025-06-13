@@ -4,6 +4,8 @@ import Home from '../pages/Home';
 import About from '../pages/About';
 import NotFound from '../pages/NotFound';
 import DataMartsPage from '../pages/DataMartsPage';
+import DataMartDetailsPage, { dataMartDetailsRoutes } from '../pages/data-mart-details-page';
+import CreateDataMartPage from '../pages/CreateDataMartPage';
 
 const routes: RouteObject[] = [
   {
@@ -21,6 +23,15 @@ const routes: RouteObject[] = [
       {
         path: 'data-marts',
         element: <DataMartsPage />,
+      },
+      {
+        path: 'data-marts/create',
+        element: <CreateDataMartPage />,
+      },
+      {
+        path: 'data-marts/:id',
+        element: <DataMartDetailsPage />,
+        children: dataMartDetailsRoutes,
       },
       {
         path: '*',

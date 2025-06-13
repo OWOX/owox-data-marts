@@ -1,3 +1,3 @@
-export * from './DataMartList';
-export * from './DataMartListItem';
+export * from './DataMartList/DataMartList';
+export * from './DataMartList/DataMartListItem';
 export * from './DataMartTable';

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   type ColumnDef,
   flexRender,
@@ -38,6 +39,7 @@ interface DataTableProps<TData, TValue> {
 }
 
 export function DataMartTable<TData, TValue>({ columns, data }: DataTableProps<TData, TValue>) {
+  const navigate = useNavigate();
   const [sorting, setSorting] = useState<SortingState>([{ id: 'title', desc: false }]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
@@ -178,11 +180,26 @@ export function DataMartTable<TData, TValue>({ columns, data }: DataTableProps<T
           <TableBody>
             {table.getRowModel().rows.length ? (
               table.getRowModel().rows.map(row => (
-                <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && 'selected'}
+                  className='hover:bg-muted/50 cursor-pointer'
+                  onClick={e => {
+                    if (
+                      e.target instanceof HTMLElement &&
+                      (e.target.closest('[role="checkbox"]') || e.target.closest('.actions-cell'))
+                    ) {
+                      return;
+                    }
+
+                    const id = (row.original as { id: string }).id;
+                    void navigate(`/data-marts/${id}/overview`);
+                  }}
+                >
                   {row.getVisibleCells().map(cell => (
                     <TableCell
                       key={cell.id}
-                      className='[&:has([role=checkbox])]pr-0 px-5 [&>[role=checkbox]]:translate-y-[2px]'
+                      className={`[&:has([role=checkbox])]pr-0 px-5 [&>[role=checkbox]]:translate-y-[2px] ${cell.column.id === 'actions' ? 'actions-cell' : ''}`}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
