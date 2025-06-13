@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useDataMartList } from '../model/hooks';
+import { useDataMartList } from '../../model/hooks';
 import { DataMartListItemComponent } from './DataMartListItem.tsx';
 
 export function DataMartList() {
