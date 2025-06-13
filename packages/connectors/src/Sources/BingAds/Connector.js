@@ -74,28 +74,36 @@ var BingAdsConnector = class BingAdsConnector extends AbstractConnector {
       return;
     }
 
-    const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + daysToFetch - 1);
-    
-    const formattedStartDate = EnvironmentAdapter.formatDate(startDate, "UTC", "yyyy-MM-dd");
-    const formattedEndDate = EnvironmentAdapter.formatDate(endDate, "UTC", "yyyy-MM-dd");
+    // Process data day by day
+    for (let dayOffset = 0; dayOffset < daysToFetch; dayOffset++) {
+      const currentDate = new Date(startDate);
+      currentDate.setDate(currentDate.getDate() + dayOffset);
+      
+      const formattedDate = EnvironmentAdapter.formatDate(currentDate, "UTC", "yyyy-MM-dd");
+      
+      this.config.logMessage(`Processing ${nodeName} for ${accountId} on ${formattedDate} (day ${dayOffset + 1} of ${daysToFetch})`);
 
-    const data = this.source.fetchData({ 
-      nodeName, 
-      accountId, 
-      start_time: formattedStartDate, 
-      end_time: formattedEndDate, 
-      fields 
-    });
+      const data = this.connector.fetchData({ 
+        nodeName, 
+        accountId, 
+        start_time: formattedDate, 
+        end_time: formattedDate, 
+        fields 
+      });
 
-    this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for ${accountId} from ${formattedStartDate} to ${formattedEndDate}`);
+      this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for ${accountId} on ${formattedDate}`);
 
-    if (data.length > 0) {
-      const preparedData = this.addMissingFieldsToData(data, fields);
-      storage.saveData(preparedData);
+      if (data.length > 0) {
+        const preparedData = this.addMissingFieldsToData(data, fields);
+        storage.saveData(preparedData);
+        this.config.logMessage(`Successfully saved ${data.length} rows for ${formattedDate}`);
+      } else {
+        this.config.logMessage(`No data found for ${formattedDate}`);
+      }
+
+      // Update last requested date after each successful day
+      this.config.updateLastRequstedDate(currentDate);
     }
-
-    this.config.updateLastRequstedDate(endDate);
   }
   
   /**
@@ -107,7 +115,17 @@ var BingAdsConnector = class BingAdsConnector extends AbstractConnector {
    * @param {Object} options.storage - Storage instance
    */
   processCatalogNode({ nodeName, accountId, fields, storage }) {
-    const data = this.source.fetchData({ nodeName, accountId, fields });
+    const data = this.connector.fetchData({ 
+      nodeName, 
+      accountId, 
+      fields,
+      onBatchReady: (batchData) => {
+        this.config.logMessage(`Saving batch of ${batchData.length} records to storage`);
+        const preparedData = this.addMissingFieldsToData(batchData, fields);
+        storage.saveData(preparedData);
+      }
+    });
+    
     this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for ${accountId}`);
 
     if (data && data.length) {

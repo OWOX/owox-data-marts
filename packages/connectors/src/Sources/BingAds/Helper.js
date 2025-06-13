@@ -94,5 +94,20 @@ const BingAdsHelper = {
       });
       return filteredRecord;
     });
+  },
+
+  /**
+   * Extract campaign IDs from records
+   * @param {Array<Object>} allRecords - Array of records to extract campaigns from
+   * @returns {Array<string>} Array of campaign IDs
+   */
+  extractCampaignIds(allRecords) {
+    const campaigns = allRecords.filter(record => {
+      const type = record.Type || record.RecordType || '';
+      const status = record.Status || record.CampaignStatus || '';
+      return type === 'Campaign' && status !== 'Deleted';
+    });
+    
+    return campaigns.map(campaign => campaign.Id);
   }
 };

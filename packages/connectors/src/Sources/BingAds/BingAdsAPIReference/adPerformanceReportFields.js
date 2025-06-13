@@ -270,6 +270,10 @@ var adPerformanceReportFields = {
     'description': 'The language of the publisher where the ad was shown.',
     'type': 'String'
   },
+  'LocationId': {
+    'description': 'The Microsoft Advertising identifier of the location where the user was physically located when they clicked the ad.',
+    'type': 'Int64'
+  },
   'LongHeadline': {
     'description': 'The longer of two possible responsive ad headlines for Audience campaigns.',
     'type': 'String'
@@ -310,6 +314,8 @@ var adPerformanceReportFields = {
   'TimePeriod': {
     'description': 'The time period of each report row. You may not include this column if the Aggregation element of the request object is set to Summary. For more information, see Time Period Column.',
     'type': 'Date',
+    'GoogleBigQueryType': 'date',
+    'GoogleBigQueryPartitioned': true,
     'GoogleSheetsFormat': '@'
   },
   'TitlePart1': {
