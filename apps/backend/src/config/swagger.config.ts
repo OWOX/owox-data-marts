@@ -1,7 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 
-export function setupSwagger(app: INestApplication): void {
+export function setupSwagger(app: INestApplication, path: string): void {
   const config = new DocumentBuilder()
     .setTitle('Backend API')
     .setDescription('REST API used by frontend clients and service integrations.')
@@ -9,7 +9,7 @@ export function setupSwagger(app: INestApplication): void {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('swagger-ui', app, document, {
+  SwaggerModule.setup(path, app, document, {
     useGlobalPrefix: false,
   });
 }
