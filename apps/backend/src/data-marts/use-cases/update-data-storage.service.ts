@@ -18,12 +18,11 @@ export class UpdateDataStorageService {
     private readonly dataStorageAccessFacade: DataStorageAccessFacade
   ) {}
 
-  async run(
-    projectId: string,
-    id: string,
-    command: UpdateDataStorageCommand
-  ): Promise<DataStorageDto> {
-    const dataStorageEntity = await this.dataStorageService.getByIdAndProjectId(projectId, id);
+  async run(command: UpdateDataStorageCommand): Promise<DataStorageDto> {
+    const dataStorageEntity = await this.dataStorageService.getByIdAndProjectId(
+      command.projectId,
+      command.id
+    );
     await this.dataStorageAccessFacade.checkAccess(
       dataStorageEntity.type,
       command.config,

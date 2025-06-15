@@ -34,8 +34,8 @@ export class DataStorageController {
     @Param('id') id: string,
     @Body() dto: UpdateDataStorageApiDto
   ): Promise<DataStorageResponseApiDto> {
-    const command = this.mapper.toUpdateCommand(dto);
-    const dataStorageDto = await this.updateService.run(context.projectId, id, command);
+    const command = this.mapper.toUpdateCommand(id, context, dto);
+    const dataStorageDto = await this.updateService.run(command);
     return this.mapper.toApiResponse(dataStorageDto);
   }
 
@@ -45,8 +45,8 @@ export class DataStorageController {
     @AuthContext() context: AuthorizationContext,
     @Body() dto: CreateDataStorageApiDto
   ): Promise<DataStorageResponseApiDto> {
-    const command = this.mapper.toCreateCommand(dto);
-    const dataStorageDto = await this.createService.run(context.projectId, command);
+    const command = this.mapper.toCreateCommand(context, dto);
+    const dataStorageDto = await this.createService.run(command);
     return this.mapper.toApiResponse(dataStorageDto);
   }
 
@@ -56,7 +56,8 @@ export class DataStorageController {
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string
   ): Promise<DataStorageResponseApiDto> {
-    const dataStorageDto = await this.getService.run(context.projectId, id);
+    const command = this.mapper.toGetCommand(id, context);
+    const dataStorageDto = await this.getService.run(command);
     return this.mapper.toApiResponse(dataStorageDto);
   }
 }

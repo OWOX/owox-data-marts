@@ -7,17 +7,26 @@ import { UpdateDataStorageCommand } from '../dto/domain/update-data-storage.comm
 import { DataStorageResponseApiDto } from '../dto/presentation/data-storage-response-api.dto';
 import { DataStorageTitleFacade } from '../data-storage-types/facades/data-storage-title.facade';
 import { Injectable } from '@nestjs/common';
+import { AuthorizationContext } from '../../common/authorization-context/authorization.context';
+import { GetDataStorageCommand } from '../dto/domain/get-data-storage.command';
 
 @Injectable()
 export class DataStorageMapper {
   constructor(private readonly dataStorageTitleFacade: DataStorageTitleFacade) {}
 
-  toCreateCommand(dto: CreateDataStorageApiDto): CreateDataStorageCommand {
-    return new CreateDataStorageCommand(dto.type);
+  toCreateCommand(
+    context: AuthorizationContext,
+    dto: CreateDataStorageApiDto
+  ): CreateDataStorageCommand {
+    return new CreateDataStorageCommand(context.projectId, dto.type);
   }
 
-  toUpdateCommand(dto: UpdateDataStorageApiDto): UpdateDataStorageCommand {
-    return new UpdateDataStorageCommand(dto.credentials, dto.config);
+  toUpdateCommand(
+    id: string,
+    context: AuthorizationContext,
+    dto: UpdateDataStorageApiDto
+  ): UpdateDataStorageCommand {
+    return new UpdateDataStorageCommand(id, context.projectId, dto.credentials, dto.config);
   }
 
   toDomainDto(dataStorage: DataStorage): DataStorageDto {
@@ -44,5 +53,9 @@ export class DataStorageMapper {
       createdAt: dataStorageDto.createdAt,
       modifiedAt: dataStorageDto.modifiedAt,
     };
+  }
+
+  toGetCommand(id: string, context: AuthorizationContext) {
+    return new GetDataStorageCommand(id, context.projectId);
   }
 }

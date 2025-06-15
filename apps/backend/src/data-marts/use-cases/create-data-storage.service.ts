@@ -14,10 +14,10 @@ export class CreateDataStorageService {
     private readonly dataStorageMapper: DataStorageMapper
   ) {}
 
-  async run(projectId: string, command: CreateDataStorageCommand): Promise<DataStorageDto> {
+  async run(command: CreateDataStorageCommand): Promise<DataStorageDto> {
     const entity = this.dataStorageRepository.create({
       type: command.type,
-      projectId,
+      projectId: command.projectId,
     });
 
     const savedEntity = await this.dataStorageRepository.save(entity);
