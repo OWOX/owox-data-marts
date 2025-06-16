@@ -247,7 +247,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         query += `ALTER TABLE \`${this.config.DestinationDatasetID.value}.${this.config.DestinationTableName.value}\`\n\n`;
         query += columns.join(",\n");
         this.executeQuery(query);
-        this.config.logMessage(`Columns '${newColumns.join(",")}' were added to ${this.config.DestinationDatasetID.value} table`);
+        this.config.logMessage(`Columns '${newColumns.join(",")}' were added to ${this.config.DestinationDatasetID.value} dataset`);
       }
 
 
