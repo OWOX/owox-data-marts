@@ -4,6 +4,13 @@ import { Textarea } from '@owox/ui/components/textarea';
 import { DataStorageType } from '../../../shared';
 import { Separator } from '@owox/ui/components/separator';
 import { Label } from '@owox/ui/components/label';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@owox/ui/components/tooltip';
+import { Info } from 'lucide-react';
 import type { DataStorageFormData } from '../../../shared/types/data-storage.schema.ts';
 
 interface GoogleBigQueryFieldsProps {
@@ -69,6 +76,24 @@ export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
               className='block text-sm font-medium text-gray-700'
             >
               Service Account Key
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className='ml-1.5 inline-block h-4 w-4 cursor-help text-gray-500' />
+                  </TooltipTrigger>
+                  <TooltipContent className='max-w-sm text-sm'>
+                    <p>
+                      A Service Account Key is a JSON credential file that provides authentication
+                      to Google BigQuery.
+                    </p>
+                    <p className='mt-1'>
+                      To get one, go to the Google Cloud Console, navigate to IAM & Admin &gt;
+                      Service Accounts, create or select a service account, and generate a new JSON
+                      key.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </Label>
             <Textarea
               id='service-account-key'
