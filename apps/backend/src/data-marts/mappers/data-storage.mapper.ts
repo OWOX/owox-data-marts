@@ -10,6 +10,7 @@ import { Injectable } from '@nestjs/common';
 import { AuthorizationContext } from '../../common/authorization-context/authorization.context';
 import { GetDataStorageCommand } from '../dto/domain/get-data-storage.command';
 import { DataStorageListResponseApiDto } from '../dto/presentation/data-storage-list-response-api.dto';
+import { DeleteDataStorageCommand } from '../dto/domain/delete-data-storage.command';
 
 @Injectable()
 export class DataStorageMapper {
@@ -68,5 +69,9 @@ export class DataStorageMapper {
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,
     };
+  }
+
+  toDeleteCommand(id: string, context: AuthorizationContext): DeleteDataStorageCommand {
+    return new DeleteDataStorageCommand(id, context);
   }
 }

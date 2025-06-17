@@ -36,3 +36,11 @@ export function ListDataStoragesSpec() {
     ApiResponse({ status: 200, type: [DataStorageListResponseApiDto] })
   );
 }
+
+export function DeleteDataStorageSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Delete Data Storage by ID' }),
+    ApiParam({ name: 'id', description: 'Data Storage ID' }),
+    ApiResponse({ status: 204, description: 'Data Storage successfully deleted' })
+  );
+}
