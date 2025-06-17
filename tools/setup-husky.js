@@ -16,8 +16,8 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Get the monorepo root (should be 3 levels up from this script)
-const repoRoot = join(__dirname, '../../..');
+// Get the monorepo root (should be 1 level up from this script)
+const repoRoot = join(__dirname, '..');
 
 // Cross-platform detection
 const isWindows = platform() === 'win32';
@@ -131,7 +131,7 @@ function main() {
     console.log('   "lint": "eslint ."');
     console.log('   "lint:fix": "eslint . --fix"');
     console.log('   "format": "prettier --write ."');
-    console.log('3. Create lint-staged.config.mjs file in the root (wrapper for package export)');
+    console.log('3. ✅ Workspace-specific .lintstagedrc.json files are already configured');
     console.log('');
     console.log('💡 Quick commands after blocked commit:');
     console.log('   npm run lint        # Check ESLint errors');

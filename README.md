@@ -116,6 +116,11 @@ Start the NestJS server that serves static frontend files:
 npm run serve
 ```
 
+## 📖 Documentation
+
+- [Lint-staged Workflow](docs/lint-staged-workflow.md) - Code quality and formatting workflow
+- [Monorepo Structure](docs/monorepo-structure.md) - Project architecture and organization
+
 ---
 
 ⭐ **Like this project?** [Star the repo here »](https://github.com/OWOX/owox-data-marts)

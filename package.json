@@ -27,19 +27,18 @@
     "serve": "npm run build --workspaces --if-present && npm run serve --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "lint:fix": "npm run lint:fix --workspaces --if-present",
-    "lint:staged": "lint-staged --config lint-staged.config.mjs",
+    "lint:staged": "lint-staged",
     "format": "npm run format --workspaces --if-present",
     "format:check": "npm run format:check --workspaces --if-present",
-    "setup:linting": "npm run setup --workspace=@owox/linter-config",
+    "setup:husky": "node tools/setup-husky.js",
     "prepare": "husky",
-    "postinstall": "npm run setup:linting || echo 'Warning:  Git hooks setup failed'"
+    "postinstall": "npm run setup:husky || echo 'Warning: Git hooks setup failed'"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.30.1",
     "@typescript-eslint/parser": "^8.30.1",
     "@owox/eslint-config": "/packages/eslint-config",
     "@owox/prettier-config": "/packages/prettier-config",
-    "@owox/linter-config": "/packages/linter-config",
     "@owox/typescript-config": "/packages/typescript-config",
     "@eslint/js": "^9.28.0",
     "eslint": "^9.28.0",
