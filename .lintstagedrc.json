@@ -2,6 +2,5 @@
   "*.json": "prettier --write",
   "*.md": "prettier --write",
   "docs/**/*.md": "prettier --write",
-  "*.{yml,yaml}": "prettier --write",
-  "*.{css,scss}": "prettier --write"
+  "*.{yml,yaml}": "prettier --write"
 }
