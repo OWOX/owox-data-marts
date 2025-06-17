@@ -10,7 +10,7 @@ import {
   SidebarMenuButton,
   SidebarRail,
 } from '@owox/ui/components/sidebar';
-import { Home, Plus } from 'lucide-react';
+import { Home, Plus, DatabaseIcon } from 'lucide-react';
 import { createElement } from 'react';
 import { ThemeToggle } from './theme-toggle';
 import { SidebarHeaderDropdown } from './sidebar-header-dropdown';
@@ -24,9 +24,14 @@ interface AppSidebarProps {
 
 const items = [
   {
-    title: 'Home',
+    title: 'Overview',
     url: '/data-marts/',
     icon: Home,
+  },
+  {
+    title: 'Data Storages',
+    url: '/data-storages/',
+    icon: DatabaseIcon,
   },
 ];
 

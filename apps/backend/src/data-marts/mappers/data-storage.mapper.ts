@@ -9,6 +9,7 @@ import { DataStorageTitleFacade } from '../data-storage-types/facades/data-stora
 import { Injectable } from '@nestjs/common';
 import { AuthorizationContext } from '../../common/authorization-context/authorization.context';
 import { GetDataStorageCommand } from '../dto/domain/get-data-storage.command';
+import { DataStorageListResponseApiDto } from '../dto/presentation/data-storage-list-response-api.dto';
 
 @Injectable()
 export class DataStorageMapper {
@@ -57,5 +58,15 @@ export class DataStorageMapper {
 
   toGetCommand(id: string, context: AuthorizationContext) {
     return new GetDataStorageCommand(id, context.projectId);
+  }
+
+  toListItem(dto: DataStorageDto): DataStorageListResponseApiDto {
+    return {
+      id: dto.id,
+      title: dto.title,
+      type: dto.type,
+      createdAt: dto.createdAt,
+      modifiedAt: dto.modifiedAt,
+    };
   }
 }
