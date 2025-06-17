@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint';
 import { config as baseConfig } from './base.js';
 
 /**
- * ESLint configuration for Node.js projects (like pipeline-runner)
+ * ESLint configuration for Node.js projects (like connector-runner)
  * Supports both TypeScript and JavaScript
  *
  * @type {import("eslint").Linter.Config}
