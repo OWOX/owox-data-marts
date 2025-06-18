@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { DataMartForm, DataMartProvider } from '../../../features/data-marts/edit';
-import { DataStorageType } from '../../../features/data-storage';
+import { DataStorageProvider } from '../../../features/data-storage/shared/model/context';
 
 export default function CreateDataMartPage() {
   const navigate = useNavigate();
@@ -16,15 +16,16 @@ export default function CreateDataMartPage() {
       </div>
 
       <div className='rounded-lg p-6 shadow'>
-        <DataMartProvider>
-          <DataMartForm
-            initialData={{
-              title: '',
-              storage: DataStorageType.GOOGLE_BIGQUERY,
-            }}
-            onSuccess={handleSuccess}
-          />
-        </DataMartProvider>
+        <DataStorageProvider>
+          <DataMartProvider>
+            <DataMartForm
+              initialData={{
+                title: 'New Data Mart',
+              }}
+              onSuccess={handleSuccess}
+            />
+          </DataMartProvider>
+        </DataStorageProvider>
       </div>
     </main>
   );

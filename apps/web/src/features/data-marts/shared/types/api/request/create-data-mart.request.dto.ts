@@ -1,5 +1,3 @@
-import { DataStorageType } from '../../../../../data-storage';
-
 /**
  * Data transfer object for creating a new data mart
  */
@@ -10,7 +8,7 @@ export interface CreateDataMartRequestDto {
   title: string;
 
   /**
-   * Storage type for the data mart
+   * Storage id for the data mart
    */
-  storage: DataStorageType;
+  storageId: string;
 }

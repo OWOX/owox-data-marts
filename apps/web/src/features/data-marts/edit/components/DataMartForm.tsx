@@ -1,110 +1,114 @@
-import React, { useState, useEffect } from 'react';
-import { type DataMart, useDataMartForm } from '../model';
-import { useDataMartContext } from '../model';
-import { DataStorageType } from '../../../data-storage';
+import { type DataMart, useDataMartForm, dataMartSchema, type DataMartFormData } from '../model';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@owox/ui/components/select';
+import { Input } from '@owox/ui/components/input';
+import { Label } from '@owox/ui/components/label';
+import { Button } from '@owox/ui/components/button';
+import { useEffect } from 'react';
+import { useDataStorage } from '../../../data-storage/shared/model/hooks/useDataStorage';
 
 interface DataMartFormProps {
   initialData?: {
-    id?: string;
     title: string;
-    storage: DataStorageType;
   };
   onSuccess?: (response: Pick<DataMart, 'id' | 'title'>) => void;
 }
 
 export function DataMartForm({ initialData, onSuccess }: DataMartFormProps) {
-  const { dataMart } = useDataMartContext();
-  const { handleCreate, handleUpdate, errors, isSubmitting, serverError } = useDataMartForm();
-
-  const [formData, setFormData] = useState({
-    title: '',
-    storage: DataStorageType.GOOGLE_BIGQUERY,
-  });
+  const { handleCreate, isSubmitting, serverError } = useDataMartForm();
+  const { dataStorages, loading: loadingStorages, fetchDataStorages } = useDataStorage();
 
   useEffect(() => {
-    if (initialData) {
-      setFormData({
-        title: initialData.title,
-        storage: initialData.storage,
-      });
-    } else if (dataMart) {
-      setFormData({
-        title: dataMart.title,
-        storage: dataMart.storageType,
-      });
-    }
-  }, [initialData, dataMart]);
+    void fetchDataStorages();
+  }, [fetchDataStorages]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
+  const form = useForm<DataMartFormData>({
+    resolver: zodResolver(dataMartSchema),
+    defaultValues: {
+      title: initialData?.title ?? '',
+      storageId: '',
+    },
+  });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (initialData?.id) {
-      // Update existing data mart
-      const success = await handleUpdate(initialData.id, formData);
-      if (success && onSuccess) {
-        //onSuccess(success);
-      }
-    } else {
-      // Create new data mart
-      const response = await handleCreate(formData);
-      if (response) {
-        if (onSuccess) {
-          onSuccess(response);
-        }
-      }
+  const { formState } = form;
+  const { errors } = formState;
+
+  const onSubmit = async (data: DataMartFormData) => {
+    const response = await handleCreate(data);
+    if (response && onSuccess) {
+      onSuccess(response);
     }
   };
 
   return (
-    <form onSubmit={e => void handleSubmit(e)} className='space-y-4'>
+    <form
+      onSubmit={e => {
+        void form.handleSubmit(onSubmit)(e);
+      }}
+      className='space-y-4'
+    >
       {serverError && <div className='rounded bg-red-100 p-3 text-red-700'>{serverError}</div>}
 
       <div>
-        <label htmlFor='title' className='mb-1 block text-sm font-medium'>
+        <Label htmlFor='title' className='mb-1 block text-sm font-medium'>
           Title
-        </label>
-        <input
-          id='title'
-          name='title'
-          type='text'
-          value={formData.title}
-          onChange={handleChange}
-          className='w-full rounded border p-2 focus:ring-2 focus:ring-blue-500'
-          disabled={isSubmitting}
-        />
-        {errors.title && <p className='mt-1 text-sm text-red-600'>{errors.title}</p>}
+        </Label>
+        <Input id='title' {...form.register('title')} className='w-full' disabled={isSubmitting} />
+        {errors.title && <p className='mt-1 text-sm text-red-600'>{errors.title.message}</p>}
       </div>
 
       <div>
-        <label htmlFor='storageType' className='mb-1 block text-sm font-medium'>
-          Storage Type
-        </label>
-        <select
-          id='storageType'
-          name='storage'
-          value={formData.storage}
-          onChange={handleChange}
-          className='w-full rounded border p-2 focus:ring-2 focus:ring-blue-500'
-          disabled={isSubmitting}
+        <Label htmlFor='storageId' className='mb-1 block text-sm font-medium'>
+          Data Storage
+        </Label>
+        <Select
+          onValueChange={value => {
+            form.setValue('storageId', value, { shouldValidate: true });
+          }}
+          value={form.watch('storageId')}
+          disabled={isSubmitting || loadingStorages}
         >
-          <option value={DataStorageType.GOOGLE_BIGQUERY}>Google BigQuery</option>
-          <option value={DataStorageType.AWS_ATHENA}>AWS Athena</option>
-        </select>
-        {errors.storageType && <p className='mt-1 text-sm text-red-600'>{errors.storageType}</p>}
+          <SelectTrigger className={'w-full'}>
+            <SelectValue placeholder='Select a data storage' />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {loadingStorages && (
+                <SelectItem value='loading' disabled>
+                  Loading...
+                </SelectItem>
+              )}
+              {!loadingStorages && dataStorages.length === 0 && (
+                <SelectItem value='empty' disabled>
+                  No data storages available
+                </SelectItem>
+              )}
+              {!loadingStorages &&
+                dataStorages.map(storage => (
+                  <SelectItem key={storage.id} value={storage.id}>
+                    {storage.title}
+                  </SelectItem>
+                ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+        {errors.storageId && (
+          <p className='mt-1 text-sm text-red-600'>{errors.storageId.message}</p>
+        )}
       </div>
 
       <div className='pt-2'>
-        <button
-          type='submit'
-          disabled={isSubmitting}
-          className='rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none disabled:opacity-50'
-        >
-          {isSubmitting ? 'Saving...' : initialData?.id ? 'Update' : 'Create'}
-        </button>
+        <Button type='submit' disabled={isSubmitting} variant={'secondary'}>
+          {isSubmitting ? 'Saving...' : 'Create'}
+        </Button>
       </div>
     </form>
   );
