@@ -59,7 +59,7 @@ owox-data-marts/
 - NestJS-based backend API
 - Serves the web application's build artifacts
 - Implements platform runtime
-- Uses shared packages for data connectors and connectors execution
+- Uses shared packages for data connectors execution
 
 ### CLI Tool (`apps/cli/`)
 
