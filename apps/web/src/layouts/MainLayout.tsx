@@ -6,8 +6,8 @@ import {
   SidebarTrigger,
   useSidebar,
 } from '@owox/ui/components/sidebar';
-import { AppSidebar } from '../components/app-sidebar';
-import { ThemeProvider } from '../components/theme-provider';
+import { AppSidebar } from '../components/AppSidebar/app-sidebar.tsx';
+import { ThemeProvider } from '../app/providers/theme-provider.tsx';
 import { storageService } from '../services/localstorage.service';
 
 // Constants

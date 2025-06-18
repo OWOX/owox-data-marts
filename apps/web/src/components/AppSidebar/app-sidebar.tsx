@@ -12,8 +12,8 @@ import {
 } from '@owox/ui/components/sidebar';
 import { Home, Plus, DatabaseIcon } from 'lucide-react';
 import { createElement } from 'react';
-import { ThemeToggle } from './theme-toggle';
-import { SidebarHeaderDropdown } from './sidebar-header-dropdown';
+import { ThemeToggle } from '../ThemeToggle/theme-toggle.tsx';
+import { SidebarHeaderDropdown } from './sidebar-header-dropdown.tsx';
 import { Link } from 'react-router-dom';
 
 // Prop types support

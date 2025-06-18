@@ -7,8 +7,8 @@ import {
 } from '@owox/ui/components/dropdown-menu';
 import { ChevronDown, Globe, AlertCircle, Scale, MessageCircle } from 'lucide-react';
 import { useRef, useState, useLayoutEffect } from 'react';
-import Logo from './Logo';
-import { GitHubIcon } from '../shared';
+import Logo from '../Logo';
+import { GitHubIcon } from '../../shared';
 
 type MenuItem =
   | {
