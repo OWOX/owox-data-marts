@@ -11,6 +11,7 @@ import { AuthorizationContext } from '../../common/authorization-context/authori
 import { GetDataStorageCommand } from '../dto/domain/get-data-storage.command';
 import { DataStorageListResponseApiDto } from '../dto/presentation/data-storage-list-response-api.dto';
 import { DeleteDataStorageCommand } from '../dto/domain/delete-data-storage.command';
+import { ListDataStoragesCommand } from '../dto/domain/list-data-storages.command';
 
 @Injectable()
 export class DataStorageMapper {
@@ -44,6 +45,10 @@ export class DataStorageMapper {
     );
   }
 
+  toDomainDtoList(dataStorages: DataStorage[]): DataStorageDto[] {
+    return dataStorages.map(dataStorage => this.toDomainDto(dataStorage));
+  }
+
   toApiResponse(dataStorageDto: DataStorageDto): DataStorageResponseApiDto {
     return {
       id: dataStorageDto.id,
@@ -61,17 +66,21 @@ export class DataStorageMapper {
     return new GetDataStorageCommand(id, context.projectId);
   }
 
-  toListItem(dto: DataStorageDto): DataStorageListResponseApiDto {
-    return {
-      id: dto.id,
-      title: dto.title,
-      type: dto.type,
-      createdAt: dto.createdAt,
-      modifiedAt: dto.modifiedAt,
-    };
+  toListCommand(context: AuthorizationContext) {
+    return new ListDataStoragesCommand(context.projectId);
+  }
+
+  toResponseList(dataStorages: DataStorageDto[]): DataStorageListResponseApiDto[] {
+    return dataStorages.map(dataStorageDto => ({
+      id: dataStorageDto.id,
+      title: dataStorageDto.title,
+      type: dataStorageDto.type,
+      createdAt: dataStorageDto.createdAt,
+      modifiedAt: dataStorageDto.modifiedAt,
+    }));
   }
 
   toDeleteCommand(id: string, context: AuthorizationContext): DeleteDataStorageCommand {
-    return new DeleteDataStorageCommand(id, context);
+    return new DeleteDataStorageCommand(id, context.projectId);
   }
 }

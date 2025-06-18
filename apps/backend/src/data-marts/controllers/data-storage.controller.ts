@@ -40,8 +40,9 @@ export class DataStorageController {
   async getAll(
     @AuthContext() context: AuthorizationContext
   ): Promise<DataStorageListResponseApiDto[]> {
-    const dataStoragesDtos = await this.listService.run(context);
-    return dataStoragesDtos.map(dto => this.mapper.toListItem(dto));
+    const command = this.mapper.toListCommand(context);
+    const dataStoragesDto = await this.listService.run(command);
+    return this.mapper.toResponseList(dataStoragesDto);
   }
 
   @Put(':id')

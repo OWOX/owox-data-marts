@@ -4,7 +4,7 @@ import { Repository } from 'typeorm';
 import { DataStorage } from '../entities/data-storage.entity';
 import { DataStorageMapper } from '../mappers/data-storage.mapper';
 import { DataStorageDto } from '../dto/domain/data-storage.dto';
-import { AuthorizationContext } from '../../common/authorization-context/authorization.context';
+import { ListDataStoragesCommand } from '../dto/domain/list-data-storages.command';
 
 @Injectable()
 export class ListDataStoragesService {
@@ -14,10 +14,10 @@ export class ListDataStoragesService {
     private readonly mapper: DataStorageMapper
   ) {}
 
-  async run(context: AuthorizationContext): Promise<DataStorageDto[]> {
-    const entities = await this.dataStorageRepo.find({
-      where: { projectId: context.projectId },
+  async run(command: ListDataStoragesCommand): Promise<DataStorageDto[]> {
+    const dataStorages = await this.dataStorageRepo.find({
+      where: { projectId: command.projectId },
     });
-    return entities.map(entity => this.mapper.toDomainDto(entity));
+    return this.mapper.toDomainDtoList(dataStorages);
   }
 }
