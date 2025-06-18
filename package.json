@@ -30,7 +30,7 @@
     "lint:staged": "lint-staged",
     "format": "npm run format --workspaces --if-present",
     "format:check": "npm run format:check --workspaces --if-present",
-    "setup:husky": "node tools/setup-husky.js",
+    "setup:husky": "node tools/setup-husky.mjs",
     "prepare": "husky",
     "postinstall": "npm run setup:husky || echo 'Warning: Git hooks setup failed'"
   },
