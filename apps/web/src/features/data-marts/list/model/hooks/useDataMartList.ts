@@ -1,26 +1,16 @@
 import { useCallback } from 'react';
 import { useDataMartListContext } from '../context';
-import type { DataMartListItem } from '../types';
 import { dataMartService } from '../../../shared';
+import { mapDataMartListFromDto } from '../mappers/data-mart-list.mapper.ts';
 export function useDataMartList() {
   const { state, dispatch } = useDataMartListContext();
-
-  const mapToListItems = (data: DataMartListItem[]): DataMartListItem[] => {
-    return data.map(dmart => ({
-      id: dmart.id,
-      title: dmart.title,
-      storageType: dmart.storageType,
-      createdAt: new Date(dmart.createdAt),
-      modifiedAt: new Date(dmart.modifiedAt),
-    }));
-  };
 
   const loadDataMarts = useCallback(async () => {
     dispatch({ type: 'SET_LOADING' });
 
     try {
       const response = await dataMartService.getDataMarts();
-      const listItems = mapToListItems(response);
+      const listItems = mapDataMartListFromDto(response);
       dispatch({ type: 'SET_ITEMS', payload: listItems });
     } catch (error) {
       dispatch({
