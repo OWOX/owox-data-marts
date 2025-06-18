@@ -1,6 +1,6 @@
 **/**
-!Sources/Token-Based/*.js
-!Sources/Token-Based/**/*.js
+!Templates/Token-Based/*.js
+!Templates/Token-Based/**/*.js
 !appsscript.json
 !Core/Abstract*.js
 !Core/Exceptions.js
