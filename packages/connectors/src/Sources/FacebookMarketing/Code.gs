@@ -23,7 +23,7 @@ function importNewData() {
   const config = new OWOX.GoogleSheetsConfig( CONFIG_RANGE );
   
   const connector = new OWOX.FacebookMarketingConnector(
-    config,                                                           // pipeline configuration
+    config,                                                           // connector configuration
     new OWOX.FacebookMarketingSource( config.setParametersValues(  // source with parameter's values added from properties 
       PropertiesService.getDocumentProperties().getProperties()
     ) ),

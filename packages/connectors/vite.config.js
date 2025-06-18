@@ -439,7 +439,7 @@ class ConnectorBuilder {
         name: c.name,
         files: c.files,
         hasHelper: c.hasHelper,
-        hasPipeline: c.hasPipeline,
+        hasConnector: c.hasConnector,
         apiReferenceFiles: c.apiReferenceFiles,
         constantFiles: c.constantFiles,
       })),

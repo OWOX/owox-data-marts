@@ -12,6 +12,7 @@ export const GoogleBigQueryIcon = ({ className, size = 24 }: GoogleBigQueryIconP
       fill='none'
       xmlns='http://www.w3.org/2000/svg'
       className={className}
+      style={{ minWidth: size, minHeight: size }}
     >
       <path
         d='M10.6842 44.2221L0.419465 26.278C-0.139822 25.3001 -0.139822 23.6999 0.419465 22.722L10.6842 4.77786C11.2435 3.79993 12.6166 3 13.7355 3H34.265C35.3838 3 36.7567 3.79993 37.3163 4.77786L47.5801 22.722C48.14 23.6999 48.14 25.3001 47.5801 26.278L37.3163 44.2221C36.7567 45.2001 35.3838 46 34.265 46H13.7355C12.6166 46 11.2435 45.2001 10.6842 44.2221Z'

@@ -6,6 +6,7 @@ import NotFound from '../pages/NotFound';
 import DataMartsPage from '../pages/DataMartsPage';
 import DataMartDetailsPage, { dataMartDetailsRoutes } from '../pages/data-mart-details-page';
 import CreateDataMartPage from '../pages/CreateDataMartPage';
+import { DataStorageListPage } from '../pages/data-storage';
 
 const routes: RouteObject[] = [
   {
@@ -32,6 +33,10 @@ const routes: RouteObject[] = [
         path: 'data-marts/:id',
         element: <DataMartDetailsPage />,
         children: dataMartDetailsRoutes,
+      },
+      {
+        path: 'data-storages',
+        element: <DataStorageListPage />,
       },
       {
         path: '*',
