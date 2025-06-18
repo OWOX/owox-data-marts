@@ -16,7 +16,7 @@ export class GoogleBigQueryMapper implements StorageMapper {
 
     let serviceAccountJson = '';
     if (credentials && Object.keys(credentials).length > 0) {
-      serviceAccountJson = JSON.stringify(credentials);
+      serviceAccountJson = JSON.stringify(credentials, null, 2);
     }
 
     return {

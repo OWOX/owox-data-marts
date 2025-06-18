@@ -5,6 +5,7 @@ import {
   isAwsAthenaCredentials,
 } from '../../model/types';
 import { InfoRow } from './InfoRow';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 
 interface CredentialsSectionProps {
   type: DataStorageType;
@@ -15,13 +16,30 @@ export const CredentialsSection = ({ type, credentials }: CredentialsSectionProp
   switch (type) {
     case DataStorageType.GOOGLE_BIGQUERY: {
       const isValid = credentials && isGoogleBigQueryCredentials(credentials);
+      const serviceAccountValue = isValid ? String(credentials.serviceAccount) : undefined;
       return (
         <div className='grid gap-2'>
-          <InfoRow
-            label='Service Account'
-            value={isValid ? String(credentials.serviceAccount) : undefined}
-            truncate
-          />
+          <div className='grid grid-cols-2 gap-1'>
+            <span className='text-muted-foreground text-sm'>Service Account:</span>
+            {serviceAccountValue ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className='cursor-help truncate text-sm'>
+                    {serviceAccountValue.length > 30
+                      ? serviceAccountValue.substring(0, 30) + '...'
+                      : serviceAccountValue}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className='max-w-md'>
+                  <p className='break-words'>{serviceAccountValue}</p>
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <span className='text-sm'>
+                <span className='text-muted-foreground'>—</span>
+              </span>
+            )}
+          </div>
         </div>
       );
     }
