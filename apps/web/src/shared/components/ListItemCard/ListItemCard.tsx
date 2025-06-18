@@ -1,0 +1,53 @@
+import { ChevronRight } from 'lucide-react';
+import { cn } from '@owox/ui/lib/utils';
+import { type ListItemCardProps } from './types';
+import { isValidElement } from 'react';
+
+export function ListItemCard({
+  icon,
+  title,
+  subtitle,
+  rightContent,
+  onClick,
+  className,
+  ...props
+}: ListItemCardProps) {
+  return (
+    <div
+      className={cn(
+        'group flex items-center gap-4 rounded-md border-b border-gray-200 bg-white transition-shadow duration-200 hover:shadow-sm dark:border-0 dark:bg-white/4',
+        onClick && 'cursor-pointer dark:hover:bg-white/5',
+        className
+      )}
+      onClick={onClick}
+      {...props}
+    >
+      {/* Left content */}
+      <div className='flex flex-grow items-start justify-center gap-3 px-6 py-5'>
+        {/* Icon */}
+        {icon && (
+          <div className='flex items-center justify-center'>
+            {typeof icon === 'function'
+              ? icon({ className: 'h-6 w-6' })
+              : isValidElement(icon)
+                ? icon
+                : icon}
+          </div>
+        )}
+        {/* Text content */}
+        <div className='flex flex-grow flex-col gap-1'>
+          <div className='text-md font-medium'>{title}</div>
+          {subtitle && <div className='text-muted-foreground/60 text-sm'>{subtitle}</div>}
+        </div>
+      </div>
+
+      {/* Right content */}
+      <div className='flex items-center justify-center gap-2 p-4'>
+        {rightContent}
+        <div className='flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-200 group-hover:bg-gray-200/50 dark:group-hover:bg-gray-700/25'>
+          <ChevronRight className='text-muted-foreground/75 dark:text-muted-foreground/50 h-4 w-4' />
+        </div>
+      </div>
+    </div>
+  );
+}
