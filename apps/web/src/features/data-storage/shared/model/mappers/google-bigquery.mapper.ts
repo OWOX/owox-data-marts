@@ -1,4 +1,3 @@
-// google-bigquery.mapper.ts
 import type { StorageMapper } from './storage-mapper.interface.ts';
 import type {
   DataStorageResponseDto,
