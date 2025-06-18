@@ -87,10 +87,6 @@ export const DataStorageList = ({
     return <div className='py-4 text-red-500'>Error: {error}</div>;
   }
 
-  if (!dataStorages.length) {
-    return <div className='py-4'>No data storages found.</div>;
-  }
-
   const handleViewDetails = (id: string) => {
     setSelectedStorageId(id);
     setIsDetailsDialogOpen(true);
