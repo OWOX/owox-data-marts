@@ -9,9 +9,9 @@ import {
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
 import { SortableHeader } from './SortableHeader';
-import { DataStorageType } from '../../../../../shared';
 import { DataStorageTypeModel } from '../../../shared/types/data-storage-type.model';
 import { Badge } from '@owox/ui/components/badge';
+import { DataStorageType } from '../../../shared';
 
 export interface DataStorageTableItem {
   id: string;
