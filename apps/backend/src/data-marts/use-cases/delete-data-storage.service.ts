@@ -14,7 +14,7 @@ export class DeleteDataStorageService {
   async run(command: DeleteDataStorageCommand): Promise<void> {
     await this.dataStorageRepo.delete({
       id: command.id,
-      projectId: command.context.projectId,
+      projectId: command.projectId,
     });
   }
 }
