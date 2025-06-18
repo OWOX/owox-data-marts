@@ -1,7 +1,7 @@
 import type { RouteObject } from 'react-router-dom';
-import DataMartOverviewContent from './DataMartOverviewContent.tsx';
-import DataMartDataSetupContent from './DataMartDataSetupContent.tsx';
-import DataMartDestinationsContent from './DataMartDestinationsContent.tsx';
+import DataMartOverviewContent from '../../pages/data-marts/edit/DataMartOverviewContent.tsx';
+import DataMartDataSetupContent from '../../pages/data-marts/edit/DataMartDataSetupContent.tsx';
+import DataMartDestinationsContent from '../../pages/data-marts/edit/DataMartDestinationsContent.tsx';
 
 export const dataMartDetailsRoutes: RouteObject[] = [
   {

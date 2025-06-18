@@ -4,9 +4,10 @@ import Home from '../pages/Home';
 import About from '../pages/About';
 import NotFound from '../pages/NotFound';
 import DataMartsPage from '../pages/data-marts/list/DataMartsPage.tsx';
-import { DataMartDetailsPage, dataMartDetailsRoutes } from '../pages/data-marts/edit';
+import { DataMartDetailsPage } from '../pages/data-marts/edit';
 import CreateDataMartPage from '../pages/data-marts/create/CreateDataMartPage.tsx';
 import { DataStorageListPage } from '../pages/data-storage';
+import { dataMartDetailsRoutes } from './data-marts/routes';
 
 const routes: RouteObject[] = [
   {
