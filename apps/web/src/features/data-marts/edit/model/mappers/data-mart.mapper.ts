@@ -1,16 +1,22 @@
 import type { DataMart } from '../types';
-import type { DataMartResponseDto } from '../../../shared/types/api';
+import type { DataMartResponseDto } from '../../../shared';
+import { DataMartStatusModel } from '../../../shared';
+import { mapDataStorageFromDto } from '../../../../data-storage/shared/model/mappers';
 
 /**
  * Maps a data mart response DTO to a domain model
  */
-export function mapDataMartFromDto(dto: DataMartResponseDto): DataMart {
+export function mapDataMartFromDto(dataMartDto: DataMartResponseDto): DataMart {
   return {
-    id: dto.id,
-    title: dto.title,
-    storageType: dto.storageType,
-    createdAt: new Date(dto.createdAt),
-    modifiedAt: new Date(dto.modifiedAt),
+    id: dataMartDto.id,
+    title: dataMartDto.title,
+    description: dataMartDto.description,
+    status: DataMartStatusModel.getInfo(dataMartDto.status),
+    storage: mapDataStorageFromDto(dataMartDto.storage),
+    definitionType: dataMartDto.definitionType,
+    definition: dataMartDto.definition,
+    createdAt: new Date(dataMartDto.createdAt),
+    modifiedAt: new Date(dataMartDto.modifiedAt),
   };
 }
 

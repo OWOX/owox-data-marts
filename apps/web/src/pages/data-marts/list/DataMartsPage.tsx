@@ -3,8 +3,8 @@ import {
   DataMartTable,
   useDataMartList,
 } from '../../../features/data-marts/list';
-import { columns } from '../../../features/data-marts/list/components/DataMartTable/columns.tsx';
 import { useEffect } from 'react';
+import { getDataMartColumns } from '../../../features/data-marts/list/components/DataMartTable/columns.tsx';
 
 const DataMartTableWithContext = () => {
   const { items, loadDataMarts } = useDataMartList();
@@ -13,7 +13,7 @@ const DataMartTableWithContext = () => {
     void loadDataMarts();
   }, [loadDataMarts]);
 
-  return <DataMartTable columns={columns} data={items} />;
+  return <DataMartTable columns={getDataMartColumns()} data={items} />;
 };
 
 export default function DataMartsPage() {

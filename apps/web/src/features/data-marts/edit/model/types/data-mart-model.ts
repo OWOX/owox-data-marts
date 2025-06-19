@@ -1,5 +1,7 @@
-import type { DataMartSourceConfig } from './data-mart-source-config.ts';
-import { DataStorageType } from '../../../../data-storage';
+import type { DataStorage } from '../../../../data-storage/shared/model/types/data-storage.ts';
+import type { DataMartStatusInfo } from '../../../shared';
+import type { DataMartDefinitionConfig } from './data-mart-definition-config.ts';
+import type { DataMartDefinitionType } from '../../../shared/enums/data-mart-definition-type.enum.ts';
 
 /**
  * Data mart domain model
@@ -16,14 +18,29 @@ export interface DataMart {
   title: string;
 
   /**
-   * Storage type
+   * Description
    */
-  storageType: DataStorageType;
+  description: string | null;
 
   /**
-   * Source configuration
+   * Status
    */
-  source?: DataMartSourceConfig;
+  status: DataMartStatusInfo;
+
+  /**
+   * Storage type
+   */
+  storage: DataStorage;
+
+  /**
+   * Data mart definition type
+   */
+  definitionType: DataMartDefinitionType | null;
+
+  /**
+   * Data mart definition
+   */
+  definition: DataMartDefinitionConfig | null;
 
   /**
    * Creation date

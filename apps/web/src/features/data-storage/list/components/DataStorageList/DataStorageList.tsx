@@ -5,18 +5,10 @@ import { getDataStorageColumns, type DataStorageTableItem } from '../DataStorage
 import { DataStorageConfigDrawer } from '../../../edit';
 import type { DataStorageFormData } from '../../../shared/types/data-storage.schema.ts';
 
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@owox/ui/components/dialog';
-import { Button } from '@owox/ui/components/button';
 import { DataStorageType } from '../../../shared';
 import { DataStorageTypeDialog } from '../../../shared/components/DataStorageTypeDialog.tsx';
 import { DataStorageDetailsDialog } from '../DataStorageDetailsDialog';
+import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
 
 interface DataStorageListProps {
   initialTypeDialogOpen?: boolean;
@@ -175,30 +167,22 @@ export const DataStorageList = ({
         onSave={handleSave}
       />
 
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Data Storage</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this data storage? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant='secondary'
-              onClick={() => {
-                setDeleteDialogOpen(false);
-                setStorageToDelete(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button variant='destructive' onClick={() => void handleConfirmDelete()}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmationDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title='Delete Data Storage'
+        description='Are you sure you want to delete this data storage? This action cannot be undone.'
+        confirmLabel='Delete'
+        cancelLabel='Cancel'
+        onConfirm={() => {
+          // Wrap the async function in a void callback
+          void handleConfirmDelete();
+        }}
+        onCancel={() => {
+          setStorageToDelete(null);
+        }}
+        variant='destructive'
+      />
     </div>
   );
 };

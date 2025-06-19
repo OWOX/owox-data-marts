@@ -1,31 +1,77 @@
 import { type ColumnDef } from '@tanstack/react-table';
-import { MoreHorizontal } from 'lucide-react';
-import { Button } from '@owox/ui/components/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@owox/ui/components/dropdown-menu';
 import { SortableHeader } from './SortableHeader.tsx';
-import { Link } from 'react-router-dom';
 import type { DataMartListItem } from '../../model/types';
+import type { DataMartStatusInfo } from '../../../shared';
+import { Badge } from '@owox/ui/components/badge';
+import { DataMartStatus } from '../../../shared/enums/data-mart-status.enum.ts';
+import { DataStorageType } from '../../../../data-storage';
+import { DataStorageTypeModel } from '../../../../data-storage/shared/types/data-storage-type.model.ts';
+import { DataMartActionsCell } from './DataMartActionsCell';
 
-// Define the column configuration for the DataMartTable
-export const columns: ColumnDef<DataMartListItem>[] = [
+interface DataMartTableColumnsProps {
+  onDeleteSuccess?: () => void;
+}
+
+export const getDataMartColumns = ({
+  onDeleteSuccess,
+}: DataMartTableColumnsProps = {}): ColumnDef<DataMartListItem>[] => [
   {
     accessorKey: 'title',
     header: ({ column }) => (
-      <div className='group/header'>
+      <div className='group/header min-w-[240px]'>
         <SortableHeader column={column}>Title</SortableHeader>
       </div>
     ),
+    cell: ({ row }) => (
+      <div className='w-full overflow-hidden text-ellipsis'>{row.getValue('title')}</div>
+    ),
+  },
+  {
+    accessorKey: 'storageType',
+    header: ({ column }) => (
+      <div className='group/header whitespace-nowrap'>
+        <SortableHeader column={column}>Storage Provider</SortableHeader>
+      </div>
+    ),
+    cell: ({ row }) => {
+      const type = row.getValue<DataStorageType>('storageType');
+      const { displayName, icon: Icon } = DataStorageTypeModel.getInfo(type);
+
+      return (
+        <Badge variant={'secondary'} className='flex items-center gap-2'>
+          <Icon />
+          {displayName}
+        </Badge>
+      );
+    },
+  },
+  {
+    accessorKey: 'status',
+    header: ({ column }) => (
+      <div className='group/header whitespace-nowrap'>
+        <SortableHeader column={column}>Status</SortableHeader>
+      </div>
+    ),
+    cell: ({ row }) => {
+      const statusInfo = row.getValue<DataMartStatusInfo>('status');
+      const getVariant = (status: DataMartStatusInfo['status']) => {
+        switch (status) {
+          case DataMartStatus.DRAFT:
+            return 'outline';
+          case DataMartStatus.PUBLISHED:
+            return 'secondary';
+          default:
+            return 'default';
+        }
+      };
+
+      return <Badge variant={getVariant(statusInfo.status)}>{statusInfo.displayName}</Badge>;
+    },
   },
   {
     accessorKey: 'createdAt',
     header: ({ column }) => (
-      <div className='group/header'>
+      <div className='group/header whitespace-nowrap'>
         <SortableHeader column={column}>Created at</SortableHeader>
       </div>
     ),
@@ -42,31 +88,6 @@ export const columns: ColumnDef<DataMartListItem>[] = [
   },
   {
     id: 'actions',
-    cell: ({ row }) => {
-      return (
-        <div className='text-right'>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant='ghost' className='h-8 w-8 p-0'>
-                <span className='sr-only'>Open menu</span>
-                <MoreHorizontal className='h-4 w-4' />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align='end'>
-              <DropdownMenuItem>
-                <Link
-                  to={`/data-marts/${row.original.id}/overview`}
-                  className='flex w-full items-center'
-                >
-                  Open
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className='text-red-600'>Delete</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      );
-    },
+    cell: ({ row }) => <DataMartActionsCell row={row} onDeleteSuccess={onDeleteSuccess} />,
   },
 ];

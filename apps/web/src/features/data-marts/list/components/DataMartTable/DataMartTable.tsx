@@ -187,11 +187,13 @@ export function DataMartTable<TData, TValue>({ columns, data }: DataTableProps<T
                   onClick={e => {
                     if (
                       e.target instanceof HTMLElement &&
-                      (e.target.closest('[role="checkbox"]') || e.target.closest('.actions-cell'))
+                      (e.target.closest('[role="checkbox"]') ||
+                        e.target.closest('.actions-cell') ||
+                        e.target.closest('[role="menuitem"]') ||
+                        e.target.closest('[data-state="open"]'))
                     ) {
                       return;
                     }
-
                     const id = (row.original as { id: string }).id;
                     void navigate(`/data-marts/${id}/overview`);
                   }}

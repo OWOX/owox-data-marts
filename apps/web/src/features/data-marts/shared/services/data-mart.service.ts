@@ -2,10 +2,12 @@ import { ApiService } from '../../../../services';
 import type {
   CreateDataMartRequestDto,
   CreateDataMartResponseDto,
+  DataMartDefinition,
   DataMartListResponseDto,
   DataMartResponseDto,
   UpdateDataMartRequestDto,
 } from '../types/api';
+import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum.ts';
 
 /**
  * Data Mart Service
@@ -61,6 +63,56 @@ export class DataMartService extends ApiService {
    */
   async deleteDataMart(id: string): Promise<void> {
     return this.delete(`/${id}`);
+  }
+
+  /**
+   * Update a data mart description
+   * @param id Data mart ID
+   * @param description New description for the data mart (or null to remove)
+   * @returns Promise with updated data mart
+   */
+  async updateDataMartDescription(
+    id: string,
+    description: string | null
+  ): Promise<DataMartResponseDto> {
+    return this.put<DataMartResponseDto>(`/${id}/description`, { description });
+  }
+
+  /**
+   * Update a data mart title
+   * @param id Data mart ID
+   * @param title New title for the data mart
+   * @returns Promise with updated data mart
+   */
+  async updateDataMartTitle(id: string, title: string): Promise<DataMartResponseDto> {
+    return this.put<DataMartResponseDto>(`/${id}/title`, { title });
+  }
+
+  /**
+   * Update a data mart definition
+   * @param id Data mart ID
+   * @param definitionType Type of definition (SQL, TABLE, VIEW, TABLE_PATTERN)
+   * @param definition Definition object
+   * @returns Promise with updated data mart
+   */
+  async updateDataMartDefinition(
+    id: string,
+    definitionType: DataMartDefinitionType,
+    definition: DataMartDefinition
+  ): Promise<DataMartResponseDto> {
+    return this.put<DataMartResponseDto>(`/${id}/definition`, {
+      definitionType,
+      definition,
+    });
+  }
+
+  /**
+   * Publish a data mart
+   * @param id Data mart ID
+   * @returns Promise with updated data mart
+   */
+  async publishDataMart(id: string): Promise<DataMartResponseDto> {
+    return this.put<DataMartResponseDto>(`/${id}/publish`);
   }
 }
 
