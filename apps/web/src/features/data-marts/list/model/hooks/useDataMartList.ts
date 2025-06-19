@@ -27,7 +27,6 @@ export function useDataMartList() {
 
       try {
         await dataMartService.deleteDataMart(id);
-        await loadDataMarts();
       } catch (error) {
         dispatch({
           type: 'SET_ERROR',

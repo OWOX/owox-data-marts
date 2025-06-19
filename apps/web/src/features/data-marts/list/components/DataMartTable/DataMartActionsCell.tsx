@@ -20,12 +20,13 @@ interface DataMartActionsCellProps {
 
 export const DataMartActionsCell = ({ row, onDeleteSuccess }: DataMartActionsCellProps) => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const { deleteDataMart } = useDataMartList();
+  const { deleteDataMart, refreshList } = useDataMartList();
 
   const handleDelete = async () => {
     try {
       await deleteDataMart(row.original.id);
       setIsDeleteDialogOpen(false);
+      await refreshList();
       onDeleteSuccess?.();
     } catch (error) {
       console.error('Failed to delete data mart:', error);
