@@ -10,7 +10,7 @@ import { CollapsibleCardContext } from './CollapsibleCardContext';
 import type { ReactElement } from 'react';
 import type { CollapsibleCardProps } from './types';
 
-const STORAGE_KEY_PREFIX = 'data-card-collapsed-';
+const STORAGE_KEY_PREFIX = 'collapsed-card-';
 
 export type CollapsibleCardAllowedChild =
   | ReactElement<typeof CollapsibleCardHeader>
@@ -52,30 +52,21 @@ export function CollapsibleCard({
   let header, content, footer, actions;
   Children.forEach(children, child => {
     if (!isValidElement(child)) return;
-    if (child.type === CollapsibleCardHeader) {
-      header = child;
-    } else if (child.type === CollapsibleCardContent) {
-      content = child;
-    } else if (child.type === CollapsibleCardFooter) {
-      footer = child;
-    } else if (child.type === CollapsibleCardActions) {
-      actions = child;
-    } else {
-      if (process.env.NODE_ENV !== 'production') {
-        let typeName = '';
-        const t: unknown = child.type;
-        if (typeof t === 'function') {
-          typeName =
-            (t as { displayName?: string; name?: string }).displayName ??
-            (t as { name?: string }).name ??
-            '[function]';
-        } else if (typeof t === 'object' && t !== null) {
-          typeName = '[object Object]';
-        } else {
-          typeName = String(t);
-        }
-        console.warn('[CollapsibleCard] Unknown child component:', typeName);
-      }
+    switch (child.type) {
+      case CollapsibleCardHeader:
+        header = child;
+        break;
+      case CollapsibleCardContent:
+        content = child;
+        break;
+      case CollapsibleCardFooter:
+        footer = child;
+        break;
+      case CollapsibleCardActions:
+        actions = child;
+        break;
+      default:
+        break;
     }
   });
 
@@ -107,8 +98,3 @@ export function CollapsibleCard({
     </CollapsibleCardContext.Provider>
   );
 }
-
-CollapsibleCard.Header = CollapsibleCardHeader;
-CollapsibleCard.Content = CollapsibleCardContent;
-CollapsibleCard.Footer = CollapsibleCardFooter;
-CollapsibleCard.Actions = CollapsibleCardActions;
