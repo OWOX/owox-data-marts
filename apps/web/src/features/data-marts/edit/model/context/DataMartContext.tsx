@@ -94,7 +94,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     try {
       dispatch({ type: 'UPDATE_DATA_MART_DESCRIPTION_START' });
       await dataMartService.updateDataMartDescription(id, description);
-      dispatch({ type: 'UPDATE_DATA_MART_DESCRIPTION_SUCCESS', payload: description });
+      dispatch({ type: 'UPDATE_DATA_MART_DESCRIPTION_SUCCESS', payload: description ?? '' });
     } catch (error) {
       dispatch({
         type: 'UPDATE_DATA_MART_DESCRIPTION_ERROR',

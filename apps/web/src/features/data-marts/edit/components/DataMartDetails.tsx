@@ -19,7 +19,8 @@ interface DataMartDetailsProps {
 }
 
 export function DataMartDetails({ id }: DataMartDetailsProps) {
-  const { dataMart, updateDataMartTitle, isLoading, error } = useDataMart(id);
+  const { dataMart, updateDataMartTitle, updateDataMartDescription, isLoading, error } =
+    useDataMart(id);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -107,7 +108,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
       </div>
 
       <div className='pt-4'>
-        <Outlet />
+        <Outlet context={{ dataMart, updateDataMartDescription }} />
       </div>
 
       {isDeleteDialogOpen && (

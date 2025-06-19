@@ -1,15 +1,30 @@
-import { Textarea } from '@owox/ui/components/textarea';
+import { InlineEditDescription } from '../../../../shared/components/InlineEditDescription';
+import { useOutletContext } from 'react-router-dom';
+import { Toaster } from '../../../../shared/components/Toaster';
+
+interface DataMartContextType {
+  dataMart: {
+    description: string;
+    id: string;
+  };
+  updateDataMartDescription: (id: string, description: string | null) => Promise<void>;
+}
 
 export function DataMartOverview() {
-  const description =
-    'This Data Mart collects all our precious visitors — whether they clicked an expensive ad or just got lost and ended up here.\n\n' +
-    '✅ Great for analyzing campaigns, tracking paid channel ROI, and figuring out why "organic" means "someone typed the exact URL."\n\n' +
-    '💸 Warning: May cause mild emotional distress when you see how much we spent on that one click from Australia.\n\n' +
-    '📊 Comes with built-in excuses for when traffic drops — just blame seasonality!';
+  const { dataMart, updateDataMartDescription } = useOutletContext<DataMartContextType>();
+  const handleDescriptionUpdate = async (newDescription: string | null) => {
+    await updateDataMartDescription(dataMart.id, newDescription);
+  };
 
   return (
     <div>
-      <Textarea defaultValue={description} style={{ whiteSpace: 'pre-wrap' }}></Textarea>
+      <Toaster />
+
+      <InlineEditDescription
+        description={dataMart.description}
+        onUpdate={handleDescriptionUpdate}
+        placeholder='Add a description for this Data Mart...'
+      />
     </div>
   );
 }
