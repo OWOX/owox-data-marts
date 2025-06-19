@@ -35,7 +35,7 @@ export function useDataMartList() {
         throw error;
       }
     },
-    [dispatch, loadDataMarts]
+    [dispatch]
   );
 
   const refreshList = useCallback(() => {
