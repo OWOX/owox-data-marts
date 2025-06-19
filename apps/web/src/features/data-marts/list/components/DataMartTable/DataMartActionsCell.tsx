@@ -11,7 +11,7 @@ import {
 } from '@owox/ui/components/dropdown-menu';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
 import type { DataMartListItem } from '../../model/types';
-import { useDataMartList } from '../../model/hooks/useDataMartList';
+import { useDataMartList } from '../../model/hooks';
 
 interface DataMartActionsCellProps {
   row: { original: DataMartListItem };

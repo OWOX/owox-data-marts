@@ -30,7 +30,7 @@ export const getDataMartColumns = ({
     accessorKey: 'storageType',
     header: ({ column }) => (
       <div className='group/header whitespace-nowrap'>
-        <SortableHeader column={column}>Storage Provider</SortableHeader>
+        <SortableHeader column={column}>Storage</SortableHeader>
       </div>
     ),
     cell: ({ row }) => {
@@ -38,9 +38,8 @@ export const getDataMartColumns = ({
       const { displayName, icon: Icon } = DataStorageTypeModel.getInfo(type);
 
       return (
-        <Badge variant={'secondary'} className='flex items-center gap-2'>
+        <Badge title={displayName} variant={'secondary'} className='flex items-center gap-2'>
           <Icon />
-          {displayName}
         </Badge>
       );
     },
