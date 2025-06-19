@@ -1,7 +1,7 @@
 import { ChevronRight } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
 import { type ListItemCardProps } from './types';
-import { isValidElement } from 'react';
+import { type ElementType } from 'react';
 
 export function ListItemCard({
   icon,
@@ -10,8 +10,8 @@ export function ListItemCard({
   rightContent,
   onClick,
   className,
-  ...props
 }: ListItemCardProps) {
+  const Icon = icon as ElementType;
   return (
     <div
       className={cn(
@@ -20,18 +20,13 @@ export function ListItemCard({
         className
       )}
       onClick={onClick}
-      {...props}
     >
       {/* Left content */}
       <div className='flex flex-grow items-start justify-center gap-3 px-6 py-5'>
         {/* Icon */}
         {icon && (
           <div className='flex items-center justify-center'>
-            {typeof icon === 'function'
-              ? icon({ className: 'h-6 w-6' })
-              : isValidElement(icon)
-                ? icon
-                : icon}
+            <Icon className='h-6 w-6' />
           </div>
         )}
         {/* Text content */}

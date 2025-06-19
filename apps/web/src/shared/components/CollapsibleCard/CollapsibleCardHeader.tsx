@@ -1,5 +1,5 @@
 import { CardHeader, CardTitle, CardDescription } from '@owox/ui/components/card';
-import { ChevronDown, CircleHelp } from 'lucide-react';
+import { ChevronDown, CircleHelp, type LucideIcon } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
 import {
   Tooltip,
@@ -9,9 +9,10 @@ import {
 } from '@owox/ui/components/tooltip';
 import { useContext } from 'react';
 import { CollapsibleCardContext } from './CollapsibleCardContext';
+import { type LocalIcon } from '../../icons';
 
 export interface CollapsibleCardHeaderProps {
-  icon: React.ElementType;
+  icon: LucideIcon | LocalIcon;
   title: string;
   subtitle?: string;
   help?: string;
