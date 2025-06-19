@@ -18,13 +18,11 @@ export const getDataMartColumns = ({
   {
     accessorKey: 'title',
     header: ({ column }) => (
-      <div className='group/header min-w-[240px]'>
+      <div className='group/header min-w-64'>
         <SortableHeader column={column}>Title</SortableHeader>
       </div>
     ),
-    cell: ({ row }) => (
-      <div className='w-full overflow-hidden text-ellipsis'>{row.getValue('title')}</div>
-    ),
+    cell: ({ row }) => <div className='overflow-hidden text-ellipsis'>{row.getValue('title')}</div>,
   },
   {
     accessorKey: 'storageType',

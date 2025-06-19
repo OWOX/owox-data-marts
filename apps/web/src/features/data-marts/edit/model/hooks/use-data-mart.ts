@@ -6,7 +6,8 @@ import { useDataMartContext } from '../context';
  * @param id Optional data mart ID
  */
 export function useDataMart(id?: string) {
-  const { getDataMart, deleteDataMart, reset, dataMart, isLoading, error } = useDataMartContext();
+  const { getDataMart, deleteDataMart, updateDataMartTitle, reset, dataMart, isLoading, error } =
+    useDataMartContext();
 
   useEffect(() => {
     if (id) {
@@ -25,5 +26,6 @@ export function useDataMart(id?: string) {
     isLoading,
     error,
     deleteDataMart,
+    updateDataMartTitle,
   };
 }

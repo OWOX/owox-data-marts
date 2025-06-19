@@ -75,6 +75,34 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     }
   };
 
+  // Update data mart title
+  const updateDataMartTitle = async (id: string, title: string) => {
+    try {
+      dispatch({ type: 'UPDATE_DATA_MART_TITLE_START' });
+      await dataMartService.updateDataMartTitle(id, title);
+      dispatch({ type: 'UPDATE_DATA_MART_TITLE_SUCCESS', payload: title });
+    } catch (error) {
+      dispatch({
+        type: 'UPDATE_DATA_MART_TITLE_ERROR',
+        payload: error instanceof Error ? error.message : 'Failed to update data mart title',
+      });
+    }
+  };
+
+  // Update data mart description
+  const updateDataMartDescription = async (id: string, description: string | null) => {
+    try {
+      dispatch({ type: 'UPDATE_DATA_MART_DESCRIPTION_START' });
+      await dataMartService.updateDataMartDescription(id, description);
+      dispatch({ type: 'UPDATE_DATA_MART_DESCRIPTION_SUCCESS', payload: description });
+    } catch (error) {
+      dispatch({
+        type: 'UPDATE_DATA_MART_DESCRIPTION_ERROR',
+        payload: error instanceof Error ? error.message : 'Failed to update data mart description',
+      });
+    }
+  };
+
   // Reset state
   const reset = useCallback(() => {
     dispatch({ type: 'RESET' });
@@ -86,6 +114,8 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     createDataMart,
     updateDataMart,
     deleteDataMart,
+    updateDataMartTitle,
+    updateDataMartDescription,
     reset,
   };
 
