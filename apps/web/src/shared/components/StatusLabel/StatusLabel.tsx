@@ -1,12 +1,10 @@
 import { cn } from '@owox/ui/lib/utils';
 import { BadgeCheck, BadgeAlert, TriangleAlert, Info } from 'lucide-react';
-import type { StatusLabelProps, StatusType } from './types';
+import { StatusTypeEnum, type StatusLabelProps } from './types';
+import type { AppIcon } from '../../icons';
 
-const statusConfig: Record<
-  StatusType,
-  { icon: React.ElementType; colors: Record<string, string> }
-> = {
-  success: {
+const statusConfig: Record<StatusTypeEnum, { icon: AppIcon; colors: Record<string, string> }> = {
+  [StatusTypeEnum.SUCCESS]: {
     icon: BadgeCheck,
     colors: {
       solid: 'bg-green-500 text-white',
@@ -15,7 +13,7 @@ const statusConfig: Record<
       ghost: 'text-green-500 dark:text-green-400',
     },
   },
-  error: {
+  [StatusTypeEnum.ERROR]: {
     icon: BadgeAlert,
     colors: {
       solid: 'bg-red-500 text-white',
@@ -24,7 +22,7 @@ const statusConfig: Record<
       ghost: 'text-red-500 dark:text-red-400',
     },
   },
-  warning: {
+  [StatusTypeEnum.WARNING]: {
     icon: TriangleAlert,
     colors: {
       solid: 'bg-yellow-500 text-white',
@@ -33,7 +31,7 @@ const statusConfig: Record<
       ghost: 'text-yellow-500 dark:text-yellow-400',
     },
   },
-  info: {
+  [StatusTypeEnum.INFO]: {
     icon: Info,
     colors: {
       solid: 'bg-blue-500 text-white',
@@ -42,7 +40,7 @@ const statusConfig: Record<
       ghost: 'text-blue-500 dark:text-blue-400',
     },
   },
-  neutral: {
+  [StatusTypeEnum.NEUTRAL]: {
     icon: Info,
     colors: {
       solid: 'bg-gray-500 text-white',
@@ -54,7 +52,7 @@ const statusConfig: Record<
 };
 
 export function StatusLabel({
-  type = 'neutral',
+  type = StatusTypeEnum.NEUTRAL,
   variant = 'ghost',
   showIcon = true,
   children,
