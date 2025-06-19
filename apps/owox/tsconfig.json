@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "declaration": true,
+    "module": "Node16",
+    "outDir": "dist",
+    "rootDir": "src",
+    "strict": true,
+    "target": "es2022",
+    "moduleResolution": "node16",
+    "skipLibCheck": true,
+    "types": ["node", "mocha", "chai"]
+  },
+  "include": ["./src/**/*"],
+  "exclude": ["../backend/**/*", "../web/**/*", "../../packages/**/*"],
+  "ts-node": {
+    "esm": true
+  }
+}
