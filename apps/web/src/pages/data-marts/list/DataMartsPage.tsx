@@ -10,13 +10,20 @@ import { Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const DataMartTableWithContext = () => {
-  const { items, loadDataMarts } = useDataMartList();
+  const { items, loadDataMarts, deleteDataMart, refreshList } = useDataMartList();
 
   useEffect(() => {
     void loadDataMarts();
   }, [loadDataMarts]);
 
-  return <DataMartTable columns={getDataMartColumns()} data={items} />;
+  return (
+    <DataMartTable
+      columns={getDataMartColumns()}
+      data={items}
+      deleteDataMart={deleteDataMart}
+      refetchDataMarts={refreshList}
+    />
+  );
 };
 
 export default function DataMartsPage() {

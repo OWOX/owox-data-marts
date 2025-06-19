@@ -31,19 +31,66 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
-import { ChevronDown, Check, Search } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@owox/ui/components/alert-dialog';
+import { ChevronDown, Check, Search, Trash2 } from 'lucide-react';
+import { toast, Toaster } from 'react-hot-toast';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  deleteDataMart: (id: string) => Promise<void>;
+  refetchDataMarts: () => Promise<void>;
 }
 
-export function DataMartTable<TData, TValue>({ columns, data }: DataTableProps<TData, TValue>) {
+export function DataMartTable<TData, TValue>({
+  columns,
+  data,
+  deleteDataMart,
+  refetchDataMarts,
+}: DataTableProps<TData, TValue>) {
   const navigate = useNavigate();
   const [sorting, setSorting] = useState<SortingState>([{ id: 'title', desc: false }]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleBatchDelete = async () => {
+    try {
+      setIsDeleting(true);
+
+      const selectedRows = table.getSelectedRowModel().rows;
+      const selectedIds = selectedRows.map(row => (row.original as { id: string }).id);
+
+      for (const id of selectedIds) {
+        await deleteDataMart(id);
+      }
+
+      toast.success(
+        `Successfully deleted ${String(selectedIds.length)} data mart${selectedIds.length !== 1 ? 's' : ''}`
+      );
+      setRowSelection({});
+      await refetchDataMarts();
+    } catch (error) {
+      console.error('Error deleting data marts:', error);
+      toast.error('Failed to delete some data marts. Please try again.');
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirmation(false);
+    }
+  };
+
+  const hasSelectedRows = Object.keys(rowSelection).length > 0;
 
   const table = useReactTable({
     data,
@@ -116,6 +163,7 @@ export function DataMartTable<TData, TValue>({ columns, data }: DataTableProps<T
 
   return (
     <div>
+      <Toaster />
       <div className='flex items-center pb-4'>
         <div className='relative w-sm'>
           <Search className='text-muted-foreground absolute top-2.5 left-2 h-4 w-4' />
@@ -126,6 +174,20 @@ export function DataMartTable<TData, TValue>({ columns, data }: DataTableProps<T
             className='pl-8'
           />
         </div>
+        {hasSelectedRows && (
+          <Button
+            variant='destructive'
+            size='sm'
+            className='ml-2 flex items-center gap-1'
+            onClick={() => {
+              setShowDeleteConfirmation(true);
+            }}
+            disabled={isDeleting}
+          >
+            <Trash2 className='h-4 w-4' />
+            Delete
+          </Button>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant='outline' className='ml-auto font-normal'>
@@ -240,6 +302,31 @@ export function DataMartTable<TData, TValue>({ columns, data }: DataTableProps<T
           Next
         </Button>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteConfirmation} onOpenChange={setShowDeleteConfirmation}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action will delete {Object.keys(rowSelection).length} selected data mart
+              {Object.keys(rowSelection).length !== 1 ? 's' : ''}. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                void handleBatchDelete();
+              }}
+              disabled={isDeleting}
+              className='bg-destructive hover:bg-destructive/90'
+            >
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
