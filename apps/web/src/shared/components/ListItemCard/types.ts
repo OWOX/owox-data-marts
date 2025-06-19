@@ -1,9 +1,8 @@
 import type { ComponentPropsWithoutRef, ReactNode } from 'react';
-import type { LucideIcon } from 'lucide-react';
-import type { LocalIcon } from '../../icons';
+import type { AppIcon } from '../../icons';
 
 export interface ListItemCardProps extends ComponentPropsWithoutRef<'div'> {
-  icon?: LucideIcon | LocalIcon; // Left icon (optional)
+  icon?: AppIcon; // Left icon (optional)
   title: string; // Main title
   subtitle?: string; // Optional subtitle
   rightContent?: ReactNode; // Additional content to the right of the chevron
