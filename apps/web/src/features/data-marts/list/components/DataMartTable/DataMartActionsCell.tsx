@@ -10,8 +10,8 @@ import {
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
-import { DataMartService } from '../../../shared';
 import type { DataMartListItem } from '../../model/types';
+import { useDataMartList } from '../../model/hooks/useDataMartList';
 
 interface DataMartActionsCellProps {
   row: { original: DataMartListItem };
@@ -20,17 +20,18 @@ interface DataMartActionsCellProps {
 
 export const DataMartActionsCell = ({ row, onDeleteSuccess }: DataMartActionsCellProps) => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const dataMartService = new DataMartService();
+  const { deleteDataMart } = useDataMartList();
 
   const handleDelete = async () => {
     try {
-      await dataMartService.deleteDataMart(row.original.id);
+      await deleteDataMart(row.original.id);
       setIsDeleteDialogOpen(false);
       onDeleteSuccess?.();
     } catch (error) {
       console.error('Failed to delete data mart:', error);
     }
   };
+
   return (
     <div className='text-right'>
       <DropdownMenu>

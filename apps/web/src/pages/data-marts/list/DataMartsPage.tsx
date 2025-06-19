@@ -13,16 +13,7 @@ const DataMartTableWithContext = () => {
     void loadDataMarts();
   }, [loadDataMarts]);
 
-  return (
-    <DataMartTable
-      columns={getDataMartColumns({
-        onDeleteSuccess: () => {
-          void loadDataMarts();
-        },
-      })}
-      data={items}
-    />
-  );
+  return <DataMartTable columns={getDataMartColumns()} data={items} />;
 };
 
 export default function DataMartsPage() {

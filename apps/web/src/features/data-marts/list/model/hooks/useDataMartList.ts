@@ -1,7 +1,8 @@
 import { useCallback } from 'react';
 import { useDataMartListContext } from '../context';
-import { dataMartService } from '../../../shared';
 import { mapDataMartListFromDto } from '../mappers/data-mart-list.mapper.ts';
+import { dataMartService } from '../../../shared';
+
 export function useDataMartList() {
   const { state, dispatch } = useDataMartListContext();
 
@@ -20,6 +21,24 @@ export function useDataMartList() {
     }
   }, [dispatch]);
 
+  const deleteDataMart = useCallback(
+    async (id: string) => {
+      dispatch({ type: 'SET_LOADING' });
+
+      try {
+        await dataMartService.deleteDataMart(id);
+        await loadDataMarts();
+      } catch (error) {
+        dispatch({
+          type: 'SET_ERROR',
+          payload: error instanceof Error ? error.message : 'Failed to delete data mart',
+        });
+        throw error;
+      }
+    },
+    [dispatch, loadDataMarts]
+  );
+
   const refreshList = useCallback(() => {
     return loadDataMarts();
   }, [loadDataMarts]);
@@ -30,5 +49,6 @@ export function useDataMartList() {
     error: state.error,
     loadDataMarts,
     refreshList,
+    deleteDataMart,
   };
 }
