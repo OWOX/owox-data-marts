@@ -1,22 +1,18 @@
 import { DataMartOverview } from '../../../features/data-marts/edit';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@owox/ui/components/card';
+import { CollapsibleCard } from '../../../shared/components/CollapsibleCard';
+import { CollapsibleCardContent } from '../../../shared/components/CollapsibleCard/CollapsibleCardContent.tsx';
+import { CollapsibleCardHeader } from '../../../shared/components/CollapsibleCard/CollapsibleCardHeader.tsx';
+import { CollapsibleCardFooter } from '../../../shared/components/CollapsibleCard/CollapsibleCardFooter.tsx';
+import { BookOpenIcon } from 'lucide-react';
 
 export default function DataMartOverviewContent() {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Description</CardTitle>
-        <CardDescription></CardDescription>
-      </CardHeader>
-      <CardContent>
+    <CollapsibleCard>
+      <CollapsibleCardHeader icon={BookOpenIcon} title={'Description'}></CollapsibleCardHeader>
+      <CollapsibleCardContent>
         <DataMartOverview />
-      </CardContent>
-    </Card>
+      </CollapsibleCardContent>
+      <CollapsibleCardFooter></CollapsibleCardFooter>
+    </CollapsibleCard>
   );
 }

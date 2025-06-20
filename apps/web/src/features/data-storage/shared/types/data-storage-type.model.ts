@@ -1,11 +1,11 @@
 import { DataStorageType } from '../model/types';
 import { AwsAthenaIcon, GoogleBigQueryIcon } from '../../../../shared';
-import type { ComponentType } from 'react';
+import type { AppIcon } from '../../../../shared';
 
 interface DataStorageTypeInfo {
   type: DataStorageType;
   displayName: string;
-  icon: ComponentType<{ className?: string; size?: number }>;
+  icon: AppIcon;
 }
 
 export const DataStorageTypeModel = {
