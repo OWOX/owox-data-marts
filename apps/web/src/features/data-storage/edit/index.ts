@@ -1,1 +1,1 @@
-export * from './components/DataStorageEditDrawer/DataStorageConfigDrawer.tsx';
+export * from './components/DataStorageEditDrawer/DataStorageConfigSheet.tsx';

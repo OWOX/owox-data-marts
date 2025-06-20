@@ -1,29 +1,29 @@
 import type { DataStorage } from '../../../shared/model/types/data-storage.ts';
-import { Drawer, DrawerContent, DrawerHeader } from '@owox/ui/components/drawer';
 import { DataStorageForm } from '../DataStorageEditForm';
 import { DialogDescription, DialogTitle } from '@owox/ui/components/dialog';
 import type { DataStorageFormData } from '../../../shared/types/data-storage.schema.ts';
+import { Sheet, SheetContent, SheetHeader } from '@owox/ui/components/sheet';
 
-interface DataStorageEditDrawerProps {
+interface DataStorageEditSheetProps {
   isOpen: boolean;
   onClose: () => void;
   dataStorage: DataStorage | null;
   onSave: (data: DataStorageFormData) => Promise<void>;
 }
 
-export function DataStorageConfigDrawer({
+export function DataStorageConfigSheet({
   isOpen,
   onClose,
   dataStorage,
   onSave,
-}: DataStorageEditDrawerProps) {
+}: DataStorageEditSheetProps) {
   return (
-    <Drawer open={isOpen} onClose={onClose} direction={'right'}>
-      <DrawerContent className='flex h-full min-w-[480px] flex-col'>
-        <DrawerHeader>
+    <Sheet open={isOpen} onOpenChange={onClose}>
+      <SheetContent className='flex h-full min-w-[480px] flex-col'>
+        <SheetHeader>
           <DialogTitle>Configure Data Storage Provider</DialogTitle>
           <DialogDescription>Customize settings for your data storage provider</DialogDescription>
-        </DrawerHeader>
+        </SheetHeader>
         <div className='flex-1 overflow-y-auto p-4'>
           <DataStorageForm
             initialData={dataStorage ?? undefined}
@@ -31,7 +31,7 @@ export function DataStorageConfigDrawer({
             onCancel={onClose}
           />
         </div>
-      </DrawerContent>
-    </Drawer>
+      </SheetContent>
+    </Sheet>
   );
 }

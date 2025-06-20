@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useDataStorage } from '../../../shared/model/hooks/useDataStorage.ts';
 import { DataStorageTable } from '../DataStorageTable';
 import { getDataStorageColumns, type DataStorageTableItem } from '../DataStorageTable';
-import { DataStorageConfigDrawer } from '../../../edit';
+import { DataStorageConfigSheet } from '../../../edit';
 import type { DataStorageFormData } from '../../../shared/types/data-storage.schema.ts';
 
 import { DataStorageType } from '../../../shared';
@@ -160,7 +160,7 @@ export const DataStorageList = ({
         onSelect={handleCreateNewStorage}
       />
 
-      <DataStorageConfigDrawer
+      <DataStorageConfigSheet
         isOpen={isEditDrawerOpen}
         onClose={handleCloseDrawer}
         dataStorage={currentDataStorage}
