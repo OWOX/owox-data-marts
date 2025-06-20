@@ -1,6 +1,5 @@
 import { useForm, Controller } from 'react-hook-form';
 import { Input } from '@owox/ui/components/input';
-import { Textarea } from '@owox/ui/components/textarea';
 import { DataStorageType } from '../../../shared';
 import { Separator } from '@owox/ui/components/separator';
 import { Label } from '@owox/ui/components/label';
@@ -14,12 +13,21 @@ import { Info } from 'lucide-react';
 import type { DataStorageFormData } from '../../../shared/types/data-storage.schema.ts';
 import { googleBigQueryLocationOptions } from '../../../shared';
 import { Combobox } from '../../../../../shared/components/Combobox/combobox.tsx';
+import { SecureJsonInput } from './SecureJsonInput.tsx';
 
 interface GoogleBigQueryFieldsProps {
   form: ReturnType<typeof useForm<DataStorageFormData>>;
 }
 
 export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
+  const sensitiveKeys = [
+    'private_key',
+    'private_key_id',
+    'client_email',
+    'client_id',
+    'client_x509_cert_url',
+  ];
+
   const {
     register,
     formState: { errors },
@@ -87,7 +95,7 @@ export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
               htmlFor='service-account-key'
               className='block text-sm font-medium text-gray-700'
             >
-              Service Account Key
+              Service Account JSON
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -107,11 +115,12 @@ export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
                 </Tooltip>
               </TooltipProvider>
             </Label>
-            <Textarea
-              id='service-account-key'
-              placeholder={'Paste your service account key here.'}
-              {...register('credentials.serviceAccount', { required: true })}
-              className='mt-1 block min-h-[120px] w-full resize-none'
+            <SecureJsonInput
+              value={form.watch('credentials.serviceAccount')}
+              onChange={value => {
+                form.setValue('credentials.serviceAccount', value);
+              }}
+              keysToMask={sensitiveKeys}
             />
             {errors.credentials && 'serviceAccount' in errors.credentials && (
               <p className='mt-1 text-sm text-red-600'>
