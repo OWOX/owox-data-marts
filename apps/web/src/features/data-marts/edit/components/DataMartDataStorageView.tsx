@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { DataStorage } from '../../../data-storage/shared/model/types/data-storage.ts';
-import { DataStorageType } from '../../../data-storage/shared/model/types/data-storage-type.enum.ts';
+import { DataStorageType } from '../../../data-storage';
 import { ListItemCard } from '../../../../shared/components/ListItemCard';
 import { DataStorageTypeModel } from '../../../data-storage/shared/types/data-storage-type.model.ts';
 import { DataStorageConfigSheet } from '../../../data-storage/edit';

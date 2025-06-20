@@ -52,8 +52,6 @@ export function InlineEditDescription({
     const trimmedDescription = editedDescription.trim();
     const currentDescription = description ?? '';
 
-    toast.success('Description updated');
-
     if (trimmedDescription === currentDescription) {
       setIsEditing(false);
       return;
@@ -64,6 +62,7 @@ export function InlineEditDescription({
       const newDescription = trimmedDescription === '' ? null : trimmedDescription;
       await onUpdate(newDescription);
       setIsEditing(false);
+      toast.success('Description updated');
     } catch (error) {
       console.error('Failed to update description:', error);
       toast.error('Failed to update description');
