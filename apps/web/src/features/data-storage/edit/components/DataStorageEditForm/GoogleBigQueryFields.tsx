@@ -13,7 +13,7 @@ import {
 import { Info } from 'lucide-react';
 import type { DataStorageFormData } from '../../../shared/types/data-storage.schema.ts';
 import { googleBigQueryLocationOptions } from '../../../shared/model/types';
-import { Combobox } from '../../../../../components/Combobox/combobox.tsx';
+import { Combobox } from '../../../../../shared/components/Combobox/combobox.tsx';
 
 interface GoogleBigQueryFieldsProps {
   form: ReturnType<typeof useForm<DataStorageFormData>>;
