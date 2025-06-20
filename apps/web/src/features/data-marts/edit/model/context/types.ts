@@ -23,6 +23,7 @@ export type DataMartAction =
   | { type: 'UPDATE_DATA_MART_DESCRIPTION_START' }
   | { type: 'UPDATE_DATA_MART_DESCRIPTION_SUCCESS'; payload: string }
   | { type: 'UPDATE_DATA_MART_DESCRIPTION_ERROR'; payload: string }
+  | { type: 'UPDATE_DATA_MART_STORAGE'; payload: DataMart['storage'] }
   | { type: 'DELETE_DATA_MART_START' }
   | { type: 'DELETE_DATA_MART_SUCCESS' }
   | { type: 'DELETE_DATA_MART_ERROR'; payload: string }
@@ -35,5 +36,6 @@ export interface DataMartContextType extends DataMartState {
   deleteDataMart: (id: string) => Promise<void>;
   updateDataMartTitle: (id: string, title: string) => Promise<void>;
   updateDataMartDescription: (id: string, description: string) => Promise<void>;
+  updateDataMartStorage: (storage: DataMart['storage']) => void;
   reset: () => void;
 }

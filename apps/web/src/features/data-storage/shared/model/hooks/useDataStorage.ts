@@ -75,15 +75,18 @@ export function useDataStorage() {
       try {
         const request = mapToUpdateDataStorageRequest(data);
         const response = await dataStorageApiService.updateDataStorage(id, request);
+        const updatedStorage = mapDataStorageFromDto(response);
         dispatch({
           type: DataStorageActionType.UPDATE_STORAGE_SUCCESS,
-          payload: mapDataStorageFromDto(response),
+          payload: updatedStorage,
         });
+        return updatedStorage;
       } catch (error) {
         dispatch({
           type: DataStorageActionType.UPDATE_STORAGE_ERROR,
           payload: error instanceof Error ? error.message : 'Failed to update data storage',
         });
+        return null;
       }
     },
     [dispatch]

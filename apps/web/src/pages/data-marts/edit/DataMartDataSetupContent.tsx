@@ -7,7 +7,7 @@ import { CollapsibleCardFooter } from '../../../shared/components/CollapsibleCar
 import { DatabaseIcon, CodeIcon } from 'lucide-react';
 
 export default function DataMartDataSetupContent() {
-  const { dataMart } = useDataMartContext();
+  const { dataMart, updateDataMartStorage } = useDataMartContext();
 
   return (
     <div className={'flex flex-col gap-4'}>
@@ -19,7 +19,10 @@ export default function DataMartDataSetupContent() {
         ></CollapsibleCardHeader>
         <CollapsibleCardContent>
           {dataMart?.storage && (
-            <DataMartDataStorageView dataStorage={dataMart.storage}></DataMartDataStorageView>
+            <DataMartDataStorageView
+              dataStorage={dataMart.storage}
+              onDataStorageChange={updateDataMartStorage}
+            ></DataMartDataStorageView>
           )}
         </CollapsibleCardContent>
         <CollapsibleCardFooter></CollapsibleCardFooter>

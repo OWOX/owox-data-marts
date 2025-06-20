@@ -8,7 +8,7 @@ import {
 } from '@owox/ui/components/dropdown-menu';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
 import { MoreVertical, Trash2, ArrowLeft } from 'lucide-react';
-import { Link, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { cn } from '@owox/ui/lib/utils';
 import { InlineEditTitle } from '../../../../shared/components/InlineEditTitle/InlineEditTitle.tsx';
 import { Toaster } from '../../../../shared/components/Toaster';
@@ -91,22 +91,23 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
       </div>
 
       <div>
-        <nav className='-mb-px flex space-x-4'>
+        <nav className='-mb-px flex space-x-4 border-b' aria-label='Tabs' role='tablist'>
           {navigation.map(item => {
-            const isActive = location.pathname.endsWith(item.path);
             return (
-              <Link
+              <NavLink
                 key={item.name}
                 to={item.path}
-                className={cn(
-                  'border-b-2 px-4 py-2 text-sm font-medium whitespace-nowrap',
-                  isActive
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                )}
+                className={({ isActive }) =>
+                  cn(
+                    'border-b-2 px-4 py-2 text-sm font-medium whitespace-nowrap',
+                    isActive
+                      ? 'border-brand-blue-500 text-brand-blue-500'
+                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                  )
+                }
               >
                 {item.name}
-              </Link>
+              </NavLink>
             );
           })}
         </nav>

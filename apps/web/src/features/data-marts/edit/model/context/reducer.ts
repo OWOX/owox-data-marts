@@ -52,6 +52,18 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
           }
         : state;
 
+    case 'UPDATE_DATA_MART_STORAGE':
+      return state.dataMart
+        ? {
+            ...state,
+            dataMart: {
+              ...state.dataMart,
+              storage: action.payload,
+              modifiedAt: new Date(),
+            },
+          }
+        : state;
+
     case 'DELETE_DATA_MART_SUCCESS':
       return { ...state, isLoading: false, error: null, dataMart: null };
 

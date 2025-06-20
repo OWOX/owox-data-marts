@@ -3,12 +3,12 @@ import { useDataStorage } from '../../../shared/model/hooks/useDataStorage.ts';
 import { DataStorageTable } from '../DataStorageTable';
 import { getDataStorageColumns, type DataStorageTableItem } from '../DataStorageTable';
 import { DataStorageConfigSheet } from '../../../edit';
-import type { DataStorageFormData } from '../../../shared/types/data-storage.schema.ts';
 
 import { DataStorageType } from '../../../shared';
 import { DataStorageTypeDialog } from '../../../shared/components/DataStorageTypeDialog.tsx';
 import { DataStorageDetailsDialog } from '../DataStorageDetailsDialog';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
+import type { DataMart } from '../../../../data-marts/edit';
 
 interface DataStorageListProps {
   initialTypeDialogOpen?: boolean;
@@ -29,7 +29,6 @@ export const DataStorageList = ({
     error,
     fetchDataStorages,
     getDataStorageById,
-    updateDataStorage,
     deleteDataStorage,
     createDataStorage,
   } = useDataStorage();
@@ -113,13 +112,11 @@ export const DataStorageList = ({
     }
   };
 
-  const handleSave = async (data: DataStorageFormData) => {
+  const handleSave = async (storage: DataMart['storage']) => {
     try {
-      if (currentDataStorage) {
-        await updateDataStorage(currentDataStorage.id, data);
-        setIsEditDrawerOpen(false);
-        await fetchDataStorages();
-      }
+      console.log(storage);
+      setIsEditDrawerOpen(false);
+      await fetchDataStorages();
     } catch (error) {
       console.error('Failed to save data storage:', error);
     }
@@ -164,7 +161,7 @@ export const DataStorageList = ({
         isOpen={isEditDrawerOpen}
         onClose={handleCloseDrawer}
         dataStorage={currentDataStorage}
-        onSave={handleSave}
+        onSaveSuccess={() => void handleSave}
       />
 
       <ConfirmationDialog
@@ -175,7 +172,6 @@ export const DataStorageList = ({
         confirmLabel='Delete'
         cancelLabel='Cancel'
         onConfirm={() => {
-          // Wrap the async function in a void callback
           void handleConfirmDelete();
         }}
         onCancel={() => {

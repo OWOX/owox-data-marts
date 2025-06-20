@@ -4,6 +4,7 @@ import { initialState, reducer } from './reducer.ts';
 import { mapDataMartFromDto, mapLimitedDataMartFromDto } from '../mappers';
 import { dataMartService } from '../../../shared';
 import type { CreateDataMartRequestDto, UpdateDataMartRequestDto } from '../../../shared/types/api';
+import type { DataStorage } from '../../../../data-storage/shared/model/types/data-storage';
 
 // Props interface
 interface DataMartProviderProps {
@@ -103,6 +104,11 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     }
   };
 
+  // Update data mart storage
+  const updateDataMartStorage = useCallback((storage: DataStorage) => {
+    dispatch({ type: 'UPDATE_DATA_MART_STORAGE', payload: storage });
+  }, []);
+
   // Reset state
   const reset = useCallback(() => {
     dispatch({ type: 'RESET' });
@@ -116,6 +122,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     deleteDataMart,
     updateDataMartTitle,
     updateDataMartDescription,
+    updateDataMartStorage,
     reset,
   };
 
