@@ -14,7 +14,7 @@ import { Home, Plus, DatabaseIcon } from 'lucide-react';
 import { createElement } from 'react';
 import { ThemeToggle } from '../ThemeToggle/theme-toggle.tsx';
 import { SidebarHeaderDropdown } from './sidebar-header-dropdown.tsx';
-import { Link } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 
 // Prop types support
 interface AppSidebarProps {
@@ -25,18 +25,17 @@ interface AppSidebarProps {
 const items = [
   {
     title: 'Overview',
-    url: '/data-marts/',
+    url: '/data-marts',
     icon: Home,
   },
   {
     title: 'Data Storages',
-    url: '/data-storages/',
+    url: '/data-storages',
     icon: DatabaseIcon,
   },
 ];
 
 export function AppSidebar({ variant = 'inset', collapsible = 'icon' }: AppSidebarProps) {
-  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
   return (
     <Sidebar variant={variant} collapsible={collapsible}>
       <SidebarHeader>
@@ -46,7 +45,7 @@ export function AppSidebar({ variant = 'inset', collapsible = 'icon' }: AppSideb
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>
-            <Link
+            <NavLink
               to='/data-marts/create'
               data-sidebar='menu-button'
               data-size='md'
@@ -59,32 +58,32 @@ export function AppSidebar({ variant = 'inset', collapsible = 'icon' }: AppSideb
               <div className='grid flex-1 text-left text-sm leading-tight'>
                 <span className='truncate font-medium'>Create new data mart</span>
               </div>
-            </Link>
+            </NavLink>
           </SidebarGroupContent>
         </SidebarGroup>
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map(item => {
-                const isActive = pathname === item.url;
                 return (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild>
-                      <a
-                        href={item.url}
-                        className={`flex items-center gap-2 rounded-md p-2 transition-colors ${
+                    <NavLink
+                      to={item.url}
+                      className={({ isActive }) => {
+                        return `flex w-full items-center gap-2 rounded-md transition-colors ${
                           isActive
                             ? 'bg-sidebar-active text-sidebar-active-foreground hover:bg-sidebar-active hover:text-sidebar-active-foreground font-medium shadow-sm'
                             : 'hover:bg-sidebar-active hover:text-sidebar-active-foreground'
-                        }`}
-                      >
+                        }`;
+                      }}
+                    >
+                      <SidebarMenuButton>
                         {createElement(item.icon, {
                           className: 'size-4 shrink-0 transition-all ',
-                          strokeWidth: isActive ? 2.25 : 2,
                         })}
                         <span>{item.title}</span>
-                      </a>
-                    </SidebarMenuButton>
+                      </SidebarMenuButton>
+                    </NavLink>
                   </SidebarMenuItem>
                 );
               })}
