@@ -12,12 +12,14 @@ export function Toaster() {
         },
         success: {
           style: {
-            background: '#16a34a',
+            color: '#16a34a',
+            background: '#fff',
           },
         },
         error: {
           style: {
-            background: '#dc2626',
+            color: '#dc2626',
+            background: '#fff',
           },
           duration: 4000,
         },

@@ -58,10 +58,7 @@ export function InlineEditTitle({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (editedTitle.trim() === '') {
-        toast.error(errorMessage, {
-          duration: 3000,
-          position: 'top-right',
-        });
+        toast.error(errorMessage);
         setEditedTitle(title);
         return;
       }
