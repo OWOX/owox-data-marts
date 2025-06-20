@@ -5,15 +5,6 @@ import { DataStorageType } from '../../../shared';
 import { Separator } from '@owox/ui/components/separator';
 import { Label } from '@owox/ui/components/label';
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from '@owox/ui/components/select';
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -21,6 +12,7 @@ import {
 } from '@owox/ui/components/tooltip';
 import { Info } from 'lucide-react';
 import type { DataStorageFormData } from '../../../shared/types/data-storage.schema.ts';
+import { Combobox } from '../../../../../components/Combobox/combobox.tsx';
 
 interface GoogleBigQueryFieldsProps {
   form: ReturnType<typeof useForm<DataStorageFormData>>;
@@ -65,67 +57,66 @@ export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
               control={form.control}
               defaultValue='US'
               rules={{ required: true }}
-              render={({ field }) => (
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <SelectTrigger id='location' className='flex w-full items-center'>
-                    <SelectValue placeholder='Select a location' />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectLabel>North America</SelectLabel>
-                      <SelectItem value='US'>US (multiple regions)</SelectItem>
-                      <SelectItem value='northamerica-northeast1'>Montréal</SelectItem>
-                      <SelectItem value='northamerica-northeast2'>Toronto</SelectItem>
-                      <SelectItem value='us-central1'>Iowa</SelectItem>
-                      <SelectItem value='us-east1'>South Carolina</SelectItem>
-                      <SelectItem value='us-east4'>Northern Virginia</SelectItem>
-                      <SelectItem value='us-east5'>Columbus</SelectItem>
-                      <SelectItem value='us-west1'>Oregon</SelectItem>
-                      <SelectItem value='us-west2'>Los Angeles</SelectItem>
-                      <SelectItem value='us-west3'>Salt Lake City</SelectItem>
-                      <SelectItem value='us-west4'>Las Vegas</SelectItem>
-                    </SelectGroup>
-                    <SelectGroup>
-                      <SelectLabel>Europe</SelectLabel>
-                      <SelectItem value='EU'>EU (multiple regions)</SelectItem>
-                      <SelectItem value='europe-central2'>Warsaw</SelectItem>
-                      <SelectItem value='europe-north1'>Finland</SelectItem>
-                      <SelectItem value='europe-southwest1'>Madrid</SelectItem>
-                      <SelectItem value='europe-west1'>Belgium</SelectItem>
-                      <SelectItem value='europe-west2'>London</SelectItem>
-                      <SelectItem value='europe-west3'>Frankfurt</SelectItem>
-                      <SelectItem value='europe-west4'>Netherlands</SelectItem>
-                      <SelectItem value='europe-west6'>Zurich</SelectItem>
-                      <SelectItem value='europe-west8'>Milan</SelectItem>
-                      <SelectItem value='europe-west9'>Paris</SelectItem>
-                      <SelectItem value='europe-west12'>Turin</SelectItem>
-                    </SelectGroup>
-                    <SelectGroup>
-                      <SelectLabel>Asia Pacific</SelectLabel>
-                      <SelectItem value='asia-east1'>Taiwan</SelectItem>
-                      <SelectItem value='asia-east2'>Hong Kong</SelectItem>
-                      <SelectItem value='asia-northeast1'>Tokyo</SelectItem>
-                      <SelectItem value='asia-northeast2'>Osaka</SelectItem>
-                      <SelectItem value='asia-northeast3'>Seoul</SelectItem>
-                      <SelectItem value='asia-south1'>Mumbai</SelectItem>
-                      <SelectItem value='asia-south2'>Delhi</SelectItem>
-                      <SelectItem value='asia-southeast1'>Singapore</SelectItem>
-                      <SelectItem value='asia-southeast2'>Jakarta</SelectItem>
-                      <SelectItem value='australia-southeast1'>Sydney</SelectItem>
-                      <SelectItem value='australia-southeast2'>Melbourne</SelectItem>
-                    </SelectGroup>
-                    <SelectGroup>
-                      <SelectLabel>Other</SelectLabel>
-                      <SelectItem value='southamerica-east1'>São Paulo</SelectItem>
-                      <SelectItem value='southamerica-west1'>Santiago</SelectItem>
-                      <SelectItem value='me-central1'>Doha</SelectItem>
-                      <SelectItem value='me-central2'>Dammam</SelectItem>
-                      <SelectItem value='me-west1'>Tel Aviv</SelectItem>
-                      <SelectItem value='africa-south1'>Johannesburg</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              )}
+              render={({ field }) => {
+                // Create location options array with group information
+                const locationOptions = [
+                  // North America
+                  { value: 'US', label: 'US (multiple regions)', group: 'North America' },
+                  { value: 'northamerica-northeast1', label: 'Montréal', group: 'North America' },
+                  { value: 'northamerica-northeast2', label: 'Toronto', group: 'North America' },
+                  { value: 'us-central1', label: 'Iowa', group: 'North America' },
+                  { value: 'us-east1', label: 'South Carolina', group: 'North America' },
+                  { value: 'us-east4', label: 'Northern Virginia', group: 'North America' },
+                  { value: 'us-east5', label: 'Columbus', group: 'North America' },
+                  { value: 'us-west1', label: 'Oregon', group: 'North America' },
+                  { value: 'us-west2', label: 'Los Angeles', group: 'North America' },
+                  { value: 'us-west3', label: 'Salt Lake City', group: 'North America' },
+                  { value: 'us-west4', label: 'Las Vegas', group: 'North America' },
+                  // Europe
+                  { value: 'EU', label: 'EU (multiple regions)', group: 'Europe' },
+                  { value: 'europe-central2', label: 'Warsaw', group: 'Europe' },
+                  { value: 'europe-north1', label: 'Finland', group: 'Europe' },
+                  { value: 'europe-southwest1', label: 'Madrid', group: 'Europe' },
+                  { value: 'europe-west1', label: 'Belgium', group: 'Europe' },
+                  { value: 'europe-west2', label: 'London', group: 'Europe' },
+                  { value: 'europe-west3', label: 'Frankfurt', group: 'Europe' },
+                  { value: 'europe-west4', label: 'Netherlands', group: 'Europe' },
+                  { value: 'europe-west6', label: 'Zurich', group: 'Europe' },
+                  { value: 'europe-west8', label: 'Milan', group: 'Europe' },
+                  { value: 'europe-west9', label: 'Paris', group: 'Europe' },
+                  { value: 'europe-west12', label: 'Turin', group: 'Europe' },
+                  // Asia Pacific
+                  { value: 'asia-east1', label: 'Taiwan', group: 'Asia Pacific' },
+                  { value: 'asia-east2', label: 'Hong Kong', group: 'Asia Pacific' },
+                  { value: 'asia-northeast1', label: 'Tokyo', group: 'Asia Pacific' },
+                  { value: 'asia-northeast2', label: 'Osaka', group: 'Asia Pacific' },
+                  { value: 'asia-northeast3', label: 'Seoul', group: 'Asia Pacific' },
+                  { value: 'asia-south1', label: 'Mumbai', group: 'Asia Pacific' },
+                  { value: 'asia-south2', label: 'Delhi', group: 'Asia Pacific' },
+                  { value: 'asia-southeast1', label: 'Singapore', group: 'Asia Pacific' },
+                  { value: 'asia-southeast2', label: 'Jakarta', group: 'Asia Pacific' },
+                  { value: 'australia-southeast1', label: 'Sydney', group: 'Asia Pacific' },
+                  { value: 'australia-southeast2', label: 'Melbourne', group: 'Asia Pacific' },
+                  // Other
+                  { value: 'southamerica-east1', label: 'São Paulo', group: 'Other' },
+                  { value: 'southamerica-west1', label: 'Santiago', group: 'Other' },
+                  { value: 'me-central1', label: 'Doha', group: 'Other' },
+                  { value: 'me-central2', label: 'Dammam', group: 'Other' },
+                  { value: 'me-west1', label: 'Tel Aviv', group: 'Other' },
+                  { value: 'africa-south1', label: 'Johannesburg', group: 'Other' },
+                ];
+
+                return (
+                  <Combobox
+                    options={locationOptions}
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    placeholder='Select a location'
+                    emptyMessage='No locations found'
+                    className='w-full'
+                  />
+                );
+              }}
             />
             {errors.config && 'location' in errors.config && (
               <p className='mt-1 text-sm text-red-600'>{errors.config.location?.message}</p>
