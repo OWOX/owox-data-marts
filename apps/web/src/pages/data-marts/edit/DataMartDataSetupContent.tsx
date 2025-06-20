@@ -3,8 +3,8 @@ import { useDataMartContext } from '../../../features/data-marts/edit/model';
 import { CollapsibleCard } from '../../../shared/components/CollapsibleCard';
 import { CollapsibleCardContent } from '../../../shared/components/CollapsibleCard/CollapsibleCardContent.tsx';
 import { CollapsibleCardHeader } from '../../../shared/components/CollapsibleCard/CollapsibleCardHeader.tsx';
-import { DatabaseIcon } from 'lucide-react';
 import { CollapsibleCardFooter } from '../../../shared/components/CollapsibleCard/CollapsibleCardFooter.tsx';
+import { DatabaseIcon, CodeIcon } from 'lucide-react';
 
 export default function DataMartDataSetupContent() {
   const { dataMart } = useDataMartContext();
@@ -27,7 +27,7 @@ export default function DataMartDataSetupContent() {
 
       <CollapsibleCard collapsible name={'input-source'}>
         <CollapsibleCardHeader
-          icon={DatabaseIcon}
+          icon={CodeIcon}
           title={'Input Source'}
           subtitle={'Input your SQL query to extract data from your data warehouse'}
         ></CollapsibleCardHeader>
