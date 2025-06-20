@@ -1,10 +1,12 @@
 import { Editor } from '@monaco-editor/react';
 import { useState } from 'react';
+import { useTheme } from 'next-themes';
 
 export function DataMartCodeEditor() {
   const [sqlCode, setSqlCode] = useState(
     '-- Start writing your SQL query here...\nSELECT * FROM customers;'
   );
+  const { theme } = useTheme();
 
   function handleEditorChange(value: string | undefined) {
     if (value !== undefined) {
@@ -18,7 +20,7 @@ export function DataMartCodeEditor() {
         language='sql'
         defaultValue={sqlCode}
         onChange={handleEditorChange}
-        theme='light'
+        theme={theme === 'dark' ? 'vs-dark' : 'light'}
         options={{
           selectOnLineNumbers: true,
           hideCursorInOverviewRuler: true,
