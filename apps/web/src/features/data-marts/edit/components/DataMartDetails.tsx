@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { useDataMart } from '../model';
-import { DataMartDelete } from './DataMartDelete.tsx';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
-import { Dialog, DialogContent } from '@owox/ui/components/dialog';
+import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
 import { MoreVertical, Trash2, ArrowLeft } from 'lucide-react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { cn } from '@owox/ui/lib/utils';
@@ -19,8 +18,14 @@ interface DataMartDetailsProps {
 }
 
 export function DataMartDetails({ id }: DataMartDetailsProps) {
-  const { dataMart, updateDataMartTitle, updateDataMartDescription, isLoading, error } =
-    useDataMart(id);
+  const {
+    dataMart,
+    deleteDataMart,
+    updateDataMartTitle,
+    updateDataMartDescription,
+    isLoading,
+    error,
+  } = useDataMart(id);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -111,23 +116,31 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
         <Outlet context={{ dataMart, updateDataMartDescription }} />
       </div>
 
-      {isDeleteDialogOpen && (
-        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-          <DialogContent>
-            <DataMartDelete
-              id={dataMart.id}
-              title={dataMart.title}
-              onSuccess={() => {
-                setIsDeleteDialogOpen(false);
-                void navigate('/data-marts');
-              }}
-              onCancel={() => {
-                setIsDeleteDialogOpen(false);
-              }}
-            />
-          </DialogContent>
-        </Dialog>
-      )}
+      <ConfirmationDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        title='Delete Data Mart'
+        description={
+          <>
+            Are you sure you want to delete <strong>"{dataMart.title}"</strong>? This action cannot
+            be undone.
+          </>
+        }
+        confirmLabel='Delete'
+        cancelLabel='Cancel'
+        variant='destructive'
+        onConfirm={() => {
+          void (async () => {
+            try {
+              await deleteDataMart(dataMart.id);
+              setIsDeleteDialogOpen(false);
+              void navigate('/data-marts');
+            } catch (error) {
+              console.error('Failed to delete data mart:', error);
+            }
+          })();
+        }}
+      />
     </div>
   );
 }
