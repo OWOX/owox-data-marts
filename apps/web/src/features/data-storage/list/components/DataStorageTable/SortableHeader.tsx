@@ -18,6 +18,7 @@ export function SortableHeader<TData>({ column, children }: SortableHeaderProps<
     >
       {children}
       <ArrowUpDown
+        data-testid='lucide-arrow-up-down'
         className={`ml-2 h-4 w-4 transition-opacity ${
           column.getIsSorted() ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-70'
         }`}
