@@ -1,7 +1,6 @@
 import { Command, Flags } from '@oclif/core';
 import { ChildProcess, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { platform } from 'node:os';
 import { join } from 'node:path';
 
 /**
@@ -11,11 +10,6 @@ const CONSTANTS = {
   DEFAULT_PORT: 3000,
   SHUTDOWN_SIGNALS: ['SIGINT', 'SIGTERM'] as const,
   BUNDLE_PATH: ['dist', 'server', 'index.cjs'],
-  WORKSPACE_NAME: '@owox/backend',
-  COMMANDS: {
-    WINDOWS: 'npm.cmd',
-    UNIX: 'npm',
-  },
 } as const;
 
 /**
@@ -25,15 +19,14 @@ interface ProcessSpawnOptions {
   command: string;
   args: string[];
   port: number;
-  cwd?: string;
 }
 
 /**
- * Command to start the OWOX Data Marts application (frontend + backend).
- * Supports both development mode (via npm) and production mode (from bundle).
+ * Command to start the OWOX Data Marts application in production mode.
+ * Requires the application to be built and bundled first.
  */
 export default class Serve extends Command {
-  static override description = 'Start the OWOX Data Marts application';
+  static override description = 'Start the OWOX Data Marts application in production mode';
   static override examples = [
     '<%= config.bin %> serve',
     '<%= config.bin %> serve --port 8080',
@@ -62,14 +55,18 @@ export default class Serve extends Command {
     this.setupGracefulShutdown();
 
     const bundlePath = this.getBundlePath();
-    const isProduction = this.isProductionMode(bundlePath);
+
+    if (!this.isBundleAvailable(bundlePath)) {
+      this.error(
+        'Production bundle not found. Please ensure the CLI has been properly built and packaged.\n' +
+          'The application bundle should be located at: ' +
+          bundlePath,
+        { exit: 1 }
+      );
+    }
 
     try {
-      if (isProduction) {
-        await this.startProductionMode(bundlePath, flags.port);
-      } else {
-        await this.startDevelopmentMode(flags.port);
-      }
+      await this.startProductionMode(bundlePath, flags.port);
     } catch (error) {
       this.handleStartupError(error);
     }
@@ -84,11 +81,11 @@ export default class Serve extends Command {
   }
 
   /**
-   * Checks if the application should run in production mode
+   * Checks if the production bundle is available
    * @param bundlePath - Path to the production bundle
-   * @returns True if production bundle exists
+   * @returns True if production bundle exists and is accessible
    */
-  private isProductionMode(bundlePath: string): boolean {
+  private isBundleAvailable(bundlePath: string): boolean {
     return existsSync(bundlePath);
   }
 
@@ -98,37 +95,13 @@ export default class Serve extends Command {
    * @param port - Port number to run the application on
    */
   private async startProductionMode(bundlePath: string, port: number): Promise<void> {
-    this.log('Starting in production mode (from bundle)...');
+    this.log('Starting in production mode...');
     const options: ProcessSpawnOptions = {
       command: 'node',
       args: [bundlePath],
       port,
     };
     await this.spawnProcess(options);
-  }
-
-  /**
-   * Starts the application in development mode using npm
-   * @param port - Port number to run the application on
-   */
-  private async startDevelopmentMode(port: number): Promise<void> {
-    this.log('Starting in development mode (via npm)...');
-    const npmCommand = this.getNpmCommand();
-    const options: ProcessSpawnOptions = {
-      command: npmCommand,
-      args: ['run', 'dev', '-w', CONSTANTS.WORKSPACE_NAME],
-      port,
-      cwd: process.cwd(),
-    };
-    await this.spawnProcess(options);
-  }
-
-  /**
-   * Gets the appropriate npm command based on the operating system
-   * @returns The npm command ('npm.cmd' for Windows, 'npm' for others)
-   */
-  private getNpmCommand(): string {
-    return platform() === 'win32' ? CONSTANTS.COMMANDS.WINDOWS : CONSTANTS.COMMANDS.UNIX;
   }
 
   /**
@@ -142,7 +115,6 @@ export default class Serve extends Command {
     this.childProcess = spawn(options.command, options.args, {
       env,
       stdio: 'inherit',
-      cwd: options.cwd,
     });
 
     this.attachProcessEventHandlers();
@@ -166,7 +138,7 @@ export default class Serve extends Command {
 
     this.childProcess.on('error', (error: Error) => {
       if (!this.isShuttingDown) {
-        this.error(`Backend process error: ${error.message}`);
+        this.error(`Application process error: ${error.message}`);
       }
     });
 
@@ -184,9 +156,9 @@ export default class Serve extends Command {
    */
   private handleProcessExit(code: number | null, signal: NodeJS.Signals | null): void {
     if (code !== null && code !== 0) {
-      this.error(`Backend process exited with code ${code}`);
+      this.error(`Application process exited with code ${code}`);
     } else if (signal) {
-      this.warn(`Backend process terminated by signal ${signal}`);
+      this.warn(`Application process terminated by signal ${signal}`);
     }
   }
 
@@ -210,7 +182,7 @@ export default class Serve extends Command {
     this.log(`Received ${signal}, shutting down gracefully...`);
 
     if (this.childProcess?.kill()) {
-      this.log('Stopping backend process...');
+      this.log('Stopping application...');
     }
   }
 
@@ -227,18 +199,18 @@ export default class Serve extends Command {
 
       this.childProcess.on('exit', (code: number | null) => {
         if (this.isShuttingDown) {
-          this.log('Backend stopped successfully.');
+          this.log('Application stopped successfully.');
           resolve();
           return;
         }
 
         if (code === 0 || code === null) {
-          this.log('Backend process exited successfully.');
+          this.log('Application process exited successfully.');
           resolve();
           return;
         }
 
-        reject(new Error(`Backend process failed with exit code ${code}`));
+        reject(new Error(`Application process failed with exit code ${code}`));
       });
     });
   }

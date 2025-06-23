@@ -13,3 +13,7 @@ yarn.lock
 pnpm-lock.yaml
 
 /.github
+
+# TypeScript incremental compilation info
+*.tsbuildinfo
+tsconfig.tsbuildinfo
