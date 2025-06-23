@@ -66,24 +66,25 @@ After your app is approved, you can generate an access token:
 ![TikTok URL](res/tiktok_url.png)
 
 2.  **Retrieve `auth_code`:** After successfully authenticating your TikTok account, you will be redirected to the specified "Advertiser redirect URL." This URL will contain an `auth_code` as a query parameter.
+
 3.  **Exchange Code for Access Token:** Make a `POST` request to the TikTok API endpoint to exchange the `auth_code` for an `access_token`:
 
     * **Endpoint:** `https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/`
     * **Parameters (in the request body):**
         * `app_id`: Your unique application ID (e.g., in "APPID" format).
-        * `auth_code`: The `auth_code` obtained from the redirect URL.
         * `secret`: Your application's secret key.
-
+        * `auth_code`: The `auth_code` obtained from the redirect URL.
+    * **Headers:** 
+        * `Content-Type`: `application/json`
+        
 ![TikTok Get query](res/tiktok_get.png)
 
-## Getting Advertiser IDs
+Once the request is successful, you’ll receive:
 
-Once you have a valid access token, you can retrieve a list of advertiser IDs associated with your account:
+- An **access_token** to authorize future API calls.
+- A list of available **advertiser_ids** linked to the authorized TikTok Business account.
 
-1.  **Endpoint:** `https://business-api.tiktok.com/open_api/v1.3/oauth2/advertiser/get/`
-2.  **Request Method:** Make a `GET` request to this endpoint.
-3.  **Params:** Include your `app_id` and `secret` in the request body.
-4.  **Response:** The API response will contain a list of advertiser IDs, which can then be used in your data source configuration.
+![TikTok Query result](res/tiktok_queryresult.png)
 
 ## Token Validity and Refreshing
 
