@@ -407,6 +407,10 @@ var adAccountInsightsFields = {
     'description': 'landing_destination',
     'type': 'string'
 }, 
+'link_url_asset': {
+    'description': 'The URL asset involved in impression, click or action. Contains website_url, parsed_url, and get_params when processed.',
+    'type': 'object'
+}, 
 'location': {
     'description': 'location',
     'type': 'string'

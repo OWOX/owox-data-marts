@@ -234,4 +234,234 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       return record;
     }
     
+  //---- processShortLinks -------------------------------------------------
+    /**
+     * Processes short links from Facebook insights data
+     * Resolves short URLs to full URLs and parses GET parameters
+     * 
+     * @param {Array} data - Array of insights data records
+     * @param {Object} config - Configuration object with settings
+     * @return {Array} Data with processed links
+     */
+    processShortLinks(data, config = {}) {
+      const {
+        processShortLinks = false,
+        shortLinkFields = ['link_url_asset'],
+        maxConcurrentRequests = 5
+      } = config;
+
+      if (!processShortLinks || !data.length) {
+        return data;
+      }
+
+      // Collect unique short links
+      const shortLinks = this._collectUniqueShortLinks(data, shortLinkFields);
+      
+      if (shortLinks.length === 0) {
+        return data;
+      }
+
+      // Resolve short links to full URLs
+      this._resolveShortLinks(shortLinks, maxConcurrentRequests);
+
+      // Add resolved URLs back to data
+      this._addResolvedUrlsToData(data, shortLinks, shortLinkFields);
+
+      // Parse GET parameters from resolved URLs
+      this._parseGetParametersFromUrls(data, shortLinkFields);
+
+      return data;
+    }
+
+  //---- _collectUniqueShortLinks -------------------------------------------
+    /**
+     * Collects unique short links from insights data
+     * 
+     * @param {Array} data - Insights data
+     * @param {Array} shortLinkFields - Fields that contain URLs
+     * @return {Array} Array of unique short link objects
+     * @private
+     */
+    _collectUniqueShortLinks(data, shortLinkFields) {
+      const uniqueLinks = new Map();
+
+      data.forEach(record => {
+        shortLinkFields.forEach(fieldName => {
+          const urlAsset = this._getNestedValue(record, fieldName);
+          
+          if (urlAsset && urlAsset.website_url) {
+            const url = urlAsset.website_url;
+            
+            // Check if it's a potential short link (no query parameters, simple structure)
+            if (this._isPotentialShortLink(url) && !uniqueLinks.has(url)) {
+              uniqueLinks.set(url, {
+                originalUrl: url,
+                resolvedUrl: null,
+                parsedParams: null
+              });
+            }
+          }
+        });
+      });
+
+      return Array.from(uniqueLinks.values());
+    }
+
+  //---- _isPotentialShortLink ---------------------------------------------- 
+    /**
+     * Determines if URL is a potential short link
+     * 
+     * @param {string} url - URL to check
+     * @return {boolean} True if potentially a short link
+     * @private
+     */
+    _isPotentialShortLink(url) {
+      if (!url || typeof url !== 'string') return false;
+
+      // Skip URLs with query parameters or UTM parameters
+      if (url.includes('?') || 
+          url.includes('utm_source') || 
+          url.includes('utm_medium') || 
+          url.includes('utm_campaign') ||
+          url.includes('utm_term') || 
+          url.includes('utm_content')) {
+        return false;
+      }
+
+      // Check for simple structure: https://hostname.com/path
+      const urlParts = url.split('/');
+      return urlParts[0] === 'https:' && 
+             urlParts[1] === '' && 
+             urlParts[2] && 
+             urlParts.length === 4 && 
+             urlParts[3];
+    }
+
+  //---- _resolveShortLinks -------------------------------------------------
+    /**
+     * Resolves short links to their full URLs
+     * 
+     * @param {Array} shortLinks - Array of short link objects
+     * @param {number} maxConcurrentRequests - Max concurrent requests
+     * @private
+     */  
+    _resolveShortLinks(shortLinks, maxConcurrentRequests) {
+      // Process in batches to avoid overwhelming the server
+      for (let i = 0; i < shortLinks.length; i += maxConcurrentRequests) {
+        const batch = shortLinks.slice(i, i + maxConcurrentRequests);
+        
+        batch.forEach(linkObj => {
+          try {
+            const response = EnvironmentAdapter.fetch(linkObj.originalUrl, {
+              method: 'GET',
+              followRedirects: false,
+              muteHttpExceptions: true
+            });
+            
+            const headers = response.getHeaders();
+            linkObj.resolvedUrl = headers.Location || linkObj.originalUrl;
+            
+          } catch (error) {
+            console.log(`Failed to resolve short link ${linkObj.originalUrl}: ${error.message}`);
+            linkObj.resolvedUrl = linkObj.originalUrl;
+          }
+        });
+      }
+    }
+
+  //---- _addResolvedUrlsToData ---------------------------------------------
+    /**
+     * Adds resolved URLs back to the original data
+     * 
+     * @param {Array} data - Original insights data
+     * @param {Array} shortLinks - Resolved short links
+     * @param {Array} shortLinkFields - Fields containing URLs
+     * @private
+     */
+    _addResolvedUrlsToData(data, shortLinks, shortLinkFields) {
+      const linkMap = new Map(
+        shortLinks.map(link => [link.originalUrl, link.resolvedUrl])
+      );
+
+      data.forEach(record => {
+        shortLinkFields.forEach(fieldName => {
+          const urlAsset = this._getNestedValue(record, fieldName);
+          
+          if (urlAsset && urlAsset.website_url) {
+            const resolvedUrl = linkMap.get(urlAsset.website_url);
+            if (resolvedUrl) {
+              urlAsset.parsed_url = resolvedUrl;
+            } else {
+              urlAsset.parsed_url = urlAsset.website_url;
+            }
+          }
+        });
+      });
+    }
+
+  //---- _parseGetParametersFromUrls ---------------------------------------
+    /**
+     * Parses GET parameters from resolved URLs
+     * 
+     * @param {Array} data - Data with resolved URLs
+     * @param {Array} shortLinkFields - Fields containing URLs
+     * @private
+     */
+    _parseGetParametersFromUrls(data, shortLinkFields) {
+      data.forEach(record => {
+        shortLinkFields.forEach(fieldName => {
+          const urlAsset = this._getNestedValue(record, fieldName);
+          
+          if (urlAsset && urlAsset.parsed_url) {
+            const params = this._extractGetParameters(urlAsset.parsed_url);
+            if (params && Object.keys(params).length > 0) {
+              urlAsset.get_params = params;
+            }
+          }
+        });
+      });
+    }
+
+  //---- _extractGetParameters ---------------------------------------------
+    /**
+     * Extracts GET parameters from URL
+     * 
+     * @param {string} url - URL to parse
+     * @return {Object|null} Parsed parameters or null
+     * @private
+     */
+    _extractGetParameters(url) {
+      if (!url || !url.includes('?')) return null;
+
+      const [, queryString] = url.split('?');
+      const params = {};
+      
+      const paramPairs = queryString.includes('&') ? 
+        queryString.split('&') : [queryString];
+      
+      paramPairs.forEach(pair => {
+        if (pair.includes('=')) {
+          const [key, value] = pair.split('=');
+          if (key && value) {
+            params[key] = decodeURIComponent(value);
+          }
+        }
+      });
+
+      return Object.keys(params).length > 0 ? params : null;
+    }
+
+  //---- _getNestedValue ---------------------------------------------------
+    /**
+     * Gets nested value from object by dot notation
+     * 
+     * @param {Object} obj - Object to search in
+     * @param {string} path - Dot notation path
+     * @return {*} Value or undefined
+     * @private
+     */
+    _getNestedValue(obj, path) {
+      return path.split('.').reduce((current, key) => current?.[key], obj);
+    }
+    
   }
