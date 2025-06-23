@@ -60,7 +60,7 @@ owox-data-marts/
 - Implements platform runtime
 - Uses shared packages for data connectors execution
 
-### CLI Tool (`apps/cli/`)
+### CLI Tool (`apps/owox/`)
 
 - Command-line interface for platform management
 - Published as global npm package (`owox`)

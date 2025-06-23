@@ -38,7 +38,7 @@ For local development and testing of this CLI, especially when it's not publishe
 
 ## Using `npm link`
 
-To link your local `owox` CLI globally, navigate to the `apps/cli` directory and execute:
+To link your local `owox` CLI globally, navigate to the `apps/owox` directory and execute:
 
 ```sh-session
 $ npm link
@@ -52,7 +52,7 @@ $ owox hello World --from OWOX
 
 ## Using `npm unlink -g owox`
 
-If you need to remove the global symbolic link to your local `owox` CLI, navigate to the `apps/cli` directory and execute:
+If you need to remove the global symbolic link to your local `owox` CLI, navigate to the `apps/owox` directory and execute:
 
 ```sh-session
 $ npm unlink -g owox

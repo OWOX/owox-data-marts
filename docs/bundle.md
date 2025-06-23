@@ -31,5 +31,5 @@ This document describes the key tools used in the `package:cli` script for bundl
 2.  **Simplification of build scripts**: Thanks to `shx`, we can write simple and clear file manipulation commands directly in `package.json`, without creating complex and separate `.sh` (for Unix) and `.bat` (for Windows) files.
 
 3.  **Specific usage in our project**:
-    - `shx rm -rf apps/cli/dist`: Used in the `prepackage:cli` script for reliably cleaning the build directory before creating a new one.
-    - `shx cp -r apps/web/dist apps/cli/dist/public`: Copies the built frontend application into our CLI's final `dist` directory, from where it will be served by the backend.
+    - `shx rm -rf apps/owox/dist`: Used in the `prepackage:cli` script for reliably cleaning the build directory before creating a new one.
+    - `shx cp -r apps/web/dist apps/owox/dist/public`: Copies the built frontend application into our CLI's final `dist` directory, from where it will be served by the backend.

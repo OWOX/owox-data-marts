@@ -35,8 +35,8 @@
     "setup:husky": "node tools/setup-husky.mjs",
     "prepare": "husky",
     "postinstall": "npm run setup:husky || echo 'Warning: Git hooks setup failed'",
-    "prepackage:cli": "shx rm -rf apps/cli/dist",
-    "package:cli": "npm run build -w @owox/web && npm run build -w @owox/backend && npm run build -w owox && ncc build apps/backend/dist/main.js -o apps/cli/dist/server && shx cp -r apps/web/dist apps/cli/dist/public && shx mv apps/cli/dist/server/index.js apps/cli/dist/server/index.cjs"
+    "prepackage:cli": "shx rm -rf apps/owox/dist",
+    "package:cli": "npm run build -w @owox/web && npm run build -w @owox/backend && npm run build -w owox && ncc build apps/backend/dist/main.js -o apps/owox/dist/server && shx cp -r apps/web/dist apps/owox/dist/public && shx mv apps/owox/dist/server/index.js apps/owox/dist/server/index.cjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.28.0",
