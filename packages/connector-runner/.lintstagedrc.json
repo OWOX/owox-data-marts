@@ -1,0 +1,8 @@
+{
+  "*.{js,mjs}": [
+    "eslint --config ./eslint.config.mjs",
+    "prettier --config ./prettier.config.mjs --write"
+  ],
+  "*.json": ["prettier --config ./prettier.config.mjs --write"],
+  "*.md": ["prettier --config ./prettier.config.mjs --write"]
+}

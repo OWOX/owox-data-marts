@@ -18,11 +18,16 @@ export class CreateDataMartService {
   ) {}
 
   async run(command: CreateDataMartCommand): Promise<DataMartDto> {
-    const storage = await this.dataStorageService.findOrCreateByType(command.storage);
+    const dataStorage = await this.dataStorageService.getByIdAndProjectId(
+      command.projectId,
+      command.storageId
+    );
 
     const dataMart = this.dataMartRepository.create({
       title: command.title,
-      storage,
+      projectId: command.projectId,
+      createdById: command.userId,
+      storage: dataStorage,
     });
 
     const newDataMart = await this.dataMartRepository.save(dataMart);

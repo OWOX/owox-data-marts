@@ -1,9 +1,9 @@
 import { ExceptionFilter, Catch, ArgumentsHost, HttpStatus } from '@nestjs/common';
-import { AccessValidationException } from './access-validation.exception';
 import { Response } from 'express';
 import { BaseException } from './base.exception';
+import { BusinessViolationException } from './business-violation.exception';
 
-@Catch(AccessValidationException)
+@Catch(BusinessViolationException)
 export class BaseExceptionFilter implements ExceptionFilter {
   catch(exception: BaseException, host: ArgumentsHost) {
     const ctx = host.switchToHttp();

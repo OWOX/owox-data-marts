@@ -1,5 +1,5 @@
-@import "tailwindcss";
-@import "tw-animate-css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
 
 @source "../../../apps/**/*.{ts,tsx}";
 @source "../../../components/**/*.{ts,tsx}";
@@ -9,17 +9,17 @@
 
 :root {
   --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --foreground: oklch(0.3346 0.0123 279.25);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.3346 0.0123 279.25);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
+  --popover-foreground: oklch(0.3346 0.0123 279.25);
   --primary: oklch(0.205 0 0);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  --muted-foreground: oklch(0.5148 0.0128 274.72);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
@@ -46,26 +46,25 @@
 
   /* Brand Blue Color Scale based on brand-blue-500: oklch(0.6179 0.2295 250.87) */
   --brand-blue-50: oklch(0.985 0.03 250.87);
-  --brand-blue-50-foreground: oklch(0.20 0 0);
+  --brand-blue-50-foreground: oklch(0.2 0 0);
   --brand-blue-100: oklch(0.955 0.05 250.87);
-  --brand-blue-100-foreground: oklch(0.20 0 0);
-  --brand-blue-200: oklch(0.90 0.08 250.87);
-  --brand-blue-200-foreground: oklch(0.20 0 0);
-  --brand-blue-300: oklch(0.80 0.14 250.87);
+  --brand-blue-100-foreground: oklch(0.2 0 0);
+  --brand-blue-200: oklch(0.9 0.08 250.87);
+  --brand-blue-200-foreground: oklch(0.2 0 0);
+  --brand-blue-300: oklch(0.8 0.14 250.87);
   --brand-blue-300-foreground: oklch(1 0 0);
-  --brand-blue-400: oklch(0.70 0.19 250.87);
+  --brand-blue-400: oklch(0.7 0.19 250.87);
   --brand-blue-400-foreground: oklch(1 0 0);
   --brand-blue-500: oklch(0.6179 0.2295 250.87);
   --brand-blue-500-foreground: oklch(1 0 0);
   --brand-blue-600: oklch(0.54 0.23 250.87);
   --brand-blue-600-foreground: oklch(1 0 0);
-  --brand-blue-700: oklch(0.44 0.20 250.87);
+  --brand-blue-700: oklch(0.44 0.2 250.87);
   --brand-blue-700-foreground: oklch(1 0 0);
   --brand-blue-800: oklch(0.36 0.17 250.87);
   --brand-blue-800-foreground: oklch(1 0 0);
   --brand-blue-900: oklch(0.28 0.14 250.87);
   --brand-blue-900-foreground: oklch(1 0 0);
-
 }
 
 .dark {
@@ -107,11 +106,11 @@
   /* Brand Blue Color Scale — Dark Theme */
   --brand-blue-50: oklch(0.36 0.17 250.87);
   --brand-blue-50-foreground: oklch(1 0 0);
-  --brand-blue-100: oklch(0.40 0.17 250.87);
+  --brand-blue-100: oklch(0.4 0.17 250.87);
   --brand-blue-100-foreground: oklch(1 0 0);
-  --brand-blue-200: oklch(0.44 0.20 250.87);
+  --brand-blue-200: oklch(0.44 0.2 250.87);
   --brand-blue-200-foreground: oklch(1 0 0);
-  --brand-blue-300: oklch(0.50 0.22 250.87);
+  --brand-blue-300: oklch(0.5 0.22 250.87);
   --brand-blue-300-foreground: oklch(1 0 0);
   --brand-blue-400: oklch(0.56 0.23 250.87);
   --brand-blue-400-foreground: oklch(1 0 0);
@@ -119,7 +118,7 @@
   --brand-blue-500-foreground: oklch(1 0 0);
   --brand-blue-600: oklch(0.54 0.23 250.87);
   --brand-blue-600-foreground: oklch(1 0 0);
-  --brand-blue-700: oklch(0.44 0.20 250.87);
+  --brand-blue-700: oklch(0.44 0.2 250.87);
   --brand-blue-700-foreground: oklch(1 0 0);
   --brand-blue-800: oklch(0.36 0.17 250.87);
   --brand-blue-800-foreground: oklch(1 0 0);

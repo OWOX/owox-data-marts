@@ -1,6 +1,6 @@
 **/**
-!Sources/PublicEndPoint/*.js
-!Sources/PublicEndPoint/**/*.js
+!Templates/PublicEndPoint/*.js
+!Templates/PublicEndPoint/**/*.js
 !appsscript.json
 !Core/Abstract*.js
 !Core/Exceptions.js

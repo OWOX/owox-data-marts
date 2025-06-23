@@ -20,9 +20,13 @@ The **Account ID** is: `18ce55in6wt`
 
 To include more fields, go to the **Fields** tab and check the boxes next to the fields you want to include.
 
+![X Ads Fields](res/xads_fields.png)
+
 If you're using the **Google BigQuery** template, also fill in:
 - **Destination Dataset ID** in the format: `projectid.datasetid`
-- **Destination Location**
+- **Destination Location** (e.g., `US`, `EU`)
+
+> ℹ️ If the specified dataset doesn't exist, it will be created automatically.
 
 ![X Ads Start Settings](res/xads_start.png)
 
@@ -39,10 +43,21 @@ Once your credentials are saved, click: **OWOX → Import New Data**
 The process is complete when the **Log** sheet shows the message:  
 **"Import is finished"**  
 
-If you encounter any issues:
+Access Your Data:
 
-1. Check the "Logs" sheet for specific error messages
-2. Please [visit Q&A](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) first
-3. If you want to report a bug, please [open an issue](https://github.com/OWOX/owox-data-marts/issues)
-4. Join the [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions or propose improvements 
+- In the **Google Sheets** template, the data will appear in new tabs labeled with the corresponding data types (e.g., *accounts*).  
 
+![X Ads Finished](res/xads_finished.png)
+
+- In the **Google BigQuery** template, the data will be written to the dataset specified earlier.
+
+![X Ads Finished](res/xads_gbq.png)
+
+## Getting Help
+
+Should you encounter any issues or questions not addressed in this guide:
+
+1.  **Check Logs:** Review the "Logs" sheet in your spreadsheet for specific error messages, which can often provide clues to the problem.
+2.  **Visit Q&A:** Before opening a new issue, please check the existing discussions and answers in our [Q&A section](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a).
+3.  **Report a Bug:** If you identify a bug, please [open an issue](https://github.com/OWOX/owox-data-marts/issues) on our GitHub repository.
+4.  **Join the Discussion:** Feel free to join our [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions, share insights, or propose improvements to the source.

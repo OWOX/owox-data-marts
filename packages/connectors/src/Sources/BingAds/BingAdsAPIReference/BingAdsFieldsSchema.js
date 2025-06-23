@@ -11,7 +11,22 @@ var BingAdsFieldsSchema = {
     description: "Performance metrics for ads in Bing Ads campaigns.",
     documentation: "https://learn.microsoft.com/en-us/advertising/reporting-service/adperformancereportrequest",
     fields: adPerformanceReportFields,
-    uniqueKeys: ["AccountId", "CampaignId", "TimePeriod", "AdGroupId", "LocationId"],
+    uniqueKeys: [
+      "AccountId",
+      "CampaignId",
+      "TimePeriod",
+      "AdGroupId",
+      "LocationId",
+      "CampaignType",
+      "BidMatchType",
+      "DeliveredMatchType",
+      "AssetGroupId",
+      "CurrencyCode",
+      "AdDistribution",
+      "DeviceType",
+      "DeviceOS",
+      "TopVsOther"
+    ],
     isTimeSeries: true
   },
   campaigns: {

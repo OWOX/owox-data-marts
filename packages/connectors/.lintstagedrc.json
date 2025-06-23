@@ -1,0 +1,9 @@
+{
+  "*.{js,mjs}": [
+    "eslint --config ./eslint.config.js",
+    "prettier --config ./prettier.config.js --ignore-path ./.prettierignore --write"
+  ],
+  "*.json": ["prettier --config ./prettier.config.js --ignore-path ./.prettierignore --write"],
+  "*.md": ["prettier --config ./prettier.config.js --ignore-path ./.prettierignore --write"],
+  "*.gs": ["prettier --config ./prettier.config.js --ignore-path ./.prettierignore --write"]
+}

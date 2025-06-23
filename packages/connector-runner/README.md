@@ -4,7 +4,7 @@ A Node.js utility for running OWOX Data Marts connectors in isolated environment
 
 ## Overview
 
-The NodeJS connector runner allows you to execute data connectors on your machine in isolated Node.js environments. This is particularly useful for development, testing, debugging, and production runs of data integration pipelines.
+The NodeJS connector runner allows you to execute data connectors on your machine in isolated Node.js environments. This is particularly useful for development, testing, debugging, and production runs of data integration connectors.
 
 ### Key Features
 
@@ -40,9 +40,13 @@ const runner = new ConnectorRunner();
 const datamartId = 'my-datamart';
 const runId = 'run-' + Date.now();
 const config = {
-  name: "TikTokAdsConnector",
-  source: { /* source config */ },
-  storage: { /* storage config */ }
+  name: 'TikTokAdsConnector',
+  source: {
+    /* source config */
+  },
+  storage: {
+    /* storage config */
+  },
 };
 
 await runner.run(datamartId, runId, config);
@@ -56,24 +60,26 @@ The connector configuration JSON file has the following structure:
 
 ```json
 {
-    "name": "ConnectorName", // The class name of the connector 
-    "description": "Connector Description", // The description of the connector
-    "integration": {
-        "name": "ConnectorName", // The name of the connector. (Conector dir name)
-        "config": {  // The connector configuration parameters. The parameters are defined in the connector constructor.
-            "ParameterName": {
-                "value": "ParameterValue"
-            }
-        }
-    },
-    "storage": {
-        "name": "StorageName", // The name of the storage. (Storage dir name)
-        "config": {  // The storage configuration parameters. The parameters are defined in the storage constructor.
-            "ParameterName": {
-                "value": "ParameterValue"
-            }
-        }
+  "name": "ConnectorName", // The class name of the connector
+  "description": "Connector Description", // The description of the connector
+  "integration": {
+    "name": "ConnectorName", // The name of the connector. (Conector dir name)
+    "config": {
+      // The connector configuration parameters. The parameters are defined in the connector constructor.
+      "ParameterName": {
+        "value": "ParameterValue"
+      }
     }
+  },
+  "storage": {
+    "name": "StorageName", // The name of the storage. (Storage dir name)
+    "config": {
+      // The storage configuration parameters. The parameters are defined in the storage constructor.
+      "ParameterName": {
+        "value": "ParameterValue"
+      }
+    }
+  }
 }
 ```
 
@@ -96,63 +102,63 @@ The connector configuration JSON file has the following structure:
 
 ```json
 {
-    "name": "TikTokAdsConnector",
-    "description": "TikTok Ads Connector to Google BigQuery",
-    "source": {
-        "name": "TikTokAds",
-        "config": {
-            "AccessToken": {
-                "value": "YOUR_ACCESS_TOKEN"
-            },
-            "AppId": {
-                "value": "YOUR_APP_ID"
-            },
-            "AppSecret": {
-                "value": "YOUR_APP_SECRET"
-            },
-            "AdvertiserIDs": {
-                "value": "YOUR_ADVERTISER_ID"
-            },
-            "Objects": {
-                "value": "campaigns"
-            },
-            "DataLevel": {
-                "value": "AUCTION_AD"
-            },
-            "StartDate": {
-                "value": "2023-01-01"
-            },
-            "ReimportLookbackWindow": {
-                "value": 5
-            },
-            "Fields": {
-                "value": "campaigns campaign_id, campaigns campaign_name"
-            }
-        }
-    },
-    "storage": {
-        "name": "GoogleBigQuery",
-        "config": {
-            "DestinationLocation": {
-                "value": "US"
-            },
-            "DestinationDatasetID": {
-                "value": "YOUR_DATASET_ID"
-            },
-            "DestinationProjectID": {
-                "value": "YOUR_PROJECT_ID"
-            },
-            "DestinationTableNamePrefix": {
-                "value": ""
-            },
-            "DestinationDatasetName": {
-                "value": "YOUR_DATASET_NAME"
-            },
-            "ProjectID": {
-                "value": "YOUR_PROJECT_ID"
-            }
-        }
+  "name": "TikTokAdsConnector",
+  "description": "TikTok Ads Connector to Google BigQuery",
+  "source": {
+    "name": "TikTokAds",
+    "config": {
+      "AccessToken": {
+        "value": "YOUR_ACCESS_TOKEN"
+      },
+      "AppId": {
+        "value": "YOUR_APP_ID"
+      },
+      "AppSecret": {
+        "value": "YOUR_APP_SECRET"
+      },
+      "AdvertiserIDs": {
+        "value": "YOUR_ADVERTISER_ID"
+      },
+      "Objects": {
+        "value": "campaigns"
+      },
+      "DataLevel": {
+        "value": "AUCTION_AD"
+      },
+      "StartDate": {
+        "value": "2023-01-01"
+      },
+      "ReimportLookbackWindow": {
+        "value": 5
+      },
+      "Fields": {
+        "value": "campaigns campaign_id, campaigns campaign_name"
+      }
     }
+  },
+  "storage": {
+    "name": "GoogleBigQuery",
+    "config": {
+      "DestinationLocation": {
+        "value": "US"
+      },
+      "DestinationDatasetID": {
+        "value": "YOUR_DATASET_ID"
+      },
+      "DestinationProjectID": {
+        "value": "YOUR_PROJECT_ID"
+      },
+      "DestinationTableNamePrefix": {
+        "value": ""
+      },
+      "DestinationDatasetName": {
+        "value": "YOUR_DATASET_NAME"
+      },
+      "ProjectID": {
+        "value": "YOUR_PROJECT_ID"
+      }
+    }
+  }
 }
 ```
 
@@ -160,75 +166,75 @@ The connector configuration JSON file has the following structure:
 
 ```json
 {
-    "name": "TikTokAdsConnector",
-    "description": "TikTok Ads Connector to AWS Athena",
-    "source": {
-        "name": "TikTokAds",
-        "config": {
-            "AccessToken": {
-                "value": "YOUR_ACCESS_TOKEN"
-            },
-            "AppId": {
-                "value": "YOUR_APP_ID"
-            },
-            "AppSecret": {
-                "value": "YOUR_APP_SECRET"
-            },
-            "AdvertiserIDs": {
-                "value": "YOUR_ADVERTISER_ID"
-            },
-            "Objects": {
-                "value": "campaigns"
-            },
-            "DataLevel": {
-                "value": "AUCTION_AD"
-            },
-            "StartDate": {
-                "value": "2023-01-01"
-            },
-            "ReimportLookbackWindow": {
-                "value": 1
-            },
-            "Fields": {
-                "value": "campaigns campaign_id, campaigns campaign_name"
-            }
-        }
-    },
-    "storage": {
-        "name": "AwsAthena",
-        "config": {
-            "AWSRegion": {
-                "value": "us-east-1"
-            },
-            "AWSAccessKeyId": {
-                "value": "YOUR_ACCESS_KEY_ID"
-            },
-            "AWSSecretAccessKey": {
-                "value": "YOUR_SECRET_ACCESS_KEY"
-            },
-            "S3BucketName": {
-                "value": "YOUR_BUCKET_NAME"
-            },
-            "S3Prefix": {
-                "value": "tiktok_ads_"
-            },
-            "AthenaDatabaseName": {
-                "value": "YOUR_DATABASE_NAME"
-            },
-            "DestinationTableName": {
-                "value": "tiktok_ads_"
-            },
-            "DestinationTableNamePrefix": {
-                "value": "tiktok_ads_"
-            },
-            "AthenaOutputLocation": {
-                "value": "s3://YOUR_BUCKET_NAME/athena_dir"
-            },
-            "MaxBufferSize": {
-                "value": 250
-            }
-        }
+  "name": "TikTokAdsConnector",
+  "description": "TikTok Ads Connector to AWS Athena",
+  "source": {
+    "name": "TikTokAds",
+    "config": {
+      "AccessToken": {
+        "value": "YOUR_ACCESS_TOKEN"
+      },
+      "AppId": {
+        "value": "YOUR_APP_ID"
+      },
+      "AppSecret": {
+        "value": "YOUR_APP_SECRET"
+      },
+      "AdvertiserIDs": {
+        "value": "YOUR_ADVERTISER_ID"
+      },
+      "Objects": {
+        "value": "campaigns"
+      },
+      "DataLevel": {
+        "value": "AUCTION_AD"
+      },
+      "StartDate": {
+        "value": "2023-01-01"
+      },
+      "ReimportLookbackWindow": {
+        "value": 1
+      },
+      "Fields": {
+        "value": "campaigns campaign_id, campaigns campaign_name"
+      }
     }
+  },
+  "storage": {
+    "name": "AwsAthena",
+    "config": {
+      "AWSRegion": {
+        "value": "us-east-1"
+      },
+      "AWSAccessKeyId": {
+        "value": "YOUR_ACCESS_KEY_ID"
+      },
+      "AWSSecretAccessKey": {
+        "value": "YOUR_SECRET_ACCESS_KEY"
+      },
+      "S3BucketName": {
+        "value": "YOUR_BUCKET_NAME"
+      },
+      "S3Prefix": {
+        "value": "tiktok_ads_"
+      },
+      "AthenaDatabaseName": {
+        "value": "YOUR_DATABASE_NAME"
+      },
+      "DestinationTableName": {
+        "value": "tiktok_ads_"
+      },
+      "DestinationTableNamePrefix": {
+        "value": "tiktok_ads_"
+      },
+      "AthenaOutputLocation": {
+        "value": "s3://YOUR_BUCKET_NAME/athena_dir"
+      },
+      "MaxBufferSize": {
+        "value": 250
+      }
+    }
+  }
 }
 ```
 
@@ -295,7 +301,7 @@ Generates execution templates that:
 
 - Import required dependencies as globals
 - Set up OWOX connector libraries
-- Execute the specified connector pipeline
+- Execute the specified connector
 
 ### Execution Flow
 

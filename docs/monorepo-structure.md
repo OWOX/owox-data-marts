@@ -31,18 +31,17 @@ owox-data-marts/
 │   ├── connectors/        # Data connectors and API integrations
 │   │   └── src/           # Source code
 │   │
-│   ├── eslint-config/     # Shared ESLint configurations
-│   │
-│   ├── linter-config/     # Shared linting configurations
-│   │
-│   ├── pipeline-runner/   # Core pipeline execution logic
+│   ├── connector-runner/  # Core connector execution logic
 │   │   └── src/           # Source code
+│   │
+│   ├── eslint-config/     # Shared ESLint configurations
 │   │
 │   ├── prettier-config/   # Shared Prettier configurations
 │   │
 │   └── typescript-config/ # Shared TypeScript configurations
 │
-└── docs/                # Project documentation
+├── tools/                 # Additinal scripts for project
+└── docs/                  # Project documentation
 ```
 
 ## Applications (`apps/`)
@@ -59,7 +58,7 @@ owox-data-marts/
 - NestJS-based backend API
 - Serves the web application's build artifacts
 - Implements platform runtime
-- Uses shared packages for data connectors and pipeline execution
+- Uses shared packages for data connectors execution
 
 ### CLI Tool (`apps/cli/`)
 
@@ -82,16 +81,10 @@ owox-data-marts/
 - Data Source integrations
 - Shared across backend and CLI
 
-### Pipeline Runner (`packages/pipeline-runner/`)
+### Connector runner (`packages/connector-runner/`)
 
-- Core logic for pipeline execution
+- Core logic for connector execution
 - Used by backend and CLI
-
-### Linter Config (`packages/linter-config/`)
-
-- Shared ESLint and Prettier configurations
-- Used by all apps and packages
-- Ensures consistent code style
 
 ## Development Workflow
 

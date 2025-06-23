@@ -88,10 +88,10 @@ class NodeJsTemplateRenderer extends TemplateRenderer {
                 storageName + 'Storage'
             );
 
-            // Run the pipeline
-            console.log('Starting pipeline execution...');
+            // Run the connector
+            console.log('Starting Connector execution...');
             connector.run();
-            console.log('Pipeline execution completed');
+            console.log('Connector execution completed');
         }
         `;
   }

@@ -4,6 +4,7 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
 } from 'typeorm';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataStorageConfig } from '../data-storage-types/data-storage-config.type';
@@ -24,6 +25,9 @@ export class DataStorage {
 
   @Column({ type: 'json', nullable: true })
   config?: DataStorageConfig;
+
+  @DeleteDateColumn({ nullable: true })
+  deletedAt?: Date;
 
   @CreateDateColumn()
   createdAt: Date;

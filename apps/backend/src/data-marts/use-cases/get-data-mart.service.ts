@@ -1,25 +1,22 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { DataMart } from '../entities/data-mart.entity';
+import { Injectable } from '@nestjs/common';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
+import { DataMartService } from '../services/data-mart.service';
+import { GetDataMartCommand } from '../dto/domain/get-data-mart.command';
 
 @Injectable()
 export class GetDataMartService {
   constructor(
-    @InjectRepository(DataMart)
-    private readonly dataMartRepo: Repository<DataMart>,
+    private readonly dataMartService: DataMartService,
     private readonly mapper: DataMartMapper
   ) {}
 
-  async run(id: string): Promise<DataMartDto> {
-    const entity = await this.dataMartRepo.findOne({ where: { id } });
-
-    if (!entity) {
-      throw new NotFoundException(`DataMart with id '${id}' not found`);
-    }
-
-    return this.mapper.toDomainDto(entity);
+  async run(command: GetDataMartCommand): Promise<DataMartDto> {
+    const dataMart = await this.dataMartService.getByIdAndProjectIdAndUserId(
+      command.id,
+      command.projectId,
+      command.userId
+    );
+    return this.mapper.toDomainDto(dataMart);
   }
 }

@@ -1,0 +1,10 @@
+{
+  "*.{ts,tsx}": [
+    "eslint --config ./eslint.config.mjs",
+    "prettier --config ./prettier.config.mjs --write"
+  ],
+  "*.json": ["prettier --config ./prettier.config.mjs --write"],
+  "*.md": ["prettier --config ./prettier.config.mjs --write"],
+  "*.{css,scss}": ["prettier --config ./prettier.config.mjs --write"],
+  "*.{yml,yaml}": ["prettier --config ./prettier.config.mjs --write"]
+}

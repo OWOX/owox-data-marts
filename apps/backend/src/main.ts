@@ -13,13 +13,17 @@ const SWAGGER_PATH = 'swagger-ui';
 const DEFAULT_PORT = 3000;
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    logger: ['error', 'warn', 'log'],
+  });
 
   app.useGlobalFilters(new BaseExceptionFilter());
   app.setGlobalPrefix(PATH_PREFIX);
   setupGlobalPipes(app);
   setupSwagger(app, SWAGGER_PATH);
   setupStaticAssets(app, PATH_PREFIX);
+
+  app.enableShutdownHooks();
 
   await app.listen(process.env.PORT ? Number(process.env.PORT) : DEFAULT_PORT);
   let appUrl = await app.getUrl();

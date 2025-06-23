@@ -1,0 +1,1 @@
+export { InlineEditDescription } from './InlineEditDescription';

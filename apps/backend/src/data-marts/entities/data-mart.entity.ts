@@ -6,9 +6,12 @@ import {
   JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
 } from 'typeorm';
 import { DataStorage } from './data-storage.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
+import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
+import { DataMartDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition';
 
 @Entity()
 export class DataMart {
@@ -22,17 +25,26 @@ export class DataMart {
   @JoinColumn()
   storage: DataStorage;
 
-  @Column({ type: 'json', nullable: true })
-  definition?: Record<string, unknown>;
+  @Column({ nullable: true })
+  definitionType?: DataMartDefinitionType;
 
-  @Column()
+  @Column({ type: 'json', nullable: true })
+  definition?: DataMartDefinition;
+
+  @Column({ default: DataMartStatus.DRAFT })
   status: DataMartStatus;
+
+  @Column({ type: 'text', nullable: true })
+  description?: string;
 
   @Column()
   projectId: string;
 
   @Column()
   createdById: string;
+
+  @DeleteDateColumn({ nullable: true })
+  deletedAt?: Date;
 
   @CreateDateColumn()
   createdAt: Date;
