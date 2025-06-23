@@ -9,6 +9,8 @@ Fill in required parameters:
 - **Start Date**
 - **Account IDs**
 - **Fields**
+- **Destination Dataset ID:** (Applicable only for the **Google BigQuery** template)
+- **Destination Location:** (Applicable only for the **Google BigQuery** template)
 
 The import will begin from the selected **Start Date**.  
 > ⚠️ **Note:** Choosing a long date range may result in import failure due to high data volume.
@@ -28,6 +30,15 @@ To include additional fields, go to the **Fields** tab and check the boxes next 
 
 ![Reddit Fields](res/reddit_fields.png)
 
+If you are using the **Google BigQuery** template, you must also specify:
+
+* **Destination Dataset ID** in the format: `projectid.datasetid`
+* **Destination Location** (e.g., `US`, `EU`)
+
+> ℹ️ **Important:** If the specified BigQuery dataset does not already exist in your Google Cloud project, it will be automatically created during the import process.
+
+![Reddit Dataset](res/reddit_dataset.png)
+
 Open the menu: **OWOX → Manage Credentials**
 
 ![Reddit Credentials](res/reddit_credentials.png)
@@ -44,9 +55,16 @@ Click **Check and Save**. Once credentials are saved, go to:
 
 The process is complete when the **Log** sheet shows the message:  
 **"Import is finished"**  
-Your data will appear in new tabs, named after the corresponding data types (e.g., *ad-account*, *ad-campaign*).
+
+Access Your Data:
+
+- In the **Google Sheets** template, the data will appear in new tabs labeled with the corresponding data types (e.g., *accounts*).  
 
 ![Reddit Finished](res/reddit_success.png)
+
+- In the **Google BigQuery** template, the data will be written to the dataset specified earlier.
+
+![Reddit Finished](res/reddit_finish.png)
 
 To include more fields later, check the appropriate boxes in the **Fields** tab and click:  
 **OWOX → Import New Data**
