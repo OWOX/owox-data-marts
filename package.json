@@ -24,7 +24,7 @@
     "dev:web": "npm run dev -w @owox/web",
     "dev:backend": "npm run dev -w @owox/backend",
     "dev": "npm-run-all --parallel dev:web dev:backend",
-    "serve": "npm run build --workspaces --if-present && npm run serve --workspaces --if-present",
+    "serve": "npm run build -w @owox/backend && npm run serve -w owox",
     "lint": "npm run lint --workspaces --if-present",
     "lint:fix": "npm run lint:fix --workspaces --if-present",
     "lint:staged": "lint-staged",
@@ -34,9 +34,7 @@
     "test:coverage": "npm run test:coverage --workspaces --if-present",
     "setup:husky": "node tools/setup-husky.mjs",
     "prepare": "husky",
-    "postinstall": "npm run setup:husky || echo 'Warning: Git hooks setup failed'",
-    "prepackage:cli": "shx rm -rf apps/owox/dist",
-    "package:cli": "npm run build -w @owox/web && npm run build -w @owox/backend && npm run build -w owox && ncc build apps/backend/dist/main.js -o apps/owox/dist/server && shx cp -r apps/web/dist apps/owox/dist/public && shx mv apps/owox/dist/server/index.js apps/owox/dist/server/index.cjs"
+    "postinstall": "npm run setup:husky || echo 'Warning: Git hooks setup failed'"
   },
   "devDependencies": {
     "@eslint/js": "^9.28.0",
@@ -45,7 +43,6 @@
     "@owox/typescript-config": "/packages/typescript-config",
     "@typescript-eslint/eslint-plugin": "^8.30.1",
     "@typescript-eslint/parser": "^8.30.1",
-    "@vercel/ncc": "^0.38.3",
     "eslint": "^9.28.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",
