@@ -1,7 +1,75 @@
 {
   "name": "owox",
+  "description": "OWOX Data Marts CLI: Orchestrates and bundles monorepo applications for local execution and distribution.",
   "version": "0.0.0",
+  "author": "OWOX",
+  "bin": {
+    "owox": "./bin/run.js"
+  },
+  "bugs": "https://github.com/OWOX/owox-data-marts/issues",
+  "dependencies": {
+    "@oclif/core": "^4",
+    "@oclif/plugin-help": "^6",
+    "@oclif/plugin-plugins": "^5"
+  },
+  "devDependencies": {
+    "@eslint/compat": "^1",
+    "@oclif/prettier-config": "^0.2.1",
+    "@oclif/test": "^4",
+    "@types/chai": "^4",
+    "@types/mocha": "^10",
+    "@types/node": "^18",
+    "chai": "^4",
+    "eslint": "^9",
+    "eslint-config-oclif": "^6",
+    "eslint-config-prettier": "^10",
+    "mocha": "^10",
+    "oclif": "^4",
+    "shx": "^0.3.3",
+    "ts-node": "^10",
+    "typescript": "^5"
+  },
   "engines": {
     "node": ">=22.16.0"
-  }
+  },
+  "files": [
+    "./bin",
+    "./dist",
+    "./oclif.manifest.json"
+  ],
+  "homepage": "https://github.com/OWOX/owox-data-marts",
+  "keywords": [
+    "oclif"
+  ],
+  "license": "MIT",
+  "main": "dist/index.js",
+  "type": "module",
+  "oclif": {
+    "bin": "owox",
+    "dirname": "owox",
+    "commands": "./dist/commands",
+    "plugins": [
+      "@oclif/plugin-help",
+      "@oclif/plugin-plugins"
+    ],
+    "topicSeparator": " ",
+    "topics": {
+      "hello": {
+        "description": "Say hello to the world and others"
+      }
+    }
+  },
+  "repository": "OWOX/owox-data-marts",
+  "scripts": {
+    "build": "tsc -b",
+    "lint": "eslint",
+    "postpack": "shx rm -f oclif.manifest.json",
+    "posttest": "npm run lint",
+    "prepack": "oclif manifest && oclif readme",
+    "test": "mocha --forbid-only \"test/**/*.test.ts\"",
+    "version": "oclif readme && git add README.md",
+    "monitor": "./scripts/monitor.sh",
+    "test:shutdown": "./scripts/test-shutdown.sh"
+  },
+  "types": "dist/index.d.ts"
 }
