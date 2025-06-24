@@ -28,7 +28,7 @@ export const AwsAthenaFields = ({ form }: AwsAthenaFieldsProps) => {
           <div className='space-y-4'>
             <div>
               <Label htmlFor='region' className='block text-sm font-medium text-gray-700'>
-                Region
+                Region<span className='ml-1 text-red-500'>*</span>
               </Label>
               <Input
                 id='region'
@@ -42,7 +42,7 @@ export const AwsAthenaFields = ({ form }: AwsAthenaFieldsProps) => {
             </div>
             <div>
               <Label htmlFor='database-name' className='block text-sm font-medium text-gray-700'>
-                Database Name
+                Database Name<span className='ml-1 text-red-500'>*</span>
               </Label>
               <Input
                 id='database-name'
@@ -56,7 +56,7 @@ export const AwsAthenaFields = ({ form }: AwsAthenaFieldsProps) => {
             </div>
             <div>
               <Label htmlFor='output-bucket' className='block text-sm font-medium text-gray-700'>
-                Output Bucket
+                Output Bucket<span className='ml-1 text-red-500'>*</span>
               </Label>
               <Input
                 id='output-bucket'
@@ -79,7 +79,7 @@ export const AwsAthenaFields = ({ form }: AwsAthenaFieldsProps) => {
           <div className='space-y-4'>
             <div>
               <Label htmlFor='access-key-id' className='block text-sm font-medium text-gray-700'>
-                Access Key ID
+                Access Key ID<span className='ml-1 text-red-500'>*</span>
               </Label>
               <Input
                 id='access-key-id'
@@ -98,7 +98,7 @@ export const AwsAthenaFields = ({ form }: AwsAthenaFieldsProps) => {
                 htmlFor='secret-access-key'
                 className='block text-sm font-medium text-gray-700'
               >
-                Secret Access Key
+                Secret Access Key<span className='ml-1 text-red-500'>*</span>
               </Label>
               <Input
                 id='secret-access-key'

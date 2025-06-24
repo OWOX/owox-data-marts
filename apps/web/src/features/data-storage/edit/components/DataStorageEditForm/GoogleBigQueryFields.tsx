@@ -37,7 +37,7 @@ export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
         <div className='space-y-4'>
           <div>
             <Label htmlFor='project-id' className='block text-sm font-medium text-gray-700'>
-              Project ID
+              Project ID<span className='ml-1 text-red-500'>*</span>
             </Label>
             <Input
               id='project-id'
@@ -51,7 +51,7 @@ export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
           </div>
           <div>
             <Label htmlFor='location' className='block text-sm font-medium text-gray-700'>
-              Location
+              Location<span className='ml-1 text-red-500'>*</span>
             </Label>
             <Controller
               name='config.location'
