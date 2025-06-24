@@ -22,7 +22,7 @@ interface DataMartFormProps {
   onSuccess?: (response: Pick<DataMart, 'id' | 'title'>) => void;
 }
 
-export function DataMartForm({ initialData, onSuccess }: DataMartFormProps) {
+export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps) {
   const { handleCreate, isSubmitting, serverError } = useDataMartForm();
   const { dataStorages, loading: loadingStorages, fetchDataStorages } = useDataStorage();
 
