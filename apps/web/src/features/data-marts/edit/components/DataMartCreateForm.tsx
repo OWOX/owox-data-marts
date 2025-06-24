@@ -14,6 +14,7 @@ import { Label } from '@owox/ui/components/label';
 import { Button } from '@owox/ui/components/button';
 import { useEffect } from 'react';
 import { useDataStorage } from '../../../data-storage/shared/model/hooks/useDataStorage';
+import { DataStorageTypeModel } from '../../../data-storage/shared/types/data-storage-type.model.ts';
 
 interface DataMartFormProps {
   initialData?: {
@@ -92,11 +93,17 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
                 </SelectItem>
               )}
               {!loadingStorages &&
-                dataStorages.map(storage => (
-                  <SelectItem key={storage.id} value={storage.id}>
-                    {storage.title}
-                  </SelectItem>
-                ))}
+                dataStorages.map(storage => {
+                  const Icon = DataStorageTypeModel.getInfo(storage.type).icon;
+                  return (
+                    <SelectItem key={storage.id} value={storage.id}>
+                      <div className='flex items-center gap-2'>
+                        <Icon className='h-4 w-4' />
+                        <span>{storage.title}</span>
+                      </div>
+                    </SelectItem>
+                  );
+                })}
             </SelectGroup>
           </SelectContent>
         </Select>
