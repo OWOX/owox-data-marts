@@ -2,9 +2,31 @@ import { useReducer, type ReactNode, useCallback } from 'react';
 import { DataMartContext } from './context.ts';
 import { initialState, reducer } from './reducer.ts';
 import { mapDataMartFromDto, mapLimitedDataMartFromDto } from '../mappers';
+import {
+  mapSqlDefinitionToDto,
+  mapTableDefinitionToDto,
+  mapViewDefinitionToDto,
+  mapTablePatternDefinitionToDto,
+} from '../mappers/definition-mappers';
 import { dataMartService } from '../../../shared';
-import type { CreateDataMartRequestDto, UpdateDataMartRequestDto } from '../../../shared/types/api';
+import type {
+  CreateDataMartRequestDto,
+  UpdateDataMartRequestDto,
+  UpdateDataMartDefinitionRequestDto,
+  UpdateDataMartSqlDefinitionRequestDto,
+  UpdateDataMartTableDefinitionRequestDto,
+  UpdateDataMartViewDefinitionRequestDto,
+  UpdateDataMartTablePatternDefinitionRequestDto,
+} from '../../../shared/types/api';
 import type { DataStorage } from '../../../../data-storage/shared/model/types/data-storage';
+import { DataMartDefinitionType } from '../../../shared/enums/data-mart-definition-type.enum';
+import type {
+  DataMartDefinitionConfig,
+  SqlDefinitionConfig,
+  TableDefinitionConfig,
+  ViewDefinitionConfig,
+  TablePatternDefinitionConfig,
+} from '../types';
 
 // Props interface
 interface DataMartProviderProps {
@@ -109,6 +131,66 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     dispatch({ type: 'UPDATE_DATA_MART_STORAGE', payload: storage });
   }, []);
 
+  // Update data mart definition
+  const updateDataMartDefinition = async (
+    id: string,
+    definitionType: DataMartDefinitionType,
+    definition: DataMartDefinitionConfig
+  ) => {
+    try {
+      dispatch({ type: 'UPDATE_DATA_MART_DEFINITION_START' });
+
+      let requestData: UpdateDataMartDefinitionRequestDto;
+
+      switch (definitionType) {
+        case DataMartDefinitionType.SQL:
+          requestData = {
+            definitionType,
+            definition: mapSqlDefinitionToDto(definition as SqlDefinitionConfig),
+          } as UpdateDataMartSqlDefinitionRequestDto;
+          break;
+
+        case DataMartDefinitionType.TABLE:
+          requestData = {
+            definitionType,
+            definition: mapTableDefinitionToDto(definition as TableDefinitionConfig),
+          } as UpdateDataMartTableDefinitionRequestDto;
+          break;
+
+        case DataMartDefinitionType.VIEW:
+          requestData = {
+            definitionType,
+            definition: mapViewDefinitionToDto(definition as ViewDefinitionConfig),
+          } as UpdateDataMartViewDefinitionRequestDto;
+          break;
+
+        case DataMartDefinitionType.TABLE_PATTERN:
+          requestData = {
+            definitionType,
+            definition: mapTablePatternDefinitionToDto(definition as TablePatternDefinitionConfig),
+          } as UpdateDataMartTablePatternDefinitionRequestDto;
+          break;
+
+        default:
+          throw new Error(`Unsupported definition type: ${String(definitionType)}`);
+      }
+
+      const response = await dataMartService.updateDataMartDefinition(id, requestData);
+      const dataMart = mapDataMartFromDto(response);
+
+      dispatch({
+        type: 'UPDATE_DATA_MART_DEFINITION_SUCCESS',
+        payload: { definitionType, definition },
+      });
+      dispatch({ type: 'UPDATE_DATA_MART_SUCCESS', payload: dataMart });
+    } catch (error) {
+      dispatch({
+        type: 'UPDATE_DATA_MART_DEFINITION_ERROR',
+        payload: error instanceof Error ? error.message : 'Failed to update data mart definition',
+      });
+    }
+  };
+
   // Reset state
   const reset = useCallback(() => {
     dispatch({ type: 'RESET' });
@@ -123,6 +205,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     updateDataMartTitle,
     updateDataMartDescription,
     updateDataMartStorage,
+    updateDataMartDefinition,
     reset,
   };
 
