@@ -39,6 +39,10 @@ export const getDataStorageColumns = ({
         <SortableHeader column={column}>Title</SortableHeader>
       </div>
     ),
+    cell: ({ row }) => {
+      const title = row.getValue<string>('title');
+      return <div className='overflow-hidden text-ellipsis'>{title}</div>;
+    },
   },
   {
     accessorKey: 'type',
