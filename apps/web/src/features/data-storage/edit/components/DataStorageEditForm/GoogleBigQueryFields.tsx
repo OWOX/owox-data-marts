@@ -89,45 +89,39 @@ export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
       {/* Authentication */}
       <div className='space-y-4'>
         <h3 className='text-lg font-medium'>Authentication</h3>
-        <div className='space-y-4'>
-          <div>
-            <Label
-              htmlFor='service-account-key'
-              className='block text-sm font-medium text-gray-700'
-            >
-              Service Account JSON
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Info className='ml-1.5 inline-block h-4 w-4 cursor-help text-gray-500' />
-                  </TooltipTrigger>
-                  <TooltipContent className='max-w-sm text-sm'>
-                    <p>
-                      A Service Account Key is a JSON credential file that provides authentication
-                      to Google BigQuery.
-                    </p>
-                    <p className='mt-1'>
-                      To get one, go to the Google Cloud Console, navigate to IAM & Admin &gt;
-                      Service Accounts, create or select a service account, and generate a new JSON
-                      key.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </Label>
-            <SecureJsonInput
-              value={form.watch('credentials.serviceAccount')}
-              onChange={value => {
-                form.setValue('credentials.serviceAccount', value);
-              }}
-              keysToMask={sensitiveKeys}
-            />
-            {errors.credentials && 'serviceAccount' in errors.credentials && (
-              <p className='mt-1 text-sm text-red-600'>
-                {errors.credentials.serviceAccount?.message}
-              </p>
-            )}
-          </div>
+        <div className='space-y-1'>
+          <Label htmlFor='service-account-key' className='block text-sm font-medium text-gray-700'>
+            Service Account JSON
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className='ml-1.5 inline-block h-4 w-4 cursor-help text-gray-500' />
+                </TooltipTrigger>
+                <TooltipContent className='max-w-sm text-sm'>
+                  <p>
+                    A Service Account Key is a JSON credential file that provides authentication to
+                    Google BigQuery.
+                  </p>
+                  <p className='mt-1'>
+                    To get one, go to the Google Cloud Console, navigate to IAM & Admin &gt; Service
+                    Accounts, create or select a service account, and generate a new JSON key.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </Label>
+          <SecureJsonInput
+            value={form.watch('credentials.serviceAccount')}
+            onChange={value => {
+              form.setValue('credentials.serviceAccount', value);
+            }}
+            keysToMask={sensitiveKeys}
+          />
+          {errors.credentials && 'serviceAccount' in errors.credentials && (
+            <p className='mt-1 text-sm text-red-600'>
+              {errors.credentials.serviceAccount?.message}
+            </p>
+          )}
         </div>
       </div>
     </div>
