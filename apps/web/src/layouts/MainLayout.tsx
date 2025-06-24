@@ -8,7 +8,8 @@ import {
 } from '@owox/ui/components/sidebar';
 import { AppSidebar } from '../components/AppSidebar/app-sidebar.tsx';
 import { ThemeProvider } from '../app/providers/theme-provider.tsx';
-import { storageService } from '../services/localstorage.service';
+import { storageService } from '../services';
+import { GlobalLoader, LoadingProvider, useLoading } from '../shared/components/GlobalLoader';
 
 // Constants
 const SIDEBAR_STATE_KEY = 'sidebar_state';
@@ -17,9 +18,11 @@ function MainLayoutContent() {
   const { state, isMobile } = useSidebar();
   const isCollapsed = state === 'collapsed';
   const showTrigger = isMobile || isCollapsed;
+  const { isLoading } = useLoading();
 
   return (
     <>
+      <GlobalLoader isLoading={isLoading} />
       <AppSidebar variant='inset' collapsible='icon' />
       <SidebarInset>
         <div className='relative h-full w-full'>
@@ -50,9 +53,11 @@ function MainLayout() {
 
   return (
     <ThemeProvider>
-      <SidebarProvider open={sidebarOpen} onOpenChange={handleSidebarChange}>
-        <MainLayoutContent />
-      </SidebarProvider>
+      <LoadingProvider>
+        <SidebarProvider open={sidebarOpen} onOpenChange={handleSidebarChange}>
+          <MainLayoutContent />
+        </SidebarProvider>
+      </LoadingProvider>
     </ThemeProvider>
   );
 }
