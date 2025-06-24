@@ -62,7 +62,7 @@ const awsConfigSchema = z.object({
 });
 
 const baseSchema = z.object({
-  title: z.string(),
+  title: z.string().min(1, 'Title is required').max(255, 'Title must be 255 characters or less'),
 });
 
 export const googleBigQuerySchema = baseSchema.extend({

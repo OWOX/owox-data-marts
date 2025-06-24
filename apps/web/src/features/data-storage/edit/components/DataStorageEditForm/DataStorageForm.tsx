@@ -18,6 +18,7 @@ import {
   dataStorageSchema,
 } from '../../../shared/types/data-storage.schema.ts';
 import { Label } from '@owox/ui/components/label';
+import { Input } from '@owox/ui/components/input';
 
 interface DataStorageFormProps {
   initialData?: DataStorageFormData;
@@ -31,7 +32,11 @@ export function DataStorageForm({ initialData, onSubmit, onCancel }: DataStorage
     defaultValues: initialData,
   });
 
-  const { watch } = form;
+  const {
+    watch,
+    register,
+    formState: { errors },
+  } = form;
   const selectedType = watch('type');
 
   return (
@@ -43,6 +48,21 @@ export function DataStorageForm({ initialData, onSubmit, onCancel }: DataStorage
       className='space-y-6'
     >
       <div className='space-y-4'>
+        <div>
+          <Label htmlFor='title' className='block text-sm font-medium text-gray-700'>
+            Title<span className='ml-1 text-red-500'>*</span>
+          </Label>
+          <Input
+            id='title'
+            type='text'
+            {...register('title')}
+            className='mt-1 block w-full'
+            aria-required='true'
+            aria-invalid={!!errors.title}
+          />
+          {errors.title && <p className='mt-1 text-sm text-red-600'>{errors.title.message}</p>}
+        </div>
+
         <div>
           <Label className='block text-sm font-medium text-gray-700'>Storage Provider</Label>
 
