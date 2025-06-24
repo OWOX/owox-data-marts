@@ -1,8 +1,17 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsObject } from 'class-validator';
+import { IsObject, IsString, MaxLength } from 'class-validator';
 import { DataStorageConfig } from '../../data-storage-types/data-storage-config.type';
 
 export class UpdateDataStorageApiDto {
+  @ApiProperty({
+    type: 'string',
+    description: 'Custom title for the data storage',
+    required: true,
+    maxLength: 255,
+  })
+  @IsString()
+  @MaxLength(255, { message: 'Title must be 255 characters or less' })
+  title: string;
   @ApiProperty({
     type: 'object',
     additionalProperties: true,

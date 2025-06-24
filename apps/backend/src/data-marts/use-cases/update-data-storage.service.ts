@@ -31,6 +31,7 @@ export class UpdateDataStorageService {
 
     dataStorageEntity.credentials = command.credentials;
     dataStorageEntity.config = command.config;
+    dataStorageEntity.title = command.title;
 
     const updatedDataStorageEntity = await this.dataStorageRepository.save(dataStorageEntity);
     return this.dataStorageMapper.toDomainDto(updatedDataStorageEntity);

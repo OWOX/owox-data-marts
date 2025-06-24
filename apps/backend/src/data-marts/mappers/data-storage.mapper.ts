@@ -12,6 +12,7 @@ import { GetDataStorageCommand } from '../dto/domain/get-data-storage.command';
 import { DataStorageListResponseApiDto } from '../dto/presentation/data-storage-list-response-api.dto';
 import { DeleteDataStorageCommand } from '../dto/domain/delete-data-storage.command';
 import { ListDataStoragesCommand } from '../dto/domain/list-data-storages.command';
+import { toHumanReadable } from '../data-storage-types/enums/data-storage-type.enum';
 
 @Injectable()
 export class DataStorageMapper {
@@ -29,13 +30,19 @@ export class DataStorageMapper {
     context: AuthorizationContext,
     dto: UpdateDataStorageApiDto
   ): UpdateDataStorageCommand {
-    return new UpdateDataStorageCommand(id, context.projectId, dto.credentials, dto.config);
+    return new UpdateDataStorageCommand(
+      id,
+      context.projectId,
+      dto.credentials,
+      dto.config,
+      dto.title.trim()
+    );
   }
 
   toDomainDto(dataStorage: DataStorage): DataStorageDto {
     return new DataStorageDto(
       dataStorage.id,
-      this.dataStorageTitleFacade.generate(dataStorage.type, dataStorage.config),
+      dataStorage.title || toHumanReadable(dataStorage.type),
       dataStorage.type,
       dataStorage.projectId,
       dataStorage.credentials,

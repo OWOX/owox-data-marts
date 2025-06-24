@@ -20,6 +20,9 @@ export class DataStorage {
   @Column()
   projectId: string;
 
+  @Column({ length: 255, nullable: true })
+  title?: string;
+
   @Column({ type: 'json', nullable: true })
   credentials?: Record<string, unknown>;
 
