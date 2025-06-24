@@ -25,7 +25,7 @@ export class UpdateDataMartDefinitionService {
       command.userId
     );
 
-    if (dataMart.definition || dataMart.definitionType) {
+    if (dataMart.definitionType && dataMart.definitionType !== command.definitionType) {
       throw new BusinessViolationException('DataMart already has definition');
     }
 
