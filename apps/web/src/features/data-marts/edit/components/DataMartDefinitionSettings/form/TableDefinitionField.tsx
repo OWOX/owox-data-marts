@@ -32,7 +32,7 @@ export function TableDefinitionField({ control, storageType }: TableDefinitionFi
         <FormItem>
           <FormLabel>Fully Qualified Table Name</FormLabel>
           <FormControl>
-            <Input placeholder={placeholder} {...field} />
+            <Input placeholder={placeholder} value={field.value || ''} onChange={field.onChange} />
           </FormControl>
           <FormDescription>{helpText}</FormDescription>
           <FormMessage />

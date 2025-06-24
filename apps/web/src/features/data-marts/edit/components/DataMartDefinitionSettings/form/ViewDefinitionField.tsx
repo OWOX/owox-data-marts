@@ -32,7 +32,7 @@ export function ViewDefinitionField({ control, storageType }: ViewDefinitionFiel
         <FormItem>
           <FormLabel>Fully Qualified View Name</FormLabel>
           <FormControl>
-            <Input placeholder={placeholder} {...field} />
+            <Input placeholder={placeholder} value={field.value || ''} onChange={field.onChange} />
           </FormControl>
           <FormDescription>{helpText}</FormDescription>
           <FormMessage />

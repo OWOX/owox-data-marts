@@ -32,7 +32,7 @@ export function TablePatternDefinitionField({
         <FormItem>
           <FormLabel>Table Pattern</FormLabel>
           <FormControl>
-            <Input placeholder={placeholder} {...field} />
+            <Input placeholder={placeholder} value={field.value || ''} onChange={field.onChange} />
           </FormControl>
           <FormDescription>{helpText}</FormDescription>
           <FormMessage />
