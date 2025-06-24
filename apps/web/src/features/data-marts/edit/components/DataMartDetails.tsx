@@ -7,14 +7,14 @@ import {
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
-import { MoreVertical, Trash2, ArrowLeft, Upload } from 'lucide-react';
+import { MoreVertical, Trash2, ArrowLeft, Upload, Play } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { cn } from '@owox/ui/lib/utils';
 import { InlineEditTitle } from '../../../../shared/components/InlineEditTitle/InlineEditTitle.tsx';
 import { Toaster } from '../../../../shared/components/Toaster';
 import { StatusLabel, StatusTypeEnum } from '../../../../shared/components/StatusLabel';
 import { Button } from '../../../../shared/components/Button';
-import { DataMartStatus, getValidationErrorMessages } from '../../shared';
+import { DataMartDefinitionType, DataMartStatus, getValidationErrorMessages } from '../../shared';
 import { toast } from 'react-hot-toast';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 
@@ -32,6 +32,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     updateDataMartDescription,
     updateDataMartDefinition,
     publishDataMart,
+    runDataMart,
     isLoading,
     error,
   } = useDataMart(id);
@@ -62,6 +63,11 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     } finally {
       setIsPublishing(false);
     }
+  };
+
+  const handleManualRun = async () => {
+    if (!dataMart) return;
+    await runDataMart(dataMart.id);
   };
 
   if (isLoading) {
@@ -162,6 +168,18 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end'>
+              {dataMart.status.code === DataMartStatus.PUBLISHED &&
+                dataMart.definitionType === DataMartDefinitionType.CONNECTOR && (
+                  <DropdownMenuItem
+                    className='text-blue-600'
+                    onClick={() => {
+                      void handleManualRun();
+                    }}
+                  >
+                    <Play className='mr-2 h-4 w-4' />
+                    Manual Run
+                  </DropdownMenuItem>
+                )}
               <DropdownMenuItem
                 className='text-red-600'
                 onClick={() => {

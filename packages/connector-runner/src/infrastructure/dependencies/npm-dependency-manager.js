@@ -1,6 +1,8 @@
 const { spawn } = require('child_process');
 const DependencyManager = require('../../core/interfaces/dependency-manager');
+const { createRequire } = require('node:module');
 
+const req = createRequire(__filename);
 /**
  * Default dependencies for the connector runner
  *
@@ -12,6 +14,12 @@ const DependencyManager = require('../../core/interfaces/dependency-manager');
  *
  */
 const DEFAULT_DEPENDENCIES = [
+  {
+    name: '@owox/connectors',
+    version: req.resolve('@owox/connectors'),
+    global: ['OWOX'],
+    global_is: true,
+  },
   {
     name: '@kaciras/deasync',
     version: '1.1.0',

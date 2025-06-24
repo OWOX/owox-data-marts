@@ -28,6 +28,7 @@ import { RunReportService } from './use-cases/run-report.service';
 import { UpdateReportService } from './use-cases/update-report.service';
 import { DataMart } from './entities/data-mart.entity';
 import { DataStorage } from './entities/data-storage.entity';
+import { DataMartRun } from './entities/data-mart-run.entity';
 import { dataStorageFacadesProviders } from './data-storage-types/data-storage-facades';
 import { dataStorageResolverProviders } from './data-storage-types/data-storage-providers';
 import { dataDestinationFacadesProviders } from './data-destination-types/data-destination-facades';
@@ -44,14 +45,25 @@ import { DeleteDataDestinationService } from './use-cases/delete-data-destinatio
 import { DeleteDataMartService } from './use-cases/delete-data-mart.service';
 import { DataDestination } from './entities/data-destination.entity';
 import { Report } from './entities/report.entity';
+import { ConnectorController } from './controllers/connector.controller';
+import { AvailableConnectorService } from './use-cases/connector/available-connector.service';
+import { ConnectorService } from './services/connector.service';
+import { ConnectorExecutionService } from './services/connector-execution.service';
+import { ConnectorMapper } from './mappers/connector.mapper';
+import { SpecificationConnectorService } from './use-cases/connector/specification-connector.service';
+import { FieldsConnectorService } from './use-cases/connector/fields-connector.service';
+import { RunDataMartService } from './use-cases/run-data-mart.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([DataMart, DataStorage, DataDestination, Report])],
+  imports: [
+    TypeOrmModule.forFeature([DataMart, DataStorage, DataDestination, Report, DataMartRun]),
+  ],
   controllers: [
     DataMartController,
     DataStorageController,
     DataDestinationController,
     ReportController,
+    ConnectorController,
   ],
   providers: [
     ...dataStorageResolverProviders,
@@ -90,6 +102,13 @@ import { Report } from './entities/report.entity';
     DeleteReportService,
     RunReportService,
     UpdateReportService,
+    AvailableConnectorService,
+    ConnectorService,
+    ConnectorExecutionService,
+    ConnectorMapper,
+    SpecificationConnectorService,
+    FieldsConnectorService,
+    RunDataMartService,
   ],
 })
 export class DataMartsModule {}

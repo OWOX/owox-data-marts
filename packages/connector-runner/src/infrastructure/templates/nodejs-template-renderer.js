@@ -11,6 +11,7 @@ class NodeJsTemplateRenderer extends TemplateRenderer {
    * @returns {string} Rendered template content
    */
   render(dependencies) {
+    console.log(dependencies);
     return `
             ${this._getDependencies(dependencies)}
             ${this._getOwoxLibs()}
@@ -34,7 +35,6 @@ class NodeJsTemplateRenderer extends TemplateRenderer {
 
   _getOwoxLibs() {
     return `
-            const OWOX = require('@owox/connectors');
             const { Core, Connectors, Storages } = OWOX;
 
             Object.keys(Core).forEach(key => {

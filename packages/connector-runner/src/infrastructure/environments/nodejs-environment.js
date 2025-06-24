@@ -5,7 +5,16 @@ const ExecutionEnvironment = require('../../core/interfaces/execution-environmen
 const NpmDependencyManager = require('../dependencies/npm-dependency-manager');
 const NodeJsTemplateRenderer = require('../templates/nodejs-template-renderer');
 
-const WORK_DIR_PREFIX = '../../dist/data-marts/conectivity/runs';
+const getEnvPaths = () => {
+  const envPathsModule = require('env-paths');
+  const envPaths = envPathsModule.default || envPathsModule;
+  return envPaths;
+};
+
+const getWorkDirPrefix = () => {
+  const envPaths = getEnvPaths();
+  return envPaths('owox', { suffix: 'connector-runner' }).temp;
+};
 
 /**
  * Node.js execution environment implementation
@@ -26,7 +35,7 @@ class NodeJsEnvironment extends ExecutionEnvironment {
    * @returns {Promise<string>} Path to the created environment
    */
   async createEnvironment(connectorId, runId, dependencies) {
-    const workDir = path.join(WORK_DIR_PREFIX, connectorId, runId);
+    const workDir = path.join(getWorkDirPrefix(), connectorId, runId);
 
     fs.mkdirSync(workDir, { recursive: true });
 
@@ -46,16 +55,50 @@ class NodeJsEnvironment extends ExecutionEnvironment {
    * Execute a connector in the prepared environment
    * @param {string} environmentPath - Path to the environment
    * @param {Object} executionContext - Context for execution (env vars, etc.)
-   * @param {string | Stream | StdioPipeNamed | undefined} stdio - Standard input/output/error stream
+   * @param {string | Array | Object | undefined} stdio - Standard input/output/error stream or log capture config
    * @returns {Promise<void>} Promise that resolves when execution completes
    */
   async executeConnector(environmentPath, executionContext, stdio) {
     return new Promise((resolve, reject) => {
+      let spawnStdio = 'inherit';
+      let logCapture = null;
+
+      if (stdio && typeof stdio === 'object' && stdio.logCapture) {
+        logCapture = stdio.logCapture;
+        spawnStdio = 'pipe';
+      } else if (stdio && Array.isArray(stdio)) {
+        spawnStdio = stdio;
+      } else if (typeof stdio === 'string') {
+        spawnStdio = stdio;
+      }
+
       const node = spawn('node', ['main.js'], {
         cwd: environmentPath,
-        stdio,
+        stdio: spawnStdio,
         env: executionContext,
       });
+
+      if (logCapture && node.stdout && node.stderr) {
+        node.stdout.on('data', data => {
+          const message = data.toString();
+          if (logCapture.onStdout) {
+            logCapture.onStdout(message);
+          }
+          if (logCapture.passThrough) {
+            process.stdout.write(data);
+          }
+        });
+
+        node.stderr.on('data', data => {
+          const message = data.toString();
+          if (logCapture.onStderr) {
+            logCapture.onStderr(message);
+          }
+          if (logCapture.passThrough) {
+            process.stderr.write(data);
+          }
+        });
+      }
 
       node.on('close', code => {
         if (code === 0) {
@@ -78,8 +121,8 @@ class NodeJsEnvironment extends ExecutionEnvironment {
    * @returns {Promise<void>} Promise that resolves when cleanup completes
    */
   async cleanup(connectorId, runId) {
-    const workDir = path.join(WORK_DIR_PREFIX, connectorId, runId);
-    fs.rmSync(path.join(workDir, 'node_modules'), { recursive: true, force: true });
+    const workDir = path.join(getWorkDirPrefix(), connectorId, runId);
+    fs.rmSync(workDir, { recursive: true, force: true });
   }
 }
 

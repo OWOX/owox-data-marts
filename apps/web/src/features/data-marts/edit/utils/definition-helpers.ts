@@ -13,6 +13,20 @@ export const getEmptyDefinition = (type: DataMartDefinitionType) => {
       return { fullyQualifiedName: '' };
     case DataMartDefinitionType.TABLE_PATTERN:
       return { pattern: '' };
+    case DataMartDefinitionType.CONNECTOR:
+      return {
+        connector: {
+          source: {
+            name: '',
+            configuration: [],
+            node: '',
+            fields: [],
+          },
+          storage: {
+            fullyQualifiedName: '',
+          },
+        },
+      };
     default:
       return {};
   }

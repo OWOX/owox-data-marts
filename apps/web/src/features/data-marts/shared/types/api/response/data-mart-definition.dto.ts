@@ -3,6 +3,7 @@ import type {
   TableDefinitionDto,
   TablePatternDefinitionDto,
   ViewDefinitionDto,
+  ConnectorDefinitionDto,
 } from '../shared';
 
 /**
@@ -12,4 +13,5 @@ export type DataMartDefinitionDto =
   | SqlDefinitionDto
   | TableDefinitionDto
   | TablePatternDefinitionDto
-  | ViewDefinitionDto;
+  | ViewDefinitionDto
+  | ConnectorDefinitionDto;

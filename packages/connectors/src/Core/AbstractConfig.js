@@ -13,7 +13,8 @@ class AbstractConfig {
     constructor(configData) {
       this.addParameter('Environment', {
         value: AbstractConfig.detectEnvironment(),
-        requiredType: "number"
+        requiredType: "number",
+        showInUI: false
       });
 
       for(var name in configData) {

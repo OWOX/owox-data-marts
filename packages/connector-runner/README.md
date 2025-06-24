@@ -62,7 +62,7 @@ The connector configuration JSON file has the following structure:
 {
   "name": "ConnectorName", // The class name of the connector
   "description": "Connector Description", // The description of the connector
-  "integration": {
+  "source": {
     "name": "ConnectorName", // The name of the connector. (Conector dir name)
     "config": {
       // The connector configuration parameters. The parameters are defined in the connector constructor.

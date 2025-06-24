@@ -69,7 +69,9 @@
     "sqlite3": "^5.1.7",
     "swagger-ui-express": "^5.0.1",
     "typeorm": "^0.3.24",
-    "zod": "^3.25.64"
+    "zod": "^3.25.64",
+    "@owox/connectors": "0.0.0",
+    "@owox/connector-runner": "0.0.0"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",

@@ -25,11 +25,13 @@ import {
   UpdateDataMartDescriptionSpec,
   UpdateDataMartTitleSpec,
   DeleteDataMartSpec,
+  RunDataMartSpec,
 } from './spec/data-mart.api';
 import {
   AuthContext,
   AuthorizationContext,
 } from '../../common/authorization-context/authorization.context';
+import { RunDataMartService } from '../use-cases/run-data-mart.service';
 
 @Controller('data-marts')
 @ApiTags('DataMarts')
@@ -43,7 +45,8 @@ export class DataMartController {
     private readonly updateDescriptionService: UpdateDataMartDescriptionService,
     private readonly publishDataMartService: PublishDataMartService,
     private readonly deleteDataMartService: DeleteDataMartService,
-    private readonly mapper: DataMartMapper
+    private readonly mapper: DataMartMapper,
+    private readonly runDataMartService: RunDataMartService
   ) {}
 
   @Post()
@@ -131,5 +134,16 @@ export class DataMartController {
   ): Promise<void> {
     const command = this.mapper.toDeleteCommand(id, context);
     await this.deleteDataMartService.run(command);
+  }
+
+  @Post(':id/manual-run')
+  @RunDataMartSpec()
+  async manualRun(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string
+  ): Promise<{ runId: string }> {
+    const command = this.mapper.toRunCommand(id, context);
+    const runId = await this.runDataMartService.run(command.id, command.projectId, command.userId);
+    return { runId };
   }
 }

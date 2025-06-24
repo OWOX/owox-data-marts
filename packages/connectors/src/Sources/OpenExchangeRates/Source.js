@@ -45,7 +45,8 @@ constructor(config) {
         value: "USD"
       }
     }) );
-  
+    
+    this.fieldsSchema = OpenExchangeRatesFieldsSchema;
   }
   
   

@@ -7,13 +7,13 @@
     "environment": {
         "node": {
             "enabled": true,
-            "dependencies": {
+            "dependencies": [{
                 "name": "@google-cloud/bigquery",
                 "version": "^8.0.0",
                 "global": [
                     "BigQuery"
                 ]
-            }
+            }]
         },
         "appscript": {
             "enabled": true,

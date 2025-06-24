@@ -5,6 +5,7 @@ import { SqlDefinitionField } from './SqlDefinitionField.tsx';
 import { TableDefinitionField } from './TableDefinitionField.tsx';
 import { ViewDefinitionField } from './ViewDefinitionField.tsx';
 import { TablePatternDefinitionField } from './TablePatternDefinitionField.tsx';
+import { ConnectorDefinitionField } from './ConnectorDefinitionField.tsx';
 import type { DataMartDefinitionFormData } from '../../../model/schema/data-mart-definition.schema.ts';
 
 interface DataMartDefinitionFormProps {
@@ -32,6 +33,10 @@ export function DataMartDefinitionForm({
 
       {definitionType === DataMartDefinitionType.TABLE_PATTERN && (
         <TablePatternDefinitionField control={control} storageType={storageType} />
+      )}
+
+      {definitionType === DataMartDefinitionType.CONNECTOR && (
+        <ConnectorDefinitionField control={control} storageType={storageType} />
       )}
     </div>
   );

@@ -46,14 +46,14 @@ export function DataMartDefinitionSettings() {
     } as DataMartDefinitionFormData;
   }, [definitionType, initialDefinition]);
 
-  const getResolver = (): Resolver<DataMartDefinitionFormData> | undefined => {
+  const currentResolver = useCallback((): Resolver<DataMartDefinitionFormData> | undefined => {
     if (!definitionType) return undefined;
     const schema = createDataMartDefinitionSchema(definitionType, storageType);
     return zodResolver(schema) as unknown as Resolver<DataMartDefinitionFormData>;
-  };
+  }, [definitionType, storageType]);
 
   const methods = useForm<DataMartDefinitionFormData>({
-    resolver: getResolver(),
+    resolver: currentResolver(),
     defaultValues: getInitialFormValues(),
     mode: 'onChange',
   });
@@ -102,13 +102,15 @@ export function DataMartDefinitionSettings() {
     return (
       <form onSubmit={handleFormSubmit} className='space-y-6'>
         <DataMartDefinitionForm definitionType={definitionType} storageType={storageType} />
-        <div className='flex justify-start space-x-4'>
-          <Button variant={'secondary'} type='submit' disabled={!isDirty || !isValid}>
-            Save
-          </Button>
-          <Button type='button' variant='ghost' onClick={handleReset} disabled={!isDirty}>
-            Discard
-          </Button>
+        <div className='space-y-4'>
+          <div className='flex justify-start space-x-4'>
+            <Button variant={'secondary'} type='submit' disabled={!isDirty || !isValid}>
+              Save
+            </Button>
+            <Button type='button' variant='ghost' onClick={handleReset} disabled={!isDirty}>
+              Discard
+            </Button>
+          </div>
         </div>
       </form>
     );

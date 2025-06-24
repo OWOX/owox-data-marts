@@ -4,4 +4,5 @@ export * from './sql-definition-config';
 export * from './table-definition-config';
 export * from './table-pattern-definition-config';
 export * from './view-definition-config';
+export * from './connector-definition-config';
 export * from './data-mart-definition-config';

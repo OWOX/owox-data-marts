@@ -6,12 +6,14 @@ import type {
   TableDefinitionConfig,
   TablePatternDefinitionConfig,
   ViewDefinitionConfig,
+  ConnectorDefinitionConfig,
 } from '../types';
 import type {
   SqlDefinitionDto,
   TableDefinitionDto,
   TablePatternDefinitionDto,
   ViewDefinitionDto,
+  ConnectorDefinitionDto,
 } from '../../../shared/types/api';
 
 /**
@@ -91,6 +93,49 @@ export function mapTablePatternDefinitionFromDto(
 }
 
 /**
+ * Maps a connector definition from the model to the API DTO format
+ */
+export function mapConnectorDefinitionToDto(
+  definition: ConnectorDefinitionConfig
+): ConnectorDefinitionDto {
+  return {
+    connector: {
+      source: {
+        name: definition.connector.source.name,
+        configuration: definition.connector.source.configuration,
+        node: definition.connector.source.node,
+        fields: definition.connector.source.fields,
+      },
+      storage: {
+        fullyQualifiedName: definition.connector.storage.fullyQualifiedName,
+      },
+    },
+  };
+}
+
+/**
+ * Maps a connector definition from API DTO to the model format
+ */
+export function mapConnectorDefinitionFromDto(
+  dto: ConnectorDefinitionDto
+): ConnectorDefinitionConfig {
+  const connectorDto = dto.connector;
+  return {
+    connector: {
+      source: {
+        name: connectorDto.source.name,
+        configuration: connectorDto.source.configuration,
+        node: connectorDto.source.node,
+        fields: connectorDto.source.fields,
+      },
+      storage: {
+        fullyQualifiedName: connectorDto.storage.fullyQualifiedName,
+      },
+    },
+  };
+}
+
+/**
  * Maps a definition from API DTO to the model format based on definition type
  */
 export function mapDefinitionFromDto(
@@ -113,6 +158,9 @@ export function mapDefinitionFromDto(
 
     case DataMartDefinitionType.TABLE_PATTERN:
       return mapTablePatternDefinitionFromDto(definition as TablePatternDefinitionDto);
+
+    case DataMartDefinitionType.CONNECTOR:
+      return mapConnectorDefinitionFromDto(definition as ConnectorDefinitionDto);
 
     default:
       console.warn(`Unknown definition type: ${String(definitionType)}`);

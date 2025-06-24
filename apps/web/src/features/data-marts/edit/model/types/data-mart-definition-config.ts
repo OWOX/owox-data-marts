@@ -1,10 +1,12 @@
-import type { SqlDefinitionConfig } from './sql-definition-config.ts';
-import type { TableDefinitionConfig } from './table-definition-config.ts';
-import type { TablePatternDefinitionConfig } from './table-pattern-definition-config.ts';
-import type { ViewDefinitionConfig } from './view-definition-config.ts';
+import type { SqlDefinitionConfig } from './sql-definition-config';
+import type { TableDefinitionConfig } from './table-definition-config';
+import type { ViewDefinitionConfig } from './view-definition-config';
+import type { TablePatternDefinitionConfig } from './table-pattern-definition-config';
+import type { ConnectorDefinitionConfig } from './connector-definition-config';
 
 export type DataMartDefinitionConfig =
   | SqlDefinitionConfig
   | TableDefinitionConfig
+  | ViewDefinitionConfig
   | TablePatternDefinitionConfig
-  | ViewDefinitionConfig;
+  | ConnectorDefinitionConfig;

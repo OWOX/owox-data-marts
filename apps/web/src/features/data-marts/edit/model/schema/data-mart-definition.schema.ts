@@ -34,6 +34,25 @@ const createTablePatternDefinitionSchema = (storageType: DataStorageType) => {
   });
 };
 
+const connectorDefinitionSchema = z.object({
+  definitionType: z.literal(DataMartDefinitionType.CONNECTOR),
+  definition: z.object({
+    connector: z.object({
+      source: z.object({
+        name: z.string().min(1, 'Connector name is required'),
+        configuration: z
+          .array(z.record(z.unknown()))
+          .min(1, 'At least one configuration is required'),
+        node: z.string().min(1, 'Node is required'),
+        fields: z.array(z.string()).min(1, 'At least one field is required'),
+      }),
+      storage: z.object({
+        fullyQualifiedName: z.string().min(1, 'fully qualified name is required'),
+      }),
+    }),
+  }),
+});
+
 export const createDataMartDefinitionSchema = (
   definitionType: DataMartDefinitionType | null,
   storageType: DataStorageType
@@ -54,6 +73,8 @@ export const createDataMartDefinitionSchema = (
       return createViewDefinitionSchema(storageType);
     case DataMartDefinitionType.TABLE_PATTERN:
       return createTablePatternDefinitionSchema(storageType);
+    case DataMartDefinitionType.CONNECTOR:
+      return connectorDefinitionSchema;
     default:
       return z.object({});
   }
@@ -69,8 +90,11 @@ export type TablePatternDefinitionFormData = z.infer<
   ReturnType<typeof createTablePatternDefinitionSchema>
 >;
 
+export type ConnectorDefinitionFormData = z.infer<typeof connectorDefinitionSchema>;
+
 export type DataMartDefinitionFormData =
   | SqlDefinitionFormData
   | TableDefinitionFormData
   | ViewDefinitionFormData
-  | TablePatternDefinitionFormData;
+  | TablePatternDefinitionFormData
+  | ConnectorDefinitionFormData;

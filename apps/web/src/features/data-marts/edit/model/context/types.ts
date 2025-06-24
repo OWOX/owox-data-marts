@@ -38,6 +38,9 @@ export type DataMartAction =
   | { type: 'PUBLISH_DATA_MART_START' }
   | { type: 'PUBLISH_DATA_MART_SUCCESS'; payload: DataMart }
   | { type: 'PUBLISH_DATA_MART_ERROR'; payload: string }
+  | { type: 'RUN_DATA_MART_START' }
+  | { type: 'RUN_DATA_MART_SUCCESS' }
+  | { type: 'RUN_DATA_MART_ERROR'; payload: string }
   | { type: 'RESET' };
 
 export interface DataMartContextType extends DataMartState {
@@ -54,5 +57,6 @@ export interface DataMartContextType extends DataMartState {
     definition: DataMartDefinitionConfig
   ) => Promise<void>;
   publishDataMart: (id: string) => Promise<void>;
+  runDataMart: (id: string) => Promise<void>;
   reset: () => void;
 }

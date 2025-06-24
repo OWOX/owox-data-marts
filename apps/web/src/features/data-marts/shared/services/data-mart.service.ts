@@ -108,6 +108,15 @@ export class DataMartService extends ApiService {
   async publishDataMart(id: string): Promise<DataMartResponseDto> {
     return this.put<DataMartResponseDto>(`/${id}/publish`);
   }
+
+  /**
+   * Run a data mart
+   * @param id Data mart ID
+   * @returns Promise with updated data mart
+   */
+  async runDataMart(id: string): Promise<DataMartResponseDto> {
+    return this.post<DataMartResponseDto>(`/${id}/manual-run`);
+  }
 }
 
 // Create a singleton instance

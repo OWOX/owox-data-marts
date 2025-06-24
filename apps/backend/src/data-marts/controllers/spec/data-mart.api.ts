@@ -79,3 +79,11 @@ export function DeleteDataMartSpec() {
     ApiNoContentResponse({ description: 'DataMart deleted' })
   );
 }
+
+export function RunDataMartSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Manual run DataMart' }),
+    ApiParam({ name: 'id', type: String }),
+    ApiNoContentResponse({ description: 'DataMart run' })
+  );
+}
