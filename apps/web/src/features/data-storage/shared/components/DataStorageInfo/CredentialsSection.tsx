@@ -4,8 +4,10 @@ import {
   isGoogleBigQueryCredentials,
   isAwsAthenaCredentials,
 } from '../../model/types';
+import { SENSITIVE_KEYS } from '../../constants';
 import { InfoRow } from './InfoRow';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import { SecureJsonInput } from '../SecureJsonInput/SecureJsonInput.tsx';
 
 interface CredentialsSectionProps {
   type: DataStorageType;
@@ -31,7 +33,11 @@ export const CredentialsSection = ({ type, credentials }: CredentialsSectionProp
                   </span>
                 </TooltipTrigger>
                 <TooltipContent className='max-w-md'>
-                  <p className='break-words'>{serviceAccountValue}</p>
+                  <SecureJsonInput
+                    displayOnly={true}
+                    value={serviceAccountValue}
+                    keysToMask={SENSITIVE_KEYS}
+                  ></SecureJsonInput>
                 </TooltipContent>
               </Tooltip>
             ) : (

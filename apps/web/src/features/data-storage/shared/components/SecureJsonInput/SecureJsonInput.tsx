@@ -11,9 +11,14 @@ import {
 
 interface SecureJsonInputProps {
   value: string;
-  onChange: (value: string) => void;
+  onChange?: (value: string) => void;
   keysToMask?: string[];
   className?: string;
+  /**
+   * When true, component will only display masked content without any toggle buttons
+   * or ability to edit. Useful for read-only displays of sensitive information.
+   */
+  displayOnly?: boolean;
 }
 
 interface JsonObject {
@@ -27,6 +32,7 @@ export function SecureJsonInput({
   onChange,
   keysToMask = [],
   className,
+  displayOnly = false,
 }: SecureJsonInputProps) {
   // Function to check if any of the keysToMask actually exist in the content
   const hasSensitiveData = (jsonString: string, keys: string[]): boolean => {
@@ -56,23 +62,21 @@ export function SecureJsonInput({
   };
 
   // Start in edit mode if value is empty, there are no keys to mask, or no sensitive data exists
-  const shouldStartVisible =
-    !value || keysToMask.length === 0 || !hasSensitiveData(value, keysToMask);
+  // In display-only mode, always start with masked view if there's sensitive content
+  const shouldStartVisible = displayOnly
+    ? false
+    : !value || keysToMask.length === 0 || !hasSensitiveData(value, keysToMask);
   const [isVisible, setIsVisible] = useState(shouldStartVisible);
 
   // Update visibility when value or keys to mask change
   useEffect(() => {
-    if (!value || keysToMask.length === 0 || !hasSensitiveData(value, keysToMask)) {
+    if (displayOnly) {
+      // In display-only mode, always show masked content if there's sensitive data
+      setIsVisible(false);
+    } else if (!value || keysToMask.length === 0 || !hasSensitiveData(value, keysToMask)) {
       setIsVisible(true);
     }
-  }, [value, keysToMask]);
-
-  // Update visibility when value or keys to mask change
-  useEffect(() => {
-    if (!value || keysToMask.length === 0 || !hasSensitiveData(value, keysToMask)) {
-      setIsVisible(true);
-    }
-  }, [value, keysToMask]);
+  }, [value, keysToMask, displayOnly]);
 
   const getMaskedValue = (jsonString: string): string => {
     if (!jsonString) return '';
@@ -132,7 +136,7 @@ export function SecureJsonInput({
 
   return (
     <div className='relative'>
-      {!isVisible && hasSensitiveContent && (
+      {!isVisible && hasSensitiveContent && !displayOnly && (
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -146,25 +150,33 @@ export function SecureJsonInput({
           </Tooltip>
         </TooltipProvider>
       )}
-      <Textarea
-        value={isVisible ? value : getMaskedValue(value)}
-        onChange={e => {
-          // Only prevent changes when in masked mode AND there's sensitive content
-          if (isVisible || !hasSensitiveContent) {
-            onChange(e.target.value);
-          }
-        }}
-        onFocus={e => {
-          if (!isVisible && hasSensitiveContent) {
-            e.target.blur();
-          }
-        }}
-        readOnly={Boolean(!isVisible && hasSensitiveContent)}
-        className={`font-mono ${className ?? ''} ${!isVisible && hasSensitiveContent ? 'cursor-not-allowed opacity-70' : ''} min-h-[150px]`}
-        rows={8}
-      />
-      {/* Only show the visibility toggle button when there's sensitive content */}
-      {hasSensitiveContent && (
+      {displayOnly ? (
+        <div
+          className={`p-2 font-mono ${className ?? ''} min-h-[150px] cursor-not-allowed whitespace-pre-wrap opacity-70`}
+        >
+          {getMaskedValue(value)}
+        </div>
+      ) : (
+        <Textarea
+          value={isVisible ? value : getMaskedValue(value)}
+          onChange={e => {
+            // Only prevent changes when in masked mode AND there's sensitive content
+            if ((isVisible || !hasSensitiveContent) && onChange) {
+              onChange(e.target.value);
+            }
+          }}
+          onFocus={e => {
+            if (!isVisible && hasSensitiveContent) {
+              e.target.blur();
+            }
+          }}
+          readOnly={Boolean(!isVisible && hasSensitiveContent)}
+          className={`font-mono ${className ?? ''} ${!isVisible && hasSensitiveContent ? 'cursor-not-allowed opacity-70' : ''} min-h-[150px]`}
+          rows={8}
+        />
+      )}
+      {/* Only show the visibility toggle button when there's sensitive content and not in display-only mode */}
+      {hasSensitiveContent && !displayOnly && (
         <Button
           type='button'
           variant='ghost'
