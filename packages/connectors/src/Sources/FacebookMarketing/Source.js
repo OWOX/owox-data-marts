@@ -167,6 +167,17 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         
       }
       //console.log(allData);
+      
+      // Check if short link processing is requested
+      if (fields.includes('link_url_asset') && allData.length > 0) {
+        // Process short links automatically when link_url_asset field is requested
+        allData = this.processShortLinks(allData, {
+          processShortLinks: true,
+          shortLinkFields: ['link_url_asset'],
+          maxConcurrentRequests: 5
+        });
+      }
+      
       return allData;
   
     }
@@ -261,16 +272,16 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         return data;
       }
 
-      // Resolve short links to full URLs
-      this._resolveShortLinks(shortLinks, maxConcurrentRequests);
+      // Resolve short links to full URLs (returns new objects)
+      const resolvedShortLinks = this._resolveShortLinks(shortLinks, maxConcurrentRequests);
 
-      // Add resolved URLs back to data
-      this._addResolvedUrlsToData(data, shortLinks, shortLinkFields);
+      // Add resolved URLs back to data (returns new data)
+      const dataWithResolvedUrls = this._addResolvedUrlsToData(data, resolvedShortLinks, shortLinkFields);
 
-      // Parse GET parameters from resolved URLs
-      this._parseGetParametersFromUrls(data, shortLinkFields);
+      // Parse GET parameters from resolved URLs (returns new data)
+      const finalData = this._parseGetParametersFromUrls(dataWithResolvedUrls, shortLinkFields);
 
-      return data;
+      return finalData;
     }
 
   //---- _collectUniqueShortLinks -------------------------------------------
@@ -343,9 +354,12 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
      * 
      * @param {Array} shortLinks - Array of short link objects
      * @param {number} maxConcurrentRequests - Max concurrent requests
+     * @return {Array} New array with resolved URLs
      * @private
      */  
     _resolveShortLinks(shortLinks, maxConcurrentRequests) {
+      const resolvedLinks = [];
+      
       // Process in batches to avoid overwhelming the server
       for (let i = 0; i < shortLinks.length; i += maxConcurrentRequests) {
         const batch = shortLinks.slice(i, i + maxConcurrentRequests);
@@ -359,14 +373,29 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
             });
             
             const headers = response.getHeaders();
-            linkObj.resolvedUrl = headers.Location || linkObj.originalUrl;
+            const resolvedUrl = headers.Location || linkObj.originalUrl;
+            
+            // Create new object instead of mutating
+            resolvedLinks.push({
+              originalUrl: linkObj.originalUrl,
+              resolvedUrl: resolvedUrl,
+              parsedParams: null
+            });
             
           } catch (error) {
             console.log(`Failed to resolve short link ${linkObj.originalUrl}: ${error.message}`);
-            linkObj.resolvedUrl = linkObj.originalUrl;
+            
+            // Create new object with original URL as resolved
+            resolvedLinks.push({
+              originalUrl: linkObj.originalUrl,
+              resolvedUrl: linkObj.originalUrl,
+              parsedParams: null
+            });
           }
         });
       }
+      
+      return resolvedLinks;
     }
 
   //---- _addResolvedUrlsToData ---------------------------------------------
@@ -374,28 +403,46 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
      * Adds resolved URLs back to the original data
      * 
      * @param {Array} data - Original insights data
-     * @param {Array} shortLinks - Resolved short links
+     * @param {Array} resolvedShortLinks - Resolved short links
      * @param {Array} shortLinkFields - Fields containing URLs
+     * @return {Array} New data with resolved URLs
      * @private
      */
-    _addResolvedUrlsToData(data, shortLinks, shortLinkFields) {
+    _addResolvedUrlsToData(data, resolvedShortLinks, shortLinkFields) {
       const linkMap = new Map(
-        shortLinks.map(link => [link.originalUrl, link.resolvedUrl])
+        resolvedShortLinks.map(link => [link.originalUrl, link.resolvedUrl])
       );
 
-      data.forEach(record => {
+      return data.map(record => {
+        const newRecord = { ...record };
+        
         shortLinkFields.forEach(fieldName => {
-          const urlAsset = this._getNestedValue(record, fieldName);
+          const urlAsset = this._getNestedValue(newRecord, fieldName);
           
           if (urlAsset && urlAsset.website_url) {
             const resolvedUrl = linkMap.get(urlAsset.website_url);
             if (resolvedUrl) {
-              urlAsset.parsed_url = resolvedUrl;
+              // Create new nested object instead of mutating
+              const newUrlAsset = {
+                ...urlAsset,
+                parsed_url: resolvedUrl
+              };
+              
+              // Update the nested object in the record
+              this._setNestedValue(newRecord, fieldName, newUrlAsset);
             } else {
-              urlAsset.parsed_url = urlAsset.website_url;
+              // Even if no resolution, create new object with parsed_url = original
+              const newUrlAsset = {
+                ...urlAsset,
+                parsed_url: urlAsset.website_url
+              };
+              
+              this._setNestedValue(newRecord, fieldName, newUrlAsset);
             }
           }
         });
+        
+        return newRecord;
       });
     }
 
@@ -405,20 +452,31 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
      * 
      * @param {Array} data - Data with resolved URLs
      * @param {Array} shortLinkFields - Fields containing URLs
+     * @return {Array} New data with parsed GET parameters
      * @private
      */
     _parseGetParametersFromUrls(data, shortLinkFields) {
-      data.forEach(record => {
+      return data.map(record => {
+        const newRecord = { ...record };
+        
         shortLinkFields.forEach(fieldName => {
-          const urlAsset = this._getNestedValue(record, fieldName);
+          const urlAsset = this._getNestedValue(newRecord, fieldName);
           
           if (urlAsset && urlAsset.parsed_url) {
             const params = this._extractGetParameters(urlAsset.parsed_url);
             if (params && Object.keys(params).length > 0) {
-              urlAsset.get_params = params;
+              // Create new nested object with GET parameters
+              const newUrlAsset = {
+                ...urlAsset,
+                get_params: params
+              };
+              
+              this._setNestedValue(newRecord, fieldName, newUrlAsset);
             }
           }
         });
+        
+        return newRecord;
       });
     }
 
@@ -462,6 +520,28 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
      */
     _getNestedValue(obj, path) {
       return path.split('.').reduce((current, key) => current?.[key], obj);
+    }
+
+  //---- _setNestedValue ---------------------------------------------------
+    /**
+     * Sets nested value in object by dot notation
+     * 
+     * @param {Object} obj - Object to update
+     * @param {string} path - Dot notation path
+     * @param {*} value - Value to set
+     * @private
+     */
+    _setNestedValue(obj, path, value) {
+      const keys = path.split('.');
+      let current = obj;
+
+      keys.forEach((key, index) => {
+        if (index === keys.length - 1) {
+          current[key] = value;
+        } else {
+          current = current[key] || {};
+        }
+      });
     }
     
   }
