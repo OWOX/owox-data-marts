@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { DataMartForm, DataMartProvider } from '../../../features/data-marts/edit';
+import { DataMartCreateForm, DataMartProvider } from '../../../features/data-marts/edit';
 import { DataStorageProvider } from '../../../features/data-storage/shared/model/context';
 
 export default function CreateDataMartPage() {
@@ -18,7 +18,7 @@ export default function CreateDataMartPage() {
       <div className='rounded-lg p-6 shadow'>
         <DataStorageProvider>
           <DataMartProvider>
-            <DataMartForm
+            <DataMartCreateForm
               initialData={{
                 title: 'New Data Mart',
               }}

@@ -18,16 +18,19 @@ interface DataMartDetailsProps {
 }
 
 export function DataMartDetails({ id }: DataMartDetailsProps) {
+  const navigate = useNavigate();
+
   const {
     dataMart,
     deleteDataMart,
     updateDataMartTitle,
     updateDataMartDescription,
+    updateDataMartDefinition,
     isLoading,
     error,
   } = useDataMart(id);
+
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const navigate = useNavigate();
 
   const navigation = [
     { name: 'Overview', path: 'overview' },
@@ -114,7 +117,9 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
       </div>
 
       <div className='pt-4'>
-        <Outlet context={{ dataMart, updateDataMartDescription }} />
+        <Outlet
+          context={{ dataMart, isLoading, updateDataMartDescription, updateDataMartDefinition }}
+        />
       </div>
 
       <ConfirmationDialog
