@@ -1,6 +1,6 @@
 {
   "name": "@owox/backend",
-  "version": "0.1.0-alpha.1",
+  "version": "0.0.0",
   "description": "OWOX Data Marts Backend - Full-stack data orchestration platform",
   "author": "OWOX",
   "license": "ELv2",

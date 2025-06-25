@@ -21,14 +21,6 @@ export const config = {
         parser: 'json',
         trailingComma: 'none',
       },
-    },
-    {
-      files: ['*.md'],
-      options: {
-        parser: 'markdown',
-        proseWrap: 'always',
-        printWidth: 80,
-      },
-    },
+    }
   ],
 };

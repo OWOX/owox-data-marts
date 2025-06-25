@@ -11,7 +11,7 @@
     "@oclif/core": "^4",
     "@oclif/plugin-help": "^6",
     "@oclif/plugin-plugins": "^5",
-    "@owox/backend": "0.1.0-alpha.1"
+    "@owox/backend": "0.0.0"
   },
   "devDependencies": {
     "@eslint/compat": "^1",
@@ -51,7 +51,7 @@
     "bigquery",
     "athena"
   ],
-  "license": "MIT",
+  "license": "ELv2",
   "main": "dist/index.js",
   "type": "module",
   "oclif": {

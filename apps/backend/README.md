@@ -1,12 +1,10 @@
 # 🧭 Architecture Guidelines for Backend Application
 
-These guidelines define how to structure and organize the backend architecture
-for the project using NestJS, TypeORM, and clean layering principles.
+These guidelines define how to structure and organize the backend architecture for the project using NestJS, TypeORM, and clean layering principles.
 
 ---
 
-This document also includes the conventions for organizing the application
-structure, including module layout, naming rules, and folder hierarchy.
+This document also includes the conventions for organizing the application structure, including module layout, naming rules, and folder hierarchy.
 
 [modular monolith conventions](./MODULAR_CONVENTIONS.md).
 
@@ -28,16 +26,14 @@ structure, including module layout, naming rules, and folder hierarchy.
 - Belong to application/domain layer.
 - **Must not depend on API/CLI DTOs**.
 - **May depend on Entities**, but not on presentation-level DTOs.
-- Mapping into Domain DTOs is done via **non-static mappers**, not
-  `fromEntity()` inside DTO.
+- Mapping into Domain DTOs is done via **non-static mappers**, not `fromEntity()` inside DTO.
 
 #### b) **API/CLI DTOs (Presentation DTOs)**
 
 - Presentation-specific output format (API, CLI, etc).
 - Belong to the presentation layer.
 - Can be mapped via **presentation mappers** (non-static).
-- Lower layers **may depend on upper layers**, but the domain layer must never
-  depend on higher-level concerns.
+- Lower layers **may depend on upper layers**, but the domain layer must never depend on higher-level concerns.
 
 ### 3. **Entity Service Layer**
 
@@ -52,14 +48,10 @@ structure, including module layout, naming rules, and folder hierarchy.
 
 ### 4. **Use-Case Service Layer**
 
-- Represents a single business scenario (e.g., `CreateUserService`,
-  `GetUserWithPostsService`).
+- Represents a single business scenario (e.g., `CreateUserService`, `GetUserWithPostsService`).
 - Should typically expose only one public method — usually named `run(...)`.
-- In more complex cases where multiple related operations are needed, it is
-  acceptable to define several clearly named public methods instead of using
-  `run(...)`.
-- Can depend on multiple entity services, repositories, or infrastructure
-  services.
+- In more complex cases where multiple related operations are needed, it is acceptable to define several clearly named public methods instead of using `run(...)`.
+- Can depend on multiple entity services, repositories, or infrastructure services.
 - Returns a **Domain DTO**.
 - Does **not** return Entity directly.
 
@@ -84,12 +76,10 @@ structure, including module layout, naming rules, and folder hierarchy.
 | Entity     | Domain DTO  | via dedicated mapper |
 | Domain DTO | API/CLI DTO | via dedicated mapper |
 
-> 📌 **Do not place `fromEntity()` or `fromDomain()` inside DTOs**, and avoid
-> doing mapping inside services as well. Use dedicated **mapper classes** to
-> convert between layers.
+> 📌 **Do not place `fromEntity()` or `fromDomain()` inside DTOs**, and avoid doing mapping inside services as well.
+> Use dedicated **mapper classes** to convert between layers.
 
-> 🧩 Naming and grouping of mappers (e.g., one vs many) — left to the team's
-> discretion.
+> 🧩 Naming and grouping of mappers (e.g., one vs many) — left to the team's discretion.
 
 ---
 
@@ -99,13 +89,11 @@ structure, including module layout, naming rules, and folder hierarchy.
 - Use **Use-Case Services** for all orchestrations across domains.
 - Structure code to allow **reuse across API, CLI, cron, etc.**
 - Prefer **explicit DTOs** at every boundary.
-- Maintain **one scenario = one use-case service** with a single `.run()`
-  method.
+- Maintain **one scenario = one use-case service** with a single `.run()` method.
 - Avoid returning Entity from any service that crosses layers.
 - Domain DTOs may depend on Entity, but never on presentation DTOs.
 - API/CLI DTOs may depend on Domain DTOs, but never the other way around.
-- Entity Services **must not depend** on Use-Case Services or other Entity
-  Services.
+- Entity Services **must not depend** on Use-Case Services or other Entity Services.
 - Use-case services **can depend** on multiple Entity Services and Repositories.
 - Controllers and CLI commands must **never see Entities**.
 - Use **dedicated mapper classes** instead of placing logic inside DTOs.
@@ -139,12 +127,9 @@ src/
 
 ### 📌 Notes:
 
-- Domain DTOs are stored under `dto/domain/` — they are part of the application
-  layer.
-- Presentation-layer DTOs are stored under `dto/presentation/` — used in
-  API/CLI.
-- Each module (e.g., `users/`) is a self-contained feature with clearly
-  organized responsibilities.
+- Domain DTOs are stored under `dto/domain/` — they are part of the application layer.
+- Presentation-layer DTOs are stored under `dto/presentation/` — used in API/CLI.
+- Each module (e.g., `users/`) is a self-contained feature with clearly organized responsibilities.
 - Mapping logic is implemented in `mappers/` folder per feature.
 
 ---
@@ -157,5 +142,4 @@ This architecture encourages:
 - Clear ownership of logic
 - Readable, testable, and maintainable code
 
-Following these guidelines will help create a codebase that is easy to extend,
-open to the community, and maintainable in the long term.
+Following these guidelines will help create a codebase that is easy to extend, open to the community, and maintainable in the long term.
