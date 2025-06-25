@@ -1,11 +1,11 @@
-import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
-import { BaseExceptionFilter } from './common/exceptions/base-exception.filter';
-import { configureExpressStatic } from './config/express-static.config';
-import { setupGlobalPipes } from './config/global-pipes.config';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { Logger } from '@nestjs/common';
 import { setupSwagger } from './config/swagger.config';
+import { setupGlobalPipes } from './config/global-pipes.config';
+import { setupStaticAssets } from './config/express-static.config';
+import { BaseExceptionFilter } from './common/exceptions/base-exception.filter';
 
 const logger = new Logger('Bootstrap');
 const PATH_PREFIX = 'api';
@@ -21,7 +21,7 @@ async function bootstrap() {
   app.setGlobalPrefix(PATH_PREFIX);
   setupGlobalPipes(app);
   setupSwagger(app, SWAGGER_PATH);
-  configureExpressStatic(app);
+  setupStaticAssets(app, PATH_PREFIX);
 
   app.enableShutdownHooks();
 

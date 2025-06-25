@@ -29,7 +29,7 @@ function getWebDistPath(): string {
 /**
  * Configure express to serve static web assets
  */
-export function configureExpressStatic(app: NestExpressApplication): void {
+export function setupStaticAssets(app: NestExpressApplication, pathPrefix: string): void {
   const distPath = getWebDistPath();
 
   // Serve static files from Vite frontend (after build)
@@ -37,7 +37,7 @@ export function configureExpressStatic(app: NestExpressApplication): void {
 
   // Handle SPA fallback for client-side routing
   app.use((req: Request, res: Response, next: NextFunction) => {
-    if (req.originalUrl.startsWith('/api')) {
+    if (req.path.startsWith(`/${pathPrefix}`)) {
       next();
     } else {
       res.sendFile(join(distPath, 'index.html'));
