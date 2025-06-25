@@ -37,6 +37,7 @@ export default class Serve extends Command {
     '<%= config.bin %> serve',
     '<%= config.bin %> serve --port 8080',
     '<%= config.bin %> serve -p 3001',
+    '$ PORT=8080 <%= config.bin %> serve',
   ];
   static override flags = {
     port: Flags.integer({

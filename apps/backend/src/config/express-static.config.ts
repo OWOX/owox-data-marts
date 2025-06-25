@@ -6,24 +6,18 @@ import { join } from 'path';
 
 /**
  * Determines the correct path for web static assets based on execution mode
- * @returns Path to web distribution files
  */
 function getWebDistPath(): string {
   const logger = new Logger('StaticAssets');
 
-  // For published CLI package - static files are in './public' relative to dist
   const publishedPath = join(__dirname, '..', 'public');
-
-  // For development mode - static files are in web/dist
   const devPath = join(__dirname, '..', '..', '..', 'web', 'dist');
 
-  // Check if we're running from published package
   if (existsSync(publishedPath)) {
     logger.log(`Using published static assets: ${publishedPath}`);
     return publishedPath;
   }
 
-  // Fallback to development path
   if (existsSync(devPath)) {
     logger.log(`Using development static assets: ${devPath}`);
     return devPath;
@@ -38,17 +32,15 @@ function getWebDistPath(): string {
 export function configureExpressStatic(app: NestExpressApplication): void {
   const webDistPath = getWebDistPath();
 
-  // Serve static files from the web dist directory
+  // Serve static files from Vite frontend (after build)
   app.useStaticAssets(webDistPath);
 
-  // Fallback for SPA routing: serve index.html for any non-API routes
+  // Handle SPA fallback for client-side routing
   app.use((req: Request, res: Response, next: NextFunction) => {
-    // Skip API routes
     if (req.originalUrl.startsWith('/api')) {
       return next();
     }
 
-    // Serve the main index.html for SPA routing
     res.sendFile(join(webDistPath, 'index.html'));
   });
 }
