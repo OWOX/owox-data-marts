@@ -15,7 +15,7 @@ function getWebDistPath(): string {
   const publishedPath = join(__dirname, '..', 'public');
 
   // For development mode - static files are in web/dist
-  const devPath = join(process.cwd(), 'apps', 'web', 'dist');
+  const devPath = join(__dirname, '..', '..', '..', 'web', 'dist');
 
   // Check if we're running from published package
   if (existsSync(publishedPath)) {
