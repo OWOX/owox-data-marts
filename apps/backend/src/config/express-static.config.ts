@@ -48,11 +48,6 @@ export function configureExpressStatic(app: NestExpressApplication): void {
       return next();
     }
 
-    // Skip requests for static assets (files with extensions)
-    if (req.originalUrl.includes('.')) {
-      return next();
-    }
-
     // Serve the main index.html for SPA routing
     res.sendFile(join(webDistPath, 'index.html'));
   });
