@@ -38,9 +38,9 @@ export function configureExpressStatic(app: NestExpressApplication): void {
   // Handle SPA fallback for client-side routing
   app.use((req: Request, res: Response, next: NextFunction) => {
     if (req.originalUrl.startsWith('/api')) {
-      return next();
+      next();
+    } else {
+      res.sendFile(join(webDistPath, 'index.html'));
     }
-
-    res.sendFile(join(webDistPath, 'index.html'));
   });
 }
