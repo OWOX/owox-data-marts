@@ -1,6 +1,6 @@
 {
   "name": "owox",
-  "description": "OWOX Data Marts CLI: Orchestrates and bundles monorepo applications for local execution and distribution.",
+  "description": "OWOX Data Marts CLI: Simple command-line interface to start the OWOX Data Marts application with backend and frontend components.",
   "version": "0.0.0",
   "author": "OWOX",
   "bin": {
@@ -40,6 +40,8 @@
   "homepage": "https://github.com/OWOX/owox-data-marts",
   "keywords": [
     "data-marts",
+    "cli",
+    "server",
     "nestjs",
     "backend",
     "owox",
@@ -60,12 +62,7 @@
       "@oclif/plugin-help",
       "@oclif/plugin-plugins"
     ],
-    "topicSeparator": " ",
-    "topics": {
-      "hello": {
-        "description": "Say hello to the world and others"
-      }
-    }
+    "topicSeparator": " "
   },
   "repository": "OWOX/owox-data-marts",
   "scripts": {
@@ -74,9 +71,7 @@
     "posttest": "npm run lint",
     "prepack": "oclif manifest && oclif readme",
     "test": "mocha --forbid-only \"test/**/*.test.ts\"",
-    "version": "oclif readme && git add README.md",
-    "monitor": "./scripts/monitor.sh",
-    "test:shutdown": "./scripts/test-shutdown.sh"
+    "version": "oclif readme && git add README.md"
   },
   "types": "dist/index.d.ts"
 }
