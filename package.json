@@ -24,7 +24,7 @@
     "dev:web": "npm run dev -w @owox/web",
     "dev:backend": "npm run dev -w @owox/backend",
     "dev": "npm-run-all --parallel dev:web dev:backend",
-    "serve": "npm run build -w @owox/backend && npm run serve -w owox",
+    "serve": "npm run build -w @owox/backend && npm run build -w owox && npx owox serve",
     "lint": "npm run lint --workspaces --if-present",
     "lint:fix": "npm run lint:fix --workspaces --if-present",
     "lint:staged": "lint-staged",

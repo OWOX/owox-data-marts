@@ -10,7 +10,8 @@
   "dependencies": {
     "@oclif/core": "^4",
     "@oclif/plugin-help": "^6",
-    "@oclif/plugin-plugins": "^5"
+    "@oclif/plugin-plugins": "^5",
+    "@owox/backend": "0.1.0-alpha.1"
   },
   "devDependencies": {
     "@eslint/compat": "^1",
@@ -38,7 +39,15 @@
   ],
   "homepage": "https://github.com/OWOX/owox-data-marts",
   "keywords": [
-    "oclif"
+    "data-marts",
+    "nestjs",
+    "backend",
+    "owox",
+    "data-orchestration",
+    "sqlite",
+    "mysql",
+    "bigquery",
+    "athena"
   ],
   "license": "MIT",
   "main": "dist/index.js",

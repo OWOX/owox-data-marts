@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { NextFunction, Request, Response } from 'express';
 import { existsSync } from 'fs';
@@ -8,44 +9,51 @@ import { join } from 'path';
  * @returns Path to web distribution files
  */
 function getWebDistPath(): string {
-  // For CLI bundle mode (when running via owox serve)
-  // Static files are copied to the bundle directory as 'public'
-  const bundleDistPath = join(__dirname, 'public');
+  const logger = new Logger('StaticAssets');
 
-  // For development mode (when running via npm run start:dev)
-  // Static files are in the original web/dist location
-  const devDistPath = join(__dirname, '..', '..', '..', 'web', 'dist');
+  // For published CLI package - static files are in './public' relative to dist
+  const publishedPath = join(__dirname, '..', 'public');
 
-  // Check if we're running from a bundle (CLI mode)
-  if (existsSync(bundleDistPath)) {
-    return bundleDistPath;
+  // For development mode - static files are in web/dist
+  const devPath = join(process.cwd(), 'apps', 'web', 'dist');
+
+  // Check if we're running from published package
+  if (existsSync(publishedPath)) {
+    logger.log(`Using published static assets: ${publishedPath}`);
+    return publishedPath;
   }
 
   // Fallback to development path
-  return devDistPath;
+  if (existsSync(devPath)) {
+    logger.log(`Using development static assets: ${devPath}`);
+    return devPath;
+  }
+
+  throw new Error(`Static assets not found. Checked:\n  - ${publishedPath}\n  - ${devPath}`);
 }
 
 /**
- * Sets up static asset serving for the NestJS application
- * Supports both development mode and CLI bundle mode
- * @param app - NestJS Express application instance
- * @param pathPrefix - API path prefix to exclude from static serving
+ * Configure express to serve static web assets
  */
-export function setupStaticAssets(app: NestExpressApplication, pathPrefix: string): void {
-  const distPath = getWebDistPath();
+export function configureExpressStatic(app: NestExpressApplication): void {
+  const webDistPath = getWebDistPath();
 
-  // Serve static files from the determined web distribution path
-  app.useStaticAssets(distPath);
+  // Serve static files from the web dist directory
+  app.useStaticAssets(webDistPath);
 
-  // Handle SPA fallback for client-side routing
-  // Any request that doesn't start with the API prefix should serve index.html
+  // Fallback for SPA routing: serve index.html for any non-API routes
   app.use((req: Request, res: Response, next: NextFunction) => {
-    if (req.path.startsWith(`/${pathPrefix}`)) {
-      // API requests - continue to next middleware
-      next();
-    } else {
-      // All other requests - serve the SPA entry point
-      res.sendFile(join(distPath, 'index.html'));
+    // Skip API routes
+    if (req.originalUrl.startsWith('/api')) {
+      return next();
     }
+
+    // Skip requests for static assets (files with extensions)
+    if (req.originalUrl.includes('.')) {
+      return next();
+    }
+
+    // Serve the main index.html for SPA routing
+    res.sendFile(join(webDistPath, 'index.html'));
   });
 }
