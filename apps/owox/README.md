@@ -85,6 +85,7 @@ EXAMPLES
   $ owox serve
   $ owox serve --port 8080
   $ owox serve -p 3001
+  $ PORT=8080 owox serve
 ```
 
 _See code: [src/commands/serve.ts](https://github.com/OWOX/owox-data-marts/blob/v0.0.0/src/commands/serve.ts)_
