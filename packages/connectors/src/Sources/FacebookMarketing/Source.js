@@ -5,12 +5,18 @@
  * file that was distributed with this source code.
  */
 
+/* eslint-disable no-unused-vars, no-undef */
 var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSource {
 
   //---- constructor -------------------------------------------------
     constructor(config) {
   
       super(config.mergeParameters({
+        ApiBaseUrl: {
+          requiredType: "string",
+          default: "https://graph.facebook.com/v21.0/",
+          description: "Facebook Graph API base URL"
+        },
         AccessToken:{
           isRequired: true,
           requiredType: "string",
@@ -20,7 +26,12 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         },
         Fields: {
           isRequired: true
-        },      
+        },
+        ProcessShortLinks: {
+          requiredType: "string",
+          default: "true",
+          description: "Enable automatic processing of short links in link_url_asset field"
+        },
         ReimportLookbackWindow: {
           requiredType: "number",
           isRequired: true,
@@ -89,7 +100,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
   
       //console.log(`Fetching data from ${nodeName}/${accountId}/${fields} for ${startDate}`);
   
-      let url = 'https://graph.facebook.com/v21.0/';
+      let url = this.config.ApiBaseUrl.value;
   
       let formattedDate = null;
       let timeRange = null;
@@ -117,9 +128,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
           break;
   
         case 'ad-account/insights':
-          url += `act_${accountId}/insights?level=ad&period=day&time_range=${timeRange}&fields=${fields.join(",")}&limit=${this.fieldsSchema[nodeName].limit}`;
-          break;
-          // ad, adset, campaign, account
+          return this._fetchInsightsData(nodeName, accountId, fields, timeRange);
   
         case 'ad-group':
           url += `act_${accountId}/ads?&time_range=${timeRange}&fields=${fields.join(",")}&limit=${this.fieldsSchema[nodeName].limit}`;
@@ -131,54 +140,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
   
       url += `&access_token=${this.config.AccessToken.value}`;
   
-      var allData = [];
-      var nextPageURL = url;
-  
-      while (nextPageURL) {
-        // Fetch data from the JSON URL
-        console.log(nextPageURL);
-        
-        var response = this.urlFetchWithRetry(nextPageURL);
-        
-        var jsonData = JSON.parse(response.getContentText());
-  
-        // This node point returns a result in the data property, which might be paginated 
-        if("data" in jsonData) {
-  
-          nextPageURL = jsonData.paging ? jsonData.paging.next : null;
-          //nextPageURL = null;
-  
-          // date fields must be converted to Date objects to meet unique key requirements 
-          jsonData.data.forEach(record => {
-            record = this.castRecordFields(nodeName, record);
-          });
-  
-          allData = allData.concat(jsonData.data);
-  
-        // this is non-paginated result
-        } else {
-          nextPageURL = null;
-          for(var key in jsonData) {
-            jsonData[ key ] = this.castRecordFields(nodeName, jsonData[key]);
-          }
-          allData = allData.concat(jsonData);
-        }
-        console.log(`Got ${allData.length} records`);
-        
-      }
-      //console.log(allData);
-      
-      // Check if short link processing is requested
-      if (fields.includes('link_url_asset') && allData.length > 0) {
-        // Process short links automatically when link_url_asset field is requested
-        allData = this.processShortLinks(allData, {
-          processShortLinks: true,
-          shortLinkFields: ['link_url_asset'],
-          maxConcurrentRequests: 5
-        });
-      }
-      
-      return allData;
+      return this._fetchPaginatedData(url, nodeName);
   
     }
   
@@ -245,9 +207,197 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       return record;
     }
     
+  //---- _getNestedValue ---------------------------------------------------
+    /**
+     * Gets nested value from object by dot notation
+     * 
+     * @param {Object} obj - Object to search in
+     * @param {string} path - Dot notation path
+     * @return {*} Value or undefined
+     * @private
+     */
+    _getNestedValue(obj, path) {
+      return path.split('.').reduce((current, key) => current?.[key], obj);
+    }
+    
+  //---- _fetchInsightsData ------------------------------------------------
+    /**
+     * Fetch insights data with breakdown support
+     * 
+     * @param {string} nodeName - Node name
+     * @param {string} accountId - Account ID
+     * @param {Array} fields - Fields to fetch
+     * @param {string} timeRange - Time range parameter
+     * @return {Array} Processed insights data
+     * @private
+     */
+    _fetchInsightsData(nodeName, accountId, fields, timeRange) {
+      const { regularFields, breakdownFields } = this._separateFieldsAndBreakdowns(nodeName, fields);
+      
+      if (breakdownFields.length === 0) {
+        // No breakdown fields - single request
+        const requestUrl = this._buildInsightsUrl(accountId, regularFields, null, timeRange, nodeName);
+        return this._fetchPaginatedData(requestUrl, nodeName);
+      }
+      
+      // Fetch data for each breakdown field
+      const results = breakdownFields.map(breakdown => {
+        const requestUrl = this._buildInsightsUrl(accountId, regularFields, breakdown, timeRange, nodeName);
+        const data = this._fetchPaginatedData(requestUrl, nodeName, `breakdown: ${breakdown}`);
+        return { breakdown, data };
+      });
+      
+      const allData = results.length === 1 ? results[0].data : this._mergeRequestResults(results);
+      
+      // Process short links if link_url_asset data is present
+      if (this.config.ProcessShortLinks.value === "true" && allData.length > 0 && allData.some(record => record.link_url_asset)) {
+        return this.processShortLinks(allData, { shortLinkFields: ['link_url_asset'] });
+      }
+      
+      return allData;
+    }
+
+  //---- _separateFieldsAndBreakdowns --------------------------------------
+    /**
+     * Separate regular fields from breakdown fields
+     * 
+     * @param {string} nodeName - Node name
+     * @param {Array} fields - All fields
+     * @return {Object} Object with regularFields and breakdownFields
+     * @private
+     */
+    _separateFieldsAndBreakdowns(nodeName, fields) {
+      const regularFields = fields.filter(field => 
+        !this.fieldsSchema[nodeName].fields[field] || 
+        this.fieldsSchema[nodeName].fields[field].parameter !== 'breakdown'
+      );
+      
+      const breakdownFields = fields.filter(field => 
+        this.fieldsSchema[nodeName].fields[field] && 
+        this.fieldsSchema[nodeName].fields[field].parameter === 'breakdown'
+      );
+      
+      return { regularFields, breakdownFields };
+    }
+
+  //---- _buildInsightsUrl ------------------------------------------------
+    /**
+     * Build insights URL for request
+     * 
+     * @param {string} accountId - Account ID
+     * @param {Array} regularFields - Regular fields
+     * @param {string} breakdown - Breakdown field (can be null)
+     * @param {string} timeRange - Time range
+     * @param {string} nodeName - Node name
+     * @return {string} Complete URL
+     * @private
+     */
+    _buildInsightsUrl(accountId, regularFields, breakdown, timeRange, nodeName) {
+      let url = `${this.config.ApiBaseUrl.value}act_${accountId}/insights?level=ad&period=day&time_range=${timeRange}&fields=${regularFields.join(",")}&limit=${this.fieldsSchema[nodeName].limit}`;
+      
+      if (breakdown) {
+        url += `&breakdowns=${breakdown}`;
+      }
+      
+      url += `&access_token=${this.config.AccessToken.value}`;
+      return url;
+    }
+
+  //---- _mergeRequestResults ----------------------------------------------
+    /**
+     * Merge results from multiple requests (only called when multiple requests exist)
+     * Creates separate records for each breakdown combination to preserve all data
+     * 
+     * @param {Array} results - Array of {breakdown, data} objects
+     * @return {Array} Merged data with all breakdown combinations
+     * @private
+     */
+    _mergeRequestResults(results) {
+      const baseData = results[0].data;
+      let mergedData = [...baseData]; // Start with base data
+      
+      for (let i = 1; i < results.length; i++) {
+        const additionalData = results[i].data;
+        const additionalBreakdown = results[i].breakdown;
+        
+        const newMergedData = [];
+        
+        for (const baseRecord of mergedData) {
+          const matchingRecords = additionalData.filter(additionalRecord => 
+            baseRecord.campaign_id === additionalRecord.campaign_id &&
+            baseRecord.adset_id === additionalRecord.adset_id &&
+            baseRecord.ad_id === additionalRecord.ad_id
+          );
+          
+          if (matchingRecords.length > 0) {
+            // Create separate record for each matching breakdown value
+            for (const matchingRecord of matchingRecords) {
+              const value = matchingRecord[additionalBreakdown];
+              if (value !== null && value !== "undefined" && value !== undefined) {
+                newMergedData.push({
+                  ...baseRecord,
+                  [additionalBreakdown]: value
+                });
+              }
+            }
+          } else {
+            // No matches - keep original record without breakdown field
+            newMergedData.push(baseRecord);
+          }
+        }
+        
+        mergedData = newMergedData;
+      }
+      
+      return mergedData;
+    }
+
+  //---- _fetchPaginatedData -----------------------------------------------
+    /**
+     * Fetch paginated data from Facebook API
+     * 
+     * @param {string} initialUrl - Initial URL to fetch
+     * @param {string} nodeName - Node name for field casting
+     * @param {string} logContext - Context for logging
+     * @return {Array} All fetched data
+     * @private
+     */
+    _fetchPaginatedData(initialUrl, nodeName, logContext = '') {
+      const allData = [];
+      let nextPageURL = initialUrl;
+      
+      while (nextPageURL) {
+        console.log(nextPageURL);
+        
+        var response = this.urlFetchWithRetry(nextPageURL);
+        var jsonData = JSON.parse(response.getContentText());
+        
+        if ("data" in jsonData) {
+          nextPageURL = jsonData.paging ? jsonData.paging.next : null;
+          
+          // Cast record fields
+          jsonData.data.forEach((record, index) => {
+            jsonData.data[index] = this.castRecordFields(nodeName, record);
+          });
+          
+          allData.push(...jsonData.data);
+        } else {
+          nextPageURL = null;
+          for (var key in jsonData) {
+            jsonData[key] = this.castRecordFields(nodeName, jsonData[key]);
+          }
+          allData.push(...jsonData);
+        }
+        
+        console.log(`Got ${allData.length} records${logContext ? ' for ' + logContext : ''}`);
+      }
+      
+      return allData;
+    }
+    
   //---- processShortLinks -------------------------------------------------
     /**
-     * Processes short links from Facebook insights data
+     * Processes short links in Facebook data by resolving them to full URLs
      * Resolves short URLs to full URLs and parses GET parameters
      * 
      * @param {Array} data - Array of insights data records
@@ -255,13 +405,9 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
      * @return {Array} Data with processed links
      */
     processShortLinks(data, config = {}) {
-      const {
-        processShortLinks = false,
-        shortLinkFields = ['link_url_asset'],
-        maxConcurrentRequests = 5
-      } = config;
+      const { shortLinkFields = ['link_url_asset'] } = config;
 
-      if (!processShortLinks || !data.length) {
+      if (!data.length) {
         return data;
       }
 
@@ -273,7 +419,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       }
 
       // Resolve short links to full URLs (returns new objects)
-      const resolvedShortLinks = this._resolveShortLinks(shortLinks, maxConcurrentRequests);
+      const resolvedShortLinks = this._resolveShortLinks(shortLinks);
 
       // Add resolved URLs back to data (returns new data)
       const dataWithResolvedUrls = this._addResolvedUrlsToData(data, resolvedShortLinks, shortLinkFields);
@@ -345,7 +491,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
              urlParts[1] === '' && 
              urlParts[2] && 
              urlParts.length === 4 && 
-             urlParts[3];
+             urlParts[3] && urlParts[3] !== '';
     }
 
   //---- _resolveShortLinks -------------------------------------------------
@@ -353,49 +499,41 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
      * Resolves short links to their full URLs
      * 
      * @param {Array} shortLinks - Array of short link objects
-     * @param {number} maxConcurrentRequests - Max concurrent requests
      * @return {Array} New array with resolved URLs
      * @private
      */  
-    _resolveShortLinks(shortLinks, maxConcurrentRequests) {
-      const resolvedLinks = [];
-      
-      // Process in batches to avoid overwhelming the server
-      for (let i = 0; i < shortLinks.length; i += maxConcurrentRequests) {
-        const batch = shortLinks.slice(i, i + maxConcurrentRequests);
-        
-        batch.forEach(linkObj => {
-          try {
-            const response = EnvironmentAdapter.fetch(linkObj.originalUrl, {
-              method: 'GET',
-              followRedirects: false,
-              muteHttpExceptions: true
-            });
-            
-            const headers = response.getHeaders();
-            const resolvedUrl = headers.Location || linkObj.originalUrl;
-            
-            // Create new object instead of mutating
-            resolvedLinks.push({
-              originalUrl: linkObj.originalUrl,
-              resolvedUrl: resolvedUrl,
-              parsedParams: null
-            });
-            
-          } catch (error) {
-            console.log(`Failed to resolve short link ${linkObj.originalUrl}: ${error.message}`);
-            
-            // Create new object with original URL as resolved
-            resolvedLinks.push({
-              originalUrl: linkObj.originalUrl,
-              resolvedUrl: linkObj.originalUrl,
-              parsedParams: null
-            });
-          }
-        });
-      }
-      
-      return resolvedLinks;
+    _resolveShortLinks(shortLinks) {
+      return shortLinks.map(linkObj => {
+        try {
+          const response = EnvironmentAdapter.fetch(linkObj.originalUrl, {
+            method: 'GET',
+            followRedirects: false,
+            muteHttpExceptions: true
+          });
+          
+          const headers = response.getHeaders();
+          
+          // Try different header names for Location (Node.js uses lowercase)
+          const resolvedUrl = headers.Location || headers.location || headers['Location'] || headers['location'] || linkObj.originalUrl;
+          
+          // Create new object instead of mutating
+          return {
+            originalUrl: linkObj.originalUrl,
+            resolvedUrl: resolvedUrl,
+            parsedParams: null
+          };
+          
+        } catch (error) {
+          console.log(`Failed to resolve short link ${linkObj.originalUrl}: ${error.message}`);
+          
+          // Create new object with original URL as resolved
+          return {
+            originalUrl: linkObj.originalUrl,
+            resolvedUrl: linkObj.originalUrl,
+            parsedParams: null
+          };
+        }
+      });
     }
 
   //---- _addResolvedUrlsToData ---------------------------------------------
@@ -421,24 +559,16 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
           
           if (urlAsset && urlAsset.website_url) {
             const resolvedUrl = linkMap.get(urlAsset.website_url);
-            if (resolvedUrl) {
-              // Create new nested object instead of mutating
-              const newUrlAsset = {
-                ...urlAsset,
-                parsed_url: resolvedUrl
-              };
-              
-              // Update the nested object in the record
-              this._setNestedValue(newRecord, fieldName, newUrlAsset);
-            } else {
-              // Even if no resolution, create new object with parsed_url = original
-              const newUrlAsset = {
-                ...urlAsset,
-                parsed_url: urlAsset.website_url
-              };
-              
-              this._setNestedValue(newRecord, fieldName, newUrlAsset);
-            }
+            
+            // Use resolved URL if found, otherwise fallback to original
+            const parsedUrl = resolvedUrl || urlAsset.website_url;
+            
+            const newUrlAsset = {
+              ...urlAsset,
+              parsed_url: parsedUrl
+            };
+            
+            this._setNestedValue(newRecord, fieldName, newUrlAsset);
           }
         });
         
@@ -492,7 +622,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       if (!url || !url.includes('?')) return null;
 
       const [, queryString] = url.split('?');
-      const params = {};
+      const getParams = [];
       
       const paramPairs = queryString.includes('&') ? 
         queryString.split('&') : [queryString];
@@ -501,25 +631,16 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         if (pair.includes('=')) {
           const [key, value] = pair.split('=');
           if (key && value) {
-            params[key] = decodeURIComponent(value);
+            getParams.push([key, decodeURIComponent(value)]);
           }
         }
       });
 
-      return Object.keys(params).length > 0 ? params : null;
-    }
+      if (getParams.length > 0) {
+        return Object.fromEntries(getParams);
+      }
 
-  //---- _getNestedValue ---------------------------------------------------
-    /**
-     * Gets nested value from object by dot notation
-     * 
-     * @param {Object} obj - Object to search in
-     * @param {string} path - Dot notation path
-     * @return {*} Value or undefined
-     * @private
-     */
-    _getNestedValue(obj, path) {
-      return path.split('.').reduce((current, key) => current?.[key], obj);
+      return null;
     }
 
   //---- _setNestedValue ---------------------------------------------------

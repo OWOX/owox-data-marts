@@ -5,6 +5,7 @@
  * file that was distributed with this source code.
  */
 
+/* eslint-disable no-unused-vars */
 var adAccountInsightsFields = {
 'account_currency': {
     'description': 'Currency that is used by your ad account.',
@@ -228,10 +229,11 @@ var adAccountInsightsFields = {
 'cost_per_unique_outbound_click': {
     'description': 'The average cost for each unique outbound click. This metric is estimated.',
     'type': 'list<AdsActionStats>'
-}, 
+},
 'country': {
-    'description': 'country',
-    'type': 'string'
+    'description': 'Country breakdown from Facebook insights',
+    'type': 'string',
+    'parameter': 'breakdown'
 }, 
 'cpc': {
     'description': 'The average cost for each click (all).',
@@ -409,8 +411,9 @@ var adAccountInsightsFields = {
 }, 
 'link_url_asset': {
     'description': 'The URL asset involved in impression, click or action. Contains website_url, parsed_url, and get_params when processed.',
-    'type': 'object'
-}, 
+    'type': 'object',
+    'parameter': 'breakdown'
+},
 'location': {
     'description': 'location',
     'type': 'string'
