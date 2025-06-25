@@ -140,5 +140,3 @@ This architecture encourages:
 * Separation of concerns
 * Clear ownership of logic
 * Readable, testable, and maintainable code
-
-Following these guidelines will help create a codebase that is easy to extend, open to the community, and maintainable in the long term.
