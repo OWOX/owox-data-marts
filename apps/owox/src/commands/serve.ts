@@ -1,5 +1,5 @@
 import { Command, Flags } from '@oclif/core';
-import { exec, spawn } from 'node:child_process';
+import { ChildProcess, exec, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { promisify } from 'node:util';
@@ -14,7 +14,17 @@ const CONSTANTS = {
   CLEANUP_DELAY_MS: 1000,
   DEFAULT_PORT: 3000,
   PROCESS_MARKER: 'owox-app',
+  SHUTDOWN_SIGNALS: ['SIGINT', 'SIGTERM'] as const,
 } as const;
+
+/**
+ * Interface for process spawn options
+ */
+interface ProcessSpawnOptions {
+  args: string[];
+  command: string;
+  port: number;
+}
 
 /**
  * Command to start the OWOX Data Marts application.
@@ -36,6 +46,8 @@ export default class Serve extends Command {
       env: 'PORT',
     }),
   };
+  private childProcess?: ChildProcess;
+  private isShuttingDown = false;
 
   /**
    * Main execution method for the serve command
@@ -44,15 +56,44 @@ export default class Serve extends Command {
     const { flags } = await this.parse(Serve);
 
     this.log('🚀 Starting OWOX Data Marts...');
+    this.setupGracefulShutdown();
 
     const backendPath = this.validateBackendAvailability();
 
     try {
       await this.killMarkedProcesses();
-      this.startBackend(backendPath, flags.port);
+      await this.startBackend(backendPath, flags.port);
     } catch (error) {
       this.handleStartupError(error);
     }
+  }
+
+  /**
+   * Attaches event handlers to the child process
+   */
+  private attachProcessEventHandlers(): void {
+    if (!this.childProcess) return;
+
+    this.childProcess.on('error', (error: Error) => {
+      if (!this.isShuttingDown) {
+        this.error(`Application process error: ${error.message}`);
+      }
+    });
+
+    this.childProcess.on('exit', (code, signal) => {
+      if (!this.isShuttingDown) {
+        this.handleProcessExit(code, signal);
+      }
+    });
+  }
+
+  /**
+   * Creates environment variables for the child process
+   * @param port - Port number to set in environment
+   * @returns Environment variables object
+   */
+  private createProcessEnvironment(port: number): NodeJS.ProcessEnv {
+    return { ...process.env, PORT: port.toString() };
   }
 
   /**
@@ -62,6 +103,34 @@ export default class Serve extends Command {
     const pid = processLine.trim().split(/\s+/)[1];
     const numericPid = Number.parseInt(pid, 10);
     return !Number.isNaN(numericPid) && numericPid > 0 ? numericPid : null;
+  }
+
+  /**
+   * Handles child process exit events
+   * @param code - Exit code
+   * @param signal - Exit signal
+   */
+  private handleProcessExit(code: null | number, signal: NodeJS.Signals | null): void {
+    if (code !== null && code !== 0) {
+      this.error(`Application process exited with code ${code}`);
+    } else if (signal) {
+      this.warn(`Application process terminated by signal ${signal}`);
+    }
+  }
+
+  /**
+   * Handles shutdown signals
+   * @param signal - The received shutdown signal
+   */
+  private handleShutdownSignal(signal: NodeJS.Signals): void {
+    if (this.isShuttingDown) return;
+
+    this.isShuttingDown = true;
+    this.log(`Received ${signal}, shutting down gracefully...`);
+
+    if (this.childProcess?.kill()) {
+      this.log('Stopping application...');
+    }
   }
 
   /**
@@ -119,27 +188,53 @@ export default class Serve extends Command {
   }
 
   /**
+   * Sets up graceful shutdown handlers for system signals
+   */
+  private setupGracefulShutdown(): void {
+    for (const signal of CONSTANTS.SHUTDOWN_SIGNALS) {
+      process.on(signal, () => this.handleShutdownSignal(signal));
+    }
+  }
+
+  /**
+   * Spawns a child process with the given options
+   * @param options - Process spawn options
+   */
+  private async spawnProcess(options: ProcessSpawnOptions): Promise<void> {
+    const env = this.createProcessEnvironment(options.port);
+    this.log(`📦 Starting server on port ${options.port}...`);
+
+    // Add process marker to arguments
+    const argsWithMarker = [...options.args, `--${CONSTANTS.PROCESS_MARKER}`];
+
+    this.childProcess = spawn(options.command, argsWithMarker, {
+      env,
+      stdio: 'inherit',
+    });
+
+    if (this.childProcess.pid) {
+      this.log(`📦 Server process started with PID: ${this.childProcess.pid}`);
+    } else {
+      throw new Error('Failed to start server process');
+    }
+
+    this.attachProcessEventHandlers();
+    return this.waitForProcessCompletion();
+  }
+
+  /**
    * Starts the backend application
    * @param backendPath - Path to the backend entry point
    * @param port - Port number to run the application on
    */
-  private startBackend(backendPath: string, port: number): void {
-    this.log('📦 Starting backend application...');
-    this.log(`📦 Starting server on port ${port}...`);
-
-    // Add process marker to arguments for zombie detection
-    const argsWithMarker = [backendPath, `--${CONSTANTS.PROCESS_MARKER}`];
-
-    const childProcess = spawn('node', argsWithMarker, {
-      env: { ...process.env, PORT: port.toString() },
-      stdio: 'inherit',
-    });
-
-    if (childProcess.pid) {
-      this.log(`📦 Server process started with PID: ${childProcess.pid}`);
-    } else {
-      throw new Error('Failed to start server process');
-    }
+  private async startBackend(backendPath: string, port: number): Promise<void> {
+    this.log('Starting backend application...');
+    const options: ProcessSpawnOptions = {
+      args: [backendPath],
+      command: 'node',
+      port,
+    };
+    await this.spawnProcess(options);
   }
 
   /**
@@ -173,6 +268,31 @@ export default class Serve extends Command {
   private async waitForCleanup(): Promise<void> {
     return new Promise<void>(resolve => {
       setTimeout(() => resolve(), CONSTANTS.CLEANUP_DELAY_MS);
+    });
+  }
+
+  /**
+   * Waits for the child process to complete
+   * @returns Promise that resolves when process exits successfully
+   */
+  private waitForProcessCompletion(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      if (!this.childProcess) {
+        reject(new Error('Failed to start child process'));
+        return;
+      }
+
+      this.childProcess.on('exit', (code: null | number) => {
+        if (this.isShuttingDown) {
+          this.log('Application stopped successfully.');
+          resolve();
+        } else if (code === 0 || code === null) {
+          this.log('Application process exited successfully.');
+          resolve();
+        } else {
+          reject(new Error(`Application process failed with exit code ${code}`));
+        }
+      });
     });
   }
 }
