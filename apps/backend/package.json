@@ -16,7 +16,7 @@
   "engines": {
     "node": ">=22.16.0"
   },
-  "main": "./dist/main.js",
+  "main": "./dist/src/main.js",
   "files": ["dist/", "README.md"],
   "scripts": {
     "build": "npm run build:clean && npm run build:web && npm run build:app && npm run copy:assets",
