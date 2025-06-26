@@ -25,6 +25,7 @@
     "dev:backend": "npm run dev -w @owox/backend",
     "dev:docs": "npm run dev -w @owox/docs",
     "dev": "npm-run-all --parallel dev:web dev:backend",
+    "build:docs": "npm run build -w @owox/docs",
     "serve": "npm run build -w @owox/backend && npm run serve -w @owox/backend",
     "lint": "npm run lint --workspaces --if-present",
     "lint:fix": "npm run lint:fix --workspaces --if-present",
