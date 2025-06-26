@@ -7,7 +7,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@owox/ui/components/dialog';
-import { Button } from '@owox/ui/components/button';
+import { Button } from '../Button';
 
 interface ConfirmationDialogProps {
   open: boolean;
@@ -18,7 +18,7 @@ interface ConfirmationDialogProps {
   cancelLabel?: string;
   onConfirm: () => void;
   onCancel?: () => void;
-  variant?: 'destructive' | 'default';
+  variant?: 'destructive' | 'default' | 'brand' | 'outline' | 'secondary' | 'ghost' | 'link';
   children?: ReactNode;
 }
 
@@ -28,7 +28,7 @@ export const ConfirmationDialog = ({
   title,
   description,
   confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
+  cancelLabel,
   onConfirm,
   onCancel,
   variant = 'destructive',
@@ -48,9 +48,11 @@ export const ConfirmationDialog = ({
         </DialogHeader>
         {children}
         <DialogFooter>
-          <Button variant='secondary' onClick={handleCancel}>
-            {cancelLabel}
-          </Button>
+          {cancelLabel && (
+            <Button variant='secondary' onClick={handleCancel}>
+              {cancelLabel}
+            </Button>
+          )}
           <Button variant={variant} onClick={onConfirm}>
             {confirmLabel}
           </Button>
