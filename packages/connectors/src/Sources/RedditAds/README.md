@@ -25,4 +25,4 @@ Looking for other data sources? Check out our [full list of data sources](https:
 
 ## License
 
-This source is part of the OWOX Data Marts project and is distributed under the ELv2 license. See the [LICENSE](LICENSE.md) file for details. 
+This source is part of the OWOX Data Marts project and is distributed under the ELv2 license. See the [LICENSE](../../../../../LICENSE) file for details. 
