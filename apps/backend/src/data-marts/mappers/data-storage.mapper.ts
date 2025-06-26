@@ -5,7 +5,6 @@ import { CreateDataStorageCommand } from '../dto/domain/create-data-storage.comm
 import { UpdateDataStorageApiDto } from '../dto/presentation/update-data-storage-api.dto';
 import { UpdateDataStorageCommand } from '../dto/domain/update-data-storage.command';
 import { DataStorageResponseApiDto } from '../dto/presentation/data-storage-response-api.dto';
-import { DataStorageTitleFacade } from '../data-storage-types/facades/data-storage-title.facade';
 import { Injectable } from '@nestjs/common';
 import { AuthorizationContext } from '../../common/authorization-context/authorization.context';
 import { GetDataStorageCommand } from '../dto/domain/get-data-storage.command';
@@ -16,7 +15,7 @@ import { toHumanReadable } from '../data-storage-types/enums/data-storage-type.e
 
 @Injectable()
 export class DataStorageMapper {
-  constructor(private readonly dataStorageTitleFacade: DataStorageTitleFacade) {}
+  constructor() {}
 
   toCreateCommand(
     context: AuthorizationContext,
