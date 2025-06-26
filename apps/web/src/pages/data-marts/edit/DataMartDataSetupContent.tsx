@@ -1,4 +1,7 @@
-import { DataMartCodeEditor, DataMartDataStorageView } from '../../../features/data-marts/edit';
+import {
+  DataMartDataStorageView,
+  DataMartDefinitionSettings,
+} from '../../../features/data-marts/edit';
 import { useDataMartContext } from '../../../features/data-marts/edit/model';
 import { CollapsibleCard } from '../../../shared/components/CollapsibleCard';
 import { CollapsibleCardContent } from '../../../shared/components/CollapsibleCard/CollapsibleCardContent.tsx';
@@ -32,10 +35,10 @@ export default function DataMartDataSetupContent() {
         <CollapsibleCardHeader
           icon={CodeIcon}
           title={'Input Source'}
-          subtitle={'Input your SQL query to extract data from your data warehouse'}
+          subtitle={'Configure how to extract data from your data warehouse'}
         ></CollapsibleCardHeader>
         <CollapsibleCardContent>
-          <DataMartCodeEditor></DataMartCodeEditor>
+          {dataMart && <DataMartDefinitionSettings />}
         </CollapsibleCardContent>
         <CollapsibleCardFooter></CollapsibleCardFooter>
       </CollapsibleCard>

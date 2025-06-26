@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-class AbstractSource {
+var AbstractSource = class AbstractSource {
   //---- constructor -------------------------------------------------
     /**
      * Asbstract class for Sources

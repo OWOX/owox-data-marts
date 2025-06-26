@@ -15,6 +15,7 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
     case 'UPDATE_DATA_MART_START':
     case 'UPDATE_DATA_MART_TITLE_START':
     case 'UPDATE_DATA_MART_DESCRIPTION_START':
+    case 'UPDATE_DATA_MART_DEFINITION_START':
     case 'DELETE_DATA_MART_START':
       return { ...state, isLoading: true, error: null };
 
@@ -64,6 +65,21 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
           }
         : state;
 
+    case 'UPDATE_DATA_MART_DEFINITION_SUCCESS':
+      return state.dataMart
+        ? {
+            ...state,
+            isLoading: false,
+            error: null,
+            dataMart: {
+              ...state.dataMart,
+              definitionType: action.payload.definitionType,
+              definition: action.payload.definition,
+              modifiedAt: new Date(),
+            },
+          }
+        : state;
+
     case 'DELETE_DATA_MART_SUCCESS':
       return { ...state, isLoading: false, error: null, dataMart: null };
 
@@ -72,6 +88,7 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
     case 'UPDATE_DATA_MART_ERROR':
     case 'UPDATE_DATA_MART_TITLE_ERROR':
     case 'UPDATE_DATA_MART_DESCRIPTION_ERROR':
+    case 'UPDATE_DATA_MART_DEFINITION_ERROR':
     case 'DELETE_DATA_MART_ERROR':
       return { ...state, isLoading: false, error: action.payload };
 

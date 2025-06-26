@@ -32,7 +32,12 @@ export function DataStorageConfigSheet({
 
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
-      <SheetContent className='flex h-full min-w-[480px] flex-col'>
+      <SheetContent
+        onOpenAutoFocus={e => {
+          e.preventDefault();
+        }}
+        className='flex h-full min-w-[480px] flex-col'
+      >
         <SheetHeader>
           <DialogTitle>Configure Data Storage Provider</DialogTitle>
           <DialogDescription>Customize settings for your data storage provider</DialogDescription>

@@ -13,29 +13,29 @@ var YOUR_DATE_SOURCE_Source = class YOUR_DATE_SOURCE_Source extends AbstractSour
       StartDate: {
         isRequired: true,
         requiredType: "date",
-        value: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+        default: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
       },
       EndDate: {
         isRequired: true,
         requiredType: "date",
-        value: new Date()
+        default: new Date()
       },
       ReimportLookbackWindow: {
         requiredType: "number",
         isRequired: true,
-        value: 2
+        default: 2
       },
       CleanUpToKeepWindow: {
         requiredType: "number"
       },
       DestinationSheetName: {
         isRequired: true,
-        value: "Data"
+        default: "Data"
       },
       MaxFetchingDays: {
         requiredType: "number",
         isRequired: true,
-        value: 30
+        default: 30
       }
     }));
   

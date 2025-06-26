@@ -1,5 +1,7 @@
 import type { DataMart } from '../types';
 import type { CreateDataMartRequestDto, UpdateDataMartRequestDto } from '../../../shared/types/api';
+import type { DataMartDefinitionType } from '../../../shared';
+import type { DataMartDefinitionConfig } from '../types';
 
 export interface DataMartState {
   dataMart: DataMart | null;
@@ -24,6 +26,12 @@ export type DataMartAction =
   | { type: 'UPDATE_DATA_MART_DESCRIPTION_SUCCESS'; payload: string }
   | { type: 'UPDATE_DATA_MART_DESCRIPTION_ERROR'; payload: string }
   | { type: 'UPDATE_DATA_MART_STORAGE'; payload: DataMart['storage'] }
+  | { type: 'UPDATE_DATA_MART_DEFINITION_START' }
+  | {
+      type: 'UPDATE_DATA_MART_DEFINITION_SUCCESS';
+      payload: { definitionType: DataMartDefinitionType; definition: DataMartDefinitionConfig };
+    }
+  | { type: 'UPDATE_DATA_MART_DEFINITION_ERROR'; payload: string }
   | { type: 'DELETE_DATA_MART_START' }
   | { type: 'DELETE_DATA_MART_SUCCESS' }
   | { type: 'DELETE_DATA_MART_ERROR'; payload: string }
@@ -37,5 +45,10 @@ export interface DataMartContextType extends DataMartState {
   updateDataMartTitle: (id: string, title: string) => Promise<void>;
   updateDataMartDescription: (id: string, description: string) => Promise<void>;
   updateDataMartStorage: (storage: DataMart['storage']) => void;
+  updateDataMartDefinition: (
+    id: string,
+    definitionType: DataMartDefinitionType,
+    definition: DataMartDefinitionConfig
+  ) => Promise<void>;
   reset: () => void;
 }

@@ -1,19 +1,7 @@
 import { type DataStorageResponseDto } from '../../../../../data-storage/shared/api/types';
 import { DataMartStatus } from '../../../enums/data-mart-status.enum';
 import { DataMartDefinitionType } from '../../../enums/data-mart-definition-type.enum';
-import type { SqlDefinitionConfig } from '../../../../edit/model/types/sql-definition-config.ts';
-import type { TableDefinitionConfig } from '../../../../edit/model/types/table-definition-config.ts';
-import type { TablePatternDefinitionConfig } from '../../../../edit/model/types/table-pattern-definition-config.ts';
-import type { ViewDefinitionConfig } from '../../../../edit/model/types/view-definition-config.ts';
-
-/**
- * Data mart definition type
- */
-export type DataMartDefinition =
-  | SqlDefinitionConfig
-  | TableDefinitionConfig
-  | TablePatternDefinitionConfig
-  | ViewDefinitionConfig;
+import type { DataMartDefinitionDto } from './data-mart-definition.dto';
 
 /**
  * Data mart response data transfer object
@@ -47,7 +35,7 @@ export interface DataMartResponseDto {
   /**
    * Definition of the data mart
    */
-  definition: DataMartDefinition | null;
+  definition: DataMartDefinitionDto | null;
 
   /**
    * Description of the data mart

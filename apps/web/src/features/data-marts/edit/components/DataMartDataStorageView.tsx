@@ -114,7 +114,7 @@ export const DataMartDataStorageView = ({
     <>
       <Toaster />
       <ListItemCard
-        title={dataStorageInfo.displayName}
+        title={dataStorage.title}
         icon={dataStorageInfo.icon}
         subtitle={getSubtitle()}
         onClick={handleCardClick}

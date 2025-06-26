@@ -1,6 +1,6 @@
 import { useForm, Controller } from 'react-hook-form';
 import { Input } from '@owox/ui/components/input';
-import { DataStorageType } from '../../../shared';
+import { DataStorageType, SENSITIVE_KEYS } from '../../../shared';
 import { Separator } from '@owox/ui/components/separator';
 import { Label } from '@owox/ui/components/label';
 import {
@@ -13,21 +13,13 @@ import { Info } from 'lucide-react';
 import type { DataStorageFormData } from '../../../shared/types/data-storage.schema.ts';
 import { googleBigQueryLocationOptions } from '../../../shared';
 import { Combobox } from '../../../../../shared/components/Combobox/combobox.tsx';
-import { SecureJsonInput } from './SecureJsonInput.tsx';
+import { SecureJsonInput } from '../../../shared/components/SecureJsonInput/SecureJsonInput.tsx';
 
 interface GoogleBigQueryFieldsProps {
   form: ReturnType<typeof useForm<DataStorageFormData>>;
 }
 
 export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
-  const sensitiveKeys = [
-    'private_key',
-    'private_key_id',
-    'client_email',
-    'client_id',
-    'client_x509_cert_url',
-  ];
-
   const {
     register,
     formState: { errors },
@@ -45,7 +37,7 @@ export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
         <div className='space-y-4'>
           <div>
             <Label htmlFor='project-id' className='block text-sm font-medium text-gray-700'>
-              Project ID
+              Project ID<span className='ml-1 text-red-500'>*</span>
             </Label>
             <Input
               id='project-id'
@@ -59,7 +51,7 @@ export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
           </div>
           <div>
             <Label htmlFor='location' className='block text-sm font-medium text-gray-700'>
-              Location
+              Location<span className='ml-1 text-red-500'>*</span>
             </Label>
             <Controller
               name='config.location'
@@ -89,45 +81,39 @@ export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
       {/* Authentication */}
       <div className='space-y-4'>
         <h3 className='text-lg font-medium'>Authentication</h3>
-        <div className='space-y-4'>
-          <div>
-            <Label
-              htmlFor='service-account-key'
-              className='block text-sm font-medium text-gray-700'
-            >
-              Service Account JSON
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Info className='ml-1.5 inline-block h-4 w-4 cursor-help text-gray-500' />
-                  </TooltipTrigger>
-                  <TooltipContent className='max-w-sm text-sm'>
-                    <p>
-                      A Service Account Key is a JSON credential file that provides authentication
-                      to Google BigQuery.
-                    </p>
-                    <p className='mt-1'>
-                      To get one, go to the Google Cloud Console, navigate to IAM & Admin &gt;
-                      Service Accounts, create or select a service account, and generate a new JSON
-                      key.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </Label>
-            <SecureJsonInput
-              value={form.watch('credentials.serviceAccount')}
-              onChange={value => {
-                form.setValue('credentials.serviceAccount', value);
-              }}
-              keysToMask={sensitiveKeys}
-            />
-            {errors.credentials && 'serviceAccount' in errors.credentials && (
-              <p className='mt-1 text-sm text-red-600'>
-                {errors.credentials.serviceAccount?.message}
-              </p>
-            )}
-          </div>
+        <div className='space-y-1'>
+          <Label htmlFor='service-account-key' className='block text-sm font-medium text-gray-700'>
+            Service Account JSON
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className='ml-1.5 inline-block h-4 w-4 cursor-help text-gray-500' />
+                </TooltipTrigger>
+                <TooltipContent className='max-w-sm text-sm'>
+                  <p>
+                    A Service Account Key is a JSON credential file that provides authentication to
+                    Google BigQuery.
+                  </p>
+                  <p className='mt-1'>
+                    To get one, go to the Google Cloud Console, navigate to IAM & Admin &gt; Service
+                    Accounts, create or select a service account, and generate a new JSON key.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </Label>
+          <SecureJsonInput
+            value={form.watch('credentials.serviceAccount')}
+            onChange={value => {
+              form.setValue('credentials.serviceAccount', value);
+            }}
+            keysToMask={SENSITIVE_KEYS}
+          />
+          {errors.credentials && 'serviceAccount' in errors.credentials && (
+            <p className='mt-1 text-sm text-red-600'>
+              {errors.credentials.serviceAccount?.message}
+            </p>
+          )}
         </div>
       </div>
     </div>

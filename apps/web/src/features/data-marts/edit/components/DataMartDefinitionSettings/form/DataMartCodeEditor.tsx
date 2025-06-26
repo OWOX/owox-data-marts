@@ -1,16 +1,27 @@
 import { Editor } from '@monaco-editor/react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTheme } from 'next-themes';
+import type { SqlDefinitionConfig } from '../../../model';
 
-export function DataMartCodeEditor() {
-  const [sqlCode, setSqlCode] = useState(
-    '-- Start writing your SQL query here...\nSELECT * FROM customers;'
-  );
+interface DataMartCodeEditorProps {
+  initialValue?: SqlDefinitionConfig;
+  onChange: (config: SqlDefinitionConfig) => void;
+}
+
+export function DataMartCodeEditor({ initialValue, onChange }: DataMartCodeEditorProps) {
+  const [sqlCode, setSqlCode] = useState<string>(initialValue?.sqlQuery ?? '');
   const { theme } = useTheme();
+
+  useEffect(() => {
+    if (initialValue?.sqlQuery && initialValue.sqlQuery !== sqlCode) {
+      setSqlCode(initialValue.sqlQuery);
+    }
+  }, [initialValue, sqlCode]);
 
   function handleEditorChange(value: string | undefined) {
     if (value !== undefined) {
       setSqlCode(value);
+      onChange({ sqlQuery: value });
     }
   }
   return (
@@ -18,7 +29,7 @@ export function DataMartCodeEditor() {
       <Editor
         height='30vh'
         language='sql'
-        defaultValue={sqlCode}
+        value={sqlCode}
         onChange={handleEditorChange}
         theme={theme === 'dark' ? 'vs-dark' : 'light'}
         options={{

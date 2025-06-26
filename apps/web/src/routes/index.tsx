@@ -1,6 +1,6 @@
 import type { RouteObject } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import MainLayout from '../layouts/MainLayout';
-import Home from '../pages/Home';
 import About from '../pages/About';
 import NotFound from '../pages/NotFound';
 import DataMartsPage from '../pages/data-marts/list/DataMartsPage.tsx';
@@ -16,7 +16,7 @@ const routes: RouteObject[] = [
     children: [
       {
         index: true,
-        element: <Home />,
+        element: <Navigate to='/data-marts' replace />,
       },
       {
         path: 'about',

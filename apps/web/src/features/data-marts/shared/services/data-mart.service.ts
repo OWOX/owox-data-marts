@@ -2,12 +2,11 @@ import { ApiService } from '../../../../services';
 import type {
   CreateDataMartRequestDto,
   CreateDataMartResponseDto,
-  DataMartDefinition,
   DataMartListResponseDto,
   DataMartResponseDto,
   UpdateDataMartRequestDto,
+  UpdateDataMartDefinitionRequestDto,
 } from '../types/api';
-import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum.ts';
 
 /**
  * Data Mart Service
@@ -91,19 +90,14 @@ export class DataMartService extends ApiService {
   /**
    * Update a data mart definition
    * @param id Data mart ID
-   * @param definitionType Type of definition (SQL, TABLE, VIEW, TABLE_PATTERN)
-   * @param definition Definition object
+   * @param data Definition update data (specific type based on definition type)
    * @returns Promise with updated data mart
    */
   async updateDataMartDefinition(
     id: string,
-    definitionType: DataMartDefinitionType,
-    definition: DataMartDefinition
+    data: UpdateDataMartDefinitionRequestDto
   ): Promise<DataMartResponseDto> {
-    return this.put<DataMartResponseDto>(`/${id}/definition`, {
-      definitionType,
-      definition,
-    });
+    return this.put<DataMartResponseDto>(`/${id}/definition`, data);
   }
 
   /**

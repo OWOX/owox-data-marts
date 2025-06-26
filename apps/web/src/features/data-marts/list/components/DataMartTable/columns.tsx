@@ -3,7 +3,7 @@ import { SortableHeader } from './SortableHeader.tsx';
 import type { DataMartListItem } from '../../model/types';
 import type { DataMartStatusInfo } from '../../../shared';
 import { Badge } from '@owox/ui/components/badge';
-import { DataMartStatus } from '../../../shared/enums/data-mart-status.enum.ts';
+import { DataMartStatus } from '../../../shared';
 import { DataStorageType } from '../../../../data-storage';
 import { DataStorageTypeModel } from '../../../../data-storage/shared/types/data-storage-type.model.ts';
 import { DataMartActionsCell } from './DataMartActionsCell';
@@ -51,7 +51,7 @@ export const getDataMartColumns = ({
     ),
     cell: ({ row }) => {
       const statusInfo = row.getValue<DataMartStatusInfo>('status');
-      const getVariant = (status: DataMartStatusInfo['status']) => {
+      const getVariant = (status: DataMartStatusInfo['code']) => {
         switch (status) {
           case DataMartStatus.DRAFT:
             return 'outline';
@@ -62,7 +62,7 @@ export const getDataMartColumns = ({
         }
       };
 
-      return <Badge variant={getVariant(statusInfo.status)}>{statusInfo.displayName}</Badge>;
+      return <Badge variant={getVariant(statusInfo.code)}>{statusInfo.displayName}</Badge>;
     },
   },
   {

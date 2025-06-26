@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DataMartService } from './data-mart.service.ts';
 import apiClient from '../../../../app/api/apiClient.ts';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum.ts';
-import type { CreateDataMartRequestDto, DataMartDefinition } from '../types/api';
+import type { CreateDataMartRequestDto } from '../types/api';
 import { DataMartStatus } from '../enums/data-mart-status.enum.ts';
 
 vi.mock('../../../../app/api/apiClient.ts', () => ({
@@ -23,7 +23,7 @@ describe('DataMartService', () => {
   const mockDataMartListResponse = { items: [mockDataMartResponse] };
   const mockCreateData = { title: 'New Data Mart' } as CreateDataMartRequestDto;
   const mockUpdateData = { title: 'Updated Data Mart' };
-  const mockDefinition = { sqlCode: 'SELECT * FROM table' } as DataMartDefinition;
+  const mockDefinition = { sqlQuery: 'SELECT * FROM table' };
 
   beforeEach(() => {
     service = new DataMartService();
@@ -167,11 +167,10 @@ describe('DataMartService', () => {
         },
       });
 
-      const result = await service.updateDataMartDefinition(
-        mockDataMartId,
-        definitionType,
-        mockDefinition
-      );
+      const result = await service.updateDataMartDefinition(mockDataMartId, {
+        definitionType: DataMartDefinitionType.SQL,
+        definition: mockDefinition,
+      });
 
       expect(apiClient.put).toHaveBeenCalledWith(
         `/data-marts/${mockDataMartId}/definition`,

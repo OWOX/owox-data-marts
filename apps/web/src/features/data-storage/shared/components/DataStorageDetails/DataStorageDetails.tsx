@@ -37,6 +37,7 @@ export function DataStorageDetails({ dataStorage, isLoading = false }: DataStora
     <div className='space-y-2'>
       <div className='grid gap-2'>
         <div className='flex items-center justify-between'>
+          <div>{dataStorage.title}</div>
           <Badge variant={'secondary'} className='flex h-7 items-center gap-2'>
             {(() => {
               const { displayName, icon: Icon } = DataStorageTypeModel.getInfo(type);

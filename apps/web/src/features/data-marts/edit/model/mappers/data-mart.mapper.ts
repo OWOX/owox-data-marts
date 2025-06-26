@@ -3,6 +3,8 @@ import type { DataMartResponseDto } from '../../../shared';
 import { DataMartStatusModel } from '../../../shared';
 import { mapDataStorageFromDto } from '../../../../data-storage/shared/model/mappers';
 
+import { mapDefinitionFromDto } from './definition-mappers';
+
 /**
  * Maps a data mart response DTO to a domain model
  */
@@ -14,7 +16,7 @@ export function mapDataMartFromDto(dataMartDto: DataMartResponseDto): DataMart {
     status: DataMartStatusModel.getInfo(dataMartDto.status),
     storage: mapDataStorageFromDto(dataMartDto.storage),
     definitionType: dataMartDto.definitionType,
-    definition: dataMartDto.definition,
+    definition: mapDefinitionFromDto(dataMartDto.definitionType, dataMartDto.definition),
     createdAt: new Date(dataMartDto.createdAt),
     modifiedAt: new Date(dataMartDto.modifiedAt),
   };

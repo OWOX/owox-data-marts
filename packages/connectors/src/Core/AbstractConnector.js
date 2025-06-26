@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-class AbstractConnector {
+var AbstractConnector = class AbstractConnector {
   //---- constructor -------------------------------------------------
     constructor(config, source, storage = null) {
 

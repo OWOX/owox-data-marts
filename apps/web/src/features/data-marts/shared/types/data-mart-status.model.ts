@@ -1,7 +1,7 @@
-import { DataMartStatus } from '../enums/data-mart-status.enum';
+import { DataMartStatus } from '../enums';
 
 export interface DataMartStatusInfo {
-  status: DataMartStatus;
+  code: DataMartStatus;
   displayName: string;
   description: string;
 }
@@ -9,12 +9,12 @@ export interface DataMartStatusInfo {
 export const DataMartStatusModel = {
   statuses: {
     [DataMartStatus.DRAFT]: {
-      status: DataMartStatus.DRAFT,
+      code: DataMartStatus.DRAFT,
       displayName: 'Draft',
       description: 'Data mart is in draft mode and not yet published',
     },
     [DataMartStatus.PUBLISHED]: {
-      status: DataMartStatus.PUBLISHED,
+      code: DataMartStatus.PUBLISHED,
       displayName: 'Published',
       description: 'Data mart is published and available for use',
     },

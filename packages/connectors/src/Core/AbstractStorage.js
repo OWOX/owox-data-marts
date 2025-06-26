@@ -56,7 +56,7 @@ class AbstractStorage {
     
         let value = record[columnName];
         
-        if (typeof value === 'object' && value !== null && !(value instanceof Date)) {
+        if (typeof value === 'object' && value !== null && !(value instanceof Date) && !(value.constructor.name == "Date") ) {
           value = JSON.stringify(value);
         }
     
@@ -214,7 +214,7 @@ class AbstractStorage {
     stringifyNeastedFields(record) {
     
       for(var field in record) {
-        if( typeof record[field] == "object" && !(record[field] instanceof Date) ) {
+        if( typeof record[field] == "object" && !(record[field] instanceof Date) && !(record[field].constructor.name == "Date") ) {
           record[ field ] = JSON.stringify(record[ field ]);
         }
       }

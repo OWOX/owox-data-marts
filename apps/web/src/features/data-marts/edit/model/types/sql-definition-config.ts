@@ -1,3 +1,3 @@
 export interface SqlDefinitionConfig {
-  sqlCode: string;
+  sqlQuery: string;
 }

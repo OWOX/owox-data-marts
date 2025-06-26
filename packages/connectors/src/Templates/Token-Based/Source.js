@@ -15,7 +15,7 @@ var YOUR_DATE_SOURCE_Source = class YOUR_DATE_SOURCE_Source extends AbstractSour
       },
       DestinationSheetName: {
         isRequired: true,
-        value: "Data"
+        default: "Data"
       },
     }));
   
