@@ -62,7 +62,7 @@ Finalize the request:
    - Leave the attachment field empty
    - Click **Submit**
 
-![Reddit form](reddit_form_4.png)
+![Reddit form](res/reddit_form_4.png)
 
 6. To obtain the authorization code, use the following URL (replace `YOUR_CLIENT_ID` and `RANDOM_STRING` accordingly, for example, **abc123**):
 ```

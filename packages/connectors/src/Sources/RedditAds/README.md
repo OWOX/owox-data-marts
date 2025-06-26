@@ -21,4 +21,8 @@ Ready to get up and running? Follow our [**Getting Started Guide**](GETTING_STAR
 
 ## Other Data Sources
 
-Looking for other data sources? Check out our [full list of data sources](../../../README.md#data-sources).
+Looking for other data sources? Check out our [full list of data sources](https://github.com/OWOX/owox-data-marts?tab=readme-ov-file#data-sources).
+
+## License
+
+This source is part of the OWOX Data Marts project and is distributed under the ELv2 license. See the [LICENSE](https://github.com/OWOX/owox-data-marts/blob/main/LICENSE) file for details. 
