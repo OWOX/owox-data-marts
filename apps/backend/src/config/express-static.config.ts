@@ -7,11 +7,11 @@ import { join } from 'path';
 /**
  * Determines the correct path for web static assets based on execution mode
  */
-function getWebDistPath(): string {
+function getWebDistPath(): string | null {
   const logger = new Logger('StaticAssets');
 
-  const publishedPath = join(__dirname, '..', 'public');
-  const devPath = join(__dirname, '..', '..', '..', 'web', 'dist');
+  const publishedPath = join(__dirname, '..', '..', 'public');
+  const devPath = join(__dirname, '..', '..', '..', '..', 'web', 'dist');
 
   if (existsSync(publishedPath)) {
     logger.log(`Using published static assets: ${publishedPath}`);
@@ -23,7 +23,9 @@ function getWebDistPath(): string {
     return devPath;
   }
 
-  throw new Error(`Static assets not found. Checked:\n  - ${publishedPath}\n  - ${devPath}`);
+  logger.log(`Static assets not found. Checked:\n  - ${publishedPath}\n  - ${devPath}`);
+
+  return null;
 }
 
 /**
@@ -31,6 +33,10 @@ function getWebDistPath(): string {
  */
 export function setupStaticAssets(app: NestExpressApplication, pathPrefix: string): void {
   const distPath = getWebDistPath();
+
+  if (!distPath) {
+    return;
+  }
 
   // Serve static files from Vite frontend (after build)
   app.useStaticAssets(distPath);
