@@ -41,13 +41,11 @@
     "migration:create": "npm run migration:create -w @owox/backend"
   },
   "devDependencies": {
-    "@owox/docs": "^0.0.1",
-    "@owox/linter-config": "/packages/linter-config",
-    "@owox/prettier-config": "/packages/prettier-config",
-    "@owox/typescript-config": "/packages/typescript-config",
     "@typescript-eslint/eslint-plugin": "^8.30.1",
     "@typescript-eslint/parser": "^8.30.1",
     "@owox/eslint-config": "/packages/eslint-config",
+    "@owox/prettier-config": "/packages/prettier-config",
+    "@owox/typescript-config": "/packages/typescript-config",
     "@eslint/js": "^9.28.0",
     "eslint": "^9.28.0",
     "eslint-config-prettier": "^10.0.1",

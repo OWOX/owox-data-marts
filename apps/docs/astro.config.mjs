@@ -2,23 +2,27 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import rehypeExternalLinks from 'rehype-external-links';
+import { getConfig } from './scripts/env-config.mjs';
+
+const { site, base } = getConfig();
 
 export default defineConfig({
+  site,
+  base,
   integrations: [
     starlight({
       title: 'OWOX Docs',
-      favicon: './favicon.png',
+      favicon: 'favicon.png',
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/OWOX/owox-data-marts' },
       ],
       sidebar: [
         {
           label: 'Getting started',
-          items: [
-            { label: 'OWOX Data Marts', link: '/' },
-            { label: 'Monorepo Structure', link: '/docs/monorepo-structure' },
-          ],
+          items: [{ label: 'OWOX Data Marts', link: '/' }],
         },
+        { label: 'Licenses', autogenerate: { directory: '/licenses' }, collapsed: true },
+        { label: 'Documentation', autogenerate: { directory: '/docs' }, collapsed: true },
         {
           label: 'Apps',
           items: [
