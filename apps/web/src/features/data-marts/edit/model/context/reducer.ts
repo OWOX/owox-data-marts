@@ -1,4 +1,5 @@
 import type { DataMartState, DataMartAction } from './types.ts';
+import { updateDataMartWithValidationHelper } from '../helpers';
 
 // Initial state
 export const initialState: DataMartState = {
@@ -17,13 +18,20 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
     case 'UPDATE_DATA_MART_DESCRIPTION_START':
     case 'UPDATE_DATA_MART_DEFINITION_START':
     case 'DELETE_DATA_MART_START':
+    case 'PUBLISH_DATA_MART_START':
       return { ...state, isLoading: true, error: null };
 
     case 'CREATE_DATA_MART_SUCCESS':
       return { ...state, isLoading: false, error: null };
     case 'FETCH_DATA_MART_SUCCESS':
     case 'UPDATE_DATA_MART_SUCCESS':
-      return { ...state, isLoading: false, error: null, dataMart: action.payload };
+    case 'PUBLISH_DATA_MART_SUCCESS':
+      return {
+        ...state,
+        isLoading: false,
+        error: null,
+        dataMart: updateDataMartWithValidationHelper(action.payload),
+      };
 
     case 'UPDATE_DATA_MART_TITLE_SUCCESS':
       return state.dataMart
@@ -31,11 +39,11 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
             ...state,
             isLoading: false,
             error: null,
-            dataMart: {
+            dataMart: updateDataMartWithValidationHelper({
               ...state.dataMart,
               title: action.payload,
               modifiedAt: new Date(),
-            },
+            }),
           }
         : state;
 
@@ -45,11 +53,11 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
             ...state,
             isLoading: false,
             error: null,
-            dataMart: {
+            dataMart: updateDataMartWithValidationHelper({
               ...state.dataMart,
               description: action.payload,
               modifiedAt: new Date(),
-            },
+            }),
           }
         : state;
 
@@ -57,11 +65,11 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
       return state.dataMart
         ? {
             ...state,
-            dataMart: {
+            dataMart: updateDataMartWithValidationHelper({
               ...state.dataMart,
               storage: action.payload,
               modifiedAt: new Date(),
-            },
+            }),
           }
         : state;
 
@@ -71,12 +79,12 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
             ...state,
             isLoading: false,
             error: null,
-            dataMart: {
+            dataMart: updateDataMartWithValidationHelper({
               ...state.dataMart,
               definitionType: action.payload.definitionType,
               definition: action.payload.definition,
               modifiedAt: new Date(),
-            },
+            }),
           }
         : state;
 
@@ -90,6 +98,7 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
     case 'UPDATE_DATA_MART_DESCRIPTION_ERROR':
     case 'UPDATE_DATA_MART_DEFINITION_ERROR':
     case 'DELETE_DATA_MART_ERROR':
+    case 'PUBLISH_DATA_MART_ERROR':
       return { ...state, isLoading: false, error: action.payload };
 
     case 'RESET':

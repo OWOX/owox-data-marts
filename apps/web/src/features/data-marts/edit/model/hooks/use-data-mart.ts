@@ -12,6 +12,7 @@ export function useDataMart(id?: string) {
     updateDataMartTitle,
     updateDataMartDescription,
     updateDataMartDefinition,
+    publishDataMart,
     reset,
     dataMart,
     isLoading,
@@ -38,5 +39,6 @@ export function useDataMart(id?: string) {
     updateDataMartTitle,
     updateDataMartDescription,
     updateDataMartDefinition,
+    publishDataMart,
   };
 }

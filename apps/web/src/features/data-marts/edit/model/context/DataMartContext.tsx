@@ -19,7 +19,7 @@ import type {
   UpdateDataMartTablePatternDefinitionRequestDto,
 } from '../../../shared/types/api';
 import type { DataStorage } from '../../../../data-storage/shared/model/types/data-storage';
-import { DataMartDefinitionType } from '../../../shared/enums/data-mart-definition-type.enum';
+import { DataMartDefinitionType } from '../../../shared';
 import type {
   DataMartDefinitionConfig,
   SqlDefinitionConfig,
@@ -191,6 +191,22 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     }
   };
 
+  // Publish a data mart
+  const publishDataMart = async (id: string) => {
+    try {
+      dispatch({ type: 'PUBLISH_DATA_MART_START' });
+      const response = await dataMartService.publishDataMart(id);
+      const dataMart = mapDataMartFromDto(response);
+      dispatch({ type: 'PUBLISH_DATA_MART_SUCCESS', payload: dataMart });
+    } catch (error) {
+      dispatch({
+        type: 'PUBLISH_DATA_MART_ERROR',
+        payload: error instanceof Error ? error.message : 'Failed to publish data mart',
+      });
+      throw error;
+    }
+  };
+
   // Reset state
   const reset = useCallback(() => {
     dispatch({ type: 'RESET' });
@@ -206,6 +222,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     updateDataMartDescription,
     updateDataMartStorage,
     updateDataMartDefinition,
+    publishDataMart,
     reset,
   };
 

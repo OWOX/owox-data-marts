@@ -35,6 +35,9 @@ export type DataMartAction =
   | { type: 'DELETE_DATA_MART_START' }
   | { type: 'DELETE_DATA_MART_SUCCESS' }
   | { type: 'DELETE_DATA_MART_ERROR'; payload: string }
+  | { type: 'PUBLISH_DATA_MART_START' }
+  | { type: 'PUBLISH_DATA_MART_SUCCESS'; payload: DataMart }
+  | { type: 'PUBLISH_DATA_MART_ERROR'; payload: string }
   | { type: 'RESET' };
 
 export interface DataMartContextType extends DataMartState {
@@ -50,5 +53,6 @@ export interface DataMartContextType extends DataMartState {
     definitionType: DataMartDefinitionType,
     definition: DataMartDefinitionConfig
   ) => Promise<void>;
+  publishDataMart: (id: string) => Promise<void>;
   reset: () => void;
 }

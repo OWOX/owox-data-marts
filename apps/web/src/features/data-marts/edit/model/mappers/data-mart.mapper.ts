@@ -19,6 +19,8 @@ export function mapDataMartFromDto(dataMartDto: DataMartResponseDto): DataMart {
     definition: mapDefinitionFromDto(dataMartDto.definitionType, dataMartDto.definition),
     createdAt: new Date(dataMartDto.createdAt),
     modifiedAt: new Date(dataMartDto.modifiedAt),
+    canPublish: false,
+    validationErrors: [],
   };
 }
 
