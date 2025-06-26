@@ -1,2 +1,2 @@
 export { StatusLabel } from './StatusLabel';
-export type { StatusLabelProps, StatusTypeEnum, StatusVariant } from './types';
+export { type StatusLabelProps, StatusTypeEnum, type StatusVariant } from './types';
