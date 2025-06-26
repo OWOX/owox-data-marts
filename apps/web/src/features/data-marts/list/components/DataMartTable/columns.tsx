@@ -1,9 +1,9 @@
 import { type ColumnDef } from '@tanstack/react-table';
 import { SortableHeader } from './SortableHeader.tsx';
 import type { DataMartListItem } from '../../model/types';
-import type { DataMartStatusInfo } from '../../../shared';
+import { type DataMartStatusInfo, getDataMartStatusType } from '../../../shared';
 import { Badge } from '@owox/ui/components/badge';
-import { DataMartStatus } from '../../../shared';
+import { StatusLabel } from '../../../../../shared/components/StatusLabel';
 import { DataStorageType } from '../../../../data-storage';
 import { DataStorageTypeModel } from '../../../../data-storage/shared/types/data-storage-type.model.ts';
 import { DataMartActionsCell } from './DataMartActionsCell';
@@ -51,18 +51,12 @@ export const getDataMartColumns = ({
     ),
     cell: ({ row }) => {
       const statusInfo = row.getValue<DataMartStatusInfo>('status');
-      const getVariant = (status: DataMartStatusInfo['code']) => {
-        switch (status) {
-          case DataMartStatus.DRAFT:
-            return 'outline';
-          case DataMartStatus.PUBLISHED:
-            return 'secondary';
-          default:
-            return 'default';
-        }
-      };
 
-      return <Badge variant={getVariant(statusInfo.code)}>{statusInfo.displayName}</Badge>;
+      return (
+        <StatusLabel type={getDataMartStatusType(statusInfo.code)} variant='subtle'>
+          {statusInfo.displayName}
+        </StatusLabel>
+      );
     },
   },
   {
