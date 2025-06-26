@@ -1,54 +1,58 @@
-# Starlight Starter Kit: Basics
+# OWOX Docs
 
-[![Built with Starlight](https://astro.badg.es/v2/built-with-starlight/tiny.svg)](https://starlight.astro.build)
-
-```
-npm create astro@latest -- --template starlight
-```
-
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/withastro/starlight/tree/main/examples/basics)
-[![Open with CodeSandbox](https://assets.codesandbox.io/github/button-edit-lime.svg)](https://codesandbox.io/p/sandbox/github/withastro/starlight/tree/main/examples/basics)
-[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/withastro/starlight&create_from_path=examples/basics)
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fwithastro%2Fstarlight%2Ftree%2Fmain%2Fexamples%2Fbasics&project-name=my-starlight-docs&repository-name=my-starlight-docs)
-
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+This is source code for monorepo documentation site based on [Astro + Starlight][https://starlight.astro.build/] project.
 
 ## 🚀 Project Structure
 
-Inside of your Astro + Starlight project, you'll see the following folders and files:
+Inside of OWOX Docs project (`apps/docs` from monorepo root), you'll see the following folders and files:
 
 ```
 .
 ├── public/
+├── scripts/
+│   ├── env-config.mjs
+│   └── sync-docs.mjs
 ├── src/
-│   ├── assets/
-│   ├── content/
-│   │   ├── docs/
 │   └── content.config.ts
 ├── astro.config.mjs
 ├── package.json
 └── tsconfig.json
 ```
 
-Starlight looks for `.md` or `.mdx` files in the `src/content/docs/` directory. Each file is exposed as a route based on its file name.
+## 🚀 How it works
 
-Images can be added to `src/assets/` and embedded in Markdown with a relative link.
+As you see in project structure there is difference between standart Starlight projects. All content is dynamical synced from all monorepo, and copied to the content (`src/content/docs/`) and assets (`src/assets/`) directories with dev and build commands. Also, you can manually initiate content updating process by sync command.
 
-Static assets, like favicons, can be placed in the `public/` directory.
+Then Starlight framework looks for `.md` or `.mdx` files in the content directory. Each file is exposed as a route based on its file name.
+
+Images are founded in `src/assets/` and embedded in Markdown with a relative link.
+
+Static assets, like favicons, can be placed in the `public/` directory. They are not dynamically synced.
 
 ## 🧞 Commands
 
-All commands are run from the root of the project, from a terminal:
+You can run commands from the different directories of monorepo.
 
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `npm install`             | Installs dependencies                            |
-| `npm run dev`             | Starts local dev server at `localhost:4321`      |
-| `npm run build`           | Build your production site to `./dist/`          |
-| `npm run preview`         | Preview your build locally, before deploying     |
-| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `npm run astro -- --help` | Get help using the Astro CLI                     |
+### Commands from the monopero root
 
-## 👀 Want to learn more?
+This commands are run from the **monorepo root**, from a terminal:
 
-Check out [Starlight’s docs](https://starlight.astro.build/), read [the Astro documentation](https://docs.astro.build), or jump into the [Astro Discord server](https://astro.build/chat).
+| Command              | Action                                            |
+| :------------------- | :------------------------------------------------ |
+| `npm install`        | Installs all monorepo dependencies                |
+| `npm run dev:docs`   | Starts local dev server at `localhost:4321`       |
+| `npm run build:docs` | Build your production site to `./apps/docs/dist/` |
+
+### Commands from the project root (/apps/docs)
+
+This commands are run from the **project root**, from a terminal:
+
+| Command                   | Action                                                |
+| :------------------------ | :---------------------------------------------------- |
+| `npm install`             | Installs project dependencies                         |
+| `npm run sync`            | Copy content (`.md files`) and images to the `./src/` |
+| `npm run dev`             | Starts local dev server at `localhost:4321`           |
+| `npm run build`           | Build your production site to `./dist/`               |
+| `npm run preview`         | Preview your build locally, before deploying          |
+| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check`      |
+| `npm run astro -- --help` | Get help using the Astro CLI                          |
