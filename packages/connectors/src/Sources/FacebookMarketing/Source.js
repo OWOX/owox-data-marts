@@ -316,18 +316,11 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
           const value = additionalRecord[additionalBreakdown];
           if (value === null || value === "undefined" || value === undefined) continue;
           
-          // Find existing record with same campaign_id, adset_id, ad_id
-          const existingRecord = mergedData.find(record => 
-            record.campaign_id === additionalRecord.campaign_id &&
-            record.adset_id === additionalRecord.adset_id &&
-            record.ad_id === additionalRecord.ad_id
-          );
+          const existingRecord = mergedData.find(record =>  record.ad_id === additionalRecord.ad_id);
           
           if (existingRecord) {
-            // Update existing record with breakdown field
             existingRecord[additionalBreakdown] = value;
           } else {
-            // Add new record (create copy)
             const newRecord = {};
             for (const key in additionalRecord) {
               newRecord[key] = additionalRecord[key];

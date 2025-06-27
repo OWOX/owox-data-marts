@@ -7,15 +7,9 @@
 
 /* eslint-disable no-unused-vars, no-undef */
 
-/**
- * ShortLinksUtils - utility functions for processing short links in data records
- * Resolves short URLs to full URLs and parses GET parameters
- */
-
 //---- processShortLinks -------------------------------------------------
 /**
  * Processes short links in data by resolving them to full URLs
- * Resolves short URLs to full URLs and parses GET parameters
  * 
  * @param {Array} data - Array of data records
  * @param {Object} config - Configuration object
