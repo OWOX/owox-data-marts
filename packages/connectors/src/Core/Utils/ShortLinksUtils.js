@@ -18,33 +18,49 @@
  * Resolves short URLs to full URLs and parses GET parameters
  * 
  * @param {Array} data - Array of data records
- * @param {Object} config - Configuration object with settings
+ * @param {Object} config - Configuration object
+ * @param {string} config.shortLinkField - Field that contains URL objects
+ * @param {string} config.urlFieldName - Name of the URL field within the object
  * @return {Array} Data with processed links
  */
-function processShortLinks(data, config = {}) {
-  const { shortLinkFields } = config;
+function processShortLinks(data, { shortLinkField, urlFieldName }) {
+  if (!Array.isArray(data) || data.length === 0) return data;
 
-  if (!data.length) {
-    return data;
-  }
+  const shortLinks = _collectUniqueShortLinks(data, shortLinkField, urlFieldName);
+  if (shortLinks.length === 0) return data;
 
-  // Collect unique short links
-  const shortLinks = _collectUniqueShortLinks(data, shortLinkFields);
-  
-  if (shortLinks.length === 0) {
-    return data;
-  }
-
-  // Resolve short links to full URLs (returns new objects)
   const resolvedShortLinks = _resolveShortLinks(shortLinks);
+  const dataWithResolvedUrls = _addResolvedUrlsToData(data, resolvedShortLinks, shortLinkField, urlFieldName);
+  return _parseGetParametersFromUrls(dataWithResolvedUrls, shortLinkField);
+}
 
-  // Add resolved URLs back to data (returns new data)
-  const dataWithResolvedUrls = _addResolvedUrlsToData(data, resolvedShortLinks, shortLinkFields);
+//---- _collectUniqueShortLinks -------------------------------------------
+/**
+ * Collects unique short links from data
+ * 
+ * @param {Array} data - Data records
+ * @param {string} shortLinkField - Field that contains URLs
+ * @param {string} urlFieldName - Name of the URL field within the object
+ * @return {Array} Array of unique short link objects
+ * @private
+ */
+function _collectUniqueShortLinks(data, shortLinkField, urlFieldName) {
+  const uniqueLinks = new Map();
 
-  // Parse GET parameters from resolved URLs (returns new data)
-  const finalData = _parseGetParametersFromUrls(dataWithResolvedUrls, shortLinkFields);
+  data.forEach(record => {
+    const urlAsset = _getNestedValue(record, shortLinkField);
+    const url = urlAsset && urlAsset[urlFieldName];
 
-  return finalData;
+    if (!url || !_isPotentialShortLink(url) || uniqueLinks.has(url)) return;
+
+    uniqueLinks.set(url, {
+      originalUrl: url,
+      resolvedUrl: null,
+      parsedParams: null
+    });
+  });
+
+  return Array.from(uniqueLinks.values());
 }
 
 //---- _getNestedValue ---------------------------------------------------
@@ -57,41 +73,7 @@ function processShortLinks(data, config = {}) {
  * @private
  */
 function _getNestedValue(obj, path) {
-  return path.split('.').reduce((current, key) => current?.[key], obj);
-}
-
-//---- _collectUniqueShortLinks -------------------------------------------
-/**
- * Collects unique short links from data
- * 
- * @param {Array} data - Data records
- * @param {Array} shortLinkFields - Fields that contain URLs
- * @return {Array} Array of unique short link objects
- * @private
- */
-function _collectUniqueShortLinks(data, shortLinkFields) {
-  const uniqueLinks = new Map();
-
-  data.forEach(record => {
-    shortLinkFields.forEach(fieldName => {
-      const urlAsset = _getNestedValue(record, fieldName);
-      
-      if (urlAsset && urlAsset.website_url) {
-        const url = urlAsset.website_url;
-        
-        // Check if it's a potential short link (no query parameters, simple structure)
-        if (_isPotentialShortLink(url) && !uniqueLinks.has(url)) {
-          uniqueLinks.set(url, {
-            originalUrl: url,
-            resolvedUrl: null,
-            parsedParams: null
-          });
-        }
-      }
-    });
-  });
-
-  return Array.from(uniqueLinks.values());
+  return path.split('.').reduce((current, key) => current && current[key], obj);
 }
 
 //---- _isPotentialShortLink ---------------------------------------------- 
@@ -106,21 +88,11 @@ function _isPotentialShortLink(url) {
   if (!url || typeof url !== 'string') return false;
 
   // Skip URLs with query parameters or UTM parameters
-  if (url.includes('?') || 
-      url.includes('utm_source') || 
-      url.includes('utm_medium') || 
-      url.includes('utm_campaign') ||
-      url.includes('utm_term') || 
-      url.includes('utm_content')) {
-    return false;
-  }
+  const hasParams = url.includes('?') || ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'].some(param => url.includes(param));
+  if (hasParams) return false;
 
-  // Check for simple structure: https://hostname.com/path
-  const urlParts = url.split('/');
-  return urlParts[0] === 'https:' && 
-         urlParts[1] === '' && 
-         urlParts.length === 4 && 
-         urlParts[3] && urlParts[3] !== '';
+  // Check for simple structure: https://hostname.com/path (no subpaths)
+  return /^https:\/\/[^\/]+\/[^\/]+$/.test(url);
 }
 
 //---- _resolveShortLinks -------------------------------------------------
@@ -130,7 +102,7 @@ function _isPotentialShortLink(url) {
  * @param {Array} shortLinks - Array of short link objects
  * @return {Array} New array with resolved URLs
  * @private
- */  
+ */
 function _resolveShortLinks(shortLinks) {
   return shortLinks.map(linkObj => {
     try {
@@ -139,28 +111,15 @@ function _resolveShortLinks(shortLinks) {
         followRedirects: false,
         muteHttpExceptions: true
       });
-      
+
       const headers = response.getHeaders();
-      
-      // Try different header names for Location (Node.js uses lowercase)
-      const resolvedUrl = headers.Location || headers.location || headers['Location'] || headers['location'] || linkObj.originalUrl;
-      
-      // Create new object instead of mutating
-      return {
-        originalUrl: linkObj.originalUrl,
-        resolvedUrl: resolvedUrl,
-        parsedParams: null
-      };
-      
+      const resolvedUrl = headers.Location || headers.location || linkObj.originalUrl;
+
+      return { ...linkObj, resolvedUrl };
+
     } catch (error) {
       console.log(`Failed to resolve short link ${linkObj.originalUrl}: ${error.message}`);
-      
-      // Create new object with original URL as resolved
-      return {
-        originalUrl: linkObj.originalUrl,
-        resolvedUrl: linkObj.originalUrl,
-        parsedParams: null
-      };
+      return { ...linkObj, resolvedUrl: linkObj.originalUrl };
     }
   });
 }
@@ -171,36 +130,23 @@ function _resolveShortLinks(shortLinks) {
  * 
  * @param {Array} data - Original data
  * @param {Array} resolvedShortLinks - Resolved short links
- * @param {Array} shortLinkFields - Fields containing URLs
+ * @param {string} shortLinkField - Field containing URLs
+ * @param {string} urlFieldName - Name of the URL field within the object
  * @return {Array} New data with resolved URLs
  * @private
  */
-function _addResolvedUrlsToData(data, resolvedShortLinks, shortLinkFields) {
-  const linkMap = new Map(
-    resolvedShortLinks.map(link => [link.originalUrl, link.resolvedUrl])
-  );
+function _addResolvedUrlsToData(data, resolvedShortLinks, shortLinkField, urlFieldName) {
+  const linkMap = new Map(resolvedShortLinks.map(link => [link.originalUrl, link.resolvedUrl]));
 
   return data.map(record => {
+    const urlAsset = _getNestedValue(record, shortLinkField);
+
+    if (!urlAsset || !urlAsset[urlFieldName]) return record;
+
+    const resolvedUrl = linkMap.get(urlAsset[urlFieldName]) || urlAsset[urlFieldName];
     const newRecord = { ...record };
-    
-    shortLinkFields.forEach(fieldName => {
-      const urlAsset = _getNestedValue(newRecord, fieldName);
-      
-      if (urlAsset && urlAsset.website_url) {
-        const resolvedUrl = linkMap.get(urlAsset.website_url);
-        
-        // Use resolved URL if found, otherwise fallback to original
-        const parsedUrl = resolvedUrl || urlAsset.website_url;
-        
-        const newUrlAsset = {
-          ...urlAsset,
-          parsed_url: parsedUrl
-        };
-        
-        _setNestedValue(newRecord, fieldName, newUrlAsset);
-      }
-    });
-    
+    _setNestedValue(newRecord, shortLinkField, { ...urlAsset, parsed_url: resolvedUrl });
+
     return newRecord;
   });
 }
@@ -210,31 +156,22 @@ function _addResolvedUrlsToData(data, resolvedShortLinks, shortLinkFields) {
  * Parses GET parameters from resolved URLs
  * 
  * @param {Array} data - Data with resolved URLs
- * @param {Array} shortLinkFields - Fields containing URLs
+ * @param {string} shortLinkField - Field containing URLs
  * @return {Array} New data with parsed GET parameters
  * @private
  */
-function _parseGetParametersFromUrls(data, shortLinkFields) {
+function _parseGetParametersFromUrls(data, shortLinkField) {
   return data.map(record => {
+    const urlAsset = _getNestedValue(record, shortLinkField);
+
+    if (!urlAsset || !urlAsset.parsed_url) return record;
+
+    const params = _extractGetParameters(urlAsset.parsed_url);
+    if (!params) return record;
+
     const newRecord = { ...record };
-    
-    shortLinkFields.forEach(fieldName => {
-      const urlAsset = _getNestedValue(newRecord, fieldName);
-      
-      if (urlAsset && urlAsset.parsed_url) {
-        const params = _extractGetParameters(urlAsset.parsed_url);
-        if (params && Object.keys(params).length > 0) {
-          // Create new nested object with GET parameters
-          const newUrlAsset = {
-            ...urlAsset,
-            get_params: params
-          };
-          
-          _setNestedValue(newRecord, fieldName, newUrlAsset);
-        }
-      }
-    });
-    
+    _setNestedValue(newRecord, shortLinkField, { ...urlAsset, get_params: params });
+
     return newRecord;
   });
 }
@@ -251,25 +188,16 @@ function _extractGetParameters(url) {
   if (!url || !url.includes('?')) return null;
 
   const [, queryString] = url.split('?');
-  const getParams = [];
-  
-  const paramPairs = queryString.includes('&') ? 
-    queryString.split('&') : [queryString];
-  
-  paramPairs.forEach(pair => {
-    if (pair.includes('=')) {
-      const [key, value] = pair.split('=');
-      if (key && value) {
-        getParams.push([key, decodeURIComponent(value)]);
-      }
+  const params = {};
+
+  queryString.split('&').forEach(pair => {
+    const [key, value] = pair.split('=');
+    if (key && value) {
+      params[key] = decodeURIComponent(value);
     }
   });
 
-  if (getParams.length > 0) {
-    return Object.fromEntries(getParams);
-  }
-
-  return null;
+  return Object.keys(params).length > 0 ? params : null;
 }
 
 //---- _setNestedValue ---------------------------------------------------
@@ -277,19 +205,12 @@ function _extractGetParameters(url) {
  * Sets nested value in object by dot notation
  * 
  * @param {Object} obj - Object to update
- * @param {string} path - Dot notation path
+ * @param {string} path - Dot notation path like 'user.profile.name'
  * @param {*} value - Value to set
  * @private
  */
 function _setNestedValue(obj, path, value) {
   const keys = path.split('.');
-  let current = obj;
-
-  keys.forEach((key, index) => {
-    if (index === keys.length - 1) {
-      current[key] = value;
-    } else {
-      current = current[key] || {};
-    }
-  });
-} 
+  const target = keys.slice(0, -1).reduce((current, key) => current[key] || (current[key] = {}), obj);
+  target[keys[keys.length - 1]] = value;
+}
