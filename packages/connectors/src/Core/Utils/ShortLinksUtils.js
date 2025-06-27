@@ -54,8 +54,7 @@ function _collectUniqueShortLinks(data, shortLinkField, urlFieldName) {
 
     uniqueLinks.set(url, {
       originalUrl: url,
-      resolvedUrl: null,
-      parsedParams: null
+      resolvedUrl: null
     });
   });
 
@@ -103,16 +102,14 @@ function _resolveShortLinks(shortLinks) {
 
       return {
         originalUrl: linkObj.originalUrl,
-        resolvedUrl: resolvedUrl,
-        parsedParams: linkObj.parsedParams
+        resolvedUrl: resolvedUrl
       };
 
     } catch (error) {
       console.log(`Failed to resolve short link ${linkObj.originalUrl}: ${error.message}`);
       return {
         originalUrl: linkObj.originalUrl,
-        resolvedUrl: linkObj.originalUrl,
-        parsedParams: linkObj.parsedParams
+        resolvedUrl: linkObj.originalUrl
       };
     }
   });
