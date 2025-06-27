@@ -306,7 +306,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       if (results.length === 0) return [];
       if (results.length === 1) return results[0].data;
       
-      let mergedData = [...results[0].data]; // Start with first data
+      let mergedData = results[0].data.slice();
       
       for (let i = 1; i < results.length; i++) {
         const additionalData = results[i].data;
@@ -327,8 +327,12 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
             // Update existing record with breakdown field
             existingRecord[additionalBreakdown] = value;
           } else {
-            // Add new record
-            mergedData.push({ ...additionalRecord });
+            // Add new record (create copy)
+            const newRecord = {};
+            for (const key in additionalRecord) {
+              newRecord[key] = additionalRecord[key];
+            }
+            mergedData.push(newRecord);
           }
         }
       }
@@ -347,35 +351,40 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
      * @private
      */
     _fetchPaginatedData(initialUrl, nodeName, logContext = '') {
-      const allData = [];
-      let nextPageURL = initialUrl;
-      
+      var allData = [];
+      var nextPageURL = initialUrl;
+
       while (nextPageURL) {
+        // Fetch data from the JSON URL
         console.log(nextPageURL);
-        
         var response = this.urlFetchWithRetry(nextPageURL);
         var jsonData = JSON.parse(response.getContentText());
-        
-        if ("data" in jsonData) {
+
+        // This node point returns a result in the data property, which might be paginated 
+        if("data" in jsonData) {
+
           nextPageURL = jsonData.paging ? jsonData.paging.next : null;
-          
-          // Cast record fields
-          jsonData.data.forEach((record, index) => {
-            jsonData.data[index] = this.castRecordFields(nodeName, record);
+          //nextPageURL = null;
+
+          // date fields must be converted to Date objects to meet unique key requirements 
+          jsonData.data.forEach(record => {
+            record = this.castRecordFields(nodeName, record);
           });
-          
-          allData.push(...jsonData.data);
+
+          allData = allData.concat(jsonData.data);
+
+        // this is non-paginated result
         } else {
           nextPageURL = null;
-          for (var key in jsonData) {
-            jsonData[key] = this.castRecordFields(nodeName, jsonData[key]);
+          for(var key in jsonData) {
+            jsonData[ key ] = this.castRecordFields(nodeName, jsonData[key]);
           }
-          allData.push(...jsonData);
+          allData = allData.concat(jsonData);
         }
-        
-        console.log(`Got ${allData.length} records${logContext ? ' for ' + logContext : ''}`);
+        console.log(`Got ${allData.length} records`);
+
       }
-      
+      //console.log(allData);
       return allData;
     }
     

@@ -30,8 +30,7 @@ function processShortLinks(data, { shortLinkField, urlFieldName }) {
   if (shortLinks.length === 0) return data;
 
   const resolvedShortLinks = _resolveShortLinks(shortLinks);
-  const dataWithResolvedUrls = _addResolvedUrlsToData(data, resolvedShortLinks, shortLinkField, urlFieldName);
-  return _parseGetParametersFromUrls(dataWithResolvedUrls, shortLinkField);
+  return _populateDataWithResolvedUrls(data, resolvedShortLinks, shortLinkField, urlFieldName);
 }
 
 //---- _collectUniqueShortLinks -------------------------------------------
@@ -48,7 +47,7 @@ function _collectUniqueShortLinks(data, shortLinkField, urlFieldName) {
   const uniqueLinks = new Map();
 
   data.forEach(record => {
-    const urlAsset = _getNestedValue(record, shortLinkField);
+    const urlAsset = record[shortLinkField];
     const url = urlAsset && urlAsset[urlFieldName];
 
     if (!url || !_isPotentialShortLink(url) || uniqueLinks.has(url)) return;
@@ -61,19 +60,6 @@ function _collectUniqueShortLinks(data, shortLinkField, urlFieldName) {
   });
 
   return Array.from(uniqueLinks.values());
-}
-
-//---- _getNestedValue ---------------------------------------------------
-/**
- * Gets nested value from object by dot notation
- * 
- * @param {Object} obj - Object to search in
- * @param {string} path - Dot notation path
- * @return {*} Value or undefined
- * @private
- */
-function _getNestedValue(obj, path) {
-  return path.split('.').reduce((current, key) => current && current[key], obj);
 }
 
 //---- _isPotentialShortLink ---------------------------------------------- 
@@ -115,102 +101,56 @@ function _resolveShortLinks(shortLinks) {
       const headers = response.getHeaders();
       const resolvedUrl = headers.Location || headers.location || linkObj.originalUrl;
 
-      return { ...linkObj, resolvedUrl };
+      return {
+        originalUrl: linkObj.originalUrl,
+        resolvedUrl: resolvedUrl,
+        parsedParams: linkObj.parsedParams
+      };
 
     } catch (error) {
       console.log(`Failed to resolve short link ${linkObj.originalUrl}: ${error.message}`);
-      return { ...linkObj, resolvedUrl: linkObj.originalUrl };
+      return {
+        originalUrl: linkObj.originalUrl,
+        resolvedUrl: linkObj.originalUrl,
+        parsedParams: linkObj.parsedParams
+      };
     }
   });
 }
 
-//---- _addResolvedUrlsToData ---------------------------------------------
+//---- _populateDataWithResolvedUrls -------------------------------------
 /**
- * Adds resolved URLs back to the original data
+ * Populates data with resolved URLs
  * 
  * @param {Array} data - Original data
  * @param {Array} resolvedShortLinks - Resolved short links
  * @param {string} shortLinkField - Field containing URLs
  * @param {string} urlFieldName - Name of the URL field within the object
- * @return {Array} New data with resolved URLs
+ * @return {Array} Data populated with resolved URLs
  * @private
  */
-function _addResolvedUrlsToData(data, resolvedShortLinks, shortLinkField, urlFieldName) {
-  const linkMap = new Map(resolvedShortLinks.map(link => [link.originalUrl, link.resolvedUrl]));
-
+function _populateDataWithResolvedUrls(data, resolvedShortLinks, shortLinkField, urlFieldName) {
   return data.map(record => {
-    const urlAsset = _getNestedValue(record, shortLinkField);
-
-    if (!urlAsset || !urlAsset[urlFieldName]) return record;
-
-    const resolvedUrl = linkMap.get(urlAsset[urlFieldName]) || urlAsset[urlFieldName];
-    const newRecord = { ...record };
-    _setNestedValue(newRecord, shortLinkField, { ...urlAsset, parsed_url: resolvedUrl });
-
-    return newRecord;
-  });
-}
-
-//---- _parseGetParametersFromUrls ---------------------------------------
-/**
- * Parses GET parameters from resolved URLs
- * 
- * @param {Array} data - Data with resolved URLs
- * @param {string} shortLinkField - Field containing URLs
- * @return {Array} New data with parsed GET parameters
- * @private
- */
-function _parseGetParametersFromUrls(data, shortLinkField) {
-  return data.map(record => {
-    const urlAsset = _getNestedValue(record, shortLinkField);
-
-    if (!urlAsset || !urlAsset.parsed_url) return record;
-
-    const params = _extractGetParameters(urlAsset.parsed_url);
-    if (!params) return record;
-
-    const newRecord = { ...record };
-    _setNestedValue(newRecord, shortLinkField, { ...urlAsset, get_params: params });
-
-    return newRecord;
-  });
-}
-
-//---- _extractGetParameters ---------------------------------------------
-/**
- * Extracts GET parameters from URL
- * 
- * @param {string} url - URL to parse
- * @return {Object|null} Parsed parameters or null
- * @private
- */
-function _extractGetParameters(url) {
-  if (!url || !url.includes('?')) return null;
-
-  const [, queryString] = url.split('?');
-  const params = {};
-
-  queryString.split('&').forEach(pair => {
-    const [key, value] = pair.split('=');
-    if (key && value) {
-      params[key] = decodeURIComponent(value);
+    const urlAsset = record[shortLinkField];
+    
+    if (!urlAsset || !urlAsset[urlFieldName]) {
+      return record;
     }
+    
+    const originalUrl = urlAsset[urlFieldName];
+    
+    const linkMatch = resolvedShortLinks.find(link => link.originalUrl === originalUrl);
+    const resolvedUrl = linkMatch ? linkMatch.resolvedUrl : originalUrl;
+    
+    if (resolvedUrl === originalUrl) {
+      return record;
+    }
+    
+    const newRecord = Object.assign({}, record);
+    const newUrlAsset = Object.assign({}, urlAsset);
+    newUrlAsset.parsed_url = resolvedUrl;
+    
+    newRecord[shortLinkField] = newUrlAsset;
+    return newRecord;
   });
-
-  return Object.keys(params).length > 0 ? params : null;
-}
-
-//---- _setNestedValue ---------------------------------------------------
-/**
- * Sets nested value in object by dot notation
- * 
- * @param {Object} obj - Object to update
- * @param {string} path - Dot notation path like 'user.profile.name'
- * @param {*} value - Value to set
- * @private
- */
-function _setNestedValue(obj, path, value) {
-  const keys = path.split('.');
-  const target = keys.slice(0, -1).reduce((current, key) => current[key] || (current[key] = {}), obj);
-  target[keys[keys.length - 1]] = value;
 }
