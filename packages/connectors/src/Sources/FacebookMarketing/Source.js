@@ -234,11 +234,14 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         return { breakdown, data };
       });
       
-      const allData = results.length === 1 ? results[0].data : this._mergeRequestResults(results);
+      const allData = results.length === 1 ? results[0].data : this._mergeInsightsResults(results);
       
       // Process short links if link_url_asset data is present
       if (this.config.ProcessShortLinks.value === "true" && allData.length > 0 && allData.some(record => record.link_url_asset)) {
-        return processShortLinks(allData, { shortLinkFields: ['link_url_asset'] });
+        return processShortLinks(allData, { 
+          shortLinkField: 'link_url_asset',
+          urlFieldName: 'website_url'
+        });
       }
       
       return allData;
@@ -290,15 +293,16 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       return url;
     }
 
-  //---- _mergeRequestResults ----------------------------------------------
+  //---- _mergeInsightsResults ----------------------------------------------
     /**
-     * Merge results from multiple requests preserving all records
+     * Merge insights results from multiple breakdown requests
+     * Simple approach: start with first data, then add/update from additional data
      * 
      * @param {Array} results - Array of {breakdown, data} objects
-     * @return {Array} Merged data with all records preserved
+     * @return {Array} Merged insights data with all records preserved
      * @private
      */
-    _mergeRequestResults(results) {
+    _mergeInsightsResults(results) {
       if (results.length === 0) return [];
       if (results.length === 1) return results[0].data;
       
