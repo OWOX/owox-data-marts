@@ -11,7 +11,8 @@ Create a new app by clicking the ➕ icon in the **My Apps** section or by press
 Enter a descriptive **Application Name** (e.g., `OWOX (open source connector)`).  
 > 📌 It's recommended to use a clearly identifiable name to simplify future troubleshooting.
 
-Optionally, add a description. Click **Next**.  
+Optionally, add a description. Click **Next**. 
+ 
 ![Criteo App Name](res/criteo_appname.png)
 
 Select **Client Credentials** as the authentication method.  
