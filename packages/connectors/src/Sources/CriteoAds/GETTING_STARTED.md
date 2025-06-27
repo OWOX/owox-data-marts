@@ -42,7 +42,7 @@ Open the menu: **OWOX → Manage Credentials**
 
 ![Criteo Credentials](res/criteo_credentials.png)
 
-Enter your credentials as described in this guide: [**Get Your Credentials**](CREDENTIALS.md)
+Enter your credentials obtained as described in this guide: [**Get Your Credentials**](CREDENTIALS.md)
 
 ![Criteo Secret](res/criteo_secret.png)
 
@@ -51,7 +51,9 @@ Click **Save**. Once credentials are saved, go to:
 
 ![Criteo Import Data](res/criteo_import.png)
 
-The import process is complete when the Log data displays **"Import is finished"**. Your data will be available in a new tab **statistics**.
+The import process is complete when the Log data displays **"Import is finished"**. 
+
+- In the **Google Sheets** template, the data will be available in a new tab **statistics**.
 
 ![Criteo Finished](res/criteo_success.png)
 
