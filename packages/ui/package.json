@@ -7,7 +7,9 @@
     "node": ">=22.16.0"
   },
   "scripts": {
-    "lint": "eslint . --max-warnings 0"
+    "lint": "eslint . --max-warnings 0",
+    "lint:md": "markdownlint-cli2",
+    "lint:md:fix": "markdownlint-cli2 --fix"
   },
   "dependencies": {
     "@floating-ui/react-dom": "^2.1.3",

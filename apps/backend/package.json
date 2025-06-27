@@ -35,6 +35,8 @@
     "serve": "npm run start:prod",
     "lint": "eslint . --config ./eslint.config.mjs",
     "lint:fix": "eslint . --fix --config ./eslint.config.mjs",
+    "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",
+    "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",
     "dev": "npm run start:dev",
     "test": "jest",
     "test:watch": "jest --watch",
