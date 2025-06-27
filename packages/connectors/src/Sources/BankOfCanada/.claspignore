@@ -1,9 +1,7 @@
 **/**
 !Sources/BankOfCanada/*.js
 !appsscript.json
-!Core/Abstract*.js
-!Core/Exceptions.js
-!Core/EnvironmentAdapter.js
+!Core/**/*.js
 !Constants/*.js
 !Views/**/*
 !Storages/**/*.js
