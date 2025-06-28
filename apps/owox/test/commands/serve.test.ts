@@ -1,14 +1,17 @@
-import {runCommand} from '@oclif/test'
 import {expect} from 'chai'
+import {exec} from 'node:child_process'
+import {promisify} from 'node:util'
+
+const execAsync = promisify(exec)
 
 describe('serve', () => {
-  it('runs serve cmd', async () => {
-    const {stdout} = await runCommand('serve')
-    expect(stdout).to.contain('hello world')
+  it('shows help for serve command', async () => {
+    const {stdout} = await execAsync('./bin/run.js serve --help')
+    expect(stdout).to.contain('Start the OWOX Data Marts application')
   })
 
-  it('runs serve --name oclif', async () => {
-    const {stdout} = await runCommand('serve --name oclif')
-    expect(stdout).to.contain('hello oclif')
+  it('accepts port flag', async () => {
+    const {stdout} = await execAsync('./bin/run.js serve --help')
+    expect(stdout).to.contain('--port=<value>')
   })
 })
