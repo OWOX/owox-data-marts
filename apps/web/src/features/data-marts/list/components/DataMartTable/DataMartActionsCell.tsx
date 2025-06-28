@@ -37,23 +37,26 @@ export const DataMartActionsCell = ({ row, onDeleteSuccess }: DataMartActionsCel
     <div className='text-right'>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant='ghost' className='h-8 w-8 p-0'>
-            <span className='sr-only'>Open menu</span>
-            <MoreHorizontal className='h-4 w-4' />
+          <Button
+            variant='ghost'
+            className='dm-card-table-body-row-actionbtn opacity-0 transition-opacity group-hover:opacity-100'
+            aria-label='Open menu'
+          >
+            <MoreHorizontal className='dm-card-table-body-row-actionbtn-icon' />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end'>
           <DropdownMenuItem>
             <Link
               to={`/data-marts/${row.original.id}/overview`}
-              className='flex w-full items-center'
+              className='dm-card-table-body-row-actiondropdownitem'
             >
               Open
             </Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            className='text-red-600'
+            className='dm-card-table-body-row-actiondropdownitem text-red-600'
             onClick={() => {
               setIsDeleteDialogOpen(true);
             }}

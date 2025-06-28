@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   type ColumnDef,
   flexRender,
@@ -26,12 +26,6 @@ import {
 import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
 import {
-  DropdownMenu,
-  DropdownMenuItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@owox/ui/components/dropdown-menu';
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -41,7 +35,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@owox/ui/components/alert-dialog';
-import { ChevronDown, Check, Search, Trash2 } from 'lucide-react';
+import { Check, Search, Trash2, Plus } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
 
 interface DataTableProps<TData, TValue> {
@@ -97,6 +91,7 @@ export function DataMartTable<TData, TValue>({
     columns: [
       {
         id: 'select',
+        size: 30,
         header: ({ table }) => (
           <button
             type='button'
@@ -104,7 +99,7 @@ export function DataMartTable<TData, TValue>({
             aria-checked={table.getIsAllRowsSelected()}
             data-state={table.getIsAllRowsSelected() ? 'checked' : 'unchecked'}
             aria-label='Select all rows'
-            className='peer border-input dark:bg-input/30 data-[state=checked]:bg-brand-blue-500 data-[state=checked]:text-brand-blue-500-foreground dark:data-[state=checked]:bg-brand-blue-500 data-[state=checked]:border-brand-blue-500 focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive size-4 shrink-0 rounded-[4px] border shadow-xs transition-shadow outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50'
+            className='peer border-input data-[state=checked]:bg-brand-blue-500 data-[state=checked]:text-brand-blue-500-foreground dark:data-[state=checked]:bg-brand-blue-500 data-[state=checked]:border-brand-blue-500 focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive size-4 shrink-0 rounded-[4px] border bg-white shadow-xs transition-shadow outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/8'
             onClick={table.getToggleAllRowsSelectedHandler()}
           >
             {table.getIsAllRowsSelected() && (
@@ -125,7 +120,7 @@ export function DataMartTable<TData, TValue>({
             aria-checked={row.getIsSelected()}
             data-state={row.getIsSelected() ? 'checked' : 'unchecked'}
             aria-label='Select row'
-            className='peer border-input dark:bg-input/30 data-[state=checked]:bg-brand-blue-500 data-[state=checked]:text-brand-blue-500-foreground dark:data-[state=checked]:bg-brand-blue-500 data-[state=checked]:border-brand-blue-500 focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive size-4 shrink-0 rounded-[4px] border shadow-xs transition-shadow outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50'
+            className='peer border-input data-[state=checked]:bg-brand-blue-500 data-[state=checked]:text-brand-blue-500-foreground dark:data-[state=checked]:bg-brand-blue-500 data-[state=checked]:border-brand-blue-500 focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive size-4 shrink-0 rounded-[4px] border bg-white shadow-xs transition-shadow outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/8'
             onClick={row.getToggleSelectedHandler()}
           >
             {row.getIsSelected() && (
@@ -162,73 +157,60 @@ export function DataMartTable<TData, TValue>({
   });
 
   return (
-    <div>
+    <div className='dm-card'>
       <Toaster />
-      <div className='flex items-center pb-4'>
-        <div className='relative w-sm'>
-          <Search className='text-muted-foreground absolute top-2.5 left-2 h-4 w-4' />
-          <Input
-            placeholder='Search by title'
-            value={table.getColumn('title')?.getFilterValue() as string}
-            onChange={event => table.getColumn('title')?.setFilterValue(event.target.value)}
-            className='pl-8'
-          />
-        </div>
-        {hasSelectedRows && (
-          <Button
-            variant='destructive'
-            size='sm'
-            className='ml-2 flex items-center gap-1'
-            onClick={() => {
-              setShowDeleteConfirmation(true);
-            }}
-            disabled={isDeleting}
-          >
-            <Trash2 className='h-4 w-4' />
-            Delete
-          </Button>
-        )}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant='outline' className='ml-auto font-normal'>
-              Show columns <ChevronDown className='ml-2 h-4 w-4' />
+      {/* TOOLBAR */}
+      <div className='dm-card-toolbar'>
+        {/* LEFT Column */}
+        <div className='dm-card-toolbar-left'>
+          {/* BTNs for selected Rows */}
+          {hasSelectedRows && (
+            <Button
+              variant='destructive'
+              size='sm'
+              className='dm-card-toolbar-btn-delete'
+              onClick={() => {
+                setShowDeleteConfirmation(true);
+              }}
+              disabled={isDeleting}
+            >
+              <Trash2 className='h-4 w-4' />
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='end'>
-            {table
-              .getAllColumns()
-              .filter(column => column.getCanHide())
-              .map(column => {
-                return (
-                  <DropdownMenuItem key={column.id} className='capitalize'>
-                    <div className='flex items-center space-x-2'>
-                      <input
-                        type='checkbox'
-                        checked={column.getIsVisible()}
-                        onChange={e => {
-                          column.toggleVisibility(e.target.checked);
-                        }}
-                        className='h-4 w-4'
-                      />
-                      <span>{column.id}</span>
-                    </div>
-                  </DropdownMenuItem>
-                );
-              })}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+          )}
+          {/* Search */}
+          <div className='dm-card-toolbar-search'>
+            <Search className='dm-card-toolbar-search-icon' />
+            <Input
+              placeholder='Search by title'
+              value={table.getColumn('title')?.getFilterValue() as string}
+              onChange={event => table.getColumn('title')?.setFilterValue(event.target.value)}
+              className='dm-card-toolbar-search-input'
+            />
+          </div>
+        </div>
 
-      <div className='w-full rounded-md border'>
-        <Table>
-          <TableHeader className='bg-muted'>
+        {/* RIGHT Column */}
+        <Link to={'/data-marts/create'}>
+          <Button variant='outline' size='sm' className='dm-card-toolbar-btn-primary'>
+            <Plus className='h-4 w-4' />
+            New Data Mart
+          </Button>
+        </Link>
+      </div>
+      {/* end: TOOLBAR */}
+
+      {/* DM CARD TABLE */}
+      <div className='dm-card-table-wrap'>
+        <Table className='dm-card-table' role='table' aria-label='Data Marts table'>
+          <TableHeader className='dm-card-table-header'>
             {table.getHeaderGroups().map(headerGroup => (
-              <TableRow key={headerGroup.id}>
+              <TableRow key={headerGroup.id} className='dm-card-table-header-row'>
                 {headerGroup.headers.map(header => {
                   return (
                     <TableHead
                       key={header.id}
                       className='[&:has([role=checkbox])]:pl-5 [&>[role=checkbox]]:translate-y-[2px]'
+                      style={{ width: header.getSize() }}
                     >
                       {header.isPlaceholder
                         ? null
@@ -239,13 +221,13 @@ export function DataMartTable<TData, TValue>({
               </TableRow>
             ))}
           </TableHeader>
-          <TableBody>
+          <TableBody className='dm-card-table-body'>
             {table.getRowModel().rows.length ? (
               table.getRowModel().rows.map(row => (
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && 'selected'}
-                  className='hover:bg-muted/50 cursor-pointer'
+                  className='dm-card-table-body-row group'
                   onClick={e => {
                     if (
                       e.target instanceof HTMLElement &&
@@ -264,6 +246,7 @@ export function DataMartTable<TData, TValue>({
                     <TableCell
                       key={cell.id}
                       className={`[&:has([role=checkbox])]pr-0 px-5 whitespace-normal [&>[role=checkbox]]:translate-y-[2px] ${cell.column.id === 'actions' ? 'actions-cell' : ''}`}
+                      style={{ width: cell.column.getSize() }}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
@@ -272,7 +255,7 @@ export function DataMartTable<TData, TValue>({
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={columns.length + 1} className='h-24 text-center'>
+                <TableCell colSpan={columns.length + 1} className='dm-card-table-body-row-empty'>
                   No results.
                 </TableCell>
               </TableRow>
@@ -280,7 +263,7 @@ export function DataMartTable<TData, TValue>({
           </TableBody>
         </Table>
       </div>
-      <div className='flex items-center justify-end space-x-2 py-4'>
+      <div className='dm-card-pagination'>
         <Button
           variant='outline'
           size='sm'
@@ -309,7 +292,7 @@ export function DataMartTable<TData, TValue>({
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action will delete {Object.keys(rowSelection).length} selected data mart
+              You're about to delete {Object.keys(rowSelection).length} selected data mart
               {Object.keys(rowSelection).length !== 1 ? 's' : ''}. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

@@ -7,6 +7,7 @@ import { StatusLabel } from '../../../../../shared/components/StatusLabel';
 import { DataStorageType } from '../../../../data-storage';
 import { DataStorageTypeModel } from '../../../../data-storage/shared/types/data-storage-type.model.ts';
 import { DataMartActionsCell } from './DataMartActionsCell';
+import { ToggleColumnsHeader } from './ToggleColumnsHeader';
 
 interface DataMartTableColumnsProps {
   onDeleteSuccess?: () => void;
@@ -17,20 +18,14 @@ export const getDataMartColumns = ({
 }: DataMartTableColumnsProps = {}): ColumnDef<DataMartListItem>[] => [
   {
     accessorKey: 'title',
-    header: ({ column }) => (
-      <div className='group/header min-w-64'>
-        <SortableHeader column={column}>Title</SortableHeader>
-      </div>
-    ),
-    cell: ({ row }) => <div className='overflow-hidden text-ellipsis'>{row.getValue('title')}</div>,
+    size: 400,
+    header: ({ column }) => <SortableHeader column={column}>Title</SortableHeader>,
+    cell: ({ row }) => <div>{row.getValue('title')}</div>,
   },
   {
     accessorKey: 'storageType',
-    header: ({ column }) => (
-      <div className='group/header whitespace-nowrap'>
-        <SortableHeader column={column}>Storage</SortableHeader>
-      </div>
-    ),
+    size: 80,
+    header: ({ column }) => <SortableHeader column={column}>Storage</SortableHeader>,
     cell: ({ row }) => {
       const type = row.getValue<DataStorageType>('storageType');
       const { displayName, icon: Icon } = DataStorageTypeModel.getInfo(type);
@@ -44,11 +39,8 @@ export const getDataMartColumns = ({
   },
   {
     accessorKey: 'status',
-    header: ({ column }) => (
-      <div className='group/header whitespace-nowrap'>
-        <SortableHeader column={column}>Status</SortableHeader>
-      </div>
-    ),
+    size: 120,
+    header: ({ column }) => <SortableHeader column={column}>Status</SortableHeader>,
     cell: ({ row }) => {
       const statusInfo = row.getValue<DataMartStatusInfo>('status');
 
@@ -61,11 +53,8 @@ export const getDataMartColumns = ({
   },
   {
     accessorKey: 'createdAt',
-    header: ({ column }) => (
-      <div className='group/header whitespace-nowrap'>
-        <SortableHeader column={column}>Created at</SortableHeader>
-      </div>
-    ),
+    size: 100,
+    header: ({ column }) => <SortableHeader column={column}>Created at</SortableHeader>,
     cell: ({ row }) => {
       const date = row.getValue<Date>('createdAt');
       const formatted = new Intl.DateTimeFormat('en-US', {
@@ -79,6 +68,8 @@ export const getDataMartColumns = ({
   },
   {
     id: 'actions',
+    size: 80,
+    header: ({ table }) => <ToggleColumnsHeader table={table} />,
     cell: ({ row }) => <DataMartActionsCell row={row} onDeleteSuccess={onDeleteSuccess} />,
   },
 ];
