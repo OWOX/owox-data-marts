@@ -195,3 +195,81 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* .dm-page {} */
+
+/* DM Page: Header */
+.dm-page-header {
+  @apply px-12 py-6;
+}
+.dm-page-header-title {
+  @apply text-2xl font-medium;
+}
+
+/* DM Page: Content */
+.dm-page-content {
+  @apply px-4 sm:px-12;
+}
+
+/* DM Card */
+.dm-card {
+  @apply rounded-xl p-4 bg-muted/50 dark:bg-white/2 border-b border-gray-200 dark:border-white/8;
+}
+.dm-card-toolbar {
+  @apply flex items-center justify-between gap-2 pb-4;
+}
+.dm-card-toolbar-left {
+  @apply flex items-center gap-2;
+}
+.dm-card-toolbar-search {
+  @apply relative w-xs;
+}
+.dm-card-toolbar-search-icon {
+  @apply text-muted-foreground absolute top-2.5 left-2 h-4 w-4;
+}
+.dm-card-toolbar-search-input {
+  @apply pl-8 rounded-md border border-muted dark:border-muted/50 bg-white dark:bg-white/2;
+}
+.dm-card-toolbar-btn-delete {
+  @apply mx-2.5 h-8;
+}
+.dm-card-toolbar-btn-primary {
+  @apply flex items-center gap-2 border-muted dark:border-muted/50 bg-white dark:bg-white/2;
+}
+.dm-card-table-wrap {
+  @apply w-full;
+}
+.dm-card-table {
+  @apply w-full;
+}
+.dm-card-table-header {
+  @apply bg-transparent;
+}
+.dm-card-table-header-row {
+  @apply hover:bg-transparent;
+}
+.dm-card-table-header-row-btn {
+  @apply h-8 inline-flex gap-1 cursor-pointer items-center hover:bg-white dark:hover:bg-white/4 hover:shadow-sm transition-colors duration-200;
+}
+.dm-card-table-body {
+  @apply border-b border-gray-200 bg-white dark:bg-white/1 dark:border-0;
+}
+.dm-card-table-body-row {
+  @apply cursor-pointer hover:bg-black/4 dark:hover:bg-white/2 transition-colors duration-200;
+}
+.dm-card-table-body-row-actionbtn {
+  @apply h-8 hover:bg-white dark:hover:bg-white/4 hover:shadow-sm transition-colors transition-shadow duration-200;
+}
+.dm-card-table-body-row-actionbtn-icon {
+  @apply h-4 w-4 text-muted-foreground;
+}
+.dm-card-table-body-row-actiondropdownitem {
+  @apply block w-full cursor-default;
+}
+.dm-card-table-body-row-empty {
+  @apply h-24 text-center;
+}
+
+.dm-card-pagination {
+  @apply flex items-center justify-end space-x-2 pt-4;
+}
