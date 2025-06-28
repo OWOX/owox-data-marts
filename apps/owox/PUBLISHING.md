@@ -1,4 +1,4 @@
-# Publishing Guide for owox CLI
+# Publishing Guide for OWOX CLI
 
 This guide explains how to publish the OWOX Data Marts CLI package to npm.
 
@@ -48,7 +48,6 @@ The published package contains only the production-necessary files:
 - `bin/**/*.js` - CLI executable files
 - `bin/**/*.cmd` - Windows CLI executable files
 - `dist/**/*.js` - Compiled JavaScript files
-- `dist/**/*.d.ts` - TypeScript declaration files
 - `oclif.manifest.json` - OCLIF command manifest
 - `package.json` - Package metadata and dependencies
 
