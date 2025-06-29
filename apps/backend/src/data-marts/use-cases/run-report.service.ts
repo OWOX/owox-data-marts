@@ -1,0 +1,84 @@
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Report } from '../entities/report.entity';
+import { ReportRunStatus } from '../enums/report-run-status.enum';
+import { DataDestinationReportWriter } from '../data-destination-types/interfaces/data-destination-report-writer.interface';
+import { DataStorageReportReader } from '../data-storage-types/interfaces/data-storage-report-reader.interface';
+import { TypeResolver } from '../../common/resolver/type-resolver';
+import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
+import { RunReportCommand } from '../dto/domain/run-report.command';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { DATA_STORAGE_REPORT_READER_RESOLVER } from '../data-storage-types/data-storage-providers';
+import { DATA_DESTINATION_REPORT_WRITER_RESOLVER } from '../data-destination-types/data-destination-providers';
+
+@Injectable()
+export class RunReportService {
+  private readonly logger = new Logger(RunReportService.name);
+
+  constructor(
+    @InjectRepository(Report)
+    private readonly reportRepository: Repository<Report>,
+    @Inject(DATA_STORAGE_REPORT_READER_RESOLVER)
+    private readonly reportReaderResolver: TypeResolver<DataStorageType, DataStorageReportReader>,
+    @Inject(DATA_DESTINATION_REPORT_WRITER_RESOLVER)
+    private readonly reportWriterResolver: TypeResolver<
+      DataDestinationType,
+      DataDestinationReportWriter
+    >
+  ) {}
+
+  runAsync(command: RunReportCommand): void {
+    this.run(command).catch(error => {
+      this.logger.error(`Error running report ${command.reportId} asynchronously:`, error);
+    });
+  }
+
+  async run(command: RunReportCommand): Promise<void> {
+    const report = await this.reportRepository.findOne({
+      where: { id: command.reportId },
+      relations: ['dataMart', 'dataDestination'],
+    });
+
+    if (!report) {
+      throw new Error(`Report with id ${command.reportId} not found`);
+    }
+
+    const runAt = new Date();
+    report.lastRunStatus = ReportRunStatus.RUNNING;
+    report.lastRunAt = runAt;
+    report.runsCount += 1;
+    delete report.lastRunError;
+    await this.reportRepository.save(report);
+
+    try {
+      await this.executeReport(report);
+      report.lastRunStatus = ReportRunStatus.SUCCESS;
+    } catch (error) {
+      this.logger.error(`Error running report ${report.id}:`, error);
+      report.lastRunStatus = ReportRunStatus.ERROR;
+      report.lastRunError = error.toString();
+    } finally {
+      await this.reportRepository.save(report);
+    }
+  }
+
+  private async executeReport(report: Report): Promise<void> {
+    const { dataMart, dataDestination } = report;
+    const reportReader = await this.reportReaderResolver.resolve(dataMart.storage.type);
+    const reportWriter = await this.reportWriterResolver.resolve(dataDestination.type);
+    try {
+      const reportDataDescription = await reportReader.prepareReportData(report);
+      await reportWriter.prepareToWriteReport(report, reportDataDescription);
+      let nextReportDataBatch: string | undefined | null = undefined;
+      do {
+        const batch = await reportReader.readReportDataBatch(nextReportDataBatch);
+        await reportWriter.writeReportDataBatch(batch);
+        nextReportDataBatch = batch.nextDataBatchId;
+      } while (nextReportDataBatch);
+    } finally {
+      await reportWriter.finalize();
+      await reportReader.finalize();
+    }
+  }
+}
