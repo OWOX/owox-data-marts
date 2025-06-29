@@ -1,10 +1,6 @@
 import { z } from 'zod';
+import { GoogleServiceAccountKeySchema } from '../../../../common/schemas/google-service-account-key.schema';
 
-export const BigQueryCredentialsSchema = z
-  .object({
-    private_key: z.string().min(1, 'private_key is required'),
-    client_email: z.string().min(1, 'client_email is required'),
-  })
-  .passthrough();
+export const BigQueryCredentialsSchema = GoogleServiceAccountKeySchema.extend({});
 
-export type BigQueryCredentialsDto = z.infer<typeof BigQueryCredentialsSchema>;
+export type BigQueryCredentials = z.infer<typeof BigQueryCredentialsSchema>;

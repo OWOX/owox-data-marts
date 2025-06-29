@@ -8,4 +8,4 @@ export const AthenaCredentialsSchema = z
   })
   .passthrough();
 
-export type AthenaCredentialsDto = z.infer<typeof AthenaCredentialsSchema>;
+export type AthenaCredentials = z.infer<typeof AthenaCredentialsSchema>;
