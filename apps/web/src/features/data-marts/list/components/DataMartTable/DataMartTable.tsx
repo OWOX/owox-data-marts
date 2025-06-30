@@ -38,12 +38,14 @@ import {
 import { Check, Search, Trash2, Plus } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
 import { EmptyDataMartsState } from './EmptyDataMartsState';
+import { DataMartsTableSkeleton } from '../../../../../shared/components/CardSkeleton';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   deleteDataMart: (id: string) => Promise<void>;
   refetchDataMarts: () => Promise<void>;
+  isLoading?: boolean;
 }
 
 export function DataMartTable<TData, TValue>({
@@ -51,6 +53,7 @@ export function DataMartTable<TData, TValue>({
   data,
   deleteDataMart,
   refetchDataMarts,
+  isLoading,
 }: DataTableProps<TData, TValue>) {
   const navigate = useNavigate();
   const [sorting, setSorting] = useState<SortingState>([{ id: 'title', desc: false }]);
@@ -156,6 +159,15 @@ export function DataMartTable<TData, TValue>({
     },
     enableRowSelection: true,
   });
+
+  if (isLoading) {
+    return (
+      <div>
+        <Toaster />
+        <DataMartsTableSkeleton />
+      </div>
+    );
+  }
 
   if (!data.length) {
     return (

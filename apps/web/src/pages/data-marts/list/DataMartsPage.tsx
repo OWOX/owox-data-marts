@@ -7,7 +7,7 @@ import { useEffect } from 'react';
 import { getDataMartColumns } from '../../../features/data-marts/list/components/DataMartTable/columns.tsx';
 
 const DataMartTableWithContext = () => {
-  const { items, loadDataMarts, deleteDataMart, refreshList } = useDataMartList();
+  const { items, loadDataMarts, deleteDataMart, refreshList, loading } = useDataMartList();
 
   useEffect(() => {
     void loadDataMarts();
@@ -19,6 +19,7 @@ const DataMartTableWithContext = () => {
       data={items}
       deleteDataMart={deleteDataMart}
       refetchDataMarts={refreshList}
+      isLoading={loading}
     />
   );
 };
