@@ -4,5 +4,5 @@
     "prettier --config ./prettier.config.mjs --write"
   ],
   "*.json": ["prettier --config ./prettier.config.mjs --write"],
-  "*.md": "npx markdownlint --fix"
+  "*.md": "markdownlint-cli2 --fix"
 }
