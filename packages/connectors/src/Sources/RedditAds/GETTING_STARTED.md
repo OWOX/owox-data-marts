@@ -9,8 +9,8 @@ Fill in required parameters:
 - **Start Date**
 - **Account IDs**
 - **Fields**
-- **Destination Dataset ID:** (Applicable only for the **Google BigQuery** template)
-- **Destination Location:** (Applicable only for the **Google BigQuery** template)
+- **Destination Dataset ID** (applicable only for the **Google BigQuery** template)
+- **Destination Location** (applicable only for the **Google BigQuery** template)
 
 The import will begin from the selected **Start Date**.  
 > ⚠️ **Note:** Choosing a long date range may result in import failure due to high data volume.

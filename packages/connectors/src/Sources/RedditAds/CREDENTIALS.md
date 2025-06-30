@@ -114,5 +114,6 @@ You now have:
 - **Client Secret**
 - **Redirect URI**
 - **Refresh Token**
+- **User-Agent**
 
 You can now use these credentials as described in the [Getting Started guide](GETTING_STARTED.md).
