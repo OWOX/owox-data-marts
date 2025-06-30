@@ -2,7 +2,7 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import rehypeExternalLinks from 'rehype-external-links';
-import { getConfig } from './scripts/env-config.mjs';
+import { getConfig } from './scripts/env-config.js';
 
 const { site, base } = getConfig();
 

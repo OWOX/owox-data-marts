@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { glob } from 'glob';
 import matter from 'gray-matter';
-import { getConfig } from './env-config.mjs';
+import { getConfig } from './env-config.js';
 import {
   toTitleCase,
   normalizePathSeparators,
@@ -11,7 +11,7 @@ import {
   normalizePathToKebabCaseForURL,
   normalizePrefixForLocalLinkPath,
   isLocalLinkPathInSameDirectory,
-} from './utils.mjs';
+} from './utils.js';
 
 // CONFIGURATION
 const APP_LOCATION = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -25,7 +25,6 @@ const BASE_URL = getConfig().base;
  * Main sync function that orchestrates the entire process
  */
 async function syncDocs() {
-  // eslint-disable-next-line no-undef
   console.log('🔄 Starting documentation sync...');
 
   // 1. Clear previos results and setup directories
@@ -34,12 +33,10 @@ async function syncDocs() {
   // 2. Find all markdown files
   const sourceFiles = await findMarkdownFiles();
 
-  // eslint-disable-next-line no-undef
   console.log(`📄 Processing ${sourceFiles.length} files...`);
 
   // 3. Process each file
   for (const sourceFilePath of sourceFiles) {
-    // eslint-disable-next-line no-undef
     console.log(`Processing: ${path.relative(MONOREPO_ROOT, sourceFilePath)}`);
 
     // 3.1 Prepare file paths and read the content
@@ -60,7 +57,6 @@ async function syncDocs() {
     fs.writeFileSync(filePaths.destinationPath, fileContent);
   }
 
-  // eslint-disable-next-line no-undef
   console.log(`✅ Documentation sync completed successfully!`);
 }
 
@@ -248,9 +244,7 @@ function processFrontmatter(fileContent, filePaths) {
 
 // Execute the sync process
 syncDocs().catch(error => {
-  // eslint-disable-next-line no-undef
   console.error('❌ An error occurred during sync:', error);
 
-  // eslint-disable-next-line no-undef
   process.exit(1);
 });

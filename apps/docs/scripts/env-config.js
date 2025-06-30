@@ -1,5 +1,4 @@
 export const getConfig = () => {
-  // eslint-disable-next-line no-undef
   const { NODE_ENV, DOCS_SITE, DOCS_BASE } = process.env;
 
   const isProduction = NODE_ENV === 'production';
