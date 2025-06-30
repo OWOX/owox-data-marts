@@ -233,6 +233,9 @@
 .dm-card-toolbar-btn-delete {
   @apply mx-2.5 h-8;
 }
+.dm-card-toolbar-right {
+  @apply flex items-center gap-2;
+}
 .dm-card-toolbar-btn-primary {
   @apply flex items-center gap-2 border-muted dark:border-muted/50 bg-white dark:bg-white/2;
 }
@@ -267,9 +270,23 @@
   @apply block w-full cursor-default;
 }
 .dm-card-table-body-row-empty {
-  @apply h-24 text-center;
+  @apply h-48 text-center;
 }
 
 .dm-card-pagination {
   @apply flex items-center justify-end space-x-2 pt-4;
+}
+
+/* DM Empty State Block */
+.dm-empty-state {
+  @apply flex flex-col items-center justify-center pt-22 pb-24;
+}
+.dm-empty-state-ico {
+  @apply h-16 w-16 text-gray-500 opacity-50 mb-6;
+}
+.dm-empty-state-title {
+  @apply text-center text-xl font-medium text-foreground mb-3;
+}
+.dm-empty-state-subtitle {
+  @apply text-center text-muted-foreground mb-8;
 }

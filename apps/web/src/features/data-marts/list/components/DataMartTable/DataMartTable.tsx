@@ -37,6 +37,7 @@ import {
 } from '@owox/ui/components/alert-dialog';
 import { Check, Search, Trash2, Plus } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
+import { EmptyDataMartsState } from './EmptyDataMartsState';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -156,6 +157,15 @@ export function DataMartTable<TData, TValue>({
     enableRowSelection: true,
   });
 
+  if (!data.length) {
+    return (
+      <div className='dm-card'>
+        <Toaster />
+        <EmptyDataMartsState />
+      </div>
+    );
+  }
+
   return (
     <div className='dm-card'>
       <Toaster />
@@ -190,12 +200,14 @@ export function DataMartTable<TData, TValue>({
         </div>
 
         {/* RIGHT Column */}
-        <Link to={'/data-marts/create'}>
-          <Button variant='outline' size='sm' className='dm-card-toolbar-btn-primary'>
-            <Plus className='h-4 w-4' />
-            New Data Mart
-          </Button>
-        </Link>
+        <div className='dm-card-toolbar-right'>
+          <Link to={'/data-marts/create'}>
+            <Button variant='outline' className='dm-card-toolbar-btn-primary'>
+              <Plus className='h-4 w-4' />
+              New Data Mart
+            </Button>
+          </Link>
+        </div>
       </div>
       {/* end: TOOLBAR */}
 
@@ -263,6 +275,9 @@ export function DataMartTable<TData, TValue>({
           </TableBody>
         </Table>
       </div>
+      {/* end: DM CARD TABLE */}
+
+      {/* DM CARD PAGINATION */}
       <div className='dm-card-pagination'>
         <Button
           variant='outline'
@@ -285,6 +300,7 @@ export function DataMartTable<TData, TValue>({
           Next
         </Button>
       </div>
+      {/* end: DM CARD PAGINATION */}
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteConfirmation} onOpenChange={setShowDeleteConfirmation}>
