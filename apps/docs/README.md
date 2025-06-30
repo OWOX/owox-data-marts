@@ -6,12 +6,13 @@ This is the source code for the monorepo documentation site based on the [Astro 
 
 Inside the OWOX Docs project (`apps/docs` from the monorepo root), you'll find the following folders and files:
 
-```
+```bash
 .
 ├── public/
 ├── scripts/
-│   ├── env-config.mjs        # Environment configuration script
-│   └── sync-docs.mjs         # Content and assets synchronization script
+│   ├── env-config.js        # Environment configuration script
+│   ├── sync-docs.js         # Content and assets synchronization script
+│   └── utils.js             # Utils functions script
 ├── src/
 │   └── content.config.ts     # Starlight content configuration
 ├── astro.config.mjs

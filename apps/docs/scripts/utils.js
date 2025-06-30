@@ -102,7 +102,6 @@ export function isLocalLinkPathInSameDirectory(linkPath) {
     linkPath.startsWith('./') &&
     linkPath !== './.' &&
     linkPath !== './' &&
-    linkPath !== '.' &&
     linkPath.split('/').length === 2
   );
 }
