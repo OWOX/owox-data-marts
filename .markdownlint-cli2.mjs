@@ -2,7 +2,21 @@
 import markdownlintRules from './.markdownlint.json' with { type: 'json' };
 
 const args = process.argv.slice(2);
-const hasFileArguments = args.some(arg => !arg.startsWith('-'));
+
+let hasFileArguments = false;
+for (let i = 0; i < args.length; i++) {
+  const arg = args[i];
+
+  if (arg === '--config') {
+    i++; // Skip next element
+    continue;
+  }
+
+  if (!arg.startsWith('-')) {
+    hasFileArguments = true;
+    break;
+  }
+}
 
 const options = {
   config: markdownlintRules,
