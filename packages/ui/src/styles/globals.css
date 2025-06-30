@@ -257,7 +257,7 @@
   @apply flex items-center gap-2 border-muted dark:border-muted/50 bg-white dark:bg-white/2;
 }
 .dm-card-table-wrap {
-  @apply w-full;
+  @apply w-full table-fixed;
 }
 .dm-card-table {
   @apply w-full;
@@ -287,7 +287,7 @@
   @apply block w-full cursor-default;
 }
 .dm-card-table-body-row-empty {
-  @apply h-48 text-center;
+  @apply h-32 text-center text-muted-foreground;
 }
 
 .dm-card-pagination {
@@ -299,7 +299,7 @@
   @apply flex flex-col items-center justify-center pt-22 pb-24;
 }
 .dm-empty-state-ico {
-  @apply h-16 w-16 text-gray-500 opacity-50 mb-6;
+  @apply h-16 w-16 text-gray-500/50 dark:text-gray-200/50 mb-6;
 }
 .dm-empty-state-title {
   @apply text-center text-xl font-medium text-foreground mb-3;

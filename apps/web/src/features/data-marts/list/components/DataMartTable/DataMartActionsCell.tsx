@@ -20,6 +20,7 @@ interface DataMartActionsCellProps {
 
 export const DataMartActionsCell = ({ row, onDeleteSuccess }: DataMartActionsCellProps) => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { deleteDataMart, refreshList } = useDataMartList();
 
   const handleDelete = async () => {
@@ -35,11 +36,11 @@ export const DataMartActionsCell = ({ row, onDeleteSuccess }: DataMartActionsCel
 
   return (
     <div className='text-right'>
-      <DropdownMenu>
+      <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
         <DropdownMenuTrigger asChild>
           <Button
             variant='ghost'
-            className='dm-card-table-body-row-actionbtn opacity-0 transition-opacity group-hover:opacity-100'
+            className={`dm-card-table-body-row-actionbtn opacity-0 transition-opacity ${isMenuOpen ? 'opacity-100' : 'group-hover:opacity-100'}`}
             aria-label='Open menu'
           >
             <MoreHorizontal className='dm-card-table-body-row-actionbtn-icon' />

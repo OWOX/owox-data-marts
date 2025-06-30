@@ -1,5 +1,5 @@
 import { type Table } from '@tanstack/react-table';
-import { MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, Check } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import {
   DropdownMenu,
@@ -33,14 +33,27 @@ export function ToggleColumnsHeader<TData>({ table }: ToggleColumnsHeaderProps<T
               return (
                 <DropdownMenuItem key={column.id} className='capitalize'>
                   <label className='flex items-center space-x-2'>
-                    <input
-                      type='checkbox'
-                      checked={column.getIsVisible()}
-                      onChange={e => {
-                        column.toggleVisibility(e.target.checked);
+                    <button
+                      type='button'
+                      role='checkbox'
+                      aria-checked={column.getIsVisible()}
+                      data-state={column.getIsVisible() ? 'checked' : 'unchecked'}
+                      aria-label={`Toggle column ${column.id}`}
+                      className='peer border-input data-[state=checked]:bg-brand-blue-500 data-[state=checked]:text-brand-blue-500-foreground dark:data-[state=checked]:bg-brand-blue-500 data-[state=checked]:border-brand-blue-500 focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive size-4 shrink-0 rounded-[4px] border bg-white shadow-xs transition-shadow outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/8'
+                      onClick={() => {
+                        column.toggleVisibility(!column.getIsVisible());
                       }}
-                      className='h-4 w-4'
-                    />
+                    >
+                      {column.getIsVisible() && (
+                        <span
+                          data-state='checked'
+                          data-slot='checkbox-indicator'
+                          className='pointer-events-none flex items-center justify-center text-current transition-none'
+                        >
+                          <Check className='size-3.5' />
+                        </span>
+                      )}
+                    </button>
                     <span>{column.id}</span>
                   </label>
                 </DropdownMenuItem>

@@ -95,7 +95,7 @@ export function DataMartTable<TData, TValue>({
     columns: [
       {
         id: 'select',
-        size: 30,
+        size: 40,
         header: ({ table }) => (
           <button
             type='button'
@@ -234,7 +234,13 @@ export function DataMartTable<TData, TValue>({
                     <TableHead
                       key={header.id}
                       className='[&:has([role=checkbox])]:pl-5 [&>[role=checkbox]]:translate-y-[2px]'
-                      style={{ width: header.getSize() }}
+                      style={
+                        header.column.id === 'select'
+                          ? { width: 40, minWidth: 40, maxWidth: 40 }
+                          : header.column.id === 'actions'
+                            ? { width: 80, minWidth: 80, maxWidth: 80 }
+                            : { width: `${String(header.getSize())}%` }
+                      }
                     >
                       {header.isPlaceholder
                         ? null
@@ -269,8 +275,14 @@ export function DataMartTable<TData, TValue>({
                   {row.getVisibleCells().map(cell => (
                     <TableCell
                       key={cell.id}
-                      className={`[&:has([role=checkbox])]pr-0 px-5 whitespace-normal [&>[role=checkbox]]:translate-y-[2px] ${cell.column.id === 'actions' ? 'actions-cell' : ''}`}
-                      style={{ width: cell.column.getSize() }}
+                      className={`[&:has([role=checkbox])]pr-0 px-5 whitespace-normal [&>[role=checkbox]]:translate-y-[2px] ${cell.column.id === 'actions' ? 'actions-cell' : ''} ${cell.column.id === 'createdAt' ? 'whitespace-nowrap' : ''}`}
+                      style={
+                        cell.column.id === 'select'
+                          ? { width: 40, minWidth: 40, maxWidth: 40 }
+                          : cell.column.id === 'actions'
+                            ? { width: 80, minWidth: 80, maxWidth: 80 }
+                            : { width: `${String(cell.column.getSize())}%` }
+                      }
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
@@ -280,7 +292,7 @@ export function DataMartTable<TData, TValue>({
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length + 1} className='dm-card-table-body-row-empty'>
-                  No results.
+                  No results
                 </TableCell>
               </TableRow>
             )}
