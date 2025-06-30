@@ -1,5 +1,5 @@
 {
   "*.json": "prettier --write",
   "*.{yml,yaml}": "prettier --write",
-  "*.md": "markdownlint-cli2 --fix"
+  "*.md": "markdownlint-cli2 --config .markdownlint.json --fix"
 }
