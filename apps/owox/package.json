@@ -67,6 +67,8 @@
   "scripts": {
     "build": "tsc -b",
     "lint": "eslint",
+    "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",
+    "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",
     "posttest": "npm run lint",
     "prepack": "oclif manifest && oclif readme",
     "test": "mocha --forbid-only \"test/**/*.test.ts\"",

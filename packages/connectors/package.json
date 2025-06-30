@@ -12,8 +12,8 @@
     "prepack": "npm run build",
     "lint": "eslint . --config ./eslint.config.js",
     "lint:fix": "eslint . --fix --config ./eslint.config.js",
-    "lint:md": "markdownlint-cli2",
-    "lint:md:fix": "markdownlint-cli2 --fix",
+    "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",
+    "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json}\""
   },
