@@ -1,4 +1,4 @@
-## How to Import Data from the Facebook Ads Source
+# How to Import Data from the Facebook Ads Source
 
 To begin importing data from Facebook Ads, start by making a copy of one of the following templates:
 
@@ -6,6 +6,7 @@ To begin importing data from Facebook Ads, start by making a copy of one of the 
 - [**Facebook Marketing → Google BigQuery. Template**](https://docs.google.com/spreadsheets/d/1XJPrB89Zn-tEnfxtgzM974Vnfj8P4T8kgwXQfPkn6vU/copy)
 
 Fill in the required information:
+
 - **Start Date**
 - **Account IDs**
 - **Fields**
@@ -51,7 +52,7 @@ Once your credentials are saved, go to: **OWOX → Import New Data**
 
 ![Facebook Import Data](res/fb_import.png)
 
-The import process is complete when the Log data displays **"Import is finished"**. 
+The import process is complete when the Log data displays **"Import is finished"**.
 
 ![Facebook Finished](res/fb_success.png)
 
@@ -71,4 +72,4 @@ If you encounter any issues:
 1. Check the "Logs" sheet for specific error messages
 2. Please [visit Q&A](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) first
 3. If you want to report a bug, please [open an issue](https://github.com/OWOX/owox-data-marts/issues)
-4. Join the [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions or propose improvements 
+4. Join the [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions or propose improvements

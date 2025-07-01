@@ -1,3 +1,5 @@
+# How to Import Data from the Linkedin Ads & Linkedin Pages Source
+
 To receive data from the LinkedIn Ads source, please make a copy of the file
 ["LinkedIn Ads → Google Sheets. Template"](https://docs.google.com/spreadsheets/d/1-eo1z9h5qKGfNDVmSoVYgyEkWfRWRy07NaU5hZnM4Vk/copy) or
 ["LinkedIn Ads → Google BigQuery. Template"](https://docs.google.com/spreadsheets/d/1hHrS8FejfACt1lbOQCfY72YldjjMRP8Ft1aOxqqXYsA/copy).
@@ -7,6 +9,7 @@ To receive data from the LinkedIn Pages source, please make a copy of the file
 ["LinkedIn Pages → Google BigQuery. Template"](https://docs.google.com/spreadsheets/d/1lFqSkdHjO2jTlHoi8QtmJNMCZK1YSaMKaSYmDI7LMKQ/copy)
 
 Fill in required information:
+
 - **Start Date**
 - **Account URNs**
 - **Organization URNs**
@@ -31,7 +34,7 @@ Select your ad account > Assets > Company Page.
 
 The URL may show something like:
 
-https://www.linkedin.com/company/123456/admin/
+<https://www.linkedin.com/company/123456/admin/>
 
 Here, `123456` is the Organization URN.
 

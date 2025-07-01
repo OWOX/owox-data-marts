@@ -1,11 +1,13 @@
-To receive data from the OpenExchangeRates source, please make a copy of the file ["Open Exchange Rates. Template"](https://docs.google.com/spreadsheets/d/1rvjCh_aGAcYgZRPzrePhkginVH6pJ5GoyN51z5HJD_I/copy). 
+# How to Import Data from the Open Exchange Rates Source
+
+To receive data from the OpenExchangeRates source, please make a copy of the file ["Open Exchange Rates. Template"](https://docs.google.com/spreadsheets/d/1rvjCh_aGAcYgZRPzrePhkginVH6pJ5GoyN51z5HJD_I/copy).
 
 Fill in the required information:
 
 - Start date
 - Symbols
 
-Data import begins on the selected start date. 
+Data import begins on the selected start date.
 
 ![Open Exchange Rates Start Date](res/openrates_date.png)
 
@@ -13,7 +15,7 @@ The base currency is US Dollars (USD) by default. A list of supported currency s
 
 ![Open Exchange Rates Currency](res/openrates_currency.png)
 
-Then, press *OWOX -> Manage credentials*. 
+Then, press *OWOX -> Manage credentials*.
 
 ![Open Exchange Rates Credentials](res/openrates_credentials.png)
 

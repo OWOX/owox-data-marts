@@ -1,4 +1,4 @@
-## How to Import Data from X Ads
+# How to Import Data from X Ads
 
 To begin importing data from X Ads, start by making a copy of one of the following templates:
 
@@ -6,6 +6,7 @@ To begin importing data from X Ads, start by making a copy of one of the followi
 - [**X Ads → Google BigQuery. Template**](https://docs.google.com/spreadsheets/d/1l-zRdOkuWsD-0xEmh0BIEb8aF4k0fksk4G3xGU5W6bM/copy)
 
 Fill in required information:
+
 - **Start Date**
 - **Account IDs**
 - **Fields**
@@ -23,6 +24,7 @@ To include more fields, go to the **Fields** tab and check the boxes next to the
 ![X Ads Fields](res/xads_fields.png)
 
 If you're using the **Google BigQuery** template, also fill in:
+
 - **Destination Dataset ID** in the format: `projectid.datasetid`
 - **Destination Location** (e.g., `US`, `EU`)
 
@@ -57,7 +59,7 @@ Access Your Data:
 
 Should you encounter any issues or questions not addressed in this guide:
 
-1.  **Check Logs:** Review the "Logs" sheet in your spreadsheet for specific error messages, which can often provide clues to the problem.
-2.  **Visit Q&A:** Before opening a new issue, please check the existing discussions and answers in our [Q&A section](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a).
-3.  **Report a Bug:** If you identify a bug, please [open an issue](https://github.com/OWOX/owox-data-marts/issues) on our GitHub repository.
-4.  **Join the Discussion:** Feel free to join our [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions, share insights, or propose improvements to the source.
+1. **Check Logs:** Review the "Logs" sheet in your spreadsheet for specific error messages, which can often provide clues to the problem.
+2. **Visit Q&A:** Before opening a new issue, please check the existing discussions and answers in our [Q&A section](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a).
+3. **Report a Bug:** If you identify a bug, please [open an issue](https://github.com/OWOX/owox-data-marts/issues) on our GitHub repository.
+4. **Join the Discussion:** Feel free to join our [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions, share insights, or propose improvements to the source.
