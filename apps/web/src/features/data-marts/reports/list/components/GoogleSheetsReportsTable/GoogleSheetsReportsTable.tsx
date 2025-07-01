@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useEditModal, useTableFilter, useColumnVisibility } from '../../model/hooks';
 import { getGoogleSheetsColumns, getAlignClass, type Align } from '../columns';
 import {
@@ -24,29 +24,18 @@ import { TableToolbar } from '../TableToolbar';
 import { TablePagination } from '../TablePagination';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report.ts';
 import { useReport } from '../../../shared';
-import { ReportStatusEnum } from '../../../shared';
 import { useOutletContext } from 'react-router-dom';
 import type { DataMartContextType } from '../../../../edit/model/context/types.ts';
 
 export function GoogleSheetsReportsTable() {
   const { dataMart } = useOutletContext<DataMartContextType>();
-  const {
-    fetchReportsByDataMartId,
-    reports,
-    startPollingReport,
-    stopAllPolling,
-    setPollingConfig,
-  } = useReport();
+  const { fetchReportsByDataMartId, reports, stopAllPolling, setPollingConfig } = useReport();
   const [sorting, setSorting] = useState<SortingState>([{ id: 'lastRunDate', desc: true }]);
   const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
   const { editOpen, handleAddReport, editMode, handleEditRow, handleCloseEditForm, getEditReport } =
     useEditModal();
 
   const editReport = getEditReport(reports);
-  // Refs to track polling state
-  const processedReportsRef = useRef(false);
-  const prevRunningReportIdsRef = useRef<string[]>([]);
-  const reportsRef = useRef<DataMartReport[]>([]);
 
   // Set polling configuration
   useEffect(() => {
@@ -73,59 +62,14 @@ export function GoogleSheetsReportsTable() {
 
   // Start polling for any reports with RUNNING status
   useEffect(() => {
-    // This effect runs when the component mounts or when dataMart changes
-
     // Stop all polling first to avoid duplicate polling
     stopAllPolling();
-
-    // Reset the refs when dataMart changes
-    // This ensures we process the new reports for the new dataMart
-    processedReportsRef.current = false;
-    prevRunningReportIdsRef.current = [];
 
     // Clean up polling when component unmounts
     return () => {
       stopAllPolling();
     };
   }, [dataMart?.id, stopAllPolling]);
-
-  // Update reportsRef whenever reports changes
-  useEffect(() => {
-    reportsRef.current = reports;
-  }, [reports]);
-
-  // This effect handles starting polling for reports with RUNNING status
-  // It uses refs to avoid processing reports multiple times and to track which reports are running
-  useEffect(() => {
-    // Skip if no reports
-    if (reportsRef.current.length === 0) return;
-
-    // Get IDs of currently running reports
-    const runningReportIds = reportsRef.current
-      .filter(report => report.lastRunStatus === ReportStatusEnum.RUNNING)
-      .map(report => report.id);
-
-    // Check if there are any new running reports that weren't running before
-    const hasNewRunningReport = runningReportIds.some(
-      id => !prevRunningReportIdsRef.current.includes(id)
-    );
-
-    // Only process reports if they haven't been processed yet or if there's a new running report
-    if (!processedReportsRef.current || hasNewRunningReport) {
-      // Start polling only for new running reports that aren't already being polled
-      runningReportIds.forEach(reportId => {
-        if (!prevRunningReportIdsRef.current.includes(reportId)) {
-          startPollingReport(reportId);
-        }
-      });
-
-      // Mark reports as processed
-      processedReportsRef.current = true;
-    }
-
-    // Update the ref with current running report IDs for next comparison
-    prevRunningReportIdsRef.current = runningReportIds;
-  }, [startPollingReport]);
 
   const columns = useMemo(
     () =>
