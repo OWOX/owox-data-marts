@@ -13,10 +13,7 @@ import {
   SelectValue,
 } from '@owox/ui/components/select';
 import { DataStorageTypeModel } from '../../../shared/types/data-storage-type.model.ts';
-import {
-  type DataStorageFormData,
-  dataStorageSchema,
-} from '../../../shared/types/data-storage.schema.ts';
+import { type DataStorageFormData, dataStorageSchema } from '../../../shared';
 import { Label } from '@owox/ui/components/label';
 import { Input } from '@owox/ui/components/input';
 

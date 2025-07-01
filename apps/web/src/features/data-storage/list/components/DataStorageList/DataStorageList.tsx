@@ -8,7 +8,6 @@ import { DataStorageType } from '../../../shared';
 import { DataStorageTypeDialog } from '../../../shared/components/DataStorageTypeDialog.tsx';
 import { DataStorageDetailsDialog } from '../DataStorageDetailsDialog';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
-import type { DataMart } from '../../../../data-marts/edit';
 
 interface DataStorageListProps {
   initialTypeDialogOpen?: boolean;
@@ -66,10 +65,6 @@ export const DataStorageList = ({
     }
   };
 
-  useEffect(() => {
-    void fetchDataStorages();
-  }, [fetchDataStorages]);
-
   if (loading) {
     return <div className='py-4'>Loading data storages...</div>;
   }
@@ -112,9 +107,8 @@ export const DataStorageList = ({
     }
   };
 
-  const handleSave = async (storage: DataMart['storage']) => {
+  const handleSave = async () => {
     try {
-      console.log(storage);
       setIsEditDrawerOpen(false);
       await fetchDataStorages();
     } catch (error) {

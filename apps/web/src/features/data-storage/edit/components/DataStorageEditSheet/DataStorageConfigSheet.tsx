@@ -1,7 +1,7 @@
 import type { DataStorage } from '../../../shared/model/types/data-storage.ts';
 import { DataStorageForm } from '../DataStorageEditForm';
 import { DialogDescription, DialogTitle } from '@owox/ui/components/dialog';
-import type { DataStorageFormData } from '../../../shared/types/data-storage.schema.ts';
+import type { DataStorageFormData } from '../../../shared';
 import { Sheet, SheetContent, SheetHeader } from '@owox/ui/components/sheet';
 import { useDataStorage } from '../../../shared/model/hooks/useDataStorage.ts';
 

@@ -10,10 +10,10 @@ import {
   TooltipTrigger,
 } from '@owox/ui/components/tooltip';
 import { Info } from 'lucide-react';
-import type { DataStorageFormData } from '../../../shared/types/data-storage.schema.ts';
+import type { DataStorageFormData } from '../../../shared';
 import { googleBigQueryLocationOptions } from '../../../shared';
 import { Combobox } from '../../../../../shared/components/Combobox/combobox.tsx';
-import { SecureJsonInput } from '../../../shared/components/SecureJsonInput/SecureJsonInput.tsx';
+import { SecureJsonInput } from '../../../../../shared';
 
 interface GoogleBigQueryFieldsProps {
   form: ReturnType<typeof useForm<DataStorageFormData>>;

@@ -7,7 +7,7 @@ import {
 import { SENSITIVE_KEYS } from '../../constants';
 import { InfoRow } from './InfoRow';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
-import { SecureJsonInput } from '../SecureJsonInput/SecureJsonInput.tsx';
+import { SecureJsonInput } from '../../../../../shared';
 
 interface CredentialsSectionProps {
   type: DataStorageType;
