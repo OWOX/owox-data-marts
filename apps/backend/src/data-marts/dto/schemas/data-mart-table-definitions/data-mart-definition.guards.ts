@@ -1,3 +1,4 @@
+import { ConnectorDefinition, ConnectorDefinitionSchema } from './connector-definition.schema';
 import { DataMartDefinition } from './data-mart-definition';
 import { SqlDefinition, SqlDefinitionSchema } from './sql-definition.schema';
 import { TableDefinition, TableDefinitionSchema } from './table-definition.schema';
@@ -23,4 +24,10 @@ export function isTablePatternDefinition(
 
 export function isViewDefinition(definition: DataMartDefinition): definition is ViewDefinition {
   return ViewDefinitionSchema.safeParse(definition).success;
+}
+
+export function isConnectorDefinition(
+  definition: DataMartDefinition
+): definition is ConnectorDefinition {
+  return ConnectorDefinitionSchema.safeParse(definition).success;
 }

@@ -10,6 +10,7 @@ import {
   isTableDefinition,
   isTablePatternDefinition,
   isViewDefinition,
+  isConnectorDefinition,
 } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { SqlDefinition } from '../../../dto/schemas/data-mart-table-definitions/sql-definition.schema';
 import { ViewDefinition } from '../../../dto/schemas/data-mart-table-definitions/view-definition.schema';
@@ -21,6 +22,7 @@ import { S3ApiAdapter } from '../adapters/s3-api.adapter';
 import { S3ApiAdapterFactory } from '../adapters/s3-api-adapter.factory';
 import { isAthenaCredentials } from '../../data-storage-credentials.guards';
 import { isAthenaConfig } from '../../data-storage-config.guards';
+import { ConnectorDefinition } from 'src/data-marts/dto/schemas/data-mart-table-definitions/connector-definition.schema';
 
 @Injectable({ scope: Scope.TRANSIENT })
 export class AthenaReportReader implements DataStorageReportReader {
@@ -152,6 +154,8 @@ export class AthenaReportReader implements DataStorageReportReader {
         await this.prepareViewData(dataMartDefinition);
       } else if (isTablePatternDefinition(dataMartDefinition)) {
         throw new Error('Table pattern queries are not supported in Athena');
+      } else if (isConnectorDefinition(dataMartDefinition)) {
+        await this.prepareConnectorData(dataMartDefinition);
       } else {
         throw new Error('Invalid data mart definition');
       }
@@ -171,6 +175,12 @@ export class AthenaReportReader implements DataStorageReportReader {
 
   private async prepareTableData(dataMartDefinition: TableDefinition): Promise<void> {
     await this.executeQuery(`SELECT * FROM ${dataMartDefinition.fullyQualifiedName}`);
+  }
+
+  private async prepareConnectorData(dataMartDefinition: ConnectorDefinition): Promise<void> {
+    await this.executeQuery(
+      `SELECT * FROM ${dataMartDefinition.connector.storage.fullyQualifiedName}`
+    );
   }
 
   private async executeQuery(query: string): Promise<void> {

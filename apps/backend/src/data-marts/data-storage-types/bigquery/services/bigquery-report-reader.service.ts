@@ -9,6 +9,7 @@ import {
   isTableDefinition,
   isTablePatternDefinition,
   isViewDefinition,
+  isConnectorDefinition,
 } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { TableDefinition } from '../../../dto/schemas/data-mart-table-definitions/table-definition.schema';
 import { SqlDefinition } from '../../../dto/schemas/data-mart-table-definitions/sql-definition.schema';
@@ -20,6 +21,7 @@ import { BigQueryApiAdapter } from '../adapters/bigquery-api.adapter';
 import { Table } from '@google-cloud/bigquery';
 import { isBigqueryCredentials } from '../../data-storage-credentials.guards';
 import { isBigQueryConfig } from '../../data-storage-config.guards';
+import { ConnectorDefinition } from 'src/data-marts/dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { BigQueryCredentials } from '../schemas/bigquery-credentials.schema';
 import { BigQueryConfig } from '../schemas/bigquery-config.schema';
 
@@ -92,6 +94,8 @@ export class BigQueryReportReader implements DataStorageReportReader {
         await this.prepareViewData(dataMartDefinition);
       } else if (isTablePatternDefinition(dataMartDefinition)) {
         await this.prepareTablePatternData(dataMartDefinition);
+      } else if (isConnectorDefinition(dataMartDefinition)) {
+        await this.prepareConnectorData(dataMartDefinition);
       } else {
         throw new Error('Invalid data mart definition');
       }
@@ -128,6 +132,12 @@ export class BigQueryReportReader implements DataStorageReportReader {
     const tableRef = dataMartDefinition.fullyQualifiedName.split('.');
     // project.dataset.table
     this.defineReportResultTable(tableRef[0], tableRef[1], tableRef[2]);
+  }
+
+  private async prepareConnectorData(dataMartDefinition: ConnectorDefinition): Promise<void> {
+    await this.prepareQueryData(
+      `SELECT * FROM \`${dataMartDefinition.connector.storage.fullyQualifiedName}\``
+    );
   }
 
   private defineReportResultTable(projectId: string, datasetId: string, tableId: string): void {
