@@ -1,4 +1,5 @@
-import axios, { type AxiosInstance, type AxiosRequestConfig } from 'axios';
+import axios, { type AxiosInstance, type AxiosRequestConfig, AxiosError } from 'axios';
+import toast from 'react-hot-toast';
 
 // Default config for the axios instance
 const axiosConfig: AxiosRequestConfig = {
@@ -15,5 +16,23 @@ const axiosConfig: AxiosRequestConfig = {
 };
 
 const apiClient: AxiosInstance = axios.create(axiosConfig);
+
+apiClient.interceptors.response.use(
+  response => response,
+  (error: AxiosError) => {
+    if (error.response && error.response.status === 400) {
+      const data = error.response.data as {
+        statusCode: number;
+        timestamp: string;
+        path: string;
+        message: string;
+      };
+
+      toast.error(data.message);
+    }
+
+    return Promise.reject(error);
+  }
+);
 
 export default apiClient;

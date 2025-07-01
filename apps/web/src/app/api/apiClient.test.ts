@@ -5,6 +5,14 @@ vi.mock('axios', () => {
   const mockAxiosInstance = {
     get: vi.fn(),
     post: vi.fn(),
+    interceptors: {
+      request: {
+        use: vi.fn(),
+      },
+      response: {
+        use: vi.fn(),
+      },
+    },
   };
 
   return {
