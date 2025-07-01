@@ -1,6 +1,6 @@
-import { ConfigService } from '@nestjs/config';
-import { createLogger } from '../common/logger/logger.service';
 import dataSource from '../data-source';
+import { createLogger } from '../common/logger/logger.service';
+import { ConfigService } from '@nestjs/config';
 
 export async function runMigrationsIfNeeded(config: ConfigService): Promise<void> {
   const logger = createLogger('MigrationRunner');

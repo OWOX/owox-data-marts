@@ -1,7 +1,7 @@
 import { config as dotenvConfig } from 'dotenv';
-import { existsSync } from 'fs';
-import { join } from 'path';
 import { createLogger } from './common/logger/logger.service';
+import { join } from 'path';
+import { existsSync } from 'fs';
 
 let isLoaded = false;
 
