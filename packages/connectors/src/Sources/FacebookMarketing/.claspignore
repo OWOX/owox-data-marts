@@ -5,6 +5,7 @@
 !Core/Abstract*.js
 !Core/Exceptions.js
 !Core/EnvironmentAdapter.js
+!Core/Utils/*.js
 !Constants/*.js
 !Views/**/*
 !Storages/**/*.js

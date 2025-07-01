@@ -136,11 +136,5 @@ var FacebookMarketingFieldsSchema = {
         "description": "Insights on your advertising performance.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-campaign-group/insights",
         "fields" : adCampaignInsightsFields
-    },
-    "insights": {
-        "overview": "Insights",
-        "description": "Provides a single, consistent interface to retrieve ad statistics.",
-        "documentation": "https://developers.facebook.com/docs/marketing-api/insights/breakdowns",
-        "fields": adInsightsBreakDownFields
     }
 }
