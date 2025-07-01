@@ -1,9 +1,7 @@
 import { config as dotenvConfig } from 'dotenv';
-import { Logger } from '@nestjs/common';
-import { join } from 'path';
 import { existsSync } from 'fs';
-
-const logger = new Logger('LoadEnv');
+import { join } from 'path';
+import { createLogger } from './common/logger/logger.service';
 
 let isLoaded = false;
 
@@ -19,17 +17,22 @@ export function loadEnv(): void {
   const baseEnvPath = join(baseDirPath, baseEnvName);
   const devEnvPath = join(baseDirPath, devEnvName);
 
+  const logs: string[] = [];
+
   const baseEnvExist = existsSync(baseEnvPath);
   if (baseEnvExist) {
     dotenvConfig({ path: baseEnvPath });
-    logger.log(`Loaded ${baseEnvName} from ${baseEnvPath}`);
+    logs.push(`Loaded ${baseEnvName} from ${baseEnvPath}`);
   }
 
   const devEnvExist = existsSync(devEnvPath);
   if (devEnvExist) {
     dotenvConfig({ path: devEnvPath, override: true });
-    logger.log(`Loaded ${devEnvName} from ${devEnvPath}`);
+    logs.push(`Loaded and overrided ${devEnvName} from ${devEnvPath}`);
   }
+
+  const logger = createLogger('LoadEnv');
+  logs.map(message => logger.log(message));
 
   if (!baseEnvExist && !devEnvExist) {
     logger.warn(`No ${baseEnvName} or ${devEnvName} file found`);

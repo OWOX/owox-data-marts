@@ -1,10 +1,10 @@
-import dataSource from '../data-source';
-import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-
-const logger = new Logger('MigrationRunner');
+import { createLogger } from '../common/logger/logger.service';
+import dataSource from '../data-source';
 
 export async function runMigrationsIfNeeded(config: ConfigService): Promise<void> {
+  const logger = createLogger('MigrationRunner');
+
   const shouldRun = config.get<string>('RUN_MIGRATIONS') === 'true';
 
   if (!shouldRun) {
