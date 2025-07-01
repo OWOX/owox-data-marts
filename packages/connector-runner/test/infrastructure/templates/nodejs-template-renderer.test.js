@@ -26,7 +26,7 @@ describe('NodeJsTemplateRenderer', () => {
     const template = templateRenderer.render([]);
 
     expect(template).not.toContain("require('test-package')");
-    expect(template).toContain("const OWOX = require('@owox/connectors');");
+    expect(template).toContain('const { Core, Connectors, Storages } = OWOX;');
   });
 
   test('should handle dependencies with global_is true', () => {

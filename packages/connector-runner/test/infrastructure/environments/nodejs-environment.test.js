@@ -10,6 +10,12 @@ jest.mock('child_process', () => ({
   spawn: jest.fn(),
 }));
 
+jest.mock('env-paths', () => {
+  return jest.fn(() => ({
+    temp: '/mock/temp/path',
+  }));
+});
+
 jest.mock('../../../src/infrastructure/dependencies/npm-dependency-manager');
 jest.mock('../../../src/infrastructure/templates/nodejs-template-renderer');
 
@@ -25,11 +31,7 @@ describe('NodeJsEnvironment', () => {
       global_is: true,
     },
   ];
-  const mockWorkDir = path.join(
-    '../../dist/data-marts/conectivity/runs',
-    mockConnectorId,
-    mockRunId
-  );
+  const mockWorkDir = path.join('/mock/temp/path', mockConnectorId, mockRunId);
 
   beforeEach(() => {
     jest.clearAllMocks();

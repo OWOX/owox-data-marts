@@ -73,6 +73,7 @@ describe('NpmDependencyManager', () => {
     expect(packageJson.private).toBe(true);
     expect(packageJson.dependencies).toBeDefined();
 
+    expect(packageJson.dependencies['@owox/connectors']).toBeDefined();
     expect(packageJson.dependencies['@kaciras/deasync']).toBeDefined();
     expect(packageJson.dependencies['sync-request']).toBeDefined();
     expect(packageJson.dependencies['adm-zip']).toBeDefined();
@@ -83,9 +84,10 @@ describe('NpmDependencyManager', () => {
   test('should get default dependencies', () => {
     const defaultDeps = dependencyManager.getDefaultDependencies();
 
-    expect(defaultDeps).toHaveLength(3);
-    expect(defaultDeps[0].name).toBe('@kaciras/deasync');
-    expect(defaultDeps[1].name).toBe('sync-request');
-    expect(defaultDeps[2].name).toBe('adm-zip');
+    expect(defaultDeps).toHaveLength(4);
+    expect(defaultDeps[0].name).toBe('@owox/connectors');
+    expect(defaultDeps[1].name).toBe('@kaciras/deasync');
+    expect(defaultDeps[2].name).toBe('sync-request');
+    expect(defaultDeps[3].name).toBe('adm-zip');
   });
 });

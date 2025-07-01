@@ -1,3 +1,5 @@
+const { RunConfig } = require('../../../src/application/dto/run-config');
+
 const ConnectorExecutionService = require('../../../src/application/services/connector-execution-service');
 const NodeJsEnvironment = require('../../../src/infrastructure/environments/nodejs-environment');
 
@@ -30,7 +32,7 @@ describe('ConnectorExecutionService', () => {
   let mockEnvironment;
   const mockDatamartId = 'test-datamart';
   const mockRunId = 'test-run';
-  const mockConfig = {
+  const mockConfig = RunConfig.fromObject({
     datamartId: mockDatamartId,
     name: 'Test Config',
     source: {
@@ -41,7 +43,7 @@ describe('ConnectorExecutionService', () => {
       name: 'TestStorage',
       config: { storageParam: 'value' },
     },
-  };
+  });
 
   beforeEach(() => {
     mockEnvironment = {

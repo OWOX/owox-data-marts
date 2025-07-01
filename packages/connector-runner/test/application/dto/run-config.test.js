@@ -53,7 +53,18 @@ describe('RunConfig', () => {
     const runConfig = RunConfig.fromObject(validConfig);
     const plainObject = runConfig.toObject();
 
-    expect(plainObject).toEqual(validConfig);
+    expect(plainObject).toEqual({
+      datamartId: validConfig.datamartId,
+      name: validConfig.name,
+      source: {
+        name: validConfig.source.name,
+        config: { sourceParam: { value: 'value' } },
+      },
+      storage: {
+        name: validConfig.storage.name,
+        config: { storageParam: { value: 'value' } },
+      },
+    });
   });
 
   test('should validate source configuration', () => {
@@ -90,7 +101,7 @@ describe('SourceConfig', () => {
 
     expect(sourceConfig).toBeDefined();
     expect(sourceConfig.name).toBe(validSourceConfig.name);
-    expect(sourceConfig.config).toEqual(validSourceConfig.config);
+    expect(sourceConfig.config).toEqual({ sourceParam: { value: 'value' } });
   });
 
   test('should validate required fields', () => {
@@ -103,7 +114,10 @@ describe('SourceConfig', () => {
     const sourceConfig = new SourceConfig(validSourceConfig);
     const plainObject = sourceConfig.toObject();
 
-    expect(plainObject).toEqual(validSourceConfig);
+    expect(plainObject).toEqual({
+      name: validSourceConfig.name,
+      config: { sourceParam: { value: 'value' } },
+    });
   });
 });
 
@@ -118,7 +132,7 @@ describe('StorageConfig', () => {
 
     expect(storageConfig).toBeDefined();
     expect(storageConfig.name).toBe(validStorageConfig.name);
-    expect(storageConfig.config).toEqual(validStorageConfig.config);
+    expect(storageConfig.config).toEqual({ storageParam: { value: 'value' } });
   });
 
   test('should validate required fields', () => {
@@ -131,6 +145,9 @@ describe('StorageConfig', () => {
     const storageConfig = new StorageConfig(validStorageConfig);
     const plainObject = storageConfig.toObject();
 
-    expect(plainObject).toEqual(validStorageConfig);
+    expect(plainObject).toEqual({
+      name: validStorageConfig.name,
+      config: { storageParam: { value: 'value' } },
+    });
   });
 });

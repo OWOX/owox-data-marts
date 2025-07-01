@@ -21,15 +21,14 @@ describe('ConnectorRunnerCli', () => {
   let mockConsoleError;
   const mockConfigPath = '/path/to/config.json';
   const mockConfig = {
-    config: {
-      source: {
-        type: 'test-source',
-        config: {},
-      },
-      storage: {
-        type: 'test-storage',
-        config: {},
-      },
+    name: 'Test Config',
+    source: {
+      name: 'test-source',
+      config: {},
+    },
+    storage: {
+      name: 'test-storage',
+      config: {},
     },
   };
 
@@ -62,8 +61,13 @@ describe('ConnectorRunnerCli', () => {
       expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/),
       expect.objectContaining({
         datamartId: 'cli-runner',
-        runId: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/),
-        config: mockConfig.config,
+        name: mockConfig.name,
+        source: expect.objectContaining({
+          name: mockConfig.source.name,
+        }),
+        storage: expect.objectContaining({
+          name: mockConfig.storage.name,
+        }),
       })
     );
     expect(mockExit).not.toHaveBeenCalled();
