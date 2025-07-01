@@ -26,7 +26,7 @@ export function GoogleSheetsActionsCell({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const { deleteReport, fetchReports, runReport } = useReport();
+  const { deleteReport, fetchReportsByDataMartId, runReport } = useReport();
 
   // Generate unique ID for the actions menu
   const actionsMenuId = `actions-menu-${row.original.id}`;
@@ -36,14 +36,20 @@ export function GoogleSheetsActionsCell({
     try {
       setIsDeleting(true);
       await deleteReport(row.original.id);
-      await fetchReports();
+      await fetchReportsByDataMartId(row.original.dataMart.id);
       onDeleteSuccess?.();
     } catch (error) {
       console.error('Failed to delete Google Sheet:', error);
     } finally {
       setIsDeleting(false);
     }
-  }, [deleteReport, fetchReports, onDeleteSuccess, row.original.id]);
+  }, [
+    deleteReport,
+    fetchReportsByDataMartId,
+    onDeleteSuccess,
+    row.original.id,
+    row.original.dataMart.id,
+  ]);
 
   const handleEdit = useCallback(() => {
     onEditReport?.(row.original.id);
@@ -54,13 +60,13 @@ export function GoogleSheetsActionsCell({
     try {
       setIsRunning(true);
       await runReport(row.original.id);
-      await fetchReports();
+      await fetchReportsByDataMartId(row.original.dataMart.id);
     } catch (error) {
       console.error('Failed to run report:', error);
     } finally {
       setIsRunning(false);
     }
-  }, [runReport, fetchReports, row.original.id]);
+  }, [runReport, fetchReportsByDataMartId, row.original.id, row.original.dataMart.id]);
 
   return (
     <div
