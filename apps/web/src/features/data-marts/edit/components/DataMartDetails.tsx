@@ -43,7 +43,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   const navigation = [
     { name: 'Overview', path: 'overview' },
     { name: 'Data Setup', path: 'data-setup' },
-    { name: 'Destinations', path: 'destinations' },
+    { name: 'Destinations', path: 'reports' },
   ];
 
   const handleTitleUpdate = async (newTitle: string) => {

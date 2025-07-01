@@ -7,6 +7,7 @@ import DataMartsPage from '../pages/data-marts/list/DataMartsPage.tsx';
 import { DataMartDetailsPage } from '../pages/data-marts/edit';
 import CreateDataMartPage from '../pages/data-marts/create/CreateDataMartPage.tsx';
 import { DataStorageListPage } from '../pages/data-storage';
+import { DataDestinationListPage } from '../pages/data-destination/DataDestinationListPage';
 import { dataMartDetailsRoutes } from './data-marts/routes';
 
 const routes: RouteObject[] = [
@@ -38,6 +39,10 @@ const routes: RouteObject[] = [
       {
         path: 'data-storages',
         element: <DataStorageListPage />,
+      },
+      {
+        path: 'data-destinations',
+        element: <DataDestinationListPage />,
       },
       {
         path: '*',

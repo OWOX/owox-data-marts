@@ -10,6 +10,7 @@ import { AppSidebar } from '../components/AppSidebar/app-sidebar.tsx';
 import { ThemeProvider } from '../app/providers/theme-provider.tsx';
 import { storageService } from '../services';
 import { GlobalLoader, LoadingProvider, useLoading } from '../shared/components/GlobalLoader';
+import { Toaster } from '../shared/components/Toaster';
 
 // Constants
 const SIDEBAR_STATE_KEY = 'sidebar_state';
@@ -22,6 +23,7 @@ function MainLayoutContent() {
 
   return (
     <>
+      <Toaster />
       <GlobalLoader isLoading={isLoading} />
       <AppSidebar variant='inset' collapsible='icon' />
       <SidebarInset>

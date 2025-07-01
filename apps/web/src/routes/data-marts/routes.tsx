@@ -13,7 +13,7 @@ export const dataMartDetailsRoutes: RouteObject[] = [
     element: <DataMartDataSetupContent />,
   },
   {
-    path: 'destinations',
+    path: 'reports',
     element: <DataMartDestinationsContent />,
   },
   {

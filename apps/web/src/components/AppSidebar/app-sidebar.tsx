@@ -10,7 +10,7 @@ import {
   SidebarMenuButton,
   SidebarRail,
 } from '@owox/ui/components/sidebar';
-import { Home, Plus, DatabaseIcon } from 'lucide-react';
+import { Home, Plus, DatabaseIcon, TableIcon } from 'lucide-react';
 import { createElement } from 'react';
 import { ThemeToggle } from '../ThemeToggle/theme-toggle.tsx';
 import { SidebarHeaderDropdown } from './sidebar-header-dropdown.tsx';
@@ -32,6 +32,11 @@ const items = [
     title: 'Data Storages',
     url: '/data-storages',
     icon: DatabaseIcon,
+  },
+  {
+    title: 'Data Destinations',
+    url: '/data-destinations',
+    icon: TableIcon,
   },
 ];
 
