@@ -30,7 +30,11 @@ var AbstractConnector = class AbstractConnector {
 
         // in case current status is not In progress, we need to update it to "Error". We cannot overwrite "In progress" status with "Error" to avoid import dublication
         if( !config.isInProgress() ) {
-          config.updateCurrentStatus(`Error`);
+          config.processStatus({ 
+            status: `Error`, 
+            error: error,
+            sendNotifications: config.shouldSendNotifications(`Error`)
+          });
         }
 
         throw error;
@@ -67,7 +71,7 @@ var AbstractConnector = class AbstractConnector {
         } else {
 
           this.config.logMessage("⚫️ Configuration was loaded successfully", true);
-          this.config.updateCurrentStatus(`Import in progress`);
+          this.config.processStatus({ status: `Import in progress`, sendNotifications: false });
           this.config.updateLastImportDate();
           this.config.logMessage("🟢 Start importing new data");
 
@@ -79,14 +83,21 @@ var AbstractConnector = class AbstractConnector {
           this.startImportProcess();
 
           this.config.logMessage("✅ Import is finished");
-          this.config.updateCurrentStatus(`Done`);      
+          this.config.processStatus({ 
+            status: `Done`,
+            sendNotifications: this.config.shouldSendNotifications(`Done`)
+          });      
         }
 
         this.config.updateLastImportDate();
 
       } catch( error ) {
 
-        this.config.updateCurrentStatus(`Error`);
+        this.config.processStatus({ 
+          status: `Error`, 
+          error: error,
+          sendNotifications: this.config.shouldSendNotifications(`Error`)
+        });
         this.config.logMessage(`❌ ${error.stack}`);
         throw error;
 

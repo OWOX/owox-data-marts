@@ -59,11 +59,46 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
             isRequired: true,
             requiredType: "number",
             default: 30
+          },
+          NotifyByEmail: {
+            isRequired: false,
+            requiredType: "string",
+            default: ""
+          },
+          NotifyByGoogleChat: {
+            isRequired: false,
+            requiredType: "string", 
+            default: ""
+          },
+          NotificationFilter: {
+            isRequired: false,
+            requiredType: "string",
+            default: "All"
           }
       });
     
     }
     
+  //---- processStatus -----------------------------------------------
+    /**
+     * @param {Object} params - Parameters object with status and other properties
+     * @param {string} params.status - Current status value
+     * @param {boolean} params.sendNotifications - Send notifications if true
+     */
+    processStatus(params) {
+    
+      const { status, sendNotifications } = params;
+      this.updateCurrentStatus(status);
+      
+      if (sendNotifications) {
+        this.sendNotifications(params);
+      } else {
+        console.log(`Notifications skipped for status: ${status} (sendNotifications: false)`);
+      }
+    
+    }
+    //----------------------------------------------------------------
+  
   //---- updateCurrentStatus -----------------------------------------
     /**
      * @param string current status value
@@ -358,4 +393,74 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
       
       ui.showModalDialog(html, `${source.constructor.name} Credentials`);
     }
+
+  //---- sendNotifications -------------------------------------------
+    /**
+     * Send notifications based on configuration settings
+     * @param {Object} params - Parameters object
+     * @param {string} params.status - Current status value
+     * @param {string} params.error - Error message for Error status
+     */
+    sendNotifications(params) {      
+      try {
+        // Send email notification if NotifyByEmail has value
+        console.log('Checking email notification...');
+        console.log('NotifyByEmail value:', this.NotifyByEmail?.value);
+        
+        if (this.NotifyByEmail && this.NotifyByEmail.value && this.NotifyByEmail.value.trim()) {
+          console.log('Sending email notification...');
+          EmailNotification.send({
+            to: this.NotifyByEmail.value,
+            subject: `Data Connector Status: ${params.status}`,
+            message: JSON.stringify(params),
+            status: params.status
+          });
+        } else {
+          console.log('Email notification skipped: no valid email address');
+        }
+        
+        // Send Google Chat notification if NotifyByGoogleChat has value
+        console.log('Checking Google Chat notification...');
+        console.log('NotifyByGoogleChat value:', this.NotifyByGoogleChat?.value);
+        
+        if (this.NotifyByGoogleChat && this.NotifyByGoogleChat.value && this.NotifyByGoogleChat.value.trim()) {
+          console.log('Sending Google Chat notification...');
+          GoogleChatNotification.send({
+            webhookUrl: this.NotifyByGoogleChat.value.trim(),
+            message: JSON.stringify(params),
+            status: params.status,
+            connectorName: this.configSpreadsheet.getName()
+          });
+        } else {
+          console.log('Google Chat notification skipped: no webhook URL provided');
+        }
+      } catch (error) {
+        console.error(`Failed to send notifications: ${error.message}`);
+        this.logMessage(`⚠️ Notification error: ${error.message}`);
+      }
+    }
+    //----------------------------------------------------------------
+
+  //---- shouldSendNotifications -------------------------------------
+    /**
+     * Determine if notifications should be sent based on status and filter setting
+     * @param {string} status - Current status
+     * @returns {boolean} - True if notifications should be sent
+     */
+    shouldSendNotifications(status) {
+      const notificationFilter = this.NotificationFilter?.value || "All";
+      
+      switch (notificationFilter) {
+        case "Failed syncs":
+          return status === "Error";
+        
+        case "Successful syncs":
+          return status === "Done";
+        
+        case "All":
+        default:
+          return true;
+      }
+    }
+    //----------------------------------------------------------------
 }

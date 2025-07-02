@@ -156,7 +156,7 @@ class AbstractStorage {
         // stat cleaning process
         } else {
     
-          this.config.updateCurrentStatus(`CleanUp in progress`);
+          this.config.processStatus({ status: `CleanUp in progress`, sendNotifications: false });
           this.config.logMessage(`🧹 Start cleaning expired rows`, true);
     
           let deletedRows = 0;
@@ -193,7 +193,7 @@ class AbstractStorage {
         }
     
         this.config.logMessage("✅ Cleanup is finished");
-        this.config.updateCurrentStatus(`Done`);
+        this.config.processStatus({ status: `Done`, sendNotifications: false });
     
     
       } catch( error ) {
