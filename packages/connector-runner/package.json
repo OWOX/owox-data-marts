@@ -29,7 +29,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "prepublishOnly": "npm audit && npm run lint"
+    "prepublishOnly": "npm audit && npm run lint && npm run test"
   },
   "dependencies": {
     "@owox/connectors": "0.1.0",
