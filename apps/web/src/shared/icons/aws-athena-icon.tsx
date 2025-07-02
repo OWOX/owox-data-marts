@@ -15,18 +15,94 @@ export const AwsAthenaIcon = ({ className, size = 24 }: AwsAthenaIconProps) => {
       style={{ minWidth: size, minHeight: size }}
     >
       <path
-        d='M24 46C36.1503 46 46 36.1503 46 24C46 11.8497 36.1503 2 24 2C11.8497 2 2 11.8497 2 24C2 36.1503 11.8497 46 24 46Z'
-        fill='#FF9900'
+        fill-rule='evenodd'
+        clip-rule='evenodd'
+        d='M48 29.0142L24 26.0256L0 29.0142L24 48L48 29.0142Z'
+        fill='#FCBF92'
       />
       <path
-        d='M16.9283 17.9315V32.0659L24 36.1323L31.0717 32.0659V17.9315L24 13.8651L16.9283 17.9315Z'
-        fill='#FFFFFF'
+        fill-rule='evenodd'
+        clip-rule='evenodd'
+        d='M0 29.0142L24 36.2676V48L0 35.8398V29.0142Z'
+        fill='#9D5025'
       />
-      <path d='M24 18.7983L16.9283 14.732V26.8994L24 30.9658V18.7983Z' fill='#D86613' />
-      <path d='M24 18.7983L31.0717 14.732V26.8994L24 30.9658V18.7983Z' fill='#FFFFFF' />
       <path
-        d='M16.9283 26.8994L24 22.8331L31.0717 26.8994L24 30.9658L16.9283 26.8994Z'
-        fill='#D86613'
+        fill-rule='evenodd'
+        clip-rule='evenodd'
+        d='M48 29.0142L24 36.2676V48L48 35.8398V29.0142Z'
+        fill='#F58534'
+      />
+      <path
+        fill-rule='evenodd'
+        clip-rule='evenodd'
+        d='M3.099 18.7008H0V25.5978L3.099 26.1684L6.5436 22.4742L3.099 18.7014V18.7008Z'
+        fill='#9D5025'
+      />
+      <path
+        fill-rule='evenodd'
+        clip-rule='evenodd'
+        d='M6.54421 25.8828L3.09961 26.1678V18.7008H6.54421V25.8828Z'
+        fill='#F58534'
+      />
+      <path
+        fill-rule='evenodd'
+        clip-rule='evenodd'
+        d='M8.86613 10.0992L4.78613 10.8768V26.5248L8.86613 27.3804L12.6005 18.7002L8.86613 10.0986V10.0992Z'
+        fill='#9D5025'
+      />
+      <path
+        fill-rule='evenodd'
+        clip-rule='evenodd'
+        d='M12.6 26.9526L8.86621 27.3804V10.0992L12.6 10.527V26.9526Z'
+        fill='#F58534'
+      />
+      <path
+        fill-rule='evenodd'
+        clip-rule='evenodd'
+        d='M16.8213 13.5798L11.1885 14.1504V27.873L16.8213 29.0142L22.8003 21.261L16.8213 13.5798Z'
+        fill='#9D5025'
+      />
+      <path
+        fill-rule='evenodd'
+        clip-rule='evenodd'
+        d='M20.6187 28.3722L16.8213 29.0142V13.5798L20.6187 13.8648V28.3722Z'
+        fill='#F58534'
+      />
+      <path
+        fill-rule='evenodd'
+        clip-rule='evenodd'
+        d='M23.9995 1.134L20.2021 2.3466V29.6562L23.9995 30.4332L27.7969 15.7836L23.9995 1.134Z'
+        fill='#9D5025'
+      />
+      <path
+        fill-rule='evenodd'
+        clip-rule='evenodd'
+        d='M27.5156 28.3722L31.1792 29.0142L36.812 18.7008L31.1792 8.4588L27.5156 9.0294V28.3722Z'
+        fill='#9D5025'
+      />
+      <path
+        fill-rule='evenodd'
+        clip-rule='evenodd'
+        d='M36.812 18.7008L31.1792 8.4588L27.5156 9.0294'
+        fill='#9D5025'
+      />
+      <path
+        fill-rule='evenodd'
+        clip-rule='evenodd'
+        d='M35.3281 26.9532L39.1327 27.381L43.2127 14.3646L39.1327 1.4196L35.3281 2.3466V26.9532Z'
+        fill='#9D5025'
+      />
+      <path
+        fill-rule='evenodd'
+        clip-rule='evenodd'
+        d='M41.4551 25.8828L44.8997 26.1678L47.9987 13.2948L44.8997 0L41.4551 0.8556V25.8828Z'
+        fill='#9D5025'
+      />
+      <path
+        fill-rule='evenodd'
+        clip-rule='evenodd'
+        d='M24 1.134L27.7974 2.3466V29.6562L24 30.4332V1.134ZM36.8118 9.6L31.179 8.4588V29.0142L36.8118 27.873V9.6ZM43.2144 3.06L39.1344 1.4196V27.381L43.2144 26.5248V3.06ZM48 1.5618L44.901 0V26.1684L48 25.5978V1.5618Z'
+        fill='#F58534'
       />
     </svg>
   );
