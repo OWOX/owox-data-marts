@@ -34,7 +34,7 @@ export function TargetSetupStep({
               value={getTargetName()}
               onChange={e => {
                 onTargetChange({
-                  fullyQualifiedName: `${e.target.value}.${selectedNode}`,
+                  fullyQualifiedName: `${e.target.value}.${selectedNode.replace(/[^a-zA-Z0-9_]/g, '_')}`,
                 });
               }}
             />
@@ -54,7 +54,7 @@ export function TargetSetupStep({
               value={getTargetName()}
               onChange={e => {
                 onTargetChange({
-                  fullyQualifiedName: `${e.target.value}.${selectedNode}`,
+                  fullyQualifiedName: `${e.target.value}.${selectedNode.replace(/[^a-zA-Z0-9_]/g, '_')}`,
                 });
               }}
             />
