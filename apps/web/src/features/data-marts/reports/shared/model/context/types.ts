@@ -27,6 +27,7 @@ export enum ReportActionType {
   START_POLLING_REPORT = 'START_POLLING_REPORT',
   STOP_POLLING_REPORT = 'STOP_POLLING_REPORT',
   UPDATE_POLLED_REPORT = 'UPDATE_POLLED_REPORT',
+  STOP_ALL_POLLING = 'STOP_ALL_POLLING',
 
   CLEAR_ERROR = 'CLEAR_ERROR',
 }
@@ -50,6 +51,7 @@ export type ReportAction =
   | { type: ReportActionType.START_POLLING_REPORT; payload: string }
   | { type: ReportActionType.STOP_POLLING_REPORT; payload: string }
   | { type: ReportActionType.UPDATE_POLLED_REPORT; payload: DataMartReport }
+  | { type: ReportActionType.STOP_ALL_POLLING }
   | { type: ReportActionType.CLEAR_CURRENT_REPORT }
   | { type: ReportActionType.CLEAR_ERROR };
 

@@ -60,13 +60,12 @@ export function GoogleSheetsActionsCell({
     try {
       setIsRunning(true);
       await runReport(row.original.id);
-      await fetchReportsByDataMartId(row.original.dataMart.id);
     } catch (error) {
       console.error('Failed to run report:', error);
     } finally {
       setIsRunning(false);
     }
-  }, [runReport, fetchReportsByDataMartId, row.original.id, row.original.dataMart.id]);
+  }, [runReport, row.original.id]);
 
   return (
     <div

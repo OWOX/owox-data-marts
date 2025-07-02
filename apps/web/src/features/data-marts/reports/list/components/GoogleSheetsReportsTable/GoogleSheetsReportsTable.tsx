@@ -60,11 +60,7 @@ export function GoogleSheetsReportsTable() {
     void fetchData();
   }, [fetchReportsByDataMartId, dataMart]);
 
-  // Start polling for any reports with RUNNING status
   useEffect(() => {
-    // Stop all polling first to avoid duplicate polling
-    stopAllPolling();
-
     // Clean up polling when component unmounts
     return () => {
       stopAllPolling();

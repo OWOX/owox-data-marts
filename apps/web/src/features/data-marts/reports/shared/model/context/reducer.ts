@@ -99,26 +99,29 @@ export function reducer(state: ReportState, action: ReportAction): ReportState {
         ...state,
         polledReportIds: state.polledReportIds.filter(id => id !== action.payload),
       };
-    case ReportActionType.UPDATE_POLLED_REPORT: {
-      // Find the existing report
-      const existingReport = state.reports.find(report => report.id === action.payload.id);
 
-      // If the report doesn't exist or the status has changed, update the state
-      if (!existingReport || existingReport.lastRunStatus !== action.payload.lastRunStatus) {
+    case ReportActionType.STOP_ALL_POLLING:
+      return {
+        ...state,
+        polledReportIds: [],
+      };
+
+    case ReportActionType.UPDATE_POLLED_REPORT: {
+      const existingReport = state.reports.find(report => report.id === action.payload.id);
+      if (
+        (existingReport && action.payload.lastRunStatus !== ReportStatusEnum.RUNNING) ||
+        existingReport?.lastRunStatus !== ReportStatusEnum.RUNNING
+      ) {
         return {
           ...state,
           reports: state.reports.map(report =>
-            report.id === action.payload.id ? action.payload : report
+            report.id === action.payload.id
+              ? { ...report, lastRunStatus: action.payload.lastRunStatus } // Update only the status
+              : report
           ),
-          // If the report is no longer running, remove it from polledReportIds
-          polledReportIds:
-            action.payload.lastRunStatus !== ReportStatusEnum.RUNNING
-              ? state.polledReportIds.filter(id => id !== action.payload.id)
-              : state.polledReportIds,
+          polledReportIds: state.polledReportIds.filter(id => id !== action.payload.id),
         };
       }
-
-      // If nothing has changed, return the same state to prevent unnecessary re-renders
       return state;
     }
 

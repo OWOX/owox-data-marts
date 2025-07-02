@@ -171,11 +171,9 @@ export function useReport() {
   const stopAllPolling = useCallback(() => {
     reportStatusPollingService.stopAllPolling();
 
-    // Dispatch action to remove all reports from polledReportIds
-    state.polledReportIds.forEach(reportId => {
-      dispatch({ type: ReportActionType.STOP_POLLING_REPORT, payload: reportId });
-    });
-  }, [dispatch, state.polledReportIds]);
+    // Dispatch action to clear all polled report IDs
+    dispatch({ type: ReportActionType.STOP_ALL_POLLING });
+  }, [dispatch]);
 
   const setPollingConfig = useCallback((config: Partial<ReportStatusPollingConfig>) => {
     reportStatusPollingService.setConfig(config);
