@@ -1,12 +1,10 @@
-# OWOX Data Marts CLI
+# Quick Start 🚀 (no-code setup)
 
 A command-line interface for running OWOX Data Marts application. This CLI provides a simple way to start the pre-built OWOX Data Marts server with frontend and backend components.
 
 [![oclif](https://img.shields.io/badge/cli-oclif-brightgreen.svg)](https://oclif.io)
 [![Version](https://img.shields.io/npm/v/owox.svg)](https://npmjs.org/package/owox)
 [![Downloads/week](https://img.shields.io/npm/dw/owox.svg)](https://npmjs.org/package/owox)
-
-## Quick Start 🚀 (no-code setup)
 
 1. **Make sure Node.js ≥ 22.16.0 is installed**
 
