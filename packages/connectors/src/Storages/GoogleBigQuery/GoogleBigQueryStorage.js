@@ -46,6 +46,11 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
           MaxBufferSize: {
             isRequired: true,
             default: 250
+          },
+          ServiceAccountJson: {
+            isRequired: false,
+            requiredType: "string",
+            default: null
           }
         }),
         uniqueKeyColumns,
@@ -396,7 +401,14 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       if (this.config.Environment.value === ENVIRONMENT.NODE) {
         let result = undefined;
         let error = undefined;
-        const bigqueryClient = new BigQuery();
+        let bigqueryClient = null;
+        if (this.config.ServiceAccountJson && this.config.ServiceAccountJson.value) {
+          bigqueryClient = new BigQuery({
+            credentials: JSON.parse(this.config.ServiceAccountJson.value)
+          });
+        } else {
+          throw new Error("Service account JSON is required to connect to Google BigQuery in Node.js environment");
+        }
 
         const options = {
           query: query,

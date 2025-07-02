@@ -13,6 +13,7 @@ import { DataStorageType } from '../data-storage-types/enums/data-storage-type.e
 import { BigQueryConfig } from '../data-storage-types/bigquery/schemas/bigquery-config.schema';
 import { AthenaConfig } from '../data-storage-types/athena/schemas/athena-config.schema';
 import { AthenaCredentials } from '../data-storage-types/athena/schemas/athena-credentials.schema';
+import { BigQueryCredentials } from '../data-storage-types/bigquery/schemas/bigquery-credentials.schema';
 
 interface LogCaptureConfig {
   logCapture: {
@@ -213,6 +214,7 @@ export class ConnectorExecutionService {
     connector: DataMartConnectorDefinition['connector']
   ): StorageConfig {
     const storageConfig = dataMart.storage.config as BigQueryConfig;
+    const credentials = dataMart.storage.credentials as BigQueryCredentials;
     const datasetId = connector.storage?.fullyQualifiedName.split('.')[0];
 
     return new StorageConfig({
@@ -223,6 +225,7 @@ export class ConnectorExecutionService {
         DestinationProjectID: storageConfig.projectId,
         DestinationDatasetName: datasetId,
         ProjectID: storageConfig.projectId,
+        ServiceAccountJson: JSON.stringify(credentials),
       },
     });
   }
