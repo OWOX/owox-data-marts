@@ -8,6 +8,7 @@ import { DataStorageType } from '../../../shared';
 import { DataStorageTypeDialog } from '../../../shared/components/DataStorageTypeDialog.tsx';
 import { DataStorageDetailsDialog } from '../DataStorageDetailsDialog';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
+import { DataMartsTableSkeleton } from '../../../../../shared/components/CardSkeleton';
 
 interface DataStorageListProps {
   initialTypeDialogOpen?: boolean;
@@ -66,11 +67,11 @@ export const DataStorageList = ({
   };
 
   if (loading) {
-    return <div className='py-4'>Loading data storages...</div>;
+    return <DataMartsTableSkeleton />;
   }
 
   if (error) {
-    return <div className='py-4 text-red-500'>Error: {error}</div>;
+    return <div className='dm-card'>Error: {error}</div>;
   }
 
   const handleViewDetails = (id: string) => {
@@ -137,7 +138,13 @@ export const DataStorageList = ({
 
   return (
     <div>
-      <DataStorageTable columns={columns} data={tableData} />
+      <DataStorageTable
+        columns={columns}
+        data={tableData}
+        onOpenTypeDialog={() => {
+          setIsTypeDialogOpen(true);
+        }}
+      />
 
       <DataStorageDetailsDialog
         isOpen={isDetailsDialogOpen}

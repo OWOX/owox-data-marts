@@ -1,5 +1,5 @@
 import { type Column } from '@tanstack/react-table';
-import { ArrowUpDown } from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 
 interface SortableHeaderProps<TData> {
@@ -14,15 +14,18 @@ export function SortableHeader<TData>({ column, children }: SortableHeaderProps<
       onClick={() => {
         column.toggleSorting(column.getIsSorted() === 'asc');
       }}
-      className='px-4 hover:bg-gray-200'
+      className='group dm-card-table-header-row-btn'
     >
       {children}
-      <ArrowUpDown
-        data-testid='lucide-arrow-up-down'
-        className={`ml-2 h-4 w-4 transition-opacity ${
-          column.getIsSorted() ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-70'
-        }`}
-      />
+      <span className='flex h-4 w-4 items-center justify-center' aria-hidden='true'>
+        {column.getIsSorted() === 'asc' && <ChevronUp className='text-foreground h-4 w-4' />}
+        {column.getIsSorted() === 'desc' && <ChevronDown className='text-foreground h-4 w-4' />}
+        {!column.getIsSorted() && (
+          <span className='opacity-0 transition-opacity duration-150 group-hover:opacity-100'>
+            <ChevronUp className='text-muted-foreground h-4 w-4' />
+          </span>
+        )}
+      </span>
     </Button>
   );
 }

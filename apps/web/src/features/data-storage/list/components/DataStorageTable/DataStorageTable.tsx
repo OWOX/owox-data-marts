@@ -26,13 +26,9 @@ import {
 
 import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
-import {
-  DropdownMenu,
-  DropdownMenuItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@owox/ui/components/dropdown-menu';
-import { ChevronDown, Search } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
+import { EmptyDataStoragesState } from './EmptyDataStoragesState';
+import { Toaster } from 'react-hot-toast';
 
 interface DataStorageTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -40,12 +36,14 @@ interface DataStorageTableProps<TData, TValue> {
   onViewDetails?: (id: string) => void;
   onEdit?: (id: string) => Promise<void>;
   onDelete?: (id: string) => void;
+  onOpenTypeDialog?: () => void;
 }
 
 export function DataStorageTable<TData, TValue>({
   columns,
   data,
   onViewDetails,
+  onOpenTypeDialog,
 }: DataStorageTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'createdAt', desc: false }]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -94,6 +92,15 @@ export function DataStorageTable<TData, TValue>({
     handleViewDetails(id);
   };
 
+  if (!data.length) {
+    return (
+      <div className='dm-card'>
+        <Toaster />
+        <EmptyDataStoragesState onOpenTypeDialog={onOpenTypeDialog} />
+      </div>
+    );
+  }
+
   return (
     <div>
       {selectedDataStorage && (
@@ -105,119 +112,128 @@ export function DataStorageTable<TData, TValue>({
           id={selectedDataStorage.id}
         />
       )}
-      <div className='flex items-center pb-4'>
-        <div className='relative w-sm'>
-          <Search className='text-muted-foreground absolute top-2.5 left-2 h-4 w-4' />
-          <Input
-            placeholder='Search by title'
-            value={table.getColumn('title')?.getFilterValue() as string}
-            onChange={event => table.getColumn('title')?.setFilterValue(event.target.value)}
-            className='pl-8'
-          />
-        </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant='outline' className='ml-auto font-normal'>
-              Show columns <ChevronDown className='ml-2 h-4 w-4' />
+      <div className='dm-card'>
+        {/* TOOLBAR */}
+        <div className='dm-card-toolbar'>
+          {/* LEFT Column */}
+          <div className='dm-card-toolbar-left'>
+            {/* Search */}
+            <div className='dm-card-toolbar-search'>
+              <Search className='dm-card-toolbar-search-icon' />
+              <Input
+                placeholder='Search by title'
+                value={table.getColumn('title')?.getFilterValue() as string}
+                onChange={event => table.getColumn('title')?.setFilterValue(event.target.value)}
+                className='dm-card-toolbar-search-input'
+              />
+            </div>
+          </div>
+
+          {/* RIGHT Column */}
+          <div className='dm-card-toolbar-right'>
+            <Button
+              variant='outline'
+              className='dm-card-toolbar-btn-primary'
+              onClick={() => {
+                onOpenTypeDialog?.();
+              }}
+            >
+              <Plus className='h-4 w-4' />
+              New Data Storage
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='end'>
-            {table
-              .getAllColumns()
-              .filter(column => column.getCanHide())
-              .map(column => {
-                return (
-                  <DropdownMenuItem key={column.id} className='capitalize'>
-                    <div className='flex items-center space-x-2'>
-                      <input
-                        type='checkbox'
-                        checked={column.getIsVisible()}
-                        onChange={e => {
-                          column.toggleVisibility(e.target.checked);
-                        }}
-                        className='h-4 w-4'
-                      />
-                      <span>{column.id}</span>
-                    </div>
-                  </DropdownMenuItem>
-                );
-              })}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      <div className='w-full rounded-md border'>
-        <Table>
-          <TableHeader className='bg-muted'>
-            {table.getHeaderGroups().map(headerGroup => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map(header => {
-                  return (
-                    <TableHead
-                      key={header.id}
-                      className='[&:has([role=checkbox])]:pl-5 [&>[role=checkbox]]:translate-y-[2px]'
-                    >
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(header.column.columnDef.header, header.getContext())}
-                    </TableHead>
-                  );
-                })}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map(row => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && 'selected'}
-                  className='hover:bg-muted/50 cursor-pointer'
-                  onClick={e => {
-                    const id = (row.original as { id: string }).id;
-                    handleRowClick(id, e);
-                  }}
-                >
-                  {row.getVisibleCells().map(cell => (
-                    <TableCell
-                      key={cell.id}
-                      className={`[&:has([role=checkbox])]pr-0 px-5 whitespace-normal [&>[role=checkbox]]:translate-y-[2px] ${cell.column.id === 'actions' ? 'actions-cell' : ''}`}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
+          </div>
+        </div>
+        {/* end: TOOLBAR */}
+
+        {/* DM CARD TABLE */}
+        <div className='dm-card-table-wrap'>
+          <Table className='dm-card-table' role='table' aria-label='Data Storages table'>
+            <TableHeader className='dm-card-table-header'>
+              {table.getHeaderGroups().map(headerGroup => (
+                <TableRow key={headerGroup.id} className='dm-card-table-header-row'>
+                  {headerGroup.headers.map(header => {
+                    return (
+                      <TableHead
+                        key={header.id}
+                        className='[&:has([role=checkbox])]:pl-5 [&>[role=checkbox]]:translate-y-[2px]'
+                        style={
+                          header.column.id === 'actions'
+                            ? { width: 80, minWidth: 80, maxWidth: 80 }
+                            : { width: `${String(header.getSize())}%` }
+                        }
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(header.column.columnDef.header, header.getContext())}
+                      </TableHead>
+                    );
+                  })}
                 </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length + 1} className='h-24 text-center'>
-                  No results.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      <div className='flex items-center justify-end space-x-2 py-4'>
-        <Button
-          variant='outline'
-          size='sm'
-          onClick={() => {
-            table.previousPage();
-          }}
-          disabled={!table.getCanPreviousPage()}
-        >
-          Previous
-        </Button>
-        <Button
-          variant='outline'
-          size='sm'
-          onClick={() => {
-            table.nextPage();
-          }}
-          disabled={!table.getCanNextPage()}
-        >
-          Next
-        </Button>
+              ))}
+            </TableHeader>
+            <TableBody className='dm-card-table-body'>
+              {table.getRowModel().rows.length ? (
+                table.getRowModel().rows.map(row => (
+                  <TableRow
+                    key={row.id}
+                    data-state={row.getIsSelected() && 'selected'}
+                    className='dm-card-table-body-row group'
+                    onClick={e => {
+                      const id = (row.original as { id: string }).id;
+                      handleRowClick(id, e);
+                    }}
+                  >
+                    {row.getVisibleCells().map(cell => (
+                      <TableCell
+                        key={cell.id}
+                        className={`[&:has([role=checkbox])]pr-0 px-5 whitespace-normal [&>[role=checkbox]]:translate-y-[2px] ${cell.column.id === 'actions' ? 'actions-cell' : ''} ${cell.column.id === 'createdAt' ? 'whitespace-nowrap' : ''}`}
+                        style={
+                          cell.column.id === 'actions'
+                            ? { width: 80, minWidth: 80, maxWidth: 80 }
+                            : { width: `${String(cell.column.getSize())}%` }
+                        }
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={columns.length + 1} className='dm-card-table-body-row-empty'>
+                    No results
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+        {/* end: DM CARD TABLE */}
+
+        {/* DM CARD PAGINATION */}
+        <div className='dm-card-pagination'>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() => {
+              table.previousPage();
+            }}
+            disabled={!table.getCanPreviousPage()}
+          >
+            Previous
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() => {
+              table.nextPage();
+            }}
+            disabled={!table.getCanNextPage()}
+          >
+            Next
+          </Button>
+        </div>
+        {/* end: DM CARD PAGINATION */}
       </div>
     </div>
   );

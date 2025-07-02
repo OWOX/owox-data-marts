@@ -296,7 +296,7 @@
 
 /* DM Empty State Block */
 .dm-empty-state {
-  @apply flex flex-col items-center justify-center pt-22 pb-24;
+  @apply flex flex-col items-center justify-center pt-22 pb-24 px-4;
 }
 .dm-empty-state-ico {
   @apply h-16 w-16 text-gray-500/50 dark:text-gray-200/50 mb-6;
