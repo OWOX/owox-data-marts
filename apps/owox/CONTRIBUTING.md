@@ -20,8 +20,7 @@ This document is intended for contributors and advanced users who want to work o
 
 If you're just looking to **get started quickly**, please refer to the [Quick Start guide](./README.md).
 
-
-# Usage
+## Usage
 
 <!-- usage -->
 
@@ -39,35 +38,35 @@ USAGE
 
 <!-- usagestop -->
 
-# Local Development: npm link
+## Local Development: npm link
 
 For local development and testing of this CLI, especially when it's not published to a public npm registry, you can use `npm link`. This command creates a symbolic link from your local package to the global npm directory, allowing you to run `owox` from any directory on your system as if it were globally installed.
 
-## Using `npm link`
+### Using `npm link`
 
 To link your local `owox` CLI globally, navigate to the `apps/owox` directory and execute:
 
 ```sh-session
-$ npm link
+npm link
 ```
 
 After successfully linking, you can run `owox` commands from any directory:
 
 ```sh-session
-$ owox serve --port 8080
+owox serve --port 8080
 ```
 
-## Using `npm unlink -g owox`
+### Using `npm unlink -g owox`
 
 If you need to remove the global symbolic link to your local `owox` CLI, navigate to the `apps/owox` directory and execute:
 
 ```sh-session
-$ npm unlink -g owox
+npm unlink -g owox
 ```
 
 This will remove the global link, and `owox` will no longer be accessible globally unless re-linked or installed through an npm registry.
 
-# Commands
+## Commands
 
 <!-- commands -->
 
@@ -78,7 +77,7 @@ This will remove the global link, and `owox` will no longer be accessible global
 
 Start the OWOX Data Marts application in production mode
 
-```
+```sh-session
 USAGE
   $ owox serve [-p <value>]
 
@@ -101,7 +100,7 @@ _See code: [src/commands/serve.ts](https://github.com/OWOX/owox-data-marts/blob/
 
 Display help for owox.
 
-```
+```sh-session
 USAGE
   $ owox help [COMMAND...] [-n]
 
@@ -119,7 +118,7 @@ _See code: [@oclif/plugin-help](https://github.com/oclif/plugin-help/blob/v6.0.2
 
 <!-- commandsstop -->
 
-# FAQ
+## FAQ
 
 This section explains the purpose of the files located in the `bin` directory of the CLI.
 

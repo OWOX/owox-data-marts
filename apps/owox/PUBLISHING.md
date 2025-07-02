@@ -9,6 +9,7 @@ The `owox` CLI package is published automatically through GitHub Actions. For de
 ## Automated Publishing Process
 
 The publishing process automatically:
+
 - Runs the `prepack` script (which generates OCLIF manifest)
 - Runs the `prepublishOnly` script (which runs security audit, tests and linting)
 - Publishes the package to the appropriate npm tag
