@@ -4,7 +4,6 @@ import { ReportDataBatch } from '../../../dto/domain/report-data-batch.dto';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { Injectable, Logger, Scope } from '@nestjs/common';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
-import { DataStorage } from '../../../entities/data-storage.entity';
 import {
   isSqlDefinition,
   isTableDefinition,
@@ -21,6 +20,8 @@ import { BigQueryApiAdapter } from '../adapters/bigquery-api.adapter';
 import { Table } from '@google-cloud/bigquery';
 import { isBigqueryCredentials } from '../../data-storage-credentials.guards';
 import { isBigQueryConfig } from '../../data-storage-config.guards';
+import { BigQueryCredentials } from '../schemas/bigquery-credentials.schema';
+import { BigQueryConfig } from '../schemas/bigquery-config.schema';
 
 @Injectable({ scope: Scope.TRANSIENT })
 export class BigQueryReportReader implements DataStorageReportReader {
@@ -39,10 +40,17 @@ export class BigQueryReportReader implements DataStorageReportReader {
       throw new Error('Data Mart is not properly configured');
     }
 
-    await this.prepareBigQuery(storage);
+    if (!isBigqueryCredentials(storage.credentials)) {
+      throw new Error('Google BigQuery credentials are not properly configured');
+    }
+
+    if (!isBigQueryConfig(storage.config)) {
+      throw new Error('Google BigQuery config is not properly configured');
+    }
+
+    await this.prepareBigQuery(storage.credentials, storage.config);
     await this.prepareReportResultTable(definition);
 
-    //const metaData = await this.adapter.getTableMetadata(this.reportResultTable);
     const [metaData] = await this.reportResultTable.getMetadata();
     if (!metaData.numRows || !metaData.schema || !metaData.schema.fields) {
       throw new Error('Failed to get table metadata');
@@ -129,17 +137,12 @@ export class BigQueryReportReader implements DataStorageReportReader {
     }
   }
 
-  private async prepareBigQuery(dataStorage: DataStorage): Promise<void> {
+  private async prepareBigQuery(
+    credentials: BigQueryCredentials,
+    dataStorageConfig: BigQueryConfig
+  ): Promise<void> {
     try {
-      if (!isBigqueryCredentials(dataStorage.credentials)) {
-        throw new Error('Google BigQuery credentials are not properly configured');
-      }
-
-      if (!isBigQueryConfig(dataStorage.config)) {
-        throw new Error('Google BigQuery config is not properly configured');
-      }
-
-      this.adapter = this.adapterFactory.create(dataStorage.credentials, dataStorage.config);
+      this.adapter = this.adapterFactory.create(credentials, dataStorageConfig);
       this.logger.debug('BigQuery adapter created successfully');
     } catch (error) {
       this.logger.error('Failed to create BigQuery adapter', error);

@@ -18,7 +18,8 @@ export class DataStorageAccessFacade {
     config: DataStorageConfig,
     credentials: Record<string, unknown>
   ): Promise<void> {
-    const validationResult = await this.resolver.resolve(type).validate(config, credentials);
+    const validator = await this.resolver.resolve(type);
+    const validationResult = await validator.validate(config, credentials);
     if (!validationResult.valid) {
       throw new AccessValidationException(validationResult.errorMessage!, validationResult.reason);
     }

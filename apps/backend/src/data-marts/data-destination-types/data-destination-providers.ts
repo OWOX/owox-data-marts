@@ -9,6 +9,7 @@ import { DataDestinationReportWriter } from './interfaces/data-destination-repor
 import { SheetHeaderFormatter } from './google-sheets/services/sheet-formatters/sheet-header-formatter';
 import { SheetMetadataFormatter } from './google-sheets/services/sheet-formatters/sheet-metadata-formatter';
 import { GoogleSheetsApiAdapterFactory } from './google-sheets/adapters/google-sheets-api-adapter.factory';
+import { ModuleRef } from '@nestjs/core';
 
 export const DATA_DESTINATION_ACCESS_VALIDATOR_RESOLVER = Symbol(
   'DATA_DESTINATION_ACCESS_VALIDATOR_RESOLVER'
@@ -45,8 +46,8 @@ export const dataDestinationResolverProviders = [
   },
   {
     provide: DATA_DESTINATION_REPORT_WRITER_RESOLVER,
-    useFactory: (...writers: DataDestinationReportWriter[]) =>
-      new TypeResolver<DataDestinationType, DataDestinationReportWriter>(writers),
-    inject: reportWriterProviders,
+    useFactory: (moduleRef: ModuleRef, ...writers: DataDestinationReportWriter[]) =>
+      new TypeResolver<DataDestinationType, DataDestinationReportWriter>(writers, moduleRef),
+    inject: [ModuleRef, ...reportWriterProviders],
   },
 ];

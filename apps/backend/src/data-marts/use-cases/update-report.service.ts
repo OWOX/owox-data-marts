@@ -1,5 +1,5 @@
 import { Repository } from 'typeorm';
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Report } from '../entities/report.entity';
 import { DataDestination } from '../entities/data-destination.entity';
@@ -7,14 +7,14 @@ import { ReportMapper } from '../mappers/report.mapper';
 import { UpdateReportCommand } from '../dto/domain/update-report.command';
 import { ReportDto } from '../dto/domain/report.dto';
 import { DataDestinationAccessValidatorFacade } from '../data-destination-types/facades/data-destination-access-validator.facade';
+import { DataDestinationService } from '../services/data-destination.service';
 
 @Injectable()
 export class UpdateReportService {
   constructor(
     @InjectRepository(Report)
     private readonly reportRepository: Repository<Report>,
-    @InjectRepository(DataDestination)
-    private readonly dataDestinationRepository: Repository<DataDestination>,
+    private readonly dataDestinationService: DataDestinationService,
     private readonly dataDestinationAccessValidationFacade: DataDestinationAccessValidatorFacade,
     private readonly mapper: ReportMapper
   ) {}
@@ -38,18 +38,10 @@ export class UpdateReportService {
     // Get the data destination if it's being changed
     let dataDestination: DataDestination | null = report.dataDestination;
     if (command.dataDestinationId !== dataDestination.id) {
-      dataDestination = await this.dataDestinationRepository.findOne({
-        where: {
-          id: command.dataDestinationId,
-          projectId: command.projectId,
-        },
-      });
-
-      if (!dataDestination) {
-        throw new BadRequestException(
-          `Data destination with ID ${command.dataDestinationId} not found`
-        );
-      }
+      dataDestination = await this.dataDestinationService.getByIdAndProjectId(
+        command.dataDestinationId,
+        command.projectId
+      );
     }
 
     // Validate access to the data destination

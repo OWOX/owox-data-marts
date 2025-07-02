@@ -13,8 +13,8 @@ export class GetDataDestinationService {
 
   async run(command: GetDataDestinationCommand): Promise<DataDestinationDto> {
     const dataDestinationEntity = await this.dataDestinationService.getByIdAndProjectId(
-      command.projectId,
-      command.id
+      command.id,
+      command.projectId
     );
 
     return this.dataDestinationMapper.toDomainDto(dataDestinationEntity);

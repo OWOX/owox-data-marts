@@ -19,9 +19,8 @@ export class DataDestinationAccessValidatorFacade {
     destinationConfig: DataDestinationConfig,
     dataDestination: DataDestination
   ): Promise<void> {
-    const validationResult = await this.resolver
-      .resolve(type)
-      .validate(destinationConfig, dataDestination);
+    const validator = await this.resolver.resolve(type);
+    const validationResult = await validator.validate(destinationConfig, dataDestination);
     if (!validationResult.valid) {
       throw new AccessValidationException(validationResult.errorMessage!, validationResult.reason);
     }

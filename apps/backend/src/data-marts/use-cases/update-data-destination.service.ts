@@ -20,8 +20,8 @@ export class UpdateDataDestinationService {
 
   async run(command: UpdateDataDestinationCommand): Promise<DataDestinationDto> {
     const entity = await this.dataDestinationService.getByIdAndProjectId(
-      command.projectId,
-      command.id
+      command.id,
+      command.projectId
     );
 
     await this.credentialsValidator.checkCredentials(entity.type, command.credentials);

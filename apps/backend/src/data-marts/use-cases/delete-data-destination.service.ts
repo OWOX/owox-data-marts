@@ -19,8 +19,8 @@ export class DeleteDataDestinationService {
 
   async run(command: DeleteDataDestinationCommand): Promise<void> {
     const destination = await this.dataDestinationService.getByIdAndProjectId(
-      command.projectId,
-      command.id
+      command.id,
+      command.projectId
     );
 
     const reportsCount = await this.reportRepository.count({

@@ -50,6 +50,9 @@ export class Report {
   @Column({ default: 0 })
   runsCount: number;
 
+  @Column()
+  createdById: string;
+
   @CreateDateColumn()
   createdAt: Date;
 

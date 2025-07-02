@@ -20,7 +20,8 @@ export class DataDestinationCredentialsValidatorFacade {
     type: DataDestinationType,
     credentials: DataDestinationCredentials
   ): Promise<void> {
-    const validationResult = await this.resolver.resolve(type).validate(credentials);
+    const validator = await this.resolver.resolve(type);
+    const validationResult = await validator.validate(credentials);
     if (!validationResult.valid) {
       throw new AccessValidationException(validationResult.errorMessage!, validationResult.reason);
     }

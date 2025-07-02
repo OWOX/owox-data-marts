@@ -99,7 +99,7 @@ export class ReportController {
     @Param('id') id: string
   ): Promise<void> {
     const command = this.mapper.toRunReportCommand(id, context);
-    this.runReportService.runAsync(command);
+    this.runReportService.runInBackground(command);
   }
 
   @Put(':id')

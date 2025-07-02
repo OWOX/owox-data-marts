@@ -28,13 +28,14 @@ export class RunReportService {
     >
   ) {}
 
-  runAsync(command: RunReportCommand): void {
+  runInBackground(command: RunReportCommand): void {
     this.run(command).catch(error => {
       this.logger.error(`Error running report ${command.reportId} asynchronously:`, error);
     });
   }
 
   async run(command: RunReportCommand): Promise<void> {
+    this.logger.log(`Staring report run ${command.reportId}`);
     const report = await this.reportRepository.findOne({
       where: { id: command.reportId },
       relations: ['dataMart', 'dataDestination'],
@@ -54,6 +55,7 @@ export class RunReportService {
     try {
       await this.executeReport(report);
       report.lastRunStatus = ReportRunStatus.SUCCESS;
+      this.logger.log(`Report run ${report.id} finished successfully`);
     } catch (error) {
       this.logger.error(`Error running report ${report.id}:`, error);
       report.lastRunStatus = ReportRunStatus.ERROR;
@@ -69,12 +71,14 @@ export class RunReportService {
     const reportWriter = await this.reportWriterResolver.resolve(dataDestination.type);
     try {
       const reportDataDescription = await reportReader.prepareReportData(report);
+      this.logger.debug(`Report data prepared for ${report.id}:`, reportDataDescription);
       await reportWriter.prepareToWriteReport(report, reportDataDescription);
       let nextReportDataBatch: string | undefined | null = undefined;
       do {
         const batch = await reportReader.readReportDataBatch(nextReportDataBatch);
         await reportWriter.writeReportDataBatch(batch);
         nextReportDataBatch = batch.nextDataBatchId;
+        this.logger.debug(`${batch.dataRows.length} data rows written for report ${report.id}`);
       } while (nextReportDataBatch);
     } finally {
       await reportWriter.finalize();

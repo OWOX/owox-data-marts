@@ -9,6 +9,7 @@ import { AthenaReportReader } from './athena/services/athena-report-reader.servi
 import { BigQueryApiAdapterFactory } from './bigquery/adapters/bigquery-api-adapter.factory';
 import { AthenaApiAdapterFactory } from './athena/adapters/athena-api-adapter.factory';
 import { S3ApiAdapterFactory } from './athena/adapters/s3-api-adapter.factory';
+import { ModuleRef } from '@nestjs/core';
 
 export const DATA_STORAGE_ACCESS_VALIDATOR_RESOLVER = Symbol(
   'DATA_STORAGE_ACCESS_VALIDATOR_RESOLVER'
@@ -31,8 +32,8 @@ export const dataStorageResolverProviders = [
   },
   {
     provide: DATA_STORAGE_REPORT_READER_RESOLVER,
-    useFactory: (...storageDataProviders: DataStorageReportReader[]) =>
-      new TypeResolver<DataStorageType, DataStorageReportReader>(storageDataProviders),
-    inject: storageDataProviders,
+    useFactory: (moduleRef: ModuleRef, ...storageDataProviders: DataStorageReportReader[]) =>
+      new TypeResolver<DataStorageType, DataStorageReportReader>(storageDataProviders, moduleRef),
+    inject: [ModuleRef, ...storageDataProviders],
   },
 ];
