@@ -43,11 +43,14 @@ export function DataDestinationForm({ initialData, onSubmit, onCancel }: DataDes
     mode: 'onTouched',
   });
 
-  // const selectedType = form.watch('type');
+  const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    void form.handleSubmit(onSubmit)(e);
+  };
 
   return (
     <Form {...form}>
-      <form onSubmit={void form.handleSubmit(onSubmit)} className='space-y-6'>
+      <form onSubmit={handleFormSubmit} className='space-y-6'>
         <div className='space-y-4'>
           <FormField
             control={form.control}
