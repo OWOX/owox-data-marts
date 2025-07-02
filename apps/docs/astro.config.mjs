@@ -28,6 +28,7 @@ export default defineConfig({
           items: [
             { label: 'Backend', autogenerate: { directory: '/apps/backend', collapsed: true } },
             { label: 'Docs', autogenerate: { directory: '/apps/docs' }, collapsed: true },
+            { label: 'OWOX', autogenerate: { directory: '/apps/owox' }, collapsed: true },
             { label: 'Web', autogenerate: { directory: '/apps/web' }, collapsed: true },
           ],
           collapsed: true,
