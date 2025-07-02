@@ -1,4 +1,4 @@
-# OWOX Data Marts CLI
+# Contributing
 
 A command-line interface for running OWOX Data Marts application. This CLI provides a simple way to start the pre-built OWOX Data Marts server with frontend and backend components.
 

@@ -1,4 +1,4 @@
-# Publishing Guide for OWOX CLI
+# Publishing
 
 This guide explains the automated publishing process for the OWOX Data Marts CLI package to npm.
 
