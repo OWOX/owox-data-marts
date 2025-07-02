@@ -61,6 +61,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-athena": "^3.839.0",
+    "@aws-sdk/client-s3": "^3.840.0",
     "@google-cloud/bigquery": "^8.1.0",
     "@google-cloud/pubsub": "^4.0.7",
     "@nestjs/common": "^11.0.1",
@@ -70,6 +71,8 @@
     "@nestjs/schedule": "^6.0.0",
     "@nestjs/swagger": "^11.2.0",
     "@nestjs/typeorm": "^11.0.0",
+    "@owox/connector-runner": "0.1.0",
+    "@owox/connectors": "0.1.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
     "env-paths": "^3.0.0",
@@ -81,9 +84,7 @@
     "sqlite3": "^5.1.7",
     "swagger-ui-express": "^5.0.1",
     "typeorm": "^0.3.24",
-    "zod": "^3.25.64",
-    "@owox/connectors": "0.1.0",
-    "@owox/connector-runner": "0.1.0"
+    "zod": "^3.25.64"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",
