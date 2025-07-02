@@ -5,6 +5,7 @@ import { getDataDestinationColumns, type DataDestinationTableItem } from '../Dat
 import { DataDestinationConfigSheet } from '../../../edit';
 import { DataDestinationDetailsDialog } from '../DataDestinationDetailsDialog';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
+import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
 
 interface DataDestinationListProps {
   isCreateSheetInitiallyOpen?: boolean;
@@ -22,6 +23,8 @@ export const DataDestinationList = ({
     fetchDataDestinations,
     getDataDestinationById,
     deleteDataDestination,
+    loading,
+    error,
   } = useDataDestination();
 
   const handleOpenCreateForm = useCallback(() => {
@@ -45,6 +48,14 @@ export const DataDestinationList = ({
       handleOpenCreateForm();
     }
   }, [isCreateSheetInitiallyOpen, handleOpenCreateForm]);
+
+  if (loading) {
+    return <CardSkeleton />;
+  }
+
+  if (error) {
+    return <div className='dm-card'>Error: {error}</div>;
+  }
 
   const handleViewDetails = (id: string) => {
     setSelectedDestinationId(id);
@@ -110,7 +121,11 @@ export const DataDestinationList = ({
 
   return (
     <div>
-      <DataDestinationTable columns={columns} data={tableData} />
+      <DataDestinationTable
+        columns={columns}
+        data={tableData}
+        onOpenTypeDialog={handleOpenCreateForm}
+      />
 
       <DataDestinationDetailsDialog
         isOpen={isDetailsDialogOpen}

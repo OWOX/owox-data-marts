@@ -239,7 +239,7 @@
   @apply flex items-center gap-2;
 }
 .dm-card-toolbar-search {
-  @apply relative w-xs;
+  @apply relative w-[150px] sm:w-xs;
 }
 .dm-card-toolbar-search-icon {
   @apply text-muted-foreground absolute top-2.5 left-2 h-4 w-4;
