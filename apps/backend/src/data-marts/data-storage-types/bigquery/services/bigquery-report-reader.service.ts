@@ -22,6 +22,7 @@ import { isBigqueryCredentials } from '../../data-storage-credentials.guards';
 import { isBigQueryConfig } from '../../data-storage-config.guards';
 import { BigQueryCredentials } from '../schemas/bigquery-credentials.schema';
 import { BigQueryConfig } from '../schemas/bigquery-config.schema';
+import { BigQueryReportFormatterService } from './bigquery-report-formatter.service';
 
 @Injectable({ scope: Scope.TRANSIENT })
 export class BigQueryReportReader implements DataStorageReportReader {
@@ -30,9 +31,12 @@ export class BigQueryReportReader implements DataStorageReportReader {
 
   private adapter: BigQueryApiAdapter;
   private reportResultTable: Table;
-  private dataHeaders: string[];
+  private reportResultHeaders: string[];
 
-  constructor(private readonly adapterFactory: BigQueryApiAdapterFactory) {}
+  constructor(
+    private readonly adapterFactory: BigQueryApiAdapterFactory,
+    private readonly formatter: BigQueryReportFormatterService
+  ) {}
 
   public async prepareReportData(report: Report): Promise<ReportDataDescription> {
     const { storage, definition } = report.dataMart;
@@ -56,9 +60,9 @@ export class BigQueryReportReader implements DataStorageReportReader {
       throw new Error('Failed to get table metadata');
     }
 
-    this.dataHeaders = metaData.schema.fields.map(f => f.name!);
+    this.reportResultHeaders = this.formatter.prepareReportResultHeaders(metaData.schema);
 
-    return new ReportDataDescription(this.dataHeaders, parseInt(metaData.numRows));
+    return new ReportDataDescription(this.reportResultHeaders, parseInt(metaData.numRows));
   }
 
   public async readReportDataBatch(batchId?: string, maxRows = 10000): Promise<ReportDataBatch> {
@@ -72,7 +76,8 @@ export class BigQueryReportReader implements DataStorageReportReader {
       autoPaginate: false,
     });
 
-    const mappedRows = rows.map(r => this.dataHeaders.map(h => r[h].value ?? r[h]));
+    const mappedRows = rows.map(row => this.formatter.getStructuredReportRowData(row));
+
     return new ReportDataBatch(mappedRows, nextBatch?.pageToken);
   }
 
