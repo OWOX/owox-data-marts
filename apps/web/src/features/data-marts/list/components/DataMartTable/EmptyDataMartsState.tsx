@@ -1,11 +1,11 @@
 import { Link } from 'react-router-dom';
 import { Button } from '@owox/ui/components/button';
-import { Plus, PackagePlus } from 'lucide-react';
+import { Plus, Grid2x2Plus } from 'lucide-react';
 
 export function EmptyDataMartsState() {
   return (
     <div className='dm-empty-state'>
-      <PackagePlus className='dm-empty-state-ico' strokeWidth={1} />
+      <Grid2x2Plus className='dm-empty-state-ico' strokeWidth={1} />
       <h2 className='dm-empty-state-title'>Create your first Data Mart</h2>
       <p className='dm-empty-state-subtitle'>
         Data Marts help you organize and analyze your data effectively.

@@ -68,7 +68,7 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
+  --background: oklch(0.205 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.145 0 0);
   --card-foreground: oklch(0.985 0 0);
@@ -92,7 +92,7 @@
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
+  --sidebar: oklch(0.145 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
   --sidebar-primary-foreground: oklch(0.985 0 0);
@@ -230,7 +230,7 @@
 
 /* DM Card */
 .dm-card {
-  @apply rounded-xl p-4 bg-muted/50 dark:bg-white/2 border-b border-gray-200 dark:border-white/8;
+  @apply rounded-md p-4 bg-muted/50 dark:bg-white/4 border-b border-gray-200 dark:border-white/8;
 }
 .dm-card-toolbar {
   @apply flex items-center justify-between gap-2 pb-4;
@@ -245,7 +245,7 @@
   @apply text-muted-foreground absolute top-2.5 left-2 h-4 w-4;
 }
 .dm-card-toolbar-search-input {
-  @apply pl-8 rounded-md border border-muted dark:border-muted/50 bg-white dark:bg-white/2;
+  @apply pl-8 rounded-md border border-muted dark:border-muted/50 bg-white dark:bg-white/4 dark:hover:bg-white/8;
 }
 .dm-card-toolbar-btn-delete {
   @apply mx-2.5 h-8;
@@ -254,7 +254,7 @@
   @apply flex items-center gap-2;
 }
 .dm-card-toolbar-btn-primary {
-  @apply flex items-center gap-2 border-muted dark:border-muted/50 bg-white dark:bg-white/2;
+  @apply flex items-center gap-2 border-muted dark:border-muted/50 bg-white dark:bg-white/4 dark:hover:bg-white/8;
 }
 .dm-card-table-wrap {
   @apply w-full table-fixed;
@@ -272,10 +272,10 @@
   @apply h-8 inline-flex gap-1 cursor-pointer items-center hover:bg-white dark:hover:bg-white/4 hover:shadow-sm transition-colors duration-200;
 }
 .dm-card-table-body {
-  @apply border-b border-gray-200 bg-white dark:bg-white/1 dark:border-0;
+  @apply border-b border-gray-200 bg-white dark:bg-white/1 dark:border-white/4;
 }
 .dm-card-table-body-row {
-  @apply cursor-pointer hover:bg-black/4 dark:hover:bg-white/2 transition-colors duration-200;
+  @apply cursor-pointer hover:bg-black/4 dark:bg-transparent dark:hover:bg-white/4 dark:border-white/4 transition-colors duration-200;
 }
 .dm-card-table-body-row-actionbtn {
   @apply h-8 hover:bg-white dark:hover:bg-white/4 hover:shadow-sm transition-colors transition-shadow duration-200;

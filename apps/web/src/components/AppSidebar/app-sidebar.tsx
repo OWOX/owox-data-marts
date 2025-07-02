@@ -10,11 +10,12 @@ import {
   SidebarMenuButton,
   SidebarRail,
 } from '@owox/ui/components/sidebar';
-import { Package2, Plus, DatabaseIcon, TableIcon } from 'lucide-react';
+import { Grid2x2, Plus, DatabaseIcon, ArchiveRestore } from 'lucide-react';
 import { createElement } from 'react';
 import { ThemeToggle } from '../ThemeToggle/theme-toggle.tsx';
 import { SidebarHeaderDropdown } from './sidebar-header-dropdown.tsx';
 import { NavLink } from 'react-router-dom';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 
 // Prop types support
 interface AppSidebarProps {
@@ -26,17 +27,17 @@ const items = [
   {
     title: 'Data Marts',
     url: '/data-marts',
-    icon: Package2,
+    icon: Grid2x2,
   },
   {
-    title: 'Data Storages',
+    title: 'Storages',
     url: '/data-storages',
     icon: DatabaseIcon,
   },
   {
-    title: 'Data Destinations',
+    title: 'Destinations',
     url: '/data-destinations',
-    icon: TableIcon,
+    icon: ArchiveRestore,
   },
 ];
 
@@ -61,7 +62,7 @@ export function AppSidebar({ variant = 'inset', collapsible = 'icon' }: AppSideb
               </div>
 
               <div className='grid flex-1 text-left text-sm leading-tight'>
-                <span className='truncate font-medium'>Create new data mart</span>
+                <span className='truncate font-medium'>New Data Mart</span>
               </div>
             </NavLink>
           </SidebarGroupContent>
@@ -75,19 +76,24 @@ export function AppSidebar({ variant = 'inset', collapsible = 'icon' }: AppSideb
                     <NavLink
                       to={item.url}
                       className={({ isActive }) => {
-                        return `flex w-full items-center gap-2 rounded-md transition-colors ${
+                        return `flex w-full items-center gap-2 rounded-md font-medium transition-colors ${
                           isActive
-                            ? 'bg-sidebar-active text-sidebar-active-foreground hover:bg-sidebar-active hover:text-sidebar-active-foreground font-medium shadow-sm'
-                            : 'hover:bg-sidebar-active hover:text-sidebar-active-foreground'
+                            ? 'bg-sidebar-active text-sidebar-active-foreground font-medium shadow-sm'
+                            : ''
                         }`;
                       }}
                     >
-                      <SidebarMenuButton>
-                        {createElement(item.icon, {
-                          className: 'size-4 shrink-0 transition-all ',
-                        })}
-                        <span>{item.title}</span>
-                      </SidebarMenuButton>
+                      <Tooltip delayDuration={500}>
+                        <TooltipTrigger asChild>
+                          <SidebarMenuButton>
+                            {createElement(item.icon, {
+                              className: 'size-4 shrink-0 transition-all ',
+                            })}
+                            <span>{item.title}</span>
+                          </SidebarMenuButton>
+                        </TooltipTrigger>
+                        <TooltipContent side='right'>{item.title}</TooltipContent>
+                      </Tooltip>
                     </NavLink>
                   </SidebarMenuItem>
                 );

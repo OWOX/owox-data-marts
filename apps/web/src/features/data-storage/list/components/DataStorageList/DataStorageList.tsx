@@ -8,7 +8,7 @@ import { DataStorageType } from '../../../shared';
 import { DataStorageTypeDialog } from '../../../shared/components/DataStorageTypeDialog.tsx';
 import { DataStorageDetailsDialog } from '../DataStorageDetailsDialog';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
-import { DataMartsTableSkeleton } from '../../../../../shared/components/CardSkeleton';
+import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
 
 interface DataStorageListProps {
   initialTypeDialogOpen?: boolean;
@@ -67,7 +67,7 @@ export const DataStorageList = ({
   };
 
   if (loading) {
-    return <DataMartsTableSkeleton />;
+    return <CardSkeleton />;
   }
 
   if (error) {
