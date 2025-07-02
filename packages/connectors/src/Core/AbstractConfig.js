@@ -158,13 +158,27 @@ class AbstractConfig {
     }
     //----------------------------------------------------------------
 
-  //---- updateCurrentStatus -----------------------------------------
+  //---- shouldSendNotifications -------------------------------------
     /**
-     * @param string current status value
+     * Determine if notifications should be sent based on status and filter setting
+     * @param {string} status - Current status
+     * @returns {boolean} - True if notifications should be sent
      */
-    updateCurrentStatus(status) {
+    shouldSendNotifications(status) {
+      throw new Error("shouldSendNotifications must be implemented in subclass of AbstractConfig");
+    }
+    //----------------------------------------------------------------
 
-      throw new Error("updateCurrentStatus must be implemented in subclass of AbstractConfig");
+  //---- processStatus -----------------------------------------------
+    /**
+     * @param {Object} params - Parameters object with status and other properties
+     * @param {string} params.status - Current status value
+     * @param {boolean} params.sendNotifications - Send notifications if true
+     * @param {string} params.error - Error message for Error status
+     */
+    processStatus(params) {
+
+      throw new Error("processStatus must be implemented in subclass of AbstractConfig");
 
     }
     //----------------------------------------------------------------
