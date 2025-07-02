@@ -26,17 +26,7 @@ function importNewData() {
     new OWOX.OpenExchangeRatesSource(config.setParametersValues(       // source with parameter's values added from properties 
       PropertiesService.getDocumentProperties().getProperties()
     )),                          
-    // Storage for Google Sheets
-    new OWOX.GoogleSheetsStorage(
-      config, 
-      OWOX.OpenExchangeRatesFieldsSchema['historical'].uniqueKeys
-    ),
-    // Storage for BigQuery
-    // new OWOX.GoogleBigQueryStorage(
-    //   config, 
-    //   OWOX.OpenExchangeRatesFieldsSchema['historical'].uniqueKeys,
-    //   OWOX.OpenExchangeRatesFieldsSchema['historical'].fields.bigQuery
-    // )
+    // "GoogleBigQueryStorage"
   );
 
   connector.run();

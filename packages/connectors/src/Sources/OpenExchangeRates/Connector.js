@@ -7,6 +7,15 @@
 
 var OpenExchangeRatesConnector = class OpenExchangeRatesConnector extends AbstractConnector {
 
+constructor(config, source, storageName = "GoogleSheetsStorage") {
+    super(config.mergeParameters({
+      DestinationTableNamePrefix: {
+        default: ""
+      }
+    }), source);
+
+    this.storageName = storageName;
+  }
 
 /*
 
@@ -35,7 +44,7 @@ startImportProcess() {
     } else {
 
       this.config.logMessage(`${data.length} rows were fetched`);
-      this.storage.saveData(data);
+      this.getStorageByNode("historical").saveData(data);
 
     }
 
@@ -45,6 +54,46 @@ startImportProcess() {
   }    
 
 }
+
+//---- getStorageName -------------------------------------------------
+  /**
+   *
+   * @param nodeName string name of the node
+   * @param requestedFields array list of requested fields
+   * 
+   * @return AbstractStorage 
+   * 
+   */
+  getStorageByNode(nodeName) {
+
+    // initiate blank object for storages
+    if( !("storages" in this) ) {
+      this.storages = {};
+    }
+
+    if( !(nodeName in this.storages) ) {
+
+      if( !("uniqueKeys" in this.source.fieldsSchema[ nodeName ]) ) {
+        throw new Error(`Unique keys for '${nodeName}' are not defined in the fields schema`);
+      }
+
+      let uniqueFields = this.source.fieldsSchema[ nodeName ]["uniqueKeys"];
+
+      this.storages[ nodeName ] = new globalThis[ this.storageName ]( 
+        this.config.mergeParameters({ 
+          DestinationSheetName: {value: nodeName},
+          DestinationTableName: {value: this.config.DestinationTableNamePrefix.value + nodeName } 
+        }), 
+        uniqueFields,
+        this.source.fieldsSchema[ nodeName ]["fields"]["bigQuery"],
+        `${this.source.fieldsSchema[ nodeName ]["description"]} ${this.source.fieldsSchema[ nodeName ]["documentation"]}`
+      );
+
+    }
+
+    return this.storages[ nodeName ];
+
+  }
 
 
 }

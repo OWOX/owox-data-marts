@@ -181,7 +181,7 @@ var AbstractConnector = class AbstractConnector {
       }
       
       // data wasn't fetched earlier
-      if ( !this.config.LastRequestedDate.value ) {
+      if (!this.config.LastRequestedDate || !this.config.LastRequestedDate.value ) {
         lastRequestedDate = new Date(this.config.StartDate.value.getTime() );
 
       } else {
