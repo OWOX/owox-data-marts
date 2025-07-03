@@ -53,6 +53,7 @@ import { ConnectorMapper } from './mappers/connector.mapper';
 import { SpecificationConnectorService } from './use-cases/connector/specification-connector.service';
 import { FieldsConnectorService } from './use-cases/connector/fields-connector.service';
 import { RunDataMartService } from './use-cases/run-data-mart.service';
+import { ValidateDataMartDefinitionService } from './use-cases/validate-data-mart-definition.service';
 
 @Module({
   imports: [
@@ -82,6 +83,7 @@ import { RunDataMartService } from './use-cases/run-data-mart.service';
     DataStorageService,
     DataStorageMapper,
     DataDestinationService,
+    ValidateDataMartDefinitionService,
     DataDestinationMapper,
     ListDataStoragesService,
     ListDataDestinationsService,

@@ -8,6 +8,7 @@ import { PublishDataMartCommand } from '../dto/domain/publish-data-mart.command'
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { InjectRepository } from '@nestjs/typeorm';
+import { DataMartDefinitionValidatorFacade } from '../data-storage-types/facades/data-mart-definition-validator-facade.service';
 
 @Injectable()
 export class PublishDataMartService {
@@ -15,6 +16,7 @@ export class PublishDataMartService {
     @InjectRepository(DataMart)
     private readonly dataMartRepository: Repository<DataMart>,
     private readonly dataMartService: DataMartService,
+    private readonly definitionValidatorFacade: DataMartDefinitionValidatorFacade,
     private readonly mapper: DataMartMapper
   ) {}
 
@@ -33,7 +35,7 @@ export class PublishDataMartService {
       throw new BusinessViolationException('DataMart has no definition');
     }
 
-    // TODO Check if has access to the DataMart
+    await this.definitionValidatorFacade.checkIsValid(dataMart);
 
     dataMart.status = DataMartStatus.PUBLISHED;
     await this.dataMartRepository.save(dataMart);

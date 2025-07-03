@@ -1,21 +1,25 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
-import { AthenaConfigSchema } from '../schemas/athena-config.schema';
+import { AthenaConfig, AthenaConfigSchema } from '../schemas/athena-config.schema';
 import { AthenaCredentialsSchema } from '../schemas/athena-credentials.schema';
 import {
   DataStorageAccessValidator,
   ValidationResult,
 } from '../../interfaces/data-storage-access-validator.interface';
 import { DataStorageConfig } from '../../data-storage-config.type';
+import { DataStorageCredentials } from '../../data-storage-credentials.type';
+import { AthenaApiAdapterFactory } from '../adapters/athena-api-adapter.factory';
 
 @Injectable()
 export class AthenaAccessValidator implements DataStorageAccessValidator {
   private readonly logger = new Logger(AthenaAccessValidator.name);
   readonly type = DataStorageType.AWS_ATHENA;
 
+  constructor(private readonly adapterFactory: AthenaApiAdapterFactory) {}
+
   async validate(
     config: DataStorageConfig,
-    credentials: Record<string, unknown>
+    credentials: DataStorageCredentials
   ): Promise<ValidationResult> {
     const configOpt = AthenaConfigSchema.safeParse(config);
     if (!configOpt.success) {
@@ -31,8 +35,16 @@ export class AthenaAccessValidator implements DataStorageAccessValidator {
       });
     }
 
-    // Todo implement real validation
-
-    return new ValidationResult(true);
+    const athenaConfig: AthenaConfig = configOpt.data;
+    const apiAdapter = this.adapterFactory.create(credentialsOpt.data, athenaConfig);
+    try {
+      await apiAdapter.checkAccess(athenaConfig.databaseName, athenaConfig.outputBucket);
+      return new ValidationResult(true);
+    } catch (error) {
+      this.logger.warn('Access validation failed', error);
+      return new ValidationResult(false, 'Access validation failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 }

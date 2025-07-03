@@ -18,6 +18,9 @@ import { PublishDataMartCommand } from '../dto/domain/publish-data-mart.command'
 import { DataStorageMapper } from './data-storage.mapper';
 import { DeleteDataMartCommand } from '../dto/domain/delete-data-mart.command';
 import { RunDataMartCommand } from '../dto/domain/run-data-mart.command';
+import { ValidateDataMartDefinitionCommand } from '../dto/domain/validate-data-mart-definition.command';
+import { ValidationResult } from '../data-storage-types/interfaces/data-mart-validator.interface';
+import { DataMartValidationResponseApiDto } from '../dto/presentation/data-mart-validation-response-api.dto';
 
 @Injectable()
 export class DataMartMapper {
@@ -126,5 +129,23 @@ export class DataMartMapper {
 
   toRunCommand(id: string, context: AuthorizationContext): RunDataMartCommand {
     return new RunDataMartCommand(id, context.projectId, context.userId);
+  }
+
+  toDefinitionValidateCommand(
+    id: string,
+    context: AuthorizationContext
+  ): ValidateDataMartDefinitionCommand {
+    return new ValidateDataMartDefinitionCommand(id, context.projectId, context.userId);
+  }
+
+  toDefinitionValidationResponse(
+    validationResult: ValidationResult
+  ): DataMartValidationResponseApiDto {
+    return {
+      valid: validationResult.valid,
+      errorMessage: validationResult.errorMessage,
+      reason: validationResult.reason,
+      details: validationResult.details,
+    };
   }
 }

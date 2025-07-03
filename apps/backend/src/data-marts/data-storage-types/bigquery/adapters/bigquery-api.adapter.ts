@@ -37,6 +37,17 @@ export class BigQueryApiAdapter {
   }
 
   /**
+   * Executes a dry run query to estimate the number of bytes processed
+   */
+  public async executeDryRunQuery(query: string): Promise<{ totalBytesProcessed: number }> {
+    const [job] = await this.bigQuery.createQueryJob({
+      query,
+      dryRun: true,
+    });
+    return { totalBytesProcessed: Number(job.metadata.statistics.totalBytesProcessed) };
+  }
+
+  /**
    * Gets job information by job ID
    */
   public async getJob(jobId: string): Promise<Job> {
@@ -56,5 +67,16 @@ export class BigQueryApiAdapter {
   public createTableReference(projectId: string, datasetId: string, tableId: string): Table {
     const dataset = this.bigQuery.dataset(datasetId, { projectId: projectId });
     return dataset.table(tableId);
+  }
+
+  /**
+   * Checks BigQuery access by running a trivial query (SELECT 1)
+   */
+  public async checkAccess(): Promise<void> {
+    try {
+      await this.bigQuery.query('SELECT 1');
+    } catch (e) {
+      throw new Error(`BigQuery access error: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 }
