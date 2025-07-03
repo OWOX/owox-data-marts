@@ -1,4 +1,5 @@
 import { DataStorageType } from '../../../../../data-storage/shared/model/types';
+import { Input } from '@owox/ui/components/input';
 
 interface TargetSetupStepProps {
   dataStorageType: DataStorageType;
@@ -26,11 +27,12 @@ export function TargetSetupStep({
               Enter dataset name for Google BigQuery where the connector data will be stored. The
               dataset will be created automatically if it doesn't exist.
             </label>
-            <input
+            <Input
               type='text'
               id='dataset-name'
               placeholder='Enter dataset name'
-              className='focus:ring-primary flex-1 rounded-md border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:outline-none'
+              autoComplete='off'
+              className='box-border w-full'
               value={getTargetName()}
               onChange={e => {
                 onTargetChange({
@@ -38,6 +40,15 @@ export function TargetSetupStep({
                 });
               }}
             />
+            <div className='text-muted-foreground mt-2 text-sm'>
+              Table name will be created automatically based on the selected node name: "
+              {selectedNode.replace(/[^a-zA-Z0-9_]/g, '_')}"
+              <br />
+              Full path:{' '}
+              <span className='text-foreground/90'>
+                {getTargetName() || '[dataset]'}.{selectedNode.replace(/[^a-zA-Z0-9_]/g, '_')}
+              </span>
+            </div>
           </div>
         )}
         {dataStorageType === DataStorageType.AWS_ATHENA && (
@@ -46,11 +57,12 @@ export function TargetSetupStep({
               Enter database name for Amazon Athena where the connector data will be stored. The
               database must exist before running the connector.
             </label>
-            <input
+            <Input
               type='text'
               id='database-name'
               placeholder='Enter database name'
-              className='focus:ring-primary flex-1 rounded-md border border-gray-300 px-4 py-2 focus:border-transparent focus:ring-1 focus:outline-none'
+              autoComplete='off'
+              className='box-border w-full'
               value={getTargetName()}
               onChange={e => {
                 onTargetChange({
@@ -58,6 +70,15 @@ export function TargetSetupStep({
                 });
               }}
             />
+            <div className='text-muted-foreground mt-2 text-sm'>
+              Table name will be created automatically based on the selected node name: "
+              {selectedNode.replace(/[^a-zA-Z0-9_]/g, '_')}"
+              <br />
+              Full path:{' '}
+              <span className='text-foreground/90'>
+                {getTargetName() || '[database]'}.{selectedNode.replace(/[^a-zA-Z0-9_]/g, '_')}
+              </span>
+            </div>
           </div>
         )}
       </div>

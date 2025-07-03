@@ -9,6 +9,7 @@ import { useState, useEffect, useRef } from 'react';
 interface ConfigurationStepProps {
   connectorSpecification: ConnectorSpecificationResponseApiDto[] | null;
   onConfigurationChange?: (configuration: Record<string, unknown>) => void;
+  onValidationChange?: (isValid: boolean) => void;
   initialConfiguration?: Record<string, unknown>;
   loading?: boolean;
 }
@@ -23,7 +24,6 @@ function renderInputForType(
   const displayName = title ?? name;
   const inputId = name;
 
-  // If options are provided, render a select/combobox
   if (options && options.length > 0) {
     const comboboxOptions = options.map((option: string) => ({
       value: option,
@@ -44,7 +44,6 @@ function renderInputForType(
     );
   }
 
-  // Render input based on requiredType
   switch (requiredType) {
     case 'boolean':
       return (
@@ -57,7 +56,7 @@ function renderInputForType(
             onChange={e => {
               onValueChange(name, e.target.checked);
             }}
-            className='text-primary focus:ring-primary h-4 w-4 rounded border-gray-300'
+            className='text-primary focus:ring-primary border-border h-4 w-4 rounded'
           />
           <Label htmlFor={inputId} className='cursor-pointer text-sm'>
             {displayName}
@@ -120,9 +119,7 @@ function renderInputForType(
             try {
               const objectValue = JSON.parse(e.target.value) as Record<string, unknown>;
               onValueChange(name, objectValue);
-            } catch (error) {
-              console.warn(`Invalid JSON for ${name}:`, error);
-              // Still update with the string value so user can continue editing
+            } catch {
               onValueChange(name, e.target.value);
             }
           }}
@@ -149,6 +146,7 @@ function renderInputForType(
 export function ConfigurationStep({
   connectorSpecification,
   onConfigurationChange,
+  onValidationChange,
   initialConfiguration,
   loading = false,
 }: ConfigurationStepProps) {
@@ -156,13 +154,11 @@ export function ConfigurationStep({
   const initializedRef = useRef(false);
   const updatingFromParentRef = useRef(false);
 
-  // Initialize configuration when component mounts or specification changes
   useEffect(() => {
     if (connectorSpecification) {
       updatingFromParentRef.current = true;
       const config = { ...(initialConfiguration ?? {}) };
 
-      // Add defaults for missing values
       connectorSpecification.forEach(spec => {
         if (config[spec.name] === undefined && spec.default !== undefined) {
           config[spec.name] = spec.default;
@@ -171,14 +167,12 @@ export function ConfigurationStep({
 
       setConfiguration(config);
       initializedRef.current = true;
-      // Reset flag after next tick
       setTimeout(() => {
         updatingFromParentRef.current = false;
       }, 0);
     }
   }, [connectorSpecification, initialConfiguration]);
 
-  // Update configuration when initialConfiguration changes (navigation back)
   useEffect(() => {
     if (
       initializedRef.current &&
@@ -187,14 +181,12 @@ export function ConfigurationStep({
     ) {
       updatingFromParentRef.current = true;
       setConfiguration(initialConfiguration);
-      // Reset flag after next tick
       setTimeout(() => {
         updatingFromParentRef.current = false;
       }, 0);
     }
   }, [initialConfiguration]);
 
-  // Notify parent when configuration changes (but not when updating from parent)
   useEffect(() => {
     if (
       initializedRef.current &&
@@ -211,6 +203,32 @@ export function ConfigurationStep({
       [name]: value,
     }));
   };
+
+  const validateConfiguration = (
+    config: Record<string, unknown>,
+    specs: ConnectorSpecificationResponseApiDto[]
+  ) => {
+    const requiredSpecs = specs.filter(
+      spec => spec.required && spec.showInUI !== false && spec.name !== 'Fields'
+    );
+
+    return requiredSpecs.every(spec => {
+      const value = config[spec.name];
+
+      if (value === null || value === undefined) return false;
+      if (typeof value === 'string' && value.trim() === '') return false;
+      if (Array.isArray(value) && value.length === 0) return false;
+
+      return true;
+    });
+  };
+
+  useEffect(() => {
+    if (connectorSpecification && onValidationChange) {
+      const isValid = validateConfiguration(configuration, connectorSpecification);
+      onValidationChange(isValid);
+    }
+  }, [configuration, connectorSpecification, onValidationChange]);
 
   if (loading) {
     return (
@@ -234,6 +252,25 @@ export function ConfigurationStep({
     return null;
   }
 
+  // Sort specifications by priority:
+  // 1. Required fields without default value
+  // 2. Required fields with default value
+  // 3. Non-required fields without default value
+  // 4. All others (non-required with default value)
+  const sortedSpecifications = [...connectorSpecification]
+    .filter(spec => spec.showInUI !== false && spec.name !== 'Fields')
+    .sort((a, b) => {
+      const getPriority = (spec: ConnectorSpecificationResponseApiDto) => {
+        const hasDefault = spec.default != null && spec.default !== '';
+        if (spec.required && !hasDefault) return 1;
+        if (spec.required && hasDefault) return 2;
+        if (!spec.required && !hasDefault) return 3;
+        return 4;
+      };
+
+      return getPriority(a) - getPriority(b);
+    });
+
   return (
     <div className='space-y-2'>
       <h4 className='text-lg font-medium'>Configuration</h4>
@@ -241,25 +278,20 @@ export function ConfigurationStep({
         Configure the connector parameters. All fields with an asterisk (*) are required.
       </p>
       <div className='flex flex-col gap-4'>
-        {connectorSpecification.map(
-          specification =>
-            // Fields are not shown in the UI. Its a hack to avoid errors before migration to connectors protocol.
-            specification.showInUI !== false &&
-            specification.name !== 'Fields' && (
-              <div key={specification.name} className='mb-2 space-y-1'>
-                {specification.requiredType !== 'boolean' && (
-                  <Label htmlFor={specification.name} className='text-sm font-medium'>
-                    {specification.title ?? specification.name}
-                    {specification.required && <span className='ml-1 text-red-500'>*</span>}
-                  </Label>
-                )}
-                {renderInputForType(specification, configuration, handleValueChange)}
-                {specification.description && (
-                  <p className='text-muted-foreground text-sm'>{specification.description}</p>
-                )}
-              </div>
-            )
-        )}
+        {sortedSpecifications.map(specification => (
+          <div key={specification.name} className='mb-2 space-y-1'>
+            {specification.requiredType !== 'boolean' && (
+              <Label htmlFor={specification.name} className='text-sm font-medium'>
+                {specification.title ?? specification.name}
+                {specification.required && <span className='ml-1 text-red-500'>*</span>}
+              </Label>
+            )}
+            {renderInputForType(specification, configuration, handleValueChange)}
+            {specification.description && (
+              <p className='text-muted-foreground text-sm'>{specification.description}</p>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );

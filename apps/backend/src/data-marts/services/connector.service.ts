@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 // @ts-expect-error - Package lacks TypeScript declarations
 import { AvailableConnectors, Connectors, Core } from '@owox/connectors';
@@ -40,6 +40,8 @@ interface SourceFieldsSchema {
 
 @Injectable()
 export class ConnectorService {
+  private readonly logger = new Logger(ConnectorService.name);
+
   /**
    * Get all available connectors
    */
@@ -71,7 +73,15 @@ export class ConnectorService {
     this.validateConnectorExists(connectorName);
 
     const sourceInstance = this.createConnectorSource(connectorName);
-    const sourceFieldsSchema = sourceInstance.getFieldsSchema();
+    let sourceFieldsSchema: SourceFieldsSchema;
+    try {
+      sourceFieldsSchema = sourceInstance.getFieldsSchema();
+    } catch (error) {
+      this.logger.warn(
+        `Error getting fields schema for connector ${connectorName}: ${error.message}`
+      );
+      sourceFieldsSchema = {};
+    }
     const fieldsSchema = this.mapFieldsSchemaToDto(sourceFieldsSchema);
 
     return ConnectorFieldsSchema.parse(fieldsSchema);

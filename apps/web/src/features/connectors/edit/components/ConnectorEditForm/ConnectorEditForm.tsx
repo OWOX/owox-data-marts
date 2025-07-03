@@ -31,6 +31,7 @@ export function ConnectorEditForm({
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [connectorConfiguration, setConnectorConfiguration] = useState<Record<string, unknown>>({});
+  const [configurationIsValid, setConfigurationIsValid] = useState<boolean>(false);
   const [loadedSpecifications, setLoadedSpecifications] = useState<Set<string>>(new Set());
   const {
     connectors,
@@ -125,6 +126,7 @@ export function ConnectorEditForm({
   const handleConnectorSelect = (connector: ConnectorDefinitionDto) => {
     setSelectedConnector(connector);
     setConnectorConfiguration({});
+    setConfigurationIsValid(false);
     setLoadedSpecifications(prev => {
       const newSet = new Set(prev);
       newSet.delete(connector.name);
@@ -147,6 +149,17 @@ export function ConnectorEditForm({
     }
   };
 
+  const handleSelectAllFields = (fieldNames: string[], isSelected: boolean) => {
+    if (isSelected) {
+      setSelectedFields(prev => {
+        const newFields = fieldNames.filter(fieldName => !prev.includes(fieldName));
+        return [...prev, ...newFields];
+      });
+    } else {
+      setSelectedFields(prev => prev.filter(fieldName => !fieldNames.includes(fieldName)));
+    }
+  };
+
   const handleTargetChange = (newTarget: { fullyQualifiedName: string }) => {
     setTarget(newTarget);
   };
@@ -154,6 +167,21 @@ export function ConnectorEditForm({
   const handleConfigurationChange = useCallback((configuration: Record<string, unknown>) => {
     setConnectorConfiguration(configuration);
   }, []);
+
+  const handleConfigurationValidationChange = useCallback((isValid: boolean) => {
+    setConfigurationIsValid(isValid);
+  }, []);
+
+  useEffect(() => {
+    if (connectorSpecification) {
+      const hasRequiredFields = connectorSpecification.some(
+        spec => spec.required && spec.showInUI !== false && spec.name !== 'Fields'
+      );
+      if (!hasRequiredFields) {
+        setConfigurationIsValid(true);
+      }
+    }
+  }, [connectorSpecification]);
 
   const handleNext = () => {
     if (currentStep < totalSteps) {
@@ -169,14 +197,14 @@ export function ConnectorEditForm({
 
   const canGoNext = () => {
     if (configurationOnly) {
-      return selectedConnector !== null && currentStep === 1;
+      return selectedConnector !== null && configurationIsValid;
     }
 
     switch (currentStep) {
       case 1:
         return selectedConnector !== null;
       case 2:
-        return true;
+        return configurationIsValid;
       case 3:
         return selectedNode !== '';
       case 4:
@@ -198,6 +226,7 @@ export function ConnectorEditForm({
         <ConfigurationStep
           connectorSpecification={connectorSpecification}
           onConfigurationChange={handleConfigurationChange}
+          onValidationChange={handleConfigurationValidationChange}
           initialConfiguration={connectorConfiguration}
           loading={loadingSpecification}
         />
@@ -220,6 +249,7 @@ export function ConnectorEditForm({
           <ConfigurationStep
             connectorSpecification={connectorSpecification}
             onConfigurationChange={handleConfigurationChange}
+            onValidationChange={handleConfigurationValidationChange}
             initialConfiguration={connectorConfiguration}
             loading={loadingSpecification}
           />
@@ -229,6 +259,7 @@ export function ConnectorEditForm({
           <NodesSelectionStep
             connectorFields={connectorFields}
             selectedField={selectedNode}
+            connectorName={selectedConnector.title ?? selectedConnector.name}
             loading={loadingFields}
             onFieldSelect={handleFieldSelect}
           />
@@ -240,6 +271,7 @@ export function ConnectorEditForm({
             selectedField={selectedNode}
             selectedFields={selectedFields}
             onFieldToggle={handleFieldToggle}
+            onSelectAllFields={handleSelectAllFields}
           />
         ) : null;
       case 5:
@@ -258,8 +290,8 @@ export function ConnectorEditForm({
 
   return (
     <div className='flex h-full flex-col p-4'>
-      <div className='mb-6 flex-1 overflow-y-auto'>{renderCurrentStep()}</div>
-      <div className='-mx-4 border-t bg-white px-4 pt-4'>
+      <div className='mb-6 flex-1 overflow-x-visible overflow-y-auto'>{renderCurrentStep()}</div>
+      <div className='bg-background -mx-4 border-t px-4 pt-4'>
         <StepNavigation
           currentStep={currentStep}
           totalSteps={totalSteps}

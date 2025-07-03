@@ -6,6 +6,7 @@ import { Info } from 'lucide-react';
 interface NodesSelectionStepProps {
   connectorFields: ConnectorFieldsResponseApiDto[] | null;
   selectedField: string;
+  connectorName?: string;
   loading?: boolean;
   onFieldSelect: (fieldName: string) => void;
 }
@@ -13,13 +14,16 @@ interface NodesSelectionStepProps {
 export function NodesSelectionStep({
   connectorFields,
   selectedField,
+  connectorName,
   loading = false,
   onFieldSelect,
 }: NodesSelectionStepProps) {
+  const title = connectorName ? `Select Nodes for ${connectorName}` : 'Select Nodes';
+
   if (loading) {
     return (
       <div className='space-y-4'>
-        <h4 className='text-lg font-medium'>Nodes</h4>
+        <h4 className='text-lg font-medium'>{title}</h4>
         <div className='flex flex-col gap-4'>
           {Array.from({ length: 3 }).map((_, index) => (
             <div key={index} className='flex items-center space-x-2'>
@@ -35,15 +39,21 @@ export function NodesSelectionStep({
   if (!connectorFields || connectorFields.length === 0) {
     return (
       <div className='space-y-4'>
-        <h4 className='text-lg font-medium'>Nodes</h4>
-        <p className='text-muted-foreground text-sm'>No nodes found</p>
+        <h4 className='text-lg font-medium'>{title}</h4>
+        <p className='text-destructive text-sm'>
+          {connectorName ? `No nodes found for ${connectorName}` : 'No nodes found'}
+        </p>
+        <p className='text-muted-foreground text-muted-foreground text-sm'>
+          This connector might not be fully implemented yet or there could be other issues. Please
+          create an issue on GitHub to report this problem.
+        </p>
       </div>
     );
   }
 
   return (
     <div className='space-y-4'>
-      <h4 className='text-lg font-medium'>Nodes</h4>
+      <h4 className='text-lg font-medium'>{title}</h4>
       <div className='flex flex-col gap-4'>
         {connectorFields.map(field => (
           <div key={field.name} className='flex items-center space-x-2'>
@@ -52,7 +62,7 @@ export function NodesSelectionStep({
               id={field.name}
               name='selectedField'
               value={field.name}
-              className='text-primary focus:ring-primary h-4 w-4 border-gray-300'
+              className='text-primary focus:ring-primary border-border h-4 w-4'
               onChange={e => {
                 onFieldSelect(e.target.value);
               }}
@@ -64,7 +74,7 @@ export function NodesSelectionStep({
             {field.name && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Info className='inline-block h-4 w-4 cursor-help text-gray-500' />
+                  <Info className='text-muted-foreground/75 inline-block h-4 w-4 cursor-help' />
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>Table name: {field.name}</p>
