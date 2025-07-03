@@ -166,4 +166,42 @@ export class AthenaApiAdapter {
 
     return results;
   }
+
+  /**
+   * Executes a dry run query in Athena using EXPLAIN to validate SQL syntax without running the query.
+   * Returns status and errorMessage if any.
+   */
+  public async executeDryRunQuery(
+    query: string,
+    databaseName: string,
+    outputBucket: string
+  ): Promise<void> {
+    const explainQuery = `EXPLAIN ${query}`;
+    const { queryExecutionId } = await this.executeQuery(
+      explainQuery,
+      databaseName,
+      outputBucket,
+      this.getOutputPrefix('athena-dry-run')
+    );
+
+    await this.waitForQueryToComplete(queryExecutionId);
+  }
+
+  /**
+   * Checks Athena access by running a query (SELECT 1)
+   */
+  public async checkAccess(databaseName: string, outputBucket: string): Promise<void> {
+    const outputPrefix = this.getOutputPrefix('athena-check-access');
+    const { queryExecutionId } = await this.executeQuery(
+      'SELECT 1',
+      databaseName,
+      outputBucket,
+      outputPrefix
+    );
+    await this.waitForQueryToComplete(queryExecutionId);
+  }
+
+  private getOutputPrefix(operation: string): string {
+    return `${operation}/${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+  }
 }

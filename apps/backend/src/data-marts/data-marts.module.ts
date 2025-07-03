@@ -63,6 +63,7 @@ import { ConnectorMapper } from './mappers/connector.mapper';
 import { SpecificationConnectorService } from './use-cases/connector/specification-connector.service';
 import { FieldsConnectorService } from './use-cases/connector/fields-connector.service';
 import { RunDataMartService } from './use-cases/run-data-mart.service';
+import { ValidateDataMartDefinitionService } from './use-cases/validate-data-mart-definition.service';
 import { DataMartScheduledTrigger } from './entities/data-mart-scheduled-trigger.entity';
 import { SchedulerModule } from '../common/scheduler/scheduler.module';
 import { ScheduledTriggersHandlerService } from './services/scheduled-triggers-handler.service';
@@ -107,6 +108,7 @@ import { ReportService } from './services/report.service';
     DataStorageService,
     DataStorageMapper,
     DataDestinationService,
+    ValidateDataMartDefinitionService,
     DataDestinationMapper,
     ListDataStoragesService,
     ListDataDestinationsService,
