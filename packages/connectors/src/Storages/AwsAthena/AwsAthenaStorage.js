@@ -43,7 +43,8 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
           requiredType: "string"
         },
         DestinationTableNamePrefix: {
-          isRequired: true,
+          isRequired: false,
+          default: '',
           requiredType: "string"
         },
         DestinationTableName: {
@@ -72,7 +73,6 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
     this.setupAthenaDatabase();
     
     this.uploadSid = new Date().toISOString().replace(/[-:.]/g, '') + "_" + Math.random().toString(36).substring(2, 15);
-
   }
 
   //---- initAWS ----------------------------------------------------
@@ -215,10 +215,20 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
         type: columnType
       };
     }
+
+    let selectedFields = [];
+    if (this.config.Fields && this.config.Fields.value) {
+      selectedFields = this.config.Fields.value.split(',')
+      .map(field => field.trim())
+      .filter(field => field !== '')
+      .map(field => field.split(' '))
+      .filter(field => field.length === 2)
+      .map(field => field[1]);
+    } 
     
     // Add all other schema fields to the table
     for (let columnName in this.schema) {
-      if (!this.uniqueKeyColumns.includes(columnName)) {
+      if (!this.uniqueKeyColumns.includes(columnName) && selectedFields.includes(columnName)) {
         let columnType = 'string';
         if ("AthenaType" in this.schema[columnName]) {
           columnType = this.schema[columnName]["AthenaType"];

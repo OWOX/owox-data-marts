@@ -11,7 +11,6 @@ class NodeJsTemplateRenderer extends TemplateRenderer {
    * @returns {string} Rendered template content
    */
   render(dependencies) {
-    console.log(dependencies);
     return `
             ${this._getDependencies(dependencies)}
             ${this._getOwoxLibs()}

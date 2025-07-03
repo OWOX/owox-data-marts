@@ -236,19 +236,19 @@ export class ConnectorExecutionService {
   ): StorageConfig {
     const storageConfig = dataMart.storage.config as AthenaConfig;
     const credentials = dataMart.storage.credentials as AthenaCredentials;
-
+    const clearBucketName = storageConfig.outputBucket.replace(/^s3:\/\//, '').replace(/\/$/, '');
     return new StorageConfig({
       name: DataStorageType.AWS_ATHENA,
       config: {
         AWSRegion: storageConfig.region,
         AWSAccessKeyId: credentials.accessKeyId,
         AWSSecretAccessKey: credentials.secretAccessKey,
-        S3BucketName: storageConfig.outputBucket,
+        S3BucketName: clearBucketName,
         S3Prefix: dataMart.id,
         AthenaDatabaseName: connector.storage?.fullyQualifiedName.split('.')[0],
         DestinationTableNamePrefix: '',
         DestinationTableName: connector.storage?.fullyQualifiedName.split('.')[1],
-        AthenaOutputLocation: `s3://${storageConfig.outputBucket}/owox-data-marts/${dataMart.id}`,
+        AthenaOutputLocation: `s3://${clearBucketName}/owox-data-marts/${dataMart.id}`,
       },
     });
   }

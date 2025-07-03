@@ -170,16 +170,20 @@ export class AthenaReportReader implements DataStorageReportReader {
   }
 
   private async prepareViewData(dataMartDefinition: ViewDefinition): Promise<void> {
-    await this.executeQuery(`SELECT * FROM ${dataMartDefinition.fullyQualifiedName}`);
+    await this.executeQuery(
+      `SELECT * FROM ${this.escapeTablePath(dataMartDefinition.fullyQualifiedName)}`
+    );
   }
 
   private async prepareTableData(dataMartDefinition: TableDefinition): Promise<void> {
-    await this.executeQuery(`SELECT * FROM ${dataMartDefinition.fullyQualifiedName}`);
+    await this.executeQuery(
+      `SELECT * FROM ${this.escapeTablePath(dataMartDefinition.fullyQualifiedName)}`
+    );
   }
 
   private async prepareConnectorData(dataMartDefinition: ConnectorDefinition): Promise<void> {
     await this.executeQuery(
-      `SELECT * FROM ${dataMartDefinition.connector.storage.fullyQualifiedName}`
+      `SELECT * FROM ${this.escapeTablePath(dataMartDefinition.connector.storage.fullyQualifiedName)}`
     );
   }
 
@@ -195,5 +199,14 @@ export class AthenaReportReader implements DataStorageReportReader {
     );
 
     this.queryExecutionId = result.queryExecutionId;
+  }
+
+  private escapeTablePath(tablePath: string): string {
+    return tablePath
+      .split('.')
+      .map(identifier =>
+        identifier.startsWith('"') && identifier.endsWith('"') ? identifier : `"${identifier}"`
+      )
+      .join('.');
   }
 }
