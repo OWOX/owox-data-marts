@@ -169,16 +169,16 @@ class AbstractConfig {
     }
     //----------------------------------------------------------------
 
-  //---- processStatus -----------------------------------------------
+  //---- handleStatusUpdate -----------------------------------------------
     /**
      * @param {Object} params - Parameters object with status and other properties
      * @param {string} params.status - Current status value
      * @param {boolean} params.sendNotifications - Send notifications if true
      * @param {string} params.error - Error message for Error status
      */
-    processStatus(params) {
+    handleStatusUpdate(params) {
 
-      throw new Error("processStatus must be implemented in subclass of AbstractConfig");
+      throw new Error("handleStatusUpdate must be implemented in subclass of AbstractConfig");
 
     }
     //----------------------------------------------------------------

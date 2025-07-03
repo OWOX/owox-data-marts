@@ -79,21 +79,19 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
     
     }
     
-  //---- processStatus -----------------------------------------------
+  //---- handleStatusUpdate -----------------------------------------------
     /**
      * @param {Object} params - Parameters object with status and other properties
      * @param {string} params.status - Current status value
      * @param {boolean} params.sendNotifications - Send notifications if true
      */
-    processStatus(params) {
+    handleStatusUpdate(params) {
     
       const { status, sendNotifications } = params;
       this.updateCurrentStatus(status);
       
       if (sendNotifications) {
         this.sendNotifications(params);
-      } else {
-        console.log(`Notifications skipped for status: ${status} (sendNotifications: false)`);
       }
     
     }
@@ -401,38 +399,28 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
      * @param {string} params.status - Current status value
      * @param {string} params.error - Error message for Error status
      */
-    sendNotifications(params) {      
+    sendNotifications(params) {
       try {
-        // Send email notification if NotifyByEmail has value
-        console.log('Checking email notification...');
-        console.log('NotifyByEmail value:', this.NotifyByEmail?.value);
+        const formattedMessage = this.formatStatusMessage(params);
         
+        // Send email notification if NotifyByEmail has value
         if (this.NotifyByEmail && this.NotifyByEmail.value && this.NotifyByEmail.value.trim()) {
-          console.log('Sending email notification...');
           EmailNotification.send({
             to: this.NotifyByEmail.value,
-            subject: `Data Connector Status: ${params.status}`,
-            message: JSON.stringify(params),
-            status: params.status
-          });
-        } else {
-          console.log('Email notification skipped: no valid email address');
-        }
-        
-        // Send Google Chat notification if NotifyByGoogleChat has value
-        console.log('Checking Google Chat notification...');
-        console.log('NotifyByGoogleChat value:', this.NotifyByGoogleChat?.value);
-        
-        if (this.NotifyByGoogleChat && this.NotifyByGoogleChat.value && this.NotifyByGoogleChat.value.trim()) {
-          console.log('Sending Google Chat notification...');
-          GoogleChatNotification.send({
-            webhookUrl: this.NotifyByGoogleChat.value.trim(),
-            message: JSON.stringify(params),
+            message: formattedMessage,
             status: params.status,
             connectorName: this.configSpreadsheet.getName()
           });
-        } else {
-          console.log('Google Chat notification skipped: no webhook URL provided');
+        }
+        
+        // Send Google Chat notification if NotifyByGoogleChat has value
+        if (this.NotifyByGoogleChat && this.NotifyByGoogleChat.value && this.NotifyByGoogleChat.value.trim()) {
+          GoogleChatNotification.send({
+            webhookUrl: this.NotifyByGoogleChat.value.trim(),
+            message: formattedMessage,
+            status: params.status,
+            connectorName: this.configSpreadsheet.getName()
+          });
         }
       } catch (error) {
         console.error(`Failed to send notifications: ${error.message}`);
@@ -440,6 +428,33 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
       }
     }
     //----------------------------------------------------------------
+
+  //---- formatStatusMessage -----------------------------------------
+    /**
+     * Format user-friendly status message
+     * @param {Object} params - Parameters object
+     * @param {string} params.status - Current status
+     * @param {string} params.error - Error message if status is Error
+     * @returns {string} - Formatted message
+     */
+    formatStatusMessage(params) {
+      const { status, error } = params;
+      
+      switch (status) {
+        case 'Done':
+          return 'Import is finished successfully.';
+        case 'Error':
+          return `Error occurred during import${error ? ': ' + error : ''}.`;
+        case 'Import in progress':
+          return 'Import is in progress.';
+        case 'CleanUp in progress':
+          return 'Cleanup is in progress.';
+        default:
+          return `Status: ${status}.`;
+      }
+    }
+    //----------------------------------------------------------------
+
 
   //---- shouldSendNotifications -------------------------------------
     /**

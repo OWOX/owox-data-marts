@@ -76,19 +76,30 @@ class NodeJsConfig extends AbstractConfig {
      * Outputs structured JSON log entry to console for external monitoring
      * and tracking of connector execution status.
      * 
-     * @param {Object} params - Parameters object with status and other properties
-     * @param {string} params.status - Current status of the data connector execution
+     * @param {string} status - Current status of the data connector execution
      */
-    processStatus(params) {
-      const { status } = params;
+    updateCurrentStatus(status) {
       const at = new Date();
       console.log(
         JSON.stringify({
-          type: 'processStatus',
+          type: 'updateCurrentStatus',
           at: at.toISOString().split('T')[0] + ' ' + at.toISOString().split('T')[1].split('.')[0],
           status: status,
         })
       );
+    }
+  
+    /**
+     * Update and log the current execution status
+     * 
+     * Outputs structured JSON log entry to console for external monitoring
+     * and tracking of connector execution status.
+     * 
+     * @param {Object} params - Parameters object with status and other properties
+     * @param {string} params.status - Current status of the data connector execution
+     */
+    handleStatusUpdate({ status }) {
+      this.updateCurrentStatus(status);
     }
   
     /**
