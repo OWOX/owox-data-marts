@@ -70,10 +70,10 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
             requiredType: "string", 
             default: ""
           },
-          NotificationFilter: {
+          NotifyWhen: {
             isRequired: false,
             requiredType: "string",
-            default: "All"
+            default: "Never"
           }
       });
     
@@ -83,15 +83,15 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
     /**
      * @param {Object} params - Parameters object with status and other properties
      * @param {string} params.status - Current status value
-     * @param {boolean} params.sendNotifications - Send notifications if true
+     * @param {boolean} params.shouldNotify - Should send notifications if true
+     * @param {string} params.error - Error message for Error status
      */
-    handleStatusUpdate(params) {
+    handleStatusUpdate({ status, shouldNotify, error }) {
     
-      const { status, sendNotifications } = params;
       this.updateCurrentStatus(status);
       
-      if (sendNotifications) {
-        this.sendNotifications(params);
+      if (shouldNotify) {
+        this.sendNotifications({ status, error });
       }
     
     }
@@ -399,16 +399,16 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
      * @param {string} params.status - Current status value
      * @param {string} params.error - Error message for Error status
      */
-    sendNotifications(params) {
+    sendNotifications({ status, error }) {
       try {
-        const formattedMessage = this.formatStatusMessage(params);
+        const formattedMessage = this.formatStatusMessage({ status, error });
         
         // Send email notification if NotifyByEmail has value
         if (this.NotifyByEmail && this.NotifyByEmail.value && this.NotifyByEmail.value.trim()) {
           EmailNotification.send({
             to: this.NotifyByEmail.value,
             message: formattedMessage,
-            status: params.status,
+            status: status,
             connectorName: this.configSpreadsheet.getName()
           });
         }
@@ -418,7 +418,7 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
           GoogleChatNotification.send({
             webhookUrl: this.NotifyByGoogleChat.value.trim(),
             message: formattedMessage,
-            status: params.status,
+            status: status,
             connectorName: this.configSpreadsheet.getName()
           });
         }
@@ -437,9 +437,7 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
      * @param {string} params.error - Error message if status is Error
      * @returns {string} - Formatted message
      */
-    formatStatusMessage(params) {
-      const { status, error } = params;
-      
+    formatStatusMessage({ status, error }) {
       switch (status) {
         case 'Done':
           return 'Import is finished successfully.';
@@ -463,18 +461,22 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
      * @returns {boolean} - True if notifications should be sent
      */
     shouldSendNotifications(status) {
-      const notificationFilter = this.NotificationFilter?.value || "All";
+      const notifyWhen = this.NotifyWhen?.value;
       
-      switch (notificationFilter) {
-        case "Failed syncs":
+      switch (notifyWhen) {
+        case "On error":
           return status === "Error";
         
-        case "Successful syncs":
+        case "On success":
           return status === "Done";
         
-        case "All":
-        default:
+        case "Always":
           return true;
+          
+        case "Never":
+        case "":
+        default:
+          return false;
       }
     }
     //----------------------------------------------------------------

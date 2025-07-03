@@ -173,10 +173,10 @@ class AbstractConfig {
     /**
      * @param {Object} params - Parameters object with status and other properties
      * @param {string} params.status - Current status value
-     * @param {boolean} params.sendNotifications - Send notifications if true
+     * @param {boolean} params.shouldNotify - Should send notifications if true
      * @param {string} params.error - Error message for Error status
      */
-    handleStatusUpdate(params) {
+    handleStatusUpdate({ status, shouldNotify, error }) {
 
       throw new Error("handleStatusUpdate must be implemented in subclass of AbstractConfig");
 
