@@ -11,15 +11,14 @@ var EmailNotification = class EmailNotification {
    * Send email notification
    * @param {Object} params - Parameters object
    * @param {string} params.to - Email address(es) to send to (can be multiple separated by commas)
-   * @param {string} params.subject - Email subject
-   * @param {string} params.message - Email message
+   * @param {string} params.message - Formatted notification message
    * @param {string} params.status - Current import status
+   * @param {string} params.connectorName - Name of the connector/spreadsheet
    */
   static send(params) {
-    const { to, subject, message, status } = params;
+    const { to, message, status, connectorName } = params;
     
     if (!to || !to.trim()) {
-      console.log('Email notification skipped: no recipient email provided');
       return;
     }
 
@@ -36,10 +35,14 @@ var EmailNotification = class EmailNotification {
         return;
       }
 
+      const statusLine = connectorName 
+        ? `${connectorName} - Status: ${status}`
+        : `Status: ${status}`;
+
       GmailApp.sendEmail(
         emailAddresses,
-        subject || `Data Connector: ${status}`,
-        `Status: ${status}\n\nDetails:\n${message}`
+        statusLine,
+        `${statusLine}\n\n${message}`
       );
 
       console.log(`Email notification sent successfully to: ${emailAddresses}`);
