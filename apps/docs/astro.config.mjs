@@ -30,20 +30,16 @@ export default defineConfig({
         {
           label: 'Apps',
           items: [
-            { label: 'Backend', autogenerate: { directory: 'apps/backend', collapsed: true } },
-            { label: 'Docs', autogenerate: { directory: 'apps/docs' }, collapsed: true },
             { label: 'OWOX', autogenerate: { directory: 'apps/owox' }, collapsed: true },
+            { label: 'Backend', autogenerate: { directory: 'apps/backend', collapsed: true } },
             { label: 'Web', autogenerate: { directory: 'apps/web' }, collapsed: true },
+            { label: 'Docs', autogenerate: { directory: 'apps/docs' }, collapsed: true },
           ],
           collapsed: true,
         },
         {
           label: 'Packages',
           items: [
-            {
-              label: 'Connector Runner',
-              autogenerate: { directory: 'packages/connector-runner', collapsed: true },
-            },
             {
               label: 'Connectors',
               items: [
@@ -59,6 +55,10 @@ export default defineConfig({
                 },
               ],
               collapsed: true,
+            },
+            {
+              label: 'Connector Runner',
+              autogenerate: { directory: 'packages/connector-runner', collapsed: true },
             },
           ],
           collapsed: true,
