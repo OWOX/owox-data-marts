@@ -23,6 +23,13 @@ interface LogCaptureConfig {
   };
 }
 
+interface ConfigurationExecutionResult {
+  configIndex: number;
+  success: boolean;
+  logs: string[];
+  errors: string[];
+}
+
 @Injectable()
 export class ConnectorExecutionService {
   private readonly logger = new Logger(ConnectorExecutionService.name);
@@ -130,16 +137,102 @@ export class ConnectorExecutionService {
     const definition = dataMart.definition as DataMartConnectorDefinition;
     const { connector } = definition;
 
-    for (const config of connector.source.configuration) {
-      const runConfig = new RunConfig({
-        name: connector.source.name,
-        datamartId: dataMart.id,
-        source: this.getSourceConfig(connector, config),
-        storage: this.getStorageConfig(dataMart),
-      });
+    const configurationResults: ConfigurationExecutionResult[] = [];
 
-      const connectorRunner = new ConnectorRunner();
-      await connectorRunner.run(dataMart.id, runId, runConfig, logCaptureConfig);
+    for (const [configIndex, config] of connector.source.configuration.entries()) {
+      const configLogs: string[] = [];
+      const configErrors: string[] = [];
+
+      const configLogCapture = this.createConfigurationLogCaptureConfig(
+        dataMart.id,
+        configIndex,
+        configErrors,
+        configLogs
+      );
+
+      try {
+        const runConfig = new RunConfig({
+          name: connector.source.name,
+          datamartId: dataMart.id,
+          source: this.getSourceConfig(connector, config),
+          storage: this.getStorageConfig(dataMart),
+        });
+
+        const connectorRunner = new ConnectorRunner();
+        await connectorRunner.run(dataMart.id, runId, runConfig, configLogCapture);
+
+        configurationResults.push({
+          configIndex,
+          success: true,
+          logs: configLogs,
+          errors: configErrors,
+        });
+
+        this.logger.log(
+          `Configuration ${configIndex + 1} completed successfully for DataMart ${dataMart.id}`
+        );
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        configErrors.push(`Configuration ${configIndex + 1} failed: ${errorMessage}`);
+
+        configurationResults.push({
+          configIndex,
+          success: false,
+          logs: configLogs,
+          errors: configErrors,
+        });
+
+        this.logger.error(
+          `Configuration ${configIndex + 1} failed for DataMart ${dataMart.id}:`,
+          error
+        );
+      }
+    }
+
+    this.mergeConfigurationResults(configurationResults, logCaptureConfig);
+
+    const successCount = configurationResults.filter(r => r.success).length;
+    const totalCount = configurationResults.length;
+    this.logger.log(
+      `Connector execution completed: ${successCount}/${totalCount} configurations successful for DataMart ${dataMart.id}`
+    );
+  }
+
+  private createConfigurationLogCaptureConfig(
+    dataMartId: string,
+    configIndex: number,
+    capturedErrors: string[],
+    capturedLogs: string[]
+  ): LogCaptureConfig {
+    return {
+      logCapture: {
+        onStdout: (message: string) => {
+          const logMessage = message.trim();
+          capturedLogs.push(`[Config ${configIndex + 1}] ${logMessage}`);
+          this.logger.log(`[${dataMartId}][Config ${configIndex + 1}]: ${logMessage}`);
+        },
+        onStderr: (message: string) => {
+          const errorMessage = message.trim();
+          capturedErrors.push(`[Config ${configIndex + 1}] ${errorMessage}`);
+          this.logger.error(`[${dataMartId}][Config ${configIndex + 1}]: ${errorMessage}`);
+        },
+        passThrough: false,
+      },
+    };
+  }
+
+  private mergeConfigurationResults(
+    configurationResults: ConfigurationExecutionResult[],
+    originalLogCapture: LogCaptureConfig
+  ): void {
+    for (const result of configurationResults) {
+      for (const log of result.logs) {
+        originalLogCapture.logCapture.onStdout(log);
+      }
+
+      for (const error of result.errors) {
+        originalLogCapture.logCapture.onStderr(error);
+      }
     }
   }
 
