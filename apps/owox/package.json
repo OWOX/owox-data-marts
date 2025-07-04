@@ -13,7 +13,8 @@
     "@oclif/core": "^4",
     "@oclif/plugin-help": "^6",
     "@oclif/plugin-plugins": "^5",
-    "@owox/backend": "0.2.0"
+    "@owox/backend": "0.2.0",
+    "find-process": "^1.4.10"
   },
   "devDependencies": {
     "@eslint/compat": "^1",
