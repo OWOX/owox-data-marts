@@ -1,10 +1,4 @@
-const { RunConfig } = require('../../../src/application/dto/run-config');
-
-const ConnectorExecutionService = require('../../../src/application/services/connector-execution-service');
-const NodeJsEnvironment = require('../../../src/infrastructure/environments/nodejs-environment');
-
-jest.mock('../../../src/infrastructure/environments/nodejs-environment');
-
+// Mock @owox/connectors before any imports that might use it
 jest.mock('@owox/connectors', () => ({
   Storages: {
     TestStorage: {
@@ -26,6 +20,13 @@ jest.mock('@owox/connectors', () => ({
     },
   },
 }));
+
+const { RunConfig } = require('../../../src/application/dto/run-config');
+
+const ConnectorExecutionService = require('../../../src/application/services/connector-execution-service');
+const NodeJsEnvironment = require('../../../src/infrastructure/environments/nodejs-environment');
+
+jest.mock('../../../src/infrastructure/environments/nodejs-environment');
 
 describe('ConnectorExecutionService', () => {
   let executionService;

@@ -1,10 +1,23 @@
 const { spawn } = require('child_process');
 const mockFs = require('mock-fs');
-const NpmDependencyManager = require('../../../src/infrastructure/dependencies/npm-dependency-manager');
 
 jest.mock('child_process', () => ({
   spawn: jest.fn(),
 }));
+
+// Mock the createRequire and @owox/connectors before importing the class
+jest.mock('node:module', () => ({
+  createRequire: jest.fn(() => ({
+    resolve: jest.fn(moduleName => {
+      if (moduleName === '@owox/connectors') {
+        return '/mock/path/to/@owox/connectors';
+      }
+      return '/mock/path/to/module';
+    }),
+  })),
+}));
+
+const NpmDependencyManager = require('../../../src/infrastructure/dependencies/npm-dependency-manager');
 
 describe('NpmDependencyManager', () => {
   let dependencyManager;
