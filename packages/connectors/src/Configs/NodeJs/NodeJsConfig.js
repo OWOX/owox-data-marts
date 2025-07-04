@@ -62,9 +62,9 @@ class NodeJsConfig extends AbstractConfig {
   
     /**
      * Determine if notifications should be sent based on status and filter setting
-     * For NodeJS environment, always return true (no filtering, send all)
+     * For NodeJS environment, always return false
      * @param {string} status - Current status
-     * @returns {boolean} - Always true for NodeJS
+     * @returns {boolean} - Always false for NodeJS
      */
     shouldSendNotifications(status) {
       return false;
