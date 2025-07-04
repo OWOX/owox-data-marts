@@ -11,17 +11,11 @@ During this process, you will obtain the following credentials required for the 
 
 ## Step 1: Register an App in Microsoft Azure
 
-### 1. Sign in to Azure  
-
 If you haven't already, [sign up for Microsoft Azure](https://azure.microsoft.com/) and log in to the [Azure Portal](https://portal.azure.com/).
-
-### 2. Open App Registrations
 
 In the Azure Portal, search for and open the **App registrations** service.
 
 ![Bing Search App](res/bing_appsearch.png)
-
-### 3. Register a New Application
 
 Click **New registration** and fill in the form:
 
@@ -39,13 +33,9 @@ Click the **Register** button.
 
 ## Step 2: Generate Client Credentials
 
-### 4. Add a Client Secret  
-
 In your registered app, go to **Client credentials** -> **Add a certificate or secret**.
 
 ![Bing Create Secret](res/bing_createsecret.png)
-
-### 5. Create a New Client Secret
 
 Click **New client secret**.
 
