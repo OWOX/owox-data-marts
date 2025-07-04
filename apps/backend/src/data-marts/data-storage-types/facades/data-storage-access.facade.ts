@@ -5,6 +5,7 @@ import { DataStorageAccessValidator } from '../interfaces/data-storage-access-va
 import { DATA_STORAGE_ACCESS_VALIDATOR_RESOLVER } from '../data-storage-providers';
 import { DataStorageConfig } from '../data-storage-config.type';
 import { AccessValidationException } from '../../../common/exceptions/access-validation.exception';
+import { DataStorageCredentials } from '../data-storage-credentials.type';
 
 @Injectable()
 export class DataStorageAccessFacade {
@@ -16,7 +17,7 @@ export class DataStorageAccessFacade {
   async checkAccess(
     type: DataStorageType,
     config: DataStorageConfig,
-    credentials: Record<string, unknown>
+    credentials: DataStorageCredentials
   ): Promise<void> {
     const validator = await this.resolver.resolve(type);
     const validationResult = await validator.validate(config, credentials);

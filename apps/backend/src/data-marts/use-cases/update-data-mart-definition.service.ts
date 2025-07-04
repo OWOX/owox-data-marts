@@ -8,6 +8,7 @@ import { Repository } from 'typeorm';
 import { DataMartService } from '../services/data-mart.service';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { InjectRepository } from '@nestjs/typeorm';
+import { DataMartDefinitionValidatorFacade } from '../data-storage-types/facades/data-mart-definition-validator-facade.service';
 
 @Injectable()
 export class UpdateDataMartDefinitionService {
@@ -15,6 +16,7 @@ export class UpdateDataMartDefinitionService {
     @InjectRepository(DataMart)
     private readonly dataMartRepository: Repository<DataMart>,
     private readonly dataMartService: DataMartService,
+    private readonly definitionValidatorFacade: DataMartDefinitionValidatorFacade,
     private readonly mapper: DataMartMapper
   ) {}
 
@@ -28,11 +30,10 @@ export class UpdateDataMartDefinitionService {
     if (dataMart.definitionType && dataMart.definitionType !== command.definitionType) {
       throw new BusinessViolationException('DataMart already has definition');
     }
-
-    // TODO validate definition and definitionType
-
     dataMart.definitionType = command.definitionType;
     dataMart.definition = command.definition;
+
+    await this.definitionValidatorFacade.checkIsValid(dataMart);
     await this.dataMartRepository.save(dataMart);
 
     return this.mapper.toDomainDto(dataMart);
