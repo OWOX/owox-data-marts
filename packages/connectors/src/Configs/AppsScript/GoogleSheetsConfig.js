@@ -85,6 +85,7 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
      * @param {string} params.status - Current status value
      * @param {boolean} params.shouldNotify - Should send notifications if true
      * @param {string} params.error - Error message for Error status
+     * @param {number} params.timeoutTriggerAction - Timeout trigger action (use TIMEOUT_TRIGGER_ACTION.CREATE or TIMEOUT_TRIGGER_ACTION.REMOVE)
      */
     handleStatusUpdate({ status, shouldNotify, error, timeoutTriggerAction }) {
       if (timeoutTriggerAction === TIMEOUT_TRIGGER_ACTION.CREATE) {
@@ -429,7 +430,6 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
           });
         }
       } catch (error) {
-        console.error(`Failed to send notifications: ${error.message}`);
         this.logMessage(`⚠️ Notification error: ${error.message}`);
       }
     }
@@ -492,7 +492,7 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
       this.removeTimeoutTrigger();
       const trigger = ScriptApp.newTrigger('checkForTimeout')
         .timeBased()
-        .after(((this.MaxRunTimeout.value * 2 + 1) * 60 * 1000)) // The trigger fires after (MaxRunTimeout * 2 + 1) minutes to ensure isInProgress() returns false even if LastImportDate was updated at the end of the import.
+        .after((this.MaxRunTimeout.value * 2 + 1) * 60 * 1000) // The trigger fires after (MaxRunTimeout * 2 + 1) minutes to ensure isInProgress() returns false even if LastImportDate was updated at the end of the import.
         .create();
       PropertiesService.getScriptProperties().setProperty('timeoutTriggerId', trigger.getUniqueId());
     }
