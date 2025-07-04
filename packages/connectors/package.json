@@ -8,6 +8,8 @@
   },
   "type": "module",
   "scripts": {
+    "dev": "vite build --config vite.config.js",
+    "dev:watch": "node watcher.config.js",
     "build": "vite build --config vite.config.js",
     "clean": "shx rm -rf dist",
     "prebuild": "npm run clean",

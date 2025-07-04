@@ -11,7 +11,7 @@ class ConnectorBuilder {
     this.rootDir = __dirname;
     this.srcDir = path.join(this.rootDir, 'src');
     this.distDir = path.join(this.rootDir, 'dist');
-    this.tempDir = path.join(this.distDir, 'temp');
+    this.tempDir = path.join(this.rootDir, 'build');
   }
 
   // Discover all connectors
@@ -148,8 +148,8 @@ class ConnectorBuilder {
     const allCoreClasses = [];
     const allConstants = [];
 
-    // Process each file
-    for (const file of [...coreFiles, ...constantFiles, ...configFiles]) {
+    // Process each file - constants first, then core, then configs
+    for (const file of [...constantFiles, ...coreFiles, ...configFiles]) {
       const filePath = path.join(this.rootDir, file);
       const fileContent = await fs.readFile(filePath, 'utf8');
       const classNames = this.extractClassNames(fileContent);
@@ -467,7 +467,7 @@ class ConnectorBuilder {
 export default defineConfig({
   build: {
     lib: {
-      entry: 'dist/temp/index.js',
+      entry: 'build/index.js',
       name: 'ConnectorBundle',
       fileName: 'index',
       formats: ['cjs', 'es'],
@@ -479,6 +479,11 @@ export default defineConfig({
       output: {
         inlineDynamicImports: true,
       },
+      watch: {
+        exclude: ['dist/**', 'build/**', 'node_modules/**'],
+        include: ['src/**/*.js'],
+        buildDelay: 500,
+      },
     },
   },
   plugins: [
@@ -488,6 +493,11 @@ export default defineConfig({
       async buildStart() {
         const builder = new ConnectorBuilder();
         await builder.buildIndexEntry();
+      },
+      async buildEnd() {
+        if (process.argv.includes('--watch')) {
+          console.log('👀 Watching for file changes...');
+        }
       },
     },
   ],
