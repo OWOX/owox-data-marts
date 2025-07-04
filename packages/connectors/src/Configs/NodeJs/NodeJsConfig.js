@@ -100,7 +100,7 @@ class NodeJsConfig extends AbstractConfig {
      * @param {boolean} params.shouldNotify - Should send notifications if true
      * @param {string} params.error - Error message for Error status
      */
-    handleStatusUpdate({ status, shouldNotify, error }) {
+    handleStatusUpdate({ status }) {
       this.updateCurrentStatus(status);
     }
   
