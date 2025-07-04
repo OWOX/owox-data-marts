@@ -1,8 +1,10 @@
-import { Command, Flags } from '@oclif/core';
+import { Flags } from '@oclif/core';
 import { ChildProcess, exec, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { promisify } from 'node:util';
+
+import { BaseCommand } from './base.command.js';
 
 const execAsync = promisify(exec);
 const require = createRequire(import.meta.url);
@@ -30,15 +32,16 @@ interface ProcessSpawnOptions {
  * Command to start the OWOX Data Marts application.
  * Requires @owox/backend to be installed.
  */
-export default class Serve extends Command {
+export default class Serve extends BaseCommand {
   static override description = 'Start the OWOX Data Marts application';
   static override examples = [
     '<%= config.bin %> serve',
     '<%= config.bin %> serve --port 8080',
-    '<%= config.bin %> serve -p 3001',
+    '<%= config.bin %> serve -p 3001 --pretty-log',
     '$ PORT=8080 <%= config.bin %> serve',
   ];
   static override flags = {
+    ...BaseCommand.baseFlags,
     port: Flags.integer({
       char: 'p',
       default: CONSTANTS.DEFAULT_PORT,
@@ -54,6 +57,8 @@ export default class Serve extends Command {
    */
   public async run(): Promise<void> {
     const { flags } = await this.parse(Serve);
+
+    this.initializeLogging(flags);
 
     this.log('🚀 Starting OWOX Data Marts...');
     this.setupGracefulShutdown();
