@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "vite --config vite.config.ts",
     "build": "tsc -b && vite build",
-    "lint": "eslint .",
+    "lint": "eslint . --config ./eslint.config.js",
     "lint:fix": "eslint . --fix",
     "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",
     "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",

@@ -30,7 +30,7 @@
     "serve": "npm run build -w @owox/backend && npm run serve -w @owox/backend",
     "lint": "npm run lint --workspaces --if-present",
     "lint:fix": "npm run lint:fix --workspaces --if-present",
-    "lint:staged": "lint-staged",
+    "pre-commit": "lint-staged",
     "lint:md": "npm run lint:md --workspaces --if-present",
     "lint:md:fix": "npm run lint:md:fix --workspaces --if-present",
     "lint:md:all": "markdownlint-cli2",

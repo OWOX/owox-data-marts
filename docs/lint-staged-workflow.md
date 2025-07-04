@@ -103,7 +103,6 @@ lint-staged automatically finds the nearest configuration file to each staged fi
 ```json
 {
   "*.json": "prettier --write",
-  "*.md": "prettier --write",
   "*.{yml,yaml}": "prettier --write"
 }
 ```
@@ -123,7 +122,7 @@ npm install  # → triggers postinstall → setup:husky
 ### What the setup does:
 
 1. **Initializes Husky**: Creates `.husky/` directory
-2. **Creates pre-commit hook**: Runs `npm run lint:staged`
+2. **Creates pre-commit hook**: Runs `npm run pre-commit`
 3. **Makes hook executable**: Sets proper permissions
 
 ## 🚫 Bypassing Pre-commit Hooks
@@ -195,7 +194,7 @@ ls apps/web/prettier.config.js
 
 ```bash
 # Run lint-staged with debug output
-DEBUG=lint-staged* npm run lint:staged
+DEBUG=lint-staged* npm run pre-commit
 
 # Check what files would be processed
 npx lint-staged --dry-run
