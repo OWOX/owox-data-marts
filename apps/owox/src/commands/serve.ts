@@ -1,11 +1,11 @@
 import { Command, Flags } from '@oclif/core';
-import { ChildProcess, exec, spawn } from 'node:child_process';
+import find from 'find-process';
+import { ChildProcess, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { promisify } from 'node:util';
 
-const execAsync = promisify(exec);
 const require = createRequire(import.meta.url);
+const packageInfo = require('../../package.json');
 
 /**
  * Constants for the serve command
@@ -55,7 +55,7 @@ export default class Serve extends Command {
   public async run(): Promise<void> {
     const { flags } = await this.parse(Serve);
 
-    this.log('🚀 Starting OWOX Data Marts...');
+    this.log(`🚀 Starting OWOX Data Marts (v${packageInfo.version})...`);
     this.setupGracefulShutdown();
 
     const backendPath = this.validateBackendAvailability();
@@ -147,22 +147,25 @@ export default class Serve extends Command {
    */
   private async killMarkedProcesses(): Promise<void> {
     try {
-      const { stdout } = await execAsync(
-        `ps -ef | grep "${CONSTANTS.PROCESS_MARKER}" | grep -v grep`
+      const processes = await find('name', 'node');
+
+      const markedProcesses = processes.filter(
+        proc => proc.cmd && proc.cmd.includes(`--${CONSTANTS.PROCESS_MARKER}`)
       );
 
-      if (!stdout.trim()) {
-        this.log(`🔍 No previous zombie processes found`);
+      if (markedProcesses.length === 0) {
+        this.log(`🔍 No previous background processes found.`);
         return;
       }
 
-      const processes = stdout.trim().split('\n');
-      this.warn(`🧹 Found ${processes.length} zombie processes, cleaning up...`);
+      this.warn(`🧹 Found ${markedProcesses.length} zombie processes, cleaning up...`);
 
-      const killPromises = processes.map(async processLine => {
-        const pid = this.extractPidFromProcessLine(processLine);
-        if (pid) {
-          await this.killProcess(pid);
+      const killPromises = markedProcesses.map(async proc => {
+        try {
+          process.kill(proc.pid, 'SIGTERM');
+          this.log(`💀 Killed zombie process PID: ${proc.pid}`);
+        } catch {
+          this.log(`🔍 Process ${proc.pid} already terminated`);
         }
       });
 
@@ -172,18 +175,6 @@ export default class Serve extends Command {
     } catch {
       // This is normal if no previous processes are found
       this.log(`🔍 No previous zombie processes found`);
-    }
-  }
-
-  /**
-   * Kills a process by PID
-   */
-  private async killProcess(pid: number): Promise<void> {
-    try {
-      process.kill(pid, 'SIGTERM');
-      this.log(`💀 Killed zombie process PID: ${pid}`);
-    } catch {
-      this.log(`🔍 Process ${pid} already terminated`);
     }
   }
 
@@ -202,7 +193,6 @@ export default class Serve extends Command {
    */
   private async spawnProcess(options: ProcessSpawnOptions): Promise<void> {
     const env = this.createProcessEnvironment(options.port);
-    this.log(`📦 Starting server on port ${options.port}...`);
 
     // Add process marker to arguments
     const argsWithMarker = [...options.args, `--${CONSTANTS.PROCESS_MARKER}`];
@@ -213,7 +203,8 @@ export default class Serve extends Command {
     });
 
     if (this.childProcess.pid) {
-      this.log(`📦 Server process started with PID: ${this.childProcess.pid}`);
+      this.log(`✅ Server started successfully.`);
+      this.log(`🌐 Open http://localhost:${options.port} in your browser.`);
     } else {
       throw new Error('Failed to start server process');
     }
@@ -228,7 +219,6 @@ export default class Serve extends Command {
    * @param port - Port number to run the application on
    */
   private async startBackend(backendPath: string, port: number): Promise<void> {
-    this.log('Starting backend application...');
     const options: ProcessSpawnOptions = {
       args: [backendPath],
       command: 'node',
