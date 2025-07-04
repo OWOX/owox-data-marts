@@ -13,6 +13,7 @@
     "lint:fix": "eslint . --fix",
     "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",
     "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",
+    "test1": "hello world",
     "type-check": "tsc --noEmit",
     "type-check:watch": "tsc --noEmit --watch",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json}\"",
