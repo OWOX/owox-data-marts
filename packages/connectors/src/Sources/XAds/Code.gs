@@ -83,3 +83,8 @@ function scheduleRuns() {
     ui.ButtonSet.OK_CANCEL
   );
 }
+
+function checkForTimeout() {
+  var config = new OWOX.GoogleSheetsConfig(CONFIG_RANGE);
+  config.checkForTimeout();
+}

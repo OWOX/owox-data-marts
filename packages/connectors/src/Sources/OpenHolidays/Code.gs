@@ -45,3 +45,8 @@ function test(){
   const config = new OpenHolidays_Integration.GoogleSheetsConfig(CONFIG_RANGE);
   console.log("DestinationSpreadsheet value:", config.DestinationSpreadsheet?.value);
 }
+
+function checkForTimeout() {
+  var config = new OWOX.GoogleSheetsConfig(CONFIG_RANGE);
+  config.checkForTimeout();
+}

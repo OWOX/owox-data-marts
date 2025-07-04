@@ -86,14 +86,20 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
      * @param {boolean} params.shouldNotify - Should send notifications if true
      * @param {string} params.error - Error message for Error status
      */
-    handleStatusUpdate({ status, shouldNotify, error }) {
-    
+    handleStatusUpdate({ status, shouldNotify, error, timeoutTriggerAction }) {
+      if (timeoutTriggerAction === TIMEOUT_TRIGGER_ACTION.CREATE) {
+        this.createTimeoutTrigger();
+      }
+
+      if (timeoutTriggerAction === TIMEOUT_TRIGGER_ACTION.REMOVE) {
+        this.removeTimeoutTrigger();
+      }
+
       this.updateCurrentStatus(status);
-      
+
       if (shouldNotify) {
         this.sendNotifications({ status, error });
       }
-    
     }
     //----------------------------------------------------------------
   
@@ -478,6 +484,48 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
         default:
           return false;
       }
+    }
+    //----------------------------------------------------------------
+
+  //---- createTimeoutTrigger ----------------------------------------
+    createTimeoutTrigger() {
+      this.removeTimeoutTrigger();
+      const trigger = ScriptApp.newTrigger('checkForTimeout')
+        .timeBased()
+        .after(((this.MaxRunTimeout.value * 2 + 1) * 60 * 1000)) // The trigger fires after (MaxRunTimeout * 2 + 1) minutes to ensure isInProgress() returns false even if LastImportDate was updated at the end of the import.
+        .create();
+      PropertiesService.getScriptProperties().setProperty('timeoutTriggerId', trigger.getUniqueId());
+    }
+    //----------------------------------------------------------------
+
+  //---- removeTimeoutTrigger ----------------------------------------
+    removeTimeoutTrigger() {
+      const triggerId = PropertiesService.getScriptProperties().getProperty('timeoutTriggerId');
+      if (triggerId) {
+        const triggers = ScriptApp.getProjectTriggers();
+        triggers.forEach(trigger => {
+          if (trigger.getUniqueId() === triggerId) {
+            ScriptApp.deleteTrigger(trigger);
+          }
+        });
+        PropertiesService.getScriptProperties().deleteProperty('timeoutTriggerId');
+      }
+    }
+    //----------------------------------------------------------------
+
+  //---- checkForTimeout ---------------------------------------------
+    checkForTimeout() {
+      if (!this.isInProgress()) {
+        console.log('[TimeoutTrigger] Status is NOT in progress, setting to Error and sending notification');
+        this.handleStatusUpdate({
+          status: "Error",
+          error: "Import was interrupted (likely due to timeout)",
+          shouldNotify: this.shouldSendNotifications("Error")
+        });
+      } else {
+        console.log('[TimeoutTrigger] Status is still in progress');
+      }
+      this.removeTimeoutTrigger();
     }
     //----------------------------------------------------------------
 }
