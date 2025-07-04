@@ -7,7 +7,7 @@ Therefore, the goal of this guide is to provide clear and understandable steps t
 
 The Google Sheets document contains the configuration in the Config sheet, control options in the menu, and an attached Apps Script `Code.gs`. The purpose of this document is to provide a user interface for Google Sheets users and to make relevant calls to library's objects. Feel free to make a copy of the Google Sheets document and modify `Code.gs` as needed.
 
-![Google Sheets Files Schema](res/google-sheets-files-structure.png)
+![Google Sheets Files Schema](res/google-sheets-files-structure.svg)
 
 To make the integration work, you need to connect the appropriate library to `Code.gs`. Google Sheets templates for specific data sources already have the required library connected. If you create a blank Google Sheets document, you will need to connect a library to `Code.gs` manually.
 

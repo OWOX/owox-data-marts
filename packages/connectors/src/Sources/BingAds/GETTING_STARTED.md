@@ -73,7 +73,11 @@ Access Your Data:
 
 - In the **Google Sheets** template, the data will appear in new tabs labeled with the corresponding data types.  
 
+![Bing Result](res/bing_success_sheets.png)
+
 - In the **Google BigQuery** template, the data will be written to the dataset specified earlier.
+
+![Bing Result](res/bing_success.png)
 
 To import more data:
 
