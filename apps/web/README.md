@@ -1,12 +1,16 @@
 # OWOX Web Application
+
 ## Overview
-This is the web interface for OWOX Data Marts - an open-source solution for Data Analysts. This web application provides a user-friendly interface for managing Data Marts. This is the web interface for OWOX Data Marts - an open-source solution for Data Analysts. This web application provides a user-friendly interface for managing Data Marts.This is the web interface for OWOX Data Marts - an open-source solution for Data Analysts. This web application provides a user-friendly interface for managing Data Marts.This is the web interface for OWOX Data Marts - an open-source solution for Data Analysts. This web application provides a user-friendly interface for managing Data Marts.This is the web interface for OWOX Data Marts - an open-source solution for Data Analysts. This web application provides a user-friendly interface for managing Data Marts.
+This is the web interface for OWOX Data Marts - an open-source solution for Data Analysts. This web application provides a user-friendly interface for managing Data Marts.
+
 ## Technologies Used
-* **React**: v19.1.0 - UI library for building the user interface
-* **TypeScript**: v5.7.3 - For type-safe JavaScript development
-* **Tailwind CSS**: v4.1.8 - For utility-first styling
+
+- **React**: v19.1.0 - UI library for building the user interface
+- **TypeScript**: v5.7.3 - For type-safe JavaScript development
+- **Tailwind CSS**: v4.1.8 - For utility-first styling
 - **Vite**: v6.3.5 - For fast development and optimized builds
 - **Node.js packages**: Various dependencies for UI components and development tools
+
 ## Project Structure
 
 The project follows a monorepo structure using npm workspaces.

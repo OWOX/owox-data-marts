@@ -16,7 +16,7 @@
     "type-check": "tsc --noEmit",
     "type-check:watch": "tsc --noEmit --watch",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json}\"",
-    "format:check": "prettier --help",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json}\"",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
     "preview": "vite preview"
