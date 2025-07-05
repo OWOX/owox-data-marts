@@ -158,13 +158,27 @@ class AbstractConfig {
     }
     //----------------------------------------------------------------
 
-  //---- updateCurrentStatus -----------------------------------------
+  //---- shouldSendNotifications -------------------------------------
     /**
-     * @param string current status value
+     * Determine if notifications should be sent based on status and filter setting
+     * @param {string} status - Current status
+     * @returns {boolean} - True if notifications should be sent
      */
-    updateCurrentStatus(status) {
+    shouldSendNotifications(status) {
+      throw new Error("shouldSendNotifications must be implemented in subclass of AbstractConfig");
+    }
+    //----------------------------------------------------------------
 
-      throw new Error("updateCurrentStatus must be implemented in subclass of AbstractConfig");
+  //---- handleStatusUpdate -----------------------------------------------
+    /**
+     * @param {Object} params - Parameters object with status and other properties
+     * @param {string} params.status - Current status value
+     * @param {boolean} params.shouldNotify - Should send notifications if true
+     * @param {string} params.error - Error message for Error status
+     */
+    handleStatusUpdate({ status, shouldNotify, error }) {
+
+      throw new Error("handleStatusUpdate must be implemented in subclass of AbstractConfig");
 
     }
     //----------------------------------------------------------------
@@ -209,6 +223,18 @@ class AbstractConfig {
   //---- logMessage --------------------------------------------------
     logMessage() {
       throw new Error("logMessage must be implemented in subclass of AbstractConfig");
+    }
+    //----------------------------------------------------------------
+
+  //---- createTimeoutTrigger ----------------------------------------
+    createTimeoutTrigger() {
+      // Override in subclasses if timeout detection is supported
+    }
+    //----------------------------------------------------------------
+
+  //---- removeTimeoutTrigger ----------------------------------------
+    removeTimeoutTrigger() {
+      // Override in subclasses if timeout detection is supported
     }
     //----------------------------------------------------------------
 }

@@ -61,6 +61,16 @@ class NodeJsConfig extends AbstractConfig {
     }
   
     /**
+     * Determine if notifications should be sent based on status and filter setting
+     * For NodeJS environment, always return false
+     * @param {string} status - Current status
+     * @returns {boolean} - Always false for NodeJS
+     */
+    shouldSendNotifications(status) {
+      return false;
+    }
+  
+    /**
      * Update and log the current execution status
      * 
      * Outputs structured JSON log entry to console for external monitoring
@@ -77,6 +87,21 @@ class NodeJsConfig extends AbstractConfig {
           status: status,
         })
       );
+    }
+  
+    /**
+     * Update and log the current execution status
+     * 
+     * Outputs structured JSON log entry to console for external monitoring
+     * and tracking of connector execution status.
+     * 
+     * @param {Object} params - Parameters object with status and other properties
+     * @param {string} params.status - Current status of the data connector execution
+     * @param {boolean} params.shouldNotify - Should send notifications if true
+     * @param {string} params.error - Error message for Error status
+     */
+    handleStatusUpdate({ status }) {
+      this.updateCurrentStatus(status);
     }
   
     /**

@@ -59,11 +59,51 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
             isRequired: true,
             requiredType: "number",
             default: 30
+          },
+          NotifyByEmail: {
+            isRequired: false,
+            requiredType: "string",
+            default: ""
+          },
+          NotifyByGoogleChat: {
+            isRequired: false,
+            requiredType: "string", 
+            default: ""
+          },
+          NotifyWhen: {
+            isRequired: false,
+            requiredType: "string",
+            default: "Never"
           }
       });
     
     }
     
+  //---- handleStatusUpdate -----------------------------------------------
+    /**
+     * @param {Object} params - Parameters object with status and other properties
+     * @param {string} params.status - Current status value
+     * @param {boolean} params.shouldNotify - Should send notifications if true
+     * @param {string} params.error - Error message for Error status
+     * @param {number} params.timeoutTriggerAction - Timeout trigger action (use TIMEOUT_TRIGGER_ACTION.CREATE or TIMEOUT_TRIGGER_ACTION.REMOVE)
+     */
+    handleStatusUpdate({ status, shouldNotify, error, timeoutTriggerAction }) {
+      if (timeoutTriggerAction === TIMEOUT_TRIGGER_ACTION.CREATE) {
+        this.createTimeoutTrigger();
+      }
+
+      if (timeoutTriggerAction === TIMEOUT_TRIGGER_ACTION.REMOVE) {
+        this.removeTimeoutTrigger();
+      }
+
+      this.updateCurrentStatus(status);
+
+      if (shouldNotify) {
+        this.sendNotifications({ status, error });
+      }
+    }
+    //----------------------------------------------------------------
+  
   //---- updateCurrentStatus -----------------------------------------
     /**
      * @param string current status value
@@ -358,4 +398,134 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
       
       ui.showModalDialog(html, `${source.constructor.name} Credentials`);
     }
+
+  //---- sendNotifications -------------------------------------------
+    /**
+     * Send notifications based on configuration settings
+     * @param {Object} params - Parameters object
+     * @param {string} params.status - Current status value
+     * @param {string} params.error - Error message for Error status
+     */
+    sendNotifications({ status, error }) {
+      try {
+        const formattedMessage = this.formatStatusMessage({ status, error });
+        
+        // Send email notification if NotifyByEmail has value
+        if (this.NotifyByEmail && this.NotifyByEmail.value && this.NotifyByEmail.value.trim()) {
+          EmailNotification.send({
+            to: this.NotifyByEmail.value,
+            message: formattedMessage,
+            status: status,
+            connectorName: this.configSpreadsheet.getName()
+          });
+        }
+        
+        // Send Google Chat notification if NotifyByGoogleChat has value
+        if (this.NotifyByGoogleChat && this.NotifyByGoogleChat.value && this.NotifyByGoogleChat.value.trim()) {
+          GoogleChatNotification.send({
+            webhookUrl: this.NotifyByGoogleChat.value.trim(),
+            message: formattedMessage,
+            status: status,
+            connectorName: this.configSpreadsheet.getName()
+          });
+        }
+      } catch (error) {
+        this.logMessage(`⚠️ Notification error: ${error.message}`);
+      }
+    }
+    //----------------------------------------------------------------
+
+  //---- formatStatusMessage -----------------------------------------
+    /**
+     * Format user-friendly status message
+     * @param {Object} params - Parameters object
+     * @param {string} params.status - Current status
+     * @param {string} params.error - Error message if status is Error
+     * @returns {string} - Formatted message
+     */
+    formatStatusMessage({ status, error }) {
+      switch (status) {
+        case 'Done':
+          return 'Import is finished successfully.';
+        case 'Error':
+          return `Error occurred during import${error ? ': ' + error : ''}.`;
+        case 'Import in progress':
+          return 'Import is in progress.';
+        case 'CleanUp in progress':
+          return 'Cleanup is in progress.';
+        default:
+          return `Status: ${status}.`;
+      }
+    }
+    //----------------------------------------------------------------
+
+
+  //---- shouldSendNotifications -------------------------------------
+    /**
+     * Determine if notifications should be sent based on status and filter setting
+     * @param {string} status - Current status
+     * @returns {boolean} - True if notifications should be sent
+     */
+    shouldSendNotifications(status) {
+      const notifyWhen = this.NotifyWhen?.value;
+      
+      switch (notifyWhen) {
+        case "On error":
+          return status === "Error";
+        
+        case "On success":
+          return status === "Done";
+        
+        case "Always":
+          return true;
+          
+        case "Never":
+        case "":
+        default:
+          return false;
+      }
+    }
+    //----------------------------------------------------------------
+
+  //---- createTimeoutTrigger ----------------------------------------
+    createTimeoutTrigger() {
+      this.removeTimeoutTrigger();
+      const trigger = ScriptApp.newTrigger('checkForTimeout')
+        .timeBased()
+        .after((this.MaxRunTimeout.value * 2 + 1) * 60 * 1000) // The trigger fires after (MaxRunTimeout * 2 + 1) minutes to ensure isInProgress() returns false even if LastImportDate was updated at the end of the import.
+        .create();
+      PropertiesService.getScriptProperties().setProperty('timeoutTriggerId', trigger.getUniqueId());
+    }
+    //----------------------------------------------------------------
+
+  //---- removeTimeoutTrigger ----------------------------------------
+    removeTimeoutTrigger() {
+      const triggerId = PropertiesService.getScriptProperties().getProperty('timeoutTriggerId');
+      if (triggerId) {
+        const triggers = ScriptApp.getProjectTriggers();
+        triggers.forEach(trigger => {
+          if (trigger.getUniqueId() === triggerId) {
+            ScriptApp.deleteTrigger(trigger);
+          }
+        });
+        PropertiesService.getScriptProperties().deleteProperty('timeoutTriggerId');
+      }
+    }
+    //----------------------------------------------------------------
+
+  //---- checkForTimeout ---------------------------------------------
+    checkForTimeout() {
+      if (!this.isInProgress()) {
+        console.log('[TimeoutTrigger] Status is NOT in progress, setting to Error and sending notification');
+        this.handleStatusUpdate({
+          status: "Error",
+          error: "Import was interrupted (likely due to timeout)",
+          shouldNotify: this.shouldSendNotifications("Error")
+        });
+      } else {
+        console.log('[TimeoutTrigger] Status is still in progress');
+      }
+      this.removeTimeoutTrigger();
+    }
+    //----------------------------------------------------------------
 }

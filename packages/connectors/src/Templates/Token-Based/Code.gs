@@ -73,3 +73,8 @@ function cleanUpExpiredData() {
   storage.cleanUpExpiredData("date");
 
 }
+
+function checkForTimeout() {
+  var config = new OWOX.GoogleSheetsConfig(CONFIG_RANGE);
+  config.checkForTimeout();
+}
