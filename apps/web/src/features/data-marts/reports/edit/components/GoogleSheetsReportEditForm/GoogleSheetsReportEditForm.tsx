@@ -190,7 +190,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
                           id={dataDestinationSelectId}
                           className='w-full max-w-full overflow-hidden'
                         >
-                          <SelectValue className='truncate' placeholder='Select a data destination'>
+                          <SelectValue className='truncate' placeholder='Select a destination'>
                             {field.value &&
                               filteredDestinations.length > 0 &&
                               (() => {
@@ -245,12 +245,12 @@ export const GoogleSheetsReportEditForm = forwardRef<
                         <AlertCircle className='h-4 w-4' />
                         <AlertTitle>No destinations available</AlertTitle>
                         <AlertDescription>
-                          You need to create a Data Destination before you can create a report.{' '}
+                          You need to create a Destination before you can create a report.{' '}
                           <Link
                             to='/data-destinations'
                             className='font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300'
                           >
-                            Go to Data Destinations
+                            Go to Destinations
                           </Link>
                         </AlertDescription>
                       </Alert>

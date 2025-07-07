@@ -51,10 +51,8 @@ export function DataDestinationDetailsDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Data Destination Details</DialogTitle>
-          <DialogDescription>
-            View detailed information about this data destination.
-          </DialogDescription>
+          <DialogTitle>Destination Details</DialogTitle>
+          <DialogDescription>View detailed information about this destination.</DialogDescription>
         </DialogHeader>
         <div className='py-4'>
           <DataDestinationDetails dataDestination={currentDataDestination} isLoading={loading} />

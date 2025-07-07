@@ -46,8 +46,8 @@ export function DataStorageDetailsDialog({ isOpen, onClose, id }: DataStorageDet
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Data Storage Details</DialogTitle>
-          <DialogDescription>View detailed information about this data storage.</DialogDescription>
+          <DialogTitle>Storage Details</DialogTitle>
+          <DialogDescription>View detailed information about this storage.</DialogDescription>
         </DialogHeader>
         <div className='py-4'>
           <DataStorageDetails dataStorage={currentDataStorage} isLoading={loading} />

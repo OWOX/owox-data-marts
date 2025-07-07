@@ -31,7 +31,7 @@ export function DataDestinationDetails({
   }
 
   if (!dataDestination) {
-    return <div>No data destination information available.</div>;
+    return <div>No destination information available.</div>;
   }
 
   const { type, credentials, createdAt, modifiedAt } = dataDestination;

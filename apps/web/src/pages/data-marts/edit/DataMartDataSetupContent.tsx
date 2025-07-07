@@ -17,7 +17,7 @@ export default function DataMartDataSetupContent() {
       <CollapsibleCard collapsible name={'data-storage'}>
         <CollapsibleCardHeader
           icon={DatabaseIcon}
-          title={'Data Storage'}
+          title={'Storage'}
           subtitle={'Configure where your data will be stored'}
         ></CollapsibleCardHeader>
         <CollapsibleCardContent>

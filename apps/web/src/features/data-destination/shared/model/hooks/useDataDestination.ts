@@ -24,7 +24,7 @@ export function useDataDestination() {
     } catch (error) {
       dispatch({
         type: DataDestinationActionType.FETCH_DESTINATIONS_ERROR,
-        payload: error instanceof Error ? error.message : 'Failed to load data destinations',
+        payload: error instanceof Error ? error.message : 'Failed to load destinations',
       });
     }
   }, [dispatch]);
@@ -41,7 +41,7 @@ export function useDataDestination() {
       } catch (error) {
         dispatch({
           type: DataDestinationActionType.FETCH_DESTINATION_ERROR,
-          payload: error instanceof Error ? error.message : 'Failed to load data destination',
+          payload: error instanceof Error ? error.message : 'Failed to load destination',
         });
       }
     },
@@ -63,7 +63,7 @@ export function useDataDestination() {
       } catch (error) {
         dispatch({
           type: DataDestinationActionType.CREATE_DESTINATION_ERROR,
-          payload: error instanceof Error ? error.message : 'Failed to create data destination',
+          payload: error instanceof Error ? error.message : 'Failed to create destination',
         });
         return null;
       }
@@ -86,7 +86,7 @@ export function useDataDestination() {
       } catch (error) {
         dispatch({
           type: DataDestinationActionType.UPDATE_DESTINATION_ERROR,
-          payload: error instanceof Error ? error.message : 'Failed to update data destination',
+          payload: error instanceof Error ? error.message : 'Failed to update destination',
         });
         return null;
       }
@@ -103,7 +103,7 @@ export function useDataDestination() {
       } catch (error) {
         dispatch({
           type: DataDestinationActionType.DELETE_DESTINATION_ERROR,
-          payload: error instanceof Error ? error.message : 'Failed to delete data destination',
+          payload: error instanceof Error ? error.message : 'Failed to delete destination',
         });
       }
     },

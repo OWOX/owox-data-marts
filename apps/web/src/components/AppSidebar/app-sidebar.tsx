@@ -10,7 +10,7 @@ import {
   SidebarMenuButton,
   SidebarRail,
 } from '@owox/ui/components/sidebar';
-import { Grid2x2, Plus, DatabaseIcon, ArchiveRestore } from 'lucide-react';
+import { Box, Plus, DatabaseIcon, ArchiveRestore } from 'lucide-react';
 import { createElement } from 'react';
 import { ThemeToggle } from '../ThemeToggle/theme-toggle.tsx';
 import { SidebarHeaderDropdown } from './sidebar-header-dropdown.tsx';
@@ -27,7 +27,7 @@ const items = [
   {
     title: 'Data Marts',
     url: '/data-marts',
-    icon: Grid2x2,
+    icon: Box,
   },
   {
     title: 'Storages',

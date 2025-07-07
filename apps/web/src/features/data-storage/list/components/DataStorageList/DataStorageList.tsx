@@ -61,7 +61,7 @@ export const DataStorageList = ({
         setIsEditDrawerOpen(true);
       }
     } catch (error) {
-      console.error('Failed to create data storage:', error);
+      console.error('Failed to create storage:', error);
     }
   };
 
@@ -95,7 +95,7 @@ export const DataStorageList = ({
         await deleteDataStorage(storageToDelete);
         await fetchDataStorages();
       } catch (error) {
-        console.error('Failed to delete data storage:', error);
+        console.error('Failed to delete storage:', error);
       } finally {
         setDeleteDialogOpen(false);
         setStorageToDelete(null);
@@ -108,7 +108,7 @@ export const DataStorageList = ({
       setIsEditDrawerOpen(false);
       await fetchDataStorages();
     } catch (error) {
-      console.error('Failed to save data storage:', error);
+      console.error('Failed to save storage:', error);
     }
   };
 
@@ -163,8 +163,8 @@ export const DataStorageList = ({
       <ConfirmationDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
-        title='Delete Data Storage'
-        description='Are you sure you want to delete this data storage? This action cannot be undone.'
+        title='Delete Storage'
+        description='Are you sure you want to delete this storage? This action cannot be undone.'
         confirmLabel='Delete'
         cancelLabel='Cancel'
         onConfirm={() => {

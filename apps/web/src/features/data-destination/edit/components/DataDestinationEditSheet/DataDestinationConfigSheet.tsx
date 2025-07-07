@@ -54,8 +54,8 @@ export function DataDestinationConfigSheet({
     <Sheet open={isOpen} onOpenChange={onClose}>
       <SheetContent className='flex h-full min-w-[480px] flex-col'>
         <SheetHeader>
-          <SheetTitle>Configure Data Destination</SheetTitle>
-          <SheetDescription>Customize settings for your data destination</SheetDescription>
+          <SheetTitle>Configure destination</SheetTitle>
+          <SheetDescription>Customize settings for your destination</SheetDescription>
         </SheetHeader>
         <div className='flex-1 overflow-y-auto p-4'>
           <DataDestinationForm

@@ -8,7 +8,7 @@ export const DestinationMapperFactory = {
       case DataDestinationType.GOOGLE_SHEETS:
         return new GoogleSheetsMapper();
       default:
-        throw new Error(`Unknown data destination type: ${String(type)}`);
+        throw new Error(`Unknown destination type: ${String(type)}`);
     }
   },
 };

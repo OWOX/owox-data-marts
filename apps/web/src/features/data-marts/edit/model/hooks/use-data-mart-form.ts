@@ -6,7 +6,7 @@ import type { DataMart } from '../types';
 // Validation schema
 export const dataMartSchema = z.object({
   title: z.string().min(1, 'Title is required').max(100, 'Title must be less than 100 characters'),
-  storageId: z.string().min(1, 'Data Storage is required'),
+  storageId: z.string().min(1, 'Storage is required'),
 });
 
 export type DataMartFormData = z.infer<typeof dataMartSchema>;

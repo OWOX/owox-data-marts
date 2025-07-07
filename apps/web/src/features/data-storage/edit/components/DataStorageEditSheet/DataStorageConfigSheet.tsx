@@ -39,8 +39,8 @@ export function DataStorageConfigSheet({
         className='flex h-full min-w-[480px] flex-col'
       >
         <SheetHeader>
-          <DialogTitle>Configure Data Storage Provider</DialogTitle>
-          <DialogDescription>Customize settings for your data storage provider</DialogDescription>
+          <DialogTitle>Configure Storage Provider</DialogTitle>
+          <DialogDescription>Customize settings for your storage provider</DialogDescription>
         </SheetHeader>
         <div className='flex-1 overflow-y-auto p-4'>
           <DataStorageForm

@@ -24,8 +24,8 @@ export const DataStorageTypeDialog = ({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className='sm:max-w-md'>
         <DialogHeader>
-          <DialogTitle>New Data Storage</DialogTitle>
-          <DialogDescription>Choose the type of data storage you want to create</DialogDescription>
+          <DialogTitle>New Storage</DialogTitle>
+          <DialogDescription>Choose the type of storage you want to create</DialogDescription>
         </DialogHeader>
         <div className='grid grid-cols-2 gap-4 py-4'>
           {DataStorageTypeModel.getAllTypes().map(typeInfo => {

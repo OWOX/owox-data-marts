@@ -28,7 +28,7 @@ export function DataStorageDetails({ dataStorage, isLoading = false }: DataStora
   }
 
   if (!dataStorage) {
-    return <div>No data storage information available.</div>;
+    return <div>No storage information available.</div>;
   }
 
   const { type, config, credentials, createdAt, modifiedAt } = dataStorage;

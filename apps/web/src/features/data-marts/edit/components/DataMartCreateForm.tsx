@@ -70,7 +70,7 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
 
       <div>
         <Label htmlFor='storageId' className='mb-1 block text-sm font-medium'>
-          Data Storage
+          Storage
         </Label>
         <Select
           onValueChange={value => {
@@ -80,7 +80,7 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
           disabled={isSubmitting || loadingStorages}
         >
           <SelectTrigger className={'w-full'}>
-            <SelectValue placeholder='Select a data storage' />
+            <SelectValue placeholder='Select a storage' />
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
@@ -91,7 +91,7 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
               )}
               {!loadingStorages && dataStorages.length === 0 && (
                 <SelectItem value='empty' disabled>
-                  No data storages available
+                  No storages available
                 </SelectItem>
               )}
               {!loadingStorages &&

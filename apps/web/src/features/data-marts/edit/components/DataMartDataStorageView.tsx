@@ -44,7 +44,7 @@ export const DataMartDataStorageView = ({
     };
 
     if (!hasRequiredFields()) {
-      return 'Data Storage configuration is incomplete';
+      return 'Storage configuration is incomplete';
     }
 
     const formatParam = (label: string, value: string) => {

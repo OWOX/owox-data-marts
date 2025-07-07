@@ -139,7 +139,7 @@ export function DataStorageTable<TData, TValue>({
               }}
             >
               <Plus className='h-4 w-4' />
-              New Data Storage
+              New Storage
             </Button>
           </div>
         </div>
@@ -147,7 +147,7 @@ export function DataStorageTable<TData, TValue>({
 
         {/* DM CARD TABLE */}
         <div className='dm-card-table-wrap'>
-          <Table className='dm-card-table' role='table' aria-label='Data Storages table'>
+          <Table className='dm-card-table' role='table' aria-label='Storages table'>
             <TableHeader className='dm-card-table-header'>
               {table.getHeaderGroups().map(headerGroup => (
                 <TableRow key={headerGroup.id} className='dm-card-table-header-row'>

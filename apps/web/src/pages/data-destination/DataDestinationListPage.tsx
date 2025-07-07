@@ -8,7 +8,7 @@ export const DataDestinationListPage = () => {
   return (
     <div className='dm-page'>
       <header className='dm-page-header'>
-        <h1 className='dm-page-header-title'>Data Destinations</h1>
+        <h1 className='dm-page-header-title'>Destinations</h1>
       </header>
 
       <div className='dm-page-content'>

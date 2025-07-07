@@ -71,7 +71,7 @@ export function DataStorageForm({ initialData, onSubmit, onCancel }: DataStorage
             disabled={!!initialData}
           >
             <SelectTrigger className='w-full'>
-              <SelectValue placeholder='Select a data storage type' />
+              <SelectValue placeholder='Select a storage type' />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>

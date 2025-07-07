@@ -57,8 +57,8 @@ export function DataMartDefinitionTypeSelector({
     },
     {
       type: DataMartDefinitionType.CONNECTOR,
-      label: 'Create new Table and fill with Connector',
-      description: 'Data export from source to data storage',
+      label: 'Connector',
+      description: 'Data export from source to storage',
     },
   ];
 

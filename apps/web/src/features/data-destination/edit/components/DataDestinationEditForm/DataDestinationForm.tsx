@@ -85,7 +85,7 @@ export function DataDestinationForm({ initialData, onSubmit, onCancel }: DataDes
                 >
                   <FormControl>
                     <SelectTrigger className={'w-full'}>
-                      <SelectValue placeholder='Select a data destination type' />
+                      <SelectValue placeholder='Select a destination type' />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
