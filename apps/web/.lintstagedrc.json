@@ -1,7 +1,7 @@
 {
-  "*.{ts,tsx,js,jsx}": [
+  "**/*.{ts,tsx,js,jsx}": [
     "eslint --config ./eslint.config.js",
     "prettier --config ./prettier.config.js --write"
   ],
-  "*.{json,css}": ["prettier --config ./prettier.config.js --write"]
+  "**/*.{json,css}": ["prettier --config ./prettier.config.js --write"]
 }
