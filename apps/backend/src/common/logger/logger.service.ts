@@ -12,8 +12,8 @@ interface LoggerConfig {
  * Creates logger configuration based on environment variables.
  *
  * Environment variable: LOG_FORMAT
- * - undefined/any value except 'pretty' → JSON format (default, production-ready)
- * - 'pretty' → Human-readable format with colors (development-friendly)
+ * - 'json' → JSON format (production-ready)
+ * - undefined/any other value → Human-readable format with colors (default, development-friendly)
  *
  * This configuration is automatically applied to ensure consistent logging
  * across all application components and deployment environments.
@@ -22,22 +22,22 @@ interface LoggerConfig {
  *
  * @example
  * ```typescript
- * // Production (default): structured JSON logs
+ * // Development (default): pretty formatted logs
  * // No LOG_FORMAT needed
  * const config = createLoggerConfig();
- * // Result: { json: true, colors: false }
- *
- * // Development: pretty formatted logs
- * // LOG_FORMAT=pretty
- * const config = createLoggerConfig();
  * // Result: { json: false, colors: true }
+ *
+ * // Production: structured JSON logs
+ * // LOG_FORMAT=json
+ * const config = createLoggerConfig();
+ * // Result: { json: true, colors: false }
  * ```
  */
 function createLoggerConfig(): LoggerConfig {
-  const usePrettyFormat = process.env.LOG_FORMAT === 'pretty';
+  const useJsonFormat = process.env.LOG_FORMAT === 'json';
   return {
-    json: !usePrettyFormat,
-    colors: usePrettyFormat,
+    json: useJsonFormat,
+    colors: !useJsonFormat,
   };
 }
 
