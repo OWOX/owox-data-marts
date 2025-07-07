@@ -14,14 +14,12 @@ import { BigQueryConfig } from '../data-storage-types/bigquery/schemas/bigquery-
 import { AthenaConfig } from '../data-storage-types/athena/schemas/athena-config.schema';
 import { AthenaCredentials } from '../data-storage-types/athena/schemas/athena-credentials.schema';
 import { BigQueryCredentials } from '../data-storage-types/bigquery/schemas/bigquery-credentials.schema';
-
-interface LogCaptureConfig {
-  logCapture: {
-    onStdout: (message: string) => void;
-    onStderr: (message: string) => void;
-    passThrough: boolean;
-  };
-}
+import { ConnectorOutputCapture } from '../connector-types/interfaces/connector-output-capture.interface';
+import { ConnectorMessage } from '../connector-types/connector-message/schemas/connector-message.schema';
+import { ConnectorOutputCaptureService } from '../connector-types/connector-message/services/connector-output-capture.service';
+import { ConnectorMessageType } from '../connector-types/enums/connector-message-type-enum';
+import { ConnectorOutputState } from '../connector-types/interfaces/connector-output-state';
+import { ConnectorStateService } from '../connector-types/connector-message/services/connector-state.service';
 
 @Injectable()
 export class ConnectorExecutionService {
@@ -29,7 +27,9 @@ export class ConnectorExecutionService {
 
   constructor(
     @InjectRepository(DataMartRun)
-    private readonly dataMartRunRepository: Repository<DataMartRun>
+    private readonly dataMartRunRepository: Repository<DataMartRun>,
+    private readonly connectorOutputCaptureService: ConnectorOutputCaptureService,
+    private readonly connectorStateService: ConnectorStateService
   ) {}
 
   /**
@@ -87,45 +87,42 @@ export class ConnectorExecutionService {
     return this.dataMartRunRepository.save(dataMartRun);
   }
 
-  private createLogCaptureConfig(
-    dataMartId: string,
-    capturedErrors: string[],
-    capturedLogs: string[]
-  ): LogCaptureConfig {
-    return {
-      logCapture: {
-        onStdout: (message: string) => {
-          const logMessage = message.trim();
-          capturedLogs.push(logMessage);
-          this.logger.log(`[${dataMartId}]: ${logMessage}`);
-        },
-        onStderr: (message: string) => {
-          const errorMessage = message.trim();
-          capturedErrors.push(errorMessage);
-          this.logger.error(`[${dataMartId}]: ${errorMessage}`);
-        },
-        passThrough: false,
-      },
-    };
-  }
-
   private async executeInBackground(dataMart: DataMart, runId: string): Promise<void> {
-    const capturedLogs: string[] = [];
-    const capturedErrors: string[] = [];
-    const logCaptureConfig = this.createLogCaptureConfig(dataMart.id, capturedErrors, capturedLogs);
+    const state: ConnectorOutputState = {
+      state: {},
+      at: '',
+    };
+    const capturedLogs: ConnectorMessage[] = [];
+    const capturedErrors: ConnectorMessage[] = [];
+    const logCaptureConfig = this.connectorOutputCaptureService.createCapture(
+      dataMart.id,
+      capturedErrors,
+      capturedLogs,
+      state
+    );
 
     try {
       await this.runConnectorConfigurations(runId, dataMart, logCaptureConfig);
       await this.updateRunStatus(runId, capturedLogs, capturedErrors);
     } catch (error) {
-      await this.handleRunFailure(runId, error, capturedLogs, capturedErrors, dataMart.id);
+      capturedErrors.push({
+        type: ConnectorMessageType.ERROR,
+        at: new Date().toISOString(),
+        error: error instanceof Error ? error.message : String(error),
+        toFormattedString: () =>
+          `[ERROR] ${error instanceof Error ? error.message : String(error)}`,
+      });
+      this.logger.error(`Error running connector configurations: ${error}`);
+    } finally {
+      await this.updateRunStatus(runId, capturedLogs, capturedErrors);
+      await this.updateRunState(dataMart.id, state);
     }
   }
 
   private async runConnectorConfigurations(
     runId: string,
     dataMart: DataMart,
-    logCaptureConfig: LogCaptureConfig
+    logCaptureConfig: ConnectorOutputCapture
   ): Promise<void> {
     const definition = dataMart.definition as DataMartConnectorDefinition;
     const { connector } = definition;
@@ -134,7 +131,7 @@ export class ConnectorExecutionService {
       const runConfig = new RunConfig({
         name: connector.source.name,
         datamartId: dataMart.id,
-        source: this.getSourceConfig(connector, config),
+        source: await this.getSourceConfig(dataMart.id, connector, config),
         storage: this.getStorageConfig(dataMart),
       });
 
@@ -145,50 +142,38 @@ export class ConnectorExecutionService {
 
   private async updateRunStatus(
     runId: string,
-    capturedLogs: string[],
-    capturedErrors: string[]
+    capturedLogs: ConnectorMessage[],
+    capturedErrors: ConnectorMessage[]
   ): Promise<void> {
     const status = capturedErrors.length > 0 ? DataMartRunStatus.FAILED : DataMartRunStatus.SUCCESS;
 
     await this.dataMartRunRepository.update(runId, {
       status,
-      logs: capturedLogs,
-      errors: capturedErrors,
+      logs: capturedLogs.map(log => JSON.stringify(log)),
+      errors: capturedErrors.map(error => JSON.stringify(error)),
     });
   }
 
-  private async handleRunFailure(
-    runId: string,
-    error: unknown,
-    capturedLogs: string[],
-    capturedErrors: string[],
-    dataMartId: string
-  ): Promise<void> {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    capturedErrors.push(errorMessage);
-
-    await this.dataMartRunRepository.update(runId, {
-      status: DataMartRunStatus.FAILED,
-      logs: capturedLogs,
-      errors: capturedErrors,
-    });
-
-    this.logger.error(`Connector execution failed for DataMart ${dataMartId}:`, error);
+  private async updateRunState(dataMartId: string, state: ConnectorOutputState): Promise<void> {
+    await this.connectorStateService.updateState(dataMartId, state);
   }
 
-  private getSourceConfig(
+  private async getSourceConfig(
+    dataMartId: string,
     connector: DataMartConnectorDefinition['connector'],
     config: Record<string, unknown>
-  ): SourceConfig {
+  ): Promise<SourceConfig> {
     const fieldsConfig = connector.source.fields
       .map(field => `${connector.source.node} ${field}`)
       .join(', ');
+    const state = await this.connectorStateService.getState(dataMartId);
 
     return new SourceConfig({
       name: connector.source.name,
       config: {
         ...config,
         Fields: fieldsConfig,
+        ...(state?.state?.date ? { LastRequestedDate: new Date(state.state.date as string) } : {}),
       },
     });
   }
