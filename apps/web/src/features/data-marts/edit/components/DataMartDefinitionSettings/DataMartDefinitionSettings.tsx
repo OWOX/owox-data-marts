@@ -103,8 +103,8 @@ export function DataMartDefinitionSettings() {
       <form onSubmit={handleFormSubmit} className='space-y-6'>
         <DataMartDefinitionForm definitionType={definitionType} storageType={storageType} />
         <div className='space-y-4'>
-          <div className='flex justify-start space-x-4'>
-            <Button variant={'secondary'} type='submit' disabled={!isDirty || !isValid}>
+          <div className='align-items-center flex justify-start space-x-4'>
+            <Button variant={'secondary'} type='submit' disabled={!isValid}>
               Save
             </Button>
             <Button type='button' variant='ghost' onClick={handleReset} disabled={!isDirty}>

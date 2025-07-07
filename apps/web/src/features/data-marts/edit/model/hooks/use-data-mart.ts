@@ -18,6 +18,7 @@ export function useDataMart(id?: string) {
     dataMart,
     isLoading,
     error,
+    getErrorMessage,
   } = useDataMartContext();
 
   useEffect(() => {
@@ -36,6 +37,7 @@ export function useDataMart(id?: string) {
     dataMart,
     isLoading,
     error,
+    getErrorMessage,
     deleteDataMart,
     updateDataMartTitle,
     updateDataMartDescription,

@@ -11,7 +11,6 @@ import { MoreVertical, Trash2, ArrowLeft, Upload, Play } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { cn } from '@owox/ui/lib/utils';
 import { InlineEditTitle } from '../../../../shared/components/InlineEditTitle/InlineEditTitle.tsx';
-import { Toaster } from '../../../../shared/components/Toaster';
 import { StatusLabel, StatusTypeEnum } from '../../../../shared/components/StatusLabel';
 import { Button } from '../../../../shared/components/Button';
 import { DataMartDefinitionType, DataMartStatus, getValidationErrorMessages } from '../../shared';
@@ -35,6 +34,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     runDataMart,
     isLoading,
     error,
+    getErrorMessage,
   } = useDataMart(id);
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -74,17 +74,12 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     // Loading data mart details...
   }
 
-  if (error) {
-    return <div className='rounded bg-red-100 p-4 text-red-700'>Error: {error}</div>;
-  }
-
   if (!dataMart) {
     return <div className='p-4'>No data mart found</div>;
   }
 
   return (
     <div className={'px-12 py-8'}>
-      <Toaster />
       <div className='mb-4 flex items-center justify-between'>
         <div className='flex items-center'>
           <button
@@ -219,7 +214,14 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
 
       <div className='pt-4'>
         <Outlet
-          context={{ dataMart, isLoading, updateDataMartDescription, updateDataMartDefinition }}
+          context={{
+            dataMart,
+            isLoading,
+            error,
+            getErrorMessage,
+            updateDataMartDescription,
+            updateDataMartDefinition,
+          }}
         />
       </div>
 
