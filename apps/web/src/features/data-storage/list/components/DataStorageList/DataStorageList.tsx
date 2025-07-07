@@ -26,7 +26,6 @@ export const DataStorageList = ({
     currentDataStorage,
     clearCurrentDataStorage,
     loading,
-    error,
     fetchDataStorages,
     getDataStorageById,
     deleteDataStorage,
@@ -68,10 +67,6 @@ export const DataStorageList = ({
 
   if (loading) {
     return <CardSkeleton />;
-  }
-
-  if (error) {
-    return <div className='dm-card'>Error: {error}</div>;
   }
 
   const handleViewDetails = (id: string) => {
@@ -162,7 +157,7 @@ export const DataStorageList = ({
         isOpen={isEditDrawerOpen}
         onClose={handleCloseDrawer}
         dataStorage={currentDataStorage}
-        onSaveSuccess={() => void handleSave}
+        onSaveSuccess={() => void handleSave()}
       />
 
       <ConfirmationDialog
