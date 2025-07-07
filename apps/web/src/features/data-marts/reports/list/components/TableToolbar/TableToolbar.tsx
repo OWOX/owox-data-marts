@@ -94,7 +94,7 @@ export function TableToolbar({
                     aria-checked={column.getIsVisible()}
                   >
                     <span
-                      className={`mr-2 flex h-4 w-4 items-center justify-center rounded border ${column.getIsVisible() ? 'bg-brand-blue-500 border-brand-blue-500' : ''}`}
+                      className={`mr-2 flex h-4 w-4 items-center justify-center rounded border ${column.getIsVisible() ? 'bg-primary border-primary' : ''}`}
                       aria-hidden='true'
                     >
                       {column.getIsVisible() && <Check className='h-3 w-3 text-white' />}

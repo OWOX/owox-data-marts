@@ -5,16 +5,14 @@ export function DataMartDetailsPage() {
   const { id } = useParams<{ id: string }>();
 
   if (!id) {
-    return <div>Data Mart ID is required</div>;
+    return <div className='dm-page-header'>Data Mart ID is required</div>;
   }
 
   return (
-    <main className='container mx-auto'>
-      <div>
-        <DataMartProvider>
-          <DataMartDetails id={id} />
-        </DataMartProvider>
-      </div>
-    </main>
+    <div className='dm-page'>
+      <DataMartProvider>
+        <DataMartDetails id={id} />
+      </DataMartProvider>
+    </div>
   );
 }

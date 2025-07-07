@@ -381,14 +381,14 @@ export const GoogleSheetsReportEditForm = forwardRef<
               variant='default'
               type='button'
               onClick={() => void form.handleSubmit(handleFormSubmit)()}
-              className='bg-brand-blue-500 hover:bg-brand-blue-600 text-brand-blue-500-foreground hover:text-brand-blue-600-foreground w-full'
+              className='w-full'
               aria-label={
                 mode === ReportFormMode.CREATE ? 'Create new report' : 'Save changes to report'
               }
               disabled={!isDirty || isSubmitting}
             >
               {isSubmitting && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-              Save
+              {mode === ReportFormMode.CREATE ? 'Create new report' : 'Save changes to report'}
             </Button>
             <Button
               variant='outline'

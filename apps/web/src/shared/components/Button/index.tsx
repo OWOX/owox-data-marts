@@ -8,7 +8,7 @@ const extendedButtonVariants = cva('', {
   variants: {
     variant: {
       brand:
-        'bg-brand-blue-500 text-white shadow-xs hover:bg-brand-blue-600 focus-visible:ring-brand-blue-200 dark:focus-visible:ring-brand-blue-400',
+        'bg-primary text-white shadow-xs hover:bg-primary-hover focus-visible:ring-brand-blue-200 dark:focus-visible:ring-brand-blue-400',
     },
   },
 });

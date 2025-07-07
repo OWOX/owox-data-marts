@@ -119,7 +119,7 @@ export function DataDestinationForm({ initialData, onSubmit, onCancel }: DataDes
           <Button variant={'ghost'} type='button' onClick={onCancel}>
             Cancel
           </Button>
-          <Button variant={'secondary'} type='submit'>
+          <Button variant={'default'} type='submit'>
             Save
           </Button>
         </div>

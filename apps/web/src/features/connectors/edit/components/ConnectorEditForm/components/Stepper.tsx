@@ -26,9 +26,9 @@ export function Stepper({ steps, currentStep }: StepperProps) {
                 <div
                   className={`flex h-10 w-10 items-center justify-center rounded-full border-2 text-sm font-medium ${
                     isCompleted
-                      ? 'bg-brand-blue-500 border-brand-blue-500 text-white'
+                      ? 'bg-primary border-primary text-white'
                       : isCurrent
-                        ? 'border-brand-blue-500 text-brand-blue-500 bg-background'
+                        ? 'border-primary text-bprimary bg-background'
                         : 'border-border bg-background text-muted-foreground'
                   } `}
                 >
@@ -38,7 +38,7 @@ export function Stepper({ steps, currentStep }: StepperProps) {
                 <div className='mt-2 text-center'>
                   <div
                     className={`text-sm font-medium ${
-                      isCurrent ? 'text-brand-blue-600' : 'text-foreground'
+                      isCurrent ? 'text-primary' : 'text-foreground'
                     }`}
                   >
                     {step.title}
@@ -52,7 +52,7 @@ export function Stepper({ steps, currentStep }: StepperProps) {
               {index < steps.length - 1 && (
                 <div
                   className={`mx-4 mt-0 h-px flex-1 ${
-                    stepNumber < currentStep ? 'bg-brand-blue-500' : 'bg-border'
+                    stepNumber < currentStep ? 'bg-primary' : 'bg-border'
                   }`}
                 />
               )}

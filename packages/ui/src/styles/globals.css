@@ -14,7 +14,8 @@
   --card-foreground: oklch(0.3346 0.0123 279.25);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.3346 0.0123 279.25);
-  --primary: oklch(0.205 0 0);
+  --primary: oklch(0.6179 0.2295 250.87);
+  --primary-hover: oklch(0.54 0.23 250.87);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -52,19 +53,19 @@
   --brand-blue-200: oklch(0.9 0.08 250.87);
   --brand-blue-200-foreground: oklch(0.2 0 0);
   --brand-blue-300: oklch(0.8 0.14 250.87);
-  --brand-blue-300-foreground: oklch(1 0 0);
+  --brand-blue-300-foreground: oklch(0.985 0 0);
   --brand-blue-400: oklch(0.7 0.19 250.87);
-  --brand-blue-400-foreground: oklch(1 0 0);
+  --brand-blue-400-foreground: oklch(0.985 0 0);
   --brand-blue-500: oklch(0.6179 0.2295 250.87);
-  --brand-blue-500-foreground: oklch(1 0 0);
+  --brand-blue-500-foreground: oklch(0.985 0 0);
   --brand-blue-600: oklch(0.54 0.23 250.87);
-  --brand-blue-600-foreground: oklch(1 0 0);
+  --brand-blue-600-foreground: oklch(0.985 0 0);
   --brand-blue-700: oklch(0.44 0.2 250.87);
-  --brand-blue-700-foreground: oklch(1 0 0);
+  --brand-blue-700-foreground: oklch(0.985 0 0);
   --brand-blue-800: oklch(0.36 0.17 250.87);
-  --brand-blue-800-foreground: oklch(1 0 0);
+  --brand-blue-800-foreground: oklch(0.985 0 0);
   --brand-blue-900: oklch(0.28 0.14 250.87);
-  --brand-blue-900-foreground: oklch(1 0 0);
+  --brand-blue-900-foreground: oklch(0.985 0 0);
 }
 
 .dark {
@@ -74,8 +75,9 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.145 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+  --primary: oklch(0.6179 0.2295 250.87);
+  --primary-hover: oklch(0.54 0.23 250.87);
+  --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -105,25 +107,25 @@
 
   /* Brand Blue Color Scale — Dark Theme */
   --brand-blue-50: oklch(0.36 0.17 250.87);
-  --brand-blue-50-foreground: oklch(1 0 0);
+  --brand-blue-50-foreground: oklch(0.985 0 0);
   --brand-blue-100: oklch(0.4 0.17 250.87);
-  --brand-blue-100-foreground: oklch(1 0 0);
+  --brand-blue-100-foreground: oklch(0.985 0 0);
   --brand-blue-200: oklch(0.44 0.2 250.87);
-  --brand-blue-200-foreground: oklch(1 0 0);
+  --brand-blue-200-foreground: oklch(0.985 0 0);
   --brand-blue-300: oklch(0.5 0.22 250.87);
-  --brand-blue-300-foreground: oklch(1 0 0);
+  --brand-blue-300-foreground: oklch(0.985 0 0);
   --brand-blue-400: oklch(0.56 0.23 250.87);
-  --brand-blue-400-foreground: oklch(1 0 0);
+  --brand-blue-400-foreground: oklch(0.985 0 0);
   --brand-blue-500: oklch(0.6179 0.2295 250.87);
-  --brand-blue-500-foreground: oklch(1 0 0);
+  --brand-blue-500-foreground: oklch(0.985 0 0);
   --brand-blue-600: oklch(0.54 0.23 250.87);
-  --brand-blue-600-foreground: oklch(1 0 0);
+  --brand-blue-600-foreground: oklch(0.985 0 0);
   --brand-blue-700: oklch(0.44 0.2 250.87);
-  --brand-blue-700-foreground: oklch(1 0 0);
+  --brand-blue-700-foreground: oklch(0.985 0 0);
   --brand-blue-800: oklch(0.36 0.17 250.87);
-  --brand-blue-800-foreground: oklch(1 0 0);
+  --brand-blue-800-foreground: oklch(0.985 0 0);
   --brand-blue-900: oklch(0.28 0.14 250.87);
-  --brand-blue-900-foreground: oklch(1 0 0);
+  --brand-blue-900-foreground: oklch(0.985 0 0);
 }
 
 @theme inline {
@@ -134,6 +136,7 @@
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);

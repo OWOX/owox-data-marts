@@ -26,7 +26,7 @@ const statusConfig = {
   },
   [ReportStatusEnum.RUNNING]: {
     icon: Loader2,
-    color: 'text-brand-blue-500 animate-spin',
+    color: 'text-primary animate-spin',
     label: 'In progress',
   },
 } as const;

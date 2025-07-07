@@ -56,7 +56,7 @@ export function ConnectorSelectionStep({
             key={connector.name}
             className={`cursor-pointer transition-all duration-200 hover:shadow-md ${
               selectedConnector?.name === connector.name
-                ? 'ring-brand-blue-500 border-brand-blue-500'
+                ? 'ring-primary border-primary'
                 : 'hover:border-muted-foreground/25'
             }`}
             onClick={() => {

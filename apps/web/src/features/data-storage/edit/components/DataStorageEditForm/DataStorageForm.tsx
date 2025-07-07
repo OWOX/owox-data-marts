@@ -96,7 +96,7 @@ export function DataStorageForm({ initialData, onSubmit, onCancel }: DataStorage
         <Button variant={'ghost'} type='button' onClick={onCancel}>
           Cancel
         </Button>
-        <Button variant={'secondary'} type='submit'>
+        <Button variant={'default'} type='submit'>
           Save
         </Button>
       </div>

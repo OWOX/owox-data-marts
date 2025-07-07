@@ -49,7 +49,7 @@ export function GlobalLoader({ isLoading, className }: GlobalLoaderProps) {
       )}
     >
       <div
-        className='bg-brand-blue-500 h-full transition-all duration-300 ease-out'
+        className='bg-primary h-full transition-all duration-300 ease-out'
         style={{ width: `${progress.toString()}%` }}
       />
     </div>

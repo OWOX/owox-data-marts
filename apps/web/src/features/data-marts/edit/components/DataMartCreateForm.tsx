@@ -115,7 +115,7 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
       </div>
 
       <div className='pt-2'>
-        <Button type='submit' disabled={isSubmitting} variant={'secondary'}>
+        <Button type='submit' disabled={isSubmitting} variant={'default'}>
           {isSubmitting ? 'Saving...' : 'Create'}
         </Button>
       </div>
