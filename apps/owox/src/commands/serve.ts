@@ -203,6 +203,9 @@ export default class Serve extends Command {
     });
 
     if (this.childProcess.pid) {
+      this.log(`📝 Process IDs:`);
+      this.log(`   CLI: ${process.pid}`);
+      this.log(`   Backend: ${this.childProcess.pid}`);
       this.log(`✅ Server started successfully.`);
       this.log(`🌐 Open http://localhost:${options.port} in your browser.`);
     } else {
