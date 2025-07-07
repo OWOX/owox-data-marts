@@ -27,7 +27,7 @@ export const getDataStorageColumns = ({
 }: DataStorageColumnsProps = {}): ColumnDef<DataStorageTableItem>[] => [
   {
     accessorKey: 'title',
-    size: 60, // responsive width in %
+    size: 50, // responsive width in %
     header: ({ column }) => <SortableHeader column={column}>Title</SortableHeader>,
     cell: ({ row }) => {
       const title = row.getValue<string>('title');
@@ -36,7 +36,7 @@ export const getDataStorageColumns = ({
   },
   {
     accessorKey: 'type',
-    size: 20, // responsive width in %
+    size: 30, // responsive width in %
     header: ({ column }) => <SortableHeader column={column}>Type</SortableHeader>,
     cell: ({ row }) => {
       const type = row.getValue<DataStorageType>('type');

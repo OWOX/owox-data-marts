@@ -157,6 +157,11 @@ export function DataDestinationTable<TData, TValue>({
                       <TableHead
                         key={header.id}
                         className='[&:has([role=checkbox])]:pl-5 [&>[role=checkbox]]:translate-y-[2px]'
+                        style={
+                          header.column.id === 'actions'
+                            ? { width: 80, minWidth: 80, maxWidth: 80 }
+                            : { width: `${String(header.getSize())}%` }
+                        }
                       >
                         {header.isPlaceholder
                           ? null
@@ -183,6 +188,11 @@ export function DataDestinationTable<TData, TValue>({
                       <TableCell
                         key={cell.id}
                         className={`[&:has([role=checkbox])]pr-0 px-5 whitespace-normal [&>[role=checkbox]]:translate-y-[2px] ${cell.column.id === 'actions' ? 'actions-cell' : ''} ${cell.column.id === 'createdAt' ? 'whitespace-nowrap' : ''}`}
+                        style={
+                          cell.column.id === 'actions'
+                            ? { width: 80, minWidth: 80, maxWidth: 80 }
+                            : { width: `${String(cell.column.getSize())}%` }
+                        }
                       >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </TableCell>

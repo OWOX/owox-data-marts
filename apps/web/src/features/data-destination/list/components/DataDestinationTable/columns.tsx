@@ -1,17 +1,10 @@
 import { type ColumnDef } from '@tanstack/react-table';
-import { MoreHorizontal } from 'lucide-react';
-import { Button } from '@owox/ui/components/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@owox/ui/components/dropdown-menu';
 import { SortableHeader } from './SortableHeader';
 import { DataDestinationTypeModel } from '../../../shared';
 import { Badge } from '@owox/ui/components/badge';
 import { DataDestinationType } from '../../../shared';
+import { DataDestinationActionsCell } from './DataDestinationActionsCell';
+import { ToggleColumnsHeader } from './ToggleColumnsHeader';
 
 export interface DataDestinationTableItem {
   id: string;
@@ -34,11 +27,8 @@ export const getDataDestinationColumns = ({
 }: DataDestinationColumnsProps = {}): ColumnDef<DataDestinationTableItem>[] => [
   {
     accessorKey: 'title',
-    header: ({ column }) => (
-      <div className='group/header'>
-        <SortableHeader column={column}>Title</SortableHeader>
-      </div>
-    ),
+    size: 50, // responsive width in %
+    header: ({ column }) => <SortableHeader column={column}>Title</SortableHeader>,
     cell: ({ row }) => {
       const title = row.getValue<string>('title');
       return <div className='overflow-hidden text-ellipsis'>{title}</div>;
@@ -46,11 +36,8 @@ export const getDataDestinationColumns = ({
   },
   {
     accessorKey: 'type',
-    header: ({ column }) => (
-      <div className='group/header'>
-        <SortableHeader column={column}>Type</SortableHeader>
-      </div>
-    ),
+    size: 30, // responsive width in %
+    header: ({ column }) => <SortableHeader column={column}>Type</SortableHeader>,
     cell: ({ row }) => {
       const type = row.getValue<DataDestinationType>('type');
       const { displayName, icon: Icon } = DataDestinationTypeModel.getInfo(type);
@@ -65,12 +52,9 @@ export const getDataDestinationColumns = ({
   },
   {
     accessorKey: 'createdAt',
+    size: 20, // responsive width in %
     sortDescFirst: true,
-    header: ({ column }) => (
-      <div className='group/header'>
-        <SortableHeader column={column}>Created at</SortableHeader>
-      </div>
-    ),
+    header: ({ column }) => <SortableHeader column={column}>Created at</SortableHeader>,
     cell: ({ row }) => {
       const date = row.getValue<Date>('createdAt');
       const formatted = new Intl.DateTimeFormat('en-US', {
@@ -84,29 +68,15 @@ export const getDataDestinationColumns = ({
   },
   {
     id: 'actions',
-    cell: ({ row }) => {
-      const id = row.original.id;
-
-      return (
-        <div className='actions-cell text-right'>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant='ghost' className='h-8 w-8 p-0'>
-                <span className='sr-only'>Open menu</span>
-                <MoreHorizontal className='h-4 w-4' />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align='end'>
-              <DropdownMenuItem onClick={() => onViewDetails?.(id)}>View details</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => void onEdit?.(id)}>Edit</DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => onDelete?.(id)} className='text-red-600'>
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      );
-    },
+    size: 80, // fixed width in pixels
+    header: ({ table }) => <ToggleColumnsHeader table={table} />,
+    cell: ({ row }) => (
+      <DataDestinationActionsCell
+        id={row.original.id}
+        onViewDetails={onViewDetails}
+        onEdit={onEdit}
+        onDelete={onDelete}
+      />
+    ),
   },
 ];
