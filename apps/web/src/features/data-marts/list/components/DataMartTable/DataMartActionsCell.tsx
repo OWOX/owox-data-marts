@@ -49,7 +49,7 @@ export const DataMartActionsCell = ({ row, onDeleteSuccess }: DataMartActionsCel
         <DropdownMenuContent align='end'>
           <DropdownMenuItem>
             <Link
-              to={`/data-marts/${row.original.id}/overview`}
+              to={`/data-marts/${row.original.id}/data-setup`}
               className='dm-card-table-body-row-actiondropdownitem'
             >
               Open
