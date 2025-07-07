@@ -25,6 +25,7 @@ const CONSTANTS = {
 interface ProcessSpawnOptions {
   args: string[];
   command: string;
+  logFormat: string,
   port: number;
 }
 
@@ -37,7 +38,7 @@ export default class Serve extends BaseCommand {
   static override examples = [
     '<%= config.bin %> serve',
     '<%= config.bin %> serve --port 8080',
-    '<%= config.bin %> serve -p 3001 --pretty-log',
+    '<%= config.bin %> serve -p 3001 --log-format=json',
     '$ PORT=8080 <%= config.bin %> serve',
   ];
   static override flags = {
@@ -67,7 +68,7 @@ export default class Serve extends BaseCommand {
 
     try {
       await this.killMarkedProcesses();
-      await this.startBackend(backendPath, flags.port);
+      await this.startBackend(backendPath, flags.port, flags['log-format']);
     } catch (error) {
       this.handleStartupError(error);
     }
@@ -95,10 +96,15 @@ export default class Serve extends BaseCommand {
   /**
    * Creates environment variables for the child process
    * @param port - Port number to set in environment
+   * @param logFormat - Log format to use (pretty or json)
    * @returns Environment variables object
    */
-  private createProcessEnvironment(port: number): NodeJS.ProcessEnv {
-    return { ...process.env, PORT: port.toString() };
+  private createProcessEnvironment(port: number, logFormat: string): NodeJS.ProcessEnv {
+    return { 
+      ...process.env,
+      LOG_FORMAT: logFormat,
+      PORT: port.toString(),
+    };
   }
 
   /**
@@ -206,8 +212,8 @@ export default class Serve extends BaseCommand {
    * @param options - Process spawn options
    */
   private async spawnProcess(options: ProcessSpawnOptions): Promise<void> {
-    const env = this.createProcessEnvironment(options.port);
-    this.log(`📦 Starting server on port ${options.port}...`);
+    const env = this.createProcessEnvironment(options.port, options.logFormat);
+    this.log(`📦 Starting server on port ${options.port} with ${options.logFormat} logs...`);
 
     // Add process marker to arguments
     const argsWithMarker = [...options.args, `--${CONSTANTS.PROCESS_MARKER}`];
@@ -232,12 +238,17 @@ export default class Serve extends BaseCommand {
    * @param backendPath - Path to the backend entry point
    * @param port - Port number to run the application on
    */
-  private async startBackend(backendPath: string, port: number): Promise<void> {
+  private async startBackend(
+    backendPath: string, 
+    port: number,
+    logFormat: string
+  ): Promise<void> {
     this.log('Starting backend application...');
     const options: ProcessSpawnOptions = {
       args: [backendPath],
       command: 'node',
-      port,
+      logFormat,
+      port
     };
     await this.spawnProcess(options);
   }

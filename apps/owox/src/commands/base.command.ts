@@ -2,17 +2,19 @@ import { Command, Flags } from '@oclif/core';
 
 export abstract class BaseCommand extends Command {
   static baseFlags = {
-    'pretty-log': Flags.boolean({
-      default: false,
-      description: 'Use pretty formatting instead of JSON logs',
+    'log-format': Flags.string({
+      char: 'f',
+      default: 'pretty',
+      description: 'Log format to use (pretty or json)',
+      options: ['pretty', 'json']
     }),
   };
-  protected usePrettyLog = false;
+  protected useJsonLog = false;
 
   error(input: Error | string, options?: { code?: string; exit?: false | number }): never {
     const message = typeof input === 'string' ? input : input.message;
 
-    if (!this.usePrettyLog) {
+    if (this.useJsonLog) {
       this.logJson({
         context: this.constructor.name,
         level: 'error',
@@ -33,14 +35,12 @@ export abstract class BaseCommand extends Command {
     );
   }
 
-  protected initializeLogging(flags: { 'pretty-log'?: boolean }): void {
-    this.usePrettyLog = flags['pretty-log'] ?? false;
+  protected initializeLogging(flags: { 'log-format'?: string }): void {
+    this.useJsonLog = flags['log-format'] === 'json';
   }
 
   log(message?: string, ...args: unknown[]): void {
-    if (this.usePrettyLog) {
-      super.log(message, ...args);
-    } else {
+    if (this.useJsonLog) {
       this.logJson({
         context: this.constructor.name,
         level: 'info',
@@ -48,6 +48,8 @@ export abstract class BaseCommand extends Command {
         pid: process.pid,
         timestamp: Date.now(),
       });
+    } else {
+      super.log(message, ...args);
     }
   }
 
@@ -57,17 +59,18 @@ export abstract class BaseCommand extends Command {
 
   warn(input: Error | string): Error | string {
     const message = typeof input === 'string' ? input : input.message;
-    if (this.usePrettyLog) {
-      return super.warn(input);
+    if (this.useJsonLog) {
+      this.logJson({
+        context: this.constructor.name,
+        level: 'warn',
+        message,
+        pid: process.pid,
+        timestamp: Date.now(),
+      });
+      
+      return input;
     }
 
-    this.logJson({
-      context: this.constructor.name,
-      level: 'warn',
-      message,
-      pid: process.pid,
-      timestamp: Date.now(),
-    });
-    return input;
+    return super.warn(input);
   }
 }
