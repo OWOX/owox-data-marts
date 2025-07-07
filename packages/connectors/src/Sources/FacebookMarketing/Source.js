@@ -18,6 +18,13 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         AccoundIDs: {
           isRequired: true,
         },
+        StartDate: {
+          requiredType: "date",
+          isRequired: true
+        },
+        EndDate: {
+          requiredType: "date",
+        },
         Fields: {
           isRequired: true
         },      

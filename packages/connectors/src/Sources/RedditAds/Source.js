@@ -34,6 +34,13 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
       AccountIDs: {
         isRequired: true,
       },
+      StartDate: {
+        requiredType: "date",
+        isRequired: true,
+      },
+      EndDate: {
+        requiredType: "date",
+      },
       Fields: {
         isRequired: true,
       },

@@ -176,7 +176,7 @@ var AbstractConnector = class AbstractConnector {
       let lastRequestedDate = null;
 
       // data wasn't fetched earlier
-      if ( this.config.EndDate.value ) {
+      if (this.config.EndDate && this.config.EndDate.value ) {
         endDate = this.config.EndDate.value;
       }
       

@@ -10,7 +10,7 @@ export interface ConnectorSpecificationResponseApiDto {
   title?: string;
   description?: string;
   default?: string | number | boolean | object | string[];
-  requiredType?: 'string' | 'number' | 'boolean' | 'object' | 'array';
+  requiredType?: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'date';
   required?: boolean;
   options?: string[];
   placeholder?: string;

@@ -38,6 +38,17 @@ var XAdsSource = class XAdsSource extends AbstractSource {
         displayName: "Account ID",
         description: "Your X Ads Account ID"
       },
+      StartDate: {
+        requiredType: "date",
+        isRequired: true,
+        displayName: "Start Date",
+        description: "Start date for the data to be fetched"
+      },
+      EndDate: {
+        requiredType: "date",
+        displayName: "End Date",
+        description: "End date for the data to be fetched"
+      },
       ReimportLookbackWindow: {
         requiredType: "number",
         isRequired: true,
