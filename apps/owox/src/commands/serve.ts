@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { promisify } from 'node:util';
 
-import { BaseCommand } from './base.command.js';
+import { BaseCommand } from './base.js';
 
 const execAsync = promisify(exec);
 const require = createRequire(import.meta.url);
