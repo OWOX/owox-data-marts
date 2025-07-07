@@ -29,10 +29,15 @@ export function TableDefinitionField({ control, storageType }: TableDefinitionFi
       control={control}
       name='definition.fullyQualifiedName'
       render={({ field }) => (
-        <FormItem>
-          <FormLabel>Fully Qualified Table Name</FormLabel>
+        <FormItem className='dm-card-block'>
+          <FormLabel className='text-foreground'>Fully Qualified Table Name</FormLabel>
           <FormControl>
-            <Input placeholder={placeholder} value={field.value || ''} onChange={field.onChange} />
+            <Input
+              placeholder={placeholder}
+              value={field.value || ''}
+              onChange={field.onChange}
+              className='dm-card-formcontrol'
+            />
           </FormControl>
           <FormDescription>{helpText}</FormDescription>
           <FormMessage />

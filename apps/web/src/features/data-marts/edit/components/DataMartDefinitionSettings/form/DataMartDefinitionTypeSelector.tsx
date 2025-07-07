@@ -58,20 +58,20 @@ export function DataMartDefinitionTypeSelector({
     {
       type: DataMartDefinitionType.CONNECTOR,
       label: 'Connector',
-      description: 'Data export from source to storage',
+      description: 'Data import from Source to Storage',
     },
   ];
 
   return (
-    <div className={'space-y-2'}>
-      <Label>Definition Type</Label>
+    <div className='dm-card-block'>
+      <Label className='text-foreground'>Definition Type</Label>
       <Select
         value={selectedType ?? ''}
         onValueChange={value => {
           handleTypeChange(value as DataMartDefinitionType);
         }}
       >
-        <SelectTrigger className='w-full' aria-label='Definition Type'>
+        <SelectTrigger className='dm-card-formcontrol w-full' aria-label='Definition Type'>
           <SelectValue placeholder='Select definition type'>
             {selectedType && typeOptions.find(opt => opt.type === selectedType)?.label}
           </SelectValue>
@@ -81,7 +81,7 @@ export function DataMartDefinitionTypeSelector({
             {typeOptions.map(option => (
               <SelectItem key={option.type} value={option.type}>
                 {option.label}
-                <span className='ml-2 text-xs text-gray-500'>({option.description})</span>
+                <span className='text-muted-foreground/80 ml-2'>{option.description}</span>
               </SelectItem>
             ))}
           </SelectGroup>

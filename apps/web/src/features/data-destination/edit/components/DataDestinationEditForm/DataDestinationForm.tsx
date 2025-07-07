@@ -52,7 +52,7 @@ export function DataDestinationForm({ initialData, onSubmit, onCancel }: DataDes
 
   return (
     <Form {...form}>
-      <form onSubmit={handleFormSubmit} className='space-y-6'>
+      <form onSubmit={handleFormSubmit} className='space-y-4'>
         <div className='space-y-4'>
           <FormField
             control={form.control}

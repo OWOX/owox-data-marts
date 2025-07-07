@@ -13,8 +13,8 @@ export function SqlDefinitionField({ control }: SqlDefinitionFieldProps) {
       control={control}
       name='definition.sqlQuery'
       render={({ field }) => (
-        <FormItem>
-          <FormLabel>SQL Query</FormLabel>
+        <FormItem className='dm-card-block'>
+          <FormLabel className='text-foreground'>SQL Query</FormLabel>
           <FormControl>
             <DataMartCodeEditor
               initialValue={{ sqlQuery: field.value }}

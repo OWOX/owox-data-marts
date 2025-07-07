@@ -29,12 +29,17 @@ export function TablePatternDefinitionField({
       control={control}
       name='definition.pattern'
       render={({ field }) => (
-        <FormItem>
-          <FormLabel>Table Pattern</FormLabel>
+        <FormItem className='dm-card-block'>
+          <FormLabel className='text-foreground'>Table Pattern</FormLabel>
           <FormControl>
-            <Input placeholder={placeholder} value={field.value || ''} onChange={field.onChange} />
+            <Input
+              placeholder={placeholder}
+              value={field.value || ''}
+              onChange={field.onChange}
+              className='dm-card-formcontrol'
+            />
           </FormControl>
-          <FormDescription>{helpText}</FormDescription>
+          <FormDescription className='text-muted-foreground/50'>{helpText}</FormDescription>
           <FormMessage />
         </FormItem>
       )}

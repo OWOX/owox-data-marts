@@ -15,7 +15,7 @@ export function ListItemCard({
   return (
     <div
       className={cn(
-        'group flex items-center gap-4 rounded-md border-b border-gray-200 bg-white transition-shadow duration-200 hover:shadow-sm dark:border-0 dark:bg-white/4',
+        'group flex items-center gap-4 rounded-md border-b border-gray-200 bg-white transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2',
         onClick && 'cursor-pointer dark:hover:bg-white/5',
         className
       )}

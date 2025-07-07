@@ -20,7 +20,7 @@ export function DataMartDefinitionForm({
   const { control } = useFormContext<DataMartDefinitionFormData>();
 
   return (
-    <div className='space-y-6'>
+    <div className='space-y-2'>
       {definitionType === DataMartDefinitionType.SQL && <SqlDefinitionField control={control} />}
 
       {definitionType === DataMartDefinitionType.TABLE && (

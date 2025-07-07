@@ -25,8 +25,9 @@ export function DataMartCodeEditor({ initialValue, onChange }: DataMartCodeEdito
     }
   }
   return (
-    <div>
+    <div className='shadow-xs'>
       <Editor
+        className='overflow-hidden rounded-md border border-gray-200 dark:border-gray-200/4'
         height='30vh'
         language='sql'
         value={sqlCode}

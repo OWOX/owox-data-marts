@@ -42,7 +42,7 @@ export function DataStorageForm({ initialData, onSubmit, onCancel }: DataStorage
         e.preventDefault();
         void form.handleSubmit(onSubmit)(e);
       }}
-      className='space-y-6'
+      className='space-y-4'
     >
       <div className='space-y-4'>
         <div>

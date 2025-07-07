@@ -100,7 +100,7 @@ export function DataMartDefinitionSettings() {
     if (!definitionType) return null;
 
     return (
-      <form onSubmit={handleFormSubmit} className='space-y-6'>
+      <form onSubmit={handleFormSubmit} className='space-y-4'>
         <DataMartDefinitionForm definitionType={definitionType} storageType={storageType} />
         <div className='space-y-4'>
           <div className='align-items-center flex justify-start space-x-4'>
@@ -118,7 +118,7 @@ export function DataMartDefinitionSettings() {
 
   return (
     <FormProvider {...methods}>
-      <div className='space-y-6'>
+      <div className='space-y-4'>
         {!initialDefinitionType && (
           <DataMartDefinitionTypeSelector
             initialType={definitionType}

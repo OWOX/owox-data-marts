@@ -272,7 +272,7 @@
   @apply hover:bg-transparent;
 }
 .dm-card-table-header-row-btn {
-  @apply h-8 inline-flex gap-1 cursor-pointer items-center hover:bg-white dark:hover:bg-white/4 hover:shadow-sm transition-colors duration-200;
+  @apply h-8 inline-flex gap-1 cursor-pointer items-center hover:bg-white dark:hover:bg-white/4 hover:shadow-xs transition-colors duration-200;
 }
 .dm-card-table-body {
   @apply border-b border-gray-200 bg-white dark:bg-white/1 dark:border-white/4;
@@ -281,7 +281,7 @@
   @apply cursor-pointer hover:bg-black/4 dark:bg-transparent dark:hover:bg-white/4 dark:border-white/4 transition-colors duration-200;
 }
 .dm-card-table-body-row-actionbtn {
-  @apply h-8 hover:bg-white dark:hover:bg-white/4 hover:shadow-sm transition-colors transition-shadow duration-200;
+  @apply h-8 hover:bg-white dark:hover:bg-white/4 hover:shadow-xs transition-colors transition-shadow duration-200;
 }
 .dm-card-table-body-row-actionbtn-icon {
   @apply h-4 w-4 text-muted-foreground;
@@ -309,4 +309,12 @@
 }
 .dm-empty-state-subtitle {
   @apply text-center text-muted-foreground mb-8;
+}
+
+/* DM Card Block */
+.dm-card-block {
+  @apply w-full flex flex-col p-4 gap-4 rounded-md border-b border-gray-200 bg-white transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2;
+}
+.dm-card-formcontrol {
+  @apply dark:bg-black/16 dark:hover:bg-black/24;
 }

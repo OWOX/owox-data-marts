@@ -7,7 +7,7 @@ import {
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
-import { MoreVertical, Trash2, ArrowLeft, Upload, Play } from 'lucide-react';
+import { MoreVertical, Trash2, ArrowLeft, CircleCheck, Play } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { cn } from '@owox/ui/lib/utils';
 import { InlineEditTitle } from '../../../../shared/components/InlineEditTitle/InlineEditTitle.tsx';
@@ -131,16 +131,15 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                 <TooltipTrigger asChild>
                   <div>
                     <Button
-                      size='sm'
-                      variant='outline'
+                      variant='default'
                       onClick={() => {
                         void handlePublish();
                       }}
                       disabled={isPublishing || !dataMart.canPublish}
                       className='ml-2 flex items-center gap-1'
                     >
-                      <Upload className='h-4 w-4' />
-                      Publish
+                      <CircleCheck className='h-4 w-4' />
+                      Publish Data Mart
                     </Button>
                   </div>
                 </TooltipTrigger>

@@ -30,7 +30,7 @@ export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
   }
 
   return (
-    <div className='space-y-6'>
+    <div className='space-y-4'>
       {/* Connection Settings */}
       <div className='space-y-4'>
         <h3 className='text-lg font-medium'>Connection Settings</h3>
