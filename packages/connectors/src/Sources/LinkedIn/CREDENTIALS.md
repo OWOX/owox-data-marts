@@ -1,6 +1,6 @@
 # How to obtain the Access Token for Linkedin Ads and Linkedin Pages Sources
 
-To connect to LinkedIn Ads and Pages through the API, you need to create an app, request access to the Advertising API, and generate an access token. Follow the steps below to complete the process.
+To connect to LinkedIn Ads and Pages through the API, you need to create an app, request access to the API, and generate an access token. Follow the steps below to complete the process.
 
 ## Step 1: Create a LinkedIn App
 
@@ -24,57 +24,84 @@ Go to the **Settings** tab and click the **Verify** button. The administrator of
 
  ![LinkedIn app verifying](res/linkedin_verify.png)
 
-## Step 3: Request Access to the Advertising API
+ ![LinkedIn verifying](res/linkedin_verify_process.png)
 
-Once the app is verified, go to the **Products** tab and request access to the **Advertising API**.  
+ Please, ensure that the app is verified:
 
- ![LinkedIn app request](res/linkedin_request.png)
+ ![LinkedIn verified](res/linkedin_verified.png)
 
-Approval can take up to 24 hours. You will receive an email when your request is approved:  
+## Step 3: Request Access to the API
 
- ![LinkedIn request accepted](res/linkedin_accepted.png)
+Once your app is verified, navigate to the **Products** tab in the LinkedIn Developer Portal and request access to the necessary APIs.
 
-When access is granted, the **Advertising API** will appear under the **Added Products** section on the Products page:  
+If you need access to **advertising data**: to retrieve campaign performance, audience insights, ad creatives, and other paid media metrics, request access to the **Advertising API**.
 
- ![LinkedIn Adv API added](res/linkedin_addedapi.png)
+![LinkedIn app request](res/linkedin_request.png)
+
+If you need access to **LinkedIn Page** data: to work with organic content and page analytics — such as posts, followers, reactions, comments, shares, and engagement metrics — request access to both:
+
+- **Share on LinkedIn**
+- **Community Management API**
+
+![LinkedIn share request](res/linkedin_share.png)  
+
+![LinkedIn community request](res/linkedin_community.png)
+
+> ⏳ Approval may take up to **24 hours**. You will receive a confirmation email once your request is approved.
+
+![LinkedIn request accepted](res/linkedin_accepted.png)
+
+When access is granted, the **Advertising API** / **Share on LinkedIn** and **Community Management API** will appear under the **Added Products** section on the Products page.
+
+![LinkedIn Adv API added](res/linkedin_addedapi.png)
 
 ## Step 4: Generate an Access Token
 
-Navigate to the **Auth** tab and click on **OAuth 2.0 tools** on the right-hand side of the page:  
+Navigate to the **Auth** tab of your LinkedIn app and click **OAuth 2.0 tools** on the right-hand side of the page.
 
- ![LinkedIn OAuth](res/linkedin_oauth.png)
+![LinkedIn OAuth](res/linkedin_oauth.png)
 
-Click the **Create token** button:
+Click the **Create token** button to begin the authorization process.
 
- ![LinkedIn Token](res/linkedin_createtoken.png)
+![LinkedIn Token](res/linkedin_createtoken.png)
 
-In the new window:
+> ⚠️ **Note:**  
+> If you see the following error message:  
+> _"There aren't any scopes available for this app. Select another app or visit your app's product settings to request API access,"_  
+> make sure you've requested and received approval for the necessary APIs in **Step 3**.
 
-    > ⚠️ **Note:** If you see the error message  
-    > _"There aren't any scopes available for this app. Select another app or visit your app's product settings to request API access,"_  
-    > make sure you requested access to the **Advertising API** in Step 6 and that the request has been approved.  
-    > ![LinkedIn Scopes Error](res/linkedin_error.png)
+![LinkedIn Scopes Error](res/linkedin_error.png)
 
-Select the following scopes:
+Select the required scopes for advertising data access:
 
-    - `r_ads`
-    - `r_ads_reporting`  
+- `r_ads`  
+- `r_ads_reporting`  
 
-   ![LinkedIn Scopes](res/linkedin_scope.png)
+Or select the required scopes for pages data access:
 
-Then, click **Request access token**.  
+- `r_organization_social`  
+- `r_organization_followers`  
+- `r_social_engagement`  
 
-   ![LinkedIn Request token](res/linkedin_requesttoken.png)
+![LinkedIn Scopes](res/linkedin_scope.png)
 
-On the next screen, click **Allow** to grant access.
+After selecting the appropriate scopes, click **Request access token**.
 
- ![LinkedIn Allow access](res/linkedin_allow.png)
+![LinkedIn Request token](res/linkedin_requesttoken.png)
+
+On the next screen, click **Allow** to authorize the app.
+
+![LinkedIn Allow access](res/linkedin_allow.png)
 
 ## Step 5: Save the Access Token
 
-Copy the generated **Access Token**.
+After the token is generated, **copy and securely store your Access Token**.
 
- ![LinkedIn Copy token](res/linkedin_copytoken.png)
+> ⚠️ **Important:**  
+> Make sure you are copying the **Access Token**, not the **Refresh Token**.  
+> The **Access Token** is located at the **top** of the page.
+
+![LinkedIn Copy token](res/linkedin_copytoken.png)
 
 ## ✅ You’re Ready to Go
 
