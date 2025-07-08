@@ -65,19 +65,22 @@ Click the **Create token** button to begin the authorization process.
 
 ![LinkedIn Token](res/linkedin_createtoken.png)
 
-> ⚠️ **Note:**  
-> If you see the following error message:  
-> _"There aren't any scopes available for this app. Select another app or visit your app's product settings to request API access,"_  
-> make sure you've requested and received approval for the necessary APIs in **Step 3**.
+---
+
+If you see the following error message:  
+_"There aren't any scopes available for this app. Select another app or visit your app's product settings to request API access,"_  
+make sure you've requested and received approval for the necessary APIs in **Step 3**.
 
 ![LinkedIn Scopes Error](res/linkedin_error.png)
 
-Select the required scopes for advertising data access:
+---
+
+Select the required scopes for **advertising data** access:
 
 - `r_ads`  
 - `r_ads_reporting`  
 
-Or select the required scopes for pages data access:
+**Or** select the required scopes for **pages data** access:
 
 - `r_organization_social`  
 - `r_organization_followers`  
