@@ -26,12 +26,15 @@ import {
   UpdateDataMartTitleSpec,
   DeleteDataMartSpec,
   RunDataMartSpec,
+  ValidateDataMartDefinitionSpec,
 } from './spec/data-mart.api';
 import {
   AuthContext,
   AuthorizationContext,
 } from '../../common/authorization-context/authorization.context';
 import { RunDataMartService } from '../use-cases/run-data-mart.service';
+import { ValidateDataMartDefinitionService } from '../use-cases/validate-data-mart-definition.service';
+import { DataMartValidationResponseApiDto } from '../dto/presentation/data-mart-validation-response-api.dto';
 
 @Controller('data-marts')
 @ApiTags('DataMarts')
@@ -46,7 +49,8 @@ export class DataMartController {
     private readonly publishDataMartService: PublishDataMartService,
     private readonly deleteDataMartService: DeleteDataMartService,
     private readonly mapper: DataMartMapper,
-    private readonly runDataMartService: RunDataMartService
+    private readonly runDataMartService: RunDataMartService,
+    private readonly validateDefinitionService: ValidateDataMartDefinitionService
   ) {}
 
   @Post()
@@ -145,5 +149,16 @@ export class DataMartController {
     const command = this.mapper.toRunCommand(id, context);
     const runId = await this.runDataMartService.run(command.id, command.projectId, command.userId);
     return { runId };
+  }
+
+  @Post(':id/validate-definition')
+  @ValidateDataMartDefinitionSpec()
+  async validate(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string
+  ): Promise<DataMartValidationResponseApiDto> {
+    const command = this.mapper.toDefinitionValidateCommand(id, context);
+    const validationResult = await this.validateDefinitionService.run(command);
+    return this.mapper.toDefinitionValidationResponse(validationResult);
   }
 }

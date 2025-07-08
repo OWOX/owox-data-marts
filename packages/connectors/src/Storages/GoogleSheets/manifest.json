@@ -1,15 +1,16 @@
 {
-    "name": "GoogleSheetsStorage",
-    "description": "Storage for Google Sheets",
-    "version": "0.0.0",
-    "author": "OWOX, Inc.",
-    "license": "MIT",
-    "environment": {
-        "node": {
-            "enabled": false
-        },
-        "appscript": {
-            "enabled": true
-        }
+  "name": "GoogleSheetsStorage",
+  "description": "Storage for Google Sheets",
+  "title": "Google Sheets",
+  "version": "0.0.0",
+  "author": "OWOX, Inc.",
+  "license": "MIT",
+  "environment": {
+    "node": {
+      "enabled": false
+    },
+    "appscript": {
+      "enabled": true
     }
+  }
 }

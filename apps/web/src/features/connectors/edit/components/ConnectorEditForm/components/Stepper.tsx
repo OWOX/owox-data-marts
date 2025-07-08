@@ -28,8 +28,8 @@ export function Stepper({ steps, currentStep }: StepperProps) {
                     isCompleted
                       ? 'bg-brand-blue-500 border-brand-blue-500 text-white'
                       : isCurrent
-                        ? 'border-brand-blue-500 text-brand-blue-500 bg-white'
-                        : 'border-gray-300 bg-white text-gray-500'
+                        ? 'border-brand-blue-500 text-brand-blue-500 bg-background'
+                        : 'border-border bg-background text-muted-foreground'
                   } `}
                 >
                   {isCompleted ? <Check className='h-5 w-5' /> : <span>{stepNumber}</span>}
@@ -38,13 +38,13 @@ export function Stepper({ steps, currentStep }: StepperProps) {
                 <div className='mt-2 text-center'>
                   <div
                     className={`text-sm font-medium ${
-                      isCurrent ? 'text-brand-blue-600' : 'text-gray-900'
+                      isCurrent ? 'text-brand-blue-600' : 'text-foreground'
                     }`}
                   >
                     {step.title}
                   </div>
                   {step.description && (
-                    <div className='mt-1 text-xs text-gray-500'>{step.description}</div>
+                    <div className='text-muted-foreground/75 mt-1 text-xs'>{step.description}</div>
                   )}
                 </div>
               </div>
@@ -52,7 +52,7 @@ export function Stepper({ steps, currentStep }: StepperProps) {
               {index < steps.length - 1 && (
                 <div
                   className={`mx-4 mt-0 h-px flex-1 ${
-                    stepNumber < currentStep ? 'bg-brand-blue-500' : 'bg-gray-300'
+                    stepNumber < currentStep ? 'bg-brand-blue-500' : 'bg-border'
                   }`}
                 />
               )}

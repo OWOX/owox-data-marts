@@ -1,10 +1,8 @@
-import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import envPaths from 'env-paths';
 import { existsSync, mkdirSync } from 'fs';
 import { dirname, join } from 'path';
-
-const logger = new Logger('SQLiteDatabasePath');
+import { createLogger } from '../common/logger/logger.service';
 
 /**
  * Determines the SQLite database file path based on configuration.
@@ -28,6 +26,8 @@ const logger = new Logger('SQLiteDatabasePath');
  * ```
  */
 export function getSqliteDatabasePath(config: ConfigService): string {
+  const logger = createLogger('SQLiteDatabasePath');
+
   const envDbPath = config.get<string>('SQLITE_DB_PATH');
 
   let dbPath: string;

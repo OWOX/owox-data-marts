@@ -1,6 +1,6 @@
 import { Button } from '@owox/ui/components/button';
 import { Database } from 'lucide-react';
-import { DataMartConnectorView } from '../../../../data-marts/edit/components/DataMartConnectorView.tsx';
+import { DataMartConnectorView } from '../../DataMartConnectorView';
 import { DataStorageType } from '../../../../data-storage';
 import type { ConnectorConfig } from '../../../../data-marts/edit/model';
 

@@ -1,7 +1,7 @@
 {
   "name": "owox",
   "description": "OWOX Data Marts CLI: Simple command-line interface to start the OWOX Data Marts application with backend and frontend components.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publishConfig": {
     "access": "public"
   },
@@ -13,11 +13,10 @@
     "@oclif/core": "^4",
     "@oclif/plugin-help": "^6",
     "@oclif/plugin-plugins": "^5",
-    "@owox/backend": "0.1.0"
+    "@owox/backend": "0.2.0"
   },
   "devDependencies": {
     "@eslint/compat": "^1",
-    "@oclif/prettier-config": "^0.2.1",
     "@oclif/test": "^4",
     "@types/chai": "^4",
     "@types/mocha": "^10",
@@ -34,11 +33,7 @@
   "engines": {
     "node": ">=22.16.0"
   },
-  "files": [
-    "./bin",
-    "./dist/**/*.js",
-    "./oclif.manifest.json"
-  ],
+  "files": ["./bin", "./dist/**/*.js", "./oclif.manifest.json"],
   "homepage": "https://github.com/OWOX/owox-data-marts",
   "keywords": [
     "data-marts",
@@ -60,18 +55,17 @@
     "bin": "owox",
     "dirname": "owox",
     "commands": "./dist/commands",
-    "plugins": [
-      "@oclif/plugin-help",
-      "@oclif/plugin-plugins"
-    ],
+    "plugins": ["@oclif/plugin-help", "@oclif/plugin-plugins"],
     "topicSeparator": " "
   },
   "repository": "OWOX/owox-data-marts",
   "scripts": {
     "build": "tsc -b",
-    "lint": "eslint",
+    "lint": "eslint . --config ./eslint.config.mjs",
     "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",
     "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",
+    "format": "prettier --write \"**/*.{ts,js,json}\"",
+    "format:check": "prettier --check \"**/*.{ts,js,json}\"",
     "posttest": "npm run lint",
     "prepack": "oclif manifest",
     "prepublishOnly": "npm audit && npm run test && npm run lint",

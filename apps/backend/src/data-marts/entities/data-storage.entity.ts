@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataStorageConfig } from '../data-storage-types/data-storage-config.type';
+import { DataStorageCredentials } from '../data-storage-types/data-storage-credentials.type';
 
 @Entity()
 export class DataStorage {
@@ -24,7 +25,7 @@ export class DataStorage {
   title?: string;
 
   @Column({ type: 'json', nullable: true })
-  credentials?: Record<string, unknown>;
+  credentials?: DataStorageCredentials;
 
   @Column({ type: 'json', nullable: true })
   config?: DataStorageConfig;

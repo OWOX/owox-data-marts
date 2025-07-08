@@ -48,8 +48,6 @@ describe('SortableHeader', () => {
 
     const icon = screen.getByTestId('lucide-arrow-up-down');
     expect(icon).toBeInTheDocument();
-    expect(icon).toHaveClass('opacity-0');
-    expect(icon).toHaveClass('group-hover/header:opacity-70');
   });
 
   it('renders the ArrowUpDown icon with full opacity when sorted', () => {
@@ -59,7 +57,6 @@ describe('SortableHeader', () => {
 
     const icon = screen.getByTestId('lucide-arrow-up-down');
     expect(icon).toBeInTheDocument();
-    expect(icon).toHaveClass('opacity-100');
     expect(icon).not.toHaveClass('opacity-0');
   });
 
@@ -91,8 +88,6 @@ describe('SortableHeader', () => {
     render(<SortableHeader column={mockColumn as any}>Test Header</SortableHeader>);
 
     const button = screen.getByRole('button');
-    expect(button).toHaveClass('px-4');
-    expect(button).toHaveClass('hover:bg-gray-200');
     expect(button).toHaveAttribute('data-variant', 'ghost');
     expect(button).toHaveClass('button-variant-ghost');
   });

@@ -39,7 +39,7 @@ export function CollapsibleCardHeader({
       <div className='flex items-center gap-3'>
         <div className='flex items-center gap-2'>
           {/* Card icon */}
-          <div className='text-foreground flex h-7 w-7 items-center justify-center rounded-sm bg-gray-200/50 transition-colors duration-200 group-hover:bg-gray-200/75 dark:bg-gray-700/50 dark:group-hover:bg-gray-700/75'>
+          <div className='text-foreground flex h-7 w-7 items-center justify-center rounded-sm bg-gray-200/50 transition-colors duration-200 group-hover:bg-gray-200/75 dark:bg-white/8 dark:group-hover:bg-white/10'>
             <Icon className='h-4 w-4' strokeWidth={2.25} />
           </div>
           <CardTitle className='text-md text-foreground leading-none font-medium'>

@@ -46,7 +46,7 @@ export function StepNavigation({
         )}
       </div>
 
-      <div className='px-4 text-sm text-gray-500'>
+      <div className='text-muted-foreground/75 px-4 text-sm'>
         Step {currentStep} of {totalSteps}
       </div>
 

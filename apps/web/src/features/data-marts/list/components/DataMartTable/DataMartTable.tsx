@@ -38,7 +38,7 @@ import {
 import { Check, Search, Trash2, Plus } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
 import { EmptyDataMartsState } from './EmptyDataMartsState';
-import { DataMartsTableSkeleton } from '../../../../../shared/components/CardSkeleton';
+import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -164,7 +164,7 @@ export function DataMartTable<TData, TValue>({
     return (
       <div>
         <Toaster />
-        <DataMartsTableSkeleton />
+        <CardSkeleton />
       </div>
     );
   }
@@ -269,7 +269,7 @@ export function DataMartTable<TData, TValue>({
                       return;
                     }
                     const id = (row.original as { id: string }).id;
-                    void navigate(`/data-marts/${id}/overview`);
+                    void navigate(`/data-marts/${id}/data-setup`);
                   }}
                 >
                   {row.getVisibleCells().map(cell => (

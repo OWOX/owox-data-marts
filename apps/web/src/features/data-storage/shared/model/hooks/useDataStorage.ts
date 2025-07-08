@@ -10,6 +10,7 @@ import type { DataStorage } from '../types/data-storage.ts';
 import { dataStorageApiService } from '../../api';
 import type { DataStorageFormData } from '../../types/data-storage.schema.ts';
 import { DataStorageType } from '../types';
+import { extractApiError } from '../../../../../app/api';
 
 export function useDataStorage() {
   const { state, dispatch } = useDataStorageContext();
@@ -25,7 +26,7 @@ export function useDataStorage() {
     } catch (error) {
       dispatch({
         type: DataStorageActionType.FETCH_STORAGES_ERROR,
-        payload: error instanceof Error ? error.message : 'Failed to load data storages',
+        payload: extractApiError(error),
       });
     }
   }, [dispatch]);
@@ -39,7 +40,7 @@ export function useDataStorage() {
       } catch (error) {
         dispatch({
           type: DataStorageActionType.FETCH_STORAGE_ERROR,
-          payload: error instanceof Error ? error.message : 'Failed to load data storage',
+          payload: extractApiError(error),
         });
       }
     },
@@ -61,7 +62,7 @@ export function useDataStorage() {
       } catch (error) {
         dispatch({
           type: DataStorageActionType.CREATE_STORAGE_ERROR,
-          payload: error instanceof Error ? error.message : 'Failed to create data storage',
+          payload: extractApiError(error),
         });
         return null;
       }
@@ -84,7 +85,7 @@ export function useDataStorage() {
       } catch (error) {
         dispatch({
           type: DataStorageActionType.UPDATE_STORAGE_ERROR,
-          payload: error instanceof Error ? error.message : 'Failed to update data storage',
+          payload: extractApiError(error),
         });
         return null;
       }
@@ -101,7 +102,7 @@ export function useDataStorage() {
       } catch (error) {
         dispatch({
           type: DataStorageActionType.DELETE_STORAGE_ERROR,
-          payload: error instanceof Error ? error.message : 'Failed to delete data storage',
+          payload: extractApiError(error),
         });
       }
     },

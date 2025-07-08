@@ -1,14 +1,14 @@
-import { Logger } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { NextFunction, Request, Response } from 'express';
 import { existsSync } from 'fs';
 import { join } from 'path';
+import { createLogger } from '../common/logger/logger.service';
 
 /**
  * Determines the correct path for web static assets based on execution mode
  */
 function getWebDistPath(): string | null {
-  const logger = new Logger('StaticAssets');
+  const logger = createLogger('StaticAssets');
 
   const publishedPath = join(__dirname, '..', '..', 'public');
   const devPath = join(__dirname, '..', '..', '..', '..', 'web', 'dist');

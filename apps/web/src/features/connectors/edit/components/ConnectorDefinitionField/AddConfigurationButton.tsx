@@ -1,17 +1,19 @@
 import { Button } from '@owox/ui/components/button';
 import { Plus } from 'lucide-react';
-import { DataMartConnectorView } from '../../../../data-marts/edit/components/DataMartConnectorView.tsx';
+import { DataMartConnectorView } from '../../DataMartConnectorView';
 import { DataStorageType } from '../../../../data-storage';
 import type { ConnectorConfig } from '../../../../data-marts/edit/model';
 
 interface AddConfigurationButtonProps {
   storageType: DataStorageType;
   onAddConfiguration: (newConfig: Record<string, unknown>) => void;
+  existingConnector?: ConnectorConfig;
 }
 
 export function AddConfigurationButton({
   storageType,
   onAddConfiguration,
+  existingConnector,
 }: AddConfigurationButtonProps) {
   return (
     <div className='border-t pt-4'>
@@ -22,6 +24,7 @@ export function AddConfigurationButton({
           onAddConfiguration(newConfig);
         }}
         configurationOnly={true}
+        existingConnector={existingConnector}
       >
         <Button
           type='button'

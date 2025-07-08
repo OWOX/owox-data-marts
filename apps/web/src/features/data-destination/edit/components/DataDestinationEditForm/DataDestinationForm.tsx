@@ -1,6 +1,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { DataDestinationType } from '../../../shared';
+import { DataDestinationStatus } from '../../../shared';
 import { Button } from '@owox/ui/components/button';
 import { GoogleSheetsFields } from './GoogleSheetsFields';
 import {
@@ -23,6 +24,7 @@ import { DataDestinationTypeModel } from '../../../shared';
 import { type DataDestinationFormData, dataDestinationSchema } from '../../../shared';
 import { Input } from '@owox/ui/components/input';
 import { Separator } from '@owox/ui/components/separator';
+import { Badge } from '@owox/ui/components/badge';
 
 interface DataDestinationFormProps {
   initialData?: DataDestinationFormData;
@@ -89,14 +91,18 @@ export function DataDestinationForm({ initialData, onSubmit, onCancel }: DataDes
                   <SelectContent>
                     <SelectGroup>
                       {DataDestinationTypeModel.getAllTypes().map(
-                        ({ type, displayName, icon: Icon }) => (
-                          <SelectItem key={type} value={type}>
-                            <div className='flex items-center gap-2'>
-                              <Icon />
-                              {displayName}
-                            </div>
-                          </SelectItem>
-                        )
+                        ({ type, displayName, icon: Icon, status }) => {
+                          const isComingSoon = status === DataDestinationStatus.COMING_SOON;
+                          return (
+                            <SelectItem key={type} value={type} disabled={isComingSoon}>
+                              <div className='flex items-center gap-2'>
+                                <Icon />
+                                {displayName}
+                                {isComingSoon && <Badge variant='secondary'>{status}</Badge>}
+                              </div>
+                            </SelectItem>
+                          );
+                        }
                       )}
                     </SelectGroup>
                   </SelectContent>

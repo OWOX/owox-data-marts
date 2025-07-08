@@ -19,13 +19,13 @@ export const GoogleSheetsConfigSchema = z.object({
    * ID of the Google Spreadsheet
    * This is the unique identifier found in the spreadsheet URL
    */
-  spreadsheetId: z.string().min(1, 'Correction Google Spreadsheet ID is required'),
+  spreadsheetId: z.string().min(1, 'Correct Google Spreadsheet ID is required'),
 
   /**
    * ID of the specific sheet within the spreadsheet
    * Each sheet in a Google Spreadsheet has a unique numeric ID
    */
-  sheetId: z.number().min(0, 'Correction Google Spreadsheet sheet ID is required'),
+  sheetId: z.number().min(0, 'Correct Google Spreadsheet sheet ID is required'),
 });
 
 /**

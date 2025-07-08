@@ -9,14 +9,14 @@
   "scripts": {
     "dev": "vite --config vite.config.ts",
     "build": "tsc -b && vite build",
-    "lint": "eslint .",
+    "lint": "eslint . --config ./eslint.config.js",
     "lint:fix": "eslint . --fix",
     "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",
     "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",
     "type-check": "tsc --noEmit",
     "type-check:watch": "tsc --noEmit --watch",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json}\"",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css}\"",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
     "preview": "vite preview"

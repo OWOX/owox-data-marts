@@ -8,7 +8,7 @@ import { DataStorageType } from '../../../shared';
 import { DataStorageTypeDialog } from '../../../shared/components/DataStorageTypeDialog.tsx';
 import { DataStorageDetailsDialog } from '../DataStorageDetailsDialog';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
-import { DataMartsTableSkeleton } from '../../../../../shared/components/CardSkeleton';
+import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
 
 interface DataStorageListProps {
   initialTypeDialogOpen?: boolean;
@@ -26,7 +26,6 @@ export const DataStorageList = ({
     currentDataStorage,
     clearCurrentDataStorage,
     loading,
-    error,
     fetchDataStorages,
     getDataStorageById,
     deleteDataStorage,
@@ -67,11 +66,7 @@ export const DataStorageList = ({
   };
 
   if (loading) {
-    return <DataMartsTableSkeleton />;
-  }
-
-  if (error) {
-    return <div className='dm-card'>Error: {error}</div>;
+    return <CardSkeleton />;
   }
 
   const handleViewDetails = (id: string) => {
@@ -162,7 +157,7 @@ export const DataStorageList = ({
         isOpen={isEditDrawerOpen}
         onClose={handleCloseDrawer}
         dataStorage={currentDataStorage}
-        onSaveSuccess={() => void handleSave}
+        onSaveSuccess={() => void handleSave()}
       />
 
       <ConfirmationDialog

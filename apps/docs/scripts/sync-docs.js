@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { glob } from 'glob';
+import yaml from 'js-yaml';
 import matter from 'gray-matter';
 import { getConfig } from './env-config.js';
 import {
@@ -15,11 +16,9 @@ import {
 
 // CONFIGURATION
 const APP_LOCATION = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const MONOREPO_ROOT = path.resolve(APP_LOCATION, '../..');
-const CONTENT_DEST_PATH = path.join(APP_LOCATION, 'src/content/docs');
 const ASSETS_DEST_PATH = path.join(APP_LOCATION, 'src/assets');
-const ROOT_CONTENT_INDEX_FILE = path.join(CONTENT_DEST_PATH, 'index.md');
-const BASE_URL = getConfig().base;
+const CONTENT_DEST_PATH = path.join(APP_LOCATION, 'src/content/docs');
+const MONOREPO_ROOT = path.resolve(APP_LOCATION, '../..');
 
 /**
  * Main sync function that orchestrates the entire process
@@ -31,31 +30,10 @@ async function syncDocs() {
   prepareFileSystem();
 
   // 2. Find all markdown files
-  const sourceFiles = await findMarkdownFiles();
+  await processMarkdownFiles();
 
-  console.log(`📄 Processing ${sourceFiles.length} files...`);
-
-  // 3. Process each file
-  for (const sourceFilePath of sourceFiles) {
-    console.log(`Processing: ${path.relative(MONOREPO_ROOT, sourceFilePath)}`);
-
-    // 3.1 Prepare file paths and read the content
-    const filePaths = defineFilePaths(sourceFilePath);
-    fs.mkdirSync(path.dirname(filePaths.destinationPath), { recursive: true });
-
-    let fileContent = fs.readFileSync(filePaths.sourcePath, 'utf-8');
-
-    // 3.2. Find, copy, and replace image paths
-    fileContent = processImageLinks(fileContent, filePaths);
-
-    // 3.3. Find and replace paths to other file links
-    fileContent = processDocumentLinks(fileContent, filePaths);
-
-    // 3.4. Frontmatter
-    fileContent = processFrontmatter(fileContent, filePaths);
-
-    fs.writeFileSync(filePaths.destinationPath, fileContent);
-  }
+  // 4. Process manifests for Connectors
+  await processManifests();
 
   console.log(`✅ Documentation sync completed successfully!`);
 }
@@ -71,18 +49,100 @@ function prepareFileSystem() {
 }
 
 /**
+ * Processes all necessary markdown files
+ */
+async function processMarkdownFiles() {
+  const sourceFiles = await findMarkdownFiles();
+
+  if (sourceFiles.length === 0) {
+    console.log('No .md files found.');
+    return;
+  }
+
+  console.log(`📄 Processing ${sourceFiles.length} .md files...`);
+
+  // Process each file
+  for (const sourceFilePath of sourceFiles) {
+    console.log(`Processing: ${path.relative(MONOREPO_ROOT, sourceFilePath)}`);
+
+    // 1. Prepare file paths and read the content
+    const filePaths = defineFilePaths(sourceFilePath);
+    fs.mkdirSync(path.dirname(filePaths.destinationPath), { recursive: true });
+
+    let fileContent = fs.readFileSync(filePaths.sourcePath, 'utf-8');
+
+    // 2. Find, copy, and replace image paths
+    fileContent = processImageLinks(fileContent, filePaths);
+
+    // 3. Find and replace paths to other file links
+    fileContent = processDocumentLinks(fileContent, filePaths);
+
+    // 4. Frontmatter
+    fileContent = processFrontmatter(fileContent, filePaths);
+
+    fs.writeFileSync(filePaths.destinationPath, fileContent);
+  }
+}
+
+/**
+ * Processes all necessary manifest files to create _meta.yml files for customization groups in sidebar.
+ */
+async function processManifests() {
+  const manifestFiles = await findManifestFiles();
+
+  if (manifestFiles.length === 0) {
+    console.log('No manifest.json files found.');
+    return;
+  }
+
+  console.log(`📄 Processing ${manifestFiles.length} manifest.json files...`);
+
+  for (const manifestPath of manifestFiles) {
+    const relativeManifestPath = path.relative(MONOREPO_ROOT, manifestPath);
+    console.log(`Processing: ${relativeManifestPath}`);
+
+    const manifestContent = fs.readFileSync(manifestPath, 'utf-8');
+    const manifestData = JSON.parse(manifestContent);
+
+    if (!manifestData.title) {
+      console.warn(`⚠️ Skipping manifest, no 'title' field found in: ${relativeManifestPath}`);
+      continue;
+    }
+
+    // Prepare content
+    const metaDataObject = { label: manifestData.title, collapsed: true };
+    const fileContent = yaml.dump(metaDataObject);
+
+    // Define the destination directory
+    const destinationDir = defineFilePaths(path.dirname(manifestPath)).destinationPath;
+
+    // Create the directory if it doesn't exist and write the file.
+    fs.mkdirSync(destinationDir, { recursive: true });
+
+    fs.writeFileSync(path.join(destinationDir, '_meta.yml'), fileContent);
+  }
+}
+
+/**
  * Finds all markdown files in the monorepo based on search patterns
  * @returns {Promise<string[]>} - Array of absolute paths to markdown files
  */
 async function findMarkdownFiles() {
   const searchPatterns = [
-    'apps/**/*.md',
     '*.md',
+    'apps/**/*.md',
     'docs/**/*.md',
     'packages/**/*.md',
     'licenses/**/*.md',
   ];
-  const ignorePatterns = ['apps/docs/src/**', '**/node_modules/**', 'apps/web/src/**'];
+
+  const ignorePatterns = [
+    '**/node_modules/**',
+    '**/CHANGELOG.md',
+    'apps/docs/src/**',
+    'apps/backend/src/**',
+    'apps/web/src/**',
+  ];
 
   const sourceFiles = await glob(searchPatterns, {
     cwd: MONOREPO_ROOT,
@@ -91,6 +151,23 @@ async function findMarkdownFiles() {
   });
 
   return sourceFiles;
+}
+
+/**
+ * Finds all manifest.json files in the connectors directories.
+ * @returns {Promise<string[]>} - Array of absolute paths to manifest files.
+ */
+async function findManifestFiles() {
+  const searchPatterns = ['packages/connectors/**/manifest.json'];
+  const ignorePatterns = ['**/node_modules/**'];
+
+  const manifestFiles = await glob(searchPatterns, {
+    cwd: MONOREPO_ROOT,
+    ignore: ignorePatterns,
+    absolute: true,
+  });
+
+  return manifestFiles;
 }
 
 /**
@@ -159,6 +236,9 @@ function processImageLinks(fileContent, filePaths) {
  * @returns {string} - Updated markdown content with processed document links
  */
 function processDocumentLinks(fileContent, filePaths) {
+  const baseURL = getConfig().base;
+  const rootContentIndexFile = path.join(CONTENT_DEST_PATH, 'index.md');
+
   const linkRegex = /(?<!!)\[([^\]]*?)\]\((?!https?:\/\/)([^)]*?)\)/g;
 
   let match;
@@ -166,7 +246,7 @@ function processDocumentLinks(fileContent, filePaths) {
     const [fullMatch, linkText, originalLinkPath] = match;
 
     let normalizedLinkPath;
-    if (filePaths.destinationPath === ROOT_CONTENT_INDEX_FILE && linkText === 'Source Code') {
+    if (filePaths.destinationPath === rootContentIndexFile && linkText === 'Source Code') {
       normalizedLinkPath = 'https://github.com/OWOX/owox-data-marts/tree/main/' + originalLinkPath;
     } else if (originalLinkPath.startsWith('#')) {
       normalizedLinkPath = originalLinkPath;
@@ -177,7 +257,7 @@ function processDocumentLinks(fileContent, filePaths) {
       if (isLocalLinkPathInSameDirectory(normalizedLinkPath)) {
         // convert to absolute path and add base path on site
         normalizedLinkPath =
-          BASE_URL +
+          baseURL +
           '/' +
           normalizePathToKebabCaseForURL(path.dirname(filePaths.relativePath)) +
           normalizedLinkPath.substring(1);
@@ -198,6 +278,7 @@ function processDocumentLinks(fileContent, filePaths) {
  */
 function processFrontmatter(fileContent, filePaths) {
   const { data: frontmatter, content: markdownBody } = matter(fileContent);
+  const { sourcePath, relativePath, destinationPath } = filePaths;
 
   if (!frontmatter.title) {
     const h1Match = markdownBody.match(/^#\s+(.*)/m);
@@ -210,24 +291,14 @@ function processFrontmatter(fileContent, filePaths) {
       fileContent = fileContent.replace(h1Match[0], '').trim();
     } else {
       // ... or generate by filename / dirname and add order
-      const fileName = normalizePathToKebabCase(path.parse(filePaths.sourcePath).name);
-      const folderName = normalizePathToKebabCase(
-        path.basename(path.dirname(filePaths.sourcePath))
-      );
+      const fileName = normalizePathToKebabCase(path.parse(sourcePath).name);
+      const folderName = normalizePathToKebabCase(path.basename(path.dirname(sourcePath)));
 
       const titleParts = [];
       if (fileName === 'readme' || fileName === 'index') {
         titleParts.push(toTitleCase(folderName));
-
-        frontmatter.sidebar = { order: 0 };
       } else {
         titleParts.push(toTitleCase(fileName));
-
-        if (
-          normalizePathToKebabCaseForURL(filePaths.sourcePath).includes('connectors/src/sources')
-        ) {
-          frontmatter.sidebar = { order: fileName === 'getting-started' ? 1 : 2 };
-        }
       }
 
       frontmatter.title = titleParts.join(' ') || 'Document';
@@ -235,9 +306,17 @@ function processFrontmatter(fileContent, filePaths) {
   }
 
   // Add default metadata if not exist
-  frontmatter.description =
-    frontmatter.description || `Documentation for ${filePaths.relativePath}`;
+  frontmatter.description = frontmatter.description || `Documentation for ${relativePath}`;
   frontmatter.template = frontmatter.template || 'doc';
+
+  // Simple sidebar order
+  const destFileName = path.basename(destinationPath, path.extname(destinationPath));
+
+  if (destFileName === 'readme' || destFileName === 'index') {
+    frontmatter.sidebar = { order: 0 };
+  } else {
+    frontmatter.sidebar = { order: destFileName === 'getting-started' ? 1 : 2 };
+  }
 
   return matter.stringify(fileContent, frontmatter);
 }

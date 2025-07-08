@@ -161,6 +161,10 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
                                 storageType={storageType}
                                 onRemoveConfiguration={removeConfiguration}
                                 onUpdateConfiguration={updateConnectorConfiguration}
+                                dataMartStatus={datamartStatus.code}
+                                totalConfigurations={
+                                  connectorDef.connector.source.configuration.length
+                                }
                               />
                             );
                           }
@@ -170,6 +174,14 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
                     <AddConfigurationButton
                       storageType={storageType}
                       onAddConfiguration={addConfiguration}
+                      existingConnector={
+                        isConnectorConfigured(field.value as ConnectorDefinitionConfig)
+                          ? {
+                              source: (field.value as ConnectorDefinitionConfig).connector.source,
+                              storage: (field.value as ConnectorDefinitionConfig).connector.storage,
+                            }
+                          : undefined
+                      }
                     />
                   </div>
                 </div>

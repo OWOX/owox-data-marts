@@ -4,26 +4,17 @@ import { ReportDataBatch } from '../../../dto/domain/report-data-batch.dto';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { Injectable, Logger, Scope } from '@nestjs/common';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
-import {
-  isSqlDefinition,
-  isTableDefinition,
-  isTablePatternDefinition,
-  isViewDefinition,
-  isConnectorDefinition,
-} from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
-import { TableDefinition } from '../../../dto/schemas/data-mart-table-definitions/table-definition.schema';
-import { SqlDefinition } from '../../../dto/schemas/data-mart-table-definitions/sql-definition.schema';
-import { ViewDefinition } from '../../../dto/schemas/data-mart-table-definitions/view-definition.schema';
-import { TablePatternDefinition } from '../../../dto/schemas/data-mart-table-definitions/table-pattern-definition.schema';
+import { isTableDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { Report } from '../../../entities/report.entity';
 import { BigQueryApiAdapterFactory } from '../adapters/bigquery-api-adapter.factory';
 import { BigQueryApiAdapter } from '../adapters/bigquery-api.adapter';
 import { Table } from '@google-cloud/bigquery';
 import { isBigqueryCredentials } from '../../data-storage-credentials.guards';
 import { isBigQueryConfig } from '../../data-storage-config.guards';
-import { ConnectorDefinition } from 'src/data-marts/dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { BigQueryCredentials } from '../schemas/bigquery-credentials.schema';
 import { BigQueryConfig } from '../schemas/bigquery-config.schema';
+import { BigQueryReportFormatterService } from './bigquery-report-formatter.service';
+import { BigQueryQueryBuilder } from './bigquery-query.builder';
 
 @Injectable({ scope: Scope.TRANSIENT })
 export class BigQueryReportReader implements DataStorageReportReader {
@@ -32,9 +23,13 @@ export class BigQueryReportReader implements DataStorageReportReader {
 
   private adapter: BigQueryApiAdapter;
   private reportResultTable: Table;
-  private dataHeaders: string[];
+  private reportResultHeaders: string[];
 
-  constructor(private readonly adapterFactory: BigQueryApiAdapterFactory) {}
+  constructor(
+    private readonly adapterFactory: BigQueryApiAdapterFactory,
+    private readonly bigQueryQueryBuilder: BigQueryQueryBuilder,
+    private readonly formatter: BigQueryReportFormatterService
+  ) {}
 
   public async prepareReportData(report: Report): Promise<ReportDataDescription> {
     const { storage, definition } = report.dataMart;
@@ -58,9 +53,9 @@ export class BigQueryReportReader implements DataStorageReportReader {
       throw new Error('Failed to get table metadata');
     }
 
-    this.dataHeaders = metaData.schema.fields.map(f => f.name!);
+    this.reportResultHeaders = this.formatter.prepareReportResultHeaders(metaData.schema);
 
-    return new ReportDataDescription(this.dataHeaders, parseInt(metaData.numRows));
+    return new ReportDataDescription(this.reportResultHeaders, parseInt(metaData.numRows));
   }
 
   public async readReportDataBatch(batchId?: string, maxRows = 10000): Promise<ReportDataBatch> {
@@ -74,7 +69,8 @@ export class BigQueryReportReader implements DataStorageReportReader {
       autoPaginate: false,
     });
 
-    const mappedRows = rows.map(r => this.dataHeaders.map(h => r[h].value ?? r[h]));
+    const mappedRows = rows.map(row => this.formatter.getStructuredReportRowData(row));
+
     return new ReportDataBatch(mappedRows, nextBatch?.pageToken);
   }
 
@@ -87,34 +83,16 @@ export class BigQueryReportReader implements DataStorageReportReader {
     this.logger.debug('Preparing report result table', dataMartDefinition);
     try {
       if (isTableDefinition(dataMartDefinition)) {
-        await this.prepareTableData(dataMartDefinition);
-      } else if (isSqlDefinition(dataMartDefinition)) {
-        await this.prepareSqlData(dataMartDefinition);
-      } else if (isViewDefinition(dataMartDefinition)) {
-        await this.prepareViewData(dataMartDefinition);
-      } else if (isTablePatternDefinition(dataMartDefinition)) {
-        await this.prepareTablePatternData(dataMartDefinition);
-      } else if (isConnectorDefinition(dataMartDefinition)) {
-        await this.prepareConnectorData(dataMartDefinition);
+        const [projectId, datasetId, tableId] = dataMartDefinition.fullyQualifiedName.split('.');
+        this.defineReportResultTable(projectId, datasetId, tableId);
       } else {
-        throw new Error('Invalid data mart definition');
+        const query = this.bigQueryQueryBuilder.buildQuery(dataMartDefinition);
+        await this.prepareQueryData(query);
       }
     } catch (error) {
       this.logger.error('Failed to prepare report data', error);
       throw error;
     }
-  }
-
-  private async prepareSqlData(dataMartDefinition: SqlDefinition): Promise<void> {
-    await this.prepareQueryData(dataMartDefinition.sqlQuery);
-  }
-
-  private async prepareViewData(dataMartDefinition: ViewDefinition): Promise<void> {
-    await this.prepareQueryData(`SELECT * FROM \`${dataMartDefinition.fullyQualifiedName}\``);
-  }
-
-  private async prepareTablePatternData(dataMartDefinition: TablePatternDefinition): Promise<void> {
-    await this.prepareQueryData(`SELECT * FROM \`${dataMartDefinition.pattern}*\``);
   }
 
   private async prepareQueryData(query: string): Promise<void> {
@@ -125,18 +103,6 @@ export class BigQueryReportReader implements DataStorageReportReader {
       destinationTable.projectId,
       destinationTable.datasetId,
       destinationTable.tableId
-    );
-  }
-
-  private async prepareTableData(dataMartDefinition: TableDefinition): Promise<void> {
-    const tableRef = dataMartDefinition.fullyQualifiedName.split('.');
-    // project.dataset.table
-    this.defineReportResultTable(tableRef[0], tableRef[1], tableRef[2]);
-  }
-
-  private async prepareConnectorData(dataMartDefinition: ConnectorDefinition): Promise<void> {
-    await this.prepareQueryData(
-      `SELECT * FROM \`${dataMartDefinition.connector.storage.fullyQualifiedName}\``
     );
   }
 

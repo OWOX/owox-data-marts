@@ -13,6 +13,7 @@ import { CreateDataMartResponseApiDto } from '../../dto/presentation/create-data
 import { UpdateDataMartDescriptionApiDto } from '../../dto/presentation/update-data-mart-description-api.dto';
 import { UpdateDataMartTitleApiDto } from '../../dto/presentation/update-data-mart-title-api.dto';
 import { UpdateDataMartDefinitionApiDto } from '../../dto/presentation/update-data-mart-definition-api.dto';
+import { DataMartValidationResponseApiDto } from '../../dto/presentation/data-mart-validation-response-api.dto';
 
 export function CreateDataMartSpec() {
   return applyDecorators(
@@ -85,5 +86,13 @@ export function RunDataMartSpec() {
     ApiOperation({ summary: 'Manual run DataMart' }),
     ApiParam({ name: 'id', type: String }),
     ApiNoContentResponse({ description: 'DataMart run' })
+  );
+}
+
+export function ValidateDataMartDefinitionSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Validate DataMart definition' }),
+    ApiParam({ name: 'id', type: String }),
+    ApiOkResponse({ type: DataMartValidationResponseApiDto })
   );
 }

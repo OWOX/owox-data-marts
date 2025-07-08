@@ -32,7 +32,7 @@ export function ConnectorEditSheet({
           </DialogTitle>
           <DialogDescription>Setup your connector to use in your data mart</DialogDescription>
         </SheetHeader>
-        <div className='flex-1 overflow-y-auto'>
+        <div className='flex-1 overflow-x-visible overflow-y-auto'>
           <ConnectorEditForm
             onSubmit={configuredConnector => {
               onSubmit(configuredConnector);

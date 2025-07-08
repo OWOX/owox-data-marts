@@ -1,11 +1,13 @@
 import { DataDestinationType } from '../enums';
-import { GoogleSheetsIcon } from '../../../../shared';
+import { DataDestinationStatus } from '../enums';
+import { GoogleSheetsIcon, LookerStudioIcon, ODataIcon } from '../../../../shared';
 import type { AppIcon } from '../../../../shared';
 
 interface DataDestinationTypeInfo {
   type: DataDestinationType;
   displayName: string;
   icon: AppIcon;
+  status: DataDestinationStatus;
 }
 
 export const DataDestinationTypeModel = {
@@ -14,6 +16,19 @@ export const DataDestinationTypeModel = {
       type: DataDestinationType.GOOGLE_SHEETS,
       displayName: 'Google Sheets',
       icon: GoogleSheetsIcon,
+      status: DataDestinationStatus.ACTIVE,
+    },
+    [DataDestinationType.LOOKER_STUDIO]: {
+      type: DataDestinationType.LOOKER_STUDIO,
+      displayName: 'Looker Studio',
+      icon: LookerStudioIcon,
+      status: DataDestinationStatus.COMING_SOON,
+    },
+    [DataDestinationType.ODATA]: {
+      type: DataDestinationType.ODATA,
+      displayName: 'OData',
+      icon: ODataIcon,
+      status: DataDestinationStatus.COMING_SOON,
     },
   },
 

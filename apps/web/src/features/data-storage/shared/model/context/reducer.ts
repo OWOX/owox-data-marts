@@ -1,12 +1,13 @@
 import type { DataStorageList } from '../types/data-storage-list.ts';
 import type { DataStorage } from '../types/data-storage.ts';
 import { type DataStorageAction, DataStorageActionType } from './types.ts';
+import { type ApiError } from '../../../../../app/api';
 
 export interface DataStorageState {
   dataStorages: DataStorageList;
   currentDataStorage: DataStorage | null;
   loading: boolean;
-  error: string | null;
+  error: ApiError | null;
 }
 
 export const initialDataStorageState: DataStorageState = {
@@ -22,6 +23,10 @@ export function reducer(state: DataStorageState, action: DataStorageAction): Dat
     case DataStorageActionType.FETCH_STORAGE_START:
     case DataStorageActionType.CREATE_STORAGE_START:
     case DataStorageActionType.UPDATE_STORAGE_START:
+      return {
+        ...state,
+        error: null,
+      };
     case DataStorageActionType.DELETE_STORAGE_START:
       return {
         ...state,

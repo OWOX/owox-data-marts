@@ -9,35 +9,37 @@ During this process, you will obtain the following credentials required for the 
 - **Client Secret**  
 - **Refresh Token**
 
-1. Sign in to Azure
+## Step 1: Register an App in Microsoft Azure
+
 If you haven't already, [sign up for Microsoft Azure](https://azure.microsoft.com/) and log in to the [Azure Portal](https://portal.azure.com/).
 
-1. Open App Registrations
 In the Azure Portal, search for and open the **App registrations** service.
 
 ![Bing Search App](res/bing_appsearch.png)
 
-1. Register a New Application
 Click **New registration** and fill in the form:
 
-   - **Name**: Choose a name for your app.
-   - **Supported account types**:  
-     Select:  
-     *Accounts in any organizational directory (Any Microsoft Entra ID tenant - Multitenant) and personal Microsoft accounts (e.g., Skype, Xbox)*
-   - **Redirect URI**:  
-     - Platform: *Web*  
-     - URI: `http://localhost:8080`
+- **Name**: Choose a name for your app.  
+- **Supported account types**:  
+  Select:  
+  _Accounts in any organizational directory (Any Microsoft Entra ID tenant – Multitenant) and personal Microsoft accounts (e.g., Skype, Xbox)_
+- **Redirect URI**:  
+  - Platform: _Web_  
+  - URI: `http://localhost:8080`
   
-   Click the **Register** button.
+Click the **Register** button.
 
 ![Bing New App](res/bing_newapp.png)
 
-1. In your registered app, go to **Client credentials** -> **Add a certificate or secret**.
+## Step 2: Generate Client Credentials
+
+In your registered app, go to **Client credentials** -> **Add a certificate or secret**.
 
 ![Bing Create Secret](res/bing_createsecret.png)
 
-1. Click **New client secret**.
-1. Provide a description (e.g., *Client secret for OWOX App*), choose the maximum expiration period (*730 days*), and click **Add**.
+Click **New client secret**.
+
+Provide a description (e.g., _Client secret for OWOX App_), choose the maximum expiration period (_730 days_), and click **Add**.
 
 ![Bing New Secret](res/bing_newsecret.png)
 
@@ -51,19 +53,26 @@ At this point, you have:
 - **Client Secret**
 - **Redirect URI**: `http://localhost:8080`
 
-Go to [https://ads.microsoft.com/](https://ads.microsoft.com/) and log in to your Bing Ads account. The **URL** of your account contains the **Account ID** and **Customer ID**. Copy both values.
+## Step 3: Get Account ID and Customer ID
+
+1. Go to [https://ads.microsoft.com/](https://ads.microsoft.com/) and log in to your Bing Ads account.  
+2. Your **Account ID** and **Customer ID** can be found in the URL.
 
 ![Bing Add Account](res/bing_addaccount.png)
 
-1. In the Bing Ads interface, go to **Settings → Developer Settings**.
+## Step 4: Get Your Developer Token
+
+In the Bing Ads interface, go to **Settings → Developer Settings**.  
 
 ![Bing Developer](res/bing_developer.png)
 
-1. Click **Request Token**, and copy the generated **Developer Token**.
+Click **Request Token**, and copy the generated **Developer Token**.  
 
 ![Bing Request](res/bing_request.png)
 
-1. Great! Create a URL by replacing `CLIENTID` with your **Client ID**:
+## Step 5: Generate an Authorization Code
+
+Great! Create a URL by replacing `CLIENTID` with your **Client ID**:
 `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=CLIENTID&response_type=code&redirect_uri=http://localhost:8080&scope=https://ads.microsoft.com/msads.manage offline_access`
 
 Open the URL in your browser. Log in and authorize the app by clicking **Accept**. After authorization, you will be redirected to:  
@@ -77,7 +86,9 @@ Copy the `code` value from the URL.
 >Your **Authorization Code** is:  
 >`M.C519_BAY.2.U.0a895e39-774a-e677-b4bb-8589ce3e0beb`
 
-1. Exchange this code for a refresh token by making a GET request to
+## Step 6: Exchange Authorization Code for a Refresh Token
+
+Exchange this code for a refresh token by making a GET request to
 `https://login.microsoftonline.com/common/oauth2/v2.0/token`
 with the following parameters (as form data or in the body of the request):
 
@@ -94,4 +105,15 @@ After a successful request, you will receive a **Refresh Token** in the response
 
 ![Bing Refresh](res/bing_refresh.png)
 
-You now have all the required credentials to use the Bing Ads source.
+## ✅ Final Summary
+
+At this point, you should have the following credentials:
+
+- **Account ID**  
+- **Customer ID**  
+- **Developer Token**  
+- **Client ID**  
+- **Client Secret**  
+- **Refresh Token**
+
+These credentials are required to connect to the Bing Ads source and begin importing your advertising data.

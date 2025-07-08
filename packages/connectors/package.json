@@ -1,6 +1,6 @@
 {
   "name": "@owox/connectors",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Connectors and storages for different data sources",
   "license": "MIT",
   "publishConfig": {
@@ -18,8 +18,8 @@
     "lint:fix": "eslint . --fix --config ./eslint.config.js",
     "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",
     "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json}\""
+    "format": "prettier --write \"**/*.{js,mjs,json}\"",
+    "format:check": "prettier --check \"**/*.{js,mjs,json}\""
   },
   "files": [
     "dist/**/*.js",
