@@ -16,7 +16,6 @@ import { Button } from '../../../../shared/components/Button';
 import { DataMartDefinitionType, DataMartStatus, getValidationErrorMessages } from '../../shared';
 import { toast } from 'react-hot-toast';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
-import { CardSkeleton } from '../../../../shared/components/CardSkeleton';
 
 interface DataMartDetailsProps {
   id: string;
@@ -72,15 +71,11 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   };
 
   if (isLoading) {
-    return (
-      <div className='dm-page-header'>
-        <CardSkeleton />
-      </div>
-    );
+    // Loading data mart details...
   }
 
   if (!dataMart) {
-    return <div className='dm-page-header'>No data mart found</div>;
+    return <div className='p-4'>No data mart found</div>;
   }
 
   return (
