@@ -97,7 +97,7 @@ function createPreCommitHook() {
     mkdirSync(huskyDir, { recursive: true });
   }
 
-  const command = 'npm run lint:staged';
+  const command = 'npm run pre-commit';
   const hookContent = generateHookContent(command);
   const hookPath = join(huskyDir, 'pre-commit');
 

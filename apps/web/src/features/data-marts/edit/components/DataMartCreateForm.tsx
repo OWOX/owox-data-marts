@@ -56,7 +56,9 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
       }}
       className='space-y-4'
     >
-      {serverError && <div className='rounded bg-red-100 p-3 text-red-700'>{serverError}</div>}
+      {serverError && (
+        <div className='rounded bg-red-100 p-3 text-red-700'>{serverError.message}</div>
+      )}
 
       <div>
         <Label htmlFor='title' className='mb-1 block text-sm font-medium'>

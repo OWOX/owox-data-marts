@@ -5,16 +5,6 @@ import { Report } from '../../../entities/report.entity';
 import { ReportDataDescription } from '../../../dto/domain/report-data-description.dto';
 import { ReportDataBatch } from '../../../dto/domain/report-data-batch.dto';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
-import {
-  isSqlDefinition,
-  isTableDefinition,
-  isTablePatternDefinition,
-  isViewDefinition,
-  isConnectorDefinition,
-} from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
-import { SqlDefinition } from '../../../dto/schemas/data-mart-table-definitions/sql-definition.schema';
-import { ViewDefinition } from '../../../dto/schemas/data-mart-table-definitions/view-definition.schema';
-import { TableDefinition } from '../../../dto/schemas/data-mart-table-definitions/table-definition.schema';
 import { DataStorage } from '../../../entities/data-storage.entity';
 import { AthenaApiAdapter } from '../adapters/athena-api.adapter';
 import { AthenaApiAdapterFactory } from '../adapters/athena-api-adapter.factory';
@@ -22,7 +12,7 @@ import { S3ApiAdapter } from '../adapters/s3-api.adapter';
 import { S3ApiAdapterFactory } from '../adapters/s3-api-adapter.factory';
 import { isAthenaCredentials } from '../../data-storage-credentials.guards';
 import { isAthenaConfig } from '../../data-storage-config.guards';
-import { ConnectorDefinition } from 'src/data-marts/dto/schemas/data-mart-table-definitions/connector-definition.schema';
+import { AthenaQueryBuilder } from './athena-query.builder';
 
 @Injectable({ scope: Scope.TRANSIENT })
 export class AthenaReportReader implements DataStorageReportReader {
@@ -38,7 +28,8 @@ export class AthenaReportReader implements DataStorageReportReader {
 
   constructor(
     private readonly athenaAdapterFactory: AthenaApiAdapterFactory,
-    private readonly s3AdapterFactory: S3ApiAdapterFactory
+    private readonly s3AdapterFactory: S3ApiAdapterFactory,
+    private readonly athenaQueryBuilder: AthenaQueryBuilder
   ) {}
 
   async prepareReportData(report: Report): Promise<ReportDataDescription> {
@@ -146,45 +137,12 @@ export class AthenaReportReader implements DataStorageReportReader {
   private async prepareQueryExecution(dataMartDefinition: DataMartDefinition): Promise<void> {
     this.logger.debug('Preparing query execution', dataMartDefinition);
     try {
-      if (isTableDefinition(dataMartDefinition)) {
-        await this.prepareTableData(dataMartDefinition);
-      } else if (isSqlDefinition(dataMartDefinition)) {
-        await this.prepareSqlData(dataMartDefinition);
-      } else if (isViewDefinition(dataMartDefinition)) {
-        await this.prepareViewData(dataMartDefinition);
-      } else if (isTablePatternDefinition(dataMartDefinition)) {
-        throw new Error('Table pattern queries are not supported in Athena');
-      } else if (isConnectorDefinition(dataMartDefinition)) {
-        await this.prepareConnectorData(dataMartDefinition);
-      } else {
-        throw new Error('Invalid data mart definition');
-      }
+      const query = this.athenaQueryBuilder.buildQuery(dataMartDefinition);
+      await this.executeQuery(query);
     } catch (error) {
       this.logger.error('Failed to prepare query execution', error);
       throw error;
     }
-  }
-
-  private async prepareSqlData(dataMartDefinition: SqlDefinition): Promise<void> {
-    await this.executeQuery(dataMartDefinition.sqlQuery);
-  }
-
-  private async prepareViewData(dataMartDefinition: ViewDefinition): Promise<void> {
-    await this.executeQuery(
-      `SELECT * FROM ${this.escapeTablePath(dataMartDefinition.fullyQualifiedName)}`
-    );
-  }
-
-  private async prepareTableData(dataMartDefinition: TableDefinition): Promise<void> {
-    await this.executeQuery(
-      `SELECT * FROM ${this.escapeTablePath(dataMartDefinition.fullyQualifiedName)}`
-    );
-  }
-
-  private async prepareConnectorData(dataMartDefinition: ConnectorDefinition): Promise<void> {
-    await this.executeQuery(
-      `SELECT * FROM ${this.escapeTablePath(dataMartDefinition.connector.storage.fullyQualifiedName)}`
-    );
   }
 
   private async executeQuery(query: string): Promise<void> {
@@ -199,14 +157,5 @@ export class AthenaReportReader implements DataStorageReportReader {
     );
 
     this.queryExecutionId = result.queryExecutionId;
-  }
-
-  private escapeTablePath(tablePath: string): string {
-    return tablePath
-      .split('.')
-      .map(identifier =>
-        identifier.startsWith('"') && identifier.endsWith('"') ? identifier : `"${identifier}"`
-      )
-      .join('.');
   }
 }

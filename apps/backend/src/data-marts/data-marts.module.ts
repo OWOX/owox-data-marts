@@ -4,10 +4,12 @@ import { DataMartController } from './controllers/data-mart.controller';
 import { DataStorageController } from './controllers/data-storage.controller';
 import { DataDestinationController } from './controllers/data-destination.controller';
 import { ReportController } from './controllers/report.controller';
+import { ScheduledTriggerController } from './controllers/scheduled-trigger.controller';
 import { CreateDataMartService } from './use-cases/create-data-mart.service';
 import { ListDataMartsService } from './use-cases/list-data-marts.service';
 import { GetDataMartService } from './use-cases/get-data-mart.service';
 import { DataMartMapper } from './mappers/data-mart.mapper';
+import { ScheduledTriggerMapper } from './mappers/scheduled-trigger.mapper';
 import { DataStorageService } from './services/data-storage.service';
 import { DataStorageMapper } from './mappers/data-storage.mapper';
 import { DataDestinationService } from './services/data-destination.service';
@@ -26,6 +28,11 @@ import { ListReportsByProjectService } from './use-cases/list-reports-by-project
 import { DeleteReportService } from './use-cases/delete-report.service';
 import { RunReportService } from './use-cases/run-report.service';
 import { UpdateReportService } from './use-cases/update-report.service';
+import { CreateScheduledTriggerService } from './use-cases/create-scheduled-trigger.service';
+import { GetScheduledTriggerService } from './use-cases/get-scheduled-trigger.service';
+import { ListScheduledTriggersService } from './use-cases/list-scheduled-triggers.service';
+import { UpdateScheduledTriggerService } from './use-cases/update-scheduled-trigger.service';
+import { DeleteScheduledTriggerService } from './use-cases/delete-scheduled-trigger.service';
 import { DataMart } from './entities/data-mart.entity';
 import { DataStorage } from './entities/data-storage.entity';
 import { DataMartRun } from './entities/data-mart-run.entity';
@@ -33,8 +40,11 @@ import { dataStorageFacadesProviders } from './data-storage-types/data-storage-f
 import { dataStorageResolverProviders } from './data-storage-types/data-storage-providers';
 import { dataDestinationFacadesProviders } from './data-destination-types/data-destination-facades';
 import { dataDestinationResolverProviders } from './data-destination-types/data-destination-providers';
+import { scheduledTriggerProviders } from './scheduled-trigger-types/scheduled-trigger-providers';
+import { scheduledTriggerFacadesProviders } from './scheduled-trigger-types/scheduled-trigger-facades';
 import { UpdateDataMartDefinitionService } from './use-cases/update-data-mart-definition.service';
 import { DataMartService } from './services/data-mart.service';
+import { ScheduledTriggerService } from './services/scheduled-trigger.service';
 import { PublishDataMartService } from './use-cases/publish-data-mart.service';
 import { UpdateDataMartDescriptionService } from './use-cases/update-data-mart-description.service';
 import { UpdateDataMartTitleService } from './use-cases/update-data-mart-title.service';
@@ -53,10 +63,23 @@ import { ConnectorMapper } from './mappers/connector.mapper';
 import { SpecificationConnectorService } from './use-cases/connector/specification-connector.service';
 import { FieldsConnectorService } from './use-cases/connector/fields-connector.service';
 import { RunDataMartService } from './use-cases/run-data-mart.service';
+import { ValidateDataMartDefinitionService } from './use-cases/validate-data-mart-definition.service';
+import { DataMartScheduledTrigger } from './entities/data-mart-scheduled-trigger.entity';
+import { SchedulerModule } from '../common/scheduler/scheduler.module';
+import { ScheduledTriggersHandlerService } from './services/scheduled-triggers-handler.service';
+import { ReportService } from './services/report.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([DataMart, DataStorage, DataDestination, Report, DataMartRun]),
+    TypeOrmModule.forFeature([
+      DataMart,
+      DataStorage,
+      DataDestination,
+      Report,
+      DataMartRun,
+      DataMartScheduledTrigger,
+    ]),
+    SchedulerModule,
   ],
   controllers: [
     DataMartController,
@@ -64,12 +87,15 @@ import { RunDataMartService } from './use-cases/run-data-mart.service';
     DataDestinationController,
     ReportController,
     ConnectorController,
+    ScheduledTriggerController,
   ],
   providers: [
     ...dataStorageResolverProviders,
     ...dataStorageFacadesProviders,
     ...dataDestinationResolverProviders,
     ...dataDestinationFacadesProviders,
+    ...scheduledTriggerProviders,
+    ...scheduledTriggerFacadesProviders,
     DataMartService,
     CreateDataMartService,
     ListDataMartsService,
@@ -82,6 +108,7 @@ import { RunDataMartService } from './use-cases/run-data-mart.service';
     DataStorageService,
     DataStorageMapper,
     DataDestinationService,
+    ValidateDataMartDefinitionService,
     DataDestinationMapper,
     ListDataStoragesService,
     ListDataDestinationsService,
@@ -109,6 +136,15 @@ import { RunDataMartService } from './use-cases/run-data-mart.service';
     SpecificationConnectorService,
     FieldsConnectorService,
     RunDataMartService,
+    ScheduledTriggersHandlerService,
+    ScheduledTriggerService,
+    ScheduledTriggerMapper,
+    CreateScheduledTriggerService,
+    GetScheduledTriggerService,
+    ListScheduledTriggersService,
+    UpdateScheduledTriggerService,
+    DeleteScheduledTriggerService,
+    ReportService,
   ],
 })
 export class DataMartsModule {}

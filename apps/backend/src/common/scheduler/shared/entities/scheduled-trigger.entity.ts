@@ -63,7 +63,7 @@ export abstract class ScheduledTrigger extends TimeBasedTrigger {
    * @param startFrom The date to start calculating the next run from
    * @throws Error if the calculated next run time is not in the future
    */
-  scheduleNextRun(startFrom: Date) {
+  scheduleNextRun(startFrom: Date = new Date()) {
     // Create a CronTime instance with the cron expression and timezone
     const cronTime = new CronTime(this.cronExpression, this.timeZone);
 

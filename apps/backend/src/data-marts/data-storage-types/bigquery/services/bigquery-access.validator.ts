@@ -7,6 +7,8 @@ import {
   ValidationResult,
 } from '../../interfaces/data-storage-access-validator.interface';
 import { DataStorageConfig } from '../../data-storage-config.type';
+import { DataStorageCredentials } from '../../data-storage-credentials.type';
+import { BigQueryApiAdapter } from '../adapters/bigquery-api.adapter';
 
 @Injectable()
 export class BigQueryAccessValidator implements DataStorageAccessValidator {
@@ -15,7 +17,7 @@ export class BigQueryAccessValidator implements DataStorageAccessValidator {
 
   async validate(
     config: DataStorageConfig,
-    credentials: Record<string, unknown>
+    credentials: DataStorageCredentials
   ): Promise<ValidationResult> {
     const configOpt = BigQueryConfigSchema.safeParse(config);
     if (!configOpt.success) {
@@ -31,8 +33,16 @@ export class BigQueryAccessValidator implements DataStorageAccessValidator {
       });
     }
 
-    // Todo implement real validation
-
-    return new ValidationResult(true);
+    const bigQueryConfig = configOpt.data;
+    const apiAdapter = new BigQueryApiAdapter(credentialsOpt.data, bigQueryConfig);
+    try {
+      await apiAdapter.checkAccess();
+      return new ValidationResult(true);
+    } catch (error) {
+      this.logger.warn('Access validation failed', error);
+      return new ValidationResult(false, 'Access validation failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 }

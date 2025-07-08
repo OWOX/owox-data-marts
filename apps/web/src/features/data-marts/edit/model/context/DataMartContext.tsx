@@ -30,6 +30,7 @@ import type {
   TablePatternDefinitionConfig,
   ViewDefinitionConfig,
 } from '../types';
+import { extractApiError } from '../../../../../app/api';
 
 // Props interface
 interface DataMartProviderProps {
@@ -50,7 +51,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     } catch (error) {
       dispatch({
         type: 'FETCH_DATA_MART_ERROR',
-        payload: error instanceof Error ? error.message : 'Failed to fetch data mart',
+        payload: extractApiError(error),
       });
     }
   }, []);
@@ -66,7 +67,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     } catch (error) {
       dispatch({
         type: 'CREATE_DATA_MART_ERROR',
-        payload: error instanceof Error ? error.message : 'Failed to create data mart',
+        payload: extractApiError(error),
       });
       throw error;
     }
@@ -82,7 +83,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     } catch (error) {
       dispatch({
         type: 'UPDATE_DATA_MART_ERROR',
-        payload: error instanceof Error ? error.message : 'Failed to update data mart',
+        payload: extractApiError(error),
       });
     }
   };
@@ -96,7 +97,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     } catch (error) {
       dispatch({
         type: 'DELETE_DATA_MART_ERROR',
-        payload: error instanceof Error ? error.message : 'Failed to delete data mart',
+        payload: extractApiError(error),
       });
     }
   };
@@ -110,7 +111,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     } catch (error) {
       dispatch({
         type: 'UPDATE_DATA_MART_TITLE_ERROR',
-        payload: error instanceof Error ? error.message : 'Failed to update data mart title',
+        payload: extractApiError(error),
       });
     }
   };
@@ -124,7 +125,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     } catch (error) {
       dispatch({
         type: 'UPDATE_DATA_MART_DESCRIPTION_ERROR',
-        payload: error instanceof Error ? error.message : 'Failed to update data mart description',
+        payload: extractApiError(error),
       });
     }
   };
@@ -197,7 +198,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     } catch (error) {
       dispatch({
         type: 'UPDATE_DATA_MART_DEFINITION_ERROR',
-        payload: error instanceof Error ? error.message : 'Failed to update data mart definition',
+        payload: extractApiError(error),
       });
     }
   };
@@ -212,7 +213,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     } catch (error) {
       dispatch({
         type: 'PUBLISH_DATA_MART_ERROR',
-        payload: error instanceof Error ? error.message : 'Failed to publish data mart',
+        payload: extractApiError(error),
       });
       throw error;
     }
@@ -227,7 +228,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     } catch (error) {
       dispatch({
         type: 'RUN_DATA_MART_ERROR',
-        payload: error instanceof Error ? error.message : 'Failed to run data mart',
+        payload: extractApiError(error),
       });
     }
   };
@@ -236,6 +237,14 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
   const reset = useCallback(() => {
     dispatch({ type: 'RESET' });
   }, []);
+
+  // Get an error message for UI display
+  const getErrorMessage = useCallback(() => {
+    if (!state.error) {
+      return null;
+    }
+    return state.error.message;
+  }, [state.error]);
 
   const value = {
     ...state,
@@ -249,6 +258,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     updateDataMartDefinition,
     publishDataMart,
     runDataMart,
+    getErrorMessage,
     reset,
   };
 

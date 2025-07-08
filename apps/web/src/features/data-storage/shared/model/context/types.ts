@@ -2,6 +2,7 @@ import React from 'react';
 import type { DataStorageList } from '../types/data-storage-list.ts';
 import type { DataStorage } from '../types/data-storage.ts';
 import type { DataStorageState } from './reducer.ts';
+import type { ApiError } from '../../../../../app/api';
 
 export enum DataStorageActionType {
   FETCH_STORAGES_START = 'FETCH_STORAGES_START',
@@ -31,19 +32,19 @@ export enum DataStorageActionType {
 export type DataStorageAction =
   | { type: DataStorageActionType.FETCH_STORAGES_START }
   | { type: DataStorageActionType.FETCH_STORAGES_SUCCESS; payload: DataStorageList }
-  | { type: DataStorageActionType.FETCH_STORAGES_ERROR; payload: string }
+  | { type: DataStorageActionType.FETCH_STORAGES_ERROR; payload: ApiError | null }
   | { type: DataStorageActionType.FETCH_STORAGE_START }
   | { type: DataStorageActionType.FETCH_STORAGE_SUCCESS; payload: DataStorage }
-  | { type: DataStorageActionType.FETCH_STORAGE_ERROR; payload: string }
+  | { type: DataStorageActionType.FETCH_STORAGE_ERROR; payload: ApiError | null }
   | { type: DataStorageActionType.CREATE_STORAGE_START }
   | { type: DataStorageActionType.CREATE_STORAGE_SUCCESS; payload: DataStorage }
-  | { type: DataStorageActionType.CREATE_STORAGE_ERROR; payload: string }
+  | { type: DataStorageActionType.CREATE_STORAGE_ERROR; payload: ApiError | null }
   | { type: DataStorageActionType.UPDATE_STORAGE_START }
   | { type: DataStorageActionType.UPDATE_STORAGE_SUCCESS; payload: DataStorage }
-  | { type: DataStorageActionType.UPDATE_STORAGE_ERROR; payload: string }
+  | { type: DataStorageActionType.UPDATE_STORAGE_ERROR; payload: ApiError | null }
   | { type: DataStorageActionType.DELETE_STORAGE_START }
   | { type: DataStorageActionType.DELETE_STORAGE_SUCCESS; payload: string }
-  | { type: DataStorageActionType.DELETE_STORAGE_ERROR; payload: string }
+  | { type: DataStorageActionType.DELETE_STORAGE_ERROR; payload: ApiError | null }
   | { type: DataStorageActionType.CLEAR_CURRENT_STORAGE }
   | { type: DataStorageActionType.CLEAR_ERROR };
 

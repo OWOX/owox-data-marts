@@ -2,35 +2,42 @@
 
 To connect to the Reddit Ads API and start importing data into Google Sheets or Google BigQuery, follow the steps below:
 
-1. Visit the [Reddit Preferences page](https://www.reddit.com/prefs/apps) and log in with your Reddit account, or create a new one.
+## Step 1: Create a Reddit App
 
-1. Click the **Create App** button.  
+Visit the [Reddit Preferences page](https://www.reddit.com/prefs/apps) and log in with your Reddit account, or create a new one.
+
+Click the **Create App** button.  
 
 ![Reddit creating app](res/reddit_createapp.png)
 
-1. Fill in the form:
-   - **App Name** and **Description**
-   - **App type**: Select `script`
-   - **Redirect URI**: `http://localhost:8080`
-   - Click **Create App**
+Fill in the form:
+
+- **App Name** and **Description**
+- **App type**: Select `script`
+- **Redirect URI**: `http://localhost:8080`
+- Click **Create App**
 
 ![Reddit app name](res/reddit_appname.png)
 
-1. After creating the app, you'll see:
-   - **Client ID** (just under the app name)
-   - **Client Secret**
-   - **Redirect URI**
+After creating the app, you'll see:
+
+- **Client ID** (just under the app name)
+- **Client Secret**
+- **Redirect URI**
 
 ![Reddit app credentials](res/reddit_app_info.png)
 
-1. Go to the [Reddit API Access Request Form](https://support.reddithelp.com/hc/en-us/requests/new?ticket_form_id=14868593862164)
+## Step 2: Request Reddit API Access
+
+Go to the [Reddit API Access Request Form](https://support.reddithelp.com/hc/en-us/requests/new?ticket_form_id=14868593862164)
 
 In the form:
 
-- Select:
-  - **"I'm a Developer"**
-  - **"I want to register to use the free tier of the Reddit API"**
-- For purpose: select **Other**
+In the form, select:
+
+- **"I'm a Developer"**
+- **"I want to register to use the free tier of the Reddit API"**
+- **Purpose**: Select `Other`  
 
 ![Reddit form](res/reddit_form.png)
 
@@ -68,7 +75,9 @@ Finalize the request:
 
 ![Reddit form](res/reddit_form_4.png)
 
-1. To obtain the authorization code, use the following URL (replace `YOUR_CLIENT_ID` and `RANDOM_STRING` accordingly, for example, **abc123**):
+## Step 3: Generate the Authorization Code
+
+To obtain the authorization code, use the following URL (replace `YOUR_CLIENT_ID` and `RANDOM_STRING` accordingly, for example, **abc123**):
 
 ```text # Reddit Authorization URL
 https://www.reddit.com/api/v1/authorize
@@ -91,7 +100,9 @@ Copy the value of the `code` parameter — in this example, `bLcIq0FR9-8hjOpklbx
 
 ![Reddit code](res/reddit_code.png)
 
-1. Use Postman to exchange the authorization code for a refresh token.
+## Step 4: Exchange Authorization Code for a Refresh Token
+
+Use Postman to exchange the authorization code for a refresh token.
 
 **Parameters:**
 
@@ -106,12 +117,15 @@ Copy the value of the `code` parameter — in this example, `bLcIq0FR9-8hjOpklbx
 
 ![Reddit refresh](res/reddit_refresh.png)
 
-**User-Agent**:  
-Use the following format:
+## Step 5: Set the User-Agent Header
+
+Reddit requires a properly formatted `User-Agent` header for all API requests. Use the following format:
 
 `googleapps:owox-data-marts.redditads:v1.0.0 (by /u/client_reddit_username)`
 
-Replace `client_reddit_username` with your actual Reddit username. For more info on best practices for User-Agent, see [Reddit's API Guidelines](https://github.com/reddit-archive/reddit/wiki/API).
+> Replace `client_reddit_username` with your actual Reddit username.
+
+For more info on best practices for User-Agent, refer to the [Reddit's API Guidelines](https://github.com/reddit-archive/reddit/wiki/API).
 
 ## ✅ You're Ready
 

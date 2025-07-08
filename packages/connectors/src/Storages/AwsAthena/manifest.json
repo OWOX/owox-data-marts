@@ -1,42 +1,41 @@
 {
-    "name": "AwsAthenaStorage",
-    "description": "Storage for AWS Athena",
-    "version": "0.0.0",
-    "author": "OWOX, Inc.",
-    "license": "MIT",
-    "environment": {
-        "node": {
-            "enabled": true,
-            "dependencies": [
-                {
-                    "name": "@aws-sdk/client-athena",
-                    "version": "3.810.0",
-                    "global": [
-                        "AthenaClient",
-                        "StartQueryExecutionCommand",
-                        "GetQueryExecutionCommand",
-                        "GetQueryResultsCommand",
-                        "ListWorkGroupsCommand"
-                    ]
-                },  
-                {
-                    "name": "@aws-sdk/client-s3",
-                    "version": "3.810.0",
-                    "global": [
-                        "S3Client",
-                        "DeleteObjectsCommand",
-                        "ListObjectsV2Command",
-                        "ListBucketsCommand"
-                    ]
-                },
-                {
-                    "name": "@aws-sdk/lib-storage",
-                    "version": "3.810.0",
-                    "global": [
-                        "Upload"
-                    ]
-                }
-            ]
+  "name": "AwsAthenaStorage",
+  "description": "Storage for AWS Athena",
+  "title": "AWS Athena",
+  "version": "0.0.0",
+  "author": "OWOX, Inc.",
+  "license": "MIT",
+  "environment": {
+    "node": {
+      "enabled": true,
+      "dependencies": [
+        {
+          "name": "@aws-sdk/client-athena",
+          "version": "3.810.0",
+          "global": [
+            "AthenaClient",
+            "StartQueryExecutionCommand",
+            "GetQueryExecutionCommand",
+            "GetQueryResultsCommand",
+            "ListWorkGroupsCommand"
+          ]
+        },
+        {
+          "name": "@aws-sdk/client-s3",
+          "version": "3.810.0",
+          "global": [
+            "S3Client",
+            "DeleteObjectsCommand",
+            "ListObjectsV2Command",
+            "ListBucketsCommand"
+          ]
+        },
+        {
+          "name": "@aws-sdk/lib-storage",
+          "version": "3.810.0",
+          "global": ["Upload"]
         }
+      ]
     }
+  }
 }

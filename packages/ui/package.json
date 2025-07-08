@@ -9,7 +9,9 @@
   "scripts": {
     "lint": "eslint . --max-warnings 0",
     "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",
-    "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix"
+    "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css}\""
   },
   "dependencies": {
     "@floating-ui/react-dom": "^2.1.3",

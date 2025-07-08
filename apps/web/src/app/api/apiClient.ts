@@ -1,5 +1,6 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig, AxiosError } from 'axios';
 import toast from 'react-hot-toast';
+import type { ApiError } from './api-error.interface.ts';
 
 // Default config for the axios instance
 const axiosConfig: AxiosRequestConfig = {
@@ -21,12 +22,7 @@ apiClient.interceptors.response.use(
   response => response,
   (error: AxiosError) => {
     if (error.response && error.response.status === 400) {
-      const data = error.response.data as {
-        statusCode: number;
-        timestamp: string;
-        path: string;
-        message: string;
-      };
+      const data = error.response.data as ApiError;
 
       toast.error(data.message);
     }

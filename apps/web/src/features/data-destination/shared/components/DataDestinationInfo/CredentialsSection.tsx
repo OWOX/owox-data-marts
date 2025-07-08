@@ -18,10 +18,8 @@ export const CredentialsSection = ({ type, credentials }: CredentialsSectionProp
   }
 
   switch (type) {
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     case DataDestinationType.GOOGLE_SHEETS: {
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      const isValid = credentials && isGoogleServiceAccountCredentials(credentials);
+      const isValid = isGoogleServiceAccountCredentials(credentials);
       const serviceAccountValue = isValid ? String(credentials.serviceAccount) : undefined;
       return (
         <div className='grid gap-2'>

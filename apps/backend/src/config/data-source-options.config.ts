@@ -1,9 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { DataSourceOptions, LoggerOptions } from 'typeorm';
-import { Logger } from '@nestjs/common';
+import { createLogger } from '../common/logger/logger.service';
 import { getSqliteDatabasePath } from './get-sqlite-database-path';
-
-const logger = new Logger('DataSourceOptions');
 
 export enum DbType {
   sqlite = 'sqlite',
@@ -11,6 +9,8 @@ export enum DbType {
 }
 
 export function createDataSourceOptions(config: ConfigService): DataSourceOptions {
+  const logger = createLogger('DataSourceOptions');
+
   const dbType = config.get<DbType>('DB_TYPE') ?? DbType.sqlite;
   logger.log(
     `Using DB_TYPE: ${config.get('DB_TYPE') ? `${dbType} (from env)` : `${dbType} (default)`}`

@@ -269,7 +269,7 @@ export function DataMartTable<TData, TValue>({
                       return;
                     }
                     const id = (row.original as { id: string }).id;
-                    void navigate(`/data-marts/${id}/overview`);
+                    void navigate(`/data-marts/${id}/data-setup`);
                   }}
                 >
                   {row.getVisibleCells().map(cell => (

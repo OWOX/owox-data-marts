@@ -1,31 +1,32 @@
 {
-    "name": "GoogleBigQueryStorage",
-    "description": "Storage for Google BigQuery",
-    "version": "0.0.0",
-    "author": "OWOX, Inc.",
-    "license": "MIT",
-    "environment": {
-        "node": {
-            "enabled": true,
-            "dependencies": [{
-                "name": "@google-cloud/bigquery",
-                "version": "^8.0.0",
-                "global": [
-                    "BigQuery"
-                ]
-            }]
-        },
-        "appscript": {
-            "enabled": true,
-            "dependencies": {
-                "enabledAdvancedServices": [
-                    {
-                      "userSymbol": "BigQuery",
-                      "version": "v2",
-                      "serviceId": "bigquery"
-                    }
-                  ]
-            }
+  "name": "GoogleBigQueryStorage",
+  "description": "Storage for Google BigQuery",
+  "title": "Google BigQuery",
+  "version": "0.0.0",
+  "author": "OWOX, Inc.",
+  "license": "MIT",
+  "environment": {
+    "node": {
+      "enabled": true,
+      "dependencies": [
+        {
+          "name": "@google-cloud/bigquery",
+          "version": "^8.0.0",
+          "global": ["BigQuery"]
         }
+      ]
+    },
+    "appscript": {
+      "enabled": true,
+      "dependencies": {
+        "enabledAdvancedServices": [
+          {
+            "userSymbol": "BigQuery",
+            "version": "v2",
+            "serviceId": "bigquery"
+          }
+        ]
+      }
     }
+  }
 }

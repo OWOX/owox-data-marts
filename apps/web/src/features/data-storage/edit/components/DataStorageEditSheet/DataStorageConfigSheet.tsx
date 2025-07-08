@@ -25,9 +25,9 @@ export function DataStorageConfigSheet({
       const updatedStorage = await updateDataStorage(dataStorage.id, data);
       if (updatedStorage) {
         onSaveSuccess(updatedStorage);
+        onClose();
       }
     }
-    onClose();
   };
 
   return (

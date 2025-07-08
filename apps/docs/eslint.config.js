@@ -1,4 +1,4 @@
-import { config } from '@owox/eslint-config/base';
+import { config as baseConfig } from '@owox/eslint-config/base';
 import globals from 'globals';
 
 export default [
