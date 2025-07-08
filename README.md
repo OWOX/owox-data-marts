@@ -15,7 +15,7 @@ We want to empower **every business to become data owners** by importing their d
 OWOX Data Marts is a growing library of JavaScript-based **connectors** that:
 
 - Pull data from **any APIs** like Facebook, TikTok, LinkedIn, etc.
-- Run inside Google Sheets (via Apps Script) or Google Cloud (for BigQuery)
+- Run inside **YOUR** Google Sheet (via Apps Script)
 - Require **no external platforms** or credentials sharing
 - Doesn't require **ANY data engineering resources**
 - Are 100% open-source and **customizable**
@@ -64,6 +64,25 @@ If you experience any **issues** or want to report a bug, please open an [issue]
 **To become a part of the Core team**, please start by submitting a pull request to the Core part of the product. Understanding TypeScript, Git, and software development is required.
 
 **To get support**, please [visit Q&A](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) first.
+
+## 🎥 Watch the Webinar - *Own Your Data*
+
+[![Own Your Data — Webinar Thumbnail](https://img.youtube.com/vi/nQYfHX-IjY8/maxresdefault.jpg)](https://www.youtube.com/live/nQYfHX-IjY8?t=66s)
+
+**Own Your Data: How Data Analysts Can Connect Any Data**  
+Learn how to collect and automate marketing, financial, and any other data into Google Sheets or BigQuery — with **zero engineering help** and **no SaaS subscriptions**.
+
+▶️ [**Watch the Replay on YouTube**](https://www.youtube.com/live/nQYfHX-IjY8?t=66s)
+
+What you'll learn:
+- Why data access is broken (and how to fix it)
+- Facebook Ads → Sheets and TikTok Ads → BigQuery — **live demos**
+- How to automate reporting across clients without SaaS limits
+- How to contribute, customize, and grow the connector library
+
+🎯 **For**: Data analysts at agencies, startups, enterprises, or doing solo  
+🛠️ **Includes**: Free templates & walkthroughs  
+🎙️ **Hosted by**: [Ievgen Krasovytskyi](https://www.linkedin.com/in/ievgenkrasovytskyi/)
 
 ## 🧑‍💻 Contribute or Build Your Own
 
