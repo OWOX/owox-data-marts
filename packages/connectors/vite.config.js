@@ -458,7 +458,7 @@ class ConnectorBuilder {
       },
     };
 
-    await fs.writeJSON(path.join(this.distDir, 'manifest.json'), manifest, { spaces: 2 });
+    await fs.writeJSON(path.join(this.tempDir, 'manifest.json'), manifest, { spaces: 2 });
     console.log('✅ Generated manifest.json');
   }
 }
