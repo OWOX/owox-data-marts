@@ -10,6 +10,7 @@ const { site, base } = getConfig();
 export default defineConfig({
   site,
   base,
+  trailingSlash: 'always',
   integrations: [
     starlight({
       title: 'OWOX Docs',

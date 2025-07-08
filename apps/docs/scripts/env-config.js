@@ -1,3 +1,5 @@
+// @ts-check
+
 export const getConfig = () => {
   const { NODE_ENV, DOCS_SITE, DOCS_BASE } = process.env;
 

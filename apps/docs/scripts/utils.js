@@ -1,3 +1,4 @@
+// @ts-check
 import path from 'node:path';
 
 /**
@@ -104,4 +105,25 @@ export function isLocalLinkPathInSameDirectory(linkPath) {
     linkPath !== './' &&
     linkPath.split('/').length === 2
   );
+}
+
+/**
+ * Normalizes the suffix for a directory-style URL.
+ * If the path contains a hash (#), ensures there is a slash before it.
+ * If there is no hash, adds a trailing slash to the path.
+ *
+ * @param {string} linkPath - The input path or URL.
+ * @returns {string} - The normalized path with the correct suffix for a directory-style URL.
+ */
+export function normalizeSuffixForDirectoryStyleURL(linkPath) {
+  let result = '';
+  if (linkPath.includes('/#')) {
+    result = linkPath;
+  } else if (linkPath.includes('#')) {
+    result = linkPath.replace('#', '/#');
+  } else {
+    result = linkPath + '/';
+  }
+
+  return result;
 }

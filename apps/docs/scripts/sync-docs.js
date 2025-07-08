@@ -1,3 +1,4 @@
+// @ts-check
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,9 +10,7 @@ import {
   toTitleCase,
   normalizePathSeparators,
   normalizePathToKebabCase,
-  normalizePathToKebabCaseForURL,
-  normalizePrefixForLocalLinkPath,
-  isLocalLinkPathInSameDirectory,
+  normalizeSuffixForDirectoryStyleURL,
 } from './utils.js';
 
 // CONFIGURATION
@@ -251,17 +250,17 @@ function processDocumentLinks(fileContent, filePaths) {
     } else if (originalLinkPath.startsWith('#')) {
       normalizedLinkPath = originalLinkPath;
     } else {
-      normalizedLinkPath = normalizePathToKebabCaseForURL(originalLinkPath).replace(/\.md/, '');
-      normalizedLinkPath = normalizePrefixForLocalLinkPath(normalizedLinkPath);
+      const absoluteLinkPath = path.join(path.dirname(filePaths.sourcePath), originalLinkPath);
+      const relativeLinkPath = path.relative(MONOREPO_ROOT, absoluteLinkPath);
+      const normalizedRelativePath = normalizePathToKebabCase(relativeLinkPath);
+      const destLinkAbsPath = path.join(CONTENT_DEST_PATH, normalizedRelativePath);
+      let destLinkUrl = normalizePathSeparators(path.relative(CONTENT_DEST_PATH, destLinkAbsPath));
+      destLinkUrl = destLinkUrl === 'readme.md' ? '' : destLinkUrl;
+      destLinkUrl = baseURL + '/' + destLinkUrl.replace(/\.md/, '');
 
-      if (isLocalLinkPathInSameDirectory(normalizedLinkPath)) {
-        // convert to absolute path and add base path on site
-        normalizedLinkPath =
-          baseURL +
-          '/' +
-          normalizePathToKebabCaseForURL(path.dirname(filePaths.relativePath)) +
-          normalizedLinkPath.substring(1);
-      }
+      normalizedLinkPath = normalizeSuffixForDirectoryStyleURL(destLinkUrl)
+        .replace('//', '/')
+        .replace('/readme/#', '/#');
     }
 
     fileContent = fileContent.replace(fullMatch, `[${linkText}](${normalizedLinkPath})`);
