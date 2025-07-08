@@ -5,7 +5,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
-import { ChevronDown, Globe, AlertCircle, Scale, MessageCircle } from 'lucide-react';
+import { ChevronDown, Gem, AlertCircle, Scale, MessageCircle } from 'lucide-react';
 import { useRef, useState, useLayoutEffect } from 'react';
 import Logo from '../Logo';
 import { GitHubIcon } from '../../shared';
@@ -32,9 +32,9 @@ const menuItems: MenuItem[] = [
     icon: GitHubIcon,
   },
   {
-    title: 'OWOX Website',
-    href: 'https://www.owox.com/',
-    icon: Globe,
+    title: 'Discover Upgrade Options',
+    href: 'https://www.owox.com/pricing/?utm_source=bi_owox_com&utm_medium=community_edition&utm_campaign=pricing&utm_keyword=upgrade_options&utm_content=header_dropdown',
+    icon: Gem,
   },
   {
     type: 'separator',
