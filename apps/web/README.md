@@ -1,7 +1,5 @@
 # Web Application
 
-## Overview
-
 This is the web interface for OWOX Data Marts - an open-source solution for Data Analysts. This web application provides a user-friendly interface for managing Data Marts.
 
 ## Technologies Used

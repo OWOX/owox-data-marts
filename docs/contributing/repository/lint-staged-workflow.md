@@ -1,7 +1,5 @@
 # Linters
 
-## Overview
-
 OWOX Data Marts uses **distributed lint-staged configurations** following [official best practices](https://github.com/okonet/lint-staged#how-to-use-lint-staged-in-a-multi-package-monorepo) for multi-package monorepos.
 
 ## 🔄 Workflow Diagram

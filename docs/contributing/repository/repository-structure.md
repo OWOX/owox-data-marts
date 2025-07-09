@@ -2,8 +2,6 @@
 
 This document describes the structure of the OWOX Data Marts monorepo, which is organized to separate deployable applications from shared packages.
 
-## Overview
-
 The monorepo is divided into two main sections:
 
 - `apps/` - Contains deployable applications and runtimes

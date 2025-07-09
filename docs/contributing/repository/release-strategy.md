@@ -1,7 +1,5 @@
 # Release & Versioning Strategy
 
-## Overview
-
 This repository follows a structured release strategy with the following principles:
 
 - **Long-term API stability**: Avoid breaking changes for OSS and Cloud
