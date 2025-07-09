@@ -44,6 +44,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     { name: 'Overview', path: 'overview' },
     { name: 'Data Setup', path: 'data-setup' },
     { name: 'Destinations', path: 'reports' },
+    { name: 'Triggers', path: 'triggers' },
   ];
 
   const handleTitleUpdate = async (newTitle: string) => {
