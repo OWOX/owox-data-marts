@@ -40,7 +40,9 @@
     "format:check": "npm run format:check --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "test:coverage": "npm run test:coverage --workspaces --if-present",
-    "postinstall": "node tools/setup-husky.mjs || echo 'Warning: Git hooks setup failed'",
+    "setup:husky": "node tools/setup-husky.mjs",
+    "prepare": "husky",
+    "postinstall": "npm run setup:husky || echo 'Warning: Git hooks setup failed'",
     "migration:run": "npm run migration:run -w @owox/backend",
     "migration:revert": "npm run migration:revert -w @owox/backend",
     "migration:create": "npm run migration:create -w @owox/backend"
