@@ -1,4 +1,4 @@
-# Lint-staged Workflow for OWOX Data Marts
+# Linters
 
 ## Overview
 

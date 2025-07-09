@@ -1,10 +1,10 @@
-# Contributing
+# Contributing & Advanced Usage
+
+> This document is intended for contributors and advanced users who want to work on the OWOX Data Marts CLI locally, customize its behavior, or understand its internal structure.
+>
+> If you're just looking to **get started quickly**, please refer to the [Quick Start guide](../../docs/getting-started/quick-start.md).
 
 A command-line interface for running OWOX Data Marts application. This CLI provides a simple way to start the pre-built OWOX Data Marts server with frontend and backend components.
-
-[![oclif](https://img.shields.io/badge/cli-oclif-brightgreen.svg)](https://oclif.io)
-[![Version](https://img.shields.io/npm/v/owox.svg)](https://npmjs.org/package/owox)
-[![Downloads/week](https://img.shields.io/npm/dw/owox.svg)](https://npmjs.org/package/owox)
 
 <!-- toc -->
 
@@ -13,12 +13,6 @@ A command-line interface for running OWOX Data Marts application. This CLI provi
 - [Commands](#commands)
 - [FAQ: Understanding the `bin` Folder](#faq)
 <!-- tocstop -->
-
-## Contributing & Advanced Usage
-
-This document is intended for contributors and advanced users who want to work on the OWOX Data Marts CLI locally, customize its behavior, or understand its internal structure.
-
-If you're just looking to **get started quickly**, please refer to the [Quick Start guide](./README.md).
 
 ## Usage
 
@@ -94,8 +88,6 @@ EXAMPLES
   $ PORT=8080 owox serve
 ```
 
-_See code: [src/commands/serve.ts](https://github.com/OWOX/owox-data-marts/blob/v0.0.0/src/commands/serve.ts)_
-
 ## `owox help [COMMAND]`
 
 Display help for owox.
@@ -113,8 +105,6 @@ FLAGS
 DESCRIPTION
   Display help for owox.
 ```
-
-_See code: [@oclif/plugin-help](https://github.com/oclif/plugin-help/blob/v6.0.21/src/commands/help.ts)_
 
 <!-- commandsstop -->
 

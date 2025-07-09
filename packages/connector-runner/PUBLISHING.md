@@ -1,10 +1,10 @@
-# Publishing Guide for @owox/connector-runner
+# Publishing
 
 This guide explains the automated publishing process for the OWOX Data Marts Connector Runner package to npm.
 
 ## Overview
 
-The `@owox/connector-runner` package is published automatically through GitHub Actions. For detailed information about the release strategy, versioning, installation commands, security guidelines, and troubleshooting, see the [Release & Versioning Strategy](../../docs/release-strategy.md).
+The `@owox/connector-runner` package is published automatically through GitHub Actions. For detailed information about the release strategy, versioning, installation commands, security guidelines, and troubleshooting, see the [Release & Versioning Strategy](../../docs/contributing/repository/release-strategy.md).
 
 ## Automated Publishing Process
 

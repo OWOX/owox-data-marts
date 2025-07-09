@@ -1,4 +1,4 @@
-# OWOX Data Marts Monorepo Structure
+# Repository Structure
 
 This document describes the structure of the OWOX Data Marts monorepo, which is organized to separate deployable applications from shared packages.
 

@@ -1,4 +1,4 @@
-# OWOX Web Application
+# Web Application
 
 ## Overview
 
