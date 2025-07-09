@@ -37,7 +37,7 @@ import {
 } from '@owox/ui/components/alert-dialog';
 import { Check, Search, Trash2, Plus } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
-import { EmptyDataMartsState } from './EmptyDataMartsState';
+import { EmptyDataMartsState } from './components/EmptyDataMartsState';
 import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
 
 interface DataTableProps<TData, TValue> {

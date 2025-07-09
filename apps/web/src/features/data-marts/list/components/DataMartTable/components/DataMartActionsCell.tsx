@@ -9,9 +9,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
-import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
-import type { DataMartListItem } from '../../model/types';
-import { useDataMartList } from '../../model/hooks';
+import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog';
+import type { DataMartListItem } from '../../../model/types';
+import { useDataMartList } from '../../../model/hooks';
 
 interface DataMartActionsCellProps {
   row: { original: DataMartListItem };

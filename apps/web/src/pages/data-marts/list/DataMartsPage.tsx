@@ -4,7 +4,7 @@ import {
   useDataMartList,
 } from '../../../features/data-marts/list';
 import { useEffect } from 'react';
-import { getDataMartColumns } from '../../../features/data-marts/list/components/DataMartTable/columns.tsx';
+import { getDataMartColumns } from '../../../features/data-marts/list/components/DataMartTable/columns/columns.tsx';
 
 const DataMartTableWithContext = () => {
   const { items, loadDataMarts, deleteDataMart, refreshList, loading } = useDataMartList();

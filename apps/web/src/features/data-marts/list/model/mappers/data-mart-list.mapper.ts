@@ -8,6 +8,8 @@ export function mapDataMartListFromDto(datamartsDto: DataMartListResponseDto): D
     title: dmart.title,
     status: DataMartStatusModel.getInfo(dmart.status),
     storageType: dmart.storage.type,
+    storageTitle: dmart.storage.title || undefined,
+    definitionType: dmart.definitionType,
     createdAt: new Date(dmart.createdAt),
     modifiedAt: new Date(dmart.modifiedAt),
   }));
