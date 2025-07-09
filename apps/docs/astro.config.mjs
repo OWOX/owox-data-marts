@@ -16,7 +16,7 @@ export default defineConfig({
       title: 'OWOX Docs',
       favicon: 'favicon.png',
       logo: {
-        src: 'logo.svg',
+        src: './public/logo.svg',
       },
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/OWOX/owox-data-marts' },
