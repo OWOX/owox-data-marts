@@ -6,7 +6,7 @@ import {
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
 import { ChevronDown, Gem, AlertCircle, Scale, MessageCircle } from 'lucide-react';
-import { useRef, useState, useLayoutEffect } from 'react';
+import { useState } from 'react';
 import Logo from '../Logo';
 import { GitHubIcon } from '../../shared';
 
@@ -40,7 +40,7 @@ const menuItems: MenuItem[] = [
     type: 'separator',
   },
   {
-    title: 'Discussions',
+    title: 'Leave your feedback',
     href: 'https://github.com/OWOX/owox-data-marts/discussions',
     icon: MessageCircle,
   },
@@ -61,14 +61,6 @@ const menuItems: MenuItem[] = [
 
 export function SidebarHeaderDropdown() {
   const [isOpen, setIsOpen] = useState(false);
-  const [width, setWidth] = useState(0);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-
-  useLayoutEffect(() => {
-    if (triggerRef.current) {
-      setWidth(triggerRef.current.offsetWidth);
-    }
-  }, []);
 
   return (
     <div data-slot='sidebar-header' data-sidebar='header' className='flex flex-col gap-2'>
@@ -85,7 +77,6 @@ export function SidebarHeaderDropdown() {
           <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
             <DropdownMenuTrigger asChild>
               <button
-                ref={triggerRef}
                 type='button'
                 data-slot='dropdown-menu-trigger'
                 data-sidebar='menu-button'
@@ -113,12 +104,7 @@ export function SidebarHeaderDropdown() {
               </button>
             </DropdownMenuTrigger>
 
-            <DropdownMenuContent
-              align='start'
-              sideOffset={8}
-              style={{ width: width > 0 ? width : undefined }}
-              className='w-[var(--radix-dropdown-trigger-width)]'
-            >
+            <DropdownMenuContent align='start' sideOffset={8} className='min-w-max'>
               {menuItems.map((item, index) => {
                 if (item.type === 'separator') {
                   return <DropdownMenuSeparator key={`separator-${String(index)}`} />;
