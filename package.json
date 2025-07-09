@@ -42,7 +42,7 @@
     "test:coverage": "npm run test:coverage --workspaces --if-present",
     "setup:husky": "node tools/setup-husky.mjs",
     "prepare": "husky",
-    "postinstall": "npm run setup:husky || echo 'Warning: Git hooks setup failed'",
+    "postinstall": "node -e \"process.env.DISABLE_HUSKY ? console.log('Skipping husky setup') : require('./tools/setup-husky.mjs')\" || echo 'Warning: Git hooks setup failed'",
     "migration:run": "npm run migration:run -w @owox/backend",
     "migration:revert": "npm run migration:revert -w @owox/backend",
     "migration:create": "npm run migration:create -w @owox/backend"
