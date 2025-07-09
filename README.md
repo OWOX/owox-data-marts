@@ -2,9 +2,8 @@
 
 ## 🏷 Free, Open-Source Connectors for Data Analysts
 
-Collect any marketing, financial, or CRM data into Google Sheets or BigQuery — for free.  
-No vendors. No lock-in. No permissions sharing with 3-rd parties.
-Just JavaScript + full control for you.
+Collect any marketing, financial, or CRM data into **AWS Athena**, **Google BigQuery**, or **Google Sheets** — for free.
+No vendors. No lock-in. No permissions sharing with 3-rd parties. Just JavaScript + full control for you.
 
 [🌐 Website](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) | [💬 Join Community](https://github.com/OWOX/owox-data-marts/discussions) | [🆘 Create an Issue](https://github.com/OWOX/owox-data-marts/issues)
 ![JavaScript Open-Source Connectors](packages/connectors/res/main-cover.png)
@@ -17,7 +16,7 @@ We want to empower **every business to become data owners** by importing their d
 OWOX Data Marts is a growing library of JavaScript-based **connectors** that:
 
 - Pull data from **any APIs** like Facebook, TikTok, LinkedIn, etc.
-- Run inside **YOUR** Google Sheet (via Apps Script)
+- Run inside **YOUR** Google Sheet (via Apps Script) or infrastructure (via Node.js)
 - Require **no external platforms** or credentials sharing
 - Doesn't require **ANY data engineering resources**
 - Are 100% open-source and **customizable**
@@ -44,16 +43,23 @@ Whether you're an analyst at an agency, a startup, or in a huge enterprise, this
 | Shopify Ads                   | ⚪️ In Discussion  | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/63)                                                                                                                                                                  |
 | Google Business Profile       | ⚪️ In Discussion  | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/61)                                                                                                                                                                  |
 
-### Data Storage Options
+### Data Storages
 
-| Name            | Status    | Links                                                                                                       |
-| --------------- | --------- | ----------------------------------------------------------------------------------------------------------- |
-| Google Sheets   | 🟢 Public | [Issues](https://github.com/OWOX/owox-data-marts/issues?q=is%3Aissue%20state%3Aopen%20label%3AGoogleSheets) |
-| Google BigQuery | 🟢 Public | [Issues](https://github.com/OWOX/owox-data-marts/issues?q=state%3Aopen%20%20label%3AGoogleBigQuery)         |
+| Name            | Status    | Environment          | Links                                                                                                       |
+| --------------- | --------- |----------------------| ----------------------------------------------------------------------------------------------------------- |
+| Google Sheets   | 🟢 Public | Apps Script          | [Readme](packages/connectors/src/Storages/GoogleSheets/README.md)                                            |
+| Google BigQuery | 🟢 Public | Node.js, Apps Script | [Readme](packages/connectors/src/Storages/GoogleBigQuery/README.md)                                          |
+| AWS Athena      | 🟢 Public | Node.js              | [Readme](packages/connectors/src/Storages/AwsAthena/README.md)                                             |
 
 If you find an integration missing, you can share your use case and request it in the [discussions](https://github.com/OWOX/owox-data-marts/discussions)
 
 ## 🧰 How It Works
+
+### Community Edition (Node.js)
+
+For detailed installation instructions, see our [Quick Start 🚀 (no-code setup)](docs/getting-started/quick-start.md).
+
+### Community Apps Script Edition
 
 - 🎯 Pick your platform (e.g. Facebook Ads) from [existing integrations](packages/connectors/src/Sources)
 - 🧾 Make a copy of the Template from the [connectors table](#-available-connectors)
@@ -61,13 +67,7 @@ If you find an integration missing, you can share your use case and request it i
 - 🚀 Run the Apps Script to pull your data
 - 📅 Schedule it (optional) for daily/weekly refreshes
 
-If you experience any **issues** or want to report a bug, please open an [issue](https://github.com/OWOX/owox-data-marts/issues).
-
-**To become a part of the Core team**, please start by submitting a pull request to the Core part of the product. Understanding TypeScript, Git, and software development is required.
-
-**To get support**, please [visit Q&A](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) first.
-
-## 🎥 Watch the Webinar - *Own Your Data*
+#### 🎥 Watch the Webinar - *Own Your Data*
 
 [![Own Your Data — Webinar Thumbnail](https://img.youtube.com/vi/nQYfHX-IjY8/maxresdefault.jpg)](https://www.youtube.com/live/nQYfHX-IjY8?t=66s)
 
@@ -107,7 +107,8 @@ Need help or want to connect with others?
 
 - 💬 [Join our Community](https://github.com/OWOX/owox-data-marts/discussions)
 - 🗨️ Ask questions or suggest features
-  We're building this **with the community**, not just for it.
+
+We're building this **with the community**, not just for it.
 
 ## 📌 License
 
@@ -115,34 +116,6 @@ OWOX Data Marts is free for internal or client use, not for resale in a competin
 
 - **Connectors** (`packages/connectors`) are distributed under the [MIT License](licenses/MIT.md)
 - **Platform** (all other files and directories) is distributed under the [ELv2 License](licenses/Elasticv2.md)
-
-## 🚀 Running the App Locally and in Production
-
-Node.js version 22.16.0 or higher is required. To run the full application (backend + frontend), use the following commands:
-
-### 🛠 Development Mode
-
-Run both the NestJS backend and the Vite frontend in watch mode:
-
-```bash
-npm run dev
-```
-
-This command uses npm-run-all to launch both services concurrently. It’s ideal for local development and live editing.
-
-## 🌐 Serve Production Build
-
-Start the NestJS server that serves static frontend files:
-
-```bash
-npm run serve
-```
-
-## 📖 Documentation
-
-- [Lint-staged Workflow](docs/lint-staged-workflow.md) - Code quality and formatting workflow
-- [Monorepo Structure](docs/monorepo-structure.md) - Project architecture and organization
-- [Migrations Guide](apps/backend/src/migrations/README.md) - Database migration workflow
 
 ---
 
