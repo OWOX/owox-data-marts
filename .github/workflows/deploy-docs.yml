@@ -23,11 +23,14 @@ jobs:
         run: npm run build:docs
         env:
           NODE_ENV: production
-          DOCS_SITE: https://owox.github.io
-          DOCS_BASE: /owox-data-marts
+          DOCS_SITE: https://docs.owox.com
+          DOCS_BASE:
 
       - name: Add .nojekyll file
         run: touch apps/docs/dist/.nojekyll
+
+      - name: Add CNAME file
+        run: echo docs.owox.com > apps/docs/dist/CNAME
 
       - name: Deploy 🚀
         uses: JamesIves/github-pages-deploy-action@v4
