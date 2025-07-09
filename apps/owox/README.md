@@ -40,7 +40,7 @@ Check out [CONTRIBUTING.md](./CONTRIBUTING.md) for advanced setup and CLI comman
 
 ## Issues
 
-### Installing packages always requires administrator privileges on MacOS/Linux
+### Installing packages always requires administrator privileges on MacOS
 
 If you encounter permission issues when installing Node.js or npm packages, follow these steps for a proper installation.
 
