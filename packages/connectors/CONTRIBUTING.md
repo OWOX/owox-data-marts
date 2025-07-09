@@ -73,4 +73,4 @@ If you cannot or do not want to sign this CLA (e.g., your employment contract fo
 
 ## Questions
 
-Got a questions? Feel free to ask the community [in the Discussion section](../../discussions/categories/q-a).
+Got a questions? Feel free to ask the community [in the Discussion section](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a).

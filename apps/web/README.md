@@ -84,7 +84,7 @@ npm run preview
 ## Related Documentation
 
 - For information about the overall project, see the [main README](../../README.md)
-- For UI components documentation, check the [UI package](../../packages/ui)
+- For UI components documentation, check the `/packages/ui`
 
 ## Contributing
 
