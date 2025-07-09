@@ -54,7 +54,8 @@ export default defineConfig({
             { label: 'CLI Application', autogenerate: { directory: 'apps/owox' }, collapsed: true },
             { label: 'Web Application', autogenerate: { directory: 'apps/web' }, collapsed: true },
             { label: 'Backend Application', autogenerate: { directory: 'apps/backend'}, collapsed: true },
-            { label: 'Connector Runner', autogenerate: { directory: 'packages/connector-runner'}, collapsed: true }
+            { label: 'Connector Runner', autogenerate: { directory: 'packages/connector-runner'}, collapsed: true },
+            { label: 'Licenses', autogenerate: { directory: 'licenses' }, collapsed: true },
           ]
         }
       ],
