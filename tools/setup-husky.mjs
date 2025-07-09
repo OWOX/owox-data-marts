@@ -22,6 +22,11 @@ const repoRoot = join(__dirname, '..');
 // Cross-platform detection
 const isWindows = platform() === 'win32';
 
+if (process.env.DISABLE_HUSKY) {
+  console.log('🚫 Skipping Husky setup (DISABLE_HUSKY is set)');
+  process.exit(0);
+}
+
 console.log('🚀 Setting up OWOX Data Marts linter configuration...');
 console.log(`📱 Platform: ${platform()}`);
 
