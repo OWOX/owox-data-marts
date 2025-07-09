@@ -58,15 +58,15 @@ npm error   sudo chown -R 501:20 "/Users/USER/.npm"
 npm error A complete log of this run can be found in: /Users/USER/.npm/_logs/2025-07-04T13_57_53_164Z-debug-0.log
 ```
 
-#### Recommended Solution:
+#### Recommended Solution
 
-1. Install Command Line Tools (if not installed):
+1. Install Command Line Tools (if not installed)
 
 ```bash
 xcode-select --install
 ```
 
-2. Install Node Version Manager (nvm):
+2. Install Node Version Manager (nvm)
 
 ```bash
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
@@ -78,7 +78,7 @@ curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
 nvm --version
 ```
 
-4. Install and configure Node.js:
+4. Install and configure Node.js
 
 ```bash
 # Install latest LTS version (recommended)
@@ -91,7 +91,7 @@ nvm install node
 node -v
 ```
 
-5. Install and run OWOX Data Marts:
+5. Install and run OWOX Data Marts
 
 ```bash
 # Install globally
@@ -101,7 +101,7 @@ npm install -g owox
 owox serve
 ```
 
-#### Benefits of using nvm:
+#### Benefits of using nvm
 
 - Easy switching between Node.js versions
 - No sudo required for package installation
