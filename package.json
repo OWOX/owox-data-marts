@@ -43,8 +43,7 @@
     "postinstall": "node tools/setup-husky.mjs || echo 'Warning: Git hooks setup failed'",
     "migration:run": "npm run migration:run -w @owox/backend",
     "migration:revert": "npm run migration:revert -w @owox/backend",
-    "migration:create": "npm run migration:create -w @owox/backend",
-    "prepare": "husky"
+    "migration:create": "npm run migration:create -w @owox/backend"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.30.1",
