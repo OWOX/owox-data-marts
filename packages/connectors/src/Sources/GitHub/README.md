@@ -1,4 +1,4 @@
-# GitHub Stars & Contributors Export to Google Sheets
+# GitHub Source
 
 This source exports stars and contributors data from the GitHub API to Google Sheets on a daily basis, in a format like this:
 

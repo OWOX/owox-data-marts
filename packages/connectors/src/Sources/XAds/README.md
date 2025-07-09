@@ -1,4 +1,4 @@
-# X Ads (former Twitter Ads) Source Overview
+# X Ads (former Twitter Ads) Source
 
 The [**X Ads Source**](.) allows you to seamlessly export raw data from X Ads into Google Sheets or Google BigQuery. Use this data for custom analysis, reporting, or to power your marketing dashboards.
 

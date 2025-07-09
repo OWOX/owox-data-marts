@@ -1,4 +1,4 @@
-# Bank of Canada Connector for Google Sheets
+# Bank of Canada Source
 
 The [**Bank of Canada Connector**](.) allows you to transfer exchange rates from Bank of Canada into Google Sheets.
 

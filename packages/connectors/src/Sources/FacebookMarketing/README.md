@@ -1,4 +1,4 @@
-# Facebook Connector for Google Sheets and BigQuery
+# Facebook Ads Source
 
 The [**Facebook Ads Source**](.) allows you to transfer raw data from Meta advertising services into Google Sheets / Google BigQuery. Use this data for in-depth analysis and reporting.
 

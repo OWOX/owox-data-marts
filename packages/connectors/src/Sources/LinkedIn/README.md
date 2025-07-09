@@ -1,4 +1,4 @@
-# LinkedIn Ads / LinkedIn Pages Source Overview
+# LinkedIn Ads / LinkedIn Pages Source
 
 The [**LinkedIn Ads / LinkedIn Pages Source**](.) allows you to seamlessly export raw data from LinkedIn Ads / LinkedIn Pages into Google Sheets / Google BigQuery. Use this data for custom analysis, reporting, or to power your marketing dashboards.
 

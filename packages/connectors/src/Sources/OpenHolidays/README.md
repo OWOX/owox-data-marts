@@ -1,4 +1,4 @@
-# Open Holidays Connector for Google Sheets
+# Open Holidays Source
 
 The [**Open Holidays Connector**](.) gathers information on public and school holidays and transfer data into Google Sheets.
 

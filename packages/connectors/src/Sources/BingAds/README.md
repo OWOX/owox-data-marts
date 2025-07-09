@@ -1,4 +1,4 @@
-# Bing Ads Source Overview
+# Bing Ads Source
 
 The [**Bing Ads Source**](.) allows you to seamlessly export raw data from Bing Ads into Google Sheets / Google BigQuery. Use this data for custom analysis, reporting, or to power your marketing dashboards.
 
