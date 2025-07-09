@@ -15,6 +15,9 @@ export default defineConfig({
     starlight({
       title: 'OWOX Docs',
       favicon: 'favicon.png',
+      logo: {
+        src: 'logo.svg',
+      },
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/OWOX/owox-data-marts' },
       ],
