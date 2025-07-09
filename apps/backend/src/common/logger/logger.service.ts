@@ -1,4 +1,4 @@
-import { ConsoleLogger } from '@nestjs/common';
+import { ConsoleLogger, LogLevel } from '@nestjs/common';
 
 /**
  * Logger configuration object
@@ -6,38 +6,88 @@ import { ConsoleLogger } from '@nestjs/common';
 interface LoggerConfig {
   json: boolean;
   colors: boolean;
+  logLevels: LogLevel[];
+}
+
+const VALID_LOG_LEVELS: LogLevel[] = ['log', 'error', 'warn', 'debug', 'verbose', 'fatal'];
+
+const DEFAULT_LOG_LEVELS: LogLevel[] = ['log', 'warn', 'error'];
+
+/**
+ * Validates and parses log levels from environment variable string.
+ *
+ * @param envLevels - Comma-separated string of log levels from environment
+ * @returns Array of valid LogLevel values
+ *
+ * @example
+ * ```typescript
+ * // Valid input
+ * parseLogLevels('log,warn,error') // Returns: ['log', 'warn', 'error']
+ * parseLogLevels('debug,verbose') // Returns: ['debug', 'verbose']
+ *
+ * // Invalid/malformed input - falls back to defaults
+ * parseLogLevels('invalid,log') // Returns: ['log', 'warn', 'error']
+ * parseLogLevels('') // Returns: ['log', 'warn', 'error']
+ * ```
+ */
+function parseLogLevels(envLevels: string): LogLevel[] {
+  if (!envLevels?.trim()) {
+    return DEFAULT_LOG_LEVELS;
+  }
+
+  const levels = envLevels
+    .split(',')
+    .map(level => level.trim() as LogLevel)
+    .filter(level => VALID_LOG_LEVELS.includes(level));
+
+  if (levels.length === 0) {
+    return DEFAULT_LOG_LEVELS;
+  }
+
+  return levels;
 }
 
 /**
  * Creates logger configuration based on environment variables.
  *
- * Environment variable: LOG_FORMAT
- * - 'json' → JSON format (production-ready)
- * - undefined/any other value → Human-readable format with colors (default, development-friendly)
+ * Environment variables:
+ * - LOG_FORMAT: 'json' → JSON format (production-ready), undefined/other → Human-readable format (development)
+ * - LOG_LEVELS: Comma-separated log levels (e.g., 'log,warn,error,debug'). Defaults to 'log,warn,error'
+ *
+ * Valid log levels: log, error, warn, debug, verbose, fatal
  *
  * This configuration is automatically applied to ensure consistent logging
  * across all application components and deployment environments.
  *
- * @returns Logger configuration object with JSON format and colors settings
+ * @returns Logger configuration object with format, colors, and log levels settings
  *
  * @example
  * ```typescript
- * // Development (default): pretty formatted logs
- * // No LOG_FORMAT needed
+ * // Development defaults: pretty format, basic levels
+ * // No env vars needed
  * const config = createLoggerConfig();
- * // Result: { json: false, colors: true }
+ * // Result: { json: false, colors: true, logLevels: ['log', 'warn', 'error'] }
  *
- * // Production: structured JSON logs
+ * // Production: JSON format, custom levels
  * // LOG_FORMAT=json
+ * // LOG_LEVELS=log,warn,error,debug
  * const config = createLoggerConfig();
- * // Result: { json: true, colors: false }
+ * // Result: { json: true, colors: false, logLevels: ['log', 'warn', 'error', 'debug'] }
+ *
+ * // Development with debug enabled
+ * // LOG_LEVELS=log,warn,error,debug,verbose
+ * const config = createLoggerConfig();
+ * // Result: { json: false, colors: true, logLevels: ['log', 'warn', 'error', 'debug', 'verbose'] }
  * ```
  */
 function createLoggerConfig(): LoggerConfig {
   const useJsonFormat = process.env.LOG_FORMAT === 'json';
+  const logLevels = parseLogLevels(process.env.LOG_LEVELS || '');
+
   return {
     json: useJsonFormat,
     colors: !useJsonFormat,
+    logLevels,
   };
 }
 
