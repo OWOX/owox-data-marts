@@ -44,7 +44,7 @@ export default defineConfig({
             {
               label: 'Connectors',
               items: [
-                'packages/connectors/guideline',
+                'packages/connectors/environment-adapter',
                 'packages/connectors/contributing',
                 'packages/connectors/publishing'
               ],

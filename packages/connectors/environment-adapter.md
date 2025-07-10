@@ -1,18 +1,12 @@
-# Project Guidelines
-
-This document is describing the connectors guidelines for the project.
-
-## EnvironmentAdapter
-
-### Overview
+# EnvironmentAdapter
 
 The `EnvironmentAdapter` class provides a unified interface for environment-specific operations across Google Apps Script and Node.js environments. It abstracts away platform differences and allows your code to work consistently in both environments.
 
-### Motivation
+## Motivation
 
 - Use singe connectors source code in both environments: Node.js and Apps Script
 
-### Key Features
+## Key Features
 
 - **Environment detection**: Automatically detects the runtime environment
 - **Environment-specific code**: Use environment-specific code for each environment
@@ -20,21 +14,9 @@ The `EnvironmentAdapter` class provides a unified interface for environment-spec
 - **Response wrapping**: Unified response interface across platforms
 - **Utility functions**: Date formatting, UUID generation, encoding, and more
 
-### Table of Contents
+## Getting Started
 
-1. [Key Features](#key-features)
-2. [Getting Started](#getting-started)
-3. [Essential EnvironmentAdapter Rules for Data Analysts](#essential-environmentadapter-rules-for-data-analysts)
-4. [API Reference](#api-reference)
-5. [Usage Examples](#usage-examples)
-6. [HTTP Requests](#http-requests)
-7. [Utility Methods](#utility-methods)
-8. [Error Handling](#error-handling)
-9. [Troubleshooting](#troubleshooting)
-
-### Getting Started
-
-#### Import and Setup
+### Import and Setup
 
 ```javascript
 // The EnvironmentAdapter is available as a global class
@@ -43,7 +25,7 @@ The `EnvironmentAdapter` class provides a unified interface for environment-spec
 // In Node.js, ensure it's available through your bundle system
 ```
 
-#### Dependencies
+### Dependencies
 
 Make sure the following constants and exceptions are available:
 
@@ -59,13 +41,13 @@ var ENVIRONMENT = {
 class UnsupportedEnvironmentException extends AbstractException {}
 ```
 
-### Essential EnvironmentAdapter Rules for Data Analysts
+## Essential EnvironmentAdapter Rules for Data Analysts
 
-#### What You Must Know
+### What You Must Know
 
 **EnvironmentAdapter** is a required class that makes your connector work in both Google Apps Script and Node.js environments. You MUST use it for all HTTP requests and environment-specific operations.
 
-#### What NOT to Do
+### What NOT to Do
 
 ❌ Never use `fetch()` directly  
 ❌ Never use `UrlFetchApp` directly  
@@ -74,7 +56,7 @@ class UnsupportedEnvironmentException extends AbstractException {}
 ❌ Never make requests without proper headers  
 ❌ Never ignore rate limits  
 
-#### Must Remember
+### Must Remember
 
 1. **Always use EnvironmentAdapter.fetch()** for any HTTP request
 2. **Always check response.getResponseCode()** before processing data
@@ -83,9 +65,9 @@ class UnsupportedEnvironmentException extends AbstractException {}
 5. **Always include proper headers** especially for authentication
 6. **Always use EnvironmentAdapter utilities** for date formatting, UUID generation, encoding, and more
 
-### Core Rules
+## Core Rules
 
-#### 1. Always Use EnvironmentAdapter for HTTP Requests
+### 1. Always Use EnvironmentAdapter for HTTP Requests
 
 ```javascript
 // ✅ CORRECT - Use this for all API calls
@@ -98,7 +80,7 @@ const response = fetch("https://api.example.com/data");
 const response = UrlFetchApp.fetch("https://api.example.com/data");
 ```
 
-#### 2. Standard Response Handling Pattern
+### 2. Standard Response Handling Pattern
 
 ```javascript
 const response = EnvironmentAdapter.fetch(url, options);
@@ -113,7 +95,7 @@ if (response.getResponseCode() === 200) {
 }
 ```
 
-#### 3. Required Request Format for APIs
+### 3. Required Request Format for APIs
 
 ```javascript
 const options = {
@@ -136,7 +118,7 @@ const postOptions = {
 };
 ```
 
-#### 4. Utility Functions
+### 4. Utility Functions
 
 ```javascript
 // Generate unique IDs
@@ -149,11 +131,11 @@ EnvironmentAdapter.sleep(1000); // Wait 1 second
 const encoded = EnvironmentAdapter.base64Encode("your-data");
 ```
 
-### API Reference
+## API Reference
 
-#### Static Methods
+### Static Methods
 
-#### `getEnvironment()`
+### `getEnvironment()`
 
 Returns the current runtime environment.
 
@@ -163,7 +145,7 @@ static getEnvironment(): ENVIRONMENT
 
 **Returns**: One of `ENVIRONMENT.APPS_SCRIPT`, `ENVIRONMENT.NODE`, or `ENVIRONMENT.UNKNOWN`
 
-#### `fetch(url, options)`
+### `fetch(url, options)`
 
 Makes HTTP requests with unified response interface.
 
@@ -180,7 +162,7 @@ static fetch(url: string, options: Object = {}): FetchResponse
 
 **Throws**: `UnsupportedEnvironmentException` if environment is not supported
 
-#### `sleep(ms)`
+### `sleep(ms)`
 
 Pauses execution for specified milliseconds.
 
@@ -194,7 +176,7 @@ static sleep(ms: number): void
 
 **Throws**: `UnsupportedEnvironmentException` if environment is not supported
 
-#### `formatDate(date, timezone, format)`
+### `formatDate(date, timezone, format)`
 
 Formats a date according to environment capabilities.
 
@@ -212,7 +194,7 @@ static formatDate(date: Date, timezone: string, format: string): string
 
 **Note**: In Node.js, only returns ISO date format regardless of parameters
 
-#### `getUuid()`
+### `getUuid()`
 
 Generates a UUID string.
 
@@ -222,7 +204,7 @@ static getUuid(): string
 
 **Returns**: UUID in format `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`
 
-#### `base64Encode(data)`
+### `base64Encode(data)`
 
 Encodes data to base64.
 
@@ -236,7 +218,7 @@ static base64Encode(data: string): string
 
 **Returns**: Base64 encoded string
 
-#### `computeHmacSignature(algorithm, data, key)`
+### `computeHmacSignature(algorithm, data, key)`
 
 Computes HMAC signature.
 
@@ -252,7 +234,7 @@ static computeHmacSignature(algorithm: string, data: string, key: string): strin
 
 **Returns**: HMAC signature as hex string
 
-#### `parseCsv(csvString)`
+### `parseCsv(csvString)`
 
 Parses CSV string into array of arrays.
 
@@ -268,7 +250,7 @@ static parseCsv(csvString: string): Array<Array<string>>
 
 **Note**: Each inner array represents a row, with cells as string values
 
-#### `unzip(data)`
+### `unzip(data)`
 
 Unzips blob/buffer data.
 
@@ -284,22 +266,22 @@ static unzip(data: Blob|Buffer): Array<{getDataAsString: Function}>
 
 **Note**: In Node.js environment requires `adm-zip` package
 
-### Usage Examples
+## Usage Examples
 
-#### Making HTTP Requests
+### Making HTTP Requests
 
-##### GET Request
+#### GET Request
 
 ```javascript
 try {
     const response = EnvironmentAdapter.fetch("https://api.example.com/data");
-    
+
     // Check response status
     if (response.getResponseCode() === 200) {
         // Parse JSON response
         const data = response.getAsJson();
         console.log("Data received:", data);
-        
+
         // Or get raw text
         const text = response.getContentText();
         console.log("Response text:", text);
@@ -311,7 +293,7 @@ try {
 }
 ```
 
-##### POST Request with JSON
+#### POST Request with JSON
 
 ```javascript
 const requestOptions = {
@@ -335,7 +317,7 @@ try {
 }
 ```
 
-##### GET Request with Headers
+#### GET Request with Headers
 
 ```javascript
 const options = {
@@ -351,9 +333,9 @@ const headers = response.getHeaders();
 console.log("Response headers:", headers);
 ```
 
-#### Utility Functions
+### Utility Functions
 
-##### Working with Dates
+#### Working with Dates
 
 ```javascript
 const now = new Date();
@@ -363,7 +345,7 @@ const formatted = EnvironmentAdapter.formatDate(now, "America/New_York", "yyyy-M
 console.log("Formatted date:", formatted);
 ```
 
-##### Generating UUIDs
+#### Generating UUIDs
 
 ```javascript
 const uniqueId = EnvironmentAdapter.getUuid();
@@ -371,7 +353,7 @@ console.log("Generated UUID:", uniqueId);
 // Output: e.g., "f47ac10b-58cc-4372-a567-0e02b2c3d479"
 ```
 
-##### Base64 Encoding
+#### Base64 Encoding
 
 ```javascript
 const originalData = "Hello, World!";
@@ -380,7 +362,7 @@ console.log("Encoded:", encoded);
 // Output: "SGVsbG8sIFdvcmxkIQ=="
 ```
 
-##### HMAC Signatures
+#### HMAC Signatures
 
 ```javascript
 const message = "important data";
@@ -389,7 +371,7 @@ const signature = EnvironmentAdapter.computeHmacSignature("sha256", message, sec
 console.log("HMAC signature:", signature);
 ```
 
-##### Sleep/Delay
+#### Sleep/Delay
 
 ```javascript
 console.log("Starting operation...");
@@ -397,7 +379,7 @@ EnvironmentAdapter.sleep(2000); // Wait 2 seconds
 console.log("Operation completed after delay");
 ```
 
-##### Parse CSV
+#### Parse CSV
 
 ```javascript
 const csvString = "name,age,city\nJohn,30,New York\nJane,25,London";
@@ -410,7 +392,7 @@ console.log("Parsed CSV:", parsedData);
 // ]
 ```
 
-##### Unzip Data
+#### Unzip Data
 
 ```javascript
 // Assuming you have zip data from an API response or file
@@ -425,9 +407,9 @@ unzippedFiles.forEach(file => {
 });
 ```
 
-### HTTP Requests
+## HTTP Requests
 
-#### FetchResponse Interface
+### FetchResponse Interface
 
 All HTTP requests return a `FetchResponse` object with these methods:
 
@@ -441,7 +423,7 @@ interface FetchResponse {
 }
 ```
 
-#### Request Options
+### Request Options
 
 The `options` parameter for `fetch()` supports:
 
@@ -459,19 +441,19 @@ const options = {
 };
 ```
 
-#### Error Handling for HTTP Requests
+### Error Handling for HTTP Requests
 
 ```javascript
 function safeApiCall(url, options) {
     try {
         const response = EnvironmentAdapter.fetch(url, options);
-        
+
         const statusCode = response.getResponseCode();
         if (statusCode >= 400) {
             const errorText = response.getContentText();
             throw new Error(`HTTP ${statusCode}: ${errorText}`);
         }
-        
+
         return response.getAsJson();
     } catch (error) {
         if (error.message.includes("Invalid JSON")) {
@@ -483,9 +465,9 @@ function safeApiCall(url, options) {
 }
 ```
 
-### Utility Methods
+## Utility Methods
 
-#### Date Formatting Limitations
+### Date Formatting Limitations
 
 ⚠️ **Important**: Date formatting behavior differs between environments:
 
@@ -504,23 +486,23 @@ function getFormattedDate(date) {
 }
 ```
 
-#### UUID Generation
+### UUID Generation
 
 UUIDs are generated using:
 
 - **Google Apps Script**: Platform-specific UUID generation
 - **Node.js**: `crypto.randomUUID()`
 
-#### Encoding and Cryptography
+### Encoding and Cryptography
 
 Both platforms support:
 
 - Base64 encoding
 - HMAC signature computation with various algorithms (sha1, sha256, etc.)
 
-### Error Handling
+## Error Handling
 
-#### Common Exceptions
+### Common Exceptions
 
 ```javascript
 try {
@@ -534,7 +516,7 @@ try {
 }
 ```
 
-#### Best Practices for Error Handling
+### Best Practices for Error Handling
 
 ```javascript
 function robustApiCall(url, retries = 3) {
@@ -548,7 +530,7 @@ function robustApiCall(url, retries = 3) {
         } catch (error) {
             console.warn(`Attempt ${i + 1} failed:`, error.message);
             if (i === retries - 1) throw error;
-            
+
             // Wait before retry
             EnvironmentAdapter.sleep(1000 * Math.pow(2, i)); // Exponential backoff
         }
@@ -556,11 +538,11 @@ function robustApiCall(url, retries = 3) {
 }
 ```
 
-### Troubleshooting
+## Troubleshooting
 
-#### Common Issues and Solutions
+### Common Issues and Solutions
 
-##### 1. UnsupportedEnvironmentException
+#### 1. UnsupportedEnvironmentException
 
 **Problem**: Getting `UnsupportedEnvironmentException` error.
 
@@ -570,7 +552,7 @@ function robustApiCall(url, retries = 3) {
 - Check that required dependencies are installed in Node.js
 - Verify `ENVIRONMENT` constants are properly defined
 
-##### 2. JSON Parsing Errors
+#### 2. JSON Parsing Errors
 
 **Problem**: `response.getAsJson()` throws "Invalid JSON response" error.
 
@@ -588,7 +570,7 @@ try {
 }
 ```
 
-##### 3. HTTP Request Timeouts
+#### 3. HTTP Request Timeouts
 
 **Problem**: Requests hanging or timing out.
 
@@ -603,7 +585,7 @@ const options = {
 };
 ```
 
-##### 4. Missing Dependencies (Node.js)
+#### 4. Missing Dependencies (Node.js)
 
 **Problem**: `request` or `deasync` not found.
 
@@ -613,7 +595,7 @@ const options = {
 npm install sync-request deasync
 ```
 
-#### Debug Mode
+### Debug Mode
 
 Enable detailed logging for troubleshooting:
 
@@ -622,12 +604,12 @@ function debugFetch(url, options = {}) {
     console.log("Environment:", EnvironmentAdapter.getEnvironment());
     console.log("Request URL:", url);
     console.log("Request options:", options);
-    
+
     try {
         const response = EnvironmentAdapter.fetch(url, options);
         console.log("Response code:", response.getResponseCode());
         console.log("Response headers:", response.getHeaders());
-        
+
         return response;
     } catch (error) {
         console.error("Request failed:", error);
