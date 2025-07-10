@@ -59,51 +59,6 @@ class NodeJsConfig extends AbstractConfig {
     getStorageName() {
       return this.storageName.value;
     }
-  
-    /**
-     * Determine if notifications should be sent based on status and filter setting
-     * For NodeJS environment, always return false
-     * @param {number} status - Status constant
-     * @returns {boolean} - Always false for NodeJS
-     */
-    shouldSendNotifications(status) {
-      return false;
-    }
-
-    /**
-     * Get all properties for a given status (NodeJS specific)
-     * @param {number} status - Status constant
-     * @returns {Object} - Object with status properties for NodeJS
-     */
-    getStatusProperties(status) {
-      switch (status) {
-        case EXECUTION_STATUS.IMPORT_IN_PROGRESS:
-          return {
-            displayText: "Import in progress"
-          };
-          
-        case EXECUTION_STATUS.CLEANUP_IN_PROGRESS:
-          return {
-            displayText: "CleanUp in progress"
-          };
-          
-        case EXECUTION_STATUS.IMPORT_DONE:
-        case EXECUTION_STATUS.CLEANUP_DONE:
-          return {
-            displayText: "Done"
-          };
-          
-        case EXECUTION_STATUS.ERROR:
-          return {
-            displayText: "Error"
-          };
-          
-        default:
-          return {
-            displayText: `Unknown status: ${status}`
-          };
-      }
-    }
 
     /**
      * Update and log the current execution status
@@ -119,7 +74,7 @@ class NodeJsConfig extends AbstractConfig {
         JSON.stringify({
           type: 'updateCurrentStatus',
           at: at.toISOString().split('T')[0] + ' ' + at.toISOString().split('T')[1].split('.')[0],
-          status: this.getStatusProperties(status).displayText,
+          status,
         })
       );
     }

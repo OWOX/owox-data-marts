@@ -158,17 +158,6 @@ class AbstractConfig {
     }
     //----------------------------------------------------------------
 
-  //---- shouldSendNotifications -------------------------------------
-    /**
-     * Determine if notifications should be sent based on status and filter setting
-     * @param {string} status - Current status
-     * @returns {boolean} - True if notifications should be sent
-     */
-    shouldSendNotifications(status) {
-      throw new Error("shouldSendNotifications must be implemented in subclass of AbstractConfig");
-    }
-    //----------------------------------------------------------------
-
   //---- handleStatusUpdate -----------------------------------------------
     /**
      * @param {Object} params - Parameters object with status and other properties
