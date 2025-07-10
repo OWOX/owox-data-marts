@@ -444,13 +444,14 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
     sendNotifications({ status, error }) {
       try {
         const formattedMessage = this.formatStatusMessage({ status, error });
+        const statusDisplayText = this.getStatusProperties(status).displayText;
         
         // Send email notification if NotifyByEmail has value
         if (this.NotifyByEmail && this.NotifyByEmail.value && this.NotifyByEmail.value.trim()) {
           EmailNotification.send({
             to: this.NotifyByEmail.value,
             message: formattedMessage,
-            status: status,
+            status: statusDisplayText,
             connectorName: this.configSpreadsheet.getName()
           });
         }
@@ -460,7 +461,7 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
           GoogleChatNotification.send({
             webhookUrl: this.NotifyByGoogleChat.value.trim(),
             message: formattedMessage,
-            status: status,
+            status: statusDisplayText,
             connectorName: this.configSpreadsheet.getName()
           });
         }
@@ -507,7 +508,7 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
           return status === EXECUTION_STATUS.IMPORT_DONE;
         
         case "Always":
-          return true;
+          return status === EXECUTION_STATUS.ERROR || status === EXECUTION_STATUS.IMPORT_DONE;
           
         case "Never":
         case "":
