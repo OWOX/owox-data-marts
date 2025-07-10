@@ -19,8 +19,13 @@ owox-data-marts/
 │   ├── backend/           # Backend API and platform runtime
 │   │   └── src/           # Source code
 │   │
-│   └── cli/               # Command-line interface tool
-│       └── src/           # Source code
+│   ├── docs/              # Documentation website
+│   │   ├── src/           # Source code
+│   │   └── dist/          # Build artifacts
+│   │
+│   └── owox/              # Command-line interface tool
+│       ├── src/           # Source code
+│       └── dist/          # Build artifacts
 │
 ├── packages/              # Shared libraries and configurations
 │   ├── ui/                # Shared UI components and design system
@@ -32,14 +37,16 @@ owox-data-marts/
 │   ├── connector-runner/  # Core connector execution logic
 │   │   └── src/           # Source code
 │   │
-│   ├── eslint-config/     # Shared ESLint configurations
+│   ├── eslint-config/     # Shared ESLint configurations ([README](../../../packages/eslint-config/README.md))
 │   │
-│   ├── prettier-config/   # Shared Prettier configurations
+│   ├── prettier-config/   # Shared Prettier configurations ([README](../../../packages/prettier-config/README.md))
 │   │
-│   └── typescript-config/ # Shared TypeScript configurations
+│   └── typescript-config/ # Shared TypeScript configurations ([README](../../../packages/typescript-config/README.md))
 │
-├── tools/                 # Additinal scripts for project
-└── docs/                  # Project documentation
+├── tools/                 # Additional scripts for project
+├── docs/                  # Project documentation
+├── dist/                  # Build artifacts
+└── temp/                  # Temporary files
 ```
 
 ## Applications (`apps/`)
@@ -50,6 +57,7 @@ owox-data-marts/
 - Serves the main user interface
 - Consumes shared UI components from `packages/ui`
 - Build artifacts are served by the backend
+- [README](../../../apps/web/README.md)
 
 ### Backend (`apps/backend/`)
 
@@ -57,13 +65,22 @@ owox-data-marts/
 - Serves the web application's build artifacts
 - Implements platform runtime
 - Uses shared packages for data connectors execution
+- [README](../../../apps/backend/README.md)
 
-### CLI Tool (`apps/owox/`)
+### OWOX CLI Tool (`apps/owox/`)
 
 - Command-line interface for platform management
 - Published as global npm package (`owox`)
 - Reuses backend logic and connectors
 - Designed for global installation: `npm i -g owox`
+- [README](../../../apps/owox/CONTRIBUTING.md)
+
+### Documentation Website (`apps/docs/`)
+
+- Astro-based documentation website
+- Contains project documentation and guides
+- Built and deployed as static site
+- [README](../../../apps/docs/README.md)
 
 ## Shared Packages (`packages/`)
 
@@ -83,6 +100,7 @@ owox-data-marts/
 
 - Core logic for connector execution
 - Used by backend and CLI
+- [README](../../../packages/connector-runner/README.md)
 
 ## Development Workflow
 
