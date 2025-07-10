@@ -37,11 +37,11 @@ owox-data-marts/
 │   ├── connector-runner/  # Core connector execution logic
 │   │   └── src/           # Source code
 │   │
-│   ├── eslint-config/     # Shared ESLint configurations ([README](../../../packages/eslint-config/README.md))
+│   ├── eslint-config/     # Shared ESLint configurations
 │   │
-│   ├── prettier-config/   # Shared Prettier configurations ([README](../../../packages/prettier-config/README.md))
+│   ├── prettier-config/   # Shared Prettier configurations
 │   │
-│   └── typescript-config/ # Shared TypeScript configurations ([README](../../../packages/typescript-config/README.md))
+│   └── typescript-config/ # Shared TypeScript configurations
 │
 ├── tools/                 # Additional scripts for project
 ├── docs/                  # Project documentation
@@ -101,6 +101,28 @@ owox-data-marts/
 - Core logic for connector execution
 - Used by backend and CLI
 - [README](../../../packages/connector-runner/README.md)
+
+### ESLint Config (`packages/eslint-config/`)
+
+- Shared ESLint configuration for the workspace
+- Provides consistent code style guidelines across all projects
+- [README](../../../packages/eslint-config/README.md)
+
+### Prettier Config (`packages/prettier-config/`)
+
+- Shared Prettier configuration for the OWOX Data Marts workspace
+- Provides different configurations for various project types:
+  - **base**: Core formatting rules for all projects
+  - **typescript**: TypeScript-specific rules and file type handling
+  - **web**: React/TailwindCSS-specific rules with class sorting
+- Features consistent formatting across the monorepo, TypeScript support, TailwindCSS class sorting for web projects, and Markdown/JSON formatting
+- [README](../../../packages/prettier-config/README.md)
+
+### TypeScript Config (`packages/typescript-config/`)
+
+- Shared TypeScript configuration for the workspace
+- Provides consistent TypeScript settings across all projects
+- [README](../../../packages/typescript-config/README.md)
 
 ## Development Workflow
 
