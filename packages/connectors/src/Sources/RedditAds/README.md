@@ -1,6 +1,6 @@
 # Reddit Ads Source
 
-The [**Reddit Ads Source**](.) allows you to seamlessly export raw data from Reddit Ads into Google Sheets / Google BigQuery. Use this data for custom analysis, reporting, or to power your marketing dashboards.
+The **Reddit Ads Source** allows you to seamlessly export raw data from Reddit Ads. Use this data for custom analysis, reporting, or to power your marketing dashboards.
 
 ## Getting Started
 

@@ -1,6 +1,6 @@
 # Open Exchange Rates Source
 
-The [**Open Exchange Rates Connector**](.) allows you to transfer currency data from Open Exchange Rates into Google Sheets.
+The **Open Exchange Rates Source** allows you to transfer currency data from Open Exchange Rates.
 
 ## Getting Started
 

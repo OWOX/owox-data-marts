@@ -1,6 +1,6 @@
 # Criteo Source
 
-The [**Criteo Source**](.) allows you to transfer raw data from Criteo advertising services into Google Sheets / Google BigQuery. Use this data for in-depth analysis and reporting.
+The **Criteo Source** allows you to transfer raw data from Criteo advertising services. Use this data for in-depth analysis and reporting.
 
 ## Getting Started
 

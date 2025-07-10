@@ -1,6 +1,6 @@
 # Facebook Ads Source
 
-The [**Facebook Ads Source**](.) allows you to transfer raw data from Meta advertising services into Google Sheets / Google BigQuery. Use this data for in-depth analysis and reporting.
+The **Facebook Ads Source** allows you to transfer raw data from Meta advertising services. Use this data for in-depth analysis and reporting.
 
 ## Getting Started
 
