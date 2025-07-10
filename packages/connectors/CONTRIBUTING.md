@@ -32,7 +32,7 @@ To create integration with a new data source, do the following:
 2. Replace the library added to Google Sheets with the new Apps Script created from the template
 3. Replace `YOUR_DATA_SOURCE` in source code with the name of the data source you are creating the integration with
 4. Create methods code according to the integration requirements. Please refer to the UML section for detailed information.
-5. Create a new folder integration based on [templates](src/Templates).
+5. Create a new folder integration based on `packages/connectors/src/Templates` template.
 6. [Add all relevant files](https://docs.github.com/en/repositories/working-with-files/managing-files/adding-a-file-to-a-repository) to the created folder. You can also do this from a web browser
 7. Specify the correct title of your data source in the `manifest.json` file.
 
