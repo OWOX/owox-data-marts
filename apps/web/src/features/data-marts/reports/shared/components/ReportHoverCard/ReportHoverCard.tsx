@@ -17,7 +17,7 @@ export function ReportHoverCard({ report, children }: ReportHoverCardProps) {
       <HoverCardTrigger asChild>
         <div className='text-sm hover:cursor-help'>{children}</div>
       </HoverCardTrigger>
-      <HoverCardContent className='w-96'>
+      <HoverCardContent className='w-110'>
         <div className='space-y-3'>
           <div>
             <h4 className='text-sm font-semibold'>{report.title || 'Unnamed Report'}</h4>
@@ -74,8 +74,26 @@ export function ReportHoverCard({ report, children }: ReportHoverCardProps) {
 
           <div className='border-t pt-2'>
             <div className='text-muted-foreground flex justify-between text-xs'>
-              <div>Created: {report.createdAt.toLocaleDateString()}</div>
-              <div>Modified: {report.modifiedAt.toLocaleDateString()}</div>
+              <div>
+                <span className='font-medium'>Created:</span>{' '}
+                {new Intl.DateTimeFormat('en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                }).format(new Date(report.createdAt))}
+              </div>
+              <div>
+                <span className='font-medium'>Modified:</span>{' '}
+                {new Intl.DateTimeFormat('en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                }).format(new Date(report.modifiedAt))}
+              </div>
             </div>
           </div>
         </div>
