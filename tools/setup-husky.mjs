@@ -3,11 +3,10 @@
 /**
  * Setup script for OWOX Data Marts linter configuration
  *
- * This script automatically configures Husky git hooks for the monorepo
- * and sets up the necessary files for pre-commit and commit-msg validation.
+ * This script automatically configures Husky git hooks
+ * and sets up the necessary files for pre-commit validation.
  */
 
-import { execSync } from 'child_process';
 import { chmodSync, existsSync, mkdirSync, writeFileSync } from 'fs';
 import { platform } from 'os';
 import { dirname, join } from 'path';
@@ -21,9 +20,6 @@ const repoRoot = join(__dirname, '..');
 
 // Cross-platform detection
 const isWindows = platform() === 'win32';
-
-console.log('🚀 Setting up OWOX Data Marts linter configuration...');
-console.log(`📱 Platform: ${platform()}`);
 
 /**
  * Cross-platform function to make file executable
@@ -71,22 +67,6 @@ ${command}
 }
 
 /**
- * Ensure Husky is properly initialized
- */
-function setupHusky() {
-  console.log('📦 Initializing Husky...');
-
-  try {
-    // Initialize husky (this creates .husky directory if needed)
-    execSync('npx husky init', { cwd: repoRoot, stdio: 'inherit' });
-    console.log('✅ Husky initialized');
-  } catch (error) {
-    console.log('ℹ️  Husky already initialized or failed to initialize');
-    console.log(`   Error: ${error.message}`);
-  }
-}
-
-/**
  * Create pre-commit hook
  */
 function createPreCommitHook() {
@@ -104,7 +84,7 @@ function createPreCommitHook() {
   writeFileSync(hookPath, hookContent);
   makeExecutable(hookPath);
 
-  console.log('✅ Pre-commit hook created');
+  console.log('✅ Pre-commit hook has been activated.');
 }
 
 /**
@@ -112,11 +92,19 @@ function createPreCommitHook() {
  */
 function main() {
   try {
-    setupHusky();
+    const hookPath = join(repoRoot, '.husky', 'pre-commit');
+    if (existsSync(hookPath)) {
+      console.log('ℹ️  Pre-commit hook already exists. Skipping setup. To re-run setup, delete the `.husky/pre-commit` file and run `npm run setup:husky`.');
+      return;
+    }
+
+    console.log('🚀 Setting up OWOX Data Marts husky configuration...');
+    console.log(`📱 Platform: ${platform()}`);
+
     createPreCommitHook();
 
     console.log('');
-    console.log('🎉 Setup complete!');
+    console.log('🎉 Setup completed successfully.');
     console.log('');
     console.log('📋 LINTING WORKFLOW:');
     console.log('  • ESLint: validation only (no auto-fix)');
