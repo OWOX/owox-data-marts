@@ -97,7 +97,6 @@ class NodeJsConfig extends AbstractConfig {
      * 
      * @param {Object} params - Parameters object with status and other properties
      * @param {string} params.status - Current status of the data connector execution
-     * @param {boolean} params.shouldNotify - Should send notifications if true
      * @param {string} params.error - Error message for Error status
      */
     handleStatusUpdate({ status }) {

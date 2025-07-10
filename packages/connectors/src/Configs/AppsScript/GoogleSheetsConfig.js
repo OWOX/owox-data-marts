@@ -83,15 +83,14 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
     /**
      * @param {Object} params - Parameters object with status and other properties
      * @param {string} params.status - Current status value
-     * @param {boolean} params.shouldNotify - Should send notifications if true
      * @param {string} params.error - Error message for Error status
      */
-    handleStatusUpdate({ status, shouldNotify, error }) {
+    handleStatusUpdate({ status, error }) {
       this.manageTimeoutTrigger(status);
 
       this.updateCurrentStatus(status);
 
-      if (shouldNotify) {
+      if (this.shouldSendNotifications(status)) {
         this.sendNotifications({ status, error });
       }
     }
@@ -534,8 +533,7 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
         console.log('[TimeoutTrigger] Status is NOT in progress, setting to Error and sending notification');
         this.handleStatusUpdate({
           status: "Error",
-          error: "Import was interrupted (likely due to timeout)",
-          shouldNotify: this.shouldSendNotifications("Error")
+          error: "Import was interrupted (likely due to timeout)"
         });
       } else {
         console.log('[TimeoutTrigger] Status is still in progress');

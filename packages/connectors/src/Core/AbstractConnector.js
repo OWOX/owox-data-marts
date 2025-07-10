@@ -32,8 +32,7 @@ var AbstractConnector = class AbstractConnector {
         if( !config.isInProgress() ) {
           config.handleStatusUpdate({ 
             status: `Error`, 
-            error: error,
-            shouldNotify: config.shouldSendNotifications(`Error`)
+            error: error
           });
         }
 
@@ -71,7 +70,7 @@ var AbstractConnector = class AbstractConnector {
         } else {
 
           this.config.logMessage("⚫️ Configuration was loaded successfully", true);
-          this.config.handleStatusUpdate({ status: `Import in progress`, shouldNotify: false });
+          this.config.handleStatusUpdate({ status: `Import in progress` });
           this.config.updateLastImportDate();
           this.config.logMessage("🟢 Start importing new data");
 
@@ -84,8 +83,7 @@ var AbstractConnector = class AbstractConnector {
 
           this.config.logMessage("✅ Import is finished");
           this.config.handleStatusUpdate({ 
-            status: `Done`,
-            shouldNotify: this.config.shouldSendNotifications(`Done`)
+            status: `Done`
           });      
         }
 
@@ -95,8 +93,7 @@ var AbstractConnector = class AbstractConnector {
 
         this.config.handleStatusUpdate({ 
           status: `Error`, 
-          error: error,
-          shouldNotify: this.config.shouldSendNotifications(`Error`)
+          error: error
         });
         this.config.logMessage(`❌ ${error.stack}`);
         throw error;
