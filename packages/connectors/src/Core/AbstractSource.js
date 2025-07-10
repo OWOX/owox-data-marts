@@ -168,7 +168,7 @@ var AbstractSource = class AbstractSource {
     _waitBeforeRetry(attempt) {
       const delay = this.calculateBackoff(attempt);
       console.log(`Retrying after ${Math.round(delay/1000)}s...`);
-      this.sleep(delay);
+      EnvironmentAdapter.sleep(delay);
     }
     
   //---- calculateBackoff --------------------------------------------
@@ -198,18 +198,4 @@ var AbstractSource = class AbstractSource {
     }
     //----------------------------------------------------------------
 
-  //---- sleep ------------------------------------------------------
-    /**
-     * Sleep for the specified time based on the current environment
-     * @param {number} milliseconds - Time to sleep in milliseconds
-     * @throws {UnsupportedEnvironmentException} If the environment is not supported
-     */
-    sleep(milliseconds) {
-      if (this.config.Environment.value === ENVIRONMENT.APPS_SCRIPT) {
-        EnvironmentAdapter.sleep(milliseconds);
-      } else {
-        throw new UnsupportedEnvironmentException(`Unsupported environment: ${this.config.Environment.value}`);
-      }
-    }
-    //----------------------------------------------------------------
 }
