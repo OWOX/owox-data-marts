@@ -22,4 +22,13 @@ export const config = {
 
   // Prose wrap
   proseWrap: 'preserve',
+
+  overrides: [
+    {
+      files: ['*.bat', '*.cmd', '*.ps1', '*.csv'],
+      options: {
+        endOfLine: 'crlf',
+      },
+    },
+  ],
 };

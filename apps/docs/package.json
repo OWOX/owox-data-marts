@@ -12,8 +12,8 @@
     "astro": "astro",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json}\""
+    "format": "prettier --write \"**/*.{ts,js,mjs,json}\"",
+    "format:check": "prettier --check \"**/*.{ts,js,mjs,json}\""
   },
   "dependencies": {
     "@astrojs/starlight": "^0.34.4",

@@ -1,3 +1,3 @@
-import { config } from '@owox/prettier-config/base';
+const { config } = require('@owox/prettier-config/base');
 
-export default config;
+module.exports = config;
