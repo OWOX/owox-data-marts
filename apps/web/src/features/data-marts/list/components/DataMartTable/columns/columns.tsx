@@ -21,7 +21,7 @@ export const getDataMartColumns = ({
 }: DataMartTableColumnsProps = {}): ColumnDef<DataMartListItem>[] => [
   {
     accessorKey: DataMartColumnKey.TITLE,
-    size: 60, // responsive width in %
+    size: 40, // responsive width in %
     header: ({ column }) => (
       <SortableHeader column={column}>
         {dataMartColumnLabels[DataMartColumnKey.TITLE]}
@@ -50,7 +50,7 @@ export const getDataMartColumns = ({
   },
   {
     accessorKey: DataMartColumnKey.STORAGE_TYPE,
-    size: 10, // responsive width in %
+    size: 15, // responsive width in %
     header: ({ column }) => (
       <SortableHeader column={column}>
         {dataMartColumnLabels[DataMartColumnKey.STORAGE_TYPE]}
