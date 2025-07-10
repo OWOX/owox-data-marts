@@ -85,16 +85,9 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
      * @param {string} params.status - Current status value
      * @param {boolean} params.shouldNotify - Should send notifications if true
      * @param {string} params.error - Error message for Error status
-     * @param {number} params.timeoutTriggerAction - Timeout trigger action (use TIMEOUT_TRIGGER_ACTION.CREATE or TIMEOUT_TRIGGER_ACTION.REMOVE)
      */
-    handleStatusUpdate({ status, shouldNotify, error, timeoutTriggerAction }) {
-      if (timeoutTriggerAction === TIMEOUT_TRIGGER_ACTION.CREATE) {
-        this.createTimeoutTrigger();
-      }
-
-      if (timeoutTriggerAction === TIMEOUT_TRIGGER_ACTION.REMOVE) {
-        this.removeTimeoutTrigger();
-      }
+    handleStatusUpdate({ status, shouldNotify, error }) {
+      this.manageTimeoutTrigger(status);
 
       this.updateCurrentStatus(status);
 
@@ -103,6 +96,28 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
       }
     }
     //----------------------------------------------------------------
+
+  //---- manageTimeoutTrigger ----------------------------------------
+    /**
+     * Manage timeout trigger based on current status
+     * @param {string} status - Current status value
+     */
+    manageTimeoutTrigger(status) {
+      switch (status) {
+        case "Import in progress":
+          this.createTimeoutTrigger();
+          break;
+          
+        case "Done":
+        case "Error":
+          this.removeTimeoutTrigger();
+          break;
+          
+        default:
+          // No timeout trigger management needed for other statuses
+          break;
+      }
+    }
   
   //---- updateCurrentStatus -----------------------------------------
     /**

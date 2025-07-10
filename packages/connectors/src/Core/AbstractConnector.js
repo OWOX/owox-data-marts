@@ -71,7 +71,7 @@ var AbstractConnector = class AbstractConnector {
         } else {
 
           this.config.logMessage("⚫️ Configuration was loaded successfully", true);
-          this.config.handleStatusUpdate({ status: `Import in progress`, shouldNotify: false, timeoutTriggerAction: TIMEOUT_TRIGGER_ACTION.CREATE });
+          this.config.handleStatusUpdate({ status: `Import in progress`, shouldNotify: false });
           this.config.updateLastImportDate();
           this.config.logMessage("🟢 Start importing new data");
 
@@ -85,8 +85,7 @@ var AbstractConnector = class AbstractConnector {
           this.config.logMessage("✅ Import is finished");
           this.config.handleStatusUpdate({ 
             status: `Done`,
-            shouldNotify: this.config.shouldSendNotifications(`Done`),
-            timeoutTriggerAction: TIMEOUT_TRIGGER_ACTION.REMOVE
+            shouldNotify: this.config.shouldSendNotifications(`Done`)
           });      
         }
 
@@ -97,8 +96,7 @@ var AbstractConnector = class AbstractConnector {
         this.config.handleStatusUpdate({ 
           status: `Error`, 
           error: error,
-          shouldNotify: this.config.shouldSendNotifications(`Error`),
-          timeoutTriggerAction: TIMEOUT_TRIGGER_ACTION.REMOVE
+          shouldNotify: this.config.shouldSendNotifications(`Error`)
         });
         this.config.logMessage(`❌ ${error.stack}`);
         throw error;

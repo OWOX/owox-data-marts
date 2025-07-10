@@ -10,8 +10,3 @@ var ENVIRONMENT = {
   APPS_SCRIPT: 2,
   NODE: 3,
 };
-
-var TIMEOUT_TRIGGER_ACTION = {
-  CREATE: 1,
-  REMOVE: 2
-};

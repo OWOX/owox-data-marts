@@ -225,16 +225,4 @@ class AbstractConfig {
       throw new Error("logMessage must be implemented in subclass of AbstractConfig");
     }
     //----------------------------------------------------------------
-
-  //---- createTimeoutTrigger ----------------------------------------
-    createTimeoutTrigger() {
-      // Override in subclasses if timeout detection is supported
-    }
-    //----------------------------------------------------------------
-
-  //---- removeTimeoutTrigger ----------------------------------------
-    removeTimeoutTrigger() {
-      // Override in subclasses if timeout detection is supported
-    }
-    //----------------------------------------------------------------
 }
