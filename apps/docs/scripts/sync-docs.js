@@ -240,10 +240,7 @@ function processDocumentLinks(fileContent, filePaths) {
 
   const linkRegex = /(?<!!)\[([^\]]*?)\]\((?!https?:\/\/)([^)]*?)\)/g;
 
-  let match;
-  while ((match = linkRegex.exec(fileContent)) !== null) {
-    const [fullMatch, linkText, originalLinkPath] = match;
-
+  return fileContent.replace(linkRegex, (fullMatch, linkText, originalLinkPath) => {
     let normalizedLinkPath;
     if (filePaths.destinationPath === rootContentIndexFile && linkText === 'Source Code') {
       normalizedLinkPath = 'https://github.com/OWOX/owox-data-marts/tree/main/' + originalLinkPath;
@@ -262,11 +259,8 @@ function processDocumentLinks(fileContent, filePaths) {
         .replace('//', '/')
         .replace('/readme/#', '/#');
     }
-
-    fileContent = fileContent.replace(fullMatch, `[${linkText}](${normalizedLinkPath})`);
-  }
-
-  return fileContent;
+    return `[${linkText}](${normalizedLinkPath})`;
+  });
 }
 
 /**
