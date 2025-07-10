@@ -5,6 +5,7 @@ import { type ReactNode } from 'react';
 import RelativeTime from '@owox/ui/components/common/relative-time';
 import { ReportStatus } from '../ReportStatus';
 import { getGoogleSheetTabUrl } from '../../utils';
+import { ExternalLinkIcon } from 'lucide-react';
 
 interface ReportHoverCardProps {
   report: DataMartReport;
@@ -56,9 +57,12 @@ export function ReportHoverCard({ report, children }: ReportHoverCardProps) {
                   target='_blank'
                   rel='noopener noreferrer'
                   className='flex items-center gap-2 text-sm text-blue-500 hover:underline'
+                  title='Open Document'
+                  aria-label='Open Document'
                 >
-                  <GoogleSheetsIcon size={16} />
-                  Google Sheet
+                  <GoogleSheetsIcon size={20} />
+                  Open Document
+                  <ExternalLinkIcon className='h-3 w-3' aria-hidden='true' />
                 </a>
               ) : (
                 <p className='text-sm'>Not specified</p>
