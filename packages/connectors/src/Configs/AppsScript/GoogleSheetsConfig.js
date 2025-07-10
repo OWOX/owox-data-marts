@@ -158,17 +158,6 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
     }
     //----------------------------------------------------------------
 
-  //---- getStatusDisplayString --------------------------------------
-    /**
-     * Convert status constant to display string
-     * @param {number} status - Status constant
-     * @returns {string} - Display string for the status
-     */
-    getStatusDisplayString(status) {
-      return this.getStatusProperties(status).displayText;
-    }
-    //----------------------------------------------------------------
-
   //---- updateCurrentStatus -----------------------------------------
     /**
      * @param {number} status - Status constant

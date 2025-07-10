@@ -106,15 +106,6 @@ class NodeJsConfig extends AbstractConfig {
     }
 
     /**
-     * Convert status constant to display string for NodeJS logging
-     * @param {number} status - Status constant
-     * @returns {string} - Display string for the status
-     */
-    getStatusDisplayString(status) {
-      return this.getStatusProperties(status).displayText;
-    }
-  
-    /**
      * Update and log the current execution status
      * 
      * Outputs structured JSON log entry to console for external monitoring
@@ -128,7 +119,7 @@ class NodeJsConfig extends AbstractConfig {
         JSON.stringify({
           type: 'updateCurrentStatus',
           at: at.toISOString().split('T')[0] + ' ' + at.toISOString().split('T')[1].split('.')[0],
-          status: this.getStatusDisplayString(status),
+          status: this.getStatusProperties(status).displayText,
         })
       );
     }
