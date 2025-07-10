@@ -1,6 +1,6 @@
-# Open Exchange Rates Connector for Google Sheets
+# Open Exchange Rates Source
 
-The [**Open Exchange Rates Connector**](.) allows you to transfer currency data from Open Exchange Rates into Google Sheets.
+The **Open Exchange Rates Source** allows you to transfer currency data from Open Exchange Rates.
 
 ## Getting Started
 
@@ -25,4 +25,4 @@ Looking for other data sources? Check out our [full list of data sources](../../
 
 ## License
 
-This source is part of the OWOX Data Marts project and is distributed under the ELv2 license. See the [LICENSE](../../../../../LICENSE.md) file for details.
+This source is part of the OWOX Data Marts project and is distributed under the [MIT license](../../../../../licenses/MIT.md).

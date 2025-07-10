@@ -1,4 +1,4 @@
-# 🧭 Architecture Guidelines for Backend Application
+# Architecture Guidelines for Backend Application
 
 These guidelines define how to structure and organize the backend architecture for the project using NestJS, TypeORM, and clean layering principles.
 

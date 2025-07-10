@@ -59,7 +59,7 @@ export const statusConfig: Record<
       solid: 'bg-gray-500 text-white',
       subtle: 'bg-gray-50 text-gray-700 dark:bg-gray-950 dark:text-gray-400',
       outline: 'border-gray-500 text-gray-700 dark:text-gray-400',
-      ghost: 'text-muted-foreground/50',
+      ghost: 'text-muted-foreground',
     },
   },
 };

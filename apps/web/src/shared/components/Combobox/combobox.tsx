@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { useCallback } from 'react';
 import { Check, ChevronsUpDown } from 'lucide-react';
 
 import { Button } from '@owox/ui/components/button';
@@ -56,6 +57,17 @@ export function Combobox({
 
   const selectedOption = options.find(option => option.value === value);
 
+  const handleSelect = useCallback(
+    (optionValue: string) => {
+      onValueChange(optionValue);
+      requestAnimationFrame(() => {
+        setSearchQuery('');
+        setOpen(false);
+      });
+    },
+    [onValueChange]
+  );
+
   return (
     <Popover open={open} onOpenChange={setOpen} modal={true}>
       <PopoverTrigger asChild>
@@ -94,9 +106,7 @@ export function Combobox({
                     key={option.value}
                     value={option.value}
                     onSelect={() => {
-                      onValueChange(option.value);
-                      setSearchQuery('');
-                      setOpen(false);
+                      handleSelect(option.value);
                     }}
                   >
                     <Check

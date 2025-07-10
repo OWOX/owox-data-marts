@@ -93,7 +93,7 @@ describe('StatusLabel Component', () => {
       [StatusTypeEnum.NEUTRAL, 'solid', ['bg-gray-500', 'text-white']],
       [StatusTypeEnum.NEUTRAL, 'subtle', ['bg-gray-50', 'text-gray-700']],
       [StatusTypeEnum.NEUTRAL, 'outline', ['border-gray-500', 'text-gray-700']],
-      [StatusTypeEnum.NEUTRAL, 'ghost', ['text-muted-foreground/50']],
+      [StatusTypeEnum.NEUTRAL, 'ghost', ['text-muted-foreground']],
     ];
 
     let element = screen.getByText('Test Label');

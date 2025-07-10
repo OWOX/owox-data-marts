@@ -1,6 +1,6 @@
-# Open Holidays Connector for Google Sheets
+# Open Holidays Source
 
-The [**Open Holidays Connector**](.) gathers information on public and school holidays and transfer data into Google Sheets.
+The **Open Holidays Source** gathers information on public and school holidays and transfer data.
 
 ## Getting Started
 
@@ -24,4 +24,4 @@ Looking for other data sources? Check out our [full list of data sources](../../
 
 ## License
 
-This source is part of the OWOX Data Marts project and is distributed under the ELv2 license. See the [LICENSE](../../../../../LICENSE.md) file for details.
+This source is part of the OWOX Data Marts project and is distributed under the [MIT license](../../../../../licenses/MIT.md).

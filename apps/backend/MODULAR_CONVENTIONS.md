@@ -1,4 +1,4 @@
-# ✅ Modular Monolith Conventions
+# Modular Monolith Conventions
 
 > Applies to `apps/backend/src/*`
 

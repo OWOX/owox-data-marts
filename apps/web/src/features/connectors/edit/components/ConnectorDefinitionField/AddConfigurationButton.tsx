@@ -16,7 +16,7 @@ export function AddConfigurationButton({
   existingConnector,
 }: AddConfigurationButtonProps) {
   return (
-    <div className='border-t pt-4'>
+    <div>
       <DataMartConnectorView
         dataStorageType={storageType}
         onSubmit={(connector: ConnectorConfig) => {

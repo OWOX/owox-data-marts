@@ -44,7 +44,7 @@ Open the menu: **OWOX → Manage Credentials**
 
 ![Facebook Credentials](res/fb_credentials.png)
 
-Enter your credentials obtained by following this guide: [**How to obtain the access token for the Facebook connector**](packages/connectors/src/Sources/FacebookMarketing/CREDENTIALS.md)
+Enter your credentials obtained by following this guide: [**How to obtain the access token for the Facebook connector**](CREDENTIALS.md)
 
 ![Facebook Token](res/fb_token.png)
 

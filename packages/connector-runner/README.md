@@ -2,11 +2,9 @@
 
 A Node.js utility for running OWOX Data Marts connectors in isolated environments.
 
-## Overview
-
 The NodeJS connector runner allows you to execute data connectors on your machine in isolated Node.js environments. This is particularly useful for development, testing, debugging, and production runs of data integration connectors.
 
-### Key Features
+## Key Features
 
 - **Isolated Environment Creation**: Creates separate Node.js environments for each connector run
 - **Automatic Dependency Management**: Installs required dependencies for each connector

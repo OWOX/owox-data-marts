@@ -13,7 +13,7 @@ export default defineConfig({
   trailingSlash: 'always',
   integrations: [
     starlight({
-      title: 'OWOX Docs',
+      title: 'OWOX Data Marts',
       favicon: 'favicon.png',
       logo: {
         src: './public/logo.svg',
@@ -22,51 +22,48 @@ export default defineConfig({
         { icon: 'github', label: 'GitHub', href: 'https://github.com/OWOX/owox-data-marts' },
       ],
       sidebar: [
+        { label: 'Intro', link: '/' },
         {
           label: 'Getting started',
           items: [
-            { label: 'OWOX Data Marts', link: '/' },
-            // { label: 'License', link: 'license' },
-          ],
-        },
-        { label: 'Licenses', autogenerate: { directory: 'licenses' }, collapsed: true },
-        { label: 'Documentation', autogenerate: { directory: 'docs' }, collapsed: true },
-        {
-          label: 'Apps',
-          items: [
-            { label: 'OWOX', autogenerate: { directory: 'apps/owox' }, collapsed: true },
-            { label: 'Backend', autogenerate: { directory: 'apps/backend', collapsed: true } },
-            { label: 'Web', autogenerate: { directory: 'apps/web' }, collapsed: true },
-            { label: 'Docs', autogenerate: { directory: 'apps/docs' }, collapsed: true },
-          ],
-          collapsed: true,
+            'docs/getting-started/quick-start',
+            'docs/getting-started/editions'
+          ]
         },
         {
-          label: 'Packages',
+          label: 'Connectors',
           items: [
+            {
+              label: 'Sources',
+              autogenerate: { directory: 'packages/connectors/src/sources'},
+            },
+            {
+              label: 'Storages',
+              autogenerate: { directory: 'packages/connectors/src/storages'},
+            },
+          ],
+        },
+        {
+          label: 'Contributing',
+          items: [
+            { label: 'Repository', autogenerate: { directory: 'docs/contributing/repository' }, collapsed: true },
             {
               label: 'Connectors',
               items: [
-                'packages/connectors/guideline',
+                'packages/connectors/environment-adapter',
                 'packages/connectors/contributing',
-                {
-                  label: 'Sources',
-                  autogenerate: { directory: 'packages/connectors/src/sources', collapsed: true },
-                },
-                {
-                  label: 'Storages',
-                  autogenerate: { directory: 'packages/connectors/src/storages', collapsed: true },
-                },
+                'packages/connectors/publishing'
               ],
-              collapsed: true,
+              collapsed: true
             },
-            {
-              label: 'Connector Runner',
-              autogenerate: { directory: 'packages/connector-runner', collapsed: true },
-            },
-          ],
-          collapsed: true,
-        },
+            { label: 'Documentation', autogenerate: { directory: 'apps/docs' }, collapsed: true },
+            { label: 'CLI Application', autogenerate: { directory: 'apps/owox' }, collapsed: true },
+            { label: 'Web Application', autogenerate: { directory: 'apps/web' }, collapsed: true },
+            { label: 'Backend Application', autogenerate: { directory: 'apps/backend'}, collapsed: true },
+            { label: 'Connector Runner', autogenerate: { directory: 'packages/connector-runner'}, collapsed: true },
+            { label: 'Licenses', autogenerate: { directory: 'licenses' }, collapsed: true },
+          ]
+        }
       ],
       plugins: [starlightAutoSidebar()],
     }),

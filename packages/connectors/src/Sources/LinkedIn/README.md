@@ -1,6 +1,6 @@
-# LinkedIn Ads / LinkedIn Pages Source Overview
+# LinkedIn Ads / LinkedIn Pages Source
 
-The [**LinkedIn Ads / LinkedIn Pages Source**](.) allows you to seamlessly export raw data from LinkedIn Ads / LinkedIn Pages into Google Sheets / Google BigQuery. Use this data for custom analysis, reporting, or to power your marketing dashboards.
+The **LinkedIn Ads / LinkedIn Pages Source** allows you to seamlessly export raw data from LinkedIn Ads / LinkedIn Pages. Use this data for custom analysis, reporting, or to power your marketing dashboards.
 
 ## Getting Started
 
@@ -27,4 +27,4 @@ Looking for other data sources? Check out our [full list of data sources](../../
 
 ## License
 
-This source is part of the OWOX Data Marts project and is distributed under the ELv2 license. See the [LICENSE](../../../../../LICENSE.md) file for details.
+This source is part of the OWOX Data Marts project and is distributed under the [MIT license](../../../../../licenses/MIT.md).

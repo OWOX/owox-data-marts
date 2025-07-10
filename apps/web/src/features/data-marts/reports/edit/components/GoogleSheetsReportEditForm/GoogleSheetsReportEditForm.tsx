@@ -37,6 +37,7 @@ import {
   isValidGoogleSheetsUrl,
   ReportFormMode,
 } from '../../../shared';
+import { TimeTriggerAnnouncement } from '../../../../scheduled-triggers';
 
 interface GoogleSheetsReportEditFormProps {
   initialReport?: DataMartReport;
@@ -369,11 +370,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
               />
 
               <Separator />
-              <div className='border-border flex flex-col gap-1.5 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-0 dark:bg-white/4'>
-                <p className='text-sm font-medium'>
-                  Trigger <span className='text-muted-foreground/50'>Coming soon...</span>
-                </p>
-              </div>
+              <TimeTriggerAnnouncement />
             </div>
           </div>
           <div className='flex flex-col gap-1.5 border-t px-4 py-3'>

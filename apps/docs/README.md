@@ -1,4 +1,4 @@
-# OWOX Docs
+# Documentation
 
 This is the source code for the monorepo documentation site based on the [Astro + Starlight](https://starlight.astro.build/) project.
 

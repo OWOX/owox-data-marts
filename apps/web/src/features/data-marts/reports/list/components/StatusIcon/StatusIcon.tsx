@@ -58,11 +58,9 @@ export function StatusIcon({ status, error }: StatusIconProps) {
           />
         </TooltipTrigger>
         <TooltipContent id={tooltipId} side='bottom' role='tooltip'>
-          <span>{label}</span>
+          <div className='text-xs'>{label}</div>
           {status === ReportStatusEnum.ERROR && error && (
-            <div className='mt-1 max-w-xs text-xs break-words whitespace-normal text-red-500'>
-              {error}
-            </div>
+            <div className='mt-1 max-w-xs text-xs break-words whitespace-normal'>{error}</div>
           )}
         </TooltipContent>
       </Tooltip>

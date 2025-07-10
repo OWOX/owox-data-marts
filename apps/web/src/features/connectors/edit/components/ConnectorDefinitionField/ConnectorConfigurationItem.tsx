@@ -104,27 +104,55 @@ export function ConnectorConfigurationItem({
   };
 
   return (
-    <div className='bg-muted/50 space-y-3 rounded-lg border p-4 dark:bg-white/4'>
-      <div className='flex items-center justify-between'>
-        <div></div>
+    <div className='flex w-full items-center border-b pb-4'>
+      <div className='flex-grow'>
+        <div className='grid grid-cols-2 gap-4'>
+          <DataMartConnectorView
+            dataStorageType={storageType}
+            onSubmit={onUpdateConfiguration(configIndex)}
+            configurationOnly={true}
+            existingConnector={{
+              source: {
+                ...connectorDef.connector.source,
+                configuration: [connectorDef.connector.source.configuration[configIndex]],
+              },
+              storage: connectorDef.connector.storage,
+            }}
+          >
+            <ListItemCard
+              title={connectorDef.connector.source.name || 'Connector'}
+              subtitle={getConnectorSubtitle()}
+              className='min-h-[80px] cursor-pointer transition-colors'
+              rightContent={getConnectorRightContent()}
+            />
+          </DataMartConnectorView>
+
+          <ListItemCard
+            title={getStorageDisplayName(storageType)}
+            icon={dataStorageInfo.icon}
+            subtitle={getStorageSubtitle()}
+            className='bg-background min-h-[80px] cursor-default border-0 hover:shadow-none dark:bg-white/2'
+          />
+        </div>
+      </div>
+
+      <div className='shrink-0 pl-4'>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div>
-              <Button
-                type='button'
-                variant='ghost'
-                size='sm'
-                onClick={() => {
-                  if (canRemoveConfiguration()) {
-                    onRemoveConfiguration(configIndex);
-                  }
-                }}
-                disabled={!canRemoveConfiguration()}
-                className='disabled:text-muted-foreground/50 text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/50'
-              >
-                <Trash2 className='h-4 w-4' />
-              </Button>
-            </div>
+            <Button
+              type='button'
+              variant='ghost'
+              size='sm'
+              onClick={() => {
+                if (canRemoveConfiguration()) {
+                  onRemoveConfiguration(configIndex);
+                }
+              }}
+              disabled={!canRemoveConfiguration()}
+              className='disabled:text-muted-foreground/50 text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/50'
+            >
+              <Trash2 className='h-4 w-4' />
+            </Button>
           </TooltipTrigger>
           {!canRemoveConfiguration() && (
             <TooltipContent>
@@ -132,35 +160,6 @@ export function ConnectorConfigurationItem({
             </TooltipContent>
           )}
         </Tooltip>
-      </div>
-
-      <div className='grid grid-cols-2 gap-4'>
-        <DataMartConnectorView
-          dataStorageType={storageType}
-          onSubmit={onUpdateConfiguration(configIndex)}
-          configurationOnly={true}
-          existingConnector={{
-            source: {
-              ...connectorDef.connector.source,
-              configuration: [connectorDef.connector.source.configuration[configIndex]],
-            },
-            storage: connectorDef.connector.storage,
-          }}
-        >
-          <ListItemCard
-            title={connectorDef.connector.source.name || 'Connector'}
-            subtitle={getConnectorSubtitle()}
-            className='min-h-[80px] cursor-pointer transition-colors'
-            rightContent={getConnectorRightContent()}
-          />
-        </DataMartConnectorView>
-
-        <ListItemCard
-          title={getStorageDisplayName(storageType)}
-          icon={dataStorageInfo.icon}
-          subtitle={getStorageSubtitle()}
-          className='bg-background min-h-[80px] cursor-default border-0 hover:shadow-none dark:bg-white/4'
-        />
       </div>
     </div>
   );

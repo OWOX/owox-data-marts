@@ -37,7 +37,7 @@ import {
 } from '@owox/ui/components/alert-dialog';
 import { Check, Search, Trash2, Plus } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
-import { EmptyDataMartsState } from './EmptyDataMartsState';
+import { EmptyDataMartsState } from './components/EmptyDataMartsState';
 import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
 
 interface DataTableProps<TData, TValue> {
@@ -233,7 +233,7 @@ export function DataMartTable<TData, TValue>({
                   return (
                     <TableHead
                       key={header.id}
-                      className='[&:has([role=checkbox])]:pl-5 [&>[role=checkbox]]:translate-y-[2px]'
+                      className='[&:has([role=checkbox])]:pl-6 [&>[role=checkbox]]:translate-y-[2px]'
                       style={
                         header.column.id === 'select'
                           ? { width: 40, minWidth: 40, maxWidth: 40 }
@@ -275,7 +275,7 @@ export function DataMartTable<TData, TValue>({
                   {row.getVisibleCells().map(cell => (
                     <TableCell
                       key={cell.id}
-                      className={`[&:has([role=checkbox])]pr-0 px-5 whitespace-normal [&>[role=checkbox]]:translate-y-[2px] ${cell.column.id === 'actions' ? 'actions-cell' : ''} ${cell.column.id === 'createdAt' ? 'whitespace-nowrap' : ''}`}
+                      className={`[&:has([role=checkbox])]pr-0 px-6 whitespace-normal [&>[role=checkbox]]:translate-y-[2px] ${cell.column.id === 'actions' ? 'actions-cell' : ''} ${cell.column.id === 'createdAt' ? 'whitespace-nowrap' : ''}`}
                       style={
                         cell.column.id === 'select'
                           ? { width: 40, minWidth: 40, maxWidth: 40 }

@@ -6,7 +6,7 @@ import type { ReportStatusPollingConfig } from '../../services';
 import { mapDataDestinationFromDto } from '../../../../../data-destination/shared/model/mappers/data-destination.mapper';
 import { useReportContext, ReportActionType } from '../context';
 
-function mapReportDtoToEntity(reportDto: ReportResponseDto): DataMartReport {
+export function mapReportDtoToEntity(reportDto: ReportResponseDto): DataMartReport {
   return {
     id: reportDto.id,
     title: reportDto.title,
