@@ -17,6 +17,7 @@ import { cronToScheduleConfig } from './cron-parser';
 import { MultiSelect } from '@owox/ui/components/common/multi-select';
 import { timezoneService } from '../../../../../services';
 import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
+import { Combobox } from '../../../../../shared/components/Combobox/combobox';
 import {
   type ScheduleConfig,
   WEEKDAYS,
@@ -120,18 +121,15 @@ const TimezoneField: FC<TimezoneFieldProps> = ({ value, onChange, disabled, time
     <div className='w-full space-y-2'>
       <Label>Timezone</Label>
       <div className='flex items-center gap-2'>
-        <Select value={value} onValueChange={onChange} disabled={disabled}>
-          <SelectTrigger className='w-full overflow-hidden text-ellipsis'>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {timezones.map(tz => (
-              <SelectItem key={tz.value} value={tz.value}>
-                {tz.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Combobox
+          options={timezones}
+          value={value}
+          onValueChange={onChange}
+          placeholder='Select timezone'
+          emptyMessage='No timezones found'
+          disabled={disabled}
+          className='w-full'
+        />
       </div>
     </div>
   );
