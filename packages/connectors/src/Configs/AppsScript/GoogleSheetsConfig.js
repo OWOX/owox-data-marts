@@ -82,7 +82,7 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
   //---- handleStatusUpdate -----------------------------------------------
     /**
      * @param {Object} params - Parameters object with status and other properties
-     * @param {string} params.status - Current status value
+     * @param {number} params.status - Status constant
      * @param {string} params.error - Error message for Error status
      */
     handleStatusUpdate({ status, error }) {
@@ -99,53 +99,85 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
   //---- manageTimeoutTrigger ----------------------------------------
     /**
      * Manage timeout trigger based on current status
-     * @param {string} status - Current status value
+     * @param {number} status - Status constant
      */
     manageTimeoutTrigger(status) {
-      switch (status) {
-        case "Import in progress":
-          this.createTimeoutTrigger();
-          break;
-          
-        case "Done":
-        case "Error":
-          this.removeTimeoutTrigger();
-          break;
-          
-        default:
-          // No timeout trigger management needed for other statuses
-          break;
+      if (status === EXECUTION_STATUS.IMPORT_IN_PROGRESS) {
+        this.createTimeoutTrigger();
+      } else if (status === EXECUTION_STATUS.IMPORT_DONE || status === EXECUTION_STATUS.ERROR) {
+        this.removeTimeoutTrigger();
       }
     }
   
+  //---- getStatusProperties ------------------------------------------
+    /**
+     * Get all properties for a given status
+     * @param {number} status - Status constant
+     * @returns {Object} - Object with all status properties
+     */
+    getStatusProperties(status) {
+      switch (status) {
+        case EXECUTION_STATUS.IMPORT_IN_PROGRESS:
+          return {
+            displayText: "Import in progress",
+            backgroundColor: "#c9e3f9",
+            notificationMessage: "Import is in progress."
+          };
+          
+        case EXECUTION_STATUS.CLEANUP_IN_PROGRESS:
+          return {
+            displayText: "CleanUp in progress",
+            backgroundColor: "#c9e3f9", 
+            notificationMessage: "Cleanup is in progress."
+          };
+          
+        case EXECUTION_STATUS.IMPORT_DONE:
+          return {
+            displayText: "Done",
+            backgroundColor: "#d4efd5",
+            notificationMessage: "Import completed successfully."
+          };
+          
+        case EXECUTION_STATUS.CLEANUP_DONE:
+          return {
+            displayText: "Done",
+            backgroundColor: "#d4efd5",
+            notificationMessage: "Cleanup completed successfully."
+          };
+          
+        case EXECUTION_STATUS.ERROR:
+          return {
+            displayText: "Error",
+            backgroundColor: "#fdd2cf",
+            notificationMessage: "Error occurred"
+          };
+          
+        default:
+          throw new Error(`Unknown status constant: ${status}`);
+      }
+    }
+    //----------------------------------------------------------------
+
+  //---- getStatusDisplayString --------------------------------------
+    /**
+     * Convert status constant to display string
+     * @param {number} status - Status constant
+     * @returns {string} - Display string for the status
+     */
+    getStatusDisplayString(status) {
+      return this.getStatusProperties(status).displayText;
+    }
+    //----------------------------------------------------------------
+
   //---- updateCurrentStatus -----------------------------------------
     /**
-     * @param string current status value
+     * @param {number} status - Status constant
      */
     updateCurrentStatus(status) {
-    
-      this.CurrentStatus.cell.setValue(status);
-    
-      let backgroundColor = null;
-    
-      switch (status) {
-        case "CleanUp in progress":
-          backgroundColor = "#c9e3f9";
-          break;
-    
-        case "Import in progress":
-          backgroundColor = "#c9e3f9";
-          break;
-        case "Error":
-          backgroundColor = "#fdd2cf";
-          break;
-        case "Done":
-          backgroundColor = "#d4efd5";
-          break;
-      }
-    
-      this.CurrentStatus.cell.setBackground( backgroundColor );
-    
+      const statusProps = this.getStatusProperties(status);
+      
+      this.CurrentStatus.cell.setValue(statusProps.displayText);
+      this.CurrentStatus.cell.setBackground(statusProps.backgroundColor);
     }
     //----------------------------------------------------------------
   
@@ -453,23 +485,18 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
     /**
      * Format user-friendly status message
      * @param {Object} params - Parameters object
-     * @param {string} params.status - Current status
+     * @param {number} params.status - Status constant
      * @param {string} params.error - Error message if status is Error
      * @returns {string} - Formatted message
      */
     formatStatusMessage({ status, error }) {
-      switch (status) {
-        case 'Done':
-          return 'Import is finished successfully.';
-        case 'Error':
-          return `Error occurred during import${error ? ': ' + error : ''}.`;
-        case 'Import in progress':
-          return 'Import is in progress.';
-        case 'CleanUp in progress':
-          return 'Cleanup is in progress.';
-        default:
-          return `Status: ${status}.`;
+      const statusProps = this.getStatusProperties(status);
+      
+      if (status === EXECUTION_STATUS.ERROR && error) {
+        return `${statusProps.notificationMessage}: ${error}`;
       }
+      
+      return statusProps.notificationMessage;
     }
     //----------------------------------------------------------------
 
@@ -477,7 +504,7 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
   //---- shouldSendNotifications -------------------------------------
     /**
      * Determine if notifications should be sent based on status and filter setting
-     * @param {string} status - Current status
+     * @param {number} status - Status constant
      * @returns {boolean} - True if notifications should be sent
      */
     shouldSendNotifications(status) {
@@ -485,10 +512,10 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
       
       switch (notifyWhen) {
         case "On error":
-          return status === "Error";
+          return status === EXECUTION_STATUS.ERROR;
         
         case "On success":
-          return status === "Done";
+          return status === EXECUTION_STATUS.IMPORT_DONE;
         
         case "Always":
           return true;
@@ -532,7 +559,7 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
       if (!this.isInProgress()) {
         console.log('[TimeoutTrigger] Status is NOT in progress, setting to Error and sending notification');
         this.handleStatusUpdate({
-          status: "Error",
+          status: EXECUTION_STATUS.ERROR,
           error: "Import was interrupted (likely due to timeout)"
         });
       } else {

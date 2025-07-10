@@ -172,7 +172,7 @@ class AbstractConfig {
   //---- handleStatusUpdate -----------------------------------------------
     /**
      * @param {Object} params - Parameters object with status and other properties
-     * @param {string} params.status - Current status value
+     * @param {number} params.status - Status constant
      * @param {string} params.error - Error message for Error status
      */
     handleStatusUpdate({ status, error }) {

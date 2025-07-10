@@ -63,11 +63,55 @@ class NodeJsConfig extends AbstractConfig {
     /**
      * Determine if notifications should be sent based on status and filter setting
      * For NodeJS environment, always return false
-     * @param {string} status - Current status
+     * @param {number} status - Status constant
      * @returns {boolean} - Always false for NodeJS
      */
     shouldSendNotifications(status) {
       return false;
+    }
+
+    /**
+     * Get all properties for a given status (NodeJS specific)
+     * @param {number} status - Status constant
+     * @returns {Object} - Object with status properties for NodeJS
+     */
+    getStatusProperties(status) {
+      switch (status) {
+        case EXECUTION_STATUS.IMPORT_IN_PROGRESS:
+          return {
+            displayText: "Import in progress"
+          };
+          
+        case EXECUTION_STATUS.CLEANUP_IN_PROGRESS:
+          return {
+            displayText: "CleanUp in progress"
+          };
+          
+        case EXECUTION_STATUS.IMPORT_DONE:
+        case EXECUTION_STATUS.CLEANUP_DONE:
+          return {
+            displayText: "Done"
+          };
+          
+        case EXECUTION_STATUS.ERROR:
+          return {
+            displayText: "Error"
+          };
+          
+        default:
+          return {
+            displayText: `Unknown status: ${status}`
+          };
+      }
+    }
+
+    /**
+     * Convert status constant to display string for NodeJS logging
+     * @param {number} status - Status constant
+     * @returns {string} - Display string for the status
+     */
+    getStatusDisplayString(status) {
+      return this.getStatusProperties(status).displayText;
     }
   
     /**
@@ -76,7 +120,7 @@ class NodeJsConfig extends AbstractConfig {
      * Outputs structured JSON log entry to console for external monitoring
      * and tracking of connector execution status.
      * 
-     * @param {string} status - Current status of the data connector execution
+     * @param {number} status - Status constant
      */
     updateCurrentStatus(status) {
       const at = new Date();
@@ -84,7 +128,7 @@ class NodeJsConfig extends AbstractConfig {
         JSON.stringify({
           type: 'updateCurrentStatus',
           at: at.toISOString().split('T')[0] + ' ' + at.toISOString().split('T')[1].split('.')[0],
-          status: status,
+          status: this.getStatusDisplayString(status),
         })
       );
     }
@@ -96,7 +140,7 @@ class NodeJsConfig extends AbstractConfig {
      * and tracking of connector execution status.
      * 
      * @param {Object} params - Parameters object with status and other properties
-     * @param {string} params.status - Current status of the data connector execution
+     * @param {number} params.status - Status constant
      * @param {string} params.error - Error message for Error status
      */
     handleStatusUpdate({ status }) {
