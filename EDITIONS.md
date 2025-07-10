@@ -11,16 +11,11 @@
 The tables below outline available features, security, and terms in **Self-Managed editions** of OWOX Data Marts.
 
 Legend:
-
-✅ — Available
-
-❌ — Not available
-
-⚠️ — Limited
-
-☁️ — Available as part of the Cloud edition
-
-⏳ — Coming soon
+- ✅ — Available
+- ❌ — Not available
+- ⚠️ — Limited
+- ☁️ — Available as part of the Cloud edition
+- ⏳ — Coming soon
 
 ---
 ### Features
@@ -32,24 +27,24 @@ Legend:
 | **Data Destinations** coming soon | ❌ | <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e443cceb884058e99ca7_Snowflake.avif" alt="Snowflake" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e4437264e072bc7be510_11bb23aa174bd0bcd5f51dd4f2d4c5a0_Redshift%20Logo-p-500.avif" alt="Redshift" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e443723c8492370b5228_97d60cb073789168589d817b50f5fd0f_DataBricks%20Logo.avif" alt="Databricks" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6842f6ecd7094e7132eae6f1_azure-p-500.png" alt="Synapse" height="24"/> | <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e443cceb884058e99ca7_Snowflake.avif" alt="Snowflake" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e4437264e072bc7be510_11bb23aa174bd0bcd5f51dd4f2d4c5a0_Redshift%20Logo-p-500.avif" alt="Redshift" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e443723c8492370b5228_97d60cb073789168589d817b50f5fd0f_DataBricks%20Logo.avif" alt="Databricks" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6842f6ecd7094e7132eae6f1_azure-p-500.png" alt="Synapse" height="24"/> | <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e443cceb884058e99ca7_Snowflake.avif" alt="Snowflake" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e4437264e072bc7be510_11bb23aa174bd0bcd5f51dd4f2d4c5a0_Redshift%20Logo-p-500.avif" alt="Redshift" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e443723c8492370b5228_97d60cb073789168589d817b50f5fd0f_DataBricks%20Logo.avif" alt="Databricks" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6842f6ecd7094e7132eae6f1_azure-p-500.png" alt="Synapse" height="24"/> |
 | **Data Enablement** [^3] | Google Sheets via Export | Google Sheets via Export and Extension[^4], Looker Studio [^5], Excel (OData) ⏳ | Google Sheets via Export and Extension [^4], Looker Studio [^5], Excel (OData) ⏳ | Google Sheets via Export and Extension [^4], Looker Studio [^5], Excel (OData) ⏳ |
 | **Data Marts Management** [^6] | ❌ | ✅ | ✅ | ✅ |
-| **Relationships** [^7] ⏳ | ❌ | ✅ | ✅ | ✅ |
-| **Semantic Layer** ⏳[^17]| ❌ | ✅ | ✅ | ✅ |
+| **Relationships** [^7]  | ❌ | ⏳ | ⏳ | ⏳ |
+| **Semantic Layer** [^17]| ❌ | ⏳ | ⏳ | ⏳ |
 | **Orchestration** [^8] | ⚠️ _Apps Script only_ | ✅ | ✅ | ✅ |
-| **Conversational UI** ⏳ | ❌ | ❌ | ❌ | ✅ |
+| **Conversational UI**  | ❌ | ❌ | ❌ | ⏳ |
 | **How to start** | [Download Sheets template](https://github.com/OWOX/owox-data-marts?tab=readme-ov-file#data-sources) | [Install on your desktop](https://github.com/OWOX/owox-data-marts/tree/main/apps/owox#quick-start--no-code-setup) | [Upgrade Community Edition](https://www.owox.com/pricing)  | [Contact our team](https://www.owox.com/pricing) |
 
 ### Security & Control 
 
 |  | **Community Apps Script** | **Community** | **Agency** | **Enterprise** |
 |-----------------------------|---------------------------|--------------------------|----------------------|------------------------|
-| **Users Management** ⏳[^9] | ⚠️ _Limited_ | ✅ | ✅ | ✅ |
-| **Social Sign-In** ⏳[^10] | ❌ | ❌ | ✅ | ✅ |
-|  **SSO (SAML)** ⏳[^11] | ❌ | ❌ | ❌ | ✅ |
-|  **High Availability Cluster** ⏳[^12] | ❌ | ❌ | ❌ | ✅ |
-|  **Access Permissions** ⏳[^13] | ❌ | ❌ | ❌ | ✅ |
-|  **Multiple Projects** ⏳[^14] | ❌ | ❌ | ✅ | ✅ |
-|  **Monitoring & Logging** ⏳[^15] | ❌ | ❌ | ❌ | ✅ |
-|  **Telemetry** ⏳[^16] | ❌ | ⚠️ | ⚠️ | ✅ |
+| **Users Management** [^9] | ⚠️ _Limited by Apps Script_ | ⏳ | ⏳ | ⏳ |
+| **Social Sign-In** [^10] | ❌ | ❌ | ⏳ | ⏳ |
+|  **SSO (SAML)** [^11] | ❌ | ❌ | ❌ | ⏳ |
+|  **High Availability Cluster** [^12] | ❌ | ❌ | ❌ | ⏳ |
+|  **Access Permissions** [^13] | ❌ | ❌ | ❌ | ⏳ |
+|  **Multiple Projects** [^14] | ❌ | ❌ | ⏳ | ⏳ |
+|  **Monitoring & Logging** [^15] | ❌ | ❌ | ❌ | ⏳ |
+|  **Telemetry** [^16] | ❌ | ⚠️⏳ | ⚠️⏳ | ⏳ |
 | **How to start** | [Download Sheets template](https://github.com/OWOX/owox-data-marts?tab=readme-ov-file#data-sources) | [Install on your desktop](https://github.com/OWOX/owox-data-marts/tree/main/apps/owox#quick-start--no-code-setup) | [Upgrade Community Edition](https://www.owox.com/pricing)  | [Contact our team](https://www.owox.com/pricing) |
 
 
