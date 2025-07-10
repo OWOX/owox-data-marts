@@ -145,7 +145,7 @@ export function ScheduledTriggerTable({
                       return (
                         <TableCell
                           key={cell.id}
-                          className={`px-5 whitespace-normal ${cell.column.id === 'actions' ? 'actions-cell' : ''}`}
+                          className={`whitespace-normal ${cell.column.id === 'actions' ? 'actions-cell' : ''}`}
                           role='cell'
                           aria-colindex={cellIndex + 1}
                         >

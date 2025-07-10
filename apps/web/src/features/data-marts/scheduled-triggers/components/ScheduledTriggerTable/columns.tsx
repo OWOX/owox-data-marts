@@ -37,7 +37,7 @@ export function getScheduledTriggerColumns({
     },
     {
       accessorKey: 'triggerConfig',
-      header: 'Target',
+      header: 'Report',
       cell: ({ row }) => {
         const trigger = row.original;
         if (trigger.type === ScheduledTriggerType.REPORT_RUN && trigger.triggerConfig) {

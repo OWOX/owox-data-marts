@@ -1,5 +1,6 @@
-import { DataStorageType } from '../../../../../data-storage/shared/model/types';
+import { DataStorageType } from '../../../../../data-storage';
 import { Input } from '@owox/ui/components/input';
+import { TimeTriggerAnnouncement } from '../../../../../data-marts/scheduled-triggers';
 
 interface TargetSetupStepProps {
   dataStorageType: DataStorageType;
@@ -81,6 +82,8 @@ export function TargetSetupStep({
             </div>
           </div>
         )}
+
+        <TimeTriggerAnnouncement />
       </div>
     </div>
   );
