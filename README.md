@@ -61,7 +61,7 @@ For detailed installation instructions, see our [Quick Start 🚀 (no-code setup
 
 ### Community Apps Script Edition
 
-- 🎯 Pick your platform (e.g. Facebook Ads) from [existing integrations](packages/connectors/src/Sources)
+- 🎯 Pick your platform (e.g. Facebook Ads) from [existing integrations](#-available-connectors)
 - 🧾 Make a copy of the Template from the [connectors table](#-available-connectors)
 - 🔐 Add your API credentials directly to the sheet — **they stay private**
 - 🚀 Run the Apps Script to pull your data
