@@ -23,7 +23,13 @@ export default defineConfig({
       ],
       sidebar: [
         { label: 'Intro', link: '/' },
-        { label: 'Getting started', autogenerate: { directory: 'docs/getting-started' }},
+        {
+          label: 'Getting started',
+          items: [
+            'docs/getting-started/quick-start',
+            'docs/getting-started/editions'
+          ]
+        },
         {
           label: 'Connectors',
           items: [
