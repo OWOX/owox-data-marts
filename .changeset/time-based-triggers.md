@@ -1,3 +1,7 @@
+---
+'owox': minor
+---
+
 # ⏰ Time Triggers: Schedule Your Reports and Connectors
 
 ## What's New
