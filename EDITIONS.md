@@ -1,49 +1,68 @@
-# Editions of OWOX Data Marts
+# OWOX Data Marts Editions: Connect and Enable Data Your Way
 
-This table outlines available features in **Self-Managed** editions of OWOX Data Marts.
+**OWOX Data Marts** is an open-source, self-service reporting platform designed for Data Analysts. It gives you full control over data connectivity and data enablement — entirely on your terms, with fully free editions available.
 
+🔌 **Data Connectivity** – Easily collect marketing, financial, and CRM data into Google Sheets, BigQuery, AWS Athena, and other destinations. Define your own extraction logic, schema, and scheduling.
+
+🚀 **Data Enablement** – Build and manage reliable Data Marts. Deliver clean, business-ready data to stakeholders via Google Sheets, Looker Studio, or Excel — while retaining full control over data logic and freshness.
+
+[🌐 Website](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) | [💬 Join Community](https://github.com/OWOX/owox-data-marts/discussions) | [🆘 Create an Issue](https://github.com/OWOX/owox-data-marts/issues)
+
+The tables below outline available features, security, and terms in **Self-Managed editions** of OWOX Data Marts.
 
 Legend:
-- ✅ — Available
-- ❌ — Not available
-- ⚠️ — Limited
-- ☁️ — Available as part of the Cloud edition
-- 🛠️ — Coming soon
+
+✅ — Available
+
+❌ — Not available
+
+⚠️ — Limited
+
+☁️ — Available as part of the Cloud edition
+
+⏳ — Coming soon
 
 ---
+### Features
 
-|  | | ***Community Apps Script*** | ***Community*** | ***Agency*** | ***Enterprise*** |
-|-------------|-------------|----------------------------|------------------------------|---------------------------|-------------------------------|
-| **Licensing** | Platform  | _Source available (ELv2)_ | _Source available (ELv2)_ | _Source available (ELv2)_ | _ELv2 + Proprietary_ |
-|  | Connectors | _Open Source (MIT)_ | _Open Source (MIT)_ | _Open Source (MIT)_ | _Open Source (MIT)_ |
-| **Pricing** | Pricing | _Free to use_ | _Free to use_ | _Paid subscription for a limited-feature version_ | _Paid subscription for full-featured version_ |
-| **Data Connectivity**[^1] | [Data Sources](https://github.com/OWOX/owox-data-marts?tab=readme-ov-file#data-sources): Ads Platforms, CRMs, Databases & more | ✅ | ✅ | ✅ | ✅ |
-| **Data Storages (SQL-accessible)**[^2] | Data warehouses (available) | <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/67939684b05fa3e2d782fe42_43%207.svg" alt="BigQuery" height="48"/> | <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/67939684b05fa3e2d782fe42_43%207.svg" alt="BigQuery" height="48"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6842f6eb7ab11302f8a90b77_analytics-amazonathena-icon-2048x2028-16si4o29-p-500.png" alt="Athena" height="36"/> | <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/67939684b05fa3e2d782fe42_43%207.svg" alt="BigQuery" height="48"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6842f6eb7ab11302f8a90b77_analytics-amazonathena-icon-2048x2028-16si4o29-p-500.png" alt="Athena" height="36"/> | <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/67939684b05fa3e2d782fe42_43%207.svg" alt="BigQuery" height="48"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6842f6eb7ab11302f8a90b77_analytics-amazonathena-icon-2048x2028-16si4o29-p-500.png" alt="Athena" height="36"/> |
-|  | Data warehouses (coming soon) | ❌ | <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e443cceb884058e99ca7_Snowflake.avif" alt="Snowflake" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e4437264e072bc7be510_11bb23aa174bd0bcd5f51dd4f2d4c5a0_Redshift%20Logo-p-500.avif" alt="Redshift" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e443723c8492370b5228_97d60cb073789168589d817b50f5fd0f_DataBricks%20Logo.avif" alt="Databricks" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6842f6ecd7094e7132eae6f1_azure-p-500.png" alt="Synapse" height="24"/> | <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e443cceb884058e99ca7_Snowflake.avif" alt="Snowflake" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e4437264e072bc7be510_11bb23aa174bd0bcd5f51dd4f2d4c5a0_Redshift%20Logo-p-500.avif" alt="Redshift" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e443723c8492370b5228_97d60cb073789168589d817b50f5fd0f_DataBricks%20Logo.avif" alt="Databricks" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6842f6ecd7094e7132eae6f1_azure-p-500.png" alt="Synapse" height="24"/> | <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e443cceb884058e99ca7_Snowflake.avif" alt="Snowflake" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e4437264e072bc7be510_11bb23aa174bd0bcd5f51dd4f2d4c5a0_Redshift%20Logo-p-500.avif" alt="Redshift" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e443723c8492370b5228_97d60cb073789168589d817b50f5fd0f_DataBricks%20Logo.avif" alt="Databricks" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6842f6ecd7094e7132eae6f1_azure-p-500.png" alt="Synapse" height="24"/> |
-|  | Spreadsheets | _Google Sheets_ | _N/A_ | _N/A_ | _N/A_ |
-| **Data Enablement**[^3] | Google Sheets Export | ✅ | ✅ | ✅ | ✅ |
-|  | Google Sheets Extension 🛠️[^4] | ❌ | ☁️ | ☁️ | ☁️ |
-|  | Looker Studio Connector 🛠️[^5] | ❌ | ✅ | ✅ | ✅ |
-|  | OData (Excel) | ❌ | ✅ | ✅ | ✅ |
-| **Features** | Data Mart Management[^6] | ❌ | ✅ | ✅ | ✅ |
-|  | Orchestration[^8] | ⚠️ _Apps Script only_ | ✅ | ✅ | ✅ |
-|  | Relationships 🛠️[^7] | ❌ | ✅ | ✅ | ✅ |
-|  | Semantic Layer 🛠️[^17] | ❌ | ✅ | ✅ | ✅ |
-|  | AI Assistant | ❌ | ❌ | ❌ | ✅ _Bring you AI_ |
-| **Security & Control** | Users Management 🛠️[^9] | ⚠️ _Limited_ | ✅ | ✅ | ✅ |
-|  | Social Sign-In 🛠️[^10] | ❌ | ❌ | ✅ | ✅ |
-|  | SSO (SAML) 🛠️[^11] | ❌ | ❌ | ❌ | ✅ |
-|  | High Availability Cluster 🛠️[^12] | ❌ | ❌ | ❌ | ✅ |
-|  | Access Permissions 🛠️[^13] | ❌ | ❌ | ❌ | ✅ |
-|  | Multiple Projects 🛠️[^14] | ❌ | ❌ | ✅ | ✅ |
-|  | Monitoring & Logging 🛠️[^15] | ❌ | ❌ | ❌ | ✅ |
-|  | Telemetry 🛠️[^16] | ❌ | ⚠️ | ⚠️ | ✅ |
-| **Support & SLA** | SLA | ❌ | ❌ | ✅ | ✅ |
-|  | Support Level | _Community_ | _Community_ | _Agency_ | _Enterprise_ |
-|  | Managing Infrastructure | _Client_ | _Client_ | _Client_ | _Client_ |
+|  | **Community Apps Script** | **Community** | **Agency** | **Enterprise** |
+|-----------------------------|---------------------------|--------------------------|----------------------|------------------------|
+| **Data Connectors:** [available sources](https://github.com/OWOX/owox-data-marts?tab=readme-ov-file#data-sources) [^1] | ✅ | ✅ | ✅ | ✅ |
+| **Data Destinations** available [^2] | <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/67939684b05fa3e2d782fe42_43%207.svg" alt="BigQuery" height="48"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6793968515c86305a64d93a2_46%2010.svg" alt="Google Sheets" height="48"/> | <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/67939684b05fa3e2d782fe42_43%207.svg" alt="BigQuery" height="48"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6842f6eb7ab11302f8a90b77_analytics-amazonathena-icon-2048x2028-16si4o29-p-500.png" alt="Athena" height="36"/> | <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/67939684b05fa3e2d782fe42_43%207.svg" alt="BigQuery" height="48"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6842f6eb7ab11302f8a90b77_analytics-amazonathena-icon-2048x2028-16si4o29-p-500.png" alt="Athena" height="36"/> | <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/67939684b05fa3e2d782fe42_43%207.svg" alt="BigQuery" height="48"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6842f6eb7ab11302f8a90b77_analytics-amazonathena-icon-2048x2028-16si4o29-p-500.png" alt="Athena" height="36"/> |
+| **Data Destinations** coming soon | ❌ | <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e443cceb884058e99ca7_Snowflake.avif" alt="Snowflake" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e4437264e072bc7be510_11bb23aa174bd0bcd5f51dd4f2d4c5a0_Redshift%20Logo-p-500.avif" alt="Redshift" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e443723c8492370b5228_97d60cb073789168589d817b50f5fd0f_DataBricks%20Logo.avif" alt="Databricks" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6842f6ecd7094e7132eae6f1_azure-p-500.png" alt="Synapse" height="24"/> | <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e443cceb884058e99ca7_Snowflake.avif" alt="Snowflake" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e4437264e072bc7be510_11bb23aa174bd0bcd5f51dd4f2d4c5a0_Redshift%20Logo-p-500.avif" alt="Redshift" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e443723c8492370b5228_97d60cb073789168589d817b50f5fd0f_DataBricks%20Logo.avif" alt="Databricks" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6842f6ecd7094e7132eae6f1_azure-p-500.png" alt="Synapse" height="24"/> | <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e443cceb884058e99ca7_Snowflake.avif" alt="Snowflake" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e4437264e072bc7be510_11bb23aa174bd0bcd5f51dd4f2d4c5a0_Redshift%20Logo-p-500.avif" alt="Redshift" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6798e443723c8492370b5228_97d60cb073789168589d817b50f5fd0f_DataBricks%20Logo.avif" alt="Databricks" height="24"/> <img src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/6842f6ecd7094e7132eae6f1_azure-p-500.png" alt="Synapse" height="24"/> |
+| **Data Enablement** [^3] | Google Sheets via Export | Google Sheets via Export and Extension[^4], Looker Studio [^5], Excel (OData) ⏳ | Google Sheets via Export and Extension [^4], Looker Studio [^5], Excel (OData) ⏳ | Google Sheets via Export and Extension [^4], Looker Studio [^5], Excel (OData) ⏳ |
+| **Data Marts Management** [^6] | ❌ | ✅ | ✅ | ✅ |
+| **Relationships** [^7] ⏳ | ❌ | ✅ | ✅ | ✅ |
+| **Semantic Layer** ⏳[^17]| ❌ | ✅ | ✅ | ✅ |
+| **Orchestration** [^8] | ⚠️ _Apps Script only_ | ✅ | ✅ | ✅ |
+| **Conversational UI** ⏳ | ❌ | ❌ | ❌ | ✅ |
+| **How to start** | [Download Sheets template](https://github.com/OWOX/owox-data-marts?tab=readme-ov-file#data-sources) | [Install on your desktop](https://github.com/OWOX/owox-data-marts/tree/main/apps/owox#quick-start--no-code-setup) | [Upgrade Community Edition](https://www.owox.com/pricing)  | [Contact our team](https://www.owox.com/pricing) |
+
+### Security & Control 
+
+|  | **Community Apps Script** | **Community** | **Agency** | **Enterprise** |
+|-----------------------------|---------------------------|--------------------------|----------------------|------------------------|
+| **Users Management** ⏳[^9] | ⚠️ _Limited_ | ✅ | ✅ | ✅ |
+| **Social Sign-In** ⏳[^10] | ❌ | ❌ | ✅ | ✅ |
+|  **SSO (SAML)** ⏳[^11] | ❌ | ❌ | ❌ | ✅ |
+|  **High Availability Cluster** ⏳[^12] | ❌ | ❌ | ❌ | ✅ |
+|  **Access Permissions** ⏳[^13] | ❌ | ❌ | ❌ | ✅ |
+|  **Multiple Projects** ⏳[^14] | ❌ | ❌ | ✅ | ✅ |
+|  **Monitoring & Logging** ⏳[^15] | ❌ | ❌ | ❌ | ✅ |
+|  **Telemetry** ⏳[^16] | ❌ | ⚠️ | ⚠️ | ✅ |
+| **How to start** | [Download Sheets template](https://github.com/OWOX/owox-data-marts?tab=readme-ov-file#data-sources) | [Install on your desktop](https://github.com/OWOX/owox-data-marts/tree/main/apps/owox#quick-start--no-code-setup) | [Upgrade Community Edition](https://www.owox.com/pricing)  | [Contact our team](https://www.owox.com/pricing) |
 
 
+### Terms of Service
 
+|  | **Community Apps Script** | **Community** | **Agency** | **Enterprise** |
+|-----------------------------|---------------------------|--------------------------|----------------------|------------------------|
+| **Platform**  | _Source available (ELv2)_ | _Source available (ELv2)_ | _Source available (ELv2)_ | _ELv2 + Proprietary_ |
+| **Connectors** | _Open Source (MIT)_ | _Open Source (MIT)_ | _Open Source (MIT)_ | _Open Source (MIT)_ |
+| **Pricing** | _Free to use_ | _Free to use_ | _Paid subscription for a limited-feature version_ | _Paid subscription for full-featured version_ |
+| **SLA** | ❌ | ❌ | ✅ | ✅ |
+| [**Support Level**](https://support.owox.com/hc/en-us/articles/115000216754-Support-Options) | _Community_ | _Community_ | _Agency_ | _Enterprise_ |
+| **How to start** | [Download Sheets template](https://github.com/OWOX/owox-data-marts?tab=readme-ov-file#data-sources) | [Install on your desktop](https://github.com/OWOX/owox-data-marts/tree/main/apps/owox#quick-start--no-code-setup) | [Upgrade Community Edition](https://www.owox.com/pricing)  | [Contact our team](https://www.owox.com/pricing) |
 
 
 _This page will be updated regularly as we develop more features and refine editions._
@@ -68,7 +87,6 @@ _This page will be updated regularly as we develop more features and refine edit
 [^15]: **Monitoring & Advanced Logging** *(coming soon)* — Stay ahead of failures with complete visibility into data workflows and system performance.  
 [^16]: **Telemetry** *(coming soon)* — Gain insight into data usage patterns so you can declutter, govern, and optimize your reporting layer.
 [^17]: **Semantic Layer** *(coming soon)* — Create a semantic layer that stores the mapping between the business context and the physical data tables.
-
 
 ---
 
