@@ -68,7 +68,7 @@ export abstract class ScheduledTrigger extends TimeBasedTrigger {
     const cronTime = new CronTime(this.cronExpression, this.timeZone);
 
     // Calculate the next run time based on the startFrom parameter
-    const nextRunTimestamp = cronTime.getNextDateFrom(startFrom).toJSDate();
+    const nextRunTimestamp = cronTime.getNextDateFrom(startFrom, this.timeZone).toJSDate();
 
     if (nextRunTimestamp <= startFrom) {
       throw new Error('Next run timestamp is in the past');
