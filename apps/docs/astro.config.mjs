@@ -1,6 +1,6 @@
 // @ts-check
-import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import { defineConfig } from 'astro/config';
 import rehypeExternalLinks from 'rehype-external-links';
 import starlightAutoSidebar from 'starlight-auto-sidebar';
 import { getConfig } from './scripts/env-config.js';
@@ -20,6 +20,19 @@ export default defineConfig({
       },
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/OWOX/owox-data-marts' },
+      ],
+      components: {
+        PageFrame: './src/components/starlight/PageFrame.astro',
+      },
+      head: [
+        {
+          tag: 'script',
+          content: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-TVQPWGV6');`,
+        },
       ],
       sidebar: [
         { label: 'Intro', link: '/' },
