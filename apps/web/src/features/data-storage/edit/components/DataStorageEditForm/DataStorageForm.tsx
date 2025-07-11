@@ -66,7 +66,10 @@ export function DataStorageForm({ initialData, onSubmit, onCancel }: DataStorage
           <Select
             defaultValue={initialData?.type}
             onValueChange={value => {
-              form.setValue('type', value as DataStorageType);
+              form.setValue(
+                'type',
+                value as DataStorageType.GOOGLE_BIGQUERY | DataStorageType.AWS_ATHENA
+              );
             }}
             disabled={!!initialData}
           >

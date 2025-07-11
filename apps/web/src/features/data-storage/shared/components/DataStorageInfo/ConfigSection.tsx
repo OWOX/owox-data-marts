@@ -24,6 +24,10 @@ export const ConfigSection = ({ type, config }: ConfigSectionProps) => {
       { label: 'Database Name', key: 'databaseName' },
       { label: 'Output Bucket', key: 'outputBucket' },
     ],
+    [DataStorageType.SNOWFLAKE]: [],
+    [DataStorageType.DATABRICKS]: [],
+    [DataStorageType.AWS_REDSHIFT]: [],
+    [DataStorageType.AZURE_SYNAPSE]: [],
   };
 
   const isValidConfig =

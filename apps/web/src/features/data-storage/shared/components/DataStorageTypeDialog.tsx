@@ -7,7 +7,8 @@ import {
 } from '@owox/ui/components/dialog';
 import { Button } from '@owox/ui/components/button';
 import { DataStorageTypeModel } from '../types/data-storage-type.model';
-import { DataStorageType } from '../model/types';
+import { DataStorageStatus, DataStorageType } from '../model/types';
+import { Badge } from '@owox/ui/components/badge';
 
 interface DataStorageTypeDialogProps {
   isOpen: boolean;
@@ -22,23 +23,28 @@ export const DataStorageTypeDialog = ({
 }: DataStorageTypeDialogProps) => {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className='sm:max-w-md'>
+      <DialogContent className='sm:max-w-sm'>
         <DialogHeader>
           <DialogTitle>New Storage</DialogTitle>
           <DialogDescription>Choose the type of storage you want to create</DialogDescription>
         </DialogHeader>
-        <div className='grid grid-cols-2 gap-4 py-4'>
+        <div className='flex flex-col gap-4 py-4'>
           {DataStorageTypeModel.getAllTypes().map(typeInfo => {
             const Icon = typeInfo.icon;
+            const isActive = typeInfo.status === DataStorageStatus.ACTIVE;
             return (
               <Button
                 key={typeInfo.type}
                 variant='outline'
-                className='flex flex-row items-center justify-start gap-3 p-6'
+                className='flex px-4 py-6'
                 onClick={() => void onSelect(typeInfo.type)}
+                disabled={!isActive}
               >
-                <Icon size={32} />
-                <span className='font-medium'>{typeInfo.displayName}</span>
+                <span className='flex flex-grow items-center gap-2'>
+                  <Icon size={24} />
+                  <span className='font-medium'>{typeInfo.displayName}</span>
+                </span>
+                {!isActive && <Badge variant='secondary'>Coming soon</Badge>}
               </Button>
             );
           })}

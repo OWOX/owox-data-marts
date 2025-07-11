@@ -1,6 +1,6 @@
 import type { DataStorageListItemResponseDto } from '../../api/types';
 import type { DataStorageListItem } from '../types/data-storage-list.ts';
-import type { DataStorage } from '../types/data-storage.ts';
+import type { DataStorageType } from '../types/data-storage-type.enum.ts';
 
 export function mapDataStorageListFromDto(
   dto: DataStorageListItemResponseDto
@@ -14,7 +14,7 @@ export function mapDataStorageListFromDto(
   };
 }
 
-export function mapToCreateDataStorageRequest(dataStorageType: DataStorage['type']) {
+export function mapToCreateDataStorageRequest(dataStorageType: DataStorageType) {
   return {
     type: dataStorageType,
   };
