@@ -1,4 +1,4 @@
-name: Build and deploy OWOX/docs to GitHub Pages
+name: Build and Deploy @owox/docs
 
 on:
   push:
