@@ -1,6 +1,6 @@
 // @ts-check
-import starlight from '@astrojs/starlight';
 import { defineConfig } from 'astro/config';
+import starlight from '@astrojs/starlight';
 import rehypeExternalLinks from 'rehype-external-links';
 import starlightAutoSidebar from 'starlight-auto-sidebar';
 import { getConfig } from './scripts/env-config.js';
