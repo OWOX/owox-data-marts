@@ -47,7 +47,7 @@ export function getScheduledTriggerColumns({
           return <div className='text-muted-foreground text-sm'>—</div>;
         }
       },
-      meta: { title: 'Target' },
+      meta: { title: 'Report' },
     },
     {
       accessorKey: 'cronExpression',
