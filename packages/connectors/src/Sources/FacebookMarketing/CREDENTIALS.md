@@ -60,14 +60,38 @@ After submitting the form, the review process may take up to **2 business days**
 
 ![Facebook Submitted](res/facebook_submitted.png)
 
-## Step 4: Set Up Marketing API
+## Step 4: Verify API Permissions and App Status
+
+To ensure your Facebook app is properly configured for the Ads API, complete the following checks:
+
+Navigate to the **Marketing API → Settings** tab and confirm that the **Ads API Access Level** is set to **Standard**.
+
+![Facebook Standard](res/fb_standard.png)
+
+Go to **App Review → Permissions and Features**.
+
+- Locate the `ads_read` permission and ensure it has either **Standard Access** or **Advanced Access**.  
+  Both access types are supported.
+
+![Facebook ads_read](res/fb_adsread.png)
+
+- Scroll to **Ads Management Standard Access** and confirm that it is set to **Advanced Access**.
+
+![Facebook Ads Management](res/fb_adsmanagement.png)
+
+Ensure that your app is set to **Live** mode (not in Development mode).  
+Only live apps can be used for real API calls.
+
+![Facebook Live Mode](res/fb_livemode.png)
+
+## Step 5: Set Up Marketing API
 
 Once your business is successfully verified, return to the [Developers Portal](https://developers.facebook.com/).  
 In your app dashboard, locate **Marketing API** and click **Set Up**.  
 
 ![Facebook Marketing API set up](res/facebook_setup.png)
 
-## Step 5: Grant API Permissions
+## Step 6: Grant API Permissions
 
 Grant the required token permissions:
 
@@ -78,7 +102,7 @@ Grant the required token permissions:
 
 ![Facebook permissions granting](res/facebook_checkbox.png)
 
-## Step 6: Generate and Save the Access Token
+## Step 7: Generate and Save the Access Token
 
 Click the **Get Token** button.
 
@@ -89,7 +113,7 @@ Copy and securely save the generated access token.
 
 ![Facebook saving token](res/facebook_token.png)
 
-## Step 7: Use the Access Token
+## Step 8: Use the Access Token
 
 Once you have the access token, you can use it as described in the [Getting Started guide](GETTING_STARTED.md).
 
