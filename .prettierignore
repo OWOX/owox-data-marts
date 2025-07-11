@@ -1,0 +1,12 @@
+# Standard ignores
+node_modules
+dist
+build
+coverage
+
+# Dependencies
+package-lock.json
+
+# Workspaces
+packages/*
+apps/*
