@@ -16,9 +16,7 @@ export function DataMartTriggersContent() {
       <CollapsibleCardHeader icon={Timer} title={'Time triggers'}></CollapsibleCardHeader>
       <CollapsibleCardContent>
         <ScheduledTriggerProvider>
-          <div className='p-4'>
-            {dataMart && <ScheduledTriggerList dataMartId={dataMart.id}></ScheduledTriggerList>}
-          </div>
+          {dataMart && <ScheduledTriggerList dataMartId={dataMart.id}></ScheduledTriggerList>}
         </ScheduledTriggerProvider>
       </CollapsibleCardContent>
       <CollapsibleCardFooter></CollapsibleCardFooter>

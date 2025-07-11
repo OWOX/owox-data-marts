@@ -113,8 +113,15 @@ export function ScheduledTriggerTable({
                     return (
                       <TableHead
                         key={header.id}
-                        className='[&:has([role=checkbox])]:pl-5 [&>[role=checkbox]]:translate-y-[2px]'
+                        className='[&:has([role=checkbox])]:pl-6 [&>[role=checkbox]]:translate-y-[2px]'
                         scope='col'
+                        style={
+                          header.column.id === 'type'
+                            ? { width: 150, minWidth: 150, maxWidth: 150 }
+                            : header.column.id === 'actions'
+                              ? { width: 80, minWidth: 80, maxWidth: 80 }
+                              : { width: `${String(header.getSize())}%` }
+                        }
                       >
                         {header.isPlaceholder
                           ? null
@@ -148,6 +155,13 @@ export function ScheduledTriggerTable({
                           className={`whitespace-normal ${cell.column.id === 'actions' ? 'actions-cell' : ''}`}
                           role='cell'
                           aria-colindex={cellIndex + 1}
+                          style={
+                            cell.column.id === 'type'
+                              ? { width: 150, minWidth: 150, maxWidth: 150 }
+                              : cell.column.id === 'actions'
+                                ? { width: 80, minWidth: 80, maxWidth: 80 }
+                                : { width: `${String(cell.column.getSize())}%` }
+                          }
                         >
                           {typeof cell.column.columnDef.cell === 'function'
                             ? cell.column.columnDef.cell(cell.getContext())

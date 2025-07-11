@@ -7,6 +7,7 @@ import { ScheduleDisplay } from '../ScheduleDisplay/ScheduleDisplay';
 import { ToggleColumnsHeader } from './ToggleColumnsHeader';
 import { ScheduledTriggerActionsCell } from './ScheduledTriggerActionsCell';
 import { ReportHoverCard } from '../../../reports/shared/components/ReportHoverCard';
+import { StatusLabel, StatusTypeEnum } from '../../../../../shared/components/StatusLabel';
 
 interface ScheduledTriggerTableColumnsProps {
   onEditTrigger: (id: string) => void;
@@ -22,21 +23,18 @@ export function getScheduledTriggerColumns({
   return [
     {
       accessorKey: 'type',
-      header: 'Type',
+      size: 150, // fixed width in px
+      header: 'Trigger Type',
       cell: ({ row }) => {
         const type = row.getValue('type');
-        const label = type === ScheduledTriggerType.REPORT_RUN ? 'Report' : 'Connector';
-        return (
-          <Badge variant='outline' className='px-2 py-0.5 text-xs'>
-            {label}
-          </Badge>
-        );
+        const label = type === ScheduledTriggerType.REPORT_RUN ? 'Report Run' : 'Connector Run';
+        return <Badge variant='outline'>{label}</Badge>;
       },
-      meta: { title: 'Type' },
-      size: 100, // Set a fixed width to make the column take minimal space
+      meta: { title: 'Trigger Type' },
     },
     {
       accessorKey: 'triggerConfig',
+      size: 35, // responsive width in %
       header: 'Report',
       cell: ({ row }) => {
         const trigger = row.original;
@@ -51,6 +49,7 @@ export function getScheduledTriggerColumns({
     },
     {
       accessorKey: 'cronExpression',
+      size: 20, // responsive width in %
       header: 'Schedule',
       cell: ({ row }) => {
         const cronExpression = row.getValue('cronExpression');
@@ -68,6 +67,7 @@ export function getScheduledTriggerColumns({
     },
     {
       accessorKey: 'nextRun',
+      size: 15, // responsive width in %
       header: 'Next Run',
       cell: ({ row }) => {
         const nextRunTimestamp = row.original.nextRun;
@@ -85,6 +85,7 @@ export function getScheduledTriggerColumns({
     },
     {
       accessorKey: 'lastRun',
+      size: 15, // responsive width in %
       header: 'Last Run',
       cell: ({ row }) => {
         const lastRunTimestamp = row.original.lastRun;
@@ -102,19 +103,25 @@ export function getScheduledTriggerColumns({
     },
     {
       accessorKey: 'isActive',
+      size: 15, // responsive width in %
       header: 'Status',
       cell: ({ row }) => {
         const isActive: boolean = row.getValue('isActive');
         return (
-          <Badge variant={isActive ? 'default' : 'secondary'}>
-            {isActive ? 'Active' : 'Inactive'}
-          </Badge>
+          <StatusLabel
+            type={isActive ? StatusTypeEnum.SUCCESS : StatusTypeEnum.NEUTRAL}
+            variant='ghost'
+            showIcon={false}
+          >
+            {isActive ? 'Enabled' : 'Disabled'}
+          </StatusLabel>
         );
       },
       meta: { title: 'Status' },
     },
     {
       id: 'actions',
+      size: 80, // fixed width in pixels
       header: ({ table }) => <ToggleColumnsHeader table={table} />,
       cell: ({ row }) => (
         <ScheduledTriggerActionsCell
