@@ -19,8 +19,11 @@ import { DataStorageMapper } from './data-storage.mapper';
 import { DeleteDataMartCommand } from '../dto/domain/delete-data-mart.command';
 import { RunDataMartCommand } from '../dto/domain/run-data-mart.command';
 import { ValidateDataMartDefinitionCommand } from '../dto/domain/validate-data-mart-definition.command';
+import { ActualizeDataMartSchemaCommand } from '../dto/domain/actualize-data-mart-schema.command';
+import { UpdateDataMartSchemaCommand } from '../dto/domain/update-data-mart-schema.command';
 import { ValidationResult } from '../data-storage-types/interfaces/data-mart-validator.interface';
 import { DataMartValidationResponseApiDto } from '../dto/presentation/data-mart-validation-response-api.dto';
+import { UpdateDataMartSchemaApiDto } from '../dto/presentation/update-data-mart-schema-api.dto';
 
 @Injectable()
 export class DataMartMapper {
@@ -43,7 +46,8 @@ export class DataMartMapper {
       entity.modifiedAt,
       entity.definitionType,
       entity.definition,
-      entity.description
+      entity.description,
+      entity.schema
     );
   }
 
@@ -67,6 +71,7 @@ export class DataMartMapper {
       definitionType: dto.definitionType,
       definition: dto.definition,
       description: dto.description,
+      schema: dto.schema,
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,
     };
@@ -147,5 +152,20 @@ export class DataMartMapper {
       reason: validationResult.reason,
       details: validationResult.details,
     };
+  }
+
+  toActualizeSchemaCommand(
+    id: string,
+    context: AuthorizationContext
+  ): ActualizeDataMartSchemaCommand {
+    return new ActualizeDataMartSchemaCommand(id, context.projectId, context.userId);
+  }
+
+  toUpdateSchemaCommand(
+    id: string,
+    context: AuthorizationContext,
+    dto: UpdateDataMartSchemaApiDto
+  ): UpdateDataMartSchemaCommand {
+    return new UpdateDataMartSchemaCommand(id, context.projectId, context.userId, dto.schema);
   }
 }

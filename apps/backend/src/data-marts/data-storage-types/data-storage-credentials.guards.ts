@@ -7,7 +7,7 @@ import {
   AthenaCredentialsSchema,
 } from './athena/schemas/athena-credentials.schema';
 
-export function isBigqueryCredentials(credentials: unknown): credentials is BigQueryCredentials {
+export function isBigQueryCredentials(credentials: unknown): credentials is BigQueryCredentials {
   return BigQueryCredentialsSchema.safeParse(credentials).success;
 }
 

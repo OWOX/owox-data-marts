@@ -64,6 +64,8 @@ import { SpecificationConnectorService } from './use-cases/connector/specificati
 import { FieldsConnectorService } from './use-cases/connector/fields-connector.service';
 import { RunDataMartService } from './use-cases/run-data-mart.service';
 import { ValidateDataMartDefinitionService } from './use-cases/validate-data-mart-definition.service';
+import { ActualizeDataMartSchemaService } from './use-cases/actualize-data-mart-schema.service';
+import { UpdateDataMartSchemaService } from './use-cases/update-data-mart-schema.service';
 import { DataMartScheduledTrigger } from './entities/data-mart-scheduled-trigger.entity';
 import { SchedulerModule } from '../common/scheduler/scheduler.module';
 import { ScheduledTriggersHandlerService } from './services/scheduled-triggers-handler.service';
@@ -136,6 +138,8 @@ import { ReportService } from './services/report.service';
     SpecificationConnectorService,
     FieldsConnectorService,
     RunDataMartService,
+    ActualizeDataMartSchemaService,
+    UpdateDataMartSchemaService,
     ScheduledTriggersHandlerService,
     ScheduledTriggerService,
     ScheduledTriggerMapper,

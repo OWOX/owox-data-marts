@@ -3,6 +3,7 @@ import { DataMartDefinitionType } from '../../enums/data-mart-definition-type.en
 import { DataMartDefinition } from '../schemas/data-mart-table-definitions/data-mart-definition';
 import { DataMartStatus } from '../../enums/data-mart-status.enum';
 import { DataStorageResponseApiDto } from './data-storage-response-api.dto';
+import { DataMartSchema } from '../../data-storage-types/data-mart-schema.type';
 
 export class DataMartResponseApiDto {
   @ApiProperty({ example: '9cabc24e-1234-4a5a-8b12-abcdef123456' })
@@ -25,6 +26,9 @@ export class DataMartResponseApiDto {
 
   @ApiProperty()
   description?: string;
+
+  @ApiProperty()
+  schema?: DataMartSchema;
 
   @ApiProperty({ example: '2024-01-01T12:00:00.000Z' })
   createdAt: Date;

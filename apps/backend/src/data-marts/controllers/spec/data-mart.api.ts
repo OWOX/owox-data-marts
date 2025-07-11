@@ -13,6 +13,7 @@ import { CreateDataMartResponseApiDto } from '../../dto/presentation/create-data
 import { UpdateDataMartDescriptionApiDto } from '../../dto/presentation/update-data-mart-description-api.dto';
 import { UpdateDataMartTitleApiDto } from '../../dto/presentation/update-data-mart-title-api.dto';
 import { UpdateDataMartDefinitionApiDto } from '../../dto/presentation/update-data-mart-definition-api.dto';
+import { UpdateDataMartSchemaApiDto } from '../../dto/presentation/update-data-mart-schema-api.dto';
 import { DataMartValidationResponseApiDto } from '../../dto/presentation/data-mart-validation-response-api.dto';
 
 export function CreateDataMartSpec() {
@@ -94,5 +95,22 @@ export function ValidateDataMartDefinitionSpec() {
     ApiOperation({ summary: 'Validate DataMart definition' }),
     ApiParam({ name: 'id', type: String }),
     ApiOkResponse({ type: DataMartValidationResponseApiDto })
+  );
+}
+
+export function ActualizeDataMartSchemaSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Actualize DataMart schema' }),
+    ApiParam({ name: 'id', type: String }),
+    ApiOkResponse({ type: DataMartResponseApiDto })
+  );
+}
+
+export function UpdateDataMartSchemaSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Update DataMart schema' }),
+    ApiParam({ name: 'id', description: 'DataMart ID' }),
+    ApiBody({ type: UpdateDataMartSchemaApiDto }),
+    ApiOkResponse({ type: DataMartResponseApiDto })
   );
 }

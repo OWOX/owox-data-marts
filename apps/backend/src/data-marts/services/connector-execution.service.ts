@@ -14,6 +14,7 @@ import { BigQueryConfig } from '../data-storage-types/bigquery/schemas/bigquery-
 import { AthenaConfig } from '../data-storage-types/athena/schemas/athena-config.schema';
 import { AthenaCredentials } from '../data-storage-types/athena/schemas/athena-credentials.schema';
 import { BigQueryCredentials } from '../data-storage-types/bigquery/schemas/bigquery-credentials.schema';
+import { DataMartService } from './data-mart.service';
 
 interface LogCaptureConfig {
   logCapture: {
@@ -36,7 +37,8 @@ export class ConnectorExecutionService {
 
   constructor(
     @InjectRepository(DataMartRun)
-    private readonly dataMartRunRepository: Repository<DataMartRun>
+    private readonly dataMartRunRepository: Repository<DataMartRun>,
+    private readonly dataMartService: DataMartService
   ) {}
 
   /**
@@ -126,6 +128,13 @@ export class ConnectorExecutionService {
       await this.updateRunStatus(runId, capturedLogs, capturedErrors);
     } catch (error) {
       await this.handleRunFailure(runId, error, capturedLogs, capturedErrors, dataMart.id);
+    } finally {
+      this.logger.debug(`Actualizing schema for DataMart ${dataMart.id} after connector execution`);
+      await this.dataMartService.actualizeSchema(
+        dataMart.id,
+        dataMart.projectId,
+        dataMart.createdById
+      );
     }
   }
 

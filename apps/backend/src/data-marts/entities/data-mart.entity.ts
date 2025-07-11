@@ -12,6 +12,8 @@ import { DataStorage } from './data-storage.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataMartDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition';
+import { DataMartSchema, DataMartSchemaSchema } from '../data-storage-types/data-mart-schema.type';
+import { createZodTransformer } from '../../common/zod/zod-transformer';
 
 @Entity()
 export class DataMart {
@@ -24,6 +26,13 @@ export class DataMart {
   @ManyToOne(() => DataStorage, { eager: true, cascade: true })
   @JoinColumn()
   storage: DataStorage;
+
+  @Column({
+    type: 'json',
+    transformer: createZodTransformer<DataMartSchema>(DataMartSchemaSchema, false),
+    nullable: true,
+  })
+  schema?: DataMartSchema;
 
   @Column({ nullable: true })
   definitionType?: DataMartDefinitionType;
