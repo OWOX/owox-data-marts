@@ -4,4 +4,8 @@ export * from './aws-athena-icon';
 export * from './google-sheets-icon';
 export * from './looker-studio-icon';
 export * from './odata-icon';
+export * from './snowflake-icon';
+export * from './databricks-icon';
+export * from './aws-redshift-icon';
+export * from './azure-synapse-icon';
 export * from './icons.types';
