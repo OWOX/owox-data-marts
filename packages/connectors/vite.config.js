@@ -141,7 +141,7 @@ class ConnectorBuilder {
     let content = '// === CORE MODULE ===\n';
 
     // Get all core files
-    const coreFiles = await glob('src/Core/*.js', { cwd: this.rootDir });
+    const coreFiles = await glob('src/Core/**/*.js', { cwd: this.rootDir });
     const constantFiles = await glob('src/Constants/*.js', { cwd: this.rootDir });
     const configFiles = await glob('src/Configs/**/*.js', { cwd: this.rootDir });
 
@@ -321,7 +321,7 @@ class ConnectorBuilder {
     const coreClasses = {};
 
     // Get all core files
-    const coreFiles = await glob('src/Core/*.js', { cwd: this.rootDir });
+    const coreFiles = await glob('src/Core/**/*.js', { cwd: this.rootDir });
     const constantFiles = await glob('src/Constants/*.js', { cwd: this.rootDir });
 
     // Process each core file to extract class names
