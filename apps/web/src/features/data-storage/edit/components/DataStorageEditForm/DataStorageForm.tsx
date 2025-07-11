@@ -1,6 +1,6 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { DataStorageType } from '../../../shared';
+import { DataStorageStatus, DataStorageType } from '../../../shared';
 import { Button } from '@owox/ui/components/button';
 import { GoogleBigQueryFields } from './GoogleBigQueryFields';
 import { AwsAthenaFields } from './AwsAthenaFields';
@@ -78,14 +78,20 @@ export function DataStorageForm({ initialData, onSubmit, onCancel }: DataStorage
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
-                {DataStorageTypeModel.getAllTypes().map(({ type, displayName, icon: Icon }) => (
-                  <SelectItem key={type} value={type}>
-                    <div className='flex items-center gap-2'>
-                      <Icon />
-                      {displayName}
-                    </div>
-                  </SelectItem>
-                ))}
+                {DataStorageTypeModel.getAllTypes().map(
+                  ({ type, displayName, icon: Icon, status }) => (
+                    <SelectItem
+                      key={type}
+                      value={type}
+                      disabled={status === DataStorageStatus.COMING_SOON}
+                    >
+                      <div className='flex items-center gap-2'>
+                        <Icon size={20} />
+                        {displayName}
+                      </div>
+                    </SelectItem>
+                  )
+                )}
               </SelectGroup>
             </SelectContent>
           </Select>
