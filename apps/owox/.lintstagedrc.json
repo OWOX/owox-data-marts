@@ -1,7 +1,8 @@
 {
   "**/*.{ts,js}": [
-    "eslint --config ./eslint.config.mjs",
-    "prettier --config ./prettier.config.mjs --write"
+    "eslint --fix --config ./eslint.config.mjs",
+    "prettier --write --config ./prettier.config.mjs"
   ],
-  "**/*.json": ["prettier --config ./prettier.config.mjs --write"]
+  "**/*.json": ["prettier --write --config ./prettier.config.mjs"],
+  "**/*.md": ["markdownlint-cli2 --fix --config ../../.markdownlint-cli2.mjs"]
 }

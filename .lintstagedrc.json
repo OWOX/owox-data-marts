@@ -1,4 +1,9 @@
 {
-  "*.json": "prettier --write",
-  "*.{yml,yaml}": "prettier --write"
+  "**/*.{js,ts,cjs,mjs}": [
+    "eslint --fix --config ./eslint.config.mjs",
+    "prettier --write --config ./prettier.config.js"
+  ],
+  "**/*.json": ["prettier --write --config ./prettier.config.js"],
+  "**/*.{yml,yaml}": ["prettier --write --config ./prettier.config.js"],
+  "**/*.md": ["markdownlint-cli2 --fix --config ./.markdownlint-cli2.mjs"]
 }
