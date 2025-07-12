@@ -6,6 +6,7 @@ import type {
   DataMartResponseDto,
   UpdateDataMartRequestDto,
   UpdateDataMartDefinitionRequestDto,
+  UpdateDataMartSchemaRequestDto,
 } from '../types/api';
 
 /**
@@ -116,6 +117,28 @@ export class DataMartService extends ApiService {
    */
   async runDataMart(id: string): Promise<DataMartResponseDto> {
     return this.post<DataMartResponseDto>(`/${id}/manual-run`);
+  }
+
+  /**
+   * Actualize a data mart schema
+   * @param id Data mart ID
+   * @returns Promise with updated data mart
+   */
+  async actualizeDataMartSchema(id: string): Promise<DataMartResponseDto> {
+    return this.post<DataMartResponseDto>(`/${id}/actualize-schema`);
+  }
+
+  /**
+   * Update a data mart schema
+   * @param id Data mart ID
+   * @param data Schema update data
+   * @returns Promise with updated data mart
+   */
+  async updateDataMartSchema(
+    id: string,
+    data: UpdateDataMartSchemaRequestDto
+  ): Promise<DataMartResponseDto> {
+    return this.put<DataMartResponseDto>(`/${id}/schema`, data);
   }
 }
 

@@ -39,8 +39,9 @@ export class DataMartService {
 
   async actualizeSchema(id: string, projectId: string, userId: string): Promise<DataMart> {
     const dataMart = await this.getByIdAndProjectIdAndUserId(id, projectId, userId);
+    await this.actualizeSchemaInEntity(dataMart);
     await this.dataMartRepository.save(dataMart);
-    return this.actualizeSchemaInEntity(dataMart);
+    return dataMart;
   }
 
   async actualizeSchemaInEntity(dataMart: DataMart): Promise<DataMart> {

@@ -12,3 +12,4 @@ export * from './update-data-mart-view-definition.request.dto';
 export * from './update-data-mart-table-definition.request.dto';
 export * from './update-data-mart-table-pattern-definition.request.dto';
 export * from './update-data-mart-connector-definition.request.dto';
+export * from './update-data-mart-schema.request.dto';

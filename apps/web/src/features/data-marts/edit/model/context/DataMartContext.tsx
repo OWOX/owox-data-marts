@@ -31,6 +31,7 @@ import type {
   ViewDefinitionConfig,
 } from '../types';
 import { extractApiError } from '../../../../../app/api';
+import type { DataMartSchema } from '../../../shared/types/data-mart-schema.types';
 
 // Props interface
 interface DataMartProviderProps {
@@ -233,6 +234,36 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     }
   };
 
+  // Actualize data mart schema
+  const actualizeDataMartSchema = async (id: string) => {
+    try {
+      dispatch({ type: 'ACTUALIZE_DATA_MART_SCHEMA_START' });
+      const response = await dataMartService.actualizeDataMartSchema(id);
+      const dataMart = mapDataMartFromDto(response);
+      dispatch({ type: 'ACTUALIZE_DATA_MART_SCHEMA_SUCCESS', payload: dataMart });
+    } catch (error) {
+      dispatch({
+        type: 'ACTUALIZE_DATA_MART_SCHEMA_ERROR',
+        payload: extractApiError(error),
+      });
+    }
+  };
+
+  // Update data mart schema
+  const updateDataMartSchema = async (id: string, schema: DataMartSchema) => {
+    try {
+      dispatch({ type: 'UPDATE_DATA_MART_SCHEMA_START' });
+      const response = await dataMartService.updateDataMartSchema(id, { schema });
+      const dataMart = mapDataMartFromDto(response);
+      dispatch({ type: 'UPDATE_DATA_MART_SCHEMA_SUCCESS', payload: dataMart });
+    } catch (error) {
+      dispatch({
+        type: 'UPDATE_DATA_MART_SCHEMA_ERROR',
+        payload: extractApiError(error),
+      });
+    }
+  };
+
   // Reset state
   const reset = useCallback(() => {
     dispatch({ type: 'RESET' });
@@ -258,6 +289,8 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     updateDataMartDefinition,
     publishDataMart,
     runDataMart,
+    actualizeDataMartSchema,
+    updateDataMartSchema,
     getErrorMessage,
     reset,
   };

@@ -17,6 +17,7 @@ export function mapDataMartFromDto(dataMartDto: DataMartResponseDto): DataMart {
     storage: mapDataStorageFromDto(dataMartDto.storage),
     definitionType: dataMartDto.definitionType,
     definition: mapDefinitionFromDto(dataMartDto.definitionType, dataMartDto.definition),
+    schema: dataMartDto.schema,
     createdAt: new Date(dataMartDto.createdAt),
     modifiedAt: new Date(dataMartDto.modifiedAt),
     canPublish: false,

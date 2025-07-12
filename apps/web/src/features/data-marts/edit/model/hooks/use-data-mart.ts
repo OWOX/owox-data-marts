@@ -12,6 +12,8 @@ export function useDataMart(id?: string) {
     updateDataMartTitle,
     updateDataMartDescription,
     updateDataMartDefinition,
+    updateDataMartSchema,
+    actualizeDataMartSchema,
     publishDataMart,
     runDataMart,
     reset,
@@ -42,6 +44,8 @@ export function useDataMart(id?: string) {
     updateDataMartTitle,
     updateDataMartDescription,
     updateDataMartDefinition,
+    updateDataMartSchema,
+    actualizeDataMartSchema,
     publishDataMart,
     runDataMart,
   };
