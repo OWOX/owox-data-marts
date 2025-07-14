@@ -104,7 +104,7 @@ export function getScheduledTriggerColumns({
     {
       accessorKey: 'isActive',
       size: 15, // responsive width in %
-      header: 'Status',
+      header: 'Trigger Status',
       cell: ({ row }) => {
         const isActive: boolean = row.getValue('isActive');
         return (
@@ -117,7 +117,7 @@ export function getScheduledTriggerColumns({
           </StatusLabel>
         );
       },
-      meta: { title: 'Status' },
+      meta: { title: 'Trigger Status' },
     },
     {
       id: 'actions',

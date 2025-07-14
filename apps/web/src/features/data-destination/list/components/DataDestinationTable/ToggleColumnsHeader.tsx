@@ -14,7 +14,7 @@ interface ToggleColumnsHeaderProps<TData> {
 
 export function ToggleColumnsHeader<TData>({ table }: ToggleColumnsHeaderProps<TData>) {
   return (
-    <div className='px-3 text-right'>
+    <div className='px-4 text-right'>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
