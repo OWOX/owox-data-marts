@@ -49,7 +49,7 @@ export function MultiSelect({
 
   const getDisplayText = () => {
     if (selected.length === 0) {
-      return <span className="text-muted-foreground text-sm">{placeholder}</span>;
+      return <span className='text-muted-foreground text-sm'>{placeholder}</span>;
     }
 
     const selectedOptions = selected
@@ -58,15 +58,15 @@ export function MultiSelect({
 
     if (selectedOptions.length <= maxDisplayItems) {
       return (
-        <div className="flex flex-wrap gap-1">
+        <div className='flex flex-wrap gap-1'>
           {selectedOptions.map(option => (
-            <Badge key={option!.value} variant="secondary" className="text-xs h-5">
+            <Badge key={option!.value} variant='secondary' className='h-5 text-xs'>
               {option!.label}
               <span
-                className="ml-1 hover:bg-secondary-foreground/20 rounded-full p-0.5 cursor-pointer inline-flex items-center justify-center"
+                className='hover:bg-secondary-foreground/20 ml-1 inline-flex cursor-pointer items-center justify-center rounded-full p-0.5'
                 onClick={e => handleRemove(option!.value, e)}
               >
-                <X className="h-2 w-2" />
+                <X className='h-2 w-2' />
               </span>
             </Badge>
           ))}
@@ -75,18 +75,18 @@ export function MultiSelect({
     }
 
     return (
-      <div className="flex items-center gap-1">
-        <Badge variant="secondary" className="text-xs h-5">
+      <div className='flex items-center gap-1'>
+        <Badge variant='secondary' className='h-5 text-xs'>
           {selectedOptions[0]!.label}
           <span
-            className="ml-1 hover:bg-secondary-foreground/20 rounded-full p-0.5 cursor-pointer inline-flex items-center justify-center"
+            className='hover:bg-secondary-foreground/20 ml-1 inline-flex cursor-pointer items-center justify-center rounded-full p-0.5'
             onClick={e => handleRemove(selectedOptions[0]!.value, e)}
           >
-            <X className="h-2 w-2" />
+            <X className='h-2 w-2' />
           </span>
         </Badge>
         {selectedOptions.length > 1 && (
-          <Badge variant="outline" className="text-xs h-5">
+          <Badge variant='outline' className='h-5 text-xs'>
             +{selectedOptions.length - 1}
           </Badge>
         )}
@@ -98,27 +98,27 @@ export function MultiSelect({
     <Popover open={open} onOpenChange={setOpen} modal={true}>
       <PopoverTrigger asChild>
         <Button
-          variant="outline"
-          role="combobox"
+          variant='outline'
+          role='combobox'
           aria-expanded={open}
-          className="w-full justify-between bg-transparent h-9 min-h-9 py-1"
+          className='h-9 min-h-9 w-full justify-between bg-transparent py-1'
         >
-          <div className="flex-1 text-left">{getDisplayText()}</div>
-          <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+          <div className='flex-1 text-left'>{getDisplayText()}</div>
+          <ChevronsUpDown className='ml-2 h-3 w-3 shrink-0 opacity-50' />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-full p-0 max-h-[400px] overflow-y-auto" style={{ padding: 0 }}>
-        <Command className="overflow-visible h-full">
-          <CommandInput placeholder={searchPlaceholder} className="h-8" />
-          <CommandList className="max-h-[350px] h-full overflow-y-auto">
+      <PopoverContent className='max-h-[400px] w-full overflow-y-auto p-0' style={{ padding: 0 }}>
+        <Command className='h-full overflow-visible'>
+          <CommandInput placeholder={searchPlaceholder} className='h-8' />
+          <CommandList className='h-full max-h-[350px] overflow-y-auto'>
             <CommandEmpty>No items found.</CommandEmpty>
-            <CommandGroup className="overflow-visible h-full">
+            <CommandGroup className='h-full overflow-visible'>
               {options.map(option => (
                 <CommandItem
                   key={option.value}
                   value={option.value.toString()}
                   onSelect={() => handleSelect(option.value)}
-                  className="text-sm"
+                  className='text-sm'
                 >
                   <Check
                     className={cn(

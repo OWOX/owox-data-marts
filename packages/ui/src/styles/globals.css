@@ -233,7 +233,7 @@
 
 /* DM Card */
 .dm-card {
-  @apply rounded-md p-4 bg-muted/50 dark:bg-white/4 border-b border-gray-200 dark:border-white/8;
+  @apply bg-muted/50 rounded-md border-b border-gray-200 p-4 dark:border-white/8 dark:bg-white/4;
 }
 .dm-card-toolbar {
   @apply flex items-center justify-between gap-2 pb-4;
@@ -248,7 +248,7 @@
   @apply text-muted-foreground absolute top-2.5 left-2 h-4 w-4;
 }
 .dm-card-toolbar-search-input {
-  @apply pl-8 rounded-md border border-muted dark:border-muted/50 bg-white dark:bg-white/4 dark:hover:bg-white/8;
+  @apply border-muted dark:border-muted/50 rounded-md border bg-white pl-8 dark:bg-white/4 dark:hover:bg-white/8;
 }
 .dm-card-toolbar-btn-delete {
   @apply mx-2.5 h-8;
@@ -257,7 +257,7 @@
   @apply flex items-center gap-2;
 }
 .dm-card-toolbar-btn-primary {
-  @apply flex items-center gap-2 border-muted dark:border-muted/50 bg-white dark:bg-white/4 dark:hover:bg-white/8;
+  @apply border-muted dark:border-muted/50 flex items-center gap-2 bg-white dark:bg-white/4 dark:hover:bg-white/8;
 }
 .dm-card-table-wrap {
   @apply w-full table-fixed;
@@ -272,25 +272,25 @@
   @apply hover:bg-transparent;
 }
 .dm-card-table-header-row-btn {
-  @apply h-8 inline-flex gap-1 cursor-pointer items-center hover:bg-white dark:hover:bg-white/4 hover:shadow-xs transition-colors duration-200;
+  @apply inline-flex h-8 cursor-pointer items-center gap-1 transition-colors duration-200 hover:bg-white hover:shadow-xs dark:hover:bg-white/4;
 }
 .dm-card-table-body {
-  @apply border-b border-gray-200 bg-white dark:bg-white/1 dark:border-white/4;
+  @apply border-b border-gray-200 bg-white dark:border-white/4 dark:bg-white/1;
 }
 .dm-card-table-body-row {
-  @apply cursor-pointer hover:bg-black/4 dark:bg-transparent dark:hover:bg-white/4 dark:border-white/4 transition-colors duration-200;
+  @apply cursor-pointer transition-colors duration-200 hover:bg-black/4 dark:border-white/4 dark:bg-transparent dark:hover:bg-white/4;
 }
 .dm-card-table-body-row-actionbtn {
-  @apply h-8 hover:bg-white dark:hover:bg-white/4 hover:shadow-xs transition-colors transition-shadow duration-200;
+  @apply h-8 transition-colors transition-shadow duration-200 hover:bg-white hover:shadow-xs dark:hover:bg-white/4;
 }
 .dm-card-table-body-row-actionbtn-icon {
-  @apply h-4 w-4 text-muted-foreground;
+  @apply text-muted-foreground h-4 w-4;
 }
 .dm-card-table-body-row-actiondropdownitem {
   @apply block w-full cursor-default;
 }
 .dm-card-table-body-row-empty {
-  @apply h-32 text-center text-muted-foreground;
+  @apply text-muted-foreground h-32 text-center;
 }
 
 .dm-card-pagination {
@@ -299,21 +299,21 @@
 
 /* DM Empty State Block */
 .dm-empty-state {
-  @apply flex flex-col items-center justify-center pt-22 pb-24 px-4;
+  @apply flex flex-col items-center justify-center px-4 pt-22 pb-24;
 }
 .dm-empty-state-ico {
-  @apply h-16 w-16 text-gray-500/50 dark:text-gray-200/50 mb-6;
+  @apply mb-6 h-16 w-16 text-gray-500/50 dark:text-gray-200/50;
 }
 .dm-empty-state-title {
-  @apply text-center text-xl font-medium text-foreground mb-3;
+  @apply text-foreground mb-3 text-center text-xl font-medium;
 }
 .dm-empty-state-subtitle {
-  @apply text-center text-muted-foreground mb-8;
+  @apply text-muted-foreground mb-8 text-center;
 }
 
 /* DM Card Block */
 .dm-card-block {
-  @apply w-full flex flex-col p-4 gap-4 rounded-md border-b border-gray-200 bg-white transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2;
+  @apply flex w-full flex-col gap-4 rounded-md border-b border-gray-200 bg-white p-4 transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2;
 }
 .dm-card-formcontrol {
   @apply dark:bg-black/16 dark:hover:bg-black/24;
