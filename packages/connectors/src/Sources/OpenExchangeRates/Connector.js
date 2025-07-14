@@ -10,7 +10,7 @@ var OpenExchangeRatesConnector = class OpenExchangeRatesConnector extends Abstra
 constructor(config, source, storageName = "GoogleSheetsStorage") {
     super(config.mergeParameters({
       DestinationTableNamePrefix: {
-        default: ""
+        default: "Open_Exchange_Rates"
       }
     }), source);
 
@@ -82,7 +82,7 @@ startImportProcess() {
       this.storages[ nodeName ] = new globalThis[ this.storageName ]( 
         this.config.mergeParameters({ 
           DestinationSheetName: {value: nodeName},
-          DestinationTableName: {value: this.config.DestinationTableNamePrefix.value + nodeName } 
+          DestinationTableName: {value: this.config.DestinationTableNamePrefix.value } 
         }), 
         uniqueFields,
         this.source.fieldsSchema[ nodeName ]["fields"]["bigQuery"],
