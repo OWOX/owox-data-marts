@@ -42,7 +42,8 @@ var EmailNotification = class EmailNotification {
       MailApp.sendEmail(
         emailAddresses,
         statusLine,
-        `${statusLine}\n\n${message}`
+        `${statusLine}\n\n${message}`,
+        { noReply: true }
       );
 
       console.log(`Email notification sent successfully to: ${emailAddresses}`);
