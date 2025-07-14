@@ -5,6 +5,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@owox/ui/components/select';
+import { DataStorageType } from '../../../../../../data-storage';
 import {
   AthenaFieldType,
   BigQueryFieldType,
@@ -13,7 +14,7 @@ import {
 /**
  * Define storage types
  */
-type StorageType = 'bigquery' | 'athena';
+type StorageType = DataStorageType.GOOGLE_BIGQUERY | DataStorageType.AWS_ATHENA;
 type FieldType = BigQueryFieldType | AthenaFieldType;
 
 /**
@@ -38,13 +39,15 @@ export function SchemaFieldTypeSelect({
 }: SchemaFieldTypeSelectProps) {
   // Get the appropriate field types based on storage type
   const fieldTypes =
-    storageType === 'bigquery' ? Object.values(BigQueryFieldType) : Object.values(AthenaFieldType);
+    storageType === DataStorageType.GOOGLE_BIGQUERY
+      ? Object.values(BigQueryFieldType)
+      : Object.values(AthenaFieldType);
 
   // Handle type change
   const handleValueChange = (value: string) => {
     if (onTypeChange) {
       // Cast the string value to the appropriate field type
-      if (storageType === 'bigquery') {
+      if (storageType === DataStorageType.GOOGLE_BIGQUERY) {
         onTypeChange(value as BigQueryFieldType);
       } else {
         onTypeChange(value as AthenaFieldType);

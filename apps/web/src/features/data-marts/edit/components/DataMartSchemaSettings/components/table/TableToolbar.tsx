@@ -1,10 +1,10 @@
 import { Button } from '@owox/ui/components/button';
+import { SearchInput } from '@owox/ui/components/common/search-input';
 import type { Table } from '@tanstack/react-table';
 import { Plus } from 'lucide-react';
 import type { BaseSchemaField } from '../../../../../shared/types/data-mart-schema.types';
 import { DataMartSchemaFieldStatus } from '../../../../../shared/types/data-mart-schema.types';
 import { SchemaFieldStatusIcon } from '../fields';
-import { SearchInput } from './SearchInput';
 
 /**
  * Props for the TableToolbar component

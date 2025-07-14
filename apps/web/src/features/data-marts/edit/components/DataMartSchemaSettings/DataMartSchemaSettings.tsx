@@ -1,5 +1,5 @@
 import { Button } from '@owox/ui/components/button';
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import type {
   AthenaSchemaField,
@@ -17,15 +17,9 @@ export function DataMartSchemaSettings() {
   const { dataMart, updateDataMartSchema, actualizeDataMartSchema, isLoading, error } =
     useOutletContext<DataMartContextType>();
 
-  if (!dataMart) {
-    throw new Error('Data mart not found');
-  }
+  const initialSchema = dataMart?.schema;
 
-  const { id: dataMartId, schema: initialSchema } = dataMart;
-
-  // Use custom hooks for state management
   const { schema, isDirty, updateSchema, resetSchema } = useSchemaState(initialSchema);
-
   const { operationStatus, startSaveOperation, startActualizeOperation } = useOperationState(
     isLoading,
     error
@@ -39,9 +33,18 @@ export function DataMartSchemaSettings() {
   }, [operationStatus, resetSchema]);
 
   // Handle schema fields change
-  const handleSchemaFieldsChange = (newFields: BigQuerySchemaField[] | AthenaSchemaField[]) => {
-    updateSchema(newFields);
-  };
+  const handleSchemaFieldsChange = useCallback(
+    (newFields: BigQuerySchemaField[] | AthenaSchemaField[]) => {
+      updateSchema(newFields);
+    },
+    [updateSchema]
+  );
+
+  if (!dataMart) {
+    return <div>Error: Data mart not found</div>;
+  }
+
+  const { id: dataMartId } = dataMart;
 
   // Handle save
   const handleSave = () => {

@@ -1,8 +1,14 @@
+import { closestCenter, DndContext, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { EditableText } from '@owox/ui/components/common/editable-text';
+import { ExpandAllButton } from '@owox/ui/components/common/expand-all-button';
+import { ExpandButton } from '@owox/ui/components/common/expand-button';
+import { SortableTableRow } from '@owox/ui/components/common/sortable-table-row';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import type { Row, Table } from '@tanstack/react-table';
 import { useCallback, useMemo } from 'react';
+import { DataStorageType } from '../../../../../data-storage';
 import type { BigQuerySchemaField } from '../../../../shared/types/data-mart-schema.types';
-import type { ExtendedColumnDef } from './BaseSchemaTable';
 import {
   BigQueryFieldMode,
   BigQueryFieldType,
@@ -10,18 +16,13 @@ import {
 } from '../../../../shared/types/data-mart-schema.types';
 import {
   SchemaFieldActionsButton,
-  SchemaFieldEditableText,
-  SchemaFieldExpandAllButton,
-  SchemaFieldExpandButton,
   SchemaFieldModeSelect,
   SchemaFieldPrimaryKeyCheckbox,
   SchemaFieldTypeSelect,
-  SortableTableRow,
 } from '../components';
-import { useNestedFieldOperations, useRecordExpansion, useDragAndDrop } from '../hooks';
+import { useDragAndDrop, useNestedFieldOperations, useRecordExpansion } from '../hooks';
+import type { ExtendedColumnDef } from './BaseSchemaTable';
 import { BaseSchemaTable } from './BaseSchemaTable';
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 
 /**
  * Props for the BigQuerySchemaTable component
@@ -81,7 +82,7 @@ export function BigQuerySchemaTable({ fields, onFieldsChange }: BigQuerySchemaTa
     }) => (
       <SchemaFieldTypeSelect
         type={row.getValue('type')}
-        storageType='bigquery'
+        storageType={DataStorageType.GOOGLE_BIGQUERY}
         onTypeChange={value => {
           updateField(row.index, { type: value as BigQueryFieldType });
         }}
@@ -123,7 +124,7 @@ export function BigQuerySchemaTable({ fields, onFieldsChange }: BigQuerySchemaTa
     () => (
       <div className='flex items-center'>
         {hasRecordFields && (
-          <SchemaFieldExpandAllButton isAllExpanded={allExpanded} onToggle={toggleAllRecords} />
+          <ExpandAllButton isAllExpanded={allExpanded} onToggle={toggleAllRecords} />
         )}
         <Tooltip>
           <TooltipTrigger className='cursor-default'>Name</TooltipTrigger>
@@ -163,18 +164,19 @@ export function BigQuerySchemaTable({ fields, onFieldsChange }: BigQuerySchemaTa
 
           {/* Show expand button only for record fields with nested fields */}
           {hasNestedFields ? (
-            <SchemaFieldExpandButton
+            <ExpandButton
               isExpanded={isExpanded}
               onToggle={() => {
                 toggleRecordExpansion(path);
               }}
+              ariaLabel={isExpanded ? 'Collapse nested fields' : 'Expand nested fields'}
             />
           ) : (
             // Only add placeholder if there are record fields in the schema
             hasRecordFields && <div className='w-5' /> // Placeholder for alignment
           )}
 
-          <SchemaFieldEditableText
+          <EditableText
             value={row.getValue('name')}
             onValueChange={value => {
               updateField(row.index, { name: value });
@@ -268,12 +270,12 @@ export function BigQuerySchemaTable({ fields, onFieldsChange }: BigQuerySchemaTa
         nameColumnCell={nameColumnCell}
         primaryKeyColumnCell={primaryKeyColumnCell}
         actionsColumnCell={actionsColumnCell}
-        DragContext={SortableContext}
+        dragContext={SortableContext}
         dragContextProps={{
           items: flattenedFields.map(f => f.path ?? String(flattenedFields.indexOf(f))),
           strategy: verticalListSortingStrategy,
         }}
-        RowComponent={SortableTableRow}
+        rowComponent={SortableTableRow}
         getRowId={getRowId}
       />
     </DndContext>

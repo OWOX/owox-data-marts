@@ -4,9 +4,9 @@ import type { ComponentType } from 'react';
 import { useCallback, useMemo } from 'react';
 import type { SortingStrategy } from '@dnd-kit/sortable';
 import type { BaseSchemaField } from '../../../../shared/types/data-mart-schema.types';
+import { EditableText } from '@owox/ui/components/common/editable-text';
 import {
   SchemaFieldActionsButton,
-  SchemaFieldEditableText,
   SchemaFieldPrimaryKeyCheckbox,
   SchemaFieldStatusIcon,
   TableActionsButton,
@@ -75,11 +75,11 @@ export interface BaseSchemaTableProps<T extends BaseSchemaField> {
   /** Custom cell for the actions column */
   actionsColumnCell?: (props: { row: Row<T>; table: Table<T> }) => React.ReactNode;
   /** Drag-and-drop context component */
-  DragContext: ComponentType<SortableContextProps>;
+  dragContext: ComponentType<SortableContextProps>;
   /** Props for the drag-and-drop context */
   dragContextProps: DragContextProps;
   /** Custom row component for drag-and-drop */
-  RowComponent?: ComponentType<RowComponentProps<Row<T>>>;
+  rowComponent?: ComponentType<RowComponentProps<Row<T>>>;
   /** Function to get the ID for a row */
   getRowId?: (row: Row<T>) => string | number;
 }
@@ -100,9 +100,9 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
   nameColumnCell,
   primaryKeyColumnCell,
   actionsColumnCell,
-  DragContext,
+  dragContext,
   dragContextProps,
-  RowComponent,
+  rowComponent,
   getRowId,
 }: BaseSchemaTableProps<T>) {
   // Handler to update a field
@@ -169,7 +169,7 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
             return nameColumnCell({ row, updateField });
           }
           return (
-            <SchemaFieldEditableText
+            <EditableText
               value={asString(row.getValue('name'))}
               onValueChange={value => {
                 updateField(row.index, { name: value } as Partial<T>);
@@ -218,7 +218,7 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
         ),
         size: 80,
         cell: ({ row }) => (
-          <SchemaFieldEditableText
+          <EditableText
             value={row.getValue('alias')}
             onValueChange={value => {
               updateField(row.index, { alias: value } as Partial<T>);
@@ -236,7 +236,7 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
           </Tooltip>
         ),
         cell: ({ row }) => (
-          <SchemaFieldEditableText
+          <EditableText
             value={row.getValue('description')}
             onValueChange={value => {
               updateField(row.index, { description: value } as Partial<T>);
@@ -325,9 +325,9 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
       onAddRow={onFieldsChange ? handleAddRow : undefined}
       fieldsForStatusCount={fieldsForStatusCount}
       onSearchChange={onSearchChange}
-      DragContext={DragContext}
+      dragContext={dragContext}
       dragContextProps={dragContextProps}
-      RowComponent={RowComponent}
+      rowComponent={rowComponent}
       getRowId={getRowId}
     />
   );

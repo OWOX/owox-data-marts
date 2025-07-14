@@ -69,8 +69,8 @@ export function SearchInput({
   );
 
   return (
-    <div className='dm-card-toolbar-search'>
-      <Search className='dm-card-toolbar-search-icon' aria-hidden='true' />
+    <div className="dm-card-toolbar-search">
+      <Search className="dm-card-toolbar-search-icon" aria-hidden="true" />
       <Input
         id={id}
         placeholder={placeholder}

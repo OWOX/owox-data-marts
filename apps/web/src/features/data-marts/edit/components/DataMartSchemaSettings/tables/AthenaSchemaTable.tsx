@@ -1,15 +1,17 @@
+import { closestCenter, DndContext, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { SortableTableRow } from '@owox/ui/components/common/sortable-table-row';
 import type { Row } from '@tanstack/react-table';
 import { useCallback } from 'react';
+import { DataStorageType } from '../../../../../data-storage';
 import type { AthenaSchemaField } from '../../../../shared/types/data-mart-schema.types';
 import {
   AthenaFieldType,
   DataMartSchemaFieldStatus,
 } from '../../../../shared/types/data-mart-schema.types';
-import { SchemaFieldTypeSelect, SortableTableRow } from '../components';
+import { SchemaFieldTypeSelect } from '../components';
 import { useDragAndDrop } from '../hooks';
 import { BaseSchemaTable } from './BaseSchemaTable';
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 
 /**
  * Props for the AthenaSchemaTable component
@@ -46,7 +48,7 @@ export function AthenaSchemaTable({ fields, onFieldsChange }: AthenaSchemaTableP
     }) => (
       <SchemaFieldTypeSelect
         type={row.getValue('type')}
-        storageType='athena'
+        storageType={DataStorageType.AWS_ATHENA}
         onTypeChange={value => {
           updateField(row.index, { type: value as AthenaFieldType });
         }}
@@ -74,12 +76,12 @@ export function AthenaSchemaTable({ fields, onFieldsChange }: AthenaSchemaTableP
         onFieldsChange={onFieldsChange}
         createNewField={createNewField}
         renderTypeCell={renderTypeCell}
-        DragContext={SortableContext}
+        dragContext={SortableContext}
         dragContextProps={{
           items: fields.map((_, index) => index),
           strategy: verticalListSortingStrategy,
         }}
-        RowComponent={SortableTableRow}
+        rowComponent={SortableTableRow}
       />
     </DndContext>
   );
