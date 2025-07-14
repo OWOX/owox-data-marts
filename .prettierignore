@@ -1,0 +1,14 @@
+# Службові директорії
+node_modules
+dist
+build
+coverage
+
+# Директорії воркспейсів
+packages/*
+apps/*
+
+# Файли блокування залежностей (зазвичай не форматують)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml

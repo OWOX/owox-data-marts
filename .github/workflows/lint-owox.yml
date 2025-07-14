@@ -1,9 +1,9 @@
-name: Code Quality @owox/backend
+name: Code Quality OWOX
 
 on:
   pull_request:
     paths:
-      - 'apps/backend/**'
+      - 'apps/owox/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -21,13 +21,13 @@ jobs:
       matrix:
         check:
           - name: 'ESLint'
-            command: 'npm run lint -w @owox/backend -- --max-warnings 0'
+            command: 'npm run lint -w owox -- --max-warnings 0'
             timeout: 5
           - name: 'Prettier'
-            command: 'npm run format:check -w @owox/backend'
+            command: 'npm run format:check -w owox'
             timeout: 5
           - name: 'Markdownlint'
-            command: 'npm run lint:md -w @owox/backend'
+            command: 'npm run lint:md -w owox'
             timeout: 5
 
     steps:

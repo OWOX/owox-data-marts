@@ -12,6 +12,8 @@
     "astro": "astro",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",
+    "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json}\""
   },

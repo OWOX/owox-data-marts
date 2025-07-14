@@ -2,5 +2,6 @@
   "**/*.{js,mjs}": [
     "eslint --config ./eslint.config.mjs",
     "prettier --config ./prettier.config.mjs --write"
-  ]
+  ],
+  "**/*.md": ["markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix"]
 }

@@ -3,5 +3,6 @@
     "eslint --config ./eslint.config.js",
     "prettier --config ./prettier.config.js --write"
   ],
-  "**/*.json": ["prettier --config ./prettier.config.js --write"]
+  "**/*.json": ["prettier --config ./prettier.config.js --write"],
+  "**/*.md": ["markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix"]
 }

@@ -1,11 +1,7 @@
-name: Web Code Quality
+name: Code Quality @owox/web
 
 on:
   pull_request:
-    paths:
-      - 'apps/web/**'
-  push:
-    branches: [main]
     paths:
       - 'apps/web/**'
 
@@ -25,13 +21,16 @@ jobs:
       matrix:
         check:
           - name: 'ESLint'
-            command: 'npm run lint --workspace=@owox/web -- --max-warnings 0'
+            command: 'npm run lint -w @owox/web -- --max-warnings 0'
             timeout: 5
           - name: 'Prettier'
-            command: 'npm run format:check --workspace=@owox/web'
+            command: 'npm run format:check -w @owox/web'
+            timeout: 5
+          - name: 'Markdownlint'
+            command: 'npm run lint:md -w @owox/web'
             timeout: 5
           - name: 'TypeScript'
-            command: 'npm run type-check --workspace=@owox/web'
+            command: 'npm run type-check -w @owox/web'
             timeout: 5
 
     steps:

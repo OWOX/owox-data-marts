@@ -27,6 +27,10 @@ if (!hasFileArguments) {
     '**/*.md', // Include all markdown files
     '!**/node_modules/**', // Exclude all node_modules folders
   ];
+
+  if (process.env.MDLINT_CONTEXT === 'root') {
+    options.globs.push('!packages/**', '!apps/**');
+  }
 }
 
 export default options;

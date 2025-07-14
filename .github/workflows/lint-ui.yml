@@ -1,11 +1,7 @@
-name: UI Code Quality
+name: Code Quality @owox/ui
 
 on:
   pull_request:
-    paths:
-      - 'packages/ui/**'
-  push:
-    branches: [main]
     paths:
       - 'packages/ui/**'
 
@@ -25,7 +21,13 @@ jobs:
       matrix:
         check:
           - name: 'ESLint'
-            command: 'npm run lint --workspace=@owox/ui -- --max-warnings 0'
+            command: 'npm run lint -w @owox/ui -- --max-warnings 0'
+            timeout: 5
+          - name: 'Prettier'
+            command: 'npm run format:check -w @owox/ui'
+            timeout: 5
+          - name: 'Markdownlint'
+            command: 'npm run lint:md -w @owox/ui'
             timeout: 5
 
     steps:
