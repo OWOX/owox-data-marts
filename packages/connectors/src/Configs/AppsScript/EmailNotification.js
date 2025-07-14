@@ -39,7 +39,7 @@ var EmailNotification = class EmailNotification {
         ? `${connectorName} - Status: ${status}`
         : `Status: ${status}`;
 
-      GmailApp.sendEmail(
+      MailApp.sendEmail(
         emailAddresses,
         statusLine,
         `${statusLine}\n\n${message}`
