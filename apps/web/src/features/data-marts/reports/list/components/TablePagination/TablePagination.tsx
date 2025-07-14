@@ -13,11 +13,7 @@ interface TablePaginationProps {
  */
 export function TablePagination({ table, onPreviousClick, onNextClick }: TablePaginationProps) {
   return (
-    <div
-      className='flex items-center justify-end space-x-2 py-4'
-      role='navigation'
-      aria-label='Table pagination'
-    >
+    <div className='dm-card-pagination' role='navigation' aria-label='Table pagination'>
       <Button
         variant='outline'
         size='sm'

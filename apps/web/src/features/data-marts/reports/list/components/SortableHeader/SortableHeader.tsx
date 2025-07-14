@@ -38,12 +38,12 @@ export function SortableHeader<TData>({ column, children, label }: SortableHeade
     <Button
       variant='ghost'
       onClick={handleSort}
-      className='group inline-flex cursor-pointer items-center gap-1 px-2'
+      className='group dm-card-table-header-row-btn'
       aria-label={`${ariaLabel} - ${getSortDescription()}. Click to sort.`}
       aria-sort={getAriaSort()}
     >
       {children}
-      <span className='ml-1 flex h-4 w-4 items-center justify-center' aria-hidden='true'>
+      <span className='flex h-4 w-4 items-center justify-center' aria-hidden='true'>
         {isSorted === 'asc' && <ChevronUp className='text-foreground h-4 w-4' />}
         {isSorted === 'desc' && <ChevronDown className='text-foreground h-4 w-4' />}
         {!isSorted && (

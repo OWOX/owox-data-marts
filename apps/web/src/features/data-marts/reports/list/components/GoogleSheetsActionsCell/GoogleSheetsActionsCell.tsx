@@ -78,14 +78,14 @@ export function GoogleSheetsActionsCell({
         <DropdownMenuTrigger asChild>
           <Button
             variant='ghost'
-            className='h-8 w-8 p-0 hover:bg-gray-200/50 dark:hover:bg-white/10'
+            className={`dm-card-table-body-row-actionbtn opacity-0 transition-opacity ${menuOpen ? 'opacity-100' : 'group-hover:opacity-100'}`}
             aria-label={`Actions for report: ${row.original.title}`}
             aria-haspopup='true'
             aria-expanded={menuOpen}
             aria-controls={actionsMenuId}
           >
             <span className='sr-only'>Open menu</span>
-            <MoreHorizontal className='h-4 w-4' aria-hidden='true' />
+            <MoreHorizontal className='dm-card-table-body-row-actionbtn-icon' aria-hidden='true' />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent id={actionsMenuId} align='end' role='menu'>
@@ -98,6 +98,7 @@ export function GoogleSheetsActionsCell({
           >
             Edit report
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={e => {
               e.stopPropagation();

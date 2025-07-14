@@ -1,9 +1,12 @@
 import { type ColumnDef } from '@tanstack/react-table';
-import { formatDate } from '../../utils';
 import { GoogleSheetsActionsCell } from '../GoogleSheetsActionsCell';
 import { StatusIcon } from '../StatusIcon';
 import { SortableHeader } from '../SortableHeader';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report.ts';
+import { ToggleColumnsHeader } from '../ToggleColumnsHeader';
+import { ReportColumnKey } from './columnKeys.ts';
+import { ReportColumnLabels } from './columnLabels.ts';
+import RelativeTime from '@owox/ui/components/common/relative-time';
 
 export type Align = 'left' | 'right' | 'center';
 
@@ -28,33 +31,45 @@ export const getGoogleSheetsColumns = ({
   meta?: { hidden?: boolean; title?: string };
 })[] => [
   {
-    accessorKey: 'title',
-    header: ({ column }) => <SortableHeader column={column}>Report Title</SortableHeader>,
+    accessorKey: ReportColumnKey.TITLE,
+    header: ({ column }) => (
+      <SortableHeader column={column}>{ReportColumnLabels[ReportColumnKey.TITLE]}</SortableHeader>
+    ),
     cell: ({ row }) => row.original.title,
     enableColumnFilter: true,
-    meta: { title: 'Report title' },
+    size: 50, // responsive width in %
   },
   {
-    accessorKey: 'lastRunDate',
+    accessorKey: ReportColumnKey.LAST_RUN_DATE,
     header: ({ column }) => <SortableHeader column={column}>Last Run Date</SortableHeader>,
-    cell: ({ row }) => (row.original.lastRunDate ? formatDate(row.original.lastRunDate) : '-'),
-    size: 70,
-    meta: { title: 'Last Run Date' },
+    cell: ({ row }) => {
+      const lastRunTimestamp = row.original.lastRunDate;
+      return (
+        <div className='text-sm'>
+          {lastRunTimestamp ? (
+            <RelativeTime date={new Date(lastRunTimestamp)} />
+          ) : (
+            <span className='text-muted-foreground text-sm'>Never run</span>
+          )}
+        </div>
+      );
+    },
+    size: 25, // responsive width in %
   },
   {
-    accessorKey: 'lastRunStatus',
+    accessorKey: ReportColumnKey.LAST_RUN_STATUS,
     header: ({ column }) => <SortableHeader column={column}>Last Run Status</SortableHeader>,
     cell: ({ row }) =>
       row.original.lastRunStatus ? (
         <StatusIcon status={row.original.lastRunStatus} error={row.original.lastRunError} />
       ) : (
-        '-'
+        <span className='text-muted-foreground text-sm'>&mdash;</span>
       ),
-    size: 60,
-    meta: { title: 'Last Run Status' },
+    size: 25, // responsive width in %
   },
   {
     id: 'actions',
+    header: ({ table }) => <ToggleColumnsHeader table={table} />,
     cell: ({ row }) => (
       <GoogleSheetsActionsCell
         row={row}
@@ -62,7 +77,6 @@ export const getGoogleSheetsColumns = ({
         onEditReport={onEditReport}
       />
     ),
-    size: 20,
-    meta: { title: 'Actions' },
+    size: 80, // fixed width in pixels
   },
 ];

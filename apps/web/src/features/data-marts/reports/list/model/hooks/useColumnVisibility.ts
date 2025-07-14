@@ -20,7 +20,7 @@ export function useColumnVisibility<TData>(columns: ColumnDef<TData>[]) {
       Array.isArray(columns)
         ? (Object.fromEntries(
             columns
-              .filter(col => (col.meta as ColumnMetaWithHidden).hidden)
+              .filter(col => col.meta && (col.meta as ColumnMetaWithHidden).hidden)
               .map(col => [
                 'id' in col && col.id
                   ? col.id

@@ -122,20 +122,17 @@ export function GoogleSheetsReportsTable() {
         onFilterChange={handleFilterChange}
         dataMartStatus={dataMart?.status}
       />
-      <div className='rounded-md border-b border-gray-200 bg-white transition-shadow duration-200 hover:shadow-sm dark:border-0 dark:bg-white/4'>
+      <div className='dm-card-table-wrap'>
         <Table
           id={tableId}
-          className='w-full table-fixed'
+          className='dm-card-table'
           role='table'
           aria-label='Google Sheets reports'
         >
-          <TableHeader className='rounded-tl-md rounded-tr-md border-0 border-b bg-transparent dark:bg-transparent'>
+          <TableHeader className='dm-card-table-header'>
             {table.getHeaderGroups().map(headerGroup => {
               return (
-                <TableRow
-                  key={headerGroup.id}
-                  className='bg-muted/50 border-b hover:bg-white dark:bg-white/2 dark:hover:bg-white/10'
-                >
+                <TableRow key={headerGroup.id} className='dm-card-table-header-row'>
                   {headerGroup.headers.map(header => {
                     return (
                       <TableHead
@@ -143,7 +140,11 @@ export function GoogleSheetsReportsTable() {
                         className={getAlignClass(
                           (header.column.columnDef as { _align?: Align })._align
                         )}
-                        style={{ width: header.getSize() }}
+                        style={
+                          header.column.id === 'actions'
+                            ? { width: 80, minWidth: 80, maxWidth: 80 }
+                            : { width: `${String(header.getSize())}%` }
+                        }
                         scope='col'
                       >
                         {header.isPlaceholder
@@ -158,7 +159,7 @@ export function GoogleSheetsReportsTable() {
               );
             })}
           </TableHeader>
-          <TableBody>
+          <TableBody className='dm-card-table-body'>
             {table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row, rowIndex) => {
                 return (
@@ -167,7 +168,7 @@ export function GoogleSheetsReportsTable() {
                     onClick={() => {
                       handleEditRow(row.original.id);
                     }}
-                    className='cursor-pointer'
+                    className='dm-card-table-body-row group'
                     role='row'
                     aria-rowindex={rowIndex + 1}
                   >
@@ -175,8 +176,12 @@ export function GoogleSheetsReportsTable() {
                       return (
                         <TableCell
                           key={cell.id}
-                          className={`pl-4 whitespace-normal ${getAlignClass((cell.column.columnDef as { _align?: Align })._align)}`}
-                          style={{ width: cell.column.getSize() }}
+                          className={`px-6 whitespace-normal ${getAlignClass((cell.column.columnDef as { _align?: Align })._align)}`}
+                          style={
+                            cell.column.id === 'actions'
+                              ? { width: 80, minWidth: 80, maxWidth: 80 }
+                              : { width: `${String(cell.column.getSize())}%` }
+                          }
                           role='cell'
                           aria-colindex={cellIndex + 1}
                         >
@@ -191,9 +196,13 @@ export function GoogleSheetsReportsTable() {
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={columns.length} className='h-24 text-center' role='cell'>
+                <TableCell
+                  colSpan={columns.length}
+                  className='dm-card-table-body-row-empty'
+                  role='cell'
+                >
                   <span role='status' aria-live='polite'>
-                    No results.
+                    No results
                   </span>
                 </TableCell>
               </TableRow>
