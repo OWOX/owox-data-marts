@@ -2,6 +2,7 @@ import type { DataStorage } from '../../../../data-storage/shared/model/types/da
 import type { DataMartStatusInfo, DataMartValidationError } from '../../../shared';
 import type { DataMartDefinitionConfig } from './data-mart-definition-config.ts';
 import type { DataMartDefinitionType } from '../../../shared';
+import type { DataMartSchema } from '../../../shared/types/data-mart-schema.types';
 
 /**
  * Data mart domain model
@@ -61,4 +62,9 @@ export interface DataMart {
    * Last modification date
    */
   modifiedAt: Date;
+
+  /**
+   * Data mart schema
+   */
+  schema: DataMartSchema | null;
 }

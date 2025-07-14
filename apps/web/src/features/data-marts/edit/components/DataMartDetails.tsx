@@ -30,6 +30,8 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     updateDataMartTitle,
     updateDataMartDescription,
     updateDataMartDefinition,
+    actualizeDataMartSchema,
+    updateDataMartSchema,
     publishDataMart,
     runDataMart,
     isLoading,
@@ -221,6 +223,8 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
             getErrorMessage,
             updateDataMartDescription,
             updateDataMartDefinition,
+            actualizeDataMartSchema,
+            updateDataMartSchema,
           }}
         />
       </div>

@@ -1,13 +1,14 @@
 import {
   DataMartDataStorageView,
   DataMartDefinitionSettings,
+  DataMartSchemaSettings,
 } from '../../../features/data-marts/edit';
 import { useDataMartContext } from '../../../features/data-marts/edit/model';
 import { CollapsibleCard } from '../../../shared/components/CollapsibleCard';
 import { CollapsibleCardContent } from '../../../shared/components/CollapsibleCard/CollapsibleCardContent.tsx';
 import { CollapsibleCardHeader } from '../../../shared/components/CollapsibleCard/CollapsibleCardHeader.tsx';
 import { CollapsibleCardFooter } from '../../../shared/components/CollapsibleCard/CollapsibleCardFooter.tsx';
-import { DatabaseIcon, CodeIcon } from 'lucide-react';
+import { DatabaseIcon, CodeIcon, Columns3 } from 'lucide-react';
 
 export default function DataMartDataSetupContent() {
   const { dataMart, updateDataMartStorage } = useDataMartContext();
@@ -40,6 +41,16 @@ export default function DataMartDataSetupContent() {
         <CollapsibleCardContent>
           {dataMart && <DataMartDefinitionSettings />}
         </CollapsibleCardContent>
+        <CollapsibleCardFooter></CollapsibleCardFooter>
+      </CollapsibleCard>
+
+      <CollapsibleCard collapsible name={'output-schema'}>
+        <CollapsibleCardHeader
+          icon={Columns3}
+          title={'Output Schema'}
+          subtitle={'Configure your data mart output schema'}
+        ></CollapsibleCardHeader>
+        <CollapsibleCardContent>{dataMart && <DataMartSchemaSettings />}</CollapsibleCardContent>
         <CollapsibleCardFooter></CollapsibleCardFooter>
       </CollapsibleCard>
     </div>

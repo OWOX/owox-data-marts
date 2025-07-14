@@ -20,6 +20,8 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
     case 'DELETE_DATA_MART_START':
     case 'PUBLISH_DATA_MART_START':
     case 'RUN_DATA_MART_START':
+    case 'ACTUALIZE_DATA_MART_SCHEMA_START':
+    case 'UPDATE_DATA_MART_SCHEMA_START':
       return { ...state, isLoading: true, error: null };
 
     case 'CREATE_DATA_MART_SUCCESS':
@@ -27,6 +29,8 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
     case 'FETCH_DATA_MART_SUCCESS':
     case 'UPDATE_DATA_MART_SUCCESS':
     case 'PUBLISH_DATA_MART_SUCCESS':
+    case 'ACTUALIZE_DATA_MART_SCHEMA_SUCCESS':
+    case 'UPDATE_DATA_MART_SCHEMA_SUCCESS':
       return {
         ...state,
         isLoading: false,
@@ -104,6 +108,8 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
     case 'DELETE_DATA_MART_ERROR':
     case 'PUBLISH_DATA_MART_ERROR':
     case 'RUN_DATA_MART_ERROR':
+    case 'ACTUALIZE_DATA_MART_SCHEMA_ERROR':
+    case 'UPDATE_DATA_MART_SCHEMA_ERROR':
       return { ...state, isLoading: false, error: action.payload };
 
     case 'RESET':

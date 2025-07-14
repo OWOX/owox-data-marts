@@ -44,6 +44,7 @@ describe('data-mart-validation', () => {
     validationErrors: [],
     createdAt: new Date(),
     modifiedAt: new Date(),
+    schema: null,
     ...overrides,
   });
 

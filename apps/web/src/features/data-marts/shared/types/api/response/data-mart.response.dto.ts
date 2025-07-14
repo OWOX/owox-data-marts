@@ -2,6 +2,7 @@ import { type DataStorageResponseDto } from '../../../../../data-storage/shared/
 import { DataMartStatus } from '../../../enums/data-mart-status.enum';
 import { DataMartDefinitionType } from '../../../enums/data-mart-definition-type.enum';
 import type { DataMartDefinitionDto } from './data-mart-definition.dto';
+import type { DataMartSchema } from '../../data-mart-schema.types';
 
 /**
  * Data mart response data transfer object
@@ -51,4 +52,9 @@ export interface DataMartResponseDto {
    * Last modification timestamp
    */
   modifiedAt: Date;
+
+  /**
+   * Schema of the data mart
+   */
+  schema: DataMartSchema | null;
 }
