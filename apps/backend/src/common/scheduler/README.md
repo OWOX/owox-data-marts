@@ -87,17 +87,12 @@ initialization:
 import { Injectable, Inject, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import {
-  SCHEDULER_FACADE,
-  SchedulerFacade,
-} from './common/scheduler/shared/scheduler.facade';
+import { SCHEDULER_FACADE, SchedulerFacade } from './common/scheduler/shared/scheduler.facade';
 import { TimeBasedTriggerHandler } from './common/scheduler/shared/time-based-trigger-handler.interface';
 import { MyTrigger } from './my-trigger.entity';
 
 @Injectable()
-export class MyTriggerHandler
-  implements TimeBasedTriggerHandler<MyTrigger>, OnModuleInit
-{
+export class MyTriggerHandler implements TimeBasedTriggerHandler<MyTrigger>, OnModuleInit {
   constructor(
     @InjectRepository(MyTrigger)
     private readonly repository: Repository<MyTrigger>,

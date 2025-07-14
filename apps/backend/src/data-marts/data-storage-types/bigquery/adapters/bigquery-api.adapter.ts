@@ -1,6 +1,6 @@
-import { BigQuery, Job, Table } from '@google-cloud/bigquery';
-import { BigQueryCredentials } from '../schemas/bigquery-credentials.schema';
+import { BigQuery, Job, Table, TableSchema } from '@google-cloud/bigquery';
 import { BigQueryConfig } from '../schemas/bigquery-config.schema';
+import { BigQueryCredentials } from '../schemas/bigquery-credentials.schema';
 
 /**
  * Adapter for BigQuery API operations
@@ -39,12 +39,17 @@ export class BigQueryApiAdapter {
   /**
    * Executes a dry run query to estimate the number of bytes processed
    */
-  public async executeDryRunQuery(query: string): Promise<{ totalBytesProcessed: number }> {
+  public async executeDryRunQuery(
+    query: string
+  ): Promise<{ totalBytesProcessed: number; schema?: TableSchema }> {
     const [job] = await this.bigQuery.createQueryJob({
       query,
       dryRun: true,
     });
-    return { totalBytesProcessed: Number(job.metadata.statistics.totalBytesProcessed) };
+    return {
+      totalBytesProcessed: Number(job.metadata.statistics.totalBytesProcessed),
+      schema: job.metadata.statistics.query.schema ?? undefined,
+    };
   }
 
   /**

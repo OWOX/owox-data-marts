@@ -6,7 +6,7 @@ import {
   ValidationResult,
 } from '../../interfaces/data-mart-validator.interface';
 import { BigQueryApiAdapterFactory } from '../adapters/bigquery-api-adapter.factory';
-import { isBigqueryCredentials } from '../../data-storage-credentials.guards';
+import { isBigQueryCredentials } from '../../data-storage-credentials.guards';
 import { isBigQueryConfig } from '../../data-storage-config.guards';
 import { DataStorageConfig } from '../../data-storage-config.type';
 import { DataStorageCredentials } from '../../data-storage-credentials.type';
@@ -27,7 +27,7 @@ export class BigQueryDataMartValidator implements DataMartValidator {
     config: DataStorageConfig,
     credentials: DataStorageCredentials
   ): Promise<ValidationResult> {
-    if (!isBigqueryCredentials(credentials)) {
+    if (!isBigQueryCredentials(credentials)) {
       return ValidationResult.failure('Invalid credentials');
     }
     if (!isBigQueryConfig(config)) {

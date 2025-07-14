@@ -15,14 +15,14 @@ export function createZodTransformer<T>(
   return {
     to(value: T): T {
       // validate before save
-      if (!isRequired && value === null) {
+      if (!isRequired && (value === null || value === undefined)) {
         return value;
       }
       return schema.parse(value);
     },
     from(value: unknown): T {
       // validate after load
-      if (!isRequired && value === null) {
+      if (!isRequired && (value === null || value === undefined)) {
         return value as T;
       }
       return schema.parse(value);

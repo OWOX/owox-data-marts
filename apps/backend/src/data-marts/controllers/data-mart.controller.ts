@@ -27,6 +27,8 @@ import {
   DeleteDataMartSpec,
   RunDataMartSpec,
   ValidateDataMartDefinitionSpec,
+  ActualizeDataMartSchemaSpec,
+  UpdateDataMartSchemaSpec,
 } from './spec/data-mart.api';
 import {
   AuthContext,
@@ -34,7 +36,10 @@ import {
 } from '../../common/authorization-context/authorization.context';
 import { RunDataMartService } from '../use-cases/run-data-mart.service';
 import { ValidateDataMartDefinitionService } from '../use-cases/validate-data-mart-definition.service';
+import { ActualizeDataMartSchemaService } from '../use-cases/actualize-data-mart-schema.service';
+import { UpdateDataMartSchemaService } from '../use-cases/update-data-mart-schema.service';
 import { DataMartValidationResponseApiDto } from '../dto/presentation/data-mart-validation-response-api.dto';
+import { UpdateDataMartSchemaApiDto } from '../dto/presentation/update-data-mart-schema-api.dto';
 
 @Controller('data-marts')
 @ApiTags('DataMarts')
@@ -50,7 +55,9 @@ export class DataMartController {
     private readonly deleteDataMartService: DeleteDataMartService,
     private readonly mapper: DataMartMapper,
     private readonly runDataMartService: RunDataMartService,
-    private readonly validateDefinitionService: ValidateDataMartDefinitionService
+    private readonly validateDefinitionService: ValidateDataMartDefinitionService,
+    private readonly actualizeSchemaService: ActualizeDataMartSchemaService,
+    private readonly updateSchemaService: UpdateDataMartSchemaService
   ) {}
 
   @Post()
@@ -160,5 +167,28 @@ export class DataMartController {
     const command = this.mapper.toDefinitionValidateCommand(id, context);
     const validationResult = await this.validateDefinitionService.run(command);
     return this.mapper.toDefinitionValidationResponse(validationResult);
+  }
+
+  @Post(':id/actualize-schema')
+  @ActualizeDataMartSchemaSpec()
+  async actualizeSchema(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string
+  ): Promise<DataMartResponseApiDto> {
+    const command = this.mapper.toActualizeSchemaCommand(id, context);
+    const dataMart = await this.actualizeSchemaService.run(command);
+    return this.mapper.toResponse(dataMart);
+  }
+
+  @Put(':id/schema')
+  @UpdateDataMartSchemaSpec()
+  async updateSchema(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string,
+    @Body() dto: UpdateDataMartSchemaApiDto
+  ): Promise<DataMartResponseApiDto> {
+    const command = this.mapper.toUpdateSchemaCommand(id, context, dto);
+    const dataMart = await this.updateSchemaService.run(command);
+    return this.mapper.toResponse(dataMart);
   }
 }

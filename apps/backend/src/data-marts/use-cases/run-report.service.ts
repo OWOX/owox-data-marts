@@ -1,16 +1,18 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { TypeResolver } from '../../common/resolver/type-resolver';
+import { DATA_DESTINATION_REPORT_WRITER_RESOLVER } from '../data-destination-types/data-destination-providers';
+import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
+import { DataDestinationReportWriter } from '../data-destination-types/interfaces/data-destination-report-writer.interface';
+import { DATA_STORAGE_REPORT_READER_RESOLVER } from '../data-storage-types/data-storage-providers';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { DataStorageReportReader } from '../data-storage-types/interfaces/data-storage-report-reader.interface';
+import { RunReportCommand } from '../dto/domain/run-report.command';
 import { Report } from '../entities/report.entity';
 import { ReportRunStatus } from '../enums/report-run-status.enum';
-import { DataDestinationReportWriter } from '../data-destination-types/interfaces/data-destination-report-writer.interface';
-import { DataStorageReportReader } from '../data-storage-types/interfaces/data-storage-report-reader.interface';
-import { TypeResolver } from '../../common/resolver/type-resolver';
-import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
-import { RunReportCommand } from '../dto/domain/run-report.command';
-import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
-import { DATA_STORAGE_REPORT_READER_RESOLVER } from '../data-storage-types/data-storage-providers';
-import { DATA_DESTINATION_REPORT_WRITER_RESOLVER } from '../data-destination-types/data-destination-providers';
+import { DataMartService } from '../services/data-mart.service';
 
 @Injectable()
 export class RunReportService {
@@ -25,7 +27,8 @@ export class RunReportService {
     private readonly reportWriterResolver: TypeResolver<
       DataDestinationType,
       DataDestinationReportWriter
-    >
+    >,
+    private readonly dataMartService: DataMartService
   ) {}
 
   runInBackground(command: RunReportCommand): void {
@@ -42,7 +45,11 @@ export class RunReportService {
     });
 
     if (!report) {
-      throw new Error(`Report with id ${command.reportId} not found`);
+      throw new BusinessViolationException(`Report with id ${command.reportId} not found`);
+    }
+
+    if (report.lastRunStatus === ReportRunStatus.RUNNING) {
+      throw new BusinessViolationException('Report is already running');
     }
 
     const runAt = new Date();
@@ -62,6 +69,11 @@ export class RunReportService {
       report.lastRunError = error.toString();
     } finally {
       await this.reportRepository.save(report);
+      await this.dataMartService.actualizeSchema(
+        report.dataMart.id,
+        report.dataMart.projectId,
+        command.userId
+      );
     }
   }
 

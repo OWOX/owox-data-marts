@@ -3,5 +3,9 @@ import { DataMartDefinition } from '../../dto/schemas/data-mart-table-definition
 
 export interface DataMartQueryBuilder {
   readonly type: DataStorageType;
-  buildQuery(definition: DataMartDefinition): string;
+  buildQuery(definition: DataMartDefinition, queryOptions?: DataMartQueryOptions): string;
+}
+
+export interface DataMartQueryOptions {
+  limit?: number;
 }

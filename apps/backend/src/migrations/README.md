@@ -75,9 +75,7 @@ export class AddUserTable1680000000000 implements MigrationInterface {
 ## Example: Data Migration (DML)
 
 ```ts
-await queryRunner.query(
-  "UPDATE table_name SET status = 'run' WHERE status = 'active'"
-);
+await queryRunner.query("UPDATE table_name SET status = 'run' WHERE status = 'active'");
 ```
 
 > **Note:** Write DML queries to be compatible with both MySQL and SQLite.

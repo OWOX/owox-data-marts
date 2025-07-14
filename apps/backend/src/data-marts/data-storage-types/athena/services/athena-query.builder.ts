@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
-import { DataMartQueryBuilder } from '../../interfaces/data-mart-query-builder.interface';
+import {
+  DataMartQueryBuilder,
+  DataMartQueryOptions,
+} from '../../interfaces/data-mart-query-builder.interface';
 import {
   isConnectorDefinition,
   isSqlDefinition,
@@ -14,18 +17,29 @@ import {
 export class AthenaQueryBuilder implements DataMartQueryBuilder {
   readonly type = DataStorageType.AWS_ATHENA;
 
-  buildQuery(definition: DataMartDefinition): string {
+  buildQuery(definition: DataMartDefinition, queryOptions?: DataMartQueryOptions): string {
+    let query: string;
+
     if (isTableDefinition(definition) || isViewDefinition(definition)) {
-      return `SELECT * FROM ${this.escapeTablePath(definition.fullyQualifiedName)}`;
+      query = `SELECT * FROM ${this.escapeTablePath(definition.fullyQualifiedName)}`;
     } else if (isConnectorDefinition(definition)) {
-      return `SELECT * FROM ${this.escapeTablePath(definition.connector.storage.fullyQualifiedName)}`;
+      query = `SELECT * FROM ${this.escapeTablePath(definition.connector.storage.fullyQualifiedName)}`;
     } else if (isSqlDefinition(definition)) {
-      return definition.sqlQuery;
+      query = definition.sqlQuery.trim();
     } else if (isTablePatternDefinition(definition)) {
       throw new Error('Table pattern queries are not supported in Athena');
     } else {
       throw new Error('Invalid data mart definition');
     }
+
+    // Apply limit if provided in options
+    if (queryOptions?.limit !== undefined) {
+      // Remove trailing semicolon if present before wrapping in subquery
+      const cleanQuery = query.endsWith(';') ? query.slice(0, -1) : query;
+      query = `SELECT * FROM (${cleanQuery}) LIMIT ${queryOptions.limit}`;
+    }
+
+    return query;
   }
 
   private escapeTablePath(tablePath: string): string {

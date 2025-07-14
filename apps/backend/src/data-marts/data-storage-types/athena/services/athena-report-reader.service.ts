@@ -1,3 +1,5 @@
+import { ColumnInfo } from '@aws-sdk/client-athena/dist-types/models';
+import { isAthenaDataMartSchema } from '../../data-mart-schema.guards';
 import { DataStorageReportReader } from '../../interfaces/data-storage-report-reader.interface';
 import { Injectable, Logger, Scope } from '@nestjs/common';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
@@ -12,6 +14,7 @@ import { S3ApiAdapter } from '../adapters/s3-api.adapter';
 import { S3ApiAdapterFactory } from '../adapters/s3-api-adapter.factory';
 import { isAthenaCredentials } from '../../data-storage-credentials.guards';
 import { isAthenaConfig } from '../../data-storage-config.guards';
+import { AthenaDataMartSchema } from '../schemas/athena-data-mart-schema.schema';
 import { AthenaQueryBuilder } from './athena-query.builder';
 
 @Injectable({ scope: Scope.TRANSIENT })
@@ -33,9 +36,13 @@ export class AthenaReportReader implements DataStorageReportReader {
   ) {}
 
   async prepareReportData(report: Report): Promise<ReportDataDescription> {
-    const { storage, definition } = report.dataMart;
+    const { storage, definition, schema } = report.dataMart;
     if (!storage || !definition) {
       throw new Error('Data Mart is not properly configured');
+    }
+
+    if (schema && !isAthenaDataMartSchema(schema)) {
+      throw new Error('Athena data mart schema is expected');
     }
 
     await this.prepareApiAdapters(storage);
@@ -53,7 +60,7 @@ export class AthenaReportReader implements DataStorageReportReader {
       throw new Error('Failed to get query results metadata');
     }
 
-    const dataHeaders = metadata.ColumnInfo.map(col => col.Name || '');
+    const dataHeaders = this.getDataHeaders(metadata.ColumnInfo, schema);
 
     return new ReportDataDescription(dataHeaders);
   }
@@ -157,5 +164,19 @@ export class AthenaReportReader implements DataStorageReportReader {
     );
 
     this.queryExecutionId = result.queryExecutionId;
+  }
+
+  private getDataHeaders(
+    athenaColumns: ColumnInfo[],
+    dataMartSchema?: AthenaDataMartSchema
+  ): string[] {
+    return athenaColumns.map(col => {
+      const columnName = col.Name || '';
+      if (dataMartSchema) {
+        const schemaField = dataMartSchema.fields.find(field => field.name === columnName);
+        return schemaField?.alias || columnName;
+      }
+      return columnName;
+    });
   }
 }
