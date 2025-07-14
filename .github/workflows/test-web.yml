@@ -1,0 +1,72 @@
+name: Test and Build @owox/web
+
+on:
+  pull_request:
+    paths:
+      - 'apps/web/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Test job
+  test:
+    name: ${{ matrix.test.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ matrix.test.timeout }}
+
+    strategy:
+      # If one check fails, the others will continue to run
+      fail-fast: false
+      matrix:
+        test:
+          - name: 'Overall test'
+            command: 'npm run test -w @owox/web'
+            timeout: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Run ${{ matrix.test.name }}
+        run: ${{ matrix.test.command }}
+        env:
+          NODE_ENV: test
+
+  # Build job
+  build:
+    name: Run build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Build starts only after the test job finishes
+    needs: test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Run build
+        run: npm run build -w @owox/web
+        env:
+          NODE_ENV: production
