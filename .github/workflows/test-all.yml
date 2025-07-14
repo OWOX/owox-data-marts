@@ -1,0 +1,101 @@
+name: Test and Build all
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Test job
+  test:
+    name: ${{ matrix.test.name }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ matrix.test.timeout }}
+
+    strategy:
+      # If one check fails, the others will continue to run
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+        test:
+          - name: 'Overall test @owox/backend'
+            command: 'npm run test -w @owox/backend'
+            timeout: 10
+          - name: 'Overall test @owox/web'
+            command: 'npm run test -w @owox/web'
+            timeout: 10
+          - name: 'Overall test owox'
+            command: 'npm run test -w owox'
+            timeout: 10
+          - name: 'Overall test @owox/connector-runner'
+            command: 'npm run build -w @owox/connectors && npm run test -w @owox/connector-runner'
+            timeout: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Run ${{ matrix.test.name }}
+        run: ${{ matrix.test.command }}
+        env:
+          NODE_ENV: test
+
+  # Build job
+  build:
+    name: ${{ matrix.build.name }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ matrix.build.timeout }}
+
+    strategy:
+      # If one check fails, the others will continue to run
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+        build:
+          - name: 'Build @owox/connectors'
+            command: 'npm run build -w @owox/connectors'
+            timeout: 10
+          - name: 'Build @owox/backend'
+            command: 'npm run build -w @owox/backend'
+            timeout: 15
+          - name: 'Build owox'
+            command: 'npm run build -w owox'
+            timeout: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Run ${{ matrix.build.name }}
+        run: ${{ matrix.build.command }}
+        env:
+          NODE_ENV: production

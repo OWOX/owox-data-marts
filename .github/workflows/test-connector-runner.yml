@@ -1,0 +1,50 @@
+name: Test and Build @owox/connector-runner
+
+on:
+  pull_request:
+    paths:
+      - 'packages/connector-runner/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Test job
+  test:
+    name: ${{ matrix.test.name }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ matrix.test.timeout }}
+
+    strategy:
+      # If one check fails, the others will continue to run
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+        test:
+          - name: 'Overall test'
+            command: 'npm run test -w @owox/connector-runner'
+            timeout: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Build Connectors
+        run: npm run build -w @owox/connectors
+
+      - name: Run ${{ matrix.test.name }}
+        run: ${{ matrix.test.command }}
+        env:
+          NODE_ENV: test
