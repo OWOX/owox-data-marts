@@ -112,7 +112,7 @@ export default function RelativeTime({ date, className = '' }: RelativeTimeProps
   }, [date]);
 
   return (
-    <span className={`text-sm text-muted-foreground ${className}`} title={date.toLocaleString()}>
+    <span className={`text-muted-foreground text-sm ${className}`} title={date.toLocaleString()}>
       {relativeText}
     </span>
   );

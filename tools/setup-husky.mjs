@@ -94,7 +94,9 @@ function main() {
   try {
     const hookPath = join(repoRoot, '.husky', 'pre-commit');
     if (existsSync(hookPath)) {
-      console.log('ℹ️  Pre-commit hook already exists. Skipping setup. To re-run setup, delete the `.husky/pre-commit` file and run `npm run setup:husky`.');
+      console.log(
+        'ℹ️  Pre-commit hook already exists. Skipping setup. To re-run setup, delete the `.husky/pre-commit` file and run `npm run setup:husky`.'
+      );
       return;
     }
 
