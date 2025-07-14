@@ -72,6 +72,10 @@ import { DataMartScheduledTrigger } from './entities/data-mart-scheduled-trigger
 import { SchedulerModule } from '../common/scheduler/scheduler.module';
 import { ScheduledTriggersHandlerService } from './services/scheduled-triggers-handler.service';
 import { ReportService } from './services/report.service';
+import { ConnectorOutputCaptureService } from './connector-types/connector-message/services/connector-output-capture.service';
+import { ConnectorMessageParserService } from './connector-types/connector-message/services/connector-message-parser.service';
+import { ConnectorStateService } from './connector-types/connector-message/services/connector-state.service';
+import { ConnectorState } from './entities/connector-state.entity';
 
 @Module({
   imports: [
@@ -82,6 +86,7 @@ import { ReportService } from './services/report.service';
       Report,
       DataMartRun,
       DataMartScheduledTrigger,
+      ConnectorState,
     ]),
     SchedulerModule,
   ],
@@ -153,6 +158,9 @@ import { ReportService } from './services/report.service';
     UpdateScheduledTriggerService,
     DeleteScheduledTriggerService,
     ReportService,
+    ConnectorOutputCaptureService,
+    ConnectorMessageParserService,
+    ConnectorStateService,
   ],
 })
 export class DataMartsModule {}

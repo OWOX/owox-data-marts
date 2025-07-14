@@ -1,4 +1,4 @@
-import type { DataStorageType } from './data-storage-type.enum';
+import type { DataStorageType } from '../../../../data-storage/shared/model/types/data-storage-type.enum';
 
 export interface Connector {
   name: string;

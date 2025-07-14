@@ -3,7 +3,7 @@ import type {
   ConnectorDefinitionDto,
   ConnectorSpecificationResponseApiDto,
   ConnectorFieldsResponseApiDto,
-} from './types';
+} from './types/response';
 
 export class ConnectorApiService extends ApiService {
   constructor() {

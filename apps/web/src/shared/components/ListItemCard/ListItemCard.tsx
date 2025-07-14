@@ -39,9 +39,11 @@ export function ListItemCard({
       {/* Right content */}
       <div className='flex items-center justify-center gap-2 p-4'>
         {rightContent}
-        <div className='flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-200 group-hover:bg-gray-200/50 dark:group-hover:bg-gray-700/25'>
-          <ChevronRight className='text-muted-foreground/75 dark:text-muted-foreground/50 h-4 w-4' />
-        </div>
+        {onClick && (
+          <div className='flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-200 group-hover:bg-gray-200/50 dark:group-hover:bg-gray-700/25'>
+            <ChevronRight className='text-muted-foreground/75 dark:text-muted-foreground/50 h-4 w-4' />
+          </div>
+        )}
       </div>
     </div>
   );

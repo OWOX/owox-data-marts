@@ -31,6 +31,7 @@ interface SourceFieldsGroup {
   overview: string;
   description: string;
   documentation: string;
+  uniqueKeys: string[];
   fields: Record<string, SourceFieldDefinition>;
 }
 
@@ -124,6 +125,7 @@ export class ConnectorService {
       overview: sourceFieldsSchema[key].overview,
       description: sourceFieldsSchema[key].description,
       documentation: sourceFieldsSchema[key].documentation,
+      uniqueKeys: sourceFieldsSchema[key].uniqueKeys,
       fields: Object.keys(sourceFieldsSchema[key].fields).map(fieldKey => ({
         name: fieldKey,
         type: sourceFieldsSchema[key].fields[fieldKey].type,

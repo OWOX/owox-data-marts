@@ -88,9 +88,7 @@ class NodeJsTemplateRenderer extends TemplateRenderer {
             );
 
             // Run the connector
-            console.log('Starting Connector execution...');
             connector.run();
-            console.log('Connector execution completed');
         }
         `;
   }

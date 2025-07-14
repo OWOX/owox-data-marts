@@ -1,5 +1,5 @@
 import { Button } from '@owox/ui/components/button';
-import { Trash2, Info } from 'lucide-react';
+import { ExternalLink, Trash2 } from 'lucide-react';
 import { DataMartConnectorView } from '../../DataMartConnectorView';
 import { DataStorageType } from '../../../../data-storage';
 import type { ConnectorConfig, ConnectorDefinitionConfig } from '../../../../data-marts/edit/model';
@@ -7,28 +7,29 @@ import { getStorageDisplayName } from './connector-definition.helpers';
 import { ListItemCard } from '../../../../../shared/components/ListItemCard';
 import { DataStorageTypeModel } from '../../../../data-storage/shared/types/data-storage-type.model';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
-import { DataMartStatus } from '../../../../data-marts/shared/enums/data-mart-status.enum';
+import { DataMartStatus } from '../../../../data-marts/shared/enums';
+import type { DataStorage } from '../../../../data-storage/shared/model/types/data-storage';
 
 interface ConnectorConfigurationItemProps {
   configIndex: number;
   connectorDef: ConnectorDefinitionConfig;
-  storageType: DataStorageType;
   onRemoveConfiguration: (configIndex: number) => void;
   onUpdateConfiguration: (configIndex: number) => (connector: ConnectorConfig) => void;
   dataMartStatus: DataMartStatus;
   totalConfigurations: number;
+  dataStorage: DataStorage;
 }
 
 export function ConnectorConfigurationItem({
   configIndex,
   connectorDef,
-  storageType,
   onRemoveConfiguration,
   onUpdateConfiguration,
   dataMartStatus,
   totalConfigurations,
+  dataStorage,
 }: ConnectorConfigurationItemProps) {
-  const dataStorageInfo = DataStorageTypeModel.getInfo(storageType);
+  const dataStorageInfo = DataStorageTypeModel.getInfo(dataStorage.type);
 
   const getConnectorSubtitle = () => {
     const node = connectorDef.connector.source.node || 'No node selected';
@@ -41,58 +42,68 @@ export function ConnectorConfigurationItem({
     );
   };
 
-  const getStorageSubtitle = () => {
-    const [dataset, table] = connectorDef.connector.storage.fullyQualifiedName.split('.');
-    const datasetLabel = storageType === DataStorageType.GOOGLE_BIGQUERY ? 'Dataset' : 'Database';
-    const tableLabel = 'Table';
-
+  const formatParam = (label: string, value: string) => {
     return (
-      <div className='flex flex-wrap gap-2'>
-        <span>
-          <span className='font-semibold'>{datasetLabel}:</span>{' '}
-          <span className='text-muted-foreground'>{dataset}</span>
-        </span>
-        <span className='text-muted-foreground'>•</span>
-        <span>
-          <span className='font-semibold'>{tableLabel}:</span>{' '}
-          <span className='text-muted-foreground'>{table}</span>
-        </span>
-      </div>
+      <span>
+        <span className='font-semibold'>{label}:</span>{' '}
+        <span className='text-muted-foreground'>{value}</span>
+      </span>
     );
   };
 
-  const getConnectorRightContent = () => {
-    const fieldsCount = connectorDef.connector.source.fields.length;
-    const fields = connectorDef.connector.source.fields;
-
+  const formatLinkParam = (label: string, value: string, href: string) => {
     return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className='text-muted-foreground/75 dark:text-muted-foreground/50 flex cursor-help items-center gap-1 text-sm'>
-            Fields: {fieldsCount}
-            <Info className='h-3 w-3' />
-          </div>
-        </TooltipTrigger>
-        <TooltipContent side='left' className='max-w-sm'>
-          <div className='space-y-1'>
-            <div className='text-sm font-semibold'>Selected fields ({fieldsCount}):</div>
-            <div className='scrollbar-thin max-h-48 overflow-y-auto'>
-              {fields.length > 0 ? (
-                <ul className='space-y-0.5 text-xs'>
-                  {fields.map((field, index) => (
-                    <li key={index} className='truncate'>
-                      • {field}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <div className='text-muted-foreground text-xs'>No fields selected</div>
-              )}
-            </div>
-          </div>
-        </TooltipContent>
-      </Tooltip>
+      <span>
+        <span className='font-semibold'>{label}:</span>{' '}
+        <a
+          href={href}
+          target='_blank'
+          rel='noopener noreferrer'
+          className='text-primary hover:underline'
+          onClick={e => {
+            e.stopPropagation();
+          }}
+        >
+          {value}
+          <ExternalLink className='ml-1 inline h-3 w-3' aria-hidden='true' />
+        </a>
+      </span>
     );
+  };
+
+  const getStorageSubtitle = () => {
+    switch (dataStorage.type) {
+      case DataStorageType.GOOGLE_BIGQUERY: {
+        const projectId = dataStorage.config.projectId;
+        const location = dataStorage.config.location;
+        const bigQueryConsoleLink = `https://console.cloud.google.com/bigquery?project=${projectId}`;
+        return (
+          <div className='flex flex-wrap gap-2'>
+            {formatLinkParam('Project ID', projectId, bigQueryConsoleLink)}
+            <span className='text-muted-foreground'>•</span>
+            {formatParam('Location', location)}
+          </div>
+        );
+      }
+      case DataStorageType.AWS_ATHENA: {
+        const region = dataStorage.config.region;
+        const databaseName = dataStorage.config.databaseName;
+        const outputBucket = dataStorage.config.outputBucket;
+        const athenaConsoleLink = `https://console.aws.amazon.com/athena/home?region=${region}#/query-editor`;
+        const s3ConsoleLink = `https://s3.console.aws.amazon.com/s3/buckets/${outputBucket}?region=${region}`;
+        return (
+          <div className='flex flex-wrap gap-2'>
+            {formatParam('Region', region)}
+            <span className='text-muted-foreground'>•</span>
+            {formatLinkParam('Database', databaseName, athenaConsoleLink)}
+            <span className='text-muted-foreground'>•</span>
+            {formatLinkParam('Bucket', outputBucket, s3ConsoleLink)}
+          </div>
+        );
+      }
+      default:
+        return 'Unknown storage type configuration';
+    }
   };
 
   const canRemoveConfiguration = () => {
@@ -104,11 +115,11 @@ export function ConnectorConfigurationItem({
   };
 
   return (
-    <div className='flex w-full items-center border-b pb-4'>
+    <div className='flex w-full items-center pb-4'>
       <div className='flex-grow'>
-        <div className='grid grid-cols-2 gap-4'>
+        <div className='grid grid-cols-2 items-center gap-4'>
           <DataMartConnectorView
-            dataStorageType={storageType}
+            dataStorageType={dataStorage.type}
             onSubmit={onUpdateConfiguration(configIndex)}
             configurationOnly={true}
             existingConnector={{
@@ -123,12 +134,14 @@ export function ConnectorConfigurationItem({
               title={connectorDef.connector.source.name || 'Connector'}
               subtitle={getConnectorSubtitle()}
               className='min-h-[80px] cursor-pointer transition-colors'
-              rightContent={getConnectorRightContent()}
+              onClick={() => {
+                <></>;
+              }}
             />
           </DataMartConnectorView>
 
           <ListItemCard
-            title={getStorageDisplayName(storageType)}
+            title={getStorageDisplayName(dataStorage.type)}
             icon={dataStorageInfo.icon}
             subtitle={getStorageSubtitle()}
             className='bg-background min-h-[80px] cursor-default border-0 hover:shadow-none dark:bg-white/2'

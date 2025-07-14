@@ -1,5 +1,5 @@
-import { useConnector } from '../../../../data-storage/shared/model/hooks/useConnector';
-import type { ConnectorDefinitionDto } from '../../../../data-storage/shared/api/types/response';
+import { useConnector } from '../../../shared/model/hooks/useConnector';
+import type { ConnectorDefinitionDto } from '../../../shared/api/types';
 import { useEffect, useState, useCallback } from 'react';
 
 import { DataStorageType } from '../../../../data-storage/shared/model/types';
@@ -18,6 +18,7 @@ interface ConnectorEditFormProps {
   dataStorageType: DataStorageType;
   configurationOnly?: boolean;
   existingConnector?: ConnectorConfig | null;
+  mode?: 'full' | 'configuration-only' | 'fields-only';
 }
 
 export function ConnectorEditForm({
@@ -25,6 +26,7 @@ export function ConnectorEditForm({
   dataStorageType,
   configurationOnly = false,
   existingConnector = null,
+  mode = 'full',
 }: ConnectorEditFormProps) {
   const [selectedConnector, setSelectedConnector] = useState<ConnectorDefinitionDto | null>(null);
   const [selectedNode, setSelectedNode] = useState<string>('');
@@ -33,6 +35,7 @@ export function ConnectorEditForm({
   const [connectorConfiguration, setConnectorConfiguration] = useState<Record<string, unknown>>({});
   const [configurationIsValid, setConfigurationIsValid] = useState<boolean>(false);
   const [loadedSpecifications, setLoadedSpecifications] = useState<Set<string>>(new Set());
+  const [loadedFields, setLoadedFields] = useState<Set<string>>(new Set());
   const {
     connectors,
     connectorSpecification,
@@ -45,17 +48,21 @@ export function ConnectorEditForm({
     fetchConnectorSpecification,
     fetchConnectorFields,
   } = useConnector();
+
+  console.log('🏗️ ConnectorEditForm render', { mode, hasExistingConnector: !!existingConnector });
   const [target, setTarget] = useState<{ fullyQualifiedName: string } | null>(null);
 
   const steps = configurationOnly
     ? [{ id: 1, title: 'Configuration', description: 'Set up connector parameters' }]
-    : [
-        { id: 1, title: 'Select Connector', description: 'Choose a data source' },
-        { id: 2, title: 'Configuration', description: 'Set up connector parameters' },
-        { id: 3, title: 'Select Nodes', description: 'Choose data nodes' },
-        { id: 4, title: 'Select Fields', description: 'Pick specific fields' },
-        { id: 5, title: 'Target Setup', description: 'Configure destination' },
-      ];
+    : mode === 'fields-only'
+      ? [{ id: 1, title: 'Select Fields', description: 'Pick specific fields' }]
+      : [
+          { id: 1, title: 'Select Connector', description: 'Choose a data source' },
+          { id: 2, title: 'Configuration', description: 'Set up connector parameters' },
+          { id: 3, title: 'Select Nodes', description: 'Choose data nodes' },
+          { id: 4, title: 'Select Fields', description: 'Pick specific fields' },
+          { id: 5, title: 'Target Setup', description: 'Configure destination' },
+        ];
 
   const totalSteps = steps.length;
 
@@ -69,58 +76,62 @@ export function ConnectorEditForm({
     [loadedSpecifications, loadingSpecification, fetchConnectorSpecification]
   );
 
+  const loadFieldsSafely = useCallback(
+    async (connectorName: string) => {
+      if (!loadedFields.has(connectorName)) {
+        setLoadedFields(prev => new Set(prev).add(connectorName));
+        await fetchConnectorFields(connectorName);
+      }
+    },
+    [loadedFields, fetchConnectorFields]
+  );
+
+  // Regular modes initialization
   useEffect(() => {
+    // Load connectors if needed
     if (connectors.length === 0 && !loading) {
       void fetchAvailableConnectors();
     }
-  }, [connectors.length, loading, fetchAvailableConnectors]);
 
-  useEffect(() => {
-    if (existingConnector) {
+    // Setup existing connector
+    if (existingConnector && connectors.length > 0 && !selectedConnector) {
       const { source, storage } = existingConnector;
 
       setSelectedNode(source.node);
       setSelectedFields(source.fields);
       setConnectorConfiguration(source.configuration[0] || {});
+      setTarget({ fullyQualifiedName: storage.fullyQualifiedName });
 
-      setTarget({
-        fullyQualifiedName: storage.fullyQualifiedName,
-      });
+      const existingConnectorDef = connectors.find(c => c.name === source.name);
+      if (existingConnectorDef) {
+        setSelectedConnector(existingConnectorDef);
 
-      if (connectors.length > 0) {
-        const existingConnectorDef = connectors.find(c => c.name === source.name);
-        if (existingConnectorDef) {
-          setSelectedConnector(existingConnectorDef);
-
-          if (configurationOnly) {
-            void loadSpecificationSafely(existingConnectorDef.name);
-          } else {
-            void loadSpecificationSafely(existingConnectorDef.name);
-            void fetchConnectorFields(existingConnectorDef.name);
-          }
+        void loadSpecificationSafely(existingConnectorDef.name);
+        if (!configurationOnly && mode !== 'fields-only') {
+          void loadFieldsSafely(existingConnectorDef.name);
+        }
+        if (mode === 'fields-only') {
+          void loadFieldsSafely(existingConnectorDef.name);
         }
       }
     }
-  }, [
-    existingConnector,
-    connectors,
-    configurationOnly,
-    loadSpecificationSafely,
-    fetchConnectorFields,
-  ]);
 
-  useEffect(() => {
+    // Configuration-only mode setup
     if (configurationOnly && connectors.length > 0 && !selectedConnector && !existingConnector) {
       const firstConnector = connectors[0];
       setSelectedConnector(firstConnector);
       void loadSpecificationSafely(firstConnector.name);
     }
   }, [
-    configurationOnly,
-    connectors,
-    selectedConnector,
+    mode,
     existingConnector,
+    connectors,
+    configurationOnly,
+    loading,
+    fetchAvailableConnectors,
     loadSpecificationSafely,
+    loadFieldsSafely,
+    selectedConnector,
   ]);
 
   const handleConnectorSelect = (connector: ConnectorDefinitionDto) => {
@@ -133,7 +144,7 @@ export function ConnectorEditForm({
       return newSet;
     });
     void loadSpecificationSafely(connector.name);
-    void fetchConnectorFields(connector.name);
+    void loadFieldsSafely(connector.name);
   };
 
   const handleFieldSelect = (fieldName: string) => {
@@ -143,7 +154,7 @@ export function ConnectorEditForm({
 
   const handleFieldToggle = (fieldName: string, isChecked: boolean) => {
     if (isChecked) {
-      setSelectedFields(prev => [...prev, fieldName]);
+      setSelectedFields(prev => (prev.includes(fieldName) ? prev : [...prev, fieldName]));
     } else {
       setSelectedFields(prev => prev.filter(f => f !== fieldName));
     }
@@ -200,6 +211,15 @@ export function ConnectorEditForm({
       return selectedConnector !== null && configurationIsValid;
     }
 
+    if (mode === 'fields-only') {
+      switch (currentStep) {
+        case 1:
+          return selectedFields.length > 0;
+        default:
+          return false;
+      }
+    }
+
     switch (currentStep) {
       case 1:
         return selectedConnector !== null;
@@ -231,6 +251,23 @@ export function ConnectorEditForm({
           loading={loadingSpecification}
         />
       ) : null;
+    }
+
+    if (mode === 'fields-only') {
+      switch (currentStep) {
+        case 1:
+          return selectedNode && connectorFields ? (
+            <FieldsSelectionStep
+              connectorFields={connectorFields}
+              selectedField={selectedNode}
+              selectedFields={selectedFields}
+              onFieldToggle={handleFieldToggle}
+              onSelectAllFields={handleSelectAllFields}
+            />
+          ) : null;
+        default:
+          return null;
+      }
     }
 
     switch (currentStep) {
@@ -312,6 +349,14 @@ export function ConnectorEditForm({
                 storage: existingConnector?.storage ?? {
                   fullyQualifiedName: existingConnector?.storage.fullyQualifiedName ?? '',
                 },
+              });
+            } else if (mode === 'fields-only' && existingConnector) {
+              onSubmit({
+                source: {
+                  ...existingConnector.source,
+                  fields: selectedFields,
+                },
+                storage: existingConnector.storage,
               });
             } else if (selectedConnector && target) {
               onSubmit({

@@ -6,6 +6,7 @@ export const initialState: DataMartState = {
   dataMart: null,
   isLoading: false,
   error: null,
+  runs: [],
 };
 
 // Reducer function
@@ -22,6 +23,8 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
     case 'RUN_DATA_MART_START':
     case 'ACTUALIZE_DATA_MART_SCHEMA_START':
     case 'UPDATE_DATA_MART_SCHEMA_START':
+    case 'FETCH_DATA_MART_RUNS_START':
+    case 'LOAD_MORE_DATA_MART_RUNS_START':
       return { ...state, isLoading: true, error: null };
 
     case 'CREATE_DATA_MART_SUCCESS':
@@ -99,6 +102,12 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
     case 'RUN_DATA_MART_SUCCESS':
       return { ...state, isLoading: false, error: null };
 
+    case 'FETCH_DATA_MART_RUNS_SUCCESS':
+      return { ...state, isLoading: false, error: null, runs: action.payload };
+
+    case 'LOAD_MORE_DATA_MART_RUNS_SUCCESS':
+      return { ...state, isLoading: false, error: null, runs: [...state.runs, ...action.payload] };
+
     case 'FETCH_DATA_MART_ERROR':
     case 'CREATE_DATA_MART_ERROR':
     case 'UPDATE_DATA_MART_ERROR':
@@ -110,6 +119,8 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
     case 'RUN_DATA_MART_ERROR':
     case 'ACTUALIZE_DATA_MART_SCHEMA_ERROR':
     case 'UPDATE_DATA_MART_SCHEMA_ERROR':
+    case 'FETCH_DATA_MART_RUNS_ERROR':
+    case 'LOAD_MORE_DATA_MART_RUNS_ERROR':
       return { ...state, isLoading: false, error: action.payload };
 
     case 'RESET':

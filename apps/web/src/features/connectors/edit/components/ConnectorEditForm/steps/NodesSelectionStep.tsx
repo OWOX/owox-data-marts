@@ -1,5 +1,5 @@
 import { Skeleton } from '@owox/ui/components/skeleton';
-import type { ConnectorFieldsResponseApiDto } from '../../../../../data-storage/shared/api/types/response/connector.response.dto.ts';
+import type { ConnectorFieldsResponseApiDto } from '../../../../shared/api/';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { Info } from 'lucide-react';
 

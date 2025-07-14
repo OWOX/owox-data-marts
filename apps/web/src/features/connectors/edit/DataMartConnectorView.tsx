@@ -4,7 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import { ConnectorEditSheet } from './components/ConnectorEditSheet/ConnectorEditSheet';
 import { DataStorageType } from '../../data-storage/shared/model/types';
 import type { ConnectorConfig } from '../../data-marts/edit/model';
-import { ConnectorContextProvider } from '../../data-storage/shared/model/context/connector';
+import { ConnectorContextProvider } from '../shared/model/context';
 
 interface DataMartConnectorViewProps {
   dataStorageType: DataStorageType;
@@ -50,7 +50,6 @@ export const DataMartConnectorView = ({
           <ConnectorEditSheet
             isOpen={isEditSheetOpen}
             onClose={handleClose}
-            connector={null}
             dataStorageType={dataStorageType}
             onSubmit={onSubmit}
             configurationOnly={configurationOnly}

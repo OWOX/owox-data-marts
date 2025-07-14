@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, HttpCode } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, Query, HttpCode } from '@nestjs/common';
 import { CreateDataMartRequestApiDto } from '../dto/presentation/create-data-mart-request-api.dto';
 import { CreateDataMartResponseApiDto } from '../dto/presentation/create-data-mart-response-api.dto';
 import { DataMartResponseApiDto } from '../dto/presentation/data-mart-response-api.dto';
@@ -30,6 +30,7 @@ import {
   ActualizeDataMartSchemaSpec,
   UpdateDataMartSchemaSpec,
   SqlDryRunSpec,
+  GetDataMartRunsSpec,
 } from './spec/data-mart.api';
 import {
   AuthContext,
@@ -40,6 +41,8 @@ import { ValidateDataMartDefinitionService } from '../use-cases/validate-data-ma
 import { ActualizeDataMartSchemaService } from '../use-cases/actualize-data-mart-schema.service';
 import { UpdateDataMartSchemaService } from '../use-cases/update-data-mart-schema.service';
 import { DataMartValidationResponseApiDto } from '../dto/presentation/data-mart-validation-response-api.dto';
+import { ConnectorExecutionService } from '../services/connector-execution.service';
+import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-response-api.dto';
 import { UpdateDataMartSchemaApiDto } from '../dto/presentation/update-data-mart-schema-api.dto';
 import { SqlDryRunService } from '../use-cases/sql-dry-run.service';
 import { SqlDryRunRequestApiDto } from '../dto/presentation/sql-dry-run-request-api.dto';
@@ -62,7 +65,8 @@ export class DataMartController {
     private readonly validateDefinitionService: ValidateDataMartDefinitionService,
     private readonly actualizeSchemaService: ActualizeDataMartSchemaService,
     private readonly updateSchemaService: UpdateDataMartSchemaService,
-    private readonly sqlDryRunService: SqlDryRunService
+    private readonly sqlDryRunService: SqlDryRunService,
+    private readonly connectorExecutionService: ConnectorExecutionService
   ) {}
 
   @Post()
@@ -208,5 +212,20 @@ export class DataMartController {
     const command = this.mapper.toSqlDryRunCommand(id, context, dto);
     const result = await this.sqlDryRunService.run(command);
     return this.mapper.toSqlDryRunResponse(result);
+  }
+
+  @Get(':id/runs')
+  @GetDataMartRunsSpec()
+  async getRunHistory(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string,
+    @Query('limit') limit: number = 20,
+    @Query('offset') offset: number = 0
+  ): Promise<DataMartRunsResponseApiDto> {
+    // Verify user has access to this data mart
+    const command = this.mapper.toGetCommand(id, context);
+    await this.getDataMartService.run(command);
+    const runs = await this.connectorExecutionService.getDataMartRuns(id, limit, offset);
+    return this.mapper.toRunsResponse(runs);
   }
 }

@@ -3,7 +3,7 @@ import { Input } from '@owox/ui/components/input';
 import { Textarea } from '@owox/ui/components/textarea';
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { Combobox } from '../../../../../../shared/components/Combobox/combobox.tsx';
-import type { ConnectorSpecificationResponseApiDto } from '../../../../../data-storage/shared/api/types/response/connector.response.dto.ts';
+import type { ConnectorSpecificationResponseApiDto } from '../../../../shared/api/types';
 import { useState, useEffect, useRef } from 'react';
 
 interface ConfigurationStepProps {

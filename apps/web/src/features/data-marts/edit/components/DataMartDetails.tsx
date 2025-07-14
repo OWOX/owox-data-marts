@@ -34,9 +34,12 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     updateDataMartSchema,
     publishDataMart,
     runDataMart,
+    getDataMartRuns,
+    loadMoreDataMartRuns,
     isLoading,
     error,
     getErrorMessage,
+    runs,
   } = useDataMart(id);
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -47,6 +50,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     { name: 'Data Setup', path: 'data-setup' },
     { name: 'Destinations', path: 'reports' },
     { name: 'Triggers', path: 'triggers' },
+    { name: 'Run History', path: 'run-history' },
   ];
 
   const handleTitleUpdate = async (newTitle: string) => {
@@ -225,6 +229,9 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
             updateDataMartDefinition,
             actualizeDataMartSchema,
             updateDataMartSchema,
+            getDataMartRuns,
+            loadMoreDataMartRuns,
+            runs,
           }}
         />
       </div>

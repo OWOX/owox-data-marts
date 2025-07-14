@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { ConnectorActionType, useConnectorContext } from '../context/connector';
+import { ConnectorActionType, useConnectorContext } from '../context';
 import { ConnectorApiService } from '../../api';
 
 export function useConnector() {

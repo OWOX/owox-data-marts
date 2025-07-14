@@ -192,8 +192,12 @@ var AbstractConnector = class AbstractConnector {
         lastRequestedDate = new Date(this.config.StartDate.value.getTime() );
 
       } else {
-        lastRequestedDate = new Date( this.config.LastRequestedDate.value.getTime() );
-        lastRequestedDate.setDate( this.config.LastRequestedDate.value.getDate() - this.config.ReimportLookbackWindow.value );
+        if (typeof this.config.LastRequestedDate.value === 'string') {
+          lastRequestedDate = new Date( this.config.LastRequestedDate.value );
+        } else {
+          lastRequestedDate = new Date( this.config.LastRequestedDate.value.getTime() );
+        }
+        lastRequestedDate.setDate( lastRequestedDate.getDate() - this.config.ReimportLookbackWindow.value );
       }
       // The earliest date that can be requested is the start date
       if( startDate.getTime() < lastRequestedDate.getTime() ) {

@@ -2,7 +2,7 @@ import type {
   ConnectorDefinitionDto,
   ConnectorSpecificationResponseApiDto,
   ConnectorFieldsResponseApiDto,
-} from '../../../api/types/response';
+} from '../../api/types';
 import type { ConnectorState } from './reducer';
 
 export enum ConnectorActionType {

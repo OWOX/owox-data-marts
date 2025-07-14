@@ -24,7 +24,7 @@ class SourceConfig {
     this._config = Object.fromEntries(
       Object.entries(config.config).map(([key, value]) => [
         key,
-        typeof value === 'string' ? { value: value } : value,
+        typeof value !== 'object' ? { value: value } : value,
       ])
     );
   }
@@ -80,7 +80,7 @@ class StorageConfig {
     this._config = Object.fromEntries(
       Object.entries(config.config).map(([key, value]) => [
         key,
-        typeof value === 'string' ? { value: value } : value,
+        typeof value !== 'object' ? { value: value } : value,
       ])
     );
   }

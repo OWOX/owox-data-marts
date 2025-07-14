@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@owox/ui/components/ca
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { AlertCircle, Plug } from 'lucide-react';
 import { Alert, AlertDescription } from '@owox/ui/components/alert';
-import type { ConnectorDefinitionDto } from '../../../../../data-storage/shared/api/types';
+import type { ConnectorDefinitionDto } from '../../../../shared/api/types';
 
 interface ConnectorSelectionStepProps {
   connectors: ConnectorDefinitionDto[];

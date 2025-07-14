@@ -4,11 +4,13 @@ import type { DataMartDefinitionType } from '../../../shared';
 import type { DataMartDefinitionConfig } from '../types';
 import type { ApiError } from '../../../../../app/api';
 import type { DataMartSchema } from '../../../shared/types/data-mart-schema.types';
+import type { DataMartRunItem } from '../types/data-mart-run';
 
 export interface DataMartState {
   dataMart: DataMart | null;
   isLoading: boolean;
   error: ApiError | null;
+  runs: DataMartRunItem[];
 }
 
 export type DataMartAction =
@@ -49,6 +51,12 @@ export type DataMartAction =
   | { type: 'UPDATE_DATA_MART_SCHEMA_START' }
   | { type: 'UPDATE_DATA_MART_SCHEMA_SUCCESS'; payload: DataMart }
   | { type: 'UPDATE_DATA_MART_SCHEMA_ERROR'; payload: ApiError }
+  | { type: 'FETCH_DATA_MART_RUNS_START' }
+  | { type: 'FETCH_DATA_MART_RUNS_SUCCESS'; payload: DataMartRunItem[] }
+  | { type: 'FETCH_DATA_MART_RUNS_ERROR'; payload: ApiError }
+  | { type: 'LOAD_MORE_DATA_MART_RUNS_START' }
+  | { type: 'LOAD_MORE_DATA_MART_RUNS_SUCCESS'; payload: DataMartRunItem[] }
+  | { type: 'LOAD_MORE_DATA_MART_RUNS_ERROR'; payload: ApiError }
   | { type: 'RESET' };
 
 export interface DataMartContextType extends DataMartState {
@@ -68,6 +76,8 @@ export interface DataMartContextType extends DataMartState {
   runDataMart: (id: string) => Promise<void>;
   actualizeDataMartSchema: (id: string) => Promise<void>;
   updateDataMartSchema: (id: string, schema: DataMartSchema) => Promise<void>;
+  getDataMartRuns: (id: string, limit?: number, offset?: number) => Promise<DataMartRunItem[]>;
+  loadMoreDataMartRuns: (id: string, offset: number, limit?: number) => Promise<DataMartRunItem[]>;
   error: ApiError | null;
   getErrorMessage: () => string | null;
   reset: () => void;

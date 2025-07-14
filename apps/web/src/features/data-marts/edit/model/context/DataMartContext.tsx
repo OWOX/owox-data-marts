@@ -264,6 +264,38 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     }
   };
 
+  // Get run history for a data mart
+  const getDataMartRuns = useCallback(async (id: string, limit = 5, offset = 0) => {
+    try {
+      dispatch({ type: 'FETCH_DATA_MART_RUNS_START' });
+      const response = await dataMartService.getDataMartRuns(id, limit, offset);
+      dispatch({ type: 'FETCH_DATA_MART_RUNS_SUCCESS', payload: response });
+      return response;
+    } catch (error) {
+      dispatch({
+        type: 'FETCH_DATA_MART_RUNS_ERROR',
+        payload: extractApiError(error),
+      });
+      throw error;
+    }
+  }, []);
+
+  // Load more run history for a data mart
+  const loadMoreDataMartRuns = useCallback(async (id: string, offset: number, limit = 5) => {
+    try {
+      dispatch({ type: 'LOAD_MORE_DATA_MART_RUNS_START' });
+      const response = await dataMartService.getDataMartRuns(id, limit, offset);
+      dispatch({ type: 'LOAD_MORE_DATA_MART_RUNS_SUCCESS', payload: response });
+      return response;
+    } catch (error) {
+      dispatch({
+        type: 'LOAD_MORE_DATA_MART_RUNS_ERROR',
+        payload: extractApiError(error),
+      });
+      throw error;
+    }
+  }, []);
+
   // Reset state
   const reset = useCallback(() => {
     dispatch({ type: 'RESET' });
@@ -291,6 +323,8 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     runDataMart,
     actualizeDataMartSchema,
     updateDataMartSchema,
+    getDataMartRuns,
+    loadMoreDataMartRuns,
     getErrorMessage,
     reset,
   };

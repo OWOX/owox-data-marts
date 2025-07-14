@@ -28,6 +28,10 @@ import { SqlDryRunCommand } from '../dto/domain/sql-dry-run.command';
 import { SqlDryRunRequestApiDto } from '../dto/presentation/sql-dry-run-request-api.dto';
 import { SqlDryRunResponseApiDto } from '../dto/presentation/sql-dry-run-response-api.dto';
 import { SqlDryRunResult } from '../dto/domain/sql-dry-run-result.dto';
+import { DataMartRun } from '../entities/data-mart-run.entity';
+import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-response-api.dto';
+import { SqlDefinition } from '../dto/schemas/data-mart-table-definitions/sql-definition.schema';
+import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 
 @Injectable()
 export class DataMartMapper {
@@ -186,6 +190,20 @@ export class DataMartMapper {
       isValid: result.isValid,
       error: result.error,
       bytes: result.bytes,
+    };
+  }
+
+  toRunsResponse(runs: DataMartRun[]): DataMartRunsResponseApiDto {
+    return {
+      runs: runs.map(run => ({
+        id: run.id,
+        status: run.status!,
+        dataMartId: run.dataMartId,
+        definitionRun: run.definitionRun! as SqlDefinition | ConnectorDefinition,
+        logs: run.logs || [],
+        errors: run.errors || [],
+        createdAt: run.createdAt,
+      })),
     };
   }
 }

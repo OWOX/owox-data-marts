@@ -126,7 +126,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
       }
     };
 
-    return this.executeQuery(params)
+    return this.executeQuery(params, 'ddl')
       .then(() => {
         this.config.logMessage(`Database ${this.config.AthenaDatabaseName.value} created or already exists`);
         return true;
@@ -145,7 +145,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
       }
     };
 
-    return this.executeQuery(params)
+    return this.executeQuery(params, 'ddl')
       .then(results => {
         if (results && results.length > 0) {
           return this.getTableSchema();
@@ -169,19 +169,14 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
       }
     };
 
-    return this.executeQuery(params)
+    return this.executeQuery(params, 'ddl')
       .then(results => {
         let columns = {};
-        
         if (results && results.length > 0) {
           results.forEach(row => {
-            columns[row.Column] = {
-              name: row.Column,
-              type: row.Type
-            };
+            columns[row] = 'string';
           });
         }
-        
         this.existingColumns = columns;
         return columns;
       })
@@ -210,10 +205,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
       }
       
       columnDefinitions.push(`${columnName} ${columnType}`);
-      existingColumns[columnName] = {
-        name: columnName,
-        type: columnType
-      };
+      existingColumns[columnName] = columnType;
     }
 
     let selectedFields = [];
@@ -235,10 +227,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
         }
         
         columnDefinitions.push(`${columnName} ${columnType}`);
-        existingColumns[columnName] = {
-          name: columnName,
-          type: columnType
-        };
+        existingColumns[columnName] = columnType;
       }
     }
     
@@ -264,7 +253,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
       }
     };
     
-    return this.executeQuery(params)
+    return this.executeQuery(params, 'ddl')
       .then(() => {
         this.config.logMessage(`Table \`${this.config.AthenaDatabaseName.value}\`.\`${this.config.DestinationTableName.value}\` created`);
         this.existingColumns = existingColumns;
@@ -281,7 +270,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
    */
   addNewColumns(newColumns) {
     const columnsToAdd = [];
-    
+
     for (let columnName of newColumns) {
       if (columnName in this.schema) {
         let columnType = 'string';
@@ -290,10 +279,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
         }
         
         columnsToAdd.push(`${columnName} ${columnType}`);
-        this.existingColumns[columnName] = {
-          name: columnName,
-          type: columnType
-        };
+        this.existingColumns[columnName] = columnType;  
       }
     }
     
@@ -310,7 +296,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
         }
       };
       
-      return this.executeQuery(params)
+      return this.executeQuery(params, 'ddl')
         .then(() => {
           this.config.logMessage(`Columns '${newColumns.join(",")}' were added to \`${this.config.AthenaDatabaseName.value}\`.\`${this.config.DestinationTableName.value}\` table`);
           return newColumns;
@@ -342,10 +328,28 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
         data.forEach(row => {
           Object.keys(row).forEach(column => allColumns.add(column));
         });
+
+        if (this.config.Fields.value) {
+          this.config.Fields.value.split(', ')
+            .map(field => field.trim())
+            .filter(field => field !== '')
+            .map(field => field.split(' '))
+            .filter(field => field.length === 2)
+            .map(field => field[1])
+            .forEach(columnName => {
+              if (columnName && !allColumns.has(columnName)) {
+                allColumns.add(columnName);
+                data.forEach(row => {
+                  if (!row[columnName]) {
+                    row[columnName] = '';
+                  }
+                });
+            }
+          });
+        }
         
         const existingColumnsSet = new Set(Object.keys(this.existingColumns));
         const newColumns = Array.from(allColumns).filter(column => !existingColumnsSet.has(column));
-        
         if (newColumns.length > 0) {
           return this.addNewColumns(newColumns);
         }
@@ -437,10 +441,9 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
     const tempTableName = `${this.config.DestinationTableName.value}_temp_${prefixSol}`;
     
     let columnDefinitions = [];
-    
     // Add all columns from the target table
     for (let columnName in this.existingColumns) {
-      columnDefinitions.push(`${columnName} ${this.existingColumns[columnName].type}`);
+      columnDefinitions.push(`${columnName} ${this.existingColumns[columnName]}`);
     }
     
     const s3Location = `s3://${this.config.S3BucketName.value}/${tempFolder}`;
@@ -463,7 +466,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
       }
     };
     
-    return this.executeQuery(params)
+    return this.executeQuery(params, 'ddl')
       .then(() => {
         this.config.logMessage(`Temporary table ${tempTableName} created`);
         return tempTableName;
@@ -498,7 +501,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
       }
     };
     
-    return this.executeQuery(params)
+    return this.executeQuery(params, 'query')
       .then(() => {
           this.config.logMessage(`Data merged from temporary table to \`${this.config.AthenaDatabaseName.value}\`.\`${this.config.DestinationTableName.value}\``);
         return tempTableName;
@@ -533,7 +536,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
       }
     };
     
-    return this.executeQuery(params)
+    return this.executeQuery(params, 'ddl')
       .then(() => {
         this.config.logMessage(`Temporary table ${tempTableName} dropped`);
         return true;
@@ -582,13 +585,12 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
    * @param {Object} params - Query parameters
    * @returns {Promise} - Results of the query
    */
-  executeQuery(params) {
-    
+  executeQuery(params, type = 'query') {
     // Start query execution
     return this.athenaClient.send(new StartQueryExecutionCommand(params))
       .then(data => {
         const queryExecutionId = data.QueryExecutionId;
-        return this.checkQueryStatus(queryExecutionId);
+        return this.checkQueryStatus(queryExecutionId, params.QueryString, type);
       });
   }
 
@@ -598,8 +600,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
    * @param {String} queryExecutionId - ID of the query to check
    * @returns {Promise} - Query results when complete
    */
-  checkQueryStatus(queryExecutionId) {
-    
+  checkQueryStatus(queryExecutionId, queryString, type) {
     const params = {
       QueryExecutionId: queryExecutionId
     };
@@ -611,19 +612,38 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
         if (state === 'SUCCEEDED') {
           return new Promise(resolve => {
             setTimeout(() => {
-              resolve(this.getQueryResults(queryExecutionId));
-            }, 1000);
+              resolve(this.getQueryResults(queryExecutionId, queryString, type));
+            }, 3000);
           });
         } else if (state === 'FAILED' || state === 'CANCELLED') {
           throw new Error(`Query ${state}: ${data.QueryExecution.Status.StateChangeReason || ''}`);
         } else {
           return new Promise(resolve => {
             setTimeout(() => {
-              resolve(this.checkQueryStatus(queryExecutionId));
-            }, 1000);
+              resolve(this.checkQueryStatus(queryExecutionId, queryString, type));
+            }, 3000);
           });
         }
       });
+  }
+
+  getDDLQueryResults(queryExecutionId, queryString) {
+    const params = {
+      QueryExecutionId: queryExecutionId
+    };
+    
+    return this.athenaClient.send(new GetQueryResultsCommand(params))
+    .then(data => {
+       if (data.Output) {
+        if (typeof data.Output === 'string') {
+          return data.Output.split('\n').map(line => line.trim());
+        } else {
+          this.config.logMessage(`Query ${queryExecutionId} returned output data in unexpected format`);
+          return [];
+        }
+       }
+       return this.getQueryResults(queryExecutionId, queryString, 'query');
+    })
   }
 
   //---- getQueryResults -------------------------------------
@@ -632,8 +652,10 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
    * @param {String} queryExecutionId - ID of the completed query
    * @returns {Promise} - Processed query results
    */
-  getQueryResults(queryExecutionId) {
-    
+  getQueryResults(queryExecutionId, queryString, type) {
+    if (type === 'ddl') {
+      return this.getDDLQueryResults(queryExecutionId, queryString);
+    }
     const params = {
       QueryExecutionId: queryExecutionId
     };

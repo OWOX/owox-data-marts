@@ -10,6 +10,7 @@ import type {
   SqlValidationResponseDto,
   SqlValidationRequestDto,
 } from '../types/api';
+import type { DataMartRun, DataMartRunItem } from '../../edit/model/types/data-mart-run';
 
 /**
  * Data Mart Service
@@ -163,6 +164,18 @@ export class DataMartService extends ApiService {
       skipLoadingIndicator: skipLoading,
     };
     return this.post<SqlValidationResponseDto>(`/${id}/sql-dry-run`, data, config);
+  }
+
+  /**
+   * Get run history for a data mart
+   * @param id Data mart ID
+   * @param limit Number of runs to fetch (default: 5)
+   * @param offset Number of runs to skip (default: 0)
+   * @returns Promise with run history
+   */
+  async getDataMartRuns(id: string, limit = 5, offset = 0): Promise<DataMartRunItem[]> {
+    const response = await this.get<DataMartRun>(`/${id}/runs`, { limit, offset });
+    return response.runs;
   }
 }
 

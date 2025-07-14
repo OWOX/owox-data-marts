@@ -2,7 +2,7 @@ import type {
   ConnectorDefinitionDto,
   ConnectorSpecificationResponseApiDto,
   ConnectorFieldsResponseApiDto,
-} from '../../../api/types/response';
+} from '../../api/types';
 import { ConnectorActionType, type ConnectorAction } from './types';
 
 export interface ConnectorState {
