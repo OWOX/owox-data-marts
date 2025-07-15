@@ -105,26 +105,26 @@ export function EditableText({
           {value || placeholder}
         </div>
       </PopoverTrigger>
-      <PopoverContent className="w-auto max-w-[600px] min-w-[300px] p-2" align="start">
+      <PopoverContent className='w-auto max-w-[600px] min-w-[300px] p-2' align='start'>
         <Textarea
           ref={textareaRef}
           value={editedValue}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          className="min-h-[24px] resize-y"
+          className='min-h-[24px] resize-y'
           style={{ minHeight: String(Math.max(minRows * 24, 24)) + 'px' }}
           rows={minRows}
         />
-        <div className="mt-3 flex justify-end gap-2">
+        <div className='mt-3 flex justify-end gap-2'>
           <Button
-            variant="outline"
-            size="sm"
+            variant='outline'
+            size='sm'
             onClick={handleCancel}
-            className="h-7 cursor-pointer px-2 text-xs"
+            className='h-7 cursor-pointer px-2 text-xs'
           >
             {cancelButtonText}
           </Button>
-          <Button size="sm" onClick={handleSave} className="h-7 cursor-pointer px-2 text-xs">
+          <Button size='sm' onClick={handleSave} className='h-7 cursor-pointer px-2 text-xs'>
             {saveButtonText}
           </Button>
         </div>

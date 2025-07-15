@@ -19,13 +19,13 @@ interface ExpandButtonProps {
 export function ExpandButton({ isExpanded, onToggle, ariaLabel }: ExpandButtonProps) {
   return (
     <Button
-      variant="ghost"
-      size="icon"
-      className="h-5 w-5 p-0 cursor-pointer"
+      variant='ghost'
+      size='icon'
+      className='h-5 w-5 cursor-pointer p-0'
       onClick={onToggle}
       aria-label={ariaLabel ?? (isExpanded ? 'Collapse' : 'Expand')}
     >
-      {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+      {isExpanded ? <ChevronDown className='h-4 w-4' /> : <ChevronRight className='h-4 w-4' />}
     </Button>
   );
 }

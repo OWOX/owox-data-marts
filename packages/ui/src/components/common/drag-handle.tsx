@@ -11,7 +11,7 @@ export function DragHandle({ className = '', ...props }: DragHandleProps) {
       {...props}
       className={`flex cursor-grab items-center justify-center opacity-0 group-hover:opacity-100 active:cursor-grabbing ${className}`}
     >
-      <GripVertical className="h-4 w-4 text-gray-400" />
+      <GripVertical className='h-4 w-4 text-gray-400' />
     </div>
   );
 }

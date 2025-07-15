@@ -34,8 +34,8 @@ export function SortableTableRow<T>({ id, children }: SortableTableRowProps<T>) 
   // Replace the first cell with our custom cell containing the drag handle
   const updatedChildren = [
     <TableCell
-      key="drag-handle-cell"
-      className="bg-background dark:bg-muted"
+      key='drag-handle-cell'
+      className='bg-background dark:bg-muted'
       style={{
         width: 20,
         position: 'sticky',
@@ -53,7 +53,7 @@ export function SortableTableRow<T>({ id, children }: SortableTableRowProps<T>) 
   ];
 
   return (
-    <TableRow ref={setNodeRef} style={style} className="group">
+    <TableRow ref={setNodeRef} style={style} className='group'>
       {updatedChildren}
     </TableRow>
   );
