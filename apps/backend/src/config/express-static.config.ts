@@ -46,7 +46,7 @@ export function setupStaticAssets(app: NestExpressApplication, pathPrefix: strin
     if (req.path.startsWith(`/${pathPrefix}`)) {
       next();
     } else {
-      res.sendFile(join(distPath, 'index.html'));
+      res.sendFile('index.html', { root: distPath });
     }
   });
 }
