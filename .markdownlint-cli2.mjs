@@ -27,6 +27,7 @@ if (!hasFileArguments) {
     '**/*.md', // Include all markdown files
     '!**/node_modules/**', // Exclude all node_modules folders
     '!**/CHANGELOG.md', // Exclude specific file
+    '!.changeset/*.md', // Exclude specific directory
   ];
 
   if (process.env.MDLINT_CONTEXT === 'root') {
