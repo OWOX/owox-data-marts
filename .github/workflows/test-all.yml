@@ -34,7 +34,7 @@ jobs:
             command: 'npm run test -w owox'
             timeout: 10
           - name: 'Overall test @owox/connector-runner'
-            command: 'npm run build -w @owox/connectors && npm run test -w @owox/connector-runner'
+            command: 'npm run test -w @owox/connector-runner'
             timeout: 10
 
     steps:

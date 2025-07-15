@@ -41,9 +41,6 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit
 
-      - name: Build Connectors
-        run: npm run build -w @owox/connectors
-
       - name: Run ${{ matrix.test.name }}
         run: ${{ matrix.test.command }}
         env:

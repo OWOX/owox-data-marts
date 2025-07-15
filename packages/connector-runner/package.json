@@ -19,6 +19,7 @@
     "node": ">=22.16.0"
   },
   "scripts": {
+    "build:connectors": "npm run build -w @owox/connectors --prefix ../..",
     "connector-runner-node": "node src/cli-wrapper.js",
     "lint": "eslint . --config ./eslint.config.mjs",
     "lint:fix": "eslint . --fix --config ./eslint.config.mjs",
@@ -26,9 +27,9 @@
     "lint:md:fix": "markdownlint-cli2 --fix --config ../../.markdownlint-cli2.mjs",
     "format": "prettier --write \"**/*.{js,mjs,json}\"",
     "format:check": "prettier --check \"**/*.{js,mjs,json}\"",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
+    "test": "npm run build:connectors && jest",
+    "test:watch": "npm run build:connectors && jest --watch",
+    "test:coverage": "npm run build:connectors && jest --coverage",
     "prepublishOnly": "npm audit && npm run lint"
   },
   "dependencies": {
