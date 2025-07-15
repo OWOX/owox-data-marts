@@ -47,6 +47,8 @@ export interface BaseSchemaTableProps<T extends BaseSchemaField> {
   fields: T[];
   /** Callback function to call when the fields change */
   onFieldsChange?: (fields: T[]) => void;
+  /** Custom onAddRow handler to override default behavior */
+  onAddRow?: () => void;
   /** Function to create a new field */
   createNewField: () => T;
   /** Function to render the type column cell */
@@ -101,6 +103,7 @@ export interface BaseSchemaTableProps<T extends BaseSchemaField> {
 export function BaseSchemaTable<T extends BaseSchemaField>({
   fields,
   onFieldsChange,
+  onAddRow,
   createNewField,
   renderTypeCell,
   additionalColumns = [],
@@ -346,7 +349,7 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
       fields={fields}
       columns={columns}
       onFieldsChange={onFieldsChange}
-      onAddRow={onFieldsChange ? handleAddRow : undefined}
+      onAddRow={onAddRow ?? (onFieldsChange ? handleAddRow : undefined)}
       fieldsForStatusCount={fieldsForStatusCount}
       onSearchChange={onSearchChange}
       dragContext={dragContext}

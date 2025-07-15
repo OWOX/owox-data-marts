@@ -53,12 +53,13 @@ export function BigQuerySchemaTable({ fields, onFieldsChange }: BigQuerySchemaTa
   } = useRecordExpansion(fields);
 
   // Use the nested field operations hook to manage field operations
-  const { updateField, handleDeleteRow, handleAddNestedField } = useNestedFieldOperations(
-    fields,
-    flattenedFields,
-    onFieldsChange,
-    setExpandedRecords => setExpandedRecords
-  );
+  const { updateField, handleDeleteRow, handleAddNestedField, handleAddRow } =
+    useNestedFieldOperations(
+      fields,
+      flattenedFields,
+      onFieldsChange,
+      setExpandedRecords => setExpandedRecords
+    );
 
   // Function to create a new BigQuery field
   const createNewField = useCallback(() => {
@@ -297,6 +298,7 @@ export function BigQuerySchemaTable({ fields, onFieldsChange }: BigQuerySchemaTa
       <BaseSchemaTable
         fields={flattenedFields}
         onFieldsChange={onFieldsChange}
+        onAddRow={handleAddRow}
         createNewField={createNewField}
         renderTypeCell={renderTypeCell}
         additionalColumns={additionalColumns}
