@@ -25,6 +25,7 @@ jobs:
           NODE_ENV: production
           DOCS_SITE: https://docs.owox.com
           DOCS_BASE:
+          PUBLIC_GTM_ID: ${{ secrets.PUBLIC_GTM_ID }}
 
       - name: Add .nojekyll file
         run: touch apps/docs/dist/.nojekyll
