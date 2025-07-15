@@ -72,6 +72,16 @@ export interface BaseSchemaTableProps<T extends BaseSchemaField> {
     row: Row<T>;
     updateField: (index: number, updatedField: Partial<T>) => void;
   }) => React.ReactNode;
+  /** Custom cell for the alias column */
+  aliasColumnCell?: (props: {
+    row: Row<T>;
+    updateField: (index: number, updatedField: Partial<T>) => void;
+  }) => React.ReactNode;
+  /** Custom cell for the description column */
+  descriptionColumnCell?: (props: {
+    row: Row<T>;
+    updateField: (index: number, updatedField: Partial<T>) => void;
+  }) => React.ReactNode;
   /** Custom cell for the actions column */
   actionsColumnCell?: (props: { row: Row<T>; table: Table<T> }) => React.ReactNode;
   /** Drag-and-drop context component */
@@ -99,6 +109,8 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
   nameColumnHeader,
   nameColumnCell,
   primaryKeyColumnCell,
+  aliasColumnCell,
+  descriptionColumnCell,
   actionsColumnCell,
   dragContext,
   dragContextProps,
@@ -217,15 +229,20 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
           </Tooltip>
         ),
         size: 80,
-        cell: ({ row }) => (
-          <EditableText
-            value={row.getValue('alias')}
-            onValueChange={value => {
-              updateField(row.index, { alias: value } as Partial<T>);
-            }}
-            placeholder='-'
-          />
-        ),
+        cell: ({ row }) => {
+          if (aliasColumnCell) {
+            return aliasColumnCell({ row, updateField });
+          }
+          return (
+            <EditableText
+              value={row.getValue('alias')}
+              onValueChange={value => {
+                updateField(row.index, { alias: value } as Partial<T>);
+              }}
+              placeholder='-'
+            />
+          );
+        },
       },
       {
         accessorKey: 'description',
@@ -235,16 +252,21 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
             <TooltipContent>Detailed information about the field</TooltipContent>
           </Tooltip>
         ),
-        cell: ({ row }) => (
-          <EditableText
-            value={row.getValue('description')}
-            onValueChange={value => {
-              updateField(row.index, { description: value } as Partial<T>);
-            }}
-            minRows={5}
-            placeholder='-'
-          />
-        ),
+        cell: ({ row }) => {
+          if (descriptionColumnCell) {
+            return descriptionColumnCell({ row, updateField });
+          }
+          return (
+            <EditableText
+              value={row.getValue('description')}
+              onValueChange={value => {
+                updateField(row.index, { description: value } as Partial<T>);
+              }}
+              minRows={5}
+              placeholder='-'
+            />
+          );
+        },
       },
       {
         id: 'actions',
@@ -272,6 +294,8 @@ export function BaseSchemaTable<T extends BaseSchemaField>({
       nameColumnHeader,
       nameColumnCell,
       primaryKeyColumnCell,
+      aliasColumnCell,
+      descriptionColumnCell,
       actionsColumnCell,
     ]
   );

@@ -75,7 +75,6 @@ export function BigQuerySchemaTable({ fields, onFieldsChange }: BigQuerySchemaTa
   const renderTypeCell = useCallback(
     ({
       row,
-      updateField,
     }: {
       row: Row<BigQuerySchemaField>;
       updateField: (index: number, updatedField: Partial<BigQuerySchemaField>) => void;
@@ -88,7 +87,7 @@ export function BigQuerySchemaTable({ fields, onFieldsChange }: BigQuerySchemaTa
         }}
       />
     ),
-    []
+    [updateField]
   );
 
   // Define additional columns specific to BigQuery
@@ -139,7 +138,6 @@ export function BigQuerySchemaTable({ fields, onFieldsChange }: BigQuerySchemaTa
   const nameColumnCell = useCallback(
     ({
       row,
-      updateField,
     }: {
       row: Row<BigQuerySchemaField>;
       updateField: (index: number, updatedField: Partial<BigQuerySchemaField>) => void;
@@ -187,14 +185,13 @@ export function BigQuerySchemaTable({ fields, onFieldsChange }: BigQuerySchemaTa
         </div>
       );
     },
-    [flattenedFields, expandedRecords, hasRecordFields, toggleRecordExpansion]
+    [flattenedFields, expandedRecords, hasRecordFields, toggleRecordExpansion, updateField]
   );
 
   // Custom primary key column cell that only shows checkbox for top-level non-record fields
   const primaryKeyColumnCell = useCallback(
     ({
       row,
-      updateField,
     }: {
       row: Row<BigQuerySchemaField>;
       updateField: (index: number, updatedField: Partial<BigQuerySchemaField>) => void;
@@ -219,7 +216,46 @@ export function BigQuerySchemaTable({ fields, onFieldsChange }: BigQuerySchemaTa
       // Return empty div for non-top-level fields or record types
       return <div />;
     },
-    [flattenedFields]
+    [flattenedFields, updateField]
+  );
+
+  // Custom description column cell that uses updateField from useNestedFieldOperations
+  const descriptionColumnCell = useCallback(
+    ({
+      row,
+    }: {
+      row: Row<BigQuerySchemaField>;
+      updateField: (index: number, updatedField: Partial<BigQuerySchemaField>) => void;
+    }) => (
+      <EditableText
+        value={row.getValue('description')}
+        onValueChange={value => {
+          updateField(row.index, { description: value });
+        }}
+        minRows={5}
+        placeholder='-'
+      />
+    ),
+    [updateField]
+  );
+
+  // Custom alias column cell that uses updateField from useNestedFieldOperations
+  const aliasColumnCell = useCallback(
+    ({
+      row,
+    }: {
+      row: Row<BigQuerySchemaField>;
+      updateField: (index: number, updatedField: Partial<BigQuerySchemaField>) => void;
+    }) => (
+      <EditableText
+        value={row.getValue('alias')}
+        onValueChange={value => {
+          updateField(row.index, { alias: value });
+        }}
+        placeholder='-'
+      />
+    ),
+    [updateField]
   );
 
   // Custom actions column cell with add nested field option for record types
@@ -269,6 +305,8 @@ export function BigQuerySchemaTable({ fields, onFieldsChange }: BigQuerySchemaTa
         nameColumnHeader={nameColumnHeader}
         nameColumnCell={nameColumnCell}
         primaryKeyColumnCell={primaryKeyColumnCell}
+        aliasColumnCell={aliasColumnCell}
+        descriptionColumnCell={descriptionColumnCell}
         actionsColumnCell={actionsColumnCell}
         dragContext={SortableContext}
         dragContextProps={{

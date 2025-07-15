@@ -75,8 +75,9 @@ export class BigQueryDataMartSchemaProvider implements DataMartSchemaProvider {
     if (isTableDefinition(dataMartDefinition) || isViewDefinition(dataMartDefinition)) {
       [projectId, datasetId, tableId] = dataMartDefinition.fullyQualifiedName.split('.');
     } else if (isConnectorDefinition(dataMartDefinition)) {
+      const tablePath = dataMartDefinition.connector.storage.fullyQualifiedName.split('.');
       [projectId, datasetId, tableId] =
-        dataMartDefinition.connector.storage.fullyQualifiedName.split('.');
+        tablePath.length === 2 ? [config.projectId, ...tablePath] : tablePath;
     }
 
     const adapter = this.adapterFactory.create(credentials, config);

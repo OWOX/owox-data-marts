@@ -28,6 +28,7 @@ export class BigQueryReportReader implements DataStorageReportReader {
   private adapter: BigQueryApiAdapter;
   private reportResultTable: Table;
   private reportResultHeaders: string[];
+  private contextGcpProject: string;
 
   constructor(
     private readonly adapterFactory: BigQueryApiAdapterFactory,
@@ -94,8 +95,9 @@ export class BigQueryReportReader implements DataStorageReportReader {
         const [projectId, datasetId, tableId] = dataMartDefinition.fullyQualifiedName.split('.');
         this.defineReportResultTable(projectId, datasetId, tableId);
       } else if (isConnectorDefinition(dataMartDefinition)) {
+        const tablePath = dataMartDefinition.connector.storage.fullyQualifiedName.split('.');
         const [projectId, datasetId, tableId] =
-          dataMartDefinition.connector.storage.fullyQualifiedName.split('.');
+          tablePath.length === 2 ? [this.contextGcpProject, ...tablePath] : tablePath;
         this.defineReportResultTable(projectId, datasetId, tableId);
       } else {
         const query = this.bigQueryQueryBuilder.buildQuery(dataMartDefinition);
@@ -131,6 +133,7 @@ export class BigQueryReportReader implements DataStorageReportReader {
   ): Promise<void> {
     try {
       this.adapter = this.adapterFactory.create(credentials, dataStorageConfig);
+      this.contextGcpProject = dataStorageConfig.projectId;
       this.logger.debug('BigQuery adapter created successfully');
     } catch (error) {
       this.logger.error('Failed to create BigQuery adapter', error);
