@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, type FC, useRef } from 'react';
+import { useState, useEffect, useMemo, type FC, useRef, useCallback } from 'react';
 import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
 import { Label } from '@owox/ui/components/label';
@@ -333,6 +333,32 @@ export function ScheduleConfig({
     }
   };
 
+  const handleIntervalTypeChange = useCallback((intervalType: 'minutes' | 'hours') => {
+    setConfig(prev => {
+      if (prev.intervalType === intervalType) {
+        console.log('Type unchanged, skipping update');
+        return prev;
+      }
+      const validValues = intervalType === 'minutes' ? MINUTE_INTERVALS : HOUR_INTERVALS;
+      const newIntervalValue = validValues[0];
+      return {
+        ...prev,
+        intervalType,
+        intervalValue: newIntervalValue,
+      };
+    });
+  }, []);
+
+  const handleIntervalValueChange = useCallback((intervalValue: number) => {
+    setConfig(prev => {
+      const validValues = prev.intervalType === 'minutes' ? MINUTE_INTERVALS : HOUR_INTERVALS;
+      if (!validValues.includes(intervalValue)) {
+        return prev;
+      }
+      return { ...prev, intervalValue };
+    });
+  }, []);
+
   const getNextRunDescription = useMemo(() => {
     return (config: ScheduleConfig): string => {
       return getScheduleDescription(config, isEnabled, currentTimezone);
@@ -473,16 +499,8 @@ export function ScheduleConfig({
             <IntervalField
               intervalType={config.intervalType}
               intervalValue={config.intervalValue}
-              onTypeChange={intervalType => {
-                setConfig(prev => ({
-                  ...prev,
-                  intervalType,
-                  intervalValue: intervalType === 'minutes' ? 15 : 1,
-                }));
-              }}
-              onValueChange={intervalValue => {
-                setConfig(prev => ({ ...prev, intervalValue }));
-              }}
+              onTypeChange={handleIntervalTypeChange}
+              onValueChange={handleIntervalValueChange}
               disabled={!isEnabled}
             />
           )}
