@@ -24,6 +24,10 @@ import { UpdateDataMartSchemaCommand } from '../dto/domain/update-data-mart-sche
 import { ValidationResult } from '../data-storage-types/interfaces/data-mart-validator.interface';
 import { DataMartValidationResponseApiDto } from '../dto/presentation/data-mart-validation-response-api.dto';
 import { UpdateDataMartSchemaApiDto } from '../dto/presentation/update-data-mart-schema-api.dto';
+import { SqlDryRunCommand } from '../dto/domain/sql-dry-run.command';
+import { SqlDryRunRequestApiDto } from '../dto/presentation/sql-dry-run-request-api.dto';
+import { SqlDryRunResponseApiDto } from '../dto/presentation/sql-dry-run-response-api.dto';
+import { SqlDryRunResult } from '../dto/domain/sql-dry-run-result.dto';
 
 @Injectable()
 export class DataMartMapper {
@@ -167,5 +171,21 @@ export class DataMartMapper {
     dto: UpdateDataMartSchemaApiDto
   ): UpdateDataMartSchemaCommand {
     return new UpdateDataMartSchemaCommand(id, context.projectId, context.userId, dto.schema);
+  }
+
+  toSqlDryRunCommand(
+    dataMartId: string,
+    context: AuthorizationContext,
+    dto: SqlDryRunRequestApiDto
+  ): SqlDryRunCommand {
+    return new SqlDryRunCommand(dataMartId, context.projectId, context.userId, dto.sql);
+  }
+
+  toSqlDryRunResponse(result: SqlDryRunResult): SqlDryRunResponseApiDto {
+    return {
+      isValid: result.isValid,
+      error: result.error,
+      bytes: result.bytes,
+    };
   }
 }

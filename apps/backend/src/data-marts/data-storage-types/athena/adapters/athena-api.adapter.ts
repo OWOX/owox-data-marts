@@ -15,6 +15,8 @@ import { GetQueryResultsCommandOutput } from '@aws-sdk/client-athena/dist-types/
  * Adapter for Athena API operations
  */
 export class AthenaApiAdapter {
+  public static readonly ATHENA_QUERY_ERROR_PREFIX = 'Query execution failed:';
+
   private readonly logger = new Logger(AthenaApiAdapter.name);
 
   private readonly athenaClient: AthenaClient;
@@ -99,7 +101,7 @@ export class AthenaApiAdapter {
 
       if (status === QueryExecutionState.FAILED) {
         const errorMessage = response.QueryExecution?.Status?.StateChangeReason || 'Unknown error';
-        throw new Error(`Query execution failed: ${errorMessage}`);
+        throw new Error(`${AthenaApiAdapter.ATHENA_QUERY_ERROR_PREFIX} ${errorMessage}`);
       }
 
       if (status === QueryExecutionState.CANCELLED) {

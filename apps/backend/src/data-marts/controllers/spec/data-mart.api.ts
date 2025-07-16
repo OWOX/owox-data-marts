@@ -15,6 +15,8 @@ import { UpdateDataMartTitleApiDto } from '../../dto/presentation/update-data-ma
 import { UpdateDataMartDefinitionApiDto } from '../../dto/presentation/update-data-mart-definition-api.dto';
 import { UpdateDataMartSchemaApiDto } from '../../dto/presentation/update-data-mart-schema-api.dto';
 import { DataMartValidationResponseApiDto } from '../../dto/presentation/data-mart-validation-response-api.dto';
+import { SqlDryRunRequestApiDto } from '../../dto/presentation/sql-dry-run-request-api.dto';
+import { SqlDryRunResponseApiDto } from '../../dto/presentation/sql-dry-run-response-api.dto';
 
 export function CreateDataMartSpec() {
   return applyDecorators(
@@ -112,5 +114,14 @@ export function UpdateDataMartSchemaSpec() {
     ApiParam({ name: 'id', description: 'DataMart ID' }),
     ApiBody({ type: UpdateDataMartSchemaApiDto }),
     ApiOkResponse({ type: DataMartResponseApiDto })
+  );
+}
+
+export function SqlDryRunSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Execute SQL dry run validation' }),
+    ApiParam({ name: 'id', description: 'DataMart ID' }),
+    ApiBody({ type: SqlDryRunRequestApiDto }),
+    ApiOkResponse({ type: SqlDryRunResponseApiDto })
   );
 }

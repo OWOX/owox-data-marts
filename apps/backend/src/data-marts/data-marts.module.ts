@@ -66,6 +66,7 @@ import { RunDataMartService } from './use-cases/run-data-mart.service';
 import { ValidateDataMartDefinitionService } from './use-cases/validate-data-mart-definition.service';
 import { ActualizeDataMartSchemaService } from './use-cases/actualize-data-mart-schema.service';
 import { UpdateDataMartSchemaService } from './use-cases/update-data-mart-schema.service';
+import { SqlDryRunService } from './use-cases/sql-dry-run.service';
 import { DataMartSchemaParserFacade } from './data-storage-types/facades/data-mart-schema-parser-facade.service';
 import { DataMartScheduledTrigger } from './entities/data-mart-scheduled-trigger.entity';
 import { SchedulerModule } from '../common/scheduler/scheduler.module';
@@ -140,6 +141,7 @@ import { ReportService } from './services/report.service';
     SpecificationConnectorService,
     FieldsConnectorService,
     RunDataMartService,
+    SqlDryRunService,
     ActualizeDataMartSchemaService,
     UpdateDataMartSchemaService,
     ScheduledTriggersHandlerService,
