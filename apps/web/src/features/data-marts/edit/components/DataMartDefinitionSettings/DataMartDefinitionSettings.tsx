@@ -67,11 +67,20 @@ export function DataMartDefinitionSettings() {
     formState: { isDirty, isValid },
   } = methods;
 
+  const getSqlQueryFromDefinition = (
+    definitionType: DataMartDefinitionType | null,
+    currentDefinition: unknown
+  ): string => {
+    if (definitionType !== DataMartDefinitionType.SQL) {
+      return '';
+    }
+
+    const sqlDefinition = currentDefinition as SqlDefinitionConfig | undefined;
+    return sqlDefinition?.sqlQuery ?? '';
+  };
+
   const currentDefinition = watch('definition');
-  const sqlCode =
-    definitionType === DataMartDefinitionType.SQL
-      ? (currentDefinition as SqlDefinitionConfig).sqlQuery || ''
-      : '';
+  const sqlCode = getSqlQueryFromDefinition(definitionType, currentDefinition);
 
   useEffect(() => {
     if (definitionType) {
