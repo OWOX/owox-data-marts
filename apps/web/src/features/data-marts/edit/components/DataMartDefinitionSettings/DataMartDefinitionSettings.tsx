@@ -13,6 +13,8 @@ import { Button } from '@owox/ui/components/button';
 import { useOutletContext } from 'react-router-dom';
 import type { DataMartContextType } from '../../model/context/types.ts';
 import { getEmptyDefinition } from '../../utils/definition-helpers.ts';
+import SqlValidator from '../SqlValidator/SqlValidator.tsx';
+import type { SqlDefinitionConfig } from '../../model';
 
 export function DataMartDefinitionSettings() {
   const { dataMart, updateDataMartDefinition } = useOutletContext<DataMartContextType>();
@@ -61,8 +63,15 @@ export function DataMartDefinitionSettings() {
   const {
     handleSubmit,
     reset,
+    watch,
     formState: { isDirty, isValid },
   } = methods;
+
+  const currentDefinition = watch('definition');
+  const sqlCode =
+    definitionType === DataMartDefinitionType.SQL
+      ? (currentDefinition as SqlDefinitionConfig).sqlQuery || ''
+      : '';
 
   useEffect(() => {
     if (definitionType) {
@@ -102,15 +111,21 @@ export function DataMartDefinitionSettings() {
     return (
       <form onSubmit={handleFormSubmit} className='space-y-4'>
         <DataMartDefinitionForm definitionType={definitionType} storageType={storageType} />
-        <div className='space-y-4'>
-          <div className='align-items-center flex justify-start space-x-4'>
-            <Button variant={'default'} type='submit' disabled={!isValid}>
-              Save
-            </Button>
-            <Button type='button' variant='ghost' onClick={handleReset} disabled={!isDirty}>
-              Discard
-            </Button>
-          </div>
+        <div className='flex flex-wrap items-center gap-4'>
+          <Button variant={'default'} type='submit' disabled={!isValid}>
+            Save
+          </Button>
+          <Button type='button' variant='ghost' onClick={handleReset} disabled={!isDirty}>
+            Discard
+          </Button>
+
+          {/* SQL Validator for SQL definition type */}
+          {definitionType === DataMartDefinitionType.SQL && sqlCode && (
+            <>
+              <div className='h-6 w-px bg-gray-300'></div>
+              <SqlValidator sql={sqlCode} dataMartId={dataMartId} />
+            </>
+          )}
         </div>
       </form>
     );
