@@ -1,0 +1,6 @@
+# Dependencies
+package-lock.json
+
+# Workspaces
+packages/*
+apps/*
