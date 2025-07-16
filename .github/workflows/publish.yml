@@ -17,7 +17,7 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
-      - run: npm ci
+      - run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
       - run: npm run build
 
       - name: Publish to "latest"

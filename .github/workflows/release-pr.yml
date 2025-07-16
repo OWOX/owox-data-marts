@@ -21,5 +21,5 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
-      - run: npm ci
+      - run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
       - uses: changesets/action@v1 # only creates/updates PR
