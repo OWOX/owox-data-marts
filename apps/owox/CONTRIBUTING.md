@@ -18,7 +18,7 @@ A command-line interface for running OWOX Data Marts application. This CLI provi
 
 <!-- usage -->
 
-```sh-session
+```bash
 $ npm install -g owox
 $ owox serve
 Starting OWOX Data Marts...
@@ -40,13 +40,13 @@ For local development and testing of this CLI, especially when it's not publishe
 
 To link your local `owox` CLI globally, navigate to the `apps/owox` directory and execute:
 
-```sh-session
+```bash
 npm link
 ```
 
 After successfully linking, you can run `owox` commands from any directory:
 
-```sh-session
+```bash
 owox serve --port 8080
 ```
 
@@ -54,7 +54,7 @@ owox serve --port 8080
 
 If you need to remove the global symbolic link to your local `owox` CLI, navigate to the `apps/owox` directory and execute:
 
-```sh-session
+```bash
 npm unlink -g owox
 ```
 
@@ -71,7 +71,7 @@ This will remove the global link, and `owox` will no longer be accessible global
 
 Start the OWOX Data Marts application in production mode
 
-```sh-session
+```bash
 USAGE
   $ owox serve [-p <value>]
 
@@ -92,7 +92,7 @@ EXAMPLES
 
 Display help for owox.
 
-```sh-session
+```bash
 USAGE
   $ owox help [COMMAND...] [-n]
 

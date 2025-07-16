@@ -17,7 +17,10 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
-      - run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
+
+      # can't set --ignore-scripts because Astro uses postinstall
+      - run: npm ci --prefer-offline --no-audit --no-fund --loglevel error
+
       - run: npm run build
 
       - name: Publish to "latest"
