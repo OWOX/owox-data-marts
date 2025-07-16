@@ -7,6 +7,8 @@ import type {
   UpdateDataMartRequestDto,
   UpdateDataMartDefinitionRequestDto,
   UpdateDataMartSchemaRequestDto,
+  SqlValidationResponseDto,
+  SqlValidationRequestDto,
 } from '../types/api';
 
 /**
@@ -139,6 +141,23 @@ export class DataMartService extends ApiService {
     data: UpdateDataMartSchemaRequestDto
   ): Promise<DataMartResponseDto> {
     return this.put<DataMartResponseDto>(`/${id}/schema`, data);
+  }
+
+  /**
+   * Validate SQL query
+   * @param id Data mart ID
+   * @param sql SQL query to validate
+   * @param abortController Optional AbortController to cancel the request
+   * @returns Promise with validation result
+   */
+  async validateSql(
+    id: string,
+    sql: string,
+    abortController?: AbortController
+  ): Promise<SqlValidationResponseDto> {
+    const data: SqlValidationRequestDto = { sql };
+    const config = abortController ? { signal: abortController.signal } : {};
+    return this.post<SqlValidationResponseDto>(`/${id}/sql-dry-run`, data, config);
   }
 }
 
