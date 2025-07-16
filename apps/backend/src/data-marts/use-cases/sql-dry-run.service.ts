@@ -20,7 +20,7 @@ export class SqlDryRunService {
 
     const storage = dataMart.storage;
     if (!storage || !storage.type || !storage.credentials || !storage.config) {
-      return SqlDryRunResult.failed('Data Source setup is not finished…');
+      return SqlDryRunResult.failed('Storage setup is not finished…');
     }
 
     return this.sqlDryRunExecutorFacade.execute(
