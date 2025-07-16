@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
-import { DataMartSchemaSchema } from '../data-storage-types/data-mart-schema.type';
+import { DataMartSchemaParserFacade } from '../data-storage-types/facades/data-mart-schema-parser-facade.service';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
 import { UpdateDataMartSchemaCommand } from '../dto/domain/update-data-mart-schema.command';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
@@ -12,6 +11,7 @@ export class UpdateDataMartSchemaService {
 
   constructor(
     private readonly dataMartService: DataMartService,
+    private readonly schemaParserFacade: DataMartSchemaParserFacade,
     private readonly mapper: DataMartMapper
   ) {}
 
@@ -23,21 +23,22 @@ export class UpdateDataMartSchemaService {
       command.userId
     );
 
-    const schemaOpt = DataMartSchemaSchema.safeParse(command.schema);
-    if (!schemaOpt.success) {
-      throw new BusinessViolationException(
-        `Failed to update schema: ${schemaOpt.error.errors.map(e => e.message).join(',\n')}`
-      );
-    }
-
-    dataMart.schema = schemaOpt.data;
-
-    if (dataMart.definition) {
-      await this.dataMartService.actualizeSchemaInEntity(dataMart);
-    }
-
+    dataMart.schema = await this.schemaParserFacade.validateAndParse(
+      command.schema,
+      dataMart.storage.type
+    );
     await this.dataMartService.save(dataMart);
 
+    if (dataMart.definition) {
+      try {
+        await this.dataMartService.actualizeSchemaInEntity(dataMart);
+        await this.dataMartService.save(dataMart);
+      } catch (error) {
+        this.logger.warn('Failed to actualize schema on update', error);
+      }
+    }
+
+    this.logger.debug(`Data mart ${command.id} schema updated`);
     return this.mapper.toDomainDto(dataMart);
   }
 }
