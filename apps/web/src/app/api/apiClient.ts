@@ -1,6 +1,15 @@
-import axios, { type AxiosInstance, type AxiosRequestConfig, AxiosError } from 'axios';
+import axios, {
+  type AxiosInstance,
+  type AxiosRequestConfig as OriginalAxiosRequestConfig,
+  AxiosError,
+} from 'axios';
 import toast from 'react-hot-toast';
 import type { ApiError } from './api-error.interface.ts';
+
+// Extend AxiosRequestConfig to include our custom properties
+export interface AxiosRequestConfig extends OriginalAxiosRequestConfig {
+  skipLoadingIndicator?: boolean;
+}
 
 // Default config for the axios instance
 const axiosConfig: AxiosRequestConfig = {

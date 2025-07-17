@@ -148,15 +148,20 @@ export class DataMartService extends ApiService {
    * @param id Data mart ID
    * @param sql SQL query to validate
    * @param abortController Optional AbortController to cancel the request
+   * @param skipLoading Optional flag to skip global loading indicator
    * @returns Promise with validation result
    */
   async validateSql(
     id: string,
     sql: string,
-    abortController?: AbortController
+    abortController?: AbortController,
+    skipLoading = true
   ): Promise<SqlValidationResponseDto> {
     const data: SqlValidationRequestDto = { sql };
-    const config = abortController ? { signal: abortController.signal } : {};
+    const config = {
+      ...(abortController ? { signal: abortController.signal } : {}),
+      skipLoadingIndicator: skipLoading,
+    };
     return this.post<SqlValidationResponseDto>(`/${id}/sql-dry-run`, data, config);
   }
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, type ReactNode } from 'react';
-import apiClient from '../../../app/api/apiClient';
+import apiClient, { type AxiosRequestConfig } from '../../../app/api/apiClient';
 import { type InternalAxiosRequestConfig, type AxiosResponse, AxiosError } from 'axios';
 import { LoadingContext } from './context';
 
@@ -15,11 +15,17 @@ export function LoadingProvider({ children }: LoadingProviderProps) {
     // Add request interceptor
     const requestInterceptor = apiClient.interceptors.request.use(
       (config: InternalAxiosRequestConfig) => {
-        setPendingRequests(prev => prev + 1);
+        // Only increment the counter if skipLoadingIndicator is not true
+        if (!(config as unknown as AxiosRequestConfig).skipLoadingIndicator) {
+          setPendingRequests(prev => prev + 1);
+        }
         return config;
       },
       (error: AxiosError) => {
-        setPendingRequests(prev => Math.max(0, prev - 1));
+        // Only decrement if the request would have incremented
+        if (!(error.config as unknown as AxiosRequestConfig).skipLoadingIndicator) {
+          setPendingRequests(prev => Math.max(0, prev - 1));
+        }
         return Promise.reject(error);
       }
     );
@@ -27,11 +33,17 @@ export function LoadingProvider({ children }: LoadingProviderProps) {
     // Add response interceptor
     const responseInterceptor = apiClient.interceptors.response.use(
       (response: AxiosResponse) => {
-        setPendingRequests(prev => Math.max(0, prev - 1));
+        // Only decrement if the request would have incremented
+        if (!(response.config as unknown as AxiosRequestConfig).skipLoadingIndicator) {
+          setPendingRequests(prev => Math.max(0, prev - 1));
+        }
         return response;
       },
       (error: AxiosError) => {
-        setPendingRequests(prev => Math.max(0, prev - 1));
+        // Only decrement if the request would have incremented
+        if (!(error.config as unknown as AxiosRequestConfig).skipLoadingIndicator) {
+          setPendingRequests(prev => Math.max(0, prev - 1));
+        }
         return Promise.reject(error);
       }
     );
