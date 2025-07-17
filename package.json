@@ -22,8 +22,8 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "build:docs": "npm run build -w @owox/docs",
-    "clean": "echo '☢️  Starting total cleanup...' && rm -f package-lock.json && find . -name 'node_modules' -type d -prune -exec rm -rf '{}' + && find . -name 'dist' -type d -prune -exec rm -rf '{}' + && echo '✅ Cleanup complete!'",
-    "clean:reinstall": "npm run clean && echo '⚙️  Installing dependencies...' && npm install && echo '✅ Install complete!'",
+    "clean": "npx -y shx echo '☢️  Starting total cleanup...' && npx -y shx rm -f package-lock.json && npx -y shx rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/dist packages/*/dist + && npx -y shx echo '✅ Cleanup complete!'",
+    "clean:reinstall": "npm run clean && npx -y shx echo '⚙️  Installing dependencies...' && npm install && npx -y shx echo '✅ Install complete!'",
     "connector-runner-node": "npm run connector-runner-node --workspace=packages/connector-runner",
     "dev:web": "npm run dev -w @owox/web",
     "dev:backend": "npm run dev -w @owox/backend",
