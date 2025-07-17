@@ -1,5 +1,5 @@
 import React from 'react';
-import { CopyButton } from '@owox/ui/components/common/copy-button';
+import { CopyButton, CopyButtonVariant } from '@owox/ui/components/common/copy-button';
 import type { DataMartDefinitionConfigDto } from '../../model/types/data-mart-definition-config';
 import { useClipboard } from '../../../../../hooks/useClipboard';
 
@@ -23,7 +23,7 @@ export function ConfigurationView({ definitionRun }: ConfigurationViewProps) {
             <CopyButton
               text={JSON.stringify(definitionRun, null, 2)}
               section='configuration'
-              variant='default'
+              variant={CopyButtonVariant.DEFAULT}
               copiedSection={copiedSection}
               onCopy={handleCopy}
             />

@@ -1,6 +1,6 @@
 import React from 'react';
 import { AlertCircle, Info } from 'lucide-react';
-import { CopyButton } from '@owox/ui/components/common/copy-button';
+import { CopyButton, CopyButtonVariant } from '@owox/ui/components/common/copy-button';
 import { useClipboard } from '../../../../../hooks/useClipboard';
 
 interface RawLogsViewProps {
@@ -27,7 +27,7 @@ export function RawLogsView({ logs, errors }: RawLogsViewProps) {
             <CopyButton
               text={errors.join('\n')}
               section='errors'
-              variant='error'
+              variant={CopyButtonVariant.ERROR}
               copiedSection={copiedSection}
               onCopy={handleCopy}
             />
@@ -51,7 +51,7 @@ export function RawLogsView({ logs, errors }: RawLogsViewProps) {
             <CopyButton
               text={logs.join('\n')}
               section='logs'
-              variant='default'
+              variant={CopyButtonVariant.DEFAULT}
               copiedSection={copiedSection}
               onCopy={handleCopy}
             />

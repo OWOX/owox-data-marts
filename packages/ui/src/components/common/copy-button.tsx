@@ -42,15 +42,15 @@ export function CopyButton({
       title={`Copy ${section} to clipboard`}
     >
       {iconOnly ? (
-        <>{isCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}</>
+        <>{isCopied ? <Check className='h-3 w-3' /> : <Copy className='h-3 w-3' />}</>
       ) : isCopied ? (
         <>
-          <Check className="h-3 w-3" />
+          <Check className='h-3 w-3' />
           Copied
         </>
       ) : (
         <>
-          <Copy className="h-3 w-3" />
+          <Copy className='h-3 w-3' />
           Copy
         </>
       )}

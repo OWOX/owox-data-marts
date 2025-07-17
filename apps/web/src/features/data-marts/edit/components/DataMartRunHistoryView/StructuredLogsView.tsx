@@ -1,4 +1,5 @@
 import type { LogEntry } from './types';
+import { LogLevel } from './types';
 import { getDisplayTimestamp, getDisplayType } from './utils';
 import { getLogLevelIcon, getLogLevelColor } from './icons';
 
@@ -41,7 +42,9 @@ export function StructuredLogsView({ logs }: StructuredLogsViewProps) {
             </div>
             <div
               className={`min-w-0 flex-1 text-xs break-words ${
-                logEntry.level === 'ERROR' ? 'text-red-700 dark:text-red-300' : 'text-foreground'
+                logEntry.level === LogLevel.ERROR
+                  ? 'text-red-700 dark:text-red-300'
+                  : 'text-foreground'
               }`}
             >
               {logEntry.message.includes('\n') ? (

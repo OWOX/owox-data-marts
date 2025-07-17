@@ -37,8 +37,8 @@
     "env-paths": "^3.0.0"
   },
   "devDependencies": {
-    "jest": "^30.0.0",
-    "jest-environment-node": "^30.0.0",
+    "jest": "^30.0.1",
+    "jest-environment-node": "^30.0.1",
     "mock-fs": "^5.5.0",
     "sinon": "^21.0.0"
   }
