@@ -26,7 +26,10 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         },
         StartDate: {
           requiredType: "date",
-          isRequired: true
+          label: 'Start Date',
+          description: 'Start date for the manual backfill',
+          attributes: ['manualBackfill'],
+          default: '2021-01-01'
         },
         EndDate: {
           requiredType: "date",
@@ -35,9 +38,10 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
           isRequired: true
         },
         ProcessShortLinks: {
-          requiredType: "string",
+          requiredType: "boolean",
+          attributes: ['manualBackfill', 'boolean'],
           default: "true",
-          description: "Enable automatic processing of short links in link_url_asset field"
+          description: "Enable automatic processing of short links in link_url_asset field",
         },
         ReimportLookbackWindow: {
           requiredType: "number",

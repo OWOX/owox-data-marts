@@ -101,8 +101,10 @@ var BingAdsConnector = class BingAdsConnector extends AbstractConnector {
         this.config.logMessage(`No data found for ${formattedDate}`);
       }
 
-      // Update last requested date after each successful day
-      this.config.updateLastRequstedDate(currentDate);
+      // Update last requested date after each successful day only for incremental run config
+      if (this.runConfig.type === RunConfigType.INCREMENTAL) {
+        this.config.updateLastRequstedDate(currentDate);
+      }
     }
   }
   

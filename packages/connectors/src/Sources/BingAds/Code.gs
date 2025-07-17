@@ -11,6 +11,7 @@ var CONFIG_RANGE = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Config'
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('OWOX')
     .addItem('▶ Import New Data', 'importNewData')
+    .addItem('▶ Import New Data with Manual Backfill', 'importNewDataWithManualBackfill')
     .addItem('🔑 Manage Credentials', 'manageCredentials')
     .addItem('⏰ Schedule', 'scheduleRuns')
     .addItem('📋 Update Fields Sheet', 'updateFieldsSheet')
@@ -31,6 +32,10 @@ function importNewData() {
 
   connector.run();
 } 
+
+function importNewDataWithManualBackfill() {
+  
+}
 
 function updateFieldsSheet() {
   const config = new OWOX.GoogleSheetsConfig(CONFIG_RANGE);

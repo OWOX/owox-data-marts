@@ -5,9 +5,53 @@
  * file that was distributed with this source code.
  */
 
+
+var RunConfigType = {
+  INCREMENTAL: 'incremental',
+  MANUAL_BACKFILL: 'manualBackfill'
+}
+
+var RunConfigExample = {
+  type: RunConfigType.MANUAL_BACKFILL,
+  data: [
+    {
+      configField: 'startDate',
+      value: '2021-01-01'
+    },
+    {
+      configField: 'endDate',
+      value: '2025-07-17'
+    }
+  ],
+
+}
+
+var RunConfigExample2 = {
+  type: RunConfigType.INCREMENTAL,
+  state: {
+    lastRequestedDate: '2021-01-01',
+  }
+}
+
+var RunConfig = class RunConfig {
+  constructor(runConfig) {
+    this.runConfig = runConfig;
+    this.type = runConfig.type;
+    this.data = runConfig.data;
+  }
+  
+  validate(configData) {
+    if (this.type === RunConfigType.MANUAL_BACKFILL) {
+      for (const item of this.data) {
+        
+      }
+    }
+  }
+}
+
 var AbstractConnector = class AbstractConnector {
   //---- constructor -------------------------------------------------
-    constructor(config, source, storage = null) {
+    constructor(config, source, storage = null, runConfig = null) {
 
       if( typeof config.setParametersValues !== "function" ) { 
         throw new Error(`Unable to create a Connector. The first parameter must inherit from the AbstractConfig class`);
@@ -23,6 +67,7 @@ var AbstractConnector = class AbstractConnector {
       try {
 
         config.validate();
+        runConfig.validate(config);
 
       } catch(error) {
 
@@ -49,9 +94,24 @@ var AbstractConnector = class AbstractConnector {
       this.source = source;
       this.storage = storage;
 
+      processRunConfig(runConfig, this.config);
+
     }
     //----------------------------------------------------------------
       
+
+  processRunConfig(runConfig, config) {
+    if (runConfig.type === RunConfigType.MANUAL_BACKFILL) {
+      config.LastRequestedDate.value = null;
+      runConfig.data.forEach(item => { 
+        if (config[item.configField].attributes.includes('manualBackfill')) {
+          config[item.configField].value = item.value;
+        }
+      })
+    } else if (runConfig.type === RunConfigType.INCREMENTAL) {
+      config.LastRequestedDate.value = runConfig.state.lastRequestedDate;
+    }
+  }
   //---- run ---------------------------------------------------------
     /**
      * Initiates imports new data from a data source
@@ -177,6 +237,27 @@ var AbstractConnector = class AbstractConnector {
      * @return StartData (date) and daysToFetch (integer)
      */
     getStartDateAndDaysToFetch() {
+
+      // if (this.runConfig) {
+      //   if (this.runConfig.type === RunConfigType.MANUAL_BACKFILL) {
+      //     this.runConfig.data.forEach(item => { 
+      //       this.config[item.configField].value = item.value;
+      //     })
+
+
+
+      //   } else if (this.runConfig.type === RunConfigType.INCREMENTAL) {
+      //     if (this.config.LastRequestedDate && this.config.LastRequestedDate.value) {
+      //       return [this.config.LastRequestedDate.value, this.config.MaxFetchingDays.value];
+      //     } else {
+      //       if (this.config.StartDate && this.config.StartDate.value) {
+      //         return [this.config.StartDate.value, this.config.MaxFetchingDays.value];
+      //       } else {
+      //         return [new Date(), this.config.MaxFetchingDays.value];
+      //       }
+      //     }
+      // }
+
 
       let startDate = this.config.StartDate.value;
       let endDate  = new Date();
