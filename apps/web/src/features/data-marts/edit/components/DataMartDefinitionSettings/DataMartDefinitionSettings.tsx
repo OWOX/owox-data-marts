@@ -153,7 +153,7 @@ export function DataMartDefinitionSettings() {
     return (
       <form onSubmit={handleFormSubmit} className='space-y-4'>
         <DataMartDefinitionForm definitionType={definitionType} storageType={storageType} />
-        <div className='flex flex-wrap items-center gap-4'>
+        <div className='flex items-center gap-4'>
           <Button
             variant={'default'}
             type='submit'

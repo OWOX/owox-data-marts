@@ -162,8 +162,8 @@ export default function SqlValidator({
     }
 
     return (
-      <div className='flex h-5 items-center gap-2'>
-        <XCircle className='h-4 w-4 text-red-600' />
+      <div className='flex h-9 items-center gap-2'>
+        <XCircle className='h-4 w-4 flex-shrink-0 text-red-600' />
         {validationState.error && (
           <span className='text-xs text-red-500'>{validationState.error}</span>
         )}
