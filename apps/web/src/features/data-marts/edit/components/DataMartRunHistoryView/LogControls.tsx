@@ -1,7 +1,9 @@
 import { Search, Download } from 'lucide-react';
 import { Button } from '@owox/ui/components/Button';
-import type { LogViewType } from './types';
+import { LogViewType } from './types';
 import { Input } from '@owox/ui/components/input';
+import { downloadLogs } from './utils';
+import type { DataMartDefinitionConfigDto } from '../../model/types/data-mart-definition-config';
 
 interface LogControlsProps {
   logViewType: LogViewType;
@@ -12,7 +14,7 @@ interface LogControlsProps {
     id: string;
     logs: string[];
     errors: string[];
-    definitionRun: unknown;
+    definitionRun: DataMartDefinitionConfigDto | null;
   };
 }
 
@@ -25,21 +27,6 @@ export function LogControls({
 }: LogControlsProps) {
   const handleStopPropagation = (e: React.MouseEvent) => {
     e.stopPropagation();
-  };
-
-  const downloadLogs = (run: {
-    id: string;
-    logs: string[];
-    errors: string[];
-    definitionRun: unknown;
-  }) => {
-    const blob = new Blob([JSON.stringify(run, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `datamart-run-${run.id.slice(0, 8)}-logs.json`;
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   const getButtonSwitchClasses = (isActive: boolean) => {
@@ -57,33 +44,33 @@ export function LogControls({
           <button
             onClick={e => {
               e.stopPropagation();
-              setLogViewType('structured');
+              setLogViewType(LogViewType.STRUCTURED);
             }}
-            className={`${getButtonSwitchClasses(logViewType === 'structured')} rounded-l-lg`}
+            className={`${getButtonSwitchClasses(logViewType === LogViewType.STRUCTURED)} rounded-l-lg`}
           >
             Structured
           </button>
           <button
             onClick={e => {
               e.stopPropagation();
-              setLogViewType('raw');
+              setLogViewType(LogViewType.RAW);
             }}
-            className={`${getButtonSwitchClasses(logViewType === 'raw')} rounded-none`}
+            className={`${getButtonSwitchClasses(logViewType === LogViewType.RAW)} rounded-none`}
           >
             Raw
           </button>
           <button
             onClick={e => {
               e.stopPropagation();
-              setLogViewType('configuration');
+              setLogViewType(LogViewType.CONFIGURATION);
             }}
-            className={`${getButtonSwitchClasses(logViewType === 'configuration')} rounded-r-lg`}
+            className={`${getButtonSwitchClasses(logViewType === LogViewType.CONFIGURATION)} rounded-r-lg`}
           >
             Configuration
           </button>
         </div>
 
-        {logViewType !== 'configuration' && (
+        {logViewType !== LogViewType.CONFIGURATION && (
           <div className='relative'>
             <Search className='text-muted-foreground absolute top-2.5 left-2 h-4 w-4' />
             <Input

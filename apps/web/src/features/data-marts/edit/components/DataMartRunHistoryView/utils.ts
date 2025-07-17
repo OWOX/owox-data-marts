@@ -1,4 +1,6 @@
 import type { LogEntry } from './types';
+import { LogLevel } from './types';
+import type { DataMartDefinitionConfigDto } from '../../model/types/data-mart-definition-config';
 
 export const parseLogEntry = (log: string, index: number, isError = false): LogEntry => {
   // Split log into lines for multiline format
@@ -18,11 +20,11 @@ export const parseLogEntry = (log: string, index: number, isError = false): LogE
       return {
         id: `log-${index.toString()}`,
         timestamp: timestamp,
-        level: isError ? 'ERROR' : 'INFO',
+        level: isError ? LogLevel.ERROR : LogLevel.INFO,
         message: processedMessage.message,
         metadata: {
           at: processedMessage.metadata?.at ?? timestamp,
-          type: processedMessage.metadata?.type ?? (type !== 'unknown' ? type : undefined),
+          type: processedMessage.metadata?.type ?? (type !== 'unknown' ? type : null),
         },
       };
     }
@@ -35,7 +37,7 @@ export const parseLogEntry = (log: string, index: number, isError = false): LogE
     return {
       id: `log-${index.toString()}`,
       timestamp: structuredMatch[1],
-      level: isError ? 'ERROR' : (structuredMatch[2] as LogEntry['level']),
+      level: isError ? LogLevel.ERROR : (structuredMatch[2] as LogLevel),
       message: processedMessage.message,
       metadata: processedMessage.metadata,
     };
@@ -46,7 +48,7 @@ export const parseLogEntry = (log: string, index: number, isError = false): LogE
   return {
     id: `log-${index.toString()}`,
     timestamp: new Date().toISOString(),
-    level: isError ? 'ERROR' : 'INFO',
+    level: isError ? LogLevel.ERROR : LogLevel.INFO,
     message: processedMessage.message,
     metadata: processedMessage.metadata,
   };
@@ -54,13 +56,13 @@ export const parseLogEntry = (log: string, index: number, isError = false): LogE
 
 export const processJSONMessage = (
   message: string
-): { message: string; metadata?: Record<string, unknown> } => {
+): { message: string; metadata?: Record<string, string | number | boolean | null> } => {
   try {
-    const parsed = JSON.parse(message) as Record<string, unknown>;
+    const parsed = JSON.parse(message) as Record<string, string | number | boolean | null>;
 
     if (typeof parsed === 'object') {
-      const metadata: Record<string, unknown> = {};
-      const processedObj = { ...parsed } as Record<string, unknown>;
+      const metadata: Record<string, string | number | boolean | null> = {};
+      const processedObj = { ...parsed } as Record<string, string | number | boolean | null>;
 
       // Extract type and at fields
       if ('type' in processedObj) {
@@ -141,7 +143,7 @@ export const downloadLogs = (run: {
   id: string;
   logs: string[];
   errors: string[];
-  definitionRun: unknown;
+  definitionRun: DataMartDefinitionConfigDto | null;
 }) => {
   const blob = new Blob([JSON.stringify(run, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);

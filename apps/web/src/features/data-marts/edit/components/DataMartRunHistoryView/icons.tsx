@@ -7,19 +7,23 @@ import {
   Circle,
   Loader2,
 } from 'lucide-react';
+import { RunStatus } from './types';
 
-export function getStatusIcon(status: string) {
+export function getStatusIcon(status: RunStatus) {
   return (
     <div className='flex items-center gap-2'>
-      {status === 'SUCCESS' ? (
-        <CheckCircle className='h-4 w-4 text-green-500' />
-      ) : status === 'FAILED' ? (
-        <XCircle className='h-4 w-4 text-red-500' />
-      ) : status === 'RUNNING' ? (
-        <Loader2 className='text-primary h-4 w-4 animate-spin' />
-      ) : (
-        <Circle className='h-4 w-4 text-gray-500' />
-      )}
+      {(() => {
+        switch (status) {
+          case RunStatus.SUCCESS:
+            return <CheckCircle className='h-4 w-4 text-green-500' />;
+          case RunStatus.FAILED:
+            return <XCircle className='h-4 w-4 text-red-500' />;
+          case RunStatus.RUNNING:
+            return <Loader2 className='text-primary h-4 w-4 animate-spin' />;
+          default:
+            return <Circle className='h-4 w-4 text-gray-500' />;
+        }
+      })()}
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { UpdateDataMartDefinitionApiDto } from '../dto/presentation/update-data-
 import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-definition.command';
 import { AuthorizationContext } from '../../common/authorization-context/authorization.context';
 import { GetDataMartCommand } from '../dto/domain/get-data-mart.command';
+import { GetDataMartRunsCommand } from '../dto/domain/get-data-mart-runs.command';
 import { ListDataMartsCommand } from '../dto/domain/list-data-marts.command';
 import { UpdateDataMartTitleApiDto } from '../dto/presentation/update-data-mart-title-api.dto';
 import { UpdateDataMartTitleCommand } from '../dto/domain/update-data-mart-title.command';
@@ -29,9 +30,10 @@ import { SqlDryRunRequestApiDto } from '../dto/presentation/sql-dry-run-request-
 import { SqlDryRunResponseApiDto } from '../dto/presentation/sql-dry-run-response-api.dto';
 import { SqlDryRunResult } from '../dto/domain/sql-dry-run-result.dto';
 import { DataMartRun } from '../entities/data-mart-run.entity';
+import { DataMartRunDto } from '../dto/domain/data-mart-run.dto';
 import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-response-api.dto';
-import { SqlDefinition } from '../dto/schemas/data-mart-table-definitions/sql-definition.schema';
 import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
+import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 
 @Injectable()
 export class DataMartMapper {
@@ -105,6 +107,15 @@ export class DataMartMapper {
 
   toGetCommand(id: string, context: AuthorizationContext): GetDataMartCommand {
     return new GetDataMartCommand(id, context.projectId, context.userId);
+  }
+
+  toGetDataMartRunsCommand(
+    id: string,
+    context: AuthorizationContext,
+    limit: number,
+    offset: number
+  ): GetDataMartRunsCommand {
+    return new GetDataMartRunsCommand(id, context.projectId, context.userId, limit, offset);
   }
 
   toListCommand(context: AuthorizationContext): ListDataMartsCommand {
@@ -194,14 +205,31 @@ export class DataMartMapper {
   }
 
   toRunsResponse(runs: DataMartRun[]): DataMartRunsResponseApiDto {
+  toDataMartRunDto(entity: DataMartRun): DataMartRunDto {
+    return new DataMartRunDto(
+      entity.id,
+      entity.status! as DataMartRunStatus,
+      entity.dataMartId,
+      entity.definitionRun! as ConnectorDefinition,
+      entity.logs || [],
+      entity.errors || [],
+      entity.createdAt
+    );
+  }
+
+  toDataMartRunDtoList(entities: DataMartRun[]): DataMartRunDto[] {
+    return entities.map(entity => this.toDataMartRunDto(entity));
+  }
+
+  toRunsResponse(runs: DataMartRunDto[]): DataMartRunsResponseApiDto {
     return {
       runs: runs.map(run => ({
         id: run.id,
-        status: run.status!,
+        status: run.status,
         dataMartId: run.dataMartId,
-        definitionRun: run.definitionRun! as SqlDefinition | ConnectorDefinition,
-        logs: run.logs || [],
-        errors: run.errors || [],
+        definitionRun: run.definitionRun,
+        logs: run.logs,
+        errors: run.errors,
         createdAt: run.createdAt,
       })),
     };

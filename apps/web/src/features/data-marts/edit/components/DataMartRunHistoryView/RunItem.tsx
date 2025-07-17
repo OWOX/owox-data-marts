@@ -5,11 +5,11 @@ import { StructuredLogsView } from './StructuredLogsView';
 import { RawLogsView } from './RawLogsView';
 import { ConfigurationView } from './ConfigurationView';
 import type { DataMartRunItem } from '../../model/types/data-mart-run';
-import { CopyButton } from './CopyButton';
-import { useState } from 'react';
-import type { LogViewType } from './types';
+import { CopyButton } from '@owox/ui/components/common/copy-button';
+import { LogViewType } from './types';
 import { formatDate, getDisplayType, getRunSummary, parseLogEntry } from './utils';
 import { getStatusIcon } from './icons';
+import { useClipboard } from '../../../../../hooks/useClipboard';
 
 interface RunItemProps {
   run: DataMartRunItem;
@@ -30,23 +30,7 @@ export function RunItem({
   searchTerm,
   setSearchTerm,
 }: RunItemProps) {
-  const [copiedSection, setCopiedSection] = useState<string | null>(null);
-
-  const copyToClipboard = async (text: string, section: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedSection(section);
-      setTimeout(() => {
-        setCopiedSection(null);
-      }, 2000);
-    } catch (err) {
-      console.error('Failed to copy text: ', err);
-    }
-  };
-
-  const handleCopy = (text: string, section: string) => {
-    void copyToClipboard(text, section);
-  };
+  const { copiedSection, handleCopy } = useClipboard();
 
   const getFilteredLogs = () => {
     if (run.logs.length === 0 && run.errors.length === 0) return [];
@@ -70,10 +54,10 @@ export function RunItem({
   };
 
   const renderLogsContent = () => {
-    if (logViewType === 'structured') {
+    if (logViewType === LogViewType.STRUCTURED) {
       const filteredLogs = getFilteredLogs();
       return <StructuredLogsView logs={filteredLogs} />;
-    } else if (logViewType === 'raw') {
+    } else if (logViewType === LogViewType.RAW) {
       return <RawLogsView logs={run.logs} errors={run.errors} />;
     } else {
       return <ConfigurationView definitionRun={run.definitionRun} />;
@@ -81,17 +65,17 @@ export function RunItem({
   };
 
   return (
-    <div
-      className='dm-card-block cursor-pointer'
-      onClick={() => {
-        onToggle(run.id);
-      }}
-    >
-      <div className='flex items-center justify-between'>
+    <div className='dm-card-block'>
+      <div
+        className='flex cursor-pointer items-center justify-between'
+        onClick={() => {
+          onToggle(run.id);
+        }}
+      >
         <div className='flex items-center gap-3'>
           {getStatusIcon(run.status)}
           <div className='text-foreground font-mono text-sm font-medium'>
-            {formatDate(run.createdAt)}
+            {formatDate(new Date(run.createdAt).toISOString())}
           </div>
           <div className='text-muted-foreground flex items-center gap-1 text-xs'>
             <MessageSquare className='h-3 w-3' />

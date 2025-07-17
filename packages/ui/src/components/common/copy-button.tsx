@@ -1,9 +1,14 @@
 import { Copy, Check } from 'lucide-react';
 
+export enum CopyButtonVariant {
+  ERROR = 'error',
+  DEFAULT = 'default',
+}
+
 interface CopyButtonProps {
   text: string;
   section: string;
-  variant?: 'error' | 'default';
+  variant?: CopyButtonVariant;
   copiedSection: string | null;
   onCopy: (text: string, section: string) => void;
   iconOnly?: boolean;
@@ -12,12 +17,12 @@ interface CopyButtonProps {
 export function CopyButton({
   text,
   section,
-  variant = 'default',
+  variant = CopyButtonVariant.DEFAULT,
   copiedSection,
   onCopy,
   iconOnly = false,
 }: CopyButtonProps) {
-  const isError = variant === 'error';
+  const isError = variant === CopyButtonVariant.ERROR;
   const isCopied = copiedSection === section;
 
   const baseClasses =
@@ -37,15 +42,15 @@ export function CopyButton({
       title={`Copy ${section} to clipboard`}
     >
       {iconOnly ? (
-        <>{isCopied ? <Check className='h-3 w-3' /> : <Copy className='h-3 w-3' />}</>
+        <>{isCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}</>
       ) : isCopied ? (
         <>
-          <Check className='h-3 w-3' />
+          <Check className="h-3 w-3" />
           Copied
         </>
       ) : (
         <>
-          <Copy className='h-3 w-3' />
+          <Copy className="h-3 w-3" />
           Copy
         </>
       )}

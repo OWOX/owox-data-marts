@@ -22,7 +22,7 @@ export class ConnectorState {
   @Column({
     type: 'json',
     nullable: true,
-    transformer: createZodTransformer<State>(ConnectorOutputStateSchema),
+    transformer: createZodTransformer<State>(ConnectorOutputStateSchema, false),
   })
   state?: State;
 

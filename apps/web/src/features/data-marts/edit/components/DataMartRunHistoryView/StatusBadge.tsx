@@ -1,18 +1,19 @@
 import { Badge } from '@owox/ui/components/badge';
+import { RunStatus } from './types';
 
 interface StatusBadgeProps {
-  status: string;
+  status: RunStatus;
 }
 
 export function StatusBadge({ status }: StatusBadgeProps) {
   switch (status) {
-    case 'RUNNING':
+    case RunStatus.RUNNING:
       return (
         <Badge variant='secondary' className='text-primary bg-primary/10'>
           Running
         </Badge>
       );
-    case 'SUCCESS':
+    case RunStatus.SUCCESS:
       return (
         <Badge
           variant='secondary'
@@ -21,7 +22,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
           Success
         </Badge>
       );
-    case 'FAILED':
+    case RunStatus.FAILED:
       return (
         <Badge
           variant='secondary'

@@ -15,6 +15,7 @@ import { UpdateDataMartTitleService } from '../use-cases/update-data-mart-title.
 import { UpdateDataMartDescriptionService } from '../use-cases/update-data-mart-description.service';
 import { PublishDataMartService } from '../use-cases/publish-data-mart.service';
 import { DeleteDataMartService } from '../use-cases/delete-data-mart.service';
+import { GetDataMartRunsService } from '../use-cases/get-data-mart-runs.service';
 import { ApiTags } from '@nestjs/swagger';
 import {
   CreateDataMartSpec,
@@ -41,7 +42,6 @@ import { ValidateDataMartDefinitionService } from '../use-cases/validate-data-ma
 import { ActualizeDataMartSchemaService } from '../use-cases/actualize-data-mart-schema.service';
 import { UpdateDataMartSchemaService } from '../use-cases/update-data-mart-schema.service';
 import { DataMartValidationResponseApiDto } from '../dto/presentation/data-mart-validation-response-api.dto';
-import { ConnectorExecutionService } from '../services/connector-execution.service';
 import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-response-api.dto';
 import { UpdateDataMartSchemaApiDto } from '../dto/presentation/update-data-mart-schema-api.dto';
 import { SqlDryRunService } from '../use-cases/sql-dry-run.service';
@@ -66,7 +66,7 @@ export class DataMartController {
     private readonly actualizeSchemaService: ActualizeDataMartSchemaService,
     private readonly updateSchemaService: UpdateDataMartSchemaService,
     private readonly sqlDryRunService: SqlDryRunService,
-    private readonly connectorExecutionService: ConnectorExecutionService
+    private readonly getDataMartRunsService: GetDataMartRunsService
   ) {}
 
   @Post()
@@ -222,10 +222,8 @@ export class DataMartController {
     @Query('limit') limit: number = 20,
     @Query('offset') offset: number = 0
   ): Promise<DataMartRunsResponseApiDto> {
-    // Verify user has access to this data mart
-    const command = this.mapper.toGetCommand(id, context);
-    await this.getDataMartService.run(command);
-    const runs = await this.connectorExecutionService.getDataMartRuns(id, limit, offset);
+    const command = this.mapper.toGetDataMartRunsCommand(id, context, limit, offset);
+    const runs = await this.getDataMartRunsService.run(command);
     return this.mapper.toRunsResponse(runs);
   }
 }

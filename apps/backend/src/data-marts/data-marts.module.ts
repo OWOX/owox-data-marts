@@ -8,6 +8,7 @@ import { ScheduledTriggerController } from './controllers/scheduled-trigger.cont
 import { CreateDataMartService } from './use-cases/create-data-mart.service';
 import { ListDataMartsService } from './use-cases/list-data-marts.service';
 import { GetDataMartService } from './use-cases/get-data-mart.service';
+import { GetDataMartRunsService } from './use-cases/get-data-mart-runs.service';
 import { DataMartMapper } from './mappers/data-mart.mapper';
 import { ScheduledTriggerMapper } from './mappers/scheduled-trigger.mapper';
 import { DataStorageService } from './services/data-storage.service';
@@ -109,6 +110,7 @@ import { ConnectorState } from './entities/connector-state.entity';
     CreateDataMartService,
     ListDataMartsService,
     GetDataMartService,
+    GetDataMartRunsService,
     UpdateDataMartDefinitionService,
     PublishDataMartService,
     UpdateDataMartDescriptionService,

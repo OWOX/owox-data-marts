@@ -1,31 +1,17 @@
-import React, { useState } from 'react';
-import { CopyButton } from './CopyButton';
+import React from 'react';
+import { CopyButton } from '@owox/ui/components/common/copy-button';
+import type { DataMartDefinitionConfigDto } from '../../model/types/data-mart-definition-config';
+import { useClipboard } from '../../../../../hooks/useClipboard';
 
 interface ConfigurationViewProps {
-  definitionRun: unknown;
+  definitionRun: DataMartDefinitionConfigDto | null;
 }
 
 export function ConfigurationView({ definitionRun }: ConfigurationViewProps) {
-  const [copiedSection, setCopiedSection] = useState<string | null>(null);
+  const { copiedSection, handleCopy } = useClipboard();
 
   const handleStopPropagation = (e: React.MouseEvent) => {
     e.stopPropagation();
-  };
-
-  const copyToClipboard = async (text: string, section: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedSection(section);
-      setTimeout(() => {
-        setCopiedSection(null);
-      }, 2000);
-    } catch (err) {
-      console.error('Failed to copy text: ', err);
-    }
-  };
-
-  const handleCopy = (text: string, section: string) => {
-    void copyToClipboard(text, section);
   };
 
   return (

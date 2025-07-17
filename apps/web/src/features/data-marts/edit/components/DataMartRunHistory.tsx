@@ -2,8 +2,9 @@ import { useOutletContext } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '../../../../shared/components/Button';
-import { LoadingSkeleton } from './DataMartRunHistoryView/LoadingSkeleton';
+import { SkeletonList } from '@owox/ui/components/common/skeleton-list';
 import { RunItem } from './DataMartRunHistoryView/RunItem';
+import { LogViewType } from './DataMartRunHistoryView/types';
 
 import type { DataMartContextType } from '../model/context/types';
 
@@ -21,9 +22,7 @@ export function DataMartRunHistory() {
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
   const [expandedRun, setExpandedRun] = useState<string | null>(null);
-  const [logViewType, setLogViewType] = useState<'structured' | 'raw' | 'configuration'>(
-    'structured'
-  );
+  const [logViewType, setLogViewType] = useState<LogViewType>(LogViewType.STRUCTURED);
   const [searchTerm, setSearchTerm] = useState('');
 
   const loadRunHistory = useCallback(async () => {
@@ -53,7 +52,7 @@ export function DataMartRunHistory() {
   };
 
   if (isLoading) {
-    return <LoadingSkeleton />;
+    return <SkeletonList />;
   }
 
   return (
