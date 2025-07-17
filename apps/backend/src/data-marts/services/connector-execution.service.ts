@@ -21,14 +21,6 @@ import { ConnectorOutputState } from '../connector-types/interfaces/connector-ou
 import { ConnectorStateService } from '../connector-types/connector-message/services/connector-state.service';
 import { DataMartService } from './data-mart.service';
 
-interface LogCaptureConfig {
-  logCapture: {
-    onStdout: (message: string) => void;
-    onStderr: (message: string) => void;
-    passThrough: boolean;
-  };
-}
-
 interface ConfigurationExecutionResult {
   configIndex: number;
   success: boolean;
@@ -42,9 +34,9 @@ export class ConnectorExecutionService {
 
   constructor(
     @InjectRepository(DataMartRun)
+    private readonly dataMartRunRepository: Repository<DataMartRun>,
     private readonly connectorOutputCaptureService: ConnectorOutputCaptureService,
     private readonly connectorStateService: ConnectorStateService,
-    private readonly dataMartRunRepository: Repository<DataMartRun>,
     private readonly dataMartService: DataMartService
   ) {}
 

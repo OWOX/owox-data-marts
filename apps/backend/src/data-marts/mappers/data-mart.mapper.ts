@@ -204,7 +204,6 @@ export class DataMartMapper {
     };
   }
 
-  toRunsResponse(runs: DataMartRun[]): DataMartRunsResponseApiDto {
   toDataMartRunDto(entity: DataMartRun): DataMartRunDto {
     return new DataMartRunDto(
       entity.id,
