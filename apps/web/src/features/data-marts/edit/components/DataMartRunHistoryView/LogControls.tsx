@@ -1,5 +1,5 @@
 import { Search, Download } from 'lucide-react';
-import { Button } from '@owox/ui/components/Button';
+import { Button } from '@owox/ui/components/button';
 import { LogViewType } from './types';
 import { Input } from '@owox/ui/components/input';
 import { downloadLogs } from './utils';
