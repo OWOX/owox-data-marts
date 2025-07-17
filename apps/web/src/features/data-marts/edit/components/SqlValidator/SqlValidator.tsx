@@ -18,6 +18,7 @@ interface SqlValidatorProps {
   dataMartId: string;
   debounceDelay?: number;
   className?: string;
+  onValidationStateChange?: (state: SqlValidationState) => void;
 }
 
 const DEFAULT_DEBOUNCE_DELAY = 300;
@@ -27,6 +28,7 @@ export default function SqlValidator({
   dataMartId,
   debounceDelay = DEFAULT_DEBOUNCE_DELAY,
   className = '',
+  onValidationStateChange,
 }: SqlValidatorProps) {
   const [validationState, setValidationState] = useState<SqlValidationState>({
     isLoading: false,
@@ -41,12 +43,14 @@ export default function SqlValidator({
   useEffect(() => {
     // Don't validate empty SQL
     if (!debouncedSql) {
-      setValidationState({
+      const newState = {
         isLoading: false,
         isValid: null,
         error: null,
         bytes: null,
-      });
+      };
+      setValidationState(newState);
+      onValidationStateChange?.(newState);
       return;
     }
 
@@ -59,7 +63,14 @@ export default function SqlValidator({
     const currentController = abortControllerRef.current;
 
     const validateQuery = async () => {
-      setValidationState(prev => ({ ...prev, isLoading: true }));
+      const loadingState = {
+        isLoading: true,
+        isValid: null,
+        error: null,
+        bytes: null,
+      };
+      setValidationState(loadingState);
+      onValidationStateChange?.(loadingState);
 
       try {
         const result = await dataMartService.validateSql(
@@ -69,24 +80,28 @@ export default function SqlValidator({
         );
 
         if (!currentController.signal.aborted) {
-          setValidationState({
+          const newState = {
             isLoading: false,
             isValid: result.isValid,
             error: result.error,
             bytes: result.bytes ?? null,
-          });
+          };
+          setValidationState(newState);
+          onValidationStateChange?.(newState);
         }
       } catch (error) {
         console.error('SQL validation error:', error);
 
         // Don't update state if request was cancelled
         if (!currentController.signal.aborted) {
-          setValidationState({
+          const newState = {
             isLoading: false,
             isValid: false,
             error: error instanceof Error ? error.message : 'Validation error',
             bytes: null,
-          });
+          };
+          setValidationState(newState);
+          onValidationStateChange?.(newState);
         }
       }
     };
@@ -96,7 +111,7 @@ export default function SqlValidator({
     return () => {
       currentController.abort();
     };
-  }, [debouncedSql, dataMartId]);
+  }, [debouncedSql, dataMartId, onValidationStateChange]);
 
   const renderValidationStatus = () => {
     if (validationState.isLoading) {
@@ -112,7 +127,7 @@ export default function SqlValidator({
       return (
         <div className='flex h-5 items-center gap-2 text-gray-500'>
           <Database className='h-4 w-4' />
-          <span className='text-sm'>Enter SQL to validate</span>
+          <span className='text-sm'>Type a query to get started</span>
         </div>
       );
     }
@@ -121,7 +136,7 @@ export default function SqlValidator({
       return (
         <div className='flex h-5 items-center gap-2'>
           <CheckCircle className='h-4 w-4 text-green-600' />
-          <span className='text-sm font-medium text-green-600'>Valid</span>
+          <span className='text-sm font-medium text-green-600'>Valid SQL code</span>
           {validationState.bytes !== null && (
             <>
               <span className='mx-1 text-gray-400'>•</span>
@@ -149,12 +164,8 @@ export default function SqlValidator({
     return (
       <div className='flex h-5 items-center gap-2'>
         <XCircle className='h-4 w-4 text-red-600' />
-        <span className='text-sm font-medium text-red-600'>Error</span>
         {validationState.error && (
-          <>
-            <span className='mx-1 text-gray-400'>•</span>
-            <span className='text-xs text-red-500'>{validationState.error}</span>
-          </>
+          <span className='text-xs text-red-500'>{validationState.error}</span>
         )}
       </div>
     );

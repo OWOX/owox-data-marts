@@ -32,6 +32,15 @@ export function DataMartDefinitionSettings() {
   const [definitionType, setDefinitionType] = useState<DataMartDefinitionType | null>(
     initialDefinitionType
   );
+  const [sqlValidationState, setSqlValidationState] = useState<{
+    isValid: boolean | null;
+    isLoading: boolean;
+    error: string | null;
+  }>({
+    isValid: null,
+    isLoading: false,
+    error: null,
+  });
   const getInitialFormValues = useCallback((): DataMartDefinitionFormData | undefined => {
     if (!definitionType) return undefined;
 
@@ -88,6 +97,23 @@ export function DataMartDefinitionSettings() {
     }
   }, [definitionType, reset, getInitialFormValues]);
 
+  // Handle validation state changes from SqlValidator
+  const handleValidationStateChange = useCallback(
+    (state: {
+      isLoading: boolean;
+      isValid: boolean | null;
+      error: string | null;
+      bytes: number | null;
+    }) => {
+      setSqlValidationState({
+        isLoading: state.isLoading,
+        isValid: state.isValid,
+        error: state.error,
+      });
+    },
+    []
+  );
+
   const handleTypeSelect = (type: DataMartDefinitionType) => {
     setDefinitionType(type);
   };
@@ -107,6 +133,13 @@ export function DataMartDefinitionSettings() {
 
   const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    // Prevent submission if SQL is invalid for SQL definition type
+    if (definitionType === DataMartDefinitionType.SQL && sqlValidationState.isValid === false) {
+      console.error('Cannot submit form with invalid SQL:', sqlValidationState.error);
+      return;
+    }
+
     void handleSubmit(onSubmit)(e);
   };
 
@@ -121,7 +154,15 @@ export function DataMartDefinitionSettings() {
       <form onSubmit={handleFormSubmit} className='space-y-4'>
         <DataMartDefinitionForm definitionType={definitionType} storageType={storageType} />
         <div className='flex flex-wrap items-center gap-4'>
-          <Button variant={'default'} type='submit' disabled={!isValid}>
+          <Button
+            variant={'default'}
+            type='submit'
+            disabled={
+              !isValid ||
+              (definitionType === DataMartDefinitionType.SQL &&
+                (sqlValidationState.isValid === false || sqlValidationState.isLoading))
+            }
+          >
             Save
           </Button>
           <Button type='button' variant='ghost' onClick={handleReset} disabled={!isDirty}>
@@ -132,7 +173,11 @@ export function DataMartDefinitionSettings() {
           {definitionType === DataMartDefinitionType.SQL && sqlCode && (
             <>
               <div className='h-6 w-px bg-gray-300'></div>
-              <SqlValidator sql={sqlCode} dataMartId={dataMartId} />
+              <SqlValidator
+                sql={sqlCode}
+                dataMartId={dataMartId}
+                onValidationStateChange={handleValidationStateChange}
+              />
             </>
           )}
         </div>
