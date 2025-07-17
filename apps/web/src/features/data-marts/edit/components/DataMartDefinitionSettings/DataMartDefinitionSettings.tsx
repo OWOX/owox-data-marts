@@ -159,6 +159,7 @@ export function DataMartDefinitionSettings() {
             type='submit'
             disabled={
               !isValid ||
+              !isDirty ||
               (definitionType === DataMartDefinitionType.SQL &&
                 (sqlValidationState.isValid === false || sqlValidationState.isLoading))
             }
