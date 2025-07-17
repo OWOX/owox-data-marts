@@ -6,7 +6,9 @@ import { DataMartDefinitionType } from '../../shared';
 export const getEmptyDefinition = (type: DataMartDefinitionType) => {
   switch (type) {
     case DataMartDefinitionType.SQL:
-      return { sqlQuery: '-- Start writing your SQL query here...' };
+      return {
+        sqlQuery: '',
+      };
     case DataMartDefinitionType.TABLE:
       return { fullyQualifiedName: '' };
     case DataMartDefinitionType.VIEW:
