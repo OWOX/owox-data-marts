@@ -90,8 +90,6 @@ export default function SqlValidator({
           onValidationStateChange?.(newState);
         }
       } catch (error) {
-        console.error('SQL validation error:', error);
-
         // Don't update state if request was cancelled
         if (!currentController.signal.aborted) {
           const newState = {
