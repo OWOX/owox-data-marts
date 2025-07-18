@@ -3,6 +3,7 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { DataMartDefinitionValidatorFacade } from '../data-storage-types/facades/data-mart-definition-validator-facade.service';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
 import { PublishDataMartCommand } from '../dto/domain/publish-data-mart.command';
+import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { DataMartService } from '../services/data-mart.service';
@@ -31,7 +32,11 @@ export class PublishDataMartService {
     }
 
     await this.definitionValidatorFacade.checkIsValid(dataMart);
-    await this.dataMartService.actualizeSchemaInEntity(dataMart);
+
+    if (dataMart.definitionType !== DataMartDefinitionType.CONNECTOR) {
+      // connectors can change data mart schema only after its run, not on publish
+      await this.dataMartService.actualizeSchemaInEntity(dataMart);
+    }
 
     dataMart.status = DataMartStatus.PUBLISHED;
 

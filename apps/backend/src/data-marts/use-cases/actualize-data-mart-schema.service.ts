@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataMartDefinitionValidatorFacade } from '../data-storage-types/facades/data-mart-definition-validator-facade.service';
 import { ActualizeDataMartSchemaCommand } from '../dto/domain/actualize-data-mart-schema.command';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
@@ -23,9 +24,13 @@ export class ActualizeDataMartSchemaService {
       command.userId
     );
 
-    await this.definitionValidatorFacade.checkIsValid(dataMart);
-    await this.dataMartService.actualizeSchemaInEntity(dataMart);
-    await this.dataMartService.save(dataMart);
+    try {
+      await this.definitionValidatorFacade.checkIsValid(dataMart);
+      await this.dataMartService.actualizeSchemaInEntity(dataMart);
+      await this.dataMartService.save(dataMart);
+    } catch (error) {
+      throw new BusinessViolationException(error.message);
+    }
 
     this.logger.debug(`Data mart ${command.id} schema actualized`);
     return this.mapper.toDomainDto(dataMart);
