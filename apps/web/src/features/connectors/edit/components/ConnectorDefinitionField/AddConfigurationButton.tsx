@@ -29,10 +29,10 @@ export function AddConfigurationButton({
         <Button
           type='button'
           variant='outline'
-          className='hover:border-primary/50 flex h-12 w-full items-center justify-center gap-2 border-1 text-sm'
+          className='dm-card-table-add-field-btn cursor-pointer'
         >
           <Plus className='h-4 w-4' />
-          <span>Add more configuration</span>
+          <span>Configuration</span>
         </Button>
       </DataMartConnectorView>
     </div>
