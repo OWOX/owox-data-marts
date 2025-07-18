@@ -15,9 +15,8 @@ import {
 
 import { cn } from '@owox/ui/lib/utils';
 import { Label } from '@owox/ui/components/label';
-import { Button } from '@owox/ui/components/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
-import { Loader2, Info } from 'lucide-react';
+import { Info } from 'lucide-react';
 
 /**
  * Form context provider for React Hook Form.
@@ -206,86 +205,53 @@ function FormMessage({ className, ...props }: React.ComponentProps<'p'>) {
 }
 
 /**
- * Layout wrapper for forms with optional footer.
+ * FormLayout — just a layout wrapper for form fields.
+ * Does NOT render a <form> tag!
  */
-export const FormLayout = React.forwardRef<
-  HTMLFormElement,
-  React.FormHTMLAttributes<HTMLFormElement> & {
-    children: React.ReactNode;
-    footer?: React.ReactNode;
-    noValidate?: boolean;
-  }
->(({ children, footer, noValidate = true, ...props }, ref) => (
-  <form
-    className='flex flex-1 flex-col overflow-hidden'
-    noValidate={noValidate}
-    ref={ref}
-    {...props}
-  >
-    <div className='bg-muted dark:bg-sidebar flex-1 overflow-y-auto p-4'>
-      <div className='flex min-h-full flex-col gap-4'>{children}</div>
-    </div>
-    {footer}
-  </form>
-));
-FormLayout.displayName = 'FormLayout';
-
-/**
- * Standardized footer for forms with Save/Create and Cancel buttons.
- */
-export interface FormFooterProps {
-  isSubmitting?: boolean;
-  isDirty?: boolean;
-  mode?: 'create' | 'edit';
-  onSave?: () => void;
-  onCancel?: () => void;
-  saveLabel?: string;
-  cancelLabel?: string;
-  saveDisabled?: boolean;
-}
-
-export function FormFooter({
-  isSubmitting,
-  isDirty,
-  mode = 'edit',
-  onSave,
-  onCancel,
-  saveLabel,
-  cancelLabel = 'Cancel',
-  saveDisabled,
-}: FormFooterProps) {
-  const label = saveLabel || (mode === 'create' ? 'Create' : 'Save changes');
+function FormLayout({
+  children,
+  className = '',
+  variant = 'default',
+}: {
+  children: React.ReactNode;
+  className?: string;
+  variant?: 'default' | 'light';
+}) {
+  const containerClass =
+    variant === 'light'
+      ? 'flex-1 overflow-y-auto'
+      : 'bg-muted dark:bg-sidebar flex-1 overflow-y-auto p-4';
 
   return (
-    <div className='flex flex-col gap-1.5 border-t px-4 py-3'>
-      <Button
-        variant='default'
-        type='button'
-        onClick={onSave}
-        className='w-full'
-        aria-label={label}
-        disabled={saveDisabled !== undefined ? saveDisabled : !isDirty || isSubmitting}
-      >
-        {isSubmitting && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-        {label}
-      </Button>
-      <Button
-        variant='outline'
-        type='button'
-        onClick={onCancel}
-        className='w-full'
-        aria-label={cancelLabel}
-      >
-        {cancelLabel}
-      </Button>
+    <div className={containerClass}>
+      <div className={cn('flex min-h-full flex-col gap-4', className)}>{children}</div>
     </div>
   );
 }
 
 /**
+ * FormActions — standardized container for form action buttons.
+ * Place this after FormLayout, outside the form fields block.
+ */
+function FormActions({
+  className = '',
+  children,
+  variant = 'default',
+}: {
+  className?: string;
+  children: React.ReactNode;
+  variant?: 'default' | 'light';
+}) {
+  const wrapperClass =
+    variant === 'light' ? 'flex flex-col gap-1.5 pt-4' : 'flex flex-col gap-1.5 border-t px-4 py-3';
+
+  return <div className={cn(wrapperClass, className)}>{children}</div>;
+}
+
+/**
  * Section for grouping form fields with optional title.
  */
-export function FormSection({ title, children }: { title?: string; children: React.ReactNode }) {
+function FormSection({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
     <section className='mb-4'>
       {title && (
@@ -298,6 +264,26 @@ export function FormSection({ title, children }: { title?: string; children: Rea
   );
 }
 
+/**
+ * AppForm — base wrapper for all forms.
+ * Applies standard layout classes to the <form> element.
+ * Use this instead of a raw <form> to avoid style duplication.
+ *
+ * @example
+ * <AppForm onSubmit={...}>
+ *   <FormLayout>...</FormLayout>
+ *   <FormActions>...</FormActions>
+ * </AppForm>
+ */
+export const AppForm = React.forwardRef<HTMLFormElement, React.FormHTMLAttributes<HTMLFormElement>>(
+  ({ children, className = '', ...props }, ref) => (
+    <form ref={ref} className={cn('flex flex-1 flex-col overflow-hidden', className)} {...props}>
+      {children}
+    </form>
+  )
+);
+AppForm.displayName = 'AppForm';
+
 // Re-export all form components for unified import
 export {
   useFormField,
@@ -308,4 +294,7 @@ export {
   FormDescription,
   FormMessage,
   FormField,
+  FormLayout,
+  FormActions,
+  FormSection,
 };

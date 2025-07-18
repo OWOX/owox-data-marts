@@ -1,3 +1,4 @@
+import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { DataStorageStatus, DataStorageType } from '../../../shared';
@@ -16,19 +17,20 @@ import { type DataStorageFormData, dataStorageSchema } from '../../../shared';
 import { Input } from '@owox/ui/components/input';
 import {
   Form,
+  AppForm,
   FormControl,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
   FormLayout,
-  FormFooter,
+  FormActions,
   FormSection,
   FormDescription,
 } from '@owox/ui/components/form';
-import React from 'react';
 import StorageTypeBigQueryDescription from './FormDescriptions/StorageTypeBigQueryDescription.tsx';
 import StorageTypeAthenaDescription from './FormDescriptions/StorageTypeAthenaDescription.tsx';
+import { Button } from '@owox/ui/components/button';
 
 interface DataStorageFormProps {
   initialData?: DataStorageFormData;
@@ -61,83 +63,101 @@ export function DataStorageForm({
 
   return (
     <Form {...form}>
-      <FormLayout
+      <AppForm
+        onSubmit={e => {
+          void form.handleSubmit(onSubmit)(e);
+        }}
         noValidate
-        footer={
-          <FormFooter
-            isSubmitting={isSubmitting}
-            isDirty={isDirty}
-            onSave={() => void form.handleSubmit(onSubmit)()}
-            onCancel={onCancel}
-            saveLabel='Save'
-          />
-        }
       >
-        <FormSection title='General'>
-          <FormField
-            control={control}
-            name='title'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel tooltip='Name the storage to clarify its purpose'>Title</FormLabel>
-                <FormControl>
-                  <Input {...field} placeholder='Storage title' />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={control}
-            name='type'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel tooltip='The selected source will be used to process data in your Data Marts'>
-                  Storage Type
-                </FormLabel>
-                <FormControl>
-                  <Select
-                    value={field.value}
-                    onValueChange={field.onChange}
-                    disabled={!!initialData}
-                  >
-                    <SelectTrigger className='w-full'>
-                      <SelectValue placeholder='Select a storage type' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        {DataStorageTypeModel.getAllTypes().map(
-                          ({ type, displayName, icon: Icon, status }) => (
-                            <SelectItem
-                              key={type}
-                              value={type}
-                              disabled={status === DataStorageStatus.COMING_SOON}
-                            >
-                              <div className='flex items-center gap-2'>
-                                <Icon size={20} />
-                                {displayName}
-                              </div>
-                            </SelectItem>
-                          )
-                        )}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </FormControl>
-                <FormDescription>
-                  {selectedType === DataStorageType.GOOGLE_BIGQUERY && (
-                    <StorageTypeBigQueryDescription />
-                  )}
-                  {selectedType === DataStorageType.AWS_ATHENA && <StorageTypeAthenaDescription />}
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </FormSection>
-        {selectedType === DataStorageType.GOOGLE_BIGQUERY && <GoogleBigQueryFields form={form} />}
-        {selectedType === DataStorageType.AWS_ATHENA && <AwsAthenaFields form={form} />}
-      </FormLayout>
+        <FormLayout>
+          <FormSection title='General'>
+            <FormField
+              control={control}
+              name='title'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel tooltip='Name the storage to clarify its purpose'>Title</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder='Storage title' />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name='type'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel tooltip='The selected source will be used to process data in your Data Marts'>
+                    Storage Type
+                  </FormLabel>
+                  <FormControl>
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      disabled={!!initialData}
+                    >
+                      <SelectTrigger className='w-full'>
+                        <SelectValue placeholder='Select a storage type' />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {DataStorageTypeModel.getAllTypes().map(
+                            ({ type, displayName, icon: Icon, status }) => (
+                              <SelectItem
+                                key={type}
+                                value={type}
+                                disabled={status === DataStorageStatus.COMING_SOON}
+                              >
+                                <div className='flex items-center gap-2'>
+                                  <Icon size={20} />
+                                  {displayName}
+                                </div>
+                              </SelectItem>
+                            )
+                          )}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormDescription>
+                    {selectedType === DataStorageType.GOOGLE_BIGQUERY && (
+                      <StorageTypeBigQueryDescription />
+                    )}
+                    {selectedType === DataStorageType.AWS_ATHENA && (
+                      <StorageTypeAthenaDescription />
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </FormSection>
+          {selectedType === DataStorageType.GOOGLE_BIGQUERY && <GoogleBigQueryFields form={form} />}
+          {selectedType === DataStorageType.AWS_ATHENA && <AwsAthenaFields form={form} />}
+        </FormLayout>
+        <FormActions>
+          <Button
+            variant='default'
+            type='submit'
+            className='w-full'
+            aria-label='Save'
+            disabled={!isDirty || isSubmitting}
+          >
+            Save
+          </Button>
+          <Button
+            variant='outline'
+            type='button'
+            onClick={onCancel}
+            className='w-full'
+            aria-label='Cancel'
+          >
+            Cancel
+          </Button>
+        </FormActions>
+      </AppForm>
     </Form>
   );
 }

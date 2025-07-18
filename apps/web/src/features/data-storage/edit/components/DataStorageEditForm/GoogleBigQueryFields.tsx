@@ -40,7 +40,7 @@ export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
                 Project ID
               </FormLabel>
               <FormControl>
-                <Input {...field} />
+                <Input {...field} placeholder='Enter a Project Id' />
               </FormControl>
               <FormDescription>
                 <GoogleBigQueryProjectIdDescription />

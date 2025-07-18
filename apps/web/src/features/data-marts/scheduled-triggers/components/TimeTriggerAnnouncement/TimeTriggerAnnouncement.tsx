@@ -8,8 +8,7 @@ export function TimeTriggerAnnouncement() {
         <div>
           <p className='font-medium'>Time Triggers</p>
           <p className='text-muted-foreground'>
-            Save the report to schedule auto-runs via the{' '}
-            <span className='font-medium'>Triggers tab</span>.
+            Go to the <span className='font-medium'>Triggers tab</span> to set up automatic runs.
           </p>
         </div>
       </div>
