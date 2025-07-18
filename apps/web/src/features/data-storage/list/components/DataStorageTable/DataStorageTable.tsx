@@ -42,7 +42,7 @@ interface DataStorageTableProps<TData, TValue> {
 export function DataStorageTable<TData, TValue>({
   columns,
   data,
-  onViewDetails,
+  onEdit,
   onOpenTypeDialog,
 }: DataStorageTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'createdAt', desc: false }]);
@@ -50,7 +50,7 @@ export function DataStorageTable<TData, TValue>({
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
-  const [selectedDataStorage, setSelectedDataStorage] = useState<DataStorageTableItem | null>(null);
+  const [selectedDataStorage] = useState<DataStorageTableItem | null>(null);
 
   const table = useReactTable({
     data,
@@ -72,13 +72,6 @@ export function DataStorageTable<TData, TValue>({
     enableRowSelection: true,
   });
 
-  const handleViewDetails = (id: string) => {
-    const foundItem = data.find(item => (item as { id: string }).id === id) as DataStorageTableItem;
-    setSelectedDataStorage(foundItem);
-    setIsDetailsDialogOpen(true);
-    onViewDetails?.(id);
-  };
-
   const handleRowClick = (id: string, e: React.MouseEvent) => {
     if (
       e.target instanceof HTMLElement &&
@@ -89,7 +82,7 @@ export function DataStorageTable<TData, TValue>({
       return;
     }
 
-    handleViewDetails(id);
+    void onEdit?.(id);
   };
 
   if (!data.length) {
