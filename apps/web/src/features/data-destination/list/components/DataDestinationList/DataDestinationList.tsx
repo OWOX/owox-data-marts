@@ -113,6 +113,7 @@ export const DataDestinationList = ({
       <DataDestinationTable
         columns={columns}
         data={tableData}
+        onEdit={handleEdit}
         onOpenTypeDialog={handleOpenCreateForm}
       />
 
