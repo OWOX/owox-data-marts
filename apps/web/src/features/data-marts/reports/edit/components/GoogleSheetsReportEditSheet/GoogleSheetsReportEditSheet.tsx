@@ -63,8 +63,8 @@ export function GoogleSheetsReportEditSheet({
           }
         }}
       >
-        <SheetContent className='flex h-full min-w-[480px] flex-col gap-0'>
-          <SheetHeader className='border-b py-3'>
+        <SheetContent>
+          <SheetHeader>
             <SheetTitle>
               {mode === ReportFormMode.CREATE ? 'Create new report' : 'Edit report'}
             </SheetTitle>
