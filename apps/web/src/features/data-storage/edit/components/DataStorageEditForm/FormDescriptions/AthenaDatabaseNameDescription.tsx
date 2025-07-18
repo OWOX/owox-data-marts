@@ -4,7 +4,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@owox/ui/components/accordion';
-import { ExternalLink } from 'lucide-react';
+import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 
 /**
  * Accordion with step-by-step instructions for DatabaseName.
@@ -23,15 +23,9 @@ export default function AthenaDatabaseNameDescription() {
           <ol className='list-inside list-decimal space-y-2 text-sm'>
             <li>
               Open{' '}
-              <a
-                href='https://console.aws.amazon.com/athena/'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='font-medium underline'
-              >
-                the AWS Athena console{' '}
-                <ExternalLink className='ml-1 inline h-3 w-3' aria-hidden='true' />
-              </a>
+              <ExternalAnchor className='underline' href='https://console.aws.amazon.com/athena/'>
+                the AWS Athena console
+              </ExternalAnchor>
               .
             </li>
             <li>In the query editor, click on the database dropdown on the left side.</li>

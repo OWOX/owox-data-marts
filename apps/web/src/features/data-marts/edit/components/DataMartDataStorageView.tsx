@@ -6,7 +6,7 @@ import { DataStorageTypeModel } from '../../../data-storage/shared/types/data-st
 import { DataStorageConfigSheet } from '../../../data-storage/edit';
 import { DataStorageProvider } from '../../../data-storage/shared/model/context';
 import { toast, Toaster } from 'react-hot-toast';
-import { ExternalLink } from 'lucide-react';
+import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 
 interface DataMartDataStorageViewProps {
   dataStorage: DataStorage;
@@ -50,8 +50,8 @@ export const DataMartDataStorageView = ({
     const formatParam = (label: string, value: string) => {
       return (
         <span>
-          <span className='font-semibold'>{label}:</span>{' '}
-          <span className='text-muted-foreground'>{value}</span>
+          <span className='text-muted-foreground/75'>{label}:</span>{' '}
+          <span className='text-muted-foreground font-medium'>{value}</span>
         </span>
       );
     };
@@ -59,19 +59,15 @@ export const DataMartDataStorageView = ({
     const formatLinkParam = (label: string, value: string, href: string) => {
       return (
         <span>
-          <span className='font-semibold'>{label}:</span>{' '}
-          <a
+          <span className='text-muted-foreground/75'>{label}:</span>{' '}
+          <ExternalAnchor
             href={href}
-            target='_blank'
-            rel='noopener noreferrer'
-            className='text-primary hover:underline'
             onClick={e => {
               e.stopPropagation();
             }}
           >
             {value}
-            <ExternalLink className='ml-1 inline h-3 w-3' aria-hidden='true' />
-          </a>
+          </ExternalAnchor>
         </span>
       );
     };

@@ -4,7 +4,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@owox/ui/components/accordion';
-import { ExternalLink } from 'lucide-react';
+import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 
 /**
  * Accordion with step-by-step instructions for GBQ Location.
@@ -23,15 +23,12 @@ export default function GoogleBigQueryLocationDescription() {
           <ol className='list-inside list-decimal space-y-2 text-sm'>
             <li>
               Open{' '}
-              <a
+              <ExternalAnchor
+                className='underline'
                 href='https://console.cloud.google.com/bigquery'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='font-medium underline'
               >
-                Google Cloud Console BigQuery page{' '}
-                <ExternalLink className='ml-1 inline h-3 w-3' aria-hidden='true' />
-              </a>
+                Google Cloud Console BigQuery page
+              </ExternalAnchor>
               .
             </li>
             <li>In the left panel, expand your project and find your datasets.</li>

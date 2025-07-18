@@ -1,5 +1,6 @@
 import { Button } from '@owox/ui/components/button';
-import { ExternalLink, Trash2 } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
+import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 import { DataMartConnectorView } from '../../DataMartConnectorView';
 import { DataStorageType } from '../../../../data-storage';
 import type { ConnectorConfig, ConnectorDefinitionConfig } from '../../../../data-marts/edit/model';
@@ -36,7 +37,8 @@ export function ConnectorConfigurationItem({
     return (
       <div className='flex flex-wrap gap-2'>
         <span>
-          <span className='font-semibold'>Node:</span> <span className='text-primary'>{node}</span>
+          <span className='text-muted-foreground/75'>Node:</span>{' '}
+          <span className='text-muted-foreground font-medium'>{node}</span>
         </span>
       </div>
     );
@@ -45,8 +47,8 @@ export function ConnectorConfigurationItem({
   const formatParam = (label: string, value: string) => {
     return (
       <span>
-        <span className='font-semibold'>{label}:</span>{' '}
-        <span className='text-muted-foreground'>{value}</span>
+        <span className='text-muted-foreground/75'>{label}:</span>{' '}
+        <span className='text-muted-foreground font-medium'>{value}</span>
       </span>
     );
   };
@@ -54,19 +56,15 @@ export function ConnectorConfigurationItem({
   const formatLinkParam = (label: string, value: string, href: string) => {
     return (
       <span>
-        <span className='font-semibold'>{label}:</span>{' '}
-        <a
+        <span className='text-muted-foreground/75'>{label}:</span>{' '}
+        <ExternalAnchor
           href={href}
-          target='_blank'
-          rel='noopener noreferrer'
-          className='text-primary hover:underline'
           onClick={e => {
             e.stopPropagation();
           }}
         >
           {value}
-          <ExternalLink className='ml-1 inline h-3 w-3' aria-hidden='true' />
-        </a>
+        </ExternalAnchor>
       </span>
     );
   };

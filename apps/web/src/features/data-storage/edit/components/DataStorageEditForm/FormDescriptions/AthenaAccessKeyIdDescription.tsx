@@ -5,7 +5,7 @@ import {
   AccordionTrigger,
 } from '@owox/ui/components/accordion';
 import { Separator } from '@owox/ui/components/separator';
-import { ExternalLink } from 'lucide-react';
+import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 
 /**
  * Accordion with step-by-step instructions for AccessKeyId.
@@ -23,23 +23,19 @@ export default function AthenaAccessKeyIdDescription() {
           <ol className='list-inside list-decimal space-y-2 text-sm'>
             <li>
               Go to{' '}
-              <a
+              <ExternalAnchor
+                className='underline'
                 href='https://console.aws.amazon.com/iam/home#/users'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='font-medium underline'
               >
-                IAM Users <ExternalLink className='ml-1 inline h-3 w-3' aria-hidden='true' />
-              </a>{' '}
+                IAM Users
+              </ExternalAnchor>{' '}
               or{' '}
-              <a
+              <ExternalAnchor
+                className='underline'
                 href='https://console.aws.amazon.com/iam/home#/roles'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='font-medium underline'
               >
-                IAM Roles <ExternalLink className='ml-1 inline h-3 w-3' aria-hidden='true' />
-              </a>{' '}
+                IAM Roles
+              </ExternalAnchor>{' '}
               in the AWS Console.
             </li>
             <li>Either choose an existing user/role or create a new one.</li>
@@ -70,15 +66,12 @@ export default function AthenaAccessKeyIdDescription() {
           <ol className='list-inside list-decimal space-y-2 text-sm'>
             <li>
               Open{' '}
-              <a
+              <ExternalAnchor
+                className='underline'
                 href='https://console.aws.amazon.com/iam/home#/security_credentials'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='font-medium underline'
               >
-                the AWS IAM Security Credentials page{' '}
-                <ExternalLink className='ml-1 inline h-3 w-3' aria-hidden='true' />
-              </a>
+                the AWS IAM Security Credentials page
+              </ExternalAnchor>
               .
             </li>
             <li>

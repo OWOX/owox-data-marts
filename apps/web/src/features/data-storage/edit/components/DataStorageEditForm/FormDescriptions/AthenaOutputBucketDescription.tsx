@@ -4,7 +4,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@owox/ui/components/accordion';
-import { ExternalLink } from 'lucide-react';
+import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 
 /**
  * Accordion with step-by-step instructions for OutputBucket.
@@ -23,15 +23,9 @@ export default function AthenaOutputBucketDescription() {
           <ol className='list-inside list-decimal space-y-2 text-sm'>
             <li>
               Open{' '}
-              <a
-                href='https://console.aws.amazon.com/s3/'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='font-medium underline'
-              >
-                the AWS S3 console{' '}
-                <ExternalLink className='ml-1 inline h-3 w-3' aria-hidden='true' />
-              </a>
+              <ExternalAnchor className='underline' href='https://console.aws.amazon.com/s3/'>
+                the AWS S3 console
+              </ExternalAnchor>
               .
             </li>
             <li>Look for an existing bucket used for Athena query results, or create a new one.</li>

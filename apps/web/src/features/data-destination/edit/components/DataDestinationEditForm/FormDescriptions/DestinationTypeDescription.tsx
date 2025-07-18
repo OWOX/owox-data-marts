@@ -4,7 +4,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@owox/ui/components/accordion';
-import { ExternalLink } from 'lucide-react';
+import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 
 /**
  * Accordion with step-by-step instructions for enabling the Google Sheets API.
@@ -17,14 +17,9 @@ export default function DestinationTypeDescription() {
         <AccordionContent>
           <p className='mb-2'>
             To send data to Google Sheets, you need to enable the{' '}
-            <a
-              href='https://console.cloud.google.com/apis/library/sheets.googleapis.com'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='font-medium underline'
-            >
-              Google Sheets API <ExternalLink className='ml-1 inline h-3 w-3' aria-hidden='true' />
-            </a>{' '}
+            <ExternalAnchor href='https://console.cloud.google.com/apis/library/sheets.googleapis.com'>
+              Google Sheets API
+            </ExternalAnchor>{' '}
             in your Google Cloud project.
           </p>
           <p className='mb-2'>Here's how to do it:</p>

@@ -4,7 +4,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@owox/ui/components/accordion';
-import { ExternalLink } from 'lucide-react';
+import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 
 /**
  * Accordion with step-by-step instructions for enabling the Google BigQuery API.
@@ -17,14 +17,12 @@ export default function StorageTypeBigQueryDescription() {
         <AccordionContent>
           <p className='mb-2'>
             To run queries and process data in Google BigQuery, you need to enable the{' '}
-            <a
+            <ExternalAnchor
+              className='underline'
               href='https://console.cloud.google.com/apis/library/bigquery.googleapis.com'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='font-medium underline'
             >
-              BigQuery API <ExternalLink className='ml-1 inline h-3 w-3' aria-hidden='true' />
-            </a>{' '}
+              BigQuery API
+            </ExternalAnchor>{' '}
             in your Google Cloud project.
           </p>
           <p className='mb-2'>Here's how to do it:</p>

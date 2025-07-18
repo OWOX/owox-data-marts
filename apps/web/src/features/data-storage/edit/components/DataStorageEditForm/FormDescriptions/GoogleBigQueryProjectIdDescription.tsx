@@ -4,7 +4,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@owox/ui/components/accordion';
-import { ExternalLink } from 'lucide-react';
+import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 
 /**
  * Accordion with step-by-step instructions for obtaining a Google Service Account JSON key.
@@ -23,15 +23,9 @@ export default function GoogleBigQueryProjectIdDescription() {
           <ol className='list-inside list-decimal space-y-2 text-sm'>
             <li>
               Open{' '}
-              <a
-                href='https://console.cloud.google.com/'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='font-medium underline'
-              >
-                Google Cloud Console{' '}
-                <ExternalLink className='ml-1 inline h-3 w-3' aria-hidden='true' />
-              </a>{' '}
+              <ExternalAnchor className='underline' href='https://console.cloud.google.com/'>
+                Google Cloud Console
+              </ExternalAnchor>{' '}
               and sign in with your Google account.
             </li>
             <li>
