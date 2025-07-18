@@ -10,23 +10,22 @@ export default function CreateDataMartPage() {
   };
 
   return (
-    <main className='container mx-auto px-4 py-8'>
-      <div className='mb-6 flex items-center justify-between'>
-        <h1 className='text-2xl font-bold'>Create Data Mart</h1>
+    <div className='flex h-full w-full items-center justify-center'>
+      <div className='mx-auto my-auto w-lg'>
+        <div className='dm-card !rounded-xl !p-8'>
+          <h2 className='mb-4 text-xl font-medium'>Create Data Mart</h2>
+          <DataStorageProvider>
+            <DataMartProvider>
+              <DataMartCreateForm
+                initialData={{
+                  title: 'New Data Mart',
+                }}
+                onSuccess={handleSuccess}
+              />
+            </DataMartProvider>
+          </DataStorageProvider>
+        </div>
       </div>
-
-      <div className='rounded-lg p-6 shadow'>
-        <DataStorageProvider>
-          <DataMartProvider>
-            <DataMartCreateForm
-              initialData={{
-                title: 'New Data Mart',
-              }}
-              onSuccess={handleSuccess}
-            />
-          </DataMartProvider>
-        </DataStorageProvider>
-      </div>
-    </main>
+    </div>
   );
 }
