@@ -41,7 +41,7 @@ We believe every **data analyst should have the power to automate data collectio
 We want to empower **every business to become data owners** by importing their data into Spreadsheets or data warehouses.
 
 OWOX Data Marts - Apps Script Edition is a growing library of JavaScript **connectors** that:
-- Pull data from **any APIs** like Facebook, TikTok, LinkedIn, etc.
+
 - Run inside **YOUR** Google Sheet or BigQuery
 - Require **no external platforms** or credentials sharing
 - Doesn't require **ANY data engineering resources**
