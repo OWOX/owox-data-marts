@@ -1,8 +1,15 @@
+import { useState, useCallback } from 'react';
+import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from '@owox/ui/components/sheet';
 import type { DataStorage } from '../../../shared/model/types/data-storage.ts';
 import { DataStorageForm } from '../DataStorageEditForm';
-import { DialogDescription, DialogTitle } from '@owox/ui/components/dialog';
 import type { DataStorageFormData } from '../../../shared';
-import { Sheet, SheetContent, SheetHeader } from '@owox/ui/components/sheet';
 import { useDataStorage } from '../../../shared/model/hooks/useDataStorage.ts';
 
 interface DataStorageEditSheetProps {
@@ -20,6 +27,27 @@ export function DataStorageConfigSheet({
 }: DataStorageEditSheetProps) {
   const { updateDataStorage } = useDataStorage();
 
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+
+  const handleClose = useCallback(() => {
+    if (isDirty) {
+      setShowUnsavedDialog(true);
+    } else {
+      onClose();
+    }
+  }, [isDirty, onClose]);
+
+  const confirmClose = useCallback(() => {
+    setShowUnsavedDialog(false);
+    setIsDirty(false);
+    onClose();
+  }, [onClose]);
+
+  const handleFormDirtyChange = useCallback((dirty: boolean) => {
+    setIsDirty(dirty);
+  }, []);
+
   const onSave = async (data: DataStorageFormData) => {
     if (dataStorage) {
       const updatedStorage = await updateDataStorage(dataStorage.id, data);
@@ -31,25 +59,38 @@ export function DataStorageConfigSheet({
   };
 
   return (
-    <Sheet open={isOpen} onOpenChange={onClose}>
-      <SheetContent
-        onOpenAutoFocus={e => {
-          e.preventDefault();
+    <>
+      <Sheet
+        open={isOpen}
+        onOpenChange={open => {
+          if (!open) {
+            handleClose();
+          }
         }}
-        className='flex h-full min-w-[480px] flex-col'
       >
-        <SheetHeader>
-          <DialogTitle>Configure Storage Provider</DialogTitle>
-          <DialogDescription>Customize settings for your storage provider</DialogDescription>
-        </SheetHeader>
-        <div className='flex-1 overflow-y-auto p-4'>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Configure Storage Provider</SheetTitle>
+            <SheetDescription>Customize settings for your storage provider</SheetDescription>
+          </SheetHeader>
           <DataStorageForm
             initialData={dataStorage ?? undefined}
             onSubmit={onSave}
-            onCancel={onClose}
+            onCancel={handleClose}
+            onDirtyChange={handleFormDirtyChange}
           />
-        </div>
-      </SheetContent>
-    </Sheet>
+        </SheetContent>
+      </Sheet>
+      <ConfirmationDialog
+        open={showUnsavedDialog}
+        onOpenChange={setShowUnsavedDialog}
+        title='Unsaved Changes'
+        description='You have unsaved changes. Exit without saving?'
+        confirmLabel='Yes, leave now'
+        cancelLabel='No, stay here'
+        onConfirm={confirmClose}
+        variant='destructive'
+      />
+    </>
   );
 }

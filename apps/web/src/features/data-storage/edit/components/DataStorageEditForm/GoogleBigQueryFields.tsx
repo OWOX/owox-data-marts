@@ -1,64 +1,63 @@
-import { useForm, Controller } from 'react-hook-form';
 import { Input } from '@owox/ui/components/input';
 import { DataStorageType, SENSITIVE_KEYS } from '../../../shared';
-import { Separator } from '@owox/ui/components/separator';
-import { Label } from '@owox/ui/components/label';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@owox/ui/components/tooltip';
-import { Info } from 'lucide-react';
 import type { DataStorageFormData } from '../../../shared';
 import { googleBigQueryLocationOptions } from '../../../shared';
 import { Combobox } from '../../../../../shared/components/Combobox/combobox.tsx';
 import { SecureJsonInput } from '../../../../../shared';
+import {
+  FormField,
+  FormItem,
+  FormLabel,
+  FormControl,
+  FormMessage,
+  FormSection,
+  FormDescription,
+} from '@owox/ui/components/form';
+import type { UseFormReturn } from 'react-hook-form';
+import GoogleBigQueryServiceAccountDescription from './FormDescriptions/GoogleBigQueryServiceAccountDescription';
+import GoogleBigQueryProjectIdDescription from './FormDescriptions/GoogleBigQueryProjectIdDescription.tsx';
+import GoogleBigQueryLocationDescription from './FormDescriptions/GoogleBigQueryLocationDescription.tsx';
 
 interface GoogleBigQueryFieldsProps {
-  form: ReturnType<typeof useForm<DataStorageFormData>>;
+  form: UseFormReturn<DataStorageFormData>;
 }
 
 export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
-  const {
-    register,
-    formState: { errors },
-  } = form;
-
   if (form.watch('type') !== DataStorageType.GOOGLE_BIGQUERY) {
     return null;
   }
 
   return (
-    <div className='space-y-4'>
+    <>
       {/* Connection Settings */}
-      <div className='space-y-4'>
-        <h3 className='text-lg font-medium'>Connection Settings</h3>
-        <div className='space-y-4'>
-          <div>
-            <Label htmlFor='project-id' className='block text-sm font-medium text-gray-700'>
-              Project ID<span className='ml-1 text-red-500'>*</span>
-            </Label>
-            <Input
-              id='project-id'
-              type='text'
-              {...register('config.projectId', { required: true })}
-              className='mt-1 block w-full'
-            />
-            {errors.config && 'projectId' in errors.config && (
-              <p className='mt-1 text-sm text-red-600'>{errors.config.projectId?.message}</p>
-            )}
-          </div>
-          <div>
-            <Label htmlFor='location' className='block text-sm font-medium text-gray-700'>
-              Location<span className='ml-1 text-red-500'>*</span>
-            </Label>
-            <Controller
-              name='config.location'
-              control={form.control}
-              defaultValue='US'
-              rules={{ required: true }}
-              render={({ field }) => (
+      <FormSection title='Connection Settings'>
+        <FormField
+          control={form.control}
+          name='config.projectId'
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel tooltip='Enter the ID of your Google Cloud project where BigQuery usage will be billed'>
+                Project ID
+              </FormLabel>
+              <FormControl>
+                <Input {...field} />
+              </FormControl>
+              <FormDescription>
+                <GoogleBigQueryProjectIdDescription />
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name='config.location'
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel tooltip='Choose the same region where your BigQuery data is stored to ensure queries work correctly'>
+                Location
+              </FormLabel>
+              <FormControl>
                 <Combobox
                   options={googleBigQueryLocationOptions}
                   value={field.value}
@@ -67,55 +66,41 @@ export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
                   emptyMessage='No locations found'
                   className='w-full'
                 />
-              )}
-            />
-            {errors.config && 'location' in errors.config && (
-              <p className='mt-1 text-sm text-red-600'>{errors.config.location?.message}</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <Separator />
+              </FormControl>
+              <FormDescription>
+                <GoogleBigQueryLocationDescription />
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </FormSection>
 
       {/* Authentication */}
-      <div className='space-y-4'>
-        <h3 className='text-lg font-medium'>Authentication</h3>
-        <div className='space-y-1'>
-          <Label htmlFor='service-account-key' className='block text-sm font-medium text-gray-700'>
-            Service Account JSON
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Info className='ml-1.5 inline-block h-4 w-4 cursor-help text-gray-500' />
-                </TooltipTrigger>
-                <TooltipContent className='max-w-sm text-sm'>
-                  <p>
-                    A Service Account Key is a JSON credential file that provides authentication to
-                    Google BigQuery.
-                  </p>
-                  <p className='mt-1'>
-                    To get one, go to the Google Cloud Console, navigate to IAM & Admin &gt; Service
-                    Accounts, create or select a service account, and generate a new JSON key.
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </Label>
-          <SecureJsonInput
-            value={form.watch('credentials.serviceAccount')}
-            onChange={value => {
-              form.setValue('credentials.serviceAccount', value);
-            }}
-            keysToMask={SENSITIVE_KEYS}
-          />
-          {errors.credentials && 'serviceAccount' in errors.credentials && (
-            <p className='mt-1 text-sm text-red-600'>
-              {errors.credentials.serviceAccount?.message}
-            </p>
+      <FormSection title='Authentication'>
+        <FormField
+          control={form.control}
+          name='credentials.serviceAccount'
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel tooltip='Paste a JSON key from a service account that has access to the selected storage provider'>
+                Service Account JSON
+              </FormLabel>
+              <FormControl>
+                <SecureJsonInput
+                  value={field.value}
+                  onChange={field.onChange}
+                  keysToMask={SENSITIVE_KEYS}
+                />
+              </FormControl>
+              <FormDescription>
+                <GoogleBigQueryServiceAccountDescription />
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
           )}
-        </div>
-      </div>
-    </div>
+        />
+      </FormSection>
+    </>
   );
 };
