@@ -1,7 +1,6 @@
 import { type ColumnDef } from '@tanstack/react-table';
 import { SortableHeader } from './SortableHeader';
 import { DataDestinationTypeModel } from '../../../shared';
-import { Badge } from '@owox/ui/components/badge';
 import { DataDestinationType } from '../../../shared';
 import { DataDestinationActionsCell } from './DataDestinationActionsCell';
 import { ToggleColumnsHeader } from './ToggleColumnsHeader';
@@ -43,10 +42,10 @@ export const getDataDestinationColumns = ({
       const { displayName, icon: Icon } = DataDestinationTypeModel.getInfo(type);
 
       return (
-        <Badge variant={'secondary'} className='flex items-center gap-2'>
-          <Icon />
+        <div className='text-muted-foreground flex items-center gap-2'>
+          <Icon size={18} />
           {displayName}
-        </Badge>
+        </div>
       );
     },
   },
@@ -63,7 +62,7 @@ export const getDataDestinationColumns = ({
         day: 'numeric',
       }).format(date);
 
-      return <div>{formatted}</div>;
+      return <div className='text-muted-foreground'>{formatted}</div>;
     },
   },
   {

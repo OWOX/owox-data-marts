@@ -30,7 +30,7 @@ export function ViewDefinitionField({ control, storageType }: ViewDefinitionFiel
       name='definition.fullyQualifiedName'
       render={({ field }) => (
         <FormItem className='dm-card-block'>
-          <FormLabel className='text-foreground'>Fully Qualified View Name</FormLabel>
+          <FormLabel>Fully Qualified View Name</FormLabel>
           <FormControl>
             <Input
               placeholder={placeholder}
@@ -39,7 +39,7 @@ export function ViewDefinitionField({ control, storageType }: ViewDefinitionFiel
               className='dm-card-formcontrol'
             />
           </FormControl>
-          <FormDescription className='text-muted-foreground/50'>{helpText}</FormDescription>
+          <FormDescription className='text-muted-foreground/75'>{helpText}</FormDescription>
           <FormMessage />
         </FormItem>
       )}

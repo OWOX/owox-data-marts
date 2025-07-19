@@ -1,6 +1,15 @@
-import { type DataMart, useDataMartForm, dataMartSchema, type DataMartFormData } from '../model';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+import {
+  Form,
+  AppForm,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormControl,
+  FormMessage,
+  FormLayout,
+  FormActions,
+} from '@owox/ui/components/form';
+import { Input } from '@owox/ui/components/input';
 import {
   Select,
   SelectContent,
@@ -9,12 +18,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@owox/ui/components/select';
-import { Input } from '@owox/ui/components/input';
-import { Label } from '@owox/ui/components/label';
-import { Button } from '@owox/ui/components/button';
 import { useEffect } from 'react';
+import { type DataMart, useDataMartForm, dataMartSchema, type DataMartFormData } from '../model';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useDataStorage } from '../../../data-storage/shared/model/hooks/useDataStorage';
 import { DataStorageTypeModel } from '../../../data-storage/shared/types/data-storage-type.model.ts';
+import { Button } from '@owox/ui/components/button';
 
 interface DataMartFormProps {
   initialData?: {
@@ -37,10 +47,8 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
       title: initialData?.title ?? '',
       storageId: '',
     },
+    mode: 'onTouched',
   });
-
-  const { formState } = form;
-  const { errors } = formState;
 
   const onSubmit = async (data: DataMartFormData) => {
     const response = await handleCreate(data);
@@ -50,75 +58,94 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
   };
 
   return (
-    <form
-      onSubmit={e => {
-        void form.handleSubmit(onSubmit)(e);
-      }}
-      className='space-y-4'
-    >
-      {serverError && (
-        <div className='rounded bg-red-100 p-3 text-red-700'>{serverError.message}</div>
-      )}
+    <Form {...form}>
+      <AppForm
+        onSubmit={e => {
+          void form.handleSubmit(onSubmit)(e);
+        }}
+      >
+        <FormLayout variant='light'>
+          {serverError && (
+            <div className='rounded bg-red-100 p-3 text-red-700'>{serverError.message}</div>
+          )}
 
-      <div>
-        <Label htmlFor='title' className='mb-1 block text-sm font-medium'>
-          Title
-        </Label>
-        <Input id='title' {...form.register('title')} className='w-full' disabled={isSubmitting} />
-        {errors.title && <p className='mt-1 text-sm text-red-600'>{errors.title.message}</p>}
-      </div>
+          <FormField
+            control={form.control}
+            name='title'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Title</FormLabel>
+                <FormControl>
+                  <Input id='title' placeholder='Enter title' {...field} disabled={isSubmitting} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-      <div>
-        <Label htmlFor='storageId' className='mb-1 block text-sm font-medium'>
-          Storage
-        </Label>
-        <Select
-          onValueChange={value => {
-            form.setValue('storageId', value, { shouldValidate: true });
-          }}
-          value={form.watch('storageId')}
-          disabled={isSubmitting || loadingStorages}
-        >
-          <SelectTrigger className={'w-full'}>
-            <SelectValue placeholder='Select a storage' />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              {loadingStorages && (
-                <SelectItem value='loading' disabled>
-                  Loading...
-                </SelectItem>
-              )}
-              {!loadingStorages && dataStorages.length === 0 && (
-                <SelectItem value='empty' disabled>
-                  No storages available
-                </SelectItem>
-              )}
-              {!loadingStorages &&
-                dataStorages.map(storage => {
-                  const Icon = DataStorageTypeModel.getInfo(storage.type).icon;
-                  return (
-                    <SelectItem key={storage.id} value={storage.id}>
-                      <div className='flex items-center gap-2'>
-                        <Icon className='h-4 w-4' />
-                        <span>{storage.title}</span>
-                      </div>
-                    </SelectItem>
-                  );
-                })}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-        {errors.storageId && (
-          <p className='mt-1 text-sm text-red-600'>{errors.storageId.message}</p>
-        )}
-      </div>
-
-      <div className='pt-2'>
-        <Button type='submit' disabled={isSubmitting} variant={'default'}>
-          {isSubmitting ? 'Saving...' : 'Create'}
-        </Button>
-      </div>
-    </form>
+          <FormField
+            control={form.control}
+            name='storageId'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Storage</FormLabel>
+                <FormControl>
+                  <Select
+                    onValueChange={value => {
+                      field.onChange(value);
+                    }}
+                    value={field.value}
+                    disabled={isSubmitting || loadingStorages}
+                  >
+                    <SelectTrigger className='w-full'>
+                      <SelectValue placeholder='Select a storage' />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {loadingStorages && (
+                          <SelectItem value='loading' disabled>
+                            Loading...
+                          </SelectItem>
+                        )}
+                        {!loadingStorages && dataStorages.length === 0 && (
+                          <SelectItem value='empty' disabled>
+                            No storages available
+                          </SelectItem>
+                        )}
+                        {!loadingStorages &&
+                          dataStorages.map(storage => {
+                            const Icon = DataStorageTypeModel.getInfo(storage.type).icon;
+                            return (
+                              <SelectItem key={storage.id} value={storage.id}>
+                                <div className='flex items-center gap-2'>
+                                  <Icon size={20} />
+                                  <span>{storage.title}</span>
+                                </div>
+                              </SelectItem>
+                            );
+                          })}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </FormLayout>
+        <FormActions variant='light'>
+          <Button type='submit'>Create Data Mart</Button>
+          <Button
+            variant='outline'
+            type='button'
+            onClick={() => {
+              window.history.back();
+            }}
+          >
+            Go back
+          </Button>
+        </FormActions>
+      </AppForm>
+    </Form>
   );
 }

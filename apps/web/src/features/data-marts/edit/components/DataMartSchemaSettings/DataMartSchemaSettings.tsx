@@ -86,7 +86,7 @@ export function DataMartSchemaSettings() {
           </div>
           <div>
             <Button type='button' variant='outline' onClick={handleActualize}>
-              Actualize schema
+              Refresh schema
             </Button>
           </div>
         </div>

@@ -30,7 +30,7 @@ export function TablePatternDefinitionField({
       name='definition.pattern'
       render={({ field }) => (
         <FormItem className='dm-card-block'>
-          <FormLabel className='text-foreground'>Table Pattern</FormLabel>
+          <FormLabel>Table Pattern</FormLabel>
           <FormControl>
             <Input
               placeholder={placeholder}
@@ -39,7 +39,7 @@ export function TablePatternDefinitionField({
               className='dm-card-formcontrol'
             />
           </FormControl>
-          <FormDescription className='text-muted-foreground/50'>{helpText}</FormDescription>
+          <FormDescription className='text-muted-foreground/75'>{helpText}</FormDescription>
           <FormMessage />
         </FormItem>
       )}

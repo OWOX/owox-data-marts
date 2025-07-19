@@ -8,7 +8,6 @@ import { DataStorageType } from '../../../shared';
 import { DataStorageTypeDialog } from '../../../shared/components/DataStorageTypeDialog.tsx';
 import { DataStorageDetailsDialog } from '../DataStorageDetailsDialog';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
-import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
 
 interface DataStorageListProps {
   initialTypeDialogOpen?: boolean;
@@ -25,7 +24,6 @@ export const DataStorageList = ({
     dataStorages,
     currentDataStorage,
     clearCurrentDataStorage,
-    loading,
     fetchDataStorages,
     getDataStorageById,
     deleteDataStorage,
@@ -64,10 +62,6 @@ export const DataStorageList = ({
       console.error('Failed to create storage:', error);
     }
   };
-
-  if (loading) {
-    return <CardSkeleton />;
-  }
 
   const handleViewDetails = (id: string) => {
     setSelectedStorageId(id);
@@ -136,6 +130,7 @@ export const DataStorageList = ({
       <DataStorageTable
         columns={columns}
         data={tableData}
+        onEdit={handleEdit}
         onOpenTypeDialog={() => {
           setIsTypeDialogOpen(true);
         }}

@@ -5,11 +5,16 @@ import type { DataMartReport } from '../../../shared/model/types/data-mart-repor
 import { useGoogleSheetsReportForm } from '../../hooks/useGoogleSheetsReportForm.ts';
 import {
   Form,
+  AppForm,
   FormControl,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
+  FormLayout,
+  FormActions,
+  FormSection,
+  FormDescription,
 } from '@owox/ui/components/form';
 import {
   Select,
@@ -18,7 +23,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@owox/ui/components/select';
-import { Separator } from '@owox/ui/components/separator';
 import {
   type DataDestination,
   DataDestinationType,
@@ -29,8 +33,7 @@ import { Link, useOutletContext } from 'react-router-dom';
 import type { DataMartContextType } from '../../../../edit/model/context/types.ts';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
-import { AlertCircle, ExternalLink, HelpCircle, Loader2 } from 'lucide-react';
-import { Button } from '@owox/ui/components/button';
+import { AlertCircle, ExternalLink } from 'lucide-react';
 import {
   extractServiceAccountEmail,
   getGoogleSheetTabUrl,
@@ -38,6 +41,8 @@ import {
   ReportFormMode,
 } from '../../../shared';
 import { TimeTriggerAnnouncement } from '../../../../scheduled-triggers';
+import DocumentLinkDescription from './FormDescriptions/DocumentLinkDescription.tsx';
+import { Button } from '@owox/ui/components/button';
 
 interface GoogleSheetsReportEditFormProps {
   initialReport?: DataMartReport;
@@ -64,7 +69,6 @@ export const GoogleSheetsReportEditForm = forwardRef<
     },
     ref
   ) => {
-    // Generate unique IDs for accessibility
     const formId = 'google-sheets-edit-form';
     const titleInputId = 'google-sheets-title-input';
     const documentUrlInputId = 'google-sheets-document-url-input';
@@ -142,21 +146,20 @@ export const GoogleSheetsReportEditForm = forwardRef<
 
     return (
       <Form {...form}>
-        <form id={formId} className='flex flex-1 flex-col overflow-hidden' noValidate ref={ref}>
-          <div className='bg-muted flex-1 overflow-y-auto p-4 dark:bg-transparent'>
-            <div className='flex min-h-full flex-col gap-4'>
+        <AppForm
+          id={formId}
+          ref={ref}
+          noValidate
+          onSubmit={e => void form.handleSubmit(handleFormSubmit)(e)}
+        >
+          <FormLayout>
+            <FormSection title='General'>
               <FormField
                 control={form.control}
                 name='title'
                 render={({ field }) => (
-                  <FormItem
-                    className={
-                      'border-border flex flex-col gap-1.5 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-0 dark:bg-white/4'
-                    }
-                  >
-                    <FormLabel
-                      className={'text-foreground flex items-center gap-1.5 text-sm font-medium'}
-                    >
+                  <FormItem>
+                    <FormLabel tooltip='Add a title that reflects the report`s purpose'>
                       Title
                     </FormLabel>
                     <FormControl>
@@ -166,19 +169,12 @@ export const GoogleSheetsReportEditForm = forwardRef<
                   </FormItem>
                 )}
               />
-
               <FormField
                 control={form.control}
                 name='dataDestinationId'
                 render={({ field }) => (
-                  <FormItem
-                    className={
-                      'border-border flex flex-col gap-1.5 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-0 dark:bg-white/4'
-                    }
-                  >
-                    <FormLabel
-                      className={'text-foreground flex items-center gap-1.5 text-sm font-medium'}
-                    >
+                  <FormItem>
+                    <FormLabel tooltip='Select one of your existing destinations'>
                       Destination
                     </FormLabel>
                     <Select
@@ -282,47 +278,16 @@ export const GoogleSheetsReportEditForm = forwardRef<
                   </FormItem>
                 )}
               />
-
+            </FormSection>
+            <FormSection title='Document'>
               <FormField
                 control={form.control}
                 name='documentUrl'
                 render={({ field }) => (
-                  <FormItem
-                    className={
-                      'border-border flex flex-col gap-1.5 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-0 dark:bg-white/4'
-                    }
-                  >
-                    <FormLabel
-                      className={'text-foreground flex items-center gap-1.5 text-sm font-medium'}
-                    >
-                      <div className='flex items-center gap-2'>
-                        <span>Document Link</span>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              type='button'
-                              className='text-muted-foreground/50 hover:text-foreground transition'
-                              aria-label='Help information about document link'
-                            >
-                              <HelpCircle className='h-3.5 w-3.5' aria-hidden='true' />
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent side='top' align='center' role='tooltip'>
-                            This is a link to the original document in Google Sheets
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
+                  <FormItem>
+                    <FormLabel tooltip='The link must include the Sheet ID to insert data into the correct tab'>
+                      Document Link with Sheet ID (GID)
                     </FormLabel>
-                    <div className='mb-2'>
-                      <ul
-                        className='text-muted-foreground list-decimal space-y-1 pl-4 text-sm'
-                        role='list'
-                      >
-                        <li role='listitem'>Go to your Google Sheet document.</li>
-                        <li role='listitem'>Share it with the service account email.</li>
-                        <li role='listitem'>Paste the document URL below.</li>
-                      </ul>
-                    </div>
                     <FormControl>
                       <div className='flex items-center gap-2'>
                         <Input
@@ -363,41 +328,49 @@ export const GoogleSheetsReportEditForm = forwardRef<
                         </Tooltip>
                       </div>
                     </FormControl>
-
+                    <FormDescription>
+                      <DocumentLinkDescription />
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-
-              <Separator />
+            </FormSection>
+            <FormSection title='Automate Report Runs'>
               <TimeTriggerAnnouncement />
-            </div>
-          </div>
-          <div className='flex flex-col gap-1.5 border-t px-4 py-3'>
+            </FormSection>
+          </FormLayout>
+          <FormActions>
             <Button
               variant='default'
-              type='button'
-              onClick={() => void form.handleSubmit(handleFormSubmit)()}
+              type='submit'
               className='w-full'
               aria-label={
                 mode === ReportFormMode.CREATE ? 'Create new report' : 'Save changes to report'
               }
               disabled={!isDirty || isSubmitting}
             >
-              {isSubmitting && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-              {mode === ReportFormMode.CREATE ? 'Create new report' : 'Save changes to report'}
+              {isSubmitting
+                ? mode === ReportFormMode.CREATE
+                  ? 'Creating...'
+                  : 'Saving...'
+                : mode === ReportFormMode.CREATE
+                  ? 'Create new report'
+                  : 'Save changes to report'}
             </Button>
-            <Button
-              variant='outline'
-              type='button'
-              onClick={onCancel}
-              className='w-full'
-              aria-label='Cancel and close form'
-            >
-              Cancel
-            </Button>
-          </div>
-        </form>
+            {onCancel && (
+              <Button
+                variant='outline'
+                type='button'
+                onClick={onCancel}
+                className='w-full'
+                aria-label='Cancel'
+              >
+                Cancel
+              </Button>
+            )}
+          </FormActions>
+        </AppForm>
       </Form>
     );
   }

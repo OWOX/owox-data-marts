@@ -1,6 +1,8 @@
 import type { DataDestination } from '../../../shared';
 import { DataDestinationForm } from '../DataDestinationEditForm';
 import type { DataDestinationFormData } from '../../../shared';
+import { useState, useCallback } from 'react';
+import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
 import {
   Sheet,
   SheetContent,
@@ -24,6 +26,27 @@ export function DataDestinationConfigSheet({
   onSaveSuccess,
 }: DataDestinationEditSheetProps) {
   const { updateDataDestination, createDataDestination } = useDataDestination();
+
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+
+  const handleClose = useCallback(() => {
+    if (isDirty) {
+      setShowUnsavedDialog(true);
+    } else {
+      onClose();
+    }
+  }, [isDirty, onClose]);
+
+  const confirmClose = useCallback(() => {
+    setShowUnsavedDialog(false);
+    setIsDirty(false);
+    onClose();
+  }, [onClose]);
+
+  const handleFormDirtyChange = useCallback((dirty: boolean) => {
+    setIsDirty(dirty);
+  }, []);
 
   const onSave = async (data: DataDestinationFormData) => {
     if (!dataDestination) {
@@ -51,20 +74,38 @@ export function DataDestinationConfigSheet({
   };
 
   return (
-    <Sheet open={isOpen} onOpenChange={onClose}>
-      <SheetContent className='flex h-full min-w-[480px] flex-col'>
-        <SheetHeader>
-          <SheetTitle>Configure destination</SheetTitle>
-          <SheetDescription>Customize settings for your destination</SheetDescription>
-        </SheetHeader>
-        <div className='flex-1 overflow-y-auto p-4'>
+    <>
+      <Sheet
+        open={isOpen}
+        onOpenChange={open => {
+          if (!open) {
+            handleClose();
+          }
+        }}
+      >
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Configure destination</SheetTitle>
+            <SheetDescription>Customize settings for your destination</SheetDescription>
+          </SheetHeader>
           <DataDestinationForm
             initialData={dataDestination ?? undefined}
             onSubmit={onSave}
-            onCancel={onClose}
+            onCancel={handleClose}
+            onDirtyChange={handleFormDirtyChange}
           />
-        </div>
-      </SheetContent>
-    </Sheet>
+        </SheetContent>
+      </Sheet>
+      <ConfirmationDialog
+        open={showUnsavedDialog}
+        onOpenChange={setShowUnsavedDialog}
+        title='Unsaved Changes'
+        description='You have unsaved changes. Exit without saving?'
+        confirmLabel='Yes, leave now'
+        cancelLabel='No, stay here'
+        onConfirm={confirmClose}
+        variant='destructive'
+      />
+    </>
   );
 }

@@ -1,5 +1,5 @@
 import { CardHeader, CardTitle, CardDescription } from '@owox/ui/components/card';
-import { ChevronDown, CircleHelp } from 'lucide-react';
+import { ChevronDown, Info } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
 import {
   Tooltip,
@@ -60,7 +60,7 @@ export function CollapsibleCardHeader({
             <Tooltip>
               <TooltipTrigger asChild>
                 <div className='pointer-events-none ml-2 flex items-center opacity-0 transition-opacity duration-200 group-hover:pointer-events-auto group-hover:opacity-100'>
-                  <CircleHelp className='text-muted-foreground/50 h-4 w-4' />
+                  <Info className='text-muted-foreground/50 hover:text-muted-foreground size-4 shrink-0 transition-colors' />
                   {/* Visually hidden help text for accessibility */}
                   <span className='sr-only'>{help}</span>
                 </div>

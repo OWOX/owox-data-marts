@@ -1,120 +1,130 @@
-import { useForm } from 'react-hook-form';
 import { Input } from '@owox/ui/components/input';
 import { DataStorageType } from '../../../shared';
-import { Separator } from '@owox/ui/components/separator';
-import { Label } from '@owox/ui/components/label';
 import type { DataStorageFormData } from '../../../shared/types/data-storage.schema.ts';
+import {
+  FormField,
+  FormItem,
+  FormLabel,
+  FormControl,
+  FormMessage,
+  FormSection,
+  FormDescription,
+} from '@owox/ui/components/form';
+import type { UseFormReturn } from 'react-hook-form';
+import AthenaRegionDescription from './FormDescriptions/AthenaRegionDescription.tsx';
+import AthenaDatabaseNameDescription from './FormDescriptions/AthenaDatabaseNameDescription.tsx';
+import AthenaOutputBucketDescription from './FormDescriptions/AthenaOutputBucketDescription.tsx';
+import AthenaAccessKeyIdDescription from './FormDescriptions/AthenaAccessKeyIdDescription.tsx';
+import AthenaSecretAccessKeyDescription from './FormDescriptions/AthenaSecretAccessKeyDescription.tsx';
 
 interface AwsAthenaFieldsProps {
-  form: ReturnType<typeof useForm<DataStorageFormData>>;
+  form: UseFormReturn<DataStorageFormData>;
 }
 
 export const AwsAthenaFields = ({ form }: AwsAthenaFieldsProps) => {
-  const {
-    register,
-    formState: { errors },
-  } = form;
-
   if (form.watch('type') !== DataStorageType.AWS_ATHENA) {
     return null;
   }
 
   return (
     <>
-      <div className='space-y-4'>
-        {/* Connection Settings */}
-        <div className='space-y-4'>
-          <h3 className='text-lg font-medium'>Connection Settings</h3>
-          <div className='space-y-4'>
-            <div>
-              <Label htmlFor='region' className='block text-sm font-medium text-gray-700'>
-                Region<span className='ml-1 text-red-500'>*</span>
-              </Label>
-              <Input
-                id='region'
-                type='text'
-                {...register('config.region')}
-                className='mt-1 block w-full'
-              />
-              {errors.config && 'region' in errors.config && (
-                <p className='mt-1 text-sm text-red-600'>{errors.config.region?.message}</p>
-              )}
-            </div>
-            <div>
-              <Label htmlFor='database-name' className='block text-sm font-medium text-gray-700'>
-                Database Name<span className='ml-1 text-red-500'>*</span>
-              </Label>
-              <Input
-                id='database-name'
-                type='text'
-                {...register('config.databaseName')}
-                className='mt-1 block w-full'
-              />
-              {errors.config && 'databaseName' in errors.config && (
-                <p className='mt-1 text-sm text-red-600'>{errors.config.databaseName?.message}</p>
-              )}
-            </div>
-            <div>
-              <Label htmlFor='output-bucket' className='block text-sm font-medium text-gray-700'>
-                Output Bucket<span className='ml-1 text-red-500'>*</span>
-              </Label>
-              <Input
-                id='output-bucket'
-                type='text'
-                {...register('config.outputBucket')}
-                className='block w-full'
-              />
-              {errors.config && 'outputBucket' in errors.config && (
-                <p className='mt-1 text-sm text-red-600'>{errors.config.outputBucket?.message}</p>
-              )}
-            </div>
-          </div>
-        </div>
+      {/* Connection Settings */}
+      <FormSection title='Connection Settings'>
+        <FormField
+          control={form.control}
+          name='config.region'
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel tooltip='Enter the AWS region where your Athena service is active'>
+                Region
+              </FormLabel>
+              <FormControl>
+                <Input {...field} placeholder='Enter a region' />
+              </FormControl>
+              <FormDescription>
+                <AthenaRegionDescription />
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name='config.databaseName'
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel tooltip='Enter the name of your Athena database where your tables are stored'>
+                Database Name
+              </FormLabel>
+              <FormControl>
+                <Input {...field} placeholder='Enter a database name' />
+              </FormControl>
+              <FormDescription>
+                <AthenaDatabaseNameDescription />
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name='config.outputBucket'
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel tooltip='Specify the S3 bucket where Athena query results will be stored'>
+                Output Bucket
+              </FormLabel>
+              <FormControl>
+                <Input {...field} placeholder='Enter an output bucket' />
+              </FormControl>
+              <FormDescription>
+                <AthenaOutputBucketDescription />
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </FormSection>
 
-        <Separator />
-
-        {/* Authentication */}
-        <div className='space-y-4'>
-          <h3 className='text-lg font-medium'>Authentication</h3>
-          <div className='space-y-4'>
-            <div>
-              <Label htmlFor='access-key-id' className='block text-sm font-medium text-gray-700'>
-                Access Key ID<span className='ml-1 text-red-500'>*</span>
-              </Label>
-              <Input
-                id='access-key-id'
-                type='text'
-                {...register('credentials.accessKeyId')}
-                className='block w-full'
-              />
-              {errors.credentials && 'accessKeyId' in errors.credentials && (
-                <p className='mt-1 text-sm text-red-600'>
-                  {errors.credentials.accessKeyId?.message}
-                </p>
-              )}
-            </div>
-            <div>
-              <Label
-                htmlFor='secret-access-key'
-                className='block text-sm font-medium text-gray-700'
-              >
-                Secret Access Key<span className='ml-1 text-red-500'>*</span>
-              </Label>
-              <Input
-                id='secret-access-key'
-                type='password'
-                {...register('credentials.secretAccessKey')}
-                className='block w-full'
-              />
-              {errors.credentials && 'secretAccessKey' in errors.credentials && (
-                <p className='mt-1 text-sm text-red-600'>
-                  {errors.credentials.secretAccessKey?.message}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Authentication */}
+      <FormSection title='Authentication'>
+        <FormField
+          control={form.control}
+          name='credentials.accessKeyId'
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel tooltip='Your AWS Access Key ID used for authentication'>
+                Access Key ID
+              </FormLabel>
+              <FormControl>
+                <Input {...field} placeholder='Enter an access key id' />
+              </FormControl>
+              <FormDescription>
+                <AthenaAccessKeyIdDescription />
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name='credentials.secretAccessKey'
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel tooltip='Your AWS Secret Access Key used for authentication'>
+                Secret Access Key
+              </FormLabel>
+              <FormControl>
+                <Input {...field} type='password' placeholder='Enter a secret access key' />
+              </FormControl>
+              <FormDescription>
+                <AthenaSecretAccessKeyDescription />
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </FormSection>
     </>
   );
 };

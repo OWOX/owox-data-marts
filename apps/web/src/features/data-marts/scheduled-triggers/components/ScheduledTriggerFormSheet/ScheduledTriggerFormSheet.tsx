@@ -119,11 +119,11 @@ export function ScheduledTriggerFormSheet({
           }
         }}
       >
-        <SheetContent className='flex h-full min-w-[480px] flex-col gap-0'>
-          <SheetHeader className='border-b py-3'>
+        <SheetContent>
+          <SheetHeader>
             <SheetTitle>{isEditMode ? 'Edit' : 'Create'} Scheduled Trigger</SheetTitle>
             <SheetDescription>
-              Configure a scheduled trigger to automatically run reports or connectors.
+              Configure automatic runs for your reports or connectors.
             </SheetDescription>
           </SheetHeader>
           <ScheduledTriggerForm

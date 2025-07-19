@@ -1,7 +1,6 @@
 import { type ColumnDef } from '@tanstack/react-table';
 import { SortableHeader } from './SortableHeader';
 import { DataStorageTypeModel } from '../../../shared/types/data-storage-type.model';
-import { Badge } from '@owox/ui/components/badge';
 import { DataStorageType } from '../../../shared';
 import { DataStorageActionsCell } from './DataStorageActionsCell';
 import { ToggleColumnsHeader } from './ToggleColumnsHeader';
@@ -43,10 +42,10 @@ export const getDataStorageColumns = ({
       const { displayName, icon: Icon } = DataStorageTypeModel.getInfo(type);
 
       return (
-        <Badge variant={'secondary'} className='flex items-center gap-2'>
-          <Icon />
+        <div className='text-muted-foreground flex items-center gap-2'>
+          <Icon size={18} />
           {displayName}
-        </Badge>
+        </div>
       );
     },
   },
@@ -63,7 +62,7 @@ export const getDataStorageColumns = ({
         day: 'numeric',
       }).format(date);
 
-      return <div>{formatted}</div>;
+      return <div className='text-muted-foreground'>{formatted}</div>;
     },
   },
   {
