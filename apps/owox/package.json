@@ -1,7 +1,7 @@
 {
   "name": "owox",
   "description": "OWOX Data Marts CLI: Simple command-line interface to start the OWOX Data Marts application with backend and frontend components.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publishConfig": {
     "access": "public"
   },
@@ -13,7 +13,7 @@
     "@oclif/core": "^4",
     "@oclif/plugin-help": "^6",
     "@oclif/plugin-plugins": "^5",
-    "@owox/backend": "0.3.0",
+    "@owox/backend": "0.4.0",
     "find-process": "^1.4.10"
   },
   "devDependencies": {
@@ -34,7 +34,11 @@
   "engines": {
     "node": ">=22.16.0"
   },
-  "files": ["./bin", "./dist/**/*.js", "./oclif.manifest.json"],
+  "files": [
+    "./bin",
+    "./dist/**/*.js",
+    "./oclif.manifest.json"
+  ],
   "homepage": "https://github.com/OWOX/owox-data-marts",
   "keywords": [
     "data-marts",
@@ -56,7 +60,10 @@
     "bin": "owox",
     "dirname": "owox",
     "commands": "./dist/commands",
-    "plugins": ["@oclif/plugin-help", "@oclif/plugin-plugins"],
+    "plugins": [
+      "@oclif/plugin-help",
+      "@oclif/plugin-plugins"
+    ],
     "topicSeparator": " "
   },
   "repository": "OWOX/owox-data-marts",
