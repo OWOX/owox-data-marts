@@ -28,7 +28,7 @@ All other types of Data Marts query data directly from the **Storage**.
 
 ### Source
 
-**Source** is a service that holds data you want to manipulate—for example, Facebook Ads, Google Analytics, Salesforce, Google Sheets, Snowflake, etc. You can find the available connectors [here](https://docs.owox.com/#data-sources).
+**Source** is a service that holds data you want to manipulate—for example, Facebook Ads, Google Analytics, Salesforce, Google Sheets, Snowflake, etc. You can find [the available connectors here](https://docs.owox.com/#data-sources).
 
 > ☝️ By managing a Data Mart’s **Sources**, a Data Analyst controls the origin of the data.
 
@@ -78,6 +78,7 @@ Different Google Sheets Reports of the same Data Mart may have different schedul
 Automation controls movement on a scheduled basis through **Triggers**.
 
 Triggers initiate two types of runs:
+
 - **Connector Runs** – Import data from a **Source** into **Storage**.  
 - **Report Runs** – Push or pull a **Report's** data (stored in **Storage**) to a **Destination**.
 
