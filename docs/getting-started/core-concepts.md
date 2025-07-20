@@ -7,7 +7,9 @@ This guide will help you unlock the product’s full value and save time during 
 ![Core Concepts](../res/core-concepts.svg)
 
 ---
+
 ## Entities
+
 ### Data Mart
 
 A **Data Mart** is the foundational entity in OWOX Data Marts. It can be defined in various ways, for example:
@@ -23,6 +25,7 @@ All other types of Data Marts query data directly from the **Storage**.
 > ☝️ **Data Marts** empower Data Analysts to control and hand off business-ready data.
 
 ---
+
 ### Source
 
 **Source** is a service that holds data you want to manipulate—for example, Facebook Ads, Google Analytics, Salesforce, Google Sheets, Snowflake, etc. You can find the available connectors [here](https://docs.owox.com/#data-sources).
@@ -30,6 +33,7 @@ All other types of Data Marts query data directly from the **Storage**.
 > ☝️ By managing a Data Mart’s **Sources**, a Data Analyst controls the origin of the data.
 
 ---
+
 ### Storage
 
 **Storage** is a special kind of **Source** refers to your SQL-compatible data warehouse, such as:
@@ -44,6 +48,7 @@ Each project must have at least one **Storage**, as all your data is stored and 
 > ☝️ By specifying a Data Mart’s **Storage**, a Data Analyst ensures data ownership and controls where the data is stored and processed.
 
 ---
+
 ### Destination
 
 A **Destination** is an interface or application used by business users to access the data. Supported destinations include:
@@ -60,12 +65,14 @@ Each **Data Mart** can be linked to multiple **Destinations**.
 > ☝️ **Destinations** allow Data Analysts to control and monitor which services business users consume data in.
 
 ---
+
 ### Report
 
 A *Report* defines a specific sheet within a Google Sheets document where the Data Mart’s data is exported.
 Different Google Sheets Reports of the same Data Mart may have different scheduled triggers.
 
 ---
+
 ### Trigger
 
 Automation controls movement on a scheduled basis through **Triggers**.
