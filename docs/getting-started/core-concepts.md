@@ -3,7 +3,9 @@
 **OWOX Data Marts** is a solution developed by the OWOX team, drawing on over 20 years of experience in data analytics and business consulting. Its primary goal is to help organizations embrace self-service analytics by providing both control for data analysts and freedom for business users.
 
 This guide will help you unlock the product’s full value and save time during implementation.
+
 ![Core Concepts](../res/core-concepts.svg)
+
 ---
 ## Entities
 ### Data Mart
