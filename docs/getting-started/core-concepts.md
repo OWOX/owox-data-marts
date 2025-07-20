@@ -8,7 +8,9 @@ This guide will help you unlock the product’s full value and save time during 
 ## Entities
 ### Data Mart
 
-A **Data Mart** is the foundational entity in OWOX Data Marts. It can be defined in various ways, for example:
+A **Data Mart** is the foundational entity in OWOX Data Marts. A Data Mart empowers Data Analysts to manage data accessible to business users.
+
+It can be defined in various ways, for example:
 
 - With a **SQL query**
 - By referencing an existing **table**
@@ -17,8 +19,6 @@ A **Data Mart** is the foundational entity in OWOX Data Marts. It can be defined
 
 **Connector-defined** Data Marts import data from external **Sources** (e.g., Facebook Ads, Google Sheets) into a **Storage**.
 All other types of Data Marts query data directly from the **Storage**.
-
-A Data Mart empowers Data Analysts to manage data accessible to business users.
 
 ---
 ### Storage
