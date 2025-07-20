@@ -15,12 +15,10 @@ A **Data Mart** is the foundational entity in OWOX Data Marts. It can be defined
 - Using a community **connector**
 - etc
 
-
 **Connector-defined** Data Marts import data from external **Sources** (e.g., Facebook Ads, Google Sheets) into a **Storage**.
 All other types of Data Marts query data directly from the **Storage**.
 
 ---
-
 ### Storage
 
 **Storage** refers to your SQL-compatible data warehouse, such as:
@@ -34,7 +32,9 @@ All your data is stored and processed in your **Storage**.
 You can configure multiple storages, but each **Data Mart** must be linked to exactly one **Storage**.
 
 ---
+### Source
 
+---
 ### Destination
 
 A **Destination** is an interface or application used by business users to access the data. Supported destinations include:
@@ -49,7 +49,6 @@ Each **Data Mart** can be linked to multiple **Destinations**.
 - Google Sheets uses **push mode** — data is exported from the **Data Mart** into a **Report** in Google Sheets via manual or scheduled runs.
 
 ---
-
 ### Trigger
 
 Automation controls data movement on a scheduled basis through **Triggers**.
@@ -59,5 +58,4 @@ Triggers manage two types of runs:
 - **Report Runs** – Push or pull a **Data Mart's** data (stored in **Storage**) to a **Destination**.
 
 ---
-
 ## Use Cases
