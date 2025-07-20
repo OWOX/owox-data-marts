@@ -8,7 +8,7 @@ This guide will help you unlock the product’s full value and save time during 
 ## Entities
 ### Data Mart
 
-A **Data Mart** is the foundational entity in OWOX Data Marts. A Data Mart empowers Data Analysts to manage data accessible to business users.
+A **Data Mart** is the foundational entity in OWOX Data Marts. A **Data Mart** empowers Data Analysts to control data accessible to business users.
 
 It can be defined in various ways, for example:
 
