@@ -18,6 +18,8 @@ A **Data Mart** is the foundational entity in OWOX Data Marts. It can be defined
 **Connector-defined** Data Marts import data from external **Sources** (e.g., Facebook Ads, Google Sheets) into a **Storage**.
 All other types of Data Marts query data directly from the **Storage**.
 
+A Data Mart empowers Data Analysts to control which data is accessible to business users.
+
 ---
 ### Storage
 
@@ -28,8 +30,7 @@ All other types of Data Marts query data directly from the **Storage**.
 - Snowflake
 - etc
 
-All your data is stored and processed in your **Storage**.  
-You can configure multiple storages, but each **Data Mart** must be linked to exactly one **Storage**.
+All your data is stored and processed in your **Storage**. You can configure multiple storages, but each **Data Mart** must be linked to exactly one **Storage**.
 
 ---
 ### Source
