@@ -51,20 +51,22 @@ export function TableToolbar({
       <div className='dm-card-toolbar-right'>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              variant='outline'
-              className='dm-card-toolbar-btn-primary'
-              onClick={onAddReport}
-              aria-label='Add new Google Sheets report'
-              disabled={dataMartStatus?.code === DataMartStatus.DRAFT}
-            >
-              <Plus className='h-4 w-4' aria-hidden='true' />
-              Add report
-            </Button>
+            <span>
+              <Button
+                variant='outline'
+                className='dm-card-toolbar-btn-primary'
+                onClick={onAddReport}
+                aria-label='Add new Google Sheets report'
+                disabled={dataMartStatus?.code === DataMartStatus.DRAFT}
+              >
+                <Plus className='h-4 w-4' aria-hidden='true' />
+                Add report
+              </Button>
+            </span>
           </TooltipTrigger>
           {dataMartStatus?.code === DataMartStatus.DRAFT && (
             <TooltipContent>
-              <p>Reports can only be created for published Data Marts</p>
+              <p>To create a report, publish the Data Mart first</p>
             </TooltipContent>
           )}
         </Tooltip>
