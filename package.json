@@ -81,6 +81,6 @@
     "typescript-eslint": "^8.30.1"
   },
   "overrides": {
-    "multer": "2.0.2"
+    "@eslint/plugin-kit": "0.3.3"
   }
 }

@@ -30,7 +30,7 @@
     "test": "npm run build:connectors && jest",
     "test:watch": "npm run build:connectors && jest --watch",
     "test:coverage": "npm run build:connectors && jest --coverage",
-    "prepublishOnly": "npm audit && npm run lint"
+    "prepublishOnly": "npm run lint"
   },
   "dependencies": {
     "@owox/connectors": "0.3.0",

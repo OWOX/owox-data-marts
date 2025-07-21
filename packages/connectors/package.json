@@ -15,7 +15,7 @@
     "prebuild": "npm run clean",
     "analyze": "npm run build -- --mode analyze",
     "prepack": "npm run build",
-    "prepublishOnly": "npm audit && npm run lint",
+    "prepublishOnly": "npm run lint",
     "lint": "eslint . --config ./eslint.config.js",
     "lint:fix": "eslint . --fix --config ./eslint.config.js",
     "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",

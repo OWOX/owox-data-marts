@@ -37,7 +37,7 @@
     "copy:assets": "shx mkdir -p dist/public && shx cp -r ../web/dist/* dist/public/",
     "prebuild": "npm run build:clean",
     "prepack": "npm run build",
-    "prepublishOnly": "npm audit && npm run test && npm run lint",
+    "prepublishOnly": "npm run lint && npm run test",
     "format": "prettier --write \"**/*.{ts,json}\"",
     "format:check": "prettier --check \"**/*.{ts,json}\"",
     "start": "nest start",

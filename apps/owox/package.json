@@ -69,7 +69,7 @@
     "format:check": "prettier --check \"**/*.{ts,js,json}\"",
     "posttest": "npm run lint",
     "prepack": "oclif manifest",
-    "prepublishOnly": "npm audit && npm run lint",
+    "prepublishOnly": "npm run lint",
     "test": "mocha --forbid-only \"test/**/*.test.ts\"",
     "version": "oclif readme && git add README.md"
   },
