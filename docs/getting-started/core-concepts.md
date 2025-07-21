@@ -47,7 +47,6 @@ All other types of Data Marts query data directly from the **Storage**.
 Each project must have at least one **Storage**, which stores and processes all your data.
 You can configure multiple **Storages**, but each **Data Mart** must be linked to exactly one.
 
-
 > ☝️ By specifying a Data Mart’s **Storage**, a Data Analyst ensures data ownership and controls where the data is stored and processed.
 
 ---
@@ -87,5 +86,3 @@ Different Google Sheets Reports of the same Data Mart may have different schedul
 
 - **Connector Run** – Import data from a **Source** into **Storage**.  
 - **Report Runs** – Push or pull data (stored in **Storage**) to a **Destination**.
-
-
