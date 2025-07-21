@@ -2,7 +2,7 @@
 
 Learn how to create and schedule a token-based integration with the GitHub API using Google Sheets, Apps Script, and the OWOX Data Marts framework — No need for Visual Studio Code, Git, or installing anything locally.
 
-This tutorial is based on our [video walkthrough](https://owox.wistia.com/medias/ofqiscoxdc) and complements the [Developer Guide for Custom Data Source Integrations](CONTRIBUTING.md).
+This tutorial is based on our [video walkthrough](https://owox.wistia.com/medias/ofqiscoxdc) and complements the [Developer Guide for Custom Data Source Integrations](./CONTRIBUTING.md).
 It's designed for data analysts who want to collect GitHub data directly in Sheets.
 
 🎥 **Prefer video?** Watch the full tutorial here:
@@ -111,7 +111,7 @@ That's easy for something like GitHub, where 'date' can act like a key.
 
 In other use cases, you may need a **composite key**.
 
-We have the **[Facebook Ads Connector](/src/Sources/FacebookMarketing/README.md)** connector where we used 3 fields together to define a unique record:
+We have the **[Facebook Ads Connector](./src/Sources/FacebookMarketing/README.md)** connector where we used 3 fields together to define a unique record:
 
 - `ad_id`
 - `date_start`
