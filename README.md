@@ -1,30 +1,71 @@
 # OWOX Data Marts
 
-## 🏷 Free, Open-Source Connectors for Data Analysts
+## 🏷 Open-Source Self-Service Analytics Platform
 
-Collect any marketing, financial, or CRM data into **AWS Athena**, **Google BigQuery**, or **Google Sheets** — for free.
-No vendors. No lock-in. No permissions sharing with 3-rd parties. Just JavaScript + full control for you.
+Power self-service analytics from your infrastructure – with reusable Data Marts, semantic layer, and zero vendor lock-in for what you do. Forever free & fully yours.
 
-[🌐 Website](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) | [💬 Join Community](https://github.com/OWOX/owox-data-marts/discussions) | [🆘 Create an Issue](https://github.com/OWOX/owox-data-marts/issues)
-![JavaScript Open-Source Connectors](packages/connectors/res/main-cover.png)
+[📘 Quick Start Guide](./quick-start.md) | [🌐 Website](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) |  [💬 Community](https://github.com/OWOX/owox-data-marts/discussions) | [🆘 Create an Issue](https://github.com/OWOX/owox-data-marts/issues) 
+
+![OWOX Data Marts - Open-Source Self-Service Analytics Platform](https://i.imgur.com/XVKA8mI.png) 
 
 ## ✨ Why We Built This
 
-We believe every **data analyst should have the power to automate their data collection & reporting** — without begging for engineering help, paying for expensive SaaS tools, or exposing credentials to vendors.
-We want to empower **every business to become data owners** by importing their data into Spreadsheets or data warehouses.
+Every data team deserves the power to automate analytics processes while keeping full control over them – **without relying on engineers**, **without exposing credentials**, and **without buying another SaaS platform**.
 
-OWOX Data Marts is a growing library of JavaScript-based **connectors** that:
+The **OWOX BI Community Edition** is an open-source platform for building, storing, managing & sharing **Data Marts** and enabling **controlled self-service reporting** – with all logic defined and deployed on your terms.
 
-- Pull data from **any APIs** like Facebook, TikTok, LinkedIn, etc.
-- Run inside **YOUR** Google Sheet (via Apps Script) or infrastructure (via Node.js)
-- Require **no external platforms** or credentials sharing
-- Doesn't require **ANY data engineering resources**
-- Are 100% open-source and **customizable**
-- **Free forever**: your connector - your control
+Whether you're a data analyst at a startup, a team lead at an agency, or the head of BI at an enterprise – this repo gives you full control over the reporting layer.
 
-Whether you're an analyst at an agency, a startup, or in a huge enterprise, this project gives you **full control over your data collection connectors**.
+## 🚀 What You Can Do with OWOX Data Marts
+
+### 📘 Create a Data Mart Library 
+
+Bring together data from your warehouse (BigQuery, Snowflake, etc.), APIs, or spreadsheets – and turn it into fast, reusable artifacts that you can manage & share:
+
+- Connectors to any marketing, financial, or CRM data that you can collect into **AWS Athena** or **Google BigQuery** (more supported DWHs are being developed as you read this)
+- Custom SQL
+- Tables & views
+- Table patterns (eg. events_2025*)
+
+### 📤 Deliver Trusted Data Anywhere
+
+Connect your Data Marts to Google Sheets, Looker Studio, or Excel – empowering business teams with reports they need to make decisions.
+
+### 🧾 Define a Semantic Layer
+
+Document KPIs and metrics once, and keep every dashboard, pivot table, and report in sync with the same numbers & logic behind calculations – no matter the tool.
+
+### 📅 Automate Everything
+
+Use the advanced scheduler to refresh both Data Marts and exports at any time, fully automated and managed from the single place
+
+## Key Capabilities
+
+| Feature                         | Available |
+|----------------------------------|-------------------------------|
+| [Data Connectors](#data-sources) (No limits on #)  | ✅ |
+| [Data Storages](#data-storages) (BigQuery & Athena)  | ✅ |
+| Spreadsheet & BI tool integrations  | ✅ |
+| Data Mart Management (Unlimited)  | ✅ |
+| Orchestration (Unlimited refreshes)  | ✅ |
+| Runs in your infra (GCP, AWS) | ✅ |
+| Semantic Layer for business logic  | ✅ |
+| Full version control for SQL Data Marts  | ✅ |
+| Data access control  | 🔒 Enterprise Only |
+| AI Assistant (Conversational UI) | 🔒 Enterprise Only |
+| Audit logs & more  | 🔒 Enterprise Only |
+
+**[Install locally on mac / pc now](./quick-start.md)**
 
 ## 🔌 Available Connectors
+
+**OWOX Data Marts** includes growing library of JavaScript **connectors** that:
+
+- Pull data from **any APIs** like Facebook, TikTok, LinkedIn, etc.
+- Require **no external platforms** or credentials sharing
+- Don't require **ANY data engineering resources**
+- Free, open-source and **customizable**
+- Give full control over the logic
 
 ### Data Sources
 
@@ -57,24 +98,24 @@ If you find an integration missing, you can share your use case and request it i
 
 ### Community Edition (Node.js)
 
-For detailed installation instructions, see our [Quick Start 🚀 (no-code setup)](docs/getting-started/quick-start.md).
+- Use this [🚀 quick start no-code setup guide](docs/getting-started/quick-start.md)
+- Deploy on GCP, AWS Lambda, or any infrastructure of your choice
 
-### Community Apps Script Edition
+### Apps Script Edition (Google Sheets)
 
-- 🎯 Pick your platform (e.g. Facebook Ads) from [existing integrations](#-available-connectors)
-- 🧾 Make a copy of the Template from the [connectors table](#-available-connectors)
+Alternatively, you can run any of [our connectors](#data-sources) using Google Sheet templates we've developed for [OWOX Data Marts Apps Script Edition](./appsscript-edition.md)
+
+- 🎯 Pick your platform (e.g. Facebook Ads) from [existing integrations](#data-sources)
+- 🧾 Make a copy of the Template from the [connectors table](#data-sources)
 - 🔐 Add your API credentials directly to the sheet — **they stay private**
 - 🚀 Run the Apps Script to pull your data
 - 📅 Schedule it (optional) for daily/weekly refreshes
 
 #### 🎥 Watch the Webinar - *Own Your Data*
 
-[![Own Your Data — Webinar Thumbnail](https://img.youtube.com/vi/nQYfHX-IjY8/maxresdefault.jpg)](https://www.youtube.com/live/nQYfHX-IjY8?t=66s)
+[**Own Your Data: How Data Analysts Can Connect Any Data**](https://www.youtube.com/live/nQYfHX-IjY8?t=66s)
 
-**Own Your Data: How Data Analysts Can Connect Any Data**  
 Learn how to collect and automate marketing, financial, and any other data into Google Sheets or BigQuery — with **zero engineering help** and **no SaaS subscriptions**.
-
-▶️ [**Watch the Replay on YouTube**](https://www.youtube.com/live/nQYfHX-IjY8?t=66s)
 
 What you'll learn:
 
@@ -87,16 +128,22 @@ What you'll learn:
 🛠️ **Includes**: Free templates & walkthroughs  
 🎙️ **Hosted by**: [Ievgen Krasovytskyi](https://www.linkedin.com/in/ievgenkrasovytskyi/)
 
+▶️ [**Watch the Replay on YouTube**](https://www.youtube.com/live/nQYfHX-IjY8?t=66s)
+
 ## 🧑‍💻 Contribute or Build Your Own
 
 Want to build a connector?
+
 We'd love your help.
-**To contribute to existing integrations or create a new one**:
 
-- 📘 Read the [Contributor guide](packages/connectors/CONTRIBUTING.md)
-- 📌 Check open [connector requests](https://github.com/OWOX/owox-data-marts/issues)
+**To contribute to existing integrations or create a new one:**
 
-All you need to get started is basic knowledge of Apps Script and a GitHub login.
+- 📘 Read the [contributor guide](packages/connectors/CONTRIBUTING.md)
+- 🚀 Check [this tutorial](packages/connectors/TUTORIAL.md) of how we built a GitHub Connector in 25 minutes
+- 📌 Check open [requests](https://github.com/OWOX/owox-data-marts/issues)
+
+All you need to get started is the desire to build a new connector. 
+
 No software installation is required on your computer.
 
 Whether you're adding a new API, tweaking one, or improving docs, we'll support and **spotlight you**.
