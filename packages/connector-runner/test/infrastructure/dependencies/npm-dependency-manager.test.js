@@ -57,9 +57,12 @@ describe('NpmDependencyManager', () => {
 
     await expect(dependencyManager.installDependencies(mockWorkDir)).resolves.not.toThrow();
 
+    const isWindows = process.platform === 'win32';
     expect(spawn).toHaveBeenCalledWith('npm', ['install'], {
       cwd: mockWorkDir,
       stdio: 'inherit',
+      env: process.env,
+      shell: isWindows,
     });
   });
 
