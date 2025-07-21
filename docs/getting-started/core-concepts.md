@@ -80,6 +80,6 @@ Automation controls movement on a scheduled basis through **Triggers**.
 Triggers initiate two types of runs:
 
 - **Connector Runs** – Import data from a **Source** into **Storage**.  
-- **Report Runs** – Push or pull a **Report's** data (stored in **Storage**) to a **Destination**.
+- **Report Runs** – Push **Report's** data (stored in **Storage**) to a **Destination**.
 
 > ☝️ **Triggers** allow Data Analysts to control data freshness and save time.
