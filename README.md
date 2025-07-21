@@ -4,9 +4,9 @@
 
 Power self-service analytics from your infrastructure – with reusable Data Marts, semantic layer, and zero vendor lock-in for what you do. Forever free & fully yours.
 
-[📘 Quick Start Guide](./quick-start.md) | [🌐 Website](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) |  [💬 Community](https://github.com/OWOX/owox-data-marts/discussions) | [🆘 Create an Issue](https://github.com/OWOX/owox-data-marts/issues) 
+[📘 Quick Start Guide](./quick-start.md) | [🌐 Website](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) |  [💬 Community](https://github.com/OWOX/owox-data-marts/discussions) | [🆘 Create an Issue](https://github.com/OWOX/owox-data-marts/issues)
 
-![OWOX Data Marts - Open-Source Self-Service Analytics Platform](https://i.imgur.com/XVKA8mI.png) 
+![OWOX Data Marts - Open-Source Self-Service Analytics Platform](https://i.imgur.com/XVKA8mI.png)
 
 ## ✨ Why We Built This
 
@@ -18,7 +18,7 @@ Whether you're a data analyst at a startup, a team lead at an agency, or the hea
 
 ## 🚀 What You Can Do with OWOX Data Marts
 
-### 📘 Create a Data Mart Library 
+### 📘 Create a Data Mart Library
 
 Bring together data from your warehouse (BigQuery, Snowflake, etc.), APIs, or spreadsheets – and turn it into fast, reusable artifacts that you can manage & share:
 
@@ -142,7 +142,7 @@ We'd love your help.
 - 🚀 Check [this tutorial](packages/connectors/TUTORIAL.md) of how we built a GitHub Connector in 25 minutes
 - 📌 Check open [requests](https://github.com/OWOX/owox-data-marts/issues)
 
-All you need to get started is the desire to build a new connector. 
+All you need to get started is the desire to build a new connector.
 
 No software installation is required on your computer.
 
