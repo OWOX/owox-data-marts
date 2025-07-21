@@ -55,7 +55,7 @@ Use the advanced scheduler to refresh both Data Marts and exports at any time, f
 | AI Assistant (Conversational UI) | 🔒 Enterprise Only |
 | Audit logs & more  | 🔒 Enterprise Only |
 
-**[Install locally on mac / pc now](./quick-start.md)**
+**[Install locally on mac / pc now](docs/getting-started/quick-start.md)**
 
 ## 🔌 Available Connectors
 
