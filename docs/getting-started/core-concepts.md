@@ -36,14 +36,17 @@ All other types of Data Marts query data directly from the **Storage**.
 
 ### Storage
 
-**Storage** is a special kind of **Source** refers to your SQL-compatible data warehouse, such as:
+**Storage** is your project’s data warehouse (DWH) — a SQL-compatible system where all your data lives, such as:
 
 - Google BigQuery
 - AWS Athena
+- Databricks
 - Snowflake
 - etc
 
-Each project must have at least one **Storage**, as all your data is stored and processed in your **Storage**. You can configure multiple **Storages** in your project, but each **Data Mart** must be linked to exactly one **Storage**.
+Each project must have at least one **Storage**, which stores and processes all your data.
+You can configure multiple **Storages**, but each **Data Mart** must be linked to exactly one.
+
 
 > ☝️ By specifying a Data Mart’s **Storage**, a Data Analyst ensures data ownership and controls where the data is stored and processed.
 
