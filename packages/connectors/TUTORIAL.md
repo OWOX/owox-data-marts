@@ -11,12 +11,12 @@ It's designed for data analysts who want to collect GitHub data directly in Shee
 
 We’ll cover:
 
-- Project requirements  
-- API access tokens 
-- Secure token storage  
-- Apps Script Template configuration  
-- Unique keys   
-- Connector Scheduling 
+- Project requirements
+- API access tokens
+- Secure token storage
+- Apps Script Template configuration
+- Unique keys
+- Connector Scheduling
 
 🧠 If you're looking to contribute a new data source to the official repo, please read our [Contributor’s Guide](CONTRIBUTING.md) first.
 
@@ -100,6 +100,7 @@ The logic:
 - If the script runs again the same day → update the existing row if that date existings, **don’t add a new one**
 
 ### Example:
+
 Let’s say the connector runs five times on June 2nd. 
 
 We want to have **one row for June 2**, not **five duplicate rows**.
