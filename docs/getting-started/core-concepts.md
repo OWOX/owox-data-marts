@@ -78,11 +78,14 @@ Different Google Sheets Reports of the same Data Mart may have different schedul
 
 ### Trigger
 
-Automation controls movement on a scheduled basis through **Triggers**.
-
-Triggers initiate two types of runs:
-
-- **Connector Runs** – Import data from a **Source** into **Storage**.  
-- **Report Runs** – Push **Report's** data (stored in **Storage**) to a **Destination**.
-
+**Triggers** automate data movement on a schedule.
 > ☝️ **Triggers** allow Data Analysts to control data freshness and save time.
+
+---
+
+### Run Types
+
+- **Connector Run** – Import data from a **Source** into **Storage**.  
+- **Report Runs** – Push or pull data (stored in **Storage**) to a **Destination**.
+
+
