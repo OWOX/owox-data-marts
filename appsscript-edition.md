@@ -114,6 +114,6 @@ OWOX Data Marts is free for internal or client use, not for resale in a competin
 
 - **Apps Script Connectors** (`packages/connectors`) are distributed under the [MIT License](licenses/MIT.md)
 
----
+-----------
 
 ⭐ **Like this project?** [Star the repo here »](https://github.com/OWOX/owox-data-marts)
