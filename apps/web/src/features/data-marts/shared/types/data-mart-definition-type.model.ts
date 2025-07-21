@@ -1,5 +1,5 @@
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
-import { Code, Table, Grip, Asterisk, Server } from 'lucide-react';
+import { Code, Table, Grip, Asterisk, Plug } from 'lucide-react';
 
 export interface DataMartDefinitionTypeInfo {
   type: DataMartDefinitionType | null;
@@ -32,7 +32,7 @@ export const DataMartDefinitionTypeModel = {
     [DataMartDefinitionType.CONNECTOR]: {
       type: DataMartDefinitionType.CONNECTOR,
       displayName: 'Connector',
-      icon: Server,
+      icon: Plug,
     },
   },
   getInfo(type: DataMartDefinitionType | null): DataMartDefinitionTypeInfo {
