@@ -1,6 +1,6 @@
 import { Button } from '@owox/ui/components/button';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
-import { ExternalLink, Info, Trash2 } from 'lucide-react';
+import { Info, Trash2 } from 'lucide-react';
 import { DataMartConnectorView } from '../../DataMartConnectorView';
 import { DataStorageType } from '../../../../data-storage';
 import type { ConnectorConfig, ConnectorDefinitionConfig } from '../../../../data-marts/edit/model';
