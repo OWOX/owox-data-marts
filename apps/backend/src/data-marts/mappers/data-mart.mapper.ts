@@ -34,6 +34,7 @@ import { DataMartRunDto } from '../dto/domain/data-mart-run.dto';
 import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-response-api.dto';
 import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
+import { CancelDataMartRunCommand } from '../dto/domain/cancel-data-mart-run.command';
 
 @Injectable()
 export class DataMartMapper {
@@ -153,6 +154,14 @@ export class DataMartMapper {
 
   toRunCommand(id: string, context: AuthorizationContext): RunDataMartCommand {
     return new RunDataMartCommand(id, context.projectId, context.userId);
+  }
+
+  toCancelRunCommand(
+    id: string,
+    runId: string,
+    context: AuthorizationContext
+  ): CancelDataMartRunCommand {
+    return new CancelDataMartRunCommand(id, runId, context.projectId, context.userId);
   }
 
   toDefinitionValidateCommand(

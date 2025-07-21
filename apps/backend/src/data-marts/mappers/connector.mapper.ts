@@ -13,7 +13,8 @@ export class ConnectorMapper {
       name: definition.name,
       title: definition.title,
       description: definition.description,
-      icon: definition.icon,
+      logo: definition.logo,
+      docUrl: definition.docUrl,
     };
   }
 

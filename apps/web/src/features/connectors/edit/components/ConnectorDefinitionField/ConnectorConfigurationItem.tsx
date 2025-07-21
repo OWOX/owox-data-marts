@@ -1,6 +1,6 @@
 import { Button } from '@owox/ui/components/button';
-import { Trash2 } from 'lucide-react';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
+import { ExternalLink, Info, Trash2 } from 'lucide-react';
 import { DataMartConnectorView } from '../../DataMartConnectorView';
 import { DataStorageType } from '../../../../data-storage';
 import type { ConnectorConfig, ConnectorDefinitionConfig } from '../../../../data-marts/edit/model';
@@ -10,6 +10,9 @@ import { DataStorageTypeModel } from '../../../../data-storage/shared/types/data
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { DataMartStatus } from '../../../../data-marts/shared/enums';
 import type { DataStorage } from '../../../../data-storage/shared/model/types/data-storage';
+import { useConnector } from '../../../shared/model/hooks/useConnector';
+import { useEffect } from 'react';
+import { RawBase64Icon } from '../../../../../shared/icons';
 
 interface ConnectorConfigurationItemProps {
   configIndex: number;
@@ -31,6 +34,19 @@ export function ConnectorConfigurationItem({
   dataStorage,
 }: ConnectorConfigurationItemProps) {
   const dataStorageInfo = DataStorageTypeModel.getInfo(dataStorage.type);
+  const { connectors, fetchAvailableConnectors } = useConnector();
+
+  useEffect(() => {
+    void fetchAvailableConnectors();
+  }, [fetchAvailableConnectors]);
+
+  const getConnectorIcon = (connectorName: string) => {
+    const connector = connectors.find(c => c.name === connectorName);
+    if (connector?.logoBase64) {
+      return () => <RawBase64Icon base64={connector.logoBase64} size={24} />;
+    }
+    return undefined;
+  };
 
   const getConnectorSubtitle = () => {
     const node = connectorDef.connector.source.node || 'No node selected';
@@ -41,15 +57,6 @@ export function ConnectorConfigurationItem({
           <span className='text-muted-foreground font-medium'>{node}</span>
         </span>
       </div>
-    );
-  };
-
-  const formatParam = (label: string, value: string) => {
-    return (
-      <span>
-        <span className='text-muted-foreground/75'>{label}:</span>{' '}
-        <span className='text-muted-foreground font-medium'>{value}</span>
-      </span>
     );
   };
 
@@ -73,29 +80,52 @@ export function ConnectorConfigurationItem({
     switch (dataStorage.type) {
       case DataStorageType.GOOGLE_BIGQUERY: {
         const projectId = dataStorage.config.projectId;
-        const location = dataStorage.config.location;
-        const bigQueryConsoleLink = `https://console.cloud.google.com/bigquery?project=${projectId}`;
+        const fullyQualifiedName = connectorDef.connector.storage.fullyQualifiedName;
+        const dataset = fullyQualifiedName.split('.')[0];
+        const table = fullyQualifiedName.split('.')[1];
+        const datasetLink = `https://console.cloud.google.com/bigquery?project=${projectId}&ws=!1m4!1m3!3m2!1s${projectId}!2s${dataset}`;
+        const tableLink = `https://console.cloud.google.com/bigquery?project=${projectId}&ws=!1m4!1m3!3m2!1s${projectId}!2s${dataset}!3s${table}`;
         return (
-          <div className='flex flex-wrap gap-2'>
-            {formatLinkParam('Project ID', projectId, bigQueryConsoleLink)}
+          <div className='flex flex-wrap items-center gap-2'>
+            {formatLinkParam('Dataset', dataset, datasetLink)}
             <span className='text-muted-foreground'>•</span>
-            {formatParam('Location', location)}
+            {formatLinkParam('Table', table, tableLink)}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className='h-4 w-4' />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>
+                  The dataset and table are created (if not exist) after the first run of the data
+                  mart.
+                </p>
+              </TooltipContent>
+            </Tooltip>
           </div>
         );
       }
       case DataStorageType.AWS_ATHENA: {
         const region = dataStorage.config.region;
         const databaseName = dataStorage.config.databaseName;
-        const outputBucket = dataStorage.config.outputBucket;
+        const fullyQualifiedName = connectorDef.connector.storage.fullyQualifiedName;
+        const table = fullyQualifiedName.split('.')[1];
         const athenaConsoleLink = `https://console.aws.amazon.com/athena/home?region=${region}#/query-editor`;
-        const s3ConsoleLink = `https://s3.console.aws.amazon.com/s3/buckets/${outputBucket}?region=${region}`;
         return (
-          <div className='flex flex-wrap gap-2'>
-            {formatParam('Region', region)}
-            <span className='text-muted-foreground'>•</span>
+          <div className='flex flex-wrap items-center gap-2'>
             {formatLinkParam('Database', databaseName, athenaConsoleLink)}
             <span className='text-muted-foreground'>•</span>
-            {formatLinkParam('Bucket', outputBucket, s3ConsoleLink)}
+            {formatLinkParam('Table', table, athenaConsoleLink)}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className='h-4 w-4' />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>
+                  The database and table are created (if not exist) after the first run of the data
+                  mart.
+                </p>
+              </TooltipContent>
+            </Tooltip>
           </div>
         );
       }
@@ -129,12 +159,10 @@ export function ConnectorConfigurationItem({
             }}
           >
             <ListItemCard
+              icon={getConnectorIcon(connectorDef.connector.source.name)}
               title={connectorDef.connector.source.name || 'Connector'}
               subtitle={getConnectorSubtitle()}
               className='min-h-[80px] cursor-pointer transition-colors'
-              onClick={() => {
-                <></>;
-              }}
             />
           </DataMartConnectorView>
 

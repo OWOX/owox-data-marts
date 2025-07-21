@@ -20,6 +20,7 @@ import { ConnectorMessageType } from '../connector-types/enums/connector-message
 import { ConnectorOutputState } from '../connector-types/interfaces/connector-output-state';
 import { ConnectorStateService } from '../connector-types/connector-message/services/connector-state.service';
 import { DataMartService } from './data-mart.service';
+import { DataMartStatus } from '../enums/data-mart-status.enum';
 
 interface ConfigurationExecutionResult {
   configIndex: number;
@@ -40,11 +41,42 @@ export class ConnectorExecutionService {
     private readonly dataMartService: DataMartService
   ) {}
 
+  async cancelRun(dataMartId: string, runId: string): Promise<void> {
+    const run = await this.dataMartRunRepository.findOne({
+      where: {
+        id: runId,
+        dataMartId,
+      },
+    });
+
+    if (!run) {
+      throw new Error('Data mart run not found');
+    }
+
+    if (run.status === DataMartRunStatus.SUCCESS || run.status === DataMartRunStatus.FAILED) {
+      throw new Error('Cannot cancel completed data mart run');
+    }
+
+    if (run.status === DataMartRunStatus.CANCELLED) {
+      throw new Error('Data mart run is already cancelled');
+    }
+
+    if (run.status === DataMartRunStatus.RUNNING) {
+      await this.dataMartRunRepository.update(runId, {
+        status: DataMartRunStatus.CANCELLED,
+      });
+    }
+  }
+
   /**
    * Start a connector run
    */
   async run(dataMart: DataMart): Promise<string> {
     this.validateDataMartForConnector(dataMart);
+    const isRunning = await this.checkDataMartIsRunning(dataMart);
+    if (isRunning) {
+      throw new Error('DataMart is already running');
+    }
 
     const dataMartRun = await this.createDataMartRun(dataMart);
 
@@ -85,6 +117,18 @@ export class ConnectorExecutionService {
     if (dataMart.definitionType !== DataMartDefinitionType.CONNECTOR) {
       throw new Error('DataMart is not a connector type');
     }
+
+    if (dataMart.status !== DataMartStatus.PUBLISHED) {
+      throw new Error('DataMart is not published');
+    }
+  }
+
+  private async checkDataMartIsRunning(dataMart: DataMart): Promise<boolean> {
+    const dataMartRun = await this.dataMartRunRepository.findOne({
+      where: { dataMartId: dataMart.id, status: DataMartRunStatus.RUNNING },
+    });
+
+    return !!dataMartRun;
   }
 
   private async createDataMartRun(dataMart: DataMart): Promise<DataMartRun> {

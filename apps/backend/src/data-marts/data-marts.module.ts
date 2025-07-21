@@ -64,6 +64,7 @@ import { ConnectorMapper } from './mappers/connector.mapper';
 import { SpecificationConnectorService } from './use-cases/connector/specification-connector.service';
 import { FieldsConnectorService } from './use-cases/connector/fields-connector.service';
 import { RunDataMartService } from './use-cases/run-data-mart.service';
+import { CancelDataMartRunService } from './use-cases/cancel-data-mart-run.service';
 import { ValidateDataMartDefinitionService } from './use-cases/validate-data-mart-definition.service';
 import { ActualizeDataMartSchemaService } from './use-cases/actualize-data-mart-schema.service';
 import { UpdateDataMartSchemaService } from './use-cases/update-data-mart-schema.service';
@@ -148,6 +149,7 @@ import { ConnectorState } from './entities/connector-state.entity';
     SpecificationConnectorService,
     FieldsConnectorService,
     RunDataMartService,
+    CancelDataMartRunService,
     SqlDryRunService,
     ActualizeDataMartSchemaService,
     UpdateDataMartSchemaService,

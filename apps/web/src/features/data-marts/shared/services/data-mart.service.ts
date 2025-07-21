@@ -123,6 +123,16 @@ export class DataMartService extends ApiService {
   }
 
   /**
+   * Cancel a data mart run
+   * @param id Data mart ID
+   * @param runId Run ID
+   * @returns Promise<void>
+   */
+  async cancelDataMartRun(id: string, runId: string): Promise<void> {
+    await this.post(`/${id}/runs/${runId}/cancel`);
+  }
+
+  /**
    * Actualize a data mart schema
    * @param id Data mart ID
    * @returns Promise with updated data mart

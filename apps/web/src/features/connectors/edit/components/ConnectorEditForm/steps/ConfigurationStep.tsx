@@ -3,10 +3,16 @@ import { Input } from '@owox/ui/components/input';
 import { Textarea } from '@owox/ui/components/textarea';
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { Combobox } from '../../../../../../shared/components/Combobox/combobox.tsx';
+import type { ConnectorListItem } from '../../../../shared/model/types/connector';
 import type { ConnectorSpecificationResponseApiDto } from '../../../../shared/api/types';
+import { RawBase64Icon } from '../../../../../../shared/icons';
+import { RequiredType } from '../../../../shared/api/types';
 import { useState, useEffect, useRef } from 'react';
+import { Button } from '@owox/ui/components/button';
+import { ExternalLinkIcon } from 'lucide-react';
 
 interface ConfigurationStepProps {
+  connector: ConnectorListItem;
   connectorSpecification: ConnectorSpecificationResponseApiDto[] | null;
   onConfigurationChange?: (configuration: Record<string, unknown>) => void;
   onValidationChange?: (isValid: boolean) => void;
@@ -45,7 +51,7 @@ function renderInputForType(
   }
 
   switch (requiredType) {
-    case 'boolean':
+    case RequiredType.BOOLEAN:
       return (
         <div className='flex items-center space-x-2'>
           <input
@@ -64,7 +70,7 @@ function renderInputForType(
         </div>
       );
 
-    case 'number':
+    case RequiredType.NUMBER:
       return (
         <Input
           id={inputId}
@@ -79,7 +85,7 @@ function renderInputForType(
         />
       );
 
-    case 'array':
+    case RequiredType.ARRAY:
       return (
         <Textarea
           id={inputId}
@@ -100,7 +106,7 @@ function renderInputForType(
         />
       );
 
-    case 'object':
+    case RequiredType.OBJECT:
       return (
         <Textarea
           id={inputId}
@@ -125,7 +131,7 @@ function renderInputForType(
           }}
         />
       );
-    case 'date': {
+    case RequiredType.DATE: {
       const parseDateValue = (value: unknown): string => {
         if (!value) return '';
         if (typeof value !== 'string' && typeof value !== 'number') return '';
@@ -153,7 +159,7 @@ function renderInputForType(
       );
     }
 
-    case 'string':
+    case RequiredType.STRING:
     default:
       return (
         <Input
@@ -171,6 +177,7 @@ function renderInputForType(
 }
 
 export function ConfigurationStep({
+  connector,
   connectorSpecification,
   onConfigurationChange,
   onValidationChange,
@@ -299,15 +306,22 @@ export function ConfigurationStep({
     });
 
   return (
-    <div className='space-y-2'>
-      <h4 className='text-lg font-medium'>Configuration</h4>
-      <p className='text-muted-foreground mb-8 text-sm'>
-        Configure the connector parameters. All fields with an asterisk (*) are required.
-      </p>
+    <div className='space-y-4'>
+      <div className='mb-2 flex items-center gap-2'>
+        {connector.logoBase64 && <RawBase64Icon base64={connector.logoBase64} size={32} />}
+        <h4 className='text-lg font-medium'>{connector.displayName} configuration</h4>
+      </div>
+      {connector.docUrl && (
+        <a href={connector.docUrl} target='_blank' rel='noopener noreferrer'>
+          <Button variant='link' className='mb-2 cursor-pointer text-sm'>
+            View documentation <ExternalLinkIcon className='h-4 w-4' />
+          </Button>
+        </a>
+      )}
       <div className='flex flex-col gap-4'>
         {sortedSpecifications.map(specification => (
           <div key={specification.name} className='mb-2 space-y-1'>
-            {specification.requiredType !== 'boolean' && (
+            {specification.requiredType !== RequiredType.BOOLEAN && (
               <Label htmlFor={specification.name} className='text-sm font-medium'>
                 {specification.title ?? specification.name}
                 {specification.required && <span className='ml-1 text-red-500'>*</span>}

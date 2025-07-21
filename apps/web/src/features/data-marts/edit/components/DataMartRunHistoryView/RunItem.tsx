@@ -19,6 +19,8 @@ interface RunItemProps {
   setLogViewType: (type: LogViewType) => void;
   searchTerm: string;
   setSearchTerm: (term: string) => void;
+  cancelDataMartRun: (id: string, runId: string) => Promise<void>;
+  dataMartId?: string;
 }
 
 export function RunItem({
@@ -29,6 +31,8 @@ export function RunItem({
   setLogViewType,
   searchTerm,
   setSearchTerm,
+  cancelDataMartRun,
+  dataMartId,
 }: RunItemProps) {
   const { copiedSection, handleCopy } = useClipboard();
 
@@ -111,6 +115,8 @@ export function RunItem({
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
             run={run}
+            cancelDataMartRun={cancelDataMartRun}
+            dataMartId={dataMartId}
           />
 
           {renderLogsContent()}

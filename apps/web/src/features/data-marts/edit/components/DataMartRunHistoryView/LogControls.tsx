@@ -1,9 +1,10 @@
-import { Search, Download } from 'lucide-react';
+import { Search, Download, X } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
-import { LogViewType } from './types';
+import { LogViewType, RunStatus } from './types';
 import { Input } from '@owox/ui/components/input';
 import { downloadLogs } from './utils';
 import type { DataMartDefinitionConfigDto } from '../../model/types/data-mart-definition-config';
+import { toast } from 'react-hot-toast';
 
 interface LogControlsProps {
   logViewType: LogViewType;
@@ -12,10 +13,13 @@ interface LogControlsProps {
   setSearchTerm: (term: string) => void;
   run: {
     id: string;
+    status: RunStatus;
     logs: string[];
     errors: string[];
     definitionRun: DataMartDefinitionConfigDto | null;
   };
+  cancelDataMartRun: (id: string, runId: string) => Promise<void>;
+  dataMartId?: string;
 }
 
 export function LogControls({
@@ -24,9 +28,23 @@ export function LogControls({
   searchTerm,
   setSearchTerm,
   run,
+  cancelDataMartRun,
+  dataMartId,
 }: LogControlsProps) {
   const handleStopPropagation = (e: React.MouseEvent) => {
     e.stopPropagation();
+  };
+
+  const handleCancelRun = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (dataMartId) {
+      try {
+        await cancelDataMartRun(dataMartId, run.id);
+        toast.success('Data mart run cancelled successfully');
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Failed to cancel data mart run');
+      }
+    }
   };
 
   const getButtonSwitchClasses = (isActive: boolean) => {
@@ -86,19 +104,26 @@ export function LogControls({
           </div>
         )}
       </div>
-
-      <Button
-        variant='outline'
-        size='sm'
-        onClick={(e: React.MouseEvent) => {
-          e.stopPropagation();
-          downloadLogs(run);
-        }}
-        className='flex items-center gap-2'
-      >
-        <Download className='h-4 w-4' />
-        JSON
-      </Button>
+      <div className='flex items-center gap-2'>
+        {run.status === RunStatus.RUNNING && (
+          <Button variant='destructive' size='sm' onClick={e => void handleCancelRun(e)}>
+            <X className='h-4 w-4' />
+            Cancel
+          </Button>
+        )}
+        <Button
+          variant='outline'
+          size='sm'
+          onClick={(e: React.MouseEvent) => {
+            e.stopPropagation();
+            downloadLogs(run);
+          }}
+          className='flex items-center gap-2'
+        >
+          <Download className='h-4 w-4' />
+          JSON
+        </Button>
+      </div>
     </div>
   );
 }

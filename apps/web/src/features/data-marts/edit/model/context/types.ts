@@ -74,6 +74,7 @@ export interface DataMartContextType extends DataMartState {
   ) => Promise<void>;
   publishDataMart: (id: string) => Promise<void>;
   runDataMart: (id: string) => Promise<void>;
+  cancelDataMartRun: (id: string, runId: string) => Promise<void>;
   actualizeDataMartSchema: (id: string) => Promise<void>;
   updateDataMartSchema: (id: string, schema: DataMartSchema) => Promise<void>;
   getDataMartRuns: (id: string, limit?: number, offset?: number) => Promise<DataMartRunItem[]>;

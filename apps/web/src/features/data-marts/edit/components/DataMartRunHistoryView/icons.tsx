@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Circle,
   Loader2,
+  Ban,
 } from 'lucide-react';
 import { RunStatus, LogLevel } from './types';
 
@@ -20,6 +21,8 @@ export function getStatusIcon(status: RunStatus) {
             return <XCircle className='h-4 w-4 text-red-500' />;
           case RunStatus.RUNNING:
             return <Loader2 className='text-primary h-4 w-4 animate-spin' />;
+          case RunStatus.CANCELLED:
+            return <Ban className='h-4 w-4 text-gray-500' />;
           default:
             return <Circle className='h-4 w-4 text-gray-500' />;
         }

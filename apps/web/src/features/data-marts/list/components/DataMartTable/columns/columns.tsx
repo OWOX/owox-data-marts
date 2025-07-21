@@ -11,13 +11,18 @@ import { DataMartDefinitionType } from '../../../../shared/index.ts';
 import { DataMartDefinitionTypeModel } from '../../../../shared/types/data-mart-definition-type.model.ts';
 import { DataMartColumnKey } from './columnKeys.ts';
 import { dataMartColumnLabels } from './columnLabels.ts';
+import type { ConnectorDefinitionConfig } from '../../../../edit/model/types/connector-definition-config.ts';
+import type { ConnectorListItem } from '../../../../../connectors/shared/model/types/connector';
+import { RawBase64Icon } from '../../../../../../shared/icons';
 
 interface DataMartTableColumnsProps {
   onDeleteSuccess?: () => void;
+  connectors?: ConnectorListItem[];
 }
 
 export const getDataMartColumns = ({
   onDeleteSuccess,
+  connectors = [],
 }: DataMartTableColumnsProps = {}): ColumnDef<DataMartListItem>[] => [
   {
     accessorKey: DataMartColumnKey.TITLE,
@@ -39,13 +44,27 @@ export const getDataMartColumns = ({
     ),
     cell: ({ row }) => {
       const type = row.getValue<DataMartDefinitionType>('definitionType');
-      const { displayName, icon: Icon } = DataMartDefinitionTypeModel.getInfo(type);
-      return (
-        <div className='text-muted-foreground flex items-center gap-2'>
-          <Icon className='h-4 w-4' />
-          {displayName}
-        </div>
-      );
+      switch (type) {
+        case DataMartDefinitionType.CONNECTOR: {
+          const definition = row.original.definition as ConnectorDefinitionConfig;
+          const connector = connectors.find(c => c.name === definition.connector.source.name);
+          return (
+            <div className='text-muted-foreground flex items-center gap-2'>
+              {connector?.logoBase64 && <RawBase64Icon base64={connector.logoBase64} size={18} />}
+              {connector?.displayName ?? 'Unknown'}
+            </div>
+          );
+        }
+        default: {
+          const { displayName, icon: Icon } = DataMartDefinitionTypeModel.getInfo(type);
+          return (
+            <div className='text-muted-foreground flex items-center gap-2'>
+              <Icon className='h-4 w-4' />
+              {displayName}
+            </div>
+          );
+        }
+      }
     },
   },
   {

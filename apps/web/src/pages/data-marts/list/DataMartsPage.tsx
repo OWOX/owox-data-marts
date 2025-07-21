@@ -5,9 +5,16 @@ import {
 } from '../../../features/data-marts/list';
 import { useEffect } from 'react';
 import { getDataMartColumns } from '../../../features/data-marts/list/components/DataMartTable/columns/columns.tsx';
+import { ConnectorContextProvider } from '../../../features/connectors/shared/model/context';
+import { useConnector } from '../../../features/connectors/shared/model/hooks/useConnector.ts';
 
 const DataMartTableWithContext = () => {
   const { items, loadDataMarts, deleteDataMart, refreshList, loading } = useDataMartList();
+  const { connectors, fetchAvailableConnectors } = useConnector();
+
+  useEffect(() => {
+    void fetchAvailableConnectors();
+  }, [fetchAvailableConnectors]);
 
   useEffect(() => {
     void loadDataMarts();
@@ -15,7 +22,7 @@ const DataMartTableWithContext = () => {
 
   return (
     <DataMartTable
-      columns={getDataMartColumns()}
+      columns={getDataMartColumns({ connectors })}
       data={items}
       deleteDataMart={deleteDataMart}
       refetchDataMarts={refreshList}
@@ -32,7 +39,9 @@ export default function DataMartsPage() {
       </header>
       <div className='dm-page-content'>
         <DataMartListProvider>
-          <DataMartTableWithContext />
+          <ConnectorContextProvider>
+            <DataMartTableWithContext />
+          </ConnectorContextProvider>
         </DataMartListProvider>
       </div>
     </div>

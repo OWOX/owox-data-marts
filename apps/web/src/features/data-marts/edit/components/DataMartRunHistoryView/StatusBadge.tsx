@@ -31,6 +31,15 @@ export function StatusBadge({ status }: StatusBadgeProps) {
           Failed
         </Badge>
       );
+    case RunStatus.CANCELLED:
+      return (
+        <Badge
+          variant='secondary'
+          className='bg-gray-50 text-gray-500 dark:bg-gray-950 dark:text-gray-400'
+        >
+          Cancelled
+        </Badge>
+      );
     default:
       return (
         <Badge

@@ -1,5 +1,5 @@
 import { useConnector } from '../../../shared/model/hooks/useConnector';
-import type { ConnectorDefinitionDto } from '../../../shared/api/types';
+import type { ConnectorListItem } from '../../../shared/model/types/connector';
 import { useEffect, useState, useCallback } from 'react';
 
 import { DataStorageType } from '../../../../data-storage/shared/model/types';
@@ -28,7 +28,7 @@ export function ConnectorEditForm({
   existingConnector = null,
   mode = 'full',
 }: ConnectorEditFormProps) {
-  const [selectedConnector, setSelectedConnector] = useState<ConnectorDefinitionDto | null>(null);
+  const [selectedConnector, setSelectedConnector] = useState<ConnectorListItem | null>(null);
   const [selectedNode, setSelectedNode] = useState<string>('');
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -49,7 +49,6 @@ export function ConnectorEditForm({
     fetchConnectorFields,
   } = useConnector();
 
-  console.log('🏗️ ConnectorEditForm render', { mode, hasExistingConnector: !!existingConnector });
   const [target, setTarget] = useState<{ fullyQualifiedName: string } | null>(null);
 
   const steps = configurationOnly
@@ -134,7 +133,7 @@ export function ConnectorEditForm({
     selectedConnector,
   ]);
 
-  const handleConnectorSelect = (connector: ConnectorDefinitionDto) => {
+  const handleConnectorSelect = (connector: ConnectorListItem) => {
     setSelectedConnector(connector);
     setConnectorConfiguration({});
     setConfigurationIsValid(false);
@@ -242,8 +241,9 @@ export function ConnectorEditForm({
 
   const renderCurrentStep = () => {
     if (configurationOnly && currentStep === 1) {
-      return connectorSpecification ? (
+      return connectorSpecification && selectedConnector ? (
         <ConfigurationStep
+          connector={selectedConnector}
           connectorSpecification={connectorSpecification}
           onConfigurationChange={handleConfigurationChange}
           onValidationChange={handleConfigurationValidationChange}
@@ -284,6 +284,7 @@ export function ConnectorEditForm({
       case 2:
         return selectedConnector && connectorSpecification ? (
           <ConfigurationStep
+            connector={selectedConnector}
             connectorSpecification={connectorSpecification}
             onConfigurationChange={handleConfigurationChange}
             onValidationChange={handleConfigurationValidationChange}
@@ -296,7 +297,7 @@ export function ConnectorEditForm({
           <NodesSelectionStep
             connectorFields={connectorFields}
             selectedField={selectedNode}
-            connectorName={selectedConnector.title ?? selectedConnector.name}
+            connectorName={selectedConnector.displayName}
             loading={loadingFields}
             onFieldSelect={handleFieldSelect}
           />

@@ -38,10 +38,34 @@ class ConnectorBuilder {
         ignore: ['**/*.gs', '**/node_modules/**'],
       });
 
+      let manifest = null;
+      if (await fs.pathExists(path.join(connectorPath, 'manifest.json'))) {
+        manifest = JSON.parse(await fs.readFile(path.join(connectorPath, 'manifest.json'), 'utf8'));
+
+        // Convert logo to base64 if it exists
+        if (manifest.logo) {
+          const logoPath = path.join(connectorPath, manifest.logo);
+          if (await fs.pathExists(logoPath)) {
+            const logoBuffer = await fs.readFile(logoPath);
+            const logoExt = path.extname(manifest.logo).toLowerCase();
+            const mimeType =
+              logoExt === '.png'
+                ? 'image/png'
+                : logoExt === '.jpg' || logoExt === '.jpeg'
+                  ? 'image/jpeg'
+                  : logoExt === '.svg'
+                    ? 'image/svg+xml'
+                    : 'image/png';
+            manifest.logo = `data:${mimeType};base64,${logoBuffer.toString('base64')}`;
+          }
+        }
+      }
+
       connectors.push({
         name,
         path: dir,
         files: files.map(f => path.join(dir, f)),
+        manifest,
       });
     }
 
@@ -64,13 +88,34 @@ class ConnectorBuilder {
 
       if (files.length === 0) continue;
 
+      let manifest = null;
+      if (await fs.pathExists(path.join(storagePath, 'manifest.json'))) {
+        manifest = JSON.parse(await fs.readFile(path.join(storagePath, 'manifest.json'), 'utf8'));
+
+        // Convert logo to base64 if it exists
+        if (manifest.logo) {
+          const logoPath = path.join(storagePath, manifest.logo);
+          if (await fs.pathExists(logoPath)) {
+            const logoBuffer = await fs.readFile(logoPath);
+            const logoExt = path.extname(manifest.logo).toLowerCase();
+            const mimeType =
+              logoExt === '.png'
+                ? 'image/png'
+                : logoExt === '.jpg' || logoExt === '.jpeg'
+                  ? 'image/jpeg'
+                  : logoExt === '.svg'
+                    ? 'image/svg+xml'
+                    : 'image/png';
+            manifest.logo = `data:${mimeType};base64,${logoBuffer.toString('base64')}`;
+          }
+        }
+      }
+
       storages.push({
         name,
         path: dir,
         files: files.map(f => path.join(dir, f)),
-        manifest: (await fs.pathExists(path.join(storagePath, 'manifest.json')))
-          ? JSON.parse(await fs.readFile(path.join(storagePath, 'manifest.json'), 'utf8'))
-          : null,
+        manifest,
       });
     }
 
@@ -278,9 +323,17 @@ class ConnectorBuilder {
         }
       }
 
+      if (connector.manifest) {
+        content += `\n  // Connector manifest\n`;
+        content += `  const manifest = ${JSON.stringify(connector.manifest, null, 2)};\n`;
+      }
+
       content += `  return {\n`;
       for (const className of connectorClasses) {
         content += `    ${className},\n`;
+      }
+      if (connector.manifest) {
+        content += `    manifest,\n`;
       }
       content += `  };\n`;
       content += `})();\n`;

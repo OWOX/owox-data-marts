@@ -16,6 +16,7 @@ import { UpdateDataMartDescriptionService } from '../use-cases/update-data-mart-
 import { PublishDataMartService } from '../use-cases/publish-data-mart.service';
 import { DeleteDataMartService } from '../use-cases/delete-data-mart.service';
 import { GetDataMartRunsService } from '../use-cases/get-data-mart-runs.service';
+import { CancelDataMartRunService } from '../use-cases/cancel-data-mart-run.service';
 import { ApiTags } from '@nestjs/swagger';
 import {
   CreateDataMartSpec,
@@ -32,6 +33,7 @@ import {
   UpdateDataMartSchemaSpec,
   SqlDryRunSpec,
   GetDataMartRunsSpec,
+  CancelDataMartRunSpec,
 } from './spec/data-mart.api';
 import {
   AuthContext,
@@ -66,7 +68,8 @@ export class DataMartController {
     private readonly actualizeSchemaService: ActualizeDataMartSchemaService,
     private readonly updateSchemaService: UpdateDataMartSchemaService,
     private readonly sqlDryRunService: SqlDryRunService,
-    private readonly getDataMartRunsService: GetDataMartRunsService
+    private readonly getDataMartRunsService: GetDataMartRunsService,
+    private readonly cancelDataMartRunService: CancelDataMartRunService
   ) {}
 
   @Post()
@@ -165,6 +168,18 @@ export class DataMartController {
     const command = this.mapper.toRunCommand(id, context);
     const runId = await this.runDataMartService.run(command.id, command.projectId, command.userId);
     return { runId };
+  }
+
+  @Post(':id/runs/:runId/cancel')
+  @CancelDataMartRunSpec()
+  @HttpCode(204)
+  async cancelRun(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string,
+    @Param('runId') runId: string
+  ): Promise<void> {
+    const command = this.mapper.toCancelRunCommand(id, runId, context);
+    await this.cancelDataMartRunService.run(command);
   }
 
   @Post(':id/validate-definition')

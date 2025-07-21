@@ -2,14 +2,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@owox/ui/components/ca
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { AlertCircle, Plug } from 'lucide-react';
 import { Alert, AlertDescription } from '@owox/ui/components/alert';
-import type { ConnectorDefinitionDto } from '../../../../shared/api/types';
+import type { ConnectorListItem } from '../../../../shared/model/types/connector';
+import { RawBase64Icon } from '../../../../../../shared/icons';
 
 interface ConnectorSelectionStepProps {
-  connectors: ConnectorDefinitionDto[];
-  selectedConnector: ConnectorDefinitionDto | null;
+  connectors: ConnectorListItem[];
+  selectedConnector: ConnectorListItem | null;
   loading: boolean;
   error: string | null;
-  onConnectorSelect: (connector: ConnectorDefinitionDto) => void;
+  onConnectorSelect: (connector: ConnectorListItem) => void;
 }
 
 export function ConnectorSelectionStep({
@@ -63,10 +64,13 @@ export function ConnectorSelectionStep({
               onConnectorSelect(connector);
             }}
           >
-            <CardHeader className='pb-3'>
+            <CardHeader>
               <div className='flex items-center justify-between'>
                 <div className='flex items-center gap-2'>
-                  <CardTitle className='text-base'>{connector.title ?? connector.name}</CardTitle>
+                  {connector.logoBase64 && (
+                    <RawBase64Icon base64={connector.logoBase64} size={16} />
+                  )}
+                  <CardTitle className='text-base'>{connector.displayName}</CardTitle>
                 </div>
               </div>
             </CardHeader>

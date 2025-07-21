@@ -137,3 +137,12 @@ export function GetDataMartRunsSpec() {
     ApiOkResponse({ type: DataMartRunsResponseApiDto })
   );
 }
+
+export function CancelDataMartRunSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Cancel a DataMart run' }),
+    ApiParam({ name: 'id', description: 'DataMart ID' }),
+    ApiParam({ name: 'runId', description: 'Run ID' }),
+    ApiNoContentResponse({ description: 'DataMart run cancelled' })
+  );
+}

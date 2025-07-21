@@ -234,6 +234,18 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     }
   };
 
+  const cancelDataMartRun = async (id: string, runId: string): Promise<void> => {
+    try {
+      await dataMartService.cancelDataMartRun(id, runId);
+      await getDataMartRuns(id);
+    } catch (error) {
+      dispatch({
+        type: 'RUN_DATA_MART_ERROR',
+        payload: extractApiError(error),
+      });
+    }
+  };
+
   // Actualize data mart schema
   const actualizeDataMartSchema = async (id: string) => {
     try {
@@ -321,6 +333,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     updateDataMartDefinition,
     publishDataMart,
     runDataMart,
+    cancelDataMartRun,
     actualizeDataMartSchema,
     updateDataMartSchema,
     getDataMartRuns,

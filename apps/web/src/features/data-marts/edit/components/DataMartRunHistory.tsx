@@ -15,6 +15,7 @@ export function DataMartRunHistory() {
     dataMart,
     getDataMartRuns,
     loadMoreDataMartRuns,
+    cancelDataMartRun,
     runs = [],
     isLoading,
   } = useOutletContext<DataMartContextType>();
@@ -86,6 +87,8 @@ export function DataMartRunHistory() {
               setLogViewType={setLogViewType}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
+              cancelDataMartRun={cancelDataMartRun}
+              dataMartId={dataMart?.id}
             />
           ))}
 

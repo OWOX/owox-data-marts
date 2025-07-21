@@ -47,12 +47,16 @@ export class ConnectorService {
    * Get all available connectors
    */
   async getAvailableConnectors(): Promise<ConnectorDefinition[]> {
-    return AvailableConnectors.map(connector => ({
-      name: connector,
-      title: connector,
-      description: null,
-      icon: null,
-    }));
+    return AvailableConnectors.map(connector => {
+      const manifest = this.getConnectorManifest(connector);
+      return {
+        name: connector,
+        title: manifest.title,
+        description: manifest.description,
+        logo: manifest.logo,
+        docUrl: manifest.docUrl,
+      };
+    });
   }
 
   /**
@@ -88,8 +92,6 @@ export class ConnectorService {
     return ConnectorFieldsSchema.parse(fieldsSchema);
   }
 
-  // Private helper methods
-
   private validateConnectorExists(connectorName: string): void {
     if (Object.keys(Connectors).length === 0) {
       throw new Error('No connectors found');
@@ -103,6 +105,11 @@ export class ConnectorService {
   private createConnectorSource(connectorName: string) {
     const source = Connectors[connectorName][`${connectorName}Source`];
     return new source(new Core.AbstractConfig({}));
+  }
+
+  private getConnectorManifest(connectorName: string) {
+    const manifest = Connectors[connectorName].manifest;
+    return manifest;
   }
 
   private mapConfigToSchema(config: ConnectorConfig) {

@@ -1,9 +1,14 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { ConnectorActionType, useConnectorContext } from '../context';
 import { ConnectorApiService } from '../../api';
+import { mapConnectorListFromDto } from '../mappers/connector-list.mapper';
 
 export function useConnector() {
   const { state, dispatch } = useConnectorContext();
+
+  const connectors = useMemo(() => {
+    return mapConnectorListFromDto(state.connectors);
+  }, [state.connectors]);
 
   const fetchAvailableConnectors = useCallback(async () => {
     dispatch({ type: ConnectorActionType.FETCH_CONNECTORS_START });
@@ -57,7 +62,7 @@ export function useConnector() {
   );
 
   return {
-    connectors: state.connectors,
+    connectors,
     connectorSpecification: state.connectorSpecification,
     connectorFields: state.connectorFields,
     loading: state.loading,

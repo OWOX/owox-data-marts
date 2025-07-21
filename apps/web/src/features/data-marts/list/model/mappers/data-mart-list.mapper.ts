@@ -12,5 +12,6 @@ export function mapDataMartListFromDto(datamartsDto: DataMartListResponseDto): D
     definitionType: dmart.definitionType,
     createdAt: new Date(dmart.createdAt),
     modifiedAt: new Date(dmart.modifiedAt),
+    definition: dmart.definition,
   }));
 }

@@ -8,4 +8,5 @@ export * from './snowflake-icon';
 export * from './databricks-icon';
 export * from './aws-redshift-icon';
 export * from './azure-synapse-icon';
+export * from './raw-base64-icon';
 export * from './icons.types';

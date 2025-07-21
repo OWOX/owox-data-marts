@@ -11,6 +11,7 @@ export enum RunStatus {
   RUNNING = 'RUNNING',
   SUCCESS = 'SUCCESS',
   FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
 }
 
 export enum LogViewType {

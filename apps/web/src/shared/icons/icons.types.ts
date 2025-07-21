@@ -8,6 +8,7 @@ import { type SnowflakeIcon } from './snowflake-icon';
 import { type DatabricksIcon } from './databricks-icon';
 import { type AwsRedshiftIcon } from './aws-redshift-icon';
 import { type AzureSynapseIcon } from './azure-synapse-icon';
+import { type RawBase64Icon } from './raw-base64-icon';
 import { type LucideIcon } from 'lucide-react';
 
 export type LocalIcon =
@@ -20,5 +21,6 @@ export type LocalIcon =
   | typeof SnowflakeIcon
   | typeof DatabricksIcon
   | typeof AwsRedshiftIcon
-  | typeof AzureSynapseIcon;
+  | typeof AzureSynapseIcon
+  | typeof RawBase64Icon;
 export type AppIcon = LucideIcon | LocalIcon;

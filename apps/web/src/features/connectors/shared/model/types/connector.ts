@@ -1,13 +1,7 @@
-import type { DataStorageType } from '../../../../data-storage/shared/model/types/data-storage-type.enum';
-
-export interface Connector {
+export interface ConnectorListItem {
   name: string;
-  configuration: Record<string, unknown>;
-  nodes: string[];
-  fields: string[];
-  target: {
-    type: DataStorageType;
-    bigquery?: { datasetId: string };
-    athena?: { databaseName: string };
-  };
+  displayName: string;
+  description: string;
+  logoBase64: string | null;
+  docUrl: string | null;
 }
