@@ -44,7 +44,8 @@ We want to empower **every business to become data owners** by importing their d
 
 OWOX Data Marts - Apps Script Edition is a growing library of JavaScript **connectors** that:
 
-- Run inside **YOUR** Google Sheet or BigQuery
+- Run inside **YOUR** Google Sheet
+- Import data to **YOUR** Google Sheets ot Google BigQuery
 - Require **no external platforms** or credentials sharing
 - Doesn't require **ANY data engineering resources**
 - Are 100% open-source and **customizable**
