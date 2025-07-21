@@ -3,9 +3,9 @@ import { Input } from '@owox/ui/components/input';
 import { useAutoFocus } from '../../../../../../hooks/useAutoFocus.ts';
 import {
   type DataMartReport,
-  isGoogleSheetsDestinationConfig,
+  isLookerStudioDestinationConfig,
 } from '../../../shared/model/types/data-mart-report.ts';
-import { useGoogleSheetsReportForm } from '../../hooks/useGoogleSheetsReportForm.ts';
+import { useLookerStudioReportForm } from '../../hooks/useLookerStudioReportForm.ts';
 import {
   Form,
   AppForm,
@@ -17,7 +17,6 @@ import {
   FormLayout,
   FormActions,
   FormSection,
-  FormDescription,
 } from '@owox/ui/components/form';
 import {
   Select,
@@ -34,21 +33,12 @@ import {
 } from '../../../../../data-destination';
 import { Link, useOutletContext } from 'react-router-dom';
 import type { DataMartContextType } from '../../../../edit/model/context/types.ts';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
-import { AlertCircle, ExternalLink } from 'lucide-react';
-import {
-  extractServiceAccountEmail,
-  getGoogleSheetTabUrl,
-  isValidGoogleSheetsUrl,
-  ReportFormMode,
-} from '../../../shared';
-import { TimeTriggerAnnouncement } from '../../../../scheduled-triggers';
-import DocumentLinkDescription from './FormDescriptions/DocumentLinkDescription.tsx';
+import { AlertCircle } from 'lucide-react';
+import { ReportFormMode } from '../../../shared';
 import { Button } from '@owox/ui/components/button';
-import { isGoogleServiceAccountCredentials } from '../../../../../../shared/types';
 
-interface GoogleSheetsReportEditFormProps {
+interface LookerStudioReportEditFormProps {
   initialReport?: DataMartReport;
   mode: ReportFormMode;
   onDirtyChange?: (isDirty: boolean) => void;
@@ -58,9 +48,24 @@ interface GoogleSheetsReportEditFormProps {
   onCancel?: () => void;
 }
 
-export const GoogleSheetsReportEditForm = forwardRef<
+// Cache time options in seconds
+const CACHE_TIME_OPTIONS = [
+  // Minutes
+  { value: 300, label: '5 minutes' },
+  { value: 600, label: '10 minutes' },
+  { value: 900, label: '15 minutes' },
+  { value: 1800, label: '30 minutes' },
+  // Hours
+  { value: 3600, label: '1 hour' },
+  { value: 7200, label: '2 hours' },
+  { value: 14400, label: '4 hours' },
+  { value: 28800, label: '8 hours' },
+  { value: 43200, label: '12 hours' },
+];
+
+export const LookerStudioReportEditForm = forwardRef<
   HTMLFormElement,
-  GoogleSheetsReportEditFormProps
+  LookerStudioReportEditFormProps
 >(
   (
     {
@@ -73,10 +78,9 @@ export const GoogleSheetsReportEditForm = forwardRef<
     },
     ref
   ) => {
-    const formId = 'google-sheets-edit-form';
-    const titleInputId = 'google-sheets-title-input';
-    const documentUrlInputId = 'google-sheets-document-url-input';
-    const dataDestinationSelectId = 'google-sheets-data-destination-select';
+    const formId = 'looker-studio-edit-form';
+    const titleInputId = 'looker-studio-title-input';
+    const dataDestinationSelectId = 'looker-studio-data-destination-select';
 
     const { dataMart } = useOutletContext<DataMartContextType>();
     const {
@@ -94,11 +98,10 @@ export const GoogleSheetsReportEditForm = forwardRef<
 
     useEffect(() => {
       if (dataDestinations.length > 0) {
-        const googleSheetsDestinations = dataDestinations.filter(
-          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-          destination => destination.type === DataDestinationType.GOOGLE_SHEETS
+        const lookerStudioDestinations = dataDestinations.filter(
+          destination => destination.type === DataDestinationType.LOOKER_STUDIO
         );
-        setFilteredDestinations(googleSheetsDestinations);
+        setFilteredDestinations(lookerStudioDestinations);
       }
     }, [dataDestinations]);
 
@@ -111,7 +114,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
       isSubmitting,
       formError: internalFormError,
       onSubmit: handleFormSubmit,
-    } = useGoogleSheetsReportForm({
+    } = useLookerStudioReportForm({
       initialReport,
       mode,
       dataMartId: dataMart?.id ?? '',
@@ -130,27 +133,21 @@ export const GoogleSheetsReportEditForm = forwardRef<
       if (
         mode === ReportFormMode.EDIT &&
         initialReport &&
-        isGoogleSheetsDestinationConfig(initialReport.destinationConfig)
+        isLookerStudioDestinationConfig(initialReport.destinationConfig)
       ) {
         reset({
           title: initialReport.title,
-          documentUrl: getGoogleSheetTabUrl(
-            initialReport.destinationConfig.spreadsheetId,
-            initialReport.destinationConfig.sheetId
-          ),
           dataDestinationId: initialReport.dataDestination.id,
+          cacheTime: initialReport.destinationConfig?.cacheTime ?? 300,
         });
       } else if (mode === ReportFormMode.CREATE) {
-        reset({ title: '', documentUrl: '', dataDestinationId: '' });
+        reset({ title: '', dataDestinationId: '', cacheTime: 300 });
       }
     }, [initialReport, mode, reset, filteredDestinations]);
 
     useEffect(() => {
       onDirtyChange?.(isDirty);
     }, [isDirty, onDirtyChange]);
-
-    const documentUrl = form.watch('documentUrl');
-    const isValidDocumentUrl = documentUrl && isValidGoogleSheetsUrl(documentUrl.trim());
 
     return (
       <Form {...form}>
@@ -233,13 +230,6 @@ export const GoogleSheetsReportEditForm = forwardRef<
                                 <IconComponent className='h-4 w-4 flex-shrink-0' />
                                 <div className='flex min-w-0 flex-col'>
                                   <span className='truncate'>{destination.title}</span>
-                                  <span className='text-muted-foreground truncate text-xs'>
-                                    {(isGoogleServiceAccountCredentials(destination.credentials) &&
-                                      extractServiceAccountEmail(
-                                        destination.credentials.serviceAccount
-                                      )) ??
-                                      'No email found'}
-                                  </span>
                                 </div>
                               </div>
                             </SelectItem>
@@ -250,9 +240,10 @@ export const GoogleSheetsReportEditForm = forwardRef<
                     {filteredDestinations.length === 0 && !loadingDestinations && (
                       <Alert className='mt-2'>
                         <AlertCircle className='h-4 w-4' />
-                        <AlertTitle>No destinations available</AlertTitle>
+                        <AlertTitle>No Looker Studio destinations available</AlertTitle>
                         <AlertDescription>
-                          You need to create a Destination before you can create a report.{' '}
+                          You need to create a Looker Studio Destination before you can create a
+                          report.{' '}
                           <Link
                             to='/data-destinations'
                             className='font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300'
@@ -262,96 +253,42 @@ export const GoogleSheetsReportEditForm = forwardRef<
                         </AlertDescription>
                       </Alert>
                     )}
-                    {field.value &&
-                      filteredDestinations.length > 0 &&
-                      (() => {
-                        const selectedDestination = filteredDestinations.find(
-                          destination => destination.id === field.value
-                        );
-                        if (selectedDestination) {
-                          return (
-                            <div className='mt-2 flex flex-col'>
-                              <span className='text-foreground mb-0.5 text-xs font-semibold'>
-                                Service Account Email:
-                              </span>
-                              <span className='text-muted-foreground bg-muted/30 rounded px-2 py-1 text-xs'>
-                                {(isGoogleServiceAccountCredentials(
-                                  selectedDestination.credentials
-                                ) &&
-                                  extractServiceAccountEmail(
-                                    selectedDestination.credentials.serviceAccount
-                                  )) ??
-                                  'No email found'}
-                              </span>
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()}
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </FormSection>
-            <FormSection title='Document'>
+            <FormSection title='Cache Configuration'>
               <FormField
                 control={form.control}
-                name='documentUrl'
+                name='cacheTime'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel tooltip='The link must include the Sheet ID to insert data into the correct tab'>
-                      Document Link with Sheet ID (GID)
+                    <FormLabel tooltip='Cache time on the Data Mart side - determines how long Data Mart will serve cached data to Looker Studio'>
+                      Cache Time
                     </FormLabel>
-                    <FormControl>
-                      <div className='flex items-center gap-2'>
-                        <Input
-                          id={documentUrlInputId}
-                          placeholder='Document URL'
-                          className='flex-1'
-                          {...field}
-                        />
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              type='button'
-                              className={`flex-shrink-0 rounded-md p-2 transition-all duration-200 ${
-                                isValidDocumentUrl
-                                  ? 'text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-blue-950/20 dark:hover:text-blue-300'
-                                  : 'text-muted-foreground/30 cursor-not-allowed'
-                              }`}
-                              onClick={() => {
-                                if (isValidDocumentUrl) {
-                                  window.open(documentUrl.trim(), '_blank', 'noopener,noreferrer');
-                                }
-                              }}
-                              disabled={!isValidDocumentUrl}
-                              aria-label={
-                                isValidDocumentUrl
-                                  ? 'Open document in new tab'
-                                  : 'Document link is not valid'
-                              }
-                            >
-                              <ExternalLink className='h-4 w-4' aria-hidden='true' />
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent side='top' align='center' role='tooltip'>
-                            {isValidDocumentUrl
-                              ? 'Open document in new tab'
-                              : 'Enter a valid URL to enable link'}
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </FormControl>
-                    <FormDescription>
-                      <DocumentLinkDescription />
-                    </FormDescription>
+                    <Select
+                      onValueChange={value => field.onChange(parseInt(value, 10))}
+                      value={field.value?.toString()}
+                      defaultValue='300'
+                    >
+                      <FormControl>
+                        <SelectTrigger className='w-full'>
+                          <SelectValue placeholder='Select cache time' />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {CACHE_TIME_OPTIONS.map(option => (
+                          <SelectItem key={option.value} value={option.value.toString()}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            </FormSection>
-            <FormSection title='Automate Report Runs'>
-              <TimeTriggerAnnouncement />
             </FormSection>
           </FormLayout>
           <FormActions>
@@ -360,17 +297,19 @@ export const GoogleSheetsReportEditForm = forwardRef<
               type='submit'
               className='w-full'
               aria-label={
-                mode === ReportFormMode.CREATE ? 'Create new report' : 'Save changes to report'
+                mode === ReportFormMode.CREATE
+                  ? 'Connect to Looker Studio'
+                  : 'Save connection settings'
               }
               disabled={!isDirty || isSubmitting}
             >
               {isSubmitting
                 ? mode === ReportFormMode.CREATE
-                  ? 'Creating...'
+                  ? 'Connecting...'
                   : 'Saving...'
                 : mode === ReportFormMode.CREATE
-                  ? 'Create new report'
-                  : 'Save changes to report'}
+                  ? 'Connect to Looker Studio'
+                  : 'Save Changes'}
             </Button>
             {onCancel && (
               <Button

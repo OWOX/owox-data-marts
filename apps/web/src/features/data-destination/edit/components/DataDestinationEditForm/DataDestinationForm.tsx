@@ -1,8 +1,8 @@
-import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { DataDestinationType } from '../../../shared';
 import { GoogleSheetsFields } from './GoogleSheetsFields';
+import { LookerStudioFields } from './LookerStudioFields';
 import { DestinationTypeField } from './DestinationTypeField';
 import {
   Form,
@@ -19,6 +19,7 @@ import { type DataDestinationFormData, dataDestinationSchema } from '../../../sh
 import { Input } from '@owox/ui/components/input';
 import { Button } from '@owox/ui/components/button';
 import { Loader2 } from 'lucide-react';
+import { useEffect } from 'react';
 
 interface DataDestinationFormProps {
   initialData?: DataDestinationFormData;
@@ -45,7 +46,19 @@ export function DataDestinationForm({
     mode: 'onTouched',
   });
 
-  React.useEffect(() => {
+  // Get the current destination type
+  const destinationType = form.watch('type');
+
+  // Reset credentials when a destination type changes
+  useEffect(() => {
+    if (destinationType === DataDestinationType.GOOGLE_SHEETS) {
+      form.setValue('credentials', { serviceAccount: '' }, { shouldDirty: true });
+    } else if (destinationType === DataDestinationType.LOOKER_STUDIO) {
+      form.setValue('credentials', { urlHost: '' }, { shouldDirty: true });
+    }
+  }, [destinationType, form]);
+
+  useEffect(() => {
     onDirtyChange?.(form.formState.isDirty);
   }, [form.formState.isDirty, onDirtyChange]);
 
@@ -70,8 +83,16 @@ export function DataDestinationForm({
               </FormItem>
             )}
           />
+
           <DestinationTypeField form={form} initialData={initialData} />
-          <GoogleSheetsFields form={form} />
+
+          {destinationType === DataDestinationType.GOOGLE_SHEETS && (
+            <GoogleSheetsFields form={form} />
+          )}
+
+          {destinationType === DataDestinationType.LOOKER_STUDIO && (
+            <LookerStudioFields form={form} initialData={initialData} />
+          )}
         </FormLayout>
         <FormActions>
           <Button

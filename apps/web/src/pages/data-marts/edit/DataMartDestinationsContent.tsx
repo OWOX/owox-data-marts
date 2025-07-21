@@ -2,9 +2,12 @@ import { CollapsibleCard } from '../../../shared/components/CollapsibleCard';
 import { CollapsibleCardHeader } from '../../../shared/components/CollapsibleCard/CollapsibleCardHeader';
 import { CollapsibleCardContent } from '../../../shared/components/CollapsibleCard/CollapsibleCardContent';
 import { CollapsibleCardFooter } from '../../../shared/components/CollapsibleCard/CollapsibleCardFooter';
-import { GoogleSheetsIcon } from '../../../shared';
+import { GoogleSheetsIcon, LookerStudioIcon } from '../../../shared';
 import { ReportsProvider } from '../../../features/data-marts/reports/shared';
-import { GoogleSheetsReportsTable } from '../../../features/data-marts/reports/list';
+import {
+  GoogleSheetsReportsTable,
+  LookerStudioReportsTable,
+} from '../../../features/data-marts/reports/list';
 
 export default function DataMartDestinationsContent() {
   return (
@@ -18,6 +21,18 @@ export default function DataMartDestinationsContent() {
           />
           <CollapsibleCardContent>
             <GoogleSheetsReportsTable></GoogleSheetsReportsTable>
+          </CollapsibleCardContent>
+          <CollapsibleCardFooter></CollapsibleCardFooter>
+        </CollapsibleCard>
+
+        <CollapsibleCard name='lookerstudio' collapsible defaultCollapsed={false}>
+          <CollapsibleCardHeader
+            icon={LookerStudioIcon}
+            title='Looker Studio'
+            help='Looker Studio Destinations that make this Data Mart available as a data source in Looker Studio connector'
+          />
+          <CollapsibleCardContent>
+            <LookerStudioReportsTable></LookerStudioReportsTable>
           </CollapsibleCardContent>
           <CollapsibleCardFooter></CollapsibleCardFooter>
         </CollapsibleCard>

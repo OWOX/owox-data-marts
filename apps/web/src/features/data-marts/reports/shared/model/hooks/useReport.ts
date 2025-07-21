@@ -1,30 +1,9 @@
 import { useCallback, useEffect } from 'react';
-import type { DataMartReport } from '../types/data-mart-report';
-import { type ReportResponseDto, reportService, reportStatusPollingService } from '../../services';
+import { reportService, reportStatusPollingService } from '../../services';
 import type { CreateReportRequestDto, UpdateReportRequestDto } from '../../services';
 import type { ReportStatusPollingConfig } from '../../services';
-import { mapDataDestinationFromDto } from '../../../../../data-destination/shared/model/mappers/data-destination.mapper';
 import { useReportContext, ReportActionType } from '../context';
-
-export function mapReportDtoToEntity(reportDto: ReportResponseDto): DataMartReport {
-  return {
-    id: reportDto.id,
-    title: reportDto.title,
-    dataMart: { id: reportDto.dataMart.id },
-    dataDestination: mapDataDestinationFromDto(reportDto.dataDestinationAccess),
-    destinationConfig: {
-      type: reportDto.destinationConfig.type,
-      spreadsheetId: reportDto.destinationConfig.spreadsheetId,
-      sheetId: reportDto.destinationConfig.sheetId.toString(),
-    },
-    lastRunDate: reportDto.lastRunAt ? new Date(reportDto.lastRunAt) : null,
-    lastRunStatus: reportDto.lastRunStatus,
-    lastRunError: reportDto.lastRunError,
-    runsCount: reportDto.runsCount,
-    createdAt: new Date(reportDto.createdAt),
-    modifiedAt: new Date(reportDto.modifiedAt),
-  };
-}
+import { mapReportDtoToEntity } from '../mappers';
 
 export function useReport() {
   const { state, dispatch } = useReportContext();

@@ -1,4 +1,4 @@
-import { DestinationTypeConfigEnum } from '../../enums';
+import type { DestinationConfigDto } from './update-report.request.dto';
 
 /**
  * DTO for creating a new report
@@ -7,9 +7,5 @@ export interface CreateReportRequestDto {
   title: string;
   dataMartId: string;
   dataDestinationId: string;
-  destinationConfig: {
-    type: DestinationTypeConfigEnum;
-    spreadsheetId: string;
-    sheetId: number;
-  };
+  destinationConfig: DestinationConfigDto;
 }
