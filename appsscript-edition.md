@@ -1,7 +1,9 @@
 # 🏷  Apps Script Data Connectors
 
 With this set of connectors, data analysts & marketers can collect any marketing, financial, or CRM data into **Google Sheets** & **Google BigQuery**.
+
 No cost. No email collection. No vendors. No lock-in. No permissions sharing with 3-rd parties.
+
 Just **Google Sheets Templates** + Your full **control** + Amazing OWOX **Community**.
 
 [🌐 Website](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) | [💬 Join Community](https://github.com/OWOX/owox-data-marts/discussions) | [🆘 Create an Issue](https://github.com/OWOX/owox-data-marts/issues)
@@ -109,6 +111,7 @@ We're building this **with the community**, not just for it.
 ## 📌 License
 
 OWOX Data Marts is free for internal or client use, not for resale in a competing product.
+
 - **Apps Script Connectors** (`packages/connectors`) are distributed under the [MIT License](licenses/MIT.md)
 
 ---
