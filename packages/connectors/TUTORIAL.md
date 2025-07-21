@@ -74,7 +74,7 @@ This means:
 - Your script might run at 9:02 one day, and 9:47 the next.
 - But you still need to ensure it doesn’t create duplicate rows.
 
-### Solution:
+### Solution
 
 Use the **unique key** strategy.
 
@@ -99,15 +99,15 @@ The logic:
 - Store one row per day
 - If the script runs again the same day → update the existing row if that date existings, **don’t add a new one**
 
-### Example:
+### Example
 
-Let’s say the connector runs five times on June 2nd. 
+Let’s say the connector runs five times on June 2nd.
 
 We want to have **one row for June 2**, not **five duplicate rows**.
 
-That's easy for something like GitHub, where 'date' can act like a key. 
+That's easy for something like GitHub, where 'date' can act like a key.
 
-### Composite key example:
+### Composite key example
 
 In other use cases, you may need a **composite key**.
 
@@ -125,7 +125,7 @@ To interact with the GitHub API, we need a **Personal Access Token**.
 
 You don’t need to read the full API docs — we recommend using a tool like **Boomerang** (a Chrome extension) to test API requests quickly.
 
-### How to create a GitHub token:
+### How to create a GitHub token
 
 1. Go to the GitHub account → **Settings** → **Developer settings** → **Personal access tokens (classic)**
 2. Click **Generate new token**
@@ -134,9 +134,10 @@ You don’t need to read the full API docs — we recommend using a tool like **
 5. Select **read-only access**
 6. Click **Generate token** and copy it somewhere safe
 
-### Testing the API:
+### Testing the API
 
 To get the number of stars:
+
 - Call the GitHub repository API
 - Look for the `stargazers_count` field in the JSON response
 
@@ -177,9 +178,9 @@ Now open the **Config** sheet:
 1. Delete unnecessary rows under the Parameters section
 2. Add new parameters, in our case:
   
-  - **Name:** `repository`
-  - **Value:** `owox/owox-data-marts`
-  - **Description:** Name of the repository where we want to fetch data from
+- **Name:** `repository`
+- **Value:** `owox/owox-data-marts`
+- **Description:** Name of the repository where we want to fetch data from
 
 You’ll later reference this parameter in your script to pull the GitHub repository value dynamically.
 
@@ -192,12 +193,12 @@ To authenticate with the GitHub API, you need to provide your **Personal Access 
 
 Instead, we’ll use **Document Properties** in Apps Script.  This way, the token stays private and secure.
 
-### How to store your token securely:
+### How to store your token securely
 
 1. Open the `Apps Script` editor from your copied Sheet  
 2. Rename the project to something meaningful like:  
    **GitHub Connector Demo**
-3. Check if `manageCredentials()` function exists 
+3. Check if `manageCredentials()` function exists  
    (If no, just copy it from any of the existing connectors in the repo)
 
 This function:
@@ -304,7 +305,7 @@ Now that your connector works manually, let’s automate it to run daily (or hou
    - **Event source:** Time-driven
    - **Type of time-based trigger:** Hour timer (every hour)
 
-6. Click **Save**
+5. Click **Save**
 
 That’s it! The script will now automatically fetch GitHub data and update the sheet every hour.
 
@@ -328,16 +329,12 @@ Let’s recap what you’ve built:
 
 We’ve just created a lightweight, fully custom data pipeline — ready for your team or the community.
 
-
-
-
 ## 🔗 Related Resources
 
 If you’re new to the project, we recommend reviewing these resources next:
 
 - [📖 Main contributor Guide](CONTRIBUTING.md) — Understand the overall architecture, structure, and core concepts.
 - [📹 Video Tutorial](https://owox.wistia.com/medias/ofqiscoxdc) — Watch the step-by-step walkthrough that accompanies this written guide.
-
 
 ## 💬 Questions or Help?
 
@@ -348,15 +345,13 @@ Join one of the [discussions](https://github.com/OWOX/owox-data-marts/discussion
 - Request new connector templates
 - Show off what you’ve built!
 
-
 ## 🤝 Contributing
 
 Want to publish your own connector? Amazing!  
 Please make sure to:
 
-- Follow this guide and [ Contributor Guide](CONTRIBUTING.md)
+- Follow this guide and [Contributor Guide](CONTRIBUTING.md)
 - Submit a [pull request](https://github.com/OWOX/owox-data-marts/pulls)
 - Sign the [Contributor License Agreement (CLA)](https://cla-assistant.io/OWOX/owox-data-marts)
 
 Let’s build a free, open-source alternative to expensive ETL tools — together.
-
