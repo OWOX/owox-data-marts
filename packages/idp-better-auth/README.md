@@ -20,7 +20,6 @@ npm install @owox/idp-better-auth better-auth drizzle-orm
 
 ⚠️ **Limitations**
 
-- Project management not supported (Better Auth focuses on users)
 - Magic links handled through Better Auth flows
 - Some methods require direct database access
 - Token refresh handled automatically by Better Auth
@@ -217,7 +216,7 @@ await provider.signOut(userId);
 ### Environment Variables
 
 ```env
-DATABASE_URL=postgresql://user:pass@localhost:5432/db
+DATABASE_URL=sqlite://./data/better-auth.db
 AUTH_SECRET=your-super-secret-key-at-least-32-chars
 BASE_URL=http://localhost:3000
 GOOGLE_CLIENT_ID=your-google-client-id
@@ -271,15 +270,3 @@ await client.signIn.social({
   provider: 'google',
 });
 ```
-
-## Limitations and Notes
-
-1. **User Lookup**: `getUser()` and `getUserByEmail()` return null as Better Auth doesn't provide direct user lookup APIs. Use session-based approach instead.
-
-2. **Magic Links**: Better Auth handles magic links through its own flow. Use the frontend SDK for magic link authentication.
-
-3. **Project Management**: Not supported as Better Auth focuses on user authentication.
-
-4. **Token Refresh**: Handled automatically by Better Auth sessions.
-
-5. **Database Access**: Some advanced features may require direct database queries using the provided Drizzle instance.
