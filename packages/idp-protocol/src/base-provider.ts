@@ -1,105 +1,99 @@
 import * as crypto from 'crypto';
+import { IIdpProvider } from './types/provider.js';
 import {
-  IIdpProvider,
   CreateUserDto,
   UpdateUserDto,
   MagicLink,
   CreateProjectDto,
-} from './types/interfaces.js';
-import { TokenService } from './services/token.service.js';
-import { KeyService } from './services/key.service.js';
+  AuthResult,
+  SignInCredentials,
+} from './types/dto.js';
+import { User, Project, TokenPayload, MagicLinkPayload } from './types/models.js';
+import { AuthenticationError } from './types/errors.js';
 import { IdpConfig } from './types/config.js';
-import {
-  User,
-  AuthTokens,
-  Project,
-  MagicLinkPayload,
-  TokenPayload,
-  KeyPair,
-} from './types/types.js';
-import { AuthenticationError, AuthResult, SignInCredentials } from './types/interfaces.js';
-import { Algorithm } from './types/enums.js';
+import { IdpCapabilities, DEFAULT_CAPABILITIES } from './types/capabilities.js';
 
 export abstract class BaseIdpProvider implements IIdpProvider {
-  protected tokenService: TokenService;
-  protected keyService: KeyService;
+  protected capabilities: IdpCapabilities;
 
-  constructor(protected config: IdpConfig) {
-    this.keyService = new KeyService(config.keyStorage, config.algorithm || Algorithm.RS256);
-
-    this.tokenService = new TokenService(this.keyService, {
-      issuer: config.issuer || 'owox-idp',
-      audience: config.audience || 'owox-app',
-      accessTokenTTL: config.accessTokenTTL || 900, // 15 minutes
-      refreshTokenTTL: config.refreshTokenTTL || 604800, // 7 days
-    });
+  constructor(
+    protected config: IdpConfig,
+    capabilities?: Partial<IdpCapabilities>
+  ) {
+    // Merge provided capabilities with defaults
+    this.capabilities = this.mergeCapabilities(DEFAULT_CAPABILITIES, capabilities || {});
   }
 
-  // Abstract
+  /**
+   * Get the capabilities of this IDP provider
+   */
+  getCapabilities(): IdpCapabilities {
+    return { ...this.capabilities };
+  }
 
-  // User
+  /**
+   * Check if a specific capability is supported
+   */
+  hasCapability(capability: string): boolean {
+    const parts = capability.split('.');
+    let current: any = this.capabilities;
+
+    for (const part of parts) {
+      if (current[part] === undefined) return false;
+      current = current[part];
+    }
+
+    return Boolean(current);
+  }
+
+  /**
+   * Merge capabilities with defaults
+   */
+  private mergeCapabilities(
+    defaults: IdpCapabilities,
+    custom: Partial<IdpCapabilities>
+  ): IdpCapabilities {
+    return {
+      authPages: { ...defaults.authPages, ...custom.authPages },
+      authApi: { ...defaults.authApi, ...custom.authApi },
+      managementApi: {
+        users: { ...defaults.managementApi.users, ...custom.managementApi?.users },
+        projects: { ...defaults.managementApi.projects, ...custom.managementApi?.projects },
+        roles: { ...defaults.managementApi.roles, ...custom.managementApi?.roles },
+        sessions: { ...defaults.managementApi.sessions, ...custom.managementApi?.sessions },
+        health: custom.managementApi?.health ?? defaults.managementApi.health,
+      },
+    };
+  }
+
+  // Abstract methods that each IDP implementation must provide
+
+  // User management
   abstract createUser(data: CreateUserDto): Promise<User>;
   abstract getUser(id: string): Promise<User | null>;
   abstract getUserByEmail(email: string): Promise<User | null>;
   abstract updateUser(id: string, data: UpdateUserDto): Promise<User>;
   abstract deleteUser(id: string): Promise<void>;
 
-  // Project
+  // Project management
   abstract createProject(data: CreateProjectDto): Promise<Project>;
   abstract getProject(id: string): Promise<Project | null>;
 
-  // Password
-  abstract validatePassword(user: User, password: string): Promise<boolean>;
+  // Authentication (returns IDP-specific tokens)
+  abstract signIn(credentials: SignInCredentials): Promise<AuthResult>;
+  abstract signOut(userId: string): Promise<void>;
 
-  // Magic link
+  // Token introspection - parse IDP token to protocol DTO
+  abstract introspectToken(token: string): Promise<TokenPayload>;
+  abstract revokeTokens(userId: string): Promise<void>;
+
+  // Magic link support
   abstract saveMagicLink(magicLink: MagicLinkPayload): Promise<void>;
   abstract getMagicLink(token: string): Promise<MagicLinkPayload | null>;
   abstract markMagicLinkUsed(token: string): Promise<void>;
 
-  // Common implementations
-  async signIn(credentials: SignInCredentials): Promise<AuthResult> {
-    if (credentials.provider) {
-      return this.signInWithProvider(credentials);
-    }
-
-    if (!credentials.email || !credentials.password) {
-      throw new AuthenticationError('Email and password required');
-    }
-
-    const user = await this.getUserByEmail(credentials.email);
-    if (!user) {
-      throw new AuthenticationError('Invalid credentials');
-    }
-
-    const isValid = await this.validatePassword(user, credentials.password);
-    if (!isValid) {
-      throw new AuthenticationError('Invalid credentials');
-    }
-
-    if (!user.emailVerified && this.config.requireEmailVerification) {
-      throw new AuthenticationError('Email not verified');
-    }
-
-    const projectId = this.config.defaultProjectId || 'default';
-    const tokens = await this.tokenService.generateTokens(user, projectId);
-
-    return {
-      user,
-      tokens,
-      isNewUser: false,
-    };
-  }
-
-  async signOut(_userId: string): Promise<void> {
-    // Implement token revocation if needed
-    await this.revokeTokens(_userId);
-  }
-
-  async refreshToken(refreshToken: string): Promise<AuthTokens> {
-    return this.tokenService.refreshTokens(refreshToken);
-  }
-
-  async createMagicLink(email: string, _projectId: string): Promise<MagicLink> {
+  // Common magic link implementation
+  async createMagicLink(email: string, projectId: string): Promise<MagicLink> {
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + (this.config.magicLinkTTL || 3600) * 1000);
 
@@ -155,43 +149,15 @@ export abstract class BaseIdpProvider implements IIdpProvider {
       user = await this.updateUser(user.id, { emailVerified: true });
     }
 
-    const projectId = this.config.defaultProjectId || 'default';
-    const tokens = await this.tokenService.generateTokens(user, projectId);
+    // Use sign in to get IDP-specific tokens
+    const authResult = await this.signIn({
+      email: user.email,
+      // Magic link validation - implementation specific
+    });
 
     return {
-      user,
-      tokens,
+      ...authResult,
       isNewUser,
     };
-  }
-
-  async verifyAccessToken(token: string): Promise<TokenPayload> {
-    return this.tokenService.verifyToken(token);
-  }
-
-  async revokeTokens(_userId: string): Promise<void> {
-    // TODO: Implement token revocation
-  }
-
-  async rotateKeys(): Promise<KeyPair> {
-    return this.keyService.rotateKeys();
-  }
-
-  async getPublicKey(kid?: string): Promise<string> {
-    if (kid) {
-      const keyPair = await this.config.keyStorage?.getKeyPair(kid);
-      if (!keyPair) {
-        throw new Error(`Key with id ${kid} not found`);
-      }
-      return keyPair.publicKey;
-    }
-
-    const keyPair = await this.keyService.getActiveKeyPair();
-    return keyPair.publicKey;
-  }
-
-  protected async signInWithProvider(_credentials: SignInCredentials): Promise<AuthResult> {
-    // TODO: Implement provider sign-in
-    throw new Error('Provider sign-in not implemented');
   }
 }

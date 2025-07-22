@@ -1,3 +1,7 @@
+/**
+ * Core domain models for the IDP protocol
+ */
+
 export interface User {
   id: string;
   email: string;
@@ -11,6 +15,7 @@ export interface User {
 export interface Project {
   id: string;
   name: string;
+  metadata?: Record<string, any>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -29,13 +34,10 @@ export interface Permission {
   conditions?: Record<string, any>;
 }
 
-export interface AuthTokens {
-  accessToken: string;
-  refreshToken: string;
-  expiresIn: number;
-  tokenType: 'Bearer';
-}
-
+/**
+ * Standardized token payload that all IDP implementations must return
+ * when introspecting their native tokens
+ */
 export interface TokenPayload {
   sub: string; // user id
   email: string;
@@ -48,17 +50,12 @@ export interface TokenPayload {
   aud: string;
 }
 
+/**
+ * Internal payload for magic link functionality
+ */
 export interface MagicLinkPayload {
   email: string;
   token: string;
   expiresAt: Date;
   used: boolean;
-}
-
-export interface KeyPair {
-  publicKey: string;
-  privateKey: string;
-  kid: string; // Key ID
-  algorithm: 'RS256' | 'ES256';
-  createdAt: Date;
 }

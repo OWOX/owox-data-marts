@@ -1,21 +1,22 @@
-// Main exports
+// Main Better Auth exports
 export { BetterAuthProvider } from './providers/better-auth-provider.js';
 export { createBetterAuthConfig } from './config/better-auth.config.js';
 
+// Database adapters
+export {
+  createDatabaseAdapter,
+  createSqliteAdapter,
+  createMysqlAdapter,
+} from './adapters/database.js';
+
+// Example configurations
+export * from './examples/index.js';
+
 // Types
-export type { BetterAuthConfig } from './types/index.js';
-
-// Express utilities
-export {
-  createBetterAuthMiddleware,
-  createAuthenticationMiddleware,
-  requireEmailVerification,
-  extractUserFromSession,
-} from './utils/express-middleware.js';
-
-// NestJS utilities
-export {
-  BetterAuthService,
-  BetterAuthModule,
-  type BetterAuthModuleOptions,
-} from './utils/nestjs-adapter.js';
+export type {
+  BetterAuthConfig,
+  DatabaseConfig,
+  SqliteConfig,
+  MySqlConfig,
+  CustomDatabaseConfig,
+} from './types/index.js';

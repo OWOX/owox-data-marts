@@ -10,7 +10,7 @@ Identity Provider protocol abstraction for OWOX Data Marts. This package provide
 - 🛡️ Role-based access control (RBAC)
 - 🎯 Fine-grained permissions system
 - 🔄 Token refresh mechanism
-- 🚀 Express & NestJS middleware/guards
+- 🚀 Express middleware & standard API routes
 - 📊 TypeORM entities for database
 - 🗄️ Database agnostic
 
@@ -41,7 +41,8 @@ IdP Provider (Logto, Better Auth)
 1. **IIdpProvider Interface** - Main contract that all IdP implementations must follow
 2. **BaseIdpProvider** - Abstract class with common functionality
 3. **Token Management** - JWT signing/verification with custom keys
-4. **Middleware/Guards** - Ready-to-use Express and NestJS authentication
+4. **Express Middleware** - Ready-to-use Express authentication middleware
+5. **Standard API Routes** - Predefined endpoints for consistent IdP implementation
 
 ## Usage
 
@@ -94,34 +95,75 @@ app.get('/api/public', createAuthMiddleware(idpProvider, { optional: true }), (r
 });
 ```
 
-### NestJS Integration
+### Standard API Routes
+
+The protocol defines standard API endpoints that all IdP implementations should provide:
 
 ```typescript
-import { AuthModule, AuthGuard, Roles, CurrentUser } from '@owox/idp-protocol';
+import { AUTH_PAGE_ROUTES, AUTH_API_ROUTES, API_ROUTES, buildRoute } from '@owox/idp-protocol';
 
-@Module({
-  imports: [
-    AuthModule.forRoot({
-      idpProvider: myIdpProvider,
-      useGlobalGuards: true,
-    }),
-  ],
-})
-export class AppModule {}
+// Authentication page routes (for user-facing pages)
+console.log(AUTH_PAGE_ROUTES.SIGN_IN);     // '/auth/sign-in'
+console.log(AUTH_PAGE_ROUTES.SIGN_OUT);    // '/auth/sign-out'
+console.log(AUTH_PAGE_ROUTES.MAGIC_LINK);  // '/auth/magic-link'
 
-@Controller('users')
-export class UsersController {
-  @Get('profile')
-  getProfile(@CurrentUser() user: TokenPayload) {
-    return user;
-  }
+// Authentication API routes (for programmatic access)
+console.log(AUTH_API_ROUTES.REFRESH);      // '/auth/api/refresh'
+console.log(AUTH_API_ROUTES.INTROSPECT);   // '/auth/api/introspect'
 
-  @Post('admin-action')
-  @Roles('admin')
-  adminAction() {
-    return { success: true };
-  }
-}
+// Management API routes
+console.log(API_ROUTES.USERS);             // '/api/users'
+console.log(API_ROUTES.USER_BY_ID);        // '/api/users/:id'
+console.log(API_ROUTES.HEALTH);            // '/api/health'
+
+// Build routes with parameters
+const userRoute = buildRoute('https://api.example.com', API_ROUTES.USER_BY_ID, { id: '123' });
+// Result: 'https://api.example.com/api/users/123'
+```
+
+### Route Handlers with TypeScript
+
+```typescript
+import { 
+  SignInPageRequest,
+  RefreshTokenApiRequest,
+  RefreshTokenApiResponse,
+  HealthCheckRequest,
+  HealthCheckResponse,
+  AuthPageHandler,
+  AuthApiHandler,
+  ApiHandler
+} from '@owox/idp-protocol';
+
+// Sign in page handler (GET)
+const signInPage: AuthPageHandler<SignInPageRequest> = 
+  async (req, res) => {
+    // Render sign-in HTML page
+    res.render('auth/sign-in');
+  };
+
+// Token refresh API handler (POST)  
+const refreshTokenApi: AuthApiHandler<RefreshTokenApiRequest, RefreshTokenApiResponse> =
+  async (req, res) => {
+    const { refreshToken } = req.body;
+    
+    try {
+      const tokens = await idpProvider.refreshToken(refreshToken);
+      res.json({ success: true, data: tokens });
+    } catch (error) {
+      res.status(401).json({ success: false, error: error.message });
+    }
+  };
+
+// Health check handler  
+const healthCheck: ApiHandler<HealthCheckRequest, HealthCheckResponse> =
+  async (req, res) => {
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      version: '1.0.0'
+    });
+  };
 ```
 
 ### Magic Link Flow
@@ -200,3 +242,108 @@ Access tokens contain:
   aud: string;        // Audience
 }
 ```
+
+## Standard API Endpoints
+
+### Authentication Pages Routes
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/auth/sign-in` | GET | Page to sign in with email/password |
+| `/auth/sign-out` | GET | Page to sign out current user |
+| `/auth/sign-up` | GET | Page to register new user |
+| `/auth/magic-link` | GET | Page to send magic link to email |
+| `/auth/magic-link/verify` | GET | Page to verify magic link token |
+| `/auth/google/callback` | GET | OAuth callback with Google |
+| `/auth/microsoft/callback` | GET | OAuth callback with Microsoft |
+| `/auth/verify-email` | GET | Page to verify email address |
+| `/auth/verify-email/resend` | POST | Page to resend email verification |
+| `/auth/password-reset` | GET | Page to request password reset |
+| `/auth/password-reset/verify` | GET | Page to verify password reset token |
+| `/auth/password-change` | GET | Page to change user password |
+
+### Authentication API Routes
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/auth/api/refresh` | POST | Refresh access token |
+| `/auth/api/revoke` | POST | Revoke refresh token |
+| `/auth/api/introspect` | POST | Introspect token validity |
+
+### Management API Routes
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/users` | GET, POST | List users or create new user |
+| `/api/users/:id` | GET, PUT, DELETE | Get, update, or delete user |
+| `/api/users/profile` | GET, PUT | Get or update current user profile |
+| `/api/projects` | GET, POST | List projects or create new project |
+| `/api/projects/:id` | GET, PUT, DELETE | Get, update, or delete project |
+| `/api/projects/:id/users` | GET, POST, DELETE | Manage project users |
+| `/api/roles` | GET, POST | List or create roles |
+| `/api/permissions` | GET, POST | List or create permissions |
+| `/api/users/:id/roles` | GET, PUT | Get or update user roles |
+| `/api/users/:id/permissions` | GET, PUT | Get or update user permissions |
+| `/api/tokens` | GET, DELETE | List or revoke tokens |
+| `/api/sessions` | GET, DELETE | List or revoke sessions |
+| `/api/health` | GET | Health check endpoint |
+| `/api/status` | GET | Service status |
+| `/api/version` | GET | API version info |
+
+### Optional Endpoints & Capabilities
+
+Not all IDP implementations need to support every endpoint. Use capabilities to declare what your provider supports:
+
+```typescript
+import { BaseIdpProvider, IdpCapabilities } from '@owox/idp-protocol';
+
+// Define what your IDP supports
+const capabilities: Partial<IdpCapabilities> = {
+  authPages: {
+    signIn: true,
+    signOut: true,
+    signUp: false, // Don't support registration
+    magicLink: true,
+    socialAuth: {
+      google: true,
+      microsoft: false,
+    },
+  },
+  authApi: {
+    tokenRefresh: true,
+    tokenIntrospection: true,
+    tokenRevoke: false, // Don't support token revocation
+  },
+  managementApi: {
+    users: {
+      read: true,
+      list: true,
+      create: false, // Read-only users
+    },
+    health: true,
+  },
+};
+
+class MyIdpProvider extends BaseIdpProvider {
+  constructor(config: IdpConfig) {
+    super(config, capabilities);
+  }
+}
+
+// Check capabilities at runtime
+const provider = new MyIdpProvider(config);
+console.log(provider.hasCapability('authPages.magicLink')); // true
+console.log(provider.hasCapability('managementApi.users.create')); // false
+
+// Get list of supported endpoints
+import { getSupportedEndpoints } from '@owox/idp-protocol';
+const endpoints = getSupportedEndpoints(provider.getCapabilities());
+```
+
+### Implementation Notes
+
+- **Flexible Implementation**: Only implement the endpoints your IDP actually supports
+- **Capability Declaration**: Use `IdpCapabilities` to declare what features are available
+- **Runtime Validation**: Check capabilities before routing to endpoints
+- **Consistent Standards**: All implemented endpoints follow the same patterns
+- **TypeScript Safety**: Full type safety for all request/response interfaces
