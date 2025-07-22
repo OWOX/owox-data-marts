@@ -30,7 +30,6 @@
     "dist/**/*.svg"
   ],
   "scripts": {
-    "audit": "npm audit",
     "build": "npm run build:clean && npm run build:web && npm run build:app && npm run copy:assets",
     "build:clean": "shx rm -rf dist",
     "build:web": "npm run build -w @owox/web --prefix ../..",

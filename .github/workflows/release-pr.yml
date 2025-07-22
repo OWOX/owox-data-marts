@@ -17,9 +17,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # Required for changesets to work properly
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: 'npm'
           registry-url: https://registry.npmjs.org
+
       - run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
+
       - uses: changesets/action@v1 # only creates/updates PR

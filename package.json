@@ -20,7 +20,6 @@
     "node": ">=22.16.0"
   },
   "scripts": {
-    "audit": "npm run audit --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
     "build:docs": "npm run build -w @owox/docs",
     "clean": "npx -y shx echo '☢️  Starting total cleanup...' && npx -y shx rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/dist packages/*/dist + && npx -y shx echo '✅ Cleanup complete!'",

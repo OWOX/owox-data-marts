@@ -13,9 +13,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # Required for changesets to work properly
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: 'npm'
           registry-url: https://registry.npmjs.org
 
       # can't set --ignore-scripts because Astro uses postinstall

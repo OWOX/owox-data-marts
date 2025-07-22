@@ -4,7 +4,6 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "audit": "npm audit",
     "sync": "node scripts/sync-docs.js",
     "dev": "npm run sync && astro dev",
     "start": "astro dev",

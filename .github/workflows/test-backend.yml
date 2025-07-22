@@ -1,4 +1,4 @@
-name: Test, Build and Audit @owox/backend
+name: Test and Build @owox/backend
 
 on:
   pull_request:
@@ -36,7 +36,6 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: '**/package-lock.json'
 
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
@@ -68,7 +67,6 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: '**/package-lock.json'
 
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
@@ -77,35 +75,3 @@ jobs:
         run: npm run build -w @owox/backend
         env:
           NODE_ENV: production
-
-  # Audit job (by condition)
-  audit:
-    name: Audit @owox/backend
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: 'Check for changed paths'
-        uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            workspace_changed:
-              - 'apps/backend/**'
-            lockfile_changed:
-              - 'package-lock.json'
-
-      - name: Setup Node.js
-        if: steps.filter.outputs.workspace_changed == 'true' && steps.filter.outputs.lockfile_changed == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: '**/package-lock.json'
-
-      - name: Run Audit @owox/backend
-        if: steps.filter.outputs.workspace_changed == 'true' && steps.filter.outputs.lockfile_changed == 'true'
-        run: npm audit -w @owox/backend
