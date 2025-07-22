@@ -1,21 +1,16 @@
-export * from './types/types.js';
-export * from './types/interfaces.js';
+// Protocol contracts and types
+export * from './types/index.js';
+
+// Base implementation
 export * from './base-provider.js';
-export * from './services/token.service.js';
-export * from './services/key.service.js';
-export * from './utils/magic-link.js';
+
+// Utilities
 export * from './utils/password.js';
 export * from './utils/id-generator.js';
-export * from './utils/database.js';
-export * from './types/config.js';
-export * from './types/interfaces.js';
-export * from './types/types.js';
-export * from './types/enums.js';
-export * from './decorators/column.decorators.js';
+
+// Middleware
 export * from './middleware/auth.middleware.js';
 export * from './middleware/role.middleware.js';
-export * from './nestjs/auth.guard.js';
-export * from './nestjs/roles.guard.js';
-export * from './nestjs/decorators.js';
-export * from './nestjs/auth.module.js';
-export * as entities from './entities/index.js';
+
+// API Routes specification
+export * from './routes/index.js';

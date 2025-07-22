@@ -1,5 +1,4 @@
 import {
-  BaseIdpProvider,
   type CreateUserDto,
   type UpdateUserDto,
   type CreateProjectDto,
@@ -9,19 +8,29 @@ import {
   type Project,
   type MagicLinkPayload,
   type IdpConfig,
-  type AuthTokens,
+  type IdpTokens,
   type TokenPayload,
   AuthenticationError,
+  InvalidTokenError,
+  BaseIdpProvider,
 } from '@owox/idp-protocol';
 import { createBetterAuthConfig } from '../config/better-auth.config.js';
 import { type BetterAuthConfig } from '../types/index.js';
 
 export class BetterAuthProvider extends BaseIdpProvider {
-  private auth: ReturnType<typeof createBetterAuthConfig>;
+  private auth: Awaited<ReturnType<typeof createBetterAuthConfig>>;
 
-  constructor(config: IdpConfig, betterAuthConfig: BetterAuthConfig) {
+  private constructor(config: IdpConfig, auth: Awaited<ReturnType<typeof createBetterAuthConfig>>) {
     super(config);
-    this.auth = createBetterAuthConfig(betterAuthConfig);
+    this.auth = auth;
+  }
+
+  static async create(
+    config: IdpConfig,
+    betterAuthConfig: BetterAuthConfig
+  ): Promise<BetterAuthProvider> {
+    const auth = await createBetterAuthConfig(betterAuthConfig);
+    return new BetterAuthProvider(config, auth);
   }
 
   async createUser(data: CreateUserDto): Promise<User> {
@@ -34,7 +43,6 @@ export class BetterAuthProvider extends BaseIdpProvider {
         },
       });
 
-      // Better Auth API returns different structure
       const user = (result as any)?.user || result;
       if (!user) {
         throw new Error('Failed to create user');
@@ -124,16 +132,16 @@ export class BetterAuthProvider extends BaseIdpProvider {
   }
 
   async saveMagicLink(_magicLink: MagicLinkPayload): Promise<void> {
-    // Better Auth handles magic links internally
+    // Better Auth handles magic links internally via the plugin
   }
 
   async getMagicLink(_token: string): Promise<MagicLinkPayload | null> {
-    // Better Auth handles magic links internally
+    // Better Auth handles magic links internally via the plugin
     return null;
   }
 
   async markMagicLinkUsed(_token: string): Promise<void> {
-    // Better Auth handles magic links internally
+    // Better Auth handles magic links internally via the plugin
   }
 
   async signIn(credentials: SignInCredentials): Promise<AuthResult> {
@@ -173,13 +181,13 @@ export class BetterAuthProvider extends BaseIdpProvider {
         updatedAt: new Date(user.updatedAt || Date.now()),
       };
 
-      const tokens: AuthTokens = {
-        accessToken: session?.token || 'better-auth-session',
-        refreshToken: session?.token || 'better-auth-session',
+      const tokens: IdpTokens = {
+        accessToken: session?.token || '',
+        tokenType: 'Bearer',
         expiresIn: session
           ? Math.floor((new Date(session.expiresAt).getTime() - Date.now()) / 1000)
           : 3600,
-        tokenType: 'Bearer',
+        sessionId: session?.id,
       };
 
       return {
@@ -206,12 +214,7 @@ export class BetterAuthProvider extends BaseIdpProvider {
     }
   }
 
-  async refreshToken(_refreshToken: string): Promise<AuthTokens> {
-    // Better Auth handles token refresh automatically
-    throw new Error('Token refresh is handled automatically by Better Auth');
-  }
-
-  async verifyAccessToken(token: string): Promise<TokenPayload> {
+  async introspectToken(token: string): Promise<TokenPayload> {
     try {
       const result = await this.auth.api.getSession({
         headers: new Headers({
@@ -223,13 +226,19 @@ export class BetterAuthProvider extends BaseIdpProvider {
       const session = (result as any)?.session;
 
       if (!user || !session) {
-        throw new Error('Invalid token');
+        throw new InvalidTokenError('Invalid or expired token');
+      }
+
+      // Check if session is expired
+      if (session.expiresAt && new Date() > new Date(session.expiresAt)) {
+        throw new InvalidTokenError('Token has expired');
       }
 
       return {
         sub: user.id,
         email: user.email,
-        roles: [], // Better Auth doesn't have built-in roles
+        roles: user.roles || [], // Extract roles from Better Auth user if available
+        permissions: user.permissions || [], // Extract permissions if available
         projectId: this.config.defaultProjectId || 'default',
         iat: Math.floor(new Date(session.createdAt || Date.now()).getTime() / 1000),
         exp: Math.floor(new Date(session.expiresAt || Date.now() + 3600000).getTime() / 1000),
@@ -237,19 +246,40 @@ export class BetterAuthProvider extends BaseIdpProvider {
         iss: this.config.issuer || 'owox-idp',
       };
     } catch (error) {
-      throw new Error(`Token verification failed: ${error}`);
+      if (error instanceof InvalidTokenError) {
+        throw error;
+      }
+      throw new InvalidTokenError(`Token introspection failed: ${error}`);
     }
   }
 
-  // TODO: Need to test this
+  async revokeTokens(userId: string): Promise<void> {
+    try {
+      // Better Auth doesn't have a direct revoke all sessions API
+      // We need to get the user's sessions and revoke them
+      // For now, we'll implement a basic sign out which should invalidate the current session
+      await this.signOut(userId);
+    } catch (error) {
+      throw new Error(`Failed to revoke tokens for user ${userId}: ${error}`);
+    }
+  }
+
   async createMagicLink(email: string, _projectId: string) {
     try {
-      // Better Auth magic links are typically sent directly
-      const magicLinkUrl = `${this.config.magicLinkBaseUrl || 'http://localhost:3000'}/auth/magic-link?email=${encodeURIComponent(email)}`;
+      // Better Auth magic link plugin handles creation and sending automatically
+      const result = await this.auth.api.sendMagicLink({
+        body: {
+          email,
+        },
+      });
+
+      if (!result) {
+        throw new Error('Failed to send magic link');
+      }
 
       return {
-        url: magicLinkUrl,
-        token: 'handled-by-better-auth',
+        url: 'sent-via-better-auth',
+        token: 'handled-by-better-auth-plugin',
         expiresAt: new Date(Date.now() + (this.config.magicLinkTTL || 3600) * 1000),
       };
     } catch (error) {
@@ -258,14 +288,11 @@ export class BetterAuthProvider extends BaseIdpProvider {
   }
 
   async verifyMagicLink(_token: string): Promise<AuthResult> {
-    try {
-      // Better Auth handles magic link verification internally
-      throw new AuthenticationError(
-        'Magic link verification should be handled through Better Auth frontend flows'
-      );
-    } catch (error) {
-      throw new AuthenticationError(`Magic link verification failed: ${error}`);
-    }
+    // Better Auth magic link plugin handles verification automatically
+    // when users click the magic link. This should not be called directly.
+    throw new AuthenticationError(
+      'Magic link verification is handled automatically by Better Auth plugin when users click the link'
+    );
   }
 
   getBetterAuth(): ReturnType<typeof createBetterAuthConfig> {

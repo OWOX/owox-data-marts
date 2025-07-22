@@ -1,9 +1,30 @@
 import { betterAuth } from 'better-auth';
+import { magicLink } from 'better-auth/plugins';
 import { BetterAuthConfig } from '../types/index.js';
+import { createDatabaseAdapter } from '../adapters/database.js';
 
-export function createBetterAuthConfig(config: BetterAuthConfig): ReturnType<typeof betterAuth> {
+export async function createBetterAuthConfig(
+  config: BetterAuthConfig
+): Promise<ReturnType<typeof betterAuth>> {
+  // Create database adapter based on configuration
+  const database = await createDatabaseAdapter(config.database);
+
+  const plugins: any[] = [];
+
+  // Add magic link plugin if enabled
+  if (config.magicLink?.enabled) {
+    plugins.push(
+      magicLink({
+        sendMagicLink: config.magicLink.sendMagicLink,
+        expiresIn: config.magicLink.expiresIn || 300, // 5 minutes default
+        disableSignUp: config.magicLink.disableSignUp || false,
+      })
+    );
+  }
+
   const authConfig: any = {
-    database: config.database,
+    database,
+    plugins,
     session: {
       expiresIn: config.session?.maxAge || 60 * 60 * 24 * 7, // 7 days
       updateAge: 60 * 60 * 24, // 1 day
@@ -23,17 +44,6 @@ export function createBetterAuthConfig(config: BetterAuthConfig): ReturnType<typ
     if (config.emailAndPassword.sendEmailVerification) {
       authConfig.emailAndPassword.sendEmailVerification =
         config.emailAndPassword.sendEmailVerification;
-    }
-  }
-
-  // Add magic link authentication if enabled
-  if (config.magicLink?.enabled) {
-    authConfig.magicLink = {
-      enabled: true,
-    };
-
-    if (config.magicLink.sendMagicLink) {
-      authConfig.magicLink.sendMagicLink = config.magicLink.sendMagicLink;
     }
   }
 

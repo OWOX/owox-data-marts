@@ -4,7 +4,7 @@
   "type": "module",
   "author": "OWOX",
   "license": "ELv2",
-  "description": "Identity Provider protocol abstraction for OWOX Data Marts",
+  "description": "Identity Provider protocol contracts and interfaces for OWOX Data Marts",
   "publishConfig": {
     "access": "public"
   },
@@ -30,8 +30,10 @@
     "owox"
   ],
   "dependencies": {
-    "jose": "^6.0.12",
-    "typeorm": "^0.3.24"
+    "jose": "^6.0.12"
+  },
+  "peerDependencies": {
+    "express": "^4.18.2"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
@@ -41,15 +43,8 @@
     "ts-jest": "^29.2.5",
     "typescript": "^5.3.3"
   },
-  "peerDependencies": {
-    "@nestjs/common": "^11.0.1",
-    "@nestjs/core": "^11.1.2",
-    "express": "^4.18.2",
-    "typeorm": "^0.3.24"
-  },
   "files": [
     "dist",
-    "schema",
     "src"
   ],
   "exports": {

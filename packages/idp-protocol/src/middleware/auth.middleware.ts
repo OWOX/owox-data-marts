@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { IIdpProvider } from '../types/interfaces.js';
-import { TokenPayload } from '../types/types.js';
-import { AuthenticationError } from '../types/interfaces.js';
+import { IIdpProvider } from '../types/provider.js';
+import { AuthenticationError } from '../types/errors.js';
+import { TokenPayload } from '../types/models.js';
 
 export interface AuthRequest extends Request {
   user?: TokenPayload;
@@ -33,8 +33,8 @@ export function createAuthMiddleware(
         }
       }
 
-      // Verify token
-      const payload = await idpProvider.verifyAccessToken(token);
+      // Introspect token using IDP-specific mechanism
+      const payload = await idpProvider.introspectToken(token);
 
       req.user = payload;
       req.token = token;

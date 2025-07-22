@@ -1,272 +1,308 @@
 # @owox/idp-better-auth
 
-Better Auth implementation for OWOX IDP Protocol with real authentication flows.
+Better Auth implementation for the OWOX IDP Protocol.
+
+## Features
+
+- ✅ SQLite and MySQL database support
+- ✅ Email/password authentication
+- ✅ Magic link authentication
+- ✅ Social authentication (Google, GitHub)
+- ✅ Session management
+- ✅ TypeScript support
+- ✅ Express integration
 
 ## Installation
 
 ```bash
-npm install @owox/idp-better-auth better-auth drizzle-orm
+npm install @owox/idp-better-auth @owox/idp-protocol
 ```
 
-## Features
+### Database Dependencies
 
-✅ **Real Better Auth Integration**
+Choose your database and install the corresponding driver:
 
-- Email/password authentication
-- OAuth providers (Google, Microsoft)
-- Session management
-- User CRUD operations
-- Express.js and NestJS support
+**SQLite (recommended for development):**
 
-⚠️ **Limitations**
+```bash
+npm install better-sqlite3
+```
 
-- Magic links handled through Better Auth flows
-- Some methods require direct database access
-- Token refresh handled automatically by Better Auth
+**MySQL:**
 
-## Usage
+```bash
+npm install mysql2
+```
 
-### Basic Setup
+## Quick Start
+
+### SQLite Configuration
 
 ```typescript
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
+import { createSqliteProvider } from '@owox/idp-better-auth';
+
+// Using the example configuration
+const provider = await createSqliteProvider();
+
+// Or create custom configuration
 import { BetterAuthProvider } from '@owox/idp-better-auth';
 
-// Setup database
-const client = postgres(process.env.DATABASE_URL!);
-const db = drizzle(client);
-
-// Create provider
-const provider = new BetterAuthProvider(
+const provider = await BetterAuthProvider.create(
+  // IDP Protocol config
   {
-    issuer: 'your-app',
-    audience: 'your-audience',
+    magicLinkTTL: 3600,
+    magicLinkBaseUrl: 'http://localhost:3000',
     defaultProjectId: 'default',
+    requireEmailVerification: true,
   },
+  // Better Auth config
   {
-    database: db,
-    secret: process.env.AUTH_SECRET!,
-    baseURL: process.env.BASE_URL || 'http://localhost:3000',
+    database: {
+      type: 'sqlite',
+      filename: './database.sqlite',
+    },
+    secret: 'your-secret-key',
+    baseURL: 'http://localhost:3000',
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,
-      sendEmailVerification: async (email, url, token) => {
-        // Send verification email
-        console.log(`Verification link: ${url}?token=${token}`);
-      },
     },
-    socialProviders: {
-      google: {
-        clientId: process.env.GOOGLE_CLIENT_ID!,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      },
-      microsoft: {
-        clientId: process.env.MICROSOFT_CLIENT_ID!,
-        clientSecret: process.env.MICROSOFT_CLIENT_SECRET!,
+    magicLink: {
+      enabled: true,
+      sendMagicLink: async ({ email, url, token }) => {
+        // Implement your email sending logic here
+        console.log(`Send magic link to ${email}: ${url}?token=${token}`);
       },
     },
   }
 );
 ```
 
-### Express.js Integration
+### MySQL Configuration
+
+```typescript
+import { createMysqlProvider } from '@owox/idp-better-auth';
+
+// Using the example configuration
+const provider = await createMysqlProvider();
+
+// Or create custom configuration
+const provider = await BetterAuthProvider.create(
+  // IDP Protocol config
+  {
+    magicLinkTTL: 3600,
+    magicLinkBaseUrl: 'http://localhost:3000',
+    defaultProjectId: 'default',
+    requireEmailVerification: true,
+  },
+  // Better Auth config
+  {
+    database: {
+      type: 'mysql',
+      host: 'localhost',
+      user: 'root',
+      password: 'password',
+      database: 'better_auth',
+      port: 3306,
+    },
+    secret: 'your-secret-key',
+    baseURL: 'http://localhost:3000',
+    emailAndPassword: {
+      enabled: true,
+    },
+  }
+);
+```
+
+## Magic Link Authentication
+
+This implementation uses Better Auth's native magic link plugin for simplified authentication:
+
+```typescript
+// Magic links are sent automatically when enabled
+const provider = await BetterAuthProvider.create(idpConfig, {
+  magicLink: {
+    enabled: true,
+    sendMagicLink: async ({ email, url, token }) => {
+      // Your email sending implementation
+      await sendEmail({
+        to: email,
+        subject: 'Sign in to your account',
+        body: `Click here to sign in: ${url}?token=${token}`,
+      });
+    },
+    expiresIn: 300, // 5 minutes (optional)
+    disableSignUp: false, // Allow new user registration (optional)
+  },
+});
+
+// Send a magic link
+await provider.createMagicLink('user@example.com', 'project-id');
+```
+
+The magic link plugin automatically handles:
+
+- Token generation and validation
+- Link expiration
+- User verification
+- Session creation upon successful verification
+
+## Database Schema
+
+Better Auth automatically manages the database schema. To generate and run migrations:
+
+```bash
+# Install Better Auth CLI
+npm install -g @better-auth/cli
+
+# Generate schema
+npx @better-auth/cli@latest generate
+
+# Run migrations
+npx @better-auth/cli@latest migrate
+```
+
+## Express Integration
 
 ```typescript
 import express from 'express';
-import cookieParser from 'cookie-parser';
-import {
-  createBetterAuthMiddleware,
-  createAuthenticationMiddleware,
-  requireEmailVerification,
-  extractUserFromSession
-} from '@owox/idp-better-auth';
+import { createAuthMiddleware } from '@owox/idp-protocol';
 
 const app = express();
+const provider = await createSqliteProvider();
 
-app.use(express.json());
-app.use(cookieParser());
+// Add authentication middleware
+app.use('/protected', createAuthMiddleware(provider));
 
-// Add Better Auth routes (handles /api/auth/*)
-app.use('/api/auth/*', createBetterAuthMiddleware(provider));
-
-// Optional: Extract user info on all routes
-app.use(extractUserFromSession(provider));
-
-// Protect specific routes
-app.use('/api/protected', createAuthenticationMiddleware(provider));
-
-// Require email verification for sensitive operations
-app.use('/api/admin', requireEmailVerification());
-
-app.get('/api/protected/profile', (req, res) => {
-  res.json({ user: req.user, session: req.session });
+app.get('/protected/profile', (req, res) => {
+  // req.user contains the authenticated user data
+  res.json(req.user);
 });
 ```
 
-### NestJS Integration
+## Configuration Options
+
+### Database Configuration
 
 ```typescript
-import { Module } from '@nestjs/common';
-import { BetterAuthModule } from '@owox/idp-better-auth';
+// SQLite
+{
+  database: {
+    type: 'sqlite',
+    filename: './database.sqlite'
+  }
+}
 
-@Module({
-  imports: [
-    BetterAuthModule.forRoot({
-      idpConfig: {
-        issuer: 'your-app',
-        audience: 'your-audience',
-        defaultProjectId: 'default',
-      },
-      betterAuthConfig: {
-        database: db,
-        secret: process.env.AUTH_SECRET!,
-        // ... other Better Auth options
-      },
-    }),
-  ],
-})
-export class AppModule {}
+// MySQL
+{
+  database: {
+    type: 'mysql',
+    host: 'localhost',
+    user: 'root',
+    password: 'password',
+    database: 'better_auth',
+    port: 3306
+  }
+}
 
-// In your controller
-import { Injectable } from '@nestjs/common';
-import { BetterAuthService } from '@owox/idp-better-auth';
-
-@Injectable()
-export class AuthController {
-  constructor(private authService: BetterAuthService) {}
-
-  async signIn(credentials: SignInCredentials) {
-    return this.authService.signIn(credentials);
+// Custom adapter
+{
+  database: {
+    type: 'custom',
+    adapter: yourCustomAdapter
   }
 }
 ```
 
 ### Authentication Methods
 
-#### Email/Password Sign In
-
 ```typescript
-const result = await provider.signIn({
-  email: 'user@example.com',
-  password: 'secure-password',
-});
-
-console.log(result.user);     // User info
-console.log(result.tokens);   // Access tokens
-console.log(result.isNewUser); // Whether user was just created
+{
+  // Email/password authentication
+  emailAndPassword: {
+    enabled: true,
+    requireEmailVerification: true,
+    sendEmailVerification: async (email, url, token) => {
+      // Your email sending logic
+    }
+  },
+  
+  // Magic link authentication (uses Better Auth native plugin)
+  magicLink: {
+    enabled: true,
+    sendMagicLink: async ({ email, url, token }) => {
+      // Your magic link sending logic (e.g., email service)
+      console.log(`Send magic link to ${email}: ${url}?token=${token}`);
+    },
+    expiresIn: 300, // 5 minutes (optional)
+    disableSignUp: false, // Allow signup via magic link (optional)
+  },
+  
+  // Social providers
+  socialProviders: {
+    google: {
+      clientId: 'your-google-client-id',
+      clientSecret: 'your-google-client-secret'
+    },
+    github: {
+      clientId: 'your-github-client-id',
+      clientSecret: 'your-github-client-secret'
+    }
+  }
+}
 ```
 
-#### User Management
+## Environment Variables
 
-```typescript
-// Create user
-const user = await provider.createUser({
-  email: 'new-user@example.com',
-  password: 'secure-password',
-  name: 'John Doe',
-});
-
-// Update user (limited fields)
-const updatedUser = await provider.updateUser(user.id, {
-  name: 'Jane Doe',
-});
-
-// Note: getUser and getUserByEmail have limitations in Better Auth
-// They require direct database access or session-based approaches
-```
-
-#### OAuth Integration
-
-```typescript
-// Get OAuth redirect URL
-const oauthUrl = provider.getOAuthUrl('google', 'http://localhost:3000/callback');
-
-// Redirect user to oauthUrl
-// Better Auth handles the OAuth flow automatically
-```
-
-#### Session Management
-
-```typescript
-// Verify session token
-const payload = await provider.verifyAccessToken(sessionToken);
-
-// Get current session
-const session = await provider.getCurrentSession(sessionToken);
-
-// Sign out
-await provider.signOut(userId);
-```
-
-## Configuration
-
-### BetterAuthConfig
-
-| Option | Type | Description |
-|--------|------|-------------|
-| `database` | `DrizzleDB` | Drizzle database instance |
-| `secret` | `string` | Secret key for signing sessions |
-| `baseURL` | `string` | Base URL of your application |
-| `emailAndPassword` | `object` | Email/password authentication config |
-| `socialProviders` | `object` | OAuth provider configurations |
-| `session` | `object` | Session configuration |
-| `trustedOrigins` | `string[]` | Trusted origins for CORS |
-
-### Environment Variables
+Copy `src/config/example.env` to `.env` and configure:
 
 ```env
-DATABASE_URL=sqlite://./data/better-auth.db
-AUTH_SECRET=your-super-secret-key-at-least-32-chars
-BASE_URL=http://localhost:3000
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
-MICROSOFT_CLIENT_ID=your-microsoft-client-id
-MICROSOFT_CLIENT_SECRET=your-microsoft-client-secret
+# Required
+BETTER_AUTH_SECRET=your-super-secret-key-min-32-chars-long
+
+# Optional
+APP_URL=http://localhost:3000
+DB_HOST=localhost
+DB_USER=root
+DB_PASSWORD=password
+DB_NAME=better_auth
 ```
 
-## Database Setup
+## API
 
-Better Auth requires database tables. Create them using Better Auth's migration system:
+### BetterAuthProvider
+
+The main provider class that implements the IDP protocol:
 
 ```typescript
-import { betterAuth } from 'better-auth';
+import { BetterAuthProvider } from '@owox/idp-better-auth';
 
-const auth = betterAuth({
-  database: db,
-  // ... other config
-});
+const provider = await BetterAuthProvider.create(idpConfig, betterAuthConfig);
 
-// Run migrations (in development)
-await auth.api.migrate();
+// Use with any IDP protocol method
+await provider.signIn({ email: 'user@example.com', password: 'password' });
+await provider.introspectToken('jwt-token');
 ```
 
-## Frontend Integration
+### Database Adapters
 
-Better Auth provides client-side SDKs:
+Low-level database adapter functions:
 
 ```typescript
-import { createAuthClient } from 'better-auth/client';
+import { 
+  createDatabaseAdapter, 
+  createSqliteAdapter, 
+  createMysqlAdapter 
+} from '@owox/idp-better-auth';
 
-const client = createAuthClient({
-  baseURL: 'http://localhost:3000',
-});
+// Auto-detect and create appropriate adapter
+const adapter = createDatabaseAdapter(databaseConfig);
 
-// Sign up
-await client.signUp.email({
-  email: 'user@example.com',
-  password: 'password',
-  name: 'User Name',
-});
-
-// Sign in
-await client.signIn.email({
-  email: 'user@example.com',
-  password: 'password',
-});
-
-// OAuth sign in
-await client.signIn.social({
-  provider: 'google',
-});
+// Create specific adapters
+const sqlite = createSqliteAdapter({ type: 'sqlite', filename: 'db.sqlite' });
+const mysql = createMysqlAdapter({ type: 'mysql', host: 'localhost', ... });
 ```
+
+## License
+
+ELv2
