@@ -1,15 +1,25 @@
-import { DataDestinationAccessValidator } from './interfaces/data-destination-access-validator.interface';
-import { DataDestinationCredentialsValidator } from './interfaces/data-destination-credentials-validator.interface';
+import { ModuleRef } from '@nestjs/core';
+import { TypeResolver } from '../../common/resolver/type-resolver';
+import { DataDestinationType } from './enums/data-destination-type.enum';
+import { GoogleSheetsApiAdapterFactory } from './google-sheets/adapters/google-sheets-api-adapter.factory';
 import { GoogleSheetsAccessValidator } from './google-sheets/services/google-sheets-access-validator';
 import { GoogleSheetsCredentialsValidator } from './google-sheets/services/google-sheets-credentials-validator';
-import { DataDestinationType } from './enums/data-destination-type.enum';
-import { TypeResolver } from '../../common/resolver/type-resolver';
 import { GoogleSheetsReportWriter } from './google-sheets/services/google-sheets-report-writer';
-import { DataDestinationReportWriter } from './interfaces/data-destination-report-writer.interface';
 import { SheetHeaderFormatter } from './google-sheets/services/sheet-formatters/sheet-header-formatter';
 import { SheetMetadataFormatter } from './google-sheets/services/sheet-formatters/sheet-metadata-formatter';
-import { GoogleSheetsApiAdapterFactory } from './google-sheets/adapters/google-sheets-api-adapter.factory';
-import { ModuleRef } from '@nestjs/core';
+import { DataDestinationAccessValidator } from './interfaces/data-destination-access-validator.interface';
+import { DataDestinationCredentialsValidator } from './interfaces/data-destination-credentials-validator.interface';
+import { DataDestinationReportWriter } from './interfaces/data-destination-report-writer.interface';
+import { LookerStudioConnectorAccessValidator } from './looker-studio-connector/services/looker-studio-connector-access-validator';
+import { LookerStudioConnectorApiConfigService } from './looker-studio-connector/services/looker-studio-connector-api-config.service';
+import {
+  LookerStudioConnectorApiDataService
+} from "./looker-studio-connector/services/looker-studio-connector-api-data.service";
+import {
+  LookerStudioConnectorApiSchemaService
+} from "./looker-studio-connector/services/looker-studio-connector-api-schema.service";
+import { LookerStudioConnectorApiService } from './looker-studio-connector/services/looker-studio-connector-api.service';
+import { LookerStudioConnectorCredentialsValidator } from './looker-studio-connector/services/looker-studio-connector-credentials-validator';
 
 export const DATA_DESTINATION_ACCESS_VALIDATOR_RESOLVER = Symbol(
   'DATA_DESTINATION_ACCESS_VALIDATOR_RESOLVER'
@@ -21,8 +31,14 @@ export const DATA_DESTINATION_REPORT_WRITER_RESOLVER = Symbol(
   'DATA_DESTINATION_REPORT_WRITER_RESOLVER'
 );
 
-const accessValidatorProviders = [GoogleSheetsAccessValidator];
-const credentialsValidatorProviders = [GoogleSheetsCredentialsValidator];
+const accessValidatorProviders = [
+  GoogleSheetsAccessValidator,
+  LookerStudioConnectorAccessValidator,
+];
+const credentialsValidatorProviders = [
+  GoogleSheetsCredentialsValidator,
+  LookerStudioConnectorCredentialsValidator,
+];
 const reportWriterProviders = [GoogleSheetsReportWriter];
 const googleSheetsUtilityProviders = [SheetHeaderFormatter, SheetMetadataFormatter];
 
@@ -32,6 +48,10 @@ export const dataDestinationResolverProviders = [
   ...reportWriterProviders,
   ...googleSheetsUtilityProviders,
   GoogleSheetsApiAdapterFactory,
+  LookerStudioConnectorApiConfigService,
+  LookerStudioConnectorApiSchemaService,
+  LookerStudioConnectorApiDataService,
+  LookerStudioConnectorApiService,
   {
     provide: DATA_DESTINATION_ACCESS_VALIDATOR_RESOLVER,
     useFactory: (...validators: DataDestinationAccessValidator[]) =>

@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { DataMartController } from './controllers/data-mart.controller';
 import { DataStorageController } from './controllers/data-storage.controller';
 import { DataDestinationController } from './controllers/data-destination.controller';
+import { LookerStudioConnectorController } from './controllers/external/looker-studio-connector.controller';
 import { ReportController } from './controllers/report.controller';
 import { ScheduledTriggerController } from './controllers/scheduled-trigger.controller';
 import { CreateDataMartService } from './use-cases/create-data-mart.service';
@@ -99,6 +100,7 @@ import { ConnectorState } from './entities/connector-state.entity';
     ReportController,
     ConnectorController,
     ScheduledTriggerController,
+    LookerStudioConnectorController,
   ],
   providers: [
     ...dataStorageResolverProviders,
