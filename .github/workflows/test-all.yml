@@ -1,4 +1,4 @@
-name: Test and Build all
+name: Test, Build and Audit all
 
 on:
   push:
@@ -99,3 +99,23 @@ jobs:
         run: ${{ matrix.build.command }}
         env:
           NODE_ENV: production
+
+  # Audit job (by condition)
+  audit:
+    name: Audit all
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: Run Audit all
+        run: npm audit

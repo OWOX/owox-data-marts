@@ -7,6 +7,7 @@
     "node": ">=22.16.0"
   },
   "scripts": {
+    "audit": "npm audit",
     "lint": "eslint . --max-warnings 0",
     "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",
     "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",

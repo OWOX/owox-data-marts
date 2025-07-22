@@ -19,6 +19,7 @@
     "node": ">=22.16.0"
   },
   "scripts": {
+    "audit": "npm audit",
     "build:connectors": "npm run build -w @owox/connectors --prefix ../..",
     "connector-runner-node": "node src/cli-wrapper.js",
     "lint": "eslint . --config ./eslint.config.mjs",
