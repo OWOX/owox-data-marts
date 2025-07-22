@@ -26,3 +26,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
+
+      - name: Run Audit all
+        run: npm audit
