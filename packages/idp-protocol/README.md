@@ -12,7 +12,7 @@ Identity Provider protocol abstraction for OWOX Data Marts. This package provide
 - 🔄 Token refresh mechanism
 - 🚀 Express & NestJS middleware/guards
 - 📊 TypeORM entities for database
-- 🗄️ Multi-database support (PostgreSQL, MySQL, SQLite)
+- 🗄️ Database agnostic
 
 ## Installation
 
@@ -153,63 +153,6 @@ const newTokens = await idpProvider.refreshToken(result.tokens.refreshToken);
 const payload = await idpProvider.verifyAccessToken(accessToken);
 ```
 
-## Database Support
-
-The protocol supports multiple databases out of the box:
-
-### SQLite (Default)
-
-Perfect for development and single-instance deployments:
-
-```bash
-DB_TYPE=sqlite
-SQLITE_DATABASE=./data/idp.db
-```
-
-### MySQL
-
-For production deployments requiring a robust RDBMS:
-
-```bash
-DB_TYPE=mysql
-MYSQL_HOST=localhost
-MYSQL_PORT=3306
-MYSQL_USER=root
-MYSQL_PASSWORD=your_password
-MYSQL_DATABASE=owox_idp
-```
-
-### PostgreSQL
-
-For advanced features and enterprise deployments:
-
-```bash
-DB_TYPE=postgres
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=your_password
-POSTGRES_DATABASE=owox_idp
-```
-
-### Database Initialization
-
-Initialize your database with the appropriate schema:
-
-```bash
-# SQLite (default)
-owox idp init
-
-# MySQL
-owox idp init --type mysql --host localhost --username root --password pass --database owox_idp
-
-# PostgreSQL
-owox idp init --type postgres --host localhost --username postgres --password pass --database owox_idp
-
-# With options
-owox idp init --type sqlite --database ./myapp.db --drop-existing --seed
-```
-
 ### TypeORM Configuration
 
 ```typescript
@@ -221,7 +164,9 @@ const dataSource = new DataSource(getDatabaseConfig());
 
 ## Database Schema
 
-Run the SQL schema from `src/schema/[database-type].sql` or use TypeORM migrations:
+Database is fully agnostic, you can use any database you want.
+
+Run the SQL schema from `src/schema/idp-schema.sql` or use TypeORM migrations:
 
 ```typescript
 import { User, Project, Role, Permission } from '@owox/idp-protocol/entities';
@@ -236,13 +181,7 @@ const dataSource = new DataSource({
 
 ### Entity IDs
 
-All entities use UUID v4 strings as primary keys for cross-database compatibility:
-
-- PostgreSQL: native UUID type
-- MySQL: CHAR(36)
-- SQLite: TEXT
-
-The `BaseEntity` automatically generates UUIDs on insert.
+Database-specific primary keys are used for each entity.
 
 ## Token Structure
 
@@ -261,58 +200,3 @@ Access tokens contain:
   aud: string;        // Audience
 }
 ```
-
-## Security Considerations
-
-1. **Key Management**
-   - Private keys should be encrypted at rest
-   - Implement key rotation regularly
-   - Use different keys per environment
-
-2. **Token Security**
-   - Short-lived access tokens (15 min default)
-   - Secure refresh token storage
-   - HTTPS-only in production
-
-3. **Magic Links**
-   - Single-use tokens
-   - Short expiration time
-   - Rate limiting on creation
-
-## CLI Commands Support
-
-The protocol supports these CLI operations:
-
-```bash
-# Initialize IdP (to be implemented in owox CLI)
-owox idp init
-
-# Add user with magic link
-owox idp add-user user@example.com
-
-# Rotate signing keys
-owox idp rotate-keys
-```
-
-## Error Handling
-
-```typescript
-import { IdpError, AuthenticationError, TokenExpiredError } from '@owox/idp-protocol';
-
-try {
-  await idpProvider.verifyAccessToken(token);
-} catch (error) {
-  if (error instanceof TokenExpiredError) {
-    // Handle expired token
-  } else if (error instanceof AuthenticationError) {
-    // Handle auth failure
-  }
-}
-```
-
-## Contributing
-
-1. Follow the abstract methods in `BaseIdpProvider`
-2. Implement all required database operations
-3. Add tests for your implementation
-4. Ensure TypeScript types are properly exported
