@@ -95,7 +95,6 @@ export const GoogleSheetsReportEditForm = forwardRef<
     useEffect(() => {
       if (dataDestinations.length > 0) {
         const googleSheetsDestinations = dataDestinations.filter(
-          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
           destination => destination.type === DataDestinationType.GOOGLE_SHEETS
         );
         setFilteredDestinations(googleSheetsDestinations);

@@ -49,15 +49,6 @@ export function DataDestinationForm({
   // Get the current destination type
   const destinationType = form.watch('type');
 
-  // Reset credentials when a destination type changes
-  useEffect(() => {
-    if (destinationType === DataDestinationType.GOOGLE_SHEETS) {
-      form.setValue('credentials', { serviceAccount: '' }, { shouldDirty: true });
-    } else if (destinationType === DataDestinationType.LOOKER_STUDIO) {
-      form.setValue('credentials', { urlHost: '' }, { shouldDirty: true });
-    }
-  }, [destinationType, form]);
-
   useEffect(() => {
     onDirtyChange?.(form.formState.isDirty);
   }, [form.formState.isDirty, onDirtyChange]);

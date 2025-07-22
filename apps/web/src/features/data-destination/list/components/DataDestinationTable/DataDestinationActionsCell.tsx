@@ -19,14 +19,12 @@ import {
  */
 interface DataDestinationActionsCellProps {
   id: string;
-  onViewDetails?: (id: string) => void;
   onEdit?: (id: string) => Promise<void>;
   onDelete?: (id: string) => void;
 }
 
 export const DataDestinationActionsCell: FC<DataDestinationActionsCellProps> = ({
   id,
-  onViewDetails,
   onEdit,
   onDelete,
 }) => {
@@ -45,12 +43,6 @@ export const DataDestinationActionsCell: FC<DataDestinationActionsCellProps> = (
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end'>
-          <DropdownMenuItem
-            onClick={() => onViewDetails?.(id)}
-            className='dm-card-table-body-row-actiondropdownitem'
-          >
-            View details
-          </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => void onEdit?.(id)}
             className='dm-card-table-body-row-actiondropdownitem'

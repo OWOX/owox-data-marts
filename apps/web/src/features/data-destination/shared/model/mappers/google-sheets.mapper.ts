@@ -1,8 +1,5 @@
 import type { DestinationMapper } from './destination-mapper.interface.ts';
-import type {
-  DataDestinationResponseDto,
-  GoogleSheetsCredentialsResponse,
-} from '../../services/types';
+import type { DataDestinationResponseDto } from '../../services/types';
 import type { GoogleSheetsDataDestination } from '../types';
 import { DataDestinationCredentialsType, DataDestinationType } from '../../enums';
 import type { DataDestinationFormData } from '../../types';
@@ -18,11 +15,7 @@ export class GoogleSheetsMapper implements DestinationMapper {
     try {
       // Check if credentials are of type GoogleSheetsCredentialsResponse
       if (dto.credentials.type === DataDestinationCredentialsType.GOOGLE_SHEETS_CREDENTIALS) {
-        serviceAccountJson = JSON.stringify(
-          (dto.credentials as GoogleSheetsCredentialsResponse).serviceAccountKey,
-          null,
-          2
-        );
+        serviceAccountJson = JSON.stringify(dto.credentials.serviceAccountKey, null, 2);
       }
     } catch (error) {
       console.error(error, 'Error parsing service account key');

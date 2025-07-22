@@ -1,8 +1,5 @@
 import type { DestinationMapper } from './destination-mapper.interface.ts';
-import type {
-  DataDestinationResponseDto,
-  LookerStudioCredentialsResponse,
-} from '../../services/types';
+import type { DataDestinationResponseDto } from '../../services/types';
 import type { LookerStudioDataDestination } from '../types';
 import { DataDestinationCredentialsType, DataDestinationType } from '../../enums';
 import type { DataDestinationFormData } from '../../types';
@@ -19,8 +16,8 @@ export class LookerStudioMapper implements DestinationMapper {
     try {
       // Check if credentials are of type LookerStudioCredentialsResponse
       if (dto.credentials.type === DataDestinationCredentialsType.LOOKER_STUDIO_CREDENTIALS) {
-        urlHost = (dto.credentials as LookerStudioCredentialsResponse).urlHost;
-        secretKey = (dto.credentials as LookerStudioCredentialsResponse).secretKey;
+        urlHost = dto.credentials.urlHost;
+        secretKey = dto.credentials.secretKey;
       }
     } catch (error) {
       console.error(error, 'Error parsing Looker Studio credentials');

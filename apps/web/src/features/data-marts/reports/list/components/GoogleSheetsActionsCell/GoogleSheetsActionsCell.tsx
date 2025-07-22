@@ -10,6 +10,7 @@ import {
 } from '@owox/ui/components/dropdown-menu';
 import { getGoogleSheetTabUrl } from '../../../shared';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report.ts';
+import { isGoogleSheetsDestinationConfig } from '../../../shared/model/types/data-mart-report.ts';
 import { useReport } from '../../../shared';
 
 interface GoogleSheetsActionsCellProps {
@@ -112,24 +113,26 @@ export function GoogleSheetsActionsCell({
             {isRunning ? 'Running...' : 'Run report'}
             <Play className='h-3 w-3' aria-hidden='true' />
           </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <a
-              href={getGoogleSheetTabUrl(
-                row.original.destinationConfig.spreadsheetId,
-                row.original.destinationConfig.sheetId
-              )}
-              target='_blank'
-              rel='noopener noreferrer'
-              className='flex items-center gap-1'
-              role='menuitem'
-              onClick={e => {
-                e.stopPropagation();
-              }}
-            >
-              Open document
-              <SquareArrowOutUpRight className='h-3 w-3' aria-hidden='true' />
-            </a>
-          </DropdownMenuItem>
+          {isGoogleSheetsDestinationConfig(row.original.destinationConfig) && (
+            <DropdownMenuItem asChild>
+              <a
+                href={getGoogleSheetTabUrl(
+                  row.original.destinationConfig.spreadsheetId,
+                  row.original.destinationConfig.sheetId
+                )}
+                target='_blank'
+                rel='noopener noreferrer'
+                className='flex items-center gap-1'
+                role='menuitem'
+                onClick={e => {
+                  e.stopPropagation();
+                }}
+              >
+                Open document
+                <SquareArrowOutUpRight className='h-3 w-3' aria-hidden='true' />
+              </a>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className='text-red-600'

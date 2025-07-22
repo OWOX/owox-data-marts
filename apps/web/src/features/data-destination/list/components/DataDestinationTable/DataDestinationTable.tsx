@@ -12,8 +12,6 @@ import {
   type VisibilityState,
   type RowSelectionState,
 } from '@tanstack/react-table';
-import { DataDestinationDetailsDialog } from '../DataDestinationDetailsDialog';
-import { type DataDestinationTableItem } from './columns';
 
 import {
   Table,
@@ -48,8 +46,6 @@ export function DataDestinationTable<TData, TValue>({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
-  const [selectedDataDestination] = useState<DataDestinationTableItem | null>(null);
 
   const table = useReactTable({
     data,
@@ -94,15 +90,6 @@ export function DataDestinationTable<TData, TValue>({
 
   return (
     <div>
-      {selectedDataDestination && (
-        <DataDestinationDetailsDialog
-          isOpen={isDetailsDialogOpen}
-          onClose={() => {
-            setIsDetailsDialogOpen(false);
-          }}
-          id={selectedDataDestination.id}
-        />
-      )}
       <div className='dm-card'>
         {/* TOOLBAR */}
         <div className='dm-card-toolbar'>

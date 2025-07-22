@@ -3,7 +3,6 @@ import { useDataDestination } from '../../../shared';
 import { DataDestinationTable } from '../DataDestinationTable';
 import { getDataDestinationColumns, type DataDestinationTableItem } from '../DataDestinationTable';
 import { DataDestinationConfigSheet } from '../../../edit';
-import { DataDestinationDetailsDialog } from '../DataDestinationDetailsDialog';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
 
 interface DataDestinationListProps {
@@ -33,8 +32,6 @@ export const DataDestinationList = ({
   const [isEditSheetOpen, setIsEditSheetOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [destinationToDelete, setDestinationToDelete] = useState<string | null>(null);
-  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
-  const [selectedDestinationId, setSelectedDestinationId] = useState<string | null>(null);
 
   useEffect(() => {
     void fetchDataDestinations();
@@ -45,16 +42,6 @@ export const DataDestinationList = ({
       handleOpenCreateForm();
     }
   }, [isCreateSheetInitiallyOpen, handleOpenCreateForm]);
-
-  const handleViewDetails = (id: string) => {
-    setSelectedDestinationId(id);
-    setIsDetailsDialogOpen(true);
-  };
-
-  const handleDetailsDialogClose = () => {
-    setIsDetailsDialogOpen(false);
-    setSelectedDestinationId(null);
-  };
 
   const handleEdit = async (id: string) => {
     await getDataDestinationById(id);
@@ -103,7 +90,6 @@ export const DataDestinationList = ({
   }));
 
   const columns = getDataDestinationColumns({
-    onViewDetails: handleViewDetails,
     onEdit: handleEdit,
     onDelete: handleDelete,
   });
@@ -115,12 +101,6 @@ export const DataDestinationList = ({
         data={tableData}
         onEdit={handleEdit}
         onOpenTypeDialog={handleOpenCreateForm}
-      />
-
-      <DataDestinationDetailsDialog
-        isOpen={isDetailsDialogOpen}
-        onClose={handleDetailsDialogClose}
-        id={selectedDestinationId ?? ''}
       />
 
       <DataDestinationConfigSheet

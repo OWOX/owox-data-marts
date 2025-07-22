@@ -80,7 +80,7 @@ interface DestinationTypeDescriptionProps {
 export default function DestinationTypeDescription({
   destinationType,
 }: DestinationTypeDescriptionProps) {
-  const DescriptionComponent = destinationDescriptions[destinationType] || (() => null);
+  const DescriptionComponent = destinationDescriptions[destinationType];
 
   return (
     <Accordion variant='common' type='single' collapsible>

@@ -116,7 +116,6 @@ export const LookerStudioReportEditForm = forwardRef<
       onSubmit: handleFormSubmit,
     } = useLookerStudioReportForm({
       initialReport,
-      mode,
       dataMartId: dataMart?.id ?? '',
       onSuccess: () => {
         onSubmit?.();
@@ -138,7 +137,7 @@ export const LookerStudioReportEditForm = forwardRef<
         reset({
           title: initialReport.title,
           dataDestinationId: initialReport.dataDestination.id,
-          cacheTime: initialReport.destinationConfig?.cacheTime ?? 300,
+          cacheTime: initialReport.destinationConfig.cacheTime,
         });
       } else if (mode === ReportFormMode.CREATE) {
         reset({ title: '', dataDestinationId: '', cacheTime: 300 });
@@ -268,8 +267,10 @@ export const LookerStudioReportEditForm = forwardRef<
                       Cache Time
                     </FormLabel>
                     <Select
-                      onValueChange={value => field.onChange(parseInt(value, 10))}
-                      value={field.value?.toString()}
+                      onValueChange={value => {
+                        field.onChange(parseInt(value, 10));
+                      }}
+                      value={field.value.toString()}
                       defaultValue='300'
                     >
                       <FormControl>

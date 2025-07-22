@@ -2,9 +2,12 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import type { DataMartReport } from '../../shared/model/types/data-mart-report.ts';
+import type {
+  DataMartReport,
+  DestinationConfig,
+} from '../../shared/model/types/data-mart-report.ts';
 import { isLookerStudioDestinationConfig } from '../../shared/model/types/data-mart-report.ts';
-import { DestinationTypeConfigEnum, ReportFormMode, useReport } from '../../shared';
+import { DestinationTypeConfigEnum, useReport } from '../../shared';
 
 // Define the form schema
 const lookerStudioReportFormSchema = z.object({
@@ -18,14 +21,12 @@ type LookerStudioReportFormData = z.infer<typeof lookerStudioReportFormSchema>;
 
 interface UseLookerStudioReportFormProps {
   initialReport?: DataMartReport;
-  mode: ReportFormMode;
   dataMartId: string;
   onSuccess?: () => void;
 }
 
 export function useLookerStudioReportForm({
   initialReport,
-  mode,
   dataMartId,
   onSuccess,
 }: UseLookerStudioReportFormProps) {
@@ -50,29 +51,26 @@ export function useLookerStudioReportForm({
     try {
       setFormError(null);
 
-      if (mode === ReportFormMode.CREATE) {
-        await createReport({
-          title: data.title,
-          dataMartId,
-          dataDestinationId: data.dataDestinationId,
-          destinationConfig: {
-            type: DestinationTypeConfigEnum.LOOKER_STUDIO_CONFIG,
-            destinationId: data.dataDestinationId,
-            cacheTime: data.cacheTime,
-          },
-        });
-      } else if (mode === ReportFormMode.EDIT && initialReport) {
+      const { title, dataDestinationId, cacheTime } = data;
+      const destinationConfig: DestinationConfig = {
+        type: DestinationTypeConfigEnum.LOOKER_STUDIO_CONFIG,
+        cacheTime: cacheTime,
+      };
+
+      if (initialReport) {
         await updateReport(initialReport.id, {
-          title: data.title,
-          dataDestinationId: data.dataDestinationId,
-          destinationConfig: {
-            type: DestinationTypeConfigEnum.LOOKER_STUDIO_CONFIG,
-            destinationId: data.dataDestinationId,
-            cacheTime: data.cacheTime,
-          },
+          title,
+          dataDestinationId,
+          destinationConfig,
+        });
+      } else {
+        await createReport({
+          title,
+          dataMartId,
+          dataDestinationId,
+          destinationConfig,
         });
       }
-
       onSuccess?.();
     } catch (error) {
       console.error('Error submitting form:', error);

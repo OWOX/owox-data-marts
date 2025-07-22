@@ -1,6 +1,7 @@
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@owox/ui/components/hover-card';
 import { GoogleSheetsIcon } from '../../../../../../shared';
 import type { DataMartReport } from '../../model/types/data-mart-report';
+import { isGoogleSheetsDestinationConfig } from '../../model/types/data-mart-report';
 import { type ReactNode } from 'react';
 import RelativeTime from '@owox/ui/components/common/relative-time';
 import { ReportStatus } from '../ReportStatus';
@@ -48,7 +49,7 @@ export function ReportHoverCard({ report, children }: ReportHoverCardProps) {
             </div>
             <div>
               <p className='text-xs font-medium'>Destination</p>
-              {report.destinationConfig.spreadsheetId ? (
+              {isGoogleSheetsDestinationConfig(report.destinationConfig) ? (
                 <a
                   href={getGoogleSheetTabUrl(
                     report.destinationConfig.spreadsheetId,
