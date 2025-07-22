@@ -1,6 +1,6 @@
 import { Button } from '@owox/ui/components/button';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
-import { Info, Trash2 } from 'lucide-react';
+import { Info, Trash2, Settings } from 'lucide-react';
 import { DataMartConnectorView } from '../../DataMartConnectorView';
 import { DataStorageType } from '../../../../data-storage';
 import type { ConnectorConfig, ConnectorDefinitionConfig } from '../../../../data-marts/edit/model';
@@ -51,11 +51,15 @@ export function ConnectorConfigurationItem({
   const getConnectorSubtitle = () => {
     const node = connectorDef.connector.source.node || 'No node selected';
     return (
-      <div className='flex flex-wrap gap-2'>
-        <span>
-          <span className='text-muted-foreground/75'>Node:</span>{' '}
-          <span className='text-muted-foreground font-medium'>{node}</span>
-        </span>
+      <div className='flex flex-wrap items-center gap-2'>
+        <span className='text-muted-foreground/75'>Node:</span>{' '}
+        <span className='text-muted-foreground font-medium'>{node}</span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Settings className='h-4 w-4' />
+          </TooltipTrigger>
+          <TooltipContent>Open connector configuration</TooltipContent>
+        </Tooltip>
       </div>
     );
   };
@@ -95,10 +99,8 @@ export function ConnectorConfigurationItem({
                 <Info className='h-4 w-4' />
               </TooltipTrigger>
               <TooltipContent>
-                <p>
-                  The dataset and table are created (if not exist) after the first run of the data
-                  mart.
-                </p>
+                The dataset and table are automatically created during the first run of the data
+                mart, if they don't already exist
               </TooltipContent>
             </Tooltip>
           </div>
@@ -120,10 +122,8 @@ export function ConnectorConfigurationItem({
                 <Info className='h-4 w-4' />
               </TooltipTrigger>
               <TooltipContent>
-                <p>
-                  The database and table are created (if not exist) after the first run of the data
-                  mart.
-                </p>
+                The database and table are automatically created during the first run of the data
+                mart, if they don't already exist
               </TooltipContent>
             </Tooltip>
           </div>
@@ -143,7 +143,7 @@ export function ConnectorConfigurationItem({
   };
 
   return (
-    <div className='flex w-full items-center pb-4'>
+    <div className='border-border flex w-full items-center rounded-lg border-1 p-1 dark:bg-white/2'>
       <div className='flex-grow'>
         <div className='grid grid-cols-2 items-center gap-4'>
           <DataMartConnectorView
@@ -162,7 +162,7 @@ export function ConnectorConfigurationItem({
               icon={getConnectorIcon(connectorDef.connector.source.name)}
               title={connectorDef.connector.source.name || 'Connector'}
               subtitle={getConnectorSubtitle()}
-              className='min-h-[80px] cursor-pointer transition-colors'
+              className='bg-background hover:bg-muted min-h-[80px] cursor-pointer border-0 transition-colors hover:shadow-none'
             />
           </DataMartConnectorView>
 
@@ -175,20 +175,18 @@ export function ConnectorConfigurationItem({
         </div>
       </div>
 
-      <div className='shrink-0 pl-4'>
+      <div className='shrink-0 px-4'>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               type='button'
               variant='ghost'
-              size='sm'
               onClick={() => {
                 if (canRemoveConfiguration()) {
                   onRemoveConfiguration(configIndex);
                 }
               }}
               disabled={!canRemoveConfiguration()}
-              className='disabled:text-muted-foreground/50 text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/50'
             >
               <Trash2 className='h-4 w-4' />
             </Button>
