@@ -1,0 +1,61 @@
+{
+  "name": "@owox/idp-protocol",
+  "version": "0.0.0",
+  "type": "module",
+  "author": "OWOX",
+  "license": "ELv2",
+  "description": "Identity Provider protocol abstraction for OWOX Data Marts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf dist",
+    "test": "jest",
+    "lint": "eslint . --config ./eslint.config.js",
+    "lint:fix": "eslint . --fix --config ./eslint.config.js",
+    "format": "prettier --write \"**/*.{ts,js,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,js,json,md}\"",
+    "typecheck": "tsc --noEmit",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm audit && npm run lint && npm run typecheck"
+  },
+  "keywords": [
+    "idp",
+    "authentication",
+    "jwt",
+    "owox"
+  ],
+  "dependencies": {
+    "jose": "^6.0.12",
+    "typeorm": "^0.3.24"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.10.7",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.3.3"
+  },
+  "peerDependencies": {
+    "@nestjs/common": "^11.0.1",
+    "@nestjs/core": "^11.1.2",
+    "express": "^4.18.2",
+    "typeorm": "^0.3.24"
+  },
+  "files": [
+    "dist",
+    "schema",
+    "src"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  }
+}
