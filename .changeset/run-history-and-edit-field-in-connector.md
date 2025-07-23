@@ -12,6 +12,7 @@
 
 Additional improvements include:
 
+- Ability to edit source fields in already published connector-based data marts
 - Enhanced connector runner with better config handling for non-string values
 - Improved AWS Athena storage with optimized query execution and DDL handling
 - UI refinements including conditional chevron display in list item cards
