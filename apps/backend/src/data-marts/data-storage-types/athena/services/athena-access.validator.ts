@@ -17,6 +17,14 @@ export class AthenaAccessValidator implements DataStorageAccessValidator {
 
   constructor(private readonly adapterFactory: AthenaApiAdapterFactory) {}
 
+  /**
+   * Validates access to AWS Athena using provided configuration and credentials.
+   * Checks if the configuration and credentials are valid and attempts to run a simple query to verify access.
+   *
+   * @param config - Data storage configuration for Athena
+   * @param credentials - Credentials for Athena access
+   * @returns ValidationResult indicating success or failure and error details if any
+   */
   async validate(
     config: DataStorageConfig,
     credentials: DataStorageCredentials
@@ -38,7 +46,7 @@ export class AthenaAccessValidator implements DataStorageAccessValidator {
     const athenaConfig: AthenaConfig = configOpt.data;
     const apiAdapter = this.adapterFactory.create(credentialsOpt.data, athenaConfig);
     try {
-      await apiAdapter.checkAccess(athenaConfig.databaseName, athenaConfig.outputBucket);
+      await apiAdapter.checkAccess(athenaConfig.outputBucket);
       return new ValidationResult(true);
     } catch (error) {
       this.logger.warn('Access validation failed', error);

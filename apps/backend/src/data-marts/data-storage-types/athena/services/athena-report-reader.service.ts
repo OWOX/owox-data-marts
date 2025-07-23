@@ -35,6 +35,13 @@ export class AthenaReportReader implements DataStorageReportReader {
     private readonly athenaQueryBuilder: AthenaQueryBuilder
   ) {}
 
+  /**
+   * Prepares report data by executing the Athena query and retrieving metadata for the report.
+   *
+   * @param report - Report entity containing data mart information
+   * @returns ReportDataDescription with headers for the report data
+   * @throws Error if the data mart is not properly configured or query execution fails
+   */
   async prepareReportData(report: Report): Promise<ReportDataDescription> {
     const { storage, definition, schema } = report.dataMart;
     if (!storage || !definition) {
@@ -65,6 +72,14 @@ export class AthenaReportReader implements DataStorageReportReader {
     return new ReportDataDescription(dataHeaders);
   }
 
+  /**
+   * Reads a batch of report data from Athena query results.
+   *
+   * @param batchId - Token for pagination (optional)
+   * @param maxDataRows - Maximum number of data rows to return (default: 1000)
+   * @returns ReportDataBatch containing mapped rows and next token for pagination
+   * @throws Error if report data is not prepared or query results retrieval fails
+   */
   async readReportDataBatch(batchId?: string, maxDataRows = 1000): Promise<ReportDataBatch> {
     if (!this.athenaAdapter) {
       throw new Error('Report data must be prepared before read');
@@ -97,6 +112,11 @@ export class AthenaReportReader implements DataStorageReportReader {
     return new ReportDataBatch(mappedRows, results.NextToken);
   }
 
+  /**
+   * Finalizes the report reading process by cleaning up temporary S3 output files.
+   *
+   * @throws Error if cleanup fails
+   */
   async finalize(): Promise<void> {
     this.logger.debug('Finalizing report read');
 
@@ -118,6 +138,12 @@ export class AthenaReportReader implements DataStorageReportReader {
     }
   }
 
+  /**
+   * Prepares Athena and S3 API adapters using the provided data storage configuration and credentials.
+   *
+   * @param storage - DataStorage entity containing config and credentials
+   * @throws Error if credentials or config are invalid or adapter creation fails
+   */
   private async prepareApiAdapters(storage: DataStorage): Promise<void> {
     try {
       if (!isAthenaCredentials(storage.credentials)) {
@@ -130,9 +156,7 @@ export class AthenaReportReader implements DataStorageReportReader {
 
       this.athenaAdapter = this.athenaAdapterFactory.create(storage.credentials, storage.config);
       this.s3Adapter = this.s3AdapterFactory.create(storage.credentials, storage.config);
-
       this.outputBucket = storage.config.outputBucket;
-      this.databaseName = storage.config.databaseName;
 
       this.logger.debug('Athena and S3 adapters created successfully');
     } catch (error) {
@@ -141,6 +165,12 @@ export class AthenaReportReader implements DataStorageReportReader {
     }
   }
 
+  /**
+   * Prepares the Athena query execution for the given data mart definition.
+   *
+   * @param dataMartDefinition - Definition of the data mart table
+   * @throws Error if query preparation or execution fails
+   */
   private async prepareQueryExecution(dataMartDefinition: DataMartDefinition): Promise<void> {
     this.logger.debug('Preparing query execution', dataMartDefinition);
     try {
@@ -152,13 +182,17 @@ export class AthenaReportReader implements DataStorageReportReader {
     }
   }
 
+  /**
+   * Executes the provided SQL query in Athena and stores the query execution ID.
+   *
+   * @param query - SQL query string to execute
+   */
   private async executeQuery(query: string): Promise<void> {
     // Generate a unique output location prefix
     this.outputPrefix = `owox-data-marts/${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
 
     const result = await this.athenaAdapter.executeQuery(
       query,
-      this.databaseName,
       this.outputBucket,
       this.outputPrefix
     );
@@ -166,6 +200,13 @@ export class AthenaReportReader implements DataStorageReportReader {
     this.queryExecutionId = result.queryExecutionId;
   }
 
+  /**
+   * Maps Athena column metadata and optional data mart schema to report data headers.
+   *
+   * @param athenaColumns - Array of Athena column metadata
+   * @param dataMartSchema - Optional Athena data mart schema for aliasing
+   * @returns Array of header strings for the report data
+   */
   private getDataHeaders(
     athenaColumns: ColumnInfo[],
     dataMartSchema?: AthenaDataMartSchema
