@@ -16,6 +16,8 @@ export interface CreateUserDto {
   password?: string;
   name?: string;
   emailVerified?: boolean;
+  projectId?: string;
+  roles?: string[];
 }
 
 export interface UpdateUserDto {
@@ -23,6 +25,7 @@ export interface UpdateUserDto {
   email?: string;
   emailVerified?: boolean;
   metadata?: Record<string, any>;
+  roles?: string[];
 }
 
 export interface CreateProjectDto {

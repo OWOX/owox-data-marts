@@ -179,6 +179,7 @@ export interface HealthCheckResponse {
   timestamp: string;
   version?: string;
   uptime?: number;
+  error?: string;
   dependencies?: {
     database: 'ok' | 'error';
     [key: string]: 'ok' | 'error';

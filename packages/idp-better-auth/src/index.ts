@@ -12,6 +12,9 @@ export {
 // Example configurations
 export * from './examples/index.js';
 
+// Route handlers and routers
+export * from './routes/index.js';
+
 // Types
 export type {
   BetterAuthConfig,
@@ -19,4 +22,5 @@ export type {
   SqliteConfig,
   MySqlConfig,
   CustomDatabaseConfig,
+  MagicLinkConfig,
 } from './types/index.js';
