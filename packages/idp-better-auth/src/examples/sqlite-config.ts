@@ -1,3 +1,4 @@
+import { magicLink, organization, admin } from 'better-auth/plugins';
 import { BetterAuthProvider } from '../providers/better-auth-provider.js';
 import type { BetterAuthConfig } from '../types/index.js';
 import type { IdpConfig } from '@owox/idp-protocol';
@@ -49,5 +50,30 @@ export function createSqliteConfig(): { idpConfig: IdpConfig; betterAuthConfig: 
  */
 export async function createSqliteProvider(): Promise<BetterAuthProvider> {
   const { idpConfig, betterAuthConfig } = createSqliteConfig();
-  return await BetterAuthProvider.create(idpConfig, betterAuthConfig);
+
+  // Define which capabilities this provider supports
+  const capabilities = {
+    authPages: {
+      signIn: true,
+      signOut: true,
+      signUp: true,
+      magicLink: true,
+    },
+    authApi: {
+      tokenRefresh: true,
+      tokenRevoke: true,
+      tokenIntrospection: true,
+    },
+    managementApi: {
+      users: {
+        read: true,
+        create: true,
+        update: true,
+        delete: true,
+      },
+      health: true,
+    },
+  };
+
+  return await BetterAuthProvider.create(idpConfig, betterAuthConfig, capabilities);
 }

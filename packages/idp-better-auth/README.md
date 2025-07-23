@@ -10,7 +10,8 @@ Better Auth implementation for the OWOX IDP Protocol.
 - ✅ Social authentication (Google, GitHub)
 - ✅ Session management
 - ✅ TypeScript support
-- ✅ Express integration
+- ✅ Express integration with standard API routes
+- ✅ Configurable capabilities and optional endpoints
 
 ## Installation
 
@@ -164,19 +165,62 @@ npx @better-auth/cli@latest migrate
 
 ## Express Integration
 
+### Basic Usage with Standard Routes
+
 ```typescript
 import express from 'express';
-import { createAuthMiddleware } from '@owox/idp-protocol';
+import { createSqliteProvider, createBetterAuthRouter } from '@owox/idp-better-auth';
 
 const app = express();
 const provider = await createSqliteProvider();
 
-// Add authentication middleware
-app.use('/protected', createAuthMiddleware(provider));
+// Add all Better Auth routes automatically
+const authRouter = createBetterAuthRouter(provider);
+app.use('/', authRouter);
 
-app.get('/protected/profile', (req, res) => {
-  // req.user contains the authenticated user data
-  res.json(req.user);
+app.listen(3000);
+```
+
+### Available Endpoints
+
+The provider automatically creates these standard endpoints:
+
+**Authentication Pages (GET):**
+
+- `/auth/sign-in` - Sign in page
+- `/auth/sign-out` - Sign out page  
+- `/auth/sign-up` - Sign up page
+- `/auth/magic-link` - Magic link request page
+- `/auth/google/callback` - Google OAuth callback
+
+**Authentication API (POST):**
+
+- `/auth/api/refresh` - Refresh access token
+- `/auth/api/revoke` - Revoke token
+- `/auth/api/introspect` - Token introspection
+
+**Management API:**
+
+- `/api/users` - User CRUD operations
+- `/api/health` - Health check endpoint
+
+### Custom Protected Routes
+
+```typescript
+app.get('/protected/profile', async (req, res) => {
+  const token = req.cookies['better-auth.session_token'] || 
+                req.headers.authorization?.replace('Bearer ', '');
+  
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  
+  try {
+    const user = await provider.introspectToken(token);
+    res.json({ user });
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid token' });
+  }
 });
 ```
 
