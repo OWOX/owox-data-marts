@@ -2,6 +2,6 @@ import type { DataStorageCredentialsDto } from '../data-storage-credentials.dto.
 import type { DataStorageConfigDto } from '../response';
 
 export interface UpdateDataStorageRequestDto {
-  credentials: DataStorageCredentialsDto | null;
+  credentials?: DataStorageCredentialsDto | null;
   config: DataStorageConfigDto | null;
 }

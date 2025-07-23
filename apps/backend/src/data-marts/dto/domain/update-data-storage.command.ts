@@ -5,8 +5,12 @@ export class UpdateDataStorageCommand {
   constructor(
     public readonly id: string,
     public readonly projectId: string,
-    public readonly credentials: DataStorageCredentials,
     public readonly config: DataStorageConfig,
-    public readonly title: string
+    public readonly title: string,
+    public readonly credentials?: DataStorageCredentials
   ) {}
+
+  hasCredentialsUpdate(): boolean {
+    return this.credentials !== undefined;
+  }
 }

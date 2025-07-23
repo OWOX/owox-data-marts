@@ -12,6 +12,7 @@ import { DataStorageListResponseApiDto } from '../dto/presentation/data-storage-
 import { DeleteDataStorageCommand } from '../dto/domain/delete-data-storage.command';
 import { ListDataStoragesCommand } from '../dto/domain/list-data-storages.command';
 import { toHumanReadable } from '../data-storage-types/enums/data-storage-type.enum';
+import { sanitizeCredentials } from '../data-storage-types/data-mart-schema.utils';
 
 @Injectable()
 export class DataStorageMapper {
@@ -32,9 +33,9 @@ export class DataStorageMapper {
     return new UpdateDataStorageCommand(
       id,
       context.projectId,
-      dto.credentials,
       dto.config,
-      dto.title.trim()
+      dto.title.trim(),
+      dto.credentials
     );
   }
 
@@ -61,7 +62,7 @@ export class DataStorageMapper {
       title: dataStorageDto.title,
       type: dataStorageDto.type,
       projectId: dataStorageDto.projectId,
-      credentials: dataStorageDto.credentials,
+      credentials: sanitizeCredentials(dataStorageDto.type, dataStorageDto.credentials),
       config: dataStorageDto.config,
       createdAt: dataStorageDto.createdAt,
       modifiedAt: dataStorageDto.modifiedAt,
