@@ -34,7 +34,7 @@ function findPackageRoot(startPath, packageName) {
 
     // If we've reached the filesystem root, return the original startPath.
     if (parentDir === currentDir) {
-      return startPath;
+      return null;
     }
 
     currentDir = parentDir;

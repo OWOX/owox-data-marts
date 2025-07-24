@@ -1,5 +1,5 @@
 const fs = require('fs');
-const { spawn } = require('child_process');
+const { spawn } = require('cross-spawn');
 const path = require('path');
 const ExecutionEnvironment = require('../../core/interfaces/execution-environment');
 const NpmDependencyManager = require('../dependencies/npm-dependency-manager');

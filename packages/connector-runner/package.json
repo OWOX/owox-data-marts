@@ -34,6 +34,7 @@
   },
   "dependencies": {
     "@owox/connectors": "0.4.0",
+    "cross-spawn": "^7.0.6",
     "env-paths": "^3.0.0"
   },
   "devDependencies": {

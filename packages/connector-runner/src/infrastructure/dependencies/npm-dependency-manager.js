@@ -1,4 +1,4 @@
-const { spawn } = require('child_process');
+const { spawn } = require('cross-spawn');
 const DependencyManager = require('../../core/interfaces/dependency-manager');
 const { createRequire } = require('node:module');
 const { findPackageRoot } = require('../../utils/package-utils');
@@ -32,6 +32,10 @@ class NpmDependencyManager extends DependencyManager {
       const req = createRequire(__filename);
       const connectorsPath = req.resolve(connectorsPackageName);
       const connectorsRoot = findPackageRoot(connectorsPath, connectorsPackageName);
+
+      if (!connectorsRoot) {
+        throw new Error(`Failed to find ${connectorsPackageName} package!`);
+      }
 
       cachedDependencies = [
         {
@@ -71,14 +75,10 @@ class NpmDependencyManager extends DependencyManager {
    * @returns {Promise<void>} Promise that resolves when installation completes
    */
   async installDependencies(workDir) {
-    const isWindows = process.platform === 'win32';
-
     return new Promise((resolve, reject) => {
       const npm = spawn('npm', ['install'], {
         cwd: workDir,
         stdio: 'inherit',
-        env: process.env,
-        shell: isWindows,
       });
 
       npm.on('close', code => {

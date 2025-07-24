@@ -1,8 +1,12 @@
-const { spawn } = require('child_process');
+const { spawn } = require('cross-spawn');
 const mockFs = require('mock-fs');
 
-jest.mock('child_process', () => ({
+jest.mock('cross-spawn', () => ({
   spawn: jest.fn(),
+}));
+
+jest.mock('../../../src/utils/package-utils', () => ({
+  findPackageRoot: jest.fn(() => '/mock/path/to/@owox/connectors'),
 }));
 
 // Mock the createRequire and @owox/connectors before importing the class
@@ -57,12 +61,9 @@ describe('NpmDependencyManager', () => {
 
     await expect(dependencyManager.installDependencies(mockWorkDir)).resolves.not.toThrow();
 
-    const isWindows = process.platform === 'win32';
     expect(spawn).toHaveBeenCalledWith('npm', ['install'], {
       cwd: mockWorkDir,
       stdio: 'inherit',
-      env: process.env,
-      shell: isWindows,
     });
   });
 

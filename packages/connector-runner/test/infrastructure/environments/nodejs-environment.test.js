@@ -1,12 +1,12 @@
 const fs = require('fs');
 const path = require('path');
-const { spawn } = require('child_process');
+const { spawn } = require('cross-spawn');
 const mockFs = require('mock-fs');
 const NodeJsEnvironment = require('../../../src/infrastructure/environments/nodejs-environment');
 const NpmDependencyManager = require('../../../src/infrastructure/dependencies/npm-dependency-manager');
 const NodeJsTemplateRenderer = require('../../../src/infrastructure/templates/nodejs-template-renderer');
 
-jest.mock('child_process', () => ({
+jest.mock('cross-spawn', () => ({
   spawn: jest.fn(),
 }));
 
