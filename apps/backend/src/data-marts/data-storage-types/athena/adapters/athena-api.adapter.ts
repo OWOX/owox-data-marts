@@ -54,9 +54,6 @@ export class AthenaApiAdapter {
   ): Promise<{ queryExecutionId: string }> {
     const startQueryCommand = new StartQueryExecutionCommand({
       QueryString: query,
-      // QueryExecutionContext: {
-      //   Database: databaseName,
-      // },
       ResultConfiguration: {
         OutputLocation: `s3://${outputBucket}/${outputPrefix}`,
       },

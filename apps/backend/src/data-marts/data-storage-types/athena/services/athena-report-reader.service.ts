@@ -27,7 +27,6 @@ export class AthenaReportReader implements DataStorageReportReader {
   private queryExecutionId?: string;
   private outputBucket: string;
   private outputPrefix: string;
-  private databaseName: string;
 
   constructor(
     private readonly athenaAdapterFactory: AthenaApiAdapterFactory,
