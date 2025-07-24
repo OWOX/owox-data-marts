@@ -26,10 +26,15 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         },
         StartDate: {
           requiredType: "date",
-          isRequired: true
+          label: 'Start Date',
+          description: 'Start date for data import',
+          attributes: ['manualBackfill']
         },
         EndDate: {
           requiredType: "date",
+          label: 'End Date',
+          description: 'End date for data import',
+          attributes: ['manualBackfill']
         },
         Fields: {
           isRequired: true
@@ -50,6 +55,8 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         MaxFetchingDays: {
           requiredType: "number",
           isRequired: true,
+          label: 'Max Fetching Days',
+          description: 'Maximum number of days to fetch in a single run',
           default: 31
         }
       }));

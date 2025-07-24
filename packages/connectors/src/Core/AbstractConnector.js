@@ -7,7 +7,7 @@
 
 var AbstractConnector = class AbstractConnector {
   //---- constructor -------------------------------------------------
-    constructor(config, source, storage = null) {
+    constructor(config, source, storage = null, runConfig = null) {
 
       if( typeof config.setParametersValues !== "function" ) { 
         throw new Error(`Unable to create a Connector. The first parameter must inherit from the AbstractConfig class`);
@@ -20,9 +20,13 @@ var AbstractConnector = class AbstractConnector {
         throw new Error(`Unable to create a Connector. The third parameter must inherit from the AbstractStorage class`);
       }
 
+      // Set default run config if not provided (fallback for backwards compatibility)
+      this.runConfig = runConfig || AbstractRunConfig.createIncremental();
+
       try {
 
         config.validate();
+        this.runConfig.validate(config);
 
       } catch(error) {
 
@@ -49,9 +53,53 @@ var AbstractConnector = class AbstractConnector {
       this.source = source;
       this.storage = storage;
 
+      // Apply run config to the configuration
+      this._processRunConfig();
+
     }
     //----------------------------------------------------------------
       
+  //---- _processRunConfig -------------------------------------------
+    /**
+     * Processes run configuration and applies it to the connector config
+     * @private
+     */
+    _processRunConfig() {
+      if (this.runConfig.type === RunConfigType.MANUAL_BACKFILL) {
+        // For manual backfill, clear LastRequestedDate to force using StartDate
+        if (this.config.LastRequestedDate) {
+          this.config.LastRequestedDate.value = null;
+        }
+        
+        // Apply manual backfill parameters
+        this.runConfig.data.forEach(item => { 
+          if (this.config[item.configField] && 
+              this.config[item.configField].attributes && 
+              this.config[item.configField].attributes.includes('manualBackfill')) {
+            
+            // Convert date strings to Date objects if needed
+            let value = item.value;
+            if (this.config[item.configField].requiredType === 'date' && typeof value === 'string') {
+              value = new Date(value);
+            }
+            
+            this.config[item.configField].value = value;
+          }
+        });
+        
+        this.config.logMessage(`🔧 Manual Backfill mode activated with custom parameters`);
+        
+      } else if (this.runConfig.type === RunConfigType.INCREMENTAL) {
+        // For incremental, apply state if provided
+        if (this.runConfig.state.lastRequestedDate && this.config.LastRequestedDate) {
+          this.config.LastRequestedDate.value = new Date(this.runConfig.state.lastRequestedDate);
+        }
+        
+        this.config.logMessage(`🔄 Incremental mode activated`);
+      }
+    }
+    //----------------------------------------------------------------
+
   //---- run ---------------------------------------------------------
     /**
      * Initiates imports new data from a data source
@@ -128,7 +176,11 @@ var AbstractConnector = class AbstractConnector {
       if( !data.length ) {      
         
         this.config.logMessage("ℹ️ No records have been fetched");
-        this.config.updateLastRequstedDate(endDate);
+        
+        // Only update LastRequestedDate for incremental runs
+        if (this.runConfig.type === RunConfigType.INCREMENTAL) {
+          this.config.updateLastRequstedDate(endDate);
+        }
 
       } else {
 
@@ -137,7 +189,10 @@ var AbstractConnector = class AbstractConnector {
 
       }
 
-      this.config.updateLastRequstedDate(endDate);
+      // Only update LastRequestedDate for incremental runs
+      if (this.runConfig.type === RunConfigType.INCREMENTAL) {
+        this.config.updateLastRequstedDate(endDate);
+      }
 
     }
     //----------------------------------------------------------------
@@ -178,48 +233,104 @@ var AbstractConnector = class AbstractConnector {
      */
     getStartDateAndDaysToFetch() {
 
-      let startDate = this.config.StartDate.value;
-      let endDate  = new Date();
-      let lastRequestedDate = null;
-
-      // data wasn't fetched earlier
-      if (this.config.EndDate && this.config.EndDate.value ) {
-        endDate = this.config.EndDate.value;
-      }
-      
-      // data wasn't fetched earlier
-      if (!this.config.LastRequestedDate || !this.config.LastRequestedDate.value ) {
-        lastRequestedDate = new Date(this.config.StartDate.value.getTime() );
-
+      if (this.runConfig.type === RunConfigType.MANUAL_BACKFILL) {
+        return this._getManualBackfillDateRange();
+        
+      } else if (this.runConfig.type === RunConfigType.INCREMENTAL) {
+        return this._getIncrementalDateRange();
+        
       } else {
-        if (typeof this.config.LastRequestedDate.value === 'string') {
-          lastRequestedDate = new Date( this.config.LastRequestedDate.value );
-        } else {
-          lastRequestedDate = new Date( this.config.LastRequestedDate.value.getTime() );
-        }
-        lastRequestedDate.setDate( lastRequestedDate.getDate() - this.config.ReimportLookbackWindow.value );
+        throw new Error(`Unknown RunConfig type: ${this.runConfig.type}`);
       }
-      // The earliest date that can be requested is the start date
-      if( startDate.getTime() < lastRequestedDate.getTime() ) {
-        startDate = lastRequestedDate;
-      }
+    }
+    //----------------------------------------------------------------
 
-      // ensuring that data will not be requested for future 
+  //---- _getManualBackfillDateRange ---------------------------------
+    /**
+     * Calculates date range for manual backfill
+     * @return [startDate, daysToFetch]
+     * @private
+     */
+    _getManualBackfillDateRange() {
+      let startDate = this.config.StartDate.value;
+      let endDate = this.config.EndDate.value || new Date();
+      
+      // Calculate days between start and end date (no MaxFetchingDays limit for manual backfill)
       const daysToFetch = Math.max(
         0,
-        Math.min (
-          Math.floor( ( endDate.getTime() - startDate.getTime() ) / (1000 * 60 * 60 * 24) ) + 1, // days from startDate until today
-          this.config.MaxFetchingDays.value 
-        )
-      )
+        Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
+      );
+      
+      return [startDate, daysToFetch];
+    }
+    //----------------------------------------------------------------
 
-      // data to start is after end date
-      if( startDate > this.config.EndDate.value ) {
-        return [null, 0];
-      } else {
-        return [startDate, daysToFetch];
+  //---- _getIncrementalDateRange ------------------------------------
+    /**
+     * Calculates date range for incremental import
+     * @return [startDate, daysToFetch]
+     * @private
+     */
+    _getIncrementalDateRange() {
+      let startDate = this._getIncrementalStartDate();
+      
+      // Calculate days to fetch directly (limited by MaxFetchingDays and today)
+      const today = new Date();
+      const maxDaysToToday = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      const daysToFetch = Math.max(0, Math.min(this.config.MaxFetchingDays.value, maxDaysToToday));
+
+      return [startDate, daysToFetch];
+    }
+    //----------------------------------------------------------------
+
+  //---- _getIncrementalStartDate ------------------------------------
+    /**
+     * Determines start date for incremental import considering lookback
+     * @return Date
+     * @private
+     */
+    _getIncrementalStartDate() {
+      let startDate = this.config.StartDate.value;
+
+      // If lastRequestedDate exists, apply ReimportLookbackWindow
+      if (this.config.LastRequestedDate && this.config.LastRequestedDate.value) {
+        let lastRequestedDate = this._parseLastRequestedDate();
+        let lookbackDate = this._applyLookbackWindow(lastRequestedDate);
+        
+        // Use lookback date if it's later than StartDate
+        if (lookbackDate.getTime() > startDate.getTime()) {
+          startDate = lookbackDate;
+        }
       }
 
+      return startDate;
+    }
+    //----------------------------------------------------------------
+
+  //---- _parseLastRequestedDate -------------------------------------
+    /**
+     * Parses LastRequestedDate from config (handles both string and Date types)
+     * @return Date
+     * @private
+     */
+    _parseLastRequestedDate() {
+      if (typeof this.config.LastRequestedDate.value === 'string') {
+        return new Date(this.config.LastRequestedDate.value);
+      } else {
+        return new Date(this.config.LastRequestedDate.value.getTime());
+      }
+    }
+    //----------------------------------------------------------------
+
+  //---- _applyLookbackWindow ----------------------------------------
+    /**
+     * Applies ReimportLookbackWindow to a date
+     * @param Date date
+     * @return Date
+     * @private
+     */
+    _applyLookbackWindow(date) {
+      return new Date(date.getTime() - this.config.ReimportLookbackWindow.value * 24 * 60 * 60 * 1000);
     }
     //----------------------------------------------------------------
 }

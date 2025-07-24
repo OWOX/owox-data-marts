@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Manual Backfill Configuration</title>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      margin: 0; 
+      padding: 20px;
+      background: #f9f9f9;
+    }
+    
+    .container {
+      background: white;
+      border-radius: 8px;
+      padding: 24px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      max-width: 500px;
+      margin: 0 auto;
+    }
+    
+    h2 {
+      color: #333;
+      margin-top: 0;
+      margin-bottom: 8px;
+    }
+    
+    .subtitle {
+      color: #666;
+      margin-bottom: 24px;
+      font-size: 14px;
+    }
+    
+    .form-group { 
+      margin-bottom: 20px; 
+    }
+    
+    label { 
+      display: block; 
+      font-weight: bold; 
+      margin-bottom: 6px;
+      color: #333;
+    }
+    
+    input[type="date"], input[type="number"] { 
+      width: 100%; 
+      padding: 10px; 
+      border-radius: 4px; 
+      border: 2px solid #e0e0e0;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+    
+    input[type="date"]:focus, input[type="number"]:focus {
+      outline: none;
+      border-color: #4285f4;
+    }
+    
+    .help-text {
+      font-size: 12px;
+      color: #666;
+      margin-top: 4px;
+    }
+    
+    .buttons { 
+      display: flex; 
+      justify-content: center; 
+      gap: 12px; 
+      margin-top: 32px; 
+    }
+    
+    .btn { 
+      padding: 12px 24px; 
+      border: none; 
+      border-radius: 4px; 
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background-color 0.2s;
+    }
+    
+    .btn:disabled { 
+      opacity: 0.6; 
+      cursor: not-allowed; 
+    }
+    
+    .btn-primary { 
+      background: #4285f4; 
+      color: white; 
+    }
+    
+    .btn-primary:hover:not(:disabled) {
+      background: #3367d6;
+    }
+    
+    .btn-secondary { 
+      background: #f1f3f4; 
+      color: #5f6368; 
+    }
+    
+    .btn-secondary:hover {
+      background: #e8eaed;
+    }
+    
+    .warning {
+      background: #fff3cd;
+      border: 1px solid #ffeaa7;
+      border-radius: 4px;
+      padding: 12px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      color: #856404;
+    }
+    
+    .warning-icon {
+      font-weight: bold;
+      margin-right: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Manual Backfill Configuration</h2>
+    <p class="subtitle">Import data for a specific date range without affecting your connector's state</p>
+    
+    <div class="warning">
+      <span class="warning-icon">⚠️</span>
+      This will not update your LastRequestedDate. Your regular imports will continue as normal.
+    </div>
+    
+    <form id="manualBackfillForm">
+      <div class="form-group">
+        <label for="startDate">Start Date *</label>
+        <input type="date" id="startDate" name="startDate" required>
+        <div class="help-text">Start date for data import</div>
+      </div>
+      
+      <div class="form-group">
+        <label for="endDate">End Date *</label>
+        <input type="date" id="endDate" name="endDate" required>
+        <div class="help-text">End date for data import</div>
+      </div>
+      
+      <div class="form-group">
+        <label for="maxFetchingDays">Max Fetching Days</label>
+        <input type="number" id="maxFetchingDays" name="maxFetchingDays" value="31" min="1" max="100">
+        <div class="help-text">Maximum number of days to fetch in a single run</div>
+      </div>
+      
+      <div class="buttons">
+        <button type="button" class="btn btn-secondary" onclick="google.script.host.close()">
+          Cancel
+        </button>
+        <button type="button" class="btn btn-primary" onclick="runManualBackfill()">
+          Start Manual Backfill
+        </button>
+      </div>
+    </form>
+  </div>
+  
+  <script>
+    // Set default dates
+    document.addEventListener('DOMContentLoaded', function() {
+      const today = new Date();
+      const oneMonthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
+      
+      // Set default end date to today
+      document.getElementById('endDate').value = today.toISOString().split('T')[0];
+      
+      // Set default start date to one month ago
+      document.getElementById('startDate').value = oneMonthAgo.toISOString().split('T')[0];
+    });
+    
+    function runManualBackfill() {
+      const startDate = document.getElementById('startDate').value;
+      const endDate = document.getElementById('endDate').value;
+      const maxFetchingDays = document.getElementById('maxFetchingDays').value;
+      
+      // Validation
+      if (!startDate || !endDate) {
+        alert('❌ Please fill in both start and end dates');
+        return;
+      }
+      
+      if (new Date(startDate) > new Date(endDate)) {
+        alert('❌ Start date must be before end date');
+        return;
+      }
+      
+      const daysDiff = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24));
+      if (daysDiff > parseInt(maxFetchingDays)) {
+        if (!confirm(`⚠️ Date range (${daysDiff} days) exceeds Max Fetching Days (${maxFetchingDays}). This will be processed in chunks. Continue?`)) {
+          return;
+        }
+      }
+      
+      const params = {
+        StartDate: startDate,
+        EndDate: endDate,
+        MaxFetchingDays: parseInt(maxFetchingDays)
+      };
+      
+      // Disable button during execution
+      const button = document.querySelector('.btn-primary');
+      button.disabled = true;
+      button.textContent = 'Processing...';
+      
+      google.script.run
+        .withSuccessHandler(() => {
+          alert('✅ Manual backfill completed successfully!');
+          google.script.host.close();
+        })
+        .withFailureHandler((error) => {
+          alert('❌ Error: ' + error.message);
+          button.disabled = false;
+          button.textContent = 'Start Manual Backfill';
+        })
+        .executeManualBackfill(params);
+    }
+  </script>
+</body>
+</html> 

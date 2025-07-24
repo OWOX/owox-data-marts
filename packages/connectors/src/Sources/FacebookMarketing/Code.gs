@@ -11,6 +11,7 @@ var CONFIG_RANGE = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Config'
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('OWOX')
     .addItem('▶ Import New Data', 'importNewData')
+    .addItem('🔧 Manual Backfill', 'manualBackfill')
     .addItem('🧹 CleanUp Expired Data', 'cleanUpExpiredData')
     .addItem('🔑 Manage Credentials', 'manageCredentials')
     .addItem('⏰ Schedule', 'scheduleRuns')
@@ -22,16 +23,50 @@ function importNewData() {
 
   const config = new OWOX.GoogleSheetsConfig( CONFIG_RANGE );
   
+  const runConfig = OWOX.AbstractRunConfig.createIncremental();
+  
   const connector = new OWOX.FacebookMarketingConnector(
     config,
     new OWOX.FacebookMarketingSource( config.setParametersValues(  // source with parameter's values added from properties 
       PropertiesService.getDocumentProperties().getProperties()
     ) ),
-   // "GoogleBigQueryStorage"
+    null, // storage - auto-assign
+    runConfig // ← явно передаємо INCREMENTAL runConfig
   );
 
   connector.run();
 
+}
+
+function manualBackfill() {
+  const ui = SpreadsheetApp.getUi();
+  
+  // Load HTML template from Views folder
+  const htmlTemplate = HtmlService.createTemplateFromFile('manual-backfill-dialog');
+  
+  const html = htmlTemplate.evaluate()
+    .setWidth(600)
+    .setHeight(500);
+  
+  ui.showModalDialog(html, 'Manual Backfill');
+}
+
+function executeManualBackfill(params) {
+  const config = new OWOX.GoogleSheetsConfig(CONFIG_RANGE);
+  
+  // MANUAL BACKFILL - явно створюємо manual backfill runConfig
+  const runConfig = OWOX.AbstractRunConfig.createManualBackfill(params);
+  
+  const connector = new OWOX.FacebookMarketingConnector(
+    config,
+    new OWOX.FacebookMarketingSource(config.setParametersValues(
+      PropertiesService.getDocumentProperties().getProperties()
+    )),
+    null, // storage - auto-assign
+    runConfig // ← явно передаємо MANUAL_BACKFILL runConfig
+  );
+
+  connector.run();
 }
 
 function cleanUpExpiredData() {
