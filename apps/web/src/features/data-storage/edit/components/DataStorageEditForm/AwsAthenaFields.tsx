@@ -12,7 +12,6 @@ import {
 } from '@owox/ui/components/form';
 import type { UseFormReturn } from 'react-hook-form';
 import AthenaRegionDescription from './FormDescriptions/AthenaRegionDescription.tsx';
-import AthenaDatabaseNameDescription from './FormDescriptions/AthenaDatabaseNameDescription.tsx';
 import AthenaOutputBucketDescription from './FormDescriptions/AthenaOutputBucketDescription.tsx';
 import AthenaAccessKeyIdDescription from './FormDescriptions/AthenaAccessKeyIdDescription.tsx';
 import AthenaSecretAccessKeyDescription from './FormDescriptions/AthenaSecretAccessKeyDescription.tsx';
@@ -43,24 +42,6 @@ export const AwsAthenaFields = ({ form }: AwsAthenaFieldsProps) => {
               </FormControl>
               <FormDescription>
                 <AthenaRegionDescription />
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name='config.databaseName'
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel tooltip='Enter the name of your Athena database where your tables are stored'>
-                Database Name
-              </FormLabel>
-              <FormControl>
-                <Input {...field} placeholder='Enter a database name' />
-              </FormControl>
-              <FormDescription>
-                <AthenaDatabaseNameDescription />
               </FormDescription>
               <FormMessage />
             </FormItem>

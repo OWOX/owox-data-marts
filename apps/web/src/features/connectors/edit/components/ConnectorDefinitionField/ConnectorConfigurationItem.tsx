@@ -106,9 +106,8 @@ export function ConnectorConfigurationItem({
       }
       case DataStorageType.AWS_ATHENA: {
         const region = dataStorage.config.region;
-        const databaseName = dataStorage.config.databaseName;
         const fullyQualifiedName = connectorDef.connector.storage.fullyQualifiedName;
-        const table = fullyQualifiedName.split('.')[1];
+        const [databaseName, table] = fullyQualifiedName.split('.');
         const athenaConsoleLink = `https://console.aws.amazon.com/athena/home?region=${region}#/query-editor`;
         return (
           <div className='flex flex-wrap items-center gap-2'>
