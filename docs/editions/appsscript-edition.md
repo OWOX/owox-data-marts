@@ -1,4 +1,4 @@
-# 🏷 Apps Script Data Connectors
+# Community Apps Script
 
 With this set of connectors, data analysts & marketers can collect any marketing, financial, or CRM data into **Google Sheets** & **Google BigQuery**.
 
