@@ -55,8 +55,7 @@ export function TargetSetupStep({
         {dataStorageType === DataStorageType.AWS_ATHENA && (
           <div className='flex flex-col gap-4'>
             <label htmlFor='dataset-name' className='text-muted-foreground text-sm'>
-              Enter database name for Amazon Athena where the connector data will be stored. The
-              database must exist before running the connector.
+              Enter database name for Amazon Athena where the connector data will be stored.
             </label>
             <Input
               type='text'
