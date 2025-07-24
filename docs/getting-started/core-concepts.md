@@ -12,6 +12,8 @@ This guide will help you unlock the product’s full value and save time during 
 
 ### Data Mart
 
+![Data Marts](../res/screens/data-marts-table.png)
+
 A **Data Mart** is the foundational entity in OWOX Data Marts. It can be defined in various ways, for example:
 
 - With a **SQL query**
@@ -36,6 +38,8 @@ All other types of Data Marts query data directly from the **Storage**.
 
 ### Storage
 
+![Storages](../res/screens/storages-table.png)
+
 **Storage** is your project’s data warehouse (DWH) — a SQL-compatible system where all your data lives, such as:
 
 - Google BigQuery
@@ -52,6 +56,8 @@ You can configure multiple **Storages**, but each **Data Mart** must be linked t
 ---
 
 ### Destination
+
+![Destinations](../res/screens/destinations-table.png)
 
 A **Destination** is an interface or application used by business users to access the data. Supported destinations include:
 
