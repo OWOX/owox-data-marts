@@ -60,7 +60,111 @@ After submitting the form, the review process may take up to **2 business days**
 
 ![Facebook Submitted](res/facebook_submitted.png)
 
-## Step 4: Verify API Permissions and App Status
+## Step 4: Set Up Marketing API
+
+Once your business is successfully verified, return to the [Developers Portal](https://developers.facebook.com/).  
+In your app dashboard, locate **Marketing API** and click **Set Up**.  
+
+![Facebook Marketing API set up](res/facebook_setup.png)
+
+## Step 5: Grant API Permissions
+
+Grant the required token permissions:
+
+- `ads_read`  
+- `read_insights`  
+
+   These permissions authorize your app to access advertising data from your Facebook account.  
+
+![Facebook permissions granting](res/facebook_checkbox.png)
+
+## Step 6: Generate and Save the Access Token
+
+Click the **Get Token** button.
+
+![Facebook getting token](res/facebook_gettoken.png)
+
+Copy and securely save the generated access token.  
+    If needed, you can regenerate it later by navigating to **Marketing API > Tools**.
+
+![Facebook saving token](res/facebook_token.png)
+
+## Step 7: Use the Access Token
+
+Once you have the access token, you can begin using it as described in the [Getting Started guide](GETTING_STARTED.md).
+
+If you encounter API limit errors or see the message: **"Ad account owner has NOT granted ads_management or ads_read permission"**, it likely means your app is still operating with Standard Access.
+To resolve this, you’ll need to:
+
+1. Switch your app to **Live Mode**
+2. Request **Advanced Access** for the following permissions:
+
+- `ads_read`
+- **Ads Management Standard Access**
+
+## Step 8: Request Advanced Access for Ads Management
+
+1. Go to the **App Review → Permissions and Features** tab.
+2. Locate **Ads Management Standard Access**.
+3. If the access level is set to **Standard Access**, click **Request Advanced Access**.
+
+![Facebook Request Access](res/facebook_standard_access.png)
+
+Click the **Next** button.
+
+![Facebook Next](res/facebook_next.png)
+
+On the next screen, click **Go to Verification** and complete the required fields.
+
+![Facebook Verification](res/facebook_ver.png)
+
+Describe in detail how your application will use Ads Management functionality.
+
+**Example:**
+
+> _We are requesting Advanced Access to the Facebook API to support our internal data analytics operations. Our application's core function is to retrieve high-volume advertising cost and performance data from our company's ad accounts for detailed ROI analysis and financial reconciliation._
+>
+> _Standard API limits would significantly restrict our ability to collect the comprehensive historical and daily data essential for this process. Advanced Access is required to ensure a continuous and reliable data flow for our analytical models._
+>
+> _Our technical workflow utilizes the OWOX Data Mart connector to retrieve this information from the Facebook API. The data is then loaded directly into our Google BigQuery (GBQ) data warehouse, where it is used for internal analysis only. This application operates exclusively with our proprietary data._
+
+![Facebook Description](res/facebook_description.png)
+
+Record a short video showing the full connection process:
+
+- Generating the token
+- Pasting it into Google Sheets
+- Displaying the error message in the **Log** sheet (if relevant)
+
+Drag and drop the video file into the form.
+
+![Facebook Video](res/facebook_video.png)
+
+In the question  
+  **"Do you have data processors or service providers, including your own companies, that will have access to the Platform Data that you obtain from Meta?"**  
+  → Select **No**
+
+![Facebook Data Handling](res/facebook_datahandling.png)
+
+Enter your **Company Name** and **Country of Operation**.
+
+![Facebook Entity](res/facebook_entity.png)
+
+For the question  
+  **"Have you provided the personal data or personal information of users to public authorities in response to national security requests in the past 12 months?"**  
+  → Select **No**
+
+![Facebook Personal Data](res/facebook_personal.png)
+
+Answer the next data-related questions according to your organization’s internal policies.
+
+![Facebook Personal Data Policies](res/facebook_personaldata.png)
+
+After completing all required fields, click the **Submit for Review** button.
+
+Meta will review your request, and you will be notified once it’s approved.
+
+## Step 9: Verify API Permissions and App Status
 
 To ensure your Facebook app is properly configured for the Ads API, complete the following checks:
 
@@ -83,39 +187,6 @@ Ensure that your app is set to **Live** mode (not in Development mode).
 Only live apps can be used for real API calls.
 
 ![Facebook Live Mode](res/fb_livemode.png)
-
-## Step 5: Set Up Marketing API
-
-Once your business is successfully verified, return to the [Developers Portal](https://developers.facebook.com/).  
-In your app dashboard, locate **Marketing API** and click **Set Up**.  
-
-![Facebook Marketing API set up](res/facebook_setup.png)
-
-## Step 6: Grant API Permissions
-
-Grant the required token permissions:
-
-- `ads_read`  
-- `read_insights`  
-
-   These permissions authorize your app to access advertising data from your Facebook account.  
-
-![Facebook permissions granting](res/facebook_checkbox.png)
-
-## Step 7: Generate and Save the Access Token
-
-Click the **Get Token** button.
-
-![Facebook getting token](res/facebook_gettoken.png)
-
-Copy and securely save the generated access token.  
-    If needed, you can regenerate it later by navigating to **Marketing API > Tools**.
-
-![Facebook saving token](res/facebook_token.png)
-
-## Step 8: Use the Access Token
-
-Once you have the access token, you can use it as described in the [Getting Started guide](GETTING_STARTED.md).
 
 ## Troubleshooting and Support
 
