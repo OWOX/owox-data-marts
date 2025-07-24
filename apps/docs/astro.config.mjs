@@ -40,7 +40,13 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         { label: 'Intro', link: '/' },
         {
           label: 'Getting started',
-          items: ['docs/getting-started/quick-start', 'docs/getting-started/editions'],
+          items: [
+            'docs/getting-started/quick-start',
+            {
+              label: 'Editions',
+              items: ['docs/editions/all-editions', 'docs/editions/appsscript-edition'],
+            },
+          ],
         },
         {
           label: 'Connectors',
