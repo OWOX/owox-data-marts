@@ -1,15 +1,17 @@
-import { type UseFormReturn } from 'react-hook-form';
-import { type DataDestinationFormData } from '../../../shared';
-import { SENSITIVE_KEYS } from '../../../shared/constants';
+import { Button } from '@owox/ui/components/button';
 import {
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
-  FormDescription,
 } from '@owox/ui/components/form';
-import { SecureJsonInput } from '../../../../../shared';
+import { Textarea } from '@owox/ui/components/textarea';
+import { useState } from 'react';
+import { type UseFormReturn } from 'react-hook-form';
+import { extractServiceAccountEmail } from '../../../../data-marts/reports/shared/utils/service-account.utils';
+import { type DataDestinationFormData } from '../../../shared';
 import GoogleSheetsServiceAccountDescription from './FormDescriptions/GoogleSheetsServiceAccountDescription';
 
 interface GoogleSheetsFieldsProps {
@@ -17,24 +19,57 @@ interface GoogleSheetsFieldsProps {
 }
 
 export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
+  const [isEditing, setIsEditing] = useState(false);
+
+  const handleEdit = () => {
+    setIsEditing(true);
+    form.setValue('credentials.serviceAccount', '', {
+      shouldDirty: true,
+    });
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    form.resetField('credentials.serviceAccount');
+  };
+
+  const serviceAccountValue = form.watch('credentials.serviceAccount');
+  const serviceAccountEmail = serviceAccountValue
+    ? extractServiceAccountEmail(serviceAccountValue)
+    : undefined;
+
   return (
     <FormField
       control={form.control}
       name='credentials.serviceAccount'
       render={({ field }) => (
-        <FormItem className='w-full max-w-full'>
-          <FormLabel tooltip='Paste a JSON key from a service account that has access to the selected destination type'>
-            Service Account JSON
-          </FormLabel>
+        <FormItem>
+          <div className='flex items-center justify-between'>
+            <FormLabel tooltip='Paste a JSON key from a service account that has access to the selected storage provider'>
+              Service Account
+            </FormLabel>
+            {!isEditing && serviceAccountValue && (
+              <Button variant='ghost' size='sm' onClick={handleEdit} type='button'>
+                Edit
+              </Button>
+            )}
+            {isEditing && (
+              <Button variant='ghost' size='sm' onClick={handleCancel} type='button'>
+                Cancel
+              </Button>
+            )}
+          </div>
           <FormControl>
-            <div className='w-full max-w-full overflow-hidden'>
-              <SecureJsonInput
-                value={field.value}
-                onChange={field.onChange}
-                keysToMask={SENSITIVE_KEYS}
-                className='w-full max-w-full overflow-x-auto break-words whitespace-pre-wrap'
+            {!isEditing ? (
+              <span className='font-mono'>{serviceAccountEmail ?? '—'}</span>
+            ) : (
+              <Textarea
+                {...field}
+                className='min-h-[150px] font-mono'
+                rows={8}
+                placeholder='Paste your service account JSON here'
               />
-            </div>
+            )}
           </FormControl>
           <FormDescription>
             <GoogleSheetsServiceAccountDescription />

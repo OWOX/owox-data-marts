@@ -28,14 +28,6 @@ export const googleServiceAccountSchema = z.object({
           return z.NEVER;
         }
 
-        if (!parsed.private_key) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'Service Account must contain a private_key field',
-          });
-          return z.NEVER;
-        }
-
         return str;
       } catch (e) {
         console.error(e);
