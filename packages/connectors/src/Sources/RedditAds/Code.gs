@@ -11,6 +11,7 @@ var CONFIG_RANGE = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Config'
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('OWOX')
     .addItem('▶ Import New Data', 'importNewData')
+    .addItem('🔧 Manual Backfill', 'manualBackfill')
     .addItem('🔑 Manage Credentials', 'manageCredentials')
     .addItem('⏰ Schedule', 'scheduleRuns')
     .addItem('📋 Update Fields Sheet', 'updateFieldsSheet')
@@ -20,17 +21,44 @@ function onOpen() {
 function importNewData() {
   const config = new OWOX.GoogleSheetsConfig(CONFIG_RANGE);
   const properties = PropertiesService.getDocumentProperties().getProperties();
-    const source = new OWOX.RedditAdsSource(config.setParametersValues(properties));
+  const source = new OWOX.RedditAdsSource(config.setParametersValues(properties));
+
+  const runConfig = OWOX.AbstractRunConfig.createIncremental();
 
   const connector = new OWOX.RedditAdsConnector(
     config, 
     source,
-    "GoogleSheetsStorage"
+    "GoogleSheetsStorage",
+    runConfig
     // "GoogleBigQueryStorage"
   );
 
   connector.run();
-} 
+}
+
+function manualBackfill() {
+  const config = new OWOX.GoogleSheetsConfig(CONFIG_RANGE);
+  const properties = PropertiesService.getDocumentProperties().getProperties();
+  const source = new OWOX.RedditAdsSource(config.setParametersValues(properties));
+  
+  config.showManualBackfillDialog(source);
+}
+
+function executeManualBackfill(params) {
+  const config = new OWOX.GoogleSheetsConfig(CONFIG_RANGE);
+  const properties = PropertiesService.getDocumentProperties().getProperties();
+  
+  const runConfig = OWOX.AbstractRunConfig.createManualBackfill(params);
+  
+  const connector = new OWOX.RedditAdsConnector(
+    config,
+    new OWOX.RedditAdsSource(config.setParametersValues(properties)),
+    "GoogleSheetsStorage",
+    runConfig
+  );
+
+  connector.run();
+}
 
 function updateFieldsSheet() {
   const config = new OWOX.GoogleSheetsConfig( CONFIG_RANGE );

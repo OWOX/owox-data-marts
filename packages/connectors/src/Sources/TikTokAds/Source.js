@@ -12,50 +12,71 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
       AccessToken: {
         isRequired: true,
         requiredType: "string",
+        label: 'Access Token',
+        description: 'TikTok Ads API Access Token for authentication'
       },
       AppId: {
         requiredType: "string",
+        label: 'App ID',
+        description: 'TikTok Developer App ID'
       },
       AppSecret: {
         requiredType: "string",
+        label: 'App Secret',
+        description: 'TikTok Developer App Secret'
       },
       AdvertiserIDs: {
         isRequired: true,
+        label: 'Advertiser IDs',
+        description: 'Comma-separated list of TikTok advertiser IDs'
       },
       DataLevel: {
         requiredType: "string", 
         default: "AUCTION_AD",
+        label: 'Data Level',
         description: "Data level for ad_insights reports (AUCTION_ADVERTISER, AUCTION_CAMPAIGN, AUCTION_ADGROUP, AUCTION_AD)"
       },
       StartDate: {
         requiredType: "date",
-        description: "Start date for data import in YYYY-MM-DD format"
+        label: 'Start Date',
+        description: "Start date for data import in YYYY-MM-DD format",
+        attributes: ['manualBackfill']
       },
       EndDate: {
         requiredType: "date",
-        description: "End date for data import in YYYY-MM-DD format"
+        label: 'End Date',
+        description: "End date for data import in YYYY-MM-DD format",
+        attributes: ['manualBackfill']
       },
       ReimportLookbackWindow: {
         requiredType: "number",
         isRequired: true,
-        default: 2
+        default: 2,
+        label: 'Reimport Lookback Window',
+        description: 'Number of days to look back when reimporting data'
       },
       CleanUpToKeepWindow: {
-        requiredType: "number"
+        requiredType: "number",
+        label: 'Clean Up To Keep Window',
+        description: 'Number of days to keep data before cleanup'
       },
       MaxFetchingDays: {
         requiredType: "number",
         isRequired: true,
-        default: 31
+        default: 31,
+        label: 'Max Fetching Days',
+        description: "Maximum number of days to fetch in one run"
       },
       IncludeDeleted: {
         requiredType: "bool",
         default: false,
+        label: 'Include Deleted',
         description: "Include deleted entities in results"
       },
       SandboxMode: {
         requiredType: "bool",
         default: false,
+        label: 'Sandbox Mode',
         description: "Use sandbox environment for testing"
       }
     }));

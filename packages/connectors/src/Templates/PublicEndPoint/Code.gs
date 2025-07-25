@@ -4,6 +4,7 @@ var CONFIG_RANGE = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Config'
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('OWOX')
     .addItem('▶ Import New Data', 'importNewData')
+    .addItem('🔧 Manual Backfill', 'manualBackfill')
     .addItem('🧹 CleanUp Expired Data', 'cleanUpExpiredDate')
     .addItem('🔑 Manage Credentials', 'manageCredentials')
     .addItem('⏰ Schedule', 'scheduleRuns')
@@ -14,15 +15,40 @@ function onOpen() {
 function importNewData() {
 
   const config = new OWOX.GoogleSheetsConfig( CONFIG_RANGE );
-
+  
+  const runConfig = OWOX.AbstractRunConfig.createIncremental();
+  
   const connector = new OWOX.YOUR_DATA_SOURCEConnector(
     config,                                               // connector configuration
     new OWOX.YOUR_DATA_SOURCESource(config),                 // source 
-    new OWOX.GoogleSheetsStorage(config, ["date"]) // storage 
+    "GoogleSheetsStorage", // storage 
+    runConfig
   );
 
   connector.run();
 
+}
+
+function manualBackfill() {
+  const config = new OWOX.GoogleSheetsConfig(CONFIG_RANGE);
+  const source = new OWOX.YOUR_DATA_SOURCESource(config);
+  
+  config.showManualBackfillDialog(source);
+}
+
+function executeManualBackfill(params) {
+  const config = new OWOX.GoogleSheetsConfig(CONFIG_RANGE);
+  
+  const runConfig = OWOX.AbstractRunConfig.createManualBackfill(params);
+  
+  const connector = new OWOX.YOUR_DATA_SOURCEConnector(
+    config,                                               // connector configuration
+    new OWOX.YOUR_DATA_SOURCESource(config),                 // source 
+    "GoogleSheetsStorage", // storage 
+    runConfig
+  );
+
+  connector.run();
 }
 
 function cleanUpExpiredData() {

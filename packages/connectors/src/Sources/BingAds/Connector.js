@@ -6,12 +6,12 @@
  */
 
 var BingAdsConnector = class BingAdsConnector extends AbstractConnector {
-  constructor(config, source, storageName = "GoogleSheetsStorage") {
+  constructor(config, source, storageName = "GoogleSheetsStorage", runConfig = null) {
     super(config.mergeParameters({
       DestinationTableNamePrefix: {
         default: "bing_ads_"
       }
-    }), source);
+    }), source, null, runConfig);
 
     this.storageName = storageName;
   }
@@ -102,7 +102,9 @@ var BingAdsConnector = class BingAdsConnector extends AbstractConnector {
       }
 
       // Update last requested date after each successful day
-      this.config.updateLastRequstedDate(currentDate);
+      if (this.runConfig.type === RunConfigType.INCREMENTAL) {
+        this.config.updateLastRequstedDate(currentDate);
+      }
     }
   }
   

@@ -13,12 +13,16 @@ var YOUR_DATE_SOURCE_Source = class YOUR_DATE_SOURCE_Source extends AbstractSour
       StartDate: {
         isRequired: true,
         requiredType: "date",
-        default: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+        label: 'Start Date',
+        description: 'Start date for data import',
+        attributes: ['manualBackfill']
       },
       EndDate: {
         isRequired: true,
         requiredType: "date",
-        default: new Date()
+        label: 'End Date',
+        description: 'End date for data import',
+        attributes: ['manualBackfill']
       },
       ReimportLookbackWindow: {
         requiredType: "number",
@@ -35,7 +39,9 @@ var YOUR_DATE_SOURCE_Source = class YOUR_DATE_SOURCE_Source extends AbstractSour
       MaxFetchingDays: {
         requiredType: "number",
         isRequired: true,
-        default: 30
+        default: 30,
+        label: 'Max Fetching Days',
+        description: 'Maximum number of days to fetch in one run'
       }
     }));
   

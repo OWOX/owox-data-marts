@@ -6,12 +6,12 @@
  */
 
 var LinkedInConnector = class LinkedInConnector extends AbstractConnector {
-  constructor(config, source, storageName = "GoogleSheetsStorage") {
+  constructor(config, source, storageName = "GoogleSheetsStorage", runConfig = null) {
     super(config.mergeParameters({
       DestinationTableNamePrefix: {
         default: source.apiType === LinkedInApiTypes.ADS ? "linkedin_ads_" : "linkedin_pages_"
       }
-    }), source);
+    }), source, null, runConfig);
 
     this.storageName = storageName;
   }

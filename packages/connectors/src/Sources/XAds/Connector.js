@@ -6,12 +6,12 @@
  */
 
 var XAdsConnector = class XAdsConnector extends AbstractConnector {
-  constructor(config, source, storageName = "GoogleSheetsStorage") {
+  constructor(config, source, storageName = "GoogleSheetsStorage", runConfig = null) {
     super(config.mergeParameters({
       DestinationTableNamePrefix: {
         default: ""
       }
-    }), source);
+    }), source, null, runConfig);
 
     this.storageName = storageName;
   }

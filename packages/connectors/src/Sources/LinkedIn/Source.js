@@ -10,44 +10,71 @@ var LinkedInSource = class LinkedInSource extends AbstractSource {
     super(config.mergeParameters({
       AccessToken: {
         isRequired: true,
-        requiredType: "string"
+        requiredType: "string",
+        label: 'Access Token',
+        description: 'LinkedIn Ads API Access Token'
       },
       ApiType: {
         requiredType: "number",
-        default: LinkedInApiTypes.ADS
+        default: LinkedInApiTypes.ADS,
+        label: 'API Type',
+        description: 'Type of LinkedIn API to use (Ads or Pages)'
       },
       Version: {
         requiredType: "string",
-        default: "202504"
+        default: "202504",
+        label: 'API Version',
+        description: 'LinkedIn API version'
       },
       ReimportLookbackWindow: {
         requiredType: "number",
         isRequired: true,
-        default: 2
+        default: 2,
+        label: 'Reimport Lookback Window',
+        description: 'Number of days to look back when reimporting data'
       },
       CleanUpToKeepWindow: {
-        requiredType: "number"
+        requiredType: "number",
+        label: 'Clean Up To Keep Window',
+        description: 'Number of days to keep data before cleanup'
       },
       MaxFetchingDays: {
         requiredType: "number",
         isRequired: true,
-        default: 31
+        default: 31,
+        label: 'Max Fetching Days',
+        description: 'Maximum number of days to fetch in one run'
       },
       BaseUrl: {
         requiredType: "string",
-        default: "https://api.linkedin.com/rest/"
+        default: "https://api.linkedin.com/rest/",
+        label: 'Base URL',
+        description: 'LinkedIn API base URL'
       },
       StartDate: {
         requiredType: "date",
-        default: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+        isRequired: true,
+        label: 'Start Date',
+        description: 'Start date for data import',
+        attributes: ['manualBackfill']
+      },
+      EndDate: {
+        requiredType: "date",
+        label: 'End Date',
+        description: 'End date for data import',
+        attributes: ['manualBackfill']
       },
       Fields: {
-        isRequired: true
+        isRequired: true,
+        label: 'Fields',
+        description: 'Fields to fetch from LinkedIn API'
       },
       MaxFieldsPerRequest: {
         requiredType: "number",
         isRequired: true,
-        default: 20
+        default: 20,
+        label: 'Max Fields Per Request',
+        description: 'Maximum number of fields per API request'
       }
     }));
     

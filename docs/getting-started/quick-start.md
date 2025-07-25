@@ -8,7 +8,7 @@ A command-line interface for running OWOX Data Marts application. This CLI provi
    (Windows / macOS / Linux installers are all listed there)
 
    > **Tip:** To avoid potential permission issues (`sudo`), consider using a Node Version Manager like [nvm](https://github.com/nvm-sh/nvm) for macOS/Linux or [nvm-windows](https://github.com/coreybutler/nvm-windows) for Windows.
-   > **Note**: If you encounter any installation issues, check the [іssue](https://github.com/OWOX/owox-data-marts/issues/274).
+   > **Note**: If you encounter any installation issues, check the [issue](https://github.com/OWOX/owox-data-marts/issues/274).
 
 2. **Open your terminal** and run **one** command
 
