@@ -42,6 +42,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           label: 'Getting started',
           items: [
             'docs/getting-started/quick-start',
+            'docs/getting-started/core-concepts',
             {
               label: 'Editions',
               items: ['docs/editions/all-editions', 'docs/editions/appsscript-edition'],
