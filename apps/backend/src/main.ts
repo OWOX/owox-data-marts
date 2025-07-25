@@ -1,4 +1,12 @@
-import { main } from './bootstrap';
+import { bootstrap } from './bootstrap';
 
-// Start the application using the shared bootstrap logic
+// Keep original main.ts functionality for standalone execution
+export async function main() {
+  try {
+    await bootstrap();
+  } catch {
+    process.exit(1);
+  }
+}
+
 void main();
