@@ -7,6 +7,7 @@ import { DataStorageDto } from '../dto/domain/data-storage.dto';
 import { UpdateDataStorageCommand } from '../dto/domain/update-data-storage.command';
 import { DataStorageService } from '../services/data-storage.service';
 import { DataStorageAccessFacade } from '../data-storage-types/facades/data-storage-access.facade';
+import { DataStorageCredentials } from '../data-storage-types/data-storage-credentials.type';
 
 @Injectable()
 export class UpdateDataStorageService {
@@ -23,13 +24,21 @@ export class UpdateDataStorageService {
       command.projectId,
       command.id
     );
+
+    const credentialsToCheck = command.hasCredentialsUpdate()
+      ? command.credentials
+      : dataStorageEntity.credentials;
+
     await this.dataStorageAccessFacade.checkAccess(
       dataStorageEntity.type,
       command.config,
-      command.credentials
+      credentialsToCheck ?? ({} as DataStorageCredentials)
     );
 
-    dataStorageEntity.credentials = command.credentials;
+    if (command.hasCredentialsUpdate()) {
+      dataStorageEntity.credentials = command.credentials;
+    }
+
     dataStorageEntity.config = command.config;
     dataStorageEntity.title = command.title;
 
