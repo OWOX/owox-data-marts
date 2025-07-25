@@ -49,6 +49,7 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<NestExp
   app.setGlobalPrefix(PATH_PREFIX);
   setupGlobalPipes(app);
   setupSwagger(app, SWAGGER_PATH);
+
   await setupIdp(app);
   setupStaticAssets(app, PATH_PREFIX);
 
@@ -64,14 +65,4 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<NestExp
   logger.log(`Swagger is available at: ${normalizedUrl}/${SWAGGER_PATH}`);
 
   return app;
-}
-
-// Keep original main.ts functionality for standalone execution
-export async function main() {
-  try {
-    await bootstrap();
-  } catch (err: unknown) {
-    logger.error('Application failed to start', err instanceof Error ? err.stack : String(err));
-    process.exit(1);
-  }
 }

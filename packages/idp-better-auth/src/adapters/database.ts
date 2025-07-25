@@ -9,9 +9,7 @@ export async function createSqliteAdapter(config: SqliteConfig): Promise<any> {
     const { default: Database } = await import('better-sqlite3');
     return new Database(config.filename || './better-auth.db');
   } catch (error) {
-    throw new Error(
-      'better-sqlite3 is required for SQLite support. Install it with: npm install better-sqlite3'
-    );
+    throw error;
   }
 }
 

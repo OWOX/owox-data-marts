@@ -70,8 +70,8 @@ export class BetterAuthProvider implements IIdpProvider {
     await compileMigrations();
   }
 
-  async verifyRequest(req: Request): Promise<void> {
-    const session = await this.auth.api.getSession({
+  verifyRequest(req: Request): void {
+    const session = this.auth.api.getSession({
       headers: req.headers as unknown as Headers,
       query: req.query as unknown as Record<string, string>,
     });
@@ -82,10 +82,10 @@ export class BetterAuthProvider implements IIdpProvider {
 
   getRouter(): IIdpRouter {
     return {
-      getSignIn: () => Promise.resolve({ path: '/sign-in' }),
-      getSignOut: () => Promise.resolve({ path: '/sign-out' }),
-      getMagicLinkVerification: () => Promise.resolve({ path: '/magic-link-verification' }),
-      getHealthCheck: () => Promise.resolve({ path: '/health-check' }),
+      getSignIn: () => ({ path: '/sign-in' }),
+      getSignOut: () => ({ path: '/sign-out' }),
+      getMagicLinkVerification: () => ({ path: '/magic-link-verification' }),
+      getHealthCheck: () => ({ path: '/health-check' }),
     };
   }
 
@@ -124,22 +124,22 @@ export class BetterAuthProvider implements IIdpProvider {
     };
   }
 
-  async signIn(credentials: SignInCredentials): Promise<AuthResult> {
+  signIn(credentials: SignInCredentials): AuthResult {
     return {
       user: {} as User,
       tokens: {} as AuthResult['tokens'],
     };
   }
 
-  async signOut(userId: string): Promise<void> {
+  signOut(userId: string): void {
     return;
   }
 
-  async shutdown(): Promise<void> {
+  shutdown(): void {
     return;
   }
 
-  async healthCheck(): Promise<boolean> {
+  healthCheck(): boolean {
     return true;
   }
 }
