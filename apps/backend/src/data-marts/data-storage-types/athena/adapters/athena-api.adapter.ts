@@ -43,22 +43,17 @@ export class AthenaApiAdapter {
    * Executes a query in Athena
    *
    * @param query - SQL query to execute
-   * @param databaseName - Database name to use for the query
    * @param outputBucket - S3 bucket for query results
    * @param outputPrefix - S3 prefix for query results
    * @returns Query execution ID
    */
   public async executeQuery(
     query: string,
-    databaseName: string,
     outputBucket: string,
     outputPrefix: string
   ): Promise<{ queryExecutionId: string }> {
     const startQueryCommand = new StartQueryExecutionCommand({
       QueryString: query,
-      QueryExecutionContext: {
-        Database: databaseName,
-      },
       ResultConfiguration: {
         OutputLocation: `s3://${outputBucket}/${outputPrefix}`,
       },
@@ -172,16 +167,14 @@ export class AthenaApiAdapter {
   /**
    * Executes a dry run query in Athena using EXPLAIN to validate SQL syntax without running the query.
    * Returns status and errorMessage if any.
+   *
+   * @param query - SQL query to validate
+   * @param outputBucket - S3 bucket for query results
    */
-  public async executeDryRunQuery(
-    query: string,
-    databaseName: string,
-    outputBucket: string
-  ): Promise<void> {
+  public async executeDryRunQuery(query: string, outputBucket: string): Promise<void> {
     const explainQuery = `EXPLAIN ${query}`;
     const { queryExecutionId } = await this.executeQuery(
       explainQuery,
-      databaseName,
       outputBucket,
       this.getOutputPrefix('athena-dry-run')
     );
@@ -190,19 +183,22 @@ export class AthenaApiAdapter {
   }
 
   /**
-   * Checks Athena access by running a query (SELECT 1)
+   * Checks Athena access by running a query (SELECT 1).
+   *
+   * @param outputBucket - S3 bucket for query results
    */
-  public async checkAccess(databaseName: string, outputBucket: string): Promise<void> {
+  public async checkAccess(outputBucket: string): Promise<void> {
     const outputPrefix = this.getOutputPrefix('athena-check-access');
-    const { queryExecutionId } = await this.executeQuery(
-      'SELECT 1',
-      databaseName,
-      outputBucket,
-      outputPrefix
-    );
+    const { queryExecutionId } = await this.executeQuery('SELECT 1', outputBucket, outputPrefix);
     await this.waitForQueryToComplete(queryExecutionId);
   }
 
+  /**
+   * Generates a unique S3 output prefix for Athena query results based on the operation name and current timestamp.
+   *
+   * @param operation - Name of the operation (e.g., 'athena-check-access')
+   * @returns A unique S3 prefix string
+   */
   private getOutputPrefix(operation: string): string {
     return `${operation}/${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
   }

@@ -17,6 +17,17 @@ export class AthenaSqlDryRunExecutor implements SqlDryRunExecutor {
 
   constructor(private readonly adapterFactory: AthenaApiAdapterFactory) {}
 
+  /**
+   * Executes a dry run of the provided SQL query in AWS Athena to validate its syntax.
+   * Throws an exception if credentials or config are invalid.
+   * Returns a success or failure result based on query validation.
+   *
+   * @param dataStorageCredentials - Credentials for Athena access
+   * @param dataStorageConfig - Athena storage configuration
+   * @param sql - SQL query string to validate
+   * @returns SqlDryRunResult indicating success or failure and error details if any
+   * @throws BusinessViolationException if credentials or config are invalid
+   */
   async execute(
     dataStorageCredentials: DataStorageCredentials,
     dataStorageConfig: DataStorageConfig,
@@ -34,11 +45,7 @@ export class AthenaSqlDryRunExecutor implements SqlDryRunExecutor {
 
     try {
       const adapter = this.adapterFactory.create(dataStorageCredentials, dataStorageConfig);
-      await adapter.executeDryRunQuery(
-        sql ?? '',
-        dataStorageConfig.databaseName,
-        dataStorageConfig.outputBucket
-      );
+      await adapter.executeDryRunQuery(sql ?? '', dataStorageConfig.outputBucket);
       return SqlDryRunResult.success();
     } catch (error) {
       this.logger.debug('Athena dry run failed', error);

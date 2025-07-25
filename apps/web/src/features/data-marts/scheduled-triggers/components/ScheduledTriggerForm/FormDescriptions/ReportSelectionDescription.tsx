@@ -19,7 +19,7 @@ export default function ReportSelectionDescription() {
             Sheets report).
           </p>
           <p>
-            You can use an existing one or create a new one on the <strong>Destinations tab</strong>{' '}
+            You can use an existing one or create a new one on the <strong>Destinations</strong> tab{' '}
             of this Data Mart.
           </p>
         </AccordionContent>

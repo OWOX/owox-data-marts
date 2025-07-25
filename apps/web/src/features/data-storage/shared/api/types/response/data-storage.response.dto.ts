@@ -8,7 +8,6 @@ export interface GoogleBigQueryConfigDto {
 
 export interface AwsAthenaConfigDto {
   region: string;
-  databaseName: string;
   outputBucket: string;
 }
 

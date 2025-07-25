@@ -90,7 +90,6 @@ Once the request is successful, you’ll receive:
 
 Understanding token validity and refresh mechanisms is crucial for continuous data access:
 
-* **Token Expiration:** TikTok access tokens are valid for **24 hours**.
 * **Production Environments:** For robust production applications, implement a token refresh mechanism using the `refresh_token` provided during the initial token generation. This ensures uninterrupted data flow without manual intervention.
 * **Regular Use:** For less frequent or manual use of the source, it is recommended to regenerate a new access token daily before initiating your data imports to avoid token expiration issues.
 

@@ -15,9 +15,12 @@ export function TargetSetupStep({
   selectedNode,
   onTargetChange,
 }: TargetSetupStepProps) {
+  const tableName = selectedNode.replace(/[^a-zA-Z0-9_]/g, '_');
+
   const getTargetName = () => {
     return target?.fullyQualifiedName.split('.')[0] ?? '';
   };
+
   return (
     <div className='space-y-4'>
       <h4 className='text-lg font-medium'>Setup target</h4>
@@ -37,17 +40,17 @@ export function TargetSetupStep({
               value={getTargetName()}
               onChange={e => {
                 onTargetChange({
-                  fullyQualifiedName: `${e.target.value}.${selectedNode.replace(/[^a-zA-Z0-9_]/g, '_')}`,
+                  fullyQualifiedName: `${e.target.value}.${tableName}`,
                 });
               }}
             />
             <div className='text-muted-foreground mt-2 text-sm'>
-              Table name will be created automatically based on the selected node name: "
-              {selectedNode.replace(/[^a-zA-Z0-9_]/g, '_')}"
+              Table name will be created automatically based on the selected node name: "{tableName}
+              "
               <br />
               Full path:{' '}
               <span className='text-foreground/90'>
-                {getTargetName() || '[dataset]'}.{selectedNode.replace(/[^a-zA-Z0-9_]/g, '_')}
+                {getTargetName() || '[dataset]'}.{tableName}
               </span>
             </div>
           </div>
@@ -55,8 +58,8 @@ export function TargetSetupStep({
         {dataStorageType === DataStorageType.AWS_ATHENA && (
           <div className='flex flex-col gap-4'>
             <label htmlFor='dataset-name' className='text-muted-foreground text-sm'>
-              Enter database name for Amazon Athena where the connector data will be stored. The
-              database must exist before running the connector.
+              The entered Amazon Athena database will be used or created automatically if it doesn’t
+              exist
             </label>
             <Input
               type='text'
@@ -67,17 +70,16 @@ export function TargetSetupStep({
               value={getTargetName()}
               onChange={e => {
                 onTargetChange({
-                  fullyQualifiedName: `${e.target.value}.${selectedNode.replace(/[^a-zA-Z0-9_]/g, '_')}`,
+                  fullyQualifiedName: `${e.target.value}.${tableName}`,
                 });
               }}
             />
             <div className='text-muted-foreground mt-2 text-sm'>
-              Table name will be created automatically based on the selected node name: "
-              {selectedNode.replace(/[^a-zA-Z0-9_]/g, '_')}"
+              The table "{tableName}" will be created automatically in the selected database
               <br />
               Full path:{' '}
               <span className='text-foreground/90'>
-                {getTargetName() || '[database]'}.{selectedNode.replace(/[^a-zA-Z0-9_]/g, '_')}
+                {getTargetName() || '[database]'}.{tableName}
               </span>
             </div>
           </div>

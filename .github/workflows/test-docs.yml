@@ -32,10 +32,10 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: '**/package-lock.json'
 
+      # can't set --ignore-scripts because Astro uses postinstall
       - name: Install dependencies
-        run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
+        run: npm ci --prefer-offline --no-audit --no-fund --loglevel error
 
       - name: Run build
         run: npm run build -w @owox/docs

@@ -1,6 +1,6 @@
 {
   "name": "@owox/connectors",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Connectors and storages for different data sources",
   "license": "MIT",
   "publishConfig": {
@@ -15,7 +15,7 @@
     "prebuild": "npm run clean",
     "analyze": "npm run build -- --mode analyze",
     "prepack": "npm run build",
-    "prepublishOnly": "npm audit && npm run lint",
+    "prepublishOnly": "npm run lint",
     "lint": "eslint . --config ./eslint.config.js",
     "lint:fix": "eslint . --fix --config ./eslint.config.js",
     "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",

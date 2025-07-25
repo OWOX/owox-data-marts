@@ -24,7 +24,6 @@ export class AwsAthenaMapper implements StorageMapper {
         secretAccessKey: credentials?.secretAccessKey ?? '',
       },
       config: {
-        databaseName: config?.databaseName ?? '',
         region: config?.region ?? '',
         outputBucket: config?.outputBucket ?? '',
       },
@@ -38,7 +37,6 @@ export class AwsAthenaMapper implements StorageMapper {
         secretAccessKey: (formData.credentials as AwsAthenaCredentials).secretAccessKey,
       },
       config: {
-        databaseName: (formData.config as AwsAthenaConfigDto).databaseName,
         region: (formData.config as AwsAthenaConfigDto).region,
         outputBucket: (formData.config as AwsAthenaConfigDto).outputBucket,
       },

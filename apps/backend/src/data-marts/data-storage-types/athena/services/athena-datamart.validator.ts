@@ -22,6 +22,15 @@ export class AthenaDataMartValidator implements DataMartValidator {
     private readonly athenaQueryBuilder: AthenaQueryBuilder
   ) {}
 
+  /**
+   * Validates a data mart definition against AWS Athena by performing a dry run of the generated SQL query.
+   * Checks if the provided credentials and config are valid and attempts to validate the query syntax.
+   *
+   * @param definition - Data mart table definition
+   * @param config - Data storage configuration for Athena
+   * @param credentials - Credentials for Athena access
+   * @returns ValidationResult indicating success or failure and error details if any
+   */
   async validate(
     definition: DataMartDefinition,
     config: DataStorageConfig,
@@ -37,7 +46,7 @@ export class AthenaDataMartValidator implements DataMartValidator {
       const adapter = this.adapterFactory.create(credentials, config);
 
       const query = this.athenaQueryBuilder.buildQuery(definition);
-      await adapter.executeDryRunQuery(query, config.databaseName, config.outputBucket);
+      await adapter.executeDryRunQuery(query, config.outputBucket);
 
       return new ValidationResult(true);
     } catch (error) {
