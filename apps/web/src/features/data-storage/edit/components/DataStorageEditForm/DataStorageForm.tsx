@@ -63,9 +63,7 @@ export function DataStorageForm({
 
   const handleSubmit = async (data: DataStorageFormData) => {
     const { dirtyFields } = form.formState;
-    console.log('dirtyFields', dirtyFields);
     const payload = JSON.parse(JSON.stringify(data)) as DataStorageFormData;
-    console.log('payload', payload);
 
     if (!dirtyFields.credentials) {
       delete (payload as Partial<DataStorageFormData>).credentials;

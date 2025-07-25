@@ -2,7 +2,7 @@ import { Input } from '@owox/ui/components/input';
 import { DataStorageType } from '../../../shared';
 import type { DataStorageFormData } from '../../../shared';
 import { googleBigQueryLocationOptions } from '../../../shared';
-import { Combobox } from '../../../../../shared/components/Combobox/combobox';
+import { Combobox } from '../../../../../shared/components/Combobox/combobox.tsx';
 import {
   FormField,
   FormItem,
@@ -12,15 +12,15 @@ import {
   FormSection,
   FormDescription,
 } from '@owox/ui/components/form';
-import GoogleBigQueryProjectIdDescription from './FormDescriptions/GoogleBigQueryProjectIdDescription';
-import GoogleBigQueryLocationDescription from './FormDescriptions/GoogleBigQueryLocationDescription';
+import type { UseFormReturn } from 'react-hook-form';
+import GoogleBigQueryServiceAccountDescription from './FormDescriptions/GoogleBigQueryServiceAccountDescription';
+import GoogleBigQueryProjectIdDescription from './FormDescriptions/GoogleBigQueryProjectIdDescription.tsx';
+import GoogleBigQueryLocationDescription from './FormDescriptions/GoogleBigQueryLocationDescription.tsx';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import { Button } from '@owox/ui/components/button';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 import { Textarea } from '@owox/ui/components/textarea';
 import { useState } from 'react';
-import type { UseFormReturn } from 'react-hook-form';
-import GoogleBigQueryServiceAccountDescription from './FormDescriptions/GoogleBigQueryServiceAccountDescription';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
-import { Button } from '@owox/ui/components/button';
 
 interface GoogleBigQueryFieldsProps {
   form: UseFormReturn<DataStorageFormData>;

@@ -28,14 +28,13 @@ export const AwsAthenaFields = ({ form }: AwsAthenaFieldsProps) => {
   useEffect(() => {
     const accessKeyId = form.getValues('credentials.accessKeyId');
 
-    // Якщо accessKeyId заповнений під час ініціалізації і secretAccessKey теж є
     if (accessKeyId) {
       const maskedValue = '_'.repeat(accessKeyId.length);
       console.log('maskedValue', maskedValue);
       setMaskedSecretValue(maskedValue);
       form.setValue('credentials.secretAccessKey', maskedValue, { shouldDirty: false });
     }
-  }, []); // Порожній масив залежностей - викликається тільки один раз
+  }, []);
 
   if (form.watch('type') !== DataStorageType.AWS_ATHENA) {
     return null;
