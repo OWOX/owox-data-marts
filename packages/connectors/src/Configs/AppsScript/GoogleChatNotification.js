@@ -12,27 +12,21 @@ var GoogleChatNotification = class GoogleChatNotification {
    * @param {Object} params - Parameters object
    * @param {string} params.webhookUrl - Google Chat webhook URL
    * @param {string} params.message - Formatted notification message
-   * @param {string} params.status - Current import status
-   * @param {string} params.connectorName - Name of the connector
    */
   static send(params) {
-    const { webhookUrl, message, status, connectorName } = params;
+    const { webhookUrl, message } = params;
         
     if (!webhookUrl || !webhookUrl.trim()) {
       return;
     }
 
     try {
-      const cardMessage = {
-        text: `${connectorName || "OWOX Data Connector"} - Status: ${status}\n\n${message}`
-      };
-
       const response = EnvironmentAdapter.fetch(webhookUrl.trim(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json; charset=UTF-8'
         },
-        payload: JSON.stringify(cardMessage)
+        payload: JSON.stringify({ text: message })
       });
 
       if (response.getResponseCode() === 200) {
