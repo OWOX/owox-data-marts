@@ -49,17 +49,16 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           ],
         },
         {
-          label: 'Connectors',
-          items: [
-            {
-              label: 'Sources',
-              autogenerate: { directory: 'packages/connectors/src/sources' },
-            },
-            {
-              label: 'Storages',
-              autogenerate: { directory: 'packages/connectors/src/storages' },
-            },
-          ],
+          label: 'Sources',
+          autogenerate: { directory: 'packages/connectors/src/sources' },
+        },
+        {
+          label: 'Storages',
+          autogenerate: { directory: 'packages/connectors/src/storages' },
+        },
+        {
+          label: 'Destinations',
+          items: [],
         },
         {
           label: 'Contributing',
@@ -92,6 +91,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               collapsed: true,
             },
             { label: 'Licenses', autogenerate: { directory: 'licenses' }, collapsed: true },
+            // 'apps/owox/changelog',
           ],
         },
       ],
