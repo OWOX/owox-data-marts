@@ -7,7 +7,7 @@ export async function createSqliteAdapter(config: SqliteConfig): Promise<any> {
   try {
     // Dynamic import to handle optional dependency
     const { default: Database } = await import('better-sqlite3');
-    return new Database(config.filename);
+    return new Database(config.filename || './better-auth.db');
   } catch (error) {
     throw new Error(
       'better-sqlite3 is required for SQLite support. Install it with: npm install better-sqlite3'
@@ -47,8 +47,6 @@ export async function createDatabaseAdapter(config: DatabaseConfig): Promise<any
       return await createSqliteAdapter(config);
     case 'mysql':
       return await createMysqlAdapter(config);
-    case 'custom':
-      return config.adapter;
     default:
       throw new Error(`Unsupported database type: ${(config as any).type}`);
   }

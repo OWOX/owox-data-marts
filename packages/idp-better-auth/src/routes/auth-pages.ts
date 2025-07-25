@@ -24,17 +24,12 @@ export class BetterAuthPageHandlers {
    * GET /auth/sign-in
    */
   signInPage: AuthPageHandler<SignInPageRequest> = async (req, res) => {
-    if (!this.provider.hasCapability('authPages.signIn')) {
-      res.status(404).json({ error: 'Sign in page not supported' });
-      return;
-    }
-
     // Check if user is already authenticated
     const sessionToken = this.extractSessionToken(req);
     if (sessionToken) {
-      const session = await this.provider.getCurrentSession(sessionToken);
+      const session = await this.provider.getSessionManagement().getActive(sessionToken);
       if (session) {
-        res.redirect('/dashboard'); // Redirect to dashboard if already signed in
+        res.redirect('/');
         return;
       }
     }
@@ -72,11 +67,6 @@ export class BetterAuthPageHandlers {
    * GET /auth/sign-out
    */
   signOutPage: AuthPageHandler<SignOutPageRequest> = async (req, res) => {
-    if (!this.provider.hasCapability('authPages.signOut')) {
-      res.status(404).json({ error: 'Sign out page not supported' });
-      return;
-    }
-
     // Perform sign out
     const sessionToken = this.extractSessionToken(req);
     if (sessionToken) {
@@ -108,11 +98,6 @@ export class BetterAuthPageHandlers {
    * GET /auth/sign-up
    */
   signUpPage: AuthPageHandler<SignUpPageRequest> = async (req, res) => {
-    if (!this.provider.hasCapability('authPages.signUp')) {
-      res.status(404).json({ error: 'Sign up page not supported' });
-      return;
-    }
-
     if (req.headers.accept?.includes('application/json')) {
       res.json({
         page: 'sign-up',
@@ -144,11 +129,6 @@ export class BetterAuthPageHandlers {
    * GET /auth/magic-link
    */
   magicLinkPage: AuthPageHandler<MagicLinkPageRequest> = async (req, res) => {
-    if (!this.provider.hasCapability('authPages.magicLink')) {
-      res.status(404).json({ error: 'Magic link page not supported' });
-      return;
-    }
-
     if (req.headers.accept?.includes('application/json')) {
       res.json({
         page: 'magic-link',
@@ -178,11 +158,6 @@ export class BetterAuthPageHandlers {
    * GET /auth/magic-link/verify?token=...
    */
   magicLinkVerifyPage: AuthPageHandler<MagicLinkVerifyPageRequest> = async (req, res) => {
-    if (!this.provider.hasCapability('authPages.magicLink')) {
-      res.status(404).json({ error: 'Magic link verification not supported' });
-      return;
-    }
-
     const token = req.query.token as string;
     if (!token) {
       res.status(400).json({ error: 'Token required' });
@@ -213,11 +188,6 @@ export class BetterAuthPageHandlers {
    * GET /auth/google/callback
    */
   googleCallbackPage: AuthPageHandler<GoogleCallbackPageRequest> = async (req, res) => {
-    if (!this.provider.hasCapability('authPages.socialAuth.google')) {
-      res.status(404).json({ error: 'Google OAuth not supported' });
-      return;
-    }
-
     // Better Auth handles OAuth callbacks internally
     // This would typically redirect to Better Auth's Google handler
     res.redirect('/api/auth/sign-in/google');
@@ -229,11 +199,6 @@ export class BetterAuthPageHandlers {
    * GET /auth/microsoft/callback
    */
   microsoftCallbackPage: AuthPageHandler<MicrosoftCallbackPageRequest> = async (req, res) => {
-    if (!this.provider.hasCapability('authPages.socialAuth.microsoft')) {
-      res.status(404).json({ error: 'Microsoft OAuth not supported' });
-      return;
-    }
-
     // Better Auth handles OAuth callbacks internally
     // This would typically redirect to Better Auth's Microsoft handler
     res.redirect('/api/auth/sign-in/microsoft');

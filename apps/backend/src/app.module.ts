@@ -5,6 +5,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { DataMartsModule } from './data-marts/data-marts.module';
 import { CommonModule } from './common/common.module';
 import { createDataSourceOptions } from './config/data-source-options.config';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { createDataSourceOptions } from './config/data-source-options.config';
 
     DataMartsModule,
     CommonModule,
+    AuthModule,
   ],
 })
 export class AppModule {}

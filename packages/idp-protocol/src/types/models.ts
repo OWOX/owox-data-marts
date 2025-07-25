@@ -59,3 +59,10 @@ export interface MagicLinkPayload {
   expiresAt: Date;
   used: boolean;
 }
+
+export interface Session {
+  id: string;
+  userId: string;
+  createdAt: Date;
+  updatedAt: Date;
+}

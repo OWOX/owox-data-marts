@@ -26,14 +26,6 @@ export class BetterAuthApiHandlers {
     req,
     res
   ) => {
-    if (!this.provider.hasCapability('authApi.tokenRefresh')) {
-      res.status(404).json({
-        success: false,
-        error: 'Token refresh not supported',
-      });
-      return;
-    }
-
     try {
       const { refreshToken } = req.body;
 
@@ -68,14 +60,6 @@ export class BetterAuthApiHandlers {
    * POST /auth/api/revoke
    */
   revokeToken: AuthApiHandler<RevokeTokenApiRequest, RevokeTokenApiResponse> = async (req, res) => {
-    if (!this.provider.hasCapability('authApi.tokenRevoke')) {
-      res.status(404).json({
-        success: false,
-        error: 'Token revocation not supported',
-      });
-      return;
-    }
-
     try {
       const { token } = req.body;
 
@@ -112,14 +96,6 @@ export class BetterAuthApiHandlers {
     req,
     res
   ) => {
-    if (!this.provider.hasCapability('authApi.tokenIntrospection')) {
-      res.status(404).json({
-        success: false,
-        error: 'Token introspection not supported',
-      });
-      return;
-    }
-
     try {
       const { token } = req.body;
 
@@ -131,7 +107,7 @@ export class BetterAuthApiHandlers {
         return;
       }
 
-      const tokenPayload = await this.provider.introspectToken(token);
+      const tokenPayload = await this.provider.getTokenManagement().introspect(token);
 
       res.json({
         success: true,
@@ -160,7 +136,7 @@ export class BetterAuthApiHandlers {
 
     try {
       // Get current session info
-      const session = await this.provider.getCurrentSession(refreshToken);
+      const session = await this.provider.getSessionManagement().getActive(refreshToken);
       if (!session) {
         throw new Error('Invalid refresh token');
       }
