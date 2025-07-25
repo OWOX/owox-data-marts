@@ -1,4 +1,4 @@
-import { magicLink, organization, admin } from 'better-auth/plugins';
+import { magicLink } from 'better-auth/plugins';
 import { BetterAuthProvider } from '../providers/better-auth-provider.js';
 import type { BetterAuthConfig } from '../types/index.js';
 import type { IdpConfig } from '@owox/idp-protocol';
@@ -75,5 +75,5 @@ export async function createSqliteProvider(): Promise<BetterAuthProvider> {
     },
   };
 
-  return await BetterAuthProvider.create(idpConfig, betterAuthConfig, capabilities);
+  return await BetterAuthProvider.create(idpConfig);
 }

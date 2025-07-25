@@ -8,6 +8,7 @@ import { BaseExceptionFilter } from './common/exceptions/base-exception.filter';
 import { ConfigService } from '@nestjs/config';
 import { runMigrationsIfNeeded } from './config/migrations.config';
 import { loadEnv } from './load-env';
+import { setupIdp } from './config/idp.config';
 
 const logger = createLogger('Bootstrap');
 const PATH_PREFIX = 'api';
@@ -48,6 +49,7 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<NestExp
   app.setGlobalPrefix(PATH_PREFIX);
   setupGlobalPipes(app);
   setupSwagger(app, SWAGGER_PATH);
+  await setupIdp(app);
   setupStaticAssets(app, PATH_PREFIX);
 
   app.enableShutdownHooks();

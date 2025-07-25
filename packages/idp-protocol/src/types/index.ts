@@ -19,6 +19,3 @@ export * from './enums.js';
 
 // Error classes
 export * from './errors.js';
-
-// Provider capabilities
-export * from './capabilities.js';

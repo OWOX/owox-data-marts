@@ -66,5 +66,5 @@ export function createMysqlConfig(): { idpConfig: IdpConfig; betterAuthConfig: B
  */
 export async function createMysqlProvider(): Promise<BetterAuthProvider> {
   const { idpConfig, betterAuthConfig } = createMysqlConfig();
-  return await BetterAuthProvider.create(idpConfig, betterAuthConfig);
+  return await BetterAuthProvider.create(idpConfig);
 }

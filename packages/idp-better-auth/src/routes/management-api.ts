@@ -29,14 +29,6 @@ export class BetterAuthManagementHandlers {
    * GET /api/users
    */
   getUsers: ApiHandler<GetUsersRequest, GetUsersResponse> = async (req, res) => {
-    if (!this.provider.hasCapability('managementApi.users.list')) {
-      res.status(404).json({
-        success: false,
-        error: 'User listing not supported',
-      });
-      return;
-    }
-
     try {
       const { page = '1', limit = '10', search, projectId } = req.query;
 
@@ -68,14 +60,6 @@ export class BetterAuthManagementHandlers {
    * POST /api/users
    */
   createUser: ApiHandler<CreateUserRequest, CreateUserResponse> = async (req, res) => {
-    if (!this.provider.hasCapability('managementApi.users.create')) {
-      res.status(404).json({
-        success: false,
-        error: 'User creation not supported',
-      });
-      return;
-    }
-
     try {
       const { email, name, password, projectId, roles } = req.body;
 
@@ -87,7 +71,7 @@ export class BetterAuthManagementHandlers {
         return;
       }
 
-      const user = await this.provider.createUser({
+      const user = await this.provider.getManagement().createUser({
         email,
         name,
         password,
@@ -114,18 +98,10 @@ export class BetterAuthManagementHandlers {
    * GET /api/users/:id
    */
   getUser: ApiHandler<GetUserRequest, GetUserResponse> = async (req, res) => {
-    if (!this.provider.hasCapability('managementApi.users.read')) {
-      res.status(404).json({
-        success: false,
-        error: 'User retrieval not supported',
-      });
-      return;
-    }
-
     try {
       const { id } = req.params;
 
-      const user = await this.provider.getUser(id);
+      const user = await this.provider.getManagement().getUser(id);
 
       if (!user) {
         res.status(404).json({
@@ -154,19 +130,11 @@ export class BetterAuthManagementHandlers {
    * PUT /api/users/:id
    */
   updateUser: ApiHandler<UpdateUserRequest, UpdateUserResponse> = async (req, res) => {
-    if (!this.provider.hasCapability('managementApi.users.update')) {
-      res.status(404).json({
-        success: false,
-        error: 'User update not supported',
-      });
-      return;
-    }
-
     try {
       const { id } = req.params;
       const { name, email, roles } = req.body;
 
-      const user = await this.provider.updateUser(id, {
+      const user = await this.provider.getManagement().updateUser(id, {
         name,
         email,
         roles,
@@ -191,18 +159,10 @@ export class BetterAuthManagementHandlers {
    * DELETE /api/users/:id
    */
   deleteUser: ApiHandler<DeleteUserRequest, DeleteUserResponse> = async (req, res) => {
-    if (!this.provider.hasCapability('managementApi.users.delete')) {
-      res.status(404).json({
-        success: false,
-        error: 'User deletion not supported',
-      });
-      return;
-    }
-
     try {
       const { id } = req.params;
 
-      await this.provider.deleteUser(id);
+      await this.provider.getManagement().deleteUser(id);
 
       res.json({
         success: true,
@@ -223,15 +183,6 @@ export class BetterAuthManagementHandlers {
    * GET /api/health
    */
   healthCheck: ApiHandler<HealthCheckRequest, HealthCheckResponse> = async (req, res) => {
-    if (!this.provider.hasCapability('managementApi.health')) {
-      res.status(404).json({
-        status: 'error',
-        timestamp: new Date().toISOString(),
-        error: 'Health check not supported',
-      });
-      return;
-    }
-
     try {
       // Check database connection
       const databaseStatus = await this.checkDatabaseHealth();
@@ -268,7 +219,7 @@ export class BetterAuthManagementHandlers {
     try {
       // This would check the database connection
       // For Better Auth, we could try a simple query or use their health check
-      const betterAuth = this.provider.getBetterAuth();
+      const betterAuth = this.provider;
 
       // Placeholder - in real implementation, you'd check database connectivity
       return true;

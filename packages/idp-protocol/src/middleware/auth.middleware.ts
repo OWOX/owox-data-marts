@@ -34,7 +34,7 @@ export function createAuthMiddleware(
       }
 
       // Introspect token using IDP-specific mechanism
-      const payload = await idpProvider.introspectToken(token);
+      const payload = await idpProvider.getTokenManagement().introspect(token);
 
       req.user = payload;
       req.token = token;

@@ -16,57 +16,35 @@ export function createBetterAuthRouter(provider: BetterAuthProvider): Router {
   const apiHandlers = new BetterAuthApiHandlers(provider);
   const managementHandlers = new BetterAuthManagementHandlers(provider);
 
-  // Authentication Page Routes (GET)
-  if (provider.hasCapability('authPages.signIn')) {
-    router.get(AUTH_PAGE_ROUTES.SIGN_IN, pageHandlers.signInPage);
-  }
-  if (provider.hasCapability('authPages.signOut')) {
-    router.get(AUTH_PAGE_ROUTES.SIGN_OUT, pageHandlers.signOutPage);
-  }
-  if (provider.hasCapability('authPages.signUp')) {
-    router.get(AUTH_PAGE_ROUTES.SIGN_UP, pageHandlers.signUpPage);
-  }
-  if (provider.hasCapability('authPages.magicLink')) {
-    router.get(AUTH_PAGE_ROUTES.MAGIC_LINK, pageHandlers.magicLinkPage);
-    router.get(AUTH_PAGE_ROUTES.MAGIC_LINK_VERIFY, pageHandlers.magicLinkVerifyPage);
-  }
-  if (provider.hasCapability('authPages.socialAuth.google')) {
-    router.get(AUTH_PAGE_ROUTES.GOOGLE_CALLBACK, pageHandlers.googleCallbackPage);
-  }
-  if (provider.hasCapability('authPages.socialAuth.microsoft')) {
-    router.get(AUTH_PAGE_ROUTES.MICROSOFT_CALLBACK, pageHandlers.microsoftCallbackPage);
-  }
+  router.get(AUTH_PAGE_ROUTES.SIGN_IN, pageHandlers.signInPage);
+  router.get(AUTH_PAGE_ROUTES.SIGN_OUT, pageHandlers.signOutPage);
+  router.get(AUTH_PAGE_ROUTES.SIGN_UP, pageHandlers.signUpPage);
+  router.get(AUTH_PAGE_ROUTES.MAGIC_LINK, pageHandlers.magicLinkPage);
+  router.get(AUTH_PAGE_ROUTES.MAGIC_LINK_VERIFY, pageHandlers.magicLinkVerifyPage);
+  router.get(AUTH_PAGE_ROUTES.GOOGLE_CALLBACK, pageHandlers.googleCallbackPage);
+  router.get(AUTH_PAGE_ROUTES.MICROSOFT_CALLBACK, pageHandlers.microsoftCallbackPage);
+  router.post(AUTH_API_ROUTES.REFRESH, apiHandlers.refreshToken);
+  router.post(AUTH_API_ROUTES.REVOKE, apiHandlers.revokeToken);
+  router.post(AUTH_API_ROUTES.INTROSPECT, apiHandlers.introspectToken);
+  router.get(API_ROUTES.USERS, managementHandlers.getUsers);
+  router.post(API_ROUTES.USERS, managementHandlers.createUser);
+  router.get(API_ROUTES.USER_BY_ID, managementHandlers.getUser);
+  router.put(API_ROUTES.USER_BY_ID, managementHandlers.updateUser);
+  router.delete(API_ROUTES.USER_BY_ID, managementHandlers.deleteUser);
+  router.get(API_ROUTES.HEALTH, managementHandlers.healthCheck);
 
   // Authentication API Routes (POST)
-  if (provider.hasCapability('authApi.tokenRefresh')) {
-    router.post(AUTH_API_ROUTES.REFRESH, apiHandlers.refreshToken);
-  }
-  if (provider.hasCapability('authApi.tokenRevoke')) {
-    router.post(AUTH_API_ROUTES.REVOKE, apiHandlers.revokeToken);
-  }
-  if (provider.hasCapability('authApi.tokenIntrospection')) {
-    router.post(AUTH_API_ROUTES.INTROSPECT, apiHandlers.introspectToken);
-  }
+  router.post(AUTH_API_ROUTES.REFRESH, apiHandlers.refreshToken);
+  router.post(AUTH_API_ROUTES.REVOKE, apiHandlers.revokeToken);
+  router.post(AUTH_API_ROUTES.INTROSPECT, apiHandlers.introspectToken);
 
   // Management API Routes
-  if (provider.hasCapability('managementApi.users.list')) {
-    router.get(API_ROUTES.USERS, managementHandlers.getUsers);
-  }
-  if (provider.hasCapability('managementApi.users.create')) {
-    router.post(API_ROUTES.USERS, managementHandlers.createUser);
-  }
-  if (provider.hasCapability('managementApi.users.read')) {
-    router.get(API_ROUTES.USER_BY_ID, managementHandlers.getUser);
-  }
-  if (provider.hasCapability('managementApi.users.update')) {
-    router.put(API_ROUTES.USER_BY_ID, managementHandlers.updateUser);
-  }
-  if (provider.hasCapability('managementApi.users.delete')) {
-    router.delete(API_ROUTES.USER_BY_ID, managementHandlers.deleteUser);
-  }
-  if (provider.hasCapability('managementApi.health')) {
-    router.get(API_ROUTES.HEALTH, managementHandlers.healthCheck);
-  }
+  router.get(API_ROUTES.USERS, managementHandlers.getUsers);
+  router.post(API_ROUTES.USERS, managementHandlers.createUser);
+  router.get(API_ROUTES.USER_BY_ID, managementHandlers.getUser);
+  router.put(API_ROUTES.USER_BY_ID, managementHandlers.updateUser);
+  router.delete(API_ROUTES.USER_BY_ID, managementHandlers.deleteUser);
+  router.get(API_ROUTES.HEALTH, managementHandlers.healthCheck);
 
   return router;
 }

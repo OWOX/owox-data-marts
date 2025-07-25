@@ -5,8 +5,7 @@
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import { createSqliteProvider } from './sqlite-config.js';
-import { createBetterAuthRouter, addBetterAuthRoutes } from '../routes/express-router.js';
-import { getSupportedEndpoints } from '@owox/idp-protocol';
+import { createBetterAuthRouter } from '../routes/express-router.js';
 import { getMigrations } from 'better-auth/db';
 
 /**
@@ -48,8 +47,6 @@ export async function createExpressApp() {
   app.get('/', (req, res) => {
     res.json({
       message: 'Better Auth IDP Server',
-      capabilities: provider.getCapabilities(),
-      endpoints: getSupportedEndpoints(provider.getCapabilities()),
     });
   });
 
@@ -64,7 +61,7 @@ export async function createExpressApp() {
     }
 
     try {
-      const tokenPayload = await provider.introspectToken(sessionToken);
+      const tokenPayload = await provider.getTokenManagement().introspect(sessionToken);
       res.json({
         message: 'Protected resource',
         user: tokenPayload,
