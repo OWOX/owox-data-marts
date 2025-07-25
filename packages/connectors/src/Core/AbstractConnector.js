@@ -255,6 +255,11 @@ var AbstractConnector = class AbstractConnector {
       let startDate = this.config.StartDate.value;
       let endDate = this.config.EndDate.value || new Date();
       
+      // Validate that EndDate is not earlier than StartDate
+      if (endDate < startDate) {
+        throw new Error(`EndDate (${endDate.toISOString().split('T')[0]}) cannot be earlier than StartDate (${startDate.toISOString().split('T')[0]})`);
+      }
+
       // Calculate days between start and end date (no MaxFetchingDays limit for manual backfill)
       const daysToFetch = Math.max(
         0,
@@ -290,20 +295,15 @@ var AbstractConnector = class AbstractConnector {
      * @private
      */
     _getIncrementalStartDate() {
-      let startDate = this.config.StartDate.value;
-
-      // If lastRequestedDate exists, apply ReimportLookbackWindow
+      // If lastRequestedDate exists, always use it (ignore StartDate)
       if (this.config.LastRequestedDate && this.config.LastRequestedDate.value) {
         let lastRequestedDate = this._parseLastRequestedDate();
         let lookbackDate = this._applyLookbackWindow(lastRequestedDate);
-        
-        // Use lookback date if it's later than StartDate
-        if (lookbackDate.getTime() > startDate.getTime()) {
-          startDate = lookbackDate;
-        }
+        return lookbackDate;
       }
 
-      return startDate;
+      // Fallback to StartDate only if no LastRequestedDate
+      return this.config.StartDate.value;
     }
     //----------------------------------------------------------------
 

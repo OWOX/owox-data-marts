@@ -6,12 +6,12 @@
  */
 
 var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
-  constructor(config, source, storageName = "GoogleSheetsStorage") {
+  constructor(config, source, storageName = "GoogleSheetsStorage", runConfig = null) {
     super(config.mergeParameters({
       DestinationTableNamePrefix: {
         default: "tiktok_ads_"
       }
-    }), source);
+    }), source, null, runConfig);
 
     this.storageName = storageName;
   }
@@ -190,7 +190,10 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
         }
       }
 
-      this.config.updateLastRequstedDate(currentDate);
+      // Only update LastRequestedDate for incremental runs
+      if (this.runConfig.type === RunConfigType.INCREMENTAL) {
+        this.config.updateLastRequstedDate(currentDate);
+      }
     }
   }
 

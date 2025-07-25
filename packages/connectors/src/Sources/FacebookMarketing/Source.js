@@ -17,12 +17,16 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
           default: "https://graph.facebook.com/v21.0/",
           description: "Facebook Graph API base URL"
         },
-        AccessToken:{
+        AccessToken: {
           isRequired: true,
           requiredType: "string",
+          label: 'Access Token',
+          description: 'Facebook Marketing API Access Token'
         },
         AccoundIDs: {
           isRequired: true,
+          label: 'Account IDs',
+          description: 'Comma-separated list of Facebook Ad Account IDs'
         },
         StartDate: {
           requiredType: "date",
@@ -37,7 +41,9 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
           attributes: ['manualBackfill']
         },
         Fields: {
-          isRequired: true
+          isRequired: true,
+          label: 'Fields',
+          description: 'Fields to fetch from Facebook Marketing API'
         },
         ProcessShortLinks: {
           requiredType: "string",
@@ -47,17 +53,21 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         ReimportLookbackWindow: {
           requiredType: "number",
           isRequired: true,
-          default: 2
+          default: 2,
+          label: 'Reimport Lookback Window',
+          description: 'Number of days to look back when reimporting data'
         },
         CleanUpToKeepWindow: {
-          requiredType: "number"
+          requiredType: "number",
+          label: 'Clean Up To Keep Window',
+          description: 'Number of days to keep data before cleanup'
         },
         MaxFetchingDays: {
           requiredType: "number",
           isRequired: true,
+          default: 31,
           label: 'Max Fetching Days',
-          description: 'Maximum number of days to fetch in a single run',
-          default: 31
+          description: 'Maximum number of days to fetch in one run'
         }
       }));
       

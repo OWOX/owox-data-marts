@@ -33,7 +33,6 @@ var AbstractRunConfig = class AbstractRunConfig {
     } else if (this.type !== RunConfigType.INCREMENTAL) {
       throw new Error(`Unknown RunConfig type: ${this.type}`);
     }
-    // INCREMENTAL не потребує валідації - використовує звичайну config логіку
   }
 
   /**
@@ -68,18 +67,14 @@ var AbstractRunConfig = class AbstractRunConfig {
 
   /**
    * Creates a manual backfill run config
-   * @param {Object} params - Parameters object with field names and values
+   * @param {Array} params - Array of parameter objects with configField and value
    * @returns {AbstractRunConfig} New run config instance
    */
   static createManualBackfill(params) {
-    const data = Object.entries(params).map(([configField, value]) => ({
-      configField,
-      value
-    }));
-
+    // params is already an array of {configField, value} objects
     return new AbstractRunConfig({
       type: RunConfigType.MANUAL_BACKFILL,
-      data
+      data: params
     });
   }
 

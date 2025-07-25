@@ -434,6 +434,19 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
       ui.showModalDialog(html, `${source.constructor.name} Credentials`);
     }
 
+    showManualBackfillDialog(source) {
+      const ui = SpreadsheetApp.getUi();
+      
+      const template = HtmlService.createTemplateFromFile('Views/manual-backfill-dialog');
+      template.source = source;
+      
+      const html = template.evaluate()
+        .setWidth(600)
+        .setHeight(350);
+      
+      ui.showModalDialog(html, 'Manual Backfill');
+    }
+
   //---- sendNotifications -------------------------------------------
     /**
      * Send notifications based on configuration settings

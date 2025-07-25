@@ -2,221 +2,212 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Manual Backfill Configuration</title>
+  <title>Manual Backfill - <?= source.constructor.name ?></title>
   <style>
     body { 
-      font-family: Arial, sans-serif; 
-      margin: 0; 
-      padding: 20px;
-      background: #f9f9f9;
-    }
-    
-    .container {
-      background: white;
-      border-radius: 8px;
-      padding: 24px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-      max-width: 500px;
-      margin: 0 auto;
-    }
-    
-    h2 {
-      color: #333;
-      margin-top: 0;
-      margin-bottom: 8px;
-    }
-    
-    .subtitle {
-      color: #666;
-      margin-bottom: 24px;
-      font-size: 14px;
-    }
-    
-    .form-group { 
-      margin-bottom: 20px; 
-    }
-    
-    label { 
-      display: block; 
-      font-weight: bold; 
-      margin-bottom: 6px;
-      color: #333;
-    }
-    
-    input[type="date"], input[type="number"] { 
-      width: 100%; 
-      padding: 10px; 
-      border-radius: 4px; 
-      border: 2px solid #e0e0e0;
-      font-size: 14px;
-      transition: border-color 0.2s;
-    }
-    
-    input[type="date"]:focus, input[type="number"]:focus {
-      outline: none;
-      border-color: #4285f4;
-    }
-    
-    .help-text {
-      font-size: 12px;
-      color: #666;
-      margin-top: 4px;
-    }
-    
-    .buttons { 
-      display: flex; 
-      justify-content: center; 
-      gap: 12px; 
-      margin-top: 32px; 
-    }
-    
-    .btn { 
-      padding: 12px 24px; 
-      border: none; 
-      border-radius: 4px; 
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 500;
-      transition: background-color 0.2s;
-    }
-    
-    .btn:disabled { 
-      opacity: 0.6; 
-      cursor: not-allowed; 
-    }
-    
-    .btn-primary { 
-      background: #4285f4; 
-      color: white; 
-    }
-    
-    .btn-primary:hover:not(:disabled) {
-      background: #3367d6;
-    }
-    
-    .btn-secondary { 
-      background: #f1f3f4; 
-      color: #5f6368; 
-    }
-    
-    .btn-secondary:hover {
-      background: #e8eaed;
+      font-family: Arial, sans-serif !important; 
+      margin: 10px !important;
+      background: white !important;
     }
     
     .warning {
-      background: #fff3cd;
-      border: 1px solid #ffeaa7;
-      border-radius: 4px;
-      padding: 12px;
-      margin-bottom: 20px;
-      font-size: 14px;
-      color: #856404;
+      background: #fff3cd !important;
+      border: 1px solid #ffeaa7 !important;
+      border-radius: 4px !important;
+      padding: 8px !important;
+      margin-bottom: 10px !important;
+      color: #856404 !important;
+      font-size: 13px !important;
     }
     
-    .warning-icon {
-      font-weight: bold;
-      margin-right: 4px;
+    .form-group { 
+      margin-bottom: 12px !important;
+    }
+    
+    label { 
+      display: block !important; 
+      font-weight: bold !important; 
+      margin-bottom: 6px !important;
+      color: #333 !important;
+      font-size: 14px !important;
+    }
+    
+    input { 
+      width: 100% !important; 
+      padding: 8px 12px !important; 
+      border-radius: 4px !important; 
+      border: 1px solid #ddd !important;
+      font-size: 14px !important;
+      box-sizing: border-box !important;
+    }
+    
+    input:focus {
+      outline: none !important;
+      border-color: #4285f4 !important;
+      box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.1) !important;
+    }
+    
+    input[type="date"] {
+      width: 140px !important;
+      max-width: 140px !important;
+    }
+    
+    .field-description { 
+      font-size: 12px !important; 
+      color: #666 !important; 
+      margin-top: 4px !important; 
+    }
+    
+    .buttons { 
+      display: flex !important; 
+      justify-content: flex-end !important; 
+      gap: 12px !important; 
+      margin-top: 10px !important;
+    }
+    
+    .btn { 
+      padding: 6px 14px !important;
+      border: none !important; 
+      border-radius: 4px !important; 
+      cursor: pointer !important; 
+      font-size: 14px !important;
+      font-weight: 500 !important;
+      transition: background-color 0.2s !important;
+    }
+    
+    .btn:disabled { 
+      opacity: 0.6 !important; 
+      cursor: not-allowed !important; 
+    }
+    
+    .btn-primary { 
+      background: #4285f4 !important; 
+      color: #fff !important; 
+    }
+    
+    .btn-primary:hover:not(:disabled) {
+      background: #3367d6 !important;
+    }
+    
+    .btn-secondary { 
+      background: #f1f3f4 !important; 
+      color: #5f6368 !important; 
+    }
+    
+    .btn-secondary:hover {
+      background: #e8eaed !important;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h2>Manual Backfill Configuration</h2>
-    <p class="subtitle">Import data for a specific date range without affecting your connector's state</p>
-    
-    <div class="warning">
-      <span class="warning-icon">⚠️</span>
-      This will not update your LastRequestedDate. Your regular imports will continue as normal.
-    </div>
-    
-    <form id="manualBackfillForm">
-      <div class="form-group">
-        <label for="startDate">Start Date *</label>
-        <input type="date" id="startDate" name="startDate" required>
-        <div class="help-text">Start date for data import</div>
-      </div>
-      
-      <div class="form-group">
-        <label for="endDate">End Date *</label>
-        <input type="date" id="endDate" name="endDate" required>
-        <div class="help-text">End date for data import</div>
-      </div>
-      
-      <div class="form-group">
-        <label for="maxFetchingDays">Max Fetching Days</label>
-        <input type="number" id="maxFetchingDays" name="maxFetchingDays" value="31" min="1" max="100">
-        <div class="help-text">Maximum number of days to fetch in a single run</div>
-      </div>
-      
-      <div class="buttons">
-        <button type="button" class="btn btn-secondary" onclick="google.script.host.close()">
-          Cancel
-        </button>
-        <button type="button" class="btn btn-primary" onclick="runManualBackfill()">
-          Start Manual Backfill
-        </button>
-      </div>
-    </form>
+  <div class="warning">
+    ⚠️ <strong>Note:</strong> This import will not affect your regular scheduled imports. Your connector will continue from where it left off.
   </div>
   
-  <script>
-    // Set default dates
-    document.addEventListener('DOMContentLoaded', function() {
-      const today = new Date();
-      const oneMonthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
+  <form id="manualBackfillForm">
+    <? 
+      var config = source.config;
+      var manualBackfillFields = [];
       
-      // Set default end date to today
-      document.getElementById('endDate').value = today.toISOString().split('T')[0];
-      
-      // Set default start date to one month ago
-      document.getElementById('startDate').value = oneMonthAgo.toISOString().split('T')[0];
-    });
-    
-    function runManualBackfill() {
-      const startDate = document.getElementById('startDate').value;
-      const endDate = document.getElementById('endDate').value;
-      const maxFetchingDays = document.getElementById('maxFetchingDays').value;
-      
-      // Validation
-      if (!startDate || !endDate) {
-        alert('❌ Please fill in both start and end dates');
-        return;
-      }
-      
-      if (new Date(startDate) > new Date(endDate)) {
-        alert('❌ Start date must be before end date');
-        return;
-      }
-      
-      const daysDiff = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24));
-      if (daysDiff > parseInt(maxFetchingDays)) {
-        if (!confirm(`⚠️ Date range (${daysDiff} days) exceeds Max Fetching Days (${maxFetchingDays}). This will be processed in chunks. Continue?`)) {
-          return;
+      // Find fields with manualBackfill attribute
+      for (var fieldName in config) {
+        var field = config[fieldName];
+        if (field.attributes && field.attributes.includes('manualBackfill')) {
+          manualBackfillFields.push({
+            name: fieldName,
+            field: field
+          });
         }
       }
       
-      const params = {
-        StartDate: startDate,
-        EndDate: endDate,
-        MaxFetchingDays: parseInt(maxFetchingDays)
-      };
+      for (var i = 0; i < manualBackfillFields.length; i++) {
+        var fieldInfo = manualBackfillFields[i];
+        var fieldName = fieldInfo.name;
+        var field = fieldInfo.field;
+    ?>
+      <div class="form-group">
+        <label for="<?= fieldName ?>"><?= field.label || fieldName ?>:</label>
+        <? if (field.requiredType === 'date' || field.type === 'date') { ?>
+          <input type="date" id="<?= fieldName ?>" name="<?= fieldName ?>" 
+                 style="width: 140px !important; max-width: 140px !important; padding: 8px 12px !important; border-radius: 4px !important; border: 1px solid #ddd !important; font-size: 14px !important; box-sizing: border-box !important;"
+                 value="<?= field.default ? field.default.toISOString().split('T')[0] : '' ?>" />
+        <? } else if (field.requiredType === 'number' || field.type === 'number') { ?>
+          <input type="number" id="<?= fieldName ?>" name="<?= fieldName ?>" 
+                 value="<?= field.default || '' ?>" />
+        <? } else { ?>
+          <input type="text" id="<?= fieldName ?>" name="<?= fieldName ?>" 
+                 value="<?= field.default || '' ?>" />
+        <? } ?>
+        <div class="field-description"><?= field.description || '' ?></div>
+      </div>
+    <? } ?>
+    
+    <div class="buttons">
+      <button type="button" class="btn btn-secondary" id="cancelBtn">Cancel</button>
+      <button type="button" class="btn btn-primary" id="runBtn">Run Manual Backfill</button>
+    </div>
+  </form>
+  
+  <script>
+    const cancelBtn = document.getElementById('cancelBtn');
+    const runBtn = document.getElementById('runBtn');
+    
+    cancelBtn.addEventListener('click', () => google.script.host.close());
+    runBtn.addEventListener('click', runManualBackfill);
+    
+    function runManualBackfill() {
+      const startDateInput = document.getElementById('StartDate');
+      const endDateInput = document.getElementById('EndDate');
       
-      // Disable button during execution
-      const button = document.querySelector('.btn-primary');
-      button.disabled = true;
-      button.textContent = 'Processing...';
+      if (!startDateInput || !endDateInput) {
+        alert('❌ Error: StartDate and EndDate fields not found');
+        return;
+      }
       
-      google.script.run
-        .withSuccessHandler(() => {
-          alert('✅ Manual backfill completed successfully!');
-          google.script.host.close();
-        })
-        .withFailureHandler((error) => {
-          alert('❌ Error: ' + error.message);
-          button.disabled = false;
-          button.textContent = 'Start Manual Backfill';
-        })
-        .executeManualBackfill(params);
+      if (!startDateInput.value.trim()) {
+        alert('❌ Please select Start Date');
+        startDateInput.focus();
+        return;
+      }
+      
+      if (!endDateInput.value.trim()) {
+        alert('❌ Please select End Date');
+        endDateInput.focus();
+        return;
+      }
+      
+      const startDate = new Date(startDateInput.value);
+      const endDate = new Date(endDateInput.value);
+      
+      if (endDate < startDate) {
+        alert('❌ End Date cannot be earlier than Start Date');
+        endDateInput.focus();
+        return;
+      }
+      
+      const params = [];
+      
+      const inputs = document.querySelectorAll('#manualBackfillForm input');
+      inputs.forEach(input => {
+        if (input.value.trim()) {
+          let value = input.value.trim();
+          
+          // For date fields, keep as string (don't convert to Date object)
+          // Apps Script will handle the conversion on the server side
+          if (input.type === 'number') {
+            value = parseFloat(value);
+          }
+          // For dates, keep as string format "YYYY-MM-DD"
+          
+          params.push({
+            configField: input.name,
+            value: value
+          });
+        }
+      });    
+      google.script.host.close();
+      
+      google.script.run.executeManualBackfill(params);
     }
   </script>
 </body>
