@@ -58,8 +58,8 @@ export function TargetSetupStep({
         {dataStorageType === DataStorageType.AWS_ATHENA && (
           <div className='flex flex-col gap-4'>
             <label htmlFor='dataset-name' className='text-muted-foreground text-sm'>
-              The entered Amazon Athena database will be used, or created automatically if it
-              doesn’t exist
+              The entered Amazon Athena database will be used or created automatically if it doesn’t
+              exist
             </label>
             <Input
               type='text'
@@ -75,7 +75,7 @@ export function TargetSetupStep({
               }}
             />
             <div className='text-muted-foreground mt-2 text-sm'>
-              The table "{tableName}" will be created automatically in selected database
+              The table "{tableName}" will be created automatically in the selected database
               <br />
               Full path:{' '}
               <span className='text-foreground/90'>
