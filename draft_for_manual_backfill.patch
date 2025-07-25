@@ -1,0 +1,3825 @@
+Subject: [PATCH] draft for manual backfill
+---
+Index: apps/backend/src/idp/decorators/auth.decorators.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/apps/backend/src/idp/decorators/auth.decorators.ts b/apps/backend/src/idp/decorators/auth.decorators.ts
+new file mode 100644
+--- /dev/null	(date 1753281535170)
++++ b/apps/backend/src/idp/decorators/auth.decorators.ts	(date 1753281535170)
+@@ -0,0 +1,27 @@
++import { SetMetadata, createParamDecorator, ExecutionContext } from '@nestjs/common';
++import { AuthenticatedRequest } from '../guards/auth.guard';
++
++// Decorator for marking endpoints as requiring specific roles
++export const Roles = (...roles: string[]) => SetMetadata('roles', roles);
++
++// Decorator for marking authentication as optional
++export const OptionalAuth = () => SetMetadata('optional-auth', true);
++
++// Decorator for marking endpoints as public (skip authentication)
++export const Public = () => SetMetadata('isPublic', true);
++
++// Decorator for extracting current user from request
++export const CurrentUser = createParamDecorator(
++  (data: unknown, ctx: ExecutionContext) => {
++    const request = ctx.switchToHttp().getRequest<AuthenticatedRequest>();
++    return request.user;
++  },
++);
++
++// Decorator for extracting token from request
++export const CurrentToken = createParamDecorator(
++  (data: unknown, ctx: ExecutionContext) => {
++    const request = ctx.switchToHttp().getRequest<AuthenticatedRequest>();
++    return request.token;
++  },
++);
+\ No newline at end of file
+Index: apps/backend/src/idp/interfaces/idp-service.interface.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/apps/backend/src/idp/interfaces/idp-service.interface.ts b/apps/backend/src/idp/interfaces/idp-service.interface.ts
+new file mode 100644
+--- /dev/null	(date 1753279139154)
++++ b/apps/backend/src/idp/interfaces/idp-service.interface.ts	(date 1753279139154)
+@@ -0,0 +1,44 @@
++import type {
++  IIdpProvider,
++  User,
++  Project,
++  TokenPayload,
++  SignInCredentials,
++  CreateUserDto,
++  UpdateUserDto,
++  CreateProjectDto,
++  AuthResult,
++  MagicLink,
++} from '../types/idp-protocol.types';
++
++/**
++ * Service interface that wraps the IIdpProvider from @owox/idp-protocol
++ * This provides a NestJS-compatible service layer
++ */
++export interface IIdpService {
++  // Authentication
++  signIn(credentials: SignInCredentials): Promise<AuthResult>;
++  signOut(userId: string): Promise<void>;
++
++  // Magic Links
++  createMagicLink(email: string, projectId: string): Promise<MagicLink>;
++  verifyMagicLink(token: string): Promise<AuthResult>;
++
++  // User Management
++  createUser(data: CreateUserDto): Promise<User>;
++  getUser(id: string): Promise<User | null>;
++  getUserByEmail(email: string): Promise<User | null>;
++  updateUser(id: string, data: UpdateUserDto): Promise<User>;
++  deleteUser(id: string): Promise<void>;
++
++  // Token Management
++  introspectToken(token: string): Promise<TokenPayload>;
++  revokeTokens(userId: string): Promise<void>;
++
++  // Project Management
++  createProject(data: CreateProjectDto): Promise<Project>;
++  getProject(id: string): Promise<Project | null>;
++
++  // Provider Access
++  getProvider(): IIdpProvider;
++}
+\ No newline at end of file
+Index: apps/backend/src/idp/middleware/idp-express.middleware.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/apps/backend/src/idp/middleware/idp-express.middleware.ts b/apps/backend/src/idp/middleware/idp-express.middleware.ts
+new file mode 100644
+--- /dev/null	(date 1753281975590)
++++ b/apps/backend/src/idp/middleware/idp-express.middleware.ts	(date 1753281975590)
+@@ -0,0 +1,31 @@
++import { Injectable, Logger } from '@nestjs/common';
++import { IdpRoutesService } from '../services/idp-routes.service';
++import { IdpService } from '../services/idp.service';
++
++@Injectable()
++export class IdpExpressIntegration {
++  private readonly logger = new Logger(IdpExpressIntegration.name);
++  private router: any;
++
++  constructor(
++    private readonly idpRoutesService: IdpRoutesService,
++    private readonly idpService: IdpService
++  ) {}
++
++  async getRouter() {
++    if (!this.router) {
++      try {
++        this.router = await this.idpRoutesService.createExpressRouter();
++        this.logger.log('IdP router created successfully');
++      } catch (error) {
++        this.logger.error('Failed to create IdP router', error);
++        throw error;
++      }
++    }
++    return this.router;
++  }
++
++  async getProvider() {
++    return this.idpService.getProvider();
++  }
++}
+\ No newline at end of file
+Index: apps/backend/src/idp/controllers/idp-proxy.controller.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/apps/backend/src/idp/controllers/idp-proxy.controller.ts b/apps/backend/src/idp/controllers/idp-proxy.controller.ts
+new file mode 100644
+--- /dev/null	(date 1753281954158)
++++ b/apps/backend/src/idp/controllers/idp-proxy.controller.ts	(date 1753281954158)
+@@ -0,0 +1,68 @@
++import { All, Controller, Req, Res, Logger, Get, Post } from '@nestjs/common';
++import { Request, Response } from 'express';
++import { IdpExpressIntegration } from '../middleware/idp-express.middleware';
++import { Public } from '../decorators/auth.decorators';
++
++@Controller('auth')
++@Public()
++export class IdpProxyController {
++  private readonly logger = new Logger(IdpProxyController.name);
++
++  constructor(private readonly idpIntegration: IdpExpressIntegration) {}
++
++  @Get('sign-in')
++  async getSignInPage(@Req() req: Request, @Res() res: Response) {
++    try {
++      const provider = await this.idpIntegration.getProvider();
++      res.send(`
++        <html>
++          <body>
++            <h1>Mock Sign In Page</h1>
++            <form method="post" action="/api/auth/api/signin">
++              <input type="email" name="email" placeholder="Email" required />
++              <input type="password" name="password" placeholder="Password" required />
++              <button type="submit">Sign In</button>
++            </form>
++          </body>
++        </html>
++      `);
++    } catch (error) {
++      this.logger.error('Failed to handle sign-in page', error);
++      res.status(500).json({ error: 'IdP integration error' });
++    }
++  }
++
++  @Get('sign-out')
++  async getSignOutPage(@Req() req: Request, @Res() res: Response) {
++    try {
++      res.send('<h1>Mock Sign Out Page</h1><p>You have been signed out.</p>');
++    } catch (error) {
++      this.logger.error('Failed to handle sign-out page', error);
++      res.status(500).json({ error: 'IdP integration error' });
++    }
++  }
++
++  @Post('api/introspect')
++  async introspectToken(@Req() req: Request, @Res() res: Response) {
++    try {
++      const provider = await this.idpIntegration.getProvider();
++      const token = req.headers.authorization?.replace('Bearer ', '');
++      
++      if (!token) {
++        return res.status(401).json({ error: 'No token provided' });
++      }
++      
++      const payload = await provider.introspectToken(token);
++      res.json(payload);
++    } catch (error) {
++      this.logger.error('Failed to introspect token', error);
++      res.status(401).json({ error: 'Invalid token' });
++    }
++  }
++
++  @All('*')
++  async handleOtherAuthRoutes(@Req() req: Request, @Res() res: Response) {
++    this.logger.warn(`Unhandled auth route: ${req.method} ${req.url}`);
++    res.status(404).json({ error: 'Auth route not found' });
++  }
++}
+\ No newline at end of file
+Index: apps/backend/src/idp/guards/auth.guard.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/apps/backend/src/idp/guards/auth.guard.ts b/apps/backend/src/idp/guards/auth.guard.ts
+new file mode 100644
+--- /dev/null	(date 1753281647140)
++++ b/apps/backend/src/idp/guards/auth.guard.ts	(date 1753281647140)
+@@ -0,0 +1,66 @@
++import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
++import { Reflector } from '@nestjs/core';
++import { Request } from 'express';
++import { IdpService } from '../services/idp.service';
++
++export interface AuthenticatedRequest extends Request {
++  user?: any;
++  token?: string;
++}
++
++@Injectable()
++export class AuthGuard implements CanActivate {
++  constructor(
++    private readonly idpService: IdpService,
++    private readonly reflector: Reflector
++  ) {}
++
++  async canActivate(context: ExecutionContext): Promise<boolean> {
++    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
++    
++    // Check if route is marked as public (skip authentication)
++    const isPublic = this.reflector.getAllAndOverride<boolean>('isPublic', [
++      context.getHandler(),
++      context.getClass(),
++    ]);
++    
++    if (isPublic) {
++      return true;
++    }
++
++    // Check if auth routes (skip authentication for auth endpoints)
++    const url = request.url as string;
++    if (url.startsWith('/auth/') || url.startsWith('/api/health')) {
++      return true;
++    }
++    
++    // Check if route is marked as optional
++    const isOptional = this.reflector.get<boolean>('optional-auth', context.getHandler());
++    
++    const token = this.extractTokenFromHeader(request);
++    
++    if (!token) {
++      if (isOptional) {
++        return true;
++      }
++      throw new ForbiddenException('Authentication required');
++    }
++
++    try {
++      const tokenPayload = await this.idpService.introspectToken(token);
++      request.user = tokenPayload;
++      request.token = token;
++      return true;
++    } catch (_error) {
++      if (isOptional) {
++        return true;
++      }
++      throw new ForbiddenException('Invalid token');
++    }
++  }
++
++  private extractTokenFromHeader(request: AuthenticatedRequest): string | undefined {
++    const [type, token] = request.headers.authorization?.split(' ') ?? [];
++    return type === 'Bearer' ? token : undefined;
++  }
++}
+\ No newline at end of file
+Index: apps/backend/src/idp/services/idp.service.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/apps/backend/src/idp/services/idp.service.ts b/apps/backend/src/idp/services/idp.service.ts
+new file mode 100644
+--- /dev/null	(date 1753279143721)
++++ b/apps/backend/src/idp/services/idp.service.ts	(date 1753279143721)
+@@ -0,0 +1,180 @@
++import { Injectable, Logger } from '@nestjs/common';
++import type {
++  IIdpProvider,
++  User,
++  Project,
++  TokenPayload,
++  SignInCredentials,
++  CreateUserDto,
++  UpdateUserDto,
++  CreateProjectDto,
++  AuthResult,
++  MagicLink,
++} from '../types/idp-protocol.types';
++import { IIdpService } from '../interfaces/idp-service.interface';
++
++@Injectable()
++export class IdpService implements IIdpService {
++  private readonly logger = new Logger(IdpService.name);
++
++  constructor(private readonly provider: IIdpProvider) {
++    this.logger.log('IdP Service initialized');
++  }
++
++  async signIn(credentials: SignInCredentials): Promise<AuthResult> {
++    this.logger.debug('Attempting sign in', { email: credentials.email });
++    try {
++      const result = await this.provider.signIn(credentials);
++      this.logger.debug('Sign in successful', { userId: result.user.id });
++      return result;
++    } catch (error) {
++      this.logger.error('Sign in failed', error);
++      throw error;
++    }
++  }
++
++  async signOut(userId: string): Promise<void> {
++    this.logger.debug('Attempting sign out', { userId });
++    try {
++      await this.provider.signOut(userId);
++      this.logger.debug('Sign out successful', { userId });
++    } catch (error) {
++      this.logger.error('Sign out failed', error);
++      throw error;
++    }
++  }
++
++  async createMagicLink(email: string, projectId: string): Promise<MagicLink> {
++    this.logger.debug('Creating magic link', { email, projectId });
++    try {
++      const magicLink = await this.provider.createMagicLink(email, projectId);
++      this.logger.debug('Magic link created', { email });
++      return magicLink;
++    } catch (error) {
++      this.logger.error('Magic link creation failed', error);
++      throw error;
++    }
++  }
++
++  async verifyMagicLink(token: string): Promise<AuthResult> {
++    this.logger.debug('Verifying magic link');
++    try {
++      const result = await this.provider.verifyMagicLink(token);
++      this.logger.debug('Magic link verified', { userId: result.user.id });
++      return result;
++    } catch (error) {
++      this.logger.error('Magic link verification failed', error);
++      throw error;
++    }
++  }
++
++  async createUser(data: CreateUserDto): Promise<User> {
++    this.logger.debug('Creating user', { email: data.email });
++    try {
++      const user = await this.provider.createUser(data);
++      this.logger.debug('User created', { userId: user.id });
++      return user;
++    } catch (error) {
++      this.logger.error('User creation failed', error);
++      throw error;
++    }
++  }
++
++  async getUser(id: string): Promise<User | null> {
++    this.logger.debug('Getting user', { userId: id });
++    try {
++      const user = await this.provider.getUser(id);
++      this.logger.debug('User retrieved', { userId: id, found: !!user });
++      return user;
++    } catch (error) {
++      this.logger.error('Get user failed', error);
++      throw error;
++    }
++  }
++
++  async getUserByEmail(email: string): Promise<User | null> {
++    this.logger.debug('Getting user by email', { email });
++    try {
++      const user = await this.provider.getUserByEmail(email);
++      this.logger.debug('User retrieved by email', { email, found: !!user });
++      return user;
++    } catch (error) {
++      this.logger.error('Get user by email failed', error);
++      throw error;
++    }
++  }
++
++  async updateUser(id: string, data: UpdateUserDto): Promise<User> {
++    this.logger.debug('Updating user', { userId: id });
++    try {
++      const user = await this.provider.updateUser(id, data);
++      this.logger.debug('User updated', { userId: id });
++      return user;
++    } catch (error) {
++      this.logger.error('User update failed', error);
++      throw error;
++    }
++  }
++
++  async deleteUser(id: string): Promise<void> {
++    this.logger.debug('Deleting user', { userId: id });
++    try {
++      await this.provider.deleteUser(id);
++      this.logger.debug('User deleted', { userId: id });
++    } catch (error) {
++      this.logger.error('User deletion failed', error);
++      throw error;
++    }
++  }
++
++  async introspectToken(token: string): Promise<TokenPayload> {
++    this.logger.debug('Introspecting token');
++    try {
++      const payload = await this.provider.introspectToken(token);
++      this.logger.debug('Token introspected', { userId: payload.sub });
++      return payload;
++    } catch (error) {
++      this.logger.error('Token introspection failed', error);
++      throw error;
++    }
++  }
++
++  async revokeTokens(userId: string): Promise<void> {
++    this.logger.debug('Revoking tokens', { userId });
++    try {
++      await this.provider.revokeTokens(userId);
++      this.logger.debug('Tokens revoked', { userId });
++    } catch (error) {
++      this.logger.error('Token revocation failed', error);
++      throw error;
++    }
++  }
++
++  async createProject(data: CreateProjectDto): Promise<Project> {
++    this.logger.debug('Creating project', { name: data.name });
++    try {
++      const project = await this.provider.createProject(data);
++      this.logger.debug('Project created', { projectId: project.id });
++      return project;
++    } catch (error) {
++      this.logger.error('Project creation failed', error);
++      throw error;
++    }
++  }
++
++  async getProject(id: string): Promise<Project | null> {
++    this.logger.debug('Getting project', { projectId: id });
++    try {
++      const project = await this.provider.getProject(id);
++      this.logger.debug('Project retrieved', { projectId: id, found: !!project });
++      return project;
++    } catch (error) {
++      this.logger.error('Get project failed', error);
++      throw error;
++    }
++  }
++
++  getProvider(): IIdpProvider {
++    return this.provider;
++  }
++}
+\ No newline at end of file
+Index: apps/backend/src/idp/services/idp-routes.service.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/apps/backend/src/idp/services/idp-routes.service.ts b/apps/backend/src/idp/services/idp-routes.service.ts
+new file mode 100644
+--- /dev/null	(date 1753280734525)
++++ b/apps/backend/src/idp/services/idp-routes.service.ts	(date 1753280734525)
+@@ -0,0 +1,94 @@
++import { Injectable, Logger } from '@nestjs/common';
++import { Router } from 'express';
++import { IdpService } from './idp.service';
++
++@Injectable()
++export class IdpRoutesService {
++  private readonly logger = new Logger(IdpRoutesService.name);
++
++  constructor(private readonly idpService: IdpService) {}
++
++  async createExpressRouter(): Promise<Router> {
++    try {
++      const provider = this.idpService.getProvider();
++      
++      // Use mock router for now due to ESM/CommonJS conflicts
++      const { createMockBetterAuthRouter, MockBetterAuthProvider } = await import('../mocks/mock-better-auth-provider');
++      
++      if (provider instanceof MockBetterAuthProvider) {
++        const router = createMockBetterAuthRouter(provider);
++        this.logger.log('Mock IdP Express router created successfully');
++        return router;
++      }
++      
++      throw new Error('Unsupported provider type for router creation');
++      
++    } catch (error) {
++      this.logger.error('Failed to create IdP router', error);
++      throw error;
++    }
++  }
++
++  async getAvailableRoutes(): Promise<{ authPages: string[], authApi: string[], managementApi: string[] }> {
++    try {
++      const provider = this.idpService.getProvider();
++      const capabilities = provider.getCapabilities();
++      
++      const routes = {
++        authPages: [] as string[],
++        authApi: [] as string[],
++        managementApi: [] as string[]
++      };
++
++      // Use hardcoded route constants (temporary fix for ESM/CommonJS issues)
++      const AUTH_PAGE_ROUTES = {
++        SIGN_IN: '/auth/sign-in',
++        SIGN_OUT: '/auth/sign-out',
++        SIGN_UP: '/auth/sign-up',
++        MAGIC_LINK: '/auth/magic-link',
++        MAGIC_LINK_VERIFY: '/auth/magic-link/verify',
++        GOOGLE_CALLBACK: '/auth/google/callback',
++        MICROSOFT_CALLBACK: '/auth/microsoft/callback'
++      };
++
++      const AUTH_API_ROUTES = {
++        REFRESH: '/auth/api/refresh',
++        REVOKE: '/auth/api/revoke',
++        INTROSPECT: '/auth/api/introspect'
++      };
++
++      const API_ROUTES = {
++        USERS: '/api/users',
++        USER_BY_ID: '/api/users/:id',
++        HEALTH: '/api/health'
++      };
++
++      // Check auth pages
++      if (capabilities.authPages.signIn) routes.authPages.push(AUTH_PAGE_ROUTES.SIGN_IN);
++      if (capabilities.authPages.signOut) routes.authPages.push(AUTH_PAGE_ROUTES.SIGN_OUT);
++      if (capabilities.authPages.signUp) routes.authPages.push(AUTH_PAGE_ROUTES.SIGN_UP);
++      if (capabilities.authPages.magicLink) {
++        routes.authPages.push(AUTH_PAGE_ROUTES.MAGIC_LINK);
++        routes.authPages.push(AUTH_PAGE_ROUTES.MAGIC_LINK_VERIFY);
++      }
++      if (capabilities.authPages.socialAuth.google) routes.authPages.push(AUTH_PAGE_ROUTES.GOOGLE_CALLBACK);
++      if (capabilities.authPages.socialAuth.microsoft) routes.authPages.push(AUTH_PAGE_ROUTES.MICROSOFT_CALLBACK);
++
++      // Check auth API
++      if (capabilities.authApi.tokenRefresh) routes.authApi.push(AUTH_API_ROUTES.REFRESH);
++      if (capabilities.authApi.tokenRevoke) routes.authApi.push(AUTH_API_ROUTES.REVOKE);
++      if (capabilities.authApi.tokenIntrospection) routes.authApi.push(AUTH_API_ROUTES.INTROSPECT);
++
++      // Check management API
++      if (capabilities.managementApi.users.list) routes.managementApi.push(API_ROUTES.USERS);
++      if (capabilities.managementApi.users.read) routes.managementApi.push(API_ROUTES.USER_BY_ID);
++      if (capabilities.managementApi.health) routes.managementApi.push(API_ROUTES.HEALTH);
++
++      return routes;
++      
++    } catch (error) {
++      this.logger.error('Failed to get available routes', error);
++      throw error;
++    }
++  }
++}
+\ No newline at end of file
+Index: apps/backend/src/idp/factories/idp-provider.factory.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/apps/backend/src/idp/factories/idp-provider.factory.ts b/apps/backend/src/idp/factories/idp-provider.factory.ts
+new file mode 100644
+--- /dev/null	(date 1753280443565)
++++ b/apps/backend/src/idp/factories/idp-provider.factory.ts	(date 1753280443565)
+@@ -0,0 +1,51 @@
++import { Injectable, Logger } from '@nestjs/common';
++import { ConfigService } from '@nestjs/config';
++import type { IIdpProvider } from '../types/idp-protocol.types';
++import { createIdpConfig } from '../config/idp.config';
++
++@Injectable()
++export class IdpProviderFactory {
++  private readonly logger = new Logger(IdpProviderFactory.name);
++
++  constructor(private readonly configService: ConfigService) {}
++
++  async createProvider(): Promise<IIdpProvider> {
++    const config = createIdpConfig(this.configService);
++    const providerType = config.provider.type;
++
++    this.logger.log(`Creating IdP provider: ${providerType}`);
++
++    switch (providerType) {
++      case 'better-auth':
++        return await this.createBetterAuthProvider(config);
++      
++      default:
++        throw new Error(`Unsupported IdP provider type: ${providerType}`);
++    }
++  }
++
++  private async createBetterAuthProvider(config: any): Promise<IIdpProvider> {
++    try {
++      // Temporary mock implementation due to ESM/CommonJS conflicts
++      // TODO: Fix @owox/idp-better-auth import issues
++      const { MockBetterAuthProvider } = await import('../mocks/mock-better-auth-provider');
++      
++      const provider = new MockBetterAuthProvider();
++      
++      this.logger.log('Mock Better Auth provider created successfully');
++      this.logger.warn('Using mock implementation - replace with real BetterAuthProvider when ESM/CommonJS issues are resolved');
++      
++      return provider;
++      
++    } catch (error) {
++      this.logger.error('Failed to create Better Auth provider', error);
++      throw new Error(`Failed to create Better Auth provider: ${error.message}`);
++    }
++  }
++
++  // Метод для додавання інших провайдерів у майбутньому
++  private async createCustomProvider(config: any): Promise<IIdpProvider> {
++    // Можна додати підтримку інших провайдерів
++    throw new Error('Custom provider not implemented yet');
++  }
++}
+\ No newline at end of file
+Index: apps/backend/src/main.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/apps/backend/src/main.ts b/apps/backend/src/main.ts
+--- a/apps/backend/src/main.ts	(revision a17fb01099c223b99899d875c97967da6412dcc2)
++++ b/apps/backend/src/main.ts	(date 1753282449856)
+@@ -1,7 +1,7 @@
+ import { loadEnv } from './load-env';
+ import { NestFactory } from '@nestjs/core';
+ import { AppModule } from './app.module';
+-import { NestExpressApplication } from '@nestjs/platform-express';
++import { NestExpressApplication, ExpressAdapter } from '@nestjs/platform-express';
+ import { createLogger } from './common/logger/logger.service';
+ import { setupSwagger } from './config/swagger.config';
+ import { setupGlobalPipes } from './config/global-pipes.config';
+@@ -9,6 +9,7 @@
+ import { BaseExceptionFilter } from './common/exceptions/base-exception.filter';
+ import { ConfigService } from '@nestjs/config';
+ import { runMigrationsIfNeeded } from './config/migrations.config';
++import express from 'express';
+ 
+ const logger = createLogger('Bootstrap');
+ const PATH_PREFIX = 'api';
+@@ -21,9 +22,12 @@
+ 
+   await runMigrationsIfNeeded(configService);
+ 
+-  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+-    logger,
+-  });
++  const server = express();
++  const app = await NestFactory.create<NestExpressApplication>(
++    AppModule, 
++    new ExpressAdapter(server),
++    { logger }
++  );
+ 
+   app.useLogger(createLogger());
+   app.useGlobalFilters(new BaseExceptionFilter());
+Index: apps/backend/src/idp/mocks/mock-better-auth-provider.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/apps/backend/src/idp/mocks/mock-better-auth-provider.ts b/apps/backend/src/idp/mocks/mock-better-auth-provider.ts
+new file mode 100644
+--- /dev/null	(date 1753280432166)
++++ b/apps/backend/src/idp/mocks/mock-better-auth-provider.ts	(date 1753280432166)
+@@ -0,0 +1,239 @@
++import { Router } from 'express';
++import type { IdpCapabilities, IIdpProvider, AuthResult, User, Project, TokenPayload, SignInCredentials, CreateUserDto, UpdateUserDto, CreateProjectDto, MagicLink } from '../types/idp-protocol.types';
++
++export class MockBetterAuthProvider implements IIdpProvider {
++  getCapabilities(): IdpCapabilities {
++    return {
++      authPages: {
++        signIn: true,
++        signOut: true,
++        signUp: true,
++        magicLink: true,
++        socialAuth: {
++          google: false,
++          microsoft: false,
++        },
++        emailVerification: false,
++        passwordReset: true,
++      },
++      authApi: {
++        tokenRefresh: true,
++        tokenRevoke: true,
++        tokenIntrospection: true,
++      },
++      managementApi: {
++        users: {
++          read: true,
++          create: true,
++          update: true,
++          delete: true,
++          list: false,
++        },
++        projects: {
++          read: false,
++          create: false,
++          update: false,
++          delete: false,
++          list: false,
++        },
++        roles: {
++          read: false,
++          create: false,
++          update: false,
++          delete: false,
++          list: false,
++        },
++        sessions: {
++          list: false,
++          revoke: true,
++        },
++        health: true,
++      },
++    };
++  }
++
++  hasCapability(capability: string): boolean {
++    const parts = capability.split('.');
++    let current: any = this.getCapabilities();
++
++    for (const part of parts) {
++      if (current[part] === undefined) return false;
++      current = current[part];
++    }
++
++    return Boolean(current);
++  }
++
++  async signIn(credentials: SignInCredentials): Promise<AuthResult> {
++    return {
++      user: {
++        id: 'mock-user-1',
++        email: credentials.email || 'test@example.com',
++        name: 'Mock User',
++        emailVerified: true,
++        createdAt: new Date(),
++        updatedAt: new Date(),
++      },
++      tokens: {
++        accessToken: 'mock-access-token',
++        tokenType: 'Bearer',
++        expiresIn: 3600,
++      },
++    };
++  }
++
++  async signOut(userId: string): Promise<void> {
++    console.log(`Mock sign out for user: ${userId}`);
++  }
++
++  async createMagicLink(email: string, projectId: string): Promise<MagicLink> {
++    return {
++      url: `http://localhost:3000/auth/magic-link/verify?token=mock-token`,
++      token: 'mock-magic-token',
++      expiresAt: new Date(Date.now() + 3600000),
++    };
++  }
++
++  async verifyMagicLink(token: string): Promise<AuthResult> {
++    return {
++      user: {
++        id: 'mock-user-magic',
++        email: 'magic@example.com',
++        name: 'Magic User',
++        emailVerified: true,
++        createdAt: new Date(),
++        updatedAt: new Date(),
++      },
++      tokens: {
++        accessToken: 'mock-magic-access-token',
++        tokenType: 'Bearer',
++        expiresIn: 3600,
++      },
++    };
++  }
++
++  async createUser(data: CreateUserDto): Promise<User> {
++    return {
++      id: 'mock-new-user',
++      email: data.email,
++      name: data.name,
++      emailVerified: data.emailVerified || false,
++      createdAt: new Date(),
++      updatedAt: new Date(),
++    };
++  }
++
++  async getUser(id: string): Promise<User | null> {
++    if (id === 'mock-user-1') {
++      return {
++        id: 'mock-user-1',
++        email: 'test@example.com',
++        name: 'Mock User',
++        emailVerified: true,
++        createdAt: new Date(),
++        updatedAt: new Date(),
++      };
++    }
++    return null;
++  }
++
++  async getUserByEmail(email: string): Promise<User | null> {
++    if (email === 'test@example.com') {
++      return {
++        id: 'mock-user-1',
++        email: 'test@example.com',
++        name: 'Mock User',
++        emailVerified: true,
++        createdAt: new Date(),
++        updatedAt: new Date(),
++      };
++    }
++    return null;
++  }
++
++  async updateUser(id: string, data: UpdateUserDto): Promise<User> {
++    return {
++      id,
++      email: 'test@example.com',
++      name: data.name || 'Updated User',
++      emailVerified: data.emailVerified || true,
++      createdAt: new Date(Date.now() - 86400000),
++      updatedAt: new Date(),
++    };
++  }
++
++  async deleteUser(id: string): Promise<void> {
++    console.log(`Mock delete user: ${id}`);
++  }
++
++  async introspectToken(token: string): Promise<TokenPayload> {
++    return {
++      sub: 'mock-user-1',
++      email: 'test@example.com',
++      roles: ['user'],
++      permissions: ['read'],
++      projectId: 'default',
++      iat: Math.floor(Date.now() / 1000),
++      exp: Math.floor(Date.now() / 1000) + 3600,
++      iss: 'mock-idp',
++      aud: 'owox-app',
++    };
++  }
++
++  async revokeTokens(userId: string): Promise<void> {
++    console.log(`Mock revoke tokens for user: ${userId}`);
++  }
++
++  async createProject(data: CreateProjectDto): Promise<Project> {
++    throw new Error('Project management not supported in mock provider');
++  }
++
++  async getProject(id: string): Promise<Project | null> {
++    return null;
++  }
++}
++
++// Mock router creation function
++export function createMockBetterAuthRouter(provider: MockBetterAuthProvider): Router {
++  const router = Router();
++
++  // Mock auth pages
++  router.get('/auth/sign-in', (req, res) => {
++    res.send(`
++      <html>
++        <body>
++          <h1>Mock Sign In Page</h1>
++          <form method="post" action="/auth/api/signin">
++            <input type="email" name="email" placeholder="Email" required />
++            <input type="password" name="password" placeholder="Password" required />
++            <button type="submit">Sign In</button>
++          </form>
++        </body>
++      </html>
++    `);
++  });
++
++  router.get('/auth/sign-out', (req, res) => {
++    res.send('<h1>Mock Sign Out Page</h1><p>You have been signed out.</p>');
++  });
++
++  // Mock API endpoints
++  router.post('/auth/api/introspect', async (req, res) => {
++    try {
++      const token = req.headers.authorization?.replace('Bearer ', '');
++      if (!token) {
++        return res.status(401).json({ error: 'No token provided' });
++      }
++      const payload = await provider.introspectToken(token);
++      res.json(payload);
++    } catch (error) {
++      res.status(401).json({ error: 'Invalid token' });
++    }
++  });
++
++  router.get('/api/health', (req, res) => {
++    res.json({ status: 'ok', provider: 'mock-better-auth' });
++  });
++
++  return router;
++}
+\ No newline at end of file
+Index: apps/backend/src/idp/types/idp-protocol.types.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/apps/backend/src/idp/types/idp-protocol.types.ts b/apps/backend/src/idp/types/idp-protocol.types.ts
+new file mode 100644
+--- /dev/null	(date 1753279633180)
++++ b/apps/backend/src/idp/types/idp-protocol.types.ts	(date 1753279633180)
+@@ -0,0 +1,164 @@
++// Local type declarations to avoid ESM import issues
++// These types should match @owox/idp-protocol types
++
++export interface User {
++  id: string;
++  email: string;
++  emailVerified: boolean;
++  name?: string;
++  createdAt: Date;
++  updatedAt: Date;
++  metadata?: Record<string, any>;
++}
++
++export interface Project {
++  id: string;
++  name: string;
++  metadata?: Record<string, any>;
++  createdAt: Date;
++  updatedAt: Date;
++}
++
++export interface TokenPayload {
++  sub: string; // user id
++  email: string;
++  roles: string[];
++  permissions?: string[];
++  projectId: string;
++  iat: number;
++  exp: number;
++  iss: string;
++  aud: string;
++}
++
++export interface SignInCredentials {
++  email?: string;
++  password?: string;
++  provider?: 'google' | 'microsoft' | 'github';
++}
++
++export interface CreateUserDto {
++  email: string;
++  password?: string;
++  name?: string;
++  emailVerified?: boolean;
++}
++
++export interface UpdateUserDto {
++  name?: string;
++  emailVerified?: boolean;
++}
++
++export interface CreateProjectDto {
++  name: string;
++  metadata?: Record<string, any>;
++}
++
++export interface AuthResult {
++  user: User;
++  tokens: IdpTokens;
++  isNewUser?: boolean;
++}
++
++export interface IdpTokens {
++  accessToken: string;
++  refreshToken?: string;
++  tokenType: string;
++  expiresIn?: number;
++  sessionId?: string;
++}
++
++export interface MagicLink {
++  url: string;
++  token: string;
++  expiresAt: Date;
++}
++
++export interface IdpConfig {
++  issuer: string;
++  audience: string;
++  magicLinkBaseUrl: string;
++  magicLinkTTL: number;
++  defaultProjectId: string;
++  provider: {
++    type: string;
++    config: any;
++  };
++}
++
++export interface IdpCapabilities {
++  authPages: {
++    signIn: boolean;
++    signOut: boolean;
++    signUp: boolean;
++    magicLink: boolean;
++    socialAuth: {
++      google: boolean;
++      microsoft: boolean;
++    };
++    emailVerification: boolean;
++    passwordReset: boolean;
++  };
++  authApi: {
++    tokenRefresh: boolean;
++    tokenRevoke: boolean;
++    tokenIntrospection: boolean;
++  };
++  managementApi: {
++    users: {
++      read: boolean;
++      create: boolean;
++      update: boolean;
++      delete: boolean;
++      list: boolean;
++    };
++    projects: {
++      read: boolean;
++      create: boolean;
++      update: boolean;
++      delete: boolean;
++      list: boolean;
++    };
++    roles: {
++      read: boolean;
++      create: boolean;
++      update: boolean;
++      delete: boolean;
++      list: boolean;
++    };
++    sessions: {
++      list: boolean;
++      revoke: boolean;
++    };
++    health: boolean;
++  };
++}
++
++export interface IIdpProvider {
++  // Capabilities
++  getCapabilities(): IdpCapabilities;
++  hasCapability(capability: string): boolean;
++
++  // Authentication
++  signIn(credentials: SignInCredentials): Promise<AuthResult>;
++  signOut(userId: string): Promise<void>;
++
++  // Magic Links
++  createMagicLink(email: string, projectId: string): Promise<MagicLink>;
++  verifyMagicLink(token: string): Promise<AuthResult>;
++
++  // User Management
++  createUser(data: CreateUserDto): Promise<User>;
++  getUser(id: string): Promise<User | null>;
++  getUserByEmail(email: string): Promise<User | null>;
++  updateUser(id: string, data: UpdateUserDto): Promise<User>;
++  deleteUser(id: string): Promise<void>;
++
++  // Token Management
++  introspectToken(token: string): Promise<TokenPayload>;
++  revokeTokens(userId: string): Promise<void>;
++
++  // Project Management
++  createProject(data: CreateProjectDto): Promise<Project>;
++  getProject(id: string): Promise<Project | null>;
++}
+\ No newline at end of file
+Index: apps/backend/src/idp/config/idp.config.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/apps/backend/src/idp/config/idp.config.ts b/apps/backend/src/idp/config/idp.config.ts
+new file mode 100644
+--- /dev/null	(date 1753279129322)
++++ b/apps/backend/src/idp/config/idp.config.ts	(date 1753279129322)
+@@ -0,0 +1,71 @@
++import { ConfigService } from '@nestjs/config';
++import type { IdpConfig } from '../types/idp-protocol.types';
++
++export function createIdpConfig(configService: ConfigService): IdpConfig {
++  const config: IdpConfig = {
++    issuer: configService.get<string>('IDP_ISSUER', 'owox-backend'),
++    audience: configService.get<string>('IDP_AUDIENCE', 'owox-app'),
++    
++    // Base URLs
++    magicLinkBaseUrl: configService.get<string>('IDP_MAGIC_LINK_BASE_URL', 'http://localhost:3000'),
++    
++    // TTL settings (in seconds)
++    magicLinkTTL: configService.get<number>('IDP_MAGIC_LINK_TTL', 3600), // 1 hour
++    
++    // Default project for users
++    defaultProjectId: configService.get<string>('IDP_DEFAULT_PROJECT_ID', 'default'),
++    
++    // Provider-specific settings
++    provider: {
++      type: configService.get<string>('IDP_PROVIDER_TYPE', 'better-auth'),
++      config: {
++        // Database configuration
++        database: {
++          type: configService.get<string>('IDP_DB_TYPE', 'sqlite'),
++          url: configService.get<string>('IDP_DB_URL'),
++          host: configService.get<string>('IDP_DB_HOST', 'localhost'),
++          port: configService.get<number>('IDP_DB_PORT', 3306),
++          username: configService.get<string>('IDP_DB_USERNAME'),
++          password: configService.get<string>('IDP_DB_PASSWORD'),
++          database: configService.get<string>('IDP_DB_NAME'),
++        },
++        
++        // Security settings
++        session: {
++          secret: configService.get<string>('IDP_SESSION_SECRET') || configService.get<string>('APP_SECRET'),
++          maxAge: configService.get<number>('IDP_SESSION_MAX_AGE', 86400), // 24 hours in seconds
++        },
++        
++        // Authentication methods
++        emailAndPassword: {
++          enabled: configService.get<boolean>('IDP_EMAIL_PASSWORD_ENABLED', true),
++          requireEmailVerification: configService.get<boolean>('IDP_REQUIRE_EMAIL_VERIFICATION', false),
++        },
++        
++        magicLink: {
++          enabled: configService.get<boolean>('IDP_MAGIC_LINK_ENABLED', true),
++        },
++        
++        // Social providers
++        socialProviders: {
++          google: configService.get<string>('IDP_GOOGLE_CLIENT_ID') ? {
++            clientId: configService.get<string>('IDP_GOOGLE_CLIENT_ID')!,
++            clientSecret: configService.get<string>('IDP_GOOGLE_CLIENT_SECRET')!,
++          } : undefined,
++          
++          github: configService.get<string>('IDP_GITHUB_CLIENT_ID') ? {
++            clientId: configService.get<string>('IDP_GITHUB_CLIENT_ID')!,
++            clientSecret: configService.get<string>('IDP_GITHUB_CLIENT_SECRET')!,
++          } : undefined,
++        },
++      },
++    },
++  };
++
++  return config;
++}
++
++export interface IdpModuleConfig {
++  providerType: 'better-auth' | 'custom';
++  idpConfig: IdpConfig;
++}
+\ No newline at end of file
+Index: apps/backend/src/idp/guards/roles.guard.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/apps/backend/src/idp/guards/roles.guard.ts b/apps/backend/src/idp/guards/roles.guard.ts
+new file mode 100644
+--- /dev/null	(date 1753279541864)
++++ b/apps/backend/src/idp/guards/roles.guard.ts	(date 1753279541864)
+@@ -0,0 +1,32 @@
++import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
++import { Reflector } from '@nestjs/core';
++import { AuthenticatedRequest } from './auth.guard';
++
++@Injectable()
++export class RolesGuard implements CanActivate {
++  constructor(private readonly reflector: Reflector) {}
++
++  canActivate(context: ExecutionContext): boolean {
++    const requiredRoles = this.reflector.get<string[]>('roles', context.getHandler());
++    
++    if (!requiredRoles) {
++      return true;
++    }
++
++    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
++    const user = request.user;
++
++    if (!user) {
++      throw new ForbiddenException('User not authenticated');
++    }
++
++    const userRoles = user.roles || [];
++    const hasRole = requiredRoles.some(role => userRoles.includes(role));
++
++    if (!hasRole) {
++      throw new ForbiddenException(`Required roles: ${requiredRoles.join(', ')}`);
++    }
++
++    return true;
++  }
++}
+\ No newline at end of file
+Index: apps/backend/src/app.module.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/apps/backend/src/app.module.ts b/apps/backend/src/app.module.ts
+--- a/apps/backend/src/app.module.ts	(revision a17fb01099c223b99899d875c97967da6412dcc2)
++++ b/apps/backend/src/app.module.ts	(date 1753281520813)
+@@ -2,8 +2,11 @@
+ import { TypeOrmModule } from '@nestjs/typeorm';
+ import { ConfigModule, ConfigService } from '@nestjs/config';
+ import { ScheduleModule } from '@nestjs/schedule';
++import { APP_GUARD } from '@nestjs/core';
+ import { DataMartsModule } from './data-marts/data-marts.module';
+ import { CommonModule } from './common/common.module';
++import { IdpModule } from './idp/idp.module';
++import { AuthGuard } from './idp/guards/auth.guard';
+ import { createDataSourceOptions } from './config/data-source-options.config';
+ 
+ @Module({
+@@ -18,8 +21,15 @@
+     }),
+     ScheduleModule.forRoot(),
+ 
++    IdpModule,
+     DataMartsModule,
+     CommonModule,
+   ],
++  providers: [
++    {
++      provide: APP_GUARD,
++      useClass: AuthGuard,
++    },
++  ],
+ })
+ export class AppModule {}
+Index: apps/backend/src/idp/README.md
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/apps/backend/src/idp/README.md b/apps/backend/src/idp/README.md
+new file mode 100644
+--- /dev/null	(date 1753279721852)
++++ b/apps/backend/src/idp/README.md	(date 1753279721852)
+@@ -0,0 +1,258 @@
++# IdP Integration для OWOX Backend
++
++Система інтеграції Identity Provider (IdP) через `@owox/idp-protocol` з використанням готових API endpoints та pages з packages.
++
++## Архітектура
++
++Backend використовує готові API роути та сторінки з `@owox/idp-protocol` та `@owox/idp-better-auth`. У backend є тільки:
++- **Конфігурація** провайдера через `.env`
++- **Guards** для авторизації в NestJS контролерах
++- **Middleware** для інтеграції Express роутів з NestJS
++
++### Основні компоненти
++
++1. **IdpService** (`services/idp.service.ts`)
++   - Основний сервіс для роботи з IdP
++   - Обгортка навколо `IIdpProvider` з NestJS інтеграцією
++   - Логування всіх операцій
++
++2. **IdpRoutesService** (`services/idp-routes.service.ts`)
++   - Створює Express router з готовими роутами з packages
++   - Перевіряє capabilities провайдера
++   - Повертає список доступних endpoints
++
++3. **IdpExpressMiddleware** (`middleware/idp-express.middleware.ts`)
++   - NestJS middleware для інтеграції Express роутів
++   - Lazy initialization роутера
++   - Обробка помилок
++
++4. **Guards**
++   - `AuthGuard` - перевірка токенів через IdP
++   - `RolesGuard` - перевірка ролей користувача
++
++5. **Decorators**
++   - `@CurrentUser()` - отримання поточного користувача
++   - `@Roles()` - вимога специфічних ролей
++   - `@OptionalAuth()` - опціональна авторизація
++
++## Конфігурація
++
++### Базові налаштування (.env)
++
++```bash
++# Тип провайдера (обов'язково)
++IDP_PROVIDER_TYPE=better-auth
++
++# Основні налаштування
++IDP_ISSUER=owox-backend
++IDP_AUDIENCE=owox-app
++IDP_MAGIC_LINK_BASE_URL=http://localhost:3000
++IDP_MAGIC_LINK_TTL=3600
++IDP_DEFAULT_PROJECT_ID=default
++
++# Налаштування сесії
++IDP_SESSION_SECRET=your-session-secret-here
++IDP_SESSION_MAX_AGE=86400
++
++# Методи аутентифікації
++IDP_EMAIL_PASSWORD_ENABLED=true
++IDP_REQUIRE_EMAIL_VERIFICATION=false
++IDP_MAGIC_LINK_ENABLED=true
++```
++
++### Налаштування бази даних для IdP
++
++```bash
++# SQLite (за замовчуванням)
++IDP_DB_TYPE=sqlite
++IDP_DB_URL=./idp.db
++
++# MySQL/PostgreSQL
++IDP_DB_TYPE=mysql
++IDP_DB_HOST=localhost
++IDP_DB_PORT=3306
++IDP_DB_USERNAME=root
++IDP_DB_PASSWORD=password
++IDP_DB_NAME=idp_database
++```
++
++### Social Providers (опціонально)
++
++```bash
++IDP_GOOGLE_CLIENT_ID=your-google-client-id
++IDP_GOOGLE_CLIENT_SECRET=your-google-client-secret
++IDP_GITHUB_CLIENT_ID=your-github-client-id
++IDP_GITHUB_CLIENT_SECRET=your-github-client-secret
++```
++
++## API Endpoints
++
++Всі API endpoints автоматично підключаються з `@owox/idp-better-auth` через middleware.
++
++### Authentication Pages (з @owox/idp-protocol)
++
++- `GET /auth/sign-in` - сторінка входу
++- `GET /auth/sign-out` - сторінка виходу
++- `GET /auth/sign-up` - сторінка реєстрації
++- `GET /auth/magic-link` - сторінка magic link
++- `GET /auth/magic-link/verify` - перевірка magic link
++- `GET /auth/google/callback` - Google OAuth callback
++- `GET /auth/microsoft/callback` - Microsoft OAuth callback
++
++### Authentication API
++
++- `POST /auth/api/refresh` - оновлення токену
++- `POST /auth/api/revoke` - відкликання токену  
++- `POST /auth/api/introspect` - перевірка токену
++
++### Management API
++
++- `GET /api/users` - список користувачів
++- `POST /api/users` - створення користувача
++- `GET /api/users/:id` - отримання користувача за ID
++- `PUT /api/users/:id` - оновлення користувача
++- `DELETE /api/users/:id` - видалення користувача
++- `GET /api/health` - перевірка здоров'я системи
++
++### Backend-specific endpoints
++
++- `GET /api/idp/status` - статус IdP та конфігурація
++- `GET /api/idp/routes` - список доступних роутів
++
++## Використання в коді
++
++### Використання Guards у контролерах
++
++```typescript
++import { Controller, Get, UseGuards } from '@nestjs/common';
++import { AuthGuard, RolesGuard, CurrentUser, Roles } from '../idp';
++
++@Controller('api/my-data')
++@UseGuards(AuthGuard, RolesGuard)
++export class MyDataController {
++  
++  @Get()
++  async getData(@CurrentUser() user: any) {
++    // user містить TokenPayload з IdP
++    return { message: `Hello ${user.email}` };
++  }
++
++  @Get('admin')
++  @Roles('admin')
++  async getAdminData(@CurrentUser() user: any) {
++    // Тільки для користувачів з роллю 'admin'
++    return { sensitive: 'data' };
++  }
++
++  @Get('public')
++  @OptionalAuth()
++  async getPublicData(@CurrentUser() user?: any) {
++    // Токен опціональний
++    return { 
++      message: user ? `Hello ${user.email}` : 'Hello anonymous'
++    };
++  }
++}
++```
++
++### Використання IdP Service (рідко потрібно)
++
++```typescript
++import { IdpService } from '../idp/services/idp.service';
++
++@Injectable()
++export class MyService {
++  constructor(private readonly idpService: IdpService) {}
++
++  async validateToken(token: string) {
++    return await this.idpService.introspectToken(token);
++  }
++
++  async getUserInfo(userId: string) {
++    return await this.idpService.getUser(userId);
++  }
++}
++```
++
++## Підтримувані провайдери
++
++### Better Auth (`better-auth`)
++
++Основна реалізація через `@owox/idp-better-auth`:
++
++- ✅ Email/Password аутентифікація
++- ✅ Magic Links
++- ✅ Social login (Google, GitHub)
++- ✅ Session management
++- ✅ User management
++- ❌ Project management (не підтримується Better Auth)
++
++## Переваги архітектури
++
++### Чому така архітектура краща:
++
++1. **Використання готових компонентів**: Всі API endpoints та auth pages беруться з packages, немає дублювання коду
++2. **Тільки необхідне в backend**: Backend містить тільки Guards та конфігурацію, без зайвих контролерів
++3. **Capabilities-based**: Роути підключаються автоматично на основі capabilities провайдера
++4. **Express + NestJS**: Готові Express роути інтегруються через middleware в NestJS
++5. **Type Safety**: Повна типізація через локальні інтерфейси
++6. **Легка інтеграція**: Просто додайте Guards до ваших контролерів
++
++### Структура файлів
++
++```
++src/idp/
++├── config/                 # Конфігурація з .env
++├── decorators/            # NestJS декоратори (@CurrentUser, @Roles)
++├── guards/               # Guards для авторизації  
++├── middleware/           # Express middleware для інтеграції
++├── services/            # IdP service та routes service
++├── types/              # Локальні типи
++├── factories/          # Factory для створення провайдера
++└── controllers/        # Тільки IdpInfoController для статусу
++```
++
++## Додавання нових провайдерів
++
++Для додавання нового провайдера:
++
++1. Створіть package з реалізацією `IIdpProvider` 
++2. Експортуйте `createXXXRouter` функцію (як у idp-better-auth)
++3. Додайте case в `IdpProviderFactory`
++4. Оновіть конфігурацію
++
++## Безпека
++
++- Всі API endpoints вимагають автентифікації (окрім signin та magic-link створення)
++- Токени перевіряються через `introspectToken`
++- Користувачі можуть редагувати тільки свої дані (окрім адмінів)
++- Тільки адміни можуть створювати/видаляти користувачів та проекти
++
++## Логування
++
++Всі операції IdP логуються з рівнем `debug`:
++
++```
++[IdpService] Attempting sign in { email: 'user@example.com' }
++[IdpService] Sign in successful { userId: 'user-123' }
++[IdpProviderFactory] Creating IdP provider: better-auth
++[IdpProviderFactory] Better Auth provider created successfully
++```
++
++## Troubleshooting
++
++### Помилка імпорту @owox/idp-protocol
++
++Якщо виникають проблеми з ESM/CommonJS сумісністю, типи дублюються в `types/idp-protocol.types.ts`.
++
++### Помилка конфігурації Better Auth
++
++Перевірте наявність обов'язкових змінних:
++- `IDP_SESSION_SECRET`
++- `IDP_DB_URL` (для SQLite) або параметри підключення (для MySQL/PostgreSQL)
++
++### Помилки авторизації
++
++1. Перевірте токен через `/api/auth/token/introspect`
++2. Переконайтеся, що `Authorization: Bearer <token>` header присутній
++3. Перевірте, що токен не застарів
+\ No newline at end of file
+Index: apps/backend/src/idp/idp.module.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/apps/backend/src/idp/idp.module.ts b/apps/backend/src/idp/idp.module.ts
+new file mode 100644
+--- /dev/null	(date 1753281963119)
++++ b/apps/backend/src/idp/idp.module.ts	(date 1753281963119)
+@@ -0,0 +1,49 @@
++import { Module, Global } from '@nestjs/common';
++import type { IIdpProvider } from './types/idp-protocol.types';
++import { IdpProviderFactory } from './factories/idp-provider.factory';
++import { IdpService } from './services/idp.service';
++import { IdpRoutesService } from './services/idp-routes.service';
++import { IdpExpressIntegration } from './middleware/idp-express.middleware';
++import { IdpInfoController } from './controllers/idp-info.controller';
++import { IdpProxyController } from './controllers/idp-proxy.controller';
++import { IdpApiController } from './controllers/idp-api.controller';
++import { AuthGuard } from './guards/auth.guard';
++import { RolesGuard } from './guards/roles.guard';
++
++@Global()
++@Module({
++  controllers: [
++    IdpInfoController,
++    IdpProxyController,
++    IdpApiController,
++  ],
++  providers: [
++    IdpProviderFactory,
++    {
++      provide: 'IDP_PROVIDER',
++      useFactory: async (factory: IdpProviderFactory): Promise<IIdpProvider> => {
++        return await factory.createProvider();
++      },
++      inject: [IdpProviderFactory],
++    },
++    {
++      provide: IdpService,
++      useFactory: (provider: IIdpProvider) => {
++        return new IdpService(provider);
++      },
++      inject: ['IDP_PROVIDER'],
++    },
++    IdpRoutesService,
++    IdpExpressIntegration,
++    AuthGuard,
++    RolesGuard,
++  ],
++  exports: [
++    IdpService,
++    IdpRoutesService,
++    AuthGuard,
++    RolesGuard,
++    'IDP_PROVIDER',
++  ],
++})
++export class IdpModule {}
+\ No newline at end of file
+Index: apps/backend/src/idp/index.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/apps/backend/src/idp/index.ts b/apps/backend/src/idp/index.ts
+new file mode 100644
+--- /dev/null	(date 1753280130438)
++++ b/apps/backend/src/idp/index.ts	(date 1753280130438)
+@@ -0,0 +1,43 @@
++// Main IdP module
++export * from './idp.module';
++
++// Services
++export * from './services/idp.service';
++export * from './services/idp-routes.service';
++
++// Interfaces
++export * from './interfaces/idp-service.interface';
++
++// Guards
++export * from './guards/auth.guard';
++export * from './guards/roles.guard';
++
++// Decorators
++export * from './decorators/auth.decorators';
++
++// Controllers
++export * from './controllers/idp-info.controller';
++
++// Integration
++export * from './middleware/idp-express.middleware';
++
++// Factories
++export * from './factories/idp-provider.factory';
++
++// Configuration
++export * from './config/idp.config';
++
++// Re-export types for convenience
++export type {
++  IIdpProvider,
++  User,
++  Project,
++  TokenPayload,
++  SignInCredentials,
++  CreateUserDto,
++  UpdateUserDto,
++  CreateProjectDto,
++  AuthResult,
++  MagicLink,
++  IdpConfig,
++} from './types/idp-protocol.types';
+\ No newline at end of file
+Index: package-lock.json
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/package-lock.json b/package-lock.json
+--- a/package-lock.json	(revision a17fb01099c223b99899d875c97967da6412dcc2)
++++ b/package-lock.json	(date 1753277153891)
+@@ -60,8 +60,13 @@
+         "@nestjs/typeorm": "^11.0.0",
+         "@owox/connector-runner": "0.3.0",
+         "@owox/connectors": "0.3.0",
++        "@owox/idp-better-auth": "^0.0.0",
++        "@owox/idp-protocol": "^0.0.0",
++        "better-auth": "^1.3.3",
++        "better-sqlite3": "^11.10.0",
+         "class-transformer": "^0.5.1",
+         "class-validator": "^0.14.2",
++        "cookie-parser": "^1.4.7",
+         "env-paths": "^3.0.0",
+         "googleapis": "^150.0.1",
+         "luxon": "^3.6.1",
+@@ -171,37 +176,6 @@
+         }
+       }
+     },
+-    "apps/backend/node_modules/@nestjs/common": {
+-      "version": "11.1.5",
+-      "resolved": "https://registry.npmjs.org/@nestjs/common/-/common-11.1.5.tgz",
+-      "integrity": "sha512-DQpWdr3ShO0BHWkHl3I4W/jR6R3pDtxyBlmrpTuZF+PXxQyBXNvsUne0Wyo6QHPEDi+pAz9XchBFoKbqOhcdTg==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "file-type": "21.0.0",
+-        "iterare": "1.2.1",
+-        "load-esm": "1.0.2",
+-        "tslib": "2.8.1",
+-        "uid": "2.0.2"
+-      },
+-      "funding": {
+-        "type": "opencollective",
+-        "url": "https://opencollective.com/nest"
+-      },
+-      "peerDependencies": {
+-        "class-transformer": ">=0.4.1",
+-        "class-validator": ">=0.13.2",
+-        "reflect-metadata": "^0.1.12 || ^0.2.0",
+-        "rxjs": "^7.1.0"
+-      },
+-      "peerDependenciesMeta": {
+-        "class-transformer": {
+-          "optional": true
+-        },
+-        "class-validator": {
+-          "optional": true
+-        }
+-      }
+-    },
+     "apps/backend/node_modules/@nestjs/platform-express": {
+       "version": "11.1.5",
+       "resolved": "https://registry.npmjs.org/@nestjs/platform-express/-/platform-express-11.1.5.tgz",
+@@ -4192,46 +4166,6 @@
+         "url": "https://github.com/sponsors/nzakas"
+       }
+     },
+-    "node_modules/@humanwhocodes/config-array": {
+-      "version": "0.13.0",
+-      "resolved": "https://registry.npmjs.org/@humanwhocodes/config-array/-/config-array-0.13.0.tgz",
+-      "integrity": "sha512-DZLEEqFWQFiyK6h5YIeynKx7JlvCYWL0cImfSRXZ9l4Sg2efkFGTuFf6vzXjK1cq6IYkU+Eg/JizXw+TD2vRNw==",
+-      "deprecated": "Use @eslint/config-array instead",
+-      "dev": true,
+-      "license": "Apache-2.0",
+-      "dependencies": {
+-        "@humanwhocodes/object-schema": "^2.0.3",
+-        "debug": "^4.3.1",
+-        "minimatch": "^3.0.5"
+-      },
+-      "engines": {
+-        "node": ">=10.10.0"
+-      }
+-    },
+-    "node_modules/@humanwhocodes/config-array/node_modules/brace-expansion": {
+-      "version": "1.1.12",
+-      "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.12.tgz",
+-      "integrity": "sha512-9T9UjW3r0UW5c1Q7GTwllptXwhvYmEzFhzMfZ9H7FQWt+uZePjZPjBP/W1ZEyZ1twGWom5/56TF4lPcqjnDHcg==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "balanced-match": "^1.0.0",
+-        "concat-map": "0.0.1"
+-      }
+-    },
+-    "node_modules/@humanwhocodes/config-array/node_modules/minimatch": {
+-      "version": "3.1.2",
+-      "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-3.1.2.tgz",
+-      "integrity": "sha512-J7p63hRiAjw1NDEww1W7i37+ByIrOWO5XQQAzZ3VOcL0PNybwpfmV/N05zFAzwQ9USyEcX6t3UO+K5aqBQOIHw==",
+-      "dev": true,
+-      "license": "ISC",
+-      "dependencies": {
+-        "brace-expansion": "^1.1.7"
+-      },
+-      "engines": {
+-        "node": "*"
+-      }
+-    },
+     "node_modules/@humanwhocodes/module-importer": {
+       "version": "1.0.1",
+       "resolved": "https://registry.npmjs.org/@humanwhocodes/module-importer/-/module-importer-1.0.1.tgz",
+@@ -4256,14 +4190,6 @@
+         "node": ">=18"
+       }
+     },
+-    "node_modules/@humanwhocodes/object-schema": {
+-      "version": "2.0.3",
+-      "resolved": "https://registry.npmjs.org/@humanwhocodes/object-schema/-/object-schema-2.0.3.tgz",
+-      "integrity": "sha512-93zYdMES/c1D69yZiKDBj0V24vqNzB/koF26KPaagAfd3P/4gUlh3Dys5ogAK+Exi9QyzlD8x/08Zt7wIKcDcA==",
+-      "deprecated": "Use @eslint/object-schema instead",
+-      "dev": true,
+-      "license": "BSD-3-Clause"
+-    },
+     "node_modules/@humanwhocodes/retry": {
+       "version": "0.4.3",
+       "resolved": "https://registry.npmjs.org/@humanwhocodes/retry/-/retry-0.4.3.tgz",
+@@ -6186,14 +6112,14 @@
+       }
+     },
+     "node_modules/@nestjs/common": {
+-      "version": "10.4.19",
+-      "resolved": "https://registry.npmjs.org/@nestjs/common/-/common-10.4.19.tgz",
+-      "integrity": "sha512-0TZJ8H+7qtaqZt6YfZJkDRp0e+v6jjo5/pevPAjUy0WYxaTy16bNNQxFPRKLMe/v1hUr2oGV9imvL2477zNt5g==",
++      "version": "11.1.5",
++      "resolved": "https://registry.npmjs.org/@nestjs/common/-/common-11.1.5.tgz",
++      "integrity": "sha512-DQpWdr3ShO0BHWkHl3I4W/jR6R3pDtxyBlmrpTuZF+PXxQyBXNvsUne0Wyo6QHPEDi+pAz9XchBFoKbqOhcdTg==",
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+-        "file-type": "20.4.1",
++        "file-type": "21.0.0",
+         "iterare": "1.2.1",
++        "load-esm": "1.0.2",
+         "tslib": "2.8.1",
+         "uid": "2.0.2"
+       },
+@@ -6202,8 +6128,8 @@
+         "url": "https://opencollective.com/nest"
+       },
+       "peerDependencies": {
+-        "class-transformer": "*",
+-        "class-validator": "*",
++        "class-transformer": ">=0.4.1",
++        "class-validator": ">=0.13.2",
+         "reflect-metadata": "^0.1.12 || ^0.2.0",
+         "rxjs": "^7.1.0"
+       },
+@@ -6216,25 +6142,6 @@
+         }
+       }
+     },
+-    "node_modules/@nestjs/common/node_modules/file-type": {
+-      "version": "20.4.1",
+-      "resolved": "https://registry.npmjs.org/file-type/-/file-type-20.4.1.tgz",
+-      "integrity": "sha512-hw9gNZXUfZ02Jo0uafWLaFVPter5/k2rfcrjFJJHX/77xtSDOfJuEFb6oKlFV86FLP1SuyHMW1PSk0U9M5tKkQ==",
+-      "license": "MIT",
+-      "peer": true,
+-      "dependencies": {
+-        "@tokenizer/inflate": "^0.2.6",
+-        "strtok3": "^10.2.0",
+-        "token-types": "^6.0.0",
+-        "uint8array-extras": "^1.4.0"
+-      },
+-      "engines": {
+-        "node": ">=18"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sindresorhus/file-type?sponsor=1"
+-      }
+-    },
+     "node_modules/@nestjs/config": {
+       "version": "4.0.2",
+       "resolved": "https://registry.npmjs.org/@nestjs/config/-/config-4.0.2.tgz",
+@@ -10142,7 +10049,6 @@
+       "version": "1.19.6",
+       "resolved": "https://registry.npmjs.org/@types/body-parser/-/body-parser-1.19.6.tgz",
+       "integrity": "sha512-HLFeCYgz89uk22N5Qg3dvGvsv46B8GLvKKo1zKG4NybA8U2DiEO3w9lqGg29t/tfLRJpJ6iQxnVw4OnB7MoM9g==",
+-      "dev": true,
+       "license": "MIT",
+       "dependencies": {
+         "@types/connect": "*",
+@@ -10166,12 +10072,20 @@
+       "version": "3.4.38",
+       "resolved": "https://registry.npmjs.org/@types/connect/-/connect-3.4.38.tgz",
+       "integrity": "sha512-K6uROf1LD88uDQqJCktA4yzL1YYAK6NgfsI0v/mTgyPKWsX1CnJ0XPSDhViejru1GcRkLWb8RlzFYJRqGUbaug==",
+-      "dev": true,
+       "license": "MIT",
+       "dependencies": {
+         "@types/node": "*"
+       }
+     },
++    "node_modules/@types/cookie-parser": {
++      "version": "1.4.9",
++      "resolved": "https://registry.npmjs.org/@types/cookie-parser/-/cookie-parser-1.4.9.tgz",
++      "integrity": "sha512-tGZiZ2Gtc4m3wIdLkZ8mkj1T6CEHb35+VApbL2T14Dew8HA7c+04dmKqsKRNC+8RJPm16JEK0tFSwdZqubfc4g==",
++      "license": "MIT",
++      "peerDependencies": {
++        "@types/express": "*"
++      }
++    },
+     "node_modules/@types/cookiejar": {
+       "version": "2.1.5",
+       "resolved": "https://registry.npmjs.org/@types/cookiejar/-/cookiejar-2.1.5.tgz",
+@@ -10236,7 +10150,6 @@
+       "version": "5.0.3",
+       "resolved": "https://registry.npmjs.org/@types/express/-/express-5.0.3.tgz",
+       "integrity": "sha512-wGA0NX93b19/dZC1J18tKWVIYWyyF2ZjT9vin/NRu0qzzvfVzWjs04iq2rQ3H65vCTQYlRqs3YHfY7zjdV+9Kw==",
+-      "dev": true,
+       "license": "MIT",
+       "dependencies": {
+         "@types/body-parser": "*",
+@@ -10248,7 +10161,6 @@
+       "version": "5.0.7",
+       "resolved": "https://registry.npmjs.org/@types/express-serve-static-core/-/express-serve-static-core-5.0.7.tgz",
+       "integrity": "sha512-R+33OsgWw7rOhD1emjU7dzCDHucJrgJXMA5PYCzJxVil0dsyx5iBEPHqpPfiKNJQb7lZ1vxwoLR4Z87bBUpeGQ==",
+-      "dev": true,
+       "license": "MIT",
+       "dependencies": {
+         "@types/node": "*",
+@@ -10296,7 +10208,6 @@
+       "version": "2.0.5",
+       "resolved": "https://registry.npmjs.org/@types/http-errors/-/http-errors-2.0.5.tgz",
+       "integrity": "sha512-r8Tayk8HJnX0FztbZN7oVqGccWgw98T/0neJphO91KkmOzug1KkofZURD4UaD5uH8AqcFLfdPErnBod0u71/qg==",
+-      "dev": true,
+       "license": "MIT"
+     },
+     "node_modules/@types/istanbul-lib-coverage": {
+@@ -10437,7 +10348,6 @@
+       "version": "1.3.5",
+       "resolved": "https://registry.npmjs.org/@types/mime/-/mime-1.3.5.tgz",
+       "integrity": "sha512-/pyBZWSLD2n0dcHE3hq8s8ZvcETHtEuF+3E7XVt0Ig2nvsVQXdghHVcEkIWjy9A0wKfTn97a/PSDYohKIlnP/w==",
+-      "dev": true,
+       "license": "MIT"
+     },
+     "node_modules/@types/mocha": {
+@@ -10492,14 +10402,12 @@
+       "version": "6.14.0",
+       "resolved": "https://registry.npmjs.org/@types/qs/-/qs-6.14.0.tgz",
+       "integrity": "sha512-eOunJqu0K1923aExK6y8p6fsihYEn/BYuQ4g0CxAAgFc4b/ZLN4CrsRZ55srTdqoiLzU2B2evC+apEIxprEzkQ==",
+-      "dev": true,
+       "license": "MIT"
+     },
+     "node_modules/@types/range-parser": {
+       "version": "1.2.7",
+       "resolved": "https://registry.npmjs.org/@types/range-parser/-/range-parser-1.2.7.tgz",
+       "integrity": "sha512-hKormJbkJqzQGhziax5PItDUTMAM9uE2XXQmM37dyd4hVM+5aVl7oVxMVUiVQn2oCQFN/LKCZdvSM0pFRqbSmQ==",
+-      "dev": true,
+       "license": "MIT"
+     },
+     "node_modules/@types/react": {
+@@ -10560,18 +10468,10 @@
+         "@types/node": "*"
+       }
+     },
+-    "node_modules/@types/semver": {
+-      "version": "7.7.0",
+-      "resolved": "https://registry.npmjs.org/@types/semver/-/semver-7.7.0.tgz",
+-      "integrity": "sha512-k107IF4+Xr7UHjwDc7Cfd6PRQfbdkiRabXGRjo07b4WyPahFBZCZ1sE+BNxYIJPPg73UkfOsVOLwqVc/6ETrIA==",
+-      "dev": true,
+-      "license": "MIT"
+-    },
+     "node_modules/@types/send": {
+       "version": "0.17.5",
+       "resolved": "https://registry.npmjs.org/@types/send/-/send-0.17.5.tgz",
+       "integrity": "sha512-z6F2D3cOStZvuk2SaP6YrwkNO65iTZcwA2ZkSABegdkAh/lf+Aa/YQndZVfmEXT5vgAp6zv06VQ3ejSVjAny4w==",
+-      "dev": true,
+       "license": "MIT",
+       "dependencies": {
+         "@types/mime": "^1",
+@@ -10582,7 +10482,6 @@
+       "version": "1.15.8",
+       "resolved": "https://registry.npmjs.org/@types/serve-static/-/serve-static-1.15.8.tgz",
+       "integrity": "sha512-roei0UY3LhpOJvjbIP6ZZFngyLKl5dskOtDhxY5THRSpO+ZI+nzJ+m5yUMzGrp89YRa7lvknKkMYjqQFGwA7Sg==",
+-      "dev": true,
+       "license": "MIT",
+       "dependencies": {
+         "@types/http-errors": "*",
+@@ -13420,9 +13319,9 @@
+       }
+     },
+     "node_modules/better-auth": {
+-      "version": "1.3.2",
+-      "resolved": "https://registry.npmjs.org/better-auth/-/better-auth-1.3.2.tgz",
+-      "integrity": "sha512-510kOtFBTdp4z51hWtTEqk9yqSinXzyg7PkDFnXYMq1K0KvdXRY1A9t9J998i0CSf/tJA0wNoN3S8exkOgBvTw==",
++      "version": "1.3.3",
++      "resolved": "https://registry.npmjs.org/better-auth/-/better-auth-1.3.3.tgz",
++      "integrity": "sha512-q1aD2nNpGfEI2ckYu+pBjN+23CIRctOpmREkWyJDJdoYW1q9EPs1Xdb+KhFztg2rMmsoUN8I9Xm5mUWMxiWuLw==",
+       "license": "MIT",
+       "dependencies": {
+         "@better-auth/utils": "0.2.5",
+@@ -13484,6 +13383,17 @@
+         "node": ">=4"
+       }
+     },
++    "node_modules/better-sqlite3": {
++      "version": "11.10.0",
++      "resolved": "https://registry.npmjs.org/better-sqlite3/-/better-sqlite3-11.10.0.tgz",
++      "integrity": "sha512-EwhOpyXiOEL/lKzHz9AW1msWFNzGc/z+LzeB3/jnFJpxu+th2yqvzsSWas1v9jgs9+xiXJcD5A8CJxAG2TaghQ==",
++      "hasInstallScript": true,
++      "license": "MIT",
++      "dependencies": {
++        "bindings": "^1.5.0",
++        "prebuild-install": "^7.1.1"
++      }
++    },
+     "node_modules/big.js": {
+       "version": "6.2.2",
+       "resolved": "https://registry.npmjs.org/big.js/-/big.js-6.2.2.tgz",
+@@ -15163,6 +15073,34 @@
+       "integrity": "sha512-+W7VmiVINB+ywl1HGXJXmrqkOhpKrIiVZV6tQuV54ZyQC7MMuBt81Vc336GMLoHBq5hV/F9eXgt5Mnx0Rha5Fg==",
+       "license": "MIT"
+     },
++    "node_modules/cookie-parser": {
++      "version": "1.4.7",
++      "resolved": "https://registry.npmjs.org/cookie-parser/-/cookie-parser-1.4.7.tgz",
++      "integrity": "sha512-nGUvgXnotP3BsjiLX2ypbQnWoGUPIIfHQNZkkC668ntrzGWEZVW70HDEB1qnNGMicPje6EttlIgzo51YSwNQGw==",
++      "license": "MIT",
++      "dependencies": {
++        "cookie": "0.7.2",
++        "cookie-signature": "1.0.6"
++      },
++      "engines": {
++        "node": ">= 0.8.0"
++      }
++    },
++    "node_modules/cookie-parser/node_modules/cookie": {
++      "version": "0.7.2",
++      "resolved": "https://registry.npmjs.org/cookie/-/cookie-0.7.2.tgz",
++      "integrity": "sha512-yki5XnKuf750l50uGTllt6kKILY4nQ1eNIQatoXEByZ5dWgnKqbnqmTrBE5B4N7lrMJKQ2ytWMiTO2o0v6Ew/w==",
++      "license": "MIT",
++      "engines": {
++        "node": ">= 0.6"
++      }
++    },
++    "node_modules/cookie-parser/node_modules/cookie-signature": {
++      "version": "1.0.6",
++      "resolved": "https://registry.npmjs.org/cookie-signature/-/cookie-signature-1.0.6.tgz",
++      "integrity": "sha512-QADzlaHc8icV8I7vbaJXJwod9HWYp8uCqf1xa4OfNu1T7JVxQIrUgOWtHdNDtPiywmFbiS12VjotIXLrKM3orQ==",
++      "license": "MIT"
++    },
+     "node_modules/cookie-signature": {
+       "version": "1.2.2",
+       "resolved": "https://registry.npmjs.org/cookie-signature/-/cookie-signature-1.2.2.tgz",
+@@ -15926,117 +15864,6 @@
+         "url": "https://dotenvx.com"
+       }
+     },
+-    "node_modules/drizzle-orm": {
+-      "version": "0.30.10",
+-      "resolved": "https://registry.npmjs.org/drizzle-orm/-/drizzle-orm-0.30.10.tgz",
+-      "integrity": "sha512-IRy/QmMWw9lAQHpwbUh1b8fcn27S/a9zMIzqea1WNOxK9/4EB8gIo+FZWLiPXzl2n9ixGSv8BhsLZiOppWEwBw==",
+-      "license": "Apache-2.0",
+-      "optional": true,
+-      "peerDependencies": {
+-        "@aws-sdk/client-rds-data": ">=3",
+-        "@cloudflare/workers-types": ">=3",
+-        "@electric-sql/pglite": ">=0.1.1",
+-        "@libsql/client": "*",
+-        "@neondatabase/serverless": ">=0.1",
+-        "@op-engineering/op-sqlite": ">=2",
+-        "@opentelemetry/api": "^1.4.1",
+-        "@planetscale/database": ">=1",
+-        "@types/better-sqlite3": "*",
+-        "@types/pg": "*",
+-        "@types/react": ">=18",
+-        "@types/sql.js": "*",
+-        "@vercel/postgres": ">=0.8.0",
+-        "@xata.io/client": "*",
+-        "better-sqlite3": ">=7",
+-        "bun-types": "*",
+-        "expo-sqlite": ">=13.2.0",
+-        "knex": "*",
+-        "kysely": "*",
+-        "mysql2": ">=2",
+-        "pg": ">=8",
+-        "postgres": ">=3",
+-        "react": ">=18",
+-        "sql.js": ">=1",
+-        "sqlite3": ">=5"
+-      },
+-      "peerDependenciesMeta": {
+-        "@aws-sdk/client-rds-data": {
+-          "optional": true
+-        },
+-        "@cloudflare/workers-types": {
+-          "optional": true
+-        },
+-        "@electric-sql/pglite": {
+-          "optional": true
+-        },
+-        "@libsql/client": {
+-          "optional": true
+-        },
+-        "@neondatabase/serverless": {
+-          "optional": true
+-        },
+-        "@op-engineering/op-sqlite": {
+-          "optional": true
+-        },
+-        "@opentelemetry/api": {
+-          "optional": true
+-        },
+-        "@planetscale/database": {
+-          "optional": true
+-        },
+-        "@types/better-sqlite3": {
+-          "optional": true
+-        },
+-        "@types/pg": {
+-          "optional": true
+-        },
+-        "@types/react": {
+-          "optional": true
+-        },
+-        "@types/sql.js": {
+-          "optional": true
+-        },
+-        "@vercel/postgres": {
+-          "optional": true
+-        },
+-        "@xata.io/client": {
+-          "optional": true
+-        },
+-        "better-sqlite3": {
+-          "optional": true
+-        },
+-        "bun-types": {
+-          "optional": true
+-        },
+-        "expo-sqlite": {
+-          "optional": true
+-        },
+-        "knex": {
+-          "optional": true
+-        },
+-        "kysely": {
+-          "optional": true
+-        },
+-        "mysql2": {
+-          "optional": true
+-        },
+-        "pg": {
+-          "optional": true
+-        },
+-        "postgres": {
+-          "optional": true
+-        },
+-        "react": {
+-          "optional": true
+-        },
+-        "sql.js": {
+-          "optional": true
+-        },
+-        "sqlite3": {
+-          "optional": true
+-        }
+-      }
+-    },
+     "node_modules/dset": {
+       "version": "3.1.4",
+       "resolved": "https://registry.npmjs.org/dset/-/dset-3.1.4.tgz",
+@@ -21447,16 +21274,6 @@
+         "url": "https://github.com/sponsors/ljharb"
+       }
+     },
+-    "node_modules/is-path-inside": {
+-      "version": "3.0.3",
+-      "resolved": "https://registry.npmjs.org/is-path-inside/-/is-path-inside-3.0.3.tgz",
+-      "integrity": "sha512-Fd4gABb+ycGAmKou8eMftCupSir5lRxqf4aD/vd0cD2qc4HL07OjCeuHMr8Ro4CoMaeCKDB0/ECBOVWjTwUvPQ==",
+-      "dev": true,
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">=8"
+-      }
+-    },
+     "node_modules/is-plain-obj": {
+       "version": "1.1.0",
+       "resolved": "https://registry.npmjs.org/is-plain-obj/-/is-plain-obj-1.1.0.tgz",
+@@ -35201,13 +35018,6 @@
+         "b4a": "^1.6.4"
+       }
+     },
+-    "node_modules/text-table": {
+-      "version": "0.2.0",
+-      "resolved": "https://registry.npmjs.org/text-table/-/text-table-0.2.0.tgz",
+-      "integrity": "sha512-N+8UisAXDGk8PFXP4HAzVR9nbfmVJ3zYLAWiTIoqC5v5isinhr+r5uaO8+7r3BMfuNIufIsA7RdpVgacC2cSpw==",
+-      "dev": true,
+-      "license": "MIT"
+-    },
+     "node_modules/through": {
+       "version": "2.3.8",
+       "resolved": "https://registry.npmjs.org/through/-/through-2.3.8.tgz",
+@@ -38915,1421 +38725,102 @@
+     "packages/idp-better-auth": {
+       "name": "@owox/idp-better-auth",
+       "version": "0.0.0",
+-      "license": "MIT",
++      "license": "ELv2",
+       "dependencies": {
+-        "better-auth": "^1.3.2"
++        "@types/cookie-parser": "^1.4.9",
++        "better-auth": "^1.3.2",
++        "better-sqlite3": "^12.2.0",
++        "cookie-parser": "^1.4.7",
++        "jose": "^6.0.12",
++        "mysql2": "^3.14.2"
+       },
+       "devDependencies": {
+-        "@owox/eslint-config": "../eslint-config",
+-        "@owox/prettier-config": "../prettier-config",
+-        "@owox/typescript-config": "../typescript-config",
+-        "@types/jest": "^29.5.11",
+-        "@types/node": "^20.11.0",
+-        "@typescript-eslint/eslint-plugin": "^6.18.1",
+-        "@typescript-eslint/parser": "^6.18.1",
+-        "eslint": "^8.56.0",
++        "@types/jest": "^29.5.14",
++        "@types/node": "^22.10.7",
+         "jest": "^29.7.0",
+-        "prettier": "^3.0.0",
+-        "rimraf": "^5.0.5",
+-        "ts-jest": "^29.1.1",
++        "ts-jest": "^29.2.5",
+         "typescript": "^5.3.3"
+       },
+       "engines": {
+         "node": ">=22.16.0"
+       },
+-      "optionalDependencies": {
+-        "drizzle-orm": "^0.30.0"
+-      },
+       "peerDependencies": {
+-        "@nestjs/common": "^10.0.0",
+-        "@nestjs/core": "^11.1.5",
+         "@owox/idp-protocol": "^0.0.0",
+-        "express": "^4.18.2",
+-        "typeorm": "^0.3.0"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/@eslint/eslintrc": {
+-      "version": "2.1.4",
+-      "resolved": "https://registry.npmjs.org/@eslint/eslintrc/-/eslintrc-2.1.4.tgz",
+-      "integrity": "sha512-269Z39MS6wVJtsoUl10L60WdkhJVdPG24Q4eZTH3nnF6lpvSShEK3wQjDX9JRWAUPvPh7COouPpU9IrqaZFvtQ==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "ajv": "^6.12.4",
+-        "debug": "^4.3.2",
+-        "espree": "^9.6.0",
+-        "globals": "^13.19.0",
+-        "ignore": "^5.2.0",
+-        "import-fresh": "^3.2.1",
+-        "js-yaml": "^4.1.0",
+-        "minimatch": "^3.1.2",
+-        "strip-json-comments": "^3.1.1"
+-      },
+-      "engines": {
+-        "node": "^12.22.0 || ^14.17.0 || >=16.0.0"
+-      },
+-      "funding": {
+-        "url": "https://opencollective.com/eslint"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/@eslint/eslintrc/node_modules/brace-expansion": {
+-      "version": "1.1.12",
+-      "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.12.tgz",
+-      "integrity": "sha512-9T9UjW3r0UW5c1Q7GTwllptXwhvYmEzFhzMfZ9H7FQWt+uZePjZPjBP/W1ZEyZ1twGWom5/56TF4lPcqjnDHcg==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "balanced-match": "^1.0.0",
+-        "concat-map": "0.0.1"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/@eslint/eslintrc/node_modules/minimatch": {
+-      "version": "3.1.2",
+-      "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-3.1.2.tgz",
+-      "integrity": "sha512-J7p63hRiAjw1NDEww1W7i37+ByIrOWO5XQQAzZ3VOcL0PNybwpfmV/N05zFAzwQ9USyEcX6t3UO+K5aqBQOIHw==",
+-      "dev": true,
+-      "license": "ISC",
+-      "dependencies": {
+-        "brace-expansion": "^1.1.7"
+-      },
+-      "engines": {
+-        "node": "*"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/@eslint/js": {
+-      "version": "8.57.1",
+-      "resolved": "https://registry.npmjs.org/@eslint/js/-/js-8.57.1.tgz",
+-      "integrity": "sha512-d9zaMRSTIKDLhctzH12MtXvJKSSUhaHcjV+2Z+GK+EEY7XKpP5yR4x+N3TAcHTcu963nIr+TMcCb4DBCYX1z6Q==",
+-      "dev": true,
+-      "license": "MIT",
+-      "engines": {
+-        "node": "^12.22.0 || ^14.17.0 || >=16.0.0"
++        "express": "^4.18.2"
+       }
+     },
+-    "packages/idp-better-auth/node_modules/@typescript-eslint/eslint-plugin": {
+-      "version": "6.21.0",
+-      "resolved": "https://registry.npmjs.org/@typescript-eslint/eslint-plugin/-/eslint-plugin-6.21.0.tgz",
+-      "integrity": "sha512-oy9+hTPCUFpngkEZUSzbf9MxI65wbKFoQYsgPdILTfbUldp5ovUuphZVe4i30emU9M/kP+T64Di0mxl7dSw3MA==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "@eslint-community/regexpp": "^4.5.1",
+-        "@typescript-eslint/scope-manager": "6.21.0",
+-        "@typescript-eslint/type-utils": "6.21.0",
+-        "@typescript-eslint/utils": "6.21.0",
+-        "@typescript-eslint/visitor-keys": "6.21.0",
+-        "debug": "^4.3.4",
+-        "graphemer": "^1.4.0",
+-        "ignore": "^5.2.4",
+-        "natural-compare": "^1.4.0",
+-        "semver": "^7.5.4",
+-        "ts-api-utils": "^1.0.1"
+-      },
+-      "engines": {
+-        "node": "^16.0.0 || >=18.0.0"
+-      },
+-      "funding": {
+-        "type": "opencollective",
+-        "url": "https://opencollective.com/typescript-eslint"
+-      },
+-      "peerDependencies": {
+-        "@typescript-eslint/parser": "^6.0.0 || ^6.0.0-alpha",
+-        "eslint": "^7.0.0 || ^8.0.0"
+-      },
+-      "peerDependenciesMeta": {
+-        "typescript": {
+-          "optional": true
+-        }
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/@typescript-eslint/parser": {
+-      "version": "6.21.0",
+-      "resolved": "https://registry.npmjs.org/@typescript-eslint/parser/-/parser-6.21.0.tgz",
+-      "integrity": "sha512-tbsV1jPne5CkFQCgPBcDOt30ItF7aJoZL997JSF7MhGQqOeT3svWRYxiqlfA5RUdlHN6Fi+EI9bxqbdyAUZjYQ==",
+-      "dev": true,
+-      "license": "BSD-2-Clause",
+-      "dependencies": {
+-        "@typescript-eslint/scope-manager": "6.21.0",
+-        "@typescript-eslint/types": "6.21.0",
+-        "@typescript-eslint/typescript-estree": "6.21.0",
+-        "@typescript-eslint/visitor-keys": "6.21.0",
+-        "debug": "^4.3.4"
+-      },
+-      "engines": {
+-        "node": "^16.0.0 || >=18.0.0"
+-      },
+-      "funding": {
+-        "type": "opencollective",
+-        "url": "https://opencollective.com/typescript-eslint"
+-      },
+-      "peerDependencies": {
+-        "eslint": "^7.0.0 || ^8.0.0"
+-      },
+-      "peerDependenciesMeta": {
+-        "typescript": {
+-          "optional": true
+-        }
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/@typescript-eslint/scope-manager": {
+-      "version": "6.21.0",
+-      "resolved": "https://registry.npmjs.org/@typescript-eslint/scope-manager/-/scope-manager-6.21.0.tgz",
+-      "integrity": "sha512-OwLUIWZJry80O99zvqXVEioyniJMa+d2GrqpUTqi5/v5D5rOrppJVBPa0yKCblcigC0/aYAzxxqQ1B+DS2RYsg==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "@typescript-eslint/types": "6.21.0",
+-        "@typescript-eslint/visitor-keys": "6.21.0"
+-      },
+-      "engines": {
+-        "node": "^16.0.0 || >=18.0.0"
+-      },
+-      "funding": {
+-        "type": "opencollective",
+-        "url": "https://opencollective.com/typescript-eslint"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/@typescript-eslint/type-utils": {
+-      "version": "6.21.0",
+-      "resolved": "https://registry.npmjs.org/@typescript-eslint/type-utils/-/type-utils-6.21.0.tgz",
+-      "integrity": "sha512-rZQI7wHfao8qMX3Rd3xqeYSMCL3SoiSQLBATSiVKARdFGCYSRvmViieZjqc58jKgs8Y8i9YvVVhRbHSTA4VBag==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "@typescript-eslint/typescript-estree": "6.21.0",
+-        "@typescript-eslint/utils": "6.21.0",
+-        "debug": "^4.3.4",
+-        "ts-api-utils": "^1.0.1"
+-      },
+-      "engines": {
+-        "node": "^16.0.0 || >=18.0.0"
+-      },
+-      "funding": {
+-        "type": "opencollective",
+-        "url": "https://opencollective.com/typescript-eslint"
+-      },
+-      "peerDependencies": {
+-        "eslint": "^7.0.0 || ^8.0.0"
+-      },
+-      "peerDependenciesMeta": {
+-        "typescript": {
+-          "optional": true
+-        }
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/@typescript-eslint/types": {
+-      "version": "6.21.0",
+-      "resolved": "https://registry.npmjs.org/@typescript-eslint/types/-/types-6.21.0.tgz",
+-      "integrity": "sha512-1kFmZ1rOm5epu9NZEZm1kckCDGj5UJEf7P1kliH4LKu/RkwpsfqqGmY2OOcUs18lSlQBKLDYBOGxRVtrMN5lpg==",
+-      "dev": true,
+-      "license": "MIT",
+-      "engines": {
+-        "node": "^16.0.0 || >=18.0.0"
+-      },
+-      "funding": {
+-        "type": "opencollective",
+-        "url": "https://opencollective.com/typescript-eslint"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/@typescript-eslint/typescript-estree": {
+-      "version": "6.21.0",
+-      "resolved": "https://registry.npmjs.org/@typescript-eslint/typescript-estree/-/typescript-estree-6.21.0.tgz",
+-      "integrity": "sha512-6npJTkZcO+y2/kr+z0hc4HwNfrrP4kNYh57ek7yCNlrBjWQ1Y0OS7jiZTkgumrvkX5HkEKXFZkkdFNkaW2wmUQ==",
+-      "dev": true,
+-      "license": "BSD-2-Clause",
+-      "dependencies": {
+-        "@typescript-eslint/types": "6.21.0",
+-        "@typescript-eslint/visitor-keys": "6.21.0",
+-        "debug": "^4.3.4",
+-        "globby": "^11.1.0",
+-        "is-glob": "^4.0.3",
+-        "minimatch": "9.0.3",
+-        "semver": "^7.5.4",
+-        "ts-api-utils": "^1.0.1"
+-      },
+-      "engines": {
+-        "node": "^16.0.0 || >=18.0.0"
+-      },
+-      "funding": {
+-        "type": "opencollective",
+-        "url": "https://opencollective.com/typescript-eslint"
+-      },
+-      "peerDependenciesMeta": {
+-        "typescript": {
+-          "optional": true
+-        }
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/@typescript-eslint/utils": {
+-      "version": "6.21.0",
+-      "resolved": "https://registry.npmjs.org/@typescript-eslint/utils/-/utils-6.21.0.tgz",
+-      "integrity": "sha512-NfWVaC8HP9T8cbKQxHcsJBY5YE1O33+jpMwN45qzWWaPDZgLIbo12toGMWnmhvCpd3sIxkpDw3Wv1B3dYrbDQQ==",
++    "packages/idp-better-auth/node_modules/@types/node": {
++      "version": "22.16.5",
++      "resolved": "https://registry.npmjs.org/@types/node/-/node-22.16.5.tgz",
++      "integrity": "sha512-bJFoMATwIGaxxx8VJPeM8TonI8t579oRvgAuT8zFugJsJZgzqv0Fu8Mhp68iecjzG7cnN3mO2dJQ5uUM2EFrgQ==",
+       "dev": true,
+       "license": "MIT",
+       "dependencies": {
+-        "@eslint-community/eslint-utils": "^4.4.0",
+-        "@types/json-schema": "^7.0.12",
+-        "@types/semver": "^7.5.0",
+-        "@typescript-eslint/scope-manager": "6.21.0",
+-        "@typescript-eslint/types": "6.21.0",
+-        "@typescript-eslint/typescript-estree": "6.21.0",
+-        "semver": "^7.5.4"
+-      },
+-      "engines": {
+-        "node": "^16.0.0 || >=18.0.0"
+-      },
+-      "funding": {
+-        "type": "opencollective",
+-        "url": "https://opencollective.com/typescript-eslint"
+-      },
+-      "peerDependencies": {
+-        "eslint": "^7.0.0 || ^8.0.0"
++        "undici-types": "~6.21.0"
+       }
+     },
+-    "packages/idp-better-auth/node_modules/@typescript-eslint/visitor-keys": {
+-      "version": "6.21.0",
+-      "resolved": "https://registry.npmjs.org/@typescript-eslint/visitor-keys/-/visitor-keys-6.21.0.tgz",
+-      "integrity": "sha512-JJtkDduxLi9bivAB+cYOVMtbkqdPOhZ+ZI5LC47MIRrDV4Yn2o+ZnW10Nkmr28xRpSpdJ6Sm42Hjf2+REYXm0A==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "@typescript-eslint/types": "6.21.0",
+-        "eslint-visitor-keys": "^3.4.1"
+-      },
+-      "engines": {
+-        "node": "^16.0.0 || >=18.0.0"
+-      },
+-      "funding": {
+-        "type": "opencollective",
+-        "url": "https://opencollective.com/typescript-eslint"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/ajv": {
+-      "version": "6.12.6",
+-      "resolved": "https://registry.npmjs.org/ajv/-/ajv-6.12.6.tgz",
+-      "integrity": "sha512-j3fVLgvTo527anyYyJOGTYJbG+vnnQYvE0m5mmkc1TK+nxAppkCLMIL0aZ4dblVCNoGShhm+kzE4ZUykBoMg4g==",
+-      "dev": true,
++    "packages/idp-better-auth/node_modules/better-sqlite3": {
++      "version": "12.2.0",
++      "resolved": "https://registry.npmjs.org/better-sqlite3/-/better-sqlite3-12.2.0.tgz",
++      "integrity": "sha512-eGbYq2CT+tos1fBwLQ/tkBt9J5M3JEHjku4hbvQUePCckkvVf14xWj+1m7dGoK81M/fOjFT7yM9UMeKT/+vFLQ==",
++      "hasInstallScript": true,
+       "license": "MIT",
+       "dependencies": {
+-        "fast-deep-equal": "^3.1.1",
+-        "fast-json-stable-stringify": "^2.0.0",
+-        "json-schema-traverse": "^0.4.1",
+-        "uri-js": "^4.2.2"
+-      },
+-      "funding": {
+-        "type": "github",
+-        "url": "https://github.com/sponsors/epoberezkin"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/doctrine": {
+-      "version": "3.0.0",
+-      "resolved": "https://registry.npmjs.org/doctrine/-/doctrine-3.0.0.tgz",
+-      "integrity": "sha512-yS+Q5i3hBf7GBkd4KG8a7eBNNWNGLTaEwwYWUijIYM7zrlYDM0BFXHjjPWlWZ1Rg7UaddZeIDmi9jF3HmqiQ2w==",
+-      "dev": true,
+-      "license": "Apache-2.0",
+-      "dependencies": {
+-        "esutils": "^2.0.2"
++        "bindings": "^1.5.0",
++        "prebuild-install": "^7.1.1"
+       },
+       "engines": {
+-        "node": ">=6.0.0"
++        "node": "20.x || 22.x || 23.x || 24.x"
+       }
+     },
+-    "packages/idp-better-auth/node_modules/eslint": {
+-      "version": "8.57.1",
+-      "resolved": "https://registry.npmjs.org/eslint/-/eslint-8.57.1.tgz",
+-      "integrity": "sha512-ypowyDxpVSYpkXr9WPv2PAZCtNip1Mv5KTW0SCurXv/9iOpcrH9PaqUElksqEB6pChqHGDRCFTyrZlGhnLNGiA==",
+-      "deprecated": "This version is no longer supported. Please see https://eslint.org/version-support for other options.",
+-      "dev": true,
++    "packages/idp-better-auth/node_modules/jose": {
++      "version": "6.0.12",
++      "resolved": "https://registry.npmjs.org/jose/-/jose-6.0.12.tgz",
++      "integrity": "sha512-T8xypXs8CpmiIi78k0E+Lk7T2zlK4zDyg+o1CZ4AkOHgDg98ogdP2BeZ61lTFKFyoEwJ9RgAgN+SdM3iPgNonQ==",
+       "license": "MIT",
+-      "dependencies": {
+-        "@eslint-community/eslint-utils": "^4.2.0",
+-        "@eslint-community/regexpp": "^4.6.1",
+-        "@eslint/eslintrc": "^2.1.4",
+-        "@eslint/js": "8.57.1",
+-        "@humanwhocodes/config-array": "^0.13.0",
+-        "@humanwhocodes/module-importer": "^1.0.1",
+-        "@nodelib/fs.walk": "^1.2.8",
+-        "@ungap/structured-clone": "^1.2.0",
+-        "ajv": "^6.12.4",
+-        "chalk": "^4.0.0",
+-        "cross-spawn": "^7.0.2",
+-        "debug": "^4.3.2",
+-        "doctrine": "^3.0.0",
+-        "escape-string-regexp": "^4.0.0",
+-        "eslint-scope": "^7.2.2",
+-        "eslint-visitor-keys": "^3.4.3",
+-        "espree": "^9.6.1",
+-        "esquery": "^1.4.2",
+-        "esutils": "^2.0.2",
+-        "fast-deep-equal": "^3.1.3",
+-        "file-entry-cache": "^6.0.1",
+-        "find-up": "^5.0.0",
+-        "glob-parent": "^6.0.2",
+-        "globals": "^13.19.0",
+-        "graphemer": "^1.4.0",
+-        "ignore": "^5.2.0",
+-        "imurmurhash": "^0.1.4",
+-        "is-glob": "^4.0.0",
+-        "is-path-inside": "^3.0.3",
+-        "js-yaml": "^4.1.0",
+-        "json-stable-stringify-without-jsonify": "^1.0.1",
+-        "levn": "^0.4.1",
+-        "lodash.merge": "^4.6.2",
+-        "minimatch": "^3.1.2",
+-        "natural-compare": "^1.4.0",
+-        "optionator": "^0.9.3",
+-        "strip-ansi": "^6.0.1",
+-        "text-table": "^0.2.0"
+-      },
+-      "bin": {
+-        "eslint": "bin/eslint.js"
+-      },
+-      "engines": {
+-        "node": "^12.22.0 || ^14.17.0 || >=16.0.0"
+-      },
+       "funding": {
+-        "url": "https://opencollective.com/eslint"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/eslint-scope": {
+-      "version": "7.2.2",
+-      "resolved": "https://registry.npmjs.org/eslint-scope/-/eslint-scope-7.2.2.tgz",
+-      "integrity": "sha512-dOt21O7lTMhDM+X9mB4GX+DZrZtCUJPL/wlcTqxyrx5IvO0IYtILdtrQGQp+8n5S0gwSVmOf9NQrjMOgfQZlIg==",
+-      "dev": true,
+-      "license": "BSD-2-Clause",
+-      "dependencies": {
+-        "esrecurse": "^4.3.0",
+-        "estraverse": "^5.2.0"
+-      },
+-      "engines": {
+-        "node": "^12.22.0 || ^14.17.0 || >=16.0.0"
+-      },
+-      "funding": {
+-        "url": "https://opencollective.com/eslint"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/eslint/node_modules/brace-expansion": {
+-      "version": "1.1.12",
+-      "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.12.tgz",
+-      "integrity": "sha512-9T9UjW3r0UW5c1Q7GTwllptXwhvYmEzFhzMfZ9H7FQWt+uZePjZPjBP/W1ZEyZ1twGWom5/56TF4lPcqjnDHcg==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "balanced-match": "^1.0.0",
+-        "concat-map": "0.0.1"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/eslint/node_modules/minimatch": {
+-      "version": "3.1.2",
+-      "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-3.1.2.tgz",
+-      "integrity": "sha512-J7p63hRiAjw1NDEww1W7i37+ByIrOWO5XQQAzZ3VOcL0PNybwpfmV/N05zFAzwQ9USyEcX6t3UO+K5aqBQOIHw==",
+-      "dev": true,
+-      "license": "ISC",
+-      "dependencies": {
+-        "brace-expansion": "^1.1.7"
+-      },
+-      "engines": {
+-        "node": "*"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/espree": {
+-      "version": "9.6.1",
+-      "resolved": "https://registry.npmjs.org/espree/-/espree-9.6.1.tgz",
+-      "integrity": "sha512-oruZaFkjorTpF32kDSI5/75ViwGeZginGGy2NoOSg3Q9bnwlnmDm4HLnkl0RE3n+njDXR037aY1+x58Z/zFdwQ==",
+-      "dev": true,
+-      "license": "BSD-2-Clause",
+-      "dependencies": {
+-        "acorn": "^8.9.0",
+-        "acorn-jsx": "^5.3.2",
+-        "eslint-visitor-keys": "^3.4.1"
+-      },
+-      "engines": {
+-        "node": "^12.22.0 || ^14.17.0 || >=16.0.0"
+-      },
+-      "funding": {
+-        "url": "https://opencollective.com/eslint"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/file-entry-cache": {
+-      "version": "6.0.1",
+-      "resolved": "https://registry.npmjs.org/file-entry-cache/-/file-entry-cache-6.0.1.tgz",
+-      "integrity": "sha512-7Gps/XWymbLk2QLYK4NzpMOrYjMhdIxXuIvy2QBsLE6ljuodKvdkWs/cpyJJ3CVIVpH0Oi1Hvg1ovbMzLdFBBg==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "flat-cache": "^3.0.4"
+-      },
+-      "engines": {
+-        "node": "^10.12.0 || >=12.0.0"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/find-up": {
+-      "version": "5.0.0",
+-      "resolved": "https://registry.npmjs.org/find-up/-/find-up-5.0.0.tgz",
+-      "integrity": "sha512-78/PXT1wlLLDgTzDs7sjq9hzz0vXD+zn+7wypEe4fXQxCmdmqfGsEPQxmiCSQI3ajFV91bVSsvNtrJRiW6nGng==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "locate-path": "^6.0.0",
+-        "path-exists": "^4.0.0"
+-      },
+-      "engines": {
+-        "node": ">=10"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/sindresorhus"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/flat-cache": {
+-      "version": "3.2.0",
+-      "resolved": "https://registry.npmjs.org/flat-cache/-/flat-cache-3.2.0.tgz",
+-      "integrity": "sha512-CYcENa+FtcUKLmhhqyctpclsq7QF38pKjZHsGNiSQF5r4FtoKDWabFDl3hzaEQMvT1LHEysw5twgLvpYYb4vbw==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "flatted": "^3.2.9",
+-        "keyv": "^4.5.3",
+-        "rimraf": "^3.0.2"
+-      },
+-      "engines": {
+-        "node": "^10.12.0 || >=12.0.0"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/flat-cache/node_modules/brace-expansion": {
+-      "version": "1.1.12",
+-      "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.12.tgz",
+-      "integrity": "sha512-9T9UjW3r0UW5c1Q7GTwllptXwhvYmEzFhzMfZ9H7FQWt+uZePjZPjBP/W1ZEyZ1twGWom5/56TF4lPcqjnDHcg==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "balanced-match": "^1.0.0",
+-        "concat-map": "0.0.1"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/flat-cache/node_modules/glob": {
+-      "version": "7.2.3",
+-      "resolved": "https://registry.npmjs.org/glob/-/glob-7.2.3.tgz",
+-      "integrity": "sha512-nFR0zLpU2YCaRxwoCJvL6UvCH2JFyFVIvwTLsIf21AuHlMskA1hhTdk+LlYJtOlYt9v6dvszD2BGRqBL+iQK9Q==",
+-      "deprecated": "Glob versions prior to v9 are no longer supported",
+-      "dev": true,
+-      "license": "ISC",
+-      "dependencies": {
+-        "fs.realpath": "^1.0.0",
+-        "inflight": "^1.0.4",
+-        "inherits": "2",
+-        "minimatch": "^3.1.1",
+-        "once": "^1.3.0",
+-        "path-is-absolute": "^1.0.0"
+-      },
+-      "engines": {
+-        "node": "*"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/isaacs"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/flat-cache/node_modules/minimatch": {
+-      "version": "3.1.2",
+-      "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-3.1.2.tgz",
+-      "integrity": "sha512-J7p63hRiAjw1NDEww1W7i37+ByIrOWO5XQQAzZ3VOcL0PNybwpfmV/N05zFAzwQ9USyEcX6t3UO+K5aqBQOIHw==",
+-      "dev": true,
+-      "license": "ISC",
+-      "dependencies": {
+-        "brace-expansion": "^1.1.7"
+-      },
+-      "engines": {
+-        "node": "*"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/flat-cache/node_modules/rimraf": {
+-      "version": "3.0.2",
+-      "resolved": "https://registry.npmjs.org/rimraf/-/rimraf-3.0.2.tgz",
+-      "integrity": "sha512-JZkJMZkAGFFPP2YqXZXPbMlMBgsxzE8ILs4lMIX/2o0L9UBw9O/Y3o6wFw/i9YLapcUJWwqbi3kdxIPdC62TIA==",
+-      "deprecated": "Rimraf versions prior to v4 are no longer supported",
+-      "dev": true,
+-      "license": "ISC",
+-      "dependencies": {
+-        "glob": "^7.1.3"
+-      },
+-      "bin": {
+-        "rimraf": "bin.js"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/isaacs"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/glob-parent": {
+-      "version": "6.0.2",
+-      "resolved": "https://registry.npmjs.org/glob-parent/-/glob-parent-6.0.2.tgz",
+-      "integrity": "sha512-XxwI8EOhVQgWp6iDL+3b0r86f4d6AX6zSU55HfB4ydCEuXLXc5FcYeOu+nnGftS4TEju/11rt4KJPTMgbfmv4A==",
+-      "dev": true,
+-      "license": "ISC",
+-      "dependencies": {
+-        "is-glob": "^4.0.3"
+-      },
+-      "engines": {
+-        "node": ">=10.13.0"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/globals": {
+-      "version": "13.24.0",
+-      "resolved": "https://registry.npmjs.org/globals/-/globals-13.24.0.tgz",
+-      "integrity": "sha512-AhO5QUcj8llrbG09iWhPU2B204J1xnPeL8kQmVorSsy+Sjj1sk8gIyh6cUocGmH4L0UuhAJy+hJMRA4mgA4mFQ==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "type-fest": "^0.20.2"
+-      },
+-      "engines": {
+-        "node": ">=8"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/sindresorhus"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/ignore": {
+-      "version": "5.3.2",
+-      "resolved": "https://registry.npmjs.org/ignore/-/ignore-5.3.2.tgz",
+-      "integrity": "sha512-hsBTNUqQTDwkWtcdYI2i06Y/nUBEsNEDJKjWdigLvegy8kDuJAS8uRlpkkcQpyEXL0Z/pjDy5HBmMjRCJ2gq+g==",
+-      "dev": true,
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 4"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/json-schema-traverse": {
+-      "version": "0.4.1",
+-      "resolved": "https://registry.npmjs.org/json-schema-traverse/-/json-schema-traverse-0.4.1.tgz",
+-      "integrity": "sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg==",
+-      "dev": true,
+-      "license": "MIT"
+-    },
+-    "packages/idp-better-auth/node_modules/locate-path": {
+-      "version": "6.0.0",
+-      "resolved": "https://registry.npmjs.org/locate-path/-/locate-path-6.0.0.tgz",
+-      "integrity": "sha512-iPZK6eYjbxRu3uB4/WZ3EsEIMJFMqAoopl3R+zuq0UjcAm/MO6KCweDgPfP3elTztoKP3KtnVHxTn2NHBSDVUw==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "p-locate": "^5.0.0"
+-      },
+-      "engines": {
+-        "node": ">=10"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/sindresorhus"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/minimatch": {
+-      "version": "9.0.3",
+-      "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-9.0.3.tgz",
+-      "integrity": "sha512-RHiac9mvaRw0x3AYRgDC1CxAP7HTcNrrECeA8YYJeWnpo+2Q5CegtZjaotWTWxDG3UeGA1coE05iH1mPjT/2mg==",
+-      "dev": true,
+-      "license": "ISC",
+-      "dependencies": {
+-        "brace-expansion": "^2.0.1"
+-      },
+-      "engines": {
+-        "node": ">=16 || 14 >=14.17"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/isaacs"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/p-limit": {
+-      "version": "3.1.0",
+-      "resolved": "https://registry.npmjs.org/p-limit/-/p-limit-3.1.0.tgz",
+-      "integrity": "sha512-TYOanM3wGwNGsZN2cVTYPArw454xnXj5qmWF1bEoAc4+cU/ol7GVh7odevjp1FNHduHc3KZMcFduxU5Xc6uJRQ==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "yocto-queue": "^0.1.0"
+-      },
+-      "engines": {
+-        "node": ">=10"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/sindresorhus"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/p-locate": {
+-      "version": "5.0.0",
+-      "resolved": "https://registry.npmjs.org/p-locate/-/p-locate-5.0.0.tgz",
+-      "integrity": "sha512-LaNjtRWUBY++zB5nE/NwcaoMylSPk+S+ZHNB1TzdbMJMny6dynpAGt7X/tl/QYq3TIeE6nxHppbo2LGymrG5Pw==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "p-limit": "^3.0.2"
+-      },
+-      "engines": {
+-        "node": ">=10"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/sindresorhus"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/rimraf": {
+-      "version": "5.0.10",
+-      "resolved": "https://registry.npmjs.org/rimraf/-/rimraf-5.0.10.tgz",
+-      "integrity": "sha512-l0OE8wL34P4nJH/H2ffoaniAokM2qSmrtXHmlpvYr5AVVX8msAyW0l8NVJFDxlSK4u3Uh/f41cQheDVdnYijwQ==",
+-      "dev": true,
+-      "license": "ISC",
+-      "dependencies": {
+-        "glob": "^10.3.7"
+-      },
+-      "bin": {
+-        "rimraf": "dist/esm/bin.mjs"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/isaacs"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/ts-api-utils": {
+-      "version": "1.4.3",
+-      "resolved": "https://registry.npmjs.org/ts-api-utils/-/ts-api-utils-1.4.3.tgz",
+-      "integrity": "sha512-i3eMG77UTMD0hZhgRS562pv83RC6ukSAC2GMNWc+9dieh/+jDM5u5YG+NHX6VNDRHQcHwmsTHctP9LhbC3WxVw==",
+-      "dev": true,
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">=16"
+-      },
+-      "peerDependencies": {
+-        "typescript": ">=4.2.0"
+-      }
+-    },
+-    "packages/idp-better-auth/node_modules/type-fest": {
+-      "version": "0.20.2",
+-      "resolved": "https://registry.npmjs.org/type-fest/-/type-fest-0.20.2.tgz",
+-      "integrity": "sha512-Ne+eE4r0/iWnpAxD852z3A+N0Bt5RN//NjJwRd2VFHEmrywxf5vsZlh4R6lixl6B+wz/8d+maTSAkN1FIkI3LQ==",
+-      "dev": true,
+-      "license": "(MIT OR CC0-1.0)",
+-      "engines": {
+-        "node": ">=10"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/sindresorhus"
++        "url": "https://github.com/sponsors/panva"
+       }
+     },
+     "packages/idp-protocol": {
+       "name": "@owox/idp-protocol",
+       "version": "0.0.0",
+-      "license": "MIT",
++      "license": "ELv2",
+       "dependencies": {
+-        "jose": "^5.2.0",
+-        "typeorm": "^0.3.0"
++        "jose": "^6.0.12"
+       },
+       "devDependencies": {
+-        "@owox/eslint-config": "../eslint-config",
+-        "@owox/prettier-config": "../prettier-config",
+-        "@owox/typescript-config": "../typescript-config",
+-        "@types/express": "^4.17.21",
+-        "@types/jest": "^29.5.11",
+-        "@types/node": "^20.11.0",
+-        "@typescript-eslint/eslint-plugin": "^6.18.1",
+-        "@typescript-eslint/parser": "^6.18.1",
+-        "eslint": "^8.56.0",
++        "@types/express": "^5.0.0",
++        "@types/jest": "^29.5.14",
++        "@types/node": "^22.10.7",
+         "jest": "^29.7.0",
+-        "prettier": "^3.0.0",
+-        "rimraf": "^5.0.5",
+-        "ts-jest": "^29.1.1",
++        "ts-jest": "^29.2.5",
+         "typescript": "^5.3.3"
+       },
+       "engines": {
+         "node": ">=22.16.0"
+       },
+       "peerDependencies": {
+-        "@nestjs/common": "^10.0.0",
+-        "@nestjs/core": "^11.1.5",
+-        "express": "^4.18.2",
+-        "typeorm": "^0.3.0"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/@eslint/eslintrc": {
+-      "version": "2.1.4",
+-      "resolved": "https://registry.npmjs.org/@eslint/eslintrc/-/eslintrc-2.1.4.tgz",
+-      "integrity": "sha512-269Z39MS6wVJtsoUl10L60WdkhJVdPG24Q4eZTH3nnF6lpvSShEK3wQjDX9JRWAUPvPh7COouPpU9IrqaZFvtQ==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "ajv": "^6.12.4",
+-        "debug": "^4.3.2",
+-        "espree": "^9.6.0",
+-        "globals": "^13.19.0",
+-        "ignore": "^5.2.0",
+-        "import-fresh": "^3.2.1",
+-        "js-yaml": "^4.1.0",
+-        "minimatch": "^3.1.2",
+-        "strip-json-comments": "^3.1.1"
+-      },
+-      "engines": {
+-        "node": "^12.22.0 || ^14.17.0 || >=16.0.0"
+-      },
+-      "funding": {
+-        "url": "https://opencollective.com/eslint"
++        "express": "^4.18.2"
+       }
+     },
+-    "packages/idp-protocol/node_modules/@eslint/eslintrc/node_modules/brace-expansion": {
+-      "version": "1.1.12",
+-      "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.12.tgz",
+-      "integrity": "sha512-9T9UjW3r0UW5c1Q7GTwllptXwhvYmEzFhzMfZ9H7FQWt+uZePjZPjBP/W1ZEyZ1twGWom5/56TF4lPcqjnDHcg==",
++    "packages/idp-protocol/node_modules/@types/node": {
++      "version": "22.16.5",
++      "resolved": "https://registry.npmjs.org/@types/node/-/node-22.16.5.tgz",
++      "integrity": "sha512-bJFoMATwIGaxxx8VJPeM8TonI8t579oRvgAuT8zFugJsJZgzqv0Fu8Mhp68iecjzG7cnN3mO2dJQ5uUM2EFrgQ==",
+       "dev": true,
+       "license": "MIT",
+       "dependencies": {
+-        "balanced-match": "^1.0.0",
+-        "concat-map": "0.0.1"
++        "undici-types": "~6.21.0"
+       }
+     },
+-    "packages/idp-protocol/node_modules/@eslint/eslintrc/node_modules/minimatch": {
+-      "version": "3.1.2",
+-      "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-3.1.2.tgz",
+-      "integrity": "sha512-J7p63hRiAjw1NDEww1W7i37+ByIrOWO5XQQAzZ3VOcL0PNybwpfmV/N05zFAzwQ9USyEcX6t3UO+K5aqBQOIHw==",
+-      "dev": true,
+-      "license": "ISC",
+-      "dependencies": {
+-        "brace-expansion": "^1.1.7"
+-      },
+-      "engines": {
+-        "node": "*"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/@eslint/js": {
+-      "version": "8.57.1",
+-      "resolved": "https://registry.npmjs.org/@eslint/js/-/js-8.57.1.tgz",
+-      "integrity": "sha512-d9zaMRSTIKDLhctzH12MtXvJKSSUhaHcjV+2Z+GK+EEY7XKpP5yR4x+N3TAcHTcu963nIr+TMcCb4DBCYX1z6Q==",
+-      "dev": true,
+-      "license": "MIT",
+-      "engines": {
+-        "node": "^12.22.0 || ^14.17.0 || >=16.0.0"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/@types/express": {
+-      "version": "4.17.23",
+-      "resolved": "https://registry.npmjs.org/@types/express/-/express-4.17.23.tgz",
+-      "integrity": "sha512-Crp6WY9aTYP3qPi2wGDo9iUe/rceX01UMhnF1jmwDcKCFM6cx7YhGP/Mpr3y9AASpfHixIG0E6azCcL5OcDHsQ==",
+-      "dev": true,
++    "packages/idp-protocol/node_modules/jose": {
++      "version": "6.0.12",
++      "resolved": "https://registry.npmjs.org/jose/-/jose-6.0.12.tgz",
++      "integrity": "sha512-T8xypXs8CpmiIi78k0E+Lk7T2zlK4zDyg+o1CZ4AkOHgDg98ogdP2BeZ61lTFKFyoEwJ9RgAgN+SdM3iPgNonQ==",
+       "license": "MIT",
+-      "dependencies": {
+-        "@types/body-parser": "*",
+-        "@types/express-serve-static-core": "^4.17.33",
+-        "@types/qs": "*",
+-        "@types/serve-static": "*"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/@types/express-serve-static-core": {
+-      "version": "4.19.6",
+-      "resolved": "https://registry.npmjs.org/@types/express-serve-static-core/-/express-serve-static-core-4.19.6.tgz",
+-      "integrity": "sha512-N4LZ2xG7DatVqhCZzOGb1Yi5lMbXSZcmdLDe9EzSndPV2HpWYWzRbaerl2n27irrm94EPpprqa8KpskPT085+A==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "@types/node": "*",
+-        "@types/qs": "*",
+-        "@types/range-parser": "*",
+-        "@types/send": "*"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/@typescript-eslint/eslint-plugin": {
+-      "version": "6.21.0",
+-      "resolved": "https://registry.npmjs.org/@typescript-eslint/eslint-plugin/-/eslint-plugin-6.21.0.tgz",
+-      "integrity": "sha512-oy9+hTPCUFpngkEZUSzbf9MxI65wbKFoQYsgPdILTfbUldp5ovUuphZVe4i30emU9M/kP+T64Di0mxl7dSw3MA==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "@eslint-community/regexpp": "^4.5.1",
+-        "@typescript-eslint/scope-manager": "6.21.0",
+-        "@typescript-eslint/type-utils": "6.21.0",
+-        "@typescript-eslint/utils": "6.21.0",
+-        "@typescript-eslint/visitor-keys": "6.21.0",
+-        "debug": "^4.3.4",
+-        "graphemer": "^1.4.0",
+-        "ignore": "^5.2.4",
+-        "natural-compare": "^1.4.0",
+-        "semver": "^7.5.4",
+-        "ts-api-utils": "^1.0.1"
+-      },
+-      "engines": {
+-        "node": "^16.0.0 || >=18.0.0"
+-      },
+-      "funding": {
+-        "type": "opencollective",
+-        "url": "https://opencollective.com/typescript-eslint"
+-      },
+-      "peerDependencies": {
+-        "@typescript-eslint/parser": "^6.0.0 || ^6.0.0-alpha",
+-        "eslint": "^7.0.0 || ^8.0.0"
+-      },
+-      "peerDependenciesMeta": {
+-        "typescript": {
+-          "optional": true
+-        }
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/@typescript-eslint/parser": {
+-      "version": "6.21.0",
+-      "resolved": "https://registry.npmjs.org/@typescript-eslint/parser/-/parser-6.21.0.tgz",
+-      "integrity": "sha512-tbsV1jPne5CkFQCgPBcDOt30ItF7aJoZL997JSF7MhGQqOeT3svWRYxiqlfA5RUdlHN6Fi+EI9bxqbdyAUZjYQ==",
+-      "dev": true,
+-      "license": "BSD-2-Clause",
+-      "dependencies": {
+-        "@typescript-eslint/scope-manager": "6.21.0",
+-        "@typescript-eslint/types": "6.21.0",
+-        "@typescript-eslint/typescript-estree": "6.21.0",
+-        "@typescript-eslint/visitor-keys": "6.21.0",
+-        "debug": "^4.3.4"
+-      },
+-      "engines": {
+-        "node": "^16.0.0 || >=18.0.0"
+-      },
+-      "funding": {
+-        "type": "opencollective",
+-        "url": "https://opencollective.com/typescript-eslint"
+-      },
+-      "peerDependencies": {
+-        "eslint": "^7.0.0 || ^8.0.0"
+-      },
+-      "peerDependenciesMeta": {
+-        "typescript": {
+-          "optional": true
+-        }
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/@typescript-eslint/scope-manager": {
+-      "version": "6.21.0",
+-      "resolved": "https://registry.npmjs.org/@typescript-eslint/scope-manager/-/scope-manager-6.21.0.tgz",
+-      "integrity": "sha512-OwLUIWZJry80O99zvqXVEioyniJMa+d2GrqpUTqi5/v5D5rOrppJVBPa0yKCblcigC0/aYAzxxqQ1B+DS2RYsg==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "@typescript-eslint/types": "6.21.0",
+-        "@typescript-eslint/visitor-keys": "6.21.0"
+-      },
+-      "engines": {
+-        "node": "^16.0.0 || >=18.0.0"
+-      },
+       "funding": {
+-        "type": "opencollective",
+-        "url": "https://opencollective.com/typescript-eslint"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/@typescript-eslint/type-utils": {
+-      "version": "6.21.0",
+-      "resolved": "https://registry.npmjs.org/@typescript-eslint/type-utils/-/type-utils-6.21.0.tgz",
+-      "integrity": "sha512-rZQI7wHfao8qMX3Rd3xqeYSMCL3SoiSQLBATSiVKARdFGCYSRvmViieZjqc58jKgs8Y8i9YvVVhRbHSTA4VBag==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "@typescript-eslint/typescript-estree": "6.21.0",
+-        "@typescript-eslint/utils": "6.21.0",
+-        "debug": "^4.3.4",
+-        "ts-api-utils": "^1.0.1"
+-      },
+-      "engines": {
+-        "node": "^16.0.0 || >=18.0.0"
+-      },
+-      "funding": {
+-        "type": "opencollective",
+-        "url": "https://opencollective.com/typescript-eslint"
+-      },
+-      "peerDependencies": {
+-        "eslint": "^7.0.0 || ^8.0.0"
+-      },
+-      "peerDependenciesMeta": {
+-        "typescript": {
+-          "optional": true
+-        }
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/@typescript-eslint/types": {
+-      "version": "6.21.0",
+-      "resolved": "https://registry.npmjs.org/@typescript-eslint/types/-/types-6.21.0.tgz",
+-      "integrity": "sha512-1kFmZ1rOm5epu9NZEZm1kckCDGj5UJEf7P1kliH4LKu/RkwpsfqqGmY2OOcUs18lSlQBKLDYBOGxRVtrMN5lpg==",
+-      "dev": true,
+-      "license": "MIT",
+-      "engines": {
+-        "node": "^16.0.0 || >=18.0.0"
+-      },
+-      "funding": {
+-        "type": "opencollective",
+-        "url": "https://opencollective.com/typescript-eslint"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/@typescript-eslint/typescript-estree": {
+-      "version": "6.21.0",
+-      "resolved": "https://registry.npmjs.org/@typescript-eslint/typescript-estree/-/typescript-estree-6.21.0.tgz",
+-      "integrity": "sha512-6npJTkZcO+y2/kr+z0hc4HwNfrrP4kNYh57ek7yCNlrBjWQ1Y0OS7jiZTkgumrvkX5HkEKXFZkkdFNkaW2wmUQ==",
+-      "dev": true,
+-      "license": "BSD-2-Clause",
+-      "dependencies": {
+-        "@typescript-eslint/types": "6.21.0",
+-        "@typescript-eslint/visitor-keys": "6.21.0",
+-        "debug": "^4.3.4",
+-        "globby": "^11.1.0",
+-        "is-glob": "^4.0.3",
+-        "minimatch": "9.0.3",
+-        "semver": "^7.5.4",
+-        "ts-api-utils": "^1.0.1"
+-      },
+-      "engines": {
+-        "node": "^16.0.0 || >=18.0.0"
+-      },
+-      "funding": {
+-        "type": "opencollective",
+-        "url": "https://opencollective.com/typescript-eslint"
+-      },
+-      "peerDependenciesMeta": {
+-        "typescript": {
+-          "optional": true
+-        }
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/@typescript-eslint/utils": {
+-      "version": "6.21.0",
+-      "resolved": "https://registry.npmjs.org/@typescript-eslint/utils/-/utils-6.21.0.tgz",
+-      "integrity": "sha512-NfWVaC8HP9T8cbKQxHcsJBY5YE1O33+jpMwN45qzWWaPDZgLIbo12toGMWnmhvCpd3sIxkpDw3Wv1B3dYrbDQQ==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "@eslint-community/eslint-utils": "^4.4.0",
+-        "@types/json-schema": "^7.0.12",
+-        "@types/semver": "^7.5.0",
+-        "@typescript-eslint/scope-manager": "6.21.0",
+-        "@typescript-eslint/types": "6.21.0",
+-        "@typescript-eslint/typescript-estree": "6.21.0",
+-        "semver": "^7.5.4"
+-      },
+-      "engines": {
+-        "node": "^16.0.0 || >=18.0.0"
+-      },
+-      "funding": {
+-        "type": "opencollective",
+-        "url": "https://opencollective.com/typescript-eslint"
+-      },
+-      "peerDependencies": {
+-        "eslint": "^7.0.0 || ^8.0.0"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/@typescript-eslint/visitor-keys": {
+-      "version": "6.21.0",
+-      "resolved": "https://registry.npmjs.org/@typescript-eslint/visitor-keys/-/visitor-keys-6.21.0.tgz",
+-      "integrity": "sha512-JJtkDduxLi9bivAB+cYOVMtbkqdPOhZ+ZI5LC47MIRrDV4Yn2o+ZnW10Nkmr28xRpSpdJ6Sm42Hjf2+REYXm0A==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "@typescript-eslint/types": "6.21.0",
+-        "eslint-visitor-keys": "^3.4.1"
+-      },
+-      "engines": {
+-        "node": "^16.0.0 || >=18.0.0"
+-      },
+-      "funding": {
+-        "type": "opencollective",
+-        "url": "https://opencollective.com/typescript-eslint"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/ajv": {
+-      "version": "6.12.6",
+-      "resolved": "https://registry.npmjs.org/ajv/-/ajv-6.12.6.tgz",
+-      "integrity": "sha512-j3fVLgvTo527anyYyJOGTYJbG+vnnQYvE0m5mmkc1TK+nxAppkCLMIL0aZ4dblVCNoGShhm+kzE4ZUykBoMg4g==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "fast-deep-equal": "^3.1.1",
+-        "fast-json-stable-stringify": "^2.0.0",
+-        "json-schema-traverse": "^0.4.1",
+-        "uri-js": "^4.2.2"
+-      },
+-      "funding": {
+-        "type": "github",
+-        "url": "https://github.com/sponsors/epoberezkin"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/doctrine": {
+-      "version": "3.0.0",
+-      "resolved": "https://registry.npmjs.org/doctrine/-/doctrine-3.0.0.tgz",
+-      "integrity": "sha512-yS+Q5i3hBf7GBkd4KG8a7eBNNWNGLTaEwwYWUijIYM7zrlYDM0BFXHjjPWlWZ1Rg7UaddZeIDmi9jF3HmqiQ2w==",
+-      "dev": true,
+-      "license": "Apache-2.0",
+-      "dependencies": {
+-        "esutils": "^2.0.2"
+-      },
+-      "engines": {
+-        "node": ">=6.0.0"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/eslint": {
+-      "version": "8.57.1",
+-      "resolved": "https://registry.npmjs.org/eslint/-/eslint-8.57.1.tgz",
+-      "integrity": "sha512-ypowyDxpVSYpkXr9WPv2PAZCtNip1Mv5KTW0SCurXv/9iOpcrH9PaqUElksqEB6pChqHGDRCFTyrZlGhnLNGiA==",
+-      "deprecated": "This version is no longer supported. Please see https://eslint.org/version-support for other options.",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "@eslint-community/eslint-utils": "^4.2.0",
+-        "@eslint-community/regexpp": "^4.6.1",
+-        "@eslint/eslintrc": "^2.1.4",
+-        "@eslint/js": "8.57.1",
+-        "@humanwhocodes/config-array": "^0.13.0",
+-        "@humanwhocodes/module-importer": "^1.0.1",
+-        "@nodelib/fs.walk": "^1.2.8",
+-        "@ungap/structured-clone": "^1.2.0",
+-        "ajv": "^6.12.4",
+-        "chalk": "^4.0.0",
+-        "cross-spawn": "^7.0.2",
+-        "debug": "^4.3.2",
+-        "doctrine": "^3.0.0",
+-        "escape-string-regexp": "^4.0.0",
+-        "eslint-scope": "^7.2.2",
+-        "eslint-visitor-keys": "^3.4.3",
+-        "espree": "^9.6.1",
+-        "esquery": "^1.4.2",
+-        "esutils": "^2.0.2",
+-        "fast-deep-equal": "^3.1.3",
+-        "file-entry-cache": "^6.0.1",
+-        "find-up": "^5.0.0",
+-        "glob-parent": "^6.0.2",
+-        "globals": "^13.19.0",
+-        "graphemer": "^1.4.0",
+-        "ignore": "^5.2.0",
+-        "imurmurhash": "^0.1.4",
+-        "is-glob": "^4.0.0",
+-        "is-path-inside": "^3.0.3",
+-        "js-yaml": "^4.1.0",
+-        "json-stable-stringify-without-jsonify": "^1.0.1",
+-        "levn": "^0.4.1",
+-        "lodash.merge": "^4.6.2",
+-        "minimatch": "^3.1.2",
+-        "natural-compare": "^1.4.0",
+-        "optionator": "^0.9.3",
+-        "strip-ansi": "^6.0.1",
+-        "text-table": "^0.2.0"
+-      },
+-      "bin": {
+-        "eslint": "bin/eslint.js"
+-      },
+-      "engines": {
+-        "node": "^12.22.0 || ^14.17.0 || >=16.0.0"
+-      },
+-      "funding": {
+-        "url": "https://opencollective.com/eslint"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/eslint-scope": {
+-      "version": "7.2.2",
+-      "resolved": "https://registry.npmjs.org/eslint-scope/-/eslint-scope-7.2.2.tgz",
+-      "integrity": "sha512-dOt21O7lTMhDM+X9mB4GX+DZrZtCUJPL/wlcTqxyrx5IvO0IYtILdtrQGQp+8n5S0gwSVmOf9NQrjMOgfQZlIg==",
+-      "dev": true,
+-      "license": "BSD-2-Clause",
+-      "dependencies": {
+-        "esrecurse": "^4.3.0",
+-        "estraverse": "^5.2.0"
+-      },
+-      "engines": {
+-        "node": "^12.22.0 || ^14.17.0 || >=16.0.0"
+-      },
+-      "funding": {
+-        "url": "https://opencollective.com/eslint"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/eslint/node_modules/brace-expansion": {
+-      "version": "1.1.12",
+-      "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.12.tgz",
+-      "integrity": "sha512-9T9UjW3r0UW5c1Q7GTwllptXwhvYmEzFhzMfZ9H7FQWt+uZePjZPjBP/W1ZEyZ1twGWom5/56TF4lPcqjnDHcg==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "balanced-match": "^1.0.0",
+-        "concat-map": "0.0.1"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/eslint/node_modules/minimatch": {
+-      "version": "3.1.2",
+-      "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-3.1.2.tgz",
+-      "integrity": "sha512-J7p63hRiAjw1NDEww1W7i37+ByIrOWO5XQQAzZ3VOcL0PNybwpfmV/N05zFAzwQ9USyEcX6t3UO+K5aqBQOIHw==",
+-      "dev": true,
+-      "license": "ISC",
+-      "dependencies": {
+-        "brace-expansion": "^1.1.7"
+-      },
+-      "engines": {
+-        "node": "*"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/espree": {
+-      "version": "9.6.1",
+-      "resolved": "https://registry.npmjs.org/espree/-/espree-9.6.1.tgz",
+-      "integrity": "sha512-oruZaFkjorTpF32kDSI5/75ViwGeZginGGy2NoOSg3Q9bnwlnmDm4HLnkl0RE3n+njDXR037aY1+x58Z/zFdwQ==",
+-      "dev": true,
+-      "license": "BSD-2-Clause",
+-      "dependencies": {
+-        "acorn": "^8.9.0",
+-        "acorn-jsx": "^5.3.2",
+-        "eslint-visitor-keys": "^3.4.1"
+-      },
+-      "engines": {
+-        "node": "^12.22.0 || ^14.17.0 || >=16.0.0"
+-      },
+-      "funding": {
+-        "url": "https://opencollective.com/eslint"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/file-entry-cache": {
+-      "version": "6.0.1",
+-      "resolved": "https://registry.npmjs.org/file-entry-cache/-/file-entry-cache-6.0.1.tgz",
+-      "integrity": "sha512-7Gps/XWymbLk2QLYK4NzpMOrYjMhdIxXuIvy2QBsLE6ljuodKvdkWs/cpyJJ3CVIVpH0Oi1Hvg1ovbMzLdFBBg==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "flat-cache": "^3.0.4"
+-      },
+-      "engines": {
+-        "node": "^10.12.0 || >=12.0.0"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/find-up": {
+-      "version": "5.0.0",
+-      "resolved": "https://registry.npmjs.org/find-up/-/find-up-5.0.0.tgz",
+-      "integrity": "sha512-78/PXT1wlLLDgTzDs7sjq9hzz0vXD+zn+7wypEe4fXQxCmdmqfGsEPQxmiCSQI3ajFV91bVSsvNtrJRiW6nGng==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "locate-path": "^6.0.0",
+-        "path-exists": "^4.0.0"
+-      },
+-      "engines": {
+-        "node": ">=10"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/sindresorhus"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/flat-cache": {
+-      "version": "3.2.0",
+-      "resolved": "https://registry.npmjs.org/flat-cache/-/flat-cache-3.2.0.tgz",
+-      "integrity": "sha512-CYcENa+FtcUKLmhhqyctpclsq7QF38pKjZHsGNiSQF5r4FtoKDWabFDl3hzaEQMvT1LHEysw5twgLvpYYb4vbw==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "flatted": "^3.2.9",
+-        "keyv": "^4.5.3",
+-        "rimraf": "^3.0.2"
+-      },
+-      "engines": {
+-        "node": "^10.12.0 || >=12.0.0"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/flat-cache/node_modules/brace-expansion": {
+-      "version": "1.1.12",
+-      "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.12.tgz",
+-      "integrity": "sha512-9T9UjW3r0UW5c1Q7GTwllptXwhvYmEzFhzMfZ9H7FQWt+uZePjZPjBP/W1ZEyZ1twGWom5/56TF4lPcqjnDHcg==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "balanced-match": "^1.0.0",
+-        "concat-map": "0.0.1"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/flat-cache/node_modules/glob": {
+-      "version": "7.2.3",
+-      "resolved": "https://registry.npmjs.org/glob/-/glob-7.2.3.tgz",
+-      "integrity": "sha512-nFR0zLpU2YCaRxwoCJvL6UvCH2JFyFVIvwTLsIf21AuHlMskA1hhTdk+LlYJtOlYt9v6dvszD2BGRqBL+iQK9Q==",
+-      "deprecated": "Glob versions prior to v9 are no longer supported",
+-      "dev": true,
+-      "license": "ISC",
+-      "dependencies": {
+-        "fs.realpath": "^1.0.0",
+-        "inflight": "^1.0.4",
+-        "inherits": "2",
+-        "minimatch": "^3.1.1",
+-        "once": "^1.3.0",
+-        "path-is-absolute": "^1.0.0"
+-      },
+-      "engines": {
+-        "node": "*"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/isaacs"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/flat-cache/node_modules/minimatch": {
+-      "version": "3.1.2",
+-      "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-3.1.2.tgz",
+-      "integrity": "sha512-J7p63hRiAjw1NDEww1W7i37+ByIrOWO5XQQAzZ3VOcL0PNybwpfmV/N05zFAzwQ9USyEcX6t3UO+K5aqBQOIHw==",
+-      "dev": true,
+-      "license": "ISC",
+-      "dependencies": {
+-        "brace-expansion": "^1.1.7"
+-      },
+-      "engines": {
+-        "node": "*"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/flat-cache/node_modules/rimraf": {
+-      "version": "3.0.2",
+-      "resolved": "https://registry.npmjs.org/rimraf/-/rimraf-3.0.2.tgz",
+-      "integrity": "sha512-JZkJMZkAGFFPP2YqXZXPbMlMBgsxzE8ILs4lMIX/2o0L9UBw9O/Y3o6wFw/i9YLapcUJWwqbi3kdxIPdC62TIA==",
+-      "deprecated": "Rimraf versions prior to v4 are no longer supported",
+-      "dev": true,
+-      "license": "ISC",
+-      "dependencies": {
+-        "glob": "^7.1.3"
+-      },
+-      "bin": {
+-        "rimraf": "bin.js"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/isaacs"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/glob-parent": {
+-      "version": "6.0.2",
+-      "resolved": "https://registry.npmjs.org/glob-parent/-/glob-parent-6.0.2.tgz",
+-      "integrity": "sha512-XxwI8EOhVQgWp6iDL+3b0r86f4d6AX6zSU55HfB4ydCEuXLXc5FcYeOu+nnGftS4TEju/11rt4KJPTMgbfmv4A==",
+-      "dev": true,
+-      "license": "ISC",
+-      "dependencies": {
+-        "is-glob": "^4.0.3"
+-      },
+-      "engines": {
+-        "node": ">=10.13.0"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/globals": {
+-      "version": "13.24.0",
+-      "resolved": "https://registry.npmjs.org/globals/-/globals-13.24.0.tgz",
+-      "integrity": "sha512-AhO5QUcj8llrbG09iWhPU2B204J1xnPeL8kQmVorSsy+Sjj1sk8gIyh6cUocGmH4L0UuhAJy+hJMRA4mgA4mFQ==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "type-fest": "^0.20.2"
+-      },
+-      "engines": {
+-        "node": ">=8"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/sindresorhus"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/ignore": {
+-      "version": "5.3.2",
+-      "resolved": "https://registry.npmjs.org/ignore/-/ignore-5.3.2.tgz",
+-      "integrity": "sha512-hsBTNUqQTDwkWtcdYI2i06Y/nUBEsNEDJKjWdigLvegy8kDuJAS8uRlpkkcQpyEXL0Z/pjDy5HBmMjRCJ2gq+g==",
+-      "dev": true,
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 4"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/json-schema-traverse": {
+-      "version": "0.4.1",
+-      "resolved": "https://registry.npmjs.org/json-schema-traverse/-/json-schema-traverse-0.4.1.tgz",
+-      "integrity": "sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg==",
+-      "dev": true,
+-      "license": "MIT"
+-    },
+-    "packages/idp-protocol/node_modules/locate-path": {
+-      "version": "6.0.0",
+-      "resolved": "https://registry.npmjs.org/locate-path/-/locate-path-6.0.0.tgz",
+-      "integrity": "sha512-iPZK6eYjbxRu3uB4/WZ3EsEIMJFMqAoopl3R+zuq0UjcAm/MO6KCweDgPfP3elTztoKP3KtnVHxTn2NHBSDVUw==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "p-locate": "^5.0.0"
+-      },
+-      "engines": {
+-        "node": ">=10"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/sindresorhus"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/minimatch": {
+-      "version": "9.0.3",
+-      "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-9.0.3.tgz",
+-      "integrity": "sha512-RHiac9mvaRw0x3AYRgDC1CxAP7HTcNrrECeA8YYJeWnpo+2Q5CegtZjaotWTWxDG3UeGA1coE05iH1mPjT/2mg==",
+-      "dev": true,
+-      "license": "ISC",
+-      "dependencies": {
+-        "brace-expansion": "^2.0.1"
+-      },
+-      "engines": {
+-        "node": ">=16 || 14 >=14.17"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/isaacs"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/p-limit": {
+-      "version": "3.1.0",
+-      "resolved": "https://registry.npmjs.org/p-limit/-/p-limit-3.1.0.tgz",
+-      "integrity": "sha512-TYOanM3wGwNGsZN2cVTYPArw454xnXj5qmWF1bEoAc4+cU/ol7GVh7odevjp1FNHduHc3KZMcFduxU5Xc6uJRQ==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "yocto-queue": "^0.1.0"
+-      },
+-      "engines": {
+-        "node": ">=10"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/sindresorhus"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/p-locate": {
+-      "version": "5.0.0",
+-      "resolved": "https://registry.npmjs.org/p-locate/-/p-locate-5.0.0.tgz",
+-      "integrity": "sha512-LaNjtRWUBY++zB5nE/NwcaoMylSPk+S+ZHNB1TzdbMJMny6dynpAGt7X/tl/QYq3TIeE6nxHppbo2LGymrG5Pw==",
+-      "dev": true,
+-      "license": "MIT",
+-      "dependencies": {
+-        "p-limit": "^3.0.2"
+-      },
+-      "engines": {
+-        "node": ">=10"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/sindresorhus"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/rimraf": {
+-      "version": "5.0.10",
+-      "resolved": "https://registry.npmjs.org/rimraf/-/rimraf-5.0.10.tgz",
+-      "integrity": "sha512-l0OE8wL34P4nJH/H2ffoaniAokM2qSmrtXHmlpvYr5AVVX8msAyW0l8NVJFDxlSK4u3Uh/f41cQheDVdnYijwQ==",
+-      "dev": true,
+-      "license": "ISC",
+-      "dependencies": {
+-        "glob": "^10.3.7"
+-      },
+-      "bin": {
+-        "rimraf": "dist/esm/bin.mjs"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/isaacs"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/ts-api-utils": {
+-      "version": "1.4.3",
+-      "resolved": "https://registry.npmjs.org/ts-api-utils/-/ts-api-utils-1.4.3.tgz",
+-      "integrity": "sha512-i3eMG77UTMD0hZhgRS562pv83RC6ukSAC2GMNWc+9dieh/+jDM5u5YG+NHX6VNDRHQcHwmsTHctP9LhbC3WxVw==",
+-      "dev": true,
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">=16"
+-      },
+-      "peerDependencies": {
+-        "typescript": ">=4.2.0"
+-      }
+-    },
+-    "packages/idp-protocol/node_modules/type-fest": {
+-      "version": "0.20.2",
+-      "resolved": "https://registry.npmjs.org/type-fest/-/type-fest-0.20.2.tgz",
+-      "integrity": "sha512-Ne+eE4r0/iWnpAxD852z3A+N0Bt5RN//NjJwRd2VFHEmrywxf5vsZlh4R6lixl6B+wz/8d+maTSAkN1FIkI3LQ==",
+-      "dev": true,
+-      "license": "(MIT OR CC0-1.0)",
+-      "engines": {
+-        "node": ">=10"
+-      },
+-      "funding": {
+-        "url": "https://github.com/sponsors/sindresorhus"
++        "url": "https://github.com/sponsors/panva"
+       }
+     },
+     "packages/prettier-config": {
+Index: apps/backend/tsconfig.json
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/apps/backend/tsconfig.json b/apps/backend/tsconfig.json
+--- a/apps/backend/tsconfig.json	(revision a17fb01099c223b99899d875c97967da6412dcc2)
++++ b/apps/backend/tsconfig.json	(date 1753282792849)
+@@ -1,6 +1,7 @@
+ {
+   "compilerOptions": {
+     "module": "commonjs",
++    "moduleResolution": "node",
+     "declaration": true,
+     "removeComments": true,
+     "emitDecoratorMetadata": true,
+Index: apps/backend/package.json
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/apps/backend/package.json b/apps/backend/package.json
+--- a/apps/backend/package.json	(revision a17fb01099c223b99899d875c97967da6412dcc2)
++++ b/apps/backend/package.json	(date 1753279228884)
+@@ -73,6 +73,8 @@
+     "@nestjs/typeorm": "^11.0.0",
+     "@owox/connector-runner": "0.3.0",
+     "@owox/connectors": "0.3.0",
++    "@owox/idp-better-auth": "0.0.0",
++    "@owox/idp-protocol": "0.0.0",
+     "class-transformer": "^0.5.1",
+     "class-validator": "^0.14.2",
+     "env-paths": "^3.0.0",
+Index: apps/backend/.env.example
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/apps/backend/.env.example b/apps/backend/.env.example
+--- a/apps/backend/.env.example	(revision a17fb01099c223b99899d875c97967da6412dcc2)
++++ b/apps/backend/.env.example	(date 1753283209487)
+@@ -1,3 +1,9 @@
++# Application
++PORT=3000
++NODE_ENV=development
++APP_SECRET=your-app-secret-key-here
++
++# Existing Database Configuration (для data-marts)
+ TYPEORM_LOGGING=true
+ RUN_MIGRATIONS=false
+ DB_TYPE=sqlite
+@@ -13,3 +19,38 @@
+ DB_PASSWORD=mypassword
+ DB_DATABASE=datamarts
+ 
++
++# IdP Configuration
++IDP_PROVIDER_TYPE=better-auth
++IDP_ISSUER=owox-backend
++IDP_AUDIENCE=owox-app
++IDP_MAGIC_LINK_BASE_URL=http://localhost:3000
++IDP_MAGIC_LINK_TTL=3600
++IDP_DEFAULT_PROJECT_ID=default
++
++# IdP Database Configuration
++IDP_DB_TYPE=sqlite
++IDP_DB_URL=./idp.db
++# For MySQL/PostgreSQL:
++# IDP_DB_TYPE=mysql
++# IDP_DB_HOST=localhost
++# IDP_DB_PORT=3306
++# IDP_DB_USERNAME=root
++# IDP_DB_PASSWORD=password
++# IDP_DB_NAME=idp_database
++
++# IdP Session Configuration  
++IDP_SESSION_SECRET=your-session-secret-here
++IDP_SESSION_MAX_AGE=86400
++
++# Authentication Methods
++IDP_EMAIL_PASSWORD_ENABLED=true
++IDP_REQUIRE_EMAIL_VERIFICATION=false
++IDP_MAGIC_LINK_ENABLED=true
++
++# Social Providers (optional)
++# IDP_GOOGLE_CLIENT_ID=your-google-client-id
++# IDP_GOOGLE_CLIENT_SECRET=your-google-client-secret
++# IDP_GITHUB_CLIENT_ID=your-github-client-id  
++# IDP_GITHUB_CLIENT_SECRET=your-github-client-secret
++
+Index: apps/backend/src/idp/controllers/idp-api.controller.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/apps/backend/src/idp/controllers/idp-api.controller.ts b/apps/backend/src/idp/controllers/idp-api.controller.ts
+new file mode 100644
+--- /dev/null	(date 1753281940218)
++++ b/apps/backend/src/idp/controllers/idp-api.controller.ts	(date 1753281940218)
+@@ -0,0 +1,49 @@
++import { All, Controller, Req, Res, Logger } from '@nestjs/common';
++import { Request, Response } from 'express';
++import { IdpExpressIntegration } from '../middleware/idp-express.middleware';
++import { Public } from '../decorators/auth.decorators';
++
++@Controller('api')
++@Public()
++export class IdpApiController {
++  private readonly logger = new Logger(IdpApiController.name);
++
++  constructor(private readonly idpIntegration: IdpExpressIntegration) {}
++
++  @All('health')
++  async handleHealthRoute(@Req() req: Request, @Res() res: Response) {
++    try {
++      const provider = await this.idpIntegration.getProvider();
++      res.json({ 
++        status: 'ok', 
++        provider: 'mock-better-auth',
++        timestamp: new Date().toISOString()
++      });
++    } catch (error) {
++      this.logger.error('Failed to handle health route', error);
++      res.status(500).json({ error: 'IdP integration error' });
++    }
++  }
++
++  @All('users/*')
++  async handleUserRoutes(@Req() req: Request, @Res() res: Response) {
++    try {
++      const provider = await this.idpIntegration.getProvider();
++      const url = req.url;
++      
++      if (req.method === 'GET' && url.includes('/users/')) {
++        const userId = url.split('/users/')[1];
++        const user = await provider.getUser(userId);
++        if (!user) {
++          return res.status(404).json({ error: 'User not found' });
++        }
++        res.json(user);
++      } else {
++        res.status(404).json({ error: 'Route not found' });
++      }
++    } catch (error) {
++      this.logger.error('Failed to handle user route', error);
++      res.status(500).json({ error: 'IdP integration error' });
++    }
++  }
++}
+\ No newline at end of file
+Index: apps/backend/src/idp/controllers/idp-info.controller.ts
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/apps/backend/src/idp/controllers/idp-info.controller.ts b/apps/backend/src/idp/controllers/idp-info.controller.ts
+new file mode 100644
+--- /dev/null	(date 1753281567872)
++++ b/apps/backend/src/idp/controllers/idp-info.controller.ts	(date 1753281567872)
+@@ -0,0 +1,37 @@
++import { Controller, Get } from '@nestjs/common';
++import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
++import { IdpRoutesService } from '../services/idp-routes.service';
++import { IdpService } from '../services/idp.service';
++import { Public } from '../decorators/auth.decorators';
++
++@ApiTags('IdP Information')
++@Controller('idp')
++@Public()
++export class IdpInfoController {
++  constructor(
++    private readonly idpRoutesService: IdpRoutesService,
++    private readonly idpService: IdpService
++  ) {}
++
++  @Get('status')
++  @ApiOperation({ summary: 'Get IdP status and configuration' })
++  @ApiResponse({ status: 200, description: 'IdP status information' })
++  async getStatus() {
++    const provider = this.idpService.getProvider();
++    const capabilities = provider.getCapabilities();
++    
++    return {
++      status: 'active',
++      provider: 'better-auth', // This should come from config
++      capabilities,
++      endpoints: await this.idpRoutesService.getAvailableRoutes()
++    };
++  }
++
++  @Get('routes')
++  @ApiOperation({ summary: 'Get available IdP routes' })
++  @ApiResponse({ status: 200, description: 'Available routes' })
++  async getRoutes() {
++    return await this.idpRoutesService.getAvailableRoutes();
++  }
++}
+\ No newline at end of file
