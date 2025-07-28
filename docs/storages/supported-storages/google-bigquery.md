@@ -53,10 +53,10 @@ Click **Google BigQuery** on the **New Storage** modal window appeared to create
 > Note that **Data Mart** cannot be validated or published until the associated **Storage** is fully configured.
 
 #### 3. Set General Settings and Connection Details
-1. **Title**: Provide a unique name for this Storage (e.g., "Analytics Warehouse").
-2. **Project ID**: Input your GCP Project ID, found in the GCP Console’s project dashboard.
-3. **Location**: Choose the dataset location from the dropdown, matching your BigQuery dataset’s region.
-4. **Service Account JSON**: Upload or paste the JSON key file from your Service Account.
+- **Title**: Provide a unique name for this Storage (e.g., "Analytics Warehouse").
+- **Project ID**: Input your GCP Project ID, found in the GCP Console’s project dashboard.
+- **Location**: Choose the dataset location from the dropdown, matching your BigQuery dataset’s region.
+- **Service Account JSON**: Upload or paste the JSON key file from your Service Account.
 
 #### 4. Finalize Setup
-Review your entries and click **Save** to integrate the Storage, or **Cancel** to exit without saving the configuration.
+Review your entries and click **Save** to integrate the **Storage**, or **Cancel** to exit without saving the configuration.

@@ -60,11 +60,11 @@ Click **AWS Athena** on the **New Storage** modal window appeared to create a ne
 > Note that **Data Mart** cannot be validated or published until the associated **Storage** is fully configured.
 
 #### 3. Set General Settings and Connection Details
-1. **Title**: Provide a unique name for this Storage (e.g., "Analytics Warehouse").
-2. **Region**: Enter the AWS region hosting your Athena instance (e.g., us-east-1), available in the AWS Management Console.
-3. **Output Bucket**: Provide the S3 bucket name for query results.
-4. **Access Key ID**: Enter the Access Key ID for an IAM user with Athena and S3 access.
-5. **Secret Access Key**: Provide the matching Secret Access Key.
+- **Title**: Provide a unique name for this Storage (e.g., "Analytics Warehouse").
+- **Region**: Enter the AWS region hosting your Athena instance (e.g., us-east-1), available in the AWS Management Console.
+- **Output Bucket**: Provide the S3 bucket name for query results.
+- **Access Key ID**: Enter the Access Key ID for an IAM user with Athena and S3 access.
+- **Secret Access Key**: Provide the matching Secret Access Key.
 
 #### 4. Finalize Setup
 Review your entries and click **Save** to integrate the Storage, or **Cancel** to exit without saving the configuration.

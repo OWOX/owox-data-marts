@@ -7,11 +7,11 @@ Each project requires at least one **Storage** to be configured to manage and pr
 ---
 
 ## Adding a New Storage
-To configure a new Storage:
+To configure a new **Storage**:
 1. On the **Storages** page, click **+ New Storage**.
 2. Choose a storage type option on the **New Storage** modal window:
-    - [Google BigQuery](supported-storages/Google-BigQuery.md)
-    - [AWS Athena](supported-storages/AWS-Athena.md)
+    - [Google BigQuery](supported-storages/google-bigquery.md)
+    - [AWS Athena](supported-storages/aws-athena.md)
     - Snowflake
     - Databricks
     - AWS Redshift
@@ -23,6 +23,7 @@ To configure a new Storage:
 > Note that **Data Mart** cannot be validated or published until the associated **Storage** is fully configured.
 
 ---
+
 ## Removing a Storage
 To remove an existing **Storage** configuration:
 1. Ensure all associated **Data Marts** linked to this **Storage** are deleted first. To do this:
@@ -40,5 +41,5 @@ To remove an existing **Storage** configuration:
 
 ## Key Considerations
 
-- Each **Data Mart** requires a single Storage association. Verify your selection during Data Mart setup.
-- For additional guidance or troubleshooting, explore the supported storage configuration pages or join the [OWOX Community](https://github.com/OWOX/owox-data-marts/discussions).
+- Each **Data Mart** requires a single **Storage** association. Verify your selection during **Data Mart** setup.
+- For additional guidance or troubleshooting, explore the supported **Storage** configuration pages or join the [OWOX Community](https://github.com/OWOX/owox-data-marts/discussions).
