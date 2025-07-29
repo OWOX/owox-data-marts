@@ -8,6 +8,11 @@ import {
   GoogleSheetsReportsTable,
   LookerStudioReportsTable,
 } from '../../../features/data-marts/reports/list';
+import {
+  DataDestinationStatus,
+  DataDestinationType,
+  DataDestinationTypeModel,
+} from '../../../features/data-destination';
 
 export default function DataMartDestinationsContent() {
   return (
@@ -25,17 +30,20 @@ export default function DataMartDestinationsContent() {
           <CollapsibleCardFooter></CollapsibleCardFooter>
         </CollapsibleCard>
 
-        <CollapsibleCard name='lookerstudio' collapsible defaultCollapsed={false}>
-          <CollapsibleCardHeader
-            icon={LookerStudioIcon}
-            title='Looker Studio'
-            help='Looker Studio Destinations that make this Data Mart available as a data source in Looker Studio connector'
-          />
-          <CollapsibleCardContent>
-            <LookerStudioReportsTable></LookerStudioReportsTable>
-          </CollapsibleCardContent>
-          <CollapsibleCardFooter></CollapsibleCardFooter>
-        </CollapsibleCard>
+        {DataDestinationTypeModel.getInfo(DataDestinationType.LOOKER_STUDIO).status ===
+          DataDestinationStatus.ACTIVE && (
+          <CollapsibleCard name='lookerstudio' collapsible defaultCollapsed={false}>
+            <CollapsibleCardHeader
+              icon={LookerStudioIcon}
+              title='Looker Studio'
+              help='Looker Studio Destinations that make this Data Mart available as a data source in Looker Studio connector'
+            />
+            <CollapsibleCardContent>
+              <LookerStudioReportsTable></LookerStudioReportsTable>
+            </CollapsibleCardContent>
+            <CollapsibleCardFooter></CollapsibleCardFooter>
+          </CollapsibleCard>
+        )}
       </ReportsProvider>
     </div>
   );
