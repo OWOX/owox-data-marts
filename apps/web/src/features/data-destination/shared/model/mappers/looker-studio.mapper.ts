@@ -11,27 +11,13 @@ import type { LookerStudioCredentials } from '../types/looker-studio-credentials
 
 export class LookerStudioMapper implements DestinationMapper {
   mapFromDto(dto: DataDestinationResponseDto): LookerStudioDataDestination {
-    let urlHost = '';
-    let secretKey = '';
-    try {
-      // Check if credentials are of type LookerStudioCredentialsResponse
-      if (dto.credentials.type === DataDestinationCredentialsType.LOOKER_STUDIO_CREDENTIALS) {
-        urlHost = dto.credentials.urlHost;
-        secretKey = dto.credentials.secretKey;
-      }
-    } catch (error) {
-      console.error(error, 'Error parsing Looker Studio credentials');
-    }
-
+    const credentials = this.extractLookerStudioCredentials(dto.credentials);
     return {
       id: dto.id,
       title: dto.title,
       type: DataDestinationType.LOOKER_STUDIO,
       projectId: dto.projectId,
-      credentials: {
-        urlHost,
-        secretKey,
-      },
+      credentials,
       createdAt: new Date(dto.createdAt),
       modifiedAt: new Date(dto.modifiedAt),
     };
@@ -42,7 +28,7 @@ export class LookerStudioMapper implements DestinationMapper {
     return {
       title: lookerStudioFormData.title,
       credentials: {
-        urlHost: (lookerStudioFormData.credentials as LookerStudioCredentials).urlHost,
+        deploymentUrl: (lookerStudioFormData.credentials as LookerStudioCredentials).deploymentUrl,
         type: DataDestinationCredentialsType.LOOKER_STUDIO_CREDENTIALS,
       },
     };
@@ -54,9 +40,27 @@ export class LookerStudioMapper implements DestinationMapper {
       title: lookerStudioFormData.title,
       type: DataDestinationType.LOOKER_STUDIO,
       credentials: {
-        urlHost: (lookerStudioFormData.credentials as LookerStudioCredentials).urlHost,
+        deploymentUrl: (lookerStudioFormData.credentials as LookerStudioCredentials).deploymentUrl,
         type: DataDestinationCredentialsType.LOOKER_STUDIO_CREDENTIALS,
       },
+    };
+  }
+
+  private extractLookerStudioCredentials(
+    credentials: DataDestinationResponseDto['credentials']
+  ): LookerStudioCredentials {
+    if (credentials.type === DataDestinationCredentialsType.LOOKER_STUDIO_CREDENTIALS) {
+      return {
+        deploymentUrl: credentials.deploymentUrl,
+        destinationId: credentials.destinationId,
+        destinationSecretKey: credentials.destinationSecretKey,
+      };
+    }
+
+    return {
+      deploymentUrl: '',
+      destinationId: '',
+      destinationSecretKey: '',
     };
   }
 }

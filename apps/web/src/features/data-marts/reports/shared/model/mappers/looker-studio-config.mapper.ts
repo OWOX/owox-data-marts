@@ -11,7 +11,7 @@ export class LookerStudioConfigMapper implements DestinationConfigMapperInterfac
 
     return {
       type: DestinationTypeConfigEnum.LOOKER_STUDIO_CONFIG,
-      cacheTime: dto.cacheTime,
+      cacheLifetime: dto.cacheLifetime,
     };
   }
 }

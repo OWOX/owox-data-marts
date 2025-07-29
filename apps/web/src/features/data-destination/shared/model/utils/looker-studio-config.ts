@@ -6,7 +6,7 @@ import type { LookerStudioCredentials } from '../types/looker-studio-credentials
 
 /**
  * Generates a JSON configuration string for Looker Studio
- * @returns A formatted JSON string with urlHost and secretKey properties
+ * @returns A formatted JSON string
  * @param credentials
  */
 export function generateLookerStudioJsonConfig(credentials: LookerStudioCredentials): string {
