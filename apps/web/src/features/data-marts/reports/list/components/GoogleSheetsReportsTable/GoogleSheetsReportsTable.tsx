@@ -26,6 +26,7 @@ import type { DataMartReport } from '../../../shared/model/types/data-mart-repor
 import { useReport } from '../../../shared';
 import { useOutletContext } from 'react-router-dom';
 import type { DataMartContextType } from '../../../../edit/model/context/types.ts';
+import { DataDestinationType } from '../../../../../data-destination';
 
 export function GoogleSheetsReportsTable() {
   const { dataMart } = useOutletContext<DataMartContextType>();
@@ -34,6 +35,12 @@ export function GoogleSheetsReportsTable() {
   const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
   const { editOpen, handleAddReport, editMode, handleEditRow, handleCloseEditForm, getEditReport } =
     useEditModal();
+
+  const googleSheetsReports = useMemo(() => {
+    return reports.filter(
+      report => report.dataDestination.type === DataDestinationType.GOOGLE_SHEETS
+    );
+  }, [reports]);
 
   const editReport = getEditReport(reports);
 
@@ -81,7 +88,7 @@ export function GoogleSheetsReportsTable() {
   const { columnVisibility, setColumnVisibility } = useColumnVisibility(columns);
 
   const table = useReactTable<DataMartReport>({
-    data: reports,
+    data: googleSheetsReports,
     columns: columns as ColumnDef<DataMartReport>[],
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),

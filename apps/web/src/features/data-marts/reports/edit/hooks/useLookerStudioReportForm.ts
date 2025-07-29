@@ -13,7 +13,7 @@ import { DestinationTypeConfigEnum, useReport } from '../../shared';
 const lookerStudioReportFormSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   dataDestinationId: z.string().min(1, 'Destination is required'),
-  cacheTime: z.number().min(300, 'Cache time must be at least 5 minutes (300 seconds)'),
+  cacheLifetime: z.number().min(300, 'Cache time must be at least 5 minutes (300 seconds)'),
 });
 
 // Define the form data type
@@ -38,10 +38,10 @@ export function useLookerStudioReportForm({
     defaultValues: {
       title: initialReport?.title ?? '',
       dataDestinationId: initialReport?.dataDestination.id ?? '',
-      cacheTime:
+      cacheLifetime:
         initialReport?.destinationConfig &&
         isLookerStudioDestinationConfig(initialReport.destinationConfig)
-          ? initialReport.destinationConfig.cacheTime
+          ? initialReport.destinationConfig.cacheLifetime
           : 300,
     },
     mode: 'onTouched',
@@ -51,10 +51,10 @@ export function useLookerStudioReportForm({
     try {
       setFormError(null);
 
-      const { title, dataDestinationId, cacheTime } = data;
+      const { title, dataDestinationId, cacheLifetime } = data;
       const destinationConfig: DestinationConfig = {
         type: DestinationTypeConfigEnum.LOOKER_STUDIO_CONFIG,
-        cacheTime: cacheTime,
+        cacheLifetime,
       };
 
       if (initialReport) {

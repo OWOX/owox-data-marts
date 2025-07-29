@@ -17,6 +17,7 @@ import {
   FormLayout,
   FormActions,
   FormSection,
+  FormDescription,
 } from '@owox/ui/components/form';
 import {
   Select,
@@ -29,14 +30,19 @@ import {
   type DataDestination,
   DataDestinationType,
   DataDestinationTypeModel,
+  generateLookerStudioJsonConfig,
   useDataDestination,
+  isLookerStudioDataDestination,
 } from '../../../../../data-destination';
 import { Link, useOutletContext } from 'react-router-dom';
 import type { DataMartContextType } from '../../../../edit/model/context/types.ts';
 import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
 import { AlertCircle } from 'lucide-react';
+import { CopyToClipboardButton } from '@owox/ui/components/common/copy-to-clipboard-button';
 import { ReportFormMode } from '../../../shared';
 import { Button } from '@owox/ui/components/button';
+import LookerStudioJsonConfigDescription from '../../../../../data-destination/edit/components/DataDestinationEditForm/FormDescriptions/LookerStudioJsonConfigDescription.tsx';
+import LookerStudioCacheLifetimeDescription from './LookerStudioCacheLifetimeDescription.tsx';
 
 interface LookerStudioReportEditFormProps {
   initialReport?: DataMartReport;
@@ -137,10 +143,10 @@ export const LookerStudioReportEditForm = forwardRef<
         reset({
           title: initialReport.title,
           dataDestinationId: initialReport.dataDestination.id,
-          cacheTime: initialReport.destinationConfig.cacheTime,
+          cacheLifetime: initialReport.destinationConfig.cacheLifetime,
         });
       } else if (mode === ReportFormMode.CREATE) {
-        reset({ title: '', dataDestinationId: '', cacheTime: 300 });
+        reset({ title: '', dataDestinationId: '', cacheLifetime: 300 });
       }
     }, [initialReport, mode, reset, filteredDestinations]);
 
@@ -242,7 +248,7 @@ export const LookerStudioReportEditForm = forwardRef<
                         <AlertTitle>No Looker Studio destinations available</AlertTitle>
                         <AlertDescription>
                           You need to create a Looker Studio Destination before you can create a
-                          report.{' '}
+                          report.
                           <Link
                             to='/data-destinations'
                             className='font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300'
@@ -253,6 +259,39 @@ export const LookerStudioReportEditForm = forwardRef<
                       </Alert>
                     )}
                     <FormMessage />
+                    {field.value &&
+                      (() => {
+                        const selectedDestination = filteredDestinations.find(
+                          destination => destination.id === field.value
+                        );
+
+                        if (
+                          selectedDestination &&
+                          isLookerStudioDataDestination(selectedDestination)
+                        ) {
+                          const jsonConfig = generateLookerStudioJsonConfig(
+                            selectedDestination.credentials
+                          );
+                          return (
+                            <>
+                              <FormDescription className='mt-2'>
+                                To connect to Looker Studio, you need to copy the JSON configuration
+                                and use it in the Looker Studio connector.
+                              </FormDescription>
+                              <div className='mt-2 flex items-center'>
+                                <CopyToClipboardButton
+                                  content={jsonConfig}
+                                  buttonText='Copy JSON Config'
+                                />
+                              </div>
+                              <FormDescription className='mt-2'>
+                                <LookerStudioJsonConfigDescription />
+                              </FormDescription>
+                            </>
+                          );
+                        }
+                        return null;
+                      })()}
                   </FormItem>
                 )}
               />
@@ -260,11 +299,11 @@ export const LookerStudioReportEditForm = forwardRef<
             <FormSection title='Cache Configuration'>
               <FormField
                 control={form.control}
-                name='cacheTime'
+                name='cacheLifetime'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel tooltip='Cache time on the Data Mart side - determines how long Data Mart will serve cached data to Looker Studio'>
-                      Cache Time
+                    <FormLabel tooltip='Period during which query results are served from storage-side cache, avoiding re-execution'>
+                      Cache Lifetime
                     </FormLabel>
                     <Select
                       onValueChange={value => {
@@ -287,6 +326,9 @@ export const LookerStudioReportEditForm = forwardRef<
                       </SelectContent>
                     </Select>
                     <FormMessage />
+                    <FormDescription>
+                      <LookerStudioCacheLifetimeDescription />
+                    </FormDescription>
                   </FormItem>
                 )}
               />
