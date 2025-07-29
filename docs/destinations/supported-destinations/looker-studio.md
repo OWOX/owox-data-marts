@@ -16,7 +16,7 @@ Select **Looker Studio** from the **Destination Type** dropdown.
 
 #### 3. Set General Settings and Connection Details
 - **Title**: Provide a unique name for this Destination (e.g., "Analytics Warehouse").
-- **Host URL**: Enter the public URL that Looker Studio will use to initiate the connection to OWOX Data Marts. This URL must be accessible over the internet and point to your OWOX Data Marts instance. To configure the public URL:
+- **Deployment URL**: Enter the deployment URL that Looker Studio will use to initiate the connection to OWOX Data Marts. This URL must be accessible over the internet and point to your OWOX Data Marts instance. To configure the deployment URL:
     - Ensure your OWOX Data Marts server is deployed with a publicly accessible endpoint (e.g., via a domain or load balancer).
     - Use a secure URL (HTTPS is recommended) to protect data in transit. Example: `https://owox-datamarts.yourdomain.com`.  
 
@@ -38,6 +38,6 @@ Select **Looker Studio** from the **Destination Type** dropdown.
 ---
 
 ## Key Considerations
-- The **Host URL** must remain accessible for Looker Studio to maintain the connection.
-- Ensure firewall or network settings allow inbound traffic to the **Host URL** from Looker Studio’s IP ranges.
+- The **Deployment URL** must remain accessible for Looker Studio to maintain the connection.
+- Ensure firewall or network settings allow inbound traffic to the **Deployment URL** from Looker Studio’s IP ranges.
 - For additional guidance or troubleshooting, refer to the [OWOX Community](https://github.com/OWOX/owox-data-marts/discussions).
