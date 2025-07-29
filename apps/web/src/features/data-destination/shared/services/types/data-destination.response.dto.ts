@@ -13,8 +13,9 @@ export interface GoogleSheetsCredentialsResponse {
  * Looker Studio credentials response
  */
 export interface LookerStudioCredentialsResponse {
-  urlHost: string;
-  secretKey: string;
+  deploymentUrl: string;
+  destinationId: string;
+  destinationSecretKey: string;
   type: DataDestinationCredentialsType.LOOKER_STUDIO_CREDENTIALS;
 }
 

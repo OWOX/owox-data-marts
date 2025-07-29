@@ -65,6 +65,15 @@ export class DataDestinationService extends ApiService {
   async deleteDataDestination(id: string): Promise<void> {
     return this.delete(`/${id}`);
   }
+
+  /**
+   * Rotate secret key for a data destination
+   * @param id Data destination ID
+   * @returns Promise with updated data destination
+   */
+  async rotateSecretKey(id: string): Promise<DataDestinationResponseDto> {
+    return this.post<DataDestinationResponseDto>(`/${id}/rotate-secret-key`);
+  }
 }
 
 // Create a singleton instance
