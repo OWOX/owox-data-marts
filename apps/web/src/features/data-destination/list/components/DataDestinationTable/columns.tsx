@@ -1,6 +1,6 @@
 import { type ColumnDef } from '@tanstack/react-table';
 import { SortableHeader } from './SortableHeader';
-import { DataDestinationTypeModel } from '../../../shared';
+import { type DataDestination, DataDestinationTypeModel } from '../../../shared';
 import { DataDestinationType } from '../../../shared';
 import { DataDestinationActionsCell } from './DataDestinationActionsCell';
 import { ToggleColumnsHeader } from './ToggleColumnsHeader';
@@ -11,16 +11,19 @@ export interface DataDestinationTableItem {
   type: DataDestinationType;
   createdAt: Date;
   modifiedAt: Date;
+  credentials?: DataDestination['credentials'];
 }
 
 interface DataDestinationColumnsProps {
   onEdit?: (id: string) => Promise<void>;
   onDelete?: (id: string) => void;
+  onRotateSecretKey?: (id: string) => void;
 }
 
 export const getDataDestinationColumns = ({
   onEdit,
   onDelete,
+  onRotateSecretKey,
 }: DataDestinationColumnsProps = {}): ColumnDef<DataDestinationTableItem>[] => [
   {
     accessorKey: 'title',
@@ -68,7 +71,14 @@ export const getDataDestinationColumns = ({
     size: 80, // fixed width in pixels
     header: ({ table }) => <ToggleColumnsHeader table={table} />,
     cell: ({ row }) => (
-      <DataDestinationActionsCell id={row.original.id} onEdit={onEdit} onDelete={onDelete} />
+      <DataDestinationActionsCell
+        id={row.original.id}
+        type={row.original.type}
+        credentials={row.original.credentials}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        onRotateSecretKey={onRotateSecretKey}
+      />
     ),
   },
 ];

@@ -33,6 +33,7 @@ interface DataDestinationTableProps<TData, TValue> {
   onViewDetails?: (id: string) => void;
   onEdit?: (id: string) => Promise<void>;
   onDelete?: (id: string) => void;
+  onRotateSecretKey?: (id: string) => void;
   onOpenTypeDialog?: () => void;
 }
 

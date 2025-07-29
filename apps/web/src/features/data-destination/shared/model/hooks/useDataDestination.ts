@@ -111,6 +111,16 @@ export function useDataDestination() {
     dispatch({ type: DataDestinationActionType.CLEAR_CURRENT_DESTINATION });
   }, [dispatch]);
 
+  const rotateSecretKey = useCallback(async (id: DataDestination['id']) => {
+    try {
+      const response = await dataDestinationService.rotateSecretKey(id);
+      return mapDataDestinationFromDto(response);
+    } catch (error) {
+      console.error('Failed to rotate secret key:', error);
+      throw error;
+    }
+  }, []);
+
   return {
     dataDestinations: state.dataDestinations,
     currentDataDestination: state.currentDataDestination,
@@ -122,5 +132,6 @@ export function useDataDestination() {
     updateDataDestination,
     deleteDataDestination,
     clearCurrentDataDestination,
+    rotateSecretKey,
   };
 }

@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useDataDestination } from '../../../shared';
-import { DataDestinationTable } from '../DataDestinationTable';
-import { getDataDestinationColumns, type DataDestinationTableItem } from '../DataDestinationTable';
+import { generateLookerStudioJsonConfig, useDataDestination } from '../../../shared';
+import {
+  DataDestinationTable,
+  type DataDestinationTableItem,
+  getDataDestinationColumns,
+} from '../DataDestinationTable';
 import { DataDestinationConfigSheet } from '../../../edit';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
+import toast from 'react-hot-toast';
+import { isLookerStudioCredentials } from '../../../shared/model/types/looker-studio-credentials.ts';
 
 interface DataDestinationListProps {
   isCreateSheetInitiallyOpen?: boolean;
@@ -21,6 +26,7 @@ export const DataDestinationList = ({
     fetchDataDestinations,
     getDataDestinationById,
     deleteDataDestination,
+    rotateSecretKey,
   } = useDataDestination();
 
   const handleOpenCreateForm = useCallback(() => {
@@ -31,7 +37,11 @@ export const DataDestinationList = ({
 
   const [isEditSheetOpen, setIsEditSheetOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [isRotateSecretKeyDialogOpen, setRotateSecretKeyDialogOpen] = useState(false);
   const [destinationToDelete, setDestinationToDelete] = useState<string | null>(null);
+  const [destinationToRotateSecretKey, setDestinationToRotateSecretKey] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     void fetchDataDestinations();
@@ -51,6 +61,30 @@ export const DataDestinationList = ({
   const handleDelete = (id: string) => {
     setDestinationToDelete(id);
     setDeleteDialogOpen(true);
+  };
+
+  const handleRotateSecretKey = (id: string) => {
+    setDestinationToRotateSecretKey(id);
+    setRotateSecretKeyDialogOpen(true);
+  };
+
+  const handleConfirmRotateSecretKey = async () => {
+    if (destinationToRotateSecretKey) {
+      try {
+        const updatedDestination = await rotateSecretKey(destinationToRotateSecretKey);
+        if (isLookerStudioCredentials(updatedDestination.credentials)) {
+          toast.success('New JSON Config copied to clipboard');
+          const jsonConfig = generateLookerStudioJsonConfig(updatedDestination.credentials);
+          void navigator.clipboard.writeText(jsonConfig);
+        }
+        await fetchDataDestinations();
+      } catch (error) {
+        console.error('Failed to rotate secret key:', error);
+      } finally {
+        setRotateSecretKeyDialogOpen(false);
+        setDestinationToRotateSecretKey(null);
+      }
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -87,11 +121,13 @@ export const DataDestinationList = ({
     type: destination.type,
     createdAt: destination.createdAt,
     modifiedAt: destination.modifiedAt,
+    credentials: destination.credentials,
   }));
 
   const columns = getDataDestinationColumns({
     onEdit: handleEdit,
     onDelete: handleDelete,
+    onRotateSecretKey: handleRotateSecretKey,
   });
 
   return (
@@ -100,6 +136,8 @@ export const DataDestinationList = ({
         columns={columns}
         data={tableData}
         onEdit={handleEdit}
+        onDelete={handleDelete}
+        onRotateSecretKey={handleRotateSecretKey}
         onOpenTypeDialog={handleOpenCreateForm}
       />
 
@@ -125,6 +163,31 @@ export const DataDestinationList = ({
         }}
         variant='destructive'
       />
+
+      <ConfirmationDialog
+        open={isRotateSecretKeyDialogOpen}
+        onOpenChange={setRotateSecretKeyDialogOpen}
+        title='Rotate Secret Key'
+        description={'Rotating the secret key will invalidate the previous key'}
+        confirmLabel='Rotate Key'
+        cancelLabel='Cancel'
+        onConfirm={() => void handleConfirmRotateSecretKey()}
+        onCancel={() => {
+          setRotateSecretKeyDialogOpen(false);
+        }}
+        variant='destructive'
+      >
+        <div className='text-sm'>
+          <p className='mb-2'>After rotation, you will need to:</p>
+          <ol className='mb-2 list-decimal pl-5'>
+            <li>The new JSON Config will be automatically copied to your clipboard</li>
+            <li>Go to your Looker Studio Connector</li>
+            <li>Update the configuration with the new JSON Config</li>
+            <li>Save the changes to restore access to your data marts</li>
+          </ol>
+          <p className='font-semibold'>Are you sure you want to rotate the secret key?</p>
+        </div>
+      </ConfirmationDialog>
     </div>
   );
 };
