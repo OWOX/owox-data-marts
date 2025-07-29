@@ -152,7 +152,7 @@ export function SecureJsonInput({
       )}
       {displayOnly ? (
         <div
-          className={`p-2 font-mono ${className ?? ''} min-h-[150px] cursor-not-allowed whitespace-pre-wrap opacity-70`}
+          className={`p-2 font-mono ${className ?? ''} min-h-[150px] cursor-not-allowed overflow-x-auto whitespace-pre opacity-70`}
         >
           {getMaskedValue(value)}
         </div>
