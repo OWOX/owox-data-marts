@@ -1,6 +1,7 @@
 import { DataDestinationType } from '../../enums';
 import type { DataDestinationCredentials } from './credentials.ts';
 import type { GoogleServiceAccountCredentials } from '../../../../../shared/types';
+import type { LookerStudioCredentials } from './looker-studio-credentials.ts';
 
 export interface BaseDataDestination<T extends DataDestinationCredentials> {
   id: string;
@@ -22,9 +23,17 @@ export interface GoogleSheetsDataDestination
   credentials: GoogleServiceAccountCredentials;
 }
 
-export type DataDestination = GoogleSheetsDataDestination;
+export interface LookerStudioDataDestination extends BaseDataDestination<LookerStudioCredentials> {
+  type: DataDestinationType.LOOKER_STUDIO;
+  credentials: LookerStudioCredentials;
+}
+
+export type DataDestination = GoogleSheetsDataDestination | LookerStudioDataDestination;
 
 export function isGoogleSheetDataDestination(dataDestination: DataDestination) {
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   return dataDestination.type === DataDestinationType.GOOGLE_SHEETS;
+}
+
+export function isLookerStudioDataDestination(dataDestination: DataDestination) {
+  return dataDestination.type === DataDestinationType.LOOKER_STUDIO;
 }

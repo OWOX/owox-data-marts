@@ -1,7 +1,10 @@
 import { forwardRef, useEffect, useState } from 'react';
 import { Input } from '@owox/ui/components/input';
 import { useAutoFocus } from '../../../../../../hooks/useAutoFocus.ts';
-import type { DataMartReport } from '../../../shared/model/types/data-mart-report.ts';
+import {
+  type DataMartReport,
+  isGoogleSheetsDestinationConfig,
+} from '../../../shared/model/types/data-mart-report.ts';
 import { useGoogleSheetsReportForm } from '../../hooks/useGoogleSheetsReportForm.ts';
 import {
   Form,
@@ -43,6 +46,7 @@ import {
 import { TimeTriggerAnnouncement } from '../../../../scheduled-triggers';
 import DocumentLinkDescription from './FormDescriptions/DocumentLinkDescription.tsx';
 import { Button } from '@owox/ui/components/button';
+import { isGoogleServiceAccountCredentials } from '../../../../../../shared/types';
 
 interface GoogleSheetsReportEditFormProps {
   initialReport?: DataMartReport;
@@ -91,7 +95,6 @@ export const GoogleSheetsReportEditForm = forwardRef<
     useEffect(() => {
       if (dataDestinations.length > 0) {
         const googleSheetsDestinations = dataDestinations.filter(
-          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
           destination => destination.type === DataDestinationType.GOOGLE_SHEETS
         );
         setFilteredDestinations(googleSheetsDestinations);
@@ -123,7 +126,11 @@ export const GoogleSheetsReportEditForm = forwardRef<
     }, [internalFormError, onFormErrorChange]);
 
     useEffect(() => {
-      if (mode === ReportFormMode.EDIT && initialReport) {
+      if (
+        mode === ReportFormMode.EDIT &&
+        initialReport &&
+        isGoogleSheetsDestinationConfig(initialReport.destinationConfig)
+      ) {
         reset({
           title: initialReport.title,
           documentUrl: getGoogleSheetTabUrl(
@@ -226,9 +233,11 @@ export const GoogleSheetsReportEditForm = forwardRef<
                                 <div className='flex min-w-0 flex-col'>
                                   <span className='truncate'>{destination.title}</span>
                                   <span className='text-muted-foreground truncate text-xs'>
-                                    {extractServiceAccountEmail(
-                                      destination.credentials.serviceAccount
-                                    ) ?? 'No email found'}
+                                    {(isGoogleServiceAccountCredentials(destination.credentials) &&
+                                      extractServiceAccountEmail(
+                                        destination.credentials.serviceAccount
+                                      )) ??
+                                      'No email found'}
                                   </span>
                                 </div>
                               </div>
@@ -265,9 +274,13 @@ export const GoogleSheetsReportEditForm = forwardRef<
                                 Service Account Email:
                               </span>
                               <span className='text-muted-foreground bg-muted/30 rounded px-2 py-1 text-xs'>
-                                {extractServiceAccountEmail(
-                                  selectedDestination.credentials.serviceAccount
-                                ) ?? 'No email found'}
+                                {(isGoogleServiceAccountCredentials(
+                                  selectedDestination.credentials
+                                ) &&
+                                  extractServiceAccountEmail(
+                                    selectedDestination.credentials.serviceAccount
+                                  )) ??
+                                  'No email found'}
                               </span>
                             </div>
                           );

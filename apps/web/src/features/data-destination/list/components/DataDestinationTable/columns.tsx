@@ -14,13 +14,11 @@ export interface DataDestinationTableItem {
 }
 
 interface DataDestinationColumnsProps {
-  onViewDetails?: (id: string) => void;
   onEdit?: (id: string) => Promise<void>;
   onDelete?: (id: string) => void;
 }
 
 export const getDataDestinationColumns = ({
-  onViewDetails,
   onEdit,
   onDelete,
 }: DataDestinationColumnsProps = {}): ColumnDef<DataDestinationTableItem>[] => [
@@ -70,12 +68,7 @@ export const getDataDestinationColumns = ({
     size: 80, // fixed width in pixels
     header: ({ table }) => <ToggleColumnsHeader table={table} />,
     cell: ({ row }) => (
-      <DataDestinationActionsCell
-        id={row.original.id}
-        onViewDetails={onViewDetails}
-        onEdit={onEdit}
-        onDelete={onDelete}
-      />
+      <DataDestinationActionsCell id={row.original.id} onEdit={onEdit} onDelete={onDelete} />
     ),
   },
 ];

@@ -63,7 +63,7 @@ export function DestinationTypeField({ form, initialData }: DestinationTypeField
             </SelectContent>
           </Select>
           <FormDescription>
-            <DestinationTypeDescription />
+            <DestinationTypeDescription destinationType={field.value} />
           </FormDescription>
           <FormMessage />
         </FormItem>

@@ -2,12 +2,11 @@ import { DataDestinationActionType, useDataDestinationContext } from '../context
 import { useCallback } from 'react';
 import type { DataDestination } from '../types';
 import { dataDestinationService } from '../../services';
-import {
-  mapDataDestinationFromDto,
-  mapToCreateDataDestinationRequest,
-  mapToUpdateDataDestinationRequest,
-} from '../mappers/data-destination.mapper';
-import type { DataDestinationFormData } from '../../types';
+import { mapDataDestinationFromDto } from '../mappers/data-destination.mapper';
+import type {
+  CreateDataDestinationRequestDto,
+  UpdateDataDestinationRequestDto,
+} from '../../services/types';
 
 export function useDataDestination() {
   const { state, dispatch } = useDataDestinationContext();
@@ -49,10 +48,9 @@ export function useDataDestination() {
   );
 
   const createDataDestination = useCallback(
-    async (formData: DataDestinationFormData) => {
+    async (requestData: CreateDataDestinationRequestDto) => {
       dispatch({ type: DataDestinationActionType.CREATE_DESTINATION_START });
       try {
-        const requestData = mapToCreateDataDestinationRequest(formData);
         const response = await dataDestinationService.createDataDestination(requestData);
         const mappedDestination = mapDataDestinationFromDto(response);
         dispatch({
@@ -72,10 +70,9 @@ export function useDataDestination() {
   );
 
   const updateDataDestination = useCallback(
-    async (id: DataDestination['id'], formData: DataDestinationFormData) => {
+    async (id: DataDestination['id'], requestData: UpdateDataDestinationRequestDto) => {
       dispatch({ type: DataDestinationActionType.UPDATE_DESTINATION_START });
       try {
-        const requestData = mapToUpdateDataDestinationRequest(formData);
         const response = await dataDestinationService.updateDataDestination(id, requestData);
         const mappedDestination = mapDataDestinationFromDto(response);
         dispatch({

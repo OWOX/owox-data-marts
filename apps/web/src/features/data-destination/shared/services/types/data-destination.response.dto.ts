@@ -1,5 +1,22 @@
-import { DataDestinationType, GoogleSheetCredentialsType } from '../../enums';
+import { DataDestinationCredentialsType, DataDestinationType } from '../../enums';
 import type { GoogleServiceAccount } from '../../../../../shared/types';
+
+/**
+ * Google Sheets credentials response
+ */
+export interface GoogleSheetsCredentialsResponse {
+  serviceAccountKey: GoogleServiceAccount;
+  type: DataDestinationCredentialsType.GOOGLE_SHEETS_CREDENTIALS;
+}
+
+/**
+ * Looker Studio credentials response
+ */
+export interface LookerStudioCredentialsResponse {
+  urlHost: string;
+  secretKey: string;
+  type: DataDestinationCredentialsType.LOOKER_STUDIO_CREDENTIALS;
+}
 
 /**
  * Data destination response data transfer object
@@ -28,10 +45,7 @@ export interface DataDestinationResponseDto {
   /**
    * Credentials for the destination
    */
-  credentials: {
-    serviceAccountKey: GoogleServiceAccount;
-    type: GoogleSheetCredentialsType;
-  };
+  credentials: GoogleSheetsCredentialsResponse | LookerStudioCredentialsResponse;
 
   /**
    * Creation timestamp

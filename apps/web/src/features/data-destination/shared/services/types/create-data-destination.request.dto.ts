@@ -1,5 +1,6 @@
 import { DataDestinationType } from '../../enums';
 import type { GoogleServiceAccountCredentialsDto } from '../../../../../shared/types';
+import type { LookerStudioCredentialsDto } from './looker-studio-credentials.dto.ts';
 
 /**
  * Data transfer object for creating a new data destination
@@ -18,5 +19,5 @@ export interface CreateDataDestinationRequestDto {
   /**
    * Credentials required for the selected destination type
    */
-  credentials: GoogleServiceAccountCredentialsDto;
+  credentials: GoogleServiceAccountCredentialsDto | LookerStudioCredentialsDto;
 }
