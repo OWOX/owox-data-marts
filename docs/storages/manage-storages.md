@@ -12,10 +12,10 @@ To configure a new **Storage**:
 2. Choose a storage type option on the **New Storage** modal window:
     - [Google BigQuery](supported-storages/google-bigquery.md)
     - [AWS Athena](supported-storages/aws-athena.md)
-    - Snowflake
-    - Databricks
-    - AWS Redshift
-    - Azure Synapse
+    - Snowflake (Coming soon)
+    - Databricks (Coming soon)
+    - AWS Redshift (Coming soon)
+    - Azure Synapse (Coming soon)
 3. Fill in the required configuration fields based on the selected Storage Type. Refer to the corresponding service configuration page for detailed setup instructions.
 4. Click **Save** to apply the storage configuration or **Cancel** to defer configuration to a later time.
 
