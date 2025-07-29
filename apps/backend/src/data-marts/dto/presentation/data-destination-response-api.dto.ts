@@ -1,6 +1,16 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { DataDestinationType } from '../../data-destination-types/enums/data-destination-type.enum';
-import { DataDestinationCredentials } from '../../data-destination-types/data-destination-credentials.type';
+
+export type DataDestinationCredentialsSafe = {
+  // Google Sheets credentials
+  type: 'google-sheets-credentials';
+  serviceAccountKey: {
+    type: 'service_account';
+    project_id: string;
+    client_email: string;
+    client_id: string;
+  };
+};
 
 export class DataDestinationResponseApiDto {
   @ApiProperty({ example: 'abc123e4-5678-90ab-cdef-1234567890ab' })
@@ -18,9 +28,9 @@ export class DataDestinationResponseApiDto {
   @ApiProperty({
     type: 'object',
     additionalProperties: true,
-    description: 'Credentials for the destination',
+    description: 'Credentials without sensitive fields',
   })
-  credentials: DataDestinationCredentials;
+  credentials: DataDestinationCredentialsSafe | undefined;
 
   @ApiProperty({ example: '2024-01-01T12:00:00.000Z' })
   createdAt: Date;

@@ -31,17 +31,22 @@ export class GoogleSheetsMapper implements DestinationMapper {
     };
   }
 
-  mapToUpdateRequest(formData: DataDestinationFormData): UpdateDataDestinationRequestDto {
+  mapToUpdateRequest(formData: Partial<DataDestinationFormData>): UpdateDataDestinationRequestDto {
     const googleSheetsFormData = formData;
-    return {
-      title: googleSheetsFormData.title,
-      credentials: {
+    const result: UpdateDataDestinationRequestDto = {
+      title: googleSheetsFormData.title ?? '',
+    };
+
+    if (googleSheetsFormData.credentials) {
+      result.credentials = {
         serviceAccountKey: JSON.parse(
           (googleSheetsFormData.credentials as GoogleServiceAccountCredentials).serviceAccount
         ),
         type: GoogleSheetCredentialsType.GOOGLE_SHEETS_CREDENTIALS,
-      },
-    };
+      };
+    }
+
+    return result;
   }
 
   mapToCreateRequest(formData: DataDestinationFormData): CreateDataDestinationRequestDto {

@@ -7,6 +7,7 @@ import { DataDestinationDto } from '../dto/domain/data-destination.dto';
 import { UpdateDataDestinationCommand } from '../dto/domain/update-data-destination.command';
 import { DataDestinationService } from '../services/data-destination.service';
 import { DataDestinationCredentialsValidatorFacade } from '../data-destination-types/facades/data-destination-credentials-validator.facade';
+import { DataDestinationCredentials } from '../data-destination-types/data-destination-credentials.type';
 
 @Injectable()
 export class UpdateDataDestinationService {
@@ -24,10 +25,20 @@ export class UpdateDataDestinationService {
       command.projectId
     );
 
-    await this.credentialsValidator.checkCredentials(entity.type, command.credentials);
+    const credentialsToCheck = command.hasCredentialsUpdate()
+      ? command.credentials
+      : entity.credentials;
+
+    await this.credentialsValidator.checkCredentials(
+      entity.type,
+      credentialsToCheck ?? ({} as DataDestinationCredentials)
+    );
+
+    if (command.hasCredentialsUpdate()) {
+      entity.credentials = command.credentials;
+    }
 
     entity.title = command.title;
-    entity.credentials = command.credentials;
 
     const updatedEntity = await this.dataDestinationRepository.save(entity);
     return this.dataDestinationMapper.toDomainDto(updatedEntity);

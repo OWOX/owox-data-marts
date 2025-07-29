@@ -12,5 +12,5 @@ export interface UpdateDataDestinationRequestDto {
   /**
    * Credentials required for the selected destination type
    */
-  credentials: GoogleServiceAccountCredentialsDto;
+  credentials?: GoogleServiceAccountCredentialsDto;
 }

@@ -38,9 +38,6 @@ export function DataDestinationForm({
     defaultValues: initialData ?? {
       title: '',
       type: DataDestinationType.GOOGLE_SHEETS,
-      credentials: {
-        serviceAccount: '',
-      },
     },
     mode: 'onTouched',
   });
@@ -49,11 +46,22 @@ export function DataDestinationForm({
     onDirtyChange?.(form.formState.isDirty);
   }, [form.formState.isDirty, onDirtyChange]);
 
+  const handleSubmit = async (data: DataDestinationFormData) => {
+    const { dirtyFields } = form.formState;
+    const payload = JSON.parse(JSON.stringify(data)) as DataDestinationFormData;
+
+    if (!dirtyFields.credentials) {
+      delete (payload as Partial<DataDestinationFormData>).credentials;
+    }
+
+    return onSubmit(payload);
+  };
+
   return (
     <Form {...form}>
       <AppForm
         onSubmit={e => {
-          void form.handleSubmit(onSubmit)(e);
+          void form.handleSubmit(handleSubmit)(e);
         }}
       >
         <FormLayout>

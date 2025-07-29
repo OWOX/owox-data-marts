@@ -31,7 +31,7 @@ export class DataStorageResponseApiDto {
   @ApiProperty({
     type: 'object',
     additionalProperties: true,
-    description: 'Credentials with sensitive fields masked with * characters',
+    description: 'Credentials without sensitive fields',
   })
   credentials: DataStorageCredentialsSafe | undefined;
 

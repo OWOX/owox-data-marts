@@ -10,12 +10,19 @@ import {
 import { Textarea } from '@owox/ui/components/textarea';
 import { useState } from 'react';
 import { type UseFormReturn } from 'react-hook-form';
-import { extractServiceAccountEmail } from '../../../../data-marts/reports/shared/utils/service-account.utils';
 import { type DataDestinationFormData } from '../../../shared';
 import GoogleSheetsServiceAccountDescription from './FormDescriptions/GoogleSheetsServiceAccountDescription';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 
 interface GoogleSheetsFieldsProps {
   form: UseFormReturn<DataDestinationFormData>;
+}
+
+interface ServiceAccountJson {
+  project_id: string;
+  client_id: string;
+  client_email: string;
 }
 
 export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
@@ -33,10 +40,26 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
     form.resetField('credentials.serviceAccount');
   };
 
+  const getServiceAccountLink = (serviceAccountJson: string) => {
+    try {
+      const parsed = JSON.parse(serviceAccountJson) as ServiceAccountJson;
+      const { project_id, client_id, client_email } = parsed;
+
+      if (!project_id || !client_id || !client_email) return null;
+
+      return {
+        url: `https://console.cloud.google.com/iam-admin/serviceaccounts/details/${client_id}?project=${project_id}`,
+        email: client_email,
+      };
+    } catch {
+      return null;
+    }
+  };
+
   const serviceAccountValue = form.watch('credentials.serviceAccount');
-  const serviceAccountEmail = serviceAccountValue
-    ? extractServiceAccountEmail(serviceAccountValue)
-    : undefined;
+  const serviceAccountLink = serviceAccountValue
+    ? getServiceAccountLink(serviceAccountValue)
+    : null;
 
   return (
     <FormField
@@ -45,7 +68,7 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
       render={({ field }) => (
         <FormItem>
           <div className='flex items-center justify-between'>
-            <FormLabel tooltip='Paste a JSON key from a service account that has access to the selected storage provider'>
+            <FormLabel tooltip='Paste a JSON key from a service account that has access to the selected destination provider'>
               Service Account
             </FormLabel>
             {!isEditing && serviceAccountValue && (
@@ -60,8 +83,17 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
             )}
           </div>
           <FormControl>
-            {!isEditing ? (
-              <span className='font-mono'>{serviceAccountEmail ?? '—'}</span>
+            {!isEditing && serviceAccountLink ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <ExternalAnchor href={serviceAccountLink.url}>
+                    {serviceAccountLink.email}
+                  </ExternalAnchor>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>View in Google Cloud Console</p>
+                </TooltipContent>
+              </Tooltip>
             ) : (
               <Textarea
                 {...field}
