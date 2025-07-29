@@ -10,7 +10,7 @@ export interface GoogleSheetsDestinationConfig {
 
 export interface LookerStudioDestinationConfig {
   type: DestinationTypeConfigEnum.LOOKER_STUDIO_CONFIG;
-  cacheTime: number; // in seconds
+  cacheLifetime: number; // in seconds
 }
 
 export type DestinationConfig = GoogleSheetsDestinationConfig | LookerStudioDestinationConfig;
