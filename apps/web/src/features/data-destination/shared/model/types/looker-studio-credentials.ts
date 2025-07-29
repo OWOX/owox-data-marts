@@ -1,12 +1,13 @@
 import type { DataDestination } from './data-destination.ts';
 
 export interface LookerStudioCredentials {
-  urlHost: string;
-  secretKey?: string;
+  deploymentUrl: string;
+  destinationId?: string;
+  destinationSecretKey?: string;
 }
 
 export function isLookerStudioCredentials(
   credentials: DataDestination['credentials']
 ): credentials is LookerStudioCredentials {
-  return 'urlHost' in credentials;
+  return 'deploymentUrl' in credentials;
 }
