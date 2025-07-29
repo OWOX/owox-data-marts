@@ -82,7 +82,7 @@ export function DataDestinationForm({
           )}
 
           {destinationType === DataDestinationType.LOOKER_STUDIO && (
-            <LookerStudioFields form={form} initialData={initialData} />
+            <LookerStudioFields form={form} />
           )}
         </FormLayout>
         <FormActions>

@@ -36,11 +36,11 @@ const LookerStudioDescription = () => (
     <AccordionTrigger>How do I connect to Looker Studio?</AccordionTrigger>
     <AccordionContent>
       <p className='mb-2'>
-        To send data to Looker Studio, you need to provide a URL host that the Looker Studio
+        To send data to Looker Studio, you need to provide a deployment URL that the Looker Studio
         connector will use to access your data.
       </p>
       <p className='mb-2'>
-        Make sure the URL is accessible from the internet and properly secured.
+        Make sure the deployment URL is accessible from the internet and properly secured.
       </p>
     </AccordionContent>
   </AccordionItem>
