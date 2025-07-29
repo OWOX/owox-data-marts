@@ -34,7 +34,7 @@ export const AwsAthenaFields = ({ form }: AwsAthenaFieldsProps) => {
       setMaskedSecretValue(maskedValue);
       form.setValue('credentials.secretAccessKey', maskedValue, { shouldDirty: false });
     }
-  }, []);
+  }, [form]);
 
   if (form.watch('type') !== DataStorageType.AWS_ATHENA) {
     return null;

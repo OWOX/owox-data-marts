@@ -31,7 +31,7 @@ export function DataStorageDetails({ dataStorage, isLoading = false }: DataStora
     return <div>No storage information available.</div>;
   }
 
-  const { type, config, credentials, createdAt, modifiedAt } = dataStorage;
+  const { type, config, createdAt, modifiedAt } = dataStorage;
 
   return (
     <div className='space-y-2'>
@@ -52,7 +52,7 @@ export function DataStorageDetails({ dataStorage, isLoading = false }: DataStora
         </div>
 
         <div className='bg-muted/10 rounded-md border p-4'>
-          <DataStorageInfo type={type} config={config} credentials={credentials} />
+          <DataStorageInfo type={type} config={config} />
         </div>
 
         <div className='text-muted-foreground flex gap-6 text-xs'>
