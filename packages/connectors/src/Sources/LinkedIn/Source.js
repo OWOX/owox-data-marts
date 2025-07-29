@@ -10,44 +10,64 @@ var LinkedInSource = class LinkedInSource extends AbstractSource {
     super(config.mergeParameters({
       AccessToken: {
         isRequired: true,
-        requiredType: "string"
+        requiredType: "string",
+        label: "Access Token",
+        description: "LinkedIn API Access Token for authentication"
       },
       ApiType: {
         requiredType: "number",
-        default: LinkedInApiTypes.ADS
+        default: LinkedInApiTypes.ADS,
+        label: "API Type",
+        description: "LinkedIn API type (Ads or Pages)"
       },
       Version: {
         requiredType: "string",
-        default: "202504"
+        default: "202504",
+        label: "API Version",
+        description: "LinkedIn API version"
       },
       ReimportLookbackWindow: {
         requiredType: "number",
         isRequired: true,
-        default: 2
+        default: 2,
+        label: "Reimport Lookback Window",
+        description: "Number of days to look back when reimporting data"
       },
       CleanUpToKeepWindow: {
-        requiredType: "number"
+        requiredType: "number",
+        label: "Clean Up To Keep Window",
+        description: "Number of days to keep data before cleaning up"
       },
       MaxFetchingDays: {
         requiredType: "number",
         isRequired: true,
-        default: 31
+        default: 31,
+        label: "Max Fetching Days",
+        description: "Maximum number of days to fetch data for"
       },
       BaseUrl: {
         requiredType: "string",
-        default: "https://api.linkedin.com/rest/"
+        default: "https://api.linkedin.com/rest/",
+        label: "Base URL",
+        description: "LinkedIn API base URL"
       },
       StartDate: {
         requiredType: "date",
-        default: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+        default: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+        label: "Start Date",
+        description: "Start date for data import"
       },
       Fields: {
-        isRequired: true
+        isRequired: true,
+        label: "Fields",
+        description: "List of fields to fetch from LinkedIn API"
       },
       MaxFieldsPerRequest: {
         requiredType: "number",
         isRequired: true,
-        default: 20
+        default: 20,
+        label: "Max Fields Per Request",
+        description: "Maximum number of fields to request per API call"
       }
     }));
     
@@ -56,7 +76,9 @@ var LinkedInSource = class LinkedInSource extends AbstractSource {
       this.fieldsSchema = LinkedInAdsFieldsSchema;
       this.config = this.config.mergeParameters({
         AccountURNs: {
-          isRequired: true
+          isRequired: true,
+          label: "Account URNs",
+          description: "LinkedIn Ads Account URNs to fetch data from"
         }
       });
     } else if (this.config.OrganizationURNs) {
@@ -64,7 +86,9 @@ var LinkedInSource = class LinkedInSource extends AbstractSource {
       this.fieldsSchema = LinkedInPagesFieldsSchema;
       this.config = this.config.mergeParameters({
         OrganizationURNs: {
-          isRequired: true
+          isRequired: true,
+          label: "Organization URNs",
+          description: "LinkedIn Organization URNs to fetch data from"
         }
       });
     } else {

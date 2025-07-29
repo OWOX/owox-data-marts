@@ -12,80 +12,80 @@ var BingAdsSource = class BingAdsSource extends AbstractSource {
       DeveloperToken: {
         isRequired: true,
         requiredType: "string",
-        displayName: "Developer Token",
+        label: "Developer Token",
         description: "Your Bing Ads API Developer Token"
       },
       ClientID: {
         isRequired: true,
         requiredType: "string",
-        displayName: "Client ID",
+        label: "Client ID",
         description: "Your Bing Ads API Client ID"
       },
       ClientSecret: {
         isRequired: true,
         requiredType: "string",
-        displayName: "Client Secret",
+        label: "Client Secret",
         description: "Your Bing Ads API Client Secret"
       },
       RefreshToken: {
         isRequired: true,
         requiredType: "string",
-        displayName: "Refresh Token",
+        label: "Refresh Token",
         description: "Your Bing Ads API Refresh Token"
       },
       AccountID: {
         isRequired: true,
         requiredType: "string",
-        displayName: "Account ID",
+        label: "Account ID",
         description: "Your Bing Ads Account ID"
       },
       CustomerID: {
         isRequired: true,
         requiredType: "string",
-        displayName: "Customer ID",
+        label: "Customer ID",
         description: "Your Bing Ads Customer ID"
       },
       StartDate: {
         requiredType: "date",
         isRequired: true,
-        displayName: "Start Date",
-        description: "Start date for the data to be fetched"
+        label: "Start Date",
+        description: "Start date for data import"
       },
       EndDate: {
         requiredType: "date",
-        displayName: "End Date",
-        description: "End date for the data to be fetched"
+        label: "End Date",
+        description: "End date for data import"
       },
       ReimportLookbackWindow: {
         requiredType: "number",
         isRequired: true,
         default: 2,
-        displayName: "Reimport Lookback Window",
+        label: "Reimport Lookback Window",
         description: "Number of days to look back when reimporting data"
       },
       MaxFetchingDays: {
         requiredType: "number",
         isRequired: true,
         default: 30,
-        displayName: "Max Fetching Days",
+        label: "Max Fetching Days",
         description: "Maximum number of days to fetch data for"
       },
       ReportTimezone: {
         requiredType: "string",
         default: "GreenwichMeanTimeDublinEdinburghLisbonLondon",
-        displayName: "Report Timezone",
+        label: "Report Timezone",
         description: "Timezone for the report data"
       },
       Aggregation: {
         requiredType: "string",
         default: "Daily",
-        displayName: "Aggregation",
+        label: "Aggregation",
         description: "Aggregation for reports (e.g. Daily, Weekly, Monthly)"
       },
       ReportType: {
         requiredType: "string",
         default: "UserLocationPerformanceReportRequest",
-        displayName: "Report Type",
+        label: "Report Type",
         description: "Type of report to generate (e.g. AdPerformanceReportRequest, UserLocationPerformanceReportRequest)"
       }
     }));

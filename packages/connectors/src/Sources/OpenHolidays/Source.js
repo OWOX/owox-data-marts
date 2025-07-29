@@ -13,21 +13,29 @@ var OpenHolidaysSource = class OpenHolidaysSource extends AbstractSource {
       countryIsoCode: {
         isRequired: true,
         requiredType: "string",
-        default: "CH"
+        default: "CH",
+        label: "Country ISO Code",
+        description: "ISO country code for which to fetch holidays (e.g., CH, US, GB)"
         // value: "CH" 
       },
       languageIsoCode: {
         isRequired: true,
-        requiredType: "string"
+        requiredType: "string",
+        label: "Language ISO Code",
+        description: "ISO language code for holiday names (e.g., EN, DE, FR)"
         // value: "EN" 
       },
       StartDate: {
         isRequired: true,
-        requiredType: "date"
+        requiredType: "date",
+        label: "Start Date",
+        description: "Start date for data import"
       },
       EndDate: {
         isRequired: true,
-        requiredType: "date"
+        requiredType: "date",
+        label: "End Date",
+        description: "End date for data import"
       }
     }));
   }

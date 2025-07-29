@@ -443,16 +443,14 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
      */
     sendNotifications({ status, error }) {
       try {
-        const formattedMessage = this.formatStatusMessage({ status, error });
-        const statusDisplayText = this.getStatusProperties(status).displayText;
+        const { title, messageWithDetails } = this.prepareNotificationContent({ status, error });
         
         // Send email notification if NotifyByEmail has value
         if (this.NotifyByEmail && this.NotifyByEmail.value && this.NotifyByEmail.value.trim()) {
           EmailNotification.send({
             to: this.NotifyByEmail.value,
-            message: formattedMessage,
-            status: statusDisplayText,
-            connectorName: this.configSpreadsheet.getName()
+            subject: title,
+            message: messageWithDetails
           });
         }
         
@@ -460,9 +458,7 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
         if (this.NotifyByGoogleChat && this.NotifyByGoogleChat.value && this.NotifyByGoogleChat.value.trim()) {
           GoogleChatNotification.send({
             webhookUrl: this.NotifyByGoogleChat.value.trim(),
-            message: formattedMessage,
-            status: statusDisplayText,
-            connectorName: this.configSpreadsheet.getName()
+            message: messageWithDetails
           });
         }
       } catch (error) {
@@ -471,25 +467,26 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
     }
     //----------------------------------------------------------------
 
-  //---- formatStatusMessage -----------------------------------------
+  //---- prepareNotificationContent ----------------------------------
     /**
-     * Format user-friendly status message
+     * Prepare notification title and message content
      * @param {Object} params - Parameters object
      * @param {number} params.status - Status constant
-     * @param {string} params.error - Error message if status is Error
-     * @returns {string} - Formatted message
+     * @param {string} params.error - Error message for Error status
+     * @returns {Object} - Object with title and messageWithDetails properties
      */
-    formatStatusMessage({ status, error }) {
-      const statusProps = this.getStatusProperties(status);
+    prepareNotificationContent({ status, error }) {
+      const documentName = this.configSpreadsheet.getName();
+      const documentUrl = this.configSpreadsheet.getUrl();
+      const { displayText, notificationMessage } = this.getStatusProperties(status);
+      const title = `${documentName} - Status: ${displayText}`;
       
-      if (status === EXECUTION_STATUS.ERROR && error) {
-        return `${statusProps.notificationMessage}: ${error}`;
-      }
-      
-      return statusProps.notificationMessage;
+      return {
+        title,
+        messageWithDetails: `${title}\n${documentUrl}\n\n${notificationMessage}${status === EXECUTION_STATUS.ERROR && error ? `: ${error}` : ''}`
+      };
     }
     //----------------------------------------------------------------
-
 
   //---- shouldSendNotifications -------------------------------------
     /**
@@ -521,26 +518,26 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
   //---- createTimeoutTrigger ----------------------------------------
     createTimeoutTrigger() {
       this.removeTimeoutTrigger();
-      const trigger = ScriptApp.newTrigger('checkForTimeout')
+      ScriptApp.newTrigger('checkForTimeout')
         .timeBased()
         .after((this.MaxRunTimeout.value * 2 + 1) * 60 * 1000) // The trigger fires after (MaxRunTimeout * 2 + 1) minutes to ensure isInProgress() returns false even if LastImportDate was updated at the end of the import.
         .create();
-      PropertiesService.getScriptProperties().setProperty('timeoutTriggerId', trigger.getUniqueId());
     }
     //----------------------------------------------------------------
 
   //---- removeTimeoutTrigger ----------------------------------------
     removeTimeoutTrigger() {
-      const triggerId = PropertiesService.getScriptProperties().getProperty('timeoutTriggerId');
-      if (triggerId) {
-        const triggers = ScriptApp.getProjectTriggers();
-        triggers.forEach(trigger => {
-          if (trigger.getUniqueId() === triggerId) {
-            ScriptApp.deleteTrigger(trigger);
-          }
-        });
-        PropertiesService.getScriptProperties().deleteProperty('timeoutTriggerId');
-      }
+      const triggers = ScriptApp.getProjectTriggers();
+      let removedCount = 0;
+      
+      triggers.forEach(trigger => {
+        if (trigger.getHandlerFunction() === 'checkForTimeout') {
+          ScriptApp.deleteTrigger(trigger);
+          removedCount++;
+        }
+      });
+      
+      console.log(`[TimeoutTrigger] ${removedCount > 0 ? `Removed ${removedCount} timeout trigger(s)` : 'No timeout triggers found to remove'}`);
     }
     //----------------------------------------------------------------
 
@@ -555,7 +552,6 @@ var GoogleSheetsConfig = class GoogleSheetsConfig extends AbstractConfig {
       } else {
         console.log('[TimeoutTrigger] Status is still in progress');
       }
-      this.removeTimeoutTrigger();
     }
     //----------------------------------------------------------------
 }

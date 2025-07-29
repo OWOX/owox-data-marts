@@ -11,51 +11,77 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
       ClientId: {
         isRequired: true,
         requiredType: "string",
+        label: "Client ID",
+        description: "Reddit Ads API Client ID"
       },
       ClientSecret: {
         isRequired: true,
         requiredType: "string",
+        label: "Client Secret",
+        description: "Reddit Ads API Client Secret"
       },
       RedirectUri: {
         isRequired: true,
         requiredType: "string",
+        label: "Redirect URI",
+        description: "Reddit Ads API Redirect URI for OAuth"
       },
       RefreshToken: {
         isRequired: true,
         requiredType: "string",
+        label: "Refresh Token",
+        description: "Reddit Ads API Refresh Token"
       },
       UserAgent: {
         isRequired: true,
         requiredType: "string",
+        label: "User Agent",
+        description: "User Agent string for Reddit API requests"
       },
       AccessToken: {
         requiredType: "string",
+        label: "Access Token",
+        description: "Reddit Ads API Access Token (auto-generated)"
       },
       AccountIDs: {
         isRequired: true,
+        label: "Account IDs",
+        description: "Reddit Ads Account IDs to fetch data from"
       },
       StartDate: {
         requiredType: "date",
         isRequired: true,
+        label: "Start Date",
+        description: "Start date for data import"
       },
       EndDate: {
         requiredType: "date",
+        label: "End Date",
+        description: "End date for data import"
       },
       Fields: {
         isRequired: true,
+        label: "Fields",
+        description: "List of fields to fetch from Reddit API"
       },
       ReimportLookbackWindow: {
         requiredType: "number",
         isRequired: true,
         default: 2,
+        label: "Reimport Lookback Window",
+        description: "Number of days to look back when reimporting data"
       },
       CleanUpToKeepWindow: {
         requiredType: "number",
+        label: "Clean Up To Keep Window",
+        description: "Number of days to keep data before cleaning up"
       },
       MaxFetchingDays: {
         requiredType: "number",
         isRequired: true,
         default: 31,
+        label: "Max Fetching Days",
+        description: "Maximum number of days to fetch data for"
       }
     }));
 
