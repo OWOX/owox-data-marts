@@ -2,7 +2,6 @@ import { Badge } from '@owox/ui/components/badge';
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { type DataDestination } from '../../model';
 import { DataDestinationTypeModel } from '../../types';
-import { DataDestinationInfo } from '../DataDestinationInfo';
 
 export interface DataDestinationDetailsProps {
   dataDestination?: DataDestination | null;
@@ -34,7 +33,7 @@ export function DataDestinationDetails({
     return <div>No destination information available.</div>;
   }
 
-  const { type, credentials, createdAt, modifiedAt } = dataDestination;
+  const { type, createdAt, modifiedAt } = dataDestination;
 
   return (
     <div className='space-y-2'>
@@ -52,10 +51,6 @@ export function DataDestinationDetails({
               );
             })()}
           </Badge>
-        </div>
-
-        <div className='bg-muted/10 rounded-md border p-4'>
-          <DataDestinationInfo type={type} credentials={credentials} />
         </div>
 
         <div className='text-muted-foreground flex gap-6 text-xs'>
