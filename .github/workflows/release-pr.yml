@@ -28,10 +28,10 @@ jobs:
 
       - uses: changesets/action@v1 # only creates/updates PR
 
-      - name: Fix changelog headings
+      - name: Fix changelogs headings
         run: node tools/fix-changelog-headings.mjs
 
-      - name: Commit fixed changelog
+      - name: Commit fixed changelogs
         run: |
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
