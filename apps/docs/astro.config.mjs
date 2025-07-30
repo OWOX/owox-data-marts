@@ -47,6 +47,10 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               label: 'Editions',
               items: ['docs/editions/all-editions', 'docs/editions/appsscript-edition'],
             },
+            {
+              label: 'Setup Guide',
+              autogenerate: { directory: 'docs/getting-started/setup-guide' },
+            },
           ],
         },
         {
@@ -55,11 +59,23 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         },
         {
           label: 'Storages',
-          autogenerate: { directory: 'packages/connectors/src/storages' },
+          items: [
+            'docs/storages/manage-storages',
+            {
+              label: 'Supported Storages',
+              autogenerate: { directory: 'docs/storages/supported-storages' },
+            },
+          ],
         },
         {
           label: 'Destinations',
-          items: [],
+          items: [
+            'docs/destinations/manage-destinations',
+            {
+              label: 'Supported Destinations',
+              autogenerate: { directory: 'docs/destinations/supported-destinations' },
+            },
+          ],
         },
         {
           label: 'Contributing',
