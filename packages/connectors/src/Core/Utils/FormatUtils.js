@@ -5,7 +5,23 @@
  * file that was distributed with this source code.
  */
 
-var LinkedInHelper = {
+/**
+ * Utilities for parsing and formatting data
+ */
+var FormatUtils = {
+  /**
+   * Universal URN parser: parses comma/semicolon separated string to array of numeric IDs
+   * @param {string} urnsString - Comma/semicolon separated list of IDs/URNs
+   * @param {Object} options
+   * @param {string} options.prefix - URN prefix, e.g. 'urn:li:organization:'
+   * @return {Array<number>} Array of numeric IDs
+   */
+  parseUrns: function(urnsString, {prefix}) {
+    return String(urnsString)
+      .split(/[,;]\s*/)
+      .map(urn => this.formatUrn(urn.trim(), {prefix}));
+  },
+
   /**
    * Universal URN formatter: extracts numeric ID from URN or returns number if already numeric
    * @param {string|number} urn
@@ -21,19 +37,6 @@ var LinkedInHelper = {
   },
 
   /**
-   * Universal URN parser: parses comma/semicolon separated string to array of numeric IDs
-   * @param {string} urnsString - Comma/semicolon separated list of IDs/URNs
-   * @param {Object} options
-   * @param {string} options.prefix - URN prefix, e.g. 'urn:li:organization:'
-   * @return {Array<number>} Array of numeric IDs
-   */
-  parseUrns: function(urnsString, {prefix}) {
-    return String(urnsString)
-      .split(/[,;]\s*/)
-      .map(urn => this.formatUrn(urn.trim(), {prefix}));
-  },
-
-  /**
    * Parse fields string into a structured object
    * @param {string} fieldsString - Fields string in format "nodeName fieldName, nodeName fieldName"
    * @return {Object} Object with node names as keys and arrays of field names as values
@@ -45,7 +48,7 @@ var LinkedInHelper = {
       return acc;
     }, {});
   },
-  
+
   /**
    * Format an array of field names for use in API URLs
    * @param {Array<string>} fields - Array of field names
@@ -56,9 +59,9 @@ var LinkedInHelper = {
   },
   
   /**
-   * Format date for LinkedIn API URL parameters
+   * Format date for URL parameters
    * @param {Date} date - Date object
-   * @return {string} Formatted date string for LinkedIn API
+   * @return {string} Formatted date string
    */
   formatDateForUrl: function(date) {
     return `(year:${date.getFullYear()},month:${date.getMonth() + 1},day:${date.getDate()})`;

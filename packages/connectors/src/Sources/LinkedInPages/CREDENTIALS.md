@@ -1,6 +1,6 @@
-# How to obtain the Access Token for Linkedin Ads and Linkedin Pages Sources
+# How to obtain the Access Token for Linkedin Pages Sources
 
-To connect to LinkedIn Ads and Pages through the API, you need to create an app, request access to the API, and generate an access token. Follow the steps below to complete the process.
+To connect to LinkedIn Pages through the API, you need to create an app, request access to the API, and generate an access token. Follow the steps below to complete the process.
 
 ## Step 1: Create a LinkedIn App
 
@@ -34,10 +34,6 @@ Go to the **Settings** tab and click the **Verify** button. The administrator of
 
 Once your app is verified, navigate to the **Products** tab in the LinkedIn Developer Portal and request access to the necessary APIs.
 
-If you need access to **advertising data**: to retrieve campaign performance, audience insights, ad creatives, and other paid media metrics, request access to the **Advertising API**.
-
-![LinkedIn app request](res/linkedin_request.png)
-
 If you need access to **LinkedIn Page** data: to work with organic content and page analytics — such as posts, followers, reactions, comments, shares, and engagement metrics — request access to both:
 
 - **Share on LinkedIn**
@@ -51,7 +47,7 @@ If you need access to **LinkedIn Page** data: to work with organic content and p
 
 ![LinkedIn request accepted](res/linkedin_accepted.png)
 
-When access is granted, the **Advertising API** / **Share on LinkedIn** and **Community Management API** will appear under the **Added Products** section on the Products page.
+When access is granted, the **Share on LinkedIn** and **Community Management API** will appear under the **Added Products** section on the Products page.
 
 ![LinkedIn Adv API added](res/linkedin_addedapi.png)
 
@@ -75,12 +71,7 @@ make sure you've requested and received approval for the necessary APIs in **Ste
 
 ---
 
-Select the required scopes for **advertising data** access:
-
-- `r_ads`  
-- `r_ads_reporting`  
-
-**Or** select the required scopes for **pages data** access:
+Select select the required scopes for **pages data** access:
 
 - `r_organization_social`  
 - `r_organization_followers`  

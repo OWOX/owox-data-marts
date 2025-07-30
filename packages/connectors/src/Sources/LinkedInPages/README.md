@@ -1,6 +1,6 @@
-# LinkedIn Ads / LinkedIn Pages Source
+# LinkedIn Pages Source
 
-The **LinkedIn Ads / LinkedIn Pages Source** allows you to seamlessly export raw data from LinkedIn Ads / LinkedIn Pages. Use this data for custom analysis, reporting, or to power your marketing dashboards.
+The **LinkedIn Pages Source** allows you to seamlessly export raw data from LinkedIn Pages. Use this data for custom analysis, reporting, or to power your marketing dashboards.
 
 ## Getting Started
 
@@ -8,7 +8,7 @@ Ready to get up and running? Follow our [**Getting Started Guide**](GETTING_STAR
 
 ## Documentation
 
-Here's everything you need to know about the LinkedIn Ads Connector:
+Here's everything you need to know about the LinkedIn Pages Connector:
 
 - [**Getting Started**](GETTING_STARTED.md) – quick setup instructions.
 - [**README**](README.md) – general overview and usage.

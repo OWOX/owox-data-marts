@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Array of folders to run clasp commands in
-folders=("Sources/BankOfCanada" "Sources/FacebookMarketing" "Sources/OpenExchangeRates" "Sources/TikTokAds" "Sources/LinkedIn" "Sources/BingAds" "Sources/XAds" "Sources/CriteoAds" "Templates/PublicEndPoint" "Templates/Token-Based")
+folders=("Sources/BankOfCanada" "Sources/FacebookMarketing" "Sources/OpenExchangeRates" "Sources/TikTokAds" "Sources/LinkedInAds" "Sources/LinkedInPages" "Sources/BingAds" "Sources/XAds" "Sources/CriteoAds" "Templates/PublicEndPoint" "Templates/Token-Based")
 
 # Exit script on any error
 set -e

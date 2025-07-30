@@ -20,9 +20,9 @@ function onOpen() {
 function importNewData() {
   const config = new OWOX.GoogleSheetsConfig(CONFIG_RANGE);
   const properties = PropertiesService.getDocumentProperties().getProperties();
-    const source = new OWOX.LinkedInSource(config.setParametersValues(properties));
+    const source = new OWOX.LinkedInAdsSource(config.setParametersValues(properties));
 
-  const connector = new OWOX.LinkedInConnector(
+  const connector = new OWOX.LinkedInAdsConnector(
     config, 
     source,
     "GoogleSheetsStorage"
@@ -36,7 +36,7 @@ function updateFieldsSheet() {
   const config = new OWOX.GoogleSheetsConfig( CONFIG_RANGE );
 
   config.updateFieldsSheet(
-    new OWOX.LinkedInSource( config.setParametersValues( {"AccessToken": "undefined", "Fields": "undefined"} ))
+    new OWOX.LinkedInAdsSource( config.setParametersValues( {"AccessToken": "undefined", "Fields": "undefined"} ))
   );
 }
 
