@@ -21,7 +21,7 @@ var LinkedInPagesConnector = class LinkedInPagesConnector extends AbstractConnec
    * Processes all nodes defined in the fields configuration
    */
   startImportProcess() {
-    const urns = FormatUtils.parseUrns(this.config.OrganizationURNs.value, {prefix: 'urn:li:organization:'});
+    const urns = FormatUtils.parseIds(this.config.OrganizationURNs.value, {prefix: 'urn:li:organization:'});
     const dataSources = FormatUtils.parseFields(this.config.Fields.value);
     
     for (const nodeName in dataSources) {
@@ -76,35 +76,16 @@ var LinkedInPagesConnector = class LinkedInPagesConnector extends AbstractConnec
     for (const urn of urns) {
       console.log(`Processing ${nodeName} for ${urn}${isTimeSeriesNode ? ` from ${startDate} to ${endDate}` : ''}`);
       
-      const params = ConnectorUtils.prepareRequestParams({ fields, isTimeSeriesNode, startDate, endDate });
+      const params = { fields, ...(isTimeSeriesNode && { startDate, endDate }) };
       const data = this.source.fetchData(nodeName, urn, params);
-      console.log(`Fetched ${data.length} rows for ${nodeName}`);
       const preparedData = this.addMissingFieldsToData(data, fields);
       
-      this.saveDataToStorage({ 
-        nodeName, 
-        urn, 
-        data: preparedData, 
-        ...(isTimeSeriesNode && { startDate, endDate })
-      });
-    }
-  }
-
-  /**
-   * Save fetched data to storage
-   * @param {Object} options - Storage options
-   * @param {string} options.nodeName - Name of the node
-   * @param {string} options.urn - URN of the processed entity
-   * @param {Array} options.data - Data to save
-   * @param {string} [options.startDate] - Start date for time series data
-   * @param {string} [options.endDate] - End date for time series data
-   */
-  saveDataToStorage({ nodeName, urn, data, startDate, endDate }) {
-    if (data.length) {
-      this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for ${urn}${endDate ? ` from ${startDate} to ${endDate}` : ''}`);
-      this.getStorageByNode(nodeName).saveData(data);
-    } else {
-      this.config.logMessage(`No data fetched for ${nodeName} and ${urn}${endDate ? ` from ${startDate} to ${endDate}` : ''}`);
+      if (preparedData.length) {
+        this.config.logMessage(`${preparedData.length} rows of ${nodeName} were fetched for ${urn}${endDate ? ` from ${startDate} to ${endDate}` : ''}`);
+        this.getStorageByNode(nodeName).saveData(preparedData);
+      } else {
+        this.config.logMessage(`No data fetched for ${nodeName} and ${urn}${endDate ? ` from ${startDate} to ${endDate}` : ''}`);
+      }
     }
   }
 
