@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { runMigrationsIfNeeded } from './config/migrations.config';
 import { loadEnv } from './load-env';
 import { Express } from 'express';
+import { AppModule } from './app.module';
 
 const logger = createLogger('Bootstrap');
 const PATH_PREFIX = 'api';
@@ -35,9 +36,6 @@ export async function bootstrap(options: BootstrapOptions): Promise<NestExpressA
   if (options.webEnabled !== undefined) process.env.WEB_ENABLED = options.webEnabled.toString();
 
   await runMigrationsIfNeeded(configService);
-
-  // Import existing AppModule
-  const { AppModule } = await import('./app.module');
 
   // Create NestJS app with existing Express instance using ExpressAdapter
   const app = await NestFactory.create<NestExpressApplication>(
