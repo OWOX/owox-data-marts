@@ -10,30 +10,30 @@
  */
 var FormatUtils = {
   /**
-   * Universal URN parser: parses comma/semicolon separated string to array of numeric IDs
-   * @param {string} urnsString - Comma/semicolon separated list of IDs/URNs
+   * Universal ID parser: parses comma/semicolon separated string to array of numeric IDs
+   * @param {string} idsString - Comma/semicolon separated list of IDs
    * @param {Object} options
-   * @param {string} options.prefix - URN prefix, e.g. 'urn:li:organization:'
+   * @param {string} options.prefix - ID prefix, e.g. 'urn:li:organization:'
    * @return {Array<number>} Array of numeric IDs
    */
-  parseUrns: function(urnsString, {prefix}) {
-    return String(urnsString)
+  parseIds: function(idsString, {prefix}) {
+    return String(idsString)
       .split(/[,;]\s*/)
-      .map(urn => this.formatUrn(urn.trim(), {prefix}));
+      .map(id => this.formatId(id.trim(), {prefix}));
   },
 
   /**
-   * Universal URN formatter: extracts numeric ID from URN or returns number if already numeric
-   * @param {string|number} urn
+   * Universal ID formatter: extracts numeric ID from prefixed string or returns number if already numeric
+   * @param {string|number} id
    * @param {Object} options
-   * @param {string} options.prefix - URN prefix, e.g. 'urn:li:organization:'
+   * @param {string} options.prefix - ID prefix, e.g. 'urn:li:organization:'
    * @return {number} Numeric ID
    */
-  formatUrn: function(urn, {prefix}) {
-    if (typeof urn === 'string' && urn.startsWith(prefix)) {
-      return parseInt(urn.replace(prefix, ''));
+  formatId: function(id, {prefix}) {
+    if (typeof id === 'string' && id.startsWith(prefix)) {
+      return parseInt(id.replace(prefix, ''));
     }
-    return parseInt(urn);
+    return parseInt(id);
   },
 
   /**
@@ -47,24 +47,6 @@ var FormatUtils = {
       (acc[key] = acc[key] || []).push(value.trim());
       return acc;
     }, {});
-  },
-
-  /**
-   * Format an array of field names for use in API URLs
-   * @param {Array<string>} fields - Array of field names
-   * @return {string} Comma-separated string of URL-encoded field names
-   */
-  formatFields: function(fields) {
-    return fields.map(field => encodeURIComponent(field)).join(",");
-  },
-  
-  /**
-   * Format date for URL parameters
-   * @param {Date} date - Date object
-   * @return {string} Formatted date string
-   */
-  formatDateForUrl: function(date) {
-    return `(year:${date.getFullYear()},month:${date.getMonth() + 1},day:${date.getDate()})`;
   },
 
   /**

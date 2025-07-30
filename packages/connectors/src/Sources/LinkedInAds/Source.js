@@ -121,7 +121,7 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
    */
   fetchSingleResource({ urn, resourceType, params }) {
     let url = `${this.config.BaseUrl.value}${resourceType}/${encodeURIComponent(urn)}`;
-    url += `?fields=${FormatUtils.formatFields(params.fields)}`;
+    url += `?fields=${this.formatFields(params.fields)}`;
       
     const result = this.makeRequest(url);
     return [result]; // Return as array to match other endpoints
@@ -138,7 +138,7 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
    */
   fetchAdResource({ urn, resourceType, params, queryType = 'search' }) {
     let url = `${this.config.BaseUrl.value}adAccounts/${encodeURIComponent(urn)}/${resourceType}?q=${queryType}&pageSize=100`;
-    url += `&fields=${FormatUtils.formatFields(params.fields)}`;
+    url += `&fields=${this.formatFields(params.fields)}`;
     
     return this.fetchWithPagination(url);
   }
@@ -226,12 +226,30 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
   buildAdAnalyticsUrl({ startDate, endDate, encodedUrn, fields }) {
     // Construct the URL for the LinkedIn Analytics API
     return `${this.config.BaseUrl.value}adAnalytics?q=statistics` +
-      `&dateRange=(start:${FormatUtils.formatDateForUrl(startDate)},` +
-      `end:${FormatUtils.formatDateForUrl(endDate)})` +
+      `&dateRange=(start:${this.formatDateForUrl(startDate)},` +
+      `end:${this.formatDateForUrl(endDate)})` +
       `&pivots=List(CREATIVE,CAMPAIGN,CAMPAIGN_GROUP,ACCOUNT)` +
       `&timeGranularity=DAILY` +
       `&accounts=List(${encodedUrn})` +
-      `&fields=${FormatUtils.formatFields(fields)}`;
+      `&fields=${this.formatFields(fields)}`;
+  }
+
+  /**
+    * Format date for LinkedIn API URL parameters
+    * @param {Date} date - Date object
+    * @return {string} Formatted date string for LinkedIn API
+    */
+  formatDateForUrl(date) {
+    return `(year:${date.getFullYear()},month:${date.getMonth() + 1},day:${date.getDate()})`;
+  }
+
+  /**
+   * Format an array of field names for use in API URLs
+   * @param {Array<string>} fields - Array of field names
+   * @return {string} Comma-separated string of URL-encoded field names
+   */
+  formatFields(fields) {
+    return fields.map(field => encodeURIComponent(field)).join(",");
   }
 
   /**
@@ -301,18 +319,17 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
    * @param {Object} headers - Optional additional headers
    * @returns {Object} - API response parsed from JSON
    */
-  makeRequest(url, headers = {}) {
+  makeRequest(url) {
     console.log(`LinkedIn Ads API Request URL:`, url);
     
-    const defaultHeaders = {
+    const headers = {
       "LinkedIn-Version": this.config.Version.value,
       "X-RestLi-Protocol-Version": "2.0.0",
     };
     
-    const mergedHeaders = { ...defaultHeaders, ...headers };
     const authUrl = `${url}${url.includes('?') ? '&' : '?'}oauth2_access_token=${this.config.AccessToken.value}`;
     
-    const response = EnvironmentAdapter.fetch(authUrl, { headers: mergedHeaders });
+    const response = EnvironmentAdapter.fetch(authUrl, { headers });
     const result = JSON.parse(response.getContentText());
     
     console.log(`LinkedIn Ads API Response:`, JSON.stringify(result, null, 2));
@@ -325,7 +342,7 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
    * @param {Object} headers - Optional additional headers
    * @returns {Array} - Combined array of results from all pages
    */
-  fetchWithPagination(baseUrl, headers = {}) {
+  fetchWithPagination(baseUrl) {
     let allResults = [];
     let pageToken = null;
     
@@ -335,7 +352,7 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
         pageUrl += `${pageUrl.includes('?') ? '&' : '?'}pageToken=${encodeURIComponent(pageToken)}`;
       }
       
-      const res = this.makeRequest(pageUrl, headers);
+      const res = this.makeRequest(pageUrl);
       const elements = res.elements || [];
       allResults = allResults.concat(elements);
       

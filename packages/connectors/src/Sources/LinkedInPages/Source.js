@@ -161,16 +161,15 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
    * @param {Object} headers - Optional additional headers
    * @returns {Object} - API response parsed from JSON
    */
-  makeRequest(url, headers = {}) {
-    const defaultHeaders = {
+  makeRequest(url) {
+    const headers = {
       "LinkedIn-Version": this.config.Version.value,
       "X-RestLi-Protocol-Version": "2.0.0",
     };
       
-    const mergedHeaders = { ...defaultHeaders, ...headers };
     const authUrl = `${url}${url.includes('?') ? '&' : '?'}oauth2_access_token=${this.config.AccessToken.value}`;
       
-    const response = EnvironmentAdapter.fetch(authUrl, { headers: mergedHeaders });
+    const response = EnvironmentAdapter.fetch(authUrl, { headers });
     const result = JSON.parse(response.getContentText());
       
     return result;
