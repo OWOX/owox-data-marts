@@ -1,7 +1,7 @@
 # Common settings that generally should always be used with your language specific settings
 
 # Auto detect text files and perform LF normalization
-*          text=auto
+*          text eol=lf
 
 #
 # The above will handle all files NOT found below

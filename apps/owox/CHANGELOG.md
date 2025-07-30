@@ -2,7 +2,7 @@
 
 ## 0.4.0
 
-### Minor Changes
+### Minor Changes 0.4.0
 
 - ac64efd: **# Add Data Mart Connector Icons**
 
@@ -88,13 +88,13 @@
 
   - We’ve also made a few small improvements to the UI and copy to make everything feel more polished and cohesive.
 
-### Patch Changes
+### Patch Changes 0.4.0
 
 - @owox/backend@0.4.0
 
 ## 0.3.0
 
-### Minor Changes
+### Minor Changes 0.3.0
 
 - 543f30d: # ⏰ Time Triggers: Schedule Your Reports and Connectors
 
@@ -103,6 +103,7 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
+
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -110,6 +111,7 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
+
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
@@ -123,10 +125,10 @@
 
 ## 0.2.0
 
-### Minor Changes
+### Minor Changes 0.2.0
 
 - 71294b2: 2 July 2025 demo
 
-### Patch Changes
+### Patch Changes 0.2.0
 
 - @owox/backend@0.2.0
