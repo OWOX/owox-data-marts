@@ -17,7 +17,7 @@
     "find-process": "^1.4.10"
   },
   "peerDependencies": {
-    "express": "^4"
+    "express": "^5"
   },
   "devDependencies": {
     "@eslint/compat": "^1",
