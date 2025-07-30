@@ -64,7 +64,7 @@
   },
   "repository": "OWOX/owox-data-marts",
   "scripts": {
-    "build": "tsc -b",
+    "build": "npm run build -w @owox/backend && tsc -b",
     "lint": "eslint . --config ./eslint.config.mjs",
     "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",
     "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",
