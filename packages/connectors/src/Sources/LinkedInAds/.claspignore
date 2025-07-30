@@ -1,6 +1,6 @@
 **/**
-!Sources/LinkedIn/*.js
-!Sources/LinkedIn/**/*.js
+!Sources/LinkedInAds/*.js
+!Sources/LinkedInAds/**/*.js
 !appsscript.json
 !Core/**/*.js
 !Constants/*.js
