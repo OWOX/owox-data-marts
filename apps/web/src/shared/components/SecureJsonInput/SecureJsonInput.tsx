@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Eye, EyeOff, Lock } from 'lucide-react';
+import { Eye, EyeOff, Lock, Copy, Check } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { Textarea } from '@owox/ui/components/textarea';
 import {
@@ -19,6 +19,11 @@ interface SecureJsonInputProps {
    * or ability to edit. Useful for read-only displays of sensitive information.
    */
   displayOnly?: boolean;
+  /**
+   * When true, a copy button will be shown to allow copying the content to clipboard.
+   * This is useful for read-only displays where users might want to copy the content.
+   */
+  showCopyButton?: boolean;
 }
 
 interface JsonObject {
@@ -33,6 +38,7 @@ export function SecureJsonInput({
   keysToMask = [],
   className,
   displayOnly = false,
+  showCopyButton = false,
 }: SecureJsonInputProps) {
   // Function to check if any of the keysToMask actually exist in the content
   const hasSensitiveData = (jsonString: string, keys: string[]): boolean => {
@@ -67,6 +73,7 @@ export function SecureJsonInput({
     ? false
     : !value || keysToMask.length === 0 || !hasSensitiveData(value, keysToMask);
   const [isVisible, setIsVisible] = useState(shouldStartVisible);
+  const [isCopied, setIsCopied] = useState(false);
 
   // Update visibility when value or keys to mask change
   useEffect(() => {
@@ -77,6 +84,24 @@ export function SecureJsonInput({
       setIsVisible(true);
     }
   }, [value, keysToMask, displayOnly]);
+
+  // Reset copied state after 2 seconds
+  useEffect(() => {
+    if (isCopied) {
+      const timer = setTimeout(() => {
+        setIsCopied(false);
+      }, 2000);
+      return () => {
+        clearTimeout(timer);
+      };
+    }
+  }, [isCopied]);
+
+  // Handle copy action
+  const handleCopy = () => {
+    void navigator.clipboard.writeText(value);
+    setIsCopied(true);
+  };
 
   const getMaskedValue = (jsonString: string): string => {
     if (!jsonString) return '';
@@ -214,6 +239,39 @@ export function SecureJsonInput({
               </Tooltip>
             </TooltipProvider>
           )}
+        </Button>
+      )}
+
+      {/* Show copy button when showCopyButton is true */}
+      {showCopyButton && (
+        <Button
+          type='button'
+          variant='ghost'
+          className={`absolute ${hasSensitiveContent && !displayOnly ? 'top-2 right-24' : 'top-2 right-2'}`}
+          onClick={handleCopy}
+        >
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className='flex items-center gap-1'>
+                  {isCopied ? (
+                    <>
+                      <Check className='h-4 w-4' />
+                      <span className='text-xs'>Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className='h-4 w-4' />
+                      <span className='text-xs'>Copy</span>
+                    </>
+                  )}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Copy content to clipboard</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </Button>
       )}
     </div>

@@ -1,6 +1,6 @@
 {
   "name": "@owox/backend",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "OWOX Data Marts Backend - Full-stack data orchestration platform",
   "author": "OWOX",
   "license": "ELv2",
@@ -57,7 +57,9 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "migration:run": "npx typeorm-ts-node-commonjs migration:run -d ./src/data-source.ts",
     "migration:revert": "npx typeorm-ts-node-commonjs migration:revert -d ./src/data-source.ts",
-    "migration:create-template": "ts-node commands/create-migration-template.ts"
+    "migration:create-template": "ts-node commands/create-migration-template.ts",
+    "dump:create": "ts-node commands/create-dump-inserts.ts",
+    "dump:apply": "ts-node commands/apply-dump-inserts.ts"
   },
   "dependencies": {
     "@aws-sdk/client-athena": "^3.839.0",
@@ -71,8 +73,8 @@
     "@nestjs/schedule": "^6.0.0",
     "@nestjs/swagger": "^11.2.0",
     "@nestjs/typeorm": "^11.0.0",
-    "@owox/connector-runner": "0.3.0",
-    "@owox/connectors": "0.3.0",
+    "@owox/connector-runner": "0.4.0",
+    "@owox/connectors": "0.4.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
     "env-paths": "^3.0.0",

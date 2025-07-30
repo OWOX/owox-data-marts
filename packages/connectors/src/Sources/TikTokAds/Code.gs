@@ -280,7 +280,7 @@ function testConnection() {
       
       // Provide more helpful error messages for common issues
       if (error.message.includes("Access Token")) {
-        config.logMessage("ℹ️ Please check your Access Token. TikTok access tokens expire after 24 hours.");
+        config.logMessage("ℹ️ Please check your Access Token.");
       } else if (error.message.includes("advertiser")) {
         config.logMessage("ℹ️ Please check your Advertiser IDs. Make sure they are correct and accessible with your credentials.");
       } else if (error.message.includes("rate limit")) {

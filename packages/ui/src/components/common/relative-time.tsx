@@ -34,7 +34,7 @@ export default function RelativeTime({ date, className = '' }: RelativeTimeProps
 
     // Less than 1 minute
     if (diffMinutes < 1) {
-      return isPast ? 'just now' : 'in a moment';
+      return isPast ? 'Just now' : 'In a moment';
     }
 
     // Minutes (1-59)

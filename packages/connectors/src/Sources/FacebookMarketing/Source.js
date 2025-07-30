@@ -15,42 +15,60 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         ApiBaseUrl: {
           requiredType: "string",
           default: "https://graph.facebook.com/v21.0/",
+          label: "API Base URL",
           description: "Facebook Graph API base URL"
         },
         AccessToken:{
           isRequired: true,
           requiredType: "string",
+          label: "Access Token",
+          description: "Facebook API Access Token for authentication"
         },
         AccoundIDs: {
           isRequired: true,
+          label: "Account IDs",
+          description: "Facebook Ad Account IDs to fetch data from"
         },
         StartDate: {
           requiredType: "date",
-          isRequired: true
+          isRequired: true,
+          label: "Start Date",
+          description: "Start date for data import"
         },
         EndDate: {
           requiredType: "date",
+          label: "End Date",
+          description: "End date for data import"
         },
         Fields: {
-          isRequired: true
+          isRequired: true,
+          label: "Fields",
+          description: "List of fields to fetch from Facebook API"
         },
         ProcessShortLinks: {
           requiredType: "string",
           default: "true",
+          label: "Process Short Links",
           description: "Enable automatic processing of short links in link_url_asset field"
         },
         ReimportLookbackWindow: {
           requiredType: "number",
           isRequired: true,
-          default: 2
+          default: 2,
+          label: "Reimport Lookback Window",
+          description: "Number of days to look back when reimporting data"
         },
         CleanUpToKeepWindow: {
-          requiredType: "number"
+          requiredType: "number",
+          label: "Clean Up To Keep Window",
+          description: "Number of days to keep data before cleaning up"
         },
         MaxFetchingDays: {
           requiredType: "number",
           isRequired: true,
-          default: 31
+          default: 31,
+          label: "Max Fetching Days",
+          description: "Maximum number of days to fetch data for"
         }
       }));
       

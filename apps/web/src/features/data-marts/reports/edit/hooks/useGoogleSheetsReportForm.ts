@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import type { DataMartReport } from '../../shared/model/types/data-mart-report.ts';
+import { isGoogleSheetsDestinationConfig } from '../../shared/model/types/data-mart-report.ts';
 import {
   DestinationTypeConfigEnum,
   extractGoogleSheetsUrlComponents,
@@ -46,9 +47,13 @@ export function useGoogleSheetsReportForm({
   const form = useForm<GoogleSheetsReportEditFormValues>({
     resolver: zodResolver(GoogleSheetsReportEditFormSchema),
     defaultValues: {
-      title: '',
-      documentUrl: '',
-      dataDestinationId: '',
+      title: initialReport?.title ?? '',
+      documentUrl:
+        initialReport?.destinationConfig &&
+        isGoogleSheetsDestinationConfig(initialReport.destinationConfig)
+          ? `https://docs.google.com/spreadsheets/d/${initialReport.destinationConfig.spreadsheetId}/edit#gid=${initialReport.destinationConfig.sheetId}`
+          : '',
+      dataDestinationId: initialReport?.dataDestination.id ?? '',
     },
     mode: 'onTouched',
   });

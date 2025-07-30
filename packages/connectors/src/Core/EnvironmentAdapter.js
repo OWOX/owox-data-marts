@@ -30,7 +30,7 @@
  * // Format a date
  * const formattedDate = EnvironmentAdapter.formatDate(new Date(), "America/New_York", "yyyy-MM-dd");
  */
-class EnvironmentAdapter {
+var EnvironmentAdapter = class EnvironmentAdapter {
     
     /**
      * Mac algorithm constants.

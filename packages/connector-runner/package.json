@@ -1,6 +1,6 @@
 {
   "name": "@owox/connector-runner",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Runners for OWOX Data Marts integration connectors",
   "author": "OWOX",
   "license": "ELv2",
@@ -33,7 +33,8 @@
     "prepublishOnly": "npm run lint"
   },
   "dependencies": {
-    "@owox/connectors": "0.3.0",
+    "@owox/connectors": "0.4.0",
+    "cross-spawn": "^7.0.6",
     "env-paths": "^3.0.0"
   },
   "devDependencies": {

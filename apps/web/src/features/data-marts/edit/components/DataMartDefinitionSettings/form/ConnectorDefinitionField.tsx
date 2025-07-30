@@ -185,9 +185,9 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
         control={control}
         name='definition'
         render={({ field }) => (
-          <FormItem className='space-y-0'>
+          <FormItem>
             <FormControl>
-              <div className='space-y-4'>
+              <div className='space-y-3'>
                 {!isConnectorConfigured(field.value as ConnectorDefinitionConfig) ||
                 datamartStatus === DataMartStatus.DRAFT ? (
                   <ConnectorSetupButton
@@ -195,8 +195,8 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
                     onSetupConnector={setupConnector}
                   />
                 ) : (
-                  <div className='space-y-4'>
-                    <div className='flex items-center justify-between gap-3'>
+                  <div className='space-y-3'>
+                    <div className='flex items-center justify-between'>
                       <div className='flex items-center gap-2'>
                         <AddConfigurationButton
                           storageType={storageType}
@@ -215,16 +215,15 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
                         {isConnectorConfigured(field.value as ConnectorDefinitionConfig) &&
                           renderEditFieldsButton(field.value as ConnectorDefinitionConfig)}
                       </div>
-                      <div className='mr-13 flex items-center gap-2'>
+                      <div className='flex items-center gap-2'>
                         <Button
-                          variant='ghost'
-                          className='flex h-12 items-center gap-2'
+                          variant='outline'
                           onClick={() => {
                             void handleManualRun();
                           }}
                         >
                           <Play className='h-4 w-4' />
-                          <span>Manual Run</span>
+                          Manual Run
                         </Button>
                       </div>
                     </div>

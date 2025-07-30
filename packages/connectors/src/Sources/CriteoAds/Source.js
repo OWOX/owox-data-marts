@@ -13,42 +13,59 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
       StartDate: {
         isRequired: true,
         requiredType: "date",
+        label: "Start Date",
+        description: "Start date for data import"
       },
       EndDate: {
         isRequired: false,
         requiredType: "date",
+        label: "End Date",
+        description: "End date for data import"
       },
       AdvertiserIDs: {
         isRequired: true,
+        label: "Advertiser IDs",
+        description: "Criteo Advertiser IDs to fetch data from"
       },
       AccessToken: {
-        requiredType: "string"
+        requiredType: "string",
+        label: "Access Token",
+        description: "Criteo API Access Token for authentication"
       },
       ReimportLookbackWindow: {
         requiredType: "number",
         isRequired: true,
-        default: 5
+        default: 5,
+        label: "Reimport Lookback Window",
+        description: "Number of days to look back when reimporting data"
       },
       CleanUpToKeepWindow: {
-        requiredType: "number"
+        requiredType: "number",
+        label: "Clean Up To Keep Window",
+        description: "Number of days to keep data before cleaning up"
       },
       ClientId: {
         isRequired: true,
         requiredType: "string",
+        label: "Client ID",
         description: "Your Criteo API Client Id"
       },
       ClientSecret: {
         isRequired: true,
         requiredType: "string",
+        label: "Client Secret",
         description: "Your Criteo API Client Secret"
       },
       MaxFetchingDays: {
         requiredType: "number",
-        value: 30
+        value: 30,
+        label: "Max Fetching Days",
+        description: "Maximum number of days to fetch data for"
       },
       ApiVersion: {
         requiredType: "string",
         value: "2025-04",
+        label: "API Version",
         description: "Criteo API version"
       }
     }));

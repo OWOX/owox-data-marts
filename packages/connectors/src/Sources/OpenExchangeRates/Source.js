@@ -15,34 +15,47 @@ constructor(config) {
       AppId: {
         isRequired: true,
         requiredType: "string",
+        label: "App ID",
+        description: "OpenExchangeRates API App ID",
         errorMessage: "You need to add App Id first. Go to Google Sheets Menu ⟩ OWOX ⟩ 🔑 Manage Credentials'"
       },
       StartDate: {
         isRequired: true,
         requiredType: "date",
-        default: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+        default: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+        label: "Start Date",
+        description: "Start date for data import"
       },
       EndDate: {
         requiredType: "date",
+        label: "End Date",
+        description: "End date for data import"
       },
       ReimportLookbackWindow: {
         requiredType: "number",
         isRequired: true,
-        value: 1
+        value: 1,
+        label: "Reimport Lookback Window",
+        description: "Number of days to look back when reimporting data"
       },
       MaxFetchingDays: {
         requiredType: "number",
         isRequired: true,
-        default: 30
+        default: 30,
+        label: "Max Fetching Days",
+        description: "Maximum number of days to fetch data for"
       },
       Symbols: {
         requiredType: "string",
-        requiredPattern: "" // @TODO: add support or regexp check of parameters value ^([A-Z]{3}|[A-Z]{3}(, ?[A-Z]{3})*)$
+        label: "Currency Symbols",
+        description: "Comma-separated list of currency codes to fetch (e.g., USD,EUR,GBP)"
       },
       base: { // Please note: changing the API `base` currency is available for Developer, Enterprise and Unlimited plan clients
         requiredType: "string",
         isRequired: true,
-        value: "USD"
+        value: "USD",
+        label: "Base Currency",
+        description: "Base currency for exchange rates (available for Developer+ plans)"
       }
     }) );
     

@@ -48,6 +48,8 @@
     "migration:run": "npm run migration:run -w @owox/backend",
     "migration:revert": "npm run migration:revert -w @owox/backend",
     "migration:create": "npm run migration:create -w @owox/backend",
+    "dump:create": "npm run dump:create -w @owox/backend",
+    "dump:apply": "npm run dump:apply -w @owox/backend",
     "postinstall": "npm run setup:husky || echo 'Warning: Git hooks setup failed'",
     "pre-commit": "lint-staged",
     "prepare": "husky",

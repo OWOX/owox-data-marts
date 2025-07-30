@@ -4,6 +4,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
@@ -165,22 +166,24 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className='rounded p-1 hover:bg-gray-100'>
+              <Button variant='ghost'>
                 <MoreVertical className='h-5 w-5' />
-              </button>
+              </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end'>
               {dataMart.status.code === DataMartStatus.PUBLISHED &&
                 dataMart.definitionType === DataMartDefinitionType.CONNECTOR && (
-                  <DropdownMenuItem
-                    className='text-blue-600'
-                    onClick={() => {
-                      void handleManualRun();
-                    }}
-                  >
-                    <Play className='mr-2 h-4 w-4' />
-                    Manual Run
-                  </DropdownMenuItem>
+                  <>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        void handleManualRun();
+                      }}
+                    >
+                      <Play className='mr-2 h-4 w-4' />
+                      Manual Run
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
                 )}
               <DropdownMenuItem
                 className='text-red-600'

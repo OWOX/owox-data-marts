@@ -1,49 +1,73 @@
-const { spawn } = require('child_process');
+const { spawn } = require('cross-spawn');
 const DependencyManager = require('../../core/interfaces/dependency-manager');
 const { createRequire } = require('node:module');
+const { findPackageRoot } = require('../../utils/package-utils');
 
-const req = createRequire(__filename);
-/**
- * Default dependencies for the connector runner
- *
- * {
- *  name: '<package-name>',
- *  version: '<package-version>',
- *  global: ['<global-variable-names>'],
- *  global_is: true // if true, the package will be imported as a global variable
- *
- */
-const DEFAULT_DEPENDENCIES = [
-  {
-    name: '@owox/connectors',
-    version: req.resolve('@owox/connectors'),
-    global: ['OWOX'],
-    global_is: true,
-  },
-  {
-    name: '@kaciras/deasync',
-    version: '1.1.0',
-    global: ['deasync'],
-    global_is: true,
-  },
-  {
-    name: 'sync-request',
-    version: '6.1.0',
-    global: ['request'],
-    global_is: true,
-  },
-  {
-    name: 'adm-zip',
-    version: '0.5.16',
-    global: ['AdmZip'],
-    global_is: true,
-  },
-];
+let cachedDependencies = null;
 
 /**
  * NPM-based dependency manager implementation
  */
 class NpmDependencyManager extends DependencyManager {
+  /**
+   * Default dependencies for the connector runner
+   *
+   * {
+   *  name: '<package-name>',
+   *  version: '<package-version>',
+   *  global: ['<global-variable-names>'],
+   *  global_is: true // if true, the package will be imported as a global variable
+   *
+   */
+  #DEFAULT_DEPENDENCIES;
+
+  /**
+   * Initialize DEFAULT_DEPENDENCIES
+   */
+  constructor() {
+    super();
+
+    if (!cachedDependencies) {
+      const connectorsPackageName = '@owox/connectors';
+      const req = createRequire(__filename);
+      const connectorsPath = req.resolve(connectorsPackageName);
+      const connectorsRoot = findPackageRoot(connectorsPath, connectorsPackageName);
+
+      if (!connectorsRoot) {
+        throw new Error(`Failed to find ${connectorsPackageName} package!`);
+      }
+
+      cachedDependencies = [
+        {
+          name: connectorsPackageName,
+          version: `file:${connectorsRoot}`,
+          global: ['OWOX'],
+          global_is: true,
+        },
+        {
+          name: '@kaciras/deasync',
+          version: '1.1.0',
+          global: ['deasync'],
+          global_is: true,
+        },
+        {
+          name: 'sync-request',
+          version: '6.1.0',
+          global: ['request'],
+          global_is: true,
+        },
+        {
+          name: 'adm-zip',
+          version: '0.5.16',
+          global: ['AdmZip'],
+          global_is: true,
+        },
+      ];
+    }
+
+    this.#DEFAULT_DEPENDENCIES = cachedDependencies;
+  }
+
   /**
    * Install dependencies using npm in the specified directory
    * @param {string} workDir - Working directory for installation
@@ -73,7 +97,7 @@ class NpmDependencyManager extends DependencyManager {
     return {
       name: `connector-${connectorId}`,
       private: true,
-      dependencies: [...DEFAULT_DEPENDENCIES, ...dependencies].reduce((acc, curr) => {
+      dependencies: [...this.#DEFAULT_DEPENDENCIES, ...dependencies].reduce((acc, curr) => {
         acc[curr.name] = curr.version;
         return acc;
       }, {}),
@@ -85,7 +109,7 @@ class NpmDependencyManager extends DependencyManager {
    * @returns {Array} Array of default dependencies
    */
   getDefaultDependencies() {
-    return DEFAULT_DEPENDENCIES;
+    return this.#DEFAULT_DEPENDENCIES;
   }
 }
 

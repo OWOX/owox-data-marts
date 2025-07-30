@@ -12,14 +12,20 @@ var GitHubSource = class GitHubSource extends AbstractSource {
     super( configRange.mergeParameters({
       AccessToken: {
         isRequired: true,
+        label: "Access Token",
+        description: "GitHub API Access Token for authentication"
       },
       RepositoryName: {
         isRequired: true,
+        label: "Repository Name",
+        description: "GitHub repository name in format 'owner/repo'"
       },
       DestinationSheetName: {
         isRequired: true,
-        value: "Data"
-      },
+        value: "Data",
+        label: "Destination Sheet Name",
+        description: "Name of the sheet where data will be stored"
+      }
     }));
   
    // @TODO: add schema for google bigquery storage support

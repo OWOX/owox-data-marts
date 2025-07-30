@@ -15,7 +15,6 @@ const googleConfigSchema = z.object({
 const awsConfigSchema = z.object({
   region: z.string().min(1, 'Region is required'),
   outputBucket: z.string().min(1, 'Output Bucket is required'),
-  databaseName: z.string().min(1, 'Database Name is required'),
 });
 
 const baseSchema = z.object({

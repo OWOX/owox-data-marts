@@ -6,7 +6,8 @@ import type {
   ScheduledTriggerResponseApiDto,
   UpdateScheduledTriggerRequestApiDto,
 } from '../api';
-import { reportService, mapReportDtoToEntity } from '../../../reports/shared';
+import { reportService } from '../../../reports/shared';
+import { mapReportDtoToEntity } from '../../../reports/shared/model/mappers';
 
 /**
  * Mapper for report run triggers

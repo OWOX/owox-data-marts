@@ -13,27 +13,39 @@ constructor( configRange ) {
     StartDate: {
       isRequired: true,
       requiredType: "date",
-      default: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+      default: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+      label: "Start Date",
+      description: "Start date for data import"
     },
     EndDate: {
-      requiredType: "date"
+      requiredType: "date",
+      label: "End Date",
+      description: "End date for data import"
     },
     ReimportLookbackWindow: {
       requiredType: "number",
       isRequired: true,
-      value: 2
+      value: 2,
+      label: "Reimport Lookback Window",
+      description: "Number of days to look back when reimporting data"
     },
     CleanUpToKeepWindow: {
-      requiredType: "number"
+      requiredType: "number",
+      label: "Clean Up To Keep Window",
+      description: "Number of days to keep data before cleaning up"
     },
     DestinationSheetName: {
       isRequired: true,
-      value: "Data"
+      value: "Data",
+      label: "Destination Sheet Name",
+      description: "Name of the sheet where data will be stored"
     },
     MaxFetchingDays: {
       requiredType: "number",
       isRequired: true,
-      value: 30
+      value: 30,
+      label: "Max Fetching Days",
+      description: "Maximum number of days to fetch data for"
     }
   }));
 

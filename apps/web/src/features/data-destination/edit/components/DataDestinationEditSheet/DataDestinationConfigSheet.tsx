@@ -11,6 +11,7 @@ import {
   SheetTitle,
 } from '@owox/ui/components/sheet';
 import { useDataDestination } from '../../../shared';
+import { DestinationMapperFactory } from '../../../shared/model/mappers/destination-mapper.factory.ts';
 
 interface DataDestinationEditSheetProps {
   isOpen: boolean;
@@ -49,22 +50,17 @@ export function DataDestinationConfigSheet({
   }, []);
 
   const onSave = async (data: DataDestinationFormData) => {
+    const mapper = DestinationMapperFactory.getMapper(data.type);
+
     if (!dataDestination) {
-      const createData = {
-        title: data.title,
-        type: data.type,
-        credentials: data.credentials,
-      };
+      const createData = mapper.mapToCreateRequest(data);
+      console.log(createData);
       const newDestination = await createDataDestination(createData);
       if (newDestination) {
         onSaveSuccess(newDestination);
       }
     } else {
-      const updateData = {
-        title: data.title,
-        credentials: data.credentials,
-        type: data.type,
-      };
+      const updateData = mapper.mapToUpdateRequest(data);
       const updatedDestination = await updateDataDestination(dataDestination.id, updateData);
       if (updatedDestination) {
         onSaveSuccess(updatedDestination);

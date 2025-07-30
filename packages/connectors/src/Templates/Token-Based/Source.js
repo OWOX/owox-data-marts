@@ -15,8 +15,10 @@ var YOUR_DATE_SOURCE_Source = class YOUR_DATE_SOURCE_Source extends AbstractSour
       },
       DestinationSheetName: {
         isRequired: true,
-        default: "Data"
-      },
+        default: "Data",
+        label: "Destination Sheet Name",
+        description: "Name of the sheet where data will be stored"
+      }
     }));
   
 

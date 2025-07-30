@@ -305,8 +305,28 @@ class ConnectorBuilder {
 
       const connectorClasses = [];
 
-      // Process each file in this connector
+      // 1. Partition files into categories based on their names
+      const dependencyFiles = [];
+      const schemaFiles = [];
+      const classFiles = [];
+
       for (const file of connector.files) {
+        // Using toLowerCase() for a more robust, case-insensitive check
+        const fileName = path.basename(file).toLowerCase();
+        if (fileName.includes('fieldsschema') || fileName.includes('fieldschema')) {
+          schemaFiles.push(file);
+        } else if (fileName.includes('source') || fileName.includes('connector')) {
+          classFiles.push(file);
+        } else {
+          dependencyFiles.push(file);
+        }
+      }
+
+      // 2. Create a single, ordered array of files
+      const orderedFiles = [...dependencyFiles, ...schemaFiles, ...classFiles];
+
+      // 3. Process each file in this connector in the correct order
+      for (const file of orderedFiles) {
         const filePath = path.join(this.rootDir, file);
 
         if (await fs.pathExists(filePath)) {

@@ -5,7 +5,8 @@ import { ConfigService } from '@nestjs/config';
 export async function runMigrationsIfNeeded(config: ConfigService): Promise<void> {
   const logger = createLogger('MigrationRunner');
 
-  const shouldRun = config.get<string>('RUN_MIGRATIONS') === 'true';
+  const runMigrations = config.get<string>('RUN_MIGRATIONS') ?? 'true';
+  const shouldRun = runMigrations === 'true';
 
   if (!shouldRun) {
     logger.log('RUN_MIGRATIONS is not set to "true". Skipping migrations.');

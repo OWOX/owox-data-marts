@@ -11,12 +11,11 @@ var EmailNotification = class EmailNotification {
    * Send email notification
    * @param {Object} params - Parameters object
    * @param {string} params.to - Email address(es) to send to (can be multiple separated by commas)
+   * @param {string} params.subject - Email subject line
    * @param {string} params.message - Formatted notification message
-   * @param {string} params.status - Current import status
-   * @param {string} params.connectorName - Name of the connector/spreadsheet
    */
   static send(params) {
-    const { to, message, status, connectorName } = params;
+    const { to, subject, message } = params;
     
     if (!to || !to.trim()) {
       return;
@@ -35,14 +34,10 @@ var EmailNotification = class EmailNotification {
         return;
       }
 
-      const statusLine = connectorName 
-        ? `${connectorName} - Status: ${status}`
-        : `Status: ${status}`;
-
       MailApp.sendEmail(
         emailAddresses,
-        statusLine,
-        `${statusLine}\n\n${message}`,
+        subject,
+        message,
         { noReply: true }
       );
 

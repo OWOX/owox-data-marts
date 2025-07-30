@@ -1,6 +1,6 @@
 import { type ColumnDef } from '@tanstack/react-table';
 import { SortableHeader } from './SortableHeader';
-import { DataDestinationTypeModel } from '../../../shared';
+import { type DataDestination, DataDestinationTypeModel } from '../../../shared';
 import { DataDestinationType } from '../../../shared';
 import { DataDestinationActionsCell } from './DataDestinationActionsCell';
 import { ToggleColumnsHeader } from './ToggleColumnsHeader';
@@ -11,18 +11,19 @@ export interface DataDestinationTableItem {
   type: DataDestinationType;
   createdAt: Date;
   modifiedAt: Date;
+  credentials?: DataDestination['credentials'];
 }
 
 interface DataDestinationColumnsProps {
-  onViewDetails?: (id: string) => void;
   onEdit?: (id: string) => Promise<void>;
   onDelete?: (id: string) => void;
+  onRotateSecretKey?: (id: string) => void;
 }
 
 export const getDataDestinationColumns = ({
-  onViewDetails,
   onEdit,
   onDelete,
+  onRotateSecretKey,
 }: DataDestinationColumnsProps = {}): ColumnDef<DataDestinationTableItem>[] => [
   {
     accessorKey: 'title',
@@ -72,9 +73,11 @@ export const getDataDestinationColumns = ({
     cell: ({ row }) => (
       <DataDestinationActionsCell
         id={row.original.id}
-        onViewDetails={onViewDetails}
+        type={row.original.type}
+        credentials={row.original.credentials}
         onEdit={onEdit}
         onDelete={onDelete}
+        onRotateSecretKey={onRotateSecretKey}
       />
     ),
   },

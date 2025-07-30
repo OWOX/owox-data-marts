@@ -21,7 +21,6 @@ export const ConfigSection = ({ type, config }: ConfigSectionProps) => {
     ],
     [DataStorageType.AWS_ATHENA]: [
       { label: 'Region', key: 'region' },
-      { label: 'Database Name', key: 'databaseName' },
       { label: 'Output Bucket', key: 'outputBucket' },
     ],
     [DataStorageType.SNOWFLAKE]: [],

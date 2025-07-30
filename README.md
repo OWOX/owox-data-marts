@@ -4,7 +4,7 @@
 
 Power self-service analytics from your infrastructure – with reusable Data Marts, semantic layer, and zero vendor lock-in for what you do. Forever free & fully yours.
 
-[📘 Quick Start Guide](./quick-start.md) | [🌐 Website](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) |  [💬 Community](https://github.com/OWOX/owox-data-marts/discussions) | [🆘 Create an Issue](https://github.com/OWOX/owox-data-marts/issues)
+[📘 Quick Start Guide](./docs/getting-started/quick-start.md) | [🌐 Website](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) |  [💬 Community](https://github.com/OWOX/owox-data-marts/discussions) | [🆘 Create an Issue](https://github.com/OWOX/owox-data-marts/issues)
 
 ![OWOX Data Marts - Open-Source Self-Service Analytics Platform](https://i.imgur.com/XVKA8mI.png)
 
@@ -14,7 +14,7 @@ Every data team deserves the power to automate analytics processes while keeping
 
 The **OWOX BI Community Edition** is an open-source platform for building, storing, managing & sharing **Data Marts** and enabling **controlled self-service reporting** – with all logic defined and deployed on your terms.
 
-Whether you're a data analyst at a startup, a team lead at an agency, or the head of BI at an enterprise – this repo gives you full control over the reporting layer.
+Whether you're a data analyst at a startup, a team lead at an agency, or the head of BI at an enterprise, this repo gives you full control over the reporting layer.
 
 ## 🚀 What You Can Do with OWOX Data Marts
 
@@ -37,7 +37,38 @@ Document KPIs and metrics once, and keep every dashboard, pivot table, and repor
 
 ### 📅 Automate Everything
 
-Use the advanced scheduler to refresh both Data Marts and exports at any time, fully automated and managed from the single place
+Use the advanced scheduler to refresh both Data Marts and exports at any time, fully automated and managed from a single place
+
+## 🛠 Installation Guide
+
+**OWOX Data Marts** can be run just about anywhere in minutes.  
+Here’s how to get started locally on your machine:
+
+1. **Install Node.js** (version 22.16.0 or higher)  
+
+   If it’s not installed yet, [download it here](https://nodejs.org/en/download)
+
+2. **Open your terminal** and run:
+
+   ```bash
+   npm install -g owox
+   ```
+
+   (You may see warnings - they’re safe to ignore)
+
+3. **Start OWOX Data Marts** locally
+
+   ```bash
+   owox serve
+   ```
+
+   (You should see something like:
+   🚀 Starting OWOX Data Marts...
+   📦 Starting server on port 3000...)
+
+4. **Open your browser** and go to **<http://localhost:3000>** to explore! 🎉
+
+For more details, check out our [Quick Start Guide](./docs/getting-started/quick-start.md)
 
 ## Key Capabilities
 
@@ -103,32 +134,15 @@ If you find an integration missing, you can share your use case and request it i
 
 ### Apps Script Edition (Google Sheets)
 
-Alternatively, you can run any of [our connectors](#data-sources) using Google Sheet templates we've developed for [OWOX Data Marts Apps Script Edition](./appsscript-edition.md)
+Alternatively, you can run any of [our connectors](#data-sources) using Google Sheet templates we've developed for [OWOX Data Marts Apps Script Edition](./docs/editions/appsscript-edition.md)
 
-- 🎯 Pick your platform (e.g. Facebook Ads) from [existing integrations](#data-sources)
-- 🧾 Make a copy of the Template from the [connectors table](#data-sources)
-- 🔐 Add your API credentials directly to the sheet — **they stay private**
-- 🚀 Run the Apps Script to pull your data
-- 📅 Schedule it (optional) for daily/weekly refreshes
+- Pick your platform (e.g. Facebook Ads) from [existing integrations](#data-sources)
+- Make a copy of the Template from the [connectors table](#data-sources)
+- Add your API credentials directly to the sheet — **they stay private**
+- Run the Apps Script to pull your data
+- Schedule it (optional) for daily/weekly refreshes
 
-#### 🎥 Watch the Webinar - *Own Your Data*
-
-[**Own Your Data: How Data Analysts Can Connect Any Data**](https://www.youtube.com/live/nQYfHX-IjY8?t=66s)
-
-Learn how to collect and automate marketing, financial, and any other data into Google Sheets or BigQuery — with **zero engineering help** and **no SaaS subscriptions**.
-
-What you'll learn:
-
-- Why data access is broken (and how to fix it)
-- Facebook Ads → Sheets and TikTok Ads → BigQuery — **live demos**
-- How to automate reporting across clients without SaaS limits
-- How to contribute, customize, and grow the connector library
-
-🎯 **For**: Data analysts at agencies, startups, enterprises, or doing solo  
-🛠️ **Includes**: Free templates & walkthroughs  
-🎙️ **Hosted by**: [Ievgen Krasovytskyi](https://www.linkedin.com/in/ievgenkrasovytskyi/)
-
-▶️ [**Watch the Replay on YouTube**](https://www.youtube.com/live/nQYfHX-IjY8?t=66s)
+🎥 Watch the Webinar replay - [**Own Your Data: How Data Analysts Can Connect Any Data**](https://www.youtube.com/live/nQYfHX-IjY8?t=66s)
 
 ## 🧑‍💻 Contribute or Build Your Own
 
@@ -138,9 +152,9 @@ We'd love your help.
 
 **To contribute to existing integrations or create a new one:**
 
-- 📘 Read the [contributor guide](packages/connectors/CONTRIBUTING.md)
-- 🚀 Check [this tutorial](packages/connectors/TUTORIAL.md) of how we built a GitHub Connector in 25 minutes
-- 📌 Check open [requests](https://github.com/OWOX/owox-data-marts/issues)
+- Read the [contributor guide](packages/connectors/CONTRIBUTING.md)
+- Check [this tutorial](packages/connectors/TUTORIAL.md) of how we built a GitHub Connector in 25 minutes
+- Check open [requests](https://github.com/OWOX/owox-data-marts/issues)
 
 All you need to get started is the desire to build a new connector.
 
@@ -152,8 +166,8 @@ Whether you're adding a new API, tweaking one, or improving docs, we'll support 
 
 Need help or want to connect with others?
 
-- 💬 [Join our Community](https://github.com/OWOX/owox-data-marts/discussions)
-- 🗨️ Ask questions or suggest features
+- [Join our Community](https://github.com/OWOX/owox-data-marts/discussions)
+- Ask questions or suggest features
 
 We're building this **with the community**, not just for it.
 

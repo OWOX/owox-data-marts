@@ -4,7 +4,6 @@ export interface GoogleBigQueryDataStorageConfig {
 }
 export interface AwsAthenaDataStorageConfig {
   region: string;
-  databaseName: string;
   outputBucket: string;
 }
 
@@ -19,5 +18,5 @@ export function isGoogleBigQueryDataStorageConfig(
 export function isAwsAthenaDataStorageConfig(
   config: DataStorageConfig
 ): config is AwsAthenaDataStorageConfig {
-  return 'databaseName' in config && 'outputBucket' in config;
+  return 'outputBucket' in config;
 }

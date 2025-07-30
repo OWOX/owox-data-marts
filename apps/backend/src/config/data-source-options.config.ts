@@ -20,8 +20,7 @@ export function createDataSourceOptions(config: ConfigService): DataSourceOption
     entities: [__dirname + '/../**/*.entity{.ts,.js}'],
     migrations: [__dirname + '/../migrations/[0-9]*-*.{ts,js}'],
     logging: resolveLoggerOptions(config.get<string>('TYPEORM_LOGGING', 'error')),
-    // TODO Disable synchronize when enabling migrations mechanism
-    synchronize: true,
+    synchronize: false,
   };
 
   const dbConfigs: Record<DbType, DataSourceOptions> = {
