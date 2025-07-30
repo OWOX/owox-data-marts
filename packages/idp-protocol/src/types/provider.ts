@@ -47,12 +47,6 @@ export interface IIdpTokenManagement {
   revoke(token: string): Promise<void>; // revoke specific token
 }
 
-export interface IIdpSessionManagement {
-  getActive(userId: string): Promise<Session[]>;
-  revoke(sessionId: string): Promise<void>;
-  revokeAll(userId: string): Promise<void>;
-}
-
 export interface IIdpMagicLinkManagement {
   create(email: string, projectId: string): Promise<MagicLink>;
   verify(token: string): Promise<AuthResult>;
@@ -65,7 +59,7 @@ export interface IIdpProvider {
   // Initialize the IDP provider, like database connection, migrations, etc.
   initialize(): Promise<void>;
 
-  // Verification
+  // Verification ????
   verifyRequest(req: Request): void;
 
   // Authentication - returns IDP-specific tokens
@@ -83,9 +77,6 @@ export interface IIdpProvider {
 
   // Token management
   getTokenManagement(): IIdpTokenManagement;
-
-  // Session management
-  getSessionManagement(): IIdpSessionManagement;
 
   // Lifecycle methods
   shutdown(): void; // cleanup resources close connections, etc.

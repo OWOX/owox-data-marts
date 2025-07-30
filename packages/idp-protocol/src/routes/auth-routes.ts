@@ -7,15 +7,6 @@ export const AUTH_PAGE_ROUTES = {
   SIGN_IN: '/auth/sign-in',
   SIGN_OUT: '/auth/sign-out',
   SIGN_UP: '/auth/sign-up',
-  MAGIC_LINK: '/auth/magic-link',
-  MAGIC_LINK_VERIFY: '/auth/magic-link/verify',
-  GOOGLE_CALLBACK: '/auth/google/callback',
-  MICROSOFT_CALLBACK: '/auth/microsoft/callback',
-  VERIFY_EMAIL: '/auth/verify-email',
-  VERIFY_EMAIL_RESEND: '/auth/verify-email/resend',
-  PASSWORD_RESET: '/auth/password-reset',
-  PASSWORD_RESET_VERIFY: '/auth/password-reset/verify',
-  PASSWORD_CHANGE: '/auth/password-change',
 } as const;
 
 // Authentication API Routes (POST - for programmatic access)

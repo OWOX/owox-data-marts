@@ -28,8 +28,6 @@ export const API_ROUTES = {
 
   // Health and status
   HEALTH: '/api/health',
-  STATUS: '/api/status',
-  VERSION: '/api/version',
 } as const;
 
 export type ApiRoutes = (typeof API_ROUTES)[keyof typeof API_ROUTES];
