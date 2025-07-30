@@ -16,6 +16,9 @@
     "@owox/backend": "0.4.0",
     "find-process": "^1.4.10"
   },
+  "peerDependencies": {
+    "express": "^4"
+  },
   "devDependencies": {
     "@eslint/compat": "^1",
     "@oclif/test": "^4",

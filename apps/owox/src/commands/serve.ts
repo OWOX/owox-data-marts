@@ -2,6 +2,7 @@
 import type { NestExpressApplication } from '@nestjs/platform-express';
 
 import { Flags } from '@oclif/core';
+import express from 'express';
 import { createRequire } from 'node:module';
 
 import { BaseCommand } from './base.js';
@@ -105,6 +106,7 @@ export default class Serve extends BaseCommand {
 
       // Start application in the same process
       this.app = await bootstrap({
+        express: express(),
         idpProvider: flags.idpProvider,
         logFormat: flags.logFormat,
         port: flags.port,
