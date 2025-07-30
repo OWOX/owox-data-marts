@@ -1,7 +1,8 @@
+// eslint-disable-next-line n/no-extraneous-import
+import type { NestExpressApplication } from '@nestjs/platform-express';
+
 import { Flags } from '@oclif/core';
-import find from 'find-process';
-import { ChildProcess, spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import express from 'express';
 import { createRequire } from 'node:module';
 
 import { BaseCommand } from './base.js';
@@ -9,295 +10,141 @@ import { BaseCommand } from './base.js';
 const require = createRequire(import.meta.url);
 const packageInfo = require('../../package.json');
 
-/**
- * Constants for the serve command
- */
-const CONSTANTS = {
-  CLEANUP_DELAY_MS: 1000,
-  DEFAULT_PORT: 3000,
-  PROCESS_MARKER: 'owox-app',
-  SHUTDOWN_SIGNALS: ['SIGINT', 'SIGTERM'] as const,
-} as const;
-
-/**
- * Interface for process spawn options
- */
-interface ProcessSpawnOptions {
-  args: string[];
-  command: string;
+interface ServeFlags {
+  idpProvider: string;
   logFormat: string;
   port: number;
+  webEnabled: boolean;
 }
 
-/**
- * Command to start the OWOX Data Marts application.
- * Requires @owox/backend to be installed.
- */
 export default class Serve extends BaseCommand {
   static override description = 'Start the OWOX Data Marts application';
   static override examples = [
     '<%= config.bin %> serve',
     '<%= config.bin %> serve --port 8080',
     '<%= config.bin %> serve -p 3001 --log-format=json',
-    '$ PORT=8080 <%= config.bin %> serve',
   ];
   static override flags = {
     ...BaseCommand.baseFlags,
     port: Flags.integer({
       char: 'p',
-      default: CONSTANTS.DEFAULT_PORT,
+      default: 3000,
       description: 'Port number for the application',
       env: 'PORT',
     }),
-  };
-  private childProcess?: ChildProcess;
+    'web-enabled': Flags.boolean({
+      default: true,
+      description: 'Enable web interface',
+    }),
+  } as const;
+  private app?: NestExpressApplication;
   private isShuttingDown = false;
 
-  /**
-   * Main execution method for the serve command
-   */
   public async run(): Promise<void> {
     const { flags } = await this.parse(Serve);
 
     this.initializeLogging(flags);
-
     this.log(`🚀 Starting OWOX Data Marts (v${packageInfo.version})...`);
+
     this.setupGracefulShutdown();
 
-    const backendPath = this.validateBackendAvailability();
-
     try {
-      await this.killMarkedProcesses();
-      await this.startBackend(backendPath, flags.port, flags['log-format']);
+      await this.validateBackendAvailability();
+      await this.startApplication(flags as unknown as ServeFlags);
     } catch (error) {
       this.handleStartupError(error);
     }
   }
 
-  /**
-   * Attaches event handlers to the child process
-   */
-  private attachProcessEventHandlers(): void {
-    if (!this.childProcess) return;
-
-    this.childProcess.on('error', (error: Error) => {
-      if (!this.isShuttingDown) {
-        this.error(`Application process error: ${error.message}`);
-      }
-    });
-
-    this.childProcess.on('exit', (code, signal) => {
-      if (!this.isShuttingDown) {
-        this.handleProcessExit(code, signal);
-      }
-    });
-  }
-
-  /**
-   * Creates environment variables for the child process
-   * @param port - Port number to set in environment
-   * @param logFormat - Log format to use (pretty or json)
-   * @returns Environment variables object
-   */
-  private createProcessEnvironment(port: number, logFormat: string): NodeJS.ProcessEnv {
-    return {
-      ...process.env,
-      LOG_FORMAT: logFormat,
-      PORT: port.toString(),
-    };
-  }
-
-  /**
-   * Extracts PID from ps command output line
-   */
-  private extractPidFromProcessLine(processLine: string): null | number {
-    const pid = processLine.trim().split(/\s+/)[1];
-    const numericPid = Number.parseInt(pid, 10);
-    return !Number.isNaN(numericPid) && numericPid > 0 ? numericPid : null;
-  }
-
-  /**
-   * Handles child process exit events
-   * @param code - Exit code
-   * @param signal - Exit signal
-   */
-  private handleProcessExit(code: null | number, signal: NodeJS.Signals | null): void {
-    if (code !== null && code !== 0) {
-      this.error(`Application process exited with code ${code}`);
-    } else if (signal) {
-      this.warn(`Application process terminated by signal ${signal}`);
-    }
-  }
-
-  /**
-   * Handles shutdown signals
-   * @param signal - The received shutdown signal
-   */
-  private handleShutdownSignal(signal: NodeJS.Signals): void {
+  private async handleShutdownSignal(signal: NodeJS.Signals): Promise<void> {
     if (this.isShuttingDown) return;
 
     this.isShuttingDown = true;
     this.log(`Received ${signal}, shutting down gracefully...`);
 
-    if (this.childProcess?.kill()) {
-      this.log('Stopping application...');
+    try {
+      if (this.app) {
+        // Additional protection for graceful shutdown
+        // Give a brief moment for any pending operations to complete
+        await new Promise(resolve => setTimeout(resolve, 500)); // eslint-disable-line no-promise-executor-return
+        await this.app.close();
+        this.log('Application stopped successfully.');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.error(`Error during shutdown: ${message}`);
     }
+
+    // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
+    process.exit(0);
   }
 
-  /**
-   * Handles startup errors
-   * @param error - The error that occurred during startup
-   */
   private handleStartupError(error: unknown): void {
     const message = error instanceof Error ? error.message : String(error);
     this.error(`Failed to start application: ${message}`, { exit: 1 });
   }
 
-  /**
-   * Kills all processes marked with PROCESS_MARKER
-   */
-  private async killMarkedProcesses(): Promise<void> {
-    try {
-      const processes = await find('name', 'node');
-
-      const markedProcesses = processes.filter(
-        proc => proc.cmd && proc.cmd.includes(`--${CONSTANTS.PROCESS_MARKER}`)
-      );
-
-      if (markedProcesses.length === 0) {
-        this.log(`🔍 No previous background processes found.`);
-        return;
-      }
-
-      this.warn(`🧹 Found ${markedProcesses.length} zombie processes, cleaning up...`);
-
-      const killPromises = markedProcesses.map(async proc => {
-        try {
-          process.kill(proc.pid, 'SIGTERM');
-          this.log(`💀 Killed zombie process PID: ${proc.pid}`);
-        } catch {
-          this.log(`🔍 Process ${proc.pid} already terminated`);
-        }
-      });
-
-      await Promise.all(killPromises);
-      await this.waitForCleanup();
-      this.log(`✅ Zombie cleanup completed`);
-    } catch {
-      // This is normal if no previous processes are found
-      this.log(`🔍 No previous zombie processes found`);
-    }
-  }
-
-  /**
-   * Sets up graceful shutdown handlers for system signals
-   */
   private setupGracefulShutdown(): void {
-    for (const signal of CONSTANTS.SHUTDOWN_SIGNALS) {
+    const shutdownSignals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
+
+    for (const signal of shutdownSignals) {
       process.on(signal, () => this.handleShutdownSignal(signal));
     }
   }
 
-  /**
-   * Spawns a child process with the given options
-   * @param options - Process spawn options
-   */
-  private async spawnProcess(options: ProcessSpawnOptions): Promise<void> {
-    const env = this.createProcessEnvironment(options.port, options.logFormat);
-    this.log(`📦 Starting server on port ${options.port} with ${options.logFormat} logs...`);
-
-    // Add process marker to arguments
-    const argsWithMarker = [...options.args, `--${CONSTANTS.PROCESS_MARKER}`];
-
-    this.childProcess = spawn(options.command, argsWithMarker, {
-      env,
-      stdio: 'inherit',
-    });
-
-    if (this.childProcess.pid) {
-      this.log(`📝 Process IDs: CLI: ${process.pid}, Backend: ${this.childProcess.pid}`);
-      this.log(
-        `✅ Server started successfully. Open http://localhost:${options.port} in your browser.`
-      );
-    } else {
-      throw new Error('Failed to start server process');
-    }
-
-    this.attachProcessEventHandlers();
-    return this.waitForProcessCompletion();
-  }
-
-  /**
-   * Starts the backend application
-   * @param backendPath - Path to the backend entry point
-   * @param port - Port number to run the application on
-   */
-  private async startBackend(backendPath: string, port: number, logFormat: string): Promise<void> {
-    const options: ProcessSpawnOptions = {
-      args: [backendPath],
-      command: 'node',
-      logFormat,
-      port,
-    };
-    await this.spawnProcess(options);
-  }
-
-  /**
-   * Validates that the backend package is available and accessible
-   * @returns The resolved path to the backend entry point
-   * @throws Error if backend is not available or accessible
-   */
-  private validateBackendAvailability(): string {
-    let backendPath: string;
+  private async startApplication(flags: ServeFlags): Promise<void> {
+    this.log(`📦 Starting server on port ${flags.port} with ${flags.logFormat} logs...`);
 
     try {
-      backendPath = require.resolve('@owox/backend');
+      // Import bootstrap function from backend
+      const { bootstrap } = await import('@owox/backend');
+
+      // Start application in the same process
+      this.app = await bootstrap({
+        express: express(),
+        logFormat: flags.logFormat,
+        port: flags.port,
+        webEnabled: flags.webEnabled,
+      });
+
+      this.log(`📝 Process ID: ${process.pid}`);
+      this.log(
+        `✅ Server started successfully. Open http://localhost:${flags.port} in your browser.`
+      );
+
+      // Keep process alive until shutdown
+      await this.waitForShutdown();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to start application: ${message}`);
+    }
+  }
+
+  private async validateBackendAvailability(): Promise<void> {
+    try {
+      // Try to import the bootstrap function
+      await import('@owox/backend');
     } catch {
       this.error(
-        '@owox/backend package not found. Please ensure it is installed:\n' +
-          'npm install @owox/backend',
+        '@owox/backend package not found or invalid. Please ensure it is installed and built:\n' +
+          'npm run build -w @owox/backend',
         { exit: 1 }
       );
     }
-
-    if (!existsSync(backendPath)) {
-      this.error('@owox/backend entry point not found', { exit: 1 });
-    }
-
-    return backendPath;
   }
 
-  /**
-   * Waits for processes to cleanup
-   */
-  private async waitForCleanup(): Promise<void> {
+  private async waitForShutdown(): Promise<void> {
     return new Promise<void>(resolve => {
-      setTimeout(() => resolve(), CONSTANTS.CLEANUP_DELAY_MS);
-    });
-  }
-
-  /**
-   * Waits for the child process to complete
-   * @returns Promise that resolves when process exits successfully
-   */
-  private waitForProcessCompletion(): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      if (!this.childProcess) {
-        reject(new Error('Failed to start child process'));
-        return;
-      }
-
-      this.childProcess.on('exit', (code: null | number) => {
+      // This promise will resolve when shutdown is initiated
+      const checkShutdown = () => {
         if (this.isShuttingDown) {
-          this.log('Application stopped successfully.');
-          resolve();
-        } else if (code === 0 || code === null) {
-          this.log('Application process exited successfully.');
           resolve();
         } else {
-          reject(new Error(`Application process failed with exit code ${code}`));
+          setTimeout(checkShutdown, 100);
         }
-      });
+      };
+
+      checkShutdown();
     });
   }
 }
