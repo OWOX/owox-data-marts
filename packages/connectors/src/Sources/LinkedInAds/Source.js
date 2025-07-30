@@ -57,6 +57,11 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
         description: "End date for data import",
         attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
+      EndDate: {
+        requiredType: "date",
+        label: "End Date",
+        description: "End date for data import"
+      },
       Fields: {
         isRequired: true,
         label: "Fields",
