@@ -14,8 +14,10 @@
     "@oclif/plugin-help": "^6",
     "@oclif/plugin-plugins": "^5",
     "@owox/backend": "0.4.0",
-    "express": "^4.21.2",
     "find-process": "^1.4.10"
+  },
+  "peerDependencies": {
+    "express": "^4"
   },
   "devDependencies": {
     "@eslint/compat": "^1",

@@ -45,7 +45,7 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/src/main.js",
+    "start:prod": "node dist/src/main",
     "serve": "npm run start:prod",
     "lint": "eslint . --config ./eslint.config.mjs",
     "lint:fix": "eslint . --fix --config ./eslint.config.mjs",
@@ -91,7 +91,7 @@
     "zod": "^3.25.64"
   },
   "devDependencies": {
-    "@nestjs/cli": "^11.0.8",
+    "@nestjs/cli": "^11.0.9",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.1.2",
     "@swc/cli": "^0.6.0",
