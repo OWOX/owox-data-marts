@@ -1,5 +1,5 @@
 import { ConfigService } from '@nestjs/config';
-import envPaths from 'env-paths';
+import * as envPaths from 'env-paths';
 import { existsSync, mkdirSync } from 'fs';
 import { dirname, join } from 'path';
 import { createLogger } from '../common/logger/logger.service';
@@ -36,7 +36,7 @@ export function getSqliteDatabasePath(config: ConfigService): string {
     logger.log(`Using SQLite database path from \`SQLITE_DB_PATH\` env: ${envDbPath}`);
     dbPath = envDbPath;
   } else {
-    const paths = envPaths('owox', { suffix: '' });
+    const paths = envPaths.default('owox', { suffix: '' });
     dbPath = join(paths.data, 'sqlite', 'app.db');
     logger.log(`Using system app data directory for SQLite: ${dbPath}`);
   }
@@ -47,7 +47,9 @@ export function getSqliteDatabasePath(config: ConfigService): string {
       mkdirSync(dbDir, { recursive: true });
       logger.log(`Created SQLite database directory: ${dbDir}`);
     } catch (error) {
-      throw new Error(`Failed to create SQLite database directory: ${dbDir}. ${error.message}`);
+      throw new Error(
+        `Failed to create SQLite database directory: ${dbDir}. ${(error as Error).message}`
+      );
     }
   }
 
