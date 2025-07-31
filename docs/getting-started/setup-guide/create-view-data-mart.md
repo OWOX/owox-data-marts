@@ -1,7 +1,9 @@
-# Creating a Data Mart from a View
+# View-Based Data Mart
 
 Use this option when you want to define a Data Mart that directly references a view that already exists in your data warehouse.
 This is useful when your logic is already encapsulated in a warehouse view and doesn’t require rewriting or copy-pasting SQL inside the Data Mart.
+
+Note: You’ll need a data storage available for the data mart setup. Here is [how to add a data storage](../../storages/manage-storages.md)
 
 ## Step 1: Create a New Data Mart
 
@@ -91,8 +93,8 @@ You can also open the **Run History** tab to view execution logs, status, and ti
 ## Related Pages
 
 - [Scheduling Reports Updates →](report-triggers.md)
-- [Adding More Report Destinations →](create-a-destination.md)
-- [Create Connector-Based Data Mart →](create-connector-data-mart.md)
-- [Create SQL-Based Data Mart →](create-sql-data-mart.md)
-- [Create Table-Based Data Mart →](create-table-data-mart.md)
-- [Create Pattern-Based Data Mart →](create-pattern-data-mart.md)
+- [Adding More Report Destinations →](../../destinations/manage-destinations.md)
+- [Create Connector-Based Data Mart →](onnector-data-mart.md)
+- [Create SQL-Based Data Mart →](sql-data-mart.md)
+- [Create Table-Based Data Mart →](table-data-mart.md)
+- [Create Pattern-Based Data Mart →](pattern-data-mart.md)
