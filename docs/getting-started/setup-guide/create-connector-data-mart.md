@@ -14,15 +14,15 @@ Select the **Data Storage** from the list.
 
 Click **Create Data Mart**.
 
-![Create Data Mart-1](../res/screens/Connector-Based-DataMart-1.png)
+![Create Data Mart-1](../../res/screens/Connector-Based-DataMart-1.png)
 
 In the **Input Source** panel, select **Definition Type – Connector**. Click **Setup Connector**.
 
-![Create Data Mart-2](../res/screens/Connector-Based-DataMart-2.png)
+![Create Data Mart-2](../../res/screens/Connector-Based-DataMart-2.png)
 
 Select the platform you want to connect to (e.g., [Facebook Ads](../../packages/connectors/src/Sources/FacebookMarketing/README.md), [TikTok Ads](../../packages/connectors/src/Sources/TikTokAds/README.md)) from the list of [available connectors](../../packages/connectors/src/Sources) and click **Next** (or add a custom connector code below).
 
-![Create Data Mart-3](../res/screens/Connector-Based-DataMart-Platform-Select.png)
+![Create Data Mart-3](../../res/screens/Connector-Based-DataMart-Platform-Select.png)
 
 ## Step 2: Configure parameters
 
@@ -39,7 +39,7 @@ Each connector has a set of required parameters. The most common ones include:
 
 📌 Some connectors may have additional parameters — see their setup guides.
 
-![Create Data Mart 4](../res/screens/Connector-Based-DataMart-Connector-Config.png)
+![Create Data Mart 4](../../res/screens/Connector-Based-DataMart-Connector-Config.png)
 
 ## Step 3: Add Access Credentials
 
@@ -71,7 +71,7 @@ Each connector includes one or more data nodes. For example, Facebook Ads has no
 
 Next, click **Select all** or select just the fields you want to store in your data warehouse.
 
-![Create Data Mart 5](../res/screens/Connector-Based-DataMart-Schema-Setup.png)
+![Create Data Mart 5](../../res/screens/Connector-Based-DataMart-Schema-Setup.png)
 
 ## Step 5: Set up the target in your storage
 
@@ -86,7 +86,7 @@ Don’t forget to:
 - **Publish** the data mart  
 - **Run** the Data Mart manually for the first time  
 
-![Output Schema Auto-Generated](../res/screens/Connector-Based-DataMart-Manual-Run.png)
+![Output Schema Auto-Generated](../../res/screens/Connector-Based-DataMart-Manual-Run.png)
 
 After the first run, you’ll see that the **Output schema was generated automatically**.
 
@@ -99,11 +99,11 @@ Each field includes:
 
 Next, you can add **business-friendly names** to improve usability later in BI tools as aliases.
 
-![Create Data Mart 7](../res/screens/Connector-Based-DataMart-Output-Schema.png)
+![Create Data Mart 7](../../res/screens/Connector-Based-DataMart-Output-Schema.png)
 
 > 💡 Tip: Add a description to the Data Mart itself so you always know what that is all about.
 
-![Create Data Mart 8](../res/screens/Connector-Based-DataMart-Description.png)
+![Create Data Mart 8](../../res/screens/Connector-Based-DataMart-Description.png)
 
 Also you can check the **Run History** tab for logs and results
 
