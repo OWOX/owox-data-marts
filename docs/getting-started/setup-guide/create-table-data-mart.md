@@ -11,7 +11,7 @@ This is ideal when the table has already been prepared (e.g., cleaned, modeled, 
 - Select your **Data Storage** (BigQuery or Athena)
 - Click **Create Data Mart**
 
-![Table Based Data Mart - 1](../res/screens/Connector-Based-DataMart-1.png)
+![Table Based Data Mart - 1](../../res/screens/Connector-Based-DataMart-1.png)
 
 ## Step 2: Enter Table Details
 
@@ -24,7 +24,7 @@ In the **Input Source** panel:
 
 Click **Save**
 
-![Table Based Data Mart - 2](../res/screens/table-data-mart-output-schema.png)
+![Table Based Data Mart - 2](../../res/screens/table-data-mart-output-schema.png)
 
 Once saved, the **Output Schema** will be generated automatically with:
 
@@ -40,7 +40,7 @@ You can then:
 
 Click **Publish Data Mart**
 
-![Table Based Data Mart - 3](../res/screens/table-data-mart-publish.png)
+![Table Based Data Mart - 3](../../res/screens/table-data-mart-publish.png)
 
 ## Step 3: Add a Destination
 
@@ -60,7 +60,7 @@ To do this:
 4. Create a new Google Sheets document (or use an existing one) and share it (Edit permissions) with your **Google Sheets Service Account**
 5. Add a link to your document (and specify the tab) and click **Create new report**
 
-![Table Based Data Mart - 4](../res/screens/SQL-Based-DataMart-Report.png)
+![Table Based Data Mart - 4](../../res/screens/SQL-Based-DataMart-Report.png)
 
 You can now:
 
@@ -69,7 +69,7 @@ You can now:
 - Open document  
 - Delete report
 
-![Table Based Data Mart - 5](../res/screens/SQL-Based-DataMart-Run-Report.png)
+![Table Based Data Mart - 5](../../res/screens/SQL-Based-DataMart-Run-Report.png)
 
 ## Step 4: Set Triggers
 
@@ -85,7 +85,7 @@ Go to the **Triggers** tab → Click **+ Add Trigger**
   - **Interval** → e.g., every 15 minutes
 - Click **Create trigger**
 
-![Table Based Data Mart - 6](../res/screens/SQL-Based-DataMart-Trigger.png)
+![Table Based Data Mart - 6](../../res/screens/SQL-Based-DataMart-Trigger.png)
 
 You can also open the **Run History** tab to view execution logs, status, and timestamps.
 
