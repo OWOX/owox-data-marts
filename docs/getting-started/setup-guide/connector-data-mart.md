@@ -86,7 +86,7 @@ Don’t forget to:
 - **Publish** the data mart  
 - **Run** the Data Mart manually for the first time  
 
-![Output Schema Auto-Generated](../../res/screens/Connector-Based-DataMart-Manual-Run.png)
+![Output Schema Auto-Generated](../../res/screens/Manual-run.png)
 
 After the first run, you’ll see that the **Output schema was generated automatically**.
 
