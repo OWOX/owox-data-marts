@@ -13,13 +13,13 @@ More options coming soon: 🛠️ Snowflake, Redshift, Databricks, and Azure Syn
 
 In OWOX Data Marts, navigate to the **Storages** section in the left sidebar and click on **+ New Storage**.
 
-![Storage screenshot](../res/screens/Storage-1.png)
+![Storage screenshot](../../res/screens/Storage-1.png)
 
 ## Step 2: Add a New Storage
 
 Then select the data warehouse you want to add and follow the instructions for your platform.
 
-![Select Your Storage - Step 2](../res/screens/Storage-2.png)
+![Select Your Storage - Step 2](../../res/screens/Storage-2.png)
 
 ### Option 1: Google BigQuery
 
@@ -44,7 +44,7 @@ Give the storage a clear title, eg `OWOX Data Marts – Your Name`.
 
 - Choose a data location (e.g., `US`, `EU`) from the dropdown menu
 
-![Select Your Storage - Step 3](../res/screens/Storage-3.png)
+![Select Your Storage - Step 3](../../res/screens/Storage-3.png)
 
 #### Add a Service Account
 
@@ -64,7 +64,7 @@ To get the JSON key, you'll need to create or use an existing service account in
 - Choose **JSON**, click **Create**, and download the file
 - Copy the contents of the JSON file and paste it into the **Service Account JSON** field
 
-![BigQuery Service Account Setup](../res/screens/Storage-4.png)
+![BigQuery Service Account Setup](../../res/screens/Storage-4.png)
 
 Click **Save** to complete setup.
 
@@ -74,7 +74,7 @@ Click **Save** to complete setup.
 
 Give your storage a title, e.g. `OWOX Data Marts – Your Name`.
 
-![Athena Setup](../res/screens/Storage-5.png)
+![Athena Setup](../../res/screens/Storage-5.png)
 
 #### Add region
 
@@ -116,11 +116,13 @@ Click **Save** to complete setup.
 - Avoid using personal credentials for automation
 - If managing multiple clients or teams, **create separate storage configurations** to isolate access
 
-## Related Pages
+## Related Articles
 
-- [What is a Data Mart in OWOX →](what-is-data-mart.md)
 - [Create Connector-Based Data Mart →](create-connector-data-mart.md)
-- [Create SQL-Based Data Mart →](create-sql-data-mart.md)
 - [Scheduling Triggers →](connector-triggers.md)
+- [Create SQL-Based Data Mart →](create-sql-data-mart.md)
 - [Scheduling Triggers →](report-triggers.md)
+- [Create Table-Based Data Mart →](create-table-data-mart.md)
+- [Create View-Based Data Mart →](create-view-data-mart.md)
+- [Create Pattern-Based Data Mart →](create-pattern-data-mart.md)
 - [Adding a Report Destination →](create-a-destination.md)
