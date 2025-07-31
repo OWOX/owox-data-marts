@@ -23,7 +23,7 @@ Then select the data warehouse you want to add and follow the instructions for y
 
 ### Option 1: Google BigQuery
 
-#### Title
+#### Add title
 
 Give the storage a clear title, eg `OWOX Data Marts – Your Name`.
 
