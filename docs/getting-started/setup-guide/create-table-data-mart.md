@@ -20,8 +20,7 @@ In the **Input Source** panel:
 - Set **Definition Type** to `Table`
 - Add the **Fully Qualified Table Name** in the format:  
   `projectId.datasetId.tableId` (for BigQuery)
-
-> Note: For AWS Athena, use the **schema name** instead of a datasetId.
+  `catalog.schema.table` (for Athena)  
 
 Click **Save**
 
