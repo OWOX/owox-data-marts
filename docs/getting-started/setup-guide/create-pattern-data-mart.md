@@ -3,7 +3,7 @@
 Use this option when your data is spread across multiple similarly named tables, such as daily partitions (e.g., `events_20250731`, `events_20250801`, etc.).  
 A pattern-based Data Mart lets you query all of these tables as a unified dataset using a wildcard — without manually listing each one.
 
-### Pattern Examples
+## Patterns Examples
 
 This is commonly used with:
 
