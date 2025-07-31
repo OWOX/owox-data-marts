@@ -1,4 +1,4 @@
-# Report Update Trigger
+# Report Trigger
 
 Use this trigger when you want to automatically refresh the results of a **SQL-based**, **table-based**, **view-based**, or **pattern-based** Data Mart — and ensure reports in Google Sheets or Looker Studio stay up to date.
 
@@ -34,10 +34,10 @@ After saving, the Data Mart will automatically refresh based on your schedule.
 
 ## Related Links
 
-- [Add More Destinations →](create-a-destination.md)  
-- [Create SQL-Based Data Mart →](create-sql-data-mart.md)  
-- [Create Table-Based Data Mart →](create-table-data-mart.md)  
-- [Create View-Based Data Mart →](create-view-data-mart.md)  
-- [Create Pattern-Based Data Mart →](create-pattern-data-mart.md)  
-- [Create Connector-Based Data Mart →](create-connector-data-mart.md)  
+- [Add More Destinations →](../../destinations/manage-destinations.md)  
+- [Create SQL-Based Data Mart →](sql-data-mart.md)  
+- [Create Table-Based Data Mart →](table-data-mart.md)  
+- [Create View-Based Data Mart →](view-data-mart.md)  
+- [Create Pattern-Based Data Mart →](pattern-data-mart.md)  
+- [Create Connector-Based Data Mart →](connector-data-mart.md)  
 - [Connector Triggers →](connector-triggers.md)
