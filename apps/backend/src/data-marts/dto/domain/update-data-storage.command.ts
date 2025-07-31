@@ -10,7 +10,7 @@ export class UpdateDataStorageCommand {
     public readonly credentials?: DataStorageCredentials
   ) {}
 
-  hasCredentialsUpdate(): boolean {
+  hasCredentials(): boolean {
     return this.credentials !== undefined;
   }
 }

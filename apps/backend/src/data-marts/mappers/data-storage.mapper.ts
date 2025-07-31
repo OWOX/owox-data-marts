@@ -12,11 +12,11 @@ import { DataStorageListResponseApiDto } from '../dto/presentation/data-storage-
 import { DeleteDataStorageCommand } from '../dto/domain/delete-data-storage.command';
 import { ListDataStoragesCommand } from '../dto/domain/list-data-storages.command';
 import { toHumanReadable } from '../data-storage-types/enums/data-storage-type.enum';
-import { getPublicCredentials } from '../data-storage-types/data-mart-schema.utils';
+import { DataStorageCredentialsUtils } from '../data-storage-types/data-mart-schema.utils';
 
 @Injectable()
 export class DataStorageMapper {
-  constructor() {}
+  constructor(private readonly credentialsUtils: DataStorageCredentialsUtils) {}
 
   toCreateCommand(
     context: AuthorizationContext,
@@ -62,7 +62,10 @@ export class DataStorageMapper {
       title: dataStorageDto.title,
       type: dataStorageDto.type,
       projectId: dataStorageDto.projectId,
-      credentials: getPublicCredentials(dataStorageDto.type, dataStorageDto.credentials),
+      credentials: this.credentialsUtils.getPublicCredentials(
+        dataStorageDto.type,
+        dataStorageDto.credentials
+      ),
       config: dataStorageDto.config,
       createdAt: dataStorageDto.createdAt,
       modifiedAt: dataStorageDto.modifiedAt,

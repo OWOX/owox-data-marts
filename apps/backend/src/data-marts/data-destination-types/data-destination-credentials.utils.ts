@@ -1,25 +1,19 @@
+import { Injectable } from '@nestjs/common';
+import { DataDestinationCredentialsPublic } from '../dto/presentation/data-destination-response-api.dto';
 import { DataDestinationCredentials } from './data-destination-credentials.type';
 import { DataDestinationType } from './enums/data-destination-type.enum';
-import { DataDestinationCredentialsSafe } from '../dto/presentation/data-destination-response-api.dto';
+import { DataDestinationPublicCredentialsFactory } from './factories/data-destination-public-credentials.factory';
 
-export function getPublicCredentials(
-  type: DataDestinationType,
-  credentials: DataDestinationCredentials | undefined
-): DataDestinationCredentialsSafe | undefined {
-  if (!credentials) return undefined;
+@Injectable()
+export class DataDestinationCredentialsUtils {
+  constructor(private readonly factory: DataDestinationPublicCredentialsFactory) {}
 
-  switch (type) {
-    case DataDestinationType.GOOGLE_SHEETS:
-      return {
-        type: 'google-sheets-credentials',
-        serviceAccountKey: {
-          type: 'service_account',
-          project_id: credentials.serviceAccountKey.project_id,
-          client_email: credentials.serviceAccountKey.client_email,
-          client_id: credentials.serviceAccountKey.client_id,
-        },
-      };
-    default:
-      return undefined;
+  getPublicCredentials(
+    type: DataDestinationType,
+    credentials: DataDestinationCredentials | undefined
+  ): DataDestinationCredentialsPublic | undefined {
+    if (!credentials) return undefined;
+
+    return this.factory.create(type, credentials);
   }
 }

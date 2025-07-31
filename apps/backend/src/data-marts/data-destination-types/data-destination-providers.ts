@@ -10,6 +10,8 @@ import { SheetHeaderFormatter } from './google-sheets/services/sheet-formatters/
 import { SheetMetadataFormatter } from './google-sheets/services/sheet-formatters/sheet-metadata-formatter';
 import { GoogleSheetsApiAdapterFactory } from './google-sheets/adapters/google-sheets-api-adapter.factory';
 import { ModuleRef } from '@nestjs/core';
+import { DataDestinationPublicCredentialsFactory } from './factories/data-destination-public-credentials.factory';
+import { DataDestinationCredentialsUtils } from './data-destination-credentials.utils';
 
 export const DATA_DESTINATION_ACCESS_VALIDATOR_RESOLVER = Symbol(
   'DATA_DESTINATION_ACCESS_VALIDATOR_RESOLVER'
@@ -25,12 +27,17 @@ const accessValidatorProviders = [GoogleSheetsAccessValidator];
 const credentialsValidatorProviders = [GoogleSheetsCredentialsValidator];
 const reportWriterProviders = [GoogleSheetsReportWriter];
 const googleSheetsUtilityProviders = [SheetHeaderFormatter, SheetMetadataFormatter];
+const publicCredentialsProviders = [
+  DataDestinationPublicCredentialsFactory,
+  DataDestinationCredentialsUtils,
+];
 
 export const dataDestinationResolverProviders = [
   ...accessValidatorProviders,
   ...credentialsValidatorProviders,
   ...reportWriterProviders,
   ...googleSheetsUtilityProviders,
+  ...publicCredentialsProviders,
   GoogleSheetsApiAdapterFactory,
   {
     provide: DATA_DESTINATION_ACCESS_VALIDATOR_RESOLVER,

@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { DataStorageCredentialsSafe } from '../dto/presentation/data-storage-response-api.dto';
-import { AthenaCredentials } from './athena/schemas/athena-credentials.schema';
-import { BigQueryCredentials } from './bigquery/schemas/bigquery-credentials.schema';
 import { DataStorageCredentials } from './data-storage-credentials.type';
 import { DataMartSchemaFieldStatus } from './enums/data-mart-schema-field-status.enum';
 import { DataStorageType } from './enums/data-storage-type.enum';
+import { Injectable } from '@nestjs/common';
+import { DataStoragePublicCredentialsFactory } from './factories/data-storage-public-credentials.factory';
+import { DataStorageCredentialsPublic } from '../dto/presentation/data-storage-response-api.dto';
 
 export function createBaseFieldSchemaForType<T extends z.ZodTypeAny>(schemaFieldType: T) {
   const typedSchema = z
@@ -25,28 +25,16 @@ export function createBaseFieldSchemaForType<T extends z.ZodTypeAny>(schemaField
   return typedSchema;
 }
 
-export function getPublicCredentials(
-  type: DataStorageType,
-  credentials: DataStorageCredentials | undefined
-): DataStorageCredentialsSafe | undefined {
-  if (!credentials) return undefined;
+@Injectable()
+export class DataStorageCredentialsUtils {
+  constructor(private readonly factory: DataStoragePublicCredentialsFactory) {}
 
-  if (type === DataStorageType.GOOGLE_BIGQUERY) {
-    const bigQueryCredentials = credentials as BigQueryCredentials;
-    return {
-      type: bigQueryCredentials.type || 'service_account',
-      project_id: bigQueryCredentials.project_id,
-      client_id: bigQueryCredentials.client_id,
-      client_email: bigQueryCredentials.client_email,
-    };
+  getPublicCredentials(
+    type: DataStorageType,
+    credentials: DataStorageCredentials | undefined
+  ): DataStorageCredentialsPublic | undefined {
+    if (!credentials) return undefined;
+
+    return this.factory.create(type, credentials);
   }
-
-  if (type === DataStorageType.AWS_ATHENA) {
-    const athenaCredentials = credentials as AthenaCredentials;
-    return {
-      accessKeyId: athenaCredentials.accessKeyId,
-    };
-  }
-
-  return undefined;
 }

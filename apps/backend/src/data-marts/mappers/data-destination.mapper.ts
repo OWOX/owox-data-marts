@@ -10,10 +10,11 @@ import { AuthorizationContext } from '../../common/authorization-context/authori
 import { GetDataDestinationCommand } from '../dto/domain/get-data-destination.command';
 import { DeleteDataDestinationCommand } from '../dto/domain/delete-data-destination.command';
 import { ListDataDestinationsCommand } from '../dto/domain/list-data-destinations.command';
-import { getPublicCredentials } from '../data-destination-types/data-destination-credentials.utils';
+import { DataDestinationCredentialsUtils } from '../data-destination-types/data-destination-credentials.utils';
 
 @Injectable()
 export class DataDestinationMapper {
+  constructor(private readonly credentialsUtils: DataDestinationCredentialsUtils) {}
   toCreateCommand(
     context: AuthorizationContext,
     dto: CreateDataDestinationApiDto
@@ -56,7 +57,10 @@ export class DataDestinationMapper {
       title: dataDestinationDto.title,
       type: dataDestinationDto.type,
       projectId: dataDestinationDto.projectId,
-      credentials: getPublicCredentials(dataDestinationDto.type, dataDestinationDto.credentials),
+      credentials: this.credentialsUtils.getPublicCredentials(
+        dataDestinationDto.type,
+        dataDestinationDto.credentials
+      ),
       createdAt: dataDestinationDto.createdAt,
       modifiedAt: dataDestinationDto.modifiedAt,
     };

@@ -25,7 +25,7 @@ export class UpdateDataStorageService {
       command.id
     );
 
-    const credentialsToCheck = command.hasCredentialsUpdate()
+    const credentialsToCheck = command.hasCredentials()
       ? command.credentials
       : dataStorageEntity.credentials;
 
@@ -35,7 +35,7 @@ export class UpdateDataStorageService {
       credentialsToCheck ?? ({} as DataStorageCredentials)
     );
 
-    if (command.hasCredentialsUpdate()) {
+    if (command.hasCredentials()) {
       dataStorageEntity.credentials = command.credentials;
     }
 

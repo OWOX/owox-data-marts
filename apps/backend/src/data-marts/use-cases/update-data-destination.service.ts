@@ -25,16 +25,14 @@ export class UpdateDataDestinationService {
       command.projectId
     );
 
-    const credentialsToCheck = command.hasCredentialsUpdate()
-      ? command.credentials
-      : entity.credentials;
+    const credentialsToCheck = command.hasCredentials() ? command.credentials : entity.credentials;
 
     await this.credentialsValidator.checkCredentials(
       entity.type,
       credentialsToCheck ?? ({} as DataDestinationCredentials)
     );
 
-    if (command.hasCredentialsUpdate()) {
+    if (command.hasCredentials()) {
       entity.credentials = command.credentials;
     }
 
