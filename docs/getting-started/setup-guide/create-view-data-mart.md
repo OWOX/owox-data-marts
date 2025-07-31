@@ -10,7 +10,7 @@ This is useful when your logic is already encapsulated in a warehouse view and d
 - Select your **Data Storage** (BigQuery or Athena)
 - Click **Create Data Mart**
 
-![View Based Data Mart - 1](../res/screens/Connector-Based-DataMart-1.png)
+![View Based Data Mart - 1](../../res/screens/Connector-Based-DataMart-1.png)
 
 ## Step 2: Enter View Details
 
@@ -23,7 +23,7 @@ In the **Input Source** panel:
 
 Click **Save**
 
-![View Based Data Mart - 2](../res/screens/table-data-mart-output-schema.png)
+![View Based Data Mart - 2](../../res/screens/table-data-mart-output-schema.png)
 
 Once saved, the **Output Schema** will be generated automatically with:
 
@@ -39,7 +39,7 @@ You can then:
 
 Click **Publish Data Mart**
 
-![View Based Data Mart - 3](../res/screens/table-data-mart-publish.png)
+![View Based Data Mart - 3](../../res/screens/table-data-mart-publish.png)
 
 ## Step 3: Add a Destination
 
@@ -59,7 +59,7 @@ To do this:
 4. Create a new Google Sheets document (or use an existing one) and share it (Edit permissions) with your **Google Sheets Service Account**
 5. Add a link to your document (and specify the tab) and click **Create new report**
 
-![View Based Data Mart - 4](../res/screens/SQL-Based-DataMart-Report.png)
+![View Based Data Mart - 4](../../res/screens/SQL-Based-DataMart-Report.png)
 
 You can now:
 
@@ -68,7 +68,7 @@ You can now:
 - Open document  
 - Delete report
 
-![View Based Data Mart - 5](../res/screens/SQL-Based-DataMart-Run-Report.png)
+![View Based Data Mart - 5](../../res/screens/SQL-Based-DataMart-Run-Report.png)
 
 ## Step 4: Set Triggers
 
@@ -84,7 +84,7 @@ Go to the **Triggers** tab → Click **+ Add Trigger**
   - **Interval** → e.g., every 15 minutes
 - Click **Create trigger**
 
-![View Based Data Mart - 6](../res/screens/SQL-Based-DataMart-Trigger.png)
+![View Based Data Mart - 6](../../res/screens/SQL-Based-DataMart-Trigger.png)
 
 You can also open the **Run History** tab to view execution logs, status, and timestamps.
 
