@@ -18,7 +18,7 @@ export function NodesSelectionStep({
   loading = false,
   onFieldSelect,
 }: NodesSelectionStepProps) {
-  const title = connectorName ? `Select Nodes for ${connectorName}` : 'Select Nodes';
+  const title = connectorName ? `Select Node for ${connectorName}` : 'Select Node';
 
   if (loading) {
     return (
