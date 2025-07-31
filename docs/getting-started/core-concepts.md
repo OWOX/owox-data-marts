@@ -27,9 +27,9 @@ OWOX Data Marts has a lot of terms inside, but here are the basic ones:
 
 ![Data Marts](../res/screens/data-marts-table.png)
 
-An OWOX Data Mart is the foundational entity in OWOX Data Marts. It's a controlled, ready-to-share artifact designed for analytics and reporting. 
+An OWOX Data Mart is the foundational entity in OWOX Data Marts. It's a controlled, ready-to-share artifact designed for analytics and reporting.
 
-It’s crafted by data analysts and can be defined using: 
+It’s crafted by data analysts and can be defined using:
 
 - [SQL](setup-guide/sql-data-mart.md)
 - [Tables](setup-guide/table-data-mart.md)
@@ -99,7 +99,7 @@ Each **Data Mart** can be linked to multiple **Destinations**.
 
 ### Report
 
-A *Report* defines a specific sheet within a Google Sheets document where the Data Mart’s data is exported.
+A **Report** defines a specific sheet within a Google Sheets document where the Data Mart’s data is exported.
 Different Google Sheets Reports of the same Data Mart may have different scheduled triggers.
 
 ### Trigger
