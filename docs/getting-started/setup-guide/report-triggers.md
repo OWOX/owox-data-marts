@@ -22,6 +22,8 @@ Set up a **Report Run** trigger if:
    - **Interval** → e.g. every 30 minutes  
 5. Click **Save**
 
+![Report Trigger Setup](../../res/screens/SQL-Based-DataMart-Trigger.png)
+
 After saving, the Data Mart will automatically refresh based on your schedule.
 
 ## Tips
