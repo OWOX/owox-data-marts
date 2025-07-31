@@ -1,8 +1,8 @@
-# Create a Data Mart from Connector
+# Connector-based Data Mart
 
 Use a connector-based Data Mart when you want to collect data directly from a platform API like Facebook Ads, TikTok Ads, LinkedIn Ads or other available data sources (or your own custom connector) into any of the supported Data Storages.
 
-You’ll need a data storage available for the data mart setup. Here is [how to add a data storage](create-data-storage.md)
+You’ll need a data storage available for the data mart setup. Here is [how to add a data storage](../../storages/manage-storages.md)
 
 ## Step 1: Choose the platform
 
@@ -130,9 +130,9 @@ You can automate the connector by setting a trigger to run it on a schedule.
 ## Related Links
 
 - [Schedule Connector to Run Automatically →](connector-triggers.md)
-- [Adding a Report Destination →](create-a-destination.md)
+- [Adding a Report Destination →](../../destinations/manage-destinations.md)
 - [Scheduling Reports Updates →](report-triggers.md)
-- [Create SQL-Based Data Mart →](create-sql-data-mart.md)
-- [Create Table-Based Data Mart →](create-table-data-mart.md)
-- [Create View-Based Data Mart →](create-view-data-mart.md)
-- [Create Pattern-Based Data Mart →](create-pattern-data-mart.md)
+- [Create SQL-Based Data Mart →](sql-data-mart.md)
+- [Create Table-Based Data Mart →](table-data-mart.md)
+- [Create View-Based Data Mart →](view-data-mart.md)
+- [Create Pattern-Based Data Mart →](pattern-data-mart.md)
