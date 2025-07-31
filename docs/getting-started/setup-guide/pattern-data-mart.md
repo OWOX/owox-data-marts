@@ -1,7 +1,9 @@
-# Creating a Data Mart from a Pattern
+# Pattern-based Data Mart
 
 Use this option when your data is spread across multiple similarly named tables, such as daily partitions (e.g., `events_20250731`, `events_20250801`, etc.).  
 A pattern-based Data Mart lets you query all of these tables as a unified dataset using a wildcard — without manually listing each one.
+
+Note: You need a data storage available for the data mart setup. Here is [how to add a data storage](../../storages/manage-storages.md)
 
 ## Patterns Examples
 
@@ -101,8 +103,8 @@ You can also open the **Run History** tab to view execution logs, status, and ti
 ## Related Pages
 
 - [Scheduling Reports Updates →](report-triggers.md)
-- [Adding More Report Destinations →](create-a-destination.md)
-- [Create Connector-Based Data Mart →](create-connector-data-mart.md)
-- [Create SQL-Based Data Mart →](create-sql-data-mart.md)
-- [Create Table-Based Data Mart →](create-table-data-mart.md)
-- [Create View-Based Data Mart →](create-view-data-mart.md)
+- [Adding More Report Destinations →](../../destinations/manage-destinations.md)
+- [Create Connector-Based Data Mart →](connector-data-mart.md)
+- [Create SQL-Based Data Mart →](sql-data-mart.md)
+- [Create Table-Based Data Mart →](table-data-mart.md)
+- [Create View-Based Data Mart →](view-data-mart.md)
