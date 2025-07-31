@@ -29,7 +29,6 @@ export const AwsAthenaFields = ({ form }: AwsAthenaFieldsProps) => {
 
     if (accessKeyId) {
       const maskedValue = '_'.repeat(accessKeyId.length);
-      console.log('maskedValue', maskedValue);
       setMaskedSecretValue(maskedValue);
       form.setValue('credentials.secretAccessKey', maskedValue, { shouldDirty: false });
     }
