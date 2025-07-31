@@ -2,7 +2,7 @@
 
 Use this option when you want to define a Data Mart based on a SQL query written manually — using your existing data warehouse tables, joins, and logic.
 
-You’ll need a data storage available for the data mart setup. Here is [how to add a data storage](create-data-storage.md)
+Note: You need a data storage available for the data mart setup. Here is [how to add a data storage](../../storages/manage-storages.md)
 
 ## Step 1: Create a New Data Mart
 
@@ -92,5 +92,5 @@ You can automate the query by setting a **Trigger** to refresh the data on a sch
 
 ## Related Links
 
-- [Scheduling reports updates →](/report-triggers.md)
-- [Adding more report destinations →](/create-a-destination.md)
+- [Scheduling reports updates →](report-triggers.md)
+- [Adding more report destinations →](../../destinations/manage-destinations.md)
