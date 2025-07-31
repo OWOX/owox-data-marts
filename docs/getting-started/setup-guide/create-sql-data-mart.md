@@ -48,6 +48,7 @@ You can:
 ## Step 4: Add a Description (Optional but Recommended)
 
 Use the **Overview** tab to describe:
+
 - What the Data Mart is about
 - What business question it answers
 - Any context that might help other users
