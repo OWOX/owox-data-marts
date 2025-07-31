@@ -1,28 +1,32 @@
 # Storage Management
 
 Storages are specialized Data Sources that provide an SQL interface for querying and caching data.  
-OWOX Data Marts does not retain your data, ensuring that data ownership, storage, and processing control remain with the Data Analyst.  
-Each project requires at least one **Storage** to be configured to manage and process your data, though multiple **Storages** may be configured to meet specific data requirements.
-![Storages](../res/screens/storages-table.png)
 
----
+_IMPORTANT: OWOX Data Marts does not retain your data, ensuring that data ownership, storage, and processing control remain under the control of the Data Analyst._
+
+Each project requires at least one **Storage** to be configured to manage and process your data.
+
+If managing multiple clients or teams, you may also want to have multiple **storage configurations** to isolate access.
+
+![Storages](../res/screens/storages-table.png)
 
 ## Adding a New Storage
 
 To configure a new **Storage**:
 
-1. On the **Storages** page, click **+ New Storage**.
-2. Choose a storage type option on the **New Storage** modal window:
+1. Navigate to the **Storages** in the left sidebar and click on **+ New Storage**.
+2. Then select the **data warehouse** you want to add and follow the instructions for your platform:
     - [Google BigQuery](supported-storages/google-bigquery.md)
     - [AWS Athena](supported-storages/aws-athena.md)
     - Snowflake (Coming soon)
     - Databricks (Coming soon)
     - AWS Redshift (Coming soon)
     - Azure Synapse (Coming soon)
-3. Fill in the required configuration fields based on the selected Storage Type. Refer to the corresponding service configuration page for detailed setup instructions.
-4. Click **Save** to apply the storage configuration or **Cancel** to defer configuration to a later time.
+3. Fill in the required configuration fields based on the selected data warehouse. Follow the instructions for your platform.
+4. Click **Save** to complete storage setup or **Cancel** to finish the configuration later.
 
-> ☝️ Upon selecting the **+ New Storage** button and specifying the desired storage type, a Storage entry is created. You can create **Data Mart** entities and model a data structure for your project prior to configuring the **Storage**.  
+> ☝️ Upon selecting the **+ New Storage** button and specifying the desired storage type, a Storage entry is created.
+> You can create **Data Mart** entities and model a data structure for your project prior to configuring the **Storage**.  
 > Note that **Data Mart** cannot be validated or published until the associated **Storage** is fully configured.
 
 ---
