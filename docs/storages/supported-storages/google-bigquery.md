@@ -34,11 +34,12 @@ Here's what to do:
 #### 3. Enable the BigQuery API
 
 To run queries and process data in Google BigQuery, you need to enable the [BigQuery API](https://console.cloud.google.com/apis/library/bigquery.googleapis.com) in your Google Cloud project.  
-Follow the steps below to enable the API:
+Follow the steps below to enable the API: 
 
-1. Open the [BigQuery API](https://console.cloud.google.com/apis/library/bigquery.googleapis.com) product details page and ensure the correct project is selected.
-2. If the API isn't enabled yet, click **Enable**.
-3. If it's already enabled, you'll see the API dashboard — that's fine.
+1. Open the [BigQuery API Library page](https://console.cloud.google.com/apis/library/bigquery.googleapis.com)
+2. Ensure the correct Google Cloud project is selected
+3. If the API isn't enabled yet, click **Enable**.
+4. If it's already enabled, you'll see the API dashboard — that's fine.
 
 #### 4. Find BigQuery dataset location
 
