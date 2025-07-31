@@ -18,6 +18,7 @@ const APP_LOCATION = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const ASSETS_DEST_PATH = path.join(APP_LOCATION, 'src/assets');
 const CONTENT_DEST_PATH = path.join(APP_LOCATION, 'src/content/docs');
 const MONOREPO_ROOT = path.resolve(APP_LOCATION, '../..');
+const CHANGELOG_PATH = path.join(MONOREPO_ROOT, 'apps/owox/CHANGELOG.md');
 
 /**
  * Main sync function that orchestrates the entire process
@@ -149,6 +150,11 @@ async function findMarkdownFiles() {
     absolute: true,
   });
 
+  // Manualy add main Changelog
+  if (!sourceFiles.includes(CHANGELOG_PATH) && fs.existsSync(CHANGELOG_PATH)) {
+    sourceFiles.push(CHANGELOG_PATH);
+  }
+
   return sourceFiles;
 }
 
@@ -180,10 +186,13 @@ function defineFilePaths(sourcePath) {
 
   const normalizedRelativePath = normalizePathToKebabCase(relativePath);
 
-  const destinationPath = path.join(
-    CONTENT_DEST_PATH,
-    normalizedRelativePath === 'readme.md' ? 'index.md' : normalizedRelativePath
-  );
+  const destinationPath =
+    sourcePath === CHANGELOG_PATH
+      ? path.join(CONTENT_DEST_PATH, 'docs/changelog.md')
+      : path.join(
+          CONTENT_DEST_PATH,
+          normalizedRelativePath === 'readme.md' ? 'index.md' : normalizedRelativePath
+        );
 
   return {
     sourcePath,
@@ -296,6 +305,11 @@ function processFrontmatter(fileContent, filePaths) {
 
       frontmatter.title = titleParts.join(' ') || 'Document';
     }
+  }
+
+  // Check changelog
+  if (sourcePath === CHANGELOG_PATH) {
+    frontmatter.title = 'Changelog';
   }
 
   // Add default metadata if not exist

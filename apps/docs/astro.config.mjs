@@ -108,7 +108,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               collapsed: true,
             },
             { label: 'Licenses', autogenerate: { directory: 'licenses' }, collapsed: true },
-            // 'apps/owox/changelog',
+            'docs/changelog',
           ],
         },
       ],
