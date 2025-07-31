@@ -1,12 +1,12 @@
 # Connector Trigger
 
-Use this trigger type when you want to automatically import fresh data from a platform API on a regular schedule and update the [connector-based data marts](create-connector-data-mart.md).
+Use this trigger type when you want to automatically import fresh data from a platform API on a regular schedule and update the [connector-based data marts](connector-data-mart.md).
 
 ## When to Use
 
 Set up a `Connector Run` trigger if:
 
-- You're using a [Connector-Based Data Mart](create-connector-data-mart.md)
+- You're using a [Connector-Based Data Mart](connector-data-mart.md)
 - You want to refresh data ingestion into your warehouse automatically, without manual runs
 - You want to control how frequently data is re-imported
 
@@ -27,13 +27,8 @@ Set up a `Connector Run` trigger if:
 You can return anytime to update, pause, or delete the trigger.  
 You can also add **multiple triggers** for the same Data Mart to refresh multiple reports.
 
-## Tips
-
-- Match the trigger frequency to the platform’s data freshness (e.g., Facebook Ads API updates at 12 am)
-- Use `reimport_lookback_window` to avoid partial updates for the current day and ensure data completeness
-
 ## 🔗 Related Links
 
-- [Create SQL-Based Data Mart →](create-sql-data-mart.md)  
-- [Add a Destination →](create-a-destination.md)  
+- [Create SQL-Based Data Mart →](sql-data-mart.md)  
+- [Add a Destination →](../../destinations/manage-destinations.md)  
 - [Report Triggers →](report-triggers.md)
