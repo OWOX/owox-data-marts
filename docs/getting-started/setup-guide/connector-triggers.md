@@ -22,7 +22,7 @@ Set up a `Connector Run` trigger if:
    - **Interval** → e.g. every 15 minutes  
 5. Click **Save**
 
-![Connector Trigger Setup Screenshot](../../res/screens/Connector-Trigger-1.png) 
+![Connector Trigger Setup Screenshot](../../res/screens/Connector-Trigger-1.png)
 
 You can return anytime to update, pause, or delete the trigger.  
 You can also add **multiple triggers** for the same Data Mart to refresh multiple reports.
