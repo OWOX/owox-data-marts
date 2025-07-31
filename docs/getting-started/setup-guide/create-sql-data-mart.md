@@ -11,7 +11,7 @@ You’ll need a data storage available for the data mart setup. Here is [how to 
 - Select your **Data Storage** (Google BigQuery or AWS Athena)
 - Click **Create Data Mart**
 
-![Create Data Mart-1](../res/screens/SQL-Based-DataMart-1.png)
+![Create Data Mart-1](../../res/screens/SQL-Based-DataMart-1.png)
 
 ## Step 2: Choose Definition Type – SQL
 
@@ -24,7 +24,7 @@ Wait until it’s validated, then click **Save** (and **Publish Data Mart**).
 
 > ✅ **Tip:** Keep your query focused on one specific business question. This helps with reusability and semantic clarity.
 
-![Create Data Mart-2](../res/screens/SQL-Based-DataMart-SQL.png)
+![Create Data Mart-2](../../res/screens/SQL-Based-DataMart-SQL.png)
 
 You can reference any **table or view** available in your storage.
 
@@ -35,7 +35,7 @@ Once the query is saved, the **Output Schema** will be generated automatically. 
 - Column names
 - Data types
 
-![Create Data Mart-3](../res/screens/SQL-Based-DataMart-Output-Schema.png)
+![Create Data Mart-3](../../res/screens/SQL-Based-DataMart-Output-Schema.png)
 
 You can:
 
@@ -53,7 +53,7 @@ Use the **Overview** tab to describe:
 - What business question it answers
 - Any context that might help other users
 
-![Create Data Mart-4](../res/screens/SQL-Based-DataMart-Description.png)
+![Create Data Mart-4](../../res/screens/SQL-Based-DataMart-Description.png)
 
 ## Step 5: Add Reports
 
@@ -66,7 +66,7 @@ Under the **Destinations** section, click **+ Add report**.
 5. Add the link to your document (to a tab in the doc)
 6. Click **Create new report**
 
-![Create Data Mart-5](../res/screens/SQL-Based-DataMart-Report.png)
+![Create Data Mart-5](../../res/screens/SQL-Based-DataMart-Report.png)
 
 You can now:
 
@@ -75,7 +75,7 @@ You can now:
 - Open the document  
 - Delete the report
 
-![Create Data Mart-6](../res/screens/SQL-Based-DataMart-Run-Report.png)
+![Create Data Mart-6](../../res/screens/SQL-Based-DataMart-Run-Report.png)
 
 ## Step 6: Set Triggers
 
