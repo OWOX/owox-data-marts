@@ -2,7 +2,6 @@
 import type { NestExpressApplication } from '@nestjs/platform-express';
 
 import { Flags } from '@oclif/core';
-import { bootstrap } from '@owox/backend';
 import express from 'express';
 import { createRequire } from 'node:module';
 
@@ -94,6 +93,8 @@ export default class Serve extends BaseCommand {
 
   private async startApplication(flags: ServeFlags): Promise<void> {
     this.log(`📦 Starting server on port ${flags.port} with ${flags.logFormat} logs...`);
+
+    const { bootstrap } = await import('@owox/backend');
 
     try {
       this.app = await bootstrap({
