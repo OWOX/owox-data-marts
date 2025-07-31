@@ -57,8 +57,8 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "migration:run": "npx typeorm-ts-node-commonjs migration:run -d ./src/data-source.ts",
-    "migration:revert": "npx typeorm-ts-node-commonjs migration:revert -d ./src/data-source.ts",
+    "migration:run": "npx typeorm-ts-node-commonjs migration:run -d ./scripts/data-source.ts",
+    "migration:revert": "npx typeorm-ts-node-commonjs migration:revert -d ./scripts/data-source.ts",
     "migration:create-template": "ts-node commands/create-migration-template.ts",
     "dump:create": "ts-node commands/create-dump-inserts.ts",
     "dump:apply": "ts-node commands/apply-dump-inserts.ts"

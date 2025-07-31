@@ -1,8 +1,10 @@
-import dataSource from '../src/data-source';
 import * as fs from 'fs';
 import * as path from 'path';
 import { createLogger } from '../src/common/logger/logger.service';
 import envPaths from 'env-paths';
+import { createDataSourceOptions } from 'src/config/data-source-options.config';
+import { ConfigService } from '@nestjs/config';
+import { DataSource } from 'typeorm';
 
 const logger = createLogger('DumperCreator');
 const paths = envPaths('owox', { suffix: '' });
@@ -11,7 +13,14 @@ const FILE_EXT = '.jsonp';
 const DUMP_DIR = path.join(paths.data, 'db-backup');
 const BATCH_SIZE = 1000;
 
+function createDataSource() {
+  const configService = new ConfigService();
+  const dataSourceOptions = createDataSourceOptions(configService);
+  return new DataSource(dataSourceOptions);
+}
+
 async function dumpInserts() {
+  const dataSource = createDataSource();
   await dataSource.initialize();
   if (!fs.existsSync(DUMP_DIR)) {
     fs.mkdirSync(DUMP_DIR);

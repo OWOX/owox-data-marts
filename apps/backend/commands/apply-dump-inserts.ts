@@ -1,10 +1,12 @@
-import dataSource from '../src/data-source';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as readline from 'readline';
 import { createLogger } from '../src/common/logger/logger.service';
 import { QueryRunner } from 'typeorm/query-runner/QueryRunner';
 import envPaths from 'env-paths';
+import { createDataSourceOptions } from 'src/config/data-source-options.config';
+import { ConfigService } from '@nestjs/config';
+import { DataSource } from 'typeorm';
 
 const logger = createLogger('DumperApplier');
 const paths = envPaths('owox', { suffix: '' });
@@ -33,7 +35,14 @@ async function enableForeignKeys(queryRunner: QueryRunner, dbType: string) {
   }
 }
 
+function createDataSource() {
+  const configService = new ConfigService();
+  const dataSourceOptions = createDataSourceOptions(configService);
+  return new DataSource(dataSourceOptions);
+}
+
 async function applyDump() {
+  const dataSource = createDataSource();
   await dataSource.initialize();
   const dbType = dataSource.options.type;
   const queryRunner = dataSource.createQueryRunner();
