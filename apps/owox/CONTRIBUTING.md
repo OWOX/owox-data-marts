@@ -34,6 +34,10 @@ USAGE
 
 ## Local Development: npm link
 
+### Prerequisites
+
+- run `npm run build -w @owox/backend` in the root directory to build the backend package
+
 For local development and testing of this CLI, especially when it's not published to a public npm registry, you can use `npm link`. This command creates a symbolic link from your local package to the global npm directory, allowing you to run `owox` from any directory on your system as if it were globally installed.
 
 ### Using `npm link`

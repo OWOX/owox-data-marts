@@ -13,7 +13,7 @@
     "@oclif/core": "^4",
     "@oclif/plugin-help": "^6",
     "@oclif/plugin-plugins": "^5",
-    "@owox/backend": "0.4.0",
+    "@owox/backend": "^0.5.0-next",
     "find-process": "^1.4.10"
   },
   "peerDependencies": {
@@ -64,8 +64,8 @@
   },
   "repository": "OWOX/owox-data-marts",
   "scripts": {
-    "build": "npm run build -w @owox/backend && tsc -b",
-    "lint": "npm run build -w @owox/backend && eslint . --config ./eslint.config.mjs",
+    "build": "tsc -b",
+    "lint": "eslint . --config ./eslint.config.mjs",
     "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",
     "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",
     "format": "prettier --write \"**/*.{ts,js,json}\"",

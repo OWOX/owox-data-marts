@@ -83,6 +83,6 @@
     "typescript-eslint": "^8.30.1"
   },
   "overrides": {
-    "@eslint/plugin-kit": "0.3.3"
+    "@eslint/plugin-kit": "0.3.4"
   }
 }

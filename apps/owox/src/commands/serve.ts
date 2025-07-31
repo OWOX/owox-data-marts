@@ -2,6 +2,7 @@
 import type { NestExpressApplication } from '@nestjs/platform-express';
 
 import { Flags } from '@oclif/core';
+import { bootstrap } from '@owox/backend';
 import express from 'express';
 import { createRequire } from 'node:module';
 
@@ -49,7 +50,6 @@ export default class Serve extends BaseCommand {
     this.setupGracefulShutdown();
 
     try {
-      await this.validateBackendAvailability();
       await this.startApplication(flags as unknown as ServeFlags);
     } catch (error) {
       this.handleStartupError(error);
@@ -96,10 +96,6 @@ export default class Serve extends BaseCommand {
     this.log(`📦 Starting server on port ${flags.port} with ${flags.logFormat} logs...`);
 
     try {
-      // Import bootstrap function from backend
-      const { bootstrap } = await import('@owox/backend');
-
-      // Start application in the same process
       this.app = await bootstrap({
         express: express(),
         logFormat: flags.logFormat,
@@ -117,19 +113,6 @@ export default class Serve extends BaseCommand {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to start application: ${message}`);
-    }
-  }
-
-  private async validateBackendAvailability(): Promise<void> {
-    try {
-      // Try to import the bootstrap function
-      await import('@owox/backend');
-    } catch {
-      this.error(
-        '@owox/backend package not found or invalid. Please ensure it is installed and built:\n' +
-          'npm run build -w @owox/backend',
-        { exit: 1 }
-      );
     }
   }
 

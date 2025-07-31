@@ -30,6 +30,6 @@ export default [
   eslintConfigPrettier,
   // Ignore patterns
   {
-    ignores: ['dist/**', 'node_modules/**', 'src/**/*'],
+    ignores: ['dist/**', 'node_modules/**', 'src/**/*', 'build/**'],
   },
 ];
