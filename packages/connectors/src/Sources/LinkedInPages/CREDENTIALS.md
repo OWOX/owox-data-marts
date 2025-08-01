@@ -71,7 +71,7 @@ make sure you've requested and received approval for the necessary APIs in **Ste
 
 ---
 
-Select select the required scopes for **pages data** access:
+Select the required scopes for **pages data** access:
 
 - `r_organization_social`  
 - `r_organization_followers`  
