@@ -42,7 +42,7 @@ Go to the menu: **OWOX → Manage Credentials**
 
 ![LinkedIn Credentials](res/linkedin_credentials.png)
 
-Enter your Access Token obtained by following this tutorial: [**How to obtain the credentials for the LinkedIn Ads / LinkedIn Pages connector**](CREDENTIALS.md).
+Enter your Access Token obtained by following this tutorial: [**How to obtain the credentials for the LinkedIn Ads connector**](CREDENTIALS.md).
 
 ![LinkedIn Token](res/linkedin_token.png)
 
