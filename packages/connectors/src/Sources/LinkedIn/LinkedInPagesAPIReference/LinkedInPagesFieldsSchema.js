@@ -12,6 +12,7 @@ var LinkedInPagesFieldsSchema = {
     "documentation": "https://learn.microsoft.com/en-us/linkedin/marketing/community-management/organizations/follower-statistics",
     "fields": followerStatisticsFields,
     "uniqueKeys": ["organization_urn", "category_type", "segment_name", "segment_value"],
+    "destinationName": "linkedin_pages_follower_statistics",
     "isTimeSeries": false
   },
   "follower_statistics_time_bound": {
@@ -20,6 +21,7 @@ var LinkedInPagesFieldsSchema = {
     "documentation": "https://learn.microsoft.com/en-us/linkedin/marketing/community-management/organizations/follower-statistics",
     "fields": followerStatisticsTimeBoundFields,
     "uniqueKeys": ["organization_urn", "time_range_start", "time_range_end"],
+    "destinationName": "linkedin_pages_follower_statistics_time_bound",
     "isTimeSeries": true
   }
 };

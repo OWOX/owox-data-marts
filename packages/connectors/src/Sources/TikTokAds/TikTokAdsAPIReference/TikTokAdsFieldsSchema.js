@@ -11,28 +11,32 @@ var TikTokAdsFieldsSchema = {
     "description": "TikTok Advertiser Account information",
     "documentation": "https://ads.tiktok.com/marketing_api/docs",
     "fields": advertiserFields,
-    "uniqueKeys": ["advertiser_id"]
+    "uniqueKeys": ["advertiser_id"],
+    "destinationName": "tiktok_ads_advertiser"
   },
   "campaigns": {
     "title": "Campaigns",
     "description": "TikTok Ad Campaigns",
     "documentation": "https://ads.tiktok.com/marketing_api/docs?id=1739318962329602",
     "fields": campaignsFields,
-    "uniqueKeys": ["campaign_id"]
+    "uniqueKeys": ["campaign_id"],
+    "destinationName": "tiktok_ads_campaigns"
   },
   "ad_groups": {
     "title": "Ad Groups",
     "description": "TikTok Ad Groups",
     "documentation": "https://ads.tiktok.com/marketing_api/docs?id=1739314558673922",
     "fields": adGroupsFields,
-    "uniqueKeys": ["adgroup_id"]
+    "uniqueKeys": ["adgroup_id"],
+    "destinationName": "tiktok_ads_ad_groups"
   },
   "ads": {
     "title": "Ads",
     "description": "TikTok Ads",
     "documentation": "https://ads.tiktok.com/marketing_api/docs?id=1735735588640770",
     "fields": adsFields,
-    "uniqueKeys": ["ad_id"]
+    "uniqueKeys": ["ad_id"],
+    "destinationName": "tiktok_ads_ads"
   },
   "ad_insights": {
     "title": "Ad Insights",
@@ -40,6 +44,7 @@ var TikTokAdsFieldsSchema = {
     "documentation": "https://ads.tiktok.com/marketing_api/docs?id=1738864915188737",
     "fields": adInsightsFields,
     "uniqueKeys": ["ad_id", "stat_time_day"],
+    "destinationName": "tiktok_ads_ad_insights",
     "isTimeSeries": true
   },
   "audiences": {
@@ -47,6 +52,7 @@ var TikTokAdsFieldsSchema = {
     "description": "TikTok Custom Audiences",
     "documentation": "https://ads.tiktok.com/marketing_api/docs?id=1739314536665090",
     "fields": audiencesFields,
-    "uniqueKeys": ["audience_id"]
+    "uniqueKeys": ["audience_id"],
+    "destinationName": "tiktok_ads_audiences"
   }
 };

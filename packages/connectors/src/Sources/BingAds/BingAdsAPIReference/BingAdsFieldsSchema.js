@@ -27,6 +27,7 @@ var BingAdsFieldsSchema = {
       "DeviceOS",
       "TopVsOther"
     ],
+    destinationName: "bing_ads_ad_performance_report",
     isTimeSeries: true
   },
   campaigns: {
@@ -35,6 +36,7 @@ var BingAdsFieldsSchema = {
     documentation: "https://learn.microsoft.com/en-us/advertising/bulk-service/bulk-service-reference",
     fields: campaignFields,
     uniqueKeys: ["Id"],
+    destinationName: "bing_ads_campaigns",
     isTimeSeries: false
   }
 };
