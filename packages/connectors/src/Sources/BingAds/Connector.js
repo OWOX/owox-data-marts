@@ -155,8 +155,8 @@ var BingAdsConnector = class BingAdsConnector extends AbstractConnector {
 
       this.storages[nodeName] = new globalThis[this.storageName](
         this.config.mergeParameters({
-          DestinationSheetName: { value: nodeName },
-          DestinationTableName: {value: this.config.DestinationTableNamePrefix.value + nodeName},
+          DestinationSheetName: { value: this.source.fieldsSchema[nodeName].destinationName },
+          DestinationTableName: {value: this.source.fieldsSchema[nodeName].destinationName},
         }),
         uniqueFields,
         this.source.fieldsSchema[nodeName].fields,

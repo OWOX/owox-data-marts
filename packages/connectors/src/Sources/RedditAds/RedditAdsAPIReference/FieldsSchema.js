@@ -11,14 +11,16 @@ var RedditFieldsSchema = {
     "description": "Get the authenticated member",
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/Get%20Me",
     "fields": adAccountUserFields,
-    "uniqueKeys": ["id"]
+    "uniqueKeys": ["id"],
+    "destinationName": "reddit_ads_ad_account_user"
   },
   "ad-account": {
     "overview": "Ad Account",
     "description": "Retrieve an ad account and its details.",
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/Get%20Ad%20Account",
     "fields": adAccountFields,
-    "uniqueKeys": ["id"]
+    "uniqueKeys": ["id"],
+    "destinationName": "reddit_ads_ad_account"
   },
   "ad-group": {
     "overview": "Ad Group",
@@ -26,6 +28,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Groups",
     "fields": adGroupFields,
     "uniqueKeys": ["id"],
+    "destinationName": "reddit_ads_ad_group",
     "parameters": {
       "pageSize": {
         "description": "Number of results to return per page",
@@ -39,35 +42,40 @@ var RedditFieldsSchema = {
     "description": "Retrieve ads and their details.",
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ads",
     "fields": adsFields,
-    "uniqueKeys": ["id"]
+    "uniqueKeys": ["id"],
+    "destinationName": "reddit_ads_ads"
   },
   "campaigns": {
     "overview": "Campaign",
     "description": "Retrieve campaigns and their details.",
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Campaigns",
     "fields": campaignsFields,
-    "uniqueKeys": ["id"]
+    "uniqueKeys": ["id"],
+    "destinationName": "reddit_ads_campaigns"
   },
   "user-custom-audience": {
     "overview": "User Custom Audience",
     "description": "Retrieve user custom audiences and their details.",
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20User%20Custom%20Audiences",
     "fields": userCustomAudienceFields,
-    "uniqueKeys": ["id"]
+    "uniqueKeys": ["id"],
+    "destinationName": "reddit_ads_user_custom_audience"
   },
   "funding-instruments": {
     "overview": "Funding Instrument",
     "description": "Retrieve funding instruments and their details.",
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Funding%20Instruments",
     "fields": fundingInstrumentFields,
-    "uniqueKeys": ["id"]
+    "uniqueKeys": ["id"],
+    "destinationName": "reddit_ads_funding_instruments"
   },
   "lead-gen-form": {
     "overview": "Lead Gen Form",
     "description": "Retrieve lead generation forms and their details.",
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Lead%20Gen%20Forms",
     "fields": leadGenFormFields,
-    "uniqueKeys": ["id"]
+    "uniqueKeys": ["id"],
+    "destinationName": "reddit_ads_lead_gen_form"
   },
   "report": {
     "overview": "User Ad Metrics by ad_id",
@@ -75,6 +83,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
     "fields": reportFields,
     "uniqueKeys": ["ad_id", "date"],
+    "destinationName": "reddit_ads_report",
     "isTimeSeries": true
   },
   "report-by-COUNTRY": {
@@ -83,6 +92,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
     "fields": reportFields,
     "uniqueKeys": ["ad_id", "date", "country"],
+    "destinationName": "reddit_ads_report_by_COUNTRY",
     "isTimeSeries": true
   },
   "report-by-AD_GROUP_ID": {
@@ -91,6 +101,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
     "fields": reportFields,
     "uniqueKeys": ["ad_id", "date", "ad_group_id"],
+    "destinationName": "reddit_ads_report_by_AD_GROUP_ID",
     "isTimeSeries": true
   },
   "report-by-CAMPAIGN_ID": {
@@ -99,6 +110,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
     "fields": reportFields,
     "uniqueKeys": ["ad_id", "date", "campaign_id"],
+    "destinationName": "reddit_ads_report_by_CAMPAIGN_ID",
     "isTimeSeries": true
   },
   "report-by-DMA": {
@@ -107,6 +119,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
     "fields": reportFields,
     "uniqueKeys": ["ad_id", "date", "dma"],
+    "destinationName": "reddit_ads_report_by_DMA",
     "isTimeSeries": true
   },
   "report-by-INTEREST": {
@@ -115,6 +128,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
     "fields": reportFields,
     "uniqueKeys": ["ad_id", "date", "interest"],
+    "destinationName": "reddit_ads_report_by_INTEREST",
     "isTimeSeries": true
   },
   "report-by-KEYWORD": {
@@ -123,6 +137,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
     "fields": reportFields,
     "uniqueKeys": ["ad_id", "date", "keyword"],
+    "destinationName": "reddit_ads_report_by_KEYWORD",
     "isTimeSeries": true
   },
   "report-by-PLACEMENT": {
@@ -131,6 +146,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
     "fields": reportFields,
     "uniqueKeys": ["ad_id", "date", "placement"],
+    "destinationName": "reddit_ads_report_by_PLACEMENT",
     "isTimeSeries": true
   },
   "report-by-AD_ACCOUNT_ID": {
@@ -139,6 +155,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
     "fields": reportFields,
     "uniqueKeys": ["ad_id", "date", "account_id"],
+    "destinationName": "reddit_ads_report_by_AD_ACCOUNT_ID",
     "isTimeSeries": true
   },
   "report-by-COMMUNITY": {
@@ -147,6 +164,7 @@ var RedditFieldsSchema = {
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
     "fields": reportFields,
     "uniqueKeys": ["ad_id", "date", "community"],
+    "destinationName": "reddit_ads_report_by_COMMUNITY",
     "isTimeSeries": true
   }
 }

@@ -11,28 +11,32 @@ var LinkedInAdsFieldsSchema = {
     "description": "Advertising accounts for an organization.",
     "documentation": "https://learn.microsoft.com/en-us/linkedin/marketing/integrations/ads/account-structure/create-and-manage-accounts",
     "fields": adAccountFields,
-    "uniqueKeys": ["id"]
+    "uniqueKeys": ["id"],
+    "destinationName": "linkedin_ads_ad_accounts"
   },
   "adCampaignGroups": {
     "overview": "Campaign Groups",
     "description": "Group campaigns under an account.",
     "documentation": "https://learn.microsoft.com/en-us/linkedin/marketing/integrations/ads/account-structure/create-and-manage-campaign-groups",
     "fields": adCampaignGroupFields,
-    "uniqueKeys": ["id"]
+    "uniqueKeys": ["id"],
+    "destinationName": "linkedin_ads_ad_campaign_groups"
   },
   "adCampaigns": {
     "overview": "Campaigns",
     "description": "Ad campaigns with scheduling, targeting, budgeting and other settings.",
     "documentation": "https://learn.microsoft.com/en-us/linkedin/marketing/integrations/ads/account-structure/create-and-manage-campaigns",
     "fields": adCampaignFields,
-    "uniqueKeys": ["id"]
+    "uniqueKeys": ["id"],
+    "destinationName": "linkedin_ads_ad_campaigns"
   },
   "creatives": {
     "overview": "Creatives",
     "description": "Ad creative objects.",
     "documentation": "https://learn.microsoft.com/en-us/linkedin/marketing/integrations/ads/account-structure/create-and-manage-creatives",
     "fields": creativesFields,
-    "uniqueKeys": ["id"]
+    "uniqueKeys": ["id"],
+    "destinationName": "linkedin_ads_creatives"
   },
   "adAnalytics": {
     "overview": "LinkedIn Ads Analytics Report",
@@ -40,6 +44,7 @@ var LinkedInAdsFieldsSchema = {
     "documentation": "https://learn.microsoft.com/en-us/linkedin/marketing/integrations/ads-reporting/ads-reporting",
     "fields": adAnalyticsFields,
     "uniqueKeys": ["dateRange", "pivotValues"],
+    "destinationName": "linkedin_ads_ad_analytics",
     "isTimeSeries": true
   }
 }

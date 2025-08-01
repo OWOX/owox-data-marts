@@ -183,8 +183,8 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
 
       this.storages[ nodeName ] = new globalThis[ this.storageName ]( 
         this.config.mergeParameters({ 
-          DestinationSheetName: {value: nodeName},
-          DestinationTableName: {value: this.config.DestinationTableNamePrefix.value + nodeName.replace(/[^a-zA-Z0-9_]/g, "_") } 
+          DestinationSheetName: {value: this.source.fieldsSchema[nodeName].destinationName},
+          DestinationTableName: {value: this.source.fieldsSchema[nodeName].destinationName } 
         }), 
         uniqueFields,
         this.source.fieldsSchema[ nodeName ]["fields"],

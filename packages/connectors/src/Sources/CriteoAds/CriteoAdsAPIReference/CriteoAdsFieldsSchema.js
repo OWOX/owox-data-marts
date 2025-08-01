@@ -12,6 +12,7 @@ var CriteoAdsFieldsSchema = {
     documentation: "https://developers.criteo.com/marketing-solutions/v2024.01/docs/campaign-statistics",
     fields: adStatisticsFields,
     uniqueKeys: ["CampaignId", "AdvertiserId", "AdsetId", "AdId", "Day"],
+    destinationName: "criteo_ads_statistics",
     isTimeSeries: true
   }
 };
