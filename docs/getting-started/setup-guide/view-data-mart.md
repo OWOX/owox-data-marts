@@ -1,4 +1,4 @@
-# View-Based Data Mart
+# View-based Data Mart
 
 Use this option when you want to define a Data Mart that directly references a view that already exists in your data warehouse.
 This is useful when your logic is already encapsulated in a warehouse view and doesn’t require rewriting or copy-pasting SQL inside the Data Mart.
