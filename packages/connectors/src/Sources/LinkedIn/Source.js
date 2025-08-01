@@ -53,9 +53,15 @@ var LinkedInSource = class LinkedInSource extends AbstractSource {
       },
       StartDate: {
         requiredType: "date",
-        default: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
         label: "Start Date",
-        description: "Start date for data import"
+        description: "Start date for data import",
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL]
+      },
+      EndDate: {
+        requiredType: "date",
+        label: "End Date",
+        description: "End date for data import",
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
       Fields: {
         isRequired: true,

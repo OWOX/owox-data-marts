@@ -7,12 +7,12 @@
 
 var OpenExchangeRatesConnector = class OpenExchangeRatesConnector extends AbstractConnector {
 
-constructor(config, source, storageName = "GoogleSheetsStorage") {
+  constructor(config, source, storageName = "GoogleSheetsStorage", runConfig = null) {
     super(config.mergeParameters({
       DestinationTableNamePrefix: {
         default: "Open_Exchange_Rates"
       }
-    }), source);
+    }), source, null, runConfig);
 
     this.storageName = storageName;
   }
@@ -48,7 +48,9 @@ startImportProcess() {
 
     }
 
-    this.config.updateLastRequstedDate(startDate);
+    if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+      this.config.updateLastRequstedDate(startDate);
+    }
     startDate.setDate( startDate.getDate() + 1);  // let's move on to the next date
 
   }    

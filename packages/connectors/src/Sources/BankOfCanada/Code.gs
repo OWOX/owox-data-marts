@@ -11,25 +11,40 @@ var CONFIG_RANGE = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Config'
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('OWOX')
     .addItem('▶ Import New Data', 'importNewData')
+    .addItem('📅 Manual Backfill', 'manualBackfill')
     .addItem('🧹 CleanUp Expired Data', 'cleanUpExpiredData')
     .addItem('🔑 Manage Credentials', 'manageCredentials')
     .addItem('⏰ Schedule', 'scheduleRuns')
     .addToUi();
 }
 
-
-function importNewData() {
-
-  const config = new OWOX.GoogleSheetsConfig( CONFIG_RANGE );
+function importNewData(importType = OWOX.RUN_CONFIG_TYPE.INCREMENTAL, params = null) {
+  const config = new OWOX.GoogleSheetsConfig(CONFIG_RANGE);
+  const source = new OWOX.BankOfCanadaSource(config);
+  const runConfig = new OWOX.AbstractRunConfig({
+    type: importType,
+    data: params || []
+  });
 
   const connector = new OWOX.BankOfCanadaConnector(
-    config,                                               // connector configuration
-    new OWOX.BankOfCanadaSource(config),                 // source 
-    new OWOX.GoogleSheetsStorage(config, ["date", "label"]) // storage 
+    config,
+    source,
+    "GoogleSheetsStorage", // storage name, e.g., "GoogleSheetsStorage", "GoogleBigQueryStorage"
+    runConfig
   );
 
   connector.run();
+}
 
+function manualBackfill() {
+  const config = new OWOX.GoogleSheetsConfig(CONFIG_RANGE);
+  const source = new OWOX.BankOfCanadaSource(config);
+
+  config.showManualBackfillDialog(source);
+}
+
+function executeManualBackfill(params) {
+  importNewData(OWOX.RUN_CONFIG_TYPE.MANUAL_BACKFILL, params);
 }
 
 function cleanUpExpiredData() {

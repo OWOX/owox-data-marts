@@ -11,6 +11,7 @@ var CONFIG_RANGE = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Config'
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('OWOX')
     .addItem('▶ Import New Data', 'startImportProcess')
+    .addItem('📅 Manual Backfill', 'manualBackfill')
     .addItem('🔑 Manage Credentials', 'manageCredentials')
     .addSubMenu(SpreadsheetApp.getUi().createMenu('⏰ Schedule')
       .addItem('Set Daily Schedule (5 AM)', 'createDailyTrigger')
@@ -27,18 +28,35 @@ function onOpen() {
 /**
  * Runs the import process based on the configuration in the Google Sheet.
  */
-function startImportProcess() {
+function startImportProcess(importType = OWOX.RUN_CONFIG_TYPE.INCREMENTAL, params = null) {
   const config = new OWOX.GoogleSheetsConfig(CONFIG_RANGE);
   const properties = PropertiesService.getDocumentProperties().getProperties();
   const source = new OWOX.TikTokAdsSource(config.setParametersValues(properties));
+  const runConfig = new OWOX.AbstractRunConfig({
+    type: importType,
+    data: params || []
+  });
+  
   const connector = new OWOX.TikTokAdsConnector(
     config,
     source,
-    "GoogleSheetsStorage"
-    // "GoogleBigQueryStorage"
+    "GoogleSheetsStorage", // storage name, e.g., "GoogleSheetsStorage", "GoogleBigQueryStorage"
+    runConfig
   );
 
   connector.run();
+}
+
+function manualBackfill() {
+  const config = new OWOX.GoogleSheetsConfig(CONFIG_RANGE);
+  const properties = PropertiesService.getDocumentProperties().getProperties();
+  const source = new OWOX.TikTokAdsSource(config.setParametersValues(properties));
+  
+  config.showManualBackfillDialog(source);
+}
+
+function executeManualBackfill(params) {
+  startImportProcess(OWOX.RUN_CONFIG_TYPE.MANUAL_BACKFILL, params);
 }
 
 function manageCredentials(credentials) {

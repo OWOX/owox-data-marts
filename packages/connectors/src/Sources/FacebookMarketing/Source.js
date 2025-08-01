@@ -31,14 +31,15 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         },
         StartDate: {
           requiredType: "date",
-          isRequired: true,
           label: "Start Date",
-          description: "Start date for data import"
+          description: "Start date for data import",
+          attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL]
         },
         EndDate: {
           requiredType: "date",
           label: "End Date",
-          description: "End date for data import"
+          description: "End date for data import",
+          attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
         },
         Fields: {
           isRequired: true,

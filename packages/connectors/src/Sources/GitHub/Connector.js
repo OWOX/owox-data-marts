@@ -19,7 +19,9 @@ var GitHubConnector = class GitHubConnector extends AbstractConnector {
       if( !data.length ) {      
         
         this.config.logMessage("ℹ️ No records have been fetched");
-        this.config.updateLastRequstedDate(endDate);
+        if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+          this.config.updateLastRequstedDate(endDate);
+        }
 
       } else {
 

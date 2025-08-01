@@ -11,16 +11,16 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
 
     super(configRange.mergeParameters({
       StartDate: {
-        isRequired: true,
         requiredType: "date",
         label: "Start Date",
-        description: "Start date for data import"
+        description: "Start date for data import",
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL]
       },
       EndDate: {
-        isRequired: false,
         requiredType: "date",
         label: "End Date",
-        description: "End date for data import"
+        description: "End date for data import",
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
       AdvertiserIDs: {
         isRequired: true,
