@@ -1,4 +1,4 @@
-# Table Data Mart
+# Table-Based Data Mart
 
 Use this option when you want to define a Data Mart that directly references an existing table in your data warehouse without using `SELECT * FROM table`.
 
