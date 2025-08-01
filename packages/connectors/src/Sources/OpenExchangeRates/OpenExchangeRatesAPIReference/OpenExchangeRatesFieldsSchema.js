@@ -23,6 +23,7 @@ var OpenExchangeRatesFieldsSchema = {
     fields: {
       bigQuery: bigQueryHistoricalFields
     },
-    uniqueKeys: ["date", "base", "currency"]
+    uniqueKeys: ["date", "base", "currency"],
+    destinationName: "open_exchange_rates_historical"
   }
 };

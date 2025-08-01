@@ -28,14 +28,5 @@ const RedditAdsHelper = {
     return String(accountIdsString)
       .split(/[,;]\s*/)
       .map(id => id.trim());
-  },
-
-  /**
-   * Sanitize node name by replacing all non-alphanumeric characters with underscores
-   * @param {string} nodeName - The node name to sanitize
-   * @returns {string} Sanitized node name
-   */
-  sanitizeNodeName(nodeName) {
-    return nodeName.replace(/[^a-zA-Z0-9_]/g, "_");
   }
 };

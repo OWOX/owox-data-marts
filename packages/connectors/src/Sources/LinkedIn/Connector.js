@@ -149,8 +149,8 @@ var LinkedInConnector = class LinkedInConnector extends AbstractConnector {
 
       this.storages[nodeName] = new globalThis[this.storageName](
         this.config.mergeParameters({
-          DestinationSheetName: { value: nodeName },
-          DestinationTableName: { value: this.config.DestinationTableNamePrefix.value + LinkedInHelper.toSnakeCase(nodeName) }
+          DestinationSheetName: { value: this.source.fieldsSchema[nodeName].destinationName },
+          DestinationTableName: { value: this.source.fieldsSchema[nodeName].destinationName }
         }),
         uniqueFields,
         this.source.fieldsSchema[nodeName]["fields"],
