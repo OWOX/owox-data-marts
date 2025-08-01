@@ -1,8 +1,4 @@
-# How to Import Data from the Linkedin Ads & Linkedin Pages Source
-
-To receive data from the LinkedIn Ads source, please make a copy of the file
-["LinkedIn Ads → Google Sheets. Template"](https://docs.google.com/spreadsheets/d/1-eo1z9h5qKGfNDVmSoVYgyEkWfRWRy07NaU5hZnM4Vk/copy) or
-["LinkedIn Ads → Google BigQuery. Template"](https://docs.google.com/spreadsheets/d/1hHrS8FejfACt1lbOQCfY72YldjjMRP8Ft1aOxqqXYsA/copy).
+# How to Import Data from the Linkedin Pages Source
 
 To receive data from the LinkedIn Pages source, please make a copy of the file
 ["LinkedIn Pages → Google Sheets. Template"](https://docs.google.com/spreadsheets/d/1KgLiUiPfswvl-ZGRJnu937mKgRiYPJlbNxpmkzXo4-Q/copy) or
@@ -11,7 +7,6 @@ To receive data from the LinkedIn Pages source, please make a copy of the file
 Fill in required information:
 
 - **Start Date**
-- **Account URNs**
 - **Organization URNs**
 - **Fields**
 - **Destination Dataset ID** (for **Google BigQuery** template)
@@ -21,14 +16,6 @@ The import will begin from the selected **Start Date**.
 > ⚠️ Note: Choosing a long date range may cause the import to fail due to high data volume.
 
 ![LinkedIn Start Date](res/linkedin_date.png)
-
-You can find your **Account URN** on the homepage of your LinkedIn Ads account:
-
-![LinkedIn Account URN](res/linkedin_account.png)
-
-Copy and paste the URN into the appropriate field in the spreadsheet:
-
-![Account URN](res/linkedin_pasteurn.png)
 
 To obtain **Organization URN**, go to [LinkedIn Campaign Manager](https://www.linkedin.com/campaignmanager).
 
@@ -57,7 +44,7 @@ Go to the menu: **OWOX → Manage Credentials**
 
 ![LinkedIn Credentials](res/linkedin_credentials.png)
 
-Enter your Access Token obtained by following this tutorial: [**How to obtain the credentials for the LinkedIn Ads / LinkedIn Pages connector**](CREDENTIALS.md).
+Enter your Access Token obtained by following this tutorial: [**How to obtain the credentials for the LinkedIn Pages connector**](CREDENTIALS.md).
 
 ![LinkedIn Token](res/linkedin_token.png)
 
