@@ -5,11 +5,11 @@
  * file that was distributed with this source code.
  */
 
-var LinkedInConnector = class LinkedInConnector extends AbstractConnector {
+var LinkedInPagesConnector = class LinkedInPagesConnector extends AbstractConnector {
   constructor(config, source, storageName = "GoogleSheetsStorage") {
     super(config.mergeParameters({
       DestinationTableNamePrefix: {
-        default: source.apiType === LinkedInApiTypes.ADS ? "linkedin_ads_" : "linkedin_pages_"
+        default: "linkedin_pages_"
       }
     }), source);
 
@@ -21,8 +21,8 @@ var LinkedInConnector = class LinkedInConnector extends AbstractConnector {
    * Processes all nodes defined in the fields configuration
    */
   startImportProcess() {
-    const apiType = this.source.apiType;
-    const { urns, dataSources } = this.determineApiResources(apiType);
+    const urns = FormatUtils.parseIds(this.config.OrganizationURNs.value, {prefix: 'urn:li:organization:'});
+    const dataSources = FormatUtils.parseFields(this.config.Fields.value);
     
     for (const nodeName in dataSources) {
       this.processNode({
@@ -30,27 +30,6 @@ var LinkedInConnector = class LinkedInConnector extends AbstractConnector {
         urns,
         fields: dataSources[nodeName] || []
       });
-    }
-  }
-  
-  /**
-   * Determine API resources (URNs and fields/tables) based on API type
-   * @param {string} apiType - Type of API (LinkedInApiTypes.ADS or LinkedInApiTypes.PAGES)
-   * @returns {Object} - Object containing URNs and data sources (fields for Ads, tables for Pages)
-   */
-  determineApiResources(apiType) {
-    if (apiType === LinkedInApiTypes.ADS) {
-      return {
-        urns: LinkedInHelper.parseUrns(this.config.AccountURNs.value, {prefix: 'urn:li:sponsoredAccount:'}),
-        dataSources: LinkedInHelper.parseFields(this.config.Fields.value)
-      };
-    } else if (apiType === LinkedInApiTypes.PAGES) {
-      return {
-        urns: LinkedInHelper.parseUrns(this.config.OrganizationURNs.value, {prefix: 'urn:li:organization:'}),
-        dataSources: LinkedInHelper.parseFields(this.config.Fields.value)
-      };
-    } else {
-      throw new Error("Unknown API type: " + apiType);
     }
   }
 
@@ -62,7 +41,7 @@ var LinkedInConnector = class LinkedInConnector extends AbstractConnector {
    * @param {Array} options.fields - Fields to fetch
    */
   processNode({ nodeName, urns, fields }) {
-    const isTimeSeriesNode = this.isTimeSeriesNode(nodeName);
+    const isTimeSeriesNode = ConnectorUtils.isTimeSeriesNode(this.source.fieldsSchema[nodeName]);
     const dateInfo = this.prepareDateRangeIfNeeded(nodeName, isTimeSeriesNode);
     
     if (isTimeSeriesNode && !dateInfo) {
@@ -82,10 +61,10 @@ var LinkedInConnector = class LinkedInConnector extends AbstractConnector {
       this.config.updateLastRequstedDate(dateInfo.endDate);
     }
   }
-  
+
   /**
-   * Fetch and save data for a node
-   * @param {Object} options - Fetch options
+   * Fetch data from source and save to storage
+   * @param {Object} options - Fetching options
    * @param {string} options.nodeName - Name of the node to process
    * @param {Array} options.urns - URNs to process
    * @param {Array} options.fields - Fields to fetch
@@ -97,35 +76,16 @@ var LinkedInConnector = class LinkedInConnector extends AbstractConnector {
     for (const urn of urns) {
       console.log(`Processing ${nodeName} for ${urn}${isTimeSeriesNode ? ` from ${startDate} to ${endDate}` : ''}`);
       
-      const params = this.prepareRequestParams({ fields, isTimeSeriesNode, startDate, endDate });
-              const data = this.source.fetchData(nodeName, urn, params);
-      console.log(`Fetched ${data.length} rows for ${nodeName}`);
+      const params = { fields, ...(isTimeSeriesNode && { startDate, endDate }) };
+      const data = this.source.fetchData(nodeName, urn, params);
       const preparedData = this.addMissingFieldsToData(data, fields);
       
-      this.saveDataToStorage({ 
-        nodeName, 
-        urn, 
-        data: preparedData, 
-        ...(isTimeSeriesNode && { startDate, endDate })
-      });
-    }
-  }
-
-  /**
-   * Save fetched data to storage
-   * @param {Object} options - Storage options
-   * @param {string} options.nodeName - Name of the node
-   * @param {string} options.urn - URN of the processed entity
-   * @param {Array} options.data - Data to save
-   * @param {string} [options.startDate] - Start date for time series data
-   * @param {string} [options.endDate] - End date for time series data
-   */
-  saveDataToStorage({ nodeName, urn, data, startDate, endDate }) {
-    if (data.length) {
-      this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for ${urn}${endDate ? ` from ${startDate} to ${endDate}` : ''}`);
-      this.getStorageByNode(nodeName).saveData(data);
-    } else {
-      this.config.logMessage(`No data fetched for ${nodeName} and ${urn}${endDate ? ` from ${startDate} to ${endDate}` : ''}`);
+      if (preparedData.length) {
+        this.config.logMessage(`${preparedData.length} rows of ${nodeName} were fetched for ${urn}${endDate ? ` from ${startDate} to ${endDate}` : ''}`);
+        this.getStorageByNode(nodeName).saveData(preparedData);
+      } else {
+        this.config.logMessage(`No data fetched for ${nodeName} and ${urn}${endDate ? ` from ${startDate} to ${endDate}` : ''}`);
+      }
     }
   }
 
@@ -150,7 +110,7 @@ var LinkedInConnector = class LinkedInConnector extends AbstractConnector {
       this.storages[nodeName] = new globalThis[this.storageName](
         this.config.mergeParameters({
           DestinationSheetName: { value: nodeName },
-          DestinationTableName: { value: this.config.DestinationTableNamePrefix.value + LinkedInHelper.toSnakeCase(nodeName) }
+          DestinationTableName: { value: this.config.DestinationTableNamePrefix.value + FormatUtils.toSnakeCase(nodeName) }
         }),
         uniqueFields,
         this.source.fieldsSchema[nodeName]["fields"],
@@ -161,26 +121,6 @@ var LinkedInConnector = class LinkedInConnector extends AbstractConnector {
     return this.storages[nodeName];
   }
 
-  /**
-   * Prepare request parameters
-   * @param {Object} options - Parameter options
-   * @param {Array} options.fields - Fields to fetch
-   * @param {boolean} options.isTimeSeriesNode - Whether node is time series
-   * @param {string} [options.startDate] - Start date for time series data
-   * @param {string} [options.endDate] - End date for time series data
-   * @returns {Object} - Prepared parameters
-   */
-  prepareRequestParams({ fields, isTimeSeriesNode, startDate, endDate }) {
-    const params = { fields };
-    
-    if (isTimeSeriesNode) {
-      params.startDate = startDate;
-      params.endDate = endDate;
-    }
-    
-    return params;
-  }
-  
   /**
    * Prepare date range for time series nodes
    * @param {string} nodeName - Name of the node
@@ -205,13 +145,4 @@ var LinkedInConnector = class LinkedInConnector extends AbstractConnector {
     return { startDate, endDate };
   }
 
-  /**
-   * Check if a node is a time series node
-   * @param {string} nodeName - Name of the node
-   * @returns {boolean} - Whether the node is a time series node
-   */
-  isTimeSeriesNode(nodeName) {
-        return this.source.fieldsSchema[nodeName] &&
-      this.source.fieldsSchema[nodeName].isTimeSeries === true;
-  }
 };
