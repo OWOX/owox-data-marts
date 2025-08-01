@@ -1,4 +1,4 @@
-# SQL-based Data Mart 
+# SQL-based Data Mart
 
 Use this option when you want to define a Data Mart based on a SQL query written manually — using your existing data warehouse tables, joins, and logic.
 
