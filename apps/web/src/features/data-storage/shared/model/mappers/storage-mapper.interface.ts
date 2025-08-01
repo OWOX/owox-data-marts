@@ -8,8 +8,8 @@ import type { DataStorageFormData } from '../../types/data-storage.schema.ts';
 
 export interface StorageMapper {
   mapFromDto(dto: DataStorageResponseDto): DataStorage;
-  mapToUpdateRequest(formData: DataStorageFormData): {
-    credentials: DataStorageCredentialsDto;
+  mapToUpdateRequest(formData: Partial<DataStorageFormData>): {
+    credentials?: DataStorageCredentialsDto;
     config: DataStorageConfigDto;
   };
 }

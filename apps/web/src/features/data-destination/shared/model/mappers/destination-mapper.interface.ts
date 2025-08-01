@@ -6,6 +6,6 @@ import type { CreateDataDestinationRequestDto } from '../../services/types';
 
 export interface DestinationMapper {
   mapFromDto(dto: DataDestinationResponseDto): DataDestination;
-  mapToUpdateRequest(formData: DataDestinationFormData): UpdateDataDestinationRequestDto;
+  mapToUpdateRequest(formData: Partial<DataDestinationFormData>): UpdateDataDestinationRequestDto;
   mapToCreateRequest(formData: DataDestinationFormData): CreateDataDestinationRequestDto;
 }

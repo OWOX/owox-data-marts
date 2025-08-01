@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsObject, IsString } from 'class-validator';
+import { IsNotEmpty, IsObject, IsString, IsOptional } from 'class-validator';
 import { DataDestinationCredentials } from '../../data-destination-types/data-destination-credentials.type';
 
 export class UpdateDataDestinationApiDto {
@@ -14,5 +14,6 @@ export class UpdateDataDestinationApiDto {
     description: 'Credentials required for the selected destination type',
   })
   @IsObject()
+  @IsOptional()
   credentials: DataDestinationCredentials;
 }

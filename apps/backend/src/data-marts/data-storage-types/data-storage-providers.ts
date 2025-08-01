@@ -3,8 +3,8 @@ import { TypeResolver } from '../../common/resolver/type-resolver';
 import { AthenaApiAdapterFactory } from './athena/adapters/athena-api-adapter.factory';
 import { S3ApiAdapterFactory } from './athena/adapters/s3-api-adapter.factory';
 import { AthenaAccessValidator } from './athena/services/athena-access.validator';
-import { AthenaDataMartSchemaProvider } from './athena/services/athena-data-mart-schema.provider';
 import { AthenaDataMartSchemaParser } from './athena/services/athena-data-mart-schema.parser';
+import { AthenaDataMartSchemaProvider } from './athena/services/athena-data-mart-schema.provider';
 import { AthenaDataMartValidator } from './athena/services/athena-datamart.validator';
 import { AthenaQueryBuilder } from './athena/services/athena-query.builder';
 import { AthenaReportReader } from './athena/services/athena-report-reader.service';
@@ -28,6 +28,8 @@ import { DataMartValidator } from './interfaces/data-mart-validator.interface';
 import { DataStorageAccessValidator } from './interfaces/data-storage-access-validator.interface';
 import { DataStorageReportReader } from './interfaces/data-storage-report-reader.interface';
 import { SqlDryRunExecutor } from './interfaces/sql-dry-run-executor.interface';
+import { DataStoragePublicCredentialsFactory } from './factories/data-storage-public-credentials.factory';
+import { DataStorageCredentialsUtils } from './data-mart-schema.utils';
 
 export const DATA_STORAGE_ACCESS_VALIDATOR_RESOLVER = Symbol(
   'DATA_STORAGE_ACCESS_VALIDATOR_RESOLVER'
@@ -48,6 +50,10 @@ const dataMartSchemaProviders = [BigQueryDataMartSchemaProvider, AthenaDataMartS
 const dataMartSchemaMergerProviders = [BigQuerySchemaMerger, AthenaSchemaMerger];
 const schemaParserProviders = [BigQueryDataMartSchemaParser, AthenaDataMartSchemaParser];
 const sqlDryRunExecutorProviders = [BigquerySqlDryRunExecutor, AthenaSqlDryRunExecutor];
+const publicCredentialsProviders = [
+  DataStoragePublicCredentialsFactory,
+  DataStorageCredentialsUtils,
+];
 
 export const dataStorageResolverProviders = [
   ...accessValidatorProviders,
@@ -59,6 +65,7 @@ export const dataStorageResolverProviders = [
   ...dataMartSchemaMergerProviders,
   ...schemaParserProviders,
   ...sqlDryRunExecutorProviders,
+  ...publicCredentialsProviders,
   BigQueryReportFormatterService,
   {
     provide: DATA_STORAGE_ACCESS_VALIDATOR_RESOLVER,

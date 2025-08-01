@@ -1,7 +1,19 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { DataStorageType } from '../../data-storage-types/enums/data-storage-type.enum';
-import { DataStorageCredentials } from '../../data-storage-types/data-storage-credentials.type';
 import { DataStorageConfig } from '../../data-storage-types/data-storage-config.type';
+import { DataStorageType } from '../../data-storage-types/enums/data-storage-type.enum';
+
+export type DataStorageCredentialsPublic =
+  | {
+      // BigQuery credentials
+      type: 'service_account';
+      project_id: string;
+      client_id: string;
+      client_email: string;
+    }
+  | {
+      // Athena credentials
+      accessKeyId: string;
+    };
 
 export class DataStorageResponseApiDto {
   @ApiProperty({ example: 'abc123e4-5678-90ab-cdef-1234567890ab' })
@@ -19,8 +31,9 @@ export class DataStorageResponseApiDto {
   @ApiProperty({
     type: 'object',
     additionalProperties: true,
+    description: 'Credentials without sensitive fields',
   })
-  credentials: DataStorageCredentials | undefined;
+  credentials: DataStorageCredentialsPublic | undefined;
 
   @ApiProperty({
     type: 'object',

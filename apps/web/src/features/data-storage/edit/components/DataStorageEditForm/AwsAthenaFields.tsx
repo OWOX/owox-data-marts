@@ -15,16 +15,28 @@ import AthenaRegionDescription from './FormDescriptions/AthenaRegionDescription.
 import AthenaOutputBucketDescription from './FormDescriptions/AthenaOutputBucketDescription.tsx';
 import AthenaAccessKeyIdDescription from './FormDescriptions/AthenaAccessKeyIdDescription.tsx';
 import AthenaSecretAccessKeyDescription from './FormDescriptions/AthenaSecretAccessKeyDescription.tsx';
+import { useEffect, useState } from 'react';
 
 interface AwsAthenaFieldsProps {
   form: UseFormReturn<DataStorageFormData>;
 }
 
 export const AwsAthenaFields = ({ form }: AwsAthenaFieldsProps) => {
+  const [maskedSecretValue, setMaskedSecretValue] = useState<string>('');
+
+  useEffect(() => {
+    const accessKeyId = form.getValues('credentials.accessKeyId');
+
+    if (accessKeyId) {
+      const maskedValue = '_'.repeat(accessKeyId.length);
+      setMaskedSecretValue(maskedValue);
+      form.setValue('credentials.secretAccessKey', maskedValue, { shouldDirty: false });
+    }
+  }, [form]);
+
   if (form.watch('type') !== DataStorageType.AWS_ATHENA) {
     return null;
   }
-
   return (
     <>
       {/* Connection Settings */}
@@ -96,7 +108,11 @@ export const AwsAthenaFields = ({ form }: AwsAthenaFieldsProps) => {
                 Secret Access Key
               </FormLabel>
               <FormControl>
-                <Input {...field} type='password' placeholder='Enter a secret access key' />
+                <Input
+                  {...field}
+                  type='password'
+                  placeholder={maskedSecretValue || 'Enter a secret access key'}
+                />
               </FormControl>
               <FormDescription>
                 <AthenaSecretAccessKeyDescription />

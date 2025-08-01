@@ -7,4 +7,8 @@ export class UpdateDataDestinationCommand {
     public readonly title: string,
     public readonly credentials: DataDestinationCredentials
   ) {}
+
+  hasCredentials(): boolean {
+    return this.credentials !== undefined;
+  }
 }

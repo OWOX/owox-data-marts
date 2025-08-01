@@ -34,15 +34,23 @@ export class GoogleBigQueryMapper implements StorageMapper {
     };
   }
 
-  mapToUpdateRequest(formData: DataStorageFormData) {
-    return {
-      credentials: {
-        ...JSON.parse((formData.credentials as GoogleBigQueryCredentials).serviceAccount),
-      } as GoogleBigQueryCredentialsDto,
+  mapToUpdateRequest(formData: Partial<DataStorageFormData>) {
+    const result: {
+      credentials?: GoogleBigQueryCredentialsDto;
+      config: GoogleBigQueryConfigDto;
+    } = {
       config: {
         projectId: (formData.config as GoogleBigQueryConfigDto).projectId,
         location: (formData.config as GoogleBigQueryConfigDto).location,
       },
     };
+
+    if (formData.credentials) {
+      result.credentials = {
+        ...JSON.parse((formData.credentials as GoogleBigQueryCredentials).serviceAccount),
+      } as GoogleBigQueryCredentialsDto;
+    }
+
+    return result;
   }
 }

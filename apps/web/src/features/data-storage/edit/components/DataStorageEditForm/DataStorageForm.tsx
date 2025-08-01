@@ -61,11 +61,22 @@ export function DataStorageForm({
     onDirtyChange?.(isDirty);
   }, [isDirty, onDirtyChange]);
 
+  const handleSubmit = async (data: DataStorageFormData) => {
+    const { dirtyFields } = form.formState;
+    const payload = JSON.parse(JSON.stringify(data)) as DataStorageFormData;
+
+    if (!dirtyFields.credentials) {
+      delete (payload as Partial<DataStorageFormData>).credentials;
+    }
+
+    return onSubmit(payload);
+  };
+
   return (
     <Form {...form}>
       <AppForm
         onSubmit={e => {
-          void form.handleSubmit(onSubmit)(e);
+          void form.handleSubmit(handleSubmit)(e);
         }}
         noValidate
       >
