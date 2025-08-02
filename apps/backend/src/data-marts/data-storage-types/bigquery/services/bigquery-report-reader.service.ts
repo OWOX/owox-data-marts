@@ -1,7 +1,9 @@
-import { Table } from '@google-cloud/bigquery';
+import { Table, TableRow } from '@google-cloud/bigquery';
+import { BigQueryRange } from '@google-cloud/bigquery/build/src/bigquery';
 import { Injectable, Logger, Scope } from '@nestjs/common';
 import { ReportDataBatch } from '../../../dto/domain/report-data-batch.dto';
 import { ReportDataDescription } from '../../../dto/domain/report-data-description.dto';
+import { ReportDataHeader } from '../../../dto/domain/report-data-header.dto';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import {
   isConnectorDefinition,
@@ -18,22 +20,27 @@ import { BigQueryApiAdapter } from '../adapters/bigquery-api.adapter';
 import { BigQueryConfig } from '../schemas/bigquery-config.schema';
 import { BigQueryCredentials } from '../schemas/bigquery-credentials.schema';
 import { BigQueryQueryBuilder } from './bigquery-query.builder';
-import { BigQueryReportFormatterService } from './bigquery-report-formatter.service';
+import { BigQueryReportHeadersGenerator } from './bigquery-report-headers-generator.service';
 
 @Injectable({ scope: Scope.TRANSIENT })
 export class BigQueryReportReader implements DataStorageReportReader {
   private readonly logger = new Logger(BigQueryReportReader.name);
   readonly type = DataStorageType.GOOGLE_BIGQUERY;
 
-  private adapter: BigQueryApiAdapter;
-  private reportResultTable: Table;
-  private reportResultHeaders: string[];
-  private contextGcpProject: string;
+  adapter: BigQueryApiAdapter;
+  reportResultTable: Table;
+  contextGcpProject: string;
+
+  private reportConfig: {
+    storageCredentials: BigQueryCredentials;
+    storageConfig: BigQueryConfig;
+    definition: DataMartDefinition;
+  };
 
   constructor(
     private readonly adapterFactory: BigQueryApiAdapterFactory,
     private readonly bigQueryQueryBuilder: BigQueryQueryBuilder,
-    private readonly formatter: BigQueryReportFormatterService
+    private readonly headersGenerator: BigQueryReportHeadersGenerator
   ) {}
 
   public async prepareReportData(report: Report): Promise<ReportDataDescription> {
@@ -50,24 +57,36 @@ export class BigQueryReportReader implements DataStorageReportReader {
       throw new Error('Google BigQuery config is not properly configured');
     }
 
-    if (schema && !isBigQueryDataMartSchema(schema)) {
+    if (!schema) {
+      throw new Error('BigQuery data mart schema is required for header generation');
+    }
+
+    if (!isBigQueryDataMartSchema(schema)) {
       throw new Error('Google BigQuery data mart schema is expected');
     }
 
-    await this.prepareBigQuery(storage.credentials, storage.config);
-    await this.prepareReportResultTable(definition);
+    // Сохраняем конфигурацию для последующего использования
+    this.reportConfig = {
+      storageCredentials: storage.credentials,
+      storageConfig: storage.config,
+      definition,
+    };
 
-    const [metaData] = await this.reportResultTable.getMetadata();
-    if (!metaData.numRows || !metaData.schema || !metaData.schema.fields) {
-      throw new Error('Failed to get table metadata');
-    }
+    await this.prepareBigQuery(
+      this.reportConfig.storageCredentials,
+      this.reportConfig.storageConfig
+    );
 
-    this.reportResultHeaders = this.formatter.prepareReportResultHeaders(metaData.schema, schema);
-
-    return new ReportDataDescription(this.reportResultHeaders, parseInt(metaData.numRows));
+    // Только генерируем заголовки
+    const reportResultHeaders = this.headersGenerator.generateHeaders(schema);
+    return new ReportDataDescription(reportResultHeaders);
   }
 
-  public async readReportDataBatch(batchId?: string, maxRows = 10000): Promise<ReportDataBatch> {
+  public async readReportDataBatch(batchId?: string, maxRows = 5000): Promise<ReportDataBatch> {
+    if (!this.reportResultTable) {
+      await this.initializeReportData();
+    }
+
     if (!this.adapter || !this.reportResultTable) {
       throw new Error('Report data must be prepared before read');
     }
@@ -78,7 +97,7 @@ export class BigQueryReportReader implements DataStorageReportReader {
       autoPaginate: false,
     });
 
-    const mappedRows = rows.map(row => this.formatter.getStructuredReportRowData(row));
+    const mappedRows = rows.map(row => this.getStructuredReportRowData(row));
 
     return new ReportDataBatch(mappedRows, nextBatch?.pageToken);
   }
@@ -86,6 +105,18 @@ export class BigQueryReportReader implements DataStorageReportReader {
   public async finalize(): Promise<void> {
     this.logger.debug('Finalizing report read');
     // no additional actions required
+  }
+
+  private async initializeReportData(): Promise<void> {
+    if (!this.reportConfig) {
+      throw new Error('Report data must be prepared before read');
+    }
+
+    // await this.prepareBigQuery(
+    //   this.reportConfig.storageCredentials,
+    //   this.reportConfig.storageConfig
+    // );
+    await this.prepareReportResultTable(this.reportConfig.definition);
   }
 
   private async prepareReportResultTable(dataMartDefinition: DataMartDefinition): Promise<void> {
@@ -138,6 +169,47 @@ export class BigQueryReportReader implements DataStorageReportReader {
     } catch (error) {
       this.logger.error('Failed to create BigQuery adapter', error);
       throw error;
+    }
+  }
+
+  /**
+   * Converts table row data to structured report row data
+   */
+  public getStructuredReportRowData(tableRow: TableRow): unknown[] {
+    const rowData: unknown[] = [];
+    const fieldNames = Object.keys(tableRow);
+    for (let i = 0; i < fieldNames.length; i++) {
+      const cell = tableRow[fieldNames[i]];
+      const cellValue = this.getReportCellValue(cell);
+      if (cellValue instanceof Array) {
+        rowData.push(...cellValue);
+      } else {
+        rowData.push(cellValue);
+      }
+    }
+    return rowData;
+  }
+
+  private getReportCellValue(cell: unknown): unknown {
+    const isCellPresent = cell !== null && cell !== undefined;
+    if (isCellPresent && cell instanceof Array) {
+      return JSON.stringify(cell.map(this.getReportCellValue.bind(this)), null, 2);
+    } else if (isCellPresent && cell instanceof BigQueryRange) {
+      return JSON.stringify(cell, null, 2);
+    } else if (isCellPresent && cell instanceof Buffer) {
+      return cell.toString('utf-8');
+    } else if (isCellPresent && typeof cell === 'object') {
+      if (cell.constructor.name === 'Big') {
+        // BigQuery NUMERIC and BIGNUMERIC wrapper handling
+        return cell.toString();
+      } else if (cell['value']) {
+        // other BigQuery types with wrappers
+        return cell['value'];
+      } else {
+        return this.getStructuredReportRowData(cell);
+      }
+    } else {
+      return cell;
     }
   }
 }

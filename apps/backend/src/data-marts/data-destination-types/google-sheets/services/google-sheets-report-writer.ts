@@ -1,3 +1,4 @@
+import { ReportDataHeader } from '../../../dto/domain/report-data-header.dto';
 import { DataDestinationReportWriter } from '../../interfaces/data-destination-report-writer.interface';
 import { DataDestinationType } from '../../enums/data-destination-type.enum';
 import { Injectable, Logger, Scope } from '@nestjs/common';
@@ -197,19 +198,16 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
   /**
    * Writes and formats the header row
    */
-  private async writeHeaders(columnTitles: string[]): Promise<void> {
+  private async writeHeaders(headers: ReportDataHeader[]): Promise<void> {
     return this.executeWithErrorHandling(async () => {
       // Format headers
       await this.adapter.batchUpdate(this.destination.spreadsheetId, [
-        this.headerFormatter.createHeaderFormatRequest(
-          this.destination.sheetId,
-          columnTitles.length
-        ),
+        this.headerFormatter.createHeaderFormatRequest(this.destination.sheetId, headers.length),
       ]);
 
       // Write header values
       await this.adapter.updateValues(this.destination.spreadsheetId, `'${this.sheetTitle}'`, [
-        columnTitles,
+        headers.map(h => h.alias ?? h.name),
       ]);
 
       this.writtenRowsCount++;

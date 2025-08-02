@@ -22,7 +22,7 @@ export const DataDestinationTypeModel = {
       type: DataDestinationType.LOOKER_STUDIO,
       displayName: 'Looker Studio',
       icon: LookerStudioIcon,
-      status: DataDestinationStatus.COMING_SOON,
+      status: DataDestinationStatus.ACTIVE,
     },
     [DataDestinationType.ODATA]: {
       type: DataDestinationType.ODATA,
