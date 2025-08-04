@@ -20,7 +20,7 @@ import { Input } from '@owox/ui/components/input';
 import { Button } from '@owox/ui/components/button';
 import { Loader2 } from 'lucide-react';
 import { useEffect } from 'react';
-import { createFormPayload } from '../../../../../utils/form.utils';
+import { createFormPayload } from '../../../../../utils/form-utils';
 
 interface DataDestinationFormProps {
   initialData?: DataDestinationFormData;

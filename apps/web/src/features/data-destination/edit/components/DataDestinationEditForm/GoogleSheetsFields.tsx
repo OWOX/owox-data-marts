@@ -14,7 +14,7 @@ import { type DataDestinationFormData } from '../../../shared';
 import GoogleSheetsServiceAccountDescription from './FormDescriptions/GoogleSheetsServiceAccountDescription';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
-import { getServiceAccountLink } from '../../../../../utils/google-cloud.utils';
+import { getServiceAccountLink } from '../../../../../utils/google-cloud-utils';
 
 interface GoogleSheetsFieldsProps {
   form: UseFormReturn<DataDestinationFormData>;

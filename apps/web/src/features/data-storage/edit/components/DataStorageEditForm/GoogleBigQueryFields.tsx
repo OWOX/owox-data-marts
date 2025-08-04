@@ -21,7 +21,7 @@ import { Button } from '@owox/ui/components/button';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 import { Textarea } from '@owox/ui/components/textarea';
 import { useState } from 'react';
-import { getServiceAccountLink } from '../../../../../utils/google-cloud.utils';
+import { getServiceAccountLink } from '../../../../../utils/google-cloud-utils';
 
 interface GoogleBigQueryFieldsProps {
   form: UseFormReturn<DataStorageFormData>;

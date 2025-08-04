@@ -31,7 +31,7 @@ import {
 import StorageTypeBigQueryDescription from './FormDescriptions/StorageTypeBigQueryDescription.tsx';
 import StorageTypeAthenaDescription from './FormDescriptions/StorageTypeAthenaDescription.tsx';
 import { Button } from '@owox/ui/components/button';
-import { createFormPayload } from '../../../../../utils/form.utils';
+import { createFormPayload } from '../../../../../utils/form-utils';
 
 interface DataStorageFormProps {
   initialData?: DataStorageFormData;
