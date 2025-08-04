@@ -20,6 +20,7 @@ import { Input } from '@owox/ui/components/input';
 import { Button } from '@owox/ui/components/button';
 import { Loader2 } from 'lucide-react';
 import { useEffect } from 'react';
+import { createFormPayload } from '../../../../../utils/form.utils';
 
 interface DataDestinationFormProps {
   initialData?: DataDestinationFormData;
@@ -52,7 +53,7 @@ export function DataDestinationForm({
 
   const handleSubmit = async (data: DataDestinationFormData) => {
     const { dirtyFields } = form.formState;
-    const payload = JSON.parse(JSON.stringify(data)) as DataDestinationFormData;
+    const payload = createFormPayload(data);
 
     if (!dirtyFields.credentials) {
       delete (payload as Partial<DataDestinationFormData>).credentials;
