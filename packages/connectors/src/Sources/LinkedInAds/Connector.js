@@ -6,12 +6,12 @@
  */
 
 var LinkedInAdsConnector = class LinkedInAdsConnector extends AbstractConnector {
-  constructor(config, source, storageName = "GoogleSheetsStorage") {
+  constructor(config, source, storageName = "GoogleSheetsStorage", runConfig = null) {
     super(config.mergeParameters({
       DestinationTableNamePrefix: {
         default: "linkedin_ads_"
       }
-    }), source);
+    }), source, null, runConfig);
 
     this.storageName = storageName;
   }
@@ -56,8 +56,8 @@ var LinkedInAdsConnector = class LinkedInAdsConnector extends AbstractConnector 
       ...dateInfo
     });
     
-    // Update LastRequestedDate only for time series data
-    if (isTimeSeriesNode) {
+    // Update LastRequestedDate only for time series data and incremental runs
+    if (isTimeSeriesNode && this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
       this.config.updateLastRequstedDate(dateInfo.endDate);
     }
   }

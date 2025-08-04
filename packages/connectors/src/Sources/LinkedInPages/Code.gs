@@ -39,7 +39,7 @@ function importNewData(importType = OWOX.RUN_CONFIG_TYPE.INCREMENTAL, params = n
 
 function manualBackfill() {
   const config = new OWOX.GoogleSheetsConfig(CONFIG_RANGE);
-  const source = new OWOX.LinkedInSource(config.setParametersValues(
+  const source = new OWOX.LinkedInPagesSource(config.setParametersValues(
     PropertiesService.getDocumentProperties().getProperties()
   ));
   
@@ -64,7 +64,7 @@ function manageCredentials() {
   const currentKey = Properties.getProperty('AccessToken');
   const response = ui.prompt(
     currentKey ? 'Update your Access Token' : 'Add your Access Token',
-    'To import data from LinkedIn Pages API, you need to add an Access Token with r_organizationalentityacls and r_organization_social scopes. Please refer to the documentation for instructions.',
+    'To import data from LinkedIn Pages API, you need to add an Access Token with r_organization_social, r_organization_followers, and r_social_engagement scopes. Please refer to the documentation for instructions.',
     ui.ButtonSet.OK_CANCEL
   );
 
