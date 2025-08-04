@@ -14,15 +14,10 @@ import { type DataDestinationFormData } from '../../../shared';
 import GoogleSheetsServiceAccountDescription from './FormDescriptions/GoogleSheetsServiceAccountDescription';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
+import { getServiceAccountLink } from '../../../../../utils/google-cloud.utils';
 
 interface GoogleSheetsFieldsProps {
   form: UseFormReturn<DataDestinationFormData>;
-}
-
-interface ServiceAccountJson {
-  project_id: string;
-  client_id: string;
-  client_email: string;
 }
 
 export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
@@ -38,22 +33,6 @@ export function GoogleSheetsFields({ form }: GoogleSheetsFieldsProps) {
   const handleCancel = () => {
     setIsEditing(false);
     form.resetField('credentials.serviceAccount');
-  };
-
-  const getServiceAccountLink = (serviceAccountJson: string) => {
-    try {
-      const parsed = JSON.parse(serviceAccountJson) as ServiceAccountJson;
-      const { project_id, client_id, client_email } = parsed;
-
-      if (!project_id || !client_id || !client_email) return null;
-
-      return {
-        url: `https://console.cloud.google.com/iam-admin/serviceaccounts/details/${client_id}?project=${project_id}`,
-        email: client_email,
-      };
-    } catch {
-      return null;
-    }
   };
 
   const serviceAccountValue = form.watch('credentials.serviceAccount');

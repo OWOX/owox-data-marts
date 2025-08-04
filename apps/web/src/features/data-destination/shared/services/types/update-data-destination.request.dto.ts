@@ -11,7 +11,7 @@ export interface UpdateDataDestinationRequestDto {
   title: string;
 
   /**
-   * Credentials required for the selected destination type
+   * Credentials for the selected destination type
    */
   credentials?: GoogleServiceAccountCredentialsDto | LookerStudioCredentialsRequestDto;
 }

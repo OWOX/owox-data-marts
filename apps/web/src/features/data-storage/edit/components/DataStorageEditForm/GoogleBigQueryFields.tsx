@@ -21,15 +21,10 @@ import { Button } from '@owox/ui/components/button';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 import { Textarea } from '@owox/ui/components/textarea';
 import { useState } from 'react';
+import { getServiceAccountLink } from '../../../../../utils/google-cloud.utils';
 
 interface GoogleBigQueryFieldsProps {
   form: UseFormReturn<DataStorageFormData>;
-}
-
-interface ServiceAccountJson {
-  project_id: string;
-  client_id: string;
-  client_email: string;
 }
 
 export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
@@ -49,22 +44,6 @@ export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
   const handleCancel = () => {
     setIsEditing(false);
     form.resetField('credentials.serviceAccount');
-  };
-
-  const getServiceAccountLink = (serviceAccountJson: string) => {
-    try {
-      const parsed = JSON.parse(serviceAccountJson) as ServiceAccountJson;
-      const { project_id, client_id, client_email } = parsed;
-
-      if (!project_id || !client_id || !client_email) return null;
-
-      return {
-        url: `https://console.cloud.google.com/iam-admin/serviceaccounts/details/${client_id}?project=${project_id}`,
-        email: client_email,
-      };
-    } catch {
-      return null;
-    }
   };
 
   const serviceAccountValue = form.watch('credentials.serviceAccount');
