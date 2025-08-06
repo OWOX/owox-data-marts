@@ -47,20 +47,5 @@ var FormatUtils = {
       (acc[key] = acc[key] || []).push(value.trim());
       return acc;
     }, {});
-  },
-
-  /**
-   * Convert a string to snake_case:
-   * - Inserts an underscore between lowercase-to-uppercase transitions
-   * - Converts the entire string to lowercase
-   * - Replaces any non-alphanumeric or underscore characters with '_'
-   * @param {string} str
-   * @returns {string}
-   */
-  toSnakeCase: function(str) {
-    return str
-      .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
-      .toLowerCase()
-      .replace(/[^a-z0-9_]/g, '_');
   }
 };
