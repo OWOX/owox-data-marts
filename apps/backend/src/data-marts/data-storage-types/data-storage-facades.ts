@@ -2,6 +2,7 @@ import { DataMartDefinitionValidatorFacade } from './facades/data-mart-definitio
 import { DataMartSchemaMergerFacade } from './facades/data-mart-schema-merger.facade';
 import { DataMartSchemaProviderFacade } from './facades/data-mart-schema-provider.facade';
 import { DataStorageAccessFacade } from './facades/data-storage-access.facade';
+import { ReportHeadersGeneratorFacade } from './facades/report-headers-generator.facade';
 import { SqlDryRunExecutorFacade } from './facades/sql-dry-run-executor.facade';
 
 export const dataStorageFacadesProviders = [
@@ -9,5 +10,6 @@ export const dataStorageFacadesProviders = [
   DataMartDefinitionValidatorFacade,
   DataMartSchemaProviderFacade,
   DataMartSchemaMergerFacade,
+  ReportHeadersGeneratorFacade,
   SqlDryRunExecutorFacade,
 ];
