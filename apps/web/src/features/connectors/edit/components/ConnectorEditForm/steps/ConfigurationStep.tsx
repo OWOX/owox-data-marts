@@ -9,7 +9,8 @@ import { RawBase64Icon } from '../../../../../../shared/icons';
 import { RequiredType } from '../../../../shared/api/types';
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@owox/ui/components/button';
-import { ExternalLinkIcon } from 'lucide-react';
+import { ExternalLinkIcon, Info } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 
 interface ConfigurationStepProps {
   connector: ConnectorListItem;
@@ -149,7 +150,7 @@ function renderInputForType(
         <Input
           id={inputId}
           name={name}
-          type='text'
+          type='date'
           value={(configuration[name] as string) || parseDateValue(defaultValue) || ''}
           placeholder={placeholder ?? `Enter ${displayName.toLowerCase()}`}
           onChange={e => {
@@ -322,15 +323,37 @@ export function ConfigurationStep({
         {sortedSpecifications.map(specification => (
           <div key={specification.name} className='mb-2 space-y-1'>
             {specification.requiredType !== RequiredType.BOOLEAN && (
-              <Label htmlFor={specification.name} className='text-sm font-medium'>
-                {specification.title ?? specification.name}
-                {specification.required && <span className='ml-1 text-red-500'>*</span>}
+              <Label
+                htmlFor={specification.name}
+                className='group flex items-center justify-between gap-2 text-sm font-medium'
+              >
+                <span>
+                  {specification.title ?? specification.name}
+                  {specification.required && <span className='ml-1 text-red-500'>*</span>}
+                </span>
+                {specification.description && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type='button'
+                        tabIndex={-1}
+                        className='opacity-60 transition-opacity hover:opacity-100'
+                        aria-label='Help information'
+                      >
+                        <Info
+                          className='text-muted-foreground/50 hover:text-muted-foreground size-4 shrink-0 transition-colors'
+                          aria-hidden='true'
+                        />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side='top' align='center' role='tooltip'>
+                      {specification.description}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
               </Label>
             )}
             {renderInputForType(specification, configuration, handleValueChange)}
-            {specification.description && (
-              <p className='text-muted-foreground text-sm'>{specification.description}</p>
-            )}
           </div>
         ))}
       </div>

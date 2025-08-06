@@ -8,8 +8,8 @@ import { ConnectorSpecification } from '../connector-types/connector-specificati
 import { ConnectorFieldsSchema } from '../connector-types/connector-fields-schema';
 
 interface ConnectorConfigField {
-  displayName: string;
   description: string;
+  label: string;
   default: unknown;
   requiredType: string;
   isRequired: boolean;
@@ -115,7 +115,7 @@ export class ConnectorService {
   private mapConfigToSchema(config: ConnectorConfig) {
     return Object.keys(config).map(key => ({
       name: key,
-      title: config[key].displayName,
+      title: config[key].label,
       description: config[key].description,
       default: config[key].default,
       requiredType: config[key].requiredType,
