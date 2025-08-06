@@ -501,7 +501,7 @@ var GoogleSheetsStorage = class GoogleSheetsStorage extends AbstractStorage {
       var equal = null;
     
       if ( (typeof value1 !== "undefined" && typeof value2 !== "undefined")
-      && ( value1.constructor.name == "Date" || value2.constructor.name == "Date" ) ) {
+      && ( value1?.constructor.name == "Date" || value2?.constructor.name == "Date" ) ) {
           
         const normalizeToDate = (value) => {
           if (value === null || value === "") return null;
