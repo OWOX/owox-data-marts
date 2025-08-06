@@ -4,6 +4,9 @@
   "filePushOrder": [
     "../../Constants/CommonConstants.js",
     "../../Constants/HttpConstants.js",
+    "../../Core/Utils/FormatUtils.js",
+    "../../Core/Utils/ConnectorUtils.js",
+    "../../Core/Utils/ShortLinksUtils.js",
     "../../Core/AbstractConfig.js",
     "../../Core/AbstractConnector.js",
     "../../Core/AbstractSource.js",
