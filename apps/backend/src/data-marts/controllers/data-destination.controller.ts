@@ -16,10 +16,12 @@ import {
   DeleteDataDestinationSpec,
   GetDataDestinationSpec,
   ListDataDestinationsSpec,
+  RotateSecretKeySpec,
   UpdateDataDestinationSpec,
 } from './spec/data-destination.api';
 import { ApiTags } from '@nestjs/swagger';
 import { DeleteDataDestinationService } from '../use-cases/delete-data-destination.service';
+import { RotateSecretKeyService } from '../use-cases/rotate-secret-key.service';
 
 @Controller('data-destinations')
 @ApiTags('DataDestinations')
@@ -30,6 +32,7 @@ export class DataDestinationController {
     private readonly getService: GetDataDestinationService,
     private readonly listService: ListDataDestinationsService,
     private readonly deleteService: DeleteDataDestinationService,
+    private readonly rotateSecretKeyService: RotateSecretKeyService,
     private readonly mapper: DataDestinationMapper
   ) {}
 
@@ -85,5 +88,16 @@ export class DataDestinationController {
   ): Promise<void> {
     const command = this.mapper.toDeleteCommand(id, context);
     await this.deleteService.run(command);
+  }
+
+  @Post(':id/rotate-secret-key')
+  @RotateSecretKeySpec()
+  async rotateSecretKey(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string
+  ): Promise<DataDestinationResponseApiDto> {
+    const command = this.mapper.toRotateSecretKeyCommand(id, context);
+    const dataDestinationDto = await this.rotateSecretKeyService.run(command);
+    return this.mapper.toApiResponse(dataDestinationDto);
   }
 }

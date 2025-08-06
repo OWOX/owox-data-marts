@@ -50,3 +50,11 @@ export function DeleteDataDestinationSpec() {
     ApiNoContentResponse({ description: 'Data Destination successfully deleted' })
   );
 }
+
+export function RotateSecretKeySpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Rotate secret key for Data Destination' }),
+    ApiParam({ name: 'id', description: 'Data Destination ID' }),
+    ApiOkResponse({ type: DataDestinationResponseApiDto })
+  );
+}
