@@ -7,6 +7,7 @@ import { DataDestinationDto } from '../dto/domain/data-destination.dto';
 import { UpdateDataDestinationCommand } from '../dto/domain/update-data-destination.command';
 import { DataDestinationService } from '../services/data-destination.service';
 import { DataDestinationCredentialsValidatorFacade } from '../data-destination-types/facades/data-destination-credentials-validator.facade';
+import { DataDestinationCredentialsProcessorFacade } from '../data-destination-types/facades/data-destination-credentials-processor.facade';
 import { DataDestinationCredentials } from '../data-destination-types/data-destination-credentials.type';
 
 @Injectable()
@@ -16,7 +17,8 @@ export class UpdateDataDestinationService {
     private readonly dataDestinationRepository: Repository<DataDestination>,
     private readonly dataDestinationService: DataDestinationService,
     private readonly dataDestinationMapper: DataDestinationMapper,
-    private readonly credentialsValidator: DataDestinationCredentialsValidatorFacade
+    private readonly credentialsValidator: DataDestinationCredentialsValidatorFacade,
+    private readonly credentialsProcessor: DataDestinationCredentialsProcessorFacade
   ) {}
 
   async run(command: UpdateDataDestinationCommand): Promise<DataDestinationDto> {
@@ -32,10 +34,14 @@ export class UpdateDataDestinationService {
       credentialsToCheck ?? ({} as DataDestinationCredentials)
     );
 
-    if (command.hasCredentials()) {
-      entity.credentials = command.credentials;
-    }
+    // Process credentials with existing data to preserve backend-managed fields
+    const processedCredentials = await this.credentialsProcessor.processCredentials(
+      entity.type,
+      command.credentials,
+      entity.credentials // Pass existing credentials to preserve backend-managed fields
+    );
 
+    entity.credentials = processedCredentials;
     entity.title = command.title;
 
     const updatedEntity = await this.dataDestinationRepository.save(entity);
