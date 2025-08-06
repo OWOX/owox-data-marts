@@ -49,7 +49,7 @@ export class GoogleSheetsAccessValidator implements DataDestinationAccessValidat
     }
 
     try {
-      const adapter = new GoogleSheetsApiAdapter(credentials);
+      const adapter = new GoogleSheetsApiAdapter(credentialsOpt.data);
       const spreadsheet = await adapter.getSpreadsheet(
         configOpt.data.spreadsheetId,
         'properties.title,sheets.properties.sheetId,sheets.properties.title'
