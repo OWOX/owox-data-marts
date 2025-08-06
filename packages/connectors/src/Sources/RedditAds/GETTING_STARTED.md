@@ -7,16 +7,10 @@ To start importing data from Reddit Ads, make a copy of one of the following tem
 
 Fill in required parameters:
 
-- **Start Date**
 - **Account IDs**
 - **Fields**
 - **Destination Dataset ID** (applicable only for the **Google BigQuery** template)
 - **Destination Location** (applicable only for the **Google BigQuery** template)
-
-The import will begin from the selected **Start Date**.  
-> ⚠️ **Note:** Choosing a long date range may result in import failure due to high data volume.
-
-![Reddit Start Date](res/reddit_startdate.png)
 
 You can find your **Account ID** on the homepage of your [Reddit Ads account](https://ads.reddit.com/):
 
@@ -49,14 +43,21 @@ Enter your credentials as described in this guide:
 
 ![Reddit Token](res/reddit_tokens.png)
 
-Click **Check and Save**. Once credentials are saved, go to:  
-**OWOX → Import New Data**
+Click **Check and Save**. Once credentials are saved, go to menu.
 
-![Reddit Import Data](res/reddit_import.png)
+Choose **OWOX → Import New Data**, if you want to load the current day. 
+
+![Reddit Import New Data](res/reddit_importcurrentday.png)
+
+If you will choose the **Import New Data** again after the first succesfull load, the connector will load current day + amount of days filled in the Reimport Lookback Window field.
+
+![Reddit Reimport](res/reddit_reimport.png)
+
+
+
 
 The process is complete when the **Log** sheet shows the message:  
 **"Import is finished"**  
-
 Access Your Data:
 
 - In the **Google Sheets** template, the data will appear in new tabs labeled with the corresponding data types (e.g., *accounts*).  
