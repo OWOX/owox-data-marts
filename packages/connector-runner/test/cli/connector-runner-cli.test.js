@@ -68,6 +68,11 @@ describe('ConnectorRunnerCli', () => {
         storage: expect.objectContaining({
           name: mockConfig.storage.name,
         }),
+      }),
+      expect.objectContaining({
+        type: 'INCREMENTAL',
+        data: [],
+        state: {},
       })
     );
     expect(mockExit).not.toHaveBeenCalled();

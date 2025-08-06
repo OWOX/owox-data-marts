@@ -1,5 +1,9 @@
 import type { DataMart } from '../types';
-import type { CreateDataMartRequestDto, UpdateDataMartRequestDto } from '../../../shared/types/api';
+import type {
+  CreateDataMartRequestDto,
+  RunDataMartRequestDto,
+  UpdateDataMartRequestDto,
+} from '../../../shared/types/api';
 import type { DataMartDefinitionType } from '../../../shared';
 import type { DataMartDefinitionConfig } from '../types';
 import type { ApiError } from '../../../../../app/api';
@@ -73,7 +77,7 @@ export interface DataMartContextType extends DataMartState {
     definition: DataMartDefinitionConfig
   ) => Promise<void>;
   publishDataMart: (id: string) => Promise<void>;
-  runDataMart: (id: string) => Promise<void>;
+  runDataMart: (data: RunDataMartRequestDto) => Promise<void>;
   cancelDataMartRun: (id: string, runId: string) => Promise<void>;
   actualizeDataMartSchema: (id: string) => Promise<void>;
   updateDataMartSchema: (id: string, schema: DataMartSchema) => Promise<void>;

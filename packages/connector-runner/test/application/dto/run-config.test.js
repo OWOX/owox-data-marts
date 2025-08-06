@@ -1,153 +1,190 @@
-const {
-  RunConfig,
-  SourceConfig,
-  StorageConfig,
-} = require('../../../src/application/dto/run-config');
+const { RunConfig } = require('../../../src/application/dto/run-config');
 
 describe('RunConfig', () => {
-  const validConfig = {
-    datamartId: 'test-datamart',
-    name: 'Test Config',
-    source: {
-      name: 'TestSource',
-      config: { sourceParam: 'value' },
-    },
-    storage: {
-      name: 'TestStorage',
-      config: { storageParam: 'value' },
-    },
+  let runConfig;
+  const mockConfig = {
+    type: 'INCREMENTAL',
+    data: [
+      { configField: 'date', value: '2024-01-01' },
+      { configField: 'limit', value: 100 },
+    ],
+    state: { lastRun: '2024-01-01T00:00:00Z' },
   };
 
-  test('should create a valid RunConfig instance', () => {
-    const runConfig = RunConfig.fromObject(validConfig);
-
-    expect(runConfig).toBeDefined();
-    expect(runConfig.datamartId).toBe(validConfig.datamartId);
-    expect(runConfig.name).toBe(validConfig.name);
-    expect(runConfig.source).toBeInstanceOf(SourceConfig);
-    expect(runConfig.storage).toBeInstanceOf(StorageConfig);
+  beforeEach(() => {
+    runConfig = new RunConfig(mockConfig);
   });
 
-  test('should validate required fields', () => {
-    expect(() => RunConfig.fromObject(null)).toThrow('Run configuration is required');
-    expect(() => RunConfig.fromObject({})).toThrow('Data mart ID is required');
-    expect(() => RunConfig.fromObject({ datamartId: 'test' })).toThrow(
-      'Run configuration name is required'
-    );
-    expect(() =>
-      RunConfig.fromObject({
-        datamartId: 'test',
-        name: 'test',
-      })
-    ).toThrow('Source configuration is required');
-    expect(() =>
-      RunConfig.fromObject({
-        datamartId: 'test',
-        name: 'test',
-        source: {},
-      })
-    ).toThrow('Storage configuration is required');
-  });
+  describe('constructor', () => {
+    test('should create a valid RunConfig instance', () => {
+      expect(runConfig).toBeDefined();
+      expect(runConfig).toBeInstanceOf(RunConfig);
+    });
 
-  test('should convert to plain object', () => {
-    const runConfig = RunConfig.fromObject(validConfig);
-    const plainObject = runConfig.toObject();
+    test('should store config properties correctly', () => {
+      expect(runConfig._config).toEqual(mockConfig);
+      expect(runConfig._type).toBe(mockConfig.type);
+      expect(runConfig._data).toEqual(mockConfig.data);
+      expect(runConfig._state).toEqual(mockConfig.state);
+    });
 
-    expect(plainObject).toEqual({
-      datamartId: validConfig.datamartId,
-      name: validConfig.name,
-      source: {
-        name: validConfig.source.name,
-        config: { sourceParam: { value: 'value' } },
-      },
-      storage: {
-        name: validConfig.storage.name,
-        config: { storageParam: { value: 'value' } },
-      },
+    test('should handle empty config', () => {
+      const emptyConfig = {};
+      const emptyRunConfig = new RunConfig(emptyConfig);
+
+      expect(emptyRunConfig._config).toEqual(emptyConfig);
+      expect(emptyRunConfig._type).toBeUndefined();
+      expect(emptyRunConfig._data).toBeUndefined();
+      expect(emptyRunConfig._state).toBeUndefined();
+    });
+
+    test('should handle config with partial properties', () => {
+      const partialConfig = { type: 'MANUAL_BACKFILL' };
+      const partialRunConfig = new RunConfig(partialConfig);
+
+      expect(partialRunConfig._type).toBe('MANUAL_BACKFILL');
+      expect(partialRunConfig._data).toBeUndefined();
+      expect(partialRunConfig._state).toBeUndefined();
     });
   });
 
-  test('should validate source configuration', () => {
-    const invalidSourceConfig = {
-      ...validConfig,
-      source: null,
-    };
+  describe('getters', () => {
+    test('should return config property', () => {
+      expect(runConfig.config).toEqual(mockConfig);
+    });
 
-    expect(() => RunConfig.fromObject(invalidSourceConfig)).toThrow(
-      'Source configuration is required'
-    );
-  });
+    test('should return type property', () => {
+      expect(runConfig.type).toBe('INCREMENTAL');
+    });
 
-  test('should validate storage configuration', () => {
-    const invalidStorageConfig = {
-      ...validConfig,
-      storage: null,
-    };
+    test('should return data property', () => {
+      expect(runConfig.data).toEqual([
+        { configField: 'date', value: '2024-01-01' },
+        { configField: 'limit', value: 100 },
+      ]);
+    });
 
-    expect(() => RunConfig.fromObject(invalidStorageConfig)).toThrow(
-      'Storage configuration is required'
-    );
-  });
-});
+    test('should return state property', () => {
+      expect(runConfig.state).toEqual({ lastRun: '2024-01-01T00:00:00Z' });
+    });
 
-describe('SourceConfig', () => {
-  const validSourceConfig = {
-    name: 'TestSource',
-    config: { sourceParam: 'value' },
-  };
+    test('should return undefined for missing properties', () => {
+      const minimalConfig = { type: 'INCREMENTAL' };
+      const minimalRunConfig = new RunConfig(minimalConfig);
 
-  test('should create a valid SourceConfig instance', () => {
-    const sourceConfig = new SourceConfig(validSourceConfig);
-
-    expect(sourceConfig).toBeDefined();
-    expect(sourceConfig.name).toBe(validSourceConfig.name);
-    expect(sourceConfig.config).toEqual({ sourceParam: { value: 'value' } });
-  });
-
-  test('should validate required fields', () => {
-    expect(() => new SourceConfig(null)).toThrow('Source configuration is required');
-    expect(() => new SourceConfig({})).toThrow('Source name is required');
-    expect(() => new SourceConfig({ name: 'test' })).toThrow('Source config object is required');
-  });
-
-  test('should convert to plain object', () => {
-    const sourceConfig = new SourceConfig(validSourceConfig);
-    const plainObject = sourceConfig.toObject();
-
-    expect(plainObject).toEqual({
-      name: validSourceConfig.name,
-      config: { sourceParam: { value: 'value' } },
+      expect(minimalRunConfig.data).toBeUndefined();
+      expect(minimalRunConfig.state).toBeUndefined();
     });
   });
-});
 
-describe('StorageConfig', () => {
-  const validStorageConfig = {
-    name: 'TestStorage',
-    config: { storageParam: 'value' },
-  };
+  describe('toObject', () => {
+    test('should return correct object structure', () => {
+      const result = runConfig.toObject();
 
-  test('should create a valid StorageConfig instance', () => {
-    const storageConfig = new StorageConfig(validStorageConfig);
+      expect(result).toEqual({
+        type: 'INCREMENTAL',
+        data: [
+          { configField: 'date', value: '2024-01-01' },
+          { configField: 'limit', value: 100 },
+        ],
+        state: { lastRun: '2024-01-01T00:00:00Z' },
+      });
+    });
 
-    expect(storageConfig).toBeDefined();
-    expect(storageConfig.name).toBe(validStorageConfig.name);
-    expect(storageConfig.config).toEqual({ storageParam: { value: 'value' } });
+    test('should return object with undefined properties for missing data', () => {
+      const minimalConfig = { type: 'MANUAL_BACKFILL' };
+      const minimalRunConfig = new RunConfig(minimalConfig);
+
+      const result = minimalRunConfig.toObject();
+
+      expect(result).toEqual({
+        type: 'MANUAL_BACKFILL',
+        data: undefined,
+        state: undefined,
+      });
+    });
+
+    test('should return object with empty arrays and objects', () => {
+      const emptyConfig = {
+        type: 'INCREMENTAL',
+        data: [],
+        state: {},
+      };
+      const emptyRunConfig = new RunConfig(emptyConfig);
+
+      const result = emptyRunConfig.toObject();
+
+      expect(result).toEqual({
+        type: 'INCREMENTAL',
+        data: [],
+        state: {},
+      });
+    });
+
+    test('should handle complex data structures', () => {
+      const complexConfig = {
+        type: 'CUSTOM',
+        data: [
+          { configField: 'nested', value: { key: 'value', array: [1, 2, 3] } },
+          { configField: 'boolean', value: true },
+          { configField: 'null', value: null },
+        ],
+        state: {
+          metadata: { version: '1.0.0' },
+          timestamps: ['2024-01-01', '2024-01-02'],
+        },
+      };
+      const complexRunConfig = new RunConfig(complexConfig);
+
+      const result = complexRunConfig.toObject();
+
+      expect(result).toEqual(complexConfig);
+    });
   });
 
-  test('should validate required fields', () => {
-    expect(() => new StorageConfig(null)).toThrow('Storage configuration is required');
-    expect(() => new StorageConfig({})).toThrow('Storage name is required');
-    expect(() => new StorageConfig({ name: 'test' })).toThrow('Storage config object is required');
-  });
+  describe('integration scenarios', () => {
+    test('should work with different run types', () => {
+      const runTypes = ['INCREMENTAL', 'MANUAL_BACKFILL', 'FULL_REFRESH', 'CUSTOM'];
 
-  test('should convert to plain object', () => {
-    const storageConfig = new StorageConfig(validStorageConfig);
-    const plainObject = storageConfig.toObject();
+      runTypes.forEach(runType => {
+        const config = { type: runType, data: [], state: {} };
+        const runConfig = new RunConfig(config);
 
-    expect(plainObject).toEqual({
-      name: validStorageConfig.name,
-      config: { storageParam: { value: 'value' } },
+        expect(runConfig.type).toBe(runType);
+        expect(runConfig.toObject().type).toBe(runType);
+      });
+    });
+
+    test('should handle data with various field types', () => {
+      const config = {
+        type: 'INCREMENTAL',
+        data: [
+          { configField: 'string', value: 'test' },
+          { configField: 'number', value: 42 },
+          { configField: 'boolean', value: false },
+          { configField: 'array', value: [1, 2, 3] },
+          { configField: 'object', value: { nested: true } },
+          { configField: 'null', value: null },
+        ],
+        state: {},
+      };
+      const runConfig = new RunConfig(config);
+
+      expect(runConfig.data).toEqual(config.data);
+      expect(runConfig.toObject().data).toEqual(config.data);
+    });
+
+    test('should maintain reference to original config data', () => {
+      const originalData = [{ configField: 'test', value: 'original' }];
+      const config = { type: 'INCREMENTAL', data: originalData, state: {} };
+      const runConfig = new RunConfig(config);
+
+      // Modify the original data
+      originalData[0].value = 'modified';
+
+      // RunConfig should reflect the changes since it references the original data
+      expect(runConfig.data[0].value).toBe('modified');
+      expect(runConfig.toObject().data[0].value).toBe('modified');
     });
   });
 });

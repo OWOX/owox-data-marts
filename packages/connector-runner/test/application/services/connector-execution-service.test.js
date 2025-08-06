@@ -21,6 +21,7 @@ jest.mock('@owox/connectors', () => ({
   },
 }));
 
+const { Config } = require('../../../src/application/dto/config');
 const { RunConfig } = require('../../../src/application/dto/run-config');
 
 const ConnectorExecutionService = require('../../../src/application/services/connector-execution-service');
@@ -33,7 +34,7 @@ describe('ConnectorExecutionService', () => {
   let mockEnvironment;
   const mockDatamartId = 'test-datamart';
   const mockRunId = 'test-run';
-  const mockConfig = RunConfig.fromObject({
+  const mockConfig = Config.fromObject({
     datamartId: mockDatamartId,
     name: 'Test Config',
     source: {
@@ -45,6 +46,7 @@ describe('ConnectorExecutionService', () => {
       config: { storageParam: 'value' },
     },
   });
+  const mockRunConfig = new RunConfig({ type: 'INCREMENTAL', data: [], state: {} });
 
   beforeEach(() => {
     mockEnvironment = {
@@ -63,7 +65,7 @@ describe('ConnectorExecutionService', () => {
 
   test('should execute connector successfully', async () => {
     await expect(
-      executionService.execute(mockDatamartId, mockRunId, mockConfig)
+      executionService.execute(mockDatamartId, mockRunId, mockConfig, mockRunConfig)
     ).resolves.not.toThrow();
 
     expect(mockEnvironment.createEnvironment).toHaveBeenCalledWith(
@@ -85,17 +87,17 @@ describe('ConnectorExecutionService', () => {
   });
 
   test('should validate parameters', async () => {
-    await expect(executionService.execute(null, mockRunId, mockConfig)).rejects.toThrow(
-      'Datamart ID is required'
-    );
+    await expect(
+      executionService.execute(null, mockRunId, mockConfig, mockRunConfig)
+    ).rejects.toThrow('Datamart ID is required');
 
-    await expect(executionService.execute(mockDatamartId, null, mockConfig)).rejects.toThrow(
-      'Run ID is required'
-    );
+    await expect(
+      executionService.execute(mockDatamartId, null, mockConfig, mockRunConfig)
+    ).rejects.toThrow('Run ID is required');
 
-    await expect(executionService.execute(mockDatamartId, mockRunId, null)).rejects.toThrow(
-      'Configuration is required'
-    );
+    await expect(
+      executionService.execute(mockDatamartId, mockRunId, null, mockRunConfig)
+    ).rejects.toThrow('Configuration is required');
   });
 
   test('should validate storage environment', async () => {
@@ -115,7 +117,7 @@ describe('ConnectorExecutionService', () => {
     };
 
     await expect(
-      executionService.execute(mockDatamartId, mockRunId, invalidConfig)
+      executionService.execute(mockDatamartId, mockRunId, invalidConfig, mockRunConfig)
     ).rejects.toThrow('Storage InvalidStorage not found');
 
     jest.resetModules();
@@ -137,17 +139,17 @@ describe('ConnectorExecutionService', () => {
       },
     };
 
-    await expect(executionService.execute(mockDatamartId, mockRunId, noNodeConfig)).rejects.toThrow(
-      'Storage NoNodeStorage not found'
-    );
+    await expect(
+      executionService.execute(mockDatamartId, mockRunId, noNodeConfig, mockRunConfig)
+    ).rejects.toThrow('Storage NoNodeStorage not found');
   });
 
   test('should handle execution errors', async () => {
     mockEnvironment.executeConnector.mockRejectedValue(new Error('Execution failed'));
 
-    await expect(executionService.execute(mockDatamartId, mockRunId, mockConfig)).rejects.toThrow(
-      'Execution failed'
-    );
+    await expect(
+      executionService.execute(mockDatamartId, mockRunId, mockConfig, mockRunConfig)
+    ).rejects.toThrow('Execution failed');
 
     expect(mockEnvironment.cleanup).toHaveBeenCalledWith(mockDatamartId, mockRunId);
   });

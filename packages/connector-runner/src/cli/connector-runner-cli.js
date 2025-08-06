@@ -1,5 +1,6 @@
 const fs = require('fs');
 const ConnectorExecutionService = require('../application/services/connector-execution-service');
+const { Config } = require('../application/dto/config');
 const { RunConfig } = require('../application/dto/run-config');
 
 /**
@@ -31,7 +32,8 @@ class ConnectorRunnerCli {
       rawConfig.datamartId = datamartId;
       rawConfig.runId = runId;
 
-      await this.executionService.execute(datamartId, runId, new RunConfig(rawConfig));
+      const runConfig = new RunConfig({ type: 'INCREMENTAL', data: [], state: {} });
+      await this.executionService.execute(datamartId, runId, new Config(rawConfig), runConfig);
     } catch (error) {
       console.error('Error running connector:', error.message);
       process.exit(1);

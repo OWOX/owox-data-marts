@@ -15,17 +15,18 @@ class ConnectorExecutionService {
    * Execute a data connector
    * @param {string} datamartId - The ID of the datamart
    * @param {string} runId - The ID of the run
-   * @param {RunConfig} runConfig - The configuration object
+   * @param {Config} config - The configuration object
+   * @param {RunConfig} runConfig - The run configuration object
    * @param {string | Stream | StdioPipeNamed | undefined} stdio - The standard input/output/error stream
    * @returns {Promise<void>} - A promise that resolves when the connector runs successfully
    */
-  async execute(datamartId, runId, runConfig, stdio = 'inherit') {
-    this._validateParameters(datamartId, runId, runConfig);
+  async execute(datamartId, runId, config, runConfig, stdio = 'inherit') {
+    this._validateParameters(datamartId, runId, config);
 
-    const runContext = new RunContext(datamartId, runId, runConfig, stdio);
+    const runContext = new RunContext(datamartId, runId, config, runConfig, stdio);
 
-    const storage = this._getStorage(runConfig.storage.name);
-    const storageEnvironment = this._validateStorageEnvironment(storage, runConfig.storage.name);
+    const storage = this._getStorage(config.storage.name);
+    const storageEnvironment = this._validateStorageEnvironment(storage, config.storage.name);
 
     try {
       const environmentPath = await this.executionEnvironment.createEnvironment(
