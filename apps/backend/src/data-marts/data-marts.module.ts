@@ -3,8 +3,10 @@ import { Module } from '@nestjs/common';
 import { DataMartController } from './controllers/data-mart.controller';
 import { DataStorageController } from './controllers/data-storage.controller';
 import { DataDestinationController } from './controllers/data-destination.controller';
+import { LookerStudioConnectorController } from './controllers/external/looker-studio-connector.controller';
 import { ReportController } from './controllers/report.controller';
 import { ScheduledTriggerController } from './controllers/scheduled-trigger.controller';
+import { ReportDataCacheService } from './services/report-data-cache.service';
 import { CreateDataMartService } from './use-cases/create-data-mart.service';
 import { ListDataMartsService } from './use-cases/list-data-marts.service';
 import { GetDataMartService } from './use-cases/get-data-mart.service';
@@ -41,6 +43,7 @@ import { dataStorageFacadesProviders } from './data-storage-types/data-storage-f
 import { dataStorageResolverProviders } from './data-storage-types/data-storage-providers';
 import { dataDestinationFacadesProviders } from './data-destination-types/data-destination-facades';
 import { dataDestinationResolverProviders } from './data-destination-types/data-destination-providers';
+import { DataDestinationSecretKeyRotatorFacade } from './data-destination-types/facades/data-destination-secret-key-rotator.facade';
 import { scheduledTriggerProviders } from './scheduled-trigger-types/scheduled-trigger-providers';
 import { scheduledTriggerFacadesProviders } from './scheduled-trigger-types/scheduled-trigger-facades';
 import { UpdateDataMartDefinitionService } from './use-cases/update-data-mart-definition.service';
@@ -53,6 +56,7 @@ import { ListDataStoragesService } from './use-cases/list-data-storages.service'
 import { ListDataDestinationsService } from './use-cases/list-data-destinations.service';
 import { DeleteDataStorageService } from './use-cases/delete-data-storage.service';
 import { DeleteDataDestinationService } from './use-cases/delete-data-destination.service';
+import { RotateSecretKeyService } from './use-cases/rotate-secret-key.service';
 import { DeleteDataMartService } from './use-cases/delete-data-mart.service';
 import { DataDestination } from './entities/data-destination.entity';
 import { Report } from './entities/report.entity';
@@ -78,6 +82,7 @@ import { ConnectorOutputCaptureService } from './connector-types/connector-messa
 import { ConnectorMessageParserService } from './connector-types/connector-message/services/connector-message-parser.service';
 import { ConnectorStateService } from './connector-types/connector-message/services/connector-state.service';
 import { ConnectorState } from './entities/connector-state.entity';
+import { ReportDataCache } from './entities/report-data-cache.entity';
 
 @Module({
   imports: [
@@ -89,6 +94,7 @@ import { ConnectorState } from './entities/connector-state.entity';
       DataMartRun,
       DataMartScheduledTrigger,
       ConnectorState,
+      ReportDataCache,
     ]),
     SchedulerModule,
   ],
@@ -99,6 +105,7 @@ import { ConnectorState } from './entities/connector-state.entity';
     ReportController,
     ConnectorController,
     ScheduledTriggerController,
+    LookerStudioConnectorController,
   ],
   providers: [
     ...dataStorageResolverProviders,
@@ -127,6 +134,8 @@ import { ConnectorState } from './entities/connector-state.entity';
     ListDataDestinationsService,
     DeleteDataStorageService,
     DeleteDataDestinationService,
+    RotateSecretKeyService,
+    DataDestinationSecretKeyRotatorFacade,
     DeleteDataMartService,
     GetDataStorageService,
     GetDataDestinationService,
@@ -162,6 +171,7 @@ import { ConnectorState } from './entities/connector-state.entity';
     UpdateScheduledTriggerService,
     DeleteScheduledTriggerService,
     ReportService,
+    ReportDataCacheService,
     ConnectorOutputCaptureService,
     ConnectorMessageParserService,
     ConnectorStateService,
