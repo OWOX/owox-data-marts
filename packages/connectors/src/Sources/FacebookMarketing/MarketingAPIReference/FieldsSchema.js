@@ -3,6 +3,7 @@
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
+ * Commented endpoints will be implemented later.
  */
 
 var FacebookMarketingFieldsSchema = {
@@ -85,12 +86,12 @@ var FacebookMarketingFieldsSchema = {
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/adgroup/adcreatives",
         "destinationName": "ad_group_adcreatives"
     },
-    "ad-group/insights": {
-        "description": "Insights on your advertising performance.",
-        "documentation": "https://developers.facebook.com/docs/marketing-api/reference/adgroup/insights",
-        "fields": adGroupInsightsFields,
-        "destinationName": "ad_group_insights"
-    },
+    // "ad-group/insights": {
+    //     "description": "Insights on your advertising performance.",
+    //     "documentation": "https://developers.facebook.com/docs/marketing-api/reference/adgroup/insights",
+    //     "fields": adGroupInsightsFields,
+    //     "destinationName": "ad_group_insights"
+    // },
     "ad-group/leads": {
         "description": "Any leads associated with a Lead Ad.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/adgroup/leads",
@@ -101,25 +102,25 @@ var FacebookMarketingFieldsSchema = {
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/adgroup/previews",
         "destinationName": "ad_group_previews"
      },
-    "ad-creative": {
-        "overview": "Ad Creative",
-        "description": "Format for your image, carousel, collection, or video ad.",
-        "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-creative/",
-        "fields": adCreativeFields,
-        "destinationName": "ad_creative"
-    },
+    // "ad-creative": {
+    //     "overview": "Ad Creative",
+    //     "description": "Format for your image, carousel, collection, or video ad.",
+    //     "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-creative/",
+    //     "fields": adCreativeFields,
+    //     "destinationName": "ad_creative"
+    // },
     "ad-creative/previews": {
         "description": "Generate ad previews from the existing ad creative object.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-creative/previews",
         "destinationName": "ad_creative_previews"
     },
-    "ad-campaign": {
-        "overview": "Ad Set",
-        "description": "Contains all ads that share the same budget, schedule, bid, and targeting.",
-        "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-campaign/",
-        "fields": adCampaignFields,
-        "destinationName": "ad_campaign"
-    },
+    // "ad-campaign": {
+    //     "overview": "Ad Set",
+    //     "description": "Contains all ads that share the same budget, schedule, bid, and targeting.",
+    //     "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-campaign/",
+    //     "fields": adCampaignFields,
+    //     "destinationName": "ad_campaign"
+    // },
     "ad-campaign/activities": {
         "description": "Log of actions taken on the ad set.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-campaign/activities",
@@ -140,13 +141,13 @@ var FacebookMarketingFieldsSchema = {
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-campaign/insights",
         "destinationName": "ad_campaign_insights"
     },
-    "ad-campaign-group": {
-        "overview": "Ad Campaign",
-        "description": "Defines your ad campaigns' objective. Contains one or more ad set.",
-        "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-campaign-group/",
-        "fields": adCampaignGroupFields,
-        "destinationName": "ad_campaign_group"
-    },
+    // "ad-campaign-group": {
+    //     "overview": "Ad Campaign",
+    //     "description": "Defines your ad campaigns' objective. Contains one or more ad set.",
+    //     "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-campaign-group/",
+    //     "fields": adCampaignGroupFields,
+    //     "destinationName": "ad_campaign_group"
+    // },
     "ad-campaign-group/ads": {
         "description": "Data necessary for an ad, such as creative elements and measurement information.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-campaign-group/ads",
@@ -157,10 +158,10 @@ var FacebookMarketingFieldsSchema = {
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-campaign-group/adsets",
         "destinationName": "ad_campaign_group_adsets"
     },
-    "ad-campaign-group/insights": {
-        "description": "Insights on your advertising performance.",
-        "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-campaign-group/insights",
-        "fields" : adCampaignInsightsFields,
-        "destinationName": "ad_campaign_group_insights"
-    }
+    // "ad-campaign-group/insights": {
+    //     "description": "Insights on your advertising performance.",
+    //     "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-campaign-group/insights",
+    //     "fields" : adCampaignInsightsFields,
+    //     "destinationName": "ad_campaign_group_insights"
+    // }
 }
