@@ -80,7 +80,7 @@ export class ReportDataCacheService {
 
     const reader = await this.readerResolver.resolve(report.dataMart.storage.type);
     const dataDescription = await reader.prepareReportData(report);
-    await reader.readReportDataBatch(undefined, 0);
+    await reader.readReportDataBatch(undefined, 1);
     const readerState = reader.getState();
 
     const cacheLifetime = this.getCacheLifetime(report);

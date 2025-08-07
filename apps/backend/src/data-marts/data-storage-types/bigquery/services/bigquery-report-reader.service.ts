@@ -75,12 +75,13 @@ export class BigQueryReportReader implements DataStorageReportReader {
       definition,
     };
 
+    const reportResultHeaders = this.headersGenerator.generateHeaders(schema);
+
     await this.prepareBigQuery(
       this.reportConfig.storageCredentials,
       this.reportConfig.storageConfig
     );
 
-    const reportResultHeaders = this.headersGenerator.generateHeaders(schema);
     return new ReportDataDescription(reportResultHeaders);
   }
 
@@ -114,10 +115,6 @@ export class BigQueryReportReader implements DataStorageReportReader {
       throw new Error('Report data must be prepared before read');
     }
 
-    // await this.prepareBigQuery(
-    //   this.reportConfig.storageCredentials,
-    //   this.reportConfig.storageConfig
-    // );
     await this.prepareReportResultTable(this.reportConfig.definition);
   }
 

@@ -58,6 +58,8 @@ export class AthenaReportReader implements DataStorageReportReader {
 
     const dataHeaders = this.headersGenerator.generateHeaders(schema);
 
+    await this.prepareApiAdapters(this.reportConfig.storage);
+
     return new ReportDataDescription(dataHeaders);
   }
 
@@ -124,7 +126,6 @@ export class AthenaReportReader implements DataStorageReportReader {
       throw new Error('Report data must be prepared before read');
     }
 
-    await this.prepareApiAdapters(this.reportConfig.storage);
     await this.prepareQueryExecution(this.reportConfig.definition);
 
     if (!this.queryExecutionId) {
