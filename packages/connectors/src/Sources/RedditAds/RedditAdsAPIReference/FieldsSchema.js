@@ -3,25 +3,27 @@
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
+ * 
+ * Commented endpoints will be implemented later.
  */
 
 var RedditFieldsSchema = {
-  "ad-account-user": {
-    "overview": "Ad Account User",
-    "description": "Get the authenticated member",
-    "documentation": "https://ads-api.reddit.com/docs/v3/operations/Get%20Me",
-    "fields": adAccountUserFields,
-    "uniqueKeys": ["id"],
-    "destinationName": "reddit_ads_ad_account_user"
-  },
-  "ad-account": {
-    "overview": "Ad Account",
-    "description": "Retrieve an ad account and its details.",
-    "documentation": "https://ads-api.reddit.com/docs/v3/operations/Get%20Ad%20Account",
-    "fields": adAccountFields,
-    "uniqueKeys": ["id"],
-    "destinationName": "reddit_ads_ad_account"
-  },
+  // "ad-account-user": {
+  //   "overview": "Ad Account User",
+  //   "description": "Get the authenticated member",
+  //   "documentation": "https://ads-api.reddit.com/docs/v3/operations/Get%20Me",
+  //   "fields": adAccountUserFields,
+  //   "uniqueKeys": ["id"],
+  //   "destinationName": "reddit_ads_ad_account_user"
+  // },
+  // "ad-account": {
+  //   "overview": "Ad Account",
+  //   "description": "Retrieve an ad account and its details.",
+  //   "documentation": "https://ads-api.reddit.com/docs/v3/operations/Get%20Ad%20Account",
+  //   "fields": adAccountFields,
+  //   "uniqueKeys": ["id"],
+  //   "destinationName": "reddit_ads_ad_account"
+  // },
   "ad-group": {
     "overview": "Ad Group",
     "description": "Retrieve ad groups and their details.",
