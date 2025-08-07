@@ -25,7 +25,6 @@ var AbstractRunConfig = class AbstractRunConfig {
   validate(config) {
     if (this.type === RUN_CONFIG_TYPE.MANUAL_BACKFILL) {
       this._validateManualBackfill(config);
-      this._transformManualBackfillData(config);
     } else if (this.type !== RUN_CONFIG_TYPE.INCREMENTAL) {
       throw new Error(`Unknown RunConfig type: ${this.type}`);
     }
@@ -61,19 +60,5 @@ var AbstractRunConfig = class AbstractRunConfig {
     }
     
     return true;
-  }
-
-  /**
-   * Transforms manual backfill data to the correct type if it's a string
-   * @param {AbstractConfig} config - The connector configuration
-   * @private
-   */
-  _transformManualBackfillData(config) {
-    for (const item of this.data) {
-      let configField = config[item.configField];
-      if (configField.requiredType === 'date' && typeof item.value === 'string') {
-        item.value = new Date(item.value);
-      }
-    }
   }
 };

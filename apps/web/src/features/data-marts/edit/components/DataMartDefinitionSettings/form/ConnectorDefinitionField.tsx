@@ -26,6 +26,7 @@ import {
 import { ConnectorEditSheet } from '../../../../../connectors/edit/components/ConnectorEditSheet/ConnectorEditSheet';
 import { ConnectorContextProvider } from '../../../../../connectors/shared/model/context';
 import { ConnectorRunView } from '../../../../../connectors/edit/components/ConnectorRunSheet/ConnectorRunView';
+import type { ConnectorRunFormData } from '../../../../../connectors/shared/model/types/connector';
 
 interface ConnectorDefinitionFieldProps {
   control: Control<DataMartDefinitionFormData>;
@@ -60,6 +61,10 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
 
   const handleManualRun = async (payload: Record<string, unknown>) => {
     if (!dataMart) return;
+    if (dataMart.status.code !== DataMartStatus.PUBLISHED) {
+      toast.error('Manual run is only available for published data marts');
+      return;
+    }
     await runDataMart({
       id: dataMart.id,
       payload,
@@ -107,6 +112,10 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
       triggerValidation();
     }
     setIsEditSheetOpen(false);
+  };
+
+  const onManualRunHandler: (data: ConnectorRunFormData) => void = data => {
+    void handleManualRun({ runType: data.runType, data: data.data });
   };
 
   const renderEditFieldsButton = (connectorDef: ConnectorDefinitionConfig) => {
@@ -226,12 +235,7 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
                           dataMart.definitionType === DataMartDefinitionType.CONNECTOR && (
                             <ConnectorRunView
                               configuration={dataMart.definition as ConnectorDefinitionConfig}
-                              onManualRun={data => {
-                                void handleManualRun({
-                                  runType: data.runType,
-                                  data: data.data,
-                                });
-                              }}
+                              onManualRun={onManualRunHandler}
                             >
                               <Button variant='outline'>
                                 <Play className='h-4 w-4' />

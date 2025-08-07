@@ -77,6 +77,10 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
 
   const handleManualRun = async (payload: Record<string, unknown>) => {
     if (!dataMart) return;
+    if (dataMart.status.code !== DataMartStatus.PUBLISHED) {
+      toast.error('Manual run is only available for published data marts');
+      return;
+    }
     await runDataMart({
       id: dataMart.id,
       payload,
@@ -176,30 +180,29 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end'>
-              {dataMart.status.code === DataMartStatus.PUBLISHED &&
-                dataMart.definitionType === DataMartDefinitionType.CONNECTOR && (
-                  <>
-                    <ConnectorRunView
-                      configuration={dataMart.definition ?? null}
-                      onManualRun={data => {
-                        void handleManualRun({
-                          runType: data.runType,
-                          data: data.data,
-                        });
+              {dataMart.definitionType === DataMartDefinitionType.CONNECTOR && (
+                <>
+                  <ConnectorRunView
+                    configuration={dataMart.definition ?? null}
+                    onManualRun={data => {
+                      void handleManualRun({
+                        runType: data.runType,
+                        data: data.data,
+                      });
+                    }}
+                  >
+                    <DropdownMenuItem
+                      onClick={e => {
+                        e.preventDefault();
                       }}
                     >
-                      <DropdownMenuItem
-                        onClick={e => {
-                          e.preventDefault();
-                        }}
-                      >
-                        <Play className='mr-2 h-4 w-4' />
-                        <span>Manual Run...</span>
-                      </DropdownMenuItem>
-                    </ConnectorRunView>
-                    <DropdownMenuSeparator />
-                  </>
-                )}
+                      <Play className='mr-2 h-4 w-4' />
+                      <span>Manual Run...</span>
+                    </DropdownMenuItem>
+                  </ConnectorRunView>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <DropdownMenuItem
                 className='text-red-600'
                 onClick={() => {
