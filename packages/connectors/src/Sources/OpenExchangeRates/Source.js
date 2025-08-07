@@ -34,7 +34,7 @@ constructor(config) {
       ReimportLookbackWindow: {
         requiredType: "number",
         isRequired: true,
-        value: 1,
+        default: 2,
         label: "Reimport Lookback Window",
         description: "Number of days to look back when reimporting data"
       },
@@ -53,7 +53,7 @@ constructor(config) {
       base: { // Please note: changing the API `base` currency is available for Developer, Enterprise and Unlimited plan clients
         requiredType: "string",
         isRequired: true,
-        value: "USD",
+        default: "USD",
         label: "Base Currency",
         description: "Base currency for exchange rates (available for Developer+ plans)"
       }

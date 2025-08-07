@@ -87,7 +87,7 @@ startImportProcess() {
           DestinationTableName: {value: this.source.fieldsSchema[nodeName].destinationName } 
         }), 
         uniqueFields,
-        this.source.fieldsSchema[ nodeName ]["fields"]["bigQuery"],
+        this.source.fieldsSchema[ nodeName ]["fields"],
         `${this.source.fieldsSchema[ nodeName ]["description"]} ${this.source.fieldsSchema[ nodeName ]["documentation"]}`
       );
 
