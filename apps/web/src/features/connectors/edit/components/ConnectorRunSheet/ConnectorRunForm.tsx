@@ -18,8 +18,8 @@ import {
   FormActions,
   FormSection,
   FormDescription,
+  FormRadioGroup,
 } from '@owox/ui/components/form';
-import { Label } from '@owox/ui/components/label';
 import type { ConnectorRunFormData } from '../../../shared/model/types/connector';
 import { RequiredType } from '../../../shared/api/types/types';
 
@@ -95,55 +95,44 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
     <Form {...form}>
       <AppForm id={formId} noValidate onSubmit={e => void form.handleSubmit(handleSubmit)(e)}>
         <FormLayout>
-          <FormSection title='Run configuration'>
+          <FormSection title='General'>
             <FormField
               control={form.control}
               name='runType'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel tooltip='Select the type of run to perform'>Run type</FormLabel>
+                  <FormLabel tooltip='Select how you want to load data: full backfill for a period or incremental updates'>
+                    Run type
+                  </FormLabel>
                   <FormControl>
-                    <div className='flex gap-8'>
-                      <div className='flex items-center space-x-2'>
-                        <input
-                          type='radio'
-                          id={RunType.MANUAL_BACKFILL}
-                          value={RunType.MANUAL_BACKFILL}
-                          checked={form.watch('runType') === RunType.MANUAL_BACKFILL}
-                          onChange={field.onChange}
-                        />
-                        <Label htmlFor={RunType.MANUAL_BACKFILL}>Manual Backfill </Label>
-                      </div>
-                      <div className='flex items-center space-x-2'>
-                        <input
-                          type='radio'
-                          id={RunType.INCREMENTAL}
-                          value={RunType.INCREMENTAL}
-                          checked={form.watch('runType') === RunType.INCREMENTAL}
-                          onChange={field.onChange}
-                        />
-                        <Label htmlFor={RunType.INCREMENTAL}>Incremental</Label>
-                      </div>
-                    </div>
+                    <>
+                      <FormRadioGroup
+                        options={[
+                          { value: RunType.MANUAL_BACKFILL, label: 'Backfill (custom period)' },
+                          { value: RunType.INCREMENTAL, label: 'Incremental load' },
+                        ]}
+                        value={field.value}
+                        onChange={field.onChange}
+                        orientation='horizontal'
+                      />
+                      <FormDescription>
+                        {form.watch('runType') === RunType.MANUAL_BACKFILL
+                          ? 'Performs a full data load from the source for the selected period using override fields (such as start date, end date, etc.). Use this option to update historical data or reload a specific time range.'
+                          : 'Loads only new or changed data based on the current state of the Data Mart. Use this option to keep your Data Mart up to date without reloading existing data.'}
+                      </FormDescription>
+                    </>
                   </FormControl>
                 </FormItem>
               )}
             />
           </FormSection>
-          <FormSection title='Description'>
-            <FormDescription>
-              {form.watch('runType') === RunType.MANUAL_BACKFILL
-                ? 'Manual Backfill performs a full data load from the source with specified override fields (period, start date, end date, etc.).'
-                : 'Incremental performs a load of only new or changed data with current state of the data mart.'}
-            </FormDescription>
-          </FormSection>
-          {form.watch('runType') === RunType.MANUAL_BACKFILL &&
-            connectorSpecification
-              .filter(field =>
-                field.attributes?.includes(ConnectorSpecificationAttribute.MANUAL_BACKFILL)
-              )
-              .map(connectorField => (
-                <FormSection key={connectorField.name}>
+          {form.watch('runType') === RunType.MANUAL_BACKFILL && (
+            <FormSection title='Run configuration'>
+              {connectorSpecification
+                .filter(field =>
+                  field.attributes?.includes(ConnectorSpecificationAttribute.MANUAL_BACKFILL)
+                )
+                .map(connectorField => (
                   <FormField
                     control={form.control}
                     name={`data.${connectorField.name}`}
@@ -172,8 +161,9 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
                       </FormItem>
                     )}
                   />
-                </FormSection>
-              ))}
+                ))}
+            </FormSection>
+          )}
         </FormLayout>
         <FormActions>
           <Button type='submit' disabled={!form.formState.isValid || loadingSpecification}>

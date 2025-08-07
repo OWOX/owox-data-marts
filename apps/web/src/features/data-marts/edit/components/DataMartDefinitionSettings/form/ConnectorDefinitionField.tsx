@@ -235,7 +235,7 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
                             >
                               <Button variant='outline'>
                                 <Play className='h-4 w-4' />
-                                <span>Manual Run</span>
+                                <span>Manual Run...</span>
                               </Button>
                             </ConnectorRunView>
                           )}

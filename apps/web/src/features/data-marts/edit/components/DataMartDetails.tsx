@@ -194,7 +194,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                         }}
                       >
                         <Play className='mr-2 h-4 w-4' />
-                        <span>Manual Run</span>
+                        <span>Manual Run...</span>
                       </DropdownMenuItem>
                     </ConnectorRunView>
                     <DropdownMenuSeparator />

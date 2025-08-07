@@ -1,6 +1,5 @@
-import { Sheet, SheetContent, SheetHeader } from '@owox/ui/components/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@owox/ui/components/sheet';
 import type { ConnectorDefinitionConfig } from '../../../../data-marts/edit/model';
-import { DialogTitle } from '@owox/ui/components/dialog';
 import { ConnectorRunForm } from './ConnectorRunForm';
 import type { ConnectorRunFormData } from '../../../shared/model/types/connector';
 
@@ -19,9 +18,9 @@ export function ConnectorRunSheet({
 }: ConnectorRunSheetProps) {
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
-      <SheetContent className='flex h-screen min-w-[480px] flex-col'>
+      <SheetContent>
         <SheetHeader>
-          <DialogTitle>Connector Run</DialogTitle>
+          <SheetTitle>Manual Run</SheetTitle>
         </SheetHeader>
         <ConnectorRunForm configuration={configuration} onClose={onClose} onSubmit={onSubmit} />
       </SheetContent>

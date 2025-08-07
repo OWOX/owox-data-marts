@@ -265,6 +265,116 @@ function FormSection({ title, children }: { title?: string; children: React.Reac
 }
 
 /**
+ * Individual radio button component
+ */
+
+interface FormRadioProps {
+  value: string;
+  label: string;
+  checked: boolean;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  disabled?: boolean;
+  orientation?: 'horizontal' | 'vertical';
+  className?: string;
+}
+
+function FormRadio({
+  value,
+  label,
+  checked,
+  onChange,
+  disabled = false,
+  orientation = 'vertical',
+  className = '',
+}: FormRadioProps & { orientation?: 'vertical' | 'horizontal' }) {
+  const { formItemId } = useFormField();
+
+  return (
+    <label
+      htmlFor={`${formItemId}-${value}`}
+      className={cn(
+        'flex cursor-pointer items-center gap-2 rounded-md py-1 pr-4 pl-2 text-sm',
+        disabled && 'cursor-not-allowed opacity-50',
+        orientation === 'horizontal' ? 'flex-row' : 'flex-col',
+        checked ? 'bg-muted border-input border-b' : 'hover:bg-muted border-border bg-transparent',
+        className
+      )}
+    >
+      <input
+        type='radio'
+        id={`${formItemId}-${value}`}
+        value={value}
+        checked={checked}
+        onChange={onChange}
+        disabled={disabled}
+        className={cn(
+          'peer border-input ring-offset-background h-4 w-4 rounded-full border',
+          'checked:bg-primary checked:border-primary',
+          'focus-visible:ring-ring focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+          'disabled:cursor-not-allowed disabled:opacity-50'
+        )}
+      />
+      <span className={cn('peer-disabled:cursor-not-allowed peer-disabled:opacity-50')}>
+        {label}
+      </span>
+    </label>
+  );
+}
+
+/**
+ * Radio group component
+ */
+
+interface FormRadioGroupProps {
+  options: {
+    value: string;
+    label: string;
+    disabled?: boolean;
+  }[];
+  value: string;
+  onChange: (value: string) => void;
+  orientation?: 'horizontal' | 'vertical';
+  className?: string;
+}
+
+function FormRadioGroup({
+  options,
+  value,
+  onChange,
+  orientation = 'vertical',
+  className = '',
+}: FormRadioGroupProps) {
+  return (
+    <div
+      tabIndex={-1}
+      className={cn(
+        // layout
+        orientation === 'horizontal' ? 'flex gap-6' : 'flex flex-col gap-2',
+        // wrapper styles
+        'border-input rounded-md border bg-transparent px-1 py-1 transition-colors',
+        'focus-within:border-ring focus-within:ring-ring/50 focus-within:ring-[3px]',
+        'text-foreground selection:bg-primary selection:text-primary-foreground',
+        'aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40',
+        'disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
+        className
+      )}
+    >
+      {options.map(option => (
+        <FormRadio
+          key={option.value}
+          value={option.value}
+          label={option.label}
+          checked={value === option.value}
+          onChange={e => onChange(e.target.value)}
+          disabled={option.disabled}
+          orientation={orientation}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
  * AppForm — base wrapper for all forms.
  * Applies standard layout classes to the <form> element.
  * Use this instead of a raw <form> to avoid style duplication.
@@ -297,4 +407,6 @@ export {
   FormLayout,
   FormActions,
   FormSection,
+  FormRadioGroup,
+  FormRadio,
 };
