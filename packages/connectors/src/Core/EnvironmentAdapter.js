@@ -161,6 +161,7 @@ var EnvironmentAdapter = class EnvironmentAdapter {
         if (this.getEnvironment() === ENVIRONMENT.APPS_SCRIPT) {
             return Utilities.getUuid();
         } else if (this.getEnvironment() === ENVIRONMENT.NODE) {
+            const crypto = require('node:crypto');
             return crypto.randomUUID();
         } else {
             throw new UnsupportedEnvironmentException("Unsupported environment");
@@ -203,6 +204,7 @@ var EnvironmentAdapter = class EnvironmentAdapter {
             }
             return Utilities.computeHmacSignature(algorithm, data, key);
         } else if (this.getEnvironment() === ENVIRONMENT.NODE) {
+            const crypto = require('node:crypto');
             // Convert Apps Script algorithm names to Node.js format
             const algorithmMap = {
                 'HMAC_SHA_256': 'sha256',
@@ -212,7 +214,8 @@ var EnvironmentAdapter = class EnvironmentAdapter {
                 'HMAC_MD5': 'md5'
             };
             const nodeAlgorithm = algorithmMap[algorithm] || algorithm.toLowerCase().replace('hmac_', '');
-            return crypto.createHmac(nodeAlgorithm, key).update(data).digest('hex');
+            const buffer = crypto.createHmac(nodeAlgorithm, key).update(data).digest();
+            return Array.from(buffer);
         } else {
             throw new UnsupportedEnvironmentException("Unsupported environment");
         }
