@@ -18,6 +18,7 @@ export interface ConnectorSpecificationResponseApiDto {
   options?: string[];
   placeholder?: string;
   showInUI?: boolean;
+  attributes?: string[];
 }
 
 export interface ConnectorFieldResponseApiDto {

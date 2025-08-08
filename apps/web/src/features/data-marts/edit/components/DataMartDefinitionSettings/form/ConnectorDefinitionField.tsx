@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useFormContext, type Control } from 'react-hook-form';
+import toast from 'react-hot-toast';
 import { type DataMartDefinitionFormData } from '../../../model/schema/data-mart-definition.schema';
 import { FormControl, FormField, FormItem, FormMessage } from '@owox/ui/components/form';
 import { Button } from '@owox/ui/components/button';
@@ -24,6 +25,8 @@ import {
 } from '../../../../../connectors/edit/components/ConnectorDefinitionField';
 import { ConnectorEditSheet } from '../../../../../connectors/edit/components/ConnectorEditSheet/ConnectorEditSheet';
 import { ConnectorContextProvider } from '../../../../../connectors/shared/model/context';
+import { ConnectorRunView } from '../../../../../connectors/edit/components/ConnectorRunSheet/ConnectorRunView';
+import type { ConnectorRunFormData } from '../../../../../connectors/shared/model/types/connector';
 
 interface ConnectorDefinitionFieldProps {
   control: Control<DataMartDefinitionFormData>;
@@ -56,9 +59,17 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
     triggerValidation();
   };
 
-  const handleManualRun = async () => {
+  const handleManualRun = async (payload: Record<string, unknown>) => {
     if (!dataMart) return;
-    await runDataMart(dataMart.id);
+    if (dataMart.status.code !== DataMartStatus.PUBLISHED) {
+      toast.error('Manual run is only available for published data marts');
+      return;
+    }
+    await runDataMart({
+      id: dataMart.id,
+      payload,
+    });
+    toast.success('Manual run triggered successfully');
   };
 
   const updateConnectorConfiguration = (configIndex: number) => (connector: ConnectorConfig) => {
@@ -101,6 +112,10 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
       triggerValidation();
     }
     setIsEditSheetOpen(false);
+  };
+
+  const onManualRunHandler: (data: ConnectorRunFormData) => void = data => {
+    void handleManualRun({ runType: data.runType, data: data.data });
   };
 
   const renderEditFieldsButton = (connectorDef: ConnectorDefinitionConfig) => {
@@ -216,15 +231,18 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
                           renderEditFieldsButton(field.value as ConnectorDefinitionConfig)}
                       </div>
                       <div className='flex items-center gap-2'>
-                        <Button
-                          variant='outline'
-                          onClick={() => {
-                            void handleManualRun();
-                          }}
-                        >
-                          <Play className='h-4 w-4' />
-                          Manual Run
-                        </Button>
+                        {dataMart &&
+                          dataMart.definitionType === DataMartDefinitionType.CONNECTOR && (
+                            <ConnectorRunView
+                              configuration={dataMart.definition as ConnectorDefinitionConfig}
+                              onManualRun={onManualRunHandler}
+                            >
+                              <Button variant='outline'>
+                                <Play className='h-4 w-4' />
+                                <span>Manual Run...</span>
+                              </Button>
+                            </ConnectorRunView>
+                          )}
                       </div>
                     </div>
                     <div className='space-y-3'>

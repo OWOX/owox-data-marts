@@ -67,6 +67,9 @@ class NodeJsTemplateRenderer extends TemplateRenderer {
 
             const config = new Core.NodeJsConfig(envConfig);
 
+            const runConfigJson = process.env.OW_RUN_CONFIG;
+            const runConfig = runConfigJson ? new Core.AbstractRunConfig(JSON.parse(runConfigJson)) : new Core.AbstractRunConfig();
+
             const sourceName = config.getSourceName();
             const storageName = config.getStorageName();
 
@@ -84,7 +87,8 @@ class NodeJsTemplateRenderer extends TemplateRenderer {
             const connector = new sourceClass[sourceName + 'Connector'](
                 config,
                 source,
-                storageName + 'Storage'
+                storageName + 'Storage',
+                runConfig
             );
 
             // Run the connector

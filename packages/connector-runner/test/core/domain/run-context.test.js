@@ -1,4 +1,5 @@
 const RunContext = require('../../../src/core/domain/run-context');
+const { Config } = require('../../../src/application/dto/config');
 const { RunConfig } = require('../../../src/application/dto/run-config');
 
 describe('RunContext', () => {
@@ -19,8 +20,9 @@ describe('RunContext', () => {
   };
 
   beforeEach(() => {
-    const runConfig = RunConfig.fromObject(mockConfig);
-    runContext = new RunContext(mockDatamartId, mockRunId, runConfig);
+    const config = Config.fromObject(mockConfig);
+    const runConfig = new RunConfig({ type: 'INCREMENTAL', data: [], state: {} });
+    runContext = new RunContext(mockDatamartId, mockRunId, config, runConfig);
   });
 
   test('should create a valid RunContext instance', () => {
@@ -28,6 +30,7 @@ describe('RunContext', () => {
     expect(runContext.datamartId).toBe(mockDatamartId);
     expect(runContext.runId).toBe(mockRunId);
     expect(runContext.config).toBeDefined();
+    expect(runContext.runConfig).toBeDefined();
   });
 
   test('should generate environment variables correctly', () => {
@@ -36,12 +39,16 @@ describe('RunContext', () => {
     expect(envVars.OW_DATAMART_ID).toBe(mockDatamartId);
     expect(envVars.OW_RUN_ID).toBe(mockRunId);
     expect(envVars.OW_CONFIG).toBeDefined();
+    expect(envVars.OW_RUN_CONFIG).toBeDefined();
 
     const configObj = JSON.parse(envVars.OW_CONFIG);
     expect(configObj.datamartId).toBe(mockDatamartId);
     expect(configObj.name).toBe('Test Config');
     expect(configObj.source.name).toBe('TestSource');
     expect(configObj.storage.name).toBe('TestStorage');
+
+    const runConfigObj = JSON.parse(envVars.OW_RUN_CONFIG);
+    expect(runConfigObj.type).toBe('INCREMENTAL');
   });
 
   test('should generate a unique ID correctly', () => {
@@ -55,10 +62,13 @@ describe('RunContext', () => {
 
   test('should use custom stdio if provided', () => {
     const customStdio = 'pipe';
+    const config = Config.fromObject(mockConfig);
+    const runConfig = new RunConfig({ type: 'INCREMENTAL', data: [], state: {} });
     const customRunContext = new RunContext(
       mockDatamartId,
       mockRunId,
-      RunConfig.fromObject(mockConfig),
+      config,
+      runConfig,
       customStdio
     );
     expect(customRunContext.stdio).toBe(customStdio);

@@ -37,6 +37,7 @@ export class ConnectorMapper {
       options: item.options,
       placeholder: item.placeholder,
       showInUI: item.showInUI,
+      attributes: item.attributes,
     }));
   }
 

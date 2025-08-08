@@ -16,6 +16,7 @@ interface ConnectorConfigField {
   options?: unknown[];
   placeholder?: string;
   showInUI?: boolean;
+  attributes?: Core.CONFIG_ATTRIBUTES[];
 }
 
 interface ConnectorConfig {
@@ -123,6 +124,7 @@ export class ConnectorService {
       options: config[key].options,
       placeholder: config[key].placeholder,
       showInUI: config[key].showInUI,
+      attributes: config[key].attributes,
     }));
   }
 

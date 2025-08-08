@@ -15,6 +15,7 @@ export const ConnectorSpecification = z.array(
     options: z.array(z.string()).optional(),
     placeholder: z.string().optional(),
     showInUI: z.boolean().default(true),
+    attributes: z.array(z.string()).optional(),
   })
 );
 

@@ -1,0 +1,4 @@
+export enum RunType {
+  MANUAL_BACKFILL = 'MANUAL_BACKFILL',
+  INCREMENTAL = 'INCREMENTAL',
+}

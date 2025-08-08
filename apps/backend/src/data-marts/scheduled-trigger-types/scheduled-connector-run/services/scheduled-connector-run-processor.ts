@@ -3,6 +3,7 @@ import { DataMartScheduledTrigger } from '../../../entities/data-mart-scheduled-
 import { RunDataMartService } from '../../../use-cases/run-data-mart.service';
 import { ScheduledTriggerType } from '../../enums/scheduled-trigger-type.enum';
 import { ScheduledTriggerProcessor } from '../../interfaces/scheduled-trigger-processor.interface';
+import { RunDataMartCommand } from '../../../dto/domain/run-data-mart.command';
 
 @Injectable()
 export class ScheduledConnectorRunProcessor implements ScheduledTriggerProcessor {
@@ -19,9 +20,12 @@ export class ScheduledConnectorRunProcessor implements ScheduledTriggerProcessor
     }
 
     await this.runDataMartService.run(
-      trigger.dataMart.id,
-      trigger.dataMart.projectId,
-      trigger.createdById
+      new RunDataMartCommand(
+        trigger.dataMart.id,
+        trigger.dataMart.projectId,
+        trigger.createdById,
+        undefined
+      )
     );
     this.logger.log(`Trigger ${trigger.id} processed`);
   }

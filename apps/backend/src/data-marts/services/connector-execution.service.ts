@@ -2,7 +2,13 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { ConnectorRunner, RunConfig, StorageConfig, SourceConfig } from '@owox/connector-runner';
+import {
+  ConnectorRunner,
+  Config,
+  StorageConfig,
+  SourceConfig,
+  RunConfig,
+} from '@owox/connector-runner';
 
 import { ConnectorDefinition as DataMartConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMart } from '../entities/data-mart.entity';
@@ -71,16 +77,16 @@ export class ConnectorExecutionService {
   /**
    * Start a connector run
    */
-  async run(dataMart: DataMart): Promise<string> {
+  async run(dataMart: DataMart, payload?: Record<string, unknown>): Promise<string> {
     this.validateDataMartForConnector(dataMart);
     const isRunning = await this.checkDataMartIsRunning(dataMart);
     if (isRunning) {
       throw new Error('DataMart is already running');
     }
 
-    const dataMartRun = await this.createDataMartRun(dataMart);
+    const dataMartRun = await this.createDataMartRun(dataMart, payload);
 
-    this.executeInBackground(dataMart, dataMartRun.id).catch(error => {
+    this.executeInBackground(dataMart, dataMartRun.id, payload).catch(error => {
       this.logger.error(`Background execution failed for run ${dataMartRun.id}:`, error);
     });
 
@@ -131,19 +137,27 @@ export class ConnectorExecutionService {
     return !!dataMartRun;
   }
 
-  private async createDataMartRun(dataMart: DataMart): Promise<DataMartRun> {
+  private async createDataMartRun(
+    dataMart: DataMart,
+    payload?: Record<string, unknown>
+  ): Promise<DataMartRun> {
     const dataMartRun = this.dataMartRunRepository.create({
       dataMartId: dataMart.id,
       definitionRun: dataMart.definition,
       status: DataMartRunStatus.PENDING,
       logs: [],
       errors: [],
+      additionalParams: payload ? { payload: payload } : undefined,
     });
 
     return this.dataMartRunRepository.save(dataMartRun);
   }
 
-  private async executeInBackground(dataMart: DataMart, runId: string): Promise<void> {
+  private async executeInBackground(
+    dataMart: DataMart,
+    runId: string,
+    payload?: Record<string, unknown>
+  ): Promise<void> {
     const state: ConnectorOutputState = { state: {}, at: '' };
     const capturedLogs: ConnectorMessage[] = [];
     const capturedErrors: ConnectorMessage[] = [];
@@ -152,7 +166,12 @@ export class ConnectorExecutionService {
       await this.dataMartRunRepository.update(runId, {
         status: DataMartRunStatus.RUNNING,
       });
-      const configurationResults = await this.runConnectorConfigurations(runId, dataMart, state);
+      const configurationResults = await this.runConnectorConfigurations(
+        runId,
+        dataMart,
+        state,
+        payload
+      );
 
       configurationResults.forEach(result => {
         capturedLogs.push(...result.logs);
@@ -189,7 +208,8 @@ export class ConnectorExecutionService {
   private async runConnectorConfigurations(
     runId: string,
     dataMart: DataMart,
-    state: ConnectorOutputState
+    state: ConnectorOutputState,
+    payload?: Record<string, unknown>
   ): Promise<ConfigurationExecutionResult[]> {
     const definition = dataMart.definition as DataMartConnectorDefinition;
     const { connector } = definition;
@@ -232,15 +252,15 @@ export class ConnectorExecutionService {
       );
 
       try {
-        const runConfig = new RunConfig({
+        const configuration = new Config({
           name: connector.source.name,
           datamartId: dataMart.id,
           source: await this.getSourceConfig(dataMart.id, connector, config),
           storage: this.getStorageConfig(dataMart),
         });
-
+        const runConfig = this.getRunConfig(payload, state);
         const connectorRunner = new ConnectorRunner();
-        await connectorRunner.run(dataMart.id, runId, runConfig, logCaptureConfig);
+        await connectorRunner.run(dataMart.id, runId, configuration, runConfig, logCaptureConfig);
         if (configErrors.length === 0) {
           this.logger.log(
             `Configuration ${configIndex + 1} completed successfully for DataMart ${dataMart.id}`
@@ -372,6 +392,24 @@ export class ConnectorExecutionService {
         DestinationTableName: connector.storage?.fullyQualifiedName.split('.')[1],
         AthenaOutputLocation: `s3://${clearBucketName}/owox-data-marts/${dataMart.id}`,
       },
+    });
+  }
+
+  private getRunConfig(payload?: Record<string, unknown>, state?: ConnectorOutputState): RunConfig {
+    const type = payload?.runType || 'INCREMENTAL';
+    const data = payload?.data
+      ? Object.entries(payload.data).map(([key, value]) => {
+          return {
+            configField: key,
+            value: value,
+          };
+        })
+      : [];
+
+    return new RunConfig({
+      type,
+      data,
+      state: state?.state,
     });
   }
 }

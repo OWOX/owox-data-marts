@@ -49,6 +49,7 @@ import { UpdateDataMartSchemaApiDto } from '../dto/presentation/update-data-mart
 import { SqlDryRunService } from '../use-cases/sql-dry-run.service';
 import { SqlDryRunRequestApiDto } from '../dto/presentation/sql-dry-run-request-api.dto';
 import { SqlDryRunResponseApiDto } from '../dto/presentation/sql-dry-run-response-api.dto';
+import { RunDataMartRequestApiDto } from '../dto/presentation/run-data-mart-request-api.dto';
 
 @Controller('data-marts')
 @ApiTags('DataMarts')
@@ -163,10 +164,11 @@ export class DataMartController {
   @RunDataMartSpec()
   async manualRun(
     @AuthContext() context: AuthorizationContext,
-    @Param('id') id: string
+    @Param('id') id: string,
+    @Body() dto: RunDataMartRequestApiDto
   ): Promise<{ runId: string }> {
-    const command = this.mapper.toRunCommand(id, context);
-    const runId = await this.runDataMartService.run(command.id, command.projectId, command.userId);
+    const command = this.mapper.toRunCommand(id, context, dto.payload);
+    const runId = await this.runDataMartService.run(command);
     return { runId };
   }
 
