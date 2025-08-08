@@ -1,6 +1,6 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import type { ConnectorFieldsResponseApiDto } from '../../../../shared/api/types/response';
-import { Info, Search, KeyRound, ArrowDownWideNarrow, ArrowUpAZ, ArrowUpDown } from 'lucide-react';
+import { Info, Search, KeyRound, ArrowDownZA, ArrowUpAZ, ArrowUpDown } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   DropdownMenu,
@@ -10,6 +10,7 @@ import {
 } from '@owox/ui/components/dropdown-menu';
 import { Button } from '@owox/ui/components/button';
 import { ConnectorFieldSortOrder } from '../../../../shared/types';
+import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 
 interface FieldsSelectionStepProps {
   connectorFields: ConnectorFieldsResponseApiDto[] | null;
@@ -134,19 +135,13 @@ export function FieldsSelectionStep({
   return (
     <div className='space-y-4'>
       <h4 className='text-lg font-medium'>Selected field for node: {selectedField}</h4>
-      <span className='text-muted-foreground text-sm'>
+      <p className='text-muted-foreground text-sm'>
         Can’t find the field you need? Open an{' '}
-        <a
-          href='https://github.com/OWOX/owox-data-marts/issues'
-          target='_blank'
-          rel='noopener noreferrer'
-        >
-          <Button variant='link' className='cursor-pointer px-0 py-0 text-sm'>
-            issue here
-          </Button>
-        </a>
+        <ExternalAnchor href='https://github.com/OWOX/owox-data-marts/issues'>
+          issue here
+        </ExternalAnchor>
         .
-      </span>
+      </p>
 
       <div className='space-y-3'>
         <div className='flex items-center justify-between gap-4'>
@@ -188,7 +183,7 @@ export function FieldsSelectionStep({
                 <Button variant='ghost' size='icon' aria-label='Sort fields'>
                   {sortOrder === ConnectorFieldSortOrder.ASC && <ArrowUpAZ className='h-4 w-4' />}
                   {sortOrder === ConnectorFieldSortOrder.DESC && (
-                    <ArrowDownWideNarrow className='h-4 w-4' />
+                    <ArrowDownZA className='h-4 w-4' />
                   )}
                   {sortOrder === ConnectorFieldSortOrder.ORIGINAL && (
                     <ArrowUpDown className='h-4 w-4' />
@@ -209,7 +204,7 @@ export function FieldsSelectionStep({
                     setSortOrder(ConnectorFieldSortOrder.DESC);
                   }}
                 >
-                  <ArrowDownWideNarrow className='text-muted-foreground mr-2 h-4 w-4' />
+                  <ArrowDownZA className='text-muted-foreground mr-2 h-4 w-4' />
                   Z–A
                 </DropdownMenuItem>
                 <DropdownMenuItem

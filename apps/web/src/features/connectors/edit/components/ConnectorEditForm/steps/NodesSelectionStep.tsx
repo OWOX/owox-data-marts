@@ -2,7 +2,7 @@ import { Skeleton } from '@owox/ui/components/skeleton';
 import type { ConnectorFieldsResponseApiDto } from '../../../../shared/api/';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { Info } from 'lucide-react';
-import { Button } from '@owox/ui/components/button';
+import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 
 interface NodesSelectionStepProps {
   connectorFields: ConnectorFieldsResponseApiDto[] | null;
@@ -55,19 +55,13 @@ export function NodesSelectionStep({
   return (
     <div className='space-y-4'>
       <h4 className='text-lg font-medium'>{title}</h4>
-      <span className='text-muted-foreground text-sm'>
-        Can’t find the node you need? Open an{' '}
-        <a
-          href='https://github.com/OWOX/owox-data-marts/issues'
-          target='_blank'
-          rel='noopener noreferrer'
-        >
-          <Button variant='link' className='cursor-pointer px-0 py-0 text-sm'>
-            issue here
-          </Button>
-        </a>
+      <p className='text-muted-foreground text-sm'>
+        Can't find the node you need? Open an{' '}
+        <ExternalAnchor href='https://github.com/OWOX/owox-data-marts/issues'>
+          issue here
+        </ExternalAnchor>
         .
-      </span>
+      </p>
       <div className='flex flex-col gap-4'>
         {connectorFields.map(field => (
           <div key={field.name} className='flex items-center space-x-2'>
