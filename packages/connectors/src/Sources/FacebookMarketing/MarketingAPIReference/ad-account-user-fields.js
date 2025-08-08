@@ -14,11 +14,12 @@ var adAccountUserFields = {
   'name': {
     'description': 'User public full name',
     'type': 'string'
-  },
-  'tasks': {
-    'description': 'Tasks of App Scoped User',
-    'type': 'list<string>'
-  
   }
+  // Commented because this field is lead to mistake despite to presence in schema.
+  // 'tasks': {
+  //   'description': 'Tasks of App Scoped User',
+  //   'type': 'list<string>'
+  
+  // }
 }
   
