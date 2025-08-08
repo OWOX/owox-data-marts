@@ -23,6 +23,11 @@ var adAccountFields = {
   'description': 'Ad Account creation request purchase order fields associated with this Ad Account.',
   'type': 'AdAccountPromotableObjects'
 },
+// Commented out because this field can cause confusion or errors.
+// 'ad_account_promotable_objects': {
+//   'description': 'Ad Account creation request purchase order fields associated with this Ad Account.',
+//   'type': 'AdAccountPromotableObjects'
+// },
 'age': {
   'description': 'Amount of time the ad account has been open, in days.',
   'type': 'float'
@@ -107,6 +112,11 @@ var adAccountFields = {
   'description': 'Whether DirectDeals ToS are accepted.',
   'type': 'bool'
 },
+// Commented out because this field can cause confusion or errors.
+// 'direct_deals_tos_accepted': {
+//   'description': 'Whether DirectDeals ToS are accepted.',
+//   'type': 'bool'
+// },
 'disable_reason': {
   'description': 'The reason why the account was disabled. Possible reasons are:',
   'type': 'unsigned int32'
@@ -155,6 +165,11 @@ var adAccountFields = {
   'description': 'Indicates whether a Facebook page has authorized this ad account to place ads with political content. If you try to place an ad with political content using this ad account for this page, and this page has not authorized this ad account for ads with political content, your ad will be disapproved. See Breaking Changes, Marketing API, Ads with Political Content and Facebook Advertising Policies',
   'type': 'bool'
 },
+// Commented out because this field can cause confusion or errors.
+// 'has_page_authorized_adaccount': {
+//   'description': 'Indicates whether a Facebook page has authorized this ad account to place ads with political content. If you try to place an ad with political content using this ad account for this page, and this page has not authorized this ad account for ads with political content, your ad will be disapproved. See Breaking Changes, Marketing API, Ads with Political Content and Facebook Advertising Policies',
+//   'type': 'bool'
+// },
 'io_number': {
   'description': 'The Insertion Order (IO) number.',
   'type': 'numeric string'
@@ -227,6 +242,11 @@ var adAccountFields = {
   'description': 'Whether or not to show the pre-paid checkout experience to an advertiser. If true, the advertiser is eligible for checkout, or they are already locked in to checkout and haven\'t graduated to postpay.',
   'type': 'bool'
 },
+// Commented out because this field can cause confusion or errors.
+// 'show_checkout_experience': {
+//   'description': 'Whether or not to show the pre-paid checkout experience to an advertiser. If true, the advertiser is eligible for checkout, or they are already locked in to checkout and haven\'t graduated to postpay.',
+//   'type': 'bool'
+// },
 'spend_cap': {
   'description': 'The maximum amount that can be spent by this Ad Account. When the amount is reached, all delivery stops. A value of 0 means no spending-cap. Setting a new spend cap only applies to spend AFTER the time at which you set it. Value specified in basic unit of the currency, for example \'cents\' for USD.',
   'type': 'numeric string'
