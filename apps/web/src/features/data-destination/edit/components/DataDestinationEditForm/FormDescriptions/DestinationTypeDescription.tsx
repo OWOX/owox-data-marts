@@ -42,6 +42,12 @@ const LookerStudioDescription = () => (
       <p className='mb-2'>
         Make sure the deployment URL is accessible from the internet and properly secured.
       </p>
+      <ExternalAnchor
+        className='p-0'
+        href='https://docs.owox.com/docs/destinations/supported-destinations/looker-studio/?utm_source=owox_data_marts&utm_medium=destination_enity&utm_campaign=tooltip'
+      >
+        Learn more
+      </ExternalAnchor>
     </AccordionContent>
   </AccordionItem>
 );
