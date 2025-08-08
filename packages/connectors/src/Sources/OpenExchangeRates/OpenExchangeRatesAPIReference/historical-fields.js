@@ -22,7 +22,7 @@
  * }
  */
 
-var bigQueryHistoricalFields = {
+var historicalFields = {
   date: {
     type: "DATE",
     description: "Date of exchange rate",
