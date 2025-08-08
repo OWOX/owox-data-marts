@@ -16,6 +16,8 @@ Integration with Looker Studio as a **Destination** for OWOX Data Marts  enables
     - If you use additional authorization to access your OWOX Data Marts server, make sure URLs with the pattern `/api/external/looker/*` are accessible over the internet and point to your OWOX Data Marts instance.
 - Click **Save**.
 
+![Create Data Mart-1](../../res/screens/create-destination-entity-looker-studio.png)
+
 ---
 
 ## Step 2. Make a Data Mart accessible for Looker Studio
@@ -27,6 +29,8 @@ Integration with Looker Studio as a **Destination** for OWOX Data Marts  enables
 - Adjust the **Cache Lifetime** based on how you want to control data freshness when Looker Studio requests this data:
   - This defines the period during which results from previous query executions are served from the storage-side cache, eliminating the need to re-execute the query.
 - Copy the **JSON Config** to your clipboard and click **Save**.
+
+![Create Data Mart-1](../../res/screens/create-report-to-looker-studio-in-data-mart.png)
 
 ---
 
@@ -41,6 +45,7 @@ Integration with Looker Studio as a **Destination** for OWOX Data Marts  enables
 - Make sure all the required fields are connected this Looker Studio's data source and click **Create Report** or **Explore**.
   - You can control the name and description of fields shown in Looker Studio via the **Output Schema** of the Data Mart in your OWOX Data Marts web application.
 
+
 Connector in Looker Studio (first step):
 
 ![Create Data Mart-1](../../res/screens/connector-in-looker-studio-1st-step.png)
@@ -52,6 +57,5 @@ Connector in Looker Studio (second step):
 
 ---
 
-## Key Considerations
 
 - For additional guidance or troubleshooting, refer to the [OWOX Community](https://github.com/OWOX/owox-data-marts/discussions).
