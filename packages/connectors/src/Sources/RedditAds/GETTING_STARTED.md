@@ -45,7 +45,9 @@ Enter your credentials as described in this guide:
 
 Click **Check and Save**. Once credentials are saved, go to menu.
 
-Choose **OWOX → Import New Data**, if you want to load the current day. 
+Now you have **two options**.
+
+1. Choose **OWOX → Import New Data**, if you want to load the current day.
 
 ![Reddit Import New Data](res/reddit_importcurrentday.png)
 
@@ -53,8 +55,7 @@ If you will choose the **Import New Data** again after the first succesfull load
 
 ![Reddit Reimport](res/reddit_reimport.png)
 
-
-
+1. Choose
 
 The process is complete when the **Log** sheet shows the message:  
 **"Import is finished"**  
