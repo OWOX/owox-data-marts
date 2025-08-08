@@ -46,12 +46,8 @@ export const getGoogleSheetsColumns = ({
     cell: ({ row }) => {
       const lastRunTimestamp = row.original.lastRunDate;
       return (
-        <div className='text-sm'>
-          {lastRunTimestamp ? (
-            <RelativeTime date={new Date(lastRunTimestamp)} />
-          ) : (
-            <span className='text-muted-foreground text-sm'>Never run</span>
-          )}
+        <div className='text-muted-foreground text-sm'>
+          {lastRunTimestamp ? <RelativeTime date={new Date(lastRunTimestamp)} /> : 'Never run'}
         </div>
       );
     },
@@ -106,12 +102,8 @@ export const getLookerStudioColumns = ({
     cell: ({ row }) => {
       const lastRunTimestamp = row.original.lastRunDate;
       return (
-        <div className='text-sm'>
-          {lastRunTimestamp ? (
-            <RelativeTime date={new Date(lastRunTimestamp)} />
-          ) : (
-            <span className='text-muted-foreground text-sm'>Never run</span>
-          )}
+        <div className='text-muted-foreground text-sm'>
+          {lastRunTimestamp ? <RelativeTime date={new Date(lastRunTimestamp)} /> : 'Never run'}
         </div>
       );
     },
