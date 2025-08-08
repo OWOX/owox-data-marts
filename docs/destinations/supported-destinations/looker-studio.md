@@ -11,7 +11,7 @@ Integration with Looker Studio as a **Destination** for OWOX Data Marts  enables
 - Select **Looker Studio** from the **Destination Type** dropdown.
 - Provide a **Title** — a unique name for this Destination (e.g., "Looker Studio Access (Marketing Team)").
 - Enter the **Deployment URL** that Looker Studio will use to initiate the connection to OWOX Data Marts:
-  - Use a secure URL (HTTPS is recommended) to protect data in transit. Example: `https://owox-datamarts.yourdomain.com`.
+  - Use a secure URL (HTTPS is recommended) to protect data in transit. Example: `https://owox-data-marts.yourdomain.com`.
   - Ensure your OWOX Data Marts server is deployed with a publicly accessible endpoint (e.g., via a domain or load balancer).
     - If you use additional authorization to access your OWOX Data Marts server, make sure URLs with the pattern `/api/external/looker/*` are accessible over the internet and point to your OWOX Data Marts instance.
 - Click **Save**.
@@ -40,6 +40,15 @@ Integration with Looker Studio as a **Destination** for OWOX Data Marts  enables
 - Select a **Report** based on the Data Mart available via the provided Destination entity and click **Connect**.
 - Make sure all the required fields are connected this Looker Studio's data source and click **Create Report** or **Explore**.
   - You can control the name and description of fields shown in Looker Studio via the **Output Schema** of the Data Mart in your OWOX Data Marts web application.
+
+Connector in Looker Studio (first step):
+
+![Create Data Mart-1](../../res/screens/connector-in-looker-studio-1st-step.png)
+
+
+Connector in Looker Studio (second step):
+
+![Create Data Mart-1](../../res/screens/connector-in-looker-studio-2nd-step.png)
 
 ---
 
