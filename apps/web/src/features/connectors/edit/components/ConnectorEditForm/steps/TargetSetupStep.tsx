@@ -1,24 +1,47 @@
 import { DataStorageType } from '../../../../../data-storage';
 import { Input } from '@owox/ui/components/input';
 import { TimeTriggerAnnouncement } from '../../../../../data-marts/scheduled-triggers';
+import { useEffect, useState } from 'react';
 
 interface TargetSetupStepProps {
   dataStorageType: DataStorageType;
-  target: { fullyQualifiedName: string } | null;
-  selectedNode: string;
-  onTargetChange: (target: { fullyQualifiedName: string }) => void;
+  target: { fullyQualifiedName: string; isValid: boolean } | null;
+  destinationName: string;
+  onTargetChange: (target: { fullyQualifiedName: string; isValid: boolean } | null) => void;
 }
 
 export function TargetSetupStep({
   dataStorageType,
   target,
-  selectedNode,
+  destinationName,
   onTargetChange,
 }: TargetSetupStepProps) {
-  const tableName = selectedNode.replace(/[^a-zA-Z0-9_]/g, '_');
+  const sanitizedDestinationName = destinationName.replace(/[^a-zA-Z0-9_]/g, '_');
 
-  const getTargetName = () => {
-    return target?.fullyQualifiedName.split('.')[0] ?? '';
+  const [targetName, setTargetName] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setTargetName(target?.fullyQualifiedName.split('.')[0] ?? '');
+  }, [target]);
+
+  const validate = (name: string): string | null => {
+    if (!name.trim()) return 'This field is required';
+    const allowed = /^[A-Za-z][A-Za-z0-9_]*$/;
+    if (!allowed.test(name)) {
+      return 'Use letters, numbers, and underscores; start with a letter';
+    }
+    return null;
+  };
+
+  const handleTargetNameChange = (name: string) => {
+    setTargetName(name);
+    const validationError = validate(name);
+    setError(validationError);
+    onTargetChange({
+      fullyQualifiedName: `${name}.${sanitizedDestinationName}`.trim(),
+      isValid: validationError === null,
+    });
   };
 
   return (
@@ -37,20 +60,21 @@ export function TargetSetupStep({
               placeholder='Enter dataset name'
               autoComplete='off'
               className='box-border w-full'
-              value={getTargetName()}
+              value={targetName}
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? 'dataset-name-error' : undefined}
               onChange={e => {
-                onTargetChange({
-                  fullyQualifiedName: `${e.target.value}.${tableName}`,
-                });
+                handleTargetNameChange(e.target.value);
               }}
+              required
             />
+            {error && <p className='text-destructive text-sm'>{error}</p>}
             <div className='text-muted-foreground mt-2 text-sm'>
-              Table name will be created automatically based on the selected node name: "{tableName}
-              "
+              Table will be created automatically: "{sanitizedDestinationName}"
               <br />
               Full path:{' '}
               <span className='text-foreground/90'>
-                {getTargetName() || '[dataset]'}.{tableName}
+                {targetName || '[dataset]'}.{sanitizedDestinationName}
               </span>
             </div>
           </div>
@@ -67,19 +91,21 @@ export function TargetSetupStep({
               placeholder='Enter database name'
               autoComplete='off'
               className='box-border w-full'
-              value={getTargetName()}
+              value={targetName}
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? 'database-name-error' : undefined}
               onChange={e => {
-                onTargetChange({
-                  fullyQualifiedName: `${e.target.value}.${tableName}`,
-                });
+                handleTargetNameChange(e.target.value);
               }}
+              required
             />
+            {error && <p className='text-destructive text-sm'>{error}</p>}
             <div className='text-muted-foreground mt-2 text-sm'>
-              The table "{tableName}" will be created automatically in the selected database
+              Table will be created automatically: "{sanitizedDestinationName}"
               <br />
               Full path:{' '}
               <span className='text-foreground/90'>
-                {getTargetName() || '[database]'}.{tableName}
+                {targetName || '[database]'}.{sanitizedDestinationName}
               </span>
             </div>
           </div>

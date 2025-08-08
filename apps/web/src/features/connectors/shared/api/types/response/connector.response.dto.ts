@@ -33,5 +33,6 @@ export interface ConnectorFieldsResponseApiDto {
   description?: string;
   documentation?: string;
   uniqueKeys?: string[];
+  destinationName?: string;
   fields?: ConnectorFieldResponseApiDto[];
 }

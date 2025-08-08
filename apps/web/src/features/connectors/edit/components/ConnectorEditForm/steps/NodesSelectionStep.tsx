@@ -2,6 +2,7 @@ import { Skeleton } from '@owox/ui/components/skeleton';
 import type { ConnectorFieldsResponseApiDto } from '../../../../shared/api/';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { Info } from 'lucide-react';
+import { Button } from '@owox/ui/components/button';
 
 interface NodesSelectionStepProps {
   connectorFields: ConnectorFieldsResponseApiDto[] | null;
@@ -18,7 +19,7 @@ export function NodesSelectionStep({
   loading = false,
   onFieldSelect,
 }: NodesSelectionStepProps) {
-  const title = connectorName ? `Select Node for ${connectorName}` : 'Select Node';
+  const title = connectorName ? `Select node for ${connectorName}` : 'Select node';
 
   if (loading) {
     return (
@@ -54,6 +55,19 @@ export function NodesSelectionStep({
   return (
     <div className='space-y-4'>
       <h4 className='text-lg font-medium'>{title}</h4>
+      <span className='text-muted-foreground text-sm'>
+        Can’t find the node you need? Open an{' '}
+        <a
+          href='https://github.com/OWOX/owox-data-marts/issues'
+          target='_blank'
+          rel='noopener noreferrer'
+        >
+          <Button variant='link' className='cursor-pointer px-0 py-0 text-sm'>
+            issue here
+          </Button>
+        </a>
+        .
+      </span>
       <div className='flex flex-col gap-4'>
         {connectorFields.map(field => (
           <div key={field.name} className='flex items-center space-x-2'>
@@ -77,7 +91,7 @@ export function NodesSelectionStep({
                   <Info className='text-muted-foreground/75 inline-block h-4 w-4 cursor-help' />
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Table name: {field.name}</p>
+                  <p>Table name: {field.destinationName ?? field.name}</p>
                   {field.description && <p>{field.description}</p>}
                   {field.documentation && <p>{field.documentation}</p>}
                 </TooltipContent>

@@ -11,6 +11,7 @@ interface ConnectorSelectionStepProps {
   loading: boolean;
   error: string | null;
   onConnectorSelect: (connector: ConnectorListItem) => void;
+  onConnectorDoubleClick?: (connector: ConnectorListItem) => void;
 }
 
 export function ConnectorSelectionStep({
@@ -19,6 +20,7 @@ export function ConnectorSelectionStep({
   loading,
   error,
   onConnectorSelect,
+  onConnectorDoubleClick,
 }: ConnectorSelectionStepProps) {
   if (loading) {
     return (
@@ -62,6 +64,10 @@ export function ConnectorSelectionStep({
             }`}
             onClick={() => {
               onConnectorSelect(connector);
+            }}
+            onDoubleClick={() => {
+              onConnectorSelect(connector);
+              onConnectorDoubleClick?.(connector);
             }}
           >
             <CardHeader>

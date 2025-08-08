@@ -1,7 +1,15 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import type { ConnectorFieldsResponseApiDto } from '../../../../shared/api/types/response';
-import { Info, Search, KeyRound } from 'lucide-react';
+import { Info, Search, KeyRound, ArrowDownWideNarrow, ArrowUpAZ, ArrowUpDown } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@owox/ui/components/dropdown-menu';
+import { Button } from '@owox/ui/components/button';
+import { ConnectorFieldSortOrder } from '../../../../shared/types';
 
 interface FieldsSelectionStepProps {
   connectorFields: ConnectorFieldsResponseApiDto[] | null;
@@ -21,6 +29,9 @@ export function FieldsSelectionStep({
   const masterCheckboxRef = useRef<HTMLInputElement>(null);
   const filterInputRef = useRef<HTMLInputElement>(null);
   const [filterText, setFilterText] = useState('');
+  const [sortOrder, setSortOrder] = useState<ConnectorFieldSortOrder>(
+    ConnectorFieldSortOrder.ORIGINAL
+  );
 
   const selectedFieldData = connectorFields?.find(field => field.name === selectedField);
   const availableFields = useMemo(
@@ -32,15 +43,33 @@ export function FieldsSelectionStep({
     [selectedFieldData?.uniqueKeys]
   );
 
-  const filteredFields = availableFields
-    .filter(field => field.name.toLowerCase().includes(filterText.toLowerCase().trim()))
-    .sort((a, b) => {
+  const originalIndexByName = useMemo(() => {
+    const indexMap = new Map<string, number>();
+    availableFields.forEach((field, index) => indexMap.set(field.name, index));
+    return indexMap;
+  }, [availableFields]);
+
+  const filteredFields = useMemo(() => {
+    const filtered = availableFields.filter(field =>
+      field.name.toLowerCase().includes(filterText.toLowerCase().trim())
+    );
+
+    const comparator = (a: { name: string }, b: { name: string }) => {
       const aIsUniqueKey = uniqueKeys.includes(a.name);
       const bIsUniqueKey = uniqueKeys.includes(b.name);
       if (aIsUniqueKey && !bIsUniqueKey) return -1;
       if (!aIsUniqueKey && bIsUniqueKey) return 1;
-      return 0;
-    });
+
+      if (sortOrder === ConnectorFieldSortOrder.ASC) return a.name.localeCompare(b.name);
+      if (sortOrder === ConnectorFieldSortOrder.DESC) return b.name.localeCompare(a.name);
+
+      const indexA = originalIndexByName.get(a.name) ?? 0;
+      const indexB = originalIndexByName.get(b.name) ?? 0;
+      return indexA - indexB;
+    };
+
+    return [...filtered].sort(comparator);
+  }, [availableFields, filterText, uniqueKeys, sortOrder, originalIndexByName]);
 
   const availableFieldNames = availableFields.map(field => field.name);
   const selectableFieldNames = availableFieldNames.filter(
@@ -105,9 +134,19 @@ export function FieldsSelectionStep({
   return (
     <div className='space-y-4'>
       <h4 className='text-lg font-medium'>Selected field for node: {selectedField}</h4>
-      <p className='text-muted-foreground text-sm'>
-        Select the fields you want to include in the connector.
-      </p>
+      <span className='text-muted-foreground text-sm'>
+        Can’t find the field you need? Open an{' '}
+        <a
+          href='https://github.com/OWOX/owox-data-marts/issues'
+          target='_blank'
+          rel='noopener noreferrer'
+        >
+          <Button variant='link' className='cursor-pointer px-0 py-0 text-sm'>
+            issue here
+          </Button>
+        </a>
+        .
+      </span>
 
       <div className='space-y-3'>
         <div className='flex items-center justify-between gap-4'>
@@ -125,23 +164,64 @@ export function FieldsSelectionStep({
             </label>
           </div>
 
-          <div className='relative pr-2'>
-            <Search
-              className='text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 cursor-text'
-              onClick={() => {
-                filterInputRef.current?.focus();
-              }}
-            />
-            <input
-              ref={filterInputRef}
-              type='text'
-              placeholder='Search'
-              value={filterText}
-              onChange={e => {
-                setFilterText(e.target.value);
-              }}
-              className='focus:border-primary h-8 w-48 rounded-none border-0 bg-transparent pl-9 text-sm outline-none focus:border-b'
-            />
+          <div className='flex items-center gap-2 pr-2'>
+            <div className='relative'>
+              <Search
+                className='text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 cursor-text'
+                onClick={() => {
+                  filterInputRef.current?.focus();
+                }}
+              />
+              <input
+                ref={filterInputRef}
+                type='text'
+                placeholder='Search'
+                value={filterText}
+                onChange={e => {
+                  setFilterText(e.target.value);
+                }}
+                className='focus:border-primary h-8 w-48 rounded-none border-0 bg-transparent pl-9 text-sm outline-none focus:border-b'
+              />
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant='ghost' size='icon' aria-label='Sort fields'>
+                  {sortOrder === ConnectorFieldSortOrder.ASC && <ArrowUpAZ className='h-4 w-4' />}
+                  {sortOrder === ConnectorFieldSortOrder.DESC && (
+                    <ArrowDownWideNarrow className='h-4 w-4' />
+                  )}
+                  {sortOrder === ConnectorFieldSortOrder.ORIGINAL && (
+                    <ArrowUpDown className='h-4 w-4' />
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align='end'>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    setSortOrder(ConnectorFieldSortOrder.ASC);
+                  }}
+                >
+                  <ArrowUpAZ className='text-muted-foreground mr-2 h-4 w-4' />
+                  A–Z
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    setSortOrder(ConnectorFieldSortOrder.DESC);
+                  }}
+                >
+                  <ArrowDownWideNarrow className='text-muted-foreground mr-2 h-4 w-4' />
+                  Z–A
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    setSortOrder(ConnectorFieldSortOrder.ORIGINAL);
+                  }}
+                >
+                  <ArrowUpDown className='text-muted-foreground mr-2 h-4 w-4' />
+                  Original
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 

@@ -12,6 +12,7 @@ import {
 } from './steps';
 import { StepNavigation } from './components';
 import type { ConnectorConfig } from '../../../../data-marts/edit/model';
+import type { ConnectorFieldsResponseApiDto } from '../../../shared/api/types/response/connector.response.dto';
 
 interface ConnectorEditFormProps {
   onSubmit: (connector: ConnectorConfig) => void;
@@ -49,7 +50,9 @@ export function ConnectorEditForm({
     fetchConnectorFields,
   } = useConnector();
 
-  const [target, setTarget] = useState<{ fullyQualifiedName: string } | null>(null);
+  const [target, setTarget] = useState<{ fullyQualifiedName: string; isValid: boolean } | null>(
+    null
+  );
 
   const steps = configurationOnly
     ? [{ id: 1, title: 'Configuration', description: 'Set up connector parameters' }]
@@ -99,7 +102,7 @@ export function ConnectorEditForm({
       setSelectedNode(source.node);
       setSelectedFields(source.fields);
       setConnectorConfiguration(source.configuration[0] || {});
-      setTarget({ fullyQualifiedName: storage.fullyQualifiedName });
+      setTarget({ fullyQualifiedName: storage.fullyQualifiedName, isValid: true });
 
       const existingConnectorDef = connectors.find(c => c.name === source.name);
       if (existingConnectorDef) {
@@ -170,7 +173,9 @@ export function ConnectorEditForm({
     }
   };
 
-  const handleTargetChange = (newTarget: { fullyQualifiedName: string }) => {
+  const handleTargetChange = (
+    newTarget: { fullyQualifiedName: string; isValid: boolean } | null
+  ) => {
     setTarget(newTarget);
   };
 
@@ -229,7 +234,7 @@ export function ConnectorEditForm({
       case 4:
         return selectedFields.length > 0;
       case 5:
-        return target !== null;
+        return target !== null && target.fullyQualifiedName !== '' && target.isValid;
       default:
         return false;
     }
@@ -237,6 +242,16 @@ export function ConnectorEditForm({
 
   const canGoBack = () => {
     return currentStep > 1;
+  };
+
+  const getDestinationName = (
+    connectorFields: ConnectorFieldsResponseApiDto[] | null,
+    selectedNode: string
+  ): string => {
+    if (!connectorFields) return selectedNode;
+
+    const field = connectorFields.find(field => field.name === selectedNode);
+    return field?.destinationName ?? selectedNode;
   };
 
   const renderCurrentStep = () => {
@@ -279,6 +294,9 @@ export function ConnectorEditForm({
             loading={loading}
             error={error}
             onConnectorSelect={handleConnectorSelect}
+            onConnectorDoubleClick={() => {
+              setCurrentStep(prev => (prev < totalSteps ? prev + 1 : prev));
+            }}
           />
         );
       case 2:
@@ -313,14 +331,14 @@ export function ConnectorEditForm({
           />
         ) : null;
       case 5:
-        return (
+        return selectedNode && connectorFields ? (
           <TargetSetupStep
             dataStorageType={dataStorageType}
-            selectedNode={selectedNode}
+            destinationName={getDestinationName(connectorFields, selectedNode)}
             target={target}
             onTargetChange={handleTargetChange}
           />
-        );
+        ) : null;
       default:
         return null;
     }

@@ -48,6 +48,7 @@ export class ConnectorMapper {
       description: field.description,
       documentation: field.documentation,
       uniqueKeys: field.uniqueKeys,
+      destinationName: field.destinationName,
       fields: field.fields?.map(field => ({
         name: field.name,
         type: field.type,
