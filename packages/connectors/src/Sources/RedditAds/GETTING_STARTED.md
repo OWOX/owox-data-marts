@@ -45,20 +45,33 @@ Enter your credentials as described in this guide:
 
 Click **Check and Save**. Once credentials are saved, go to menu.
 
-Now you have **two options**.
+Now you have **two options** for importing data from Reddit Ads:
 
-1. Choose **OWOX → Import New Data**, if you want to load the current day.
+Option 1: Import Current Day's Data
+
+Choose **OWOX → Import New Data** to load data for the **current day**.
 
 ![Reddit Import New Data](res/reddit_importcurrentday.png)
 
-If you will choose the **Import New Data** again after the first succesfull load, the connector will load current day + amount of days filled in the Reimport Lookback Window field.
+> ℹ️ If you click **Import New Data** again after a successful initial load,  
+> the connector will import: **Current day's data**, plus **Additional days**, based on the value in the **Reimport Lookback Window** field.
 
 ![Reddit Reimport](res/reddit_reimport.png)
 
-1. Choose
+Option 2: Manual Backfill for Specific Date Range
 
-The process is complete when the **Log** sheet shows the message:  
+Choose **Manual Backfill** to load historical data for a custom time range.
+
+![Reddit Backfill](res/reddit_backfill.png)
+
+1. Select the **Start Date** and **End Date**  
+2. Click the **Run Manual Backfill** button
+
+![Reddit Run Backfill](res/reddit_runbackfill.png)
+
+The process is complete when the **Log** field shows the message:  
 **"Import is finished"**  
+
 Access Your Data:
 
 - In the **Google Sheets** template, the data will appear in new tabs labeled with the corresponding data types (e.g., *accounts*).  
@@ -69,16 +82,8 @@ Access Your Data:
 
 ![Reddit Finished](res/reddit_finish.png)
 
-To include more fields later, check the appropriate boxes in the **Fields** tab and click:  
-**OWOX → Import New Data**
-
-> ⚠️ **Important:** To change the date range:
->
-> 1. Clear existing data in the **Status** columns
-> 2. Update the **Start Date** and/or **End Date**
-> 3. Run **OWOX → Import New Data** again
-
-![Reddit Clear](res/reddit_clear.png)
+Want to include more fields? You can customize the imported data by selecting additional checkboxes in the **Fields** tab.
+After adjusting your field selection, run the import again to retrieve the updated data.
 
 If you encounter any issues:
 
