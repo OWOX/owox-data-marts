@@ -38,7 +38,7 @@ Integration with Looker Studio as a **Destination** for OWOX Data Marts  enables
 - Paste the value from your clipboard into the **JSON Config** field and click **Next**.
 - Select the **Connection Configuration** you created previously and click **Next**.
 - Select a **Report** based on the Data Mart available via the provided Destination entity and click **Connect**.
-- Make sure all the required fields are connected and click **Create Report**.
+- Make sure all the required fields are connected this Looker Studio's data source and click **Create Report** or **Explore**.
   - You can control the name and description of fields shown in Looker Studio via the **Output Schema** of the Data Mart in your OWOX Data Marts web application.
 
 ---
