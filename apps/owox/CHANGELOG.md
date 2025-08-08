@@ -1,5 +1,43 @@
 # owox
 
+## 0.5.0
+
+### Minor Changes
+
+- 2f2d4bf: # Add manual backfill functionality for data mart connectors
+  - Added support for manual connector runs with custom payload parameters
+
+- b6cdb5a: # TypeORM Entity Migration Mechanism
+  - Introduced an automatic migration system for TypeORM entities.
+  - Ensures database schema stays up-to-date with entity definitions.
+  - Runs migrations automatically on application startup—no manual steps required.
+  - Prevents data loss and supports seamless schema evolution.
+
+- 66a6c38: # Improving credentials management security for Data Storage and Data Destination
+  - API no longer returns credential secrets to the UI.
+  - Credential secrets are no longer displayed in the UI.
+  - Credentials are only updated if explicitly changed.
+  - Added a link to manage Google Cloud Platform service accounts.
+
+- db0732e: # Connector-Based Data Mart UX improvements
+  - Used connector-based data mart for data mart setup right destination name in `Target Setup` step.
+  - Added in connector-based data mart inline validation for target dataset/database name in `Target Setup` step with accessible error state.
+  - Enabled double-click on a connector card to select and advance to the next step.
+  - Added field sorting controls in `Fields Selection` step:
+    - A–Z, Z–A, and Original order
+    - Unique key fields always appear at the top across all sorting modes
+  - Minor UI polish: sort icon with dropdown next to search input; helpful link to open an issue from fields step.
+  - Added helpful link to open an issue from nodes step.
+
+- 229c7a1: # Updated connector configuration step
+  - Added type to date fields.
+  - Moved field descriptions to tooltips.
+  - Used field labels as titles instead of field names.
+
+### Patch Changes
+
+- @owox/backend@0.5.0
+
 ## 0.4.0
 
 ### Minor Changes 0.4.0
@@ -81,11 +119,9 @@
   - Polished the dropdown menu on the Data Mart page
 
   Redesigned "Create Data Mart" Page
-
   - The form on the Create Data Mart page has been updated for visual consistency and a better user experience.
 
   Extra Visual and Text Tweaks
-
   - We’ve also made a few small improvements to the UI and copy to make everything feel more polished and cohesive.
 
 ### Patch Changes 0.4.0
@@ -103,7 +139,6 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
-
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -111,7 +146,6 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
-
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
