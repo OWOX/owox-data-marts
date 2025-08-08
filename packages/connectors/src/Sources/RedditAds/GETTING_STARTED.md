@@ -70,8 +70,6 @@ To include more fields later, check the appropriate boxes in the **Fields** tab 
 > 2. Update the **Start Date** and **End Date**
 > 3. Click **Run manual Backfill**
 
-![Reddit Clear](res/reddit_clear.png)
-
 If you encounter any issues:
 
 1. Check the "Logs" sheet for specific error messages
