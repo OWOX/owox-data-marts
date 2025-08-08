@@ -58,4 +58,4 @@ Connector in Looker Studio (second step):
 ---
 
 
-- For additional guidance or troubleshooting, refer to the [OWOX Community](https://github.com/OWOX/owox-data-marts/discussions).
+For additional guidance or troubleshooting, refer to the [OWOX Community](https://github.com/OWOX/owox-data-marts/discussions)
