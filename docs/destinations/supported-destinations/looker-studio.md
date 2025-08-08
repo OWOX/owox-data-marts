@@ -1,50 +1,58 @@
 # Looker Studio
 
 Looker Studio is a powerful data visualization tool that allows users to create interactive dashboards and reports.  
-Integration with OWOX Data Marts as a **Destination** enables seamless data access and visualization.
+Integration with Looker Studio as a **Destination** for OWOX Data Marts  enables seamless data access and visualization.
 
 ---
 
-## Configuration Steps
+## Step 1. Create a Destination entity
 
-### OWOX Data Marts
-
-#### 1. Access the Destinations Page
-
-In the OWOX Data Marts web application, navigate to **Destinations** from the main navigation pane and click **+ New Destination**.
-
-#### 2. Choose Destination Type
-
-Select **Looker Studio** from the **Destination Type** dropdown.  
-
-#### 3. Set General Settings and Connection Details
-
-- **Title**: Provide a unique name for this Destination (e.g., "Analytics Warehouse").
-- **Deployment URL**: Enter the deployment URL that Looker Studio will use to initiate the connection to OWOX Data Marts. This URL must be accessible over the internet and point to your OWOX Data Marts instance. To configure the deployment URL:
+- In the OWOX Data Marts web application, navigate to **Destinations** from the main navigation pane and click **+ New Destination**.
+- Select **Looker Studio** from the **Destination Type** dropdown.
+- Provide a **Title** — a unique name for this Destination (e.g., "Looker Studio Access (Marketing Team)").
+- Enter the **Deployment URL** that Looker Studio will use to initiate the connection to OWOX Data Marts:
+  - Use a secure URL (HTTPS is recommended) to protect data in transit. Example: `https://owox-data-marts.yourdomain.com`.
   - Ensure your OWOX Data Marts server is deployed with a publicly accessible endpoint (e.g., via a domain or load balancer).
-  - Use a secure URL (HTTPS is recommended) to protect data in transit. Example: `https://owox-datamarts.yourdomain.com`.  
+    - If you use additional authorization to access your OWOX Data Marts server, make sure URLs with the pattern `/api/external/looker/*` are accessible over the internet and point to your OWOX Data Marts instance.
+- Click **Save**.
 
-#### 4. Get Looker Studio connector configuration JSON
-
-1. Review your entries and click **Generate connector configuration** to persist the Looker Studio connector configuration and get the configuration JSON for the OWOX Data Marts connector for Looker Studio or **Cancel** to discard changes.
-2. Copy the configuration JSON and click **Save** to save the configuration and exit.
+![Create Data Mart-1](../../res/screens/create-destination-entity-looker-studio.png)
 
 ---
 
-### Looker Studio Report
+## Step 2. Make a Data Mart accessible for Looker Studio
 
-#### 1. Add OWOX Data Marts connector as a source for Looker Studio Report
+- Open the **Data Mart** you want to make accessible in Looker Studio and go to the **Destinations** tab.
+- In the Looker Studio section, click **+ Add Report**.
+- Provide a **Title** — a unique name for this connection (e.g., "Report for Marketing").
+- Select the **Destination** entity you created previously.
+- Adjust the **Cache Lifetime** based on how you want to control data freshness when Looker Studio requests this data:
+  - This defines the period during which results from previous query executions are served from the storage-side cache, eliminating the need to re-execute the query.
+- Copy the **JSON Config** to your clipboard and click **Save**.
 
-1. Open [Looker Studio](https://lookerstudio.google.com/).
-2. Create a new report or edit an existing one.
-3. Click **Add data** and select the [OWOX Data Marts connector](https://datastudio.google.com/datasources/create?connectorId=OWOXDataMarts)
-4. Enter the **Looker Studio connector configuration JSON** configured in OWOX Data Marts **Destination**
-5. Select the desired **Data Mart** to visualize its data.
+![Create Data Mart-1](../../res/screens/create-report-to-looker-studio-in-data-mart.png)
 
 ---
 
-## Key Considerations
+## Step 3. Add a Data Source in Looker Studio
 
-- The **Deployment URL** must remain accessible for Looker Studio to maintain the connection.
-- Ensure firewall or network settings allow inbound traffic to the **Deployment URL** from Looker Studio’s IP ranges.
-- For additional guidance or troubleshooting, refer to the [OWOX Community](https://github.com/OWOX/owox-data-marts/discussions).
+- Find the [OWOX Data Marts connector](https://datastudio.google.com/datasources/create?connectorId=AKfycbz6kcYn3qGuG0jVNFjcDnkXvVDiz4hewKdAFjOm-_d4VkKVcBidPjqZO991AvGL3FtM4A) in Looker Studio's Gallery.
+- **Authorize** with your Google Account (Looker Studio requires authorization to connect to data).
+- Provide a **Configuration Display Name** — a unique name to help you distinguish different connections (e.g., "Marketing Data Connection").
+- Paste the value from your clipboard into the **JSON Config** field and click **Next**.
+- Select the **Connection Configuration** you created previously and click **Next**.
+- Select a **Report** based on the Data Mart available via the provided Destination entity and click **Connect**.
+- Make sure all the required fields are connected this Looker Studio's data source and click **Create Report** or **Explore**.
+  - You can control the name and description of fields shown in Looker Studio via the **Output Schema** of the Data Mart in your OWOX Data Marts web application.
+
+Connector in Looker Studio (first step):
+
+![Create Data Mart-1](../../res/screens/connector-in-looker-studio-1st-step.png)
+
+Connector in Looker Studio (second step):
+
+![Create Data Mart-1](../../res/screens/connector-in-looker-studio-2nd-step.png)
+
+---
+
+For additional guidance or troubleshooting, refer to the [OWOX Community](https://github.com/OWOX/owox-data-marts/discussions)

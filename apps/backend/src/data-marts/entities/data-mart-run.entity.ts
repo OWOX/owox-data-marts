@@ -36,4 +36,7 @@ export class DataMartRun {
 
   @CreateDateColumn()
   createdAt: Date;
+
+  @Column({ type: 'json', nullable: true })
+  additionalParams?: Record<string, unknown>;
 }

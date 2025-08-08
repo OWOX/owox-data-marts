@@ -82,6 +82,7 @@ Access Your Data:
 
 ![Reddit Finished](res/reddit_finish.png)
 
+
 Want to include more fields? You can customize the imported data by selecting additional checkboxes in the **Fields** tab.
 After adjusting your field selection, run the import again to retrieve the updated data.
 

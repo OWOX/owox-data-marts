@@ -16,6 +16,7 @@ interface ConnectorConfigField {
   options?: unknown[];
   placeholder?: string;
   showInUI?: boolean;
+  attributes?: Core.CONFIG_ATTRIBUTES[];
 }
 
 interface ConnectorConfig {
@@ -32,6 +33,7 @@ interface SourceFieldsGroup {
   description: string;
   documentation: string;
   uniqueKeys: string[];
+  destinationName: string;
   fields: Record<string, SourceFieldDefinition>;
 }
 
@@ -123,6 +125,7 @@ export class ConnectorService {
       options: config[key].options,
       placeholder: config[key].placeholder,
       showInUI: config[key].showInUI,
+      attributes: config[key].attributes,
     }));
   }
 
@@ -133,6 +136,7 @@ export class ConnectorService {
       description: sourceFieldsSchema[key].description,
       documentation: sourceFieldsSchema[key].documentation,
       uniqueKeys: sourceFieldsSchema[key].uniqueKeys,
+      destinationName: sourceFieldsSchema[key].destinationName,
       fields: Object.keys(sourceFieldsSchema[key].fields).map(fieldKey => ({
         name: fieldKey,
         type: sourceFieldsSchema[key].fields[fieldKey].type,

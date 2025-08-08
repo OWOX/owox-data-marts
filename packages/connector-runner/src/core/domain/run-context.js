@@ -5,13 +5,15 @@ class RunContext {
   /**
    * @param {string} datamartId - The ID of the datamart
    * @param {string} runId - The ID of the run
-   * @param {Object} config - The run configuration
+   * @param {Config} config - The run configuration
+   * @param {RunConfig} runConfig - The run configuration
    * @param {string | Stream | StdioPipeNamed | undefined} stdio - The standard input/output/error stream
    */
-  constructor(datamartId, runId, config, stdio = 'inherit') {
+  constructor(datamartId, runId, config, runConfig, stdio = 'inherit') {
     this.datamartId = datamartId;
     this.runId = runId;
     this.config = config;
+    this.runConfig = runConfig;
     this.stdio = stdio;
   }
 
@@ -25,6 +27,7 @@ class RunContext {
       OW_DATAMART_ID: this.datamartId,
       OW_RUN_ID: this.runId,
       OW_CONFIG: JSON.stringify(this.config.toObject()),
+      OW_RUN_CONFIG: JSON.stringify(this.runConfig.toObject()),
     };
   }
 

@@ -12,6 +12,7 @@ import {
 import { dataMartService } from '../../../shared';
 import type {
   CreateDataMartRequestDto,
+  RunDataMartRequestDto,
   UpdateDataMartConnectorDefinitionRequestDto,
   UpdateDataMartDefinitionRequestDto,
   UpdateDataMartRequestDto,
@@ -221,10 +222,10 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
   };
 
   // Run a data mart
-  const runDataMart = async (id: string) => {
+  const runDataMart = async (request: RunDataMartRequestDto) => {
     try {
       dispatch({ type: 'RUN_DATA_MART_START' });
-      await dataMartService.runDataMart(id);
+      await dataMartService.runDataMart(request.id, request.payload);
       dispatch({ type: 'RUN_DATA_MART_SUCCESS' });
     } catch (error) {
       dispatch({

@@ -152,8 +152,12 @@ export class DataMartMapper {
     return new DeleteDataMartCommand(id, context.projectId, context.userId);
   }
 
-  toRunCommand(id: string, context: AuthorizationContext): RunDataMartCommand {
-    return new RunDataMartCommand(id, context.projectId, context.userId);
+  toRunCommand(
+    id: string,
+    context: AuthorizationContext,
+    payload?: Record<string, unknown>
+  ): RunDataMartCommand {
+    return new RunDataMartCommand(id, context.projectId, context.userId, payload);
   }
 
   toCancelRunCommand(

@@ -18,6 +18,7 @@ export interface ConnectorSpecificationResponseApiDto {
   options?: string[];
   placeholder?: string;
   showInUI?: boolean;
+  attributes?: string[];
 }
 
 export interface ConnectorFieldResponseApiDto {
@@ -32,5 +33,6 @@ export interface ConnectorFieldsResponseApiDto {
   description?: string;
   documentation?: string;
   uniqueKeys?: string[];
+  destinationName?: string;
   fields?: ConnectorFieldResponseApiDto[];
 }

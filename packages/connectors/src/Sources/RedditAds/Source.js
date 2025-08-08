@@ -608,10 +608,10 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
 
   /**
    * Keep only requestedFields plus any schema-required keys.
-   * @param {Array<Object>} items
+   * @param {Array<Object>|Object} items - Array of objects or single object
    * @param {string} nodeName
    * @param {Array<string>} requestedFields
-   * @returns {Array<Object>}
+   * @returns {Array<Object>|Object} - Returns same format as input (array or single object)
    */
   _filterBySchema(items, nodeName, requestedFields = []) {
     const schema = this.fieldsSchema[nodeName];
@@ -622,14 +622,26 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
     const requiredFields = new Set(schema.uniqueKeys || []);
     const keepFields = new Set([...requiredFields, ...requestedFields]);
 
-    return items.map(item => {
-      const result = {};
-      for (const key of Object.keys(item)) {
-        if (keepFields.has(key)) {
-          result[key] = item[key];
-        }
+    if (Array.isArray(items)) {
+      return items.map(item => this._filterSingleItem(item, keepFields));
+    } else {
+      return this._filterSingleItem(items, keepFields);
+    }
+  }
+
+  /**
+   * Filters a single item by keeping only specified fields
+   * @param {Object} item - Single item to filter
+   * @param {Set<string>} keepFields - Set of field names to keep
+   * @returns {Object} - Filtered item
+   */
+  _filterSingleItem(item, keepFields) {
+    const result = {};
+    for (const key of Object.keys(item)) {
+      if (keepFields.has(key)) {
+        result[key] = item[key];
       }
-      return result;
-    });
+    }
+    return result;
   }
 };

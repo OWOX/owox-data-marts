@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DataMartService } from '../services/data-mart.service';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { ConnectorExecutionService } from '../services/connector-execution.service';
+import { RunDataMartCommand } from '../dto/domain/run-data-mart.command';
 
 @Injectable()
 export class RunDataMartService {
@@ -10,18 +11,18 @@ export class RunDataMartService {
     private readonly connectorExecutionService: ConnectorExecutionService
   ) {}
 
-  async run(dataMartId: string, projectId: string, userId: string): Promise<string> {
+  async run(command: RunDataMartCommand): Promise<string> {
     const dataMart = await this.dataMartService.getByIdAndProjectIdAndUserId(
-      dataMartId,
-      projectId,
-      userId
+      command.id,
+      command.projectId,
+      command.userId
     );
 
     if (dataMart.definitionType !== DataMartDefinitionType.CONNECTOR) {
       throw new Error('Only data marts with connector definition type can be run manually');
     }
 
-    const runId = await this.connectorExecutionService.run(dataMart);
+    const runId = await this.connectorExecutionService.run(dataMart, command.payload);
     return runId;
   }
 }
