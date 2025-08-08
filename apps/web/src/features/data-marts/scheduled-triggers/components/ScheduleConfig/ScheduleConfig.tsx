@@ -361,9 +361,9 @@ export function ScheduleConfig({
 
   const getNextRunDescription = useMemo(() => {
     return (config: ScheduleConfig): string => {
-      return getScheduleDescription(config, isEnabled, currentTimezone);
+      return getScheduleDescription(config, isEnabled);
     };
-  }, [isEnabled, currentTimezone]);
+  }, [isEnabled]);
 
   useEffect(() => {
     const cron = generateCronExpression(config);

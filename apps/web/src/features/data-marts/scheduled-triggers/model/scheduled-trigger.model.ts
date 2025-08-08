@@ -1,5 +1,38 @@
 import { ScheduledTriggerType } from '../enums';
 import type { ScheduledConnectorRunConfig, ScheduledReportRunConfig } from './trigger-config.types';
+import { DataMartDefinitionType } from '../../shared/enums/data-mart-definition-type.enum';
+import type { ConnectorDefinitionConfig } from '../../edit/model/types/connector-definition-config';
+
+/**
+ * DataMart interface for the scheduled trigger
+ */
+export interface DataMart {
+  /**
+   * Unique identifier of the data mart
+   */
+  id: string;
+
+  /**
+   * Title of the data mart
+   */
+  title: string;
+
+  /**
+   * Type of the data mart definition
+   */
+  definitionType?: DataMartDefinitionType;
+
+  /**
+   * Definition of the data mart
+   * For connector runs, this will be a ConnectorDefinitionConfig
+   */
+  definition?: ConnectorDefinitionConfig;
+
+  /**
+   * Project ID
+   */
+  projectId: string;
+}
 
 /**
  * Scheduled Trigger model interface
@@ -44,6 +77,11 @@ export interface ScheduledTrigger {
    * Configuration of the trigger
    */
   triggerConfig: TriggerConfigByType[ScheduledTriggerType];
+
+  /**
+   * The data mart associated with this trigger
+   */
+  dataMart?: DataMart;
 
   /**
    * ID of the user who created the trigger

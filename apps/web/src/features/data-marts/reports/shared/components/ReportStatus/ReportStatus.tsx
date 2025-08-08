@@ -37,7 +37,7 @@ export function ReportStatus({
 
   return (
     <span className={cn('inline-flex items-center gap-2', className)}>
-      {showIcon && <Icon className={cn('h-5 w-5', color)} />}
+      {showIcon && <Icon className={cn('h-4 w-4', color)} />}
       {showText && <span className='text-sm'>{text ?? displayName}</span>}
     </span>
   );
