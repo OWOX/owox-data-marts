@@ -34,14 +34,15 @@ export class UpdateDataDestinationService {
       credentialsToCheck ?? ({} as DataDestinationCredentials)
     );
 
-    // Process credentials with existing data to preserve backend-managed fields
-    const processedCredentials = await this.credentialsProcessor.processCredentials(
-      entity.type,
-      command.credentials,
-      entity.credentials // Pass existing credentials to preserve backend-managed fields
-    );
+    if (command.hasCredentials()) {
+      // Process credentials with existing data to preserve backend-managed fields
+      entity.credentials = await this.credentialsProcessor.processCredentials(
+        entity.type,
+        command.credentials,
+        entity.credentials // Pass existing credentials to preserve backend-managed fields
+      );
+    }
 
-    entity.credentials = processedCredentials;
     entity.title = command.title;
 
     const updatedEntity = await this.dataDestinationRepository.save(entity);

@@ -33,7 +33,7 @@ export class DataDestinationCredentialsProcessorFacade {
     inputCredentials: DataDestinationCredentials,
     existingCredentials?: DataDestinationCredentials
   ): Promise<DataDestinationCredentials> {
-    const processor = await this.resolver.resolve(type);
+    const processor = await this.resolver.tryResolve(type);
 
     if (processor) {
       return processor.processCredentials(inputCredentials, existingCredentials);

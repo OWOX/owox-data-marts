@@ -37,18 +37,30 @@ export class TypeResolver<TType, TComponent extends TypedComponent<TType>> {
    * @returns A promise that resolves to the component instance
    */
   async resolve(type: TType): Promise<TComponent> {
+    const component = await this.tryResolve(type);
+    if (!component) {
+      throw new Error(`No component found for type: ${type}`);
+    }
+    return component;
+  }
+
+  /**
+   * Attempts to resolve a component instance of the specified type.
+   * It checks if the type is associated with a transient component, in which case
+   * it creates a new instance using the `moduleRef`, or retrieves an existing singleton
+   * instance from the singleton map.
+   *
+   * @param type The type of the component to resolve.
+   * @return A Promise that resolves to the component instance if found, or undefined if not.
+   */
+  async tryResolve(type: TType): Promise<TComponent | undefined> {
     // First, check if it's a transient component
     if (this.transientTypeMap.has(type) && this.moduleRef) {
       const ComponentType = this.transientTypeMap.get(type)!;
       return this.moduleRef.create(ComponentType);
     }
-
     // Otherwise, it should be a singleton component
-    const component = this.singletonMap.get(type);
-    if (!component) {
-      throw new Error(`No component found for type: ${type}`);
-    }
-    return component;
+    return this.singletonMap.get(type);
   }
 
   private isTransientComponent(componentType: Type<TComponent>): boolean {
