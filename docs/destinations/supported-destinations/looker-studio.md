@@ -22,7 +22,7 @@ Integration with Looker Studio as a **Destination** for OWOX Data Marts  enables
 
 - Open the **Data Mart** you want to make accessible in Looker Studio and go to the **Destinations** tab.
 - In the Looker Studio section, click **+ Add Report**.
-- Provide a **Title** — a unique name for this connection (e.g., "Performance Report for Marketing Team").
+- Provide a **Title** — a unique name for this connection (e.g., "Report for Marketing").
 - Select the **Destination** entity you created previously.
 - Adjust the **Cache Lifetime** based on how you want to control data freshness when Looker Studio requests this data:
   - This defines the period during which results from previous query executions are served from the storage-side cache, eliminating the need to re-execute the query.
