@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { DataDestinationCredentials } from '../../data-destination-types/data-destination-credentials.type';
 import { DataDestinationType } from '../../data-destination-types/enums/data-destination-type.enum';
 
 export type DataDestinationCredentialsPublic = {
@@ -30,7 +31,7 @@ export class DataDestinationResponseApiDto {
     additionalProperties: true,
     description: 'Credentials without sensitive fields',
   })
-  credentials: DataDestinationCredentialsPublic | undefined;
+  credentials: DataDestinationCredentials | DataDestinationCredentialsPublic | undefined;
 
   @ApiProperty({ example: '2024-01-01T12:00:00.000Z' })
   createdAt: Date;

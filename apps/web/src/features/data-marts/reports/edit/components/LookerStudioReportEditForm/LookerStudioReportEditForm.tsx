@@ -1,3 +1,4 @@
+import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 import { forwardRef, useEffect, useState } from 'react';
 import { Input } from '@owox/ui/components/input';
 import { useAutoFocus } from '../../../../../../hooks/useAutoFocus.ts';
@@ -276,7 +277,13 @@ export const LookerStudioReportEditForm = forwardRef<
                             <>
                               <FormDescription className='mt-2'>
                                 To connect to Looker Studio, you need to copy the JSON configuration
-                                and use it in the Looker Studio connector.
+                                and use it in the
+                                <ExternalAnchor
+                                  className='underline'
+                                  href='https://datastudio.google.com/datasources/create?connectorId=AKfycbz6kcYn3qGuG0jVNFjcDnkXvVDiz4hewKdAFjOm-_d4VkKVcBidPjqZO991AvGL3FtM4A'
+                                >
+                                  Looker Studio connector
+                                </ExternalAnchor>
                               </FormDescription>
                               <div className='mt-2 flex items-center'>
                                 <CopyToClipboardButton

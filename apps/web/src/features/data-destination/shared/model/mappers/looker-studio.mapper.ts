@@ -23,15 +23,18 @@ export class LookerStudioMapper implements DestinationMapper {
     };
   }
 
-  mapToUpdateRequest(formData: DataDestinationFormData): UpdateDataDestinationRequestDto {
+  mapToUpdateRequest(formData: Partial<DataDestinationFormData>): UpdateDataDestinationRequestDto {
     const lookerStudioFormData = formData;
-    return {
-      title: lookerStudioFormData.title,
-      credentials: {
+    const updateRequest: UpdateDataDestinationRequestDto = {
+      title: lookerStudioFormData.title ?? '',
+    };
+    if (lookerStudioFormData.credentials) {
+      updateRequest.credentials = {
         deploymentUrl: (lookerStudioFormData.credentials as LookerStudioCredentials).deploymentUrl,
         type: DataDestinationCredentialsType.LOOKER_STUDIO_CREDENTIALS,
-      },
-    };
+      };
+    }
+    return updateRequest;
   }
 
   mapToCreateRequest(formData: DataDestinationFormData): CreateDataDestinationRequestDto {

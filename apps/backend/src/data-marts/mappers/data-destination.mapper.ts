@@ -1,16 +1,21 @@
-import { DataDestinationDto } from '../dto/domain/data-destination.dto';
-import { DataDestination } from '../entities/data-destination.entity';
-import { CreateDataDestinationApiDto } from '../dto/presentation/create-data-destination-api.dto';
-import { CreateDataDestinationCommand } from '../dto/domain/create-data-destination.command';
-import { UpdateDataDestinationApiDto } from '../dto/presentation/update-data-destination-api.dto';
-import { UpdateDataDestinationCommand } from '../dto/domain/update-data-destination.command';
-import { DataDestinationResponseApiDto } from '../dto/presentation/data-destination-response-api.dto';
 import { Injectable } from '@nestjs/common';
 import { AuthorizationContext } from '../../common/authorization-context/authorization.context';
-import { GetDataDestinationCommand } from '../dto/domain/get-data-destination.command';
+import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
+import { CreateDataDestinationCommand } from '../dto/domain/create-data-destination.command';
+import {
+  DataDestinationCredentialsDto,
+  DataDestinationDto,
+} from '../dto/domain/data-destination.dto';
 import { DeleteDataDestinationCommand } from '../dto/domain/delete-data-destination.command';
+import { GetDataDestinationCommand } from '../dto/domain/get-data-destination.command';
 import { ListDataDestinationsCommand } from '../dto/domain/list-data-destinations.command';
 import { DataDestinationCredentialsUtils } from '../data-destination-types/data-destination-credentials.utils';
+import { RotateSecretKeyCommand } from '../dto/domain/rotate-secret-key.command';
+import { UpdateDataDestinationCommand } from '../dto/domain/update-data-destination.command';
+import { CreateDataDestinationApiDto } from '../dto/presentation/create-data-destination-api.dto';
+import { DataDestinationResponseApiDto } from '../dto/presentation/data-destination-response-api.dto';
+import { UpdateDataDestinationApiDto } from '../dto/presentation/update-data-destination-api.dto';
+import { DataDestination } from '../entities/data-destination.entity';
 
 @Injectable()
 export class DataDestinationMapper {
@@ -41,7 +46,9 @@ export class DataDestinationMapper {
       dataDestination.title,
       dataDestination.type,
       dataDestination.projectId,
-      dataDestination.credentials,
+      (dataDestination.type === DataDestinationType.LOOKER_STUDIO
+        ? { ...dataDestination.credentials, destinationId: dataDestination.id }
+        : dataDestination.credentials) as DataDestinationCredentialsDto,
       dataDestination.createdAt,
       dataDestination.modifiedAt
     );
@@ -52,15 +59,16 @@ export class DataDestinationMapper {
   }
 
   toApiResponse(dataDestinationDto: DataDestinationDto): DataDestinationResponseApiDto {
+    const publicCredentials = this.credentialsUtils.getPublicCredentials(
+      dataDestinationDto.type,
+      dataDestinationDto.credentials
+    );
     return {
       id: dataDestinationDto.id,
       title: dataDestinationDto.title,
       type: dataDestinationDto.type,
       projectId: dataDestinationDto.projectId,
-      credentials: this.credentialsUtils.getPublicCredentials(
-        dataDestinationDto.type,
-        dataDestinationDto.credentials
-      ),
+      credentials: publicCredentials || dataDestinationDto.credentials,
       createdAt: dataDestinationDto.createdAt,
       modifiedAt: dataDestinationDto.modifiedAt,
     };
@@ -80,5 +88,9 @@ export class DataDestinationMapper {
 
   toDeleteCommand(id: string, context: AuthorizationContext): DeleteDataDestinationCommand {
     return new DeleteDataDestinationCommand(id, context.projectId);
+  }
+
+  toRotateSecretKeyCommand(id: string, context: AuthorizationContext): RotateSecretKeyCommand {
+    return new RotateSecretKeyCommand(id, context.projectId);
   }
 }

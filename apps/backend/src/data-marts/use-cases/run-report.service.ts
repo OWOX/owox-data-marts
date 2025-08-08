@@ -60,6 +60,10 @@ export class RunReportService {
     await this.reportRepository.save(report);
 
     try {
+      // actualizing schemas before run
+      await this.dataMartService.actualizeSchemaInEntity(report.dataMart);
+      await this.dataMartService.save(report.dataMart);
+
       await this.executeReport(report);
       report.lastRunStatus = ReportRunStatus.SUCCESS;
       this.logger.log(`Report run ${report.id} finished successfully`);
@@ -69,11 +73,6 @@ export class RunReportService {
       report.lastRunError = error.toString();
     } finally {
       await this.reportRepository.save(report);
-      await this.dataMartService.actualizeSchema(
-        report.dataMart.id,
-        report.dataMart.projectId,
-        command.userId
-      );
     }
   }
 
