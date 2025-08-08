@@ -7,16 +7,10 @@ To start importing data from Reddit Ads, make a copy of one of the following tem
 
 Fill in required parameters:
 
-- **Start Date**
 - **Account IDs**
 - **Fields**
 - **Destination Dataset ID** (applicable only for the **Google BigQuery** template)
 - **Destination Location** (applicable only for the **Google BigQuery** template)
-
-The import will begin from the selected **Start Date**.  
-> ⚠️ **Note:** Choosing a long date range may result in import failure due to high data volume.
-
-![Reddit Start Date](res/reddit_startdate.png)
 
 You can find your **Account ID** on the homepage of your [Reddit Ads account](https://ads.reddit.com/):
 
@@ -70,13 +64,11 @@ Access Your Data:
 To include more fields later, check the appropriate boxes in the **Fields** tab and click:  
 **OWOX → Import New Data**
 
-> ⚠️ **Important:** To change the date range:
+> ⚠️ **Important:** To make a manual backfill for the date range:
 >
-> 1. Clear existing data in the **Status** columns
-> 2. Update the **Start Date** and/or **End Date**
-> 3. Run **OWOX → Import New Data** again
-
-![Reddit Clear](res/reddit_clear.png)
+> 1. Open the menu: **OWOX → Manual Backfill**
+> 2. Update the **Start Date** and **End Date**
+> 3. Click **Run manual Backfill**
 
 If you encounter any issues:
 
