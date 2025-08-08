@@ -45,17 +45,14 @@ Integration with Looker Studio as a **Destination** for OWOX Data Marts  enables
 - Make sure all the required fields are connected this Looker Studio's data source and click **Create Report** or **Explore**.
   - You can control the name and description of fields shown in Looker Studio via the **Output Schema** of the Data Mart in your OWOX Data Marts web application.
 
-
 Connector in Looker Studio (first step):
 
 ![Create Data Mart-1](../../res/screens/connector-in-looker-studio-1st-step.png)
-
 
 Connector in Looker Studio (second step):
 
 ![Create Data Mart-1](../../res/screens/connector-in-looker-studio-2nd-step.png)
 
 ---
-
 
 For additional guidance or troubleshooting, refer to the [OWOX Community](https://github.com/OWOX/owox-data-marts/discussions)
