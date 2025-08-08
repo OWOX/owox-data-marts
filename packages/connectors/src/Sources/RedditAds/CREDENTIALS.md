@@ -6,7 +6,7 @@ To connect to the Reddit Ads API and start importing data into Google Sheets or 
 
 Go to the [Reddit Ads page](https://ads.reddit.com/) and log in with your Reddit account.
 
-In the left hand pannel - select the **<c> Developer Applications**.  
+In the left-handed panel - select the **<c> Developer Applications**.
 
 ![Reddit creating app](res/redditcreds1.png)
 
@@ -70,7 +70,7 @@ We need to make a POST Request to the following URL: `https://www.reddit.com/api
 
 ![Reddit ads auth params](res/redditcreds5.png)
 
-Click run and your response request will contain the refresh token.
+Click SEND, and your response request will contain the refresh token.
 
 ![Reddit ads auth params](res/redditcreds6.png)
 
