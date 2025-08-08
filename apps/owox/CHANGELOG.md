@@ -2,7 +2,7 @@
 
 ## 0.5.0
 
-### Minor Changes
+### Minor Changes 0.5.0
 
 - 2f2d4bf: # Add manual backfill functionality for data mart connectors
   - Added support for manual connector runs with custom payload parameters
@@ -34,7 +34,7 @@
   - Moved field descriptions to tooltips.
   - Used field labels as titles instead of field names.
 
-### Patch Changes
+### Patch Changes 0.5.0
 
 - @owox/backend@0.5.0
 
