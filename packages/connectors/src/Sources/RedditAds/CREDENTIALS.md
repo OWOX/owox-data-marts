@@ -6,7 +6,7 @@ To connect to the Reddit Ads API and start importing data into Google Sheets or 
 
 Go to the [Reddit Ads page](https://ads.reddit.com/) and log in with your Reddit account.
 
-In the left-handed panel - select the **<c> Developer Applications**.
+In the left-handed panel - select the **Developer Applications**.
 
 ![Reddit creating app](res/redditcreds1.png)
 
