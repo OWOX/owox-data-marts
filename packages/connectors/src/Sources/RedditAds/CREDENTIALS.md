@@ -4,137 +4,92 @@ To connect to the Reddit Ads API and start importing data into Google Sheets or 
 
 ## Step 1: Create a Reddit App
 
-Visit the [Reddit Preferences page](https://www.reddit.com/prefs/apps) and log in with your Reddit account, or create a new one.
+Go to the [Reddit Ads page](https://ads.reddit.com/) and log in with your Reddit account.
 
-Click the **Create App** button.  
+In the left hand pannel - select the **<c> Developer Applications**.  
 
-![Reddit creating app](res/reddit_createapp.png)
+![Reddit creating app](res/redditcreds1.png)
 
-Fill in the form:
+Click **Add Apps** and fill in the form with:
 
-- **App Name** and **Description**
-- **App type**: Select `script`
-- **Redirect URI**: `http://localhost:8080`
+- **App Name** like OWOX Data Marts
+- **Description** like      _"This app will extract advertising metrics and store them in my sheets & data warehouse. This data will be processed via OWOX Data Marts to support daily marketing reporting and optimization efforts."_
+- **About url**: `https://docs.owox.com/packages/connectors/src/sources/reddit-ads/readme/`
+- **Redirect uri**: `https://www.reddit.com/prefs/apps`
+- **Primary contact**
 - Click **Create App**
 
-![Reddit app name](res/reddit_appname.png)
+![Reddit app name](res/redditcreds2.png)
 
 After creating the app, you'll see:
 
-- **Client ID** (just under the app name)
-- **Client Secret**
-- **Redirect URI**
+- **App id** (just under the app name)
+- **Secret**
 
-![Reddit app credentials](res/reddit_app_info.png)
+## Step 2: Generate the Code
 
-## Step 2: Request Reddit API Access
-
-Go to the [Reddit API Access Request Form](https://support.reddithelp.com/hc/en-us/requests/new?ticket_form_id=14868593862164)
-
-In the form:
-
-In the form, select:
-
-- **"I'm a Developer"**
-- **"I want to register to use the free tier of the Reddit API"**
-- **Purpose**: Select `Other`  
-
-![Reddit form](res/reddit_form.png)
-
-Provide additional information:
-
-- Describe your tool’s purpose. Example:  
-
-     _"We plan to use the Reddit Ads API to automatically extract advertising metrics and store them in Google Sheets and BigQuery. This data will be processed via OWOX Data Marts to support daily marketing reporting and optimization efforts."_
-
-- Add a link to the repository: `https://github.com/OWOX/owox-data-marts`
-- Include your Reddit username
-
-![Reddit form](res/reddit_form_2.png)
-
-Fill in the contact information and use case details:
-
-- **Reddit API Use Case**: Example:
-
-     _"The Reddit Ads API will be used to automate data collection from our ad account. We use OWOX Data Marts to transfer this data into Google Sheets and BigQuery for marketing analytics, allowing us to streamline reporting and improve media planning."_
-
-- **Developer Platform**: `Google Sheets, App Script`
-- **OAUTH Client ID(s)**: Paste the Client ID from your app
-
-![Reddit form](res/reddit_form_3.png)
-
-Finalize the request:
-
-- **Subject of inquiry**: _Request access to Reddit API_
-- **Details of inquiry**: Example:
-
-     _"Our organization intends to leverage the Reddit Ads API to access campaign-level advertising data for integration into our internal analytics workflows. Using the OWOX Data Marts platform, this data will be securely transferred to Google Sheets and Google BigQuery to support real-time performance tracking, marketing spend analysis, and strategic reporting."_
-
-- Leave the attachment field empty
-- Click **Submit**
-
-![Reddit form](res/reddit_form_4.png)
-
-## Step 3: Generate the Authorization Code
-
-To obtain the authorization code, use the following URL (replace `YOUR_CLIENT_ID` and `RANDOM_STRING` accordingly, for example, **abc123**):
+To obtain the authorization code, use the following URL (replace `YOUR_APP_ID` and remove extra spaces):
 
 ```text # Reddit Authorization URL
 https://www.reddit.com/api/v1/authorize
-  ?client_id=YOUR_CLIENT_ID
-  &response_type=code
-  &state=RANDOM_STRING
-  &redirect_uri=http://localhost:8080
-  &duration=permanent
-  &scope=read
+?client_id=YOUR_APP_ID
+&response_type=code
+&state=xyz_123
+&redirect_uri=https://www.reddit.com/prefs/apps
+&duration=permanent
+&scope=adsread
 ```
 
 Open the URL in your browser, press **Enter**, and when prompted, click **Allow** (make sure you're logged in to the Reddit account that owns the ad account).
 
-![Reddit app request](res/reddit_request.png)
+![Reddit app request](res/redditcreds3.png)
 
 1. You will be redirected to a URL like:
-`http://localhost:8080/?state=xyz123&code=bLcIq0FR9-8hjOpklbxK2dtRTsA#_`  
+`https://www.reddit.com/prefs/apps?solution=bbc1b48823f8bc04bbc1b48823f8bc04&js_challenge=1&token=54dba411ecc9fd270bca6277dc2a436162285b3fed6dc209303bbfab9aa42307&state=xyz_123&code=tPy-1pWJgMkzJrBmdFvIxWzS42girQ`  
 
-Copy the value of the `code` parameter — in this example, `bLcIq0FR9-8hjOpklbxK2dtRTsA`.  
+Copy the value of the `code` parameter — in this example, `tPy-1pWJgMkzJrBmdFvIxWzS42girQ`.  
 
-![Reddit code](res/reddit_code.png)
+## Step 3: Exchange Authorization Code for a Refresh Token
 
-## Step 4: Exchange Authorization Code for a Refresh Token
+Use Postman / other request tools to exchange this code for a **refresh token**.
 
-Use Postman to exchange the authorization code for a refresh token.
+We need to make a POST Request to the following URL: `https://www.reddit.com/api/v1/access_token`.
 
-**Parameters:**
+**Params:**
 
 - `grant_type=authorization_code`
 - `code=YOUR_CODE` (from previous step)
-- `redirect_uri=http://localhost:8080`
+- `redirect_uri=https://www.reddit.com/prefs/apps`
+
+![Reddit ads query params](res/redditcreds4.png)
 
 **Auth Type**: Basic Auth  
 
-- **Username**: Your Client ID  
-- **Password**: Your Client Secret
+- **Username**: Your App id  
+- **Password**: Your Secret
 
-![Reddit refresh](res/reddit_refresh.png)
+![Reddit ads auth params](res/redditcreds5.png)
 
-## Step 5: Set the User-Agent Header
+Click run and your response request will contain the refresh token.
+
+![Reddit ads auth params](res/redditcreds6.png)
+
+## Step 4: Set the User-Agent Header
 
 Reddit requires a properly formatted `User-Agent` header for all API requests. Use the following format:
 
-`googleapps:owox-data-marts.redditads:v1.0.0 (by /u/client_reddit_username)`
+`googleapps:owox-data-marts.redditads:v1.0.0 (by /u/your_reddit_username)`
 
-> Replace `client_reddit_username` with your actual Reddit username.
-
-For more info on best practices for User-Agent, refer to the [Reddit's API Guidelines](https://github.com/reddit-archive/reddit/wiki/API).
+> Replace `your_reddit_username` with your actual Reddit username.
 
 ## ✅ You're Ready
 
 You now have:
 
-- **Client ID**
-- **Client Secret**
-- **Redirect URI**
-- **Refresh Token**
-- **User-Agent**
+- **App id** (ex. Client ID) - from Step 1
+- **Secret** (ex. Client Secret) - from Step 1
+- **Redirect url** - `https://www.reddit.com/prefs/apps`
+- **Refresh Token** - from step 3
+- **User-Agent Header** - from step 4
 
 You can now use these credentials as described in the [Getting Started guide](GETTING_STARTED.md).
