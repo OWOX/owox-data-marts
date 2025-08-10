@@ -2,7 +2,7 @@
 
 ## 🏷 Open-Source Self-Service Analytics Platform
 
-Power self-service analytics from your infrastructure – with reusable Data Marts, semantic layer, and zero vendor lock-in for what you do. Forever free & fully yours.
+OWOX Data Marts is your way to create a data mart library and empower business users with spreadsheet reports and dashboards — in minutes.
 
 [📘 Quick Start Guide](./docs/getting-started/quick-start.md) | [🌐 Website](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) |  [💬 Community](https://github.com/OWOX/owox-data-marts/discussions) | [🆘 Create an Issue](https://github.com/OWOX/owox-data-marts/issues)
 
@@ -10,11 +10,15 @@ Power self-service analytics from your infrastructure – with reusable Data Mar
 
 ## ✨ Why We Built This
 
-Every data team deserves the power to automate analytics processes while keeping full control over them – **without relying on engineers**, **without exposing credentials**, and **without buying another SaaS platform**.
+Data analysts’ work means nothing unless business users can play with the data freely. 
 
-The **OWOX BI Community Edition** is an open-source platform for building, storing, managing & sharing **Data Marts** and enabling **controlled self-service reporting** – with all logic defined and deployed on your terms.
+However, most **self-service analytics** initiatives fail because they compromise either the data analysts’ control or the business users’ freedom.
 
-Whether you're a data analyst at a startup, a team lead at an agency, or the head of BI at an enterprise, this repo gives you full control over the reporting layer.
+At OWOX, we value both:
+- Data analysts **orchestrate data marts** defined by [SQL](https://docs.owox.com/docs/getting-started/setup-guide/sql-data-mart/) or [connectors](https://docs.owox.com/docs/getting-started/setup-guide/connector-data-mart/) to sources like Facebook Ads, TikTok Ads, and LinkedIn Ads.
+- Business users **enjoy trusted reports** right [where they want them](https://docs.owox.com/docs/destinations/manage-destinations/) — in spreadsheets or dashboards.
+
+At OWOX, we believe data analysts shouldn’t have to waste time on CSV files and one-off dashboards. Business users shouldn’t be forced to use complex BI tools either.
 
 ## 🚀 What You Can Do with OWOX Data Marts
 
