@@ -10,11 +10,12 @@ OWOX Data Marts is your way to create a data mart library and empower business u
 
 ## ✨ Why We Built This
 
-Data analysts’ work means nothing unless business users can play with the data freely. 
+Data analysts’ work means nothing unless business users can play with the data freely.
 
 However, most **self-service analytics** initiatives fail because they compromise either the data analysts’ control or the business users’ freedom.
 
 At OWOX, we value both:
+
 - Data analysts **orchestrate data marts** defined by [SQL](https://docs.owox.com/docs/getting-started/setup-guide/sql-data-mart/) or [connectors](https://docs.owox.com/docs/getting-started/setup-guide/connector-data-mart/) to sources like Facebook Ads, TikTok Ads, and LinkedIn Ads.
 - Business users **enjoy trusted reports** right [where they want them](https://docs.owox.com/docs/destinations/manage-destinations/) — in spreadsheets or dashboards.
 
