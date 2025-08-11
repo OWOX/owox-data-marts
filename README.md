@@ -1,6 +1,6 @@
 # OWOX Data Marts
 
-## 🏷 Open-Source Self-Service Analytics Platform
+## 🏷 Self-Service Analytics Platform
 
 OWOX Data Marts is your way to create a data mart library and empower business users with spreadsheet reports and dashboards — in minutes.
 
