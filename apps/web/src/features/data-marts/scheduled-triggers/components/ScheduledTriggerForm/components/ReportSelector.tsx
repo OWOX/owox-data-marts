@@ -8,6 +8,7 @@ import {
 } from '@owox/ui/components/select';
 import { useEffect } from 'react';
 import { useDataMartContext } from '../../../../edit/model';
+import { DataDestinationType } from '../../../../../data-destination';
 
 interface ReportSelectorProps {
   value: string;
@@ -25,7 +26,7 @@ export function ReportSelector({ value, onChange, disabled }: ReportSelectorProp
   }, [fetchReportsByDataMartId, dataMart]);
 
   const googleSheetsReports = reports.filter(
-    report => report.dataDestination?.type === 'GOOGLE_SHEETS'
+    report => report.dataDestination.type === DataDestinationType.GOOGLE_SHEETS
   );
 
   return (
