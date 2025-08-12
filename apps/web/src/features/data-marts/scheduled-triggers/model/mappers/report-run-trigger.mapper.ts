@@ -8,6 +8,7 @@ import type {
 } from '../api';
 import { reportService } from '../../../reports/shared';
 import { mapReportDtoToEntity } from '../../../reports/shared/model/mappers';
+import type { ScheduledReportRunConfig } from '../trigger-config.types.ts';
 
 /**
  * Mapper for report run triggers
@@ -42,9 +43,9 @@ export class ReportRunTriggerMapper implements TriggerMapper {
       return trigger;
     }
 
-    const config = trigger.triggerConfig;
+    const config = trigger.triggerConfig as ScheduledReportRunConfig;
 
-    if (!config?.reportId) {
+    if (!config.reportId) {
       return trigger;
     }
 

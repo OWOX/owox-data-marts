@@ -6,6 +6,8 @@ import { ScheduledTriggerType } from '../../enums';
 import type { ScheduledTrigger } from '../scheduled-trigger.model';
 import { ScheduledTriggerMapper } from '../mappers';
 import type { ScheduledTriggerConfig } from '../trigger-config.types.ts';
+import { useDataMartContext } from '../../../edit/model';
+import { useConnector } from '../../../../connectors/shared/model/hooks/useConnector.ts';
 
 interface ScheduledTriggerProviderProps {
   children: React.ReactNode;
@@ -13,29 +15,23 @@ interface ScheduledTriggerProviderProps {
 
 export function ScheduledTriggerProvider({ children }: ScheduledTriggerProviderProps) {
   const [state, dispatch] = useReducer(scheduledTriggerReducer, initialState);
+  const { dataMart } = useDataMartContext();
+  const { fetchAvailableConnectors } = useConnector();
 
-  const getScheduledTriggers = useCallback(async (dataMartId: string) => {
-    dispatch({ type: 'FETCH_TRIGGERS_START' });
-    try {
-      const triggersDto = await scheduledTriggerService.getScheduledTriggers(dataMartId);
-      const triggers = await ScheduledTriggerMapper.mapFromDtoListWithReportData(triggersDto);
-      dispatch({ type: 'FETCH_TRIGGERS_SUCCESS', payload: triggers });
-    } catch (error) {
-      dispatch({
-        type: 'FETCH_TRIGGERS_ERROR',
-        payload: error instanceof Error ? error.message : 'Failed to fetch scheduled triggers',
-      });
-    }
-  }, []);
+  if (!dataMart) {
+    throw new Error('Trigger provider must be used within a data mart context');
+  }
 
-  const getScheduledTriggersByType = useCallback(
-    async (dataMartId: string, triggerType: ScheduledTriggerType) => {
+  const getScheduledTriggers = useCallback(
+    async (dataMartId: string) => {
+      await fetchAvailableConnectors();
       dispatch({ type: 'FETCH_TRIGGERS_START' });
       try {
         const triggersDto = await scheduledTriggerService.getScheduledTriggers(dataMartId);
-        const filteredTriggersDto = triggersDto.filter(trigger => trigger.type === triggerType);
-        const triggers =
-          await ScheduledTriggerMapper.mapFromDtoListWithReportData(filteredTriggersDto);
+        const triggers = await ScheduledTriggerMapper.mapFromDtoListWithReportData(
+          triggersDto,
+          dataMart
+        );
         dispatch({ type: 'FETCH_TRIGGERS_SUCCESS', payload: triggers });
       } catch (error) {
         dispatch({
@@ -44,22 +40,46 @@ export function ScheduledTriggerProvider({ children }: ScheduledTriggerProviderP
         });
       }
     },
-    []
+    [dataMart, fetchAvailableConnectors]
   );
 
-  const getScheduledTrigger = useCallback(async (dataMartId: string, id: string) => {
-    dispatch({ type: 'FETCH_TRIGGER_START' });
-    try {
-      const triggerDto = await scheduledTriggerService.getScheduledTrigger(dataMartId, id);
-      const trigger = await ScheduledTriggerMapper.mapFromDtoWithReportData(triggerDto);
-      dispatch({ type: 'FETCH_TRIGGER_SUCCESS', payload: trigger });
-    } catch (error) {
-      dispatch({
-        type: 'FETCH_TRIGGER_ERROR',
-        payload: error instanceof Error ? error.message : 'Failed to fetch scheduled trigger',
-      });
-    }
-  }, []);
+  const getScheduledTriggersByType = useCallback(
+    async (dataMartId: string, triggerType: ScheduledTriggerType) => {
+      dispatch({ type: 'FETCH_TRIGGERS_START' });
+      try {
+        const triggersDto = await scheduledTriggerService.getScheduledTriggers(dataMartId);
+        const filteredTriggersDto = triggersDto.filter(trigger => trigger.type === triggerType);
+        const triggers = await ScheduledTriggerMapper.mapFromDtoListWithReportData(
+          filteredTriggersDto,
+          dataMart
+        );
+        dispatch({ type: 'FETCH_TRIGGERS_SUCCESS', payload: triggers });
+      } catch (error) {
+        dispatch({
+          type: 'FETCH_TRIGGERS_ERROR',
+          payload: error instanceof Error ? error.message : 'Failed to fetch scheduled triggers',
+        });
+      }
+    },
+    [dataMart]
+  );
+
+  const getScheduledTrigger = useCallback(
+    async (dataMartId: string, id: string) => {
+      dispatch({ type: 'FETCH_TRIGGER_START' });
+      try {
+        const triggerDto = await scheduledTriggerService.getScheduledTrigger(dataMartId, id);
+        const trigger = await ScheduledTriggerMapper.mapFromDtoWithReportData(triggerDto, dataMart);
+        dispatch({ type: 'FETCH_TRIGGER_SUCCESS', payload: trigger });
+      } catch (error) {
+        dispatch({
+          type: 'FETCH_TRIGGER_ERROR',
+          payload: error instanceof Error ? error.message : 'Failed to fetch scheduled trigger',
+        });
+      }
+    },
+    [dataMart]
+  );
 
   const createScheduledTrigger = useCallback(
     async (
@@ -83,7 +103,7 @@ export function ScheduledTriggerProvider({ children }: ScheduledTriggerProviderP
           dataMartId,
           requestDto
         );
-        const trigger = await ScheduledTriggerMapper.mapFromDtoWithReportData(triggerDto);
+        const trigger = await ScheduledTriggerMapper.mapFromDtoWithReportData(triggerDto, dataMart);
         dispatch({ type: 'CREATE_TRIGGER_SUCCESS', payload: trigger });
         return trigger;
       } catch (error) {
@@ -94,7 +114,7 @@ export function ScheduledTriggerProvider({ children }: ScheduledTriggerProviderP
         throw error;
       }
     },
-    []
+    [dataMart]
   );
 
   const updateScheduledTrigger = useCallback(
@@ -117,7 +137,7 @@ export function ScheduledTriggerProvider({ children }: ScheduledTriggerProviderP
           id,
           requestDto
         );
-        const trigger = await ScheduledTriggerMapper.mapFromDtoWithReportData(triggerDto);
+        const trigger = await ScheduledTriggerMapper.mapFromDtoWithReportData(triggerDto, dataMart);
         dispatch({ type: 'UPDATE_TRIGGER_SUCCESS', payload: trigger });
       } catch (error) {
         dispatch({
@@ -127,7 +147,7 @@ export function ScheduledTriggerProvider({ children }: ScheduledTriggerProviderP
         throw error;
       }
     },
-    []
+    [dataMart]
   );
 
   const deleteScheduledTrigger = useCallback(async (dataMartId: string, id: string) => {

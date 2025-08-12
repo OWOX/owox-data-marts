@@ -1,13 +1,15 @@
 import type {
-  ScheduledTriggerResponseApiDto,
   CreateScheduledTriggerRequestApiDto,
-  UpdateScheduledTriggerRequestApiDto,
   ScheduledTriggerListResponseApiDto,
+  ScheduledTriggerResponseApiDto,
+  UpdateScheduledTriggerRequestApiDto,
 } from '../api';
 import type { ScheduledTrigger } from '../scheduled-trigger.model';
 import { TriggerMapperFactory } from './trigger-mapper.factory';
 import { ScheduledTriggerType } from '../../enums';
 import { ReportRunTriggerMapper } from './report-run-trigger.mapper';
+import type { ConnectorDefinitionConfig, DataMart } from '../../../edit';
+import type { ScheduledConnectorRunConfig } from '../trigger-config.types.ts';
 
 /**
  * General mapper for scheduled triggers
@@ -38,28 +40,46 @@ export const ScheduledTriggerMapper = {
    * Maps a ScheduledTriggerResponseApiDto object to a ScheduledTrigger object and enhances it with report data.
    *
    * @param {ScheduledTriggerResponseApiDto} dto - The data transfer object containing the information to be mapped.
+   * @param dataMart
    * @return {Promise<ScheduledTrigger>} The mapped and enhanced ScheduledTrigger object.
    */
-  async mapFromDtoWithReportData(dto: ScheduledTriggerResponseApiDto): Promise<ScheduledTrigger> {
+  async mapFromDtoWithReportData(
+    dto: ScheduledTriggerResponseApiDto,
+    dataMart: DataMart
+  ): Promise<ScheduledTrigger> {
     const trigger = this.mapFromDto(dto);
-
-    if (trigger.type === ScheduledTriggerType.REPORT_RUN) {
-      const reportRunMapper = new ReportRunTriggerMapper();
-      return reportRunMapper.enhanceWithReportData(trigger);
+    switch (trigger.type) {
+      case ScheduledTriggerType.REPORT_RUN: {
+        const reportRunMapper = new ReportRunTriggerMapper();
+        return reportRunMapper.enhanceWithReportData(trigger);
+      }
+      case ScheduledTriggerType.CONNECTOR_RUN: {
+        const connectorConfig = dataMart.definition as ConnectorDefinitionConfig;
+        return {
+          ...trigger,
+          triggerConfig: {
+            ...trigger.triggerConfig,
+            connector: connectorConfig,
+          } as ScheduledConnectorRunConfig,
+        };
+      }
+      default:
+        return trigger;
     }
-
-    return trigger;
   },
 
   /**
    * Maps a list of DTO objects to a list of domain model objects and enhances them with report data.
    *
    * @param {ScheduledTriggerListResponseApiDto} dtoList - The list of DTO objects to be mapped.
+   * @param dataMart
    * @return {Promise<ScheduledTrigger[]>} The list of mapped and enhanced domain model objects.
    */
   async mapFromDtoListWithReportData(
-    dtoList: ScheduledTriggerListResponseApiDto
+    dtoList: ScheduledTriggerListResponseApiDto,
+    dataMart: DataMart
   ): Promise<ScheduledTrigger[]> {
+    const reportRunMapper = new ReportRunTriggerMapper();
     const triggers = this.mapFromDtoList(dtoList);
 
     // Filter out REPORT_RUN triggers
@@ -68,21 +88,28 @@ export const ScheduledTriggerMapper = {
     );
 
     // Enhance REPORT_RUN triggers with report data
-    if (reportRunTriggers.length > 0) {
-      const reportRunMapper = new ReportRunTriggerMapper();
-      const enhancedReportRunTriggers =
-        await reportRunMapper.enhanceTriggersWithReportData(reportRunTriggers);
+    const enhancedReportRunTriggers =
+      await reportRunMapper.enhanceTriggersWithReportData(reportRunTriggers);
 
-      // Replace the original triggers with the enhanced ones
-      return triggers.map(trigger => {
-        if (trigger.type === ScheduledTriggerType.REPORT_RUN) {
+    // Replace the original triggers with the enhanced ones
+    return triggers.map(trigger => {
+      switch (trigger.type) {
+        case ScheduledTriggerType.REPORT_RUN:
           return enhancedReportRunTriggers.find(t => t.id === trigger.id) ?? trigger;
+        case ScheduledTriggerType.CONNECTOR_RUN: {
+          const connectorConfig = dataMart.definition as ConnectorDefinitionConfig;
+          return {
+            ...trigger,
+            triggerConfig: {
+              ...trigger.triggerConfig,
+              connector: connectorConfig,
+            },
+          };
         }
-        return trigger;
-      });
-    }
-
-    return triggers;
+        default:
+          return trigger;
+      }
+    });
   },
 
   /**
