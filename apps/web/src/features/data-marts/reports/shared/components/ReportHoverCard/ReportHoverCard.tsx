@@ -1,108 +1,187 @@
-import { HoverCard, HoverCardContent, HoverCardTrigger } from '@owox/ui/components/hover-card';
+import React, { useMemo, useCallback } from 'react';
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+  HoverCardHeader,
+  HoverCardHeaderText,
+  HoverCardHeaderIcon,
+  HoverCardHeaderTitle,
+  HoverCardHeaderDescription,
+  HoverCardBody,
+  HoverCardItem,
+  HoverCardItemLabel,
+  HoverCardItemValue,
+  HoverCardFooter,
+} from '@owox/ui/components/hover-card';
 import { GoogleSheetsIcon } from '../../../../../../shared';
 import type { DataMartReport } from '../../model/types/data-mart-report';
 import { isGoogleSheetsDestinationConfig } from '../../model/types/data-mart-report';
 import { type ReactNode } from 'react';
 import RelativeTime from '@owox/ui/components/common/relative-time';
-import { ReportStatus } from '../ReportStatus';
 import { getGoogleSheetTabUrl } from '../../utils';
-import { ExternalLinkIcon } from 'lucide-react';
+import { Button } from '@owox/ui/components/button';
+import { ExternalLink } from 'lucide-react';
+import { StatusLabel } from '../../../../../../shared/components/StatusLabel';
+import { mapReportStatusToStatusType, getReportStatusText } from '../../../../shared';
 
 interface ReportHoverCardProps {
   report: DataMartReport;
   children: ReactNode;
 }
 
-export function ReportHoverCard({ report, children }: ReportHoverCardProps) {
-  return (
-    <HoverCard>
-      <HoverCardTrigger asChild>
-        <div className='text-sm hover:cursor-help'>{children}</div>
-      </HoverCardTrigger>
-      <HoverCardContent className='w-110'>
-        <div className='space-y-3'>
-          <div>
-            <h4 className='text-sm font-semibold'>{report.title || 'Unnamed Report'}</h4>
-            <p className='text-muted-foreground text-xs'>ID: {report.id}</p>
-          </div>
-
-          <div className='grid grid-cols-2 gap-2'>
-            <div>
-              <p className='text-xs font-medium'>Last Run Status</p>
-              {report.lastRunStatus ? (
-                <div className='mt-1'>
-                  <ReportStatus status={report.lastRunStatus} />
-                </div>
-              ) : (
-                <p className='text-muted-foreground text-sm'>Not run yet</p>
-              )}
-            </div>
-            <div>
-              <p className='text-xs font-medium'>Last Run</p>
-              <p className='text-sm'>
-                {report.lastRunDate ? <RelativeTime date={report.lastRunDate} /> : 'Never run'}
-              </p>
-            </div>
-            <div>
-              <p className='text-xs font-medium'>Total Runs</p>
-              <p className='text-sm'>{report.runsCount || 0}</p>
-            </div>
-            <div>
-              <p className='text-xs font-medium'>Destination</p>
-              {isGoogleSheetsDestinationConfig(report.destinationConfig) ? (
-                <a
-                  href={getGoogleSheetTabUrl(
-                    report.destinationConfig.spreadsheetId,
-                    report.destinationConfig.sheetId
-                  )}
-                  target='_blank'
-                  rel='noopener noreferrer'
-                  className='flex items-center gap-2 text-sm text-blue-500 hover:underline'
-                  title='Open Document'
-                  aria-label='Open Document'
-                >
-                  <GoogleSheetsIcon size={20} />
-                  Open Document
-                  <ExternalLinkIcon className='h-3 w-3' aria-hidden='true' />
-                </a>
-              ) : (
-                <p className='text-sm'>Not specified</p>
-              )}
-            </div>
-          </div>
-
-          {report.lastRunError && (
-            <div>
-              <p className='text-destructive text-xs'>{report.lastRunError}</p>
-            </div>
-          )}
-
-          <div className='border-t pt-2'>
-            <div className='text-muted-foreground flex justify-between text-xs'>
-              <div>
-                <span className='font-medium'>Created:</span>{' '}
-                {new Intl.DateTimeFormat('en-US', {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                }).format(new Date(report.createdAt))}
-              </div>
-              <div>
-                <span className='font-medium'>Modified:</span>{' '}
-                {new Intl.DateTimeFormat('en-US', {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                }).format(new Date(report.modifiedAt))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </HoverCardContent>
-    </HoverCard>
+const useDateFormatters = () => {
+  const detailedDateFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+    []
   );
-}
+
+  const shortDateFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      }),
+    []
+  );
+
+  return { detailedDateFormatter, shortDateFormatter };
+};
+
+export const ReportHoverCard = React.memo(
+  function ReportHoverCard({ report, children }: ReportHoverCardProps) {
+    const { detailedDateFormatter, shortDateFormatter } = useDateFormatters();
+
+    const statusInfo = useMemo(() => {
+      if (!report.lastRunStatus) return null;
+      return {
+        statusType: mapReportStatusToStatusType(report.lastRunStatus),
+        statusText: getReportStatusText(report.lastRunStatus),
+      };
+    }, [report.lastRunStatus]);
+
+    const formattedDates = useMemo(() => {
+      return {
+        modifiedAt: detailedDateFormatter.format(new Date(report.modifiedAt)),
+        createdAt: shortDateFormatter.format(new Date(report.createdAt)),
+      };
+    }, [report.modifiedAt, report.createdAt, detailedDateFormatter, shortDateFormatter]);
+
+    const buttonConfig = useMemo(() => {
+      if (isGoogleSheetsDestinationConfig(report.destinationConfig)) {
+        return {
+          isGoogleSheets: true,
+          spreadsheetId: report.destinationConfig.spreadsheetId,
+          sheetId: report.destinationConfig.sheetId,
+        };
+      }
+      return {
+        isGoogleSheets: false,
+        spreadsheetId: null,
+        sheetId: null,
+      };
+    }, [report.destinationConfig]);
+
+    const handleGoogleSheetOpen = useCallback(() => {
+      if (!buttonConfig.isGoogleSheets || !buttonConfig.spreadsheetId || !buttonConfig.sheetId) {
+        return;
+      }
+
+      const sheetUrl = getGoogleSheetTabUrl(buttonConfig.spreadsheetId, buttonConfig.sheetId);
+      window.open(sheetUrl, '_blank', 'noopener,noreferrer');
+    }, [buttonConfig]);
+
+    return (
+      <HoverCard>
+        <HoverCardTrigger asChild>
+          <span>{children}</span>
+        </HoverCardTrigger>
+        <HoverCardContent>
+          <HoverCardHeader>
+            <HoverCardHeaderIcon>
+              <GoogleSheetsIcon size={20} />
+            </HoverCardHeaderIcon>
+            <HoverCardHeaderText>
+              <HoverCardHeaderTitle>{report.title || 'Unnamed Report'}</HoverCardHeaderTitle>
+              <HoverCardHeaderDescription>
+                Last modified <RelativeTime date={new Date(report.modifiedAt)} />
+              </HoverCardHeaderDescription>
+            </HoverCardHeaderText>
+          </HoverCardHeader>
+
+          <HoverCardBody>
+            <HoverCardItem>
+              <HoverCardItemLabel>Last run status:</HoverCardItemLabel>
+              <HoverCardItemValue>
+                {statusInfo ? (
+                  <StatusLabel type={statusInfo.statusType} variant='ghost'>
+                    {statusInfo.statusText}
+                  </StatusLabel>
+                ) : (
+                  'Not run yet'
+                )}
+              </HoverCardItemValue>
+            </HoverCardItem>
+            <HoverCardItem>
+              <HoverCardItemLabel>Last run date:</HoverCardItemLabel>
+              <HoverCardItemValue>
+                {report.lastRunDate ? <RelativeTime date={report.lastRunDate} /> : 'Never run'}
+              </HoverCardItemValue>
+            </HoverCardItem>
+            {report.lastRunError && (
+              <HoverCardItem>
+                <HoverCardItemLabel>Error message:</HoverCardItemLabel>
+                <HoverCardItemValue>{report.lastRunError}</HoverCardItemValue>
+              </HoverCardItem>
+            )}
+            <HoverCardItem>
+              <HoverCardItemLabel>Total runs:</HoverCardItemLabel>
+              <HoverCardItemValue>
+                {report.runsCount || 0} runs
+                {formattedDates.createdAt && <>, since {formattedDates.createdAt}</>}
+              </HoverCardItemValue>
+            </HoverCardItem>
+          </HoverCardBody>
+
+          {buttonConfig.isGoogleSheets && (
+            <HoverCardFooter>
+              <Button
+                className='w-full'
+                variant='default'
+                onClick={handleGoogleSheetOpen}
+                title='Open in Google Sheets'
+                aria-label='Open in Google Sheets'
+              >
+                Open in Google Sheets
+                <ExternalLink className='ml-1 inline h-4 w-4' aria-hidden='true' />
+              </Button>
+            </HoverCardFooter>
+          )}
+        </HoverCardContent>
+      </HoverCard>
+    );
+  },
+  (prevProps, nextProps) => {
+    // Custom comparison function to prevent unnecessary re-renders
+    return (
+      prevProps.report.id === nextProps.report.id &&
+      prevProps.report.title === nextProps.report.title &&
+      prevProps.report.modifiedAt === nextProps.report.modifiedAt &&
+      prevProps.report.lastRunStatus === nextProps.report.lastRunStatus &&
+      prevProps.report.lastRunDate === nextProps.report.lastRunDate &&
+      prevProps.report.lastRunError === nextProps.report.lastRunError &&
+      prevProps.report.runsCount === nextProps.report.runsCount &&
+      prevProps.report.createdAt === nextProps.report.createdAt &&
+      JSON.stringify(prevProps.report.destinationConfig) ===
+        JSON.stringify(nextProps.report.destinationConfig)
+    );
+  }
+);
