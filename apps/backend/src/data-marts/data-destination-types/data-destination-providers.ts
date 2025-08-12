@@ -9,6 +9,7 @@ import { SheetHeaderFormatter } from './google-sheets/services/sheet-formatters/
 import { SheetMetadataFormatter } from './google-sheets/services/sheet-formatters/sheet-metadata-formatter';
 import { DataDestinationPublicCredentialsFactory } from './factories/data-destination-public-credentials.factory';
 import { DataDestinationCredentialsUtils } from './data-destination-credentials.utils';
+import { SheetValuesFormatter } from './google-sheets/services/sheet-formatters/sheet-values-formatter';
 import { DataDestinationAccessValidator } from './interfaces/data-destination-access-validator.interface';
 import { DataDestinationCredentialsValidator } from './interfaces/data-destination-credentials-validator.interface';
 import { DataDestinationCredentialsProcessor } from './interfaces/data-destination-credentials-processor.interface';
@@ -51,7 +52,11 @@ const credentialsValidatorProviders = [
 const credentialsProcessorProviders = [LookerStudioConnectorCredentialsProcessor];
 const secretKeyRotatorProviders = [LookerStudioConnectorSecretKeyRotator];
 const reportWriterProviders = [GoogleSheetsReportWriter];
-const googleSheetsUtilityProviders = [SheetHeaderFormatter, SheetMetadataFormatter];
+const googleSheetsUtilityProviders = [
+  SheetHeaderFormatter,
+  SheetMetadataFormatter,
+  SheetValuesFormatter,
+];
 const publicCredentialsProviders = [
   DataDestinationPublicCredentialsFactory,
   DataDestinationCredentialsUtils,

@@ -13,6 +13,7 @@ import { SheetHeaderFormatter } from './sheet-formatters/sheet-header-formatter'
 import { SheetMetadataFormatter } from './sheet-formatters/sheet-metadata-formatter';
 import { GoogleSheetsApiAdapter } from '../adapters/google-sheets-api.adapter';
 import { GoogleSheetsApiAdapterFactory } from '../adapters/google-sheets-api-adapter.factory';
+import { SheetValuesFormatter } from './sheet-formatters/sheet-values-formatter';
 
 /**
  * Service for writing report data to Google Sheets
@@ -28,6 +29,7 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
 
   // State for current write operation
   private destination: GoogleSheetsConfig;
+  private reportDataHeaders: ReportDataHeader[];
   private spreadsheetTimeZone: string;
   private sheetTitle: string;
   private dataMartTitle: string;
@@ -38,6 +40,7 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
   constructor(
     private readonly headerFormatter: SheetHeaderFormatter,
     private readonly metadataFormatter: SheetMetadataFormatter,
+    private readonly valuesFormatter: SheetValuesFormatter,
     private readonly adapterFactory: GoogleSheetsApiAdapterFactory
   ) {}
 
@@ -58,8 +61,10 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
         await this.ensureRowsAvailable(reportDataDescription.estimatedDataRowsCount + 1); // +1 for headers
       }
 
+      this.reportDataHeaders = reportDataDescription.dataHeaders;
+
       await this.clearSheet();
-      await this.writeHeaders(reportDataDescription.dataHeaders);
+      await this.writeHeaders();
     }, 'Preparing Google Sheets document for report');
   }
 
@@ -80,7 +85,13 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
 
       const rowToWrite = this.writtenRowsCount + 1;
       const range = `'${this.sheetTitle}'!${rowToWrite}:${rowToWrite + rows.length}`;
-      await this.adapter.updateValues(this.destination.spreadsheetId, range, rows);
+      const formattedRows = this.valuesFormatter.formatRowsValues(
+        rows,
+        this.reportDataHeaders,
+        this.spreadsheetTimeZone
+      );
+
+      await this.adapter.updateValues(this.destination.spreadsheetId, range, formattedRows);
 
       this.writtenRowsCount += rows.length;
     }, 'Writing data batch to Google Sheets');
@@ -94,13 +105,15 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
       if (this.writtenRowsCount > 0) {
         const dateNow = DateTime.now().setZone(this.spreadsheetTimeZone);
         const dateNowFormatted = `${dateNow.toFormat('yyyy LLL d, HH:mm:ss')} ${dateNow.zoneName}`;
+        const firstColumnDescription = this.reportDataHeaders[0].description;
 
         await this.adapter.batchUpdate(this.destination.spreadsheetId, [
           this.metadataFormatter.createTabColorAndFreezeHeaderRequest(this.destination.sheetId),
           this.metadataFormatter.createMetadataNoteRequest(
             this.destination.sheetId,
             dateNowFormatted,
-            this.dataMartTitle
+            this.dataMartTitle,
+            firstColumnDescription
           ),
         ]);
       }
@@ -198,16 +211,28 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
   /**
    * Writes and formats the header row
    */
-  private async writeHeaders(headers: ReportDataHeader[]): Promise<void> {
+  private async writeHeaders(): Promise<void> {
     return this.executeWithErrorHandling(async () => {
-      // Format headers
-      await this.adapter.batchUpdate(this.destination.spreadsheetId, [
-        this.headerFormatter.createHeaderFormatRequest(this.destination.sheetId, headers.length),
-      ]);
+      const { spreadsheetId, sheetId } = this.destination;
+      const headers = this.reportDataHeaders;
 
       // Write header values
-      await this.adapter.updateValues(this.destination.spreadsheetId, `'${this.sheetTitle}'`, [
+      await this.adapter.updateValues(spreadsheetId, `'${this.sheetTitle}'`, [
         headers.map(h => h.alias ?? h.name),
+      ]);
+
+      // Format headers
+      const descriptions = headers
+        .map((h, i) =>
+          h.description
+            ? this.metadataFormatter.createNoteRequest(sheetId, h.description, 0, i)
+            : null
+        )
+        .filter(r => r !== null);
+
+      await this.adapter.batchUpdate(spreadsheetId, [
+        this.headerFormatter.createHeaderFormatRequest(sheetId, headers.length),
+        ...descriptions,
       ]);
 
       this.writtenRowsCount++;

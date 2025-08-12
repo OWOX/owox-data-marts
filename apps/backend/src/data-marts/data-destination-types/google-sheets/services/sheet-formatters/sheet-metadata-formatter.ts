@@ -47,28 +47,51 @@ export class SheetMetadataFormatter {
    * @param sheetId - ID of the sheet to add the note to
    * @param dateFormatted - Formatted date string for the metadata note
    * @param dataMartTitle - Title of the data mart
+   * @param firstColumnDescription - Optional description for the first column
    * @returns Google Sheets API request object for metadata note
    */
   public createMetadataNoteRequest(
     sheetId: number,
     dateFormatted: string,
-    dataMartTitle: string
+    dataMartTitle: string,
+    firstColumnDescription?: string
   ): sheets_v4.Schema$Request {
-    const metadataNote =
+    let metadataNote =
       `Imported via OWOX Data Marts Community Edition at ${dateFormatted}\n` +
       `Data Mart: ${dataMartTitle}`;
 
+    if (firstColumnDescription) {
+      metadataNote += `\n---\n${firstColumnDescription}`;
+    }
+
+    return this.createNoteRequest(sheetId, metadataNote, 0, 0);
+  }
+
+  /**
+   * Creates a request to add a note to a specific cell
+   * @param sheetId - ID of the sheet to add the note to
+   * @param note - Note text to be added
+   * @param rowIndex - Row index of the cell to add the note to
+   * @param columnIndex - Column index of the cell to add the note to
+   * @returns Google Sheets API request object for note
+   */
+  public createNoteRequest(
+    sheetId: number,
+    note: string,
+    rowIndex: number,
+    columnIndex: number
+  ): sheets_v4.Schema$Request {
     return {
       repeatCell: {
         range: {
           sheetId: sheetId,
-          startRowIndex: 0,
-          endRowIndex: 1,
-          startColumnIndex: 0,
-          endColumnIndex: 1,
+          startRowIndex: rowIndex,
+          endRowIndex: rowIndex + 1,
+          startColumnIndex: columnIndex,
+          endColumnIndex: columnIndex + 1,
         },
         cell: {
-          note: metadataNote,
+          note: note,
         },
         fields: 'note',
       },
