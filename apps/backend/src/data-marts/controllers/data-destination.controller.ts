@@ -7,10 +7,8 @@ import { DataDestinationResponseApiDto } from '../dto/presentation/data-destinat
 import { UpdateDataDestinationService } from '../use-cases/update-data-destination.service';
 import { GetDataDestinationService } from '../use-cases/get-data-destination.service';
 import { ListDataDestinationsService } from '../use-cases/list-data-destinations.service';
-import {
-  AuthContext,
-  AuthorizationContext,
-} from '../../common/authorization-context/authorization.context';
+import { Auth, AuthContext, AuthorizationContext } from '../../idp';
+
 import {
   CreateDataDestinationSpec,
   DeleteDataDestinationSpec,
@@ -23,6 +21,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { DeleteDataDestinationService } from '../use-cases/delete-data-destination.service';
 import { RotateSecretKeyService } from '../use-cases/rotate-secret-key.service';
 
+@Auth()
 @Controller('data-destinations')
 @ApiTags('DataDestinations')
 export class DataDestinationController {
