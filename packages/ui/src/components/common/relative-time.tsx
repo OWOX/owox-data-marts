@@ -42,7 +42,7 @@ export default function RelativeTime({ date, className = '' }: RelativeTimeProps
       if (isPast) {
         return diffMinutes === 1 ? '1 minute ago' : `${diffMinutes} minutes ago`;
       } else {
-        return diffMinutes === 1 ? 'in 1 minute' : `in ${diffMinutes} minutes`;
+        return diffMinutes === 1 ? 'In 1 minute' : `In ${diffMinutes} minutes`;
       }
     }
 
@@ -51,14 +51,14 @@ export default function RelativeTime({ date, className = '' }: RelativeTimeProps
       if (isPast) {
         return diffHours === 1 ? '1 hour ago' : `${diffHours} hours ago`;
       } else {
-        return diffHours === 1 ? 'in 1 hour' : `in ${diffHours} hours`;
+        return diffHours === 1 ? 'In 1 hour' : `In ${diffHours} hours`;
       }
     }
 
     // Yesterday/Tomorrow
     if (diffDays === 1) {
       const time = formatTime(date);
-      return isPast ? `yesterday at ${time}` : `tomorrow at ${time}`;
+      return isPast ? `Yesterday at ${time}` : `Tomorrow at ${time}`;
     }
 
     // This week (2-6 days)
@@ -67,9 +67,9 @@ export default function RelativeTime({ date, className = '' }: RelativeTimeProps
       const time = formatTime(date);
 
       if (isPast) {
-        return `last ${dayName} at ${time}`;
+        return `Last ${dayName} at ${time}`;
       } else {
-        return `this ${dayName} at ${time}`;
+        return `This ${dayName} at ${time}`;
       }
     }
 
@@ -79,9 +79,9 @@ export default function RelativeTime({ date, className = '' }: RelativeTimeProps
       const time = formatTime(date);
 
       if (isPast) {
-        return `last ${dayName} at ${time}`;
+        return `Last ${dayName} at ${time}`;
       } else {
-        return `next ${dayName} at ${time}`;
+        return `Next ${dayName} at ${time}`;
       }
     }
 
@@ -90,7 +90,7 @@ export default function RelativeTime({ date, className = '' }: RelativeTimeProps
       if (isPast) {
         return diffWeeks === 2 ? '2 weeks ago' : '3 weeks ago';
       } else {
-        return diffWeeks === 2 ? 'in 2 weeks' : 'in 3 weeks';
+        return diffWeeks === 2 ? 'In 2 weeks' : 'In 3 weeks';
       }
     }
 
@@ -99,7 +99,7 @@ export default function RelativeTime({ date, className = '' }: RelativeTimeProps
       if (isPast) {
         return diffMonths === 1 ? '1 month ago' : `${diffMonths} months ago`;
       } else {
-        return diffMonths === 1 ? 'in 1 month' : `in ${diffMonths} months`;
+        return diffMonths === 1 ? 'In 1 month' : `In ${diffMonths} months`;
       }
     }
 
@@ -107,12 +107,12 @@ export default function RelativeTime({ date, className = '' }: RelativeTimeProps
     if (isPast) {
       return diffYears === 1 ? '1 year ago' : `${diffYears} years ago`;
     } else {
-      return diffYears === 1 ? 'in 1 year' : `in ${diffYears} years`;
+      return diffYears === 1 ? 'In 1 year' : `In ${diffYears} years`;
     }
   }, [date]);
 
   return (
-    <span className={`text-muted-foreground text-sm ${className}`} title={date.toLocaleString()}>
+    <span className={`${className}`} title={date.toLocaleString()}>
       {relativeText}
     </span>
   );
