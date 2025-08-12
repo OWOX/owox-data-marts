@@ -1,6 +1,6 @@
 import { StatusTypeEnum, type StatusVariant } from './types.ts';
 import type { AppIcon } from '../../icons';
-import { BadgeAlert, BadgeCheck, Info, TriangleAlert } from 'lucide-react';
+import { OctagonX, CircleCheck, Info, TriangleAlert } from 'lucide-react';
 
 const variantClassesConfig: Record<StatusVariant, string> = {
   solid: 'px-2.5 py-0.5 rounded-full',
@@ -18,7 +18,7 @@ export const statusConfig: Record<
   { icon: AppIcon; colors: Record<StatusVariant, string> }
 > = {
   [StatusTypeEnum.SUCCESS]: {
-    icon: BadgeCheck,
+    icon: CircleCheck,
     colors: {
       solid: 'bg-green-500 text-white',
       subtle: 'bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-400',
@@ -27,7 +27,7 @@ export const statusConfig: Record<
     },
   },
   [StatusTypeEnum.ERROR]: {
-    icon: BadgeAlert,
+    icon: OctagonX,
     colors: {
       solid: 'bg-red-500 text-white',
       subtle: 'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-400',
