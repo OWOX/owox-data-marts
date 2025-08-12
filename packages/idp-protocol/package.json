@@ -1,0 +1,52 @@
+{
+  "name": "@owox/idp-protocol",
+  "version": "0.4.0",
+  "type": "module",
+  "author": "OWOX",
+  "license": "ELv2",
+  "description": "Identity Provider protocol contracts and interfaces for OWOX Data Marts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf dist",
+    "test": "jest",
+    "lint": "eslint . --config ./eslint.config.js",
+    "lint:fix": "eslint . --fix --config ./eslint.config.js",
+    "format": "prettier --write \"**/*.{ts,js,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,js,json,md}\"",
+    "typecheck": "tsc --noEmit",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm audit && npm run lint && npm run typecheck"
+  },
+  "keywords": [
+    "idp",
+    "authentication",
+    "owox"
+  ],
+  "peerDependencies": {
+    "express": "^5"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.7",
+    "typescript": "^5.3.3"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts"
+}
