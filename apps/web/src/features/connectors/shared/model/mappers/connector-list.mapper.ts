@@ -1,4 +1,4 @@
-import type { ConnectorDefinitionDto } from '../../api/types/response/connector.response.dto';
+import type { ConnectorDefinitionDto } from '../../api';
 import type { ConnectorListItem } from '../types/connector';
 
 export function mapConnectorListFromDto(

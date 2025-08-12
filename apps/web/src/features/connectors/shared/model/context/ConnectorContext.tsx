@@ -1,9 +1,9 @@
-import { useReducer } from 'react';
+import { type ReactNode, useReducer } from 'react';
 import { initialConnectorState, reducer } from './reducer';
 import { ConnectorContext } from './context';
 
 interface ConnectorContextProviderProps {
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 export function ConnectorContextProvider({ children }: ConnectorContextProviderProps) {
