@@ -24,13 +24,17 @@ export function ReportSelector({ value, onChange, disabled }: ReportSelectorProp
     void fetchReportsByDataMartId(dataMart.id);
   }, [fetchReportsByDataMartId, dataMart]);
 
+  const googleSheetsReports = reports.filter(
+    report => report.dataDestination?.type === 'GOOGLE_SHEETS'
+  );
+
   return (
     <Select value={value} onValueChange={onChange} disabled={disabled}>
       <SelectTrigger className='w-full'>
         <SelectValue placeholder='Select a report' />
       </SelectTrigger>
       <SelectContent>
-        {reports.map(report => (
+        {googleSheetsReports.map(report => (
           <SelectItem key={report.id} value={report.id}>
             {report.title}
           </SelectItem>
