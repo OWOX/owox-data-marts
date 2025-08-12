@@ -9,7 +9,10 @@ import { ScheduledTriggerForm } from '../ScheduledTriggerForm';
 import { useScheduledTriggerContext } from '../../model';
 import type { ScheduledTriggerFormData } from '../../schemas';
 import { ScheduledTriggerType, TRIGGER_CONFIG_TYPES } from '../../enums';
-import type { ScheduledTriggerConfig } from '../../model/trigger-config.types';
+import type {
+  ScheduledReportRunConfig,
+  ScheduledTriggerConfig,
+} from '../../model/trigger-config.types';
 import { useMemo, useState, useCallback } from 'react';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
 
@@ -77,7 +80,7 @@ export function ScheduledTriggerFormSheet({
         selectedTrigger.type === ScheduledTriggerType.REPORT_RUN
           ? {
               type: TRIGGER_CONFIG_TYPES.SCHEDULED_REPORT_RUN,
-              reportId: selectedTrigger.triggerConfig?.reportId ?? '',
+              reportId: (selectedTrigger.triggerConfig as ScheduledReportRunConfig).reportId,
             }
           : null,
     };

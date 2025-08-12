@@ -3,7 +3,6 @@ import { useScheduledTrigger } from '../../model';
 import { ScheduledTriggerTable } from '../ScheduledTriggerTable';
 import { ScheduledTriggerFormSheet } from '../ScheduledTriggerFormSheet/ScheduledTriggerFormSheet';
 import { toast } from 'react-hot-toast';
-
 interface ScheduledTriggerListProps {
   dataMartId: string;
 }

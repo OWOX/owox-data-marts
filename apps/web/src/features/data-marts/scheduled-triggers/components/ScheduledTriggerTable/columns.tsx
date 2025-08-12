@@ -6,8 +6,8 @@ import RelativeTime from '@owox/ui/components/common/relative-time';
 import { ScheduleDisplay } from '../ScheduleDisplay/ScheduleDisplay';
 import { ToggleColumnsHeader } from './ToggleColumnsHeader';
 import { ScheduledTriggerActionsCell } from './ScheduledTriggerActionsCell';
-import { ReportHoverCard } from '../../../reports/shared/components/ReportHoverCard';
 import { StatusLabel, StatusTypeEnum } from '../../../../../shared/components/StatusLabel';
+import { ScheduledTriggerRunTarget } from './ScheduledTriggerRunTarget';
 
 interface ScheduledTriggerTableColumnsProps {
   onEditTrigger: (id: string) => void;
@@ -35,17 +35,9 @@ export function getScheduledTriggerColumns({
     {
       accessorKey: 'triggerConfig',
       size: 35, // responsive width in %
-      header: 'Report',
-      cell: ({ row }) => {
-        const trigger = row.original;
-        if (trigger.type === ScheduledTriggerType.REPORT_RUN && trigger.triggerConfig) {
-          const config = trigger.triggerConfig;
-          return <ReportHoverCard report={config.report}>{config.report.title}</ReportHoverCard>;
-        } else {
-          return <div className='text-muted-foreground text-sm'>—</div>;
-        }
-      },
-      meta: { title: 'Report' },
+      header: 'Run Target',
+      cell: ({ row }) => <ScheduledTriggerRunTarget trigger={row.original} />,
+      meta: { title: 'Run Target' },
     },
     {
       accessorKey: 'cronExpression',
@@ -72,11 +64,11 @@ export function getScheduledTriggerColumns({
       cell: ({ row }) => {
         const nextRunTimestamp = row.original.nextRun;
         return (
-          <div className='text-sm'>
+          <div className='text-muted-foreground text-sm'>
             {nextRunTimestamp ? (
               <RelativeTime date={new Date(nextRunTimestamp)} />
             ) : (
-              <span className='text-muted-foreground text-sm'>Not scheduled</span>
+              'Not scheduled'
             )}
           </div>
         );
