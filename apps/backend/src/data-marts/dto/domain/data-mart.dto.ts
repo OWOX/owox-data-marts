@@ -15,6 +15,8 @@ export class DataMartDto {
     public readonly definitionType?: DataMartDefinitionType,
     public readonly definition?: DataMartDefinition,
     public readonly description?: string,
-    public readonly schema?: DataMartSchema
+    public readonly schema?: DataMartSchema,
+    public readonly triggersCount: number = 0,
+    public readonly reportsCount: number = 0
   ) {}
 }

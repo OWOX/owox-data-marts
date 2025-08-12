@@ -128,6 +128,34 @@ export const getDataMartColumns = ({
     },
   },
   {
+    accessorKey: DataMartColumnKey.TRIGGERS_COUNT,
+    size: 15, // responsive width in %
+    header: ({ column }) => (
+      <SortableHeader column={column}>
+        {dataMartColumnLabels[DataMartColumnKey.TRIGGERS_COUNT]}
+      </SortableHeader>
+    ),
+    cell: ({ row }) => {
+      const triggersCountValue =
+        row.getValue<number>('triggersCount') > 0 ? row.getValue<string>('triggersCount') : '—';
+      return <div className='text-muted-foreground'>{triggersCountValue}</div>;
+    },
+  },
+  {
+    accessorKey: DataMartColumnKey.REPORTS_COUNT,
+    size: 15, // responsive width in %
+    header: ({ column }) => (
+      <SortableHeader column={column}>
+        {dataMartColumnLabels[DataMartColumnKey.REPORTS_COUNT]}
+      </SortableHeader>
+    ),
+    cell: ({ row }) => {
+      const reportsCountValue =
+        row.getValue<number>('reportsCount') > 0 ? row.getValue<string>('reportsCount') : '—';
+      return <div className='text-muted-foreground'>{reportsCountValue}</div>;
+    },
+  },
+  {
     id: 'actions',
     size: 80, // fixed width in pixels
     header: ({ table }) => <ToggleColumnsHeader table={table} />,

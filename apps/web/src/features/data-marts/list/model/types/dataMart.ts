@@ -8,6 +8,8 @@ export interface DataMartListItem {
   status: DataMartStatusInfo;
   storageType: DataStorageType;
   storageTitle?: string;
+  triggersCount: number;
+  reportsCount: number;
   createdAt: Date;
   modifiedAt: Date;
   definitionType: DataMartDefinitionType | null;

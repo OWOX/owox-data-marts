@@ -44,6 +44,16 @@ export interface DataMartResponseDto {
   description: string | null;
 
   /**
+   * Number of triggers of the data mart
+   */
+  triggersCount: number;
+
+  /**
+   * Number of reports of the data mart
+   */
+  reportsCount: number;
+
+  /**
    * Creation timestamp
    */
   createdAt: Date;

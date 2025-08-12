@@ -58,7 +58,10 @@ export function DataMartTable<TData, TValue>({
   const navigate = useNavigate();
   const [sorting, setSorting] = useState<SortingState>([{ id: 'title', desc: false }]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
+    triggersCount: false,
+    reportsCount: false,
+  });
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);

@@ -47,7 +47,13 @@ export class DataMartMapper {
     return new CreateDataMartCommand(context.projectId, context.userId, dto.title, dto.storageId);
   }
 
-  toDomainDto(entity: DataMart): DataMartDto {
+  toDomainDto(
+    entity: DataMart,
+    counters?: {
+      triggersCount?: number;
+      reportsCount?: number;
+    }
+  ): DataMartDto {
     return new DataMartDto(
       entity.id,
       entity.title,
@@ -58,7 +64,9 @@ export class DataMartMapper {
       entity.definitionType,
       entity.definition,
       entity.description,
-      entity.schema
+      entity.schema,
+      counters?.triggersCount ?? 0,
+      counters?.reportsCount ?? 0
     );
   }
 
@@ -83,6 +91,8 @@ export class DataMartMapper {
       definition: dto.definition,
       description: dto.description,
       schema: dto.schema,
+      triggersCount: dto.triggersCount,
+      reportsCount: dto.reportsCount,
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,
     };
