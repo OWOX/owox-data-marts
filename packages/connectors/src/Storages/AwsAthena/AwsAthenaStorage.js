@@ -42,11 +42,6 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
           isRequired: true,
           requiredType: "string"
         },
-        DestinationTableNamePrefix: {
-          isRequired: false,
-          default: '',
-          requiredType: "string"
-        },
         DestinationTableName: {
           isRequired: true,
           requiredType: "string"

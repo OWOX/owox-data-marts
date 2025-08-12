@@ -366,6 +366,7 @@ export class ConnectorExecutionService {
         DestinationDatasetID: `${storageConfig.projectId}.${datasetId}`,
         DestinationProjectID: storageConfig.projectId,
         DestinationDatasetName: datasetId,
+        DestinationTableName: connector.storage?.fullyQualifiedName.split('.')[1],
         ProjectID: storageConfig.projectId,
         ServiceAccountJson: JSON.stringify(credentials),
       },
