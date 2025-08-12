@@ -29,24 +29,19 @@ export const getBrowserTimezone = (): string => {
   }
 };
 
-export function getScheduleDescription(
-  config: ScheduleConfig,
-  isEnabled: boolean,
-  currentTimezone: string
-): string {
+export function getScheduleDescription(config: ScheduleConfig, isEnabled: boolean): string {
   if (!isEnabled) return 'Schedule is disabled';
 
   const timeStr = config.time;
-  const timezoneStr = currentTimezone !== getBrowserTimezone() ? ` (${currentTimezone})` : '';
 
   switch (config.type) {
     case 'daily':
-      return `Daily at ${timeStr}${timezoneStr}`;
+      return `Daily at ${timeStr}`;
     case 'weekly': {
       const selectedDays = config.weekdays
         .map(day => WEEKDAYS.find(w => w.value === day)?.label)
         .join(', ');
-      return `Weekly on ${selectedDays} at ${timeStr}${timezoneStr}`;
+      return `Weekly on ${selectedDays} at ${timeStr}`;
     }
     case 'monthly': {
       const sortedDays = [...config.monthDays].sort((a, b) => a - b);
@@ -62,14 +57,14 @@ export function getScheduleDescription(
           : dayStrings.length === 2
             ? `${dayStrings[0]} and ${dayStrings[1]}`
             : `${dayStrings.slice(0, -1).join(', ')}, and ${dayStrings[dayStrings.length - 1]}`;
-      return `Monthly on the ${daysText} at ${timeStr}${timezoneStr}`;
+      return `Monthly on the ${daysText} at ${timeStr}`;
     }
     case 'interval':
       return config.intervalType === 'minutes'
-        ? `Every ${String(config.intervalValue)} minute${config.intervalValue !== 1 ? 's' : ''}${timezoneStr}`
-        : `Every ${String(config.intervalValue)} hour${config.intervalValue !== 1 ? 's' : ''}${timezoneStr}`;
+        ? `Every ${String(config.intervalValue)} minute${config.intervalValue !== 1 ? 's' : ''}`
+        : `Every ${String(config.intervalValue)} hour${config.intervalValue !== 1 ? 's' : ''}`;
     case 'custom':
-      return `Custom schedule${timezoneStr}`;
+      return `Custom schedule`;
     default:
       return '';
   }
@@ -81,5 +76,5 @@ export function parseScheduleFromCron(
   isEnabled = true
 ): string {
   const config = cronToScheduleConfig(cronExpression, timeZone);
-  return getScheduleDescription(config, isEnabled, timeZone);
+  return getScheduleDescription(config, isEnabled);
 }
