@@ -12,8 +12,8 @@ import {
 } from '@owox/ui/components/sidebar';
 import { Box, Plus, DatabaseIcon, ArchiveRestore } from 'lucide-react';
 import { createElement } from 'react';
-import { ThemeToggle } from '../ThemeToggle/theme-toggle.tsx';
 import { SidebarHeaderDropdown } from './sidebar-header-dropdown.tsx';
+import { SidebarUserInfo } from './sidebar-user-info.tsx';
 import { NavLink } from 'react-router-dom';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 
@@ -103,8 +103,8 @@ export function AppSidebar({ variant = 'inset', collapsible = 'icon' }: AppSideb
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className='p-2'>
-        <ThemeToggle />
+      <SidebarFooter className='py-2'>
+        <SidebarUserInfo />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

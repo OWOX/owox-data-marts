@@ -6,7 +6,7 @@ Identity Provider protocol package for OWOX Data Marts. Provides core types, mid
 
 - 🔧 Core IDP interfaces and types
 - 🔀 Express middleware for authentication routes
-- 🚫 NULL IDP provider for single-user deployments
+- 🚫 NULL IDP provider for single-user deployments (for development and testing)
 - 🛡️ Built-in error handling
 - ⚙️ Configurable routing
 
@@ -46,9 +46,11 @@ interface IdpProvider {
   signInMiddleware(req: Request, res: Response, next: NextFunction): Promise<void | Response>;
   signOutMiddleware(req: Request, res: Response, next: NextFunction): Promise<void | Response>;
   accessTokenMiddleware(req: Request, res: Response, next: NextFunction): Promise<void | Response>;
+  userApiMiddleware(req: Request, res: Response, next: NextFunction): Promise<Response<Payload>>;
 
   // Token management
   introspectToken(token: string): Promise<Payload | null>;
+  parseToken(token: string): Promise<Payload | null>;
   refreshToken(refreshToken: string): Promise<AuthResult>;
   revokeToken(token: string): Promise<void>;
 
@@ -70,6 +72,7 @@ interface Payload {
   projectId: string;
   email?: string;
   fullName?: string;
+  avatar?: string;
   roles?: Role[];
   projectTitle?: string;
 }
@@ -90,6 +93,14 @@ import {
   TokenExpiredError,
   InvalidTokenError,
 } from '@owox/idp-protocol';
+
+// CLI command interfaces
+import {
+  IdpProviderAddUserCommand,
+  IdpProviderListUsersCommand,
+  IdpProviderRemoveUserCommand,
+  AddUserCommandResponse,
+} from '@owox/idp-protocol';
 ```
 
 ## Middleware
@@ -103,7 +114,7 @@ import { IdpProtocolMiddleware, NullIdpProvider } from '@owox/idp-protocol';
 const app = express();
 const provider = new NullIdpProvider();
 
-// Basic usage with default routes (/auth/sign-in, /auth/sign-out, /auth/access-token)
+// Basic usage with default routes (/auth/sign-in, /auth/sign-out, /auth/access-token, /auth/api/user)
 const middleware = new IdpProtocolMiddleware(provider);
 middleware.register(app);
 
@@ -114,6 +125,7 @@ const middleware = new IdpProtocolMiddleware(provider, {
     signIn: '/login',
     signOut: '/logout',
     accessToken: '/token',
+    user: '/me',
   },
 });
 middleware.register(app);
@@ -149,6 +161,8 @@ const defaultPayload = {
 
 ### NULL Provider Features
 
+**NULL Provider is not recommended for production use. It is only intended for testing and development.**
+
 - ✅ Implements all IdpProvider methods
 - 🔄 Returns consistent default user payload
 - 🚫 No actual authentication (always succeeds)
@@ -174,9 +188,10 @@ const middleware = new IdpProtocolMiddleware(provider);
 middleware.register(app);
 
 // Server will handle:
-// POST /auth/sign-in
-// POST /auth/sign-out
-// POST /auth/access-token
+// ALL /auth/sign-in
+// ALL /auth/sign-out
+// ALL /auth/access-token
+// ALL /auth/api/user
 
 app.listen(3000);
 ```
@@ -199,7 +214,12 @@ class CustomIdpProvider implements IdpProvider {
   }
 
   async accessTokenMiddleware(req: Request, res: Response, next: NextFunction): Promise<Response> {
-    // Return user info or token
+    // Return access token
+    return res.json({ accessToken: 'access-token-here' });
+  }
+
+  async userApiMiddleware(req: Request, res: Response, next: NextFunction): Promise<Response> {
+    // Return user info
     const payload = await this.introspectToken(req.headers.authorization);
     return res.json(payload);
   }
@@ -212,6 +232,11 @@ class CustomIdpProvider implements IdpProvider {
       email: 'user@company.com',
       roles: ['editor'],
     };
+  }
+
+  async parseToken(token: string): Promise<Payload | null> {
+    // Parse token without validation (for development/testing)
+    return this.introspectToken(token);
   }
 
   async refreshToken(refreshToken: string): Promise<AuthResult> {
@@ -243,14 +268,16 @@ const middleware = new IdpProtocolMiddleware(provider, {
   routes: {
     signIn: ProtocolRoute.SIGN_IN, // '/sign-in'
     signOut: ProtocolRoute.SIGN_OUT, // '/sign-out'
-    accessToken: '/me', // Custom route
+    accessToken: '/token', // Custom route
+    user: ProtocolRoute.USER, // '/api/user'
   },
 });
 
 // Results in:
 // ALL /api/v1/auth/sign-in
 // ALL /api/v1/auth/sign-out
-// ALL /api/v1/auth/me
+// ALL /api/v1/auth/token
+// ALL /api/v1/auth/api/user
 ```
 
 ## Error Handling
@@ -272,6 +299,68 @@ class MyProvider implements IdpProvider {
     } catch (error) {
       throw new AuthenticationError('Token validation failed');
     }
+  }
+}
+```
+
+## CLI Commands Interface
+
+The protocol defines optional CLI command interfaces that providers can implement for user management:
+
+### User Management Commands
+
+```typescript
+import {
+  IdpProviderAddUserCommand,
+  IdpProviderListUsersCommand,
+  IdpProviderRemoveUserCommand,
+} from '@owox/idp-protocol';
+
+// Add user command
+interface IdpProviderAddUserCommand {
+  addUser(username: string, password?: string): Promise<AddUserCommandResponse>;
+}
+
+// List users command
+interface IdpProviderListUsersCommand {
+  listUsers(): Promise<Payload[]>;
+}
+
+// Remove user command
+interface IdpProviderRemoveUserCommand {
+  removeUser(userId: string): Promise<void>;
+}
+
+// Response format for adding users
+interface AddUserCommandResponse {
+  username: string;
+  magicLink?: string; // Optional magic link for passwordless setup
+}
+```
+
+### Usage Example
+
+```typescript
+class CustomIdpProvider
+  implements IdpProvider, IdpProviderAddUserCommand, IdpProviderListUsersCommand
+{
+  async addUser(username: string, password?: string): Promise<AddUserCommandResponse> {
+    // Implementation for adding user
+    const user = await this.createUser(username, password);
+    return {
+      username: user.username,
+      magicLink: user.setupLink,
+    };
+  }
+
+  async listUsers(): Promise<Payload[]> {
+    // Return all users as Payload objects
+    return await this.getAllUsers();
+  }
+
+  async removeUser(userId: string): Promise<void> {
+    // Remove user from IDP
+    await this.deleteUser(userId);
   }
 }
 ```

@@ -12,7 +12,9 @@ import { ConnectorFieldsResponseApiDto } from '../dto/presentation/connector-fie
 import { SpecificationConnectorService } from '../use-cases/connector/specification-connector.service';
 import { FieldsConnectorService } from '../use-cases/connector/fields-connector.service';
 import { ConnectorMapper } from '../mappers/connector.mapper';
+import { OptionalAuth } from '../../idp';
 
+@OptionalAuth()
 @Controller('connectors')
 @ApiTags('Connectors')
 export class ConnectorController {

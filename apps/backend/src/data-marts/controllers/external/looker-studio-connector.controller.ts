@@ -14,10 +14,12 @@ import {
   GetSchemaResponse,
 } from '../../data-destination-types/looker-studio-connector/schemas/get-schema.schema';
 import { LookerStudioConnectorApiService } from '../../data-destination-types/looker-studio-connector/services/looker-studio-connector-api.service';
+import { OptionalAuth } from '../../../idp';
 
 const LOOKER_STUDIO_SERVICE_ACCOUNT =
   'connector@owox-p-odm-looker-studio-001.iam.gserviceaccount.com';
 
+@OptionalAuth()
 @Controller('external/looker')
 @ApiTags('Looker Studio Connector endpoints')
 export class LookerStudioConnectorController {

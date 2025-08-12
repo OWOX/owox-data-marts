@@ -29,23 +29,29 @@ export class NullIdpProvider implements IdpProvider {
     };
   }
 
-  signInMiddleware(_req: Request, _res: Response, _next: NextFunction): Promise<void> {
-    _res.cookie('refreshToken', this.defaultRefreshToken, {
+  signInMiddleware(_req: Request, res: Response, _next: NextFunction): Promise<void> {
+    res.cookie('refreshToken', this.defaultRefreshToken, {
       httpOnly: true,
       secure: true,
       maxAge: 3600000,
     });
-    return Promise.resolve(_res.redirect('/'));
+    return Promise.resolve(res.redirect('/'));
   }
-  signOutMiddleware(_req: Request, _res: Response, _next: NextFunction): Promise<void> {
-    _res.clearCookie('refreshToken');
-    return Promise.resolve(_res.redirect('/'));
+  signOutMiddleware(_req: Request, res: Response, _next: NextFunction): Promise<void> {
+    res.clearCookie('refreshToken');
+    return Promise.resolve(res.redirect('/'));
   }
   accessTokenMiddleware(_req: Request, res: Response, _next: NextFunction): Promise<Response> {
+    if (!_req.cookies.refreshToken) {
+      return Promise.resolve(res.status(401).json({ message: 'Unauthorized' }));
+    }
     return Promise.resolve(res.json({ accessToken: this.defaultAccessToken }));
   }
 
   userApiMiddleware(_req: Request, res: Response, _next: NextFunction): Promise<Response<Payload>> {
+    if (!_req.cookies.refreshToken) {
+      return Promise.resolve(res.status(401).json({ message: 'Unauthorized' }));
+    }
     return Promise.resolve(res.json(this.defaultPayload));
   }
 

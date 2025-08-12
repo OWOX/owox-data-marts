@@ -10,7 +10,7 @@ import { GetReportCommand } from '../dto/domain/get-report.command';
 import { ListReportsByDataMartCommand } from '../dto/domain/list-reports-by-data-mart.command';
 import { ListReportsByProjectCommand } from '../dto/domain/list-reports-by-project.command';
 import { RunReportCommand } from '../dto/domain/run-report.command';
-import { AuthorizationContext } from '../../common/authorization-context/authorization.context';
+import { AuthorizationContext } from '../../idp';
 import { DataMartMapper } from './data-mart.mapper';
 import { DataDestinationMapper } from './data-destination.mapper';
 

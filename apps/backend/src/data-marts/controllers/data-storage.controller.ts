@@ -8,10 +8,7 @@ import { UpdateDataStorageService } from '../use-cases/update-data-storage.servi
 import { GetDataStorageService } from '../use-cases/get-data-storage.service';
 import { ListDataStoragesService } from '../use-cases/list-data-storages.service';
 
-import {
-  AuthContext,
-  AuthorizationContext,
-} from '../../common/authorization-context/authorization.context';
+import { AuthContext, AuthorizationContext, Auth } from '../../idp';
 import {
   CreateDataStorageSpec,
   DeleteDataStorageSpec,
@@ -23,6 +20,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { DataStorageListResponseApiDto } from '../dto/presentation/data-storage-list-response-api.dto';
 import { DeleteDataStorageService } from '../use-cases/delete-data-storage.service';
 
+@Auth()
 @Controller('data-storages')
 @ApiTags('DataStorages')
 export class DataStorageController {

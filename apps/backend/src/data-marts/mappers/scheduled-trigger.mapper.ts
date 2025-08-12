@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AuthorizationContext } from '../../common/authorization-context/authorization.context';
+import { AuthorizationContext } from '../../idp';
 import { CreateScheduledTriggerCommand } from '../dto/domain/create-scheduled-trigger.command';
 import { DeleteScheduledTriggerCommand } from '../dto/domain/delete-scheduled-trigger.command';
 import { GetScheduledTriggerCommand } from '../dto/domain/get-scheduled-trigger.command';

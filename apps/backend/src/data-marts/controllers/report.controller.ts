@@ -1,9 +1,6 @@
 import { Controller, Get, Post, Put, Body, Param, Delete } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import {
-  AuthContext,
-  AuthorizationContext,
-} from '../../common/authorization-context/authorization.context';
+import { AuthContext, AuthorizationContext, Auth } from '../../idp';
 import { ReportMapper } from '../mappers/report.mapper';
 import { CreateReportRequestApiDto } from '../dto/presentation/create-report-request-api.dto';
 import { UpdateReportRequestApiDto } from '../dto/presentation/update-report-request-api.dto';
@@ -25,6 +22,7 @@ import {
   UpdateReportSpec,
 } from './spec/report.api';
 
+@Auth()
 @Controller('reports')
 @ApiTags('Reports')
 export class ReportController {

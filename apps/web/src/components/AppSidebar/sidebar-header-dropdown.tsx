@@ -9,6 +9,7 @@ import { ChevronDown, Gem, AlertCircle, Scale, MessageCircle } from 'lucide-reac
 import { useState } from 'react';
 import Logo from '../Logo';
 import { GitHubIcon } from '../../shared';
+import { ThemeToggle } from '../ThemeToggle/theme-toggle.tsx';
 
 type MenuItem =
   | {
@@ -22,13 +23,18 @@ type MenuItem =
       title?: never;
       href?: never;
       icon?: never;
+    }
+  | {
+      type: 'theme-toggle';
+      title?: never;
+      href?: never;
+      icon?: never;
     };
 
 const menuItems: MenuItem[] = [
   {
     title: 'GitHub Community',
     href: 'https://github.com/OWOX/owox-data-marts',
-
     icon: GitHubIcon,
   },
   {
@@ -56,6 +62,12 @@ const menuItems: MenuItem[] = [
     title: 'License',
     href: 'https://github.com/OWOX/owox-data-marts#License-1-ov-file',
     icon: Scale,
+  },
+  {
+    type: 'separator',
+  },
+  {
+    type: 'theme-toggle',
   },
 ];
 
@@ -104,10 +116,18 @@ export function SidebarHeaderDropdown() {
               </button>
             </DropdownMenuTrigger>
 
-            <DropdownMenuContent align='start' sideOffset={8} className='min-w-max'>
+            <DropdownMenuContent align='start' sideOffset={8} className='w-56'>
               {menuItems.map((item, index) => {
                 if (item.type === 'separator') {
                   return <DropdownMenuSeparator key={`separator-${String(index)}`} />;
+                }
+
+                if (item.type === 'theme-toggle') {
+                  return (
+                    <DropdownMenuItem key={`theme-toggle-${String(index)}`}>
+                      <ThemeToggle />
+                    </DropdownMenuItem>
+                  );
                 }
 
                 const Icon = item.icon;

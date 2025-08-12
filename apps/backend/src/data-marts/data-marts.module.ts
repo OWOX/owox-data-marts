@@ -83,6 +83,7 @@ import { ConnectorMessageParserService } from './connector-types/connector-messa
 import { ConnectorStateService } from './connector-types/connector-message/services/connector-state.service';
 import { ConnectorState } from './entities/connector-state.entity';
 import { ReportDataCache } from './entities/report-data-cache.entity';
+import { IdpModule } from '../idp/idp.module';
 
 @Module({
   imports: [
@@ -97,6 +98,7 @@ import { ReportDataCache } from './entities/report-data-cache.entity';
       ReportDataCache,
     ]),
     SchedulerModule,
+    IdpModule,
   ],
   controllers: [
     DataMartController,

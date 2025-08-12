@@ -6,7 +6,7 @@ import { UpdateDataStorageApiDto } from '../dto/presentation/update-data-storage
 import { UpdateDataStorageCommand } from '../dto/domain/update-data-storage.command';
 import { DataStorageResponseApiDto } from '../dto/presentation/data-storage-response-api.dto';
 import { Injectable } from '@nestjs/common';
-import { AuthorizationContext } from '../../common/authorization-context/authorization.context';
+import { AuthorizationContext } from '../../idp';
 import { GetDataStorageCommand } from '../dto/domain/get-data-storage.command';
 import { DataStorageListResponseApiDto } from '../dto/presentation/data-storage-list-response-api.dto';
 import { DeleteDataStorageCommand } from '../dto/domain/delete-data-storage.command';
