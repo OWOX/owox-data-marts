@@ -8,6 +8,7 @@ import {
   ScheduledTriggerProvider,
 } from '../../../features/data-marts/scheduled-triggers';
 import { useDataMartContext } from '../../../features/data-marts/edit/model';
+import { ConnectorContextProvider } from '../../../features/connectors/shared/model/context';
 
 export function DataMartTriggersContent() {
   const { dataMart } = useDataMartContext();
@@ -15,9 +16,11 @@ export function DataMartTriggersContent() {
     <CollapsibleCard>
       <CollapsibleCardHeader icon={Timer} title={'Time triggers'}></CollapsibleCardHeader>
       <CollapsibleCardContent>
-        <ScheduledTriggerProvider>
-          {dataMart && <ScheduledTriggerList dataMartId={dataMart.id}></ScheduledTriggerList>}
-        </ScheduledTriggerProvider>
+        <ConnectorContextProvider>
+          <ScheduledTriggerProvider>
+            {dataMart && <ScheduledTriggerList dataMartId={dataMart.id}></ScheduledTriggerList>}
+          </ScheduledTriggerProvider>
+        </ConnectorContextProvider>
       </CollapsibleCardContent>
       <CollapsibleCardFooter></CollapsibleCardFooter>
     </CollapsibleCard>
