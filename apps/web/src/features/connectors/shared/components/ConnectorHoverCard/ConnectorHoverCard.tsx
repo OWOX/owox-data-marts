@@ -26,8 +26,8 @@ import RelativeTime from '@owox/ui/components/common/relative-time';
 import { StatusLabel } from '../../../../../shared/components/StatusLabel';
 import { ConnectorNameDisplay } from '../ConnectorNameDisplay';
 import { mapRunStatusToStatusType, getRunStatusText } from '../../../../data-marts/shared';
-import { openStorageConsole, getStorageButtonText } from '../../../../data-marts/shared';
 import { getRunDataInfo } from '../../../../data-marts/shared/utils/run-data.utils.ts';
+import { getStorageButtonText, openStorageConsole } from '../../../../data-storage';
 
 interface ConnectorHoverCardProps {
   connector: ConnectorConfig;
@@ -77,8 +77,8 @@ export const ConnectorHoverCard = React.memo(
     }, [runDataInfo]);
 
     const buttonText = useMemo(() => {
-      return dataMart?.storage ? getStorageButtonText(dataMart.storage) : 'Open data in storage';
-    }, [dataMart?.storage]);
+      return dataMart?.storage && getStorageButtonText(dataMart.storage);
+    }, [dataMart]);
 
     const descriptionText = useMemo(() => {
       const fieldsCount = connector.source.fields.length.toString();
