@@ -1,7 +1,10 @@
-import { CollapsibleCard } from '../../../shared/components/CollapsibleCard';
-import { CollapsibleCardHeader } from '../../../shared/components/CollapsibleCard/CollapsibleCardHeader';
-import { CollapsibleCardContent } from '../../../shared/components/CollapsibleCard/CollapsibleCardContent';
-import { CollapsibleCardFooter } from '../../../shared/components/CollapsibleCard/CollapsibleCardFooter';
+import {
+  CollapsibleCard,
+  CollapsibleCardHeader,
+  CollapsibleCardHeaderTitle,
+  CollapsibleCardContent,
+  CollapsibleCardFooter,
+} from '../../../shared/components/CollapsibleCard';
 import { GoogleSheetsIcon, LookerStudioIcon } from '../../../shared';
 import { ReportsProvider } from '../../../features/data-marts/reports/shared';
 import {
@@ -19,11 +22,14 @@ export default function DataMartDestinationsContent() {
     <div className='flex flex-col gap-4'>
       <ReportsProvider>
         <CollapsibleCard name='googlesheets' collapsible defaultCollapsed={false}>
-          <CollapsibleCardHeader
-            icon={GoogleSheetsIcon}
-            title='Google Sheets'
-            help='List of report exports to Google Sheets'
-          />
+          <CollapsibleCardHeader>
+            <CollapsibleCardHeaderTitle
+              icon={GoogleSheetsIcon}
+              tooltip='List of report exports to Google Sheets'
+            >
+              Google Sheets
+            </CollapsibleCardHeaderTitle>
+          </CollapsibleCardHeader>
           <CollapsibleCardContent>
             <GoogleSheetsReportsTable></GoogleSheetsReportsTable>
           </CollapsibleCardContent>
@@ -33,11 +39,14 @@ export default function DataMartDestinationsContent() {
         {DataDestinationTypeModel.getInfo(DataDestinationType.LOOKER_STUDIO).status ===
           DataDestinationStatus.ACTIVE && (
           <CollapsibleCard name='lookerstudio' collapsible defaultCollapsed={false}>
-            <CollapsibleCardHeader
-              icon={LookerStudioIcon}
-              title='Looker Studio'
-              help='Looker Studio Destinations that make this Data Mart available as a data source in Looker Studio connector'
-            />
+            <CollapsibleCardHeader>
+              <CollapsibleCardHeaderTitle
+                icon={LookerStudioIcon}
+                tooltip='Looker Studio Destinations that make this Data Mart available as a data source in Looker Studio connector'
+              >
+                Looker Studio
+              </CollapsibleCardHeaderTitle>
+            </CollapsibleCardHeader>
             <CollapsibleCardContent>
               <LookerStudioReportsTable></LookerStudioReportsTable>
             </CollapsibleCardContent>

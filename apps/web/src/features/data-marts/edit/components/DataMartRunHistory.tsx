@@ -58,19 +58,6 @@ export function DataMartRunHistory() {
 
   return (
     <div className='flex flex-col gap-4 pb-4'>
-      <div className='flex justify-end'>
-        <Button
-          variant='outline'
-          size='sm'
-          onClick={() => void loadRunHistory()}
-          disabled={isLoading}
-          className='flex cursor-pointer items-center gap-2'
-        >
-          <RefreshCw className='h-4 w-4' />
-          Refresh
-        </Button>
-      </div>
-
       {runs.length === 0 ? (
         <div className='text-muted-foreground py-8 text-center'>
           No runs found for this Data Mart

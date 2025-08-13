@@ -1,7 +1,10 @@
-import { CollapsibleCard } from '../../../shared/components/CollapsibleCard';
-import { CollapsibleCardContent } from '../../../shared/components/CollapsibleCard/CollapsibleCardContent.tsx';
-import { CollapsibleCardHeader } from '../../../shared/components/CollapsibleCard/CollapsibleCardHeader.tsx';
-import { CollapsibleCardFooter } from '../../../shared/components/CollapsibleCard/CollapsibleCardFooter.tsx';
+import {
+  CollapsibleCard,
+  CollapsibleCardHeader,
+  CollapsibleCardHeaderTitle,
+  CollapsibleCardContent,
+  CollapsibleCardFooter,
+} from '../../../shared/components/CollapsibleCard';
 import { Timer } from 'lucide-react';
 import {
   ScheduledTriggerList,
@@ -14,7 +17,14 @@ export function DataMartTriggersContent() {
   const { dataMart } = useDataMartContext();
   return (
     <CollapsibleCard>
-      <CollapsibleCardHeader icon={Timer} title={'Time triggers'}></CollapsibleCardHeader>
+      <CollapsibleCardHeader>
+        <CollapsibleCardHeaderTitle
+          icon={Timer}
+          tooltip='Time triggers allow you to schedule Data Mart runs at specific times'
+        >
+          Time triggers
+        </CollapsibleCardHeaderTitle>
+      </CollapsibleCardHeader>
       <CollapsibleCardContent>
         <ConnectorContextProvider>
           <ScheduledTriggerProvider>
