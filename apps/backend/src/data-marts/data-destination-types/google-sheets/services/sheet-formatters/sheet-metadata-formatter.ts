@@ -77,7 +77,7 @@ export class SheetMetadataFormatter {
    */
   public createNoteRequest(
     sheetId: number,
-    note: string,
+    note: string | null | undefined,
     rowIndex: number,
     columnIndex: number
   ): sheets_v4.Schema$Request {
@@ -91,7 +91,7 @@ export class SheetMetadataFormatter {
           endColumnIndex: columnIndex + 1,
         },
         cell: {
-          note: note,
+          note: note ?? null,
         },
         fields: 'note',
       },

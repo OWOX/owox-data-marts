@@ -1,4 +1,5 @@
 import { TypedComponent } from '../../../common/resolver/typed-component.resolver';
+import { ReportDataHeader } from '../../dto/domain/report-data-header.dto';
 import { DataStorageType } from '../enums/data-storage-type.enum';
 import { Report } from '../../entities/report.entity';
 import { ReportDataDescription } from '../../dto/domain/report-data-description.dto';
@@ -32,5 +33,8 @@ export interface DataStorageReportReader extends TypedComponent<DataStorageType>
   /**
    * Initializes reader from cached state
    */
-  initFromState(state: DataStorageReportReaderState): Promise<void>;
+  initFromState(
+    state: DataStorageReportReaderState,
+    reportDataHeaders: ReportDataHeader[]
+  ): Promise<void>;
 }

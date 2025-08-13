@@ -222,13 +222,9 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
       ]);
 
       // Format headers
-      const descriptions = headers
-        .map((h, i) =>
-          h.description
-            ? this.metadataFormatter.createNoteRequest(sheetId, h.description, 0, i)
-            : null
-        )
-        .filter(r => r !== null);
+      const descriptions = headers.map((h, i) =>
+        this.metadataFormatter.createNoteRequest(sheetId, h.description, 0, i)
+      );
 
       await this.adapter.batchUpdate(spreadsheetId, [
         this.headerFormatter.createHeaderFormatRequest(sheetId, headers.length),

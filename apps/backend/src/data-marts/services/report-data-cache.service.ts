@@ -181,7 +181,7 @@ export class ReportDataCacheService {
     const reader = await this.readerResolver.resolve(cachedData.storageType);
     await reader.prepareReportData(report);
     if (cachedData.readerState) {
-      await reader.initFromState(cachedData.readerState);
+      await reader.initFromState(cachedData.readerState, cachedData.dataDescription.dataHeaders);
     }
     return reader;
   }

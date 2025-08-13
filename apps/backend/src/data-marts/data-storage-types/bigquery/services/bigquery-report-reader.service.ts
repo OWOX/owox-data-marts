@@ -3,6 +3,7 @@ import { BigQueryRange } from '@google-cloud/bigquery/build/src/bigquery';
 import { Injectable, Logger, Scope } from '@nestjs/common';
 import { ReportDataBatch } from '../../../dto/domain/report-data-batch.dto';
 import { ReportDataDescription } from '../../../dto/domain/report-data-description.dto';
+import { ReportDataHeader } from '../../../dto/domain/report-data-header.dto';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import {
   isConnectorDefinition,
@@ -33,6 +34,7 @@ export class BigQueryReportReader implements DataStorageReportReader {
 
   private adapter: BigQueryApiAdapter;
   private reportResultTable: Table;
+  private reportDataHeaders: ReportDataHeader[];
   private contextGcpProject: string;
 
   private reportConfig: {
@@ -75,14 +77,14 @@ export class BigQueryReportReader implements DataStorageReportReader {
       definition,
     };
 
-    const reportResultHeaders = this.headersGenerator.generateHeaders(schema);
+    this.reportDataHeaders = this.headersGenerator.generateHeaders(schema);
 
     await this.prepareBigQuery(
       this.reportConfig.storageCredentials,
       this.reportConfig.storageConfig
     );
 
-    return new ReportDataDescription(reportResultHeaders);
+    return new ReportDataDescription(this.reportDataHeaders);
   }
 
   public async readReportDataBatch(batchId?: string, maxRows = 5000): Promise<ReportDataBatch> {
@@ -100,7 +102,8 @@ export class BigQueryReportReader implements DataStorageReportReader {
       autoPaginate: false,
     });
 
-    const mappedRows = rows.map(row => this.getStructuredReportRowData(row));
+    const dataHeaders = this.reportDataHeaders.map(header => header.name);
+    const mappedRows = rows.map(row => this.getStructuredReportRowData(row, dataHeaders));
 
     return new ReportDataBatch(mappedRows, nextBatch?.pageToken);
   }
@@ -174,17 +177,18 @@ export class BigQueryReportReader implements DataStorageReportReader {
   /**
    * Converts table row data to structured report row data
    */
-  public getStructuredReportRowData(tableRow: TableRow): unknown[] {
+  public getStructuredReportRowData(tableRow: TableRow, columnNames: string[]): unknown[] {
     const rowData: unknown[] = [];
-    const fieldNames = Object.keys(tableRow);
-    for (let i = 0; i < fieldNames.length; i++) {
-      const cell = tableRow[fieldNames[i]];
-      const cellValue = this.getReportCellValue(cell);
-      if (cellValue instanceof Array) {
-        rowData.push(...cellValue);
-      } else {
-        rowData.push(cellValue);
+    for (let i = 0; i < columnNames.length; i++) {
+      const fieldPathNodes = columnNames[i].split('.');
+
+      let cell = null;
+      for (let j = 0; j < fieldPathNodes.length; j++) {
+        cell = cell ? cell[fieldPathNodes[j]] : tableRow[fieldPathNodes[j]];
       }
+
+      const cellValue = this.getReportCellValue(cell);
+      rowData.push(cellValue);
     }
     return rowData;
   }
@@ -205,7 +209,7 @@ export class BigQueryReportReader implements DataStorageReportReader {
         // other BigQuery types with wrappers
         return cell['value'];
       } else {
-        return this.getStructuredReportRowData(cell);
+        return cell;
       }
     } else {
       return cell;
@@ -230,12 +234,16 @@ export class BigQueryReportReader implements DataStorageReportReader {
     };
   }
 
-  async initFromState(state: DataStorageReportReaderState): Promise<void> {
+  async initFromState(
+    state: DataStorageReportReaderState,
+    reportDataHeaders: ReportDataHeader[]
+  ): Promise<void> {
     if (!isBigQueryReaderState(state)) {
       throw new Error('Invalid state type for BigQuery reader');
     }
 
     this.contextGcpProject = state.contextGcpProject;
+    this.reportDataHeaders = reportDataHeaders;
 
     if (state.reportResultTable && this.adapter) {
       this.reportResultTable = this.adapter.createTableReference(

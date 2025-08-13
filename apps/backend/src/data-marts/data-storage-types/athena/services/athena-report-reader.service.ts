@@ -1,3 +1,4 @@
+import { ReportDataHeader } from '../../../dto/domain/report-data-header.dto';
 import { isAthenaDataMartSchema } from '../../data-mart-schema.guards';
 import { DataStorageReportReader } from '../../interfaces/data-storage-report-reader.interface';
 import { DataStorageReportReaderState } from '../../interfaces/data-storage-report-reader-state.interface';
@@ -31,6 +32,7 @@ export class AthenaReportReader implements DataStorageReportReader {
   private queryExecutionId?: string;
   private outputBucket: string;
   private outputPrefix: string;
+  private reportDataHeaders: ReportDataHeader[];
   private reportConfig: { storage: DataStorage; definition: DataMartDefinition };
 
   constructor(
@@ -56,11 +58,11 @@ export class AthenaReportReader implements DataStorageReportReader {
 
     this.reportConfig = { storage, definition };
 
-    const dataHeaders = this.headersGenerator.generateHeaders(schema);
+    this.reportDataHeaders = this.headersGenerator.generateHeaders(schema);
 
     await this.prepareApiAdapters(this.reportConfig.storage);
 
-    return new ReportDataDescription(dataHeaders);
+    return new ReportDataDescription(this.reportDataHeaders);
   }
 
   async readReportDataBatch(batchId?: string, maxDataRows = 1000): Promise<ReportDataBatch> {
@@ -91,10 +93,28 @@ export class AthenaReportReader implements DataStorageReportReader {
     const startIndex = !batchId ? 1 : 0;
     const rows = results.ResultSet.Rows.slice(startIndex);
 
-    // Map rows to the expected format
+    const columnInfo = results.ResultSet.ResultSetMetadata?.ColumnInfo;
+    if (!columnInfo) {
+      throw new Error('Column metadata is not available');
+    }
+
+    // Create mapping from expected header order to actual column positions
+    const columnMapping: number[] = [];
+    for (const header of this.reportDataHeaders) {
+      const columnIndex = columnInfo.findIndex(col => col.Name === header.name);
+      if (columnIndex === -1) {
+        throw new Error(`Column '${header.name}' not found in query results`);
+      }
+      columnMapping.push(columnIndex);
+    }
+
     const mappedRows = rows.map(row => {
       if (!row.Data) return [];
-      return row.Data.map(cell => cell.VarCharValue);
+      const reorderedData: unknown[] = [];
+      for (const columnIndex of columnMapping) {
+        reorderedData.push(row.Data[columnIndex]?.VarCharValue);
+      }
+      return reorderedData;
     });
 
     return new ReportDataBatch(mappedRows, results.NextToken);
@@ -193,7 +213,10 @@ export class AthenaReportReader implements DataStorageReportReader {
     };
   }
 
-  async initFromState(state: DataStorageReportReaderState): Promise<void> {
+  async initFromState(
+    state: DataStorageReportReaderState,
+    reportDataHeaders: ReportDataHeader[]
+  ): Promise<void> {
     if (!isAthenaReaderState(state)) {
       throw new Error('Invalid state type for Athena reader');
     }
@@ -201,5 +224,6 @@ export class AthenaReportReader implements DataStorageReportReader {
     this.queryExecutionId = state.queryExecutionId;
     this.outputBucket = state.outputBucket;
     this.outputPrefix = state.outputPrefix;
+    this.reportDataHeaders = reportDataHeaders;
   }
 }
