@@ -2,6 +2,8 @@ import { type ReactNode } from 'react';
 
 // Types for CollapsibleCard compound components
 export type { CollapsibleCardHeaderProps } from './CollapsibleCardHeader';
+export type { CollapsibleCardHeaderTitleProps } from './CollapsibleCardHeaderTitle';
+export type { CollapsibleCardHeaderActionsProps } from './CollapsibleCardHeaderActions';
 export type { CollapsibleCardFooterProps } from './CollapsibleCardFooter';
 
 export interface CollapsibleCardProps {

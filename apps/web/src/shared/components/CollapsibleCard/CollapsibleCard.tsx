@@ -5,7 +5,6 @@ import { Card } from '@owox/ui/components/card';
 import { CollapsibleCardHeader } from './CollapsibleCardHeader';
 import { CollapsibleCardContent } from './CollapsibleCardContent';
 import { CollapsibleCardFooter } from './CollapsibleCardFooter';
-import { CollapsibleCardActions } from './CollapsibleCardActions';
 import { CollapsibleCardContext } from './CollapsibleCardContext';
 import type { ReactElement } from 'react';
 import type { CollapsibleCardProps } from './types';
@@ -15,8 +14,7 @@ const STORAGE_KEY_PREFIX = 'collapsed-card-';
 export type CollapsibleCardAllowedChild =
   | ReactElement<typeof CollapsibleCardHeader>
   | ReactElement<typeof CollapsibleCardContent>
-  | ReactElement<typeof CollapsibleCardFooter>
-  | ReactElement<typeof CollapsibleCardActions>;
+  | ReactElement<typeof CollapsibleCardFooter>;
 
 export interface StrictCollapsibleCardProps extends Omit<CollapsibleCardProps, 'children'> {
   children: CollapsibleCardAllowedChild | CollapsibleCardAllowedChild[];
@@ -49,7 +47,7 @@ export function CollapsibleCard({
     onCollapsedChange?.(newValue);
   };
 
-  let header, content, footer, actions;
+  let header, content, footer;
   Children.forEach(children, child => {
     if (!isValidElement(child)) return;
     switch (child.type) {
@@ -61,9 +59,6 @@ export function CollapsibleCard({
         break;
       case CollapsibleCardFooter:
         footer = child;
-        break;
-      case CollapsibleCardActions:
-        actions = child;
         break;
       default:
         break;
@@ -82,7 +77,6 @@ export function CollapsibleCard({
     <CollapsibleCardContext.Provider value={{ isCollapsed, collapsible, handleCollapse }}>
       <Card className={cn(cardVariants[variant], className)}>
         {header}
-        {actions}
         <div
           className={cn(
             'grid transition-all duration-200',

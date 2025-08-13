@@ -1,32 +1,34 @@
-import { CardHeader, CardTitle, CardDescription } from '@owox/ui/components/card';
-import { ChevronDown, Info } from 'lucide-react';
+import { CardHeader } from '@owox/ui/components/card';
+import { ChevronDown } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@owox/ui/components/tooltip';
-import { useContext } from 'react';
+import { useContext, Children, isValidElement } from 'react';
 import { CollapsibleCardContext } from './CollapsibleCardContext';
-import { type AppIcon } from '../../icons';
+import { CollapsibleCardHeaderTitle } from './CollapsibleCardHeaderTitle';
+import { CollapsibleCardHeaderActions } from './CollapsibleCardHeaderActions';
 
 export interface CollapsibleCardHeaderProps {
-  icon: AppIcon;
-  title: string;
-  subtitle?: string;
-  help?: string;
-  actions?: React.ReactNode;
+  children: React.ReactNode;
 }
 
-export function CollapsibleCardHeader({
-  icon: Icon,
-  title,
-  subtitle,
-  help,
-  actions,
-}: CollapsibleCardHeaderProps) {
+export function CollapsibleCardHeader({ children }: CollapsibleCardHeaderProps) {
   const { collapsible, isCollapsed, handleCollapse } = useContext(CollapsibleCardContext);
+
+  let title, actions;
+
+  Children.forEach(children, child => {
+    if (!isValidElement(child)) return;
+    switch (child.type) {
+      case CollapsibleCardHeaderTitle:
+        title = child;
+        break;
+      case CollapsibleCardHeaderActions:
+        actions = child;
+        break;
+      default:
+        break;
+    }
+  });
+
   return (
     <CardHeader
       className={cn(
@@ -35,51 +37,17 @@ export function CollapsibleCardHeader({
       )}
       onClick={collapsible ? handleCollapse : undefined}
     >
-      {/* Left side of the header */}
-      <div className='flex items-center gap-3'>
-        <div className='flex items-center gap-2'>
-          {/* Card icon */}
-          <div className='text-foreground flex h-7 w-7 items-center justify-center rounded-sm bg-gray-200/50 transition-colors duration-200 group-hover:bg-gray-200/75 dark:bg-white/8 dark:group-hover:bg-white/10'>
-            <Icon className='h-4 w-4' strokeWidth={2.25} />
-          </div>
-          <CardTitle className='text-md text-foreground leading-none font-medium'>
-            {title}
-          </CardTitle>
-        </div>
-        {/* Subtitle, shown only when collapsed */}
-        {subtitle && (
-          <CardDescription
-            className={cn('text-md text-muted-foreground/50', !isCollapsed && 'hidden')}
-          >
-            {subtitle}
-          </CardDescription>
-        )}
-        {/* Help icon with tooltip, visible only on header hover */}
-        {help && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className='pointer-events-none ml-2 flex items-center opacity-0 transition-opacity duration-200 group-hover:pointer-events-auto group-hover:opacity-100'>
-                  <Info className='text-muted-foreground/50 hover:text-muted-foreground size-4 shrink-0 transition-colors' />
-                  {/* Visually hidden help text for accessibility */}
-                  <span className='sr-only'>{help}</span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{help}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )}
-      </div>
-      {/* Right side of the header */}
+      {/* Left side - Title */}
+      {title}
+
+      {/* Right side - Actions and Collapse Icon */}
       <div className='flex items-center gap-2'>
         {actions}
         {/* Collapse chevron icon */}
         {collapsible && (
           <div
             className={cn(
-              'flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-200 group-hover:bg-gray-200/50 dark:group-hover:bg-gray-700/25'
+              'flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-200 hover:bg-gray-200/50 dark:hover:bg-gray-700/25'
             )}
           >
             <div
@@ -96,4 +64,5 @@ export function CollapsibleCardHeader({
     </CardHeader>
   );
 }
+
 CollapsibleCardHeader.displayName = 'CollapsibleCardHeader';
