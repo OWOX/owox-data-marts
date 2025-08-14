@@ -313,6 +313,7 @@ export class ConnectorExecutionService {
     }
   }
 
+  //TODO
   private async getSourceConfig(
     dataMartId: string,
     connector: DataMartConnectorDefinition['connector'],
@@ -366,7 +367,7 @@ export class ConnectorExecutionService {
         DestinationDatasetID: `${storageConfig.projectId}.${datasetId}`,
         DestinationProjectID: storageConfig.projectId,
         DestinationDatasetName: datasetId,
-        DestinationTableName: connector.storage?.fullyQualifiedName.split('.')[1],
+        DestinationTableNameOverride: `${connector.source.node} ${connector.storage?.fullyQualifiedName.split('.')[1]}`,
         ProjectID: storageConfig.projectId,
         ServiceAccountJson: JSON.stringify(credentials),
       },
