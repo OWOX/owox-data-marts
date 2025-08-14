@@ -17,11 +17,13 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
       },
       AppId: {
         requiredType: "string",
+        isRequired: true,
         label: "App ID",
         description: "TikTok Ads API Application ID"
       },
       AppSecret: {
         requiredType: "string",
+        isRequired: true,
         label: "App Secret",
         description: "TikTok Ads API Application Secret"
       },
