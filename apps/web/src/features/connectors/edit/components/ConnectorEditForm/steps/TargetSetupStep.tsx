@@ -18,7 +18,7 @@ export function TargetSetupStep({
   connectorName,
   onTargetChange,
 }: TargetSetupStepProps) {
-  const sanitizedDestinationName = destinationName.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
+  const sanitizedDestinationName = destinationName.replace(/[^a-zA-Z0-9_]/g, '_');
   const sanitizedConnectorName = connectorName.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
 
   const [datasetName, setDatasetName] = useState<string>('');

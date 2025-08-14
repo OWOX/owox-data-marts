@@ -212,16 +212,11 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
 
       let uniqueFields = this.source.fieldsSchema[nodeName]["uniqueKeys"];
 
-      this.config.addParameter(
-        "DestinationTableName", 
-        { value: this.source.fieldsSchema[nodeName].destinationName }, 
-        false
-      );
-
       // Create storage instance (Google Sheets is the default storage)
       this.storages[nodeName] = new globalThis[ this.storageName ](
         this.config.mergeParameters({ 
           DestinationSheetName: { value: this.source.fieldsSchema[nodeName].destinationName },
+          DestinationTableName: { value: this.getDestinationName(nodeName, this.config, this.source.fieldsSchema[nodeName].destinationName) },
           currentValues: { 
             // Pass any values that might be needed for default values
             advertiser_id: this.source.currentAdvertiserId

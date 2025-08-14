@@ -81,10 +81,9 @@ class AbstractConfig {
      * Adding parameter to config
      * @param name (string) parameter name
      * @param value (mixed) parameter values
-     * @param overwrite (boolean) whether to overwrite existing parameter
      * @return Config object
      */  
-    addParameter(name, value, overwrite = true) {
+    addParameter(name, value) {
       // If the name of the config parameter ends with *, it is required
         if( name.slice(-1) == "*" ) { 
           value.isRequired = true;
@@ -93,13 +92,9 @@ class AbstractConfig {
       // replace of characters including spaces to let call parameters like this.CONFIG.parameterName
         if( name = name.replaceAll(/[^a-zA-Z0-9]/gi, "") ) {
 
-          // value is already exists in CONFIG
+      // value is already exists in CONFIG
           //this.CONFIG[name] = name in this.CONFIG ? { ...this.CONFIG[name], ...parameter } : parameter
-          if (overwrite) {
-            this[name] = name in this ? { ...this[name], ...value } : value;
-          } else if (!(name in this)) {
-            this[name] = value;
-          }
+        this[name] = name in this ? { ...this[name], ...value } : value
 
         }
 

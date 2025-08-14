@@ -134,15 +134,10 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
 
       const uniqueFields = this.source.fieldsSchema[nodeName].uniqueKeys;
 
-      this.config.addParameter(
-        "DestinationTableName", 
-        { value: this.source.fieldsSchema[nodeName].destinationName }, 
-        false
-      );
-
       this.storages[nodeName] = new globalThis[this.storageName](
         this.config.mergeParameters({
           DestinationSheetName: { value: this.source.fieldsSchema[nodeName].destinationName },
+          DestinationTableName: { value: this.getDestinationName(nodeName, this.config, this.source.fieldsSchema[nodeName].destinationName) },
         }),
         uniqueFields,
         this.source.fieldsSchema[nodeName].fields,
