@@ -77,7 +77,10 @@ async function processMarkdownFiles() {
     // 3. Find and replace paths to other file links
     fileContent = processDocumentLinks(fileContent, filePaths);
 
-    // 4. Frontmatter
+    // 4. Replace bare GitHub video links on HTML tag
+    fileContent = processGithubVideoLinks(fileContent);
+
+    // 5. Frontmatter
     fileContent = processFrontmatter(fileContent, filePaths);
 
     fs.writeFileSync(filePaths.destinationPath, fileContent);
@@ -270,6 +273,34 @@ function processDocumentLinks(fileContent, filePaths) {
     }
     return `[${linkText}](${normalizedLinkPath})`;
   });
+}
+
+/**
+ * Processes GitHub video links in markdown content, converting bare URLs to HTML video tags
+ * @param {string} fileContent - Markdown content
+ * @returns {string} - Updated markdown content with GitHub video URLs converted to HTML video elements
+ */
+function processGithubVideoLinks(fileContent) {
+  const lines = fileContent.split('\n');
+
+  const processedLines = lines.map(line => {
+    // Remove markdownlint comments before checking the URL
+    const trimmedLine = line
+      .trim()
+      .replace(/<!--.*?-->/g, '')
+      .trim();
+    if (trimmedLine.startsWith('https://github.com/user-attachments/assets/')) {
+      return `<!-- markdownlint-disable-next-line MD033 MD034 -->
+<video controls playsinline muted style="max-width: 100%; height: auto;">
+  <!-- markdownlint-disable-next-line MD033 MD034 -->
+  <source src="${trimmedLine}" type="video/mp4">
+  Your browser does not support the video tag.
+</video>`;
+    }
+    return line;
+  });
+
+  return processedLines.join('\n');
 }
 
 /**

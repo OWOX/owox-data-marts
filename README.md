@@ -23,11 +23,7 @@ At OWOX, we believe data analysts shouldn’t have to waste time on CSV files an
 
 ---
 
-<!-- markdownlint-disable-next-line MD033 -->
-<video controls playsinline muted style="max-width: 100%; height: auto;">
-<!-- markdownlint-disable-next-line MD033 -->
-  <source src="https://github.com/user-attachments/assets/d2d9d913-a6fc-4949-a8e8-d697abd1631a" type="video/mp4" />
-</video>
+https://github.com/user-attachments/assets/d2d9d913-a6fc-4949-a8e8-d697abd1631a <!-- markdownlint-disable-line MD034 MD033 -->
 
 ---
 
