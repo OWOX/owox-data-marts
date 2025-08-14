@@ -23,6 +23,7 @@ At OWOX, we believe data analysts shouldn’t have to waste time on CSV files an
 
 ---
 
+<!-- markdownlint-disable-next-line MD034 -->
 https://github.com/user-attachments/assets/d2d9d913-a6fc-4949-a8e8-d697abd1631a
 
 ---
