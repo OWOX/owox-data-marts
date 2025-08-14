@@ -4,7 +4,7 @@
 
 OWOX Data Marts is your way to create a data mart library and empower business users with spreadsheet reports and dashboards — in minutes.
 
-[📘 Quick Start Guide](./docs/getting-started/quick-start.md) | [🌐 Website](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) |  [💬 Community](https://github.com/OWOX/owox-data-marts/discussions) | [🆘 Create an Issue](https://github.com/OWOX/owox-data-marts/issues)
+[📘 Quick Start Guide](./docs/getting-started/quick-start.md) | [🌐 Website](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) | [💬 Community](https://github.com/OWOX/owox-data-marts/discussions) | [🆘 Create an Issue](https://github.com/OWOX/owox-data-marts/issues)
 
 ![OWOX Data Marts - Open-Source Self-Service Analytics Platform](./docs/res/owox-data-marts-schema.svg)
 
@@ -23,8 +23,11 @@ At OWOX, we believe data analysts shouldn’t have to waste time on CSV files an
 
 ---
 
-<!-- markdownlint-disable-next-line MD034 -->
-https://github.com/user-attachments/assets/d2d9d913-a6fc-4949-a8e8-d697abd1631a
+<!-- markdownlint-disable-next-line MD033 -->
+<video controls playsinline muted style="max-width: 100%; height: auto;">
+<!-- markdownlint-disable-next-line MD033 -->
+  <source src="https://github.com/user-attachments/assets/d2d9d913-a6fc-4949-a8e8-d697abd1631a" type="video/mp4" />
+</video>
 
 ---
 
@@ -37,7 +40,7 @@ Bring together data from your warehouse (BigQuery, Snowflake, etc.), APIs, or sp
 - Connectors to any marketing, financial, or CRM data that you can collect into **AWS Athena** or **Google BigQuery** (more supported DWHs are being developed as you read this)
 - Custom SQL
 - Tables & views
-- Table patterns (eg, events_2025*)
+- Table patterns (eg, events_2025\*)
 
 ### 📤 Deliver Trusted Data Anywhere
 
@@ -56,7 +59,7 @@ Use the advanced scheduler to refresh both Data Marts and exports at any time, f
 **OWOX Data Marts** can be run just about anywhere in minutes.  
 Here’s how to get started locally on your machine:
 
-1. **Install Node.js** (version 22.16.0 or higher)  
+1. **Install Node.js** (version 22.16.0 or higher)
 
    If it’s not installed yet, [download it here](https://nodejs.org/en/download)
 
@@ -107,29 +110,29 @@ For more details - watch the webinar replay - [**🎥 Own Your Data: How Data An
 
 ### Data Sources
 
-| Name                          | Status            | Links     |
-| ----------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Facebook Ads                  | 🟢 Public         | [Get started](packages/connectors/src/Sources/FacebookMarketing/GETTING_STARTED.md) |
-| Open Exchange Rates           | 🟢 Public         | [Get started](packages/connectors/src/Sources/OpenExchangeRates/GETTING_STARTED.md) |
-| Bank of Canada                | 🟢 Public         | [Get started](packages/connectors/src/Sources/BankOfCanada/GETTING_STARTED.md)      |
-| LinkedIn Ads                  | 🟢 Public         | [Get started](packages/connectors/src/Sources/LinkedInAds/GETTING_STARTED.md)       |
-| LinkedIn Pages                | 🟢 Public         | [Get started](packages/connectors/src/Sources/LinkedInPages/GETTING_STARTED.md)     |
-| TikTok Ads                    | 🟢 Public         | [Get started](packages/connectors/src/Sources/TikTokAds/GETTING_STARTED.md)         |
-| X Ads (former Twitter Ads)    | 🟢 Public         | [Get started](packages/connectors/src/Sources/XAds/GETTING_STARTED.md)              |
-| Criteo Ads                    | 🟢 Public         | [Get started](packages/connectors/src/Sources/CriteoAds/GETTING_STARTED.md)         |
-| Bing Ads                      | 🟢 Public         | [Get started](packages/connectors/src/Sources/BingAds/GETTING_STARTED.md)           |
-| Reddit Ads                    | 🟢 Public         | [Get started](packages/connectors/src/Sources/RedditAds/GETTING_STARTED.md)         |
-| Hotline                       | ⚪️ In Discussion  | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/55)                |
-| Shopify Ads                   | ⚪️ In Discussion  | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/63)                |
-| Google Business Profile       | ⚪️ In Discussion  | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/61)                |
+| Name                       | Status           | Links                                                                               |
+| -------------------------- | ---------------- | ----------------------------------------------------------------------------------- |
+| Facebook Ads               | 🟢 Public        | [Get started](packages/connectors/src/Sources/FacebookMarketing/GETTING_STARTED.md) |
+| Open Exchange Rates        | 🟢 Public        | [Get started](packages/connectors/src/Sources/OpenExchangeRates/GETTING_STARTED.md) |
+| Bank of Canada             | 🟢 Public        | [Get started](packages/connectors/src/Sources/BankOfCanada/GETTING_STARTED.md)      |
+| LinkedIn Ads               | 🟢 Public        | [Get started](packages/connectors/src/Sources/LinkedInAds/GETTING_STARTED.md)       |
+| LinkedIn Pages             | 🟢 Public        | [Get started](packages/connectors/src/Sources/LinkedInPages/GETTING_STARTED.md)     |
+| TikTok Ads                 | 🟢 Public        | [Get started](packages/connectors/src/Sources/TikTokAds/GETTING_STARTED.md)         |
+| X Ads (former Twitter Ads) | 🟢 Public        | [Get started](packages/connectors/src/Sources/XAds/GETTING_STARTED.md)              |
+| Criteo Ads                 | 🟢 Public        | [Get started](packages/connectors/src/Sources/CriteoAds/GETTING_STARTED.md)         |
+| Bing Ads                   | 🟢 Public        | [Get started](packages/connectors/src/Sources/BingAds/GETTING_STARTED.md)           |
+| Reddit Ads                 | 🟢 Public        | [Get started](packages/connectors/src/Sources/RedditAds/GETTING_STARTED.md)         |
+| Hotline                    | ⚪️ In Discussion | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/55)                |
+| Shopify Ads                | ⚪️ In Discussion | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/63)                |
+| Google Business Profile    | ⚪️ In Discussion | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/61)                |
 
 ### Data Storages
 
-| Name            | Status    | Environment          | Links                                                                                                       |
-| --------------- | --------- |----------------------| ----------------------------------------------------------------------------------------------------------- |
-| Google Sheets   | 🟢 Public | Apps Script          | [Readme](packages/connectors/src/Storages/GoogleSheets/README.md)                                            |
-| Google BigQuery | 🟢 Public | Node.js, Apps Script | [Readme](packages/connectors/src/Storages/GoogleBigQuery/README.md)                                          |
-| AWS Athena      | 🟢 Public | Node.js              | [Readme](packages/connectors/src/Storages/AwsAthena/README.md)                                             |
+| Name            | Status    | Environment          | Links                                                               |
+| --------------- | --------- | -------------------- | ------------------------------------------------------------------- |
+| Google Sheets   | 🟢 Public | Apps Script          | [Readme](packages/connectors/src/Storages/GoogleSheets/README.md)   |
+| Google BigQuery | 🟢 Public | Node.js, Apps Script | [Readme](packages/connectors/src/Storages/GoogleBigQuery/README.md) |
+| AWS Athena      | 🟢 Public | Node.js              | [Readme](packages/connectors/src/Storages/AwsAthena/README.md)      |
 
 If you find an integration missing, you can share your use case and request it in the [discussions](https://github.com/OWOX/owox-data-marts/discussions)
 
@@ -143,7 +146,7 @@ Want to build a connector? We'd love your help.
 - Read the [contributor guide](packages/connectors/CONTRIBUTING.md)
 - Watch or read [this tutorial](packages/connectors/TUTORIAL.md) of how we built a new connector in < 25 minutes
 - Check open [requests](https://github.com/OWOX/owox-data-marts/issues)
-  
+
 All you need to get started is the desire to build a new connector. No software installation is required on your computer.
 
 Whether you're adding a new platform, tweaking an existing connector, or improving docs, we'll support and **spotlight you**.
