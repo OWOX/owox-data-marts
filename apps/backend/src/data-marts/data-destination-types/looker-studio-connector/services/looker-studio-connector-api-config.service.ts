@@ -31,8 +31,8 @@ export class LookerStudioConnectorApiConfigService {
 
     const reportSelector: ConfigField = {
       name: 'reportId',
-      displayName: 'Select the Report',
-      helpText: 'You can select within reports available for current connection.',
+      displayName: 'Select the Data Mart',
+      helpText: 'You can select within data marts available for current connection.',
       type: ConfigFieldType.SELECT_SINGLE,
       isDynamic: true,
       options: [],
@@ -41,7 +41,7 @@ export class LookerStudioConnectorApiConfigService {
     availableReports.forEach(report => {
       reportSelector.options?.push({
         value: report.id,
-        label: `${report.title} (Data Mart: ${report.dataMart.title})`,
+        label: report.dataMart.title,
       });
     });
 
