@@ -1,40 +1,37 @@
-import { User, Project, TokenPayload, AddUserCommandResponse } from './models.js';
-import { Express } from 'express';
+import { Payload, AuthResult } from './models.js';
+import { NextFunction, Request, Response } from 'express';
 
 /**
  * Simplified IDP Provider interface.
  */
-export interface IIdpProvider {
-  // Authentication flow
+export interface IdpProvider {
   /**
-   * Get the authentication URL for the IDP
-   * @param redirectUri - The redirect URI to use for the authentication
-   * @returns The authentication URL
+   * Sign in middleware. This method is used to handle the sign in request and use response to send the sign in response.
+   * <br/>
+   * If the IDP implementation does not support sign in, this method should call the `next()` function.
    */
-  getAuthUrl(redirectUri: string): string;
+  signInMiddleware(req: Request, res: Response, next: NextFunction): Promise<void | Response>;
 
   /**
-   * Handle the callback from the IDP
-   * @param redirectUri - The redirect URI to use for the authentication
-   * @param code - The code to use for the authentication
-   * @returns The authentication result
+   * Sign out middleware. This method is used to handle the sign out request and use response to send the sign out response.
+   * <br/>
+   * If the IDP implementation does not support sign out, this method should call the `next()` function.
    */
-  handleCallback(redirectUri: string, code: string): Promise<AuthResult>;
+  signOutMiddleware(req: Request, res: Response, next: NextFunction): Promise<void | Response>;
 
   /**
-   * Sign in to the IDP
-   * @param redirectUri - The redirect URI to use for the authentication
-   * @returns The authentication result
+   * Access token middleware. This method is used to handle the access token request and use response to send the access token response.
+   * <br/>
+   * If the IDP implementation does not support access token, this method should call the `next()` function.
    */
-  signIn(redirectUri: string): Promise<AuthResult>;
+  accessTokenMiddleware(req: Request, res: Response, next: NextFunction): Promise<void | Response>;
 
-  // Token management
   /**
    * Verify a token
    * @param token - The token to verify
    * @returns The token payload
    */
-  verifyToken(token: string): Promise<TokenPayload | null>;
+  introspectToken(token: string): Promise<Payload | null>;
 
   /**
    * Refresh a token
@@ -44,73 +41,18 @@ export interface IIdpProvider {
   refreshToken(refreshToken: string): Promise<AuthResult>;
 
   /**
-   * Revoke a token
+   * Revoke a token. In different IDP implementations, this may have different token types.
    * @param token - The token to revoke
    */
   revokeToken(token: string): Promise<void>;
 
   /**
-   * Initialize the IDP
-   * @param app - The express app
+   * Initialize the IDP. Create resources, connect to databases, etc.
    */
-  initialize(app: Express): Promise<void>;
+  initialize(): Promise<void>;
 
   /**
    * Shutdown the IDP, close all connections and release resources
    */
   shutdown(): Promise<void>;
-
-  // User management
-  /**
-   * Get the user info
-   * @param token - The token to use for the user info
-   * @returns The user info
-   */
-  getUserInfo(token: string): Promise<User>;
-
-  /**
-   * Get the project info
-   * @param token - The token to use for the project info
-   * @returns The project info
-   */
-  getProjectInfo(token: string): Promise<Project>;
-
-  /**
-   * Get the user projects
-   * @param token - The token to use for the user projects
-   * @returns The user projects
-   */
-  getUserProjects(token: string): Promise<Project[]>;
-}
-
-/**
- * Commands for adding a user to the IDP
- */
-export interface IdpProviderAddUserCommand {
-  addUser(username: string, password?: string): Promise<AddUserCommandResponse>;
-}
-
-/**
- * Commands for listing users from the IDP
- */
-export interface IdpProviderListUsersCommand {
-  listUsers(): Promise<User[]>;
-}
-
-/**
- * Commands for removing a user from the IDP
- */
-export interface IdpProviderRemoveUserCommand {
-  removeUser(userId: string): Promise<void>;
-}
-
-/**
- * Authentication result from IDP callback
- */
-export interface AuthResult {
-  accessToken: string;
-  refreshToken?: string;
-  expiresIn?: number;
-  tokenType?: string;
-  payload?: TokenPayload;
 }

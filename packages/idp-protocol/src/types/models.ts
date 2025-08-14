@@ -1,39 +1,26 @@
 /**
- * User model
+ * The roles that are supported by the IDP.
  */
-export interface User {
-  id: string;
-  email: string;
-  name?: string;
-}
+export type Role = 'admin' | 'editor' | 'viewer';
 
 /**
- * Project model
+ * Standardized token payload that all IDP implementations must return when introspecting their native tokens.
  */
-export interface Project {
-  id: string;
-  name: string;
-}
-
-/**
- * Standardized token payload that all IDP implementations must return when introspecting their native tokens
- */
-export interface TokenPayload {
-  sub: string; // user id
-  email: string;
-  name?: string;
-  roles: string[];
+export interface Payload {
+  userId: string;
   projectId: string;
-  iat: number;
-  exp: number;
-  iss: string;
-  aud: string;
+
+  email?: string;
+  fullName?: string;
+  roles?: Role[];
+
+  projectTitle?: string;
 }
 
 /**
- * Response for adding a user to the IDP
+ * Authentication result from IDP callback
  */
-export interface AddUserCommandResponse {
-  username: string;
-  magicLink?: string;
+export interface AuthResult {
+  accessToken: string;
+  refreshToken?: string;
 }
