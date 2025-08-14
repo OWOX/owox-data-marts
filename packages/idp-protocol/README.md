@@ -21,7 +21,7 @@ npm install @owox/idp-protocol
 ```text
 @owox/idp-protocol
 ├── types/                    # Core interfaces and models
-│   ├── provider.ts          # IdpProvider interface  
+│   ├── provider.ts          # IdpProvider interface
 │   ├── models.ts            # Payload, AuthResult, Role types
 │   ├── config.ts            # Configuration types
 │   ├── errors.ts            # Error classes
@@ -113,8 +113,8 @@ const middleware = new IdpProtocolMiddleware(provider, {
   routes: {
     signIn: '/login',
     signOut: '/logout',
-    accessToken: '/token'
-  }
+    accessToken: '/token',
+  },
 });
 middleware.register(app);
 ```
@@ -140,7 +140,7 @@ const provider = new NullIdpProvider();
 // Default user payload
 const defaultPayload = {
   userId: '0',
-  email: 'admin@localhost', 
+  email: 'admin@localhost',
   roles: ['admin'],
   fullName: 'Admin',
   projectId: '0',
@@ -151,7 +151,7 @@ const defaultPayload = {
 
 - ✅ Implements all IdpProvider methods
 - 🔄 Returns consistent default user payload
-- 🚫 No actual authentication (always succeeds)  
+- 🚫 No actual authentication (always succeeds)
 - ⚡ Zero configuration required
 - 🛠️ Perfect for testing and development
 
@@ -175,7 +175,7 @@ middleware.register(app);
 
 // Server will handle:
 // POST /auth/sign-in
-// POST /auth/sign-out  
+// POST /auth/sign-out
 // POST /auth/access-token
 
 app.listen(3000);
@@ -208,9 +208,9 @@ class CustomIdpProvider implements IdpProvider {
     // Validate JWT or call external IDP
     return {
       userId: 'user123',
-      projectId: 'proj456', 
+      projectId: 'proj456',
       email: 'user@company.com',
-      roles: ['editor']
+      roles: ['editor'],
     };
   }
 
@@ -241,10 +241,10 @@ import { IdpProtocolMiddleware, ProtocolRoute } from '@owox/idp-protocol';
 const middleware = new IdpProtocolMiddleware(provider, {
   basePath: '/api/v1/auth',
   routes: {
-    signIn: ProtocolRoute.SIGN_IN,      // '/sign-in'
-    signOut: ProtocolRoute.SIGN_OUT,    // '/sign-out'  
-    accessToken: '/me'                  // Custom route
-  }
+    signIn: ProtocolRoute.SIGN_IN, // '/sign-in'
+    signOut: ProtocolRoute.SIGN_OUT, // '/sign-out'
+    accessToken: '/me', // Custom route
+  },
 });
 
 // Results in:
