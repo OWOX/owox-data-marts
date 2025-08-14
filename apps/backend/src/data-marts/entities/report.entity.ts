@@ -1,4 +1,5 @@
 import {
+  BeforeInsert,
   Column,
   CreateDateColumn,
   Entity,
@@ -7,14 +8,18 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { DataMart } from './data-mart.entity';
-import { DataDestination } from './data-destination.entity';
+import { v5 as uuidv5 } from 'uuid';
 import { createZodTransformer } from '../../common/zod/zod-transformer';
-import { ReportRunStatus } from '../enums/report-run-status.enum';
 import {
   DataDestinationConfig,
   DataDestinationConfigSchema,
 } from '../data-destination-types/data-destination-config.type';
+import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
+import { ReportRunStatus } from '../enums/report-run-status.enum';
+import { DataDestination } from './data-destination.entity';
+import { DataMart } from './data-mart.entity';
+
+const REPORT_ID_NAMESPACE = '550e8400-e29b-41d4-a716-446655440000';
 
 @Entity()
 export class Report {
@@ -58,4 +63,26 @@ export class Report {
 
   @UpdateDateColumn()
   modifiedAt: Date;
+
+  /**
+   * Generates the report ID before inserting into the database.
+   *
+   * For Looker Studio destinations, generates a deterministic UUID v5 based on the combination
+   * of DataMart ID and DataDestination ID. This ensures that the same DataMart + DataDestination
+   * combination always produces the same report ID, allowing only one report per combination.
+   *
+   * For other destination types (Google Sheets), relies on TypeORM's @PrimaryGeneratedColumn
+   * to automatically generate a random UUID, allowing multiple reports per combination.
+   *
+   * @returns {void}
+   */
+  @BeforeInsert()
+  generateId(): void {
+    if (this.dataDestination.type === DataDestinationType.LOOKER_STUDIO) {
+      const name = `${this.dataMart.id}:${this.dataDestination.id}`;
+      this.id = uuidv5(name, REPORT_ID_NAMESPACE);
+      this.title = '';
+    }
+    // For other types, use automatic generation via @PrimaryGeneratedColumn
+  }
 }
