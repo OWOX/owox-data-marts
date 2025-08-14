@@ -13,3 +13,6 @@ export * from './config.js';
 
 // Error classes
 export * from './errors.js';
+
+// CLI commands
+export * from './cli.js';

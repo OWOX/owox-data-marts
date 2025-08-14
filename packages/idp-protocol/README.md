@@ -1,12 +1,14 @@
 # @owox/idp-protocol
 
-Identity Provider protocol package for OWOX Data Marts. Contains only core types and a NULL provider implementation.
+Identity Provider protocol package for OWOX Data Marts. Provides core types, middleware, and provider implementations for authentication and authorization.
 
 ## Features
 
 - 🔧 Core IDP interfaces and types
+- 🔀 Express middleware for authentication routes
 - 🚫 NULL IDP provider for single-user deployments
-- 📦 TypeScript support
+- 🛡️ Built-in error handling
+- ⚙️ Configurable routing
 
 ## Installation
 
@@ -16,46 +18,42 @@ npm install @owox/idp-protocol
 
 ## Architecture
 
-This package provides the essential building blocks for IDP integration:
-
 ```text
 @owox/idp-protocol
-├── types/           # Core interfaces
-│   ├── provider.ts  # IIdpProvider interface
-│   ├── models.ts    # User, Project, TokenPayload
-│   ├── config.ts    # IdpConfig interface
-│   └── errors.ts    # Error classes
-└── providers/
-    └── null-provider.ts  # NULL implementation
+├── types/                    # Core interfaces and models
+│   ├── provider.ts          # IdpProvider interface  
+│   ├── models.ts            # Payload, AuthResult, Role types
+│   ├── config.ts            # Configuration types
+│   ├── errors.ts            # Error classes
+│   └── cli.ts               # CLI command interfaces
+├── providers/               # Provider implementations
+│   └── null-provider.ts     # NULL provider for development
+└── middleware/              # Express middleware
+    └── protocol-middleware.ts # Route handling middleware
 ```
 
 ## Core Types
 
-### IIdpProvider Interface
+### IdpProvider Interface
 
 The main provider interface that all IDP implementations must follow:
 
 ```typescript
-import { IIdpProvider } from '@owox/idp-protocol';
+import { IdpProvider } from '@owox/idp-protocol';
 
-interface IIdpProvider {
-  // Authentication
-  getAuthUrl(redirectUri: string): string;
-  handleCallback(redirectUri: string, code: string): Promise<AuthResult>;
-  signIn(redirectUri: string): Promise<AuthResult>;
+interface IdpProvider {
+  // Middleware handlers
+  signInMiddleware(req: Request, res: Response, next: NextFunction): Promise<void | Response>;
+  signOutMiddleware(req: Request, res: Response, next: NextFunction): Promise<void | Response>;
+  accessTokenMiddleware(req: Request, res: Response, next: NextFunction): Promise<void | Response>;
 
   // Token management
-  verifyToken(token: string): Promise<TokenPayload | null>;
+  introspectToken(token: string): Promise<Payload | null>;
   refreshToken(refreshToken: string): Promise<AuthResult>;
   revokeToken(token: string): Promise<void>;
 
-  // User/project info
-  getUserInfo(token: string): Promise<User>;
-  getProjectInfo(token: string): Promise<Project>;
-  getUserProjects(token: string): Promise<Project[]>;
-
   // Lifecycle
-  initialize(app: Express): Promise<void>;
+  initialize(): Promise<void>;
   shutdown(): Promise<void>;
 }
 ```
@@ -63,29 +61,22 @@ interface IIdpProvider {
 ### Domain Models
 
 ```typescript
-import { User, Project, TokenPayload } from '@owox/idp-protocol';
+import { Payload, AuthResult, Role } from '@owox/idp-protocol';
 
-interface User {
-  id: string;
-  email: string;
-  name?: string;
-}
+type Role = 'admin' | 'editor' | 'viewer';
 
-interface Project {
-  id: string;
-  name: string;
-}
-
-interface TokenPayload {
-  sub: string; // user id
-  email: string;
-  name?: string;
-  roles: string[];
+interface Payload {
+  userId: string;
   projectId: string;
-  iat: number;
-  exp: number;
-  iss: string; // issuer
-  aud: string; // audience
+  email?: string;
+  fullName?: string;
+  roles?: Role[];
+  projectTitle?: string;
+}
+
+interface AuthResult {
+  accessToken: string;
+  refreshToken?: string;
 }
 ```
 
@@ -101,6 +92,42 @@ import {
 } from '@owox/idp-protocol';
 ```
 
+## Middleware
+
+The protocol middleware handles authentication routes automatically:
+
+```typescript
+import express from 'express';
+import { IdpProtocolMiddleware, NullIdpProvider } from '@owox/idp-protocol';
+
+const app = express();
+const provider = new NullIdpProvider();
+
+// Basic usage with default routes (/auth/sign-in, /auth/sign-out, /auth/access-token)
+const middleware = new IdpProtocolMiddleware(provider);
+middleware.register(app);
+
+// Custom configuration
+const middleware = new IdpProtocolMiddleware(provider, {
+  basePath: '/api/v1/auth',
+  routes: {
+    signIn: '/login',
+    signOut: '/logout',
+    accessToken: '/token'
+  }
+});
+middleware.register(app);
+```
+
+### Middleware Features
+
+- ✅ Configurable base path and route names
+- ✅ Automatic error handling with try-catch
+- ✅ Support for all HTTP methods (GET, POST, etc.)
+- ✅ Route collision detection
+- ✅ Path validation
+- ✅ TypeScript support
+
 ## NULL Provider
 
 The included NULL provider is perfect for development and single-user deployments:
@@ -110,102 +137,120 @@ import { NullIdpProvider } from '@owox/idp-protocol';
 
 const provider = new NullIdpProvider();
 
-// Default user and project
-const user = provider.getDefaultUser();
-// { id: '0', email: 'user@localhost', name: 'Default User' }
-
-const project = provider.getDefaultProject();
-// { id: '0', name: 'Default Project' }
+// Default user payload
+const defaultPayload = {
+  userId: '0',
+  email: 'admin@localhost', 
+  roles: ['admin'],
+  fullName: 'Admin',
+  projectId: '0',
+};
 ```
 
 ### NULL Provider Features
 
-- ✅ Implements all IIdpProvider methods
-- 🔄 Returns consistent default user/project
-- 🚫 No actual authentication (always succeeds)
+- ✅ Implements all IdpProvider methods
+- 🔄 Returns consistent default user payload
+- 🚫 No actual authentication (always succeeds)  
 - ⚡ Zero configuration required
 - 🛠️ Perfect for testing and development
 
 ## Usage Examples
 
-### Basic Provider Usage
+### Basic Setup
 
 ```typescript
-import { NullIdpProvider } from '@owox/idp-protocol';
+import express from 'express';
+import { IdpProtocolMiddleware, NullIdpProvider } from '@owox/idp-protocol';
 
+const app = express();
 const provider = new NullIdpProvider();
-await provider.initialize(app);
 
-// Get auth URL (returns empty string for NULL)
-const authUrl = provider.getAuthUrl('http://localhost:3000/callback');
+// Initialize provider
+await provider.initialize();
 
-// Sign in (always succeeds)
-const result = await provider.signIn('http://localhost:3000/callback');
-console.log(result.accessToken); // Empty string
+// Setup middleware
+const middleware = new IdpProtocolMiddleware(provider);
+middleware.register(app);
 
-// Verify token (always returns default payload)
-const payload = await provider.verifyToken('any-token');
-console.log(payload.email); // 'user@localhost'
+// Server will handle:
+// POST /auth/sign-in
+// POST /auth/sign-out  
+// POST /auth/access-token
+
+app.listen(3000);
 ```
 
 ### Custom Provider Implementation
 
 ```typescript
-import { IIdpProvider, AuthResult, User, Project } from '@owox/idp-protocol';
+import { IdpProvider, Payload, AuthResult } from '@owox/idp-protocol';
+import { Request, Response, NextFunction } from 'express';
 
-class CustomIdpProvider implements IIdpProvider {
-  async initialize(app: Express): Promise<void> {
-    // Setup routes, connect to external IDP
+class CustomIdpProvider implements IdpProvider {
+  async signInMiddleware(req: Request, res: Response, next: NextFunction): Promise<Response> {
+    // Handle OAuth redirect, validate credentials, etc.
+    return res.json({ success: true, redirectUrl: '/dashboard' });
   }
 
-  getAuthUrl(redirectUri: string): string {
-    return `https://my-idp.com/auth?redirect=${redirectUri}`;
+  async signOutMiddleware(req: Request, res: Response, next: NextFunction): Promise<Response> {
+    // Clear session, revoke tokens
+    return res.json({ success: true });
   }
 
-  async handleCallback(redirectUri: string, code: string): Promise<AuthResult> {
-    // Exchange code for tokens
+  async accessTokenMiddleware(req: Request, res: Response, next: NextFunction): Promise<Response> {
+    // Return user info or token
+    const payload = await this.introspectToken(req.headers.authorization);
+    return res.json(payload);
+  }
+
+  async introspectToken(token: string): Promise<Payload | null> {
+    // Validate JWT or call external IDP
     return {
-      accessToken: 'jwt-token',
-      refreshToken: 'refresh-token',
-      expiresIn: 3600,
+      userId: 'user123',
+      projectId: 'proj456', 
+      email: 'user@company.com',
+      roles: ['editor']
     };
   }
 
-  // Implement other methods...
-}
-```
+  async refreshToken(refreshToken: string): Promise<AuthResult> {
+    // Exchange refresh token for new access token
+    return { accessToken: 'new-jwt-token' };
+  }
 
-### Command Interfaces
+  async revokeToken(token: string): Promise<void> {
+    // Invalidate token
+  }
 
-Optional interfaces for user management commands:
+  async initialize(): Promise<void> {
+    // Setup external connections, validate config
+  }
 
-```typescript
-import {
-  IdpProviderAddUserCommand,
-  IdpProviderListUsersCommand,
-  IdpProviderRemoveUserCommand,
-} from '@owox/idp-protocol';
-
-class AdminIdpProvider implements IIdpProvider, IdpProviderAddUserCommand {
-  async addUser(username: string, password?: string): Promise<AddUserCommandResponse> {
-    // Add user to IDP
-    return { username, magicLink: 'https://...' };
+  async shutdown(): Promise<void> {
+    // Cleanup resources
   }
 }
 ```
 
-## TypeScript Support
-
-All types are fully typed with strict TypeScript support:
+### Advanced Middleware Configuration
 
 ```typescript
-// Import specific types
-import type { IIdpProvider, AuthResult, TokenPayload, IdpConfig } from '@owox/idp-protocol';
+import { IdpProtocolMiddleware, ProtocolRoute } from '@owox/idp-protocol';
 
-// Type-safe provider creation
-function createProvider(config: IdpConfig): IIdpProvider {
-  // Implementation
-}
+const middleware = new IdpProtocolMiddleware(provider, {
+  basePath: '/api/v1/auth',
+  routes: {
+    signIn: ProtocolRoute.SIGN_IN,      // '/sign-in'
+    signOut: ProtocolRoute.SIGN_OUT,    // '/sign-out'  
+    accessToken: '/me'                  // Custom route
+  }
+});
+
+// Results in:
+// ALL /api/v1/auth/sign-in
+// ALL /api/v1/auth/sign-out
+// ALL /api/v1/auth/me
 ```
 
 ## Error Handling
@@ -215,13 +260,39 @@ Use provided error classes for consistent error handling:
 ```typescript
 import { AuthenticationError, InvalidTokenError } from '@owox/idp-protocol';
 
-try {
-  const payload = await provider.verifyToken(token);
-} catch (error) {
-  if (error instanceof InvalidTokenError) {
-    // Handle invalid token
-  } else if (error instanceof AuthenticationError) {
-    // Handle auth failure
+class MyProvider implements IdpProvider {
+  async introspectToken(token: string): Promise<Payload | null> {
+    if (!token) {
+      throw new InvalidTokenError('Token is required');
+    }
+
+    try {
+      // Validate token
+      return payload;
+    } catch (error) {
+      throw new AuthenticationError('Token validation failed');
+    }
   }
 }
+```
+
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Build
+npm run build
+
+# Type checking
+npm run typecheck
+
+# Linting
+npm run lint
+npm run lint:fix
+
+# Formatting
+npm run format
+npm run format:check
 ```
