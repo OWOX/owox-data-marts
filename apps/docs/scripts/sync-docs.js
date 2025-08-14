@@ -289,11 +289,16 @@ function processGithubVideoLinks(fileContent) {
       .trim()
       .replace(/<!--.*?-->/g, '')
       .trim();
-    if (trimmedLine.startsWith('https://github.com/user-attachments/assets/')) {
+    if (
+      trimmedLine.startsWith('<https://github.com/user-attachments/assets/') ||
+      trimmedLine.startsWith('https://github.com/user-attachments/assets/')
+    ) {
+      // Extract clean URL by removing angle brackets if present
+      const cleanUrl = trimmedLine.replace(/^<|>$/g, '');
       return `<!-- markdownlint-disable-next-line MD033 MD034 -->
 <video controls playsinline muted style="max-width: 100%; height: auto;">
   <!-- markdownlint-disable-next-line MD033 MD034 -->
-  <source src="${trimmedLine}" type="video/mp4">
+  <source src="${cleanUrl}" type="video/mp4">
   Your browser does not support the video tag.
 </video>`;
     }
