@@ -31,10 +31,6 @@ var creativesFields = {
     'description': 'Unique ID for a creative (e.g.,SponsoredCreativeUrn). Read-only',
     'type': 'string'
   },
-  'inlineContent': {
-    'description': 'Inline content sponsored in the creative such as ugcPost in order to reduce the number of user calls.',
-    'type': 'object'
-  },
   'intendedStatus': {
     'description': 'Creative user intended status. The creative intended status is set independently from parent entity status, but parent entity status overrides creative intended status in effect. For example, parent entity status may be PAUSED while creative status is ACTIVE, in which case the creative\'s effective status is PAUSED, and not served.ACTIVE - Creative development is complete and the creative is available for review and can be served.',
     'type': 'string'
