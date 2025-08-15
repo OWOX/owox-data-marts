@@ -31,6 +31,9 @@ jobs:
       - name: Fix changelogs headings
         run: node tools/fix-changelog-headings.mjs
 
+      - name: Update package-lock.json
+        run: npm run clean:reinstall
+
       - name: Commit fixed changelogs
         run: |
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
