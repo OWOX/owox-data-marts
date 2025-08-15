@@ -15,7 +15,7 @@ import {
 import type { DataDestinationResponseDto } from '../../../../../data-destination/shared/services/types';
 import type { DataMartReport } from '../../model/types/data-mart-report';
 import { GoogleSheetsReportsTable } from '../../../list/components/GoogleSheetsReportsTable/GoogleSheetsReportsTable';
-import { LookerStudioReportsTable } from '../../../list/components/LookerStudioReportsTable/LookerStudioReportsTable';
+import { LookerStudioReportCard } from '../../../list/components/LookerStudioReportCard/LookerStudioReportCard';
 import { GoogleSheetsReportEditSheet } from '../../../edit/components/GoogleSheetsReportEditSheet';
 import { LookerStudioReportEditSheet } from '../../../edit/components/LookerStudioReportEditSheet';
 import { ReportFormMode } from '../../../shared';
@@ -113,7 +113,13 @@ export function DestinationCard({ destination, dataMartStatus }: DestinationCard
     if (destination.type === DataDestinationType.GOOGLE_SHEETS) {
       return <GoogleSheetsReportsTable destination={destination} onEditReport={handleEditReport} />;
     } else if (destination.type === DataDestinationType.LOOKER_STUDIO) {
-      return <LookerStudioReportsTable destination={destination} onEditReport={handleEditReport} />;
+      return (
+        <LookerStudioReportCard
+          destination={destination}
+          dataMartStatus={dataMartStatus}
+          onEditReport={handleEditReport}
+        />
+      );
     }
     return null;
   };
