@@ -1,7 +1,6 @@
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 import { forwardRef, useEffect, useState } from 'react';
-import { Input } from '@owox/ui/components/input';
-import { useAutoFocus } from '../../../../../../hooks/useAutoFocus.ts';
+
 import {
   type DataMartReport,
   isLookerStudioDestinationConfig,
@@ -27,18 +26,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@owox/ui/components/select';
+import { useOutletContext } from 'react-router-dom';
+import type { DataMartContextType } from '../../../../edit/model/context/types.ts';
 import {
-  type DataDestination,
-  DataDestinationType,
-  DataDestinationTypeModel,
   generateLookerStudioJsonConfig,
   useDataDestination,
   isLookerStudioDataDestination,
+  type DataDestination,
+  DataDestinationType,
 } from '../../../../../data-destination';
-import { Link, useOutletContext } from 'react-router-dom';
-import type { DataMartContextType } from '../../../../edit/model/context/types.ts';
-import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
-import { AlertCircle } from 'lucide-react';
 import { CopyToClipboardButton } from '@owox/ui/components/common/copy-to-clipboard-button';
 import { ReportFormMode } from '../../../shared';
 import { Button } from '@owox/ui/components/button';
@@ -89,15 +85,10 @@ export const LookerStudioReportEditForm = forwardRef<
     ref
   ) => {
     const formId = 'looker-studio-edit-form';
-    const titleInputId = 'looker-studio-title-input';
-    const dataDestinationSelectId = 'looker-studio-data-destination-select';
 
     const { dataMart } = useOutletContext<DataMartContextType>();
-    const {
-      dataDestinations,
-      fetchDataDestinations,
-      loading: loadingDestinations,
-    } = useDataDestination();
+
+    const { dataDestinations, fetchDataDestinations } = useDataDestination();
     const [filteredDestinations, setFilteredDestinations] = useState<DataDestination[]>([]);
 
     useEffect(() => {
@@ -114,8 +105,6 @@ export const LookerStudioReportEditForm = forwardRef<
         setFilteredDestinations(lookerStudioDestinations);
       }
     }, [dataDestinations]);
-
-    useAutoFocus({ elementId: titleInputId, isOpen: true, delay: 150 });
 
     const {
       isDirty,
@@ -146,16 +135,13 @@ export const LookerStudioReportEditForm = forwardRef<
         isLookerStudioDestinationConfig(initialReport.destinationConfig)
       ) {
         reset({
-          title: initialReport.title,
-          dataDestinationId: initialReport.dataDestination.id,
           cacheLifetime: initialReport.destinationConfig.cacheLifetime,
         });
       } else if (mode === ReportFormMode.CREATE) {
         // Pre-select destination if provided
-        const destinationId = preSelectedDestination?.id ?? '';
-        reset({ title: '', dataDestinationId: destinationId, cacheLifetime: 300 });
+        reset({ cacheLifetime: 300 });
       }
-    }, [initialReport, mode, reset, filteredDestinations, preSelectedDestination]);
+    }, [initialReport, mode, reset]);
 
     useEffect(() => {
       onDirtyChange?.(isDirty);
@@ -170,146 +156,50 @@ export const LookerStudioReportEditForm = forwardRef<
           onSubmit={e => void form.handleSubmit(handleFormSubmit)(e)}
         >
           <FormLayout>
-            <FormSection title='General'>
-              <FormField
-                control={form.control}
-                name='title'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel tooltip='Add a title that reflects the report`s purpose'>
-                      Title
-                    </FormLabel>
-                    <FormControl>
-                      <Input id={titleInputId} placeholder='Enter a report title' {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name='dataDestinationId'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel tooltip='Select one of your existing destinations'>
-                      Destination
-                    </FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      value={field.value}
-                      disabled={loadingDestinations || filteredDestinations.length === 0}
-                    >
-                      <FormControl>
-                        <SelectTrigger
-                          id={dataDestinationSelectId}
-                          className='w-full max-w-full overflow-hidden'
-                        >
-                          <SelectValue className='truncate' placeholder='Select a destination'>
-                            {field.value &&
-                              filteredDestinations.length > 0 &&
-                              (() => {
-                                const selectedDestination = filteredDestinations.find(
-                                  destination => destination.id === field.value
-                                );
-                                if (selectedDestination) {
-                                  const typeInfo = DataDestinationTypeModel.getInfo(
-                                    selectedDestination.type
-                                  );
-                                  const IconComponent = typeInfo.icon;
-                                  return (
-                                    <div className='flex w-full min-w-0 items-center gap-2'>
-                                      <IconComponent className='flex-shrink-0' size={18} />
-                                      <div className='flex min-w-0 flex-col'>
-                                        <span className='truncate'>
-                                          {selectedDestination.title}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  );
-                                }
-                                return null;
-                              })()}
-                          </SelectValue>
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {filteredDestinations.map(destination => {
-                          const typeInfo = DataDestinationTypeModel.getInfo(destination.type);
-                          const IconComponent = typeInfo.icon;
-                          return (
-                            <SelectItem key={destination.id} value={destination.id}>
-                              <div className='flex w-full min-w-0 items-center gap-2'>
-                                <IconComponent className='flex-shrink-0' size={18} />
-                                <div className='flex min-w-0 flex-col'>
-                                  <span className='truncate'>{destination.title}</span>
-                                </div>
-                              </div>
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                    {filteredDestinations.length === 0 && !loadingDestinations && (
-                      <Alert>
-                        <AlertCircle className='h-4 w-4' />
-                        <AlertTitle>No Looker Studio destinations available</AlertTitle>
-                        <AlertDescription>
-                          You need to create a Looker Studio Destination before you can create a
-                          report.
-                          <Link
-                            to='/data-destinations'
-                            className='font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300'
-                          >
-                            Go to Destinations
-                          </Link>
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                    <FormMessage />
-                    {field.value &&
-                      (() => {
-                        const selectedDestination = filteredDestinations.find(
-                          destination => destination.id === field.value
-                        );
+            {/* Connection Information - Show JSON config for the existing destination */}
 
-                        if (
-                          selectedDestination &&
-                          isLookerStudioDataDestination(selectedDestination)
-                        ) {
-                          const jsonConfig = generateLookerStudioJsonConfig(
-                            selectedDestination.credentials
-                          );
-                          return (
-                            <div className='mt-2 flex flex-col gap-1'>
-                              <FormLabel>Connect to Looker Studio</FormLabel>
-                              <FormDescription>
-                                Copy this JSON configuration from here and paste it into the{' '}
-                                <ExternalAnchor
-                                  className='underline'
-                                  href='https://datastudio.google.com/datasources/create?connectorId=AKfycbz6kcYn3qGuG0jVNFjcDnkXvVDiz4hewKdAFjOm-_d4VkKVcBidPjqZO991AvGL3FtM4A'
-                                >
-                                  Looker Studio connector
-                                </ExternalAnchor>{' '}
-                                settings to enable data fetching.
-                              </FormDescription>
-                              <CopyToClipboardButton
-                                content={jsonConfig}
-                                buttonText='Copy JSON Config'
-                                className='my-2 w-full'
-                                size='sm'
-                              />
-                              <FormDescription>
-                                <LookerStudioJsonConfigDescription />
-                              </FormDescription>
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()}
-                  </FormItem>
-                )}
-              />
-            </FormSection>
+            {/* Display JSON config for the existing destination */}
+            {initialReport?.dataDestination &&
+              (() => {
+                // Get the destination from filtered destinations to get the right credentials
+                const selectedDestination = filteredDestinations.find(
+                  destination => destination.id === initialReport.dataDestination.id
+                );
+
+                if (selectedDestination && isLookerStudioDataDestination(selectedDestination)) {
+                  const jsonConfig = generateLookerStudioJsonConfig(
+                    selectedDestination.credentials
+                  );
+                  return (
+                    <FormSection title='JSON configuration'>
+                      <FormItem>
+                        <FormLabel>Connect to Looker Studio</FormLabel>
+                        <FormDescription>
+                          Copy this JSON configuration from here and paste it into the{' '}
+                          <ExternalAnchor
+                            className='underline'
+                            href='https://datastudio.google.com/datasources/create?connectorId=AKfycbz6kcYn3qGuG0jVNFjcDnkXvVDiz4hewKdAFjOm-_d4VkKVcBidPjqZO991AvGL3FtM4A'
+                          >
+                            Looker Studio connector
+                          </ExternalAnchor>{' '}
+                          settings to enable data fetching.
+                        </FormDescription>
+                        <CopyToClipboardButton
+                          content={jsonConfig}
+                          buttonText='Copy JSON Config'
+                          className='my-2 w-full'
+                          size='sm'
+                        />
+                        <FormDescription>
+                          <LookerStudioJsonConfigDescription />
+                        </FormDescription>
+                      </FormItem>
+                    </FormSection>
+                  );
+                }
+                return null;
+              })()}
+
             <FormSection title='Cache Configuration'>
               <FormField
                 control={form.control}
