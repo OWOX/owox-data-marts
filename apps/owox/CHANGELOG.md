@@ -1,5 +1,82 @@
 # owox
 
+## 0.5.0
+
+### Minor Changes
+
+- d129eb0: # Triggers and reports columns available in the Data Marts list
+  - Added columns for the number of triggers and reports to the Data Marts list
+
+- 2f2d4bf: # Add manual backfill functionality for data mart connectors
+  - Added support for manual connector runs with custom payload parameters
+
+- 0f590bb: # Connector Target step: editable dataset/database and table
+  - Added editable dataset/database and table fields with sensible defaults
+  - Defaults come from sanitized destination name: dataset/database `${sanitizedDestinationName}_owox`, table `${sanitizedDestinationName}`
+  - Inline validation: required, `^[A-Za-z][A-Za-z0-9_]\*# owox, accessible error state
+  - Helper text shows full path: `{dataset}.{table}`
+
+- db3a03a: # Show Individual Destination Cards in Destination Tab
+
+  The Destination tab now displays a separate card for each specific destination in the project.
+  Each card shows only the reports belonging to that destination, making it easier to find and manage reports at a glance.
+
+- 863ad3e: # Enhanced Output Schema Formatting
+
+  The Output Schema has received a major upgrade to improve control over data readability in Destinations.
+  - Added support for column header descriptions as cell notes in the Google Sheets Destination, so you can define metrics everyone is aligned on
+  - Implemented automatic formatting for BigQuery and Athena timestamp fields
+  - Introduced the ability to control the order of fields delivered from Data Mart to Destination via simple drag & drop in the Output Schema
+
+- b6cdb5a: # TypeORM Entity Migration Mechanism
+  - Introduced an automatic migration system for TypeORM entities.
+  - Ensures database schema stays up-to-date with entity definitions.
+  - Runs migrations automatically on application startup—no manual steps required.
+  - Prevents data loss and supports seamless schema evolution.
+
+- 66a6c38: # Improving credentials management security for Data Storage and Data Destination
+  - API no longer returns credential secrets to the UI.
+  - Credential secrets are no longer displayed in the UI.
+  - Credentials are only updated if explicitly changed.
+  - Added a link to manage Google Cloud Platform service accounts.
+
+- 6f772ee: # Added Looker Studio Connector support
+  - Added Looker Studio as a new data destination type
+  - Implemented external API endpoints for Looker Studio integration
+  - Added JWT-based authentication for Google service accounts
+  - Enabled direct connection from data marts to Looker Studio dashboards
+  - Added data caching system for improved performance
+  - Connector available at: <https://datastudio.google.com/datasources/create?connectorId=AKfycbz6kcYn3qGuG0jVNFjcDnkXvVDiz4hewKdAFjOm-_d4VkKVcBidPjqZO991AvGL3FtM4A>
+  - **Note**: OWOX Data Marts installation must be accessible from the internet for the connector to work properly
+
+- f351f63: # Hover Cards in Triggers List — Now Smarter and More Visual
+
+  The Triggers list just got a big usability boost!
+  Hover over any Report Run or Connector Run to instantly see key details — no extra clicks needed.
+  - For Reports: name, last edit, run history, and 1-click access to Google Sheets.
+  - For Connectors: source name, field count, run history, and direct Google BigQuery or AWS Athena link.
+
+  Check status, spot issues, and jump to your data faster than ever — all right from the Triggers list.
+
+- db0732e: # Connector-Based Data Mart UX improvements
+  - Used connector-based data mart for data mart setup right destination name in `Target Setup` step.
+  - Added in connector-based data mart inline validation for target dataset/database name in `Target Setup` step with accessible error state.
+  - Enabled double-click on a connector card to select and advance to the next step.
+  - Added field sorting controls in `Fields Selection` step:
+    - A–Z, Z–A, and Original order
+    - Unique key fields always appear at the top across all sorting modes
+  - Minor UI polish: sort icon with dropdown next to search input; helpful link to open an issue from fields step.
+  - Added helpful link to open an issue from nodes step.
+
+- 229c7a1: # Updated connector configuration step
+  - Added type to date fields.
+  - Moved field descriptions to tooltips.
+  - Used field labels as titles instead of field names.
+
+### Patch Changes
+
+- @owox/backend@0.5.0
+
 ## 0.4.0
 
 ### Minor Changes 0.4.0
@@ -81,11 +158,9 @@
   - Polished the dropdown menu on the Data Mart page
 
   Redesigned "Create Data Mart" Page
-
   - The form on the Create Data Mart page has been updated for visual consistency and a better user experience.
 
   Extra Visual and Text Tweaks
-
   - We’ve also made a few small improvements to the UI and copy to make everything feel more polished and cohesive.
 
 ### Patch Changes 0.4.0
@@ -103,7 +178,6 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
-
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -111,7 +185,6 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
-
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
