@@ -1,19 +1,22 @@
 import { type ColumnDef } from '@tanstack/react-table';
-import { SortableHeader } from '../components/SortableHeader.tsx';
-import type { DataMartListItem } from '../../../model/types/index.ts';
-import { type DataMartStatusInfo, getDataMartStatusType } from '../../../../shared/index.ts';
 import { StatusLabel } from '../../../../../../shared/components/StatusLabel/index.ts';
+import { RawBase64Icon } from '../../../../../../shared/icons';
+import type { ConnectorListItem } from '../../../../../connectors/shared/model/types/connector';
 import { DataStorageType } from '../../../../../data-storage/index.ts';
 import { DataStorageTypeModel } from '../../../../../data-storage/shared/types/data-storage-type.model.ts';
-import { DataMartActionsCell } from '../components/DataMartActionsCell.tsx';
-import { ToggleColumnsHeader } from '../components/ToggleColumnsHeader.tsx';
-import { DataMartDefinitionType } from '../../../../shared/index.ts';
+import type { ConnectorDefinitionConfig } from '../../../../edit/model/types/connector-definition-config.ts';
+import {
+  DataMartDefinitionType,
+  type DataMartStatusInfo,
+  getDataMartStatusType,
+} from '../../../../shared/index.ts';
 import { DataMartDefinitionTypeModel } from '../../../../shared/types/data-mart-definition-type.model.ts';
+import type { DataMartListItem } from '../../../model/types/index.ts';
+import { DataMartActionsCell } from '../components/DataMartActionsCell.tsx';
+import { SortableHeader } from '../components/SortableHeader.tsx';
+import { ToggleColumnsHeader } from '../components/ToggleColumnsHeader.tsx';
 import { DataMartColumnKey } from './columnKeys.ts';
 import { dataMartColumnLabels } from './columnLabels.ts';
-import type { ConnectorDefinitionConfig } from '../../../../edit/model/types/connector-definition-config.ts';
-import type { ConnectorListItem } from '../../../../../connectors/shared/model/types/connector';
-import { RawBase64Icon } from '../../../../../../shared/icons';
 
 interface DataMartTableColumnsProps {
   onDeleteSuccess?: () => void;
@@ -35,7 +38,18 @@ export const getDataMartColumns = ({
     cell: ({ row }) => <div>{row.getValue('title')}</div>,
   },
   {
-    accessorKey: DataMartColumnKey.DEFINITION_TYPE,
+    accessorFn: row => {
+      const type = row.definitionType;
+      if (type === DataMartDefinitionType.CONNECTOR) {
+        const definition = row.definition as ConnectorDefinitionConfig;
+        const connector = connectors.find(c => c.name === definition.connector.source.name);
+        return connector?.displayName ?? connector?.name ?? 'Unknown';
+      } else {
+        const { displayName } = DataMartDefinitionTypeModel.getInfo(type);
+        return displayName;
+      }
+    },
+    id: DataMartColumnKey.DEFINITION_TYPE,
     size: 15, // responsive width in %
     header: ({ column }) => (
       <SortableHeader column={column}>
@@ -43,7 +57,7 @@ export const getDataMartColumns = ({
       </SortableHeader>
     ),
     cell: ({ row }) => {
-      const type = row.getValue<DataMartDefinitionType>('definitionType');
+      const type = row.original.definitionType;
       switch (type) {
         case DataMartDefinitionType.CONNECTOR: {
           const definition = row.original.definition as ConnectorDefinitionConfig;

@@ -1,18 +1,16 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
 import {
   type ColumnDef,
+  type ColumnFiltersState,
   flexRender,
   getCoreRowModel,
-  useReactTable,
-  getPaginationRowModel,
-  type SortingState,
-  getSortedRowModel,
-  type ColumnFiltersState,
   getFilteredRowModel,
-  type VisibilityState,
+  getPaginationRowModel,
+  getSortedRowModel,
   type RowSelectionState,
+  useReactTable,
 } from '@tanstack/react-table';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 
 import {
   Table,
@@ -23,8 +21,6 @@ import {
   TableRow,
 } from '@owox/ui/components/table';
 
-import { Button } from '@owox/ui/components/button';
-import { Input } from '@owox/ui/components/input';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,10 +31,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@owox/ui/components/alert-dialog';
-import { Check, Search, Trash2, Plus } from 'lucide-react';
+import { Button } from '@owox/ui/components/button';
+import { Input } from '@owox/ui/components/input';
+import { Check, Plus, Search, Trash2 } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
-import { EmptyDataMartsState } from './components/EmptyDataMartsState';
+import { useTableStorage } from '../../../../../hooks/useTableStorage';
 import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
+import { EmptyDataMartsState } from './components/EmptyDataMartsState';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -56,12 +55,17 @@ export function DataMartTable<TData, TValue>({
   isLoading,
 }: DataTableProps<TData, TValue>) {
   const navigate = useNavigate();
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'title', desc: false }]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
-    triggersCount: false,
-    reportsCount: false,
+
+  const { sorting, setSorting, columnVisibility, setColumnVisibility } = useTableStorage({
+    columns,
+    storageKeyPrefix: 'data-mart-list',
+    defaultColumnVisibility: {
+      triggersCount: false,
+      reportsCount: false,
+    },
   });
+
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -207,7 +211,7 @@ export function DataMartTable<TData, TValue>({
             <Search className='dm-card-toolbar-search-icon' />
             <Input
               placeholder='Search by title'
-              value={table.getColumn('title')?.getFilterValue() as string}
+              value={(table.getColumn('title')?.getFilterValue() as string | undefined) ?? ''}
               onChange={event => table.getColumn('title')?.setFilterValue(event.target.value)}
               className='dm-card-toolbar-search-input'
             />

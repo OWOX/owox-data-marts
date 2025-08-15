@@ -1,6 +1,3 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
-import { useEditModal, useTableFilter, useColumnVisibility } from '../../model/hooks';
-import { getLookerStudioColumns, getAlignClass, type Align } from '../columns';
 import {
   Table,
   TableBody,
@@ -10,27 +7,29 @@ import {
   TableRow,
 } from '@owox/ui/components/table';
 import {
-  useReactTable,
   getCoreRowModel,
+  getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
-  getFilteredRowModel,
-  type SortingState,
+  useReactTable,
   type ColumnDef,
 } from '@tanstack/react-table';
-import { LookerStudioReportEditSheet } from '../../../edit';
-import { TableToolbar } from '../TableToolbar';
-import { TablePagination } from '../TablePagination';
-import type { DataMartReport } from '../../../shared/model/types/data-mart-report.ts';
-import { useReport } from '../../../shared';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import type { DataMartContextType } from '../../../../edit/model/context/types.ts';
+import { useTableStorage } from '../../../../../../hooks/useTableStorage';
 import { DataDestinationType } from '../../../../../data-destination';
+import type { DataMartContextType } from '../../../../edit/model/context/types.ts';
+import { LookerStudioReportEditSheet } from '../../../edit';
+import { useReport } from '../../../shared';
+import type { DataMartReport } from '../../../shared/model/types/data-mart-report.ts';
+import { useEditModal, useTableFilter } from '../../model/hooks';
+import { getAlignClass, getLookerStudioColumns, type Align } from '../columns';
+import { TablePagination } from '../TablePagination';
+import { TableToolbar } from '../TableToolbar';
 
 export function LookerStudioReportsTable() {
   const { dataMart } = useOutletContext<DataMartContextType>();
   const { fetchReportsByDataMartId, reports } = useReport();
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'lastRunDate', desc: true }]);
   const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
   const { editOpen, handleAddReport, editMode, handleEditRow, handleCloseEditForm, getEditReport } =
     useEditModal();
@@ -69,7 +68,11 @@ export function LookerStudioReportsTable() {
     [handleEditRow]
   );
 
-  const { columnVisibility, setColumnVisibility } = useColumnVisibility(columns);
+  const { sorting, setSorting, columnVisibility, setColumnVisibility } = useTableStorage({
+    columns,
+    storageKeyPrefix: 'data-mart-looker-studio-reports',
+    defaultSortingColumn: 'lastRunDate',
+  });
 
   const table = useReactTable<DataMartReport>({
     data: lookerStudioReports,

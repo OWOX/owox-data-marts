@@ -1,13 +1,3 @@
-import { useState, useCallback, useMemo } from 'react';
-import {
-  useReactTable,
-  getCoreRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  getFilteredRowModel,
-  type SortingState,
-} from '@tanstack/react-table';
-import { useColumnVisibility } from '../../hooks';
 import {
   Table,
   TableBody,
@@ -16,12 +6,21 @@ import {
   TableHeader,
   TableRow,
 } from '@owox/ui/components/table';
-import { getScheduledTriggerColumns } from './columns';
-import { TableToolbar } from './TableToolbar';
-import { TablePagination } from './TablePagination';
-import { useTableFilter } from './hooks/useTableFilter';
+import {
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from '@tanstack/react-table';
+import { useCallback, useMemo, useState } from 'react';
+import { useTableStorage } from '../../../../../hooks/useTableStorage';
 import type { ScheduledTrigger } from '../../model/scheduled-trigger.model';
 import { ScheduledTriggerFormSheet } from '../ScheduledTriggerFormSheet/ScheduledTriggerFormSheet';
+import { getScheduledTriggerColumns } from './columns';
+import { useTableFilter } from './hooks/useTableFilter';
+import { TablePagination } from './TablePagination';
+import { TableToolbar } from './TableToolbar';
 
 interface ScheduledTriggerTableProps {
   triggers: ScheduledTrigger[];
@@ -36,7 +35,6 @@ export function ScheduledTriggerTable({
   onEditTrigger,
   onDeleteTrigger,
 }: ScheduledTriggerTableProps) {
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'type', desc: false }]);
   const [isFormSheetOpen, setIsFormSheetOpen] = useState(false);
 
   const handleOpenFormSheet = useCallback(() => {
@@ -63,7 +61,11 @@ export function ScheduledTriggerTable({
     [onEditTrigger, handleDeleteClick]
   );
 
-  const { columnVisibility, setColumnVisibility } = useColumnVisibility(columns);
+  const { sorting, setSorting, columnVisibility, setColumnVisibility } = useTableStorage({
+    columns,
+    storageKeyPrefix: 'data-mart-scheduled-triggers',
+    defaultSortingColumn: 'type',
+  });
 
   const table = useReactTable<ScheduledTrigger>({
     data: triggers,

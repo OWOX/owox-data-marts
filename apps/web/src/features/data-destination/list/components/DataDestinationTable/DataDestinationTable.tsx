@@ -1,17 +1,15 @@
-import { useState } from 'react';
 import {
   type ColumnDef,
+  type ColumnFiltersState,
   flexRender,
   getCoreRowModel,
-  useReactTable,
-  getPaginationRowModel,
-  type SortingState,
-  getSortedRowModel,
-  type ColumnFiltersState,
   getFilteredRowModel,
-  type VisibilityState,
+  getPaginationRowModel,
+  getSortedRowModel,
   type RowSelectionState,
+  useReactTable,
 } from '@tanstack/react-table';
+import { useState } from 'react';
 
 import {
   Table,
@@ -25,9 +23,10 @@ import {
 import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
 import { Plus, Search } from 'lucide-react';
+import { useTableStorage } from '../../../../../hooks/useTableStorage';
 import { EmptyDataDestinationsState } from './EmptyDataDestinationsState';
 
-interface DataDestinationTableProps<TData, TValue> {
+interface DataDestinationTableProps<TData extends { id: string }, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   onViewDetails?: (id: string) => void;
@@ -37,15 +36,18 @@ interface DataDestinationTableProps<TData, TValue> {
   onOpenTypeDialog?: () => void;
 }
 
-export function DataDestinationTable<TData, TValue>({
+export function DataDestinationTable<TData extends { id: string }, TValue>({
   columns,
   data,
   onEdit,
   onOpenTypeDialog,
 }: DataDestinationTableProps<TData, TValue>) {
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'createdAt', desc: false }]);
+  const { sorting, setSorting, columnVisibility, setColumnVisibility } = useTableStorage({
+    columns,
+    storageKeyPrefix: 'data-destination-list',
+  });
+
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const table = useReactTable({
@@ -101,7 +103,7 @@ export function DataDestinationTable<TData, TValue>({
               <Search className='dm-card-toolbar-search-icon' />
               <Input
                 placeholder='Search by title'
-                value={table.getColumn('title')?.getFilterValue() as string}
+                value={(table.getColumn('title')?.getFilterValue() as string | undefined) ?? ''}
                 onChange={event => table.getColumn('title')?.setFilterValue(event.target.value)}
                 className='dm-card-toolbar-search-input'
               />
@@ -158,7 +160,7 @@ export function DataDestinationTable<TData, TValue>({
                     data-state={row.getIsSelected() && 'selected'}
                     className='dm-card-table-body-row group'
                     onClick={e => {
-                      const id = (row.original as { id: string }).id;
+                      const id = row.original.id;
                       handleRowClick(id, e);
                     }}
                   >
