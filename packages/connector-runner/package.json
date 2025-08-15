@@ -33,7 +33,7 @@
     "prepublishOnly": "npm run lint"
   },
   "dependencies": {
-    "@owox/connectors": "0.4.0",
+    "@owox/connectors": "*",
     "cross-spawn": "^7.0.6",
     "env-paths": "^3.0.0"
   },

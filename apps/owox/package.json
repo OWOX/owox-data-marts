@@ -13,7 +13,7 @@
     "@oclif/core": "^4",
     "@oclif/plugin-help": "^6",
     "@oclif/plugin-plugins": "^5",
-    "@owox/backend": "^0.5.0-next",
+    "@owox/backend": "*",
     "find-process": "^1.4.10"
   },
   "peerDependencies": {
