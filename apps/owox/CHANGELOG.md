@@ -2,7 +2,7 @@
 
 ## 0.5.0
 
-### Minor Changes
+### Minor Changes 0.5.0
 
 - d129eb0: # Triggers and reports columns available in the Data Marts list
   - Added columns for the number of triggers and reports to the Data Marts list
@@ -73,7 +73,7 @@
   - Moved field descriptions to tooltips.
   - Used field labels as titles instead of field names.
 
-### Patch Changes
+### Patch Changes 0.5.0
 
 - @owox/backend@0.5.0
 
