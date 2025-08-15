@@ -1,5 +1,5 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
-import { useEditModal, useTableFilter, useColumnVisibility } from '../../model/hooks';
+import { useEffect, useState, useMemo } from 'react';
+import { useEditModal, useColumnVisibility } from '../../model/hooks';
 import { getLookerStudioColumns, getAlignClass, type Align } from '../columns';
 import {
   Table,
@@ -12,35 +12,40 @@ import {
 import {
   useReactTable,
   getCoreRowModel,
-  getPaginationRowModel,
   getSortedRowModel,
-  getFilteredRowModel,
   type SortingState,
   type ColumnDef,
 } from '@tanstack/react-table';
 import { LookerStudioReportEditSheet } from '../../../edit';
-import { TableToolbar } from '../TableToolbar';
-import { TablePagination } from '../TablePagination';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report.ts';
 import { useReport } from '../../../shared';
 import { useOutletContext } from 'react-router-dom';
 import type { DataMartContextType } from '../../../../edit/model/context/types.ts';
 import { DataDestinationType } from '../../../../../data-destination';
+import type { DataDestinationResponseDto } from '../../../../../data-destination/shared/services/types';
 
-export function LookerStudioReportsTable() {
+interface LookerStudioReportsTableProps {
+  destination: DataDestinationResponseDto;
+  onEditReport: (report: DataMartReport) => void;
+}
+
+export function LookerStudioReportsTable({
+  destination,
+  onEditReport,
+}: LookerStudioReportsTableProps) {
   const { dataMart } = useOutletContext<DataMartContextType>();
   const { fetchReportsByDataMartId, reports } = useReport();
   const [sorting, setSorting] = useState<SortingState>([{ id: 'lastRunDate', desc: true }]);
-  const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
-  const { editOpen, handleAddReport, editMode, handleEditRow, handleCloseEditForm, getEditReport } =
-    useEditModal();
+  const { editOpen, editMode, handleCloseEditForm, getEditReport } = useEditModal();
 
   // Filter reports to only show Looker Studio reports
   const lookerStudioReports = useMemo(() => {
     return reports.filter(
-      report => report.dataDestination.type === DataDestinationType.LOOKER_STUDIO
+      report =>
+        report.dataDestination.type === DataDestinationType.LOOKER_STUDIO &&
+        report.dataDestination.id === destination.id
     );
-  }, [reports]);
+  }, [reports, destination.id]);
 
   const editReport = getEditReport(lookerStudioReports);
 
@@ -64,9 +69,11 @@ export function LookerStudioReportsTable() {
         onDeleteSuccess: () => {
           return;
         },
-        onEditReport: handleEditRow,
+        onEditReport: (report: DataMartReport) => {
+          onEditReport(report);
+        },
       }),
-    [handleEditRow]
+    [onEditReport]
   );
 
   const { columnVisibility, setColumnVisibility } = useColumnVisibility(columns);
@@ -75,49 +82,23 @@ export function LookerStudioReportsTable() {
     data: lookerStudioReports,
     columns: columns as ColumnDef<DataMartReport>[],
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
     state: { sorting, columnVisibility },
-    getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
   });
 
-  // Table filter hook
-  const { value: filterValue, onChange: handleFilterChange } = useTableFilter(table);
-
-  const handlePreviousClick = useCallback(() => {
-    table.previousPage();
-  }, [table]);
-
-  const handleNextClick = useCallback(() => {
-    table.nextPage();
-  }, [table]);
-
   // Generate unique IDs for accessibility
-  const searchInputId = 'looker-studio-search-input';
-  const columnsMenuId = 'looker-studio-columns-menu';
-  const tableId = 'looker-studio-reports-table';
+  const tableId = `looker-studio-reports-table-${destination.id}`;
 
   return (
     <div className='w-full'>
-      <TableToolbar
-        table={table}
-        searchInputId={searchInputId}
-        columnsMenuId={columnsMenuId}
-        columnsMenuOpen={columnsMenuOpen}
-        setColumnsMenuOpen={setColumnsMenuOpen}
-        onAddReport={handleAddReport}
-        filterValue={filterValue}
-        onFilterChange={handleFilterChange}
-        dataMartStatus={dataMart?.status}
-      />
       <div className='dm-card-table-wrap'>
         <Table
           id={tableId}
           className='dm-card-table'
           role='table'
-          aria-label='Looker Studio reports'
+          aria-label={`${destination.title} reports`}
         >
           <TableHeader className='dm-card-table-header'>
             {table.getHeaderGroups().map(headerGroup => {
@@ -133,7 +114,7 @@ export function LookerStudioReportsTable() {
                         style={
                           header.column.id === 'actions'
                             ? { width: 80, minWidth: 80, maxWidth: 80 }
-                            : { width: `${String(header.getSize())}%` }
+                            : { width: `${String(header.column.getSize())}%` }
                         }
                         scope='col'
                       >
@@ -156,7 +137,10 @@ export function LookerStudioReportsTable() {
                   <TableRow
                     key={row.id}
                     onClick={() => {
-                      handleEditRow(row.original.id);
+                      const report = reports.find(r => r.id === row.original.id);
+                      if (report) {
+                        onEditReport(report);
+                      }
                     }}
                     className='dm-card-table-body-row group'
                     role='row'
@@ -192,7 +176,7 @@ export function LookerStudioReportsTable() {
                   role='cell'
                 >
                   <span role='status' aria-live='polite'>
-                    No results
+                    No reports for this destination
                   </span>
                 </TableCell>
               </TableRow>
@@ -200,11 +184,6 @@ export function LookerStudioReportsTable() {
           </TableBody>
         </Table>
       </div>
-      <TablePagination
-        table={table}
-        onPreviousClick={handlePreviousClick}
-        onNextClick={handleNextClick}
-      />
       <LookerStudioReportEditSheet
         isOpen={editOpen}
         onClose={handleCloseEditForm}

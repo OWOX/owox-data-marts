@@ -44,6 +44,7 @@ import { ReportFormMode } from '../../../shared';
 import { Button } from '@owox/ui/components/button';
 import LookerStudioJsonConfigDescription from '../../../../../data-destination/edit/components/DataDestinationEditForm/FormDescriptions/LookerStudioJsonConfigDescription.tsx';
 import LookerStudioCacheLifetimeDescription from './LookerStudioCacheLifetimeDescription.tsx';
+import type { DataDestinationResponseDto } from '../../../../../data-destination/shared/services/types';
 
 interface LookerStudioReportEditFormProps {
   initialReport?: DataMartReport;
@@ -53,6 +54,7 @@ interface LookerStudioReportEditFormProps {
   onFormErrorChange?: (error: string | null) => void;
   onSubmit?: () => void;
   onCancel?: () => void;
+  preSelectedDestination?: DataDestinationResponseDto | null;
 }
 
 // Cache time options in seconds
@@ -82,6 +84,7 @@ export const LookerStudioReportEditForm = forwardRef<
       onFormErrorChange,
       onSubmit,
       onCancel,
+      preSelectedDestination,
     },
     ref
   ) => {
@@ -127,6 +130,7 @@ export const LookerStudioReportEditForm = forwardRef<
       onSuccess: () => {
         onSubmit?.();
       },
+      preSelectedDestination,
     });
 
     useEffect(() => {
@@ -147,9 +151,11 @@ export const LookerStudioReportEditForm = forwardRef<
           cacheLifetime: initialReport.destinationConfig.cacheLifetime,
         });
       } else if (mode === ReportFormMode.CREATE) {
-        reset({ title: '', dataDestinationId: '', cacheLifetime: 300 });
+        // Pre-select destination if provided
+        const destinationId = preSelectedDestination?.id ?? '';
+        reset({ title: '', dataDestinationId: destinationId, cacheLifetime: 300 });
       }
-    }, [initialReport, mode, reset, filteredDestinations]);
+    }, [initialReport, mode, reset, filteredDestinations, preSelectedDestination]);
 
     useEffect(() => {
       onDirtyChange?.(isDirty);
@@ -174,7 +180,7 @@ export const LookerStudioReportEditForm = forwardRef<
                       Title
                     </FormLabel>
                     <FormControl>
-                      <Input id={titleInputId} placeholder='Report title' {...field} />
+                      <Input id={titleInputId} placeholder='Enter a report title' {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -212,7 +218,7 @@ export const LookerStudioReportEditForm = forwardRef<
                                   const IconComponent = typeInfo.icon;
                                   return (
                                     <div className='flex w-full min-w-0 items-center gap-2'>
-                                      <IconComponent className='h-4 w-4 flex-shrink-0' />
+                                      <IconComponent className='flex-shrink-0' size={18} />
                                       <div className='flex min-w-0 flex-col'>
                                         <span className='truncate'>
                                           {selectedDestination.title}
@@ -233,7 +239,7 @@ export const LookerStudioReportEditForm = forwardRef<
                           return (
                             <SelectItem key={destination.id} value={destination.id}>
                               <div className='flex w-full min-w-0 items-center gap-2'>
-                                <IconComponent className='h-4 w-4 flex-shrink-0' />
+                                <IconComponent className='flex-shrink-0' size={18} />
                                 <div className='flex min-w-0 flex-col'>
                                   <span className='truncate'>{destination.title}</span>
                                 </div>
@@ -244,7 +250,7 @@ export const LookerStudioReportEditForm = forwardRef<
                       </SelectContent>
                     </Select>
                     {filteredDestinations.length === 0 && !loadingDestinations && (
-                      <Alert className='mt-2'>
+                      <Alert>
                         <AlertCircle className='h-4 w-4' />
                         <AlertTitle>No Looker Studio destinations available</AlertTitle>
                         <AlertDescription>
@@ -275,7 +281,8 @@ export const LookerStudioReportEditForm = forwardRef<
                           );
                           return (
                             <>
-                              <FormDescription className='mt-2'>
+                              <FormLabel className='mt-2'>JSON Configuration</FormLabel>
+                              <FormDescription className='mb-1'>
                                 To connect to Looker Studio, you need to copy the JSON configuration
                                 and use it in the
                                 <ExternalAnchor
@@ -285,13 +292,13 @@ export const LookerStudioReportEditForm = forwardRef<
                                   Looker Studio connector
                                 </ExternalAnchor>
                               </FormDescription>
-                              <div className='mt-2 flex items-center'>
-                                <CopyToClipboardButton
-                                  content={jsonConfig}
-                                  buttonText='Copy JSON Config'
-                                />
-                              </div>
-                              <FormDescription className='mt-2'>
+                              <CopyToClipboardButton
+                                content={jsonConfig}
+                                buttonText='Copy JSON Config'
+                                className='w-full'
+                                size='sm'
+                              />
+                              <FormDescription>
                                 <LookerStudioJsonConfigDescription />
                               </FormDescription>
                             </>
@@ -347,19 +354,17 @@ export const LookerStudioReportEditForm = forwardRef<
               type='submit'
               className='w-full'
               aria-label={
-                mode === ReportFormMode.CREATE
-                  ? 'Connect to Looker Studio'
-                  : 'Save connection settings'
+                mode === ReportFormMode.CREATE ? 'Create new report' : 'Save changes to report'
               }
               disabled={!isDirty || isSubmitting}
             >
               {isSubmitting
                 ? mode === ReportFormMode.CREATE
-                  ? 'Connecting...'
+                  ? 'Creating...'
                   : 'Saving...'
                 : mode === ReportFormMode.CREATE
-                  ? 'Connect to Looker Studio'
-                  : 'Save Changes'}
+                  ? 'Create new report'
+                  : 'Save changes to report'}
             </Button>
             {onCancel && (
               <Button

@@ -1,11 +1,16 @@
 import React from 'react';
 import type { ReportState } from './reducer.ts';
 import type { DataMartReport } from '../types/data-mart-report.ts';
+import type { DataDestinationResponseDto } from '../../../../../data-destination/shared/services/types';
 
 export enum ReportActionType {
   FETCH_REPORTS_START = 'FETCH_REPORTS_START',
   FETCH_REPORTS_SUCCESS = 'FETCH_REPORTS_SUCCESS',
   FETCH_REPORTS_ERROR = 'FETCH_REPORTS_ERROR',
+
+  FETCH_DESTINATIONS_START = 'FETCH_DESTINATIONS_START',
+  FETCH_DESTINATIONS_SUCCESS = 'FETCH_DESTINATIONS_SUCCESS',
+  FETCH_DESTINATIONS_ERROR = 'FETCH_DESTINATIONS_ERROR',
 
   FETCH_REPORT_START = 'FETCH_REPORT_START',
   FETCH_REPORT_SUCCESS = 'FETCH_REPORT_SUCCESS',
@@ -36,6 +41,9 @@ export type ReportAction =
   | { type: ReportActionType.FETCH_REPORTS_START }
   | { type: ReportActionType.FETCH_REPORTS_SUCCESS; payload: DataMartReport[] }
   | { type: ReportActionType.FETCH_REPORTS_ERROR; payload: string }
+  | { type: ReportActionType.FETCH_DESTINATIONS_START }
+  | { type: ReportActionType.FETCH_DESTINATIONS_SUCCESS; payload: DataDestinationResponseDto[] }
+  | { type: ReportActionType.FETCH_DESTINATIONS_ERROR; payload: string }
   | { type: ReportActionType.FETCH_REPORT_START }
   | { type: ReportActionType.FETCH_REPORT_SUCCESS; payload: DataMartReport }
   | { type: ReportActionType.FETCH_REPORT_ERROR; payload: string }

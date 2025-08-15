@@ -47,6 +47,8 @@ import { TimeTriggerAnnouncement } from '../../../../scheduled-triggers';
 import DocumentLinkDescription from './FormDescriptions/DocumentLinkDescription.tsx';
 import { Button } from '@owox/ui/components/button';
 import { isGoogleServiceAccountCredentials } from '../../../../../../shared/types';
+import type { DataDestinationResponseDto } from '../../../../../data-destination/shared/services/types';
+import { CopyableField } from '@owox/ui/components/common/copyable-field';
 
 interface GoogleSheetsReportEditFormProps {
   initialReport?: DataMartReport;
@@ -56,6 +58,7 @@ interface GoogleSheetsReportEditFormProps {
   onFormErrorChange?: (error: string | null) => void;
   onSubmit?: () => void;
   onCancel?: () => void;
+  preSelectedDestination?: DataDestinationResponseDto | null;
 }
 
 export const GoogleSheetsReportEditForm = forwardRef<
@@ -70,6 +73,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
       onFormErrorChange,
       onSubmit,
       onCancel,
+      preSelectedDestination,
     },
     ref
   ) => {
@@ -117,6 +121,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
       onSuccess: () => {
         onSubmit?.();
       },
+      preSelectedDestination,
     });
 
     useEffect(() => {
@@ -140,9 +145,11 @@ export const GoogleSheetsReportEditForm = forwardRef<
           dataDestinationId: initialReport.dataDestination.id,
         });
       } else if (mode === ReportFormMode.CREATE) {
-        reset({ title: '', documentUrl: '', dataDestinationId: '' });
+        // Pre-select destination if provided
+        const destinationId = preSelectedDestination?.id ?? '';
+        reset({ title: '', documentUrl: '', dataDestinationId: destinationId });
       }
-    }, [initialReport, mode, reset, filteredDestinations]);
+    }, [initialReport, mode, reset, preSelectedDestination]);
 
     useEffect(() => {
       onDirtyChange?.(isDirty);
@@ -170,7 +177,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
                       Title
                     </FormLabel>
                     <FormControl>
-                      <Input id={titleInputId} placeholder='Report title' {...field} />
+                      <Input id={titleInputId} placeholder='Enter a report title' {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -208,7 +215,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
                                   const IconComponent = typeInfo.icon;
                                   return (
                                     <div className='flex w-full min-w-0 items-center gap-2'>
-                                      <IconComponent className='h-4 w-4 flex-shrink-0' />
+                                      <IconComponent className='flex-shrink-0' size={18} />
                                       <div className='flex min-w-0 flex-col'>
                                         <span className='truncate'>
                                           {selectedDestination.title}
@@ -229,7 +236,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
                           return (
                             <SelectItem key={destination.id} value={destination.id}>
                               <div className='flex w-full min-w-0 items-center gap-2'>
-                                <IconComponent className='h-4 w-4 flex-shrink-0' />
+                                <IconComponent className='flex-shrink-0' size={18} />
                                 <div className='flex min-w-0 flex-col'>
                                   <span className='truncate'>{destination.title}</span>
                                   <span className='text-muted-foreground truncate text-xs'>
@@ -269,19 +276,23 @@ export const GoogleSheetsReportEditForm = forwardRef<
                         );
                         if (selectedDestination) {
                           return (
-                            <div className='mt-2 flex flex-col'>
-                              <span className='text-foreground mb-0.5 text-xs font-semibold'>
-                                Service Account Email:
-                              </span>
-                              <span className='text-muted-foreground bg-muted/30 rounded px-2 py-1 text-xs'>
-                                {(isGoogleServiceAccountCredentials(
-                                  selectedDestination.credentials
-                                ) &&
-                                  extractServiceAccountEmail(
-                                    selectedDestination.credentials.serviceAccount
-                                  )) ??
-                                  'No email found'}
-                              </span>
+                            <div className='mt-2 flex flex-col gap-1'>
+                              <FormLabel>Service Account Email</FormLabel>
+                              <CopyableField
+                                value={
+                                  isGoogleServiceAccountCredentials(selectedDestination.credentials)
+                                    ? (extractServiceAccountEmail(
+                                        selectedDestination.credentials.serviceAccount
+                                      ) ?? 'No email found')
+                                    : ''
+                                }
+                              >
+                                {isGoogleServiceAccountCredentials(selectedDestination.credentials)
+                                  ? extractServiceAccountEmail(
+                                      selectedDestination.credentials.serviceAccount
+                                    )
+                                  : 'No email found'}
+                              </CopyableField>
                             </div>
                           );
                         }
@@ -291,8 +302,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
                   </FormItem>
                 )}
               />
-            </FormSection>
-            <FormSection title='Document'>
+
               <FormField
                 control={form.control}
                 name='documentUrl'

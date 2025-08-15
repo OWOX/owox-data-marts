@@ -1,5 +1,5 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
-import { useEditModal, useTableFilter, useColumnVisibility } from '../../model/hooks';
+import { useEffect, useState, useMemo } from 'react';
+import { useEditModal, useColumnVisibility } from '../../model/hooks';
 import { getGoogleSheetsColumns, getAlignClass, type Align } from '../columns';
 import {
   Table,
@@ -12,35 +12,40 @@ import {
 import {
   useReactTable,
   getCoreRowModel,
-  getPaginationRowModel,
   getSortedRowModel,
-  getFilteredRowModel,
   type SortingState,
   type ColumnDef,
 } from '@tanstack/react-table';
 import { Toaster } from 'react-hot-toast';
 import { GoogleSheetsReportEditSheet } from '../../../edit';
-import { TableToolbar } from '../TableToolbar';
-import { TablePagination } from '../TablePagination';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report.ts';
 import { useReport } from '../../../shared';
 import { useOutletContext } from 'react-router-dom';
 import type { DataMartContextType } from '../../../../edit/model/context/types.ts';
 import { DataDestinationType } from '../../../../../data-destination';
+import type { DataDestinationResponseDto } from '../../../../../data-destination/shared/services/types';
 
-export function GoogleSheetsReportsTable() {
+interface GoogleSheetsReportsTableProps {
+  destination: DataDestinationResponseDto;
+  onEditReport: (report: DataMartReport) => void;
+}
+
+export function GoogleSheetsReportsTable({
+  destination,
+  onEditReport,
+}: GoogleSheetsReportsTableProps) {
   const { dataMart } = useOutletContext<DataMartContextType>();
   const { fetchReportsByDataMartId, reports, stopAllPolling, setPollingConfig } = useReport();
   const [sorting, setSorting] = useState<SortingState>([{ id: 'lastRunDate', desc: true }]);
-  const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
-  const { editOpen, handleAddReport, editMode, handleEditRow, handleCloseEditForm, getEditReport } =
-    useEditModal();
+  const { editOpen, editMode, handleCloseEditForm, getEditReport } = useEditModal();
 
   const googleSheetsReports = useMemo(() => {
     return reports.filter(
-      report => report.dataDestination.type === DataDestinationType.GOOGLE_SHEETS
+      report =>
+        report.dataDestination.type === DataDestinationType.GOOGLE_SHEETS &&
+        report.dataDestination.id === destination.id
     );
-  }, [reports]);
+  }, [reports, destination.id]);
 
   const editReport = getEditReport(reports);
 
@@ -80,9 +85,11 @@ export function GoogleSheetsReportsTable() {
         onDeleteSuccess: () => {
           return;
         },
-        onEditReport: handleEditRow,
+        onEditReport: (report: DataMartReport) => {
+          onEditReport(report);
+        },
       }),
-    [handleEditRow]
+    [onEditReport]
   );
 
   const { columnVisibility, setColumnVisibility } = useColumnVisibility(columns);
@@ -91,50 +98,24 @@ export function GoogleSheetsReportsTable() {
     data: googleSheetsReports,
     columns: columns as ColumnDef<DataMartReport>[],
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
     state: { sorting, columnVisibility },
-    getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
   });
 
-  // Table filter hook
-  const { value: filterValue, onChange: handleFilterChange } = useTableFilter(table);
-
-  const handlePreviousClick = useCallback(() => {
-    table.previousPage();
-  }, [table]);
-
-  const handleNextClick = useCallback(() => {
-    table.nextPage();
-  }, [table]);
-
   // Generate unique IDs for accessibility
-  const searchInputId = 'google-sheets-search-input';
-  const columnsMenuId = 'google-sheets-columns-menu';
-  const tableId = 'google-sheets-reports-table';
+  const tableId = `google-sheets-reports-table-${destination.id}`;
 
   return (
     <div className='w-full'>
       <Toaster />
-      <TableToolbar
-        table={table}
-        searchInputId={searchInputId}
-        columnsMenuId={columnsMenuId}
-        columnsMenuOpen={columnsMenuOpen}
-        setColumnsMenuOpen={setColumnsMenuOpen}
-        onAddReport={handleAddReport}
-        filterValue={filterValue}
-        onFilterChange={handleFilterChange}
-        dataMartStatus={dataMart?.status}
-      />
       <div className='dm-card-table-wrap'>
         <Table
           id={tableId}
           className='dm-card-table'
           role='table'
-          aria-label='Google Sheets reports'
+          aria-label={`${destination.title} reports`}
         >
           <TableHeader className='dm-card-table-header'>
             {table.getHeaderGroups().map(headerGroup => {
@@ -150,7 +131,7 @@ export function GoogleSheetsReportsTable() {
                         style={
                           header.column.id === 'actions'
                             ? { width: 80, minWidth: 80, maxWidth: 80 }
-                            : { width: `${String(header.getSize())}%` }
+                            : { width: `${String(header.column.getSize())}%` }
                         }
                         scope='col'
                       >
@@ -173,7 +154,10 @@ export function GoogleSheetsReportsTable() {
                   <TableRow
                     key={row.id}
                     onClick={() => {
-                      handleEditRow(row.original.id);
+                      const report = reports.find(r => r.id === row.original.id);
+                      if (report) {
+                        onEditReport(report);
+                      }
                     }}
                     className='dm-card-table-body-row group'
                     role='row'
@@ -209,7 +193,7 @@ export function GoogleSheetsReportsTable() {
                   role='cell'
                 >
                   <span role='status' aria-live='polite'>
-                    No results
+                    No reports for this destination
                   </span>
                 </TableCell>
               </TableRow>
@@ -217,11 +201,6 @@ export function GoogleSheetsReportsTable() {
           </TableBody>
         </Table>
       </div>
-      <TablePagination
-        table={table}
-        onPreviousClick={handlePreviousClick}
-        onNextClick={handleNextClick}
-      />
       <GoogleSheetsReportEditSheet
         isOpen={editOpen}
         onClose={handleCloseEditForm}

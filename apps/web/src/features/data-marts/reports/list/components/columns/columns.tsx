@@ -27,7 +27,7 @@ export const getGoogleSheetsColumns = ({
   onEditReport,
 }: {
   onDeleteSuccess?: () => void;
-  onEditReport?: (reportId: string) => void;
+  onEditReport?: (report: DataMartReport) => void;
 } = {}): (ColumnDef<DataMartReport> & {
   meta?: { hidden?: boolean; title?: string };
 })[] => [
@@ -83,7 +83,7 @@ export const getLookerStudioColumns = ({
   onEditReport,
 }: {
   onDeleteSuccess?: () => void;
-  onEditReport?: (reportId: string) => void;
+  onEditReport?: (report: DataMartReport) => void;
 } = {}): (ColumnDef<DataMartReport> & {
   meta?: { hidden?: boolean; title?: string };
 })[] => [

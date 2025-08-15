@@ -14,7 +14,7 @@ import { useReport } from '../../../shared';
 interface LookerStudioActionsCellProps {
   row: { original: DataMartReport };
   onDeleteSuccess?: () => void;
-  onEditReport?: (reportId: string) => void;
+  onEditReport?: (report: DataMartReport) => void;
 }
 
 export function LookerStudioActionsCell({
@@ -50,9 +50,9 @@ export function LookerStudioActionsCell({
   ]);
 
   const handleEdit = useCallback(() => {
-    onEditReport?.(row.original.id);
+    onEditReport?.(row.original);
     setMenuOpen(false);
-  }, [onEditReport, row.original.id]);
+  }, [onEditReport, row.original]);
 
   return (
     <div
