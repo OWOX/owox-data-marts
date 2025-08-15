@@ -34,7 +34,7 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
   const formId = useId();
   const form = useForm<ConnectorRunFormData>({
     defaultValues: {
-      runType: RunType.MANUAL_BACKFILL,
+      runType: RunType.INCREMENTAL,
     },
   });
 
@@ -101,15 +101,15 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
               name='runType'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel tooltip='Select how you want to load data: full backfill for a period or incremental updates'>
+                  <FormLabel tooltip='Select how you want to load data: incremental updates or full backfill for a period'>
                     Run type
                   </FormLabel>
                   <FormControl>
                     <>
                       <FormRadioGroup
                         options={[
-                          { value: RunType.MANUAL_BACKFILL, label: 'Backfill (custom period)' },
                           { value: RunType.INCREMENTAL, label: 'Incremental load' },
+                          { value: RunType.MANUAL_BACKFILL, label: 'Backfill (custom period)' },
                         ]}
                         value={field.value}
                         onChange={field.onChange}
@@ -117,8 +117,8 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
                       />
                       <FormDescription>
                         {form.watch('runType') === RunType.MANUAL_BACKFILL
-                          ? 'Performs a full data load from the source for the selected period using override fields (such as start date, end date, etc.). Use this option to update historical data or reload a specific time range.'
-                          : 'Loads only new or changed data based on the current state of the Data Mart. Use this option to keep your Data Mart up to date without reloading existing data.'}
+                          ? 'Reloads all data for a specific time range from the source, replacing existing records for that period. Use when you need to correct or update historical data.'
+                          : 'Adds only new or updated records since the last run, using the current state of your Data Mart as a reference. Ideal for keeping data fresh without reloading what`s already there.'}
                       </FormDescription>
                     </>
                   </FormControl>
