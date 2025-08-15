@@ -3,6 +3,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import type { BootstrapOptions } from '@owox/backend';
 
 import { Flags } from '@oclif/core';
+import { IdpProtocolMiddleware } from '@owox/idp-protocol';
 import express from 'express';
 import { createRequire } from 'node:module';
 
@@ -94,7 +95,9 @@ export default class Serve extends BaseCommand {
 
     const expressApp = express();
     const idpProvider = await IdpFactory.createFromEnvironment();
-    await idpProvider.initialize(expressApp);
+    await idpProvider.initialize();
+    const idpProtocolMiddleware = new IdpProtocolMiddleware(idpProvider);
+    idpProtocolMiddleware.register(expressApp);
 
     expressApp.set('idp', idpProvider);
 

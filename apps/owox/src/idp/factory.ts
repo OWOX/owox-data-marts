@@ -1,5 +1,4 @@
-// eslint-disable-next-line import/no-unresolved
-import { IdpConfig, IIdpProvider, NullIdpProvider } from '@owox/idp-protocol';
+import { IdpConfig, IdpProvider, NullIdpProvider } from '@owox/idp-protocol';
 
 export enum IdpProviderType {
   None = 'none',
@@ -14,7 +13,7 @@ export interface IdpFactoryOptions {
  * Factory for creating IDP providers based on configuration
  */
 export class IdpFactory {
-  static async createFromEnvironment(): Promise<IIdpProvider> {
+  static async createFromEnvironment(): Promise<IdpProvider> {
     const providerType = (process.env.IDP_PROVIDER || IdpProviderType.None) as IdpProviderType;
     return this.createProvider({
       provider: providerType,
@@ -24,7 +23,7 @@ export class IdpFactory {
   /**
    * Create an IDP provider instance based on the provider type
    */
-  static async createProvider(options: IdpFactoryOptions): Promise<IIdpProvider> {
+  static async createProvider(options: IdpFactoryOptions): Promise<IdpProvider> {
     const { provider } = options;
 
     switch (provider) {
