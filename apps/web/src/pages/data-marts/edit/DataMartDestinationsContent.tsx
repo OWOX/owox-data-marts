@@ -45,7 +45,11 @@ function DataMartDestinationsContentInner() {
         <EmptyDataMartDestinationsState />
       ) : (
         destinations.map(destination => (
-          <DestinationCard key={destination.id} destination={destination} />
+          <DestinationCard
+            key={destination.id}
+            destination={destination}
+            dataMartStatus={dataMart.status}
+          />
         ))
       )}
     </div>

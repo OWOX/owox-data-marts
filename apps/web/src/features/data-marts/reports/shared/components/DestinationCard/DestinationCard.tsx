@@ -21,12 +21,16 @@ import { LookerStudioReportEditSheet } from '../../../edit/components/LookerStud
 import { ReportFormMode } from '../../../shared';
 import { Button } from '../../../../../../shared/components/Button';
 import { PlusIcon } from 'lucide-react';
+import type { DataMartStatusInfo } from '../../../../shared/types/data-mart-status.model';
+import { DataMartStatus } from '../../../../shared/enums/data-mart-status.enum';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 
 interface DestinationCardProps {
   destination: DataDestinationResponseDto;
+  dataMartStatus?: DataMartStatusInfo;
 }
 
-export function DestinationCard({ destination }: DestinationCardProps) {
+export function DestinationCard({ destination, dataMartStatus }: DestinationCardProps) {
   const destinationInfo = DataDestinationTypeModel.getInfo(destination.type);
   const [isAddReportOpen, setIsAddReportOpen] = useState(false);
   const [isEditReportOpen, setIsEditReportOpen] = useState(false);
@@ -126,10 +130,27 @@ export function DestinationCard({ destination }: DestinationCardProps) {
           </CollapsibleCardHeaderTitle>
           <CollapsibleCardHeaderActions>
             {destination.type === DataDestinationType.GOOGLE_SHEETS && (
-              <Button onClick={handleAddReport} variant='outline' size='sm'>
-                <PlusIcon className='h-4 w-4' />
-                Add Report
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button
+                      onClick={handleAddReport}
+                      variant='outline'
+                      size='sm'
+                      aria-label='Add new Google Sheets report'
+                      disabled={dataMartStatus?.code === DataMartStatus.DRAFT}
+                    >
+                      <PlusIcon className='h-4 w-4' />
+                      Add Report
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {dataMartStatus?.code === DataMartStatus.DRAFT && (
+                  <TooltipContent>
+                    <p>To create a report, publish the Data Mart first</p>
+                  </TooltipContent>
+                )}
+              </Tooltip>
             )}
           </CollapsibleCardHeaderActions>
         </CollapsibleCardHeader>
