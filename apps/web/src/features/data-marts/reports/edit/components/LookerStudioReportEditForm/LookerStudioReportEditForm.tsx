@@ -295,7 +295,7 @@ export const LookerStudioReportEditForm = forwardRef<
                               <CopyToClipboardButton
                                 content={jsonConfig}
                                 buttonText='Copy JSON Config'
-                                className='mt-1 w-full'
+                                className='my-2 w-full'
                                 size='sm'
                               />
                               <FormDescription>

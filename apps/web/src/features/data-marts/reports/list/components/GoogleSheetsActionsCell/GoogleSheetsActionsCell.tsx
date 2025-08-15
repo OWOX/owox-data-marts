@@ -25,7 +25,6 @@ export function GoogleSheetsActionsCell({
   onDeleteSuccess,
   onEditReport,
 }: GoogleSheetsActionsCellProps) {
-  const [, setIsDeleting] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -37,15 +36,12 @@ export function GoogleSheetsActionsCell({
   // Memoize delete handler to avoid unnecessary re-renders
   const handleDelete = useCallback(async () => {
     try {
-      setIsDeleting(true);
       await deleteReport(row.original.id);
       await fetchReportsByDataMartId(row.original.dataMart.id);
       onDeleteSuccess?.();
       setIsDeleteDialogOpen(false);
     } catch (error) {
       console.error('Failed to delete Google Sheet:', error);
-    } finally {
-      setIsDeleting(false);
     }
   }, [
     deleteReport,
