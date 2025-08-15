@@ -7,7 +7,7 @@ import { DataMartDto } from '../dto/domain/data-mart.dto';
 import { DataMart } from '../entities/data-mart.entity';
 import { UpdateDataMartDefinitionApiDto } from '../dto/presentation/update-data-mart-definition-api.dto';
 import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-definition.command';
-import { AuthorizationContext } from '../../common/authorization-context/authorization.context';
+import { AuthorizationContext } from '../../idp';
 import { GetDataMartCommand } from '../dto/domain/get-data-mart.command';
 import { GetDataMartRunsCommand } from '../dto/domain/get-data-mart-runs.command';
 import { ListDataMartsCommand } from '../dto/domain/list-data-marts.command';

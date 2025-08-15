@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { DataMartsModule } from './data-marts/data-marts.module';
 import { CommonModule } from './common/common.module';
+import { IdpModule } from './idp/idp.module';
 import { createDataSourceOptions } from './config/data-source-options.config';
 
 @Module({
@@ -17,9 +18,9 @@ import { createDataSourceOptions } from './config/data-source-options.config';
       useFactory: (config: ConfigService) => createDataSourceOptions(config),
     }),
     ScheduleModule.forRoot(),
-
     DataMartsModule,
     CommonModule,
+    IdpModule,
   ],
 })
 export class AppModule {}

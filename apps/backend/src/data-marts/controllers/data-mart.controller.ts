@@ -35,10 +35,7 @@ import {
   GetDataMartRunsSpec,
   CancelDataMartRunSpec,
 } from './spec/data-mart.api';
-import {
-  AuthContext,
-  AuthorizationContext,
-} from '../../common/authorization-context/authorization.context';
+import { AuthContext, AuthorizationContext, Auth } from '../../idp';
 import { RunDataMartService } from '../use-cases/run-data-mart.service';
 import { ValidateDataMartDefinitionService } from '../use-cases/validate-data-mart-definition.service';
 import { ActualizeDataMartSchemaService } from '../use-cases/actualize-data-mart-schema.service';
@@ -53,6 +50,7 @@ import { RunDataMartRequestApiDto } from '../dto/presentation/run-data-mart-requ
 
 @Controller('data-marts')
 @ApiTags('DataMarts')
+@Auth()
 export class DataMartController {
   constructor(
     private readonly createDataMartService: CreateDataMartService,
