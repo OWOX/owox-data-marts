@@ -125,10 +125,12 @@ export function DestinationCard({ destination }: DestinationCardProps) {
             {destination.title}
           </CollapsibleCardHeaderTitle>
           <CollapsibleCardHeaderActions>
-            <Button onClick={handleAddReport} variant='outline' size='sm'>
-              <PlusIcon className='h-4 w-4' />
-              Add Report
-            </Button>
+            {destination.type === DataDestinationType.GOOGLE_SHEETS && (
+              <Button onClick={handleAddReport} variant='outline' size='sm'>
+                <PlusIcon className='h-4 w-4' />
+                Add Report
+              </Button>
+            )}
           </CollapsibleCardHeaderActions>
         </CollapsibleCardHeader>
         <CollapsibleCardContent>{renderDestinationTable()}</CollapsibleCardContent>
