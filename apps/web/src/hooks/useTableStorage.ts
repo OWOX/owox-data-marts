@@ -145,7 +145,7 @@ export function useTableStorage<TData, TValue>({
       return [savedRaw];
     }
 
-    // Use a valid column for sorting, fallback to defaultSortingColumn or first available column
+    // Select sorting column: prefer defaultSortingColumn if available, otherwise use first allowed column or constant fallback
     const finalSortingColumn = allowedSortingColumnIds.includes(defaultSortingColumn)
       ? defaultSortingColumn
       : (allowedSortingColumnIds[0] ?? TABLE_STORAGE_CONSTANTS.DEFAULT_SORTING_COLUMN);
