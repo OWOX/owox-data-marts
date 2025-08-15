@@ -6,11 +6,9 @@ import {
   getCoreRowModel,
   useReactTable,
   getPaginationRowModel,
-  type SortingState,
   getSortedRowModel,
   type ColumnFiltersState,
   getFilteredRowModel,
-  type VisibilityState,
   type RowSelectionState,
 } from '@tanstack/react-table';
 
@@ -39,6 +37,7 @@ import { Check, Search, Trash2, Plus } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
 import { EmptyDataMartsState } from './components/EmptyDataMartsState';
 import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
+import { useTableStorage } from '../../../../../hooks/useTableStorage';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -56,12 +55,17 @@ export function DataMartTable<TData, TValue>({
   isLoading,
 }: DataTableProps<TData, TValue>) {
   const navigate = useNavigate();
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'title', desc: false }]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
-    triggersCount: false,
-    reportsCount: false,
+
+  const { sorting, setSorting, columnVisibility, setColumnVisibility } = useTableStorage({
+    columns,
+    storageKeyPrefix: 'data-mart-list',
+    defaultColumnVisibility: {
+      triggersCount: false,
+      reportsCount: false,
+    },
   });
+
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);

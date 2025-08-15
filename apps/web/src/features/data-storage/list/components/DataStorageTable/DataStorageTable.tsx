@@ -5,11 +5,9 @@ import {
   getCoreRowModel,
   useReactTable,
   getPaginationRowModel,
-  type SortingState,
   getSortedRowModel,
   type ColumnFiltersState,
   getFilteredRowModel,
-  type VisibilityState,
   type RowSelectionState,
 } from '@tanstack/react-table';
 import { DataStorageDetailsDialog } from '../DataStorageDetailsDialog';
@@ -29,6 +27,7 @@ import { Input } from '@owox/ui/components/input';
 import { Plus, Search } from 'lucide-react';
 import { EmptyDataStoragesState } from './EmptyDataStoragesState';
 import { Toaster } from 'react-hot-toast';
+import { useTableStorage } from '../../../../../hooks/useTableStorage';
 
 interface DataStorageTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -45,9 +44,12 @@ export function DataStorageTable<TData, TValue>({
   onEdit,
   onOpenTypeDialog,
 }: DataStorageTableProps<TData, TValue>) {
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'createdAt', desc: false }]);
+  const { sorting, setSorting, columnVisibility, setColumnVisibility } = useTableStorage({
+    columns,
+    storageKeyPrefix: 'data-storage-list',
+  });
+
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [selectedDataStorage] = useState<DataStorageTableItem | null>(null);

@@ -35,7 +35,18 @@ export const getDataMartColumns = ({
     cell: ({ row }) => <div>{row.getValue('title')}</div>,
   },
   {
-    accessorKey: DataMartColumnKey.DEFINITION_TYPE,
+    accessorFn: row => {
+      const type = row.definitionType;
+      if (type === DataMartDefinitionType.CONNECTOR) {
+        const definition = row.definition as ConnectorDefinitionConfig;
+        const connector = connectors.find(c => c.name === definition.connector.source.name);
+        return connector?.displayName ?? connector?.name ?? 'Unknown';
+      } else {
+        const { displayName } = DataMartDefinitionTypeModel.getInfo(type);
+        return displayName;
+      }
+    },
+    id: DataMartColumnKey.DEFINITION_TYPE,
     size: 15, // responsive width in %
     header: ({ column }) => (
       <SortableHeader column={column}>
@@ -43,7 +54,7 @@ export const getDataMartColumns = ({
       </SortableHeader>
     ),
     cell: ({ row }) => {
-      const type = row.getValue<DataMartDefinitionType>('definitionType');
+      const type = row.original.definitionType;
       switch (type) {
         case DataMartDefinitionType.CONNECTOR: {
           const definition = row.original.definition as ConnectorDefinitionConfig;

@@ -5,11 +5,9 @@ import {
   getCoreRowModel,
   useReactTable,
   getPaginationRowModel,
-  type SortingState,
   getSortedRowModel,
   type ColumnFiltersState,
   getFilteredRowModel,
-  type VisibilityState,
   type RowSelectionState,
 } from '@tanstack/react-table';
 
@@ -26,6 +24,7 @@ import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
 import { Plus, Search } from 'lucide-react';
 import { EmptyDataDestinationsState } from './EmptyDataDestinationsState';
+import { useTableStorage } from '../../../../../hooks/useTableStorage';
 
 interface DataDestinationTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -43,9 +42,12 @@ export function DataDestinationTable<TData, TValue>({
   onEdit,
   onOpenTypeDialog,
 }: DataDestinationTableProps<TData, TValue>) {
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'createdAt', desc: false }]);
+  const { sorting, setSorting, columnVisibility, setColumnVisibility } = useTableStorage({
+    columns,
+    storageKeyPrefix: 'data-destination-list',
+  });
+
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const table = useReactTable({

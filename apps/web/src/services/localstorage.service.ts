@@ -6,7 +6,7 @@ export type StorageValueType = string | number | boolean | object | null;
 /**
  * Service for managing localStorage operations with type safety and error handling
  */
-class LocalStorageService {
+export class LocalStorageService {
   /**
    * Set a value in localStorage
    * @param key - The key to store the value under
