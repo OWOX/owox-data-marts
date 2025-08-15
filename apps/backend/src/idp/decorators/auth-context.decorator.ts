@@ -18,10 +18,13 @@ export const AuthContext = createParamDecorator(
   (data: unknown, ctx: ExecutionContext): AuthorizationContext => {
     const request = ctx.switchToHttp().getRequest<AuthenticatedRequest>();
 
-    if (request.user?.id && request.project?.id) {
+    if (request.idpContext) {
       return {
-        projectId: request.project.id,
-        userId: request.user.id,
+        projectId: request.idpContext.projectId,
+        userId: request.idpContext.userId,
+        fullName: request.idpContext.fullName,
+        email: request.idpContext.email,
+        roles: request.idpContext.roles,
       };
     }
 

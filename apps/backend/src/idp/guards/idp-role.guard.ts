@@ -1,6 +1,7 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthenticatedRequest } from './idp-auth.guard';
+import { AuthorizationError, Role } from '@owox/idp-protocol';
 
 @Injectable()
 export class IdpRoleGuard implements CanActivate {
@@ -18,16 +19,16 @@ export class IdpRoleGuard implements CanActivate {
       return true;
     }
 
-    if (!request.payload?.roles) {
-      throw new ForbiddenException('Access denied: No roles information available');
+    if (!request.idpContext?.roles) {
+      throw new AuthorizationError('Access denied: No roles information available');
     }
 
-    const userRoles = request.payload?.roles || [];
-
-    const hasRequiredRole = requiredRoles.some(role => userRoles.includes(role));
+    const hasRequiredRole = requiredRoles.some(role =>
+      request.idpContext.roles?.includes(role as Role)
+    );
 
     if (!hasRequiredRole) {
-      throw new ForbiddenException(`Access denied. Required role: ${requiredRoles.join(' or ')}`);
+      throw new AuthorizationError(`Access denied. Required role: ${requiredRoles.join(' or ')}`);
     }
 
     return true;

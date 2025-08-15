@@ -1,6 +1,7 @@
 import { SetMetadata, applyDecorators, UseGuards } from '@nestjs/common';
 import { ApiForbiddenResponse } from '@nestjs/swagger';
 import { IdpAuthGuard, IdpRoleGuard } from '../guards';
+import { Role } from '@owox/idp-protocol';
 
 /**
  * Decorator to require specific roles for a route
@@ -17,7 +18,7 @@ import { IdpAuthGuard, IdpRoleGuard } from '../guards';
  * }
  * ```
  */
-export const Roles = (...roles: string[]) => {
+export const Roles = (...roles: Role[]) => {
   return applyDecorators(
     SetMetadata('roles', roles),
     UseGuards(IdpAuthGuard, IdpRoleGuard),
@@ -40,3 +41,7 @@ export const Roles = (...roles: string[]) => {
  * ```
  */
 export const Admin = () => Roles('admin');
+
+export const Editor = () => Roles('editor', 'admin');
+
+export const Viewer = () => Roles('viewer', 'editor', 'admin');

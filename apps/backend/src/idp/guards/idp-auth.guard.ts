@@ -1,18 +1,18 @@
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { Express, Request } from 'express';
-import { IIdpProvider, TokenPayload } from '@owox/idp-protocol';
+import { AuthenticationError, IdpProvider, Role } from '@owox/idp-protocol';
 import { Reflector } from '@nestjs/core';
 
 export interface AuthenticatedRequest extends Request {
-  user?: {
-    id: string;
-    email: string;
-    name?: string;
-  };
-  payload?: TokenPayload;
-  project?: {
-    id: string;
-    name?: string;
+  idpContext: {
+    userId: string;
+    projectId: string;
+
+    email?: string;
+    fullName?: string;
+    roles?: Role[];
+
+    projectTitle?: string;
   };
 }
 
@@ -33,33 +33,32 @@ export class IdpAuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
     const app = request.app as Express;
-    const idpProvider: IIdpProvider | undefined = app.get('idp') as IIdpProvider;
+    const idpProvider: IdpProvider | undefined = app.get('idp') as IdpProvider;
 
     if (!idpProvider) {
-      throw new UnauthorizedException('No IDP provider found');
+      throw new AuthenticationError('No IDP provider found');
     }
 
     try {
       const token = request.headers.authorization || '';
-      const tokenPayload = await idpProvider.verifyToken(token);
+      const tokenPayload = await idpProvider.introspectToken(token);
       if (!tokenPayload) {
-        throw new UnauthorizedException('Invalid authorization');
+        throw new AuthenticationError('Invalid authorization');
       }
 
-      request.payload = tokenPayload;
-      request.user = {
-        id: tokenPayload.sub,
+      request.idpContext = {
+        userId: tokenPayload.userId,
+        projectId: tokenPayload.projectId,
         email: tokenPayload.email,
-        name: tokenPayload.name,
-      };
-      request.project = {
-        id: tokenPayload.projectId,
+        fullName: tokenPayload.fullName,
+        roles: tokenPayload.roles,
+        projectTitle: tokenPayload.projectTitle,
       };
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error;
       }
-      throw new UnauthorizedException('Authentication failed');
+      throw new AuthenticationError('Authentication failed');
     }
 
     return true;
