@@ -31,6 +31,9 @@ jobs:
       - name: Fix changelogs headings
         run: node tools/fix-changelog-headings.mjs
 
+      - name: Format package.json files
+        run: npm run format:packages
+
       - name: Update package-lock.json
         run: npm run clean:reinstall
 
