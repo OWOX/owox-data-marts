@@ -1,15 +1,15 @@
+import { useState } from 'react';
 import {
   type ColumnDef,
-  type ColumnFiltersState,
   flexRender,
   getCoreRowModel,
-  getFilteredRowModel,
+  useReactTable,
   getPaginationRowModel,
   getSortedRowModel,
+  type ColumnFiltersState,
+  getFilteredRowModel,
   type RowSelectionState,
-  useReactTable,
 } from '@tanstack/react-table';
-import { useState } from 'react';
 import { DataStorageDetailsDialog } from '../DataStorageDetailsDialog';
 import { type DataStorageTableItem } from './columns';
 
@@ -25,9 +25,9 @@ import {
 import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
 import { Plus, Search } from 'lucide-react';
+import { EmptyDataStoragesState } from './EmptyDataStoragesState';
 import { Toaster } from 'react-hot-toast';
 import { useTableStorage } from '../../../../../hooks/useTableStorage';
-import { EmptyDataStoragesState } from './EmptyDataStoragesState';
 
 interface DataStorageTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];

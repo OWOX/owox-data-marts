@@ -1,16 +1,16 @@
-import {
-  type ColumnDef,
-  type ColumnFiltersState,
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  type RowSelectionState,
-  useReactTable,
-} from '@tanstack/react-table';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import {
+  type ColumnDef,
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+  getPaginationRowModel,
+  getSortedRowModel,
+  type ColumnFiltersState,
+  getFilteredRowModel,
+  type RowSelectionState,
+} from '@tanstack/react-table';
 
 import {
   Table,
@@ -21,6 +21,8 @@ import {
   TableRow,
 } from '@owox/ui/components/table';
 
+import { Button } from '@owox/ui/components/button';
+import { Input } from '@owox/ui/components/input';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,13 +33,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@owox/ui/components/alert-dialog';
-import { Button } from '@owox/ui/components/button';
-import { Input } from '@owox/ui/components/input';
-import { Check, Plus, Search, Trash2 } from 'lucide-react';
+import { Check, Search, Trash2, Plus } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
-import { useTableStorage } from '../../../../../hooks/useTableStorage';
-import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
 import { EmptyDataMartsState } from './components/EmptyDataMartsState';
+import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
+import { useTableStorage } from '../../../../../hooks/useTableStorage';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -211,7 +211,7 @@ export function DataMartTable<TData, TValue>({
             <Search className='dm-card-toolbar-search-icon' />
             <Input
               placeholder='Search by title'
-              value={(table.getColumn('title')?.getFilterValue() as string | undefined) ?? ''}
+              value={table.getColumn('title')?.getFilterValue() as string}
               onChange={event => table.getColumn('title')?.setFilterValue(event.target.value)}
               className='dm-card-toolbar-search-input'
             />

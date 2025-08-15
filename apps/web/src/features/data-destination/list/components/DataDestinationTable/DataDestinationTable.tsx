@@ -1,15 +1,15 @@
+import { useState } from 'react';
 import {
   type ColumnDef,
-  type ColumnFiltersState,
   flexRender,
   getCoreRowModel,
-  getFilteredRowModel,
+  useReactTable,
   getPaginationRowModel,
   getSortedRowModel,
+  type ColumnFiltersState,
+  getFilteredRowModel,
   type RowSelectionState,
-  useReactTable,
 } from '@tanstack/react-table';
-import { useState } from 'react';
 
 import {
   Table,
@@ -23,10 +23,10 @@ import {
 import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
 import { Plus, Search } from 'lucide-react';
-import { useTableStorage } from '../../../../../hooks/useTableStorage';
 import { EmptyDataDestinationsState } from './EmptyDataDestinationsState';
+import { useTableStorage } from '../../../../../hooks/useTableStorage';
 
-interface DataDestinationTableProps<TData extends { id: string }, TValue> {
+interface DataDestinationTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   onViewDetails?: (id: string) => void;
@@ -36,7 +36,7 @@ interface DataDestinationTableProps<TData extends { id: string }, TValue> {
   onOpenTypeDialog?: () => void;
 }
 
-export function DataDestinationTable<TData extends { id: string }, TValue>({
+export function DataDestinationTable<TData, TValue>({
   columns,
   data,
   onEdit,
@@ -103,7 +103,7 @@ export function DataDestinationTable<TData extends { id: string }, TValue>({
               <Search className='dm-card-toolbar-search-icon' />
               <Input
                 placeholder='Search by title'
-                value={(table.getColumn('title')?.getFilterValue() as string | undefined) ?? ''}
+                value={table.getColumn('title')?.getFilterValue() as string}
                 onChange={event => table.getColumn('title')?.setFilterValue(event.target.value)}
                 className='dm-card-toolbar-search-input'
               />
@@ -160,7 +160,7 @@ export function DataDestinationTable<TData extends { id: string }, TValue>({
                     data-state={row.getIsSelected() && 'selected'}
                     className='dm-card-table-body-row group'
                     onClick={e => {
-                      const id = row.original.id;
+                      const id = (row.original as { id: string }).id;
                       handleRowClick(id, e);
                     }}
                   >

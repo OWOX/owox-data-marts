@@ -1,3 +1,11 @@
+import { useState, useCallback, useMemo } from 'react';
+import {
+  useReactTable,
+  getCoreRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
+} from '@tanstack/react-table';
 import {
   Table,
   TableBody,
@@ -6,21 +14,13 @@ import {
   TableHeader,
   TableRow,
 } from '@owox/ui/components/table';
-import {
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
-} from '@tanstack/react-table';
-import { useCallback, useMemo, useState } from 'react';
-import { useTableStorage } from '../../../../../hooks/useTableStorage';
+import { getScheduledTriggerColumns } from './columns';
+import { TableToolbar } from './TableToolbar';
+import { TablePagination } from './TablePagination';
+import { useTableFilter } from './hooks/useTableFilter';
 import type { ScheduledTrigger } from '../../model/scheduled-trigger.model';
 import { ScheduledTriggerFormSheet } from '../ScheduledTriggerFormSheet/ScheduledTriggerFormSheet';
-import { getScheduledTriggerColumns } from './columns';
-import { useTableFilter } from './hooks/useTableFilter';
-import { TablePagination } from './TablePagination';
-import { TableToolbar } from './TableToolbar';
+import { useTableStorage } from '../../../../../hooks/useTableStorage';
 
 interface ScheduledTriggerTableProps {
   triggers: ScheduledTrigger[];
