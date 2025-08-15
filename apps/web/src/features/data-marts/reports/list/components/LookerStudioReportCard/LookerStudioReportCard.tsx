@@ -4,7 +4,7 @@ import { Switch } from '@owox/ui/components/switch';
 import { type ComponentPropsWithoutRef, type ReactNode } from 'react';
 
 // Main container component
-interface LookerListItemCardProps extends ComponentPropsWithoutRef<'div'> {
+interface LookerStudioReportCardProps extends ComponentPropsWithoutRef<'div'> {
   title?: string; // Made optional since we'll generate it dynamically
   description?: string;
   checked: boolean;
@@ -15,7 +15,7 @@ interface LookerListItemCardProps extends ComponentPropsWithoutRef<'div'> {
   className?: string;
 }
 
-export function LookerListItemCard({
+export function LookerStudioReportCard({
   title,
   description,
   checked,
@@ -25,7 +25,7 @@ export function LookerListItemCard({
   onClick,
   className,
   ...props
-}: LookerListItemCardProps) {
+}: LookerStudioReportCardProps) {
   // Generate title based on switch state
   const dynamicTitle =
     title ?? (checked ? 'Available in Looker Studio' : 'Not available in Looker Studio');
@@ -49,44 +49,44 @@ export function LookerListItemCard({
       {...props}
     >
       {/* Left action area - Switch */}
-      <LookerListItemCardActionLeft>
+      <LookerStudioReportCardActionLeft>
         {isLoading ? (
           <Loader2 className='text-muted-foreground h-5 w-5 animate-spin' />
         ) : (
           <Switch checked={checked} onCheckedChange={onCheckedChange} disabled={disabled} />
         )}
-      </LookerListItemCardActionLeft>
+      </LookerStudioReportCardActionLeft>
 
       {/* Content area */}
-      <LookerListItemCardContent>
-        <LookerListItemCardTitle>{dynamicTitle}</LookerListItemCardTitle>
+      <LookerStudioReportCardContent>
+        <LookerStudioReportCardTitle>{dynamicTitle}</LookerStudioReportCardTitle>
         {description && (
-          <LookerListItemCardDescription>{description}</LookerListItemCardDescription>
+          <LookerStudioReportCardDescription>{description}</LookerStudioReportCardDescription>
         )}
-      </LookerListItemCardContent>
+      </LookerStudioReportCardContent>
 
       {/* Right action area - Chevron */}
       {onClick && (
-        <LookerListItemCardActionRight>
+        <LookerStudioReportCardActionRight>
           <div className='flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-200 group-hover:bg-gray-200/50 dark:group-hover:bg-gray-700/25'>
             <ChevronRight className='text-muted-foreground/75 dark:text-muted-foreground/50 h-4 w-4' />
           </div>
-        </LookerListItemCardActionRight>
+        </LookerStudioReportCardActionRight>
       )}
     </div>
   );
 }
 
 // Sub-components for composition
-interface LookerListItemCardActionLeftProps extends ComponentPropsWithoutRef<'div'> {
+interface LookerStudioReportCardActionLeftProps extends ComponentPropsWithoutRef<'div'> {
   children: ReactNode;
 }
 
-export function LookerListItemCardActionLeft({
+export function LookerStudioReportCardActionLeft({
   children,
   className,
   ...props
-}: LookerListItemCardActionLeftProps) {
+}: LookerStudioReportCardActionLeftProps) {
   return (
     <div
       className={cn('flex flex-shrink-0 items-start justify-center py-5 pl-6', className)}
@@ -97,15 +97,15 @@ export function LookerListItemCardActionLeft({
   );
 }
 
-interface LookerListItemCardContentProps extends ComponentPropsWithoutRef<'div'> {
+interface LookerStudioReportCardContentProps extends ComponentPropsWithoutRef<'div'> {
   children: ReactNode;
 }
 
-export function LookerListItemCardContent({
+export function LookerStudioReportCardContent({
   children,
   className,
   ...props
-}: LookerListItemCardContentProps) {
+}: LookerStudioReportCardContentProps) {
   return (
     <div className={cn('flex flex-grow flex-col gap-1 px-0 py-4', className)} {...props}>
       {children}
@@ -113,15 +113,15 @@ export function LookerListItemCardContent({
   );
 }
 
-interface LookerListItemCardTitleProps extends ComponentPropsWithoutRef<'div'> {
+interface LookerStudioReportCardTitleProps extends ComponentPropsWithoutRef<'div'> {
   children: ReactNode;
 }
 
-export function LookerListItemCardTitle({
+export function LookerStudioReportCardTitle({
   children,
   className,
   ...props
-}: LookerListItemCardTitleProps) {
+}: LookerStudioReportCardTitleProps) {
   return (
     <div className={cn('text-md font-medium', className)} {...props}>
       {children}
@@ -129,15 +129,15 @@ export function LookerListItemCardTitle({
   );
 }
 
-interface LookerListItemCardDescriptionProps extends ComponentPropsWithoutRef<'div'> {
+interface LookerStudioReportCardDescriptionProps extends ComponentPropsWithoutRef<'div'> {
   children: ReactNode;
 }
 
-export function LookerListItemCardDescription({
+export function LookerStudioReportCardDescription({
   children,
   className,
   ...props
-}: LookerListItemCardDescriptionProps) {
+}: LookerStudioReportCardDescriptionProps) {
   return (
     <div className={cn('text-muted-foreground/60 text-sm', className)} {...props}>
       {children}
@@ -145,15 +145,15 @@ export function LookerListItemCardDescription({
   );
 }
 
-interface LookerListItemCardActionRightProps extends ComponentPropsWithoutRef<'div'> {
+interface LookerStudioReportCardActionRightProps extends ComponentPropsWithoutRef<'div'> {
   children: ReactNode;
 }
 
-export function LookerListItemCardActionRight({
+export function LookerStudioReportCardActionRight({
   children,
   className,
   ...props
-}: LookerListItemCardActionRightProps) {
+}: LookerStudioReportCardActionRightProps) {
   return (
     <div
       className={cn('flex flex-shrink-0 items-center justify-center self-center p-4', className)}
