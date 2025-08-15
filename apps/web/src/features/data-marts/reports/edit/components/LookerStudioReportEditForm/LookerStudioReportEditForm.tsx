@@ -280,28 +280,28 @@ export const LookerStudioReportEditForm = forwardRef<
                             selectedDestination.credentials
                           );
                           return (
-                            <>
-                              <FormLabel className='mt-2'>JSON Configuration</FormLabel>
-                              <FormDescription className='mb-1'>
-                                To connect to Looker Studio, you need to copy the JSON configuration
-                                and use it in the
+                            <div className='mt-2 flex flex-col gap-1'>
+                              <FormLabel>Connect to Looker Studio</FormLabel>
+                              <FormDescription>
+                                Copy this JSON configuration from here and paste it into the{' '}
                                 <ExternalAnchor
                                   className='underline'
                                   href='https://datastudio.google.com/datasources/create?connectorId=AKfycbz6kcYn3qGuG0jVNFjcDnkXvVDiz4hewKdAFjOm-_d4VkKVcBidPjqZO991AvGL3FtM4A'
                                 >
                                   Looker Studio connector
-                                </ExternalAnchor>
+                                </ExternalAnchor>{' '}
+                                settings to enable data fetching.
                               </FormDescription>
                               <CopyToClipboardButton
                                 content={jsonConfig}
                                 buttonText='Copy JSON Config'
-                                className='w-full'
+                                className='mt-1 w-full'
                                 size='sm'
                               />
                               <FormDescription>
                                 <LookerStudioJsonConfigDescription />
                               </FormDescription>
-                            </>
+                            </div>
                           );
                         }
                         return null;
