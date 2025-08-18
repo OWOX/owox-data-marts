@@ -75,8 +75,8 @@
     "prelint": "npm run build:backend",
     "prepack": "oclif manifest",
     "prepublishOnly": "npm run lint",
-    "pretest": "npm run build:backend",
-    "test": "npm run build && oclif manifest &&mocha --forbid-only \"test/**/*.test.ts\"",
+    "pretest": "npm run build && oclif manifest",
+    "test": "mocha --forbid-only \"test/**/*.test.ts\"",
     "version": "oclif readme && git add README.md"
   },
   "types": "dist/index.d.ts"

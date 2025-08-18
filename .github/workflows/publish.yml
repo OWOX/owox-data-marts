@@ -42,7 +42,7 @@ jobs:
       - name: Update wildcard version for internal packages
         run: node tools/update-package-versions-for-publishing.mjs
 
-      - run: npm run build
+      - run: npm run build -w owox
 
       - name: Publish to "latest"
         run: |
