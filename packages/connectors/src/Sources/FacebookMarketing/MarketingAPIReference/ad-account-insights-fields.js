@@ -62,10 +62,6 @@ var adAccountInsightsFields = {
     'description': 'The name of the ad set you\'re viewing in reporting. An ad set is a group of ads that share the same budget, schedule, delivery optimization and targeting.',
     'type': 'string'
   },
-  'age_targeting': {
-    'description': 'age_targeting',
-    'type': 'string'
-  },
   'attribution_setting': {
     'description': 'The default attribution window to be used when attribution result is calculated. Each ad set has its own attribution setting value. The attribution setting for campaign or account is calculated based on existing ad sets.',
     'type': 'string'
@@ -278,26 +274,6 @@ var adAccountInsightsFields = {
     'description': 'description_asset',
     'type': 'AdAssetDescription'
   },
-  'estimated_ad_recall_rate_lower_bound': {
-    'description': 'estimated_ad_recall_rate_lower_bound',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
-  },
-  'estimated_ad_recall_rate_upper_bound': {
-    'description': 'estimated_ad_recall_rate_upper_bound',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
-  },
-  'estimated_ad_recallers_lower_bound': {
-    'description': 'estimated_ad_recallers_lower_bound',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
-  },
-  'estimated_ad_recallers_upper_bound': {
-    'description': 'estimated_ad_recallers_upper_bound',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
-  },
   'fidelity_type': {
     'description': 'To differentiate StoreKit-rendered ads from view-through ads, SKAdNetwork defines a fidelity-type parameter, which you include in the ad signature and receive in the install-validation postback. Use a fidelity-type value of 1 for StoreKit-rendered ads and attributable web ads, and 0 for view-through ads.',
     'type': 'string'
@@ -316,10 +292,6 @@ var adAccountInsightsFields = {
     'description': 'The number of people who performed a Full View on your Page\'s post as a result of your ad.',
     'type': 'numeric string',
     'GoogleBigQueryType': 'numeric'
-  },
-  'gender_targeting': {
-    'description': 'gender_targeting',
-    'type': 'string'
   },
   'hsid': {
     'description': 'The hsid key is available for ad impressions that use SKAdNetwork 4 and later. This integer can have up to four digits. You can encode information about your advertisement in each set of digits; you may receive two, three, or all four digits of the sourceIdentifier in the first winning postback, depending on the ad impression\'s postback data tier.',
@@ -372,16 +344,8 @@ var adAccountInsightsFields = {
     'description': 'interactive_component_tap',
     'type': 'list<AdsActionStats>'
   },
-  'labels': {
-    'description': 'labels',
-    'type': 'string'
-  },
   'landing_destination': {
     'description': 'landing_destination',
-    'type': 'string'
-  },
-  'location': {
-    'description': 'location',
     'type': 'string'
   },
   'marketing_messages_delivery_rate': {
