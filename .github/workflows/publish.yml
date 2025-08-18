@@ -39,7 +39,10 @@ jobs:
       # can't set --ignore-scripts because Astro uses postinstall
       - run: npm ci --prefer-offline --no-audit --no-fund --loglevel error
 
-      - run: npm run build
+      - name: Update wildcard version for internal packages
+        run: node tools/update-package-versions-for-publishing.mjs
+
+      - run: npm run build -w owox
 
       - name: Publish to "latest"
         run: |
