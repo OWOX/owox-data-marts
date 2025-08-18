@@ -8,6 +8,7 @@ export enum ProtocolRoute {
   SIGN_IN = '/sign-in',
   SIGN_OUT = '/sign-out',
   ACCESS_TOKEN = '/access-token',
+  USER = '/api/user',
 }
 
 /**
@@ -21,6 +22,7 @@ export enum ProtocolRoute {
  *     signIn: '/signin', // override the default sign in route
  *     signOut: '/signout', // override the default sign out route
  *     accessToken: '/accesstoken', // override the default access token route
+ *     user: '/api/userinfo', // override the default user route
  *   },
  * }
  */
@@ -30,6 +32,7 @@ export interface IdpProtocolMiddlewareOptions {
     signIn?: string;
     signOut?: string;
     accessToken?: string;
+    user?: string;
   };
 }
 
@@ -55,6 +58,7 @@ type MiddlewareHandler = (
  *     signIn: '/signin',
  *     signOut: '/signout',
  *     accessToken: '/accesstoken',
+ *     user: '/api/userinfo',
  *   }
  * };
  * const idpProtocolMiddleware = new IdpProtocolMiddleware(provider, middlewareOptions);
@@ -82,6 +86,7 @@ export class IdpProtocolMiddleware {
       signIn: options.routes?.signIn ?? ProtocolRoute.SIGN_IN,
       signOut: options.routes?.signOut ?? ProtocolRoute.SIGN_OUT,
       accessToken: options.routes?.accessToken ?? ProtocolRoute.ACCESS_TOKEN,
+      user: options.routes?.user ?? ProtocolRoute.USER,
     };
 
     this.validateConfiguration();
@@ -157,6 +162,11 @@ export class IdpProtocolMiddleware {
         path: this.routes.accessToken,
         handler: (req: Request, res: Response, next: NextFunction) =>
           this.provider.accessTokenMiddleware(req, res, next),
+      },
+      {
+        path: this.routes.user,
+        handler: (req: Request, res: Response, next: NextFunction) =>
+          this.provider.userApiMiddleware(req, res, next),
       },
     ];
 

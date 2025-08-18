@@ -12,6 +12,8 @@ export interface Payload {
 
   email?: string;
   fullName?: string;
+  avatar?: string;
+
   roles?: Role[];
 
   projectTitle?: string;

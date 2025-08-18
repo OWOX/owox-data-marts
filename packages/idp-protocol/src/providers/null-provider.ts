@@ -8,6 +8,8 @@ import { Request, Response, NextFunction } from 'express';
  */
 export class NullIdpProvider implements IdpProvider {
   private defaultPayload: Payload;
+  private defaultAccessToken: string;
+  private defaultRefreshToken: string;
 
   constructor() {
     this.defaultPayload = {
@@ -17,23 +19,33 @@ export class NullIdpProvider implements IdpProvider {
       fullName: 'Admin',
       projectId: '0',
     };
+    this.defaultAccessToken = 'accessToken';
+    this.defaultRefreshToken = 'refreshToken';
   }
 
   async refreshToken(_refreshToken: string): Promise<AuthResult> {
     return {
-      accessToken: '',
+      accessToken: this.defaultAccessToken,
     };
   }
 
-  signInMiddleware(_req: Request, _res: Response, next: NextFunction): Promise<void> {
-    next();
-    return Promise.resolve();
+  signInMiddleware(_req: Request, _res: Response, _next: NextFunction): Promise<void> {
+    _res.cookie('refreshToken', this.defaultRefreshToken, {
+      httpOnly: true,
+      secure: true,
+      maxAge: 3600000,
+    });
+    return Promise.resolve(_res.redirect('/'));
   }
-  signOutMiddleware(_req: Request, _res: Response, next: NextFunction): Promise<void> {
-    next();
-    return Promise.resolve();
+  signOutMiddleware(_req: Request, _res: Response, _next: NextFunction): Promise<void> {
+    _res.clearCookie('refreshToken');
+    return Promise.resolve(_res.redirect('/'));
   }
   accessTokenMiddleware(_req: Request, res: Response, _next: NextFunction): Promise<Response> {
+    return Promise.resolve(res.json({ accessToken: this.defaultAccessToken }));
+  }
+
+  userApiMiddleware(_req: Request, res: Response, _next: NextFunction): Promise<Response<Payload>> {
     return Promise.resolve(res.json(this.defaultPayload));
   }
 
@@ -46,6 +58,10 @@ export class NullIdpProvider implements IdpProvider {
   }
 
   async introspectToken(_token: string): Promise<Payload | null> {
+    return this.defaultPayload;
+  }
+
+  async parseToken(_token: string): Promise<Payload | null> {
     return this.defaultPayload;
   }
 

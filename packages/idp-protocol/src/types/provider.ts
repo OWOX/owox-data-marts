@@ -27,11 +27,25 @@ export interface IdpProvider {
   accessTokenMiddleware(req: Request, res: Response, next: NextFunction): Promise<void | Response>;
 
   /**
-   * Verify a token
-   * @param token - The token to verify
+   * User api middleware. This method is used to handle the user request and use response to send the user response.
+   * <br/>
+   * If the IDP implementation does not support user, this method should call the `next()` function.
+   */
+  userApiMiddleware(req: Request, res: Response, next: NextFunction): Promise<Response<Payload>>;
+
+  /**
+   * Introspect a token
+   * @param token - The token to introspect
    * @returns The token payload
    */
   introspectToken(token: string): Promise<Payload | null>;
+
+  /**
+   * Parse a token
+   * @param token - The token to parse
+   * @returns The token payload
+   */
+  parseToken(token: string): Promise<Payload | null>;
 
   /**
    * Refresh a token
