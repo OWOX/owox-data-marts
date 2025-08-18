@@ -342,4 +342,29 @@ var AbstractConnector = class AbstractConnector {
       return new Date(date.getTime() - this.config.ReimportLookbackWindow.value * 24 * 60 * 60 * 1000);
     }
     //----------------------------------------------------------------
+
+  //---- getDestinationName ----------------------------------
+    /**
+     * Resolves destination table name for a given node.
+     * Looks for an override in `config.DestinationTableNameOverride` using the format:
+     * "NodeA NewNameA, NodeB NewNameB". If an override for the `nodeName` is found,
+     * it returns the corresponding `NewName`; otherwise returns `defaultName`.
+     *
+     * @param {string} nodeName - Name of the node to resolve the destination name for
+     * @param {Object} config - Connector configuration object
+     * @param {string} defaultName - Fallback destination table name
+     * @returns {string} - Overridden destination name if present, otherwise `defaultName`
+     */
+    getDestinationName(nodeName, config, defaultName) {
+      const raw = config?.DestinationTableNameOverride?.value;
+      if (!raw) return defaultName;
+
+      const match = raw
+        .split(',')
+        .map(s => s.trim())
+        .find(s => s.startsWith(nodeName + ' '));
+
+      return match ? match.slice(nodeName.length).trim() : defaultName;
+    }
+    //----------------------------------------------------------------
 }

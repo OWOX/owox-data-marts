@@ -1,9 +1,11 @@
 import { type ReportAction, ReportActionType } from './types.ts';
 import type { DataMartReport } from '../types/data-mart-report.ts';
+import type { DataDestinationResponseDto } from '../../../../../data-destination/shared/services/types';
 import { ReportStatusEnum } from '../../enums';
 
 export interface ReportState {
   reports: DataMartReport[];
+  destinations: DataDestinationResponseDto[];
   currentReport: DataMartReport | null;
   loading: boolean;
   error: string | null;
@@ -12,6 +14,7 @@ export interface ReportState {
 
 export const initialReportState: ReportState = {
   reports: [],
+  destinations: [],
   currentReport: null,
   loading: false,
   error: null,
@@ -34,6 +37,13 @@ export function reducer(state: ReportState, action: ReportAction): ReportState {
       return {
         ...state,
         reports: action.payload,
+        loading: false,
+        error: null,
+      };
+    case ReportActionType.FETCH_DESTINATIONS_SUCCESS:
+      return {
+        ...state,
+        destinations: action.payload,
         loading: false,
         error: null,
       };
@@ -70,6 +80,7 @@ export function reducer(state: ReportState, action: ReportAction): ReportState {
       };
     case ReportActionType.FETCH_REPORTS_ERROR:
     case ReportActionType.FETCH_REPORT_ERROR:
+    case ReportActionType.FETCH_DESTINATIONS_ERROR:
     case ReportActionType.CREATE_REPORT_ERROR:
     case ReportActionType.UPDATE_REPORT_ERROR:
     case ReportActionType.DELETE_REPORT_ERROR:

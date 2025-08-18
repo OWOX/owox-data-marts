@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from 'react';
 import { reportService, reportStatusPollingService } from '../../services';
+import { dataDestinationService } from '../../../../../data-destination/shared/services';
 import type { CreateReportRequestDto, UpdateReportRequestDto } from '../../services';
 import type { ReportStatusPollingConfig } from '../../services';
 import { useReportContext, ReportActionType } from '../context';
@@ -7,6 +8,19 @@ import { mapReportDtoToEntity } from '../mappers';
 
 export function useReport() {
   const { state, dispatch } = useReportContext();
+
+  const fetchDestinations = useCallback(async () => {
+    dispatch({ type: ReportActionType.FETCH_DESTINATIONS_START });
+    try {
+      const destinations = await dataDestinationService.getDataDestinations();
+      dispatch({ type: ReportActionType.FETCH_DESTINATIONS_SUCCESS, payload: destinations });
+    } catch (error) {
+      dispatch({
+        type: ReportActionType.FETCH_DESTINATIONS_ERROR,
+        payload: error instanceof Error ? error.message : 'Failed to fetch destinations',
+      });
+    }
+  }, [dispatch]);
 
   const fetchReports = useCallback(async () => {
     dispatch({ type: ReportActionType.FETCH_REPORTS_START });
@@ -184,11 +198,13 @@ export function useReport() {
   }, [stopAllPolling]);
 
   return {
+    destinations: state.destinations,
     reports: state.reports,
     currentReport: state.currentReport,
     loading: state.loading,
     error: state.error,
     polledReportIds: state.polledReportIds,
+    fetchDestinations,
     fetchReports,
     fetchReportsByDataMartId,
     fetchReportById,

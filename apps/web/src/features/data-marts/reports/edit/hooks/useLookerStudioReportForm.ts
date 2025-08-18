@@ -8,6 +8,7 @@ import type {
 } from '../../shared/model/types/data-mart-report.ts';
 import { isLookerStudioDestinationConfig } from '../../shared/model/types/data-mart-report.ts';
 import { DestinationTypeConfigEnum, useReport } from '../../shared';
+import type { DataDestinationResponseDto } from '../../../../data-destination/shared/services/types';
 
 // Define the form schema
 const lookerStudioReportFormSchema = z.object({
@@ -23,12 +24,14 @@ interface UseLookerStudioReportFormProps {
   initialReport?: DataMartReport;
   dataMartId: string;
   onSuccess?: () => void;
+  preSelectedDestination?: DataDestinationResponseDto | null;
 }
 
 export function useLookerStudioReportForm({
   initialReport,
   dataMartId,
   onSuccess,
+  preSelectedDestination,
 }: UseLookerStudioReportFormProps) {
   const [formError, setFormError] = useState<string | null>(null);
   const { createReport, updateReport } = useReport();
@@ -37,7 +40,7 @@ export function useLookerStudioReportForm({
     resolver: zodResolver(lookerStudioReportFormSchema),
     defaultValues: {
       title: initialReport?.title ?? '',
-      dataDestinationId: initialReport?.dataDestination.id ?? '',
+      dataDestinationId: initialReport?.dataDestination.id ?? preSelectedDestination?.id ?? '',
       cacheLifetime:
         initialReport?.destinationConfig &&
         isLookerStudioDestinationConfig(initialReport.destinationConfig)

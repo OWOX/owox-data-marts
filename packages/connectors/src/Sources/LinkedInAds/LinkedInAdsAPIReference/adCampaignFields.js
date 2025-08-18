@@ -97,10 +97,6 @@ var adCampaignFields = {
     'description': 'Amount to bid per click, impression, or other event depending on the pricing model. The amount of money as a real number string. The amount should be non-negative if the bidding strategy is manual, target cost, or cost cap bidding. The default is 0 with the currency code set to match that of the associated account. ISO currency code.',
     'type': 'object'
   },
-  'versionTag': {
-    'description': 'Each entity has a version tag associated with it. The version tag is initiated to 1 when the entity is created. Each single update to the entity increases its version tag by 1.',
-    'type': 'string'
-  },
   'status': {
     'description': 'ACTIVE - Denotes that the campaign is fully servable.',
     'type': 'string'

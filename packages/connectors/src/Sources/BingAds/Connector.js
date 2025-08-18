@@ -7,11 +7,7 @@
 
 var BingAdsConnector = class BingAdsConnector extends AbstractConnector {
   constructor(config, source, storageName = "GoogleSheetsStorage", runConfig = null) {
-    super(config.mergeParameters({
-      DestinationTableNamePrefix: {
-        default: "bing_ads_"
-      }
-    }), source, null, runConfig);
+    super(config, source, null, runConfig);
 
     this.storageName = storageName;
   }
@@ -154,9 +150,9 @@ var BingAdsConnector = class BingAdsConnector extends AbstractConnector {
       const uniqueFields = this.source.fieldsSchema[nodeName].uniqueKeys;
 
       this.storages[nodeName] = new globalThis[this.storageName](
-        this.config.mergeParameters({
+        this.config.mergeParameters({ 
           DestinationSheetName: { value: this.source.fieldsSchema[nodeName].destinationName },
-          DestinationTableName: {value: this.source.fieldsSchema[nodeName].destinationName},
+          DestinationTableName: { value: this.getDestinationName(nodeName, this.config, this.source.fieldsSchema[nodeName].destinationName) },
         }),
         uniqueFields,
         this.source.fieldsSchema[nodeName].fields,

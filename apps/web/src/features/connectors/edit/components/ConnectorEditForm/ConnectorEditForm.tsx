@@ -335,6 +335,7 @@ export function ConnectorEditForm({
           <TargetSetupStep
             dataStorageType={dataStorageType}
             destinationName={getDestinationName(connectorFields, selectedNode)}
+            connectorName={selectedConnector?.displayName ?? ''}
             target={target}
             onTargetChange={handleTargetChange}
           />

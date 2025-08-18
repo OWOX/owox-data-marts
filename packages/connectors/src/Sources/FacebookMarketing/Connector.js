@@ -10,11 +10,7 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
   // ---- constructor ------------------------------------
       constructor(config, source, storageName = "GoogleSheetsStorage", runConfig = null) {
     
-    super(config.mergeParameters({
-      DestinationTableNamePrefix: {
-        default: ""
-      }
-    }), source, null, runConfig);
+    super(config, source, null, runConfig);
     
     this.storageName = storageName;
 
@@ -33,8 +29,6 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
         (acc[key] = acc[key] || []).push( value.trim() );
         return acc;
       }, {});
-
-      console.log(fields);
 
       let timeSeriesNodes = {};
       
@@ -179,13 +173,13 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
         throw new Error(`Unique keys for '${nodeName}' are not defined in the fields schema`);
       }
 
-              let uniqueFields = this.source.fieldsSchema[ nodeName ]["uniqueKeys"];
+      let uniqueFields = this.source.fieldsSchema[ nodeName ]["uniqueKeys"];
 
       this.storages[ nodeName ] = new globalThis[ this.storageName ]( 
         this.config.mergeParameters({ 
-          DestinationSheetName: {value: this.source.fieldsSchema[nodeName].destinationName},
-          DestinationTableName: {value: this.source.fieldsSchema[nodeName].destinationName } 
-        }), 
+          DestinationSheetName: {value: this.source.fieldsSchema[nodeName].destinationName },
+          DestinationTableName: { value: this.getDestinationName(nodeName, this.config, this.source.fieldsSchema[nodeName].destinationName) },
+        }),
         uniqueFields,
         this.source.fieldsSchema[ nodeName ]["fields"],
         `${this.source.fieldsSchema[ nodeName ]["description"]} ${this.source.fieldsSchema[ nodeName ]["documentation"]}`

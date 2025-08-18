@@ -11,6 +11,7 @@ import {
   ReportFormMode,
   useReport,
 } from '../../shared';
+import type { DataDestinationResponseDto } from '../../../../data-destination/shared/services/types';
 
 export const GoogleSheetsReportEditFormSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -25,6 +26,7 @@ interface UseGoogleSheetsReportFormOptions {
   mode: ReportFormMode;
   dataMartId: string;
   onSuccess?: () => void;
+  preSelectedDestination?: DataDestinationResponseDto | null;
 }
 
 export function useGoogleSheetsReportForm({
@@ -32,6 +34,7 @@ export function useGoogleSheetsReportForm({
   mode,
   dataMartId,
   onSuccess,
+  preSelectedDestination,
 }: UseGoogleSheetsReportFormOptions) {
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -53,7 +56,7 @@ export function useGoogleSheetsReportForm({
         isGoogleSheetsDestinationConfig(initialReport.destinationConfig)
           ? `https://docs.google.com/spreadsheets/d/${initialReport.destinationConfig.spreadsheetId}/edit#gid=${initialReport.destinationConfig.sheetId}`
           : '',
-      dataDestinationId: initialReport?.dataDestination.id ?? '',
+      dataDestinationId: initialReport?.dataDestination.id ?? preSelectedDestination?.id ?? '', // Use preSelectedDestination here
     },
     mode: 'onTouched',
   });

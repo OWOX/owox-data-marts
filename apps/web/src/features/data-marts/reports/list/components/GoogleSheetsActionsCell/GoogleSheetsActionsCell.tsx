@@ -8,6 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
+import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog';
 import { getGoogleSheetTabUrl } from '../../../shared';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report.ts';
 import { isGoogleSheetsDestinationConfig } from '../../../shared/model/types/data-mart-report.ts';
@@ -16,7 +17,7 @@ import { useReport } from '../../../shared';
 interface GoogleSheetsActionsCellProps {
   row: { original: DataMartReport };
   onDeleteSuccess?: () => void;
-  onEditReport?: (reportId: string) => void;
+  onEditReport?: (report: DataMartReport) => void;
 }
 
 export function GoogleSheetsActionsCell({
@@ -24,9 +25,9 @@ export function GoogleSheetsActionsCell({
   onDeleteSuccess,
   onEditReport,
 }: GoogleSheetsActionsCellProps) {
-  const [isDeleting, setIsDeleting] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const { deleteReport, fetchReportsByDataMartId, runReport } = useReport();
 
   // Generate unique ID for the actions menu
@@ -35,14 +36,12 @@ export function GoogleSheetsActionsCell({
   // Memoize delete handler to avoid unnecessary re-renders
   const handleDelete = useCallback(async () => {
     try {
-      setIsDeleting(true);
       await deleteReport(row.original.id);
       await fetchReportsByDataMartId(row.original.dataMart.id);
       onDeleteSuccess?.();
+      setIsDeleteDialogOpen(false);
     } catch (error) {
       console.error('Failed to delete Google Sheet:', error);
-    } finally {
-      setIsDeleting(false);
     }
   }, [
     deleteReport,
@@ -53,9 +52,9 @@ export function GoogleSheetsActionsCell({
   ]);
 
   const handleEdit = useCallback(() => {
-    onEditReport?.(row.original.id);
+    onEditReport?.(row.original);
     setMenuOpen(false);
-  }, [onEditReport, row.original.id]);
+  }, [onEditReport, row.original]);
 
   const handleRun = useCallback(async () => {
     try {
@@ -67,6 +66,11 @@ export function GoogleSheetsActionsCell({
       setIsRunning(false);
     }
   }, [runReport, row.original.id]);
+
+  const handleDeleteClick = useCallback(() => {
+    setIsDeleteDialogOpen(true);
+    setMenuOpen(false);
+  }, []);
 
   return (
     <div
@@ -99,55 +103,69 @@ export function GoogleSheetsActionsCell({
           >
             Edit report
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={e => {
-              e.stopPropagation();
-              void handleRun();
-            }}
-            disabled={isRunning}
-            role='menuitem'
-            aria-label={isRunning ? 'Running report...' : `Run report: ${row.original.title}`}
-            className='flex items-center gap-1'
-          >
-            {isRunning ? 'Running...' : 'Run report'}
-            <Play className='h-3 w-3' aria-hidden='true' />
-          </DropdownMenuItem>
           {isGoogleSheetsDestinationConfig(row.original.destinationConfig) && (
-            <DropdownMenuItem asChild>
-              <a
-                href={getGoogleSheetTabUrl(
-                  row.original.destinationConfig.spreadsheetId,
-                  row.original.destinationConfig.sheetId
-                )}
-                target='_blank'
-                rel='noopener noreferrer'
-                className='flex items-center gap-1'
-                role='menuitem'
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
                 onClick={e => {
                   e.stopPropagation();
+                  void handleRun();
                 }}
+                disabled={isRunning}
+                role='menuitem'
+                aria-label={isRunning ? 'Running report...' : `Run report: ${row.original.title}`}
+                className='flex items-center gap-1'
               >
-                Open document
-                <SquareArrowOutUpRight className='h-3 w-3' aria-hidden='true' />
-              </a>
-            </DropdownMenuItem>
+                {isRunning ? 'Running...' : 'Run report'}
+                <Play className='h-3 w-3' aria-hidden='true' />
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a
+                  href={getGoogleSheetTabUrl(
+                    row.original.destinationConfig.spreadsheetId,
+                    row.original.destinationConfig.sheetId
+                  )}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  className='flex items-center gap-1'
+                  role='menuitem'
+                  onClick={e => {
+                    e.stopPropagation();
+                  }}
+                >
+                  Open document
+                  <SquareArrowOutUpRight className='h-3 w-3' aria-hidden='true' />
+                </a>
+              </DropdownMenuItem>
+            </>
           )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className='text-red-600'
             onClick={e => {
               e.stopPropagation();
-              void handleDelete();
+              handleDeleteClick();
             }}
-            disabled={isDeleting}
             role='menuitem'
-            aria-label={isDeleting ? 'Deleting report...' : `Delete report: ${row.original.title}`}
+            aria-label={`Delete report: ${row.original.title}`}
           >
-            {isDeleting ? 'Deleting...' : 'Delete'}
+            Delete
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <ConfirmationDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        title='Delete Report'
+        description={`Are you sure you want to delete "${row.original.title}"? This action cannot be undone.`}
+        confirmLabel='Delete'
+        cancelLabel='Cancel'
+        onConfirm={() => {
+          void handleDelete();
+        }}
+        variant='destructive'
+      />
     </div>
   );
 }

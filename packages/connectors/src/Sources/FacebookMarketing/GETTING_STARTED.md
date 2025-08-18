@@ -7,16 +7,10 @@ To begin importing data from Facebook Ads, start by making a copy of one of the 
 
 Fill in the required information:
 
-- **Start Date**
 - **Account IDs**
 - **Fields**
 - **Destination Dataset ID** (for **Google BigQuery** template)
 - **Destination Location** (for **Google BigQuery** template)
-
-The import will begin from the selected **Start Date**.  
-> ⚠️ **Note:** Using a long date range may cause the import to fail due to the high volume of data.
-
-![Facebook Start Date](res/fb_startdate.png)
 
 You can find your **Account ID** on the **Account Overview** page in [Meta Ads Manager](https://adsmanager.facebook.com/adsmanager/manage/accounts).  
 
@@ -48,24 +42,47 @@ Enter your credentials obtained by following this guide: [**How to obtain the ac
 
 ![Facebook Token](res/fb_token.png)
 
-Once your credentials are saved, go to: **OWOX → Import New Data**
+Now you have **two options** for importing data from Facebook Ads:
 
-![Facebook Import Data](res/fb_import.png)
+Option 1: Import Current Day's Data
 
-The import process is complete when the Log data displays **"Import is finished"**.
+Choose **OWOX → Import New Data** to load data for the **current day**.
 
-![Facebook Finished](res/fb_success.png)
+![Facebook Import New Data](res/facebook_newdata.png)
+
+> ℹ️ If you click **Import New Data** again after a successful initial load,  
+> the connector will import: **Current day's data**, plus **Additional days**, based on the value in the **Reimport Lookback Window** field.
+
+![Facebook Reimport](res/facebook_reimport.png)
+
+Option 2: Manual Backfill for Specific Date Range
+
+Choose **Manual Backfill** to load historical data for a custom time range.
+
+![Facebook Backfill](res/facebook_backfill.png)
+
+1. Select the **Start Date** and **End Date**  
+2. Click the **Run Manual Backfill** button
+
+![Facebook Run Backfill](res/facebook_runbackfill.png)
+
+The process is complete when the **Log** field shows the message:  
+**"Import is finished"**  
 
 Access Your Data:
 
 - In the **Google Sheets** template, the data will appear in new tabs labeled with the corresponding data types (e.g., *ad-account*, *ad-campaign*).  
 
+![Facebook Import Success Sheets](res/facebook_importsheets.png)
+
 - In the **Google BigQuery** template, the data will be written to the dataset specified earlier.
+
+![Facebook Import Success](res/facebook_importgbq.png)
 
 To import more data:
 
 1. Select the additional fields you need in the **Fields** tab.
-2. Go to **OWOX → Import New Data** again.
+2. Go to **OWOX → Import New Data** or **OWOX → Run Manual Backfill** again.
 
 If you encounter any issues:
 

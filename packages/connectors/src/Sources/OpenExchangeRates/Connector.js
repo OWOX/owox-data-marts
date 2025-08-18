@@ -8,11 +8,7 @@
 var OpenExchangeRatesConnector = class OpenExchangeRatesConnector extends AbstractConnector {
 
   constructor(config, source, storageName = "GoogleSheetsStorage", runConfig = null) {
-    super(config.mergeParameters({
-      DestinationTableNamePrefix: {
-        default: "Open_Exchange_Rates"
-      }
-    }), source, null, runConfig);
+    super(config, source, null, runConfig);
 
     this.storageName = storageName;
   }
@@ -83,9 +79,9 @@ startImportProcess() {
 
       this.storages[ nodeName ] = new globalThis[ this.storageName ]( 
         this.config.mergeParameters({ 
-          DestinationSheetName: {value: this.source.fieldsSchema[nodeName].destinationName},
-          DestinationTableName: {value: this.source.fieldsSchema[nodeName].destinationName } 
-        }), 
+          DestinationSheetName: { value: this.source.fieldsSchema[nodeName].destinationName},
+          DestinationTableName: { value: this.getDestinationName(nodeName, this.config, this.source.fieldsSchema[nodeName].destinationName) },
+        }),
         uniqueFields,
         this.source.fieldsSchema[ nodeName ]["fields"],
         `${this.source.fieldsSchema[ nodeName ]["description"]} ${this.source.fieldsSchema[ nodeName ]["documentation"]}`

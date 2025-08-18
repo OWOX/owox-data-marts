@@ -212,9 +212,6 @@ const runConfig = new RunConfig({
       "DestinationProjectID": {
         "value": "YOUR_PROJECT_ID"
       },
-      "DestinationTableNamePrefix": {
-        "value": ""
-      },
       "DestinationDatasetName": {
         "value": "YOUR_DATASET_NAME"
       },
@@ -286,9 +283,6 @@ const runConfig = new RunConfig({
         "value": "YOUR_DATABASE_NAME"
       },
       "DestinationTableName": {
-        "value": "tiktok_ads_"
-      },
-      "DestinationTableNamePrefix": {
         "value": "tiktok_ads_"
       },
       "AthenaOutputLocation": {

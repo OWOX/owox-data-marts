@@ -80,7 +80,7 @@ class AbstractConfig {
     /**
      * Adding parameter to config
      * @param name (string) parameter name
-     * @param parameter (mixed) parameter values
+     * @param value (mixed) parameter values
      * @return Config object
      */  
     addParameter(name, value) {

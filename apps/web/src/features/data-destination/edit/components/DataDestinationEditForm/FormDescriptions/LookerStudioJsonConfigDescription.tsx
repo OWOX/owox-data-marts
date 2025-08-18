@@ -19,7 +19,7 @@ export default function LookerStudioJsonConfigDescription() {
             Looker Studio.
           </p>
           <ul className='list-inside space-y-2 text-sm'>
-            <li>You can copy this JSON config to use in Looker Studio Connector.</li>
+            <li>You need to copy this JSON config to use it in the Looker Studio Connector.</li>
             <li>
               If you need to rotate a previous secret key, you can use the corresponding function in
               the menu on the destinations list.
