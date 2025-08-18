@@ -75,7 +75,23 @@ export function TargetSetupStep({
     setTableName(newTableName);
     setDatasetError(newDatasetError);
     setTableError(newTableError);
-  }, [target, sanitizedDestinationName, sanitizedConnectorName]);
+
+    const newFullyQualifiedName = `${newDatasetName}.${newTableName}`;
+    const newIsValid = !!(
+      newDatasetName &&
+      newTableName &&
+      newDatasetError === null &&
+      newTableError === null
+    );
+
+    if (
+      !target ||
+      target.fullyQualifiedName !== newFullyQualifiedName ||
+      target.isValid !== newIsValid
+    ) {
+      updateTarget(newDatasetName, newTableName, newDatasetError, newTableError);
+    }
+  }, [target, sanitizedDestinationName, sanitizedConnectorName, updateTarget]);
 
   const handleDatasetNameChange = (name: string) => {
     setDatasetName(name);
