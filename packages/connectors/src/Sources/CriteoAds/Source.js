@@ -58,7 +58,7 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
       },
       MaxFetchingDays: {
         requiredType: "number",
-        value: 30,
+        default: 30,
         label: "Max Fetching Days",
         description: "Maximum number of days to fetch data for"
       },

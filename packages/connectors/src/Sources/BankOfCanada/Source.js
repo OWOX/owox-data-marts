@@ -43,7 +43,7 @@ constructor( configRange ) {
     MaxFetchingDays: {
       requiredType: "number",
       isRequired: true,
-      value: 30,
+      default: 30,
       label: "Max Fetching Days",
       description: "Maximum number of days to fetch data for"
     }
