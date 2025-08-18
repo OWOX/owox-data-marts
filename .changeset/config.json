@@ -2,7 +2,9 @@
   "$schema": "https://unpkg.com/@changesets/config@2.3.1/schema.json",
   "changelog": "@changesets/cli/changelog",
   "commit": false,
-  "fixed": [["owox", "@owox/backend", "@owox/connectors", "@owox/connector-runner"]],
+  "fixed": [
+    ["owox", "@owox/backend", "@owox/connectors", "@owox/connector-runner", "@owox/idp-protocol"]
+  ],
   "access": "public",
   "snapshot": {
     "useCalculatedVersion": true
