@@ -43,8 +43,5 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
 
-      - name: Build @owox/backend
-        run: npm run build -w @owox/backend
-
       - name: Run ${{ matrix.check.name }}
         run: ${{ matrix.check.command }}

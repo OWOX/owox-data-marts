@@ -65,13 +65,17 @@
   "repository": "OWOX/owox-data-marts",
   "scripts": {
     "build": "tsc -b",
+    "build:backend": "npm run build -w @owox/backend --prefix ../..",
     "lint": "eslint . --config ./eslint.config.mjs",
     "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",
     "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",
     "format": "prettier --write \"**/*.{ts,js,json}\"",
     "format:check": "prettier --check \"**/*.{ts,js,json}\"",
+    "prebuild": "npm run build:backend",
+    "prelint": "npm run build:backend",
     "prepack": "oclif manifest",
     "prepublishOnly": "npm run lint",
+    "pretest": "npm run build:backend",
     "test": "npm run build && oclif manifest &&mocha --forbid-only \"test/**/*.test.ts\"",
     "version": "oclif readme && git add README.md"
   },
