@@ -21,7 +21,7 @@ export const mapDataMartRunDtoToEntity = (dto: DataMartRunDto): DataMartRun => (
 
 export const mapDataMartRunItemEntityToDto = (entity: DataMartRunItem): DataMartRunItemDto => ({
   id: entity.id,
-  status: entity.status.toString(),
+  status: entity.status,
   createdAt: entity.createdAt.toISOString(),
   logs: entity.logs,
   errors: entity.errors,

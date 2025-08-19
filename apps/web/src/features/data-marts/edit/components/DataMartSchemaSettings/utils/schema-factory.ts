@@ -13,6 +13,6 @@ export function createInitialSchema(storageType: DataStorageType): DataMartSchem
     case DataStorageType.AWS_ATHENA:
       return { type: 'athena-data-mart-schema', fields: [] };
     default:
-      throw new Error(`Unsupported storage type: ${String(storageType)}`);
+      throw new Error(`Unsupported storage type: ${storageType}`);
   }
 }
