@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   CollapsibleCard,
   CollapsibleCardHeader,
@@ -7,23 +6,13 @@ import {
   CollapsibleCardFooter,
   CollapsibleCardHeaderActions,
 } from '../../../../../../shared/components/CollapsibleCard';
-import { DataDestinationTypeModel } from '../../../../../data-destination/shared/types';
-import {
-  DataDestinationType,
-  DataDestinationStatus,
-} from '../../../../../data-destination/shared/enums';
-import type { DataMartReport } from '../../model/types/data-mart-report';
-import { GoogleSheetsReportsTable } from '../../../list/components/GoogleSheetsReportsTable/GoogleSheetsReportsTable';
-import { LookerStudioReportCard } from '../../../list/components/LookerStudioReportCard/LookerStudioReportCard';
-import { GoogleSheetsReportEditSheet } from '../../../edit/components/GoogleSheetsReportEditSheet';
-import { LookerStudioReportEditSheet } from '../../../edit/components/LookerStudioReportEditSheet';
 import { ReportFormMode } from '../../../shared';
-import { Button } from '../../../../../../shared/components/Button';
-import { PlusIcon } from 'lucide-react';
 import type { DataMartStatusInfo } from '../../../../shared/types/data-mart-status.model';
-import { DataMartStatus } from '../../../../shared/enums/data-mart-status.enum';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import type { DataDestination } from '../../../../../data-destination/shared/model/types';
+import { useReportModals, useDestinationValidation } from '../../model/hooks';
+import { AddReportButton } from './AddReportButton';
+import { ReportEditSheetRenderer } from './ReportEditSheetRenderer';
+import { ReportTableRenderer } from './ReportTableRenderer';
 
 interface DestinationCardProps {
   destination: DataDestination;
@@ -31,107 +20,21 @@ interface DestinationCardProps {
 }
 
 export function DestinationCard({ destination, dataMartStatus }: DestinationCardProps) {
-  const destinationInfo = DataDestinationTypeModel.getInfo(destination.type);
-  const [isAddReportOpen, setIsAddReportOpen] = useState(false);
-  const [isEditReportOpen, setIsEditReportOpen] = useState(false);
-  const [editingReport, setEditingReport] = useState<DataMartReport | null>(null);
+  const { destinationInfo, isVisible } = useDestinationValidation(destination);
+  const {
+    isAddReportOpen,
+    isEditReportOpen,
+    editingReport,
+    handleAddReport,
+    handleEditReport,
+    handleCloseAddReport,
+    handleCloseEditReport,
+  } = useReportModals();
 
   // Only show destinations that are active
-  if (destinationInfo.status !== DataDestinationStatus.ACTIVE) {
+  if (!isVisible) {
     return null;
   }
-
-  const handleAddReport = () => {
-    setIsAddReportOpen(true);
-  };
-
-  const handleEditReport = (report: DataMartReport) => {
-    setEditingReport(report);
-    setIsEditReportOpen(true);
-  };
-
-  const handleCloseAddReport = () => {
-    setIsAddReportOpen(false);
-  };
-
-  const handleCloseEditReport = () => {
-    setIsEditReportOpen(false);
-    setEditingReport(null);
-  };
-
-  // Determine which edit sheet to show based on destination type
-  const renderAddReportSheet = () => {
-    switch (destination.type) {
-      case DataDestinationType.GOOGLE_SHEETS:
-        return (
-          <GoogleSheetsReportEditSheet
-            isOpen={isAddReportOpen}
-            onClose={handleCloseAddReport}
-            mode={ReportFormMode.CREATE}
-            preSelectedDestination={destination}
-          />
-        );
-      case DataDestinationType.LOOKER_STUDIO:
-        return (
-          <LookerStudioReportEditSheet
-            isOpen={isAddReportOpen}
-            onClose={handleCloseAddReport}
-            mode={ReportFormMode.CREATE}
-            preSelectedDestination={destination}
-          />
-        );
-      default:
-        return null;
-    }
-  };
-
-  const renderEditReportSheet = () => {
-    if (!editingReport) return null;
-
-    switch (destination.type) {
-      case DataDestinationType.GOOGLE_SHEETS:
-        return (
-          <GoogleSheetsReportEditSheet
-            isOpen={isEditReportOpen}
-            onClose={handleCloseEditReport}
-            initialReport={editingReport}
-            mode={ReportFormMode.EDIT}
-          />
-        );
-      case DataDestinationType.LOOKER_STUDIO:
-        return (
-          <LookerStudioReportEditSheet
-            isOpen={isEditReportOpen}
-            onClose={handleCloseEditReport}
-            initialReport={editingReport}
-            mode={ReportFormMode.EDIT}
-            preSelectedDestination={destination}
-          />
-        );
-      default:
-        return null;
-    }
-  };
-
-  // Render the appropriate table based on destination type
-  const renderDestinationTable = () => {
-    switch (destination.type) {
-      case DataDestinationType.GOOGLE_SHEETS:
-        return (
-          <GoogleSheetsReportsTable destination={destination} onEditReport={handleEditReport} />
-        );
-      case DataDestinationType.LOOKER_STUDIO:
-        return (
-          <LookerStudioReportCard
-            destination={destination}
-            dataMartStatus={dataMartStatus}
-            onEditReport={handleEditReport}
-          />
-        );
-      default:
-        return null;
-    }
-  };
 
   return (
     <>
@@ -141,37 +44,39 @@ export function DestinationCard({ destination, dataMartStatus }: DestinationCard
             {destination.title}
           </CollapsibleCardHeaderTitle>
           <CollapsibleCardHeaderActions>
-            {destination.type === DataDestinationType.GOOGLE_SHEETS && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span>
-                    <Button
-                      onClick={handleAddReport}
-                      variant='outline'
-                      size='sm'
-                      aria-label='Add new Google Sheets report'
-                      disabled={dataMartStatus?.code === DataMartStatus.DRAFT}
-                    >
-                      <PlusIcon className='h-4 w-4' />
-                      Add Report
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                {dataMartStatus?.code === DataMartStatus.DRAFT && (
-                  <TooltipContent>
-                    <p>To create a report, publish the Data Mart first</p>
-                  </TooltipContent>
-                )}
-              </Tooltip>
-            )}
+            <AddReportButton
+              destinationType={destination.type}
+              dataMartStatus={dataMartStatus}
+              onAddReport={handleAddReport}
+            />
           </CollapsibleCardHeaderActions>
         </CollapsibleCardHeader>
-        <CollapsibleCardContent>{renderDestinationTable()}</CollapsibleCardContent>
+        <CollapsibleCardContent>
+          <ReportTableRenderer
+            destination={destination}
+            dataMartStatus={dataMartStatus}
+            onEditReport={handleEditReport}
+          />
+        </CollapsibleCardContent>
         <CollapsibleCardFooter></CollapsibleCardFooter>
       </CollapsibleCard>
 
-      {renderAddReportSheet()}
-      {renderEditReportSheet()}
+      {/* Add Report Sheet */}
+      <ReportEditSheetRenderer
+        destination={destination}
+        isOpen={isAddReportOpen}
+        onClose={handleCloseAddReport}
+        mode={ReportFormMode.CREATE}
+      />
+
+      {/* Edit Report Sheet */}
+      <ReportEditSheetRenderer
+        destination={destination}
+        isOpen={isEditReportOpen}
+        onClose={handleCloseEditReport}
+        mode={ReportFormMode.EDIT}
+        initialReport={editingReport}
+      />
     </>
   );
 }
