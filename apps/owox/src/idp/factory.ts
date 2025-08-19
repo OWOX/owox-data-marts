@@ -38,24 +38,6 @@ export class IdpFactory {
   }
 
   /**
-   * Validate provider configuration without creating the provider
-   */
-  static validateConfiguration(options: IdpFactoryOptions): { errors: string[]; isValid: boolean } {
-    const errors: string[] = [];
-    const { provider } = options;
-
-    if (![IdpProviderType.None].includes(provider)) {
-      errors.push(`Invalid provider type: ${provider}`);
-      return { errors, isValid: false };
-    }
-
-    return {
-      errors,
-      isValid: errors.length === 0,
-    };
-  }
-
-  /**
    * Create NULL IDP provider for single-user deployments
    */
   private static createNullProvider(): NullIdpProvider {

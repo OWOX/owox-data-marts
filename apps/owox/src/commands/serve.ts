@@ -94,11 +94,11 @@ export default class Serve extends BaseCommand {
     const { bootstrap } = await import('@owox/backend');
 
     const expressApp = express();
+
     const idpProvider = await IdpFactory.createFromEnvironment();
     await idpProvider.initialize();
     const idpProtocolMiddleware = new IdpProtocolMiddleware(idpProvider);
     idpProtocolMiddleware.register(expressApp);
-
     expressApp.set('idp', idpProvider);
 
     try {
