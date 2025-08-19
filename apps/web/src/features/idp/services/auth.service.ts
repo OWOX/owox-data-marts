@@ -19,7 +19,10 @@ export function tokenPayloadToUser(payload: TokenPayload): User {
  * Check if user has specific role
  */
 export function hasRole(user: User | null, role: Role): boolean {
-  return user?.roles?.includes(role) ?? false;
+  if (!user?.roles) {
+    return false;
+  }
+  return user.roles.includes(role);
 }
 
 /**
