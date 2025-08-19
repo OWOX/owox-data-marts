@@ -1,6 +1,16 @@
 ---
-'@owox': minor
+'owox': minor
 ---
 # Remove unsupported fields
 
-Remove unsupported fields from adAccountInsightsFields in the Facebook Marketing API reference to streamline the field definitions and improve maintainability. This update helps prevent the error 'These fields are not valid for fields param after V19.0' by ensuring only valid fields are included.
+- Removed the following unsupported or deprecated fields from `adAccountInsightsFields` in the Facebook Marketing API reference:
+  - `age_targeting`
+  - `estimated_ad_recall_rate_lower_bound`
+  - `estimated_ad_recall_rate_upper_bound`
+  - `estimated_ad_recallers_lower_bound`
+  - `estimated_ad_recallers_upper_bound`
+  - `gender_targeting`
+  - `labels`
+  - `location`
+- Cleaned up the field definitions to avoid including unsupported fields for Facebook API v19.0 and above.
+- Improved maintainability and reduced the risk of API errors related to invalid fields.
