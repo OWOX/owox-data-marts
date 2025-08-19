@@ -11,7 +11,7 @@ export const StorageMapperFactory = {
       case DataStorageType.AWS_ATHENA:
         return new AwsAthenaMapper();
       default:
-        throw new Error(`Unknown storage type: ${String(type)}`);
+        throw new Error(`Unknown storage type: ${type}`);
     }
   },
 };

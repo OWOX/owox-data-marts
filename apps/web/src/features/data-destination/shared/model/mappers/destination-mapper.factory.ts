@@ -11,7 +11,7 @@ export const DestinationMapperFactory = {
       case DataDestinationType.LOOKER_STUDIO:
         return new LookerStudioMapper();
       default:
-        throw new Error(`Unknown destination type: ${String(type)}`);
+        throw new Error(`Unknown destination type: ${type}`);
     }
   },
 };
