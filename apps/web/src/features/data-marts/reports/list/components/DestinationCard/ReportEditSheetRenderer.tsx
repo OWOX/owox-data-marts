@@ -3,7 +3,7 @@ import { GoogleSheetsReportEditSheet } from '../../../edit/components/GoogleShee
 import { LookerStudioReportEditSheet } from '../../../edit/components/LookerStudioReportEditSheet';
 import { ReportFormMode } from '../../../shared';
 import type { DataDestination } from '../../../../../data-destination/shared/model/types';
-import type { DataMartReport } from '../../model/types/data-mart-report';
+import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 
 interface ReportEditSheetRendererProps {
   destination: DataDestination;

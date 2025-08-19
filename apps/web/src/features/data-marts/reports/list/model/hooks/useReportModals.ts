@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { DataMartReport } from '../types/data-mart-report';
+import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 
 /**
  * Custom hook for managing report modal states

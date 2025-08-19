@@ -10,8 +10,8 @@ import {
 } from '@owox/ui/components/dropdown-menu';
 import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog';
 import { getGoogleSheetTabUrl } from '../../../shared';
-import type { DataMartReport } from '../../../shared/model/types/data-mart-report.ts';
-import { isGoogleSheetsDestinationConfig } from '../../../shared/model/types/data-mart-report.ts';
+import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
+import { isGoogleSheetsDestinationConfig } from '../../../shared/model/types/data-mart-report';
 import { useReport } from '../../../shared';
 
 interface GoogleSheetsActionsCellProps {

@@ -6,7 +6,7 @@ import {
 } from '@owox/ui/components/tooltip';
 import { CircleCheck, XCircle, Loader2 } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
-import { ReportStatusEnum } from '../../../shared';
+import { ReportStatusEnum } from '../../../shared/enums/report-status.enum';
 
 interface StatusIconProps {
   status: ReportStatusEnum | null;

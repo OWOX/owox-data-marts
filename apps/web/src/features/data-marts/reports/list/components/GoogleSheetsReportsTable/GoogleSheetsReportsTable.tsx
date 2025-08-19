@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { useEditModal } from '../../model/hooks';
-import { getGoogleSheetsColumns, getAlignClass, type Align } from '../columns';
+import { getGoogleSheetsColumns, getAlignClass, type Align } from './columns';
 import {
   Table,
   TableBody,
@@ -17,10 +17,10 @@ import {
 } from '@tanstack/react-table';
 import { Toaster } from 'react-hot-toast';
 import { GoogleSheetsReportEditSheet } from '../../../edit';
-import type { DataMartReport } from '../../../shared/model/types/data-mart-report.ts';
+import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import { useReport } from '../../../shared';
 import { useOutletContext } from 'react-router-dom';
-import type { DataMartContextType } from '../../../../edit/model/context/types.ts';
+import type { DataMartContextType } from '../../../../edit/model/context/types';
 import { DataDestinationType } from '../../../../../data-destination';
 import { useTableStorage } from '../../../../../../hooks/useTableStorage';
 import type { DataDestination } from '../../../../../data-destination/shared/model/types';

@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react';
+import { useReport } from '../../../features/data-marts/reports/shared/model/hooks';
 import {
-  ReportsProvider,
-  useReport,
   DestinationCard,
   EmptyDataMartDestinationsState,
-} from '../../../features/data-marts/reports/shared';
+} from '../../../features/data-marts/reports/list/components';
 import { useOutletContext } from 'react-router-dom';
 import type { DataMartContextType } from '../../../features/data-marts/edit/model/context/types';
 import { SkeletonList } from '@owox/ui/components/common/skeleton-list';
 import { useDataDestination } from '../../../features/data-destination/shared';
 import { DataDestinationProvider } from '../../../features/data-destination/shared';
+import { ReportsProvider } from '../../../features/data-marts/reports/shared/model/context';
 
 function DataMartDestinationsContentInner() {
   const { dataMart } = useOutletContext<DataMartContextType>();

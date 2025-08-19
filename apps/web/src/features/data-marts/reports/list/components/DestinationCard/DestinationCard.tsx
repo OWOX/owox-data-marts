@@ -10,9 +10,7 @@ import { ReportFormMode } from '../../../shared';
 import type { DataMartStatusInfo } from '../../../../shared/types/data-mart-status.model';
 import type { DataDestination } from '../../../../../data-destination/shared/model/types';
 import { useReportModals, useDestinationValidation } from '../../model/hooks';
-import { AddReportButton } from './AddReportButton';
-import { ReportEditSheetRenderer } from './ReportEditSheetRenderer';
-import { ReportTableRenderer } from './ReportTableRenderer';
+import { AddReportButton, ReportEditSheetRenderer, ReportTableRenderer } from './index';
 
 interface DestinationCardProps {
   destination: DataDestination;

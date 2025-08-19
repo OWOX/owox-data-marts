@@ -1,4 +1,4 @@
-import { Button } from '../../../../../../shared/components/Button';
+import { Button } from '@owox/ui/components/button';
 import { PlusIcon } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { DataDestinationType } from '../../../../../data-destination/shared/enums';

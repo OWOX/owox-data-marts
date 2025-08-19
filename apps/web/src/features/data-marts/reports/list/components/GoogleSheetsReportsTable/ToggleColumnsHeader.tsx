@@ -7,8 +7,8 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
-import { ReportColumnKey } from '../columns/columnKeys';
-import { ReportColumnLabels } from '../columns/columnLabels';
+import { ReportColumnKey } from './columns/columnKeys.ts';
+import { ReportColumnLabels } from './columns/columnLabels.ts';
 
 interface ToggleColumnsHeaderProps<TData> {
   table: Table<TData>;

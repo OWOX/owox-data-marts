@@ -3,7 +3,7 @@ import { GoogleSheetsReportsTable } from '../../../list/components/GoogleSheetsR
 import { LookerStudioReportCard } from '../../../list/components/LookerStudioReportCard/LookerStudioReportCard';
 import type { DataDestination } from '../../../../../data-destination/shared/model/types';
 import type { DataMartStatusInfo } from '../../../../shared/types/data-mart-status.model';
-import type { DataMartReport } from '../../model/types/data-mart-report';
+import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 
 interface ReportTableRendererProps {
   destination: DataDestination;
