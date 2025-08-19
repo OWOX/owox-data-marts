@@ -171,7 +171,10 @@ export function useTableStorage<TData, TValue>({
     const toPersist: Record<string, boolean> = {};
     for (const id of columnIds) {
       if (excludedColumnsFromVisibility.includes(id)) continue;
-      toPersist[id] = columnVisibility[id] ?? false;
+      const isVisible = columnVisibility[id];
+      if (typeof isVisible === 'boolean') {
+        toPersist[id] = isVisible;
+      }
     }
     storageService.set(STORAGE_KEYS.COLUMN_VISIBILITY, toPersist);
   }, [columnVisibility, columnIds, excludedColumnsFromVisibility, STORAGE_KEYS.COLUMN_VISIBILITY]);
