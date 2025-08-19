@@ -14,8 +14,8 @@
     "lint:fix": "eslint . --fix",
     "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",
     "lint:md:fix": "markdownlint-cli2 --fix --config ../../.markdownlint-cli2.mjs",
-    "format": "prettier --write \"**/*.{ts,js,mjs,json}\"",
-    "format:check": "prettier --check \"**/*.{ts,js,mjs,json}\""
+    "format": "prettier --write \"**/*.{ts,js,mjs,json}\" --ignore-path ../../.prettierignore",
+    "format:check": "prettier --check \"**/*.{ts,js,mjs,json}\" --ignore-path ../../.prettierignore"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.34.4",

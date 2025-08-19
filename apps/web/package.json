@@ -15,8 +15,8 @@
     "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",
     "type-check": "tsc --noEmit",
     "type-check:watch": "tsc --noEmit --watch",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css}\"",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css}\" --ignore-path ../../.prettierignore",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css}\" --ignore-path ../../.prettierignore",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "preview": "vite preview"
