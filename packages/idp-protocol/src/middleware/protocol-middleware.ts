@@ -1,5 +1,7 @@
-import { IdpProvider } from '../types/provider.js';
+import cookieParser from 'cookie-parser';
 import { Express, Request, Response, NextFunction } from 'express';
+
+import { IdpProvider } from '../types/provider.js';
 
 /**
  * The routes that are supported by the protocol middleware.
@@ -147,6 +149,7 @@ export class IdpProtocolMiddleware {
    * app.listen(3000);
    */
   register(app: Express): void {
+    app.use(cookieParser());
     const routeConfigs = [
       {
         path: this.routes.signIn,
