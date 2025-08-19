@@ -1,20 +1,21 @@
 // eslint-disable-next-line n/no-extraneous-import
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import type { BootstrapOptions } from '@owox/backend';
 
 import { Flags } from '@oclif/core';
 import express from 'express';
 import { createRequire } from 'node:module';
 
+import { IdpFactory } from '../idp/factory.js';
 import { BaseCommand } from './base.js';
 
 const require = createRequire(import.meta.url);
 const packageInfo = require('../../package.json');
 
 interface ServeFlags {
-  idpProvider: string;
-  logFormat: string;
+  'log-format': string;
   port: number;
-  webEnabled: boolean;
+  'web-enabled': boolean;
 }
 
 export default class Serve extends BaseCommand {
@@ -87,17 +88,23 @@ export default class Serve extends BaseCommand {
   }
 
   private async startApplication(flags: ServeFlags): Promise<void> {
-    this.log(`📦 Starting server on port ${flags.port} with ${flags.logFormat} logs...`);
+    this.log(`📦 Starting server on port ${flags.port} with ${flags['log-format']} logs...`);
 
     const { bootstrap } = await import('@owox/backend');
 
+    const expressApp = express();
+    const idpProvider = await IdpFactory.createFromEnvironment();
+    await idpProvider.initialize(expressApp);
+
+    expressApp.set('idp', idpProvider);
+
     try {
       this.app = await bootstrap({
-        express: express(),
-        logFormat: flags.logFormat,
+        express: expressApp,
+        logFormat: flags['log-format'],
         port: flags.port,
-        webEnabled: flags.webEnabled,
-      });
+        webEnabled: flags['web-enabled'],
+      } as BootstrapOptions);
 
       this.log(`📝 Process ID: ${process.pid}`);
       this.log(
