@@ -12,12 +12,6 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
     constructor(config) {
   
       super(config.mergeParameters({
-        ApiBaseUrl: {
-          requiredType: "string",
-          default: "https://graph.facebook.com/v21.0/",
-          label: "API Base URL",
-          description: "Facebook Graph API base URL"
-        },
         AccessToken:{
           isRequired: true,
           requiredType: "string",
@@ -126,7 +120,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
   
       //console.log(`Fetching data from ${nodeName}/${accountId}/${fields} for ${startDate}`);
   
-      let url = this.config.ApiBaseUrl.value;
+      let url = 'https://graph.facebook.com/v23.0/';
   
       let formattedDate = null;
       let timeRange = null;
@@ -154,7 +148,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
           break;
   
         case 'ad-account/insights':
-          return this._fetchInsightsData(nodeName, accountId, fields, timeRange);
+          return this._fetchInsightsData(nodeName, accountId, fields, timeRange, url);
   
         case 'ad-group':
           url += `act_${accountId}/ads?&time_range=${timeRange}&fields=${fields.join(",")}&limit=${this.fieldsSchema[nodeName].limit}`;
@@ -244,18 +238,18 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
      * @return {Array} Processed insights data
      * @private
      */
-    _fetchInsightsData(nodeName, accountId, fields, timeRange) {
+    _fetchInsightsData(nodeName, accountId, fields, timeRange, url) {
       const { regularFields, breakdownFields } = this._separateFieldsAndBreakdowns(nodeName, fields);
       
       if (breakdownFields.length === 0) {
         // No breakdown fields - single request
-        const requestUrl = this._buildInsightsUrl(accountId, regularFields, null, timeRange, nodeName);
+        const requestUrl = this._buildInsightsUrl(accountId, regularFields, null, timeRange, nodeName, url);
         return this._fetchPaginatedData(requestUrl, nodeName);
       }
       
       // Fetch data for each breakdown field
       const results = breakdownFields.map(breakdown => {
-        const requestUrl = this._buildInsightsUrl(accountId, regularFields, breakdown, timeRange, nodeName);
+        const requestUrl = this._buildInsightsUrl(accountId, regularFields, breakdown, timeRange, nodeName, url);
         const data = this._fetchPaginatedData(requestUrl, nodeName, `breakdown: ${breakdown}`);
         return { breakdown, data };
       });
@@ -308,15 +302,15 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
      * @return {string} Complete URL
      * @private
      */
-    _buildInsightsUrl(accountId, regularFields, breakdown, timeRange, nodeName) {
-      let url = `${this.config.ApiBaseUrl.value}act_${accountId}/insights?level=ad&period=day&time_range=${timeRange}&fields=${regularFields.join(",")}&limit=${this.fieldsSchema[nodeName].limit}`;
+    _buildInsightsUrl(accountId, regularFields, breakdown, timeRange, nodeName, url) {
+      let insightsUrl = `${url}act_${accountId}/insights?level=ad&period=day&time_range=${timeRange}&fields=${regularFields.join(",")}&limit=${this.fieldsSchema[nodeName].limit}`;
       
       if (breakdown) {
-        url += `&breakdowns=${breakdown}`;
+        insightsUrl += `&breakdowns=${breakdown}`;
       }
       
-      url += `&access_token=${this.config.AccessToken.value}`;
-      return url;
+      insightsUrl += `&access_token=${this.config.AccessToken.value}`;
+      return insightsUrl;
     }
 
   //---- _mergeInsightsResults ----------------------------------------------

@@ -28,10 +28,6 @@ var adAccountInsightsFields = {
     'description': 'The total number of actions people took that are attributed to your ads. Actions may include engagement, clicks or conversions.',
     'type': 'list<AdsActionStats>'
   },
-  'activity_recency': {
-    'description': 'activity_recency',
-    'type': 'string'
-  },
   'ad_click_actions': {
     'description': 'ad_click_actions',
     'type': 'list<AdsActionStats>'
