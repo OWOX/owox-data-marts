@@ -36,13 +36,14 @@ jobs:
           cache: 'npm'
           registry-url: https://registry.npmjs.org
 
-      # can't set --ignore-scripts because Astro uses postinstall
-      - run: npm ci --prefer-offline --no-audit --no-fund --loglevel error
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
 
       - name: Update wildcard version for internal packages
         run: node tools/update-package-versions-for-publishing.mjs
 
-      - run: npm run build -w owox
+      - name: Build all internal packages
+        run: npm run build -w owox
 
       - name: Publish to "latest"
         run: |

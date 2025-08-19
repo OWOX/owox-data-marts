@@ -21,6 +21,7 @@
   },
   "scripts": {
     "build": "npm run build --workspaces --if-present",
+    "build:dep": "npm run build:dep --workspaces --if-present",
     "build:docs": "npm run build -w @owox/docs",
     "clean": "npx -y shx echo '☢️  Starting total cleanup...' && npx -y shx rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/dist packages/*/dist + && npx -y shx echo '✅ Cleanup complete!'",
     "clean:reinstall": "npm run clean && npx -y shx rm -f package-lock.json && npx -y shx echo '⚙️  Installing dependencies...' && npm install && npx -y shx echo '✅ Install complete!'",

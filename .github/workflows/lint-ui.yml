@@ -43,5 +43,8 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
 
+      - name: Build internal dependencies
+        run: npm run build:dep -w @owox/ui --if-present
+
       - name: Run ${{ matrix.check.name }}
         run: ${{ matrix.check.command }}
