@@ -82,12 +82,6 @@ var BingAdsSource = class BingAdsSource extends AbstractSource {
         default: "Daily",
         label: "Aggregation",
         description: "Aggregation for reports (e.g. Daily, Weekly, Monthly)"
-      },
-      ReportType: {
-        requiredType: "string",
-        default: "UserLocationPerformanceReportRequest",
-        label: "Report Type",
-        description: "Type of report to generate (e.g. AdPerformanceReportRequest, UserLocationPerformanceReportRequest)"
       }
     }));
     this.fieldsSchema = BingAdsFieldsSchema;
@@ -180,7 +174,9 @@ var BingAdsSource = class BingAdsSource extends AbstractSource {
         this._fetchCampaignData({ accountId, fields, onBatchReady });
         return [];
       case 'ad_performance_report':
-        return this._fetchAdPerformanceData({ accountId, fields, start_time, end_time });
+        return this._fetchReportData({ accountId, fields, start_time, end_time, nodeName });
+      case 'user_location_performance_report':
+        return this._fetchReportData({ accountId, fields, start_time, end_time, nodeName });
       default:
         throw new Error(`Unknown node: ${nodeName}`);
     }
@@ -408,17 +404,52 @@ var BingAdsSource = class BingAdsSource extends AbstractSource {
   }
 
   /**
-   * Fetch ad performance report data using the Reporting API
+   * Fetch report data using the Reporting API
    * @param {Object} opts
    * @param {string} opts.accountId
    * @param {Array<string>} opts.fields
    * @param {string} opts.start_time
    * @param {string} opts.end_time
+   * @param {string} opts.nodeName
    * @returns {Array<Object>}
    * @private
    */
-  _fetchAdPerformanceData({ accountId, fields, start_time, end_time }) {
+  _fetchReportData({ accountId, fields, start_time, end_time, nodeName }) {
     this.getAccessToken();
+    const schema = this.fieldsSchema[nodeName];
+    
+    const submitResponse = this._submitReportRequest({ 
+      accountId, 
+      fields, 
+      start_time, 
+      end_time, 
+      schema 
+    });
+    
+    const pollResult = this._pollReportStatus({ submitResponse });
+    
+    if (!pollResult.ReportRequestStatus.ReportDownloadUrl) {
+      this.config.logMessage(`No data available for the specified time period (${start_time} to ${end_time}). Report status: ${JSON.stringify(pollResult.ReportRequestStatus)}`);
+      return [];
+    }
+    
+    const csvRows = BingAdsHelper.downloadCsvRows(pollResult.ReportRequestStatus.ReportDownloadUrl);
+    const records = BingAdsHelper.csvRowsToObjects(csvRows);
+    return BingAdsHelper.filterByFields(records, fields);
+  }
+
+  /**
+   * Submit a report request to Bing Ads API
+   * @param {Object} opts
+   * @param {string} opts.accountId
+   * @param {Array<string>} opts.fields
+   * @param {string} opts.start_time
+   * @param {string} opts.end_time
+   * @param {Object} opts.schema
+   * @returns {Object} - Submit response
+   * @private
+   */
+  _submitReportRequest({ accountId, fields, start_time, end_time, schema }) {
     const dateRange = {
       CustomDateRangeStart: { Day: new Date(start_time).getDate(), Month: new Date(start_time).getMonth() + 1, Year: new Date(start_time).getFullYear() },
       CustomDateRangeEnd: { Day: new Date(end_time).getDate(), Month: new Date(end_time).getMonth() + 1, Year: new Date(end_time).getFullYear() },
@@ -429,9 +460,9 @@ var BingAdsSource = class BingAdsSource extends AbstractSource {
       ExcludeColumnHeaders: false,
       ExcludeReportFooter: true,
       ExcludeReportHeader: true,
-      ReportName: 'Ad Performance Report',
+      ReportName: schema.overview,
       ReturnOnlyCompleteData: false,
-      Type: this.config.ReportType.value,
+      Type: schema.reportType,
       Aggregation: this.config.Aggregation.value,
       Columns: fields,
       Scope: { AccountIds: [Number(accountId)] },
@@ -451,13 +482,53 @@ var BingAdsSource = class BingAdsSource extends AbstractSource {
       body: JSON.stringify({ ReportRequest: requestBody }) // TODO: body is for Node.js; refactor to centralize JSON option creation
     };
     const submitResp = EnvironmentAdapter.fetch(submitUrl, submitOpts);
+    const submitResponseText = submitResp.getContentText();
+    
+    try {
+      const submitResponse = JSON.parse(submitResponseText);
+      if (submitResponse.OperationErrors && submitResponse.OperationErrors.length > 0) {
+        const error = submitResponse.OperationErrors[0];
+        throw new Error(`Bing Ads API Error ${error.Code}: ${error.ErrorCode} - ${error.Message}`);
+      }
+      return submitResponse;
+    } catch (parseError) {
+      if (parseError.message.includes('Bing Ads API Error')) {
+        throw parseError;
+      }
+      throw new Error(`Failed to parse submit response: ${parseError.message}`);
+    }
+  }
 
+  /**
+   * Poll for report completion status
+   * @param {Object} opts
+   * @param {Object} opts.submitResponse - Response from submit request
+   * @param {string} opts.start_time
+   * @param {string} opts.end_time
+   * @returns {Object} - Poll result with report status
+   * @private
+   */
+  _pollReportStatus({ submitResponse }) {
     const pollUrl = 'https://reporting.api.bingads.microsoft.com/Reporting/v13/GenerateReport/Poll';
-    const pollOpts = Object.assign({}, submitOpts, { payload: submitResp.getContentText(), body: submitResp.getContentText() });
-    const pollResult = BingAdsHelper.pollUntilStatus({ url: pollUrl, options: pollOpts, isDone: status => status.ReportRequestStatus.Status === 'Success' });
-
-    const csvRows = BingAdsHelper.downloadCsvRows(pollResult.ReportRequestStatus.ReportDownloadUrl);
-    const records = BingAdsHelper.csvRowsToObjects(csvRows);
-    return BingAdsHelper.filterByFields(records, fields);
+    const submitResponseText = JSON.stringify(submitResponse);
+    const pollOpts = {
+      method: 'post',
+      contentType: 'application/json',
+      headers: {
+        Authorization: `Bearer ${this.config.AccessToken.value}`,
+        CustomerAccountId: submitResponse.CustomerAccountId || `${this.config.CustomerID.value}|${this.config.AccountID.value}`,
+        CustomerId: this.config.CustomerID.value,
+        DeveloperToken: this.config.DeveloperToken.value,
+        'Content-Type': 'application/json'
+      },
+      payload: submitResponseText,
+      body: submitResponseText
+    };
+    
+    return BingAdsHelper.pollUntilStatus({ 
+      url: pollUrl, 
+      options: pollOpts, 
+      isDone: status => status.ReportRequestStatus.Status === 'Success' 
+    });
   }
 };

@@ -7,10 +7,37 @@
 
 var BingAdsFieldsSchema = {
   ad_performance_report: {
-    overview: "Bing Ads Performance Report",
+    overview: "Ad Performance Report",
     description: "Performance metrics for ads in Bing Ads campaigns.",
     documentation: "https://learn.microsoft.com/en-us/advertising/reporting-service/adperformancereportrequest",
+    reportType: "AdPerformanceReportRequest",
     fields: adPerformanceReportFields,
+    uniqueKeys: [
+      "AccountId",
+      "CampaignId",
+      "AdGroupId",
+      "AdId",
+      "TimePeriod",
+      "CurrencyCode",
+      "AdDistribution",
+      "DeviceType",
+      "DeviceOS",
+      "Network",
+      "TopVsOther",
+      "BidMatchType",
+      "DeliveredMatchType",
+      "Language",
+      "CampaignType"
+    ],
+    destinationName: "bing_ads_ad_performance_report",
+    isTimeSeries: true
+  },
+  user_location_performance_report: {
+    overview: "User Location Performance Report",
+    description: "Performance metrics by user location for Bing Ads campaigns.",
+    documentation: "https://learn.microsoft.com/en-us/advertising/reporting-service/userlocationperformancereportrequest",
+    reportType: "UserLocationPerformanceReportRequest",
+    fields: userLocationPerformanceReportFields,
     uniqueKeys: [
       "AccountId",
       "CampaignId",
@@ -27,7 +54,7 @@ var BingAdsFieldsSchema = {
       "DeviceOS",
       "TopVsOther"
     ],
-    destinationName: "bing_ads_ad_performance_report",
+    destinationName: "bing_ads_user_location_performance_report",
     isTimeSeries: true
   },
   campaigns: {

@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-var adPerformanceReportFields = {
+var userLocationPerformanceReportFields = {
   'AccountName': {
     'description': 'The account name.',
     'type': 'String'
@@ -37,28 +37,20 @@ var adPerformanceReportFields = {
     'description': 'The ad group name.',
     'type': 'String'
   },
-  'AdId': {
-    'description': 'The Microsoft Advertising assigned identifier of an ad.',
-    'type': 'Int64'
-  },
   'AdGroupId': {
     'description': 'The Microsoft Advertising assigned identifier of an ad group.',
     'type': 'Int64'
   },
-  'AdTitle': {
-    'description': 'The ad title.',
+  'Country': {
+    'description': 'The country where the user was located when they clicked the ad.',
     'type': 'String'
   },
-  'AdDescription': {
-    'description': 'The first ad description that appears below the path in your ad.',
+  'State': {
+    'description': 'The state where the user was located when they clicked the ad.',
     'type': 'String'
   },
-  'AdDescription2': {
-    'description': 'The second ad description that appears below the path in your ad.',
-    'type': 'String'
-  },
-  'AdType': {
-    'description': 'The ad type.',
+  'MetroArea': {
+    'description': 'The metro area where the user was located when they clicked the ad.',
     'type': 'String'
   },
   'CurrencyCode': {
@@ -94,44 +86,36 @@ var adPerformanceReportFields = {
     'description': 'The average position of the ad on a webpage.',
     'type': 'Double'
   },
-  'Conversions': {
-    'description': 'The number of conversions.',
-    'type': 'Int64'
-  },
-  'ConversionRate': {
-    'description': 'The conversion rate as a percentage.',
-    'type': 'Double'
-  },
-  'CostPerConversion': {
-    'description': 'The cost per conversion.',
-    'type': 'Double'
-  },
-  'DestinationUrl': {
-    'description': 'The destination URL attribute of the ad.',
+  'ProximityTargetLocation': {
+    'description': 'The location being targeted.',
     'type': 'String'
   },
-  'DeviceType': {
-    'description': 'The type of device which showed ads.',
+  'Radius': {
+    'description': 'The radius of the location target.',
     'type': 'String'
   },
   'Language': {
     'description': 'The language of the publisher where the ad was shown.',
     'type': 'String'
   },
-  'DisplayUrl': {
-    'description': 'The ad display URL.',
+  'City': {
+    'description': 'The city where the user was located when they clicked the ad.',
     'type': 'String'
   },
-  'AdStatus': {
-    'description': 'The ad status.',
+  'QueryIntentCountry': {
+    'description': 'The country that the user was searching for.',
     'type': 'String'
   },
-  'Network': {
-    'description': 'The entire Microsoft Advertising Network made up of Microsoft sites and select traffic, and only partner traffic.',
+  'QueryIntentState': {
+    'description': 'The state that the user was searching for.',
     'type': 'String'
   },
-  'TopVsOther': {
-    'description': 'Indicates whether the ad impression appeared in a top position or elsewhere.',
+  'QueryIntentCity': {
+    'description': 'The city that the user was searching for.',
+    'type': 'String'
+  },
+  'QueryIntentDMA': {
+    'description': 'The DMA that the user was searching for.',
     'type': 'String'
   },
   'BidMatchType': {
@@ -142,6 +126,18 @@ var adPerformanceReportFields = {
     'description': 'The match type used to deliver an ad.',
     'type': 'String'
   },
+  'Network': {
+    'description': 'The entire Microsoft Advertising Network made up of Microsoft sites and select traffic, and only partner traffic.',
+    'type': 'String'
+  },
+  'TopVsOther': {
+    'description': 'Indicates whether the ad impression appeared in a top position or elsewhere.',
+    'type': 'String'
+  },
+  'DeviceType': {
+    'description': 'The type of device which showed ads.',
+    'type': 'String'
+  },
   'DeviceOS': {
     'description': 'The operating system of the device reported in the DeviceType column.',
     'type': 'String'
@@ -150,12 +146,24 @@ var adPerformanceReportFields = {
     'description': 'The number of conversions from other ads within the same account that were preceded by one or more clicks from this ad.',
     'type': 'String'
   },
+  'Conversions': {
+    'description': 'The number of conversions.',
+    'type': 'Int64'
+  },
+  'ConversionRate': {
+    'description': 'The conversion rate as a percentage.',
+    'type': 'Double'
+  },
   'Revenue': {
     'description': 'The revenue optionally reported by the advertiser as a result of conversions.',
     'type': 'String'
   },
   'ReturnOnAdSpend': {
     'description': 'The return on ad spend (ROAS).',
+    'type': 'Double'
+  },
+  'CostPerConversion': {
+    'description': 'The cost per conversion.',
     'type': 'Double'
   },
   'CostPerAssist': {
@@ -170,88 +178,28 @@ var adPerformanceReportFields = {
     'description': 'The revenue per assist.',
     'type': 'String'
   },
-  'TrackingTemplate': {
-    'description': 'The current tracking template of the ad.',
+  'County': {
+    'description': 'The county where the user was located when they clicked the ad.',
     'type': 'String'
   },
-  'CustomParameters': {
-    'description': 'The current custom parameters set of the ad.',
+  'PostalCode': {
+    'description': 'The postal code where the user was located when they clicked the ad.',
     'type': 'String'
   },
-  'FinalUrl': {
-    'description': 'The Final URL of the ad.',
+  'QueryIntentCounty': {
+    'description': 'The county that the user was searching for.',
     'type': 'String'
   },
-  'FinalMobileUrl': {
-    'description': 'The Final Mobile URL of the ad.',
+  'QueryIntentPostalCode': {
+    'description': 'The postal code that the user was searching for.',
     'type': 'String'
   },
-  'FinalAppUrl': {
-    'description': 'Reserved for future use.',
-    'type': 'String'
-  },
-  'AccountStatus': {
-    'description': 'The account status.',
-    'type': 'String'
-  },
-  'CampaignStatus': {
-    'description': 'The campaign status.',
-    'type': 'String'
-  },
-  'AdGroupStatus': {
-    'description': 'The ad group status.',
-    'type': 'String'
-  },
-  'TitlePart1': {
-    'description': 'The title part 1 attribute of an ad.',
-    'type': 'String'
-  },
-  'TitlePart2': {
-    'description': 'The title part 2 attribute of an ad.',
-    'type': 'String'
-  },
-  'TitlePart3': {
-    'description': 'The title part 3 attribute of an ad.',
-    'type': 'String'
-  },
-  'Headline': {
-    'description': 'The shorter of two possible responsive ad headlines.',
-    'type': 'String'
-  },
-  'LongHeadline': {
-    'description': 'The longer of two possible responsive ad headlines.',
-    'type': 'String'
-  },
-  'BusinessName': {
-    'description': 'Depending on your responsive ad\'s placement, your business\'s name may appear in your ad.',
-    'type': 'String'
-  },
-  'Path1': {
-    'description': 'The path 1 attribute of an ad.',
-    'type': 'String'
-  },
-  'Path2': {
-    'description': 'The path 2 attribute of an ad.',
-    'type': 'String'
-  },
-  'AdLabels': {
-    'description': 'The labels applied to the ad.',
-    'type': 'String'
-  },
-  'CustomerId': {
-    'description': 'The Microsoft Advertising assigned identifier of a customer.',
+  'LocationId': {
+    'description': 'The Microsoft Advertising identifier of the location where the user was physically located when they clicked the ad.',
     'type': 'Int64'
   },
-  'CustomerName': {
-    'description': 'The customer name.',
-    'type': 'String'
-  },
-  'CampaignType': {
-    'description': 'The campaign type.',
-    'type': 'String'
-  },
-  'BaseCampaignId': {
-    'description': 'The Microsoft Advertising assigned identifier of an experiment campaign.',
+  'QueryIntentLocationId': {
+    'description': 'The Microsoft Advertising identifier of the location that the user was searching for.',
     'type': 'Int64'
   },
   'AllConversions': {
@@ -276,10 +224,6 @@ var adPerformanceReportFields = {
   },
   'AllRevenuePerConversion': {
     'description': 'The revenue per conversion.',
-    'type': 'String'
-  },
-  'FinalUrlSuffix': {
-    'description': 'A place in your final URL where you can add parameters that will be attached to the end of your landing page URL.',
     'type': 'String'
   },
   'ViewThroughConversions': {
@@ -318,64 +262,76 @@ var adPerformanceReportFields = {
     'description': 'View-through conversions are conversions that people make after they have seen your ad, even though they did not click the ad.',
     'type': 'Int64'
   },
+  'Neighborhood': {
+    'description': 'The neighborhood where the user was located when they clicked the ad.',
+    'type': 'String'
+  },
+  'QueryIntentNeighborhood': {
+    'description': 'The neighborhood that the user was searching for.',
+    'type': 'String'
+  },
   'ViewThroughRevenue': {
     'description': 'The revenue optionally reported by the advertiser as a result of view-through conversions.',
     'type': 'String'
   },
-  'VideoViews': {
-    'description': 'The number of times the video was played and watched for at least two continuous seconds with more than 50% of the screen in view.',
-    'type': 'Int64'
-  },
-  'ViewThroughRate': {
-    'description': 'The number of video views divided by the number of impressions.',
-    'type': 'Double'
-  },
-  'AverageCPV': {
-    'description': 'Average total spend divided by video views.',
-    'type': 'Double'
-  },
-  'VideoViewsAt25Percent': {
-    'description': 'The number of times a person completed at least 25% of a video.',
-    'type': 'Int64'
-  },
-  'VideoViewsAt50Percent': {
-    'description': 'The number of times a person completed at least 50% of a video.',
-    'type': 'Int64'
-  },
-  'VideoViewsAt75Percent': {
-    'description': 'The number of times a person completed at least 75% of a video.',
-    'type': 'Int64'
-  },
-  'CompletedVideoViews': {
-    'description': 'Number of times a person watched the entire video to completion.',
-    'type': 'Int64'
-  },
-  'VideoCompletionRate': {
-    'description': 'The number of completed video views divided by the total number of impressions, multiplied by 100.',
-    'type': 'Int64'
-  },
-  'TotalWatchTimeInMS': {
-    'description': 'Total amount of time a person spent watching the video in milliseconds.',
-    'type': 'Date'
-  },
-  'AverageWatchTimePerVideoView': {
-    'description': 'Total watch time divided by the number of video views.',
-    'type': 'Int64'
-  },
-  'AverageWatchTimePerImpression': {
-    'description': 'Total watch time, in milliseconds, divided by the number of impressions.',
-    'type': 'Double'
-  },
-  'AdStrength': {
-    'description': 'The ad strength score of responsive search ads.',
+  'CampaignType': {
+    'description': 'The campaign type.',
     'type': 'String'
   },
-  'AdStrengthActionItems': {
-    'description': 'The suggestion based on ad strength of your responsive search ads.',
+  'AssetGroupId': {
+    'description': 'The Microsoft Advertising assigned identifier of an asset group.',
+    'type': 'Int64'
+  },
+  'AssetGroupName': {
+    'description': 'The asset group name.',
     'type': 'String'
   },
-  'GoalId': {
-    'description': 'The Microsoft Advertising assigned identifier of a conversion goal.',
+  'Downloads': {
+    'description': 'The number of downloads.',
     'type': 'Int64'
+  },
+  'PostClickDownloadRate': {
+    'description': 'The download rate after click.',
+    'type': 'Double'
+  },
+  'CostPerDownload': {
+    'description': 'The cost per download.',
+    'type': 'Double'
+  },
+  'AppInstalls': {
+    'description': 'The number of app installs.',
+    'type': 'Int64'
+  },
+  'PostClickInstallRate': {
+    'description': 'The install rate after click.',
+    'type': 'Double'
+  },
+  'CPI': {
+    'description': 'Cost per install.',
+    'type': 'Double'
+  },
+  'Purchases': {
+    'description': 'The number of purchases.',
+    'type': 'Int64'
+  },
+  'PostInstallPurchaseRate': {
+    'description': 'The purchase rate after install.',
+    'type': 'Double'
+  },
+  'CPP': {
+    'description': 'Cost per purchase.',
+    'type': 'Double'
+  },
+  'Subscriptions': {
+    'description': 'The number of subscriptions.',
+    'type': 'Int64'
+  },
+  'PostInstallSubscriptionRate': {
+    'description': 'The subscription rate after install.',
+    'type': 'Double'
+  },
+  'CPS': {
+    'description': 'Cost per subscription.',
+    'type': 'Double'
   }
 };

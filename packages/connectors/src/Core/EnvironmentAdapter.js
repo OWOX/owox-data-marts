@@ -235,8 +235,16 @@ var EnvironmentAdapter = class EnvironmentAdapter {
         } else if (this.getEnvironment() === ENVIRONMENT.NODE) {
             return csvString
                 .split('\n')
+                .filter(line => line.trim() !== '')
                 .map(line => line.split(delimiter)
-                .map(cell => cell.trim()));
+                .map(cell => {
+                    const trimmed = cell.trim();
+                    // Remove outer quotes if present
+                    if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+                        return trimmed.slice(1, -1).replace(/""/g, '"');
+                    }
+                    return trimmed;
+                }));
         } else {
             throw new UnsupportedEnvironmentException("Unsupported environment");
         }
