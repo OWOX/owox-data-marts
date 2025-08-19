@@ -8,7 +8,7 @@ import type {
 } from '../../shared/model/types/data-mart-report.ts';
 import { isLookerStudioDestinationConfig } from '../../shared/model/types/data-mart-report.ts';
 import { DestinationTypeConfigEnum, useReport } from '../../shared';
-import type { DataDestinationResponseDto } from '../../../../data-destination/shared/services/types';
+import type { DataDestination } from '../../../../data-destination/shared/model/types';
 
 // Define the form schema - simplified for editing existing reports
 const lookerStudioReportFormSchema = z.object({
@@ -22,7 +22,7 @@ interface UseLookerStudioReportFormProps {
   initialReport?: DataMartReport;
   dataMartId: string;
   onSuccess?: () => void;
-  preSelectedDestination?: DataDestinationResponseDto | null;
+  preSelectedDestination?: DataDestination | null;
 }
 
 export function useLookerStudioReportForm({

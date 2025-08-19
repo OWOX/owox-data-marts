@@ -40,7 +40,6 @@ import { ReportFormMode } from '../../../shared';
 import { Button } from '@owox/ui/components/button';
 import LookerStudioJsonConfigDescription from '../../../../../data-destination/edit/components/DataDestinationEditForm/FormDescriptions/LookerStudioJsonConfigDescription.tsx';
 import LookerStudioCacheLifetimeDescription from './LookerStudioCacheLifetimeDescription.tsx';
-import type { DataDestinationResponseDto } from '../../../../../data-destination/shared/services/types';
 
 interface LookerStudioReportEditFormProps {
   initialReport?: DataMartReport;
@@ -50,7 +49,7 @@ interface LookerStudioReportEditFormProps {
   onFormErrorChange?: (error: string | null) => void;
   onSubmit?: () => void;
   onCancel?: () => void;
-  preSelectedDestination?: DataDestinationResponseDto | null;
+  preSelectedDestination?: DataDestination | null;
 }
 
 // Cache time options in seconds

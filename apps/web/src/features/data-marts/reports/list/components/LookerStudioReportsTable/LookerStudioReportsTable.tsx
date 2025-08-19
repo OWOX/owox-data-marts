@@ -21,11 +21,11 @@ import { useReport } from '../../../shared';
 import { useOutletContext } from 'react-router-dom';
 import type { DataMartContextType } from '../../../../edit/model/context/types.ts';
 import { DataDestinationType } from '../../../../../data-destination';
-import type { DataDestinationResponseDto } from '../../../../../data-destination/shared/services/types';
+import type { DataDestination } from '../../../../../data-destination/shared/model/types';
 import { useTableStorage } from '../../../../../../hooks/useTableStorage';
 
 interface LookerStudioReportsTableProps {
-  destination: DataDestinationResponseDto;
+  destination: DataDestination;
   onEditReport: (report: DataMartReport) => void;
 }
 

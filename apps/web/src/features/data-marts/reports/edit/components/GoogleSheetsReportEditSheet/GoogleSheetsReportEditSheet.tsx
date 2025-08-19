@@ -11,14 +11,14 @@ import type { DataMartReport } from '../../../shared/model/types/data-mart-repor
 import { GoogleSheetsReportEditForm } from '../GoogleSheetsReportEditForm';
 import { DataDestinationProvider } from '../../../../../data-destination';
 import { ReportFormMode } from '../../../shared';
-import type { DataDestinationResponseDto } from '../../../../../data-destination/shared/services/types';
+import type { DataDestination } from '../../../../../data-destination/shared/model/types';
 
 interface GoogleSheetsReportEditSheetProps {
   isOpen: boolean;
   onClose: () => void;
   initialReport?: DataMartReport;
   mode: ReportFormMode;
-  preSelectedDestination?: DataDestinationResponseDto | null;
+  preSelectedDestination?: DataDestination | null;
 }
 
 export function GoogleSheetsReportEditSheet({

@@ -47,7 +47,6 @@ import { TimeTriggerAnnouncement } from '../../../../scheduled-triggers';
 import DocumentLinkDescription from './FormDescriptions/DocumentLinkDescription.tsx';
 import { Button } from '@owox/ui/components/button';
 import { isGoogleServiceAccountCredentials } from '../../../../../../shared/types';
-import type { DataDestinationResponseDto } from '../../../../../data-destination/shared/services/types';
 import { CopyableField } from '@owox/ui/components/common/copyable-field';
 
 interface GoogleSheetsReportEditFormProps {
@@ -58,7 +57,7 @@ interface GoogleSheetsReportEditFormProps {
   onFormErrorChange?: (error: string | null) => void;
   onSubmit?: () => void;
   onCancel?: () => void;
-  preSelectedDestination?: DataDestinationResponseDto | null;
+  preSelectedDestination?: DataDestination | null;
 }
 
 export const GoogleSheetsReportEditForm = forwardRef<

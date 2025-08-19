@@ -14,7 +14,7 @@ import { useOutletContext } from 'react-router-dom';
 import type { DataMartContextType } from '../../../../edit/model/context/types';
 import { DataDestinationType } from '../../../../../data-destination/shared/enums';
 import { DestinationTypeConfigEnum } from '../../../shared/enums/destination-type-config.enum';
-import type { DataDestinationResponseDto } from '../../../../../data-destination/shared/services/types';
+import type { DataDestination } from '../../../../../data-destination/shared/model/types';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import type { DataMartStatusInfo } from '../../../../shared/types/data-mart-status.model';
 import { DataMartStatus } from '../../../../shared/enums/data-mart-status.enum';
@@ -23,7 +23,7 @@ import { ReportStatusEnum } from '../../../shared/enums/report-status.enum';
 
 // Main container component
 interface LookerStudioReportCardProps extends ComponentPropsWithoutRef<'div'> {
-  destination: DataDestinationResponseDto;
+  destination: DataDestination;
   dataMartStatus?: DataMartStatusInfo;
   onEditReport: (report: DataMartReport) => void;
   className?: string;

@@ -11,7 +11,7 @@ import {
   ReportFormMode,
   useReport,
 } from '../../shared';
-import type { DataDestinationResponseDto } from '../../../../data-destination/shared/services/types';
+import type { DataDestination } from '../../../../data-destination/shared/model/types';
 
 export const GoogleSheetsReportEditFormSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -26,7 +26,7 @@ interface UseGoogleSheetsReportFormOptions {
   mode: ReportFormMode;
   dataMartId: string;
   onSuccess?: () => void;
-  preSelectedDestination?: DataDestinationResponseDto | null;
+  preSelectedDestination?: DataDestination | null;
 }
 
 export function useGoogleSheetsReportForm({

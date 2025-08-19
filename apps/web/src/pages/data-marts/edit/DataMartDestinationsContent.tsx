@@ -8,10 +8,17 @@ import {
 import { useOutletContext } from 'react-router-dom';
 import type { DataMartContextType } from '../../../features/data-marts/edit/model/context/types';
 import { SkeletonList } from '@owox/ui/components/common/skeleton-list';
+import { useDataDestination } from '../../../features/data-destination/shared';
+import { DataDestinationProvider } from '../../../features/data-destination/shared';
 
 function DataMartDestinationsContentInner() {
   const { dataMart } = useOutletContext<DataMartContextType>();
-  const { destinations, fetchDestinations, fetchReportsByDataMartId } = useReport();
+  const { fetchReportsByDataMartId } = useReport();
+  const {
+    dataDestinations,
+    fetchDataDestinations,
+    loading: destinationsLoading,
+  } = useDataDestination();
 
   // Add loading state management
   const [isLoading, setIsLoading] = useState(true);
@@ -22,7 +29,7 @@ function DataMartDestinationsContentInner() {
       setIsLoading(true);
       try {
         if (!dataMart) return;
-        await Promise.all([fetchDestinations(), fetchReportsByDataMartId(dataMart.id)]);
+        await Promise.all([fetchDataDestinations(), fetchReportsByDataMartId(dataMart.id)]);
       } catch (err) {
         console.error(err);
       } finally {
@@ -31,7 +38,7 @@ function DataMartDestinationsContentInner() {
     };
 
     void fetchData();
-  }, [fetchDestinations, fetchReportsByDataMartId, dataMart]);
+  }, [fetchDataDestinations, fetchReportsByDataMartId, dataMart]);
 
   if (!dataMart) {
     return null;
@@ -39,12 +46,12 @@ function DataMartDestinationsContentInner() {
 
   return (
     <div className='flex flex-col gap-4'>
-      {isLoading ? (
+      {isLoading || destinationsLoading ? (
         <SkeletonList />
-      ) : destinations.length === 0 ? (
+      ) : dataDestinations.length === 0 ? (
         <EmptyDataMartDestinationsState />
       ) : (
-        destinations.map(destination => (
+        dataDestinations.map(destination => (
           <DestinationCard
             key={destination.id}
             destination={destination}
@@ -58,8 +65,10 @@ function DataMartDestinationsContentInner() {
 
 export default function DataMartDestinationsContent() {
   return (
-    <ReportsProvider>
-      <DataMartDestinationsContentInner />
-    </ReportsProvider>
+    <DataDestinationProvider>
+      <ReportsProvider>
+        <DataMartDestinationsContentInner />
+      </ReportsProvider>
+    </DataDestinationProvider>
   );
 }
