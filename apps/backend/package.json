@@ -33,9 +33,10 @@
   ],
   "scripts": {
     "build": "npm run build:web && npm run build:app && npm run copy:assets",
-    "build:dep": "npm run build:connectors",
+    "build:dep": "npm run build:connectors && npm run build:idp-protocol",
     "build:clean": "shx rm -rf dist",
     "build:connectors": "npm run build -w @owox/connectors --prefix ../..",
+    "build:idp-protocol": "npm run build -w @owox/idp-protocol --prefix ../..",
     "build:web": "npm run build -w @owox/web --prefix ../..",
     "build:app": "nest build",
     "copy:assets": "shx mkdir -p dist/public && shx cp -r ../web/dist/* dist/public/",
