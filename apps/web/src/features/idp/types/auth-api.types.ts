@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'editor' | 'viewer';
+import type { Role } from './user.types.js';
 
 /**
  * Access token response
