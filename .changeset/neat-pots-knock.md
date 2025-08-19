@@ -1,5 +1,5 @@
 ---
-'@owox/connectors': minor
+'@owox': minor
 ---
 # Remove unsupported fields
 
