@@ -19,34 +19,21 @@ const TABLE_STORAGE_CONSTANTS = {
  */
 const tableStorageUtils = {
   /**
-   * Type guard to check if value is a valid SortingState array
-   */
-  isSortingArray: (val: unknown): val is SortingState =>
-    Array.isArray(val) &&
-    val.length > 0 &&
-    typeof (val as { id?: unknown; desc?: unknown }[])[0]?.id === 'string' &&
-    typeof (val as { id?: unknown; desc?: unknown }[])[0]?.desc === 'boolean',
-
-  /**
-   * Type guard to check if value is a valid sorting item object
-   */
-  isSortingItem: (val: unknown): val is { id: string; desc: boolean } =>
-    !!val &&
-    typeof (val as { id?: unknown }).id === 'string' &&
-    typeof (val as { desc?: unknown }).desc === 'boolean',
-
-  /**
    * Extract column IDs from column definitions
+   *
    */
   extractColumnIds: <TData, TValue>(columns: ColumnDef<TData, TValue>[]): string[] =>
     columns
       .map(col => {
-        const candidate =
-          (col as unknown as { id?: string; accessorKey?: unknown }).id ??
-          (col as unknown as { id?: string; accessorKey?: unknown }).accessorKey;
-        return typeof candidate === 'string' ? candidate : undefined;
+        if (col.id) return col.id;
+
+        if ('accessorKey' in col && typeof col.accessorKey === 'string') {
+          return col.accessorKey;
+        }
+
+        return undefined;
       })
-      .filter((id): id is string => Boolean(id)),
+      .filter((id): id is string => id !== undefined),
 } as const;
 
 /**
@@ -127,22 +114,10 @@ export function useTableStorage<TData, TValue>({
    * @returns Initial sorting state for the table
    */
   const getInitialSorting = useCallback((): SortingState => {
-    const savedRaw = storageService.get(STORAGE_KEYS.SORTING, 'json') as
-      | SortingState
-      | { id: string; desc: boolean }
-      | null;
+    const savedRaw = storageService.get(STORAGE_KEYS.SORTING, 'json') as SortingState | null;
 
-    if (
-      tableStorageUtils.isSortingArray(savedRaw) &&
-      allowedSortingColumnIds.includes(savedRaw[0].id)
-    ) {
+    if (savedRaw && Array.isArray(savedRaw) && savedRaw.length > 0) {
       return savedRaw;
-    }
-    if (
-      tableStorageUtils.isSortingItem(savedRaw) &&
-      allowedSortingColumnIds.includes(savedRaw.id)
-    ) {
-      return [savedRaw];
     }
 
     // Select sorting column: prefer defaultSortingColumn if available, otherwise use first allowed column or constant fallback
@@ -164,10 +139,7 @@ export function useTableStorage<TData, TValue>({
       const visibility: VisibilityState = {};
       for (const id of columnIds) {
         if (excludedColumnsFromVisibility.includes(id)) continue;
-        const value = savedRaw[id];
-        if (typeof value === 'boolean') {
-          visibility[id] = value;
-        }
+        visibility[id] = savedRaw[id] as boolean;
       }
       return visibility;
     }
@@ -199,10 +171,7 @@ export function useTableStorage<TData, TValue>({
     const toPersist: Record<string, boolean> = {};
     for (const id of columnIds) {
       if (excludedColumnsFromVisibility.includes(id)) continue;
-      const isVisible = columnVisibility[id];
-      if (typeof isVisible === 'boolean') {
-        toPersist[id] = isVisible;
-      }
+      toPersist[id] = columnVisibility[id] ?? false;
     }
     storageService.set(STORAGE_KEYS.COLUMN_VISIBILITY, toPersist);
   }, [columnVisibility, columnIds, excludedColumnsFromVisibility, STORAGE_KEYS.COLUMN_VISIBILITY]);
