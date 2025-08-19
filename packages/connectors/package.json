@@ -20,8 +20,8 @@
     "lint:fix": "eslint . --fix --config ./eslint.config.js",
     "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",
     "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",
-    "format": "prettier --write \"**/*.{js,mjs,json}\" --ignore-path ../../.prettierignore",
-    "format:check": "prettier --check \"**/*.{js,mjs,json}\" --ignore-path ../../.prettierignore"
+    "format": "prettier --write \"**/*.{js,mjs,json}\"",
+    "format:check": "prettier --check \"**/*.{js,mjs,json}\""
   },
   "files": [
     "dist/**/*.js",
