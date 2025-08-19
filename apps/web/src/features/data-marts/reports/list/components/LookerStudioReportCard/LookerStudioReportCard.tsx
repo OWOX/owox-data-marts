@@ -206,6 +206,7 @@ export function LookerStudioReportCard({
           }}
           initialReport={existingReport}
           mode={ReportFormMode.EDIT}
+          preSelectedDestination={destination}
         />
       )}
     </>

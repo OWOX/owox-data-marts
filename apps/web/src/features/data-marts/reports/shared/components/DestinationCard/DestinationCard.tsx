@@ -102,6 +102,7 @@ export function DestinationCard({ destination, dataMartStatus }: DestinationCard
           onClose={handleCloseEditReport}
           initialReport={editingReport}
           mode={ReportFormMode.EDIT}
+          preSelectedDestination={destination}
         />
       );
     }

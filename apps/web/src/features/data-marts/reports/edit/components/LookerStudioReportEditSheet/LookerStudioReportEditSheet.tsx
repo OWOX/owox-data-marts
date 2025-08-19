@@ -66,15 +66,11 @@ export function LookerStudioReportEditSheet({
       >
         <SheetContent>
           <SheetHeader>
-            <SheetTitle>
-              {mode === ReportFormMode.CREATE
-                ? 'Connect Data Mart to Looker Studio'
-                : 'Update Looker Studio Connection'}
-            </SheetTitle>
+            <SheetTitle>{preSelectedDestination?.title ?? 'Looker Studio'}</SheetTitle>
             <SheetDescription>
               {mode === ReportFormMode.CREATE
-                ? 'Configure Data Mart as a data source for Looker Studio'
-                : 'Update Data Mart connection settings for Looker Studio'}
+                ? 'Set up Data Mart as a data source'
+                : 'Update connection details'}
             </SheetDescription>
           </SheetHeader>
 

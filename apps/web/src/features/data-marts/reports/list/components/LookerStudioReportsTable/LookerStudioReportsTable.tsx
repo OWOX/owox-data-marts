@@ -192,6 +192,7 @@ export function LookerStudioReportsTable({
         onClose={handleCloseEditForm}
         initialReport={editReport}
         mode={editMode}
+        preSelectedDestination={destination}
       />
     </div>
   );
