@@ -38,11 +38,7 @@
   "engines": {
     "node": ">=22.16.0"
   },
-  "files": [
-    "./bin",
-    "./dist/**/*.js",
-    "./oclif.manifest.json"
-  ],
+  "files": ["./bin", "./dist/**/*.js", "./oclif.manifest.json"],
   "homepage": "https://github.com/OWOX/owox-data-marts",
   "keywords": [
     "data-marts",
@@ -64,10 +60,7 @@
     "bin": "owox",
     "dirname": "owox",
     "commands": "./dist/commands",
-    "plugins": [
-      "@oclif/plugin-help",
-      "@oclif/plugin-plugins"
-    ],
+    "plugins": ["@oclif/plugin-help", "@oclif/plugin-plugins"],
     "topicSeparator": " "
   },
   "repository": "OWOX/owox-data-marts",
