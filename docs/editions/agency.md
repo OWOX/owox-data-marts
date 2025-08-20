@@ -76,8 +76,8 @@ Clients gain the freedom to explore data independently, while your team retains 
 ## How It Works
 
 1. **Open your terminal** and run:
-
-   ```bash
+ 
+ ```bash
    npm install -g owox
    ```
 
@@ -86,8 +86,7 @@ Clients gain the freedom to explore data independently, while your team retains 
    ```bash
    owox serve
    ```
-
-  (You should see something like:
+   (You should see something like:
    🚀 Starting OWOX Data Marts...
    📦 Starting server on port 3000...)
 
