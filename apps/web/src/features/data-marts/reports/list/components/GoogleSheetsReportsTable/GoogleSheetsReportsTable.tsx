@@ -93,7 +93,7 @@ export function GoogleSheetsReportsTable({
 
   const { sorting, setSorting, columnVisibility, setColumnVisibility } = useTableStorage({
     columns,
-    storageKeyPrefix: 'data-mart-google-sheets-reports',
+    storageKeyPrefix: `data-mart-google-sheets-reports-${destination.id}`,
     defaultSortingColumn: 'lastRunDate',
   });
 
