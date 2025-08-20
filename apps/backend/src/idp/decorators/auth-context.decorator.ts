@@ -1,5 +1,5 @@
 import { createParamDecorator, ExecutionContext, BadRequestException } from '@nestjs/common';
-import { AuthenticatedRequest } from '../guards/idp-auth.guard';
+import { AuthenticatedRequest } from '../guards/idp.guard';
 import { AuthorizationContext } from '../types/index';
 
 /**
@@ -23,6 +23,7 @@ export const AuthContext = createParamDecorator(
         projectId: request.idpContext.projectId,
         userId: request.idpContext.userId,
         fullName: request.idpContext.fullName,
+        avatar: request.idpContext.avatar,
         email: request.idpContext.email,
         roles: request.idpContext.roles,
       };

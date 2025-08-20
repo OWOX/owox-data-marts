@@ -30,17 +30,22 @@ export class NullIdpProvider implements IdpProvider {
   }
 
   signInMiddleware(_req: Request, res: Response, _next: NextFunction): Promise<void> {
+    const isLocalhost = _req.hostname === 'localhost' || _req.hostname === '127.0.0.1';
+
     res.cookie('refreshToken', this.defaultRefreshToken, {
       httpOnly: true,
-      secure: true,
+      secure: !isLocalhost,
+      sameSite: 'lax',
       maxAge: 3600000,
     });
     return Promise.resolve(res.redirect('/'));
   }
+
   signOutMiddleware(_req: Request, res: Response, _next: NextFunction): Promise<void> {
     res.clearCookie('refreshToken');
     return Promise.resolve(res.redirect('/'));
   }
+
   accessTokenMiddleware(_req: Request, res: Response, _next: NextFunction): Promise<Response> {
     if (!_req.cookies.refreshToken) {
       return Promise.resolve(res.status(401).json({ message: 'Unauthorized' }));

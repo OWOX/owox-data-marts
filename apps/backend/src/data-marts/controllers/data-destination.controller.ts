@@ -8,6 +8,7 @@ import { UpdateDataDestinationService } from '../use-cases/update-data-destinati
 import { GetDataDestinationService } from '../use-cases/get-data-destination.service';
 import { ListDataDestinationsService } from '../use-cases/list-data-destinations.service';
 import { Auth, AuthContext, AuthorizationContext } from '../../idp';
+import { Role, Strategy } from '../../idp/types/role-config.types';
 
 import {
   CreateDataDestinationSpec,
@@ -21,7 +22,6 @@ import { ApiTags } from '@nestjs/swagger';
 import { DeleteDataDestinationService } from '../use-cases/delete-data-destination.service';
 import { RotateSecretKeyService } from '../use-cases/rotate-secret-key.service';
 
-@Auth()
 @Controller('data-destinations')
 @ApiTags('DataDestinations')
 export class DataDestinationController {
@@ -35,6 +35,7 @@ export class DataDestinationController {
     private readonly mapper: DataDestinationMapper
   ) {}
 
+  @Auth(Role.editor(Strategy.INTROSPECT))
   @Post()
   @CreateDataDestinationSpec()
   async create(
@@ -46,6 +47,7 @@ export class DataDestinationController {
     return this.mapper.toApiResponse(dataDestinationDto);
   }
 
+  @Auth(Role.editor(Strategy.INTROSPECT))
   @Put(':id')
   @UpdateDataDestinationSpec()
   async update(
@@ -58,6 +60,7 @@ export class DataDestinationController {
     return this.mapper.toApiResponse(dataDestinationDto);
   }
 
+  @Auth(Role.viewer(Strategy.PARSE))
   @Get(':id')
   @GetDataDestinationSpec()
   async get(
@@ -69,6 +72,7 @@ export class DataDestinationController {
     return this.mapper.toApiResponse(dataDestinationDto);
   }
 
+  @Auth(Role.viewer(Strategy.PARSE))
   @Get()
   @ListDataDestinationsSpec()
   async getAll(
@@ -79,6 +83,7 @@ export class DataDestinationController {
     return this.mapper.toResponseList(dataDestinationsDto);
   }
 
+  @Auth(Role.editor(Strategy.INTROSPECT))
   @Delete(':id')
   @DeleteDataDestinationSpec()
   async delete(
@@ -89,6 +94,7 @@ export class DataDestinationController {
     await this.deleteService.run(command);
   }
 
+  @Auth(Role.editor(Strategy.INTROSPECT))
   @Post(':id/rotate-secret-key')
   @RotateSecretKeySpec()
   async rotateSecretKey(

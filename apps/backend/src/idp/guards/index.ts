@@ -1,2 +1,1 @@
-export { IdpAuthGuard, type AuthenticatedRequest } from './idp-auth.guard.js';
-export { IdpRoleGuard } from './idp-role.guard.js';
+export { IdpGuard, type AuthenticatedRequest } from './idp.guard.js';

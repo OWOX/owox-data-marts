@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
-import { IdpAuthGuard, IdpRoleGuard } from './guards';
+import { IdpGuard } from './guards';
 import { IdpExceptionFilter } from './filters/idp-exception.filter';
 import { IdpProviderService } from './services/idp-provider.service';
 
@@ -9,13 +9,12 @@ import { IdpProviderService } from './services/idp-provider.service';
   controllers: [],
   providers: [
     IdpProviderService,
-    IdpAuthGuard,
-    IdpRoleGuard,
+    IdpGuard,
     {
       provide: APP_FILTER,
       useClass: IdpExceptionFilter,
     },
   ],
-  exports: [IdpProviderService, IdpAuthGuard, IdpRoleGuard],
+  exports: [IdpProviderService, IdpGuard],
 })
 export class IdpModule {}

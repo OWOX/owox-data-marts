@@ -9,6 +9,7 @@ import { GetDataStorageService } from '../use-cases/get-data-storage.service';
 import { ListDataStoragesService } from '../use-cases/list-data-storages.service';
 
 import { AuthContext, AuthorizationContext, Auth } from '../../idp';
+import { Role, Strategy } from '../../idp/types/role-config.types';
 import {
   CreateDataStorageSpec,
   DeleteDataStorageSpec,
@@ -20,7 +21,6 @@ import { ApiTags } from '@nestjs/swagger';
 import { DataStorageListResponseApiDto } from '../dto/presentation/data-storage-list-response-api.dto';
 import { DeleteDataStorageService } from '../use-cases/delete-data-storage.service';
 
-@Auth()
 @Controller('data-storages')
 @ApiTags('DataStorages')
 export class DataStorageController {
@@ -33,6 +33,7 @@ export class DataStorageController {
     private readonly mapper: DataStorageMapper
   ) {}
 
+  @Auth(Role.viewer(Strategy.PARSE))
   @Get()
   @ListDataStoragesSpec()
   async getAll(
@@ -43,6 +44,7 @@ export class DataStorageController {
     return this.mapper.toResponseList(dataStoragesDto);
   }
 
+  @Auth(Role.editor(Strategy.INTROSPECT))
   @Put(':id')
   @UpdateDataStorageSpec()
   async update(
@@ -55,6 +57,7 @@ export class DataStorageController {
     return this.mapper.toApiResponse(dataStorageDto);
   }
 
+  @Auth(Role.editor(Strategy.INTROSPECT))
   @Post()
   @CreateDataStorageSpec()
   async create(
@@ -66,6 +69,7 @@ export class DataStorageController {
     return this.mapper.toApiResponse(dataStorageDto);
   }
 
+  @Auth(Role.viewer(Strategy.PARSE))
   @Get(':id')
   @GetDataStorageSpec()
   async get(
@@ -77,6 +81,7 @@ export class DataStorageController {
     return this.mapper.toApiResponse(dataStorageDto);
   }
 
+  @Auth(Role.editor(Strategy.INTROSPECT))
   @Delete(':id')
   @DeleteDataStorageSpec()
   async delete(

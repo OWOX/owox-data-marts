@@ -1,4 +1,4 @@
-import { Role } from '@owox/idp-protocol';
+import type { Role as RoleType } from '@owox/idp-protocol';
 
 /**
  * Authorization context
@@ -7,8 +7,7 @@ export interface AuthorizationContext {
   projectId: string;
   userId: string;
   fullName?: string;
+  avatar?: string;
   email?: string;
-  roles?: Role[];
+  roles?: RoleType[];
 }
-
-export type AuthMethod = 'parse' | 'introspect';

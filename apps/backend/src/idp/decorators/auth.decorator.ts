@@ -1,48 +1,50 @@
 import { SetMetadata, applyDecorators, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiUnauthorizedResponse } from '@nestjs/swagger';
-import { AuthMethod } from '../types/auth.types';
-import { IdpAuthGuard } from '../guards/idp-auth.guard';
+import { ApiBearerAuth, ApiUnauthorizedResponse, ApiForbiddenResponse } from '@nestjs/swagger';
+import type { RoleConfig } from '../types/role-config.types';
+import { IdpGuard } from '../guards/idp.guard';
 
 /**
- * Decorator to require authentication for a route
+ * Decorator to require authentication and/or authorization for a route
+ *
+ * @param roleConfig - Role configuration object
  *
  * @example
  * ```typescript
- * @Auth()
- * @Get('protected')
- * async getProtectedData() {
- *   return { data: 'This requires authentication' };
- * }
- * ```
- */
-export const Auth = (method: AuthMethod = 'introspect') => {
-  return applyDecorators(
-    SetMetadata('authMethod', method),
-    UseGuards(IdpAuthGuard),
-    ApiBearerAuth(),
-    ApiUnauthorizedResponse({ description: 'Authentication required' })
-  );
-};
-
-/**
- * Decorator to make authentication optional for a route
+ * import { RoleBuilder, Strategy } from '@owox/idp-protocol';
  *
- * @example
- * ```typescript
- * @OptionalAuth()
- * @Get('optional')
- * async getOptionalData(@AuthContext() context?: AuthorizationContext) {
- *   if (context) {
- *     return { data: 'Authenticated user data', context };
- *   }
- *   return { data: 'Public data' };
+ * @Auth(RoleBuilder.none())
+ * @Get('public')
+ * async getPublicData() {
+ *   return { data: 'No authentication required' };
+ * }
+ *
+ * @Auth(RoleBuilder.viewer(Strategy.INTROSPECT))
+ * @Get('viewer-data')
+ * async getViewerData() {
+ *   return { data: 'Viewer data with introspect strategy' };
+ * }
+ *
+ * @Auth(RoleBuilder.editor(Strategy.PARSE))
+ * @Get('editor-data')
+ * async getEditorData() {
+ *   return { data: 'Editor data with parse strategy' };
  * }
  * ```
  */
-export const OptionalAuth = () => {
-  return applyDecorators(
-    SetMetadata('isOptionalAuth', true),
-    UseGuards(IdpAuthGuard),
-    ApiBearerAuth()
-  );
+export const Auth = (roleConfig: RoleConfig) => {
+  const decorators = [SetMetadata('roleConfig', roleConfig), UseGuards(IdpGuard), ApiBearerAuth()];
+
+  if (!roleConfig.optional) {
+    decorators.push(ApiUnauthorizedResponse({ description: 'Authentication required' }));
+  }
+
+  if (roleConfig.role) {
+    decorators.push(
+      ApiForbiddenResponse({
+        description: `Forbidden. Required role: ${roleConfig.role}`,
+      })
+    );
+  }
+
+  return applyDecorators(...decorators);
 };
