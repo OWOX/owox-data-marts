@@ -1,5 +1,13 @@
 # @owox/backend
 
+## 0.5.0
+
+### Patch Changes
+
+- @owox/connectors@0.5.0
+- @owox/connector-runner@0.5.0
+- @owox/idp-protocol@0.5.0
+
 ## 0.4.0
 
 ### Patch Changes 0.4.0
