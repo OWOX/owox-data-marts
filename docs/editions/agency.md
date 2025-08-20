@@ -12,8 +12,8 @@ Self-managed open source analytics solution designed for agencies managing multi
 - No credential sharing approvals required - it's 100% secure
 - Customizable extraction and reporting logic by client / role / report
 
-📘 [Quick Start Guide](https://docs.owox.com/docs/getting-started/quick-start/)
-🌐 [Website](https://www.owox.com/?utm_source=github&utm_medium=referral&utm_campaign=readme&utm_content=agency) | 💬 [Join Community](https://github.com/OWOX/owox-data-marts/discussions) | 🆘 [Create an Issue](https://github.com/OWOX/owox-data-marts/issues)
+📘 [Quick Start Guide](../getting-started/quick-start.md) |
+ 🌐 [Website](https://www.owox.com/?utm_source=github&utm_medium=referral&utm_campaign=readme&utm_content=agency) | 💬 [Join Community](https://github.com/OWOX/owox-data-marts/discussions) | 🆘 [Create an Issue](https://github.com/OWOX/owox-data-marts/issues)
 
 ## Why We Built This
 
