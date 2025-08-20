@@ -17,7 +17,7 @@ Self-managed open source analytics solution designed for agencies managing multi
 
 ## Why We Built This
 
-Running a successful agency means growing your client base – but most existing marketing analytics tools for agencies punish you for growth. And that leads to an exponential SaaS subscription cost. 
+Running a successful agency means growing your client base – but most existing marketing analytics tools for agencies punish you for growth. And that leads to an exponential SaaS subscription cost.
 
 In addition, agencies often face the following challenges:
 
@@ -43,12 +43,11 @@ It empowers agencies to automate all client analytics & reports delivery without
 
 ### Power Your Clients' Data Marts
 
-Bring together client data from various ad platforms, CRMs, or financial systems and turn it into **business-ready Data Marts**, ready for reporting. 
-With no limits on # of data sources, data marts, or refreshing schedule, you can:
+Bring together client data from various ad platforms, CRMs, or financial systems and turn it into **business-ready Data Marts**, ready for reporting. With no limits on # of data sources, data marts, or refreshing schedule, you can:
 
 - Combine data from multiple sources under one roof and build **a single source of truth** for each client.
 - Reuse your **logic** across multiple client projects.
--** Avoid SaaS limitations and cost-scaling**.
+- **Avoid SaaS limitations and cost-scaling**.
 
 ### Organize Data for Scalable Reporting
 
@@ -87,13 +86,13 @@ Clients gain the freedom to explore data independently, while your team retains 
    ```bash
    owox serve
    ```
-   
+
   (You should see something like:
    🚀 Starting OWOX Data Marts...
    📦 Starting server on port 3000...)
 
 3. Go to **<http://localhost:3000>** and enjoy! 🎉
-   
+
 Note: Check out [this doc](../../apps/owox/CONTRIBUTING.md) for advanced setup and CLI commands.
 
 ## Build New Connectors
