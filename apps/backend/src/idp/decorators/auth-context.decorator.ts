@@ -26,6 +26,7 @@ export const AuthContext = createParamDecorator(
         avatar: request.idpContext.avatar,
         email: request.idpContext.email,
         roles: request.idpContext.roles,
+        projectTitle: request.idpContext.projectTitle,
       };
     }
 

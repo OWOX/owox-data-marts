@@ -10,4 +10,5 @@ export interface AuthorizationContext {
   avatar?: string;
   email?: string;
   roles?: RoleType[];
+  projectTitle?: string;
 }
