@@ -1,5 +1,4 @@
-import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
-import { forwardRef, useEffect, useState } from 'react';
+import { forwardRef, useEffect } from 'react';
 
 import {
   type DataMartReport,
@@ -28,17 +27,9 @@ import {
 } from '@owox/ui/components/select';
 import { useOutletContext } from 'react-router-dom';
 import type { DataMartContextType } from '../../../../edit/model/context/types.ts';
-import {
-  generateLookerStudioJsonConfig,
-  useDataDestination,
-  isLookerStudioDataDestination,
-  type DataDestination,
-  DataDestinationType,
-} from '../../../../../data-destination';
-import { CopyToClipboardButton } from '@owox/ui/components/common/copy-to-clipboard-button';
+import { type DataDestination } from '../../../../../data-destination';
 import { ReportFormMode } from '../../../shared';
 import { Button } from '@owox/ui/components/button';
-import LookerStudioJsonConfigDescription from '../../../../../data-destination/edit/components/DataDestinationEditForm/FormDescriptions/LookerStudioJsonConfigDescription.tsx';
 import LookerStudioCacheLifetimeDescription from './LookerStudioCacheLifetimeDescription.tsx';
 
 interface LookerStudioReportEditFormProps {
@@ -86,24 +77,6 @@ export const LookerStudioReportEditForm = forwardRef<
     const formId = 'looker-studio-edit-form';
 
     const { dataMart } = useOutletContext<DataMartContextType>();
-
-    const { dataDestinations, fetchDataDestinations } = useDataDestination();
-    const [filteredDestinations, setFilteredDestinations] = useState<DataDestination[]>([]);
-
-    useEffect(() => {
-      if (dataMart) {
-        void fetchDataDestinations();
-      }
-    }, [dataMart, fetchDataDestinations]);
-
-    useEffect(() => {
-      if (dataDestinations.length > 0) {
-        const lookerStudioDestinations = dataDestinations.filter(
-          destination => destination.type === DataDestinationType.LOOKER_STUDIO
-        );
-        setFilteredDestinations(lookerStudioDestinations);
-      }
-    }, [dataDestinations]);
 
     const {
       isDirty,
@@ -156,48 +129,6 @@ export const LookerStudioReportEditForm = forwardRef<
         >
           <FormLayout>
             {/* Connection Information - Show JSON config for the existing destination */}
-
-            {/* Display JSON config for the existing destination */}
-            {initialReport?.dataDestination &&
-              (() => {
-                // Get the destination from filtered destinations to get the right credentials
-                const selectedDestination = filteredDestinations.find(
-                  destination => destination.id === initialReport.dataDestination.id
-                );
-
-                if (selectedDestination && isLookerStudioDataDestination(selectedDestination)) {
-                  const jsonConfig = generateLookerStudioJsonConfig(
-                    selectedDestination.credentials
-                  );
-                  return (
-                    <FormSection title='JSON configuration'>
-                      <FormItem>
-                        <FormLabel>Connect to Looker Studio</FormLabel>
-                        <FormDescription>
-                          Copy this JSON configuration from here and paste it into the{' '}
-                          <ExternalAnchor
-                            className='underline'
-                            href='https://datastudio.google.com/datasources/create?connectorId=AKfycbz6kcYn3qGuG0jVNFjcDnkXvVDiz4hewKdAFjOm-_d4VkKVcBidPjqZO991AvGL3FtM4A'
-                          >
-                            Looker Studio connector
-                          </ExternalAnchor>{' '}
-                          settings to enable data fetching.
-                        </FormDescription>
-                        <CopyToClipboardButton
-                          content={jsonConfig}
-                          buttonText='Copy JSON Config'
-                          className='my-2 w-full'
-                          size='sm'
-                        />
-                        <FormDescription>
-                          <LookerStudioJsonConfigDescription />
-                        </FormDescription>
-                      </FormItem>
-                    </FormSection>
-                  );
-                }
-                return null;
-              })()}
 
             <FormSection title='Cache Configuration'>
               <FormField
