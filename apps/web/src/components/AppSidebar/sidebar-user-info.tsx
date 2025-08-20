@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { ChevronUp, LogOut } from 'lucide-react';
+import { ChevronDown, LogOut, Moon, Sun } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
 import { useAuth } from '../../features/idp/hooks';
+import { useTheme } from 'next-themes';
 
 interface UserMenuItem {
   title: string;
@@ -40,6 +42,7 @@ function generateInitials(fullName?: string | null, email?: string | null): stri
 
 export function SidebarUserInfo() {
   const { user, signOut } = useAuth();
+  const { setTheme, theme } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
 
   if (!user) {
@@ -51,10 +54,17 @@ export function SidebarUserInfo() {
 
   const menuItems: UserMenuItem[] = [
     {
+      title: `Switch to ${theme === 'light' ? 'dark' : 'light'} mode`,
+      icon: theme === 'light' ? Moon : Sun,
+      onClick: () => {
+        setTheme(theme === 'light' ? 'dark' : 'light');
+      },
+    },
+    {
       title: 'Sign out',
       icon: LogOut,
       onClick: signOut,
-      className: 'focus:text-destructive',
+      className: 'text-red-600 focus:text-red-600',
     },
   ];
 
@@ -77,7 +87,7 @@ export function SidebarUserInfo() {
             data-state={isOpen ? 'open' : 'closed'}
             className='peer/menu-button ring-sidebar-ring active:bg-sidebar-accent active:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex h-12 w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-hidden transition-[width,height,padding] group-has-data-[sidebar=menu-action]/menu-item:pr-8 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-0! focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0'
           >
-            <div className='bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-full text-xs font-medium'>
+            <div className='text-muted-foreground flex aspect-square size-8 items-center justify-center rounded-md border bg-white text-sm font-medium dark:bg-white/10'>
               {user.avatar ? (
                 <img
                   src={user.avatar}
@@ -96,7 +106,7 @@ export function SidebarUserInfo() {
               )}
             </div>
 
-            <ChevronUp
+            <ChevronDown
               className={`ml-auto size-4 transition-transform duration-200 group-data-[collapsible=icon]:hidden ${
                 isOpen ? 'rotate-180' : ''
               }`}
@@ -107,16 +117,19 @@ export function SidebarUserInfo() {
         <DropdownMenuContent align='start' side='top' sideOffset={8} className='w-56'>
           {menuItems.map((item, index) => {
             const Icon = item.icon;
+            const isSignOutItem = item.title === 'Sign out';
 
             return (
-              <DropdownMenuItem
-                key={`${item.title}-${String(index)}`}
-                onClick={item.onClick}
-                className={`flex items-center gap-2 ${item.className ?? ''}`}
-              >
-                <Icon className='size-4' />
-                {item.title}
-              </DropdownMenuItem>
+              <div key={`${item.title}-${String(index)}`}>
+                {isSignOutItem && <DropdownMenuSeparator />}
+                <DropdownMenuItem
+                  onClick={item.onClick}
+                  className={`flex items-center gap-2 ${item.className ?? ''}`}
+                >
+                  <Icon className='size-4' />
+                  {item.title}
+                </DropdownMenuItem>
+              </div>
             );
           })}
         </DropdownMenuContent>
