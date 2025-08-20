@@ -73,26 +73,33 @@ Clients gain the freedom to explore data independently, while your team retains 
 - Refresh schedules
 - Access rights and data visibility
 
-## How It Works
+## Installation Guide
 
-1. **Open your terminal** and run:
- 
- ```bash
+Here’s how to get started locally on your machine:
+
+1. **Install Node.js** (version 22.16.0 or higher)
+
+   If it’s not installed yet, [download it here](https://nodejs.org/en/download)
+
+2. **Open your terminal** and run:
+
+   ```bash
    npm install -g owox
    ```
 
-2. **Start OWOX Data Marts** locally
+3. **Start OWOX Data Marts** locally
 
    ```bash
    owox serve
    ```
+
    (You should see something like:
    🚀 Starting OWOX Data Marts...
    📦 Starting server on port 3000...)
 
-3. Go to **<http://localhost:3000>** and enjoy! 🎉
+4. Go to **<http://localhost:3000>** and enjoy! 🎉
 
-Note: Check out [this doc](../../apps/owox/CONTRIBUTING.md) for advanced setup and CLI commands.
+Note: Check out [this guide](../../apps/owox/CONTRIBUTING.md) for advanced setup and CLI commands.
 
 ## Build New Connectors
 
