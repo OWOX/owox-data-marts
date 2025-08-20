@@ -2,24 +2,18 @@ import { ChevronRight, Loader2 } from 'lucide-react';
 import { cn } from '@owox/ui/lib/utils';
 import { Switch } from '@owox/ui/components/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
-import {
-  type ComponentPropsWithoutRef,
-  type ReactNode,
-  useState,
-  useMemo,
-  useCallback,
-} from 'react';
-import { useReport } from '../../../shared';
-import { useOutletContext } from 'react-router-dom';
-import type { DataMartContextType } from '../../../../edit/model/context/types';
-import { DataDestinationType } from '../../../../../data-destination/shared/enums';
-import { DestinationTypeConfigEnum } from '../../../shared/enums/destination-type-config.enum';
+import { type ComponentPropsWithoutRef, useCallback } from 'react';
 import type { DataDestination } from '../../../../../data-destination/shared/model/types';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import type { DataMartStatusInfo } from '../../../../shared/types/data-mart-status.model';
-import { DataMartStatus } from '../../../../shared/enums/data-mart-status.enum';
 import RelativeTime from '@owox/ui/components/common/relative-time';
 import { ReportStatusEnum } from '../../../shared/enums/report-status.enum';
+import { LookerStudioReportCardActionLeft } from './LookerStudioReportCardActionLeft';
+import { LookerStudioReportCardContent } from './LookerStudioReportCardContent';
+import { LookerStudioReportCardTitle } from './LookerStudioReportCardTitle';
+import { LookerStudioReportCardDescription } from './LookerStudioReportCardDescription';
+import { LookerStudioReportCardActionRight } from './LookerStudioReportCardActionRight';
+import { useLookerStudioReport } from './hooks/useLookerStudioReport';
 
 // Main container component
 interface LookerStudioReportCardProps extends ComponentPropsWithoutRef<'div'> {
@@ -36,65 +30,8 @@ export function LookerStudioReportCard({
   className,
   ...props
 }: LookerStudioReportCardProps) {
-  const { dataMart } = useOutletContext<DataMartContextType>();
-  const { reports, createReport, deleteReport, fetchReportsByDataMartId } = useReport();
-
-  // Find existing report for this destination
-  const existingReport = useMemo(() => {
-    return reports.find(
-      report =>
-        report.dataDestination.type === DataDestinationType.LOOKER_STUDIO &&
-        report.dataDestination.id === destination.id
-    );
-  }, [reports, destination.id]);
-
-  const [isLoading, setIsLoading] = useState(false);
-
-  const isEnabled = useMemo(
-    () => dataMartStatus?.code === DataMartStatus.PUBLISHED,
-    [dataMartStatus?.code]
-  );
-  const isChecked = useMemo(() => !!existingReport, [existingReport]);
-
-  // Generate title based on switch state
-  const dynamicTitle = useMemo(
-    () => (isChecked ? 'Available in Looker Studio' : 'Not available in Looker Studio'),
-    [isChecked]
-  );
-
-  const handleSwitchChange = async (checked: boolean) => {
-    if (!dataMart || !isEnabled) return;
-
-    setIsLoading(true);
-
-    try {
-      if (checked) {
-        // Create new report
-        const reportData = {
-          title: `Looker Studio Report - ${destination.title}`,
-          dataMartId: dataMart.id,
-          dataDestinationId: destination.id,
-          destinationConfig: {
-            type: DestinationTypeConfigEnum.LOOKER_STUDIO_CONFIG as const,
-            cacheLifetime: 300, // Default 5 minutes cache
-          },
-        };
-
-        await createReport(reportData);
-        await fetchReportsByDataMartId(dataMart.id);
-      } else {
-        // Delete existing report
-        if (existingReport) {
-          await deleteReport(existingReport.id);
-          await fetchReportsByDataMartId(dataMart.id);
-        }
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const { existingReport, isLoading, isEnabled, isChecked, dynamicTitle, handleSwitchChange } =
+    useLookerStudioReport(destination, dataMartStatus);
 
   const handleCardClick = useCallback(() => {
     // Open edit sheet if report exists
@@ -204,93 +141,6 @@ export function LookerStudioReportCard({
           </div>
         </LookerStudioReportCardActionRight>
       )}
-    </div>
-  );
-}
-
-// Sub-components for composition
-interface LookerStudioReportCardActionLeftProps extends ComponentPropsWithoutRef<'div'> {
-  children: ReactNode;
-}
-
-export function LookerStudioReportCardActionLeft({
-  children,
-  className,
-  ...props
-}: LookerStudioReportCardActionLeftProps) {
-  return (
-    <div
-      className={cn('flex flex-shrink-0 items-start justify-center py-5 pl-6', className)}
-      {...props}
-    >
-      {children}
-    </div>
-  );
-}
-
-interface LookerStudioReportCardContentProps extends ComponentPropsWithoutRef<'div'> {
-  children: ReactNode;
-}
-
-export function LookerStudioReportCardContent({
-  children,
-  className,
-  ...props
-}: LookerStudioReportCardContentProps) {
-  return (
-    <div className={cn('flex flex-grow flex-col gap-1 px-0 py-4', className)} {...props}>
-      {children}
-    </div>
-  );
-}
-
-interface LookerStudioReportCardTitleProps extends ComponentPropsWithoutRef<'div'> {
-  children: ReactNode;
-}
-
-export function LookerStudioReportCardTitle({
-  children,
-  className,
-  ...props
-}: LookerStudioReportCardTitleProps) {
-  return (
-    <div className={cn('text-md font-medium', className)} {...props}>
-      {children}
-    </div>
-  );
-}
-
-interface LookerStudioReportCardDescriptionProps extends ComponentPropsWithoutRef<'div'> {
-  children: ReactNode;
-}
-
-export function LookerStudioReportCardDescription({
-  children,
-  className,
-  ...props
-}: LookerStudioReportCardDescriptionProps) {
-  return (
-    <div className={cn('text-muted-foreground text-sm', className)} {...props}>
-      {children}
-    </div>
-  );
-}
-
-interface LookerStudioReportCardActionRightProps extends ComponentPropsWithoutRef<'div'> {
-  children: ReactNode;
-}
-
-export function LookerStudioReportCardActionRight({
-  children,
-  className,
-  ...props
-}: LookerStudioReportCardActionRightProps) {
-  return (
-    <div
-      className={cn('flex flex-shrink-0 items-center justify-center self-center p-4', className)}
-      {...props}
-    >
-      {children}
     </div>
   );
 }
