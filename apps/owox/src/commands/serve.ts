@@ -8,6 +8,7 @@ import express from 'express';
 import { createRequire } from 'node:module';
 
 import { IdpFactory } from '../idp/factory.js';
+import { setupWebStaticAssets } from '../web/index.js';
 import { BaseCommand } from './base.js';
 
 const require = createRequire(import.meta.url);
@@ -25,6 +26,7 @@ export default class Serve extends BaseCommand {
     '<%= config.bin %> serve',
     '<%= config.bin %> serve --port 8080',
     '<%= config.bin %> serve -p 3001 --log-format=json',
+    '<%= config.bin %> serve --no-web-enabled',
   ];
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -35,6 +37,7 @@ export default class Serve extends BaseCommand {
       env: 'PORT',
     }),
     'web-enabled': Flags.boolean({
+      allowNo: true,
       default: true,
       description: 'Enable web interface',
     }),
@@ -100,6 +103,21 @@ export default class Serve extends BaseCommand {
     const idpProtocolMiddleware = new IdpProtocolMiddleware(idpProvider);
     idpProtocolMiddleware.register(expressApp);
     expressApp.set('idp', idpProvider);
+
+    // Configure web static assets if web interface is enabled
+    if (flags['web-enabled']) {
+      const staticAssetsConfigured = setupWebStaticAssets(expressApp, {
+        excludedRoutes: ['/api'],
+      });
+
+      if (staticAssetsConfigured) {
+        this.log('🌐 Web interface static assets configured');
+      } else {
+        this.log('⚠️  Web static assets not found, continuing without web interface');
+      }
+    } else {
+      this.log('🚫 Web interface disabled');
+    }
 
     try {
       this.app = await bootstrap({

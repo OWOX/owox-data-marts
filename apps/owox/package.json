@@ -15,6 +15,7 @@
     "@oclif/plugin-plugins": "^5",
     "@owox/backend": "*",
     "@owox/idp-protocol": "*",
+    "@owox/web": "*",
     "find-process": "^1.4.10"
   },
   "peerDependencies": {
