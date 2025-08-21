@@ -1,7 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
+import {
+  FindManyOptions,
+  LessThanOrEqual,
+  OptimisticLockVersionMismatchError,
+  Repository,
+} from 'typeorm';
 import { TimeBasedTrigger, TriggerStatus } from '../../shared/entities/time-based-trigger.entity';
 import { SystemTimeService } from '../system-time.service';
-import { OptimisticLockVersionMismatchError, Repository } from 'typeorm';
 
 /**
  * Service responsible for fetching time-based triggers that are ready for processing.
@@ -91,14 +96,16 @@ export class TimeBasedTriggerFetcherService<T extends TimeBasedTrigger> {
    * @returns A promise that resolves to an array of triggers that are ready for processing
    */
   private async findTriggersReadyForProcessing(currentTime: Date): Promise<T[]> {
-    return this.repository
-      .createQueryBuilder('t')
-      .where('t.nextRunTimestamp IS NOT NULL')
-      .andWhere('t.nextRunTimestamp <= :currentTime', { currentTime })
-      .andWhere('t.isActive = true')
-      .andWhere('t.status = :status', { status: TriggerStatus.IDLE })
-      .orderBy('t.nextRunTimestamp', 'ASC')
-      .getMany();
+    return this.repository.find({
+      where: {
+        nextRunTimestamp: LessThanOrEqual(currentTime),
+        isActive: true,
+        status: TriggerStatus.IDLE,
+      },
+      order: {
+        nextRunTimestamp: 'ASC',
+      },
+    } as FindManyOptions<T>);
   }
 
   /**
