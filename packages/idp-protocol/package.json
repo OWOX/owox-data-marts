@@ -41,8 +41,7 @@
     "typescript": "^5.7.3"
   },
   "files": [
-    "dist",
-    "src"
+    "dist"
   ],
   "exports": {
     ".": {

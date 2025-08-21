@@ -177,5 +177,7 @@ export class IdpProtocolMiddleware {
       const fullPath = `${this.basePath}${path}`;
       app.all(fullPath, this.createRouteHandler(handler));
     });
+
+    this.provider.registerRoutes(app);
   }
 }

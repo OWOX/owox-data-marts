@@ -1,5 +1,5 @@
 import { Payload, AuthResult } from './models.js';
-import { NextFunction, Request, Response } from 'express';
+import { Express, NextFunction, Request, Response } from 'express';
 
 /**
  * Simplified IDP Provider interface.
@@ -32,6 +32,13 @@ export interface IdpProvider {
    * If the IDP implementation does not support user, this method should call the `next()` function.
    */
   userApiMiddleware(req: Request, res: Response, next: NextFunction): Promise<Response<Payload>>;
+
+  /**
+   * Register routes with the express app.
+   * @param app - The express app to register the routes with.
+   * @param basePath - The base path to register the routes with.
+   */
+  registerRoutes(app: Express): void;
 
   /**
    * Introspect a token

@@ -1,6 +1,6 @@
 import { IdpProvider } from '../types/provider.js';
 import { AuthResult, Payload } from '../types/models.js';
-import { Request, Response, NextFunction } from 'express';
+import { Express, Request, Response, NextFunction } from 'express';
 
 /**
  * NULL IDP Provider - single user, single project
@@ -29,8 +29,8 @@ export class NullIdpProvider implements IdpProvider {
     };
   }
 
-  signInMiddleware(_req: Request, res: Response, _next: NextFunction): Promise<void> {
-    const isLocalhost = _req.hostname === 'localhost' || _req.hostname === '127.0.0.1';
+  signInMiddleware(req: Request, res: Response, _next: NextFunction): Promise<void> {
+    const isLocalhost = req.hostname === 'localhost' || req.hostname === '127.0.0.1';
 
     res.cookie('refreshToken', this.defaultRefreshToken, {
       httpOnly: true,
@@ -46,18 +46,22 @@ export class NullIdpProvider implements IdpProvider {
     return Promise.resolve(res.redirect('/'));
   }
 
-  accessTokenMiddleware(_req: Request, res: Response, _next: NextFunction): Promise<Response> {
-    if (!_req.cookies.refreshToken) {
+  accessTokenMiddleware(req: Request, res: Response, _next: NextFunction): Promise<Response> {
+    if (!req.cookies.refreshToken) {
       return Promise.resolve(res.status(401).json({ message: 'Unauthorized' }));
     }
     return Promise.resolve(res.json({ accessToken: this.defaultAccessToken }));
   }
 
-  userApiMiddleware(_req: Request, res: Response, _next: NextFunction): Promise<Response<Payload>> {
-    if (!_req.cookies.refreshToken) {
+  userApiMiddleware(req: Request, res: Response, _next: NextFunction): Promise<Response<Payload>> {
+    if (!req.cookies.refreshToken) {
       return Promise.resolve(res.status(401).json({ message: 'Unauthorized' }));
     }
     return Promise.resolve(res.json(this.defaultPayload));
+  }
+
+  registerRoutes(_app: Express): void {
+    // Nothing to register
   }
 
   async initialize(): Promise<void> {
