@@ -113,7 +113,7 @@ export default class Serve extends BaseCommand {
       if (staticAssetsConfigured) {
         this.log('🌐 Web interface static assets configured');
       } else {
-        this.log('⚠️  Web static assets not found, continuing without web interface');
+        this.warn('⚠️  Web static assets not found, continuing without web interface');
       }
     } else {
       this.log('🚫 Web interface disabled');
