@@ -14,30 +14,39 @@ jobs:
   release-pr:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0 # Required for changesets to work properly
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: 'npm'
           registry-url: https://registry.npmjs.org
 
-      - run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
 
-      - uses: changesets/action@v1 # only creates/updates PR
+      - name: Create or update release PR
+        uses: changesets/action@v1
+        id: changesets
 
       - name: Fix changelogs headings
+        if: steps.changesets.outputs.hasChangesets == 'true'
         run: node tools/fix-changelog-headings.mjs
 
       - name: Format package.json files
+        if: steps.changesets.outputs.hasChangesets == 'true'
         run: npm run format:packages
 
       - name: Update package-lock.json
+        if: steps.changesets.outputs.hasChangesets == 'true'
         run: npm run clean:reinstall
 
       - name: Commit fixed changelogs
+        if: steps.changesets.outputs.hasChangesets == 'true'
         run: |
           set -e
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
