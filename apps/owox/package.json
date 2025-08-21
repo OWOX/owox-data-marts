@@ -68,7 +68,7 @@
   "scripts": {
     "build": "tsc",
     "build:backend": "npm run build -w @owox/backend --prefix ../..",
-    "build:clean": "shx rm -rf dist",
+    "build:clean": "shx rm -rf dist && shx rm oclif.manifest.json && shx rm tsconfig.tsbuildinfo",
     "build:dep": "npm run build:backend && npm run build:web",
     "build:web": "npm run build -w @owox/web --prefix ../..",
     "lint": "eslint . --config ./eslint.config.mjs",
