@@ -93,6 +93,7 @@ export class TimeBasedTriggerFetcherService<T extends TimeBasedTrigger> {
   private async findTriggersReadyForProcessing(currentTime: Date): Promise<T[]> {
     return this.repository
       .createQueryBuilder('t')
+      .leftJoinAndSelect('t.dataMart', 'dataMart')
       .where('t.nextRunTimestamp IS NOT NULL')
       .andWhere('t.nextRunTimestamp <= :currentTime', { currentTime })
       .andWhere('t.isActive = true')
