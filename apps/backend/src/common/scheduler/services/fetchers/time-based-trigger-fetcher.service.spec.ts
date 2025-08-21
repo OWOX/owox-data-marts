@@ -33,7 +33,6 @@ describe('TimeBasedTriggerFetcherService', () => {
     andWhere: jest.Mock;
     orderBy: jest.Mock;
     getMany: jest.Mock;
-    leftJoinAndSelect: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -43,7 +42,6 @@ describe('TimeBasedTriggerFetcherService', () => {
       andWhere: jest.fn().mockReturnThis(),
       orderBy: jest.fn().mockReturnThis(),
       getMany: jest.fn(),
-      leftJoinAndSelect: jest.fn().mockReturnThis(),
     };
 
     // Create mock repository
@@ -86,7 +84,6 @@ describe('TimeBasedTriggerFetcherService', () => {
       // Verify the query was built correctly
       expect(systemTimeService.now).toHaveBeenCalled();
       expect(repository.createQueryBuilder).toHaveBeenCalledWith('t');
-      expect(mockQueryBuilder.leftJoinAndSelect).toHaveBeenCalledWith('t.dataMart', 'dataMart');
       expect(mockQueryBuilder.where).toHaveBeenCalledWith('t.nextRunTimestamp IS NOT NULL');
       expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('t.nextRunTimestamp <= :currentTime', {
         currentTime: mockCurrentTime,

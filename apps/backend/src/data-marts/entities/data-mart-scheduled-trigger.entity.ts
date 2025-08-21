@@ -1,4 +1,12 @@
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, UpdateDateColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  RelationId,
+  UpdateDateColumn,
+} from 'typeorm';
 import { ScheduledTrigger } from '../../common/scheduler/shared/entities/scheduled-trigger.entity';
 import { createZodTransformer } from '../../common/zod/zod-transformer';
 import { DataMart } from './data-mart.entity';
@@ -19,6 +27,9 @@ export class DataMartScheduledTrigger extends ScheduledTrigger {
   @ManyToOne(() => DataMart, { eager: true })
   @JoinColumn()
   dataMart: DataMart;
+
+  @RelationId((trigger: DataMartScheduledTrigger) => trigger.dataMart)
+  dataMartId: string;
 
   @Column({
     type: 'json',
