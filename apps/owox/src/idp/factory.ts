@@ -1,6 +1,8 @@
+import { BetterAuthProvider } from '@owox/idp-better-auth';
 import { IdpConfig, IdpProvider, NullIdpProvider } from '@owox/idp-protocol';
 
 export enum IdpProviderType {
+  BetterAuth = 'better-auth',
   None = 'none',
 }
 
@@ -27,6 +29,10 @@ export class IdpFactory {
     const { provider } = options;
 
     switch (provider) {
+      case IdpProviderType.BetterAuth: {
+        return this.createBetterAuthProvider();
+      }
+
       case IdpProviderType.None: {
         return this.createNullProvider();
       }
@@ -37,10 +43,21 @@ export class IdpFactory {
     }
   }
 
+  private static async createBetterAuthProvider(): Promise<BetterAuthProvider> {
+    console.log('creating better auth provider');
+    return BetterAuthProvider.create({
+      database: {
+        filename: 'better-auth.db',
+        type: 'sqlite',
+      },
+      secret: 'secret',
+    });
+  }
+
   /**
    * Create NULL IDP provider for single-user deployments
    */
-  private static createNullProvider(): NullIdpProvider {
+  private static async createNullProvider(): Promise<NullIdpProvider> {
     return new NullIdpProvider();
   }
 }

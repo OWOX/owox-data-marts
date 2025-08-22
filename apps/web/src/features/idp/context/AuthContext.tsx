@@ -179,9 +179,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * Redirect to sign-out page and clear local session
    */
   const signOut = useCallback(() => {
-    clearTokenProvider();
-    dispatch({ type: 'SET_UNAUTHENTICATED' });
-
     signOutApi();
   }, []);
 
@@ -198,8 +195,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     const handleLogout = () => {
-      clearTokenProvider();
-      dispatch({ type: 'SET_UNAUTHENTICATED' });
+      signOut();
     };
 
     const handleForbidden = (event: Event) => {
@@ -218,7 +214,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       window.removeEventListener('auth:forbidden', handleForbidden);
       clearTokenProvider();
     };
-  }, []);
+  }, [signOut]);
 
   const contextValue: AuthContextType = {
     ...state,
