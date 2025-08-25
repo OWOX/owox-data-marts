@@ -287,11 +287,6 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
       this.saveRecordsAddedToBuffer();
       
-      // Log final summary if any records were processed
-      if (this.totalRecordsProcessed > 0) {
-        console.log(`🎉 BigQuery: Import completed! Total records processed: ${this.totalRecordsProcessed}`);
-      }
-      
     }
 
 
