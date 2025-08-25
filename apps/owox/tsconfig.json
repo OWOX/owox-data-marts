@@ -7,6 +7,7 @@
     "strict": true,
     "target": "es2022",
     "moduleResolution": "node16",
+    "skipLibCheck": true,
     "types": ["node", "mocha"],
     "composite": true
   },

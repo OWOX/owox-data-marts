@@ -98,7 +98,7 @@ export default class Serve extends BaseCommand {
 
     const expressApp = express();
 
-    const idpProvider = await IdpFactory.createFromEnvironment();
+    const idpProvider = await IdpFactory.createFromEnvironment(this);
     await idpProvider.initialize();
     const idpProtocolMiddleware = new IdpProtocolMiddleware(idpProvider);
     idpProtocolMiddleware.register(expressApp);

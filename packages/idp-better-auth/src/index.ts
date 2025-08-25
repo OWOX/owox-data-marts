@@ -7,10 +7,8 @@ export {
   createDatabaseAdapter,
   createSqliteAdapter,
   createMysqlAdapter,
+  getIdpSqliteDatabasePath,
 } from './adapters/database.js';
-
-// Route handlers and routers
-export * from './routes/index.js';
 
 // Services
 export { TemplateService } from './services/template-service.js';

@@ -26,14 +26,10 @@ const copyRecursive = (from, to) => {
 if (fs.existsSync(publicSrcDir)) {
   fs.mkdirSync(publicDistDir, { recursive: true });
   copyRecursive(publicSrcDir, publicDistDir);
-  console.log(`[idp-better-auth] Copied public assets to ${publicDistDir}`);
 }
 
 // Copy templates
 if (fs.existsSync(templatesSrcDir)) {
   fs.mkdirSync(templatesDistDir, { recursive: true });
   copyRecursive(templatesSrcDir, templatesDistDir);
-  console.log(`[idp-better-auth] Copied templates to ${templatesDistDir}`);
 }
-
-

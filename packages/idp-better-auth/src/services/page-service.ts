@@ -140,6 +140,9 @@ export class PageService {
       express.post('/auth/set-password', this.setPassword.bind(this));
       express.get('/auth/magic-link-success', this.magicLinkSuccess.bind(this));
 
+      express.get('/auth', (req, res) => {
+        res.redirect('/auth/dashboard');
+      });
       express.get(
         '/auth/dashboard',
         this.authenticationService.requireAuthMiddleware.bind(this.authenticationService),
@@ -178,8 +181,11 @@ export class PageService {
 
   async adminDashboard(req: ExpressRequest, res: ExpressResponse): Promise<void> {
     try {
+      const session = await this.authenticationService.getSession(req);
+      const currentUserEmail = session?.user?.email || 'Unknown User';
+
       const users = await this.userManagementService.getUsersForAdmin();
-      const html = TemplateService.renderAdminDashboard(users);
+      const html = TemplateService.renderAdminDashboard(users, currentUserEmail);
       res.send(html);
     } catch (error) {
       console.error('Error loading admin dashboard:', error);
@@ -218,7 +224,26 @@ export class PageService {
 
   async adminAddUserPage(req: ExpressRequest, res: ExpressResponse): Promise<void> {
     try {
-      const html = TemplateService.renderAddUser();
+      // Get current user role to determine available roles for invitation
+      const session = await this.authenticationService.getSession(req);
+      if (!session?.user?.id) {
+        res.redirect('/auth/sign-in');
+        return;
+      }
+
+      const currentUserRole = await this.userManagementService.getUserRole(session.user.id);
+      if (!currentUserRole) {
+        res.status(403).send('Access denied');
+        return;
+      }
+
+      if (!this.userManagementService.isValidRole(currentUserRole)) {
+        res.status(403).send('Access denied');
+        return;
+      }
+
+      const allowedRoles = this.userManagementService.getAllowedRolesForInvite(currentUserRole);
+      const html = TemplateService.renderAddUser(allowedRoles);
       res.send(html);
     } catch (error) {
       console.error('Error loading add user page:', error);
@@ -235,8 +260,30 @@ export class PageService {
         return;
       }
 
-      if (!['admin', 'editor', 'viewer'].includes(role)) {
+      // Validate role
+      if (!this.userManagementService.isValidRole(role)) {
         res.status(400).json({ error: 'Invalid role' });
+        return;
+      }
+
+      // Get current user role and check permissions
+      const session = await this.authenticationService.getSession(req);
+      if (!session?.user?.id) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const currentUserRole = await this.userManagementService.getUserRole(session.user.id);
+      if (!currentUserRole || !this.userManagementService.isValidRole(currentUserRole)) {
+        res.status(403).json({ error: 'Access denied' });
+        return;
+      }
+
+      // Check if current user can invite target role
+      if (!this.userManagementService.canInviteRole(currentUserRole, role)) {
+        res.status(403).json({
+          error: `You don't have permission to invite users with role: ${role}`,
+        });
         return;
       }
 
@@ -295,8 +342,30 @@ export class PageService {
         return;
       }
 
-      if (!['admin', 'editor', 'viewer'].includes(role)) {
+      // Validate role
+      if (!this.userManagementService.isValidRole(role)) {
         res.status(400).json({ error: 'Invalid role' });
+        return;
+      }
+
+      // Get current user role and check permissions
+      const session = await this.authenticationService.getSession(req);
+      if (!session?.user?.id) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const currentUserRole = await this.userManagementService.getUserRole(session.user.id);
+      if (!currentUserRole || !this.userManagementService.isValidRole(currentUserRole)) {
+        res.status(403).json({ error: 'Access denied' });
+        return;
+      }
+
+      // Check if current user can invite target role
+      if (!this.userManagementService.canInviteRole(currentUserRole, role)) {
+        res.status(403).json({
+          error: `You don't have permission to generate magic link for role: ${role}`,
+        });
         return;
       }
 

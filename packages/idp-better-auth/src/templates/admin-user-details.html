@@ -5,28 +5,86 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>User Details - IDP Better Auth</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            // OWOX Design System Colors
+            background: "oklch(1 0 0)",
+            foreground: "oklch(0.3346 0.0123 279.25)",
+            card: "oklch(1 0 0)",
+            'card-foreground': "oklch(0.3346 0.0123 279.25)",
+            popover: "oklch(1 0 0)",
+            'popover-foreground': "oklch(0.3346 0.0123 279.25)",
+            primary: {
+              DEFAULT: "oklch(0.6179 0.2295 250.87)",
+              hover: "oklch(0.54 0.23 250.87)",
+              foreground: "oklch(0.985 0 0)",
+            },
+            secondary: {
+              DEFAULT: "oklch(0.97 0 0)",
+              foreground: "oklch(0.205 0 0)",
+            },
+            muted: {
+              DEFAULT: "oklch(0.97 0 0)",
+              foreground: "oklch(0.5148 0.0128 274.72)",
+            },
+            accent: {
+              DEFAULT: "oklch(0.97 0 0)",
+              foreground: "oklch(0.205 0 0)",
+            },
+            destructive: {
+              DEFAULT: "oklch(0.577 0.245 27.325)",
+              foreground: "oklch(0.985 0 0)",
+            },
+            border: "oklch(0.922 0 0)",
+            input: "oklch(0.922 0 0)",
+            ring: "oklch(0.708 0 0)",
+            success: {
+              DEFAULT: "oklch(0.647 0.165 142.495)",
+              foreground: "oklch(0.985 0 0)",
+            },
+            'brand-blue': {
+              50: "oklch(0.985 0.03 250.87)",
+              100: "oklch(0.955 0.05 250.87)",
+              200: "oklch(0.9 0.08 250.87)",
+              300: "oklch(0.8 0.14 250.87)",
+              400: "oklch(0.7 0.19 250.87)",
+              500: "oklch(0.6179 0.2295 250.87)",
+              600: "oklch(0.54 0.23 250.87)",
+              700: "oklch(0.44 0.2 250.87)",
+              800: "oklch(0.36 0.17 250.87)",
+              900: "oklch(0.28 0.14 250.87)",
+            },
+          },
+        },
+      },
+    }
+  </script>
 </head>
-<body class="bg-gray-50 min-h-screen">
+<body class="bg-white min-h-screen">
   <!-- Header -->
-  <header class="bg-white shadow-sm border-b">
+  <header class="bg-white shadow-sm border-b border-border">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between items-center h-16">
         <div class="flex items-center space-x-4">
-          <a href="/auth/dashboard" class="text-gray-500 hover:text-gray-700">
+          <a href="/auth/dashboard" class="text-muted-foreground hover:text-card-foreground">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
             </svg>
           </a>
-          <h1 class="text-xl font-semibold text-gray-900">User Details</h1>
+          <h1 class="text-xl font-semibold text-foreground">User Details</h1>
         </div>
         <div class="flex items-center space-x-4">
-          <a href="/" class="text-sm text-blue-600 hover:text-blue-900">
+          <a href="/" class="text-sm text-primary hover:text-primary/80 transition-colors">
             <svg class="inline w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
             </svg>
             Back to Site
           </a>
-          <a href="/auth/sign-out" class="text-sm text-red-600 hover:text-red-900">Sign Out</a>
+          <a href="/auth/sign-out" class="text-sm text-destructive hover:text-destructive/80 transition-colors">Sign Out</a>
         </div>
       </div>
     </div>
@@ -34,20 +92,20 @@
 
   <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <!-- User Profile Card -->
-    <div class="bg-white shadow overflow-hidden sm:rounded-lg mb-8">
+    <div class="bg-white shadow overflow-hidden sm:rounded-lg mb-8 border border-border">
       <div class="px-4 py-5 sm:px-6 flex justify-between items-center">
         <div>
-          <h3 class="text-lg leading-6 font-medium text-gray-900">User Information</h3>
-          <p class="mt-1 max-w-2xl text-sm text-gray-500">Personal details and account information</p>
+          <h3 class="text-lg leading-6 font-medium text-foreground">User Information</h3>
+          <p class="mt-1 max-w-2xl text-sm text-muted-foreground">Personal details and account information</p>
         </div>
         <div class="flex space-x-3">
-          <button onclick="generateMagicLink()" class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+          <button onclick="generateMagicLink()" class="inline-flex items-center px-3 py-2 border border-input shadow-sm text-sm leading-4 font-medium rounded-md text-foreground bg-white hover:bg-muted/30 transition-colors">
             <svg class="-ml-0.5 mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
             </svg>
             Generate Magic Link
           </button>
-          <button onclick="confirmDelete()" class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-red-600 hover:bg-red-700" {{DELETE_BUTTON_STYLE}}>
+          <button onclick="confirmDelete()" class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-primary-foreground bg-destructive hover:bg-destructive/90 transition-colors" {{DELETE_BUTTON_STYLE}}>
             <svg class="-ml-0.5 mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
             </svg>
@@ -55,46 +113,46 @@
           </button>
         </div>
       </div>
-      <div class="border-t border-gray-200">
+      <div class="border-t border-border">
         <dl>
-          <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-            <dt class="text-sm font-medium text-gray-500">Full name</dt>
-            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{USER_NAME}}</dd>
+          <div class="bg-muted/20 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+            <dt class="text-sm font-medium text-muted-foreground">Full name</dt>
+            <dd class="mt-1 text-sm text-foreground sm:mt-0 sm:col-span-2">{{USER_NAME}}</dd>
           </div>
           <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-            <dt class="text-sm font-medium text-gray-500">Email address</dt>
-            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{USER_EMAIL}}</dd>
+            <dt class="text-sm font-medium text-muted-foreground">Email address</dt>
+            <dd class="mt-1 text-sm text-foreground sm:mt-0 sm:col-span-2">{{USER_EMAIL}}</dd>
           </div>
-          <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-            <dt class="text-sm font-medium text-gray-500">Role</dt>
-            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-{{ROLE_COLOR}}-100 text-{{ROLE_COLOR}}-800">
+          <div class="bg-muted/20 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+            <dt class="text-sm font-medium text-muted-foreground">Role</dt>
+            <dd class="mt-1 text-sm text-foreground sm:mt-0 sm:col-span-2">
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ROLE_BADGE_CLASSES}}">
                 {{USER_ROLE}}
               </span>
             </dd>
           </div>
           <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-            <dt class="text-sm font-medium text-gray-500">User ID</dt>
-            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2 font-mono">{{USER_ID}}</dd>
+            <dt class="text-sm font-medium text-muted-foreground">User ID</dt>
+            <dd class="mt-1 text-sm text-foreground sm:mt-0 sm:col-span-2 font-mono">{{USER_ID}}</dd>
           </div>
-          <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-            <dt class="text-sm font-medium text-gray-500">Organization</dt>
-            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ORGANIZATION_ID}}</dd>
+          <div class="bg-muted/20 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+            <dt class="text-sm font-medium text-muted-foreground">Organization</dt>
+            <dd class="mt-1 text-sm text-foreground sm:mt-0 sm:col-span-2">{{ORGANIZATION_ID}}</dd>
           </div>
           <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-            <dt class="text-sm font-medium text-gray-500">Created</dt>
-            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{CREATED_AT}}</dd>
+            <dt class="text-sm font-medium text-muted-foreground">Created</dt>
+            <dd class="mt-1 text-sm text-foreground sm:mt-0 sm:col-span-2">{{CREATED_AT}}</dd>
           </div>
-          <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-            <dt class="text-sm font-medium text-gray-500">Last updated</dt>
-            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{UPDATED_AT}}</dd>
+          <div class="bg-muted/20 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+            <dt class="text-sm font-medium text-muted-foreground">Last updated</dt>
+            <dd class="mt-1 text-sm text-foreground sm:mt-0 sm:col-span-2">{{UPDATED_AT}}</dd>
           </div>
         </dl>
       </div>
     </div>
 
     <!-- Magic Link Result (hidden by default) -->
-    <div id="magic-link-result" class="bg-green-50 border border-green-200 rounded-md p-4 mb-4 hidden">
+    <div id="magic-link-result" class="bg-success/10 border border-success/20 rounded-md p-4 mb-4 hidden">
       <div class="flex">
         <div class="flex-shrink-0">
           <svg class="h-5 w-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -102,12 +160,12 @@
           </svg>
         </div>
         <div class="ml-3 flex-1">
-          <h3 class="text-sm font-medium text-green-800">Magic Link Generated</h3>
+          <h3 class="text-sm font-medium text-success-foreground">Magic Link Generated</h3>
           <div class="mt-2">
-            <p class="text-sm text-green-700">The magic link has been generated successfully:</p>
+            <p class="text-sm text-success">The magic link has been generated successfully:</p>
             <div class="mt-2 flex items-center space-x-2">
-              <input id="magic-link-url" type="text" readonly class="flex-1 min-w-0 px-3 py-2 border border-green-300 rounded-md text-sm bg-white font-mono">
-              <button onclick="copyMagicLink()" class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-green-700 bg-green-100 hover:bg-green-200">
+              <input id="magic-link-url" type="text" readonly class="flex-1 min-w-0 px-3 py-2 border border-success/30 rounded-md text-sm bg-white font-mono">
+              <button onclick="copyMagicLink()" class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-success-foreground bg-success hover:bg-success/90 transition-colors">
                 Copy
               </button>
             </div>
@@ -118,23 +176,23 @@
   </div>
 
   <!-- Delete Confirmation Modal -->
-  <div id="delete-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden">
-    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+  <div id="delete-modal" class="fixed inset-0 bg-black/50 overflow-y-auto h-full w-full hidden">
+    <div class="relative top-20 mx-auto p-5 border border-border w-96 shadow-lg rounded-md bg-white">
       <div class="mt-3 text-center">
-        <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
-          <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-destructive/10">
+          <svg class="h-6 w-6 text-destructive" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z"></path>
           </svg>
         </div>
-        <h3 class="text-lg font-medium text-gray-900 mt-5">Delete User</h3>
+        <h3 class="text-lg font-medium text-foreground mt-5">Delete User</h3>
         <div class="mt-2 px-7 py-3">
-          <p class="text-sm text-gray-500">Are you sure you want to delete this user? This action cannot be undone.</p>
+          <p class="text-sm text-muted-foreground">Are you sure you want to delete this user? This action cannot be undone.</p>
         </div>
         <div class="items-center px-4 py-3">
-          <button id="delete-confirm" onclick="deleteUser()" class="px-4 py-2 bg-red-500 text-white text-base font-medium rounded-md w-24 mr-2 hover:bg-red-600">
+          <button id="delete-confirm" onclick="deleteUser()" class="px-4 py-2 bg-destructive text-primary-foreground text-base font-medium rounded-md w-24 mr-2 hover:bg-destructive/90 transition-colors">
             Delete
           </button>
-          <button onclick="closeDeleteModal()" class="px-4 py-2 bg-gray-300 text-gray-800 text-base font-medium rounded-md w-24 hover:bg-gray-400">
+          <button onclick="closeDeleteModal()" class="px-4 py-2 bg-white border border-input text-foreground text-base font-medium rounded-md w-24 hover:bg-muted/30 transition-colors">
             Cancel
           </button>
         </div>

@@ -154,11 +154,17 @@ export class AuthenticationService {
         });
         return res.redirect('/');
       } else {
-        return res.status(response.status).json({ error: response.statusText });
+        // Redirect back to sign-in page with error message
+        const errorMessage =
+          response.status === 401
+            ? 'Invalid email or password. Please try again.'
+            : 'Sign in failed. Please try again.';
+        return res.redirect(`/auth/sign-in?error=${encodeURIComponent(errorMessage)}`);
       }
     } catch (error) {
       console.error('Sign-in middleware error:', error);
-      return res.status(500).json({ error: 'Sign-in failed' });
+      const errorMessage = 'An error occurred during sign in. Please try again.';
+      return res.redirect(`/auth/sign-in?error=${encodeURIComponent(errorMessage)}`);
     }
   }
 

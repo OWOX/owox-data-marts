@@ -12,6 +12,18 @@ export class UserManagementService {
   private static readonly DEFAULT_ORGANIZATION_SLUG = 'owox-data-marts';
   private readonly baseURL: string;
 
+  /**
+   * Role hierarchy permissions
+   * admin can invite: admin, editor, viewer
+   * editor can invite: editor, viewer
+   * viewer can invite: viewer
+   */
+  private static readonly roleHierarchy: Record<Role, Role[]> = {
+    admin: ['admin', 'editor', 'viewer'],
+    editor: ['editor', 'viewer'],
+    viewer: ['viewer'],
+  };
+
   constructor(
     private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
     private readonly magicLinkService: MagicLinkService,
@@ -458,5 +470,48 @@ export class UserManagementService {
     }
 
     return db;
+  }
+
+  // ========== Role Permission Methods ==========
+
+  /**
+   * Check if current user role can invite target role
+   */
+  canInviteRole(currentUserRole: Role, targetRole: Role): boolean {
+    const allowedRoles = UserManagementService.roleHierarchy[currentUserRole];
+    return allowedRoles.includes(targetRole);
+  }
+
+  /**
+   * Get roles that current user can invite
+   */
+  getAllowedRolesForInvite(currentUserRole: Role): Role[] {
+    return UserManagementService.roleHierarchy[currentUserRole];
+  }
+
+  /**
+   * Validate if role exists
+   */
+  isValidRole(role: string): role is Role {
+    return ['admin', 'editor', 'viewer'].includes(role);
+  }
+
+  /**
+   * Get role priority (higher number = more permissions)
+   */
+  getRolePriority(role: Role): number {
+    const priorities: Record<Role, number> = {
+      admin: 3,
+      editor: 2,
+      viewer: 1,
+    };
+    return priorities[role];
+  }
+
+  /**
+   * Check if current role has higher or equal priority than target role
+   */
+  hasHigherOrEqualPriority(currentRole: Role, targetRole: Role): boolean {
+    return this.getRolePriority(currentRole) >= this.getRolePriority(targetRole);
   }
 }

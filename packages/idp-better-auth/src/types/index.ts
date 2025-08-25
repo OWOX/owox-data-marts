@@ -3,7 +3,7 @@
  */
 export interface SqliteConfig {
   type: 'sqlite';
-  filename: string;
+  filename?: string;
 }
 
 /**
@@ -43,9 +43,8 @@ export interface BetterAuthConfig {
   trustedOrigins?: string[];
   baseURL?: string;
   secret: string;
+  magicLinkTll?: number;
 }
 
-// Export all types from separate files
 export * from './auth-session.js';
 export * from './database-models.js';
-export * from './user-payload.js';
