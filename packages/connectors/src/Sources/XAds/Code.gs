@@ -84,8 +84,7 @@ function manageCredentials(credentials) {
         props.deleteProperty(key);
       }
     });
-    
-    console.log('Saved properties:', props.getProperties());
+
     ui.alert('✅ Credentials saved successfully');
   } catch (e) {
     console.error('Error saving credentials:', e);

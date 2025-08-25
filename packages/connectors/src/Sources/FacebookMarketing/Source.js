@@ -82,7 +82,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
     isValidToRetry(error) {
       console.log(`isValidToRetry() called`);
       console.log(`error.statusCode =`, error.statusCode);
-      console.log(`error.payload =`, error.payload);
+
       if (error.statusCode && error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN) {
         return true;
       }
@@ -140,7 +140,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
           break;
   
         case 'ad-account/ads':
-          url += `act_${accountId}/ads?time_range=${timeRange}&limit=${this.fieldsSchema[nodeName].limit}`;
+          url += `act_${accountId}/ads?limit=${this.fieldsSchema[nodeName].limit}`;
           break;
   
         case 'ad-account/adcreatives':
@@ -151,13 +151,15 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
           return this._fetchInsightsData(nodeName, accountId, fields, timeRange, url);
   
         case 'ad-group':
-          url += `act_${accountId}/ads?&time_range=${timeRange}&fields=${fields.join(",")}&limit=${this.fieldsSchema[nodeName].limit}`;
+          url += `act_${accountId}/ads?fields=${fields.join(",")}&limit=${this.fieldsSchema[nodeName].limit}`;
           break;
   
         default:
           throw new Error(`End point for ${nodeName} is not implemented yet. Feel free add idea here: https://github.com/OWOX/owox-data-marts/discussions/categories/ideas`);
-      }
-  
+            }
+      
+      console.log(`Facebook API URL:`, url);
+
       url += `&access_token=${this.config.AccessToken.value}`;
   
       return this._fetchPaginatedData(url, nodeName);
@@ -369,7 +371,6 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
 
       while (nextPageURL) {
         // Fetch data from the JSON URL
-        console.log(nextPageURL);
         var response = this.urlFetchWithRetry(nextPageURL);
         var jsonData = JSON.parse(response.getContentText());
 
