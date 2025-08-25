@@ -311,6 +311,8 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         insightsUrl += `&breakdowns=${breakdown}`;
       }
       
+      console.log(`Facebook API URL:`, insightsUrl);
+      
       insightsUrl += `&access_token=${this.config.AccessToken.value}`;
       return insightsUrl;
     }
