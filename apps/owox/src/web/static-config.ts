@@ -67,7 +67,7 @@ export function setupWebStaticAssets(app: Express, options: StaticAssetsOptions 
  * @param packageName - Name of the package containing static assets
  * @returns Path to the dist directory or null if not found
  */
-function getWebDistPath(packageName: string = '@owox/web'): null | string {
+function getWebDistPath(packageName: string): null | string {
   try {
     const require = createRequire(import.meta.url);
 
@@ -81,7 +81,8 @@ function getWebDistPath(packageName: string = '@owox/web'): null | string {
     }
 
     return null;
-  } catch {
+  } catch (error) {
+    console.log(error);
     return null;
   }
 }

@@ -106,9 +106,7 @@ export default class Serve extends BaseCommand {
 
     // Configure web static assets if web interface is enabled
     if (flags['web-enabled']) {
-      const staticAssetsConfigured = setupWebStaticAssets(expressApp, {
-        excludedRoutes: ['/api'],
-      });
+      const staticAssetsConfigured = setupWebStaticAssets(expressApp);
 
       if (staticAssetsConfigured) {
         this.log('🌐 Web interface static assets configured');
