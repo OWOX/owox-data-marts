@@ -219,10 +219,6 @@ var adAccountCreativesFields = {
   'description': 'Used for Dynamic Ads. Settings to display Dynamic ads based on product recommendations.',
   'type': 'AdCreativeRecommenderSettings'
 },
-'referral_id': {
-  'description': 'The ID of Referral Ad Configuration in this creative',
-  'type': 'numeric string'
-},
 'source_instagram_media_id': {
   'description': 'The ID of an Instagram post for creating ads',
   'type': 'numeric string'
