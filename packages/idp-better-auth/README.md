@@ -1,352 +1,165 @@
 # @owox/idp-better-auth
 
-Better Auth implementation for the OWOX IDP Protocol.
+Better Auth IDP provider for OWOX Data Marts authentication.
 
-## Features
+## Setup
 
-- ✅ SQLite and MySQL database support
-- ✅ Email/password authentication
-- ✅ Magic link authentication
-- ✅ Social authentication (Google, GitHub)
-- ✅ Session management
-- ✅ TypeScript support
-- ✅ Express integration with standard API routes
-- ✅ Configurable capabilities and optional endpoints
+### 1. Environment Configuration
 
-## Installation
-
-```bash
-npm install @owox/idp-better-auth @owox/idp-protocol
-```
-
-### Database Dependencies
-
-Choose your database and install the corresponding driver:
-
-**SQLite (recommended for development):**
-
-```bash
-npm install better-sqlite3
-```
-
-**MySQL:**
-
-```bash
-npm install mysql2
-```
-
-## Quick Start
-
-### SQLite Configuration
-
-```typescript
-import { createSqliteProvider } from '@owox/idp-better-auth';
-
-// Using the example configuration
-const provider = await createSqliteProvider();
-
-// Or create custom configuration
-import { BetterAuthProvider } from '@owox/idp-better-auth';
-
-const provider = await BetterAuthProvider.create(
-  // IDP Protocol config
-  {
-    magicLinkTTL: 3600,
-    magicLinkBaseUrl: 'http://localhost:3000',
-    defaultProjectId: 'default',
-    requireEmailVerification: true,
-  },
-  // Better Auth config
-  {
-    database: {
-      type: 'sqlite',
-      filename: './database.sqlite',
-    },
-    secret: 'your-secret-key',
-    baseURL: 'http://localhost:3000',
-    emailAndPassword: {
-      enabled: true,
-      requireEmailVerification: true,
-    },
-    magicLink: {
-      enabled: true,
-      sendMagicLink: async ({ email, url, token }) => {
-        // Implement your email sending logic here
-        console.log(`Send magic link to ${email}: ${url}?token=${token}`);
-      },
-    },
-  }
-);
-```
-
-### MySQL Configuration
-
-```typescript
-import { createMysqlProvider } from '@owox/idp-better-auth';
-
-// Using the example configuration
-const provider = await createMysqlProvider();
-
-// Or create custom configuration
-const provider = await BetterAuthProvider.create(
-  // IDP Protocol config
-  {
-    magicLinkTTL: 3600,
-    magicLinkBaseUrl: 'http://localhost:3000',
-    defaultProjectId: 'default',
-    requireEmailVerification: true,
-  },
-  // Better Auth config
-  {
-    database: {
-      type: 'mysql',
-      host: 'localhost',
-      user: 'root',
-      password: 'password',
-      database: 'better_auth',
-      port: 3306,
-    },
-    secret: 'your-secret-key',
-    baseURL: 'http://localhost:3000',
-    emailAndPassword: {
-      enabled: true,
-    },
-  }
-);
-```
-
-## Magic Link Authentication
-
-This implementation uses Better Auth's native magic link plugin for simplified authentication:
-
-```typescript
-// Magic links are sent automatically when enabled
-const provider = await BetterAuthProvider.create(idpConfig, {
-  magicLink: {
-    enabled: true,
-    sendMagicLink: async ({ email, url, token }) => {
-      // Your email sending implementation
-      await sendEmail({
-        to: email,
-        subject: 'Sign in to your account',
-        body: `Click here to sign in: ${url}?token=${token}`,
-      });
-    },
-    expiresIn: 300, // 5 minutes (optional)
-    disableSignUp: false, // Allow new user registration (optional)
-  },
-});
-
-// Send a magic link
-await provider.createMagicLink('user@example.com', 'project-id');
-```
-
-The magic link plugin automatically handles:
-
-- Token generation and validation
-- Link expiration
-- User verification
-- Session creation upon successful verification
-
-## Database Schema
-
-Better Auth automatically manages the database schema. To generate and run migrations:
-
-```bash
-# Install Better Auth CLI
-npm install -g @better-auth/cli
-
-# Generate schema
-npx @better-auth/cli@latest generate
-
-# Run migrations
-npx @better-auth/cli@latest migrate
-```
-
-## Express Integration
-
-### Basic Usage with Standard Routes
-
-```typescript
-import express from 'express';
-import { createSqliteProvider, createBetterAuthRouter } from '@owox/idp-better-auth';
-
-const app = express();
-const provider = await createSqliteProvider();
-
-// Add all Better Auth routes automatically
-const authRouter = createBetterAuthRouter(provider);
-app.use('/', authRouter);
-
-app.listen(3000);
-```
-
-### Available Endpoints
-
-The provider automatically creates these standard endpoints:
-
-**Authentication Pages (GET):**
-
-- `/auth/sign-in` - Sign in page
-- `/auth/sign-out` - Sign out page  
-- `/auth/sign-up` - Sign up page
-- `/auth/magic-link` - Magic link request page
-- `/auth/google/callback` - Google OAuth callback
-
-**Authentication API (POST):**
-
-- `/auth/api/refresh` - Refresh access token
-- `/auth/api/revoke` - Revoke token
-- `/auth/api/introspect` - Token introspection
-
-**Management API:**
-
-- `/api/users` - User CRUD operations
-- `/api/health` - Health check endpoint
-
-### Custom Protected Routes
-
-```typescript
-app.get('/protected/profile', async (req, res) => {
-  const token = req.cookies['better-auth.session_token'] || 
-                req.headers.authorization?.replace('Bearer ', '');
-  
-  if (!token) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
-  
-  try {
-    const user = await provider.introspectToken(token);
-    res.json({ user });
-  } catch (error) {
-    res.status(401).json({ error: 'Invalid token' });
-  }
-});
-```
-
-## Configuration Options
-
-### Database Configuration
-
-```typescript
-// SQLite
-{
-  database: {
-    type: 'sqlite',
-    filename: './database.sqlite'
-  }
-}
-
-// MySQL
-{
-  database: {
-    type: 'mysql',
-    host: 'localhost',
-    user: 'root',
-    password: 'password',
-    database: 'better_auth',
-    port: 3306
-  }
-}
-
-// Custom adapter
-{
-  database: {
-    type: 'custom',
-    adapter: yourCustomAdapter
-  }
-}
-```
-
-### Authentication Methods
-
-```typescript
-{
-  // Email/password authentication
-  emailAndPassword: {
-    enabled: true,
-    requireEmailVerification: true,
-    sendEmailVerification: async (email, url, token) => {
-      // Your email sending logic
-    }
-  },
-  
-  // Magic link authentication (uses Better Auth native plugin)
-  magicLink: {
-    enabled: true,
-    sendMagicLink: async ({ email, url, token }) => {
-      // Your magic link sending logic (e.g., email service)
-      console.log(`Send magic link to ${email}: ${url}?token=${token}`);
-    },
-    expiresIn: 300, // 5 minutes (optional)
-    disableSignUp: false, // Allow signup via magic link (optional)
-  },
-  
-  // Social providers
-  socialProviders: {
-    google: {
-      clientId: 'your-google-client-id',
-      clientSecret: 'your-google-client-secret'
-    },
-    github: {
-      clientId: 'your-github-client-id',
-      clientSecret: 'your-github-client-secret'
-    }
-  }
-}
-```
-
-## Environment Variables
-
-Copy `src/config/example.env` to `.env` and configure:
+Create or update your `.env` file with the required settings:
 
 ```env
 # Required
-BETTER_AUTH_SECRET=your-super-secret-key-min-32-chars-long
+IDP_PROVIDER=better-auth
+IDP_SECRET=your-super-secret-key-at-least-32-characters-long
+
+# Database (SQLite - recommended for getting started)
+IDP_DATABASE_TYPE=sqlite
+IDP_SQLITE_DB_PATH=./data/auth.db
 
 # Optional
-APP_URL=http://localhost:3000
-DB_HOST=localhost
-DB_USER=root
-DB_PASSWORD=password
-DB_NAME=better_auth
+IDP_BASE_URL=http://localhost:3000
+IDP_MAGIC_LINK_TTL=3600
+IDP_SESSION_MAX_AGE=86400
 ```
 
-## API
+### 2. MySQL Configuration (Alternative)
 
-### BetterAuthProvider
+If you prefer MySQL instead of SQLite:
 
-The main provider class that implements the IDP protocol:
+```env
+IDP_PROVIDER=better-auth
+IDP_SECRET=your-super-secret-key-at-least-32-characters-long
 
-```typescript
-import { BetterAuthProvider } from '@owox/idp-better-auth';
-
-const provider = await BetterAuthProvider.create(idpConfig, betterAuthConfig);
-
-// Use with any IDP protocol method
-await provider.signIn({ email: 'user@example.com', password: 'password' });
-await provider.introspectToken('jwt-token');
+IDP_DATABASE_TYPE=mysql
+IDP_MYSQL_HOST=localhost
+IDP_MYSQL_USER=root
+IDP_MYSQL_PASSWORD=your-password
+IDP_MYSQL_DATABASE=owox_auth
+IDP_MYSQL_PORT=3306
 ```
 
-### Database Adapters
+### 3. Start the Application
 
-Low-level database adapter functions:
-
-```typescript
-import { 
-  createDatabaseAdapter, 
-  createSqliteAdapter, 
-  createMysqlAdapter 
-} from '@owox/idp-better-auth';
-
-// Auto-detect and create appropriate adapter
-const adapter = createDatabaseAdapter(databaseConfig);
-
-// Create specific adapters
-const sqlite = createSqliteAdapter({ type: 'sqlite', filename: 'db.sqlite' });
-const mysql = createMysqlAdapter({ type: 'mysql', host: 'localhost', ... });
+```bash
+owox serve
 ```
 
-## License
+or if .env file doesn't exported:
 
-ELv2
+**Linux/macOS:**
+
+```bash
+export $(grep -v '^#' .env | grep -v '^$' | xargs) && owox serve
+```
+
+**Windows (PowerShell):**
+
+```powershell
+Get-Content .env | Where-Object {$_ -notmatch '^#' -and $_ -notmatch '^$'} | ForEach-Object {$name, $value = $_.split('=', 2); Set-Variable -Name $name -Value $value}; owox serve
+```
+
+**Windows (Command Prompt):**
+
+```cmd
+for /f "usebackq tokens=1,2 delims==" %i in (.env) do set %i=%j
+owox serve
+```
+
+The authentication system will be available at:
+
+- Sign in page: `http://localhost:3000/auth/sign-in`
+- Admin dashboard: `http://localhost:3000/auth/dashboard`
+
+### 4. Add Your First Admin User
+
+```bash
+# Add an admin user and get a magic link
+owox idp add-user admin@yourdomain.com
+```
+
+Copy the magic link from the output and open it in your browser to set up your admin account.
+
+## Authentication Flow
+
+### For End Users
+
+1. **Sign In**: Navigate to `/auth/sign-in`
+2. **Enter credentials**: Email and password
+3. **Dashboard access**: After login, access admin features at `/auth/dashboard`
+
+### For New Users (Admin Invitation)
+
+1. **Admin invites**: Admin uses the dashboard to invite new users via magic link
+2. **Magic link**: New user receives a magic link from user who invited them
+3. **Password setup**: User goes to magic link and sets their password
+4. **Access granted**: User can now sign in normally
+
+## Admin Panel Features
+
+The admin dashboard (`/auth/dashboard`) provides:
+
+- **User management**: View all users, their roles, and activity
+- **Add users**: Invite new users with specific roles (admin/editor/viewer)
+- **Role management**: Assign different permission levels
+- **Magic links**: Generate new magic links for existing users
+
+### User Roles
+
+- **Admin**: Full access, can manage all users and invite any role
+- **Editor**: Can invite editors and viewers
+- **Viewer**: Can only invite other viewers
+
+## Database Management
+
+The database schema is automatically created on first startup. For SQLite, the file will be created at the path specified in `IDP_SQLITE_DB_PATH` or default path in system application temp directory.
+
+### SQLite (Default)
+
+- File-based database
+- No additional setup required
+- Good for development and small deployments
+
+### MySQL
+
+- Requires MySQL server
+- Create database manually: `CREATE DATABASE owox_auth;`
+- Tables are created automatically
+
+## Command Line Tools
+
+### Add User
+
+```bash
+owox idp add-user user@example.com
+```
+
+## Configuration Reference
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `IDP_PROVIDER` | Yes | - | Set to `better-auth` |
+| `IDP_SECRET` | Yes | - | Key for signing secret (32+ characters) |
+| `IDP_DATABASE_TYPE` | No | `sqlite` | Database type: `sqlite`, `mysql` |
+| `IDP_SQLITE_DB_PATH` | No | - | SQLite database file path |
+| `IDP_BASE_URL` | No | - | Base URL for magic links |
+| `IDP_MAGIC_LINK_TTL` | No | `3600` | Magic link expiration (seconds) |
+| `IDP_SESSION_MAX_AGE` | No | - | Session duration (seconds) |
+
+## Troubleshooting
+
+### "IDP_SECRET is not set" Error
+
+Make sure your `.env` file contains a valid `IDP_SECRET` with at least 32 characters.
+
+### Database Connection Issues
+
+For MySQL, verify your connection settings and ensure the database exists.
+
+### Magic Links Not Working
+
+Check that `IDP_BASE_URL` matches your application URL and that the magic link hasn't expired.
+
+### Permission Denied
+
+Ensure the user has the correct role permissions for the action they're trying to perform.
