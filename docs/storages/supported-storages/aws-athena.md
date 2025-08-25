@@ -30,7 +30,7 @@ To interact with AWS Athena, you need an IAM user with appropriate permissions a
    - Return to the User's Set permissions step **Attach policies directly**, refresh the table and select the newly created policy, then click **Next**
    - Click **Create user** to finalize the user creation process.
 
-5. Go to the user’s page, click the **Security credentials** tab and 
+4. Go to the user’s page, click the **Security credentials** tab and then:
    - click **Create access key**
    - select **Third-party service** option
    - set the **Confirmation** checkbox in the bottom and click **Next**
