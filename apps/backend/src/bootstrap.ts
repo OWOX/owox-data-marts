@@ -4,7 +4,6 @@ import { ExpressAdapter } from '@nestjs/platform-express';
 import { createLogger } from './common/logger/logger.service';
 import { setupSwagger } from './config/swagger.config';
 import { setupGlobalPipes } from './config/global-pipes.config';
-import { setupStaticAssets } from './config/express-static.config';
 import { BaseExceptionFilter } from './common/exceptions/base-exception.filter';
 import { ConfigService } from '@nestjs/config';
 import { runMigrationsIfNeeded } from './config/migrations.config';
@@ -33,7 +32,6 @@ export async function bootstrap(options: BootstrapOptions): Promise<NestExpressA
   // Override env vars with options
   if (options.port) process.env.PORT = options.port.toString();
   if (options.logFormat) process.env.LOG_FORMAT = options.logFormat;
-  if (options.webEnabled !== undefined) process.env.WEB_ENABLED = options.webEnabled.toString();
 
   await runMigrationsIfNeeded(configService);
 
@@ -54,7 +52,6 @@ export async function bootstrap(options: BootstrapOptions): Promise<NestExpressA
 
   setupGlobalPipes(app);
   setupSwagger(app, SWAGGER_PATH);
-  setupStaticAssets(app, PATH_PREFIX);
 
   app.enableShutdownHooks();
 

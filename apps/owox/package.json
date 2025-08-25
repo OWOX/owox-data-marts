@@ -15,6 +15,7 @@
     "@oclif/plugin-plugins": "^5",
     "@owox/backend": "*",
     "@owox/idp-protocol": "*",
+    "@owox/web": "*",
     "find-process": "^1.4.10"
   },
   "peerDependencies": {
@@ -67,9 +68,9 @@
   "scripts": {
     "build": "tsc",
     "build:backend": "npm run build -w @owox/backend --prefix ../..",
-    "build:clean": "shx rm -rf dist",
-    "build:dep": "npm run build:backend && npm run build:idp-protocol",
-    "build:idp-protocol": "npm run build -w @owox/idp-protocol --prefix ../..",
+    "build:clean": "shx rm -rf dist oclif.manifest.json tsconfig.tsbuildinfo",
+    "build:dep": "npm run build:backend && npm run build:web",
+    "build:web": "npm run build -w @owox/web --prefix ../..",
     "lint": "eslint . --config ./eslint.config.mjs",
     "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",
     "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",

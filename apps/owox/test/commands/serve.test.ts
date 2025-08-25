@@ -15,4 +15,10 @@ describe('serve', () => {
     const { stdout } = await execAsync(`${runCommand} serve --help`);
     expect(stdout).to.contain('--port=<value>');
   });
+
+  it('accepts web-enabled flag', async () => {
+    const { stdout } = await execAsync(`${runCommand} serve --help`);
+    expect(stdout).to.contain('--web-enabled');
+    expect(stdout).to.contain('Enable web interface');
+  });
 });
