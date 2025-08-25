@@ -331,8 +331,7 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
     
     const response = EnvironmentAdapter.fetch(authUrl, { headers });
     const result = JSON.parse(response.getContentText());
-    
-    console.log(`LinkedIn Ads API Response:`, JSON.stringify(result, null, 2));
+
     return result;
   }
   

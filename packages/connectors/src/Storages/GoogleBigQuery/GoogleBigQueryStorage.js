@@ -63,6 +63,9 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       this.loadTableSchema();
 
       this.updatedRecordsBuffer = {};
+      
+      // Initialize counter for tracking total records processed
+      this.totalRecordsProcessed = 0;
 
     
     }
@@ -312,6 +315,8 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
     
       // buffer must be saved only in case if it is larger than maxBufferSize
       if( bufferSize && bufferSize >= maxBufferSize ) {
+        
+        console.log(`🔄 Starting BigQuery MERGE operation for ${bufferSize} records...`);
 
         let source = '';
         let rows = [];
@@ -371,6 +376,8 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
 
         this.executeQuery(query);
+        this.totalRecordsProcessed += bufferSize;
+        console.log(`✅ BigQuery MERGE completed successfully for ${bufferSize} records (Total processed: ${this.totalRecordsProcessed})`);
         this.updatedRecordsBuffer = {};
     
       }
@@ -390,7 +397,6 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
      */
     executeQuery(query) {
       
-      console.log(query);
       if (this.config.Environment.value === ENVIRONMENT.APPS_SCRIPT) {
       return BigQuery.Jobs.query(
           {"query": query,  useLegacySql: false}, 

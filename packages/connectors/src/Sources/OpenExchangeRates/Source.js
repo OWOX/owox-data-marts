@@ -82,11 +82,12 @@ constructor(config) {
     }
    
     var date = EnvironmentAdapter.formatDate(date, "UTC", "yyyy-MM-dd"); // The requested date in YYYY-MM-DD format (required)
-    const url = `https://openexchangerates.org/api/historical/${date}.json?base=${base}${symbols}&app_id=${app_id}`;
+    const urlWithoutKey = `https://openexchangerates.org/api/historical/${date}.json?base=${base}${symbols}`;
+    console.log(`OpenExchangeRates API URL:`, urlWithoutKey);
+    
+    const url = `${urlWithoutKey}&app_id=${app_id}`;
     
     this.config.logMessage(`🔄 Fetching rates for ${date}`);
-  
-    console.log(url);
   
     var response = EnvironmentAdapter.fetch(url, {'method': 'get', 'muteHttpExceptions': true} );
     var historical = JSON.parse( response.getContentText() );

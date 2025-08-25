@@ -432,7 +432,6 @@ var XAdsSource = class XAdsSource extends AbstractSource {
   isValidToRetry(error) {
     console.log(`isValidToRetry() called`);
     console.log(`error.statusCode = ${error.statusCode}`);
-    console.log(`error.payload = ${JSON.stringify(error.payload)}`);
 
     // Retry on server errors (5xx)
     if (error.statusCode && error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN) {

@@ -168,6 +168,8 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
    * @returns {Object} - API response parsed from JSON
    */
   makeRequest(url) {
+    console.log(`LinkedIn Pages API URL:`, url);
+    
     const headers = {
       "LinkedIn-Version": this.config.Version.value,
       "X-RestLi-Protocol-Version": "2.0.0",

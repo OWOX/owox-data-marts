@@ -35,10 +35,7 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
       // Data must be imported differently depending on whether it is time-series or not
       for(var nodeName in fields) {
         
-        // node’s data is time-series, so add the name of the node to timeSeriesNodes array to process it later
-        if( nodeName in this.source.fieldsSchema
-          && "fields" in this.source.fieldsSchema[nodeName]
-          && "date_start" in this.source.fieldsSchema[nodeName]["fields"] ) {
+        if( nodeName in this.source.fieldsSchema && this.source.fieldsSchema[nodeName].isTimeSeries ) {
 
             timeSeriesNodes[nodeName] = fields[nodeName];
 

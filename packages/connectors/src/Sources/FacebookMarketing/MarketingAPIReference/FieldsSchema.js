@@ -13,6 +13,7 @@ var FacebookMarketingFieldsSchema = {
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account-user",
         "fields": adAccountUserFields,
         'uniqueKeys': ["id"],
+        "isTimeSeries": false,
         "destinationName": "ad_account_user"
     },
     "ad-account": {
@@ -21,6 +22,7 @@ var FacebookMarketingFieldsSchema = {
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/",
         "fields": adAccountFields,
         'uniqueKeys': ["id", "account_id"],
+        "isTimeSeries": false,
         "destinationName": "ad_account"
     },  
     "ad-account/adcreatives": {
@@ -28,6 +30,7 @@ var FacebookMarketingFieldsSchema = {
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/adcreatives",
         "fields": adAccountCreativesFields,
         'uniqueKeys': ["id"],
+        "isTimeSeries": false,
         "destinationName": "ad_account_adcreatives",
         "limit": 100
     },
@@ -41,6 +44,7 @@ var FacebookMarketingFieldsSchema = {
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/ads",
         "fields": adAccountAdsFields,
         'uniqueKeys': ["id"],
+        "isTimeSeries": false,
         "destinationName": "ad_account_ads",
         "limit": 100
     },
@@ -69,6 +73,7 @@ var FacebookMarketingFieldsSchema = {
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
         "fields" : adAccountInsightsFields,
         'uniqueKeys': ["ad_id", "date_start", "date_stop"],
+        "isTimeSeries": true,
         "destinationName": "ad_account_insights",
         "limit": 500
     },
@@ -78,6 +83,7 @@ var FacebookMarketingFieldsSchema = {
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/adgroup/",
         "fields": adGroupFields,
         'uniqueKeys': ["id"],
+        "isTimeSeries": false,
         "destinationName": "ad_group",
         "limit": 100
     },
