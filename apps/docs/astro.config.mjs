@@ -45,7 +45,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             'docs/getting-started/core-concepts',
             {
               label: 'Editions',
-              items: ['docs/editions/all-editions', 'docs/editions/appsscript-edition'],
+              items: ['docs/editions/all-editions', 'docs/editions/appsscript-edition', 'docs/editions/agency'],
             },
             {
               label: 'Setup Guide',
