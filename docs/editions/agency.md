@@ -1,4 +1,4 @@
-# OWOX Data Marts – Agency Edition
+# Agency
 
 ## Open-Source Self-Service Analytics Platform for Agencies
 
