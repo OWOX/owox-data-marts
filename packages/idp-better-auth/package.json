@@ -13,6 +13,8 @@
   },
   "scripts": {
     "build": "tsc && node ./scripts/copy-public.cjs",
+    "build:dep": "npm run build:idp-protocol",
+    "build:idp-protocol": "npm run build -w @owox/idp-protocol --prefix ../..",
     "clean": "rimraf dist",
     "test": "jest",
     "lint": "eslint . --config ./eslint.config.js",

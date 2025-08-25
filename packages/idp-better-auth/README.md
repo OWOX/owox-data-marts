@@ -136,15 +136,15 @@ owox idp add-user user@example.com
 
 ## Configuration Reference
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `IDP_PROVIDER` | Yes | - | Set to `better-auth` |
-| `IDP_SECRET` | Yes | - | Key for signing secret (32+ characters) |
-| `IDP_DATABASE_TYPE` | No | `sqlite` | Database type: `sqlite`, `mysql` |
-| `IDP_SQLITE_DB_PATH` | No | - | SQLite database file path |
-| `IDP_BASE_URL` | No | - | Base URL for magic links |
-| `IDP_MAGIC_LINK_TTL` | No | `3600` | Magic link expiration (seconds) |
-| `IDP_SESSION_MAX_AGE` | No | - | Session duration (seconds) |
+| Variable              | Required | Default  | Description                             |
+| --------------------- | -------- | -------- | --------------------------------------- |
+| `IDP_PROVIDER`        | Yes      | -        | Set to `better-auth`                    |
+| `IDP_SECRET`          | Yes      | -        | Key for signing secret (32+ characters) |
+| `IDP_DATABASE_TYPE`   | No       | `sqlite` | Database type: `sqlite`, `mysql`        |
+| `IDP_SQLITE_DB_PATH`  | No       | -        | SQLite database file path               |
+| `IDP_BASE_URL`        | No       | -        | Base URL for magic links                |
+| `IDP_MAGIC_LINK_TTL`  | No       | `3600`   | Magic link expiration (seconds)         |
+| `IDP_SESSION_MAX_AGE` | No       | -        | Session duration (seconds)              |
 
 ## Troubleshooting
 
