@@ -68,8 +68,8 @@ class AbstractConfig {
     setParametersValues(values) {
       
       for(var parameterName in values) {
-        //this.CONFIG[parameterName] = parameterName in this.CONFIG ? { ...this.CONFIG[parameterName], ...{"value": values[parameterName]} } : {"value": values[parameterName]}
-        this[parameterName] = parameterName in this ? { ...this[parameterName], ...{"value": values[parameterName]} } : {"value": values[parameterName]}
+        const trimmedValue = this._trimValue(values[parameterName]);
+        this[parameterName] = parameterName in this ? { ...this[parameterName], ...{"value": trimmedValue} } : {"value": trimmedValue}
       }
 
       return this;
@@ -88,6 +88,10 @@ class AbstractConfig {
         if( name.slice(-1) == "*" ) { 
           value.isRequired = true;
         }
+
+      if (value && typeof value.value === 'string') {
+        value.value = this._trimValue(value.value);
+      }
 
       // replace of characters including spaces to let call parameters like this.CONFIG.parameterName
         if( name = name.replaceAll(/[^a-zA-Z0-9]/gi, "") ) {
@@ -211,6 +215,20 @@ class AbstractConfig {
   //---- logMessage --------------------------------------------------
     logMessage() {
       throw new Error("logMessage must be implemented in subclass of AbstractConfig");
+    }
+    //----------------------------------------------------------------
+
+  //---- trimValue ---------------------------------------------------
+    /**
+     * Automatically trim whitespace for string values
+     * @param {*} value - Value to trim
+     * @returns {*} - Trimmed value if string, original value otherwise
+     */
+    _trimValue(value) {
+      if (typeof value === 'string') {
+        return value.trim();
+      }
+      return value;
     }
     //----------------------------------------------------------------
 }
