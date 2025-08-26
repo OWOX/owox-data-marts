@@ -58,9 +58,15 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           ],
         },
         {
-          label: 'Sources',
-          autogenerate: { directory: 'packages/connectors/src/sources' },
-        },
+          label: 'Destinations',
+          items: [
+            'docs/destinations/manage-destinations',
+            {
+              label: 'Supported Destinations',
+              autogenerate: { directory: 'docs/destinations/supported-destinations' },
+            },
+          ],
+        },        
         {
           label: 'Storages',
           items: [
@@ -72,14 +78,8 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           ],
         },
         {
-          label: 'Destinations',
-          items: [
-            'docs/destinations/manage-destinations',
-            {
-              label: 'Supported Destinations',
-              autogenerate: { directory: 'docs/destinations/supported-destinations' },
-            },
-          ],
+          label: 'Sources',
+          autogenerate: { directory: 'packages/connectors/src/sources' },
         },
         {
           label: 'Contributing',
