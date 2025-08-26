@@ -66,7 +66,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               autogenerate: { directory: 'docs/destinations/supported-destinations' },
             },
           ],
-        },        
+        },
         {
           label: 'Storages',
           items: [
