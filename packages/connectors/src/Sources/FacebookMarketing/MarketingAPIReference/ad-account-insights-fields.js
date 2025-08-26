@@ -129,14 +129,6 @@ var adAccountInsightsFields = {
     'type': 'numeric string',
     'GoogleBigQueryType': 'numeric'
   },
-  'coarse_conversion_value': {
-    'description': 'Allows advertisers and ad networks to receive directional post-install quality insights when the volume of campaign conversions isn\'t high enough to meet the privacy threshold needed to unlock the standard conversion value. Possible values of this breakdown are low, medium and high.',
-    'type': 'string'
-  },
-  'comparison_node': {
-    'description': 'Parent node that encapsulates fields to be compared (current time range Vs comparison time range)',
-    'type': 'AdsInsightsComparison'
-  },
   'conversion_values': {
     'description': 'conversion_values',
     'type': 'list<AdsActionStats>'
@@ -270,10 +262,6 @@ var adAccountInsightsFields = {
     'description': 'description_asset',
     'type': 'AdAssetDescription'
   },
-  'fidelity_type': {
-    'description': 'To differentiate StoreKit-rendered ads from view-through ads, SKAdNetwork defines a fidelity-type parameter, which you include in the ad signature and receive in the install-validation postback. Use a fidelity-type value of 1 for StoreKit-rendered ads and attributable web ads, and 0 for view-through ads.',
-    'type': 'string'
-  },
   'frequency': {
     'description': 'The average number of times each person saw your ad. This metric is estimated.',
     'type': 'numeric string',
@@ -288,10 +276,6 @@ var adAccountInsightsFields = {
     'description': 'The number of people who performed a Full View on your Page\'s post as a result of your ad.',
     'type': 'numeric string',
     'GoogleBigQueryType': 'numeric'
-  },
-  'hsid': {
-    'description': 'The hsid key is available for ad impressions that use SKAdNetwork 4 and later. This integer can have up to four digits. You can encode information about your advertisement in each set of digits; you may receive two, three, or all four digits of the sourceIdentifier in the first winning postback, depending on the ad impression\'s postback data tier.',
-    'type': 'string'
   },
   'image_asset': {
     'description': 'image_asset',
@@ -340,18 +324,10 @@ var adAccountInsightsFields = {
     'description': 'interactive_component_tap',
     'type': 'list<AdsActionStats>'
   },
-  'landing_destination': {
-    'description': 'landing_destination',
-    'type': 'string'
-  },
   'marketing_messages_delivery_rate': {
     'description': 'The number of messages delivered divided by the number of messages sent. Some messages may not be delivered, such as when a customer\'s device is out of service. This metric doesn\'t include messages sent to Europe and Japan.',
     'type': 'numeric string',
     'GoogleBigQueryType': 'numeric'
-  },
-  'media_asset': {
-    'description': 'media_asset',
-    'type': 'AdAssetMedia'
   },
   'mobile_app_purchase_roas': {
     'description': 'The total return on ad spend (ROAS) from mobile app purchases. This is based on the value that you assigned when you set up the app event.',
@@ -373,10 +349,6 @@ var adAccountInsightsFields = {
     'description': 'The percentage of times people saw your ad and performed an outbound click.',
     'type': 'list<AdsActionStats>'
   },
-  'postback_sequence_index': {
-    'description': 'Sequence of postbacks received from SkAdNetwork API version 4.0. Possible values of this breakdown are 0 (first postback), 1 (second postback) and 2 (third postback).',
-    'type': 'string'
-  },
   'purchase_roas': {
     'description': 'The total return on ad spend (ROAS) from purchases. This is based on information received from one or more of your connected Facebook Business Tools and attributed to your ads.',
     'type': 'list<AdsActionStats>'
@@ -390,14 +362,6 @@ var adAccountInsightsFields = {
     'description': 'The number of people who saw your ads at least once. Reach is different from impressions, which may include multiple views of your ads by the same people. This metric is estimated.',
     'type': 'numeric string',
     'GoogleBigQueryType': 'numeric'
-  },
-  'redownload': {
-    'description': 'Boolean flag that indicates the customer redownloaded and reinstalled the app when the value is true. A 1 indicates customer has reinstalled the app and 0 indicates that customer hasn’t reinstalled the app',
-    'type': 'string'
-  },
-  'rule_asset': {
-    'description': 'rule_asset',
-    'type': 'AdAssetRule'
   },
   'shops_assisted_purchases': {
     'description': 'shops_assisted_purchases',
