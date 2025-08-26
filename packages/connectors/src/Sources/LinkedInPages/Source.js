@@ -62,13 +62,6 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
         label: "Fields",
         description: "List of fields to fetch from LinkedIn API"
       },
-      MaxFieldsPerRequest: {
-        requiredType: "number",
-        isRequired: true,
-        default: 20,
-        label: "Max Fields Per Request",
-        description: "Maximum number of fields to request per API call"
-      },
       OrganizationURNs: {
         isRequired: true,
         label: "Organization URNs",

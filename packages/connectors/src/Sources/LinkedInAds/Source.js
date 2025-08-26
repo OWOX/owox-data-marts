@@ -62,13 +62,6 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
         label: "Fields",
         description: "List of fields to fetch from LinkedIn API"
       },
-      MaxFieldsPerRequest: {
-        requiredType: "number",
-        isRequired: true,
-        default: 20,
-        label: "Max Fields Per Request",
-        description: "Maximum number of fields to request per API call"
-      },
       AccountURNs: {
         isRequired: true,
         label: "Account URNs",
@@ -77,6 +70,7 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
     }));
     
     this.fieldsSchema = LinkedInAdsFieldsSchema;
+    this.MAX_FIELDS_PER_REQUEST = 20;
   }
   
   /**
@@ -196,7 +190,7 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
     // Add required fields to each chunk separately
     const uniqueFields = [...new Set(fields)].filter(field => !requiredFields.includes(field));
     
-    const maxCustomFieldsPerChunk = this.config.MaxFieldsPerRequest.value - requiredFields.length;
+    const maxCustomFieldsPerChunk = this.MAX_FIELDS_PER_REQUEST - requiredFields.length;
     const fieldChunks = [];
     
     for (let i = 0; i < uniqueFields.length; i += maxCustomFieldsPerChunk) {
