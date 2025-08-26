@@ -20,6 +20,7 @@
 2. Select **Deploy an existing image (Docker)**
 3. Enter the image name, for example:  ghcr.io/owox/owox-data-marts:latest
 4. Configure basic settings:
+
 - **Name**: e.g `owox-company-name`
 - **Region**: choose your region for lower latency
 - **Instance Type**: Starter (or higher)
@@ -29,14 +30,17 @@
 ## Step 3: Persistent Disk (SQLite)
 
 1. In the **Disks** section, add:
+
 - **Name**: `owox-data`
 - **Size**: 1–5 GB (start small)
 - **Mount Path**: `/root/.local/share/owox/sqlite`
+
 2. This ensures your database is not lost on restart
 
 ## Step 4: Environment Variables
 
 Go to **Environment → Add Environment Variable** and add:
+
 - TBD
 
 ## Step 5: Deploy
