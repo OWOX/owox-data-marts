@@ -24,7 +24,7 @@
 
 In the Advanced → **Disks** section, add:  
   - **Size**: 5 GB (or higher)  
-  - **Mount Path**: `/root/.local/share/owox/sqlite` (this ensures your database is not lost on restart)
+  - **Mount Path**: `/root/.local/share/owox/` (this ensures your database is not lost on restart)
 
 ### Step 3: Deploy
 
