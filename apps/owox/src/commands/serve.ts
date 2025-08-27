@@ -97,6 +97,7 @@ export default class Serve extends BaseCommand {
     const { bootstrap } = await import('@owox/backend');
 
     const expressApp = express();
+    expressApp.set('trust proxy', 1);
 
     const idpProvider = await IdpFactory.createFromEnvironment(this);
     await idpProvider.initialize();

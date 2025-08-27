@@ -16,6 +16,7 @@ async function setupIdp(app: express.Express) {
 export async function main() {
   try {
     const app = express();
+    app.set('trust proxy', 1);
 
     await setupIdp(app);
 

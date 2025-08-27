@@ -30,11 +30,12 @@ export class NullIdpProvider implements IdpProvider {
   }
 
   signInMiddleware(req: Request, res: Response, _next: NextFunction): Promise<void> {
-    const isLocalhost = req.hostname === 'localhost' || req.hostname === '127.0.0.1';
+    const isSecure =
+      req.protocol !== 'http' && !(req.hostname === 'localhost' || req.hostname === '127.0.0.1');
 
     res.cookie('refreshToken', this.defaultRefreshToken, {
       httpOnly: true,
-      secure: !isLocalhost,
+      secure: isSecure,
       sameSite: 'lax',
       maxAge: 3600000,
     });
