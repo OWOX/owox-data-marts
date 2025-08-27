@@ -11,7 +11,7 @@
 
 1. From the dashboard, click **New → Web Service**
 2. Select **Existing image** as Source Code
-3. Enter the image name `ghcr.io/owox/owox-data-marts` (or ghcr.io/owox/owox-data-marts:latest for newest snapshot)
+3. Enter the image name `ghcr.io/owox/owox-data-marts` (or `ghcr.io/owox/owox-data-marts:next` for newest snapshot)
 4. Configure basic settings:
 
 - **Name**: e.g `owox-your-company-name`
