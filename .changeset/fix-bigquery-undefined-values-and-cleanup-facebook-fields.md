@@ -1,5 +1,5 @@
 ---
-'owox': patch
+'owox': minor
 ---
 
 # Fix undefined values in BigQuery Storage and cleanup Facebook fields

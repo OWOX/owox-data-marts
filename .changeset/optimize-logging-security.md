@@ -1,5 +1,5 @@
 ---
-'owox': patch
+'owox': minor
 ---
 
 # Optimize logging and fix security issues
