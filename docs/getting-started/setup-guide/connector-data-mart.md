@@ -45,15 +45,15 @@ Each connector has a set of required parameters. The most common ones include:
 
 Each connector requires authentication. Here is how you can obtain the required credentials for each of the ad platforms:
 
-- [Facebook Ads](../../packages/connectors/src/Sources/FacebookMarketing/CREDENTIALS.md)
-- [TikTok Ads](../../packages/connectors/src/Sources/TikTokAds/CREDENTIALS.md)
-- [Linkedin Ads](../../packages/connectors/src/Sources/LinkedIn/CREDENTIALS.md)
-- [X Ads](../../packages/connectors/src/Sources/XAds/CREDENTIALS.md)
-- [Bing Ads](../../packages/connectors/src/Sources/BingAds/CREDENTIALS.md)
-- [Reddit Ads](../../packages/connectors/src/Sources/RedditAds/CREDENTIALS.md)
-- [Criteo Ads](../../packages/connectors/src/Sources/CriteoAds/CREDENTIALS.md)
-- [Open Exchange Rates](../../packages/connectors/src/Sources/OpenExchangeRates/CREDENTIALS.md)
-- [Other platforms](../../packages/connectors/src/Sources)
+- [Facebook Ads](/packages/connectors/src/Sources/FacebookMarketing/CREDENTIALS.md)
+- [TikTok Ads](/packages/connectors/src/Sources/TikTokAds/CREDENTIALS.md)
+- [Linkedin Ads](/packages/connectors/src/Sources/LinkedInAds/CREDENTIALS.md)
+- [X Ads](/packages/connectors/src/Sources/XAds/CREDENTIALS.md)
+- [Bing Ads](/packages/connectors/src/Sources/BingAds/CREDENTIALS.md)
+- [Reddit Ads](/packages/connectors/src/Sources/RedditAds/CREDENTIALS.md)
+- [Criteo Ads](/packages/connectors/src/Sources/CriteoAds/CREDENTIALS.md)
+- [Open Exchange Rates](/packages/connectors/src/Sources/OpenExchangeRates/CREDENTIALS.md)
+- [Other platforms](/packages/connectors/src/Sources)
 
 Use the **credentials screen** to manage access per platform.
 
