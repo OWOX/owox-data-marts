@@ -15,17 +15,21 @@
 2. Select **Existing image** as Source Code
 3. Enter the image name `ghcr.io/owox/owox-data-marts` (or `ghcr.io/owox/owox-data-marts:next` for newest snapshot) and click **Connect**
 4. Configure basic settings:
+
 - **Name**: e.g `owox-your-company-name`
 - **Region**: choose your region for lower latency
 - **Instance Type**: Standard (or higher)
 
-### Step 2: Add Persistent Disk & Deploy
+### Step 2: Add Persistent Disk
 
-1. In the Advanced → **Disks** section, add:  
+In the Advanced → **Disks** section, add:  
   - **Size**: 5 GB (or higher)  
   - **Mount Path**: `/root/.local/share/owox/sqlite` (this ensures your database is not lost on restart)
-2. Click **Deploy Web Service**
-3. Wait until the service builds and starts
+
+### Step 3: Deploy
+
+1. Click **Deploy Web Service**
+2. Wait until the service builds and starts
 
 ## Configure Authorization Better-Auth (recommended)
 
@@ -43,7 +47,7 @@ Go **Environment** section in menu and set:
 ### Step 2: Add first admin
 
 1. Go to **Shell** section in menu
-2. Run command `owox idp add-user user@example.com` (☝️ use your email instead of user@example.com)
+2. Run command `owox idp add-user user@example.com` (☝️ use **your email** instead of `user@example.com`)
 3. Copy **Magic Link** from the response and open it in your browser
 4. Create a **password** and **Log In** with email/password
 5. Use `/auth` page to manage users within your deployment (e.g. `https://owox-your-company-name.onrender.com/auth`)
