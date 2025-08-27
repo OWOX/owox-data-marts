@@ -6,7 +6,7 @@ import { dirname, join } from 'path';
 /**
  * Determines the SQLite database file path for IDP based on configuration.
  *
- * If `IDP_SQLITE_DB_PATH` environment variable is set, uses that path directly.
+ * If `IDP_BETTER_AUTH_SQLITE_DB_PATH` environment variable is set, uses that path directly.
  * Otherwise, uses cross-platform application data directory with 'owox/idp/auth.db' structure.
  * Automatically creates the database directory if it doesn't exist.
  *
@@ -14,12 +14,14 @@ import { dirname, join } from 'path';
  * @throws {Error} When database directory cannot be created due to permissions or other filesystem errors
  */
 function getIdpSqliteDatabasePath(): string {
-  const envDbPath = process.env.IDP_SQLITE_DB_PATH;
+  const envDbPath = process.env.IDP_BETTER_AUTH_SQLITE_DB_PATH;
 
   let dbPath: string;
 
   if (envDbPath) {
-    console.log(`Using IDP SQLite database path from \`IDP_SQLITE_DB_PATH\` env: ${envDbPath}`);
+    console.log(
+      `Using IDP SQLite database path from \`IDP_BETTER_AUTH_SQLITE_DB_PATH\` env: ${envDbPath}`
+    );
     dbPath = envDbPath;
   } else {
     const paths = envPaths('owox', { suffix: '' });

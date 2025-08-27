@@ -93,7 +93,10 @@ export async function createBetterAuthConfig(
           name: 'refreshToken',
           attributes: {
             httpOnly: true,
-            secure: true,
+            secure:
+              config.baseURL?.includes('localhost') || config.baseURL?.includes('127.0.0.1')
+                ? false
+                : true,
           },
         },
       },

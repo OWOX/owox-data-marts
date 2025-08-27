@@ -57,12 +57,12 @@ export class IdpFactory {
   }
 
   private static async createBetterAuthProvider(command: BaseCommand): Promise<BetterAuthProvider> {
-    if (!process.env.IDP_SECRET) {
-      command.error('IDP_SECRET is not set');
+    if (!process.env.IDP_BETTER_AUTH_SECRET) {
+      command.error('IDP_BETTER_AUTH_SECRET is not set');
     }
 
     // Database configuration
-    const databaseType = (process.env.IDP_DATABASE_TYPE || 'sqlite') as
+    const databaseType = (process.env.IDP_BETTER_AUTH_DATABASE_TYPE || 'sqlite') as
       | 'custom'
       | 'mysql'
       | 'sqlite';
@@ -79,19 +79,21 @@ export class IdpFactory {
 
       case 'mysql': {
         database = {
-          database: process.env.IDP_MYSQL_DATABASE || 'better_auth',
-          host: process.env.IDP_MYSQL_HOST || 'localhost',
-          password: process.env.IDP_MYSQL_PASSWORD || '',
-          port: process.env.IDP_MYSQL_PORT ? Number.parseInt(process.env.IDP_MYSQL_PORT, 10) : 3306,
+          database: process.env.IDP_BETTER_AUTH_MYSQL_DATABASE || 'better_auth',
+          host: process.env.IDP_BETTER_AUTH_MYSQL_HOST || 'localhost',
+          password: process.env.IDP_BETTER_AUTH_MYSQL_PASSWORD || '',
+          port: process.env.IDP_BETTER_AUTH_MYSQL_PORT
+            ? Number.parseInt(process.env.IDP_BETTER_AUTH_MYSQL_PORT, 10)
+            : 3306,
           type: 'mysql' as const,
-          user: process.env.IDP_MYSQL_USER || 'root',
+          user: process.env.IDP_BETTER_AUTH_MYSQL_USER || 'root',
         };
         break;
       }
 
       case 'sqlite': {
         database = {
-          filename: process.env.IDP_SQLITE_DB_PATH,
+          filename: process.env.IDP_BETTER_AUTH_SQLITE_DB_PATH,
           type: 'sqlite' as const,
         };
         break;
@@ -103,13 +105,20 @@ export class IdpFactory {
     }
 
     return BetterAuthProvider.create({
-      baseURL: process.env.IDP_BASE_URL,
+      baseURL: process.env.IDP_BETTER_AUTH_BASE_URL,
       database,
-      magicLinkTll: process.env.IDP_MAGIC_LINK_TTL
-        ? Number.parseInt(process.env.IDP_MAGIC_LINK_TTL, 10)
+      magicLinkTll: process.env.IDP_BETTER_AUTH_MAGIC_LINK_TTL
+        ? Number.parseInt(process.env.IDP_BETTER_AUTH_MAGIC_LINK_TTL, 10)
         : 3600,
-      secret: process.env.IDP_SECRET,
-      trustedOrigins: process.env.IDP_TRUSTED_ORIGINS?.split(',').map(origin => origin.trim()),
+      secret: process.env.IDP_BETTER_AUTH_SECRET,
+      session: {
+        maxAge: process.env.IDP_BETTER_AUTH_SESSION_MAX_AGE
+          ? Number.parseInt(process.env.IDP_BETTER_AUTH_SESSION_MAX_AGE, 10)
+          : 604_800,
+      },
+      trustedOrigins: process.env.IDP_BETTER_AUTH_TRUSTED_ORIGINS?.split(',').map(origin =>
+        origin.trim()
+      ),
     });
   }
 

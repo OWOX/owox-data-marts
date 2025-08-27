@@ -11,16 +11,25 @@ Create or update your `.env` file with the required settings:
 ```env
 # Required
 IDP_PROVIDER=better-auth
-IDP_SECRET=your-super-secret-key-at-least-32-characters-long
+IDP_BETTER_AUTH_SECRET=your-super-secret-key-at-least-32-characters-long
 
 # Database (SQLite - recommended for getting started)
-IDP_DATABASE_TYPE=sqlite
-IDP_SQLITE_DB_PATH=./data/auth.db
+IDP_BETTER_AUTH_DATABASE_TYPE=sqlite
+IDP_BETTER_AUTH_SQLITE_DB_PATH=./data/auth.db
 
 # Optional
-IDP_BASE_URL=http://localhost:3000
-IDP_MAGIC_LINK_TTL=3600
-IDP_SESSION_MAX_AGE=86400
+IDP_BETTER_AUTH_BASE_URL=http://localhost:3000
+IDP_BETTER_AUTH_MAGIC_LINK_TTL=3600
+IDP_BETTER_AUTH_SESSION_MAX_AGE=86400
+IDP_BETTER_AUTH_TRUSTED_ORIGINS=http://localhost:3000,http://localhost:3001
+```
+
+#### Tip
+
+To generate a random secret key, you can use the following command:
+
+```bash
+openssl rand -base64 32
 ```
 
 ### 2. MySQL Configuration (Alternative)
@@ -29,14 +38,14 @@ If you prefer MySQL instead of SQLite:
 
 ```env
 IDP_PROVIDER=better-auth
-IDP_SECRET=your-super-secret-key-at-least-32-characters-long
+IDP_BETTER_AUTH_SECRET=your-super-secret-key-at-least-32-characters-long
 
-IDP_DATABASE_TYPE=mysql
-IDP_MYSQL_HOST=localhost
-IDP_MYSQL_USER=root
-IDP_MYSQL_PASSWORD=your-password
-IDP_MYSQL_DATABASE=owox_auth
-IDP_MYSQL_PORT=3306
+IDP_BETTER_AUTH_DATABASE_TYPE=mysql
+IDP_BETTER_AUTH_MYSQL_HOST=localhost
+IDP_BETTER_AUTH_MYSQL_USER=root
+IDP_BETTER_AUTH_MYSQL_PASSWORD=your-password
+IDP_BETTER_AUTH_MYSQL_DATABASE=owox_auth
+IDP_BETTER_AUTH_MYSQL_PORT=3306
 ```
 
 ### 3. Start the Application
@@ -75,7 +84,7 @@ The authentication system will be available at:
 
 ```bash
 # Add an admin user and get a magic link
-owox idp add-user admin@yourdomain.com
+export $(grep -v '^#' .env | grep -v '^$' | xargs) && owox idp add-user admin@yourdomain.com
 ```
 
 Copy the magic link from the output and open it in your browser to set up your admin account.
@@ -112,7 +121,7 @@ The admin dashboard (`/auth/dashboard`) provides:
 
 ## Database Management
 
-The database schema is automatically created on first startup. For SQLite, the file will be created at the path specified in `IDP_SQLITE_DB_PATH` or default path in system application temp directory.
+The database schema is automatically created on first startup. For SQLite, the file will be created at the path specified in `IDP_BETTER_AUTH_SQLITE_DB_PATH` or default path in system application temp directory.
 
 ### SQLite (Default)
 
@@ -124,6 +133,9 @@ The database schema is automatically created on first startup. For SQLite, the f
 
 - Requires MySQL server
 - Create database manually: `CREATE DATABASE owox_auth;`
+- Create user if needed: `CREATE USER 'owox_auth_user'@'localhost' IDENTIFIED BY 'your_password';`
+- Grant privileges: `GRANT ALL PRIVILEGES ON owox_auth.* TO 'owox_auth_user'@'localhost';`
+- Flush privileges: `FLUSH PRIVILEGES;`
 - Tables are created automatically
 
 ## Command Line Tools
@@ -136,21 +148,27 @@ owox idp add-user user@example.com
 
 ## Configuration Reference
 
-| Variable              | Required | Default  | Description                             |
-| --------------------- | -------- | -------- | --------------------------------------- |
-| `IDP_PROVIDER`        | Yes      | -        | Set to `better-auth`                    |
-| `IDP_SECRET`          | Yes      | -        | Key for signing secret (32+ characters) |
-| `IDP_DATABASE_TYPE`   | No       | `sqlite` | Database type: `sqlite`, `mysql`        |
-| `IDP_SQLITE_DB_PATH`  | No       | -        | SQLite database file path               |
-| `IDP_BASE_URL`        | No       | -        | Base URL for magic links                |
-| `IDP_MAGIC_LINK_TTL`  | No       | `3600`   | Magic link expiration (seconds)         |
-| `IDP_SESSION_MAX_AGE` | No       | -        | Session duration (seconds)              |
+| Variable                          | Required |          Default          | Description                                 |
+| --------------------------------- | :------: | :-----------------------: | ------------------------------------------- |
+| `IDP_PROVIDER`                    | **Yes**  |             –             | Set to `better-auth`                        |
+| `IDP_BETTER_AUTH_SECRET`          | **Yes**  |             –             | Secret key for signing (min. 32 characters) |
+| `IDP_BETTER_AUTH_DATABASE_TYPE`   |    No    |         `sqlite`          | Database type: `sqlite` or `mysql`          |
+| `IDP_BETTER_AUTH_SQLITE_DB_PATH`  |    No    | `<system temp directory>` | SQLite database file path                   |
+| `IDP_BETTER_AUTH_BASE_URL`        |    No    |  `http://localhost:3000`  | Base URL for magic links                    |
+| `IDP_BETTER_AUTH_MAGIC_LINK_TTL`  |    No    |      `3600` (1 hour)      | Magic link expiration (seconds)             |
+| `IDP_BETTER_AUTH_SESSION_MAX_AGE` |    No    |     `604800` (7 days)     | Session duration (seconds)                  |
+| `IDP_BETTER_AUTH_MYSQL_HOST`      |    No    |        `localhost`        | MySQL host                                  |
+| `IDP_BETTER_AUTH_MYSQL_USER`      |    No    |          `root`           | MySQL user                                  |
+| `IDP_BETTER_AUTH_MYSQL_PASSWORD`  |    No    |      `your-password`      | MySQL password                              |
+| `IDP_BETTER_AUTH_MYSQL_DATABASE`  |    No    |        `owox_auth`        | MySQL database                              |
+| `IDP_BETTER_AUTH_MYSQL_PORT`      |    No    |          `3306`           | MySQL port                                  |
+| `IDP_BETTER_AUTH_TRUSTED_ORIGINS` |    No    |  `http://localhost:3000`  | Trusted origins for auth service            |
 
 ## Troubleshooting
 
-### "IDP_SECRET is not set" Error
+### "IDP_BETTER_AUTH_SECRET is not set" Error
 
-Make sure your `.env` file contains a valid `IDP_SECRET` with at least 32 characters.
+Make sure your `.env` file contains a valid `IDP_BETTER_AUTH_SECRET` with at least 32 characters.
 
 ### Database Connection Issues
 
@@ -158,7 +176,7 @@ For MySQL, verify your connection settings and ensure the database exists.
 
 ### Magic Links Not Working
 
-Check that `IDP_BASE_URL` matches your application URL and that the magic link hasn't expired.
+Check that `IDP_BETTER_AUTH_BASE_URL` matches your application URL and that the magic link hasn't expired.
 
 ### Permission Denied
 
