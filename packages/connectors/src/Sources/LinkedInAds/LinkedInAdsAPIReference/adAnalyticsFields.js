@@ -81,8 +81,15 @@ var adAnalyticsFields = {
     'type': 'number',
     'GoogleBigQueryType': 'numeric'
   },
-  'dateRange': {
-    'description': 'Date range covered by the report data point. Date is specified in UTC. Start and end date are inclusive. Start date is required. End date is optional and defaults to today.',
+  'dateRangeStart': {
+    'description': 'Start date of the report data point. Date is specified in UTC format (YYYY-MM-DD).',
+    'type': 'string',
+    'GoogleSheetsFormat': '@',
+    'GoogleBigQueryType': 'date',
+    'GoogleBigQueryPartitioned': true
+  },
+  'dateRangeEnd': {
+    'description': 'End date of the report data point. Date is specified in UTC format (YYYY-MM-DD).',
     'type': 'string',
     'GoogleSheetsFormat': '@',
     'GoogleBigQueryType': 'date',

@@ -43,7 +43,7 @@ var LinkedInAdsFieldsSchema = {
     "description": "Provides analytics data for LinkedIn advertising campaigns",
     "documentation": "https://learn.microsoft.com/en-us/linkedin/marketing/integrations/ads-reporting/ads-reporting",
     "fields": adAnalyticsFields,
-    "uniqueKeys": ["dateRange", "pivotValues"],
+    "uniqueKeys": ["dateRangeStart", "dateRangeEnd", "pivotValues"],
     "destinationName": "linkedin_ads_ad_analytics",
     "isTimeSeries": true
   }
