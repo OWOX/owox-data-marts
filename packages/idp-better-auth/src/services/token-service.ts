@@ -16,9 +16,13 @@ export class TokenService {
       const decryptedToken = await this.cryptoService.decrypt(cleanToken);
 
       const encodedToken = encodeURIComponent(decryptedToken);
+      const betterAuthTokenPrefix = this.auth.options.advanced?.cookies?.session_token?.attributes
+        ?.secure
+        ? '__Secure-'
+        : '';
       const session = await this.auth.api.getSession({
         headers: new Headers({
-          Cookie: `refreshToken=${encodedToken}`,
+          Cookie: `${betterAuthTokenPrefix}refreshToken=${encodedToken}`,
         }),
       });
 
@@ -43,41 +47,15 @@ export class TokenService {
     return this.introspectToken(token);
   }
 
-  async verifyToken(token: string): Promise<Payload | null> {
-    try {
-      const cleanToken = token.replace('Bearer ', '');
-      const decryptedToken = await this.cryptoService.decrypt(cleanToken);
-
-      const session = await this.auth.api.getSession({
-        headers: new Headers({
-          Authorization: `Bearer ${decryptedToken}`,
-          Cookie: `refreshToken=${decryptedToken}`,
-        }),
-      });
-
-      if (!session || !session.user) {
-        return null;
-      }
-
-      return {
-        userId: session.user.id,
-        projectId: TokenService.DEFAULT_ORGANIZATION_ID,
-        email: session.user.email,
-        fullName: session.user.name || session.user.email,
-        roles: ['admin'],
-      };
-    } catch (error) {
-      console.error('Token verification failed:', error);
-      throw new Error('Token verification failed');
-    }
-  }
-
   async refreshToken(refreshToken: string): Promise<AuthResult> {
     try {
-      // TODO: decode refresh token
+      const betterAuthTokenPrefix = this.auth.options.advanced?.cookies?.session_token?.attributes
+        ?.secure
+        ? '__Secure-'
+        : '';
       const session = await this.auth.api.getSession({
         headers: new Headers({
-          Cookie: `refreshToken=${refreshToken}`,
+          Cookie: `${betterAuthTokenPrefix}refreshToken=${refreshToken}`,
         }),
       });
 
@@ -99,18 +77,21 @@ export class TokenService {
     try {
       const cleanToken = token.replace('Bearer ', '');
       const decryptedToken = await this.cryptoService.decrypt(cleanToken);
-
+      const betterAuthTokenPrefix = this.auth.options.advanced?.cookies?.session_token?.attributes
+        ?.secure
+        ? '__Secure-'
+        : '';
       const session = await this.auth.api.getSession({
         headers: new Headers({
           Authorization: `Bearer ${decryptedToken}`,
-          Cookie: `refreshToken=${decryptedToken}`,
+          Cookie: `${betterAuthTokenPrefix}refreshToken=${decryptedToken}`,
         }),
       });
 
       if (session) {
         await this.auth.api.signOut({
           headers: new Headers({
-            Cookie: `refreshToken=${decryptedToken}`,
+            Cookie: `${betterAuthTokenPrefix}refreshToken=${decryptedToken}`,
           }),
         });
       }

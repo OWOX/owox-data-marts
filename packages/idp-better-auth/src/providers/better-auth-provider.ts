@@ -137,7 +137,7 @@ export class BetterAuthProvider
   }
 
   async verifyToken(token: string): Promise<Payload | null> {
-    return this.tokenService.verifyToken(token);
+    return this.tokenService.introspectToken(token);
   }
 
   async refreshToken(refreshToken: string): Promise<AuthResult> {

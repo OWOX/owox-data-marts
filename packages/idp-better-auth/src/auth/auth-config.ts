@@ -94,7 +94,9 @@ export async function createBetterAuthConfig(
           attributes: {
             httpOnly: true,
             secure:
-              config.baseURL?.includes('localhost') || config.baseURL?.includes('127.0.0.1')
+              config.baseURL?.includes('localhost') ||
+              config.baseURL?.includes('127.0.0.1') ||
+              !config.baseURL?.startsWith('https://')
                 ? false
                 : true,
           },
