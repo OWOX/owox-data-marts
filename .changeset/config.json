@@ -10,6 +10,7 @@
       "@owox/connector-runner",
       "@owox/idp-protocol",
       "@owox/idp-better-auth",
+      "@owox/idp-owox",
       "@owox/web"
     ]
   ],
