@@ -4,6 +4,8 @@
 
 ## Create a Web Service
 
+<https://github.com/user-attachments/assets/5f299b5a-f581-4027-acc1-3f3b9bc16b65>
+
 ### Prerequisites
 
 - A [Render](https://render.com) account (e.g GitHub or Google login)
@@ -53,6 +55,8 @@ Go **Environment** section in menu and set:
 4. Create a **password** and **Log In** with email/password
 5. Use `/auth` page to manage users within your deployment (e.g. `https://owox-your-company-name.onrender.com/auth`)
 
+<https://github.com/user-attachments/assets/e7adacff-cdb5-40d8-bb07-e6d2f0be445b>
+
 ---
 
 ## Troubleshooting
@@ -62,7 +66,7 @@ Go **Environment** section in menu and set:
   - Increase Health Check timeout to 10–15s
 
 - **Database not persisted**  
-  - Check `DATABASE_URL` points to `/root/.local/share/owox/sqlite`
+  - Check `DATABASE_URL` points to `/root/.local/share/owox/`
   - Ensure the persistent disk is attached
 
 - **App runs but blank page**  
