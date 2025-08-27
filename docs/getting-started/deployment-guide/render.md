@@ -22,9 +22,10 @@
 
 ### Step 2: Add Persistent Disk
 
-In the Advanced → **Disks** section, add:  
-  - **Size**: 5 GB (or higher)  
-  - **Mount Path**: `/root/.local/share/owox/` (this ensures your database is not lost on restart)
+In the Advanced → **Disks** section, add:
+
+- **Size**: 5 GB (or higher)
+- **Mount Path**: `/root/.local/share/owox/` (this ensures your database is not lost on restart)
 
 ### Step 3: Deploy
 
