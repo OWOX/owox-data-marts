@@ -136,8 +136,7 @@ export class OwoxIdp implements IdpProvider {
 
       this.setTokenToCookie(res, req, refreshToken, auth.refreshTokenExpiresIn);
       return res.json(auth);
-    } catch (e: unknown) {
-      console.log('access token error occurred', e);
+    } catch {
       res.clearCookie(COOKIE_NAME);
       return res.json(null);
     }
