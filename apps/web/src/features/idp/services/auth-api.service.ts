@@ -115,7 +115,7 @@ export async function refreshAccessToken(): Promise<AccessTokenResponse> {
 export async function getUserApi(token: string): Promise<User> {
   const response = await authClient.get<User>(AUTH_ENDPOINTS.API_USER, {
     headers: {
-      Authorization: `Bearer ${token}`,
+      'X-OWOX-Authorization': `Bearer ${token}`,
     },
   });
   return response.data;

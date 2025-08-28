@@ -50,7 +50,7 @@ apiClient.interceptors.request.use(
     const accessToken = tokenProvider?.getAccessToken() ?? authStateManager.getAccessToken();
 
     if (accessToken) {
-      config.headers.Authorization = `Bearer ${accessToken}`;
+      config.headers['X-OWOX-Authorization'] = `Bearer ${accessToken}`;
     }
 
     return config;
@@ -79,7 +79,7 @@ apiClient.interceptors.response.use(
           tokenProvider.refreshToken()
         );
 
-        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        originalRequest.headers['X-OWOX-Authorization'] = `Bearer ${newAccessToken}`;
 
         return await apiClient(originalRequest);
       } catch {

@@ -6,8 +6,8 @@ import {
   Payload,
   Role as RoleType,
 } from '@owox/idp-protocol';
-import { Strategy } from '../types/role-config.types';
-import type { RoleConfig } from '../types/role-config.types';
+import { Strategy } from '../types';
+import type { RoleConfig } from '../types';
 import { Reflector } from '@nestjs/core';
 import { IdpProviderService } from '../services/idp-provider.service';
 
@@ -80,7 +80,7 @@ export class IdpGuard implements CanActivate {
     strategy: Strategy
   ): Promise<Payload> {
     const idpProvider = this.idpProviderService.getProvider(request);
-    const token = request.headers.authorization || '';
+    const token = (request.headers['x-owox-authorization'] as string | undefined) ?? '';
 
     const tokenPayload =
       strategy === Strategy.PARSE
