@@ -36,6 +36,8 @@ In the Advanced → **Disks** section, add:
 
 ## Configure Authorization Better-Auth (recommended)
 
+<https://github.com/user-attachments/assets/e7adacff-cdb5-40d8-bb07-e6d2f0be445b>
+
 ### Step 1: Environment Variables
 
 Go **Environment** section in menu and set:
@@ -54,8 +56,6 @@ Go **Environment** section in menu and set:
 3. Copy **Magic Link** from the response and open it in your browser
 4. Create a **password** and **Log In** with email/password
 5. Use `/auth` page to manage users within your deployment (e.g. `https://owox-your-company-name.onrender.com/auth`)
-
-<https://github.com/user-attachments/assets/e7adacff-cdb5-40d8-bb07-e6d2f0be445b>
 
 ---
 
