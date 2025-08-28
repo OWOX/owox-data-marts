@@ -187,10 +187,11 @@ export class OwoxIdp implements IdpProvider {
     refreshToken: string,
     expiresIn: number
   ) {
-    const isLocalhost = req.hostname === 'localhost' || req.hostname === '127.0.0.1';
+    const isSecure =
+      req.protocol !== 'http' && !(req.hostname === 'localhost' || req.hostname === '127.0.0.1');
     res.cookie(COOKIE_NAME, refreshToken, {
       httpOnly: true,
-      secure: !isLocalhost,
+      secure: isSecure,
       sameSite: 'lax',
       maxAge: expiresIn * 1000,
       path: '/',
