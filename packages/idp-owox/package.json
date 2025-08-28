@@ -8,6 +8,8 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
+    "build:dep": "npm run build:idp-protocol",
+    "build:idp-protocol": "npm run build -w @owox/idp-protocol --prefix ../..",
     "clean": "rimraf dist",
     "test": "jest",
     "lint": "eslint . --config ./eslint.config.js",
