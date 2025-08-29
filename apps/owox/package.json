@@ -18,6 +18,7 @@
     "@owox/idp-owox": "*",
     "@owox/idp-protocol": "*",
     "@owox/web": "*",
+    "dotenv": "^16.4.5",
     "find-process": "^1.4.10"
   },
   "peerDependencies": {

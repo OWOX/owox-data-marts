@@ -1,5 +1,7 @@
 import { Command, Flags } from '@oclif/core';
 
+import { EnvManager } from '../utils/env-manager.js';
+
 /**
  * Base command class that provides common functionality for all CLI commands.
  * Implements configurable logging system with support for pretty and JSON formats.
@@ -44,6 +46,12 @@ export abstract class BaseCommand extends Command {
    * @type {import('@oclif/core').FlagInput}
    */
   static baseFlags = {
+    'env-file': Flags.string({
+      char: 'e',
+      description: 'Path to environment file to load variables from',
+      helpValue: '/path/to/.env',
+      required: false,
+    }),
     'log-format': Flags.string({
       char: 'f',
       default: 'pretty',
@@ -105,6 +113,33 @@ export abstract class BaseCommand extends Command {
    */
   protected initializeLogging(flags: { 'log-format'?: string }): void {
     this.useJsonLog = flags['log-format'] === 'json';
+  }
+
+  /**
+   * Loads environment variables from a file specified in flags or from default .env file.
+   * This method delegates to EnvManager.loadFromFile() and logs the loading process.
+   * If no env-file is specified, it attempts to load from the default .env file.
+   *
+   * @protected
+   * @param flags - Command flags containing environment file configuration.
+   *                The 'env-file' property contains optional path to the environment file.
+   *
+   * @example
+   * ```typescript
+   * const flags = { 'env-file': '/path/to/.env' };
+   * this.loadEnvironment(flags);
+   * ```
+   */
+  protected loadEnvironment(flags: { 'env-file'?: string }): void {
+    const envFile = flags['env-file'] || '';
+
+    this.log(`🔧 Setting environment variables...`);
+
+    const result = EnvManager.loadFromFile(envFile);
+
+    for (const message of result.messages) {
+      this.log(message);
+    }
   }
 
   /**
