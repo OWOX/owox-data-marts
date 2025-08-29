@@ -2,7 +2,7 @@
 
 ## 0.6.0
 
-### Minor Changes
+### Minor Changes 0.6.0
 
 - 2bbf7ba: # Initial release of Better Auth IDP provider with comprehensive authentication features
   - Added web-based admin dashboard for user management
@@ -17,7 +17,7 @@
 - 0f2add4: # Standardize Facebook Marketing table names with facebook*ads* prefix
   - Update all destinationName values in FacebookMarketingFieldsSchema to include facebook*ads* prefix
 
-### Patch Changes
+### Patch Changes 0.6.0
 
 - 78ea317: # Fix Facebook referral_id field causing whitelist error
   - Removed referral_id field from Facebook Marketing schema that was causing whitelist validation errors
@@ -246,6 +246,7 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
+
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -253,6 +254,7 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
+
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
