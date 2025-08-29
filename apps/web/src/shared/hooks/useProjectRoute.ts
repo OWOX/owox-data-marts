@@ -14,7 +14,6 @@ interface ProjectNavigateOptions {
  * Hook for navigation with automatic project ID inclusion
  */
 export function useProjectRoute() {
-
   const reactRouterNavigate = useNavigate();
   const projectId = useProjectId();
 
@@ -29,10 +28,10 @@ export function useProjectRoute() {
         void reactRouterNavigate('/', { replace: true });
         return;
       }
-      
+
       const normalizedPath = path.startsWith('/') ? path : `/${path}`;
       const projectPath = `/ui/${projectId}${normalizedPath}`;
-      
+
       void reactRouterNavigate(projectPath, options);
     },
     [reactRouterNavigate, projectId]
@@ -48,20 +47,23 @@ export function useProjectRoute() {
       if (!projectId) {
         return path;
       }
-      
+
       const normalizedPath = path.startsWith('/') ? path : `/${path}`;
       const scopedPath = `/ui/${projectId}${normalizedPath}`;
-      
+
       return scopedPath;
     },
     [projectId]
   );
 
-  const hookResult = useMemo(() => ({
-    navigate,
-    scope,
-    projectId,
-  }), [navigate, scope, projectId]);
+  const hookResult = useMemo(
+    () => ({
+      navigate,
+      scope,
+      projectId,
+    }),
+    [navigate, scope, projectId]
+  );
 
   return hookResult;
 }
