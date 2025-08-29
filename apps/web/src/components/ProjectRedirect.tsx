@@ -9,19 +9,19 @@ import { LoadingSpinner } from '@owox/ui/components/common/loading-spinner';
  */
 export function ProjectRedirect({ to = '/data-marts' }: { to?: string }) {
   const { user, status } = useAuth();
-  
+
   if (status === AuthStatus.LOADING) {
-    return <LoadingSpinner fullScreen message='Loading...' />
+    return <LoadingSpinner fullScreen message='Loading...' />;
   }
-  
+
   if (status === AuthStatus.UNAUTHENTICATED || !user) {
-    return <LoadingSpinner fullScreen message='Authentication...' />
+    return <LoadingSpinner fullScreen message='Authentication...' />;
   }
-  
+
   if (user.projectId) {
     const projectPath = `/ui/${user.projectId}${to.startsWith('/') ? to : `/${to}`}`;
     return <Navigate to={projectPath} replace />;
   }
-  
-  return <LoadingSpinner fullScreen message='Project not found' />
+
+  return <LoadingSpinner fullScreen message='Project not found' />;
 }

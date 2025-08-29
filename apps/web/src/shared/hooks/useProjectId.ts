@@ -7,10 +7,10 @@ import { AuthStatus } from '../../features/idp/types';
  */
 export function useProjectId(): string | null {
   const { user, status } = useAuth();
-  
+
   if (status === AuthStatus.LOADING || status === AuthStatus.UNAUTHENTICATED || !user?.projectId) {
     return null;
   }
-  
+
   return user.projectId;
 }
