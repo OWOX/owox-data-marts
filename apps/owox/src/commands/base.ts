@@ -1,6 +1,6 @@
 import { Command, Flags } from '@oclif/core';
 
-import { type EnvLoadResult, EnvManager } from '../utils/env-manager.js';
+import { EnvManager } from '../utils/env-manager.js';
 
 /**
  * Base command class that provides common functionality for all CLI commands.
@@ -117,18 +117,29 @@ export abstract class BaseCommand extends Command {
 
   /**
    * Loads environment variables from a file specified in flags or from default .env file.
-   * This method delegates to EnvManager.loadFromFile() and returns the result.
+   * This method delegates to EnvManager.loadFromFile() and logs the loading process.
+   * If no env-file is specified, it attempts to load from the default .env file.
    *
    * @protected
-   * @param {object} flags - Command flags with env-file option
-   * @returns {EnvLoadResult} Result object with success status and log messages
+   * @param flags - Command flags containing environment file configuration.
+   *                The 'env-file' property contains optional path to the environment file.
    *
+   * @example
+   * ```typescript
+   * const flags = { 'env-file': '/path/to/.env' };
+   * this.loadEnvironment(flags);
+   * ```
    */
-  protected loadEnvironment(flags: { 'env-file'?: string }): EnvLoadResult {
+  protected loadEnvironment(flags: { 'env-file'?: string }): void {
     const envFile = flags['env-file'] || '';
+
+    this.log(`🔧 Setting environment variables...`);
+
     const result = EnvManager.loadFromFile(envFile);
 
-    return result;
+    for (const message of result.messages) {
+      this.log(message);
+    }
   }
 
   /**

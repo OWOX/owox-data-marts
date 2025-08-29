@@ -56,6 +56,7 @@ export class EnvManager {
     // Try to load from specified file if provided and valid
     const specifiedFileResult = this.tryLoadFromPath(envFilePath, 'specified');
     if (specifiedFileResult.success) {
+      specifiedFileResult.messages.unshift(...messages);
       return specifiedFileResult;
     }
 
@@ -67,6 +68,7 @@ export class EnvManager {
     const defaultPath = path.resolve(process.cwd(), '.env');
     const defaultFileResult = this.tryLoadFromPath(defaultPath, 'default');
     if (defaultFileResult.success) {
+      defaultFileResult.messages.unshift(...messages);
       return defaultFileResult;
     }
 
@@ -159,8 +161,6 @@ export class EnvManager {
         success: false,
       };
     }
-
-    messages.push(`✅ Environment variables loaded successfully from file: ${resolvedPath}`);
 
     return {
       messages,

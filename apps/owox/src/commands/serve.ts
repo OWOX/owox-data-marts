@@ -48,6 +48,7 @@ export default class Serve extends BaseCommand {
   public async run(): Promise<void> {
     const { flags } = await this.parse(Serve);
 
+    this.loadEnvironment(flags);
     this.initializeLogging(flags);
     this.log(`🚀 Starting OWOX Data Marts (v${packageInfo.version})...`);
 
