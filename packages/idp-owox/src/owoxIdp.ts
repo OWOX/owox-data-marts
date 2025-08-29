@@ -1,4 +1,4 @@
-import { AuthResult, IdpProvider, Payload } from '@owox/idp-protocol';
+import { AuthResult, IdpProvider, Payload, ProtocolRoute } from '@owox/idp-protocol';
 import e, { NextFunction } from 'express';
 import { IdpOwoxConfig } from './config';
 import { AuthorizationStore } from './auth/AuthorizationStore';
@@ -99,23 +99,26 @@ export class OwoxIdp implements IdpProvider {
     res: e.Response,
     _next: NextFunction
   ): Promise<void | e.Response> {
-    await this.revokeToken(req.cookies[COOKIE_NAME]);
+    const refreshToken = req.cookies[COOKIE_NAME];
+    if (refreshToken) {
+      await this.revokeToken(refreshToken);
+    }
     res.clearCookie(COOKIE_NAME);
-    res.redirect(this.config.idpConfig.appSignInUrl);
+    res.redirect(ProtocolRoute.SIGN_IN);
   }
 
   async userApiMiddleware(req: e.Request, res: e.Response): Promise<e.Response<Payload>> {
-    if (!req.headers.authorization) {
-      return res.status(401).json({ message: 'Unauthorized' });
+    const accessToken = req.headers['x-owox-authorization'] as string | undefined;
+    if (!accessToken) {
+      return res.status(401).json({ message: 'Unauthorized', reason: 'uam1' });
     }
 
-    const token: Payload | null = await this.parseToken(req.headers.authorization);
+    const payload: Payload | null = await this.parseToken(accessToken);
 
-    if (!token) {
-      return res.status(401).json({ message: 'Unauthorized' });
+    if (!payload) {
+      return res.status(401).json({ message: 'Unauthorized', reason: 'uam2' });
     }
-
-    return res.json(token);
+    return res.json(payload);
   }
 
   async accessTokenMiddleware(
@@ -124,21 +127,27 @@ export class OwoxIdp implements IdpProvider {
     _next: NextFunction
   ): Promise<void | e.Response> {
     try {
-      const auth = await this.refreshToken(req.cookies[COOKIE_NAME]);
-      const refreshToken = auth.refreshToken;
+      const refreshToken = req.cookies[COOKIE_NAME];
       if (!refreshToken) {
-        return res.json(null);
+        return res.json({ reason: 'atm1' });
+      }
+      const auth = await this.refreshToken(refreshToken);
+
+      const newRefreshToken = auth.refreshToken;
+      if (!newRefreshToken) {
+        return res.json({ reason: 'atm2' });
       }
 
       if (!auth.refreshTokenExpiresIn) {
-        return res.json(null);
+        return res.json({ reason: 'atm3' });
       }
 
-      this.setTokenToCookie(res, req, refreshToken, auth.refreshTokenExpiresIn);
+      this.setTokenToCookie(res, req, newRefreshToken, auth.refreshTokenExpiresIn);
       return res.json(auth);
-    } catch {
+    } catch (error: unknown) {
+      console.log(this.formatError(error));
       res.clearCookie(COOKIE_NAME);
-      return res.json(null);
+      return res.json({ reason: 'atm4' });
     }
   }
 
@@ -147,19 +156,22 @@ export class OwoxIdp implements IdpProvider {
       const code = req.query.code as string | undefined;
       const state = req.query.state as string | undefined;
       if (!code) {
-        return res.status(400).json({ reason: 'Redirect url should contain code param' });
+        console.log('Redirect url should contain code param');
+        return res.redirect(ProtocolRoute.SIGN_IN);
       }
 
       if (!state) {
-        return res.status(400).json({ reason: 'Redirect url should contain state param' });
+        console.log('Redirect url should contain state param');
+        return res.redirect(ProtocolRoute.SIGN_IN);
       }
 
       try {
         const response: TokenResponse = await this.changeAuthCode(code, state);
         this.setTokenToCookie(res, req, response.refreshToken, response.refreshTokenExpiresIn);
         res.redirect('/');
-      } catch (e: unknown) {
-        return res.status(400).json({ reason: e instanceof Error ? e.message : 'Unknown' });
+      } catch (error: unknown) {
+        console.log(this.formatError(error));
+        return res.redirect(ProtocolRoute.SIGN_IN);
       }
     });
   }
@@ -199,5 +211,13 @@ export class OwoxIdp implements IdpProvider {
 
   private normalizeToken(authorization: string) {
     return authorization.replace(/^Bearer\s+/i, '').trim();
+  }
+
+  private formatError(error: unknown): string {
+    if (error instanceof Error) {
+      return `${error.message}\n${error.stack ?? ''}`;
+    }
+
+    return String(error);
   }
 }

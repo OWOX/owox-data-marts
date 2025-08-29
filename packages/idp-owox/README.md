@@ -25,7 +25,6 @@ IDP_OWOX_DEFAULT_HEADERS={"x-trace-id":"debug-local"}
 IDP_OWOX_CLIENT_ID=app-owox
 IDP_OWOX_PLATFORM_SIGN_IN_URL=https://bi.owox.com/ui/p/signin
 IDP_OWOX_CALLBACK_URL=/auth/callback
-IDP_OWOX_APP_SIGN_IN_URL=/sign-in
 
 # JWT validation
 IDP_OWOX_JWT_ISSUER=https://idp.owox.com
@@ -59,7 +58,7 @@ IDP_OWOX_MYSQL_SSL={"rejectUnauthorized":true}
 1. Sign In: User is redirected to OWOX Platform sign-in page (`IDP_OWOX_PLATFORM_SIGN_IN_URL`)
 2. Callback: On success, user is redirected back to `IDP_OWOX_CALLBACK_URL`
 3. Introspection: Tokens are validated against OWOX Identity Platform
-4. App Sign-In: Application redirects user to `IDP_OWOX_APP_SIGN_IN_URL`
+4. App Sign-In: Application redirects user to Sign-In page
 
 #### Install dependencies
 
