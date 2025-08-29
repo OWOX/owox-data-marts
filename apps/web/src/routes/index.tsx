@@ -1,5 +1,4 @@
 import type { RouteObject } from 'react-router-dom';
-import { Navigate } from 'react-router-dom';
 import MainLayout from '../layouts/MainLayout';
 import About from '../pages/About';
 import NotFound from '../pages/NotFound';
@@ -9,46 +8,54 @@ import CreateDataMartPage from '../pages/data-marts/create/CreateDataMartPage.ts
 import { DataStorageListPage } from '../pages/data-storage';
 import { DataDestinationListPage } from '../pages/data-destination/DataDestinationListPage';
 import { dataMartDetailsRoutes } from './data-marts/routes';
+import { ProjectRedirect } from '../components/ProjectRedirect';
 
 const routes: RouteObject[] = [
   {
+    index: true,
     path: '/',
+    element: <ProjectRedirect />,
+  },
+  {
+    path: '/ui/:projectId',
     element: <MainLayout />,
     children: [
       {
-        index: true,
-        element: <Navigate to='/data-marts' replace />,
-      },
-      {
-        path: 'about',
+        path: '/ui/:projectId/about',
         element: <About />,
       },
       {
-        path: 'data-marts',
+        index: true,
+        path: '/ui/:projectId/data-marts',
         element: <DataMartsPage />,
       },
       {
-        path: 'data-marts/create',
+        path: '/ui/:projectId/data-marts/create',
         element: <CreateDataMartPage />,
       },
       {
-        path: 'data-marts/:id',
+        path: '/ui/:projectId/data-marts/:id',
         element: <DataMartDetailsPage />,
         children: dataMartDetailsRoutes,
       },
       {
-        path: 'data-storages',
+        path: '/ui/:projectId/data-storages',
         element: <DataStorageListPage />,
       },
       {
-        path: 'data-destinations',
+        path: '/ui/:projectId/data-destinations',
         element: <DataDestinationListPage />,
       },
       {
-        path: '*',
+        path: '/ui/:projectId/*',
         element: <NotFound />,
       },
     ],
+  },
+  // Fallback for any other routes - redirect to home
+  {
+    path: '*',
+    element: <NotFound />,
   },
 ];
 

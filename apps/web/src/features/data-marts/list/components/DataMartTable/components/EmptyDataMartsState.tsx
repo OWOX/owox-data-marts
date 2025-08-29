@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom';
+import { useProjectRoute } from '../../../../../../shared/hooks';
 import { Button } from '@owox/ui/components/button';
 import { Plus, PackagePlus } from 'lucide-react';
 
 export function EmptyDataMartsState() {
+  const { scope } = useProjectRoute();
   return (
     <div className='dm-empty-state'>
       <PackagePlus className='dm-empty-state-ico' strokeWidth={1} />
@@ -10,7 +12,7 @@ export function EmptyDataMartsState() {
       <p className='dm-empty-state-subtitle'>
         Data Marts help you organize and analyze your data effectively.
       </p>
-      <Link to={'/data-marts/create'}>
+      <Link to={scope('/data-marts/create')}>
         <Button variant='outline'>
           <Plus className='h-4 w-4' />
           New Data Mart

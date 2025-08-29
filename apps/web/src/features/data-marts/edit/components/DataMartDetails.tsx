@@ -9,7 +9,8 @@ import {
 } from '@owox/ui/components/dropdown-menu';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
 import { MoreVertical, Trash2, ArrowLeft, CircleCheck, Play } from 'lucide-react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router-dom';
+import { useProjectRoute } from '../../../../shared/hooks';
 import { cn } from '@owox/ui/lib/utils';
 import { InlineEditTitle } from '../../../../shared/components/InlineEditTitle/InlineEditTitle.tsx';
 import { StatusLabel, StatusTypeEnum } from '../../../../shared/components/StatusLabel';
@@ -24,7 +25,7 @@ interface DataMartDetailsProps {
 }
 
 export function DataMartDetails({ id }: DataMartDetailsProps) {
-  const navigate = useNavigate();
+  const { navigate } = useProjectRoute();
 
   const {
     dataMart,
@@ -101,7 +102,9 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
       <div className='mb-4 flex items-center justify-between'>
         <div className='flex items-center'>
           <button
-            onClick={() => void navigate('/data-marts')}
+            onClick={() => {
+              navigate('/data-marts');
+            }}
             className='rounded p-1 hover:bg-gray-100'
             title='Back to Data Marts'
           >
@@ -278,7 +281,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
             try {
               await deleteDataMart(dataMart.id);
               setIsDeleteDialogOpen(false);
-              void navigate('/data-marts');
+              navigate('/data-marts');
             } catch (error) {
               console.error('Failed to delete data mart:', error);
             }
