@@ -1,5 +1,5 @@
 ---
-'owox': patch
+'owox': minor
 ---
 
 # Fix Facebook referral_id field causing whitelist error

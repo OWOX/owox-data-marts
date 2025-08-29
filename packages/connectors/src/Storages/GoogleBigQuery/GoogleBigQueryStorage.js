@@ -332,7 +332,11 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
             let columnType = this.existingColumns[i]["type"];
             let columnValue = null;
 
-            if( ( columnType.toUpperCase() == "DATE") && (record[ columnName ] instanceof Date) ) {
+            if (record[columnName] === undefined || record[columnName] === null) {
+
+              columnValue = null;
+
+            } else if( ( columnType.toUpperCase() == "DATE") && (record[ columnName ] instanceof Date) ) {
 
               columnValue = EnvironmentAdapter.formatDate( record[ columnName ], "UTC", "yyyy-MM-dd" );
 
@@ -347,7 +351,11 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
             }
             
             
-            fields.push(`SAFE_CAST("${columnValue}" AS ${columnType}) ${columnName}`);
+            if (columnValue === null) {
+              fields.push(`SAFE_CAST(NULL AS ${columnType}) ${columnName}`);
+            } else {
+              fields.push(`SAFE_CAST("${columnValue}" AS ${columnType}) ${columnName}`);
+            }
 
           }
 
