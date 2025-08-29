@@ -1,8 +1,10 @@
 import { Button } from '@owox/ui/components/button';
 import { ArchiveRestore, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useProjectRoute } from '../../../../../../shared/hooks';
 
 export function EmptyDataMartDestinationsState() {
+  const { scope } = useProjectRoute();
   return (
     <div className='dm-card'>
       <div className='dm-empty-state'>
@@ -12,7 +14,7 @@ export function EmptyDataMartDestinationsState() {
           To send your Data Mart's data to your favorite tools, create a Destination first.
         </p>
         <Button variant='outline' asChild>
-          <Link to='/data-destinations' className='flex items-center gap-1'>
+          <Link to={scope('/data-destinations')} className='flex items-center gap-1'>
             Go to Destinations
             <ChevronRight className='h-4 w-4' />
           </Link>
