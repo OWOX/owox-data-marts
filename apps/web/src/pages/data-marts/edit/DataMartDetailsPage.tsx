@@ -1,8 +1,17 @@
 import { useParams } from 'react-router-dom';
 import { DataMartProvider, DataMartDetails } from '../../../features/data-marts/edit';
 
+/**
+ * Route parameters for DataMartDetailsPage
+ */
+interface DataMartDetailsParams extends Record<string, string | undefined> {
+  id: string;
+  projectId: string;
+}
+
 export function DataMartDetailsPage() {
-  const { id, projectId } = useParams<{ id: string; projectId: string }>();
+  const params = useParams<DataMartDetailsParams>();
+  const { id, projectId } = params;
 
   if (!id) {
     return <div className='dm-page-header'>Data Mart ID is required</div>;

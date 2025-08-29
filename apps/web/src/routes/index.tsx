@@ -21,33 +21,36 @@ const routes: RouteObject[] = [
     element: <MainLayout />,
     children: [
       {
-        path: '/ui/:projectId/about',
+        path: 'about',
         element: <About />,
       },
       {
         index: true,
-        path: '/ui/:projectId/data-marts',
         element: <DataMartsPage />,
       },
       {
-        path: '/ui/:projectId/data-marts/create',
+        path: 'data-marts',
+        element: <DataMartsPage />,
+      },
+      {
+        path: 'data-marts/create',
         element: <CreateDataMartPage />,
       },
       {
-        path: '/ui/:projectId/data-marts/:id',
+        path: 'data-marts/:id',
         element: <DataMartDetailsPage />,
         children: dataMartDetailsRoutes,
       },
       {
-        path: '/ui/:projectId/data-storages',
+        path: 'data-storages',
         element: <DataStorageListPage />,
       },
       {
-        path: '/ui/:projectId/data-destinations',
+        path: 'data-destinations',
         element: <DataDestinationListPage />,
       },
       {
-        path: '/ui/:projectId/*',
+        path: '*',
         element: <NotFound />,
       },
     ],

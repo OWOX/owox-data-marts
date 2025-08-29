@@ -1,12 +1,12 @@
-import { useNavigate } from 'react-router-dom';
 import { DataMartCreateForm, DataMartProvider } from '../../../features/data-marts/edit';
 import { DataStorageProvider } from '../../../features/data-storage/shared/model/context';
+import { useProjectRoute } from '../../../shared/hooks';
 
 export default function CreateDataMartPage() {
-  const navigate = useNavigate();
+  const { navigate } = useProjectRoute();
 
   const handleSuccess = (response: { id: string }) => {
-    void navigate(`/data-marts/${response.id}/data-setup`);
+    navigate(`/data-marts/${response.id}/data-setup`);
   };
 
   return (
