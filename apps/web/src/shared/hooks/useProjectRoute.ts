@@ -1,6 +1,14 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProjectId } from './useProjectId';
+
+/**
+ * Navigation options for project-scoped routing
+ */
+interface ProjectNavigateOptions {
+  replace?: boolean;
+  state?: unknown;
+}
 
 /**
  * Hook for navigation with automatic project ID inclusion
@@ -16,13 +24,15 @@ export function useProjectRoute() {
    * @param options - Navigation options
    */
   const navigate = useCallback(
-    (path: string, options?: { replace?: boolean; state?: unknown }) => {
-      console.log('navigateToProject', path, options);
+    (path: string, options?: ProjectNavigateOptions) => {
       if (!projectId) {
-        console.warn('Cannot navigate: Project ID is not available');
+        void reactRouterNavigate('/', { replace: true });
         return;
       }
-      const projectPath = `/ui/${projectId}${path.startsWith('/') ? path : `/${path}`}`;
+      
+      const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+      const projectPath = `/ui/${projectId}${normalizedPath}`;
+      
       void reactRouterNavigate(projectPath, options);
     },
     [reactRouterNavigate, projectId]
@@ -36,16 +46,22 @@ export function useProjectRoute() {
   const scope = useCallback(
     (path: string): string => {
       if (!projectId) {
-        return path; // Return original path as fallback
+        return path;
       }
-      return `/ui/${projectId}${path.startsWith('/') ? path : `/${path}`}`;
+      
+      const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+      const scopedPath = `/ui/${projectId}${normalizedPath}`;
+      
+      return scopedPath;
     },
     [projectId]
   );
 
-  return {
+  const hookResult = useMemo(() => ({
     navigate,
     scope,
     projectId,
-  };
+  }), [navigate, scope, projectId]);
+
+  return hookResult;
 }
