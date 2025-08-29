@@ -1,5 +1,4 @@
 import type { RouteObject } from 'react-router-dom';
-import { Navigate } from 'react-router-dom';
 import MainLayout from '../layouts/MainLayout';
 import About from '../pages/About';
 import NotFound from '../pages/NotFound';
@@ -9,19 +8,25 @@ import CreateDataMartPage from '../pages/data-marts/create/CreateDataMartPage.ts
 import { DataStorageListPage } from '../pages/data-storage';
 import { DataDestinationListPage } from '../pages/data-destination/DataDestinationListPage';
 import { dataMartDetailsRoutes } from './data-marts/routes';
+import { ProjectRedirect } from '../components/ProjectRedirect';
 
 const routes: RouteObject[] = [
   {
+    index: true,
     path: '/',
+    element: <ProjectRedirect />,
+  },
+  {
+    path: '/ui/:projectId',
     element: <MainLayout />,
     children: [
       {
-        index: true,
-        element: <Navigate to='/data-marts' replace />,
-      },
-      {
         path: 'about',
         element: <About />,
+      },
+      {
+        index: true,
+        element: <DataMartsPage />,
       },
       {
         path: 'data-marts',
@@ -49,6 +54,11 @@ const routes: RouteObject[] = [
         element: <NotFound />,
       },
     ],
+  },
+  // Fallback for any other routes - redirect to home
+  {
+    path: '*',
+    element: <NotFound />,
   },
 ];
 

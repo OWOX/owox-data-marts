@@ -33,6 +33,7 @@ import {
   useDataDestination,
 } from '../../../../../data-destination';
 import { Link, useOutletContext } from 'react-router-dom';
+import { useProjectRoute } from '../../../../../../shared/hooks';
 import type { DataMartContextType } from '../../../../edit/model/context/types.ts';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
@@ -82,6 +83,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
     const dataDestinationSelectId = 'google-sheets-data-destination-select';
 
     const { dataMart } = useOutletContext<DataMartContextType>();
+    const { scope } = useProjectRoute();
     const {
       dataDestinations,
       fetchDataDestinations,
@@ -259,7 +261,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
                         <AlertDescription>
                           You need to create a Destination before you can create a report.{' '}
                           <Link
-                            to='/data-destinations'
+                            to={scope('/data-destinations')}
                             className='font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300'
                           >
                             Go to Destinations
