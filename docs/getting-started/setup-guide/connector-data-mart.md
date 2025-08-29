@@ -28,14 +28,14 @@ Select the platform you want to connect to (e.g., [Facebook Ads](../../packages/
 
 Each connector has a set of required parameters. The most common ones include:
 
-| Parameter               | Description                                               |
-|------------------------|-----------------------------------------------------------|
-| `account_id`           | ID of the ad account or business you're pulling data from |
-| `start_date`           | Start date for the data import                            |
-| `end_date`             | End date for the data import                              |
+| Parameter                  | Description                                               |
+| -------------------------- | --------------------------------------------------------- |
+| `account_id`               | ID of the ad account or business you're pulling data from |
+| `start_date`               | Start date for the data import                            |
+| `end_date`                 | End date for the data import                              |
 | `reimport_lookback_window` | How many days of data to re-import during each run        |
-| `max_fetching_days`    | Max days per API call to avoid rate limits                |
-| `cleanup_to_keep_window` | How many days of data to keep before automatic cleanup     |
+| `max_fetching_days`        | Max days per API call to avoid rate limits                |
+| `cleanup_to_keep_window`   | How many days of data to keep before automatic cleanup    |
 
 📌 Some connectors may have additional parameters — see their setup guides.
 
@@ -53,7 +53,7 @@ Each connector requires authentication. Here is how you can obtain the required 
 - [Reddit Ads](../../../packages/connectors/src/Sources/RedditAds/CREDENTIALS.md)
 - [Criteo Ads](../../../packages/connectors/src/Sources/CriteoAds/CREDENTIALS.md)
 - [Open Exchange Rates](../../../packages/connectors/src/Sources/OpenExchangeRates/CREDENTIALS.md)
-- [Other platforms](../../../packages/connectors/src/Sources)
+- [Other platforms](https://github.com/OWOX/owox-data-marts/tree/main/packages/connectors/src/Sources)
 
 Use the **credentials screen** to manage access per platform.
 
@@ -82,9 +82,9 @@ The **table name** will be created automatically based on the selected node name
 
 Don’t forget to:
 
-- Click **Save** in the Data Setup tab  
-- **Publish** the data mart  
-- **Run** the Data Mart manually for the first time  
+- Click **Save** in the Data Setup tab
+- **Publish** the data mart
+- **Run** the Data Mart manually for the first time
 
 ![Output Schema Auto-Generated](../../res/screens/Manual-run.png)
 
@@ -114,17 +114,16 @@ You can automate the connector by setting a trigger to run it on a schedule.
 1. Go to the **Triggers** tab and click **+ Add Trigger**
 2. Choose **Trigger Type**: `Connector Run`
 3. Set schedule:
-
-   - **Daily** → choose time & timezone  
-   - **Weekly** → select days of the week, time & timezone  
-   - **Monthly** → select dates, time & timezone  
+   - **Daily** → choose time & timezone
+   - **Weekly** → select days of the week, time & timezone
+   - **Monthly** → select dates, time & timezone
    - **Interval** → e.g., every 15 minutes
 
 ## What’s Next?
 
-- Create reports using this Data Mart  
-- Add a destination (Google Sheets, Looker Studio, etc.)  
-- Explore the data in the Output Schema tab  
+- Create reports using this Data Mart
+- Add a destination (Google Sheets, Looker Studio, etc.)
+- Explore the data in the Output Schema tab
 - Share it with business users so they can build reports
 
 ## Related Links
