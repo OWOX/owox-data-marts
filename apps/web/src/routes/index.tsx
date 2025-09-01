@@ -55,7 +55,6 @@ const routes: RouteObject[] = [
       },
     ],
   },
-  // Fallback for any other routes - redirect to home
   {
     path: '*',
     element: <NotFound />,
