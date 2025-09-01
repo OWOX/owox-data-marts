@@ -2,6 +2,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../features/idp';
 import { AuthStatus } from '../features/idp/types';
 import { LoadingSpinner } from '@owox/ui/components/common/loading-spinner';
+import { buildProjectPath } from '../utils/path';
 
 /**
  * Component that redirects to the project-scoped route
@@ -19,7 +20,7 @@ export function ProjectRedirect({ to = '/data-marts' }: { to?: string }) {
   }
 
   if (user.projectId) {
-    const projectPath = `/ui/${user.projectId}${to.startsWith('/') ? to : `/${to}`}`;
+    const projectPath = buildProjectPath(user.projectId, to);
     return <Navigate to={projectPath} replace />;
   }
 

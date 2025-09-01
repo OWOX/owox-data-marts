@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProjectId } from './useProjectId';
+import { buildProjectPath } from '../../utils/path';
 
 /**
  * Navigation options for project-scoped routing
@@ -29,8 +30,7 @@ export function useProjectRoute() {
         return;
       }
 
-      const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-      const projectPath = `/ui/${projectId}${normalizedPath}`;
+      const projectPath = buildProjectPath(projectId, path);
 
       void reactRouterNavigate(projectPath, options);
     },
@@ -48,10 +48,7 @@ export function useProjectRoute() {
         return path;
       }
 
-      const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-      const scopedPath = `/ui/${projectId}${normalizedPath}`;
-
-      return scopedPath;
+      return buildProjectPath(projectId, path);
     },
     [projectId]
   );
