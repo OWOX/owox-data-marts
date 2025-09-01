@@ -58,7 +58,11 @@ export class BetterAuthProvider
       this.userManagementService,
       cryptoService
     );
-    this.middlewareService = new MiddlewareService(this.authenticationService, this.pageService);
+    this.middlewareService = new MiddlewareService(
+      this.authenticationService,
+      this.pageService,
+      this.userManagementService
+    );
 
     // Set circular dependency
     this.authenticationService.setUserManagementService(this.userManagementService);

@@ -103,6 +103,7 @@ export async function createBetterAuthConfig(
         },
       },
     },
+    telemetry: { enabled: false },
     basePath: '/auth/better-auth',
   } as Record<string, unknown>;
 

@@ -3,7 +3,7 @@ import { CryptoService } from './crypto-service.js';
 import { Payload, AuthResult } from '@owox/idp-protocol';
 
 export class TokenService {
-  private static readonly DEFAULT_ORGANIZATION_ID = 'owox-default';
+  private static readonly DEFAULT_ORGANIZATION_ID = '0';
 
   constructor(
     private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,

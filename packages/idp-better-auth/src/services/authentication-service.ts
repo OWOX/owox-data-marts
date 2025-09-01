@@ -242,6 +242,10 @@ export class AuthenticationService {
         const currentPath = encodeURIComponent(req.originalUrl || req.url);
         return res.redirect(`/auth/sign-in?redirect=${currentPath}`);
       }
+      const role = await this.userManagementService?.getUserRole(session.user.id);
+      if (role && role !== 'admin') {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
 
       next();
     } catch (error) {
