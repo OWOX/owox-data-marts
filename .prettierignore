@@ -6,3 +6,6 @@ coverage
 
 # Dependencies
 package-lock.json
+
+# Astro framework
+.astro
