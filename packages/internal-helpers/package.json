@@ -1,0 +1,55 @@
+{
+  "name": "@owox/internal-helpers",
+  "version": "0.5.0",
+  "description": "Internal helpers used by core OWOX packages",
+  "type": "module",
+  "author": "OWOX",
+  "license": "ELv2",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "homepage": "https://github.com/OWOX/owox-data-marts",
+  "bugs": "https://github.com/OWOX/owox-data-marts/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OWOX/owox-data-marts.git"
+  },
+  "scripts": {
+    "build": "tsc",
+    "build:clean": "shx rm -rf dist tsconfig.tsbuildinfo",
+    "format": "prettier --write \"**/*.{ts,js,json}\" --ignore-path ../../.prettierignore",
+    "format:check": "prettier --check \"**/*.{ts,js,json}\" --ignore-path ../../.prettierignore",
+    "lint": "eslint . --config ./eslint.config.js",
+    "lint:fix": "eslint . --fix --config ./eslint.config.js",
+    "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",
+    "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",
+    "prebuild": "npm run build:clean",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run lint && npm run typecheck",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "owox-internal-helpers",
+    "owox-package",
+    "owox"
+  ],
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "typescript": "^5.7.3"
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts"
+}

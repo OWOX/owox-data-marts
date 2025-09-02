@@ -29,10 +29,6 @@ export async function bootstrap(options: BootstrapOptions): Promise<NestExpressA
 
   const configService = new ConfigService();
 
-  // Override env vars with options
-  if (options.port) process.env.PORT = options.port.toString();
-  if (options.logFormat) process.env.LOG_FORMAT = options.logFormat;
-
   await runMigrationsIfNeeded(configService);
 
   // Create NestJS app with existing Express instance using ExpressAdapter

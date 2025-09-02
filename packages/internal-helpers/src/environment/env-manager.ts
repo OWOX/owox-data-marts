@@ -29,10 +29,16 @@ export class EnvManager {
   private static readonly DEFAULT_ENV_SET_FLAG = 'OWOX_ENV_SET';
 
   /**
+   * Default environment variable name to custom .env file path
+   */
+  private static readonly DEFAULT_ENV_FILE_PATH = 'OWOX_ENV_FILE_PATH';
+
+  /**
    * Load environment variables from a file path (for CLI commands)
-   * If envFilePath is empty, tries to load from default .env file
-   * @param envFilePath - Path to environment file (can be empty string)
+   * If filePath is empty, tries to load from environment variable or default .env file
+   * @param filePath - Path to environment file (can be empty string)
    * @param envSetFlag - Environment variable name to check if env is already set (defaults to OWOX_ENV_SET)
+   * @param envFilePath - Environment variable name for custom .env file path (defaults to OWOX_ENV_FILE_PATH)
    * @returns Result object with success status and log messages
    * @example
    * ```typescript
@@ -44,17 +50,21 @@ export class EnvManager {
    * }
    * ```
    */
-  static loadFromFile(envFilePath: string, envSetFlag = this.DEFAULT_ENV_SET_FLAG): EnvLoadResult {
+  static loadFromFile(
+    filePath: string,
+    envSetFlag = this.DEFAULT_ENV_SET_FLAG,
+    envFilePath = this.DEFAULT_ENV_FILE_PATH
+  ): EnvLoadResult {
     const messages: string[] = [];
 
-    // Check if environment is already configured
+    // Step 0: Check if environment is already configured
     const checkEnvSet = this.isEnvAlreadySet(envSetFlag);
     if (checkEnvSet.success) {
       return checkEnvSet;
     }
 
-    // Try to load from specified file if provided and valid
-    const specifiedFileResult = this.tryLoadFromPath(envFilePath, 'specified');
+    // Step 1: Try to load from specified file if provided and valid
+    const specifiedFileResult = this.tryLoadFromPath(filePath, 'specified', envSetFlag);
     if (specifiedFileResult.success) {
       specifiedFileResult.messages.unshift(...messages);
       return specifiedFileResult;
@@ -64,9 +74,21 @@ export class EnvManager {
       messages.push(...specifiedFileResult.messages);
     }
 
-    // Try to load from default .env file
+    // Step 2: Try to load from environment variable .env file
+    const envPath = process.env[envFilePath] || '';
+    const envFileResult = this.tryLoadFromPath(envPath, 'env-var', envSetFlag);
+    if (envFileResult.success) {
+      envFileResult.messages.unshift(...messages);
+      return envFileResult;
+    }
+
+    if (envFileResult.messages.length > 0) {
+      messages.push(...envFileResult.messages);
+    }
+
+    // Step 3: Try to load from default .env file
     const defaultPath = path.resolve(process.cwd(), '.env');
-    const defaultFileResult = this.tryLoadFromPath(defaultPath, 'default');
+    const defaultFileResult = this.tryLoadFromPath(defaultPath, 'default', envSetFlag);
     if (defaultFileResult.success) {
       defaultFileResult.messages.unshift(...messages);
       return defaultFileResult;
@@ -204,12 +226,14 @@ export class EnvManager {
    * Try to load environment variables from a specific path
    * @private
    * @param filePath - Path to the environment file
-   * @param pathType - Type of path being loaded (default or specified)
+   * @param pathType - Type of path being loaded (default, specified, or env-var)
+   * @param envSetFlag - Environment variable name to set upon successful loading
    * @returns Result object with success status and messages
    */
   private static tryLoadFromPath(
     filePath: string,
-    pathType: 'default' | 'specified'
+    pathType: 'default' | 'specified' | 'env-var',
+    envSetFlag: string
   ): EnvLoadResult {
     const messages: string[] = [];
 
@@ -227,6 +251,8 @@ export class EnvManager {
 
     const result = this.loadFromFileInternal(fileValidation.resolvedPath!);
     if (result.success) {
+      process.env[envSetFlag] = 'true';
+
       messages.push(
         `✅ Environment variables successfully loaded from ${pathType} file: ${fileValidation.resolvedPath}`
       );

@@ -1,6 +1,5 @@
 import { Command, Flags } from '@oclif/core';
-
-import { EnvManager } from '../utils/env-manager.js';
+import { EnvManager } from '@owox/internal-helpers';
 
 /**
  * Base command class that provides common functionality for all CLI commands.
