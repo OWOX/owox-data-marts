@@ -5,6 +5,8 @@ Integration with Looker Studio as a **Destination** for OWOX Data Marts  enables
 
 ---
 
+<https://github.com/user-attachments/assets/95e499eb-0a36-4180-846b-a829294e1afe>
+
 ## Step 1. Create a Destination entity
 
 - In the OWOX Data Marts web application, navigate to **Destinations** from the main navigation pane and click **+ New Destination**.
