@@ -46,15 +46,8 @@ export function setupWebStaticAssets(app: Express, options: StaticAssetsOptions 
     return false;
   }
 
-  // Serve static files with optimized headers
-  app.use(
-    express.static(distPath, {
-      // Cache configuration for static resources
-      etag: true,
-      lastModified: true,
-      maxAge: '1d', // 1 day for static resources
-    })
-  );
+  // Serve static files
+  app.use(express.static(distPath));
 
   // Configure SPA fallback for client-side routing
   setupSpaFallback(app, distPath, options);
