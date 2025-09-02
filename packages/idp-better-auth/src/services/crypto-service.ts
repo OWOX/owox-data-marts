@@ -115,7 +115,7 @@ export class CryptoService {
       return decryptedData;
     } catch (error) {
       if (error instanceof jwt.JsonWebTokenError) {
-        throw new CryptoServiceError(`Decryption failed: Invalid token`);
+        throw new CryptoServiceError(`Decryption failed: Invalid token: ${error.message}`);
       }
       if (error instanceof CryptoServiceError) {
         throw error;
