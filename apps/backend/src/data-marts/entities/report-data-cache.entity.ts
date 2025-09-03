@@ -1,14 +1,15 @@
 import {
-  Entity,
-  PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
-  ManyToOne,
+  Entity,
+  Index,
   JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
 } from 'typeorm';
-import { ReportDataDescription } from '../dto/domain/report-data-description.dto';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataStorageReportReaderState } from '../data-storage-types/interfaces/data-storage-report-reader-state.interface';
+import { ReportDataDescription } from '../dto/domain/report-data-description.dto';
 import { Report } from './report.entity';
 
 /**
@@ -25,8 +26,9 @@ export class ReportDataCache {
   /**
    * Reference to the report
    */
-  @ManyToOne(() => Report)
-  @JoinColumn()
+  @Index('IDX_report_data_cache_reportId')
+  @ManyToOne(() => Report, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'reportId' })
   report: Report;
 
   /**
