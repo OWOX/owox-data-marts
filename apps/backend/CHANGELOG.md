@@ -2,7 +2,7 @@
 
 ## 0.6.0
 
-### Patch Changes
+### Patch Changes 0.6.0
 
 - @owox/connectors@0.6.0
 - @owox/connector-runner@0.6.0
