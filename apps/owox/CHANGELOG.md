@@ -1,5 +1,50 @@
 # owox
 
+## 0.6.0
+
+### Minor Changes
+
+- 2bbf7ba: # Initial release of Better Auth IDP provider with comprehensive authentication features
+  - Added web-based admin dashboard for user management
+  - Implemented hierarchical role-based access control (admin/editor/viewer) with invitation permissions
+  - Created magic link authentication system with encrypted role passing and auto-name generation
+  - Added comprehensive environment variable configuration with SQLite and MySQL database support
+
+- 22762cd: Add project ID in URL routing
+  - Update routing structure to support project-based navigation
+  - Add project-scoped routing with `/ui/:projectId` URL structure
+  - Extract hardcoded `/ui` prefix to configurable `VITE_APP_PATH_PREFIX` environment variable
+  - Update all navigation links to use project-scoped routes
+  - Add proper route parameters validation in DataMartDetailsPage
+
+- c5e95be: # Fix undefined values in BigQuery Storage and cleanup Facebook fields
+  - Fixed undefined values being stored as "undefined" strings instead of NULL in BigQuery Storage
+  - Removed non-working fields from Facebook Marketing adAccountInsightsFields schema
+
+- 78ea317: # Fix Facebook referral_id field causing whitelist error
+  - Removed referral_id field from Facebook Marketing schema that was causing whitelist validation errors
+
+- 83c178c: # Optimize logging and fix security issues
+  - Reduced log noise in BigQuery storage
+  - Fixed credentials exposure in Sources logs
+  - Added progress tracking and explicit time series flags to Facebook connector
+
+- f154ad9: # Split LinkedIn dateRange fields and hardcode field limits
+  - Replace single dateRange field with separate dateRangeStart and dateRangeEnd fields for better data granularity
+  - Remove MaxFieldsPerRequest param and hardcode the value
+
+- 0f2add4: # Standardize Facebook Marketing table names with facebook*ads* prefix
+  - Update all destinationName values in FacebookMarketingFieldsSchema to include facebook*ads* prefix
+
+### Patch Changes
+
+- Updated dependencies [4749749]
+  - @owox/idp-owox@0.6.0
+  - @owox/backend@0.6.0
+  - @owox/idp-protocol@0.6.0
+  - @owox/idp-better-auth@0.6.0
+  - @owox/web@0.6.0
+
 ## 0.5.0
 
 ### Minor Changes 0.5.0
@@ -212,7 +257,6 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
-
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -220,7 +264,6 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
-
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
