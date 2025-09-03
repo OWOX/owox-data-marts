@@ -42,7 +42,8 @@ const LookerStudioDescription = () => (
           href='https://datastudio.google.com/datasources/create?connectorId=AKfycbz6kcYn3qGuG0jVNFjcDnkXvVDiz4hewKdAFjOm-_d4VkKVcBidPjqZO991AvGL3FtM4A'
         >
           Looker Studio connector
-        </ExternalAnchor>{' '}will use to access your data.
+        </ExternalAnchor>{' '}
+        will use to access your data.
       </p>
       <p className='mb-2'>
         Make sure the deployment URL is accessible from the internet and properly secured.
