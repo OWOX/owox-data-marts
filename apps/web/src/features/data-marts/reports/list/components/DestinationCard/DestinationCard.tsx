@@ -9,7 +9,8 @@ import {
 import { ReportFormMode } from '../../../shared';
 import type { DataMartStatusInfo } from '../../../../shared/types/data-mart-status.model';
 import type { DataDestination } from '../../../../../data-destination/shared/model/types';
-import { useReportModals, useDestinationValidation } from '../../model/hooks';
+import { useDataDestinationVisibility } from '../../../../../data-destination/shared/model/hooks';
+import { useReportModals } from '../../model/hooks';
 import { AddReportButton, ReportEditSheetRenderer, ReportTableRenderer } from './index';
 
 interface DestinationCardProps {
@@ -18,7 +19,7 @@ interface DestinationCardProps {
 }
 
 export function DestinationCard({ destination, dataMartStatus }: DestinationCardProps) {
-  const { destinationInfo, isVisible } = useDestinationValidation(destination);
+  const { destinationInfo, isVisible } = useDataDestinationVisibility(destination);
   const {
     isAddReportOpen,
     isEditReportOpen,
