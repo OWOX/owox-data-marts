@@ -57,11 +57,7 @@ export function DestinationCard({ destination, dataMartStatus }: DestinationCard
 
         {/* Reports list table */}
         <CollapsibleCardContent>
-          <ReportTableRenderer
-            destination={destination}
-            dataMartStatus={dataMartStatus}
-            onEditReport={handleEditReport}
-          />
+          <ReportTableRenderer destination={destination} onEditReport={handleEditReport} />
         </CollapsibleCardContent>
 
         <CollapsibleCardFooter />
