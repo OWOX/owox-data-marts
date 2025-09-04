@@ -43,7 +43,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           items: [
             'docs/getting-started/quick-start',
             'docs/getting-started/core-concepts',
-            'docs/getting-started/environment-variables',
             {
               label: 'Editions',
               items: [
