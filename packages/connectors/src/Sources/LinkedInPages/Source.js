@@ -141,6 +141,7 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
     }
 
     const response = this.makeRequest(url);
+    console.log(`LinkedIn Pages API Response:`, response);
     const elements = response.elements || [];
     
     if (elements.length === 0) {
@@ -172,7 +173,9 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
       
     const response = EnvironmentAdapter.fetch(authUrl, { headers });
     const result = JSON.parse(response.getContentText());
-      
+    if (result.status && result.status >= HTTP_STATUS.BAD_REQUEST) {
+      throw new Error(`LinkedIn API Error: ${result.message || 'Unknown error'} (Status: ${result.status})`);
+    }
     return result;
   }
   
