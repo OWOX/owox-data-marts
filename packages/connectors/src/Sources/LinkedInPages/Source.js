@@ -141,7 +141,6 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
     }
 
     const response = this.makeRequest(url);
-    console.log(`LinkedIn Pages API Response:`, response);
     const elements = response.elements || [];
     
     if (elements.length === 0) {
