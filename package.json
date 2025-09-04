@@ -35,7 +35,7 @@
     "format:check": "npm run format:check --workspaces --if-present",
     "format:root": "prettier --write \"**/*.{js,ts,mjs,yml,yaml,json}\" --ignore-path .prettierignore.root",
     "format:root:check": "prettier --check \"**/*.{js,ts,mjs,yml,yaml,json}\" --ignore-path .prettierignore.root",
-    "format:packages": "prettier --write apps/backend/package.json apps/owox/package.json packages/connector-runner/package.json packages/connectors/package.json",
+    "format:packages": "node tools/format-package-info.mjs",
     "lint": "npm run lint --workspaces --if-present",
     "lint:fix": "npm run lint:fix --workspaces --if-present",
     "lint:root": "eslint . --config ./eslint.config.mjs",
