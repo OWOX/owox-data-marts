@@ -11,6 +11,7 @@ import type { DataDestination } from '../../../../../data-destination/shared/mod
 import { useDataDestinationVisibility } from '../../../../../data-destination/shared/model/hooks';
 import { useReportModals } from '../../model/hooks';
 import { AddReportButton, ReportEditSheetRenderer, ReportTableRenderer } from './index';
+import { DataDestinationType } from '../../../../../data-destination/shared/enums';
 
 interface DestinationCardProps {
   destination: DataDestination;
@@ -45,13 +46,12 @@ export function DestinationCard({ destination, dataMartStatus }: DestinationCard
             {destination.title}
           </CollapsibleCardHeaderTitle>
 
-          {/* Actions (Add Report button) */}
+          {/* Actions */}
           <CollapsibleCardHeaderActions>
-            <AddReportButton
-              destinationType={destination.type}
-              dataMartStatus={dataMartStatus}
-              onAddReport={handleAddReport}
-            />
+            {/* Render AddReportButton only for Google Sheets*/}
+            {destination.type === DataDestinationType.GOOGLE_SHEETS && (
+              <AddReportButton dataMartStatus={dataMartStatus} onAddReport={handleAddReport} />
+            )}
           </CollapsibleCardHeaderActions>
         </CollapsibleCardHeader>
 
