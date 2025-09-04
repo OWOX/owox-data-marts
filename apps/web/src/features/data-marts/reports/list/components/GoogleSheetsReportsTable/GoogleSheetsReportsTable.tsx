@@ -1,5 +1,4 @@
 import { useEffect, useMemo } from 'react';
-import { useEditModal } from '../../model/hooks';
 import { getGoogleSheetsColumns, getAlignClass, type Align } from './columns';
 import {
   Table,
@@ -16,7 +15,6 @@ import {
   type ColumnDef,
 } from '@tanstack/react-table';
 import { Toaster } from 'react-hot-toast';
-import { GoogleSheetsReportEditSheet } from '../../../edit';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import { useReport } from '../../../shared';
 import { useOutletContext } from 'react-router-dom';
@@ -30,14 +28,20 @@ interface GoogleSheetsReportsTableProps {
   onEditReport: (report: DataMartReport) => void;
 }
 
+/**
+ * GoogleSheetsReportsTable
+ * - Displays all reports for a Google Sheets destination
+ * - Handles sorting, column visibility, and polling for updates
+ * - Delegates edit actions to parent via onEditReport
+ */
 export function GoogleSheetsReportsTable({
   destination,
   onEditReport,
 }: GoogleSheetsReportsTableProps) {
   const { dataMart } = useOutletContext<DataMartContextType>();
   const { fetchReportsByDataMartId, reports, stopAllPolling, setPollingConfig } = useReport();
-  const { editOpen, editMode, handleCloseEditForm, getEditReport } = useEditModal();
 
+  // Filter only Google Sheets reports for this destination
   const googleSheetsReports = useMemo(() => {
     return reports.filter(
       report =>
@@ -46,9 +50,7 @@ export function GoogleSheetsReportsTable({
     );
   }, [reports, destination.id]);
 
-  const editReport = getEditReport(reports);
-
-  // Set polling configuration
+  // Configure polling
   useEffect(() => {
     setPollingConfig({
       initialPollingIntervalMs: 2000, // 2 seconds
@@ -71,26 +73,26 @@ export function GoogleSheetsReportsTable({
     void fetchData();
   }, [fetchReportsByDataMartId, dataMart]);
 
+  // Stop polling when component unmounts
   useEffect(() => {
-    // Clean up polling when component unmounts
     return () => {
       stopAllPolling();
     };
   }, [dataMart?.id, stopAllPolling]);
 
+  // Define table columns
   const columns = useMemo(
     () =>
       getGoogleSheetsColumns({
         onDeleteSuccess: () => {
           return;
         },
-        onEditReport: (report: DataMartReport) => {
-          onEditReport(report);
-        },
+        onEditReport, // directly use the parent callback
       }),
     [onEditReport]
   );
 
+  // Manage table state with local storage
   const { sorting, setSorting, columnVisibility, setColumnVisibility } = useTableStorage({
     columns,
     storageKeyPrefix: `data-mart-google-sheets-reports-${destination.id}`,
@@ -121,73 +123,65 @@ export function GoogleSheetsReportsTable({
           aria-label={`${destination.title} reports`}
         >
           <TableHeader className='dm-card-table-header'>
-            {table.getHeaderGroups().map(headerGroup => {
-              return (
-                <TableRow key={headerGroup.id} className='dm-card-table-header-row'>
-                  {headerGroup.headers.map(header => {
-                    return (
-                      <TableHead
-                        key={header.id}
-                        className={getAlignClass(
-                          (header.column.columnDef as { _align?: Align })._align
-                        )}
-                        style={
-                          header.column.id === 'actions'
-                            ? { width: 80, minWidth: 80, maxWidth: 80 }
-                            : { width: `${String(header.column.getSize())}%` }
-                        }
-                        scope='col'
-                      >
-                        {header.isPlaceholder
-                          ? null
-                          : typeof header.column.columnDef.header === 'function'
-                            ? header.column.columnDef.header(header.getContext())
-                            : header.column.columnDef.header}
-                      </TableHead>
-                    );
-                  })}
-                </TableRow>
-              );
-            })}
+            {table.getHeaderGroups().map(headerGroup => (
+              <TableRow key={headerGroup.id} className='dm-card-table-header-row'>
+                {headerGroup.headers.map(header => (
+                  <TableHead
+                    key={header.id}
+                    className={getAlignClass(
+                      (header.column.columnDef as { _align?: Align })._align
+                    )}
+                    style={
+                      header.column.id === 'actions'
+                        ? { width: 80, minWidth: 80, maxWidth: 80 }
+                        : { width: `${String(header.column.getSize())}%` }
+                    }
+                    scope='col'
+                  >
+                    {header.isPlaceholder
+                      ? null
+                      : typeof header.column.columnDef.header === 'function'
+                        ? header.column.columnDef.header(header.getContext())
+                        : header.column.columnDef.header}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
           </TableHeader>
           <TableBody className='dm-card-table-body'>
             {table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map((row, rowIndex) => {
-                return (
-                  <TableRow
-                    key={row.id}
-                    onClick={() => {
-                      const report = reports.find(r => r.id === row.original.id);
-                      if (report) {
-                        onEditReport(report);
+              table.getRowModel().rows.map((row, rowIndex) => (
+                <TableRow
+                  key={row.id}
+                  onClick={() => {
+                    const report = reports.find(r => r.id === row.original.id);
+                    if (report) {
+                      onEditReport(report);
+                    }
+                  }}
+                  className='dm-card-table-body-row group'
+                  role='row'
+                  aria-rowindex={rowIndex + 1}
+                >
+                  {row.getVisibleCells().map((cell, cellIndex) => (
+                    <TableCell
+                      key={cell.id}
+                      className={`px-6 whitespace-normal ${getAlignClass((cell.column.columnDef as { _align?: Align })._align)}`}
+                      style={
+                        cell.column.id === 'actions'
+                          ? { width: 80, minWidth: 80, maxWidth: 80 }
+                          : { width: `${String(cell.column.getSize())}%` }
                       }
-                    }}
-                    className='dm-card-table-body-row group'
-                    role='row'
-                    aria-rowindex={rowIndex + 1}
-                  >
-                    {row.getVisibleCells().map((cell, cellIndex) => {
-                      return (
-                        <TableCell
-                          key={cell.id}
-                          className={`px-6 whitespace-normal ${getAlignClass((cell.column.columnDef as { _align?: Align })._align)}`}
-                          style={
-                            cell.column.id === 'actions'
-                              ? { width: 80, minWidth: 80, maxWidth: 80 }
-                              : { width: `${String(cell.column.getSize())}%` }
-                          }
-                          role='cell'
-                          aria-colindex={cellIndex + 1}
-                        >
-                          {typeof cell.column.columnDef.cell === 'function'
-                            ? cell.column.columnDef.cell(cell.getContext())
-                            : cell.column.columnDef.cell}
-                        </TableCell>
-                      );
-                    })}
-                  </TableRow>
-                );
-              })
+                      role='cell'
+                      aria-colindex={cellIndex + 1}
+                    >
+                      {typeof cell.column.columnDef.cell === 'function'
+                        ? cell.column.columnDef.cell(cell.getContext())
+                        : cell.column.columnDef.cell}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
             ) : (
               <TableRow>
                 <TableCell
@@ -204,12 +198,6 @@ export function GoogleSheetsReportsTable({
           </TableBody>
         </Table>
       </div>
-      <GoogleSheetsReportEditSheet
-        isOpen={editOpen}
-        onClose={handleCloseEditForm}
-        initialReport={editReport}
-        mode={editMode}
-      />
     </div>
   );
 }

@@ -6,7 +6,6 @@ import {
   CollapsibleCardFooter,
   CollapsibleCardHeaderActions,
 } from '../../../../../../shared/components/CollapsibleCard';
-import { ReportFormMode } from '../../../shared';
 import type { DataMartStatusInfo } from '../../../../shared/types/data-mart-status.model';
 import type { DataDestination } from '../../../../../data-destination/shared/model/types';
 import { useDataDestinationVisibility } from '../../../../../data-destination/shared/model/hooks';
@@ -18,30 +17,35 @@ interface DestinationCardProps {
   dataMartStatus?: DataMartStatusInfo;
 }
 
+/**
+ * DestinationCard component
+ * - Displays a collapsible card for each Data Destination
+ * - Allows adding and editing reports via a modal
+ * - Renders a report table inside the card
+ */
 export function DestinationCard({ destination, dataMartStatus }: DestinationCardProps) {
   const { destinationInfo, isVisible } = useDataDestinationVisibility(destination);
-  const {
-    isAddReportOpen,
-    isEditReportOpen,
-    editingReport,
-    handleAddReport,
-    handleEditReport,
-    handleCloseAddReport,
-    handleCloseEditReport,
-  } = useReportModals();
 
-  // Only show destinations that are active
+  // Modal state and handlers for creating/editing reports
+  const { isOpen, mode, editingReport, handleAddReport, handleEditReport, handleCloseModal } =
+    useReportModals();
+
+  // Skip rendering if destination is not active
   if (!isVisible) {
     return null;
   }
 
   return (
     <>
+      {/* Collapsible card container for a single destination */}
       <CollapsibleCard name={destination.id} collapsible defaultCollapsed={false}>
         <CollapsibleCardHeader>
+          {/* Card title with destination icon */}
           <CollapsibleCardHeaderTitle icon={destinationInfo.icon}>
             {destination.title}
           </CollapsibleCardHeaderTitle>
+
+          {/* Actions (Add Report button) */}
           <CollapsibleCardHeaderActions>
             <AddReportButton
               destinationType={destination.type}
@@ -50,6 +54,8 @@ export function DestinationCard({ destination, dataMartStatus }: DestinationCard
             />
           </CollapsibleCardHeaderActions>
         </CollapsibleCardHeader>
+
+        {/* Reports list table */}
         <CollapsibleCardContent>
           <ReportTableRenderer
             destination={destination}
@@ -57,23 +63,16 @@ export function DestinationCard({ destination, dataMartStatus }: DestinationCard
             onEditReport={handleEditReport}
           />
         </CollapsibleCardContent>
-        <CollapsibleCardFooter></CollapsibleCardFooter>
+
+        <CollapsibleCardFooter />
       </CollapsibleCard>
 
-      {/* Add Report Sheet */}
+      {/* Single Report Modal (used for both Add and Edit modes) */}
       <ReportEditSheetRenderer
         destination={destination}
-        isOpen={isAddReportOpen}
-        onClose={handleCloseAddReport}
-        mode={ReportFormMode.CREATE}
-      />
-
-      {/* Edit Report Sheet */}
-      <ReportEditSheetRenderer
-        destination={destination}
-        isOpen={isEditReportOpen}
-        onClose={handleCloseEditReport}
-        mode={ReportFormMode.EDIT}
+        isOpen={isOpen}
+        onClose={handleCloseModal}
+        mode={mode}
         initialReport={editingReport}
       />
     </>
