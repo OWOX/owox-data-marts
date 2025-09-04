@@ -11,22 +11,17 @@ interface ReportTableRendererProps {
 
 /**
  * ReportTableRenderer
- * - Decides which report table/card to display based on the destination type
- * - Delegates rendering to the appropriate child component
- * - Forwards the onEditReport handler so child components can open the modal
  */
 export function ReportTableRenderer({ destination, onEditReport }: ReportTableRendererProps) {
-  switch (destination.type) {
-    case DataDestinationType.GOOGLE_SHEETS:
-      // Render table with reports for Google Sheets destination
-      return <GoogleSheetsReportsTable destination={destination} onEditReport={onEditReport} />;
+  type RendererComponent = React.ComponentType<ReportTableRendererProps>;
 
-    case DataDestinationType.LOOKER_STUDIO:
-      // Render single card for Looker Studio destination
-      return <LookerStudioReportCard destination={destination} onEditReport={onEditReport} />;
+  const rendererMap: Partial<Record<DataDestinationType, RendererComponent>> = {
+    [DataDestinationType.GOOGLE_SHEETS]: GoogleSheetsReportsTable,
+    [DataDestinationType.LOOKER_STUDIO]: LookerStudioReportCard,
+  };
 
-    default:
-      // Unsupported or unknown destination type
-      return null;
-  }
+  const Renderer = rendererMap[destination.type];
+  if (!Renderer) return null;
+
+  return <Renderer destination={destination} onEditReport={onEditReport} />;
 }
