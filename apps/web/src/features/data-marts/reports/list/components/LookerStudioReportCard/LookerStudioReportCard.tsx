@@ -5,7 +5,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/too
 import { type ComponentPropsWithoutRef, useCallback } from 'react';
 import type { DataDestination } from '../../../../../data-destination/shared/model/types';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
-import type { DataMartStatusInfo } from '../../../../shared/types/data-mart-status.model';
 import RelativeTime from '@owox/ui/components/common/relative-time';
 import { ReportStatusEnum } from '../../../shared/enums/report-status.enum';
 import { LookerStudioReportCardActionLeft } from './LookerStudioReportCardActionLeft';
@@ -18,20 +17,18 @@ import { useLookerStudioReport } from './hooks/useLookerStudioReport';
 // Main container component
 interface LookerStudioReportCardProps extends ComponentPropsWithoutRef<'div'> {
   destination: DataDestination;
-  dataMartStatus?: DataMartStatusInfo;
   onEditReport: (report: DataMartReport) => void;
   className?: string;
 }
 
 export function LookerStudioReportCard({
   destination,
-  dataMartStatus,
   onEditReport,
   className,
   ...props
 }: LookerStudioReportCardProps) {
   const { existingReport, isLoading, isEnabled, isChecked, dynamicTitle, handleSwitchChange } =
-    useLookerStudioReport(destination, dataMartStatus);
+    useLookerStudioReport(destination);
 
   const handleCardClick = useCallback(() => {
     // Open edit sheet if report exists
@@ -74,30 +71,16 @@ export function LookerStudioReportCard({
                     void handleSwitchChange(checked);
                   }}
                   disabled={!isEnabled}
-                  aria-label={`${isChecked ? 'Disable' : 'Enable'} Looker Studio access`}
+                  aria-label={`${isChecked ? 'Switch off to remove' : 'Switch on to enable'} Looker Studio access`}
                 />
               </span>
             </TooltipTrigger>
 
             <TooltipContent>
               {!isEnabled ? (
-                <>
-                  <p>To enable Looker Studio reports, publish the Data Mart first</p>
-                  <p className='text-muted-foreground mt-1 text-xs'>
-                    Data Marts must be published before creating reports
-                  </p>
-                </>
+                <>Publish the Data Mart first to enable access in Looker Studio</>
               ) : (
-                <>
-                  <p>
-                    {isChecked
-                      ? 'Data Mart is accessible for Looker Studio'
-                      : 'Data Mart is not accessible for Looker Studio'}
-                  </p>
-                  <p className='text-muted-foreground mt-1 text-xs'>
-                    {isChecked ? 'Turn off to remove access' : 'Turn on to enable access'}
-                  </p>
-                </>
+                <>{isChecked ? 'Switch off to remove access' : 'Switch on to enable access'}</>
               )}
             </TooltipContent>
           </Tooltip>
@@ -124,11 +107,11 @@ export function LookerStudioReportCard({
                   )}
                 </>
               ) : (
-                "Data not fetched yet, still waiting for Looker Studio's first visit"
+                'Waiting for Looker Studio to fetch data'
               )}
             </>
           ) : (
-            'Turn on to enable access'
+            'Switch on to enable access'
           )}
         </LookerStudioReportCardDescription>
       </LookerStudioReportCardContent>
