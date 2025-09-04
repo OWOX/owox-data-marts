@@ -12,7 +12,10 @@ interface ReportTableRendererProps {
 }
 
 /**
- * Renders the appropriate table/card based on destination type
+ * ReportTableRenderer
+ * - Decides which report table/card to display based on the destination type
+ * - Delegates rendering to the appropriate child component
+ * - Forwards the onEditReport handler so child components can open the modal
  */
 export function ReportTableRenderer({
   destination,
@@ -21,8 +24,11 @@ export function ReportTableRenderer({
 }: ReportTableRendererProps) {
   switch (destination.type) {
     case DataDestinationType.GOOGLE_SHEETS:
+      // Render table with reports for Google Sheets destination
       return <GoogleSheetsReportsTable destination={destination} onEditReport={onEditReport} />;
+
     case DataDestinationType.LOOKER_STUDIO:
+      // Render single card for Looker Studio destination
       return (
         <LookerStudioReportCard
           destination={destination}
@@ -30,7 +36,9 @@ export function ReportTableRenderer({
           onEditReport={onEditReport}
         />
       );
+
     default:
+      // Unsupported or unknown destination type
       return null;
   }
 }

@@ -1,54 +1,55 @@
 import { useState } from 'react';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
+import { ReportFormMode } from '../../../shared';
 
 /**
  * Custom hook for managing report modal states
- * Handles add report modal, edit report modal, and the currently editing report
- * @returns Object containing modal states and handlers
+ * - Handles opening/closing of the modal
+ * - Manages "create" and "edit" modes
+ * - Stores the currently edited report (if any)
  */
 export function useReportModals() {
-  const [isAddReportOpen, setIsAddReportOpen] = useState(false);
-  const [isEditReportOpen, setIsEditReportOpen] = useState(false);
+  // Controls whether the modal is open
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Defines the current modal mode: CREATE or EDIT
+  const [mode, setMode] = useState<ReportFormMode>(ReportFormMode.CREATE);
+
+  // Stores the report being edited (null when creating a new one)
   const [editingReport, setEditingReport] = useState<DataMartReport | null>(null);
 
   /**
-   * Opens the add report modal
+   * Opens the modal in CREATE mode
    */
   const handleAddReport = () => {
-    setIsAddReportOpen(true);
+    setMode(ReportFormMode.CREATE);
+    setEditingReport(null);
+    setIsOpen(true);
   };
 
   /**
-   * Opens the edit report modal with the specified report
-   * @param report - The report to edit
+   * Opens the modal in EDIT mode for a specific report
    */
   const handleEditReport = (report: DataMartReport) => {
+    setMode(ReportFormMode.EDIT);
     setEditingReport(report);
-    setIsEditReportOpen(true);
+    setIsOpen(true);
   };
 
   /**
-   * Closes the add report modal
+   * Closes the modal and resets the editing report
    */
-  const handleCloseAddReport = () => {
-    setIsAddReportOpen(false);
-  };
-
-  /**
-   * Closes the edit report modal and clears the editing report
-   */
-  const handleCloseEditReport = () => {
-    setIsEditReportOpen(false);
+  const handleCloseModal = () => {
+    setIsOpen(false);
     setEditingReport(null);
   };
 
   return {
-    isAddReportOpen,
-    isEditReportOpen,
+    isOpen,
+    mode,
     editingReport,
     handleAddReport,
     handleEditReport,
-    handleCloseAddReport,
-    handleCloseEditReport,
+    handleCloseModal,
   };
 }
