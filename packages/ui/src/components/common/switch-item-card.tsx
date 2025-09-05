@@ -152,7 +152,7 @@ export function SwitchItemCardChevronRight({
       className={cn('flex flex-shrink-0 items-center justify-center self-center p-4', className)}
       {...props}
     >
-      <div className='flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-200 group-hover:bg-gray-200/50 dark:group-hover:bg-gray-700/25'>
+      <div className='flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-200 group-hover:bg-gray-200/50 dark:group-hover:bg-white/4'>
         {icon ?? (
           <ChevronRight className='text-muted-foreground/75 dark:text-muted-foreground/50 h-4 w-4' />
         )}
