@@ -84,16 +84,7 @@ export class IdpFactory {
       }
 
       case 'mysql': {
-        database = {
-          database: process.env.IDP_BETTER_AUTH_MYSQL_DATABASE || 'better_auth',
-          host: process.env.IDP_BETTER_AUTH_MYSQL_HOST || 'localhost',
-          password: process.env.IDP_BETTER_AUTH_MYSQL_PASSWORD || '',
-          port: process.env.IDP_BETTER_AUTH_MYSQL_PORT
-            ? Number.parseInt(process.env.IDP_BETTER_AUTH_MYSQL_PORT, 10)
-            : 3306,
-          type: 'mysql' as const,
-          user: process.env.IDP_BETTER_AUTH_MYSQL_USER || 'root',
-        };
+        database = this.createMysqlConfig();
         break;
       }
 
@@ -126,6 +117,51 @@ export class IdpFactory {
         origin.trim()
       ),
     });
+  }
+
+  /**
+   * Create MySQL configuration from environment variables
+   */
+  private static createMysqlConfig(): MySqlConfig {
+    const mysqlConfig: MySqlConfig = {
+      database: process.env.IDP_BETTER_AUTH_MYSQL_DATABASE || 'better_auth',
+      host: process.env.IDP_BETTER_AUTH_MYSQL_HOST || 'localhost',
+      password: process.env.IDP_BETTER_AUTH_MYSQL_PASSWORD || '',
+      port: process.env.IDP_BETTER_AUTH_MYSQL_PORT
+        ? Number.parseInt(process.env.IDP_BETTER_AUTH_MYSQL_PORT, 10)
+        : 3306,
+      type: 'mysql' as const,
+      user: process.env.IDP_BETTER_AUTH_MYSQL_USER || 'root',
+    };
+
+    // SSL configuration
+    if (
+      process.env.IDP_BETTER_AUTH_MYSQL_SSL_CA ||
+      process.env.IDP_BETTER_AUTH_MYSQL_SSL_CERT ||
+      process.env.IDP_BETTER_AUTH_MYSQL_SSL_KEY ||
+      process.env.IDP_BETTER_AUTH_MYSQL_SSL_REJECT_UNAUTHORIZED
+    ) {
+      mysqlConfig.ssl = {};
+
+      if (process.env.IDP_BETTER_AUTH_MYSQL_SSL_CA) {
+        mysqlConfig.ssl.ca = process.env.IDP_BETTER_AUTH_MYSQL_SSL_CA;
+      }
+
+      if (process.env.IDP_BETTER_AUTH_MYSQL_SSL_CERT) {
+        mysqlConfig.ssl.cert = process.env.IDP_BETTER_AUTH_MYSQL_SSL_CERT;
+      }
+
+      if (process.env.IDP_BETTER_AUTH_MYSQL_SSL_KEY) {
+        mysqlConfig.ssl.key = process.env.IDP_BETTER_AUTH_MYSQL_SSL_KEY;
+      }
+
+      if (process.env.IDP_BETTER_AUTH_MYSQL_SSL_REJECT_UNAUTHORIZED) {
+        mysqlConfig.ssl.rejectUnauthorized =
+          process.env.IDP_BETTER_AUTH_MYSQL_SSL_REJECT_UNAUTHORIZED === 'true';
+      }
+    }
+
+    return mysqlConfig;
   }
 
   /**

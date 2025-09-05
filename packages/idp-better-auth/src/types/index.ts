@@ -16,6 +16,12 @@ export interface MySqlConfig {
   password: string;
   database: string;
   port?: number;
+  ssl?: {
+    ca?: string;
+    cert?: string;
+    key?: string;
+    rejectUnauthorized?: boolean;
+  };
 }
 
 export type Role = 'admin' | 'editor' | 'viewer';
