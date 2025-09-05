@@ -151,16 +151,13 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       for(var i in this.uniqueKeyColumns) {
         
         let columnName = this.uniqueKeyColumns[i];
-        let columnType = 'string';
         let columnDescription = '';
 
         if( !(columnName in this.schema) ) {
           throw new Error(`Required field ${columnName} not found in schema`);
         }
         
-        if( "GoogleBigQueryType" in this.schema[ columnName ] ) {
-          columnType = this.schema[ columnName ]["GoogleBigQueryType"];
-        }
+        let columnType = this.getColumnType(columnName);
         
         if( "description" in this.schema[ columnName ] ) {
           columnDescription = ` OPTIONS(description="${this.schema[ columnName ]["description"]}")`;
@@ -231,12 +228,9 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         // checking the field is exists in schema
         if( columnName in this.schema ) {
 
-          let columnType = 'STRING';
           let columnDescription = '';
           
-          if( "GoogleBigQueryType" in this.schema[ columnName ] ) {
-            columnType = this.schema[ columnName ]["GoogleBigQueryType"];
-          }
+          let columnType = this.getColumnType(columnName);
           
           if( "description" in this.schema[ columnName ] ) {
             columnDescription = ` OPTIONS (description = "${this.schema[ columnName ]["description"]}")`;
@@ -531,6 +525,63 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
   
       return String(inputString).replace(/\\/g, '\\\\').replace(/\n/g, ' ').replace(/'/g, "\\'").replace(/"/g, '\\"'); 
   
+    }
+
+  //---- getColumnType -----------------------------------------------
+    /**
+     * Get column type for BigQuery from schema
+     * @param {string} columnName - Name of the column
+     * @returns {string} BigQuery column type
+     */
+    getColumnType(columnName) {
+      return this.schema[columnName]["GoogleBigQueryType"] || this._convertTypeToStorageType(this.schema[columnName]["type"]?.toLowerCase());
+    }
+
+  //---- _convertTypeToStorageType ------------------------------------
+    /**
+     * Converts generic type to BigQuery-specific type
+     * @param {string} genericType - Generic type from schema
+     * @returns {string} BigQuery column type
+     */
+    _convertTypeToStorageType(genericType) {
+      if (!genericType) return 'STRING';
+      
+      // TODO: Move types to constants and refactor schemas
+      
+      switch (genericType.toLowerCase()) {
+        // Integer types
+        case 'integer':
+        case 'int32':
+        case 'int64':
+        case 'unsigned int32':
+        case 'long':
+          return 'INTEGER';
+        
+        // Float types
+        case 'float':
+        case 'number':
+        case 'double':
+          return 'FLOAT64';
+        case 'decimal':
+          return 'NUMERIC';
+        
+        // Boolean types
+        case 'bool':
+        case 'boolean':
+          return 'BOOL';
+        
+        // Date/time types
+        case 'datetime':
+          return 'DATETIME';
+        case 'date':
+          return 'DATE';
+        case 'timestamp':
+          return 'TIMESTAMP';
+        
+        // Default to STRING for unknown types
+        default:
+          return 'STRING';
+      }
     }
 
 }
