@@ -1,0 +1,50 @@
+name: Code Quality @owox/internal-helpers
+
+on:
+  pull_request:
+    paths:
+      - 'packages/internal-helpers/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-checks:
+    name: ${{ matrix.check.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ matrix.check.timeout }}
+
+    strategy:
+      # If one check fails, the others will continue to run
+      fail-fast: false
+      matrix:
+        check:
+          - name: 'ESLint'
+            command: 'npm run lint -w @owox/internal-helpers -- --max-warnings 0'
+            timeout: 5
+          - name: 'Prettier'
+            command: 'npm run format:check -w @owox/internal-helpers'
+            timeout: 5
+          - name: 'TypeScript'
+            command: 'npm run typecheck -w @owox/internal-helpers'
+            timeout: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
+
+      - name: Build internal dependencies
+        run: npm run build:dep -w @owox/idp-protocol --if-present
+
+      - name: Run ${{ matrix.check.name }}
+        run: ${{ matrix.check.command }}

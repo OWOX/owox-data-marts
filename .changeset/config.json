@@ -11,6 +11,7 @@
       "@owox/idp-protocol",
       "@owox/idp-better-auth",
       "@owox/idp-owox",
+      "@owox/internal-helpers",
       "@owox/web"
     ]
   ],
