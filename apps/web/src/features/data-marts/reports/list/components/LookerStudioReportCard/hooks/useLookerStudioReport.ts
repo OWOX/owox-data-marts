@@ -6,12 +6,8 @@ import type { DataDestination } from '../../../../../../data-destination/shared/
 import { DataDestinationType } from '../../../../../../data-destination/shared/enums';
 import { DestinationTypeConfigEnum } from '../../../../shared/enums/destination-type-config.enum';
 import { DataMartStatus } from '../../../../../shared/enums/data-mart-status.enum';
-import type { DataMartStatusInfo } from '../../../../../shared/types/data-mart-status.model';
 
-export function useLookerStudioReport(
-  destination: DataDestination,
-  dataMartStatus?: DataMartStatusInfo
-) {
+export function useLookerStudioReport(destination: DataDestination) {
   const { dataMart } = useOutletContext<DataMartContextType>();
   const { reports, createReport, deleteReport, fetchReportsByDataMartId } = useReport();
   const [isLoading, setIsLoading] = useState(false);
@@ -26,8 +22,8 @@ export function useLookerStudioReport(
   }, [reports, destination.id]);
 
   const isEnabled = useMemo(
-    () => dataMartStatus?.code === DataMartStatus.PUBLISHED,
-    [dataMartStatus?.code]
+    () => dataMart?.status.code === DataMartStatus.PUBLISHED,
+    [dataMart?.status.code]
   );
   const isChecked = useMemo(() => !!existingReport, [existingReport]);
 

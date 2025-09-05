@@ -47,7 +47,7 @@ export function CollapsibleCardHeader({ children }: CollapsibleCardHeaderProps) 
         {collapsible && (
           <div
             className={cn(
-              'flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-200 hover:bg-gray-200/50 dark:hover:bg-gray-700/25'
+              'flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-200 hover:bg-gray-200/50 dark:hover:bg-white/4'
             )}
           >
             <div
