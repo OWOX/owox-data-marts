@@ -175,7 +175,7 @@ describe('DataMartService', () => {
       expect(apiClient.put).toHaveBeenCalledWith(
         `/data-marts/${mockDataMartId}/definition`,
         { definitionType, definition: mockDefinition },
-        undefined
+        { timeout: 180000 }
       );
       expect(result).toEqual({
         ...mockDataMartResponse,
@@ -195,7 +195,7 @@ describe('DataMartService', () => {
       expect(apiClient.put).toHaveBeenCalledWith(
         `/data-marts/${mockDataMartId}/publish`,
         undefined,
-        undefined
+        { timeout: 180000 }
       );
       expect(result).toEqual(publishedMart);
     });
