@@ -2,283 +2,251 @@ import dotenv from 'dotenv';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
+/** State variable to track if environment file has been loaded */
+let isEnvFileLoaded = false;
+
 /**
- * Result object returned by EnvManager methods
+ * Result object returned by environment loading methods
  */
 export interface EnvLoadResult {
-  /** Log messages */
+  /** Log messages from the loading process */
   messages: string[];
   /** Whether the operation was successful */
   success: boolean;
 }
 
-interface ValidateFilePathResult {
-  error?: string;
-  resolvedPath?: string;
+/**
+ * Result object returned by environment setting methods
+ */
+export interface EnvSetResult {
+  /** Log messages from the setting process */
+  messages: string[];
+  /** Successfully set environment variables in "key=value" format */
+  setVars: string[];
+  /** Variables that were ignored with reasons */
+  ignoredVars: string[];
+  /** Whether the operation was successful */
   success: boolean;
 }
 
 /**
- * Environment manager for loading environment variables
- * Supports loading from process arguments, specific files, or default .env file
+ * Environment manager for loading and setting environment variables
+ *
+ * Features:
+ * - Load from .env files with priority system
+ * - Set variables from objects with validation
+ * - Prevent override of existing variables
+ * - Comprehensive logging and error handling
  */
 export class EnvManager {
   /**
-   * Default environment variable name to indicate that env vars are already set
-   */
-  private static readonly DEFAULT_ENV_SET_FLAG = 'OWOX_ENV_SET';
-
-  /**
-   * Default environment variable name to custom .env file path
+   * Environment variable name for custom .env file path
    */
   private static readonly DEFAULT_ENV_FILE_PATH = 'OWOX_ENV_FILE_PATH';
 
   /**
-   * Load environment variables from a file path (for CLI commands)
-   * If filePath is empty, tries to load from environment variable or default .env file
-   * @param filePath - Path to environment file (can be empty string)
-   * @param envSetFlag - Environment variable name to check if env is already set (defaults to OWOX_ENV_SET)
-   * @param envFilePath - Environment variable name for custom .env file path (defaults to OWOX_ENV_FILE_PATH)
+   * Load environment variables from a file path
+   *
+   * Priority order:
+   * 1. Existing environment variables (never overridden)
+   * 2. Variables from the specified file
+   *
+   * @param filePath - Path to environment file (empty string uses fallback logic)
    * @returns Result object with success status and log messages
+   *
    * @example
    * ```typescript
-   * const result = EnvManager.loadFromFile('.env.local');
+   * // Load specific file
+   * const result = EnvManager.loadFromFile('.env.production');
+   *
+   * // Load with fallback logic (env var -> default .env)
+   * const result = EnvManager.loadFromFile('');
+   *
    * if (result.success) {
-   *   console.log('Environment loaded successfully');
+   *   console.log('✅ Environment loaded');
    * } else {
-   *   console.error('Failed to load environment:', result.messages);
+   *   console.error('❌ Failed:', result.messages);
    * }
    * ```
    */
-  static loadFromFile(
-    filePath: string,
-    envSetFlag = this.DEFAULT_ENV_SET_FLAG,
-    envFilePath = this.DEFAULT_ENV_FILE_PATH
-  ): EnvLoadResult {
+  static loadFromFile(filePath = ''): EnvLoadResult {
     const messages: string[] = [];
 
-    // Step 0: Check if environment is already configured
-    const checkEnvSet = this.isEnvAlreadySet(envSetFlag);
-    if (checkEnvSet.success) {
-      return checkEnvSet;
+    if (isEnvFileLoaded) {
+      return {
+        messages,
+        success: true,
+      };
     }
 
-    // Step 1: Try to load from specified file if provided and valid
-    const specifiedFileResult = this.tryLoadFromPath(filePath, 'specified', envSetFlag);
-    if (specifiedFileResult.success) {
-      specifiedFileResult.messages.unshift(...messages);
-      return specifiedFileResult;
+    const resolvedPath = this.resolveFilePath(filePath, messages);
+
+    if (!existsSync(resolvedPath)) {
+      isEnvFileLoaded = true;
+      messages.push(`📁 Environment file not found: ${resolvedPath}`);
+
+      return { messages, success: false };
     }
 
-    if (specifiedFileResult.messages.length > 0) {
-      messages.push(...specifiedFileResult.messages);
-    }
+    const success = this.loadFromFileInternal(resolvedPath, messages);
 
-    // Step 2: Try to load from environment variable .env file
-    const envPath = process.env[envFilePath] || '';
-    const envFileResult = this.tryLoadFromPath(envPath, 'env-var', envSetFlag);
-    if (envFileResult.success) {
-      envFileResult.messages.unshift(...messages);
-      return envFileResult;
-    }
-
-    if (envFileResult.messages.length > 0) {
-      messages.push(...envFileResult.messages);
-    }
-
-    // Step 3: Try to load from default .env file
-    const defaultPath = path.resolve(process.cwd(), '.env');
-    const defaultFileResult = this.tryLoadFromPath(defaultPath, 'default', envSetFlag);
-    if (defaultFileResult.success) {
-      defaultFileResult.messages.unshift(...messages);
-      return defaultFileResult;
-    }
-
-    if (defaultFileResult.messages.length > 0) {
-      messages.push(...defaultFileResult.messages);
-    }
-
-    messages.push('⚠️ No valid environment file found');
+    isEnvFileLoaded = true;
 
     return {
       messages,
-      success: false,
+      success,
     };
   }
 
   /**
-   * Load environment variables from process arguments (for standalone scripts)
-   * Parses --env-file flag or positional argument automatically
-   * @param envSetFlag - Environment variable name to check if env is already set (defaults to OWOX_ENV_SET)
-   * @returns Result object with success status and log messages
+   * Resolve file path using fallback logic
+   *
+   * Priority order:
+   * 1. Specified filePath parameter
+   * 2. OWOX_ENV_FILE_PATH environment variable
+   * 3. Default .env file in current working directory
+   *
+   * @private
+   * @param filePath - User-specified file path
+   * @param messages - Array to collect log messages
+   * @returns Resolved absolute path to environment file
+   */
+  private static resolveFilePath(filePath: string, messages: string[]): string {
+    const sanitizedPath = filePath.trim();
+
+    if (sanitizedPath) {
+      messages.push(`🎯 Using specified environment file: ${sanitizedPath}`);
+      return sanitizedPath;
+    } else if (process.env[this.DEFAULT_ENV_FILE_PATH]) {
+      const envSanitizedPath = process.env[this.DEFAULT_ENV_FILE_PATH]?.trim();
+      if (envSanitizedPath) {
+        messages.push(`🔗 Using environment-defined file: ${envSanitizedPath}`);
+        return envSanitizedPath;
+      }
+    }
+
+    const defaultPath = path.resolve(process.cwd(), '.env');
+    messages.push(`📄 Using default environment file: ${defaultPath}`);
+    return defaultPath;
+  }
+
+  /**
+   * Set environment variables from an object with validation
+   *
+   * Features:
+   * - Converts values to strings automatically
+   * - Validates keys (no empty/whitespace-only keys)
+   * - Validates values (no undefined/null/empty values)
+   * - Returns detailed results for logging/debugging
+   *
+   * @param envVars - Object with environment variable key-value pairs
+   * @returns Result object with set variables, ignored variables, and messages
+   *
    * @example
    * ```typescript
-   * // For command: node script.js --env-file .env.production
-   * const result = EnvManager.loadFromProcessArgs();
-   * if (!result.success) {
-   *   console.error('Environment loading failed:', result.messages);
-   *   process.exit(1);
-   * }
+   * const result = EnvManager.setFromObject({
+   *   PORT: 8080,           // number -> '8080'
+   *   LOG_FORMAT: 'json',   // string -> 'json'
+   *   DEBUG: true,          // boolean -> 'true'
+   *   API_KEY: undefined,   // ignored (undefined)
+   *   EMPTY: '',            // ignored (empty string)
+   *   ' ': 'value'          // ignored (invalid key)
+   * });
+   *
+   * console.log(`✅ Set ${result.setVars.length} variables`);
+   * console.log(`⚠️ Ignored ${result.ignoredVars.length} variables`);
    * ```
    */
-  static loadFromProcessArgs(envSetFlag = this.DEFAULT_ENV_SET_FLAG): EnvLoadResult {
+  static setFromObject(envVars: Record<string, unknown>): EnvSetResult {
     const messages: string[] = [];
+    const setVars: string[] = [];
+    const ignoredVars: string[] = [];
 
-    // Check if environment is already configured
-    const checkEnvSet = this.isEnvAlreadySet(envSetFlag);
-    if (checkEnvSet.success) {
-      return checkEnvSet;
-    }
-
-    const envFilePath = this.parseProcessArguments();
-
-    const result = this.loadFromFile(envFilePath, envSetFlag);
-    result.messages.unshift(...messages);
-    return result;
-  }
-
-  /**
-   * Check if environment is already configured
-   * @private
-   * @param envSetFlag - Environment variable name to check
-   * @returns Result object indicating if environment is already set
-   */
-  private static isEnvAlreadySet(envSetFlag: string): EnvLoadResult {
-    const sanitizedFlag = envSetFlag.trim();
-
-    let success = false;
-    if (process.env[sanitizedFlag]) {
-      success = process.env[sanitizedFlag].toLowerCase() === 'true';
-    }
-
-    const messages: string[] = [];
-    const result: EnvLoadResult = { messages, success };
-    if (success) {
-      messages.push(`✅ Environment already configured via ${sanitizedFlag}=true`);
-    }
-
-    return result;
-  }
-
-  /**
-   * Internal method to load environment variables from a specific file
-   * Assumes file exists and path is valid
-   * @private
-   * @param resolvedPath - Absolute path to the environment file
-   * @returns Result object with success status and messages
-   */
-  private static loadFromFileInternal(resolvedPath: string): EnvLoadResult {
-    const messages: string[] = [];
-
-    const result = dotenv.config({
-      path: resolvedPath,
-    });
-
-    if (result.error) {
-      messages.push(
-        `❌ Failed to parse environment file ${resolvedPath} with error: ${result.error.message}`
-      );
+    if (!envVars || typeof envVars !== 'object') {
       return {
-        messages,
+        messages: ['⚠️ Invalid environment variables object provided'],
+        setVars,
+        ignoredVars,
         success: false,
       };
     }
 
+    for (const [key, value] of Object.entries(envVars)) {
+      const sanitizedKey = key.trim();
+      if (!sanitizedKey) {
+        ignoredVars.push(`"${key}" (invalid key)`);
+        continue;
+      }
+
+      if (value === undefined || value === null) {
+        ignoredVars.push(`${key} (undefined/null value)`);
+        continue;
+      }
+
+      const stringValue = String(value).trim();
+
+      if (!stringValue) {
+        ignoredVars.push(`${key} (empty string value)`);
+        continue;
+      }
+
+      process.env[sanitizedKey] = stringValue;
+      setVars.push(`${sanitizedKey}=${stringValue}`);
+    }
+
     return {
       messages,
+      setVars,
+      ignoredVars,
       success: true,
     };
   }
 
   /**
-   * Parse command-line arguments to find environment file path
+   * Internal method to load environment variables from a file using dotenv
+   *
+   * This method:
+   * - Uses dotenv with override:false to respect existing variables
+   * - Tracks which variables were loaded vs skipped
+   * - Provides detailed logging for debugging
+   *
    * @private
-   * @returns The path to the environment file or empty string if not found
+   * @param resolvedPath - Absolute path to the environment file
+   * @param messages - Array to collect log messages
+   * @returns Boolean indicating whether the file was parsed successfully
    */
-  private static parseProcessArguments(): string {
-    const args = process.argv.slice(2);
+  private static loadFromFileInternal(resolvedPath: string, messages: string[]): boolean {
+    const existingEnvVars = new Set(Object.keys(process.env));
 
-    // Parse arguments: --env-file /path/to/.env or -e /path/to/.env or just /path/to/.env
-    for (let i = 0; i < args.length; i++) {
-      const arg = args[i];
+    const result = dotenv.config({
+      path: resolvedPath,
+      override: false, // Don't override existing environment variables
+    });
 
-      // Check for --env-file=path format
-      if (arg?.startsWith('--env-file=')) {
-        const MAX_SPLIT_PARTS = 2;
-        return arg.split('=', MAX_SPLIT_PARTS)[1] || '';
+    if (result.error) {
+      messages.push(`❌ Failed to parse environment file ${resolvedPath}: ${result.error.message}`);
+      return false;
+    }
+
+    const loadedVars: string[] = [];
+    const skippedVars: string[] = [];
+
+    for (const key of Object.keys(result.parsed || {})) {
+      if (existingEnvVars.has(key)) {
+        skippedVars.push(key);
+      } else {
+        loadedVars.push(key);
       }
-
-      // Check for --env-file path or -e path format
-      if ((arg === '--env-file' || arg === '-e') && i + 1 < args.length) {
-        return args[i + 1] || '';
-      }
-
-      // Check if arg looks like a file path (contains .env or has proper extension)
-      if (arg && (arg.includes('.env') || arg.endsWith('.env'))) {
-        return arg;
-      }
     }
 
-    return '';
-  }
+    messages.push(
+      `✅ Environment file processed successfully: ${loadedVars.length} loaded, ${skippedVars.length} skipped`
+    );
 
-  /**
-   * Try to load environment variables from a specific path
-   * @private
-   * @param filePath - Path to the environment file
-   * @param pathType - Type of path being loaded (default, specified, or env-var)
-   * @param envSetFlag - Environment variable name to set upon successful loading
-   * @returns Result object with success status and messages
-   */
-  private static tryLoadFromPath(
-    filePath: string,
-    pathType: 'default' | 'specified' | 'env-var',
-    envSetFlag: string
-  ): EnvLoadResult {
-    const messages: string[] = [];
-
-    const fileValidation = this.validateFilePath(filePath);
-    if (!fileValidation.success) {
-      if (fileValidation.error) {
-        messages.push(fileValidation.error);
-      }
-
-      return {
-        messages,
-        success: false,
-      };
+    if (skippedVars.length > 0) {
+      messages.push(`⏭️ Skipped existing variables: ${skippedVars.join(', ')}`);
     }
 
-    const result = this.loadFromFileInternal(fileValidation.resolvedPath!);
-    if (result.success) {
-      process.env[envSetFlag] = 'true';
-
-      messages.push(
-        `✅ Environment variables successfully loaded from ${pathType} file: ${fileValidation.resolvedPath}`
-      );
-      result.messages.unshift(...messages);
-    }
-
-    return result;
-  }
-
-  /**
-   * Validate if file path exists and is accessible
-   * @private
-   * @param filePath - Path to validate
-   * @returns Validation result with resolved path if successful
-   */
-  private static validateFilePath(filePath: string): ValidateFilePathResult {
-    const sanitizedPath = filePath.trim();
-    if (!sanitizedPath) {
-      return { success: false };
-    }
-
-    const resolvedPath = path.resolve(sanitizedPath);
-    if (!existsSync(resolvedPath)) {
-      return { error: `📁 File not found: ${resolvedPath}`, success: false };
-    }
-
-    return { resolvedPath, success: true };
+    return true;
   }
 }
