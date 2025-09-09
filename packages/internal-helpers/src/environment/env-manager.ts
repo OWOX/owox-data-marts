@@ -99,38 +99,6 @@ export class EnvManager {
   }
 
   /**
-   * Resolve file path using fallback logic
-   *
-   * Priority order:
-   * 1. Specified filePath parameter
-   * 2. OWOX_ENV_FILE_PATH environment variable
-   * 3. Default .env file in current working directory
-   *
-   * @private
-   * @param filePath - User-specified file path
-   * @param messages - Array to collect log messages
-   * @returns Resolved absolute path to environment file
-   */
-  private static resolveFilePath(filePath: string, messages: string[]): string {
-    const sanitizedPath = filePath.trim();
-
-    if (sanitizedPath) {
-      messages.push(`🎯 Using specified environment file: ${sanitizedPath}`);
-      return sanitizedPath;
-    } else if (process.env[this.DEFAULT_ENV_FILE_PATH]) {
-      const envSanitizedPath = process.env[this.DEFAULT_ENV_FILE_PATH]?.trim();
-      if (envSanitizedPath) {
-        messages.push(`🔗 Using environment-defined file: ${envSanitizedPath}`);
-        return envSanitizedPath;
-      }
-    }
-
-    const defaultPath = path.resolve(process.cwd(), '.env');
-    messages.push(`📄 Using default environment file: ${defaultPath}`);
-    return defaultPath;
-  }
-
-  /**
    * Set environment variables from an object with validation
    *
    * Features:
@@ -248,5 +216,37 @@ export class EnvManager {
     }
 
     return true;
+  }
+
+  /**
+   * Resolve file path using fallback logic
+   *
+   * Priority order:
+   * 1. Specified filePath parameter
+   * 2. OWOX_ENV_FILE_PATH environment variable
+   * 3. Default .env file in current working directory
+   *
+   * @private
+   * @param filePath - User-specified file path
+   * @param messages - Array to collect log messages
+   * @returns Resolved absolute path to environment file
+   */
+  private static resolveFilePath(filePath: string, messages: string[]): string {
+    const sanitizedPath = filePath.trim();
+
+    if (sanitizedPath) {
+      messages.push(`🎯 Using specified environment file: ${sanitizedPath}`);
+      return sanitizedPath;
+    } else if (process.env[this.DEFAULT_ENV_FILE_PATH]) {
+      const envSanitizedPath = process.env[this.DEFAULT_ENV_FILE_PATH]?.trim();
+      if (envSanitizedPath) {
+        messages.push(`🔗 Using environment-defined file: ${envSanitizedPath}`);
+        return envSanitizedPath;
+      }
+    }
+
+    const defaultPath = path.resolve(process.cwd(), '.env');
+    messages.push(`📄 Using default environment file: ${defaultPath}`);
+    return defaultPath;
   }
 }
