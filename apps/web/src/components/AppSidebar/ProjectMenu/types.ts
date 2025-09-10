@@ -5,6 +5,7 @@ export type ProjectMenuItem =
       title: string;
       href: string;
       icon: React.ComponentType<{ className?: string }>;
+      visible: boolean;
       type?: never;
     }
   | {
@@ -12,4 +13,12 @@ export type ProjectMenuItem =
       title?: never;
       href?: never;
       icon?: never;
+      visible: boolean;
+    }
+  | {
+      type: 'switcher';
+      title: string;
+      href?: never;
+      icon: React.ComponentType<{ className?: string }>;
+      visible: boolean;
     };
