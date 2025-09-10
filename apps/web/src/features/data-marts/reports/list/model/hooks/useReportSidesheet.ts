@@ -8,7 +8,7 @@ import { ReportFormMode } from '../../../shared';
  * - Manages "create" and "edit" modes
  * - Stores the currently edited report (if any)
  */
-export function useReportModals() {
+export function useReportSidesheet() {
   // Controls whether the modal is open
   const [isOpen, setIsOpen] = useState(false);
 

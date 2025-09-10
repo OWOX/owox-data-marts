@@ -9,8 +9,8 @@ import {
 import type { DataMartStatusInfo } from '../../../../shared/types/data-mart-status.model';
 import type { DataDestination } from '../../../../../data-destination/shared/model/types';
 import { useDataDestinationVisibility } from '../../../../../data-destination/shared/model/hooks';
-import { useReportModals } from '../../model/hooks';
-import { AddReportButton, ReportEditSheetRenderer, ReportTableRenderer } from './index';
+import { useReportSidesheet } from '../../model/hooks';
+import { AddReportButton, ReportEditSheetRenderer, ReportListRenderer } from './index';
 import { DataDestinationType } from '../../../../../data-destination/shared/enums';
 
 interface DestinationCardProps {
@@ -29,7 +29,7 @@ export function DestinationCard({ destination, dataMartStatus }: DestinationCard
 
   // Modal state and handlers for creating/editing reports
   const { isOpen, mode, editingReport, handleAddReport, handleEditReport, handleCloseModal } =
-    useReportModals();
+    useReportSidesheet();
 
   // Skip rendering if destination is not active
   if (!isVisible) {
@@ -57,7 +57,7 @@ export function DestinationCard({ destination, dataMartStatus }: DestinationCard
 
         {/* Reports list table */}
         <CollapsibleCardContent>
-          <ReportTableRenderer destination={destination} onEditReport={handleEditReport} />
+          <ReportListRenderer destination={destination} onEditReport={handleEditReport} />
         </CollapsibleCardContent>
 
         <CollapsibleCardFooter />
