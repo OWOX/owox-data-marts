@@ -234,4 +234,15 @@ class AbstractStorage {
     }
     //----------------------------------------------------------------
 
+  //---- getColumnType -----------------------------------------------
+    /**
+     * Get column type for storage from schema
+     * @param {string} columnName - Name of the column
+     * @returns {string} Storage-specific column type
+     */
+    getColumnType(columnName) {
+      return 'string';
+    }
+    //----------------------------------------------------------------
+
 }

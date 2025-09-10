@@ -6,73 +6,69 @@ import {
   CollapsibleCardFooter,
   CollapsibleCardHeaderActions,
 } from '../../../../../../shared/components/CollapsibleCard';
-import { ReportFormMode } from '../../../shared';
 import type { DataMartStatusInfo } from '../../../../shared/types/data-mart-status.model';
 import type { DataDestination } from '../../../../../data-destination/shared/model/types';
-import { useReportModals, useDestinationValidation } from '../../model/hooks';
-import { AddReportButton, ReportEditSheetRenderer, ReportTableRenderer } from './index';
+import { useDataDestinationVisibility } from '../../../../../data-destination/shared/model/hooks';
+import { useReportSidesheet } from '../../model/hooks';
+import { AddReportButton, ReportEditSheetRenderer, ReportListRenderer } from './index';
+import { DataDestinationType } from '../../../../../data-destination/shared/enums';
 
 interface DestinationCardProps {
   destination: DataDestination;
   dataMartStatus?: DataMartStatusInfo;
 }
 
+/**
+ * DestinationCard component
+ * - Displays a collapsible card for each Data Destination
+ * - Allows adding and editing reports via a modal
+ * - Renders a report table inside the card
+ */
 export function DestinationCard({ destination, dataMartStatus }: DestinationCardProps) {
-  const { destinationInfo, isVisible } = useDestinationValidation(destination);
-  const {
-    isAddReportOpen,
-    isEditReportOpen,
-    editingReport,
-    handleAddReport,
-    handleEditReport,
-    handleCloseAddReport,
-    handleCloseEditReport,
-  } = useReportModals();
+  const { destinationInfo, isVisible } = useDataDestinationVisibility(destination);
 
-  // Only show destinations that are active
+  // Modal state and handlers for creating/editing reports
+  const { isOpen, mode, editingReport, handleAddReport, handleEditReport, handleCloseModal } =
+    useReportSidesheet();
+
+  // Skip rendering if destination is not active
   if (!isVisible) {
     return null;
   }
 
   return (
     <>
+      {/* Collapsible card container for a single destination */}
       <CollapsibleCard name={destination.id} collapsible defaultCollapsed={false}>
         <CollapsibleCardHeader>
+          {/* Card title with destination icon */}
           <CollapsibleCardHeaderTitle icon={destinationInfo.icon}>
             {destination.title}
           </CollapsibleCardHeaderTitle>
+
+          {/* Actions */}
           <CollapsibleCardHeaderActions>
-            <AddReportButton
-              destinationType={destination.type}
-              dataMartStatus={dataMartStatus}
-              onAddReport={handleAddReport}
-            />
+            {/* Render AddReportButton only for Google Sheets*/}
+            {destination.type === DataDestinationType.GOOGLE_SHEETS && (
+              <AddReportButton dataMartStatus={dataMartStatus} onAddReport={handleAddReport} />
+            )}
           </CollapsibleCardHeaderActions>
         </CollapsibleCardHeader>
+
+        {/* Reports list table */}
         <CollapsibleCardContent>
-          <ReportTableRenderer
-            destination={destination}
-            dataMartStatus={dataMartStatus}
-            onEditReport={handleEditReport}
-          />
+          <ReportListRenderer destination={destination} onEditReport={handleEditReport} />
         </CollapsibleCardContent>
-        <CollapsibleCardFooter></CollapsibleCardFooter>
+
+        <CollapsibleCardFooter />
       </CollapsibleCard>
 
-      {/* Add Report Sheet */}
+      {/* Single Report Modal (used for both Add and Edit modes) */}
       <ReportEditSheetRenderer
         destination={destination}
-        isOpen={isAddReportOpen}
-        onClose={handleCloseAddReport}
-        mode={ReportFormMode.CREATE}
-      />
-
-      {/* Edit Report Sheet */}
-      <ReportEditSheetRenderer
-        destination={destination}
-        isOpen={isEditReportOpen}
-        onClose={handleCloseEditReport}
-        mode={ReportFormMode.EDIT}
+        isOpen={isOpen}
+        onClose={handleCloseModal}
+        mode={mode}
         initialReport={editingReport}
       />
     </>

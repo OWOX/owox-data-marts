@@ -101,7 +101,7 @@ export class DataMartService extends ApiService {
     id: string,
     data: UpdateDataMartDefinitionRequestDto
   ): Promise<DataMartResponseDto> {
-    return this.put<DataMartResponseDto>(`/${id}/definition`, data);
+    return this.put<DataMartResponseDto>(`/${id}/definition`, data, { timeout: 180000 });
   }
 
   /**
@@ -110,7 +110,7 @@ export class DataMartService extends ApiService {
    * @returns Promise with updated data mart
    */
   async publishDataMart(id: string): Promise<DataMartResponseDto> {
-    return this.put<DataMartResponseDto>(`/${id}/publish`);
+    return this.put<DataMartResponseDto>(`/${id}/publish`, undefined, { timeout: 180000 });
   }
 
   /**
@@ -141,7 +141,9 @@ export class DataMartService extends ApiService {
    * @returns Promise with updated data mart
    */
   async actualizeDataMartSchema(id: string): Promise<DataMartResponseDto> {
-    return this.post<DataMartResponseDto>(`/${id}/actualize-schema`);
+    return this.post<DataMartResponseDto>(`/${id}/actualize-schema`, undefined, {
+      timeout: 180000,
+    });
   }
 
   /**
@@ -154,7 +156,7 @@ export class DataMartService extends ApiService {
     id: string,
     data: UpdateDataMartSchemaRequestDto
   ): Promise<DataMartResponseDto> {
-    return this.put<DataMartResponseDto>(`/${id}/schema`, data);
+    return this.put<DataMartResponseDto>(`/${id}/schema`, data, { timeout: 180000 });
   }
 
   /**
@@ -175,6 +177,7 @@ export class DataMartService extends ApiService {
     const config = {
       ...(abortController ? { signal: abortController.signal } : {}),
       skipLoadingIndicator: skipLoading,
+      timeout: 180000,
     };
     return this.post<SqlValidationResponseDto>(`/${id}/sql-dry-run`, data, config);
   }

@@ -194,10 +194,8 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
         throw new Error(`Required field ${columnName} not found in schema`);
       }
       
-      let columnType = 'string';
-      if ("AthenaType" in this.schema[columnName]) {
-        columnType = this.schema[columnName]["AthenaType"];
-      }
+      // Use AthenaType if specified, otherwise fallback to schema type, default to string
+      let columnType = this.getColumnType(columnName);
       
       columnDefinitions.push(`${columnName} ${columnType}`);
       existingColumns[columnName] = columnType;
@@ -216,10 +214,8 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
     // Add all other schema fields to the table
     for (let columnName in this.schema) {
       if (!this.uniqueKeyColumns.includes(columnName) && selectedFields.includes(columnName)) {
-        let columnType = 'string';
-        if ("AthenaType" in this.schema[columnName]) {
-          columnType = this.schema[columnName]["AthenaType"];
-        }
+        // Use AthenaType if specified, otherwise fallback to schema type, default to string
+        let columnType = this.getColumnType(columnName);
         
         columnDefinitions.push(`${columnName} ${columnType}`);
         existingColumns[columnName] = columnType;
@@ -686,5 +682,62 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
         
         return results;
       });
+  }
+
+  //---- getColumnType -----------------------------------------------
+  /**
+   * Get column type for Athena from schema
+   * @param {string} columnName - Name of the column
+   * @returns {string} Athena column type
+   */
+  getColumnType(columnName) {
+    return this.schema[columnName]["AthenaType"] || this._convertTypeToStorageType(this.schema[columnName]["type"]?.toLowerCase());
+  }
+
+  //---- _convertTypeToStorageType ------------------------------------
+  /**
+   * Converts generic type to Athena-specific type
+   * @param {string} genericType - Generic type from schema
+   * @returns {string} Athena column type
+   */
+  _convertTypeToStorageType(genericType) {
+    if (!genericType) return 'string';
+    
+    // TODO: Move types to constants and refactor schemas
+    
+    switch (genericType.toLowerCase()) {
+      // Integer types
+      case 'integer':
+      case 'int32':
+      case 'unsigned int32':
+        return 'int';
+      case 'int64':
+      case 'long':
+        return 'bigint';
+      
+      // Float types
+      case 'float':
+      case 'number':
+      case 'double':
+        return 'double';
+      case 'decimal':
+        return 'decimal';
+      
+      // Boolean types
+      case 'bool':
+      case 'boolean':
+        return 'boolean';
+      
+      // Date/time types
+      case 'datetime':
+      case 'timestamp':
+        return 'timestamp';
+      case 'date':
+        return 'date';
+      
+      // Default to string for unknown types
+      default:
+        return 'string';
+    }
   }
 } 

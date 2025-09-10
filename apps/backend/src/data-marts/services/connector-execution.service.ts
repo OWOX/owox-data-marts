@@ -9,6 +9,8 @@ import {
   SourceConfig,
   RunConfig,
 } from '@owox/connector-runner';
+// @ts-expect-error - Package lacks TypeScript declarations
+import { Core } from '@owox/connectors';
 
 import { ConnectorDefinition as DataMartConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMart } from '../entities/data-mart.entity';
@@ -234,7 +236,7 @@ export class ConnectorExecutionService {
               state.at = message.at;
               break;
             case ConnectorMessageType.STATUS:
-              if (message.status.includes('error')) {
+              if (message.status === Core.EXECUTION_STATUS.ERROR) {
                 success = false;
                 configErrors.push(message);
                 this.logger.error(`${message.toFormattedString()}`);

@@ -151,16 +151,13 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       for(var i in this.uniqueKeyColumns) {
         
         let columnName = this.uniqueKeyColumns[i];
-        let columnType = 'string';
         let columnDescription = '';
 
         if( !(columnName in this.schema) ) {
           throw new Error(`Required field ${columnName} not found in schema`);
         }
         
-        if( "GoogleBigQueryType" in this.schema[ columnName ] ) {
-          columnType = this.schema[ columnName ]["GoogleBigQueryType"];
-        }
+        let columnType = this.getColumnType(columnName);
         
         if( "description" in this.schema[ columnName ] ) {
           columnDescription = ` OPTIONS(description="${this.schema[ columnName ]["description"]}")`;
@@ -231,12 +228,9 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         // checking the field is exists in schema
         if( columnName in this.schema ) {
 
-          let columnType = 'STRING';
           let columnDescription = '';
           
-          if( "GoogleBigQueryType" in this.schema[ columnName ] ) {
-            columnType = this.schema[ columnName ]["GoogleBigQueryType"];
-          }
+          let columnType = this.getColumnType(columnName);
           
           if( "description" in this.schema[ columnName ] ) {
             columnDescription = ` OPTIONS (description = "${this.schema[ columnName ]["description"]}")`;
@@ -317,51 +311,141 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       if( bufferSize && bufferSize >= maxBufferSize ) {
         
         console.log(`🔄 Starting BigQuery MERGE operation for ${bufferSize} records...`);
+        
+        // Split buffer into smaller chunks if needed to avoid query size limits
+        this.executeQueryWithSizeLimit();
+      }
+    
 
-        let source = '';
-        let rows = [];
+    }
 
-        for(var key in this.updatedRecordsBuffer ) {
+  //---- executeQueryWithSizeLimit ----------------------------------
+    /**
+     * Executes the MERGE query with automatic size reduction if it exceeds BigQuery limits
+     */
+    executeQueryWithSizeLimit() {
+      const bufferKeys = Object.keys(this.updatedRecordsBuffer);
+      const totalRecords = bufferKeys.length;
+      
+      if (totalRecords === 0) {
+        return;
+      }
+      
+      // Try to execute with current buffer size, reduce recursively if too large
+      this.executeMergeQueryRecursively(bufferKeys, totalRecords);
+      
+      // Clear the buffer after processing
+      this.updatedRecordsBuffer = {};
+    }
 
-          let record = this.stringifyNeastedFields( this.updatedRecordsBuffer[key] );
-          let fields = [];
+  //---- executeMergeQueryRecursively --------------------------------
+    /**
+     * Recursively attempts to execute MERGE queries, reducing batch size if query is too large
+     * @param {Array} recordKeys - Array of record keys to process
+     * @param {number} batchSize - Current batch size to attempt
+     */
+    executeMergeQueryRecursively(recordKeys, batchSize) {
+      // Base case: if no records to process
+      if (recordKeys.length === 0) {
+        return;
+      }
+      
+      // If batch size is 1 and still failing, we have a fundamental problem
+      if (batchSize < 1) {
+        throw new Error('Cannot process records: even single record query exceeds BigQuery size limit');
+      }
+      
+      // Take a batch of records
+      const currentBatch = recordKeys.slice(0, batchSize);
+      const remainingRecords = recordKeys.slice(batchSize);
+      
+      // Build query for current batch
+      const query = this.buildMergeQuery(currentBatch);
+      
+      // Check if query size exceeds limit (1024KB = 1,048,576 characters)
+      const querySize = new Blob([query]).size;
+      const maxQuerySize = 1024 * 1024; // 1MB in bytes
+      
+      if (querySize > maxQuerySize) {
+        console.log(`⚠️  Query size (${Math.round(querySize/1024)}KB) exceeds BigQuery limit. Reducing batch size from ${batchSize} to ${Math.floor(batchSize/2)}`);
+        
+        // Recursively try with half the batch size
+        this.executeMergeQueryRecursively(recordKeys, Math.floor(batchSize / 2));
+        return;
+      }
+      
+      try {
+        // Execute the query
+        this.executeQuery(query);
+        this.totalRecordsProcessed += currentBatch.length;
+        console.log(`✅ BigQuery MERGE completed successfully for ${currentBatch.length} records (Total processed: ${this.totalRecordsProcessed})`);
+        
+        // Process remaining records if any
+        if (remainingRecords.length > 0) {
+          this.executeMergeQueryRecursively(remainingRecords, batchSize);
+        }
+        
+      } catch (error) {
+        // If query fails due to size (even though we checked), reduce batch size
+        if (error.message && error.message.includes('query is too large')) {
+          console.log(`⚠️  Query execution failed due to size. Reducing batch size from ${batchSize} to ${Math.floor(batchSize/2)}`);
+          this.executeMergeQueryRecursively(recordKeys, Math.floor(batchSize / 2));
+        } else {
+          // Re-throw other errors
+          throw error;
+        }
+      }
+    }
 
-          for(var i in this.existingColumns) {
+  //---- buildMergeQuery ---------------------------------------------
+    /**
+     * Builds a MERGE query for the specified record keys
+     * @param {Array} recordKeys - Array of record keys to include in the query
+     * @return {string} - The constructed MERGE query
+     */
+    buildMergeQuery(recordKeys) {
+      let rows = [];
 
-            let columnName = this.existingColumns[i]["name"];
-            let columnType = this.existingColumns[i]["type"];
-            let columnValue = null;
+      for(let i = 0; i < recordKeys.length; i++) {
+        const key = recordKeys[i];
+        let record = this.stringifyNeastedFields( this.updatedRecordsBuffer[key] );
+        let fields = [];
 
-            if (record[columnName] === undefined || record[columnName] === null) {
+        for(var j in this.existingColumns) {
 
-              columnValue = null;
+          let columnName = this.existingColumns[j]["name"];
+          let columnType = this.existingColumns[j]["type"];
+          let columnValue = null;
 
-            } else if( ( columnType.toUpperCase() == "DATE") && (record[ columnName ] instanceof Date) ) {
+          if (record[columnName] === undefined || record[columnName] === null) {
 
-              columnValue = EnvironmentAdapter.formatDate( record[ columnName ], "UTC", "yyyy-MM-dd" );
+            columnValue = null;
 
-            } else if( (columnType.toUpperCase() == "DATETIME") && (record[ columnName ] instanceof Date) ) {
+          } else if( ( columnType.toUpperCase() == "DATE") && (record[ columnName ] instanceof Date) ) {
 
-              columnValue = EnvironmentAdapter.formatDate( record[ columnName ], "UTC", "yyyy-MM-dd HH:mm:ss" );
+            columnValue = EnvironmentAdapter.formatDate( record[ columnName ], "UTC", "yyyy-MM-dd" );
 
-            } else {
+          } else if( (columnType.toUpperCase() == "DATETIME") && (record[ columnName ] instanceof Date) ) {
 
-              columnValue = this.obfuscateSpecialCharacters( record[ columnName ] );
+            columnValue = EnvironmentAdapter.formatDate( record[ columnName ], "UTC", "yyyy-MM-dd HH:mm:ss" );
 
-            }
-            
-            
-            if (columnValue === null) {
-              fields.push(`SAFE_CAST(NULL AS ${columnType}) ${columnName}`);
-            } else {
-              fields.push(`SAFE_CAST("${columnValue}" AS ${columnType}) ${columnName}`);
-            }
+          } else {
+
+            columnValue = this.obfuscateSpecialCharacters( record[ columnName ] );
 
           }
+          
+          
+          if (columnValue === null) {
+            fields.push(`SAFE_CAST(NULL AS ${columnType}) ${columnName}`);
+          } else {
+            fields.push(`SAFE_CAST("${columnValue}" AS ${columnType}) ${columnName}`);
+          }
 
-          rows.push(`SELECT ${fields.join(",\n\t")}`);
+        }
 
-       }
+        rows.push(`SELECT ${fields.join(",\n\t")}`);
+      }
        
       let existingColumnsNames = Object.keys(this.existingColumns);
       let query = `MERGE INTO \`${this.config.DestinationDatasetID.value}.${this.config.DestinationTableName.value}\` AS target
@@ -382,15 +466,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
           ${existingColumnsNames.map(item => "source."+item).join(", ")}
         )`;
 
-
-        this.executeQuery(query);
-        this.totalRecordsProcessed += bufferSize;
-        console.log(`✅ BigQuery MERGE completed successfully for ${bufferSize} records (Total processed: ${this.totalRecordsProcessed})`);
-        this.updatedRecordsBuffer = {};
-    
-      }
-    
-
+      return query;
     }
  
 
@@ -449,6 +525,63 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
   
       return String(inputString).replace(/\\/g, '\\\\').replace(/\n/g, ' ').replace(/'/g, "\\'").replace(/"/g, '\\"'); 
   
+    }
+
+  //---- getColumnType -----------------------------------------------
+    /**
+     * Get column type for BigQuery from schema
+     * @param {string} columnName - Name of the column
+     * @returns {string} BigQuery column type
+     */
+    getColumnType(columnName) {
+      return this.schema[columnName]["GoogleBigQueryType"] || this._convertTypeToStorageType(this.schema[columnName]["type"]?.toLowerCase());
+    }
+
+  //---- _convertTypeToStorageType ------------------------------------
+    /**
+     * Converts generic type to BigQuery-specific type
+     * @param {string} genericType - Generic type from schema
+     * @returns {string} BigQuery column type
+     */
+    _convertTypeToStorageType(genericType) {
+      if (!genericType) return 'STRING';
+      
+      // TODO: Move types to constants and refactor schemas
+      
+      switch (genericType.toLowerCase()) {
+        // Integer types
+        case 'integer':
+        case 'int32':
+        case 'int64':
+        case 'unsigned int32':
+        case 'long':
+          return 'INTEGER';
+        
+        // Float types
+        case 'float':
+        case 'number':
+        case 'double':
+          return 'FLOAT64';
+        case 'decimal':
+          return 'NUMERIC';
+        
+        // Boolean types
+        case 'bool':
+        case 'boolean':
+          return 'BOOL';
+        
+        // Date/time types
+        case 'datetime':
+          return 'DATETIME';
+        case 'date':
+          return 'DATE';
+        case 'timestamp':
+          return 'TIMESTAMP';
+        
+        // Default to STRING for unknown types
+        default:
+          return 'STRING';
+      }
     }
 
 }

@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { GracefulShutdownService } from '../../common/scheduler/services/graceful-shutdown.service';
 import { TypeResolver } from '../../common/resolver/type-resolver';
 import { DATA_DESTINATION_REPORT_WRITER_RESOLVER } from '../data-destination-types/data-destination-providers';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
@@ -28,7 +29,8 @@ export class RunReportService {
       DataDestinationType,
       DataDestinationReportWriter
     >,
-    private readonly dataMartService: DataMartService
+    private readonly dataMartService: DataMartService,
+    private readonly gracefulShutdownService: GracefulShutdownService
   ) {}
 
   runInBackground(command: RunReportCommand): void {
@@ -38,6 +40,12 @@ export class RunReportService {
   }
 
   async run(command: RunReportCommand): Promise<void> {
+    if (this.gracefulShutdownService.isInShutdownMode()) {
+      throw new BusinessViolationException(
+        'Application is shutting down, cannot start new reports'
+      );
+    }
+
     this.logger.log(`Staring report run ${command.reportId}`);
     const report = await this.reportRepository.findOne({
       where: { id: command.reportId },
@@ -52,6 +60,8 @@ export class RunReportService {
       throw new BusinessViolationException('Report is already running');
     }
 
+    const processId = `report-${command.reportId}-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+
     const runAt = new Date();
     report.lastRunStatus = ReportRunStatus.RUNNING;
     report.lastRunAt = runAt;
@@ -60,6 +70,8 @@ export class RunReportService {
     await this.reportRepository.save(report);
 
     try {
+      this.gracefulShutdownService.registerActiveProcess(processId);
+
       // actualizing schemas before run
       await this.dataMartService.actualizeSchemaInEntity(report.dataMart);
       await this.dataMartService.save(report.dataMart);
@@ -72,7 +84,13 @@ export class RunReportService {
       report.lastRunStatus = ReportRunStatus.ERROR;
       report.lastRunError = error.toString();
     } finally {
-      await this.reportRepository.save(report);
+      try {
+        await this.reportRepository.save(report);
+      } catch (saveError) {
+        this.logger.error(`Failed to save report status for ${report.id}:`, saveError);
+      } finally {
+        this.gracefulShutdownService.unregisterActiveProcess(processId);
+      }
     }
   }
 

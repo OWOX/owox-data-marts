@@ -1,5 +1,5 @@
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, RequestMethod } from '@nestjs/common';
 import { DataMartController } from './controllers/data-mart.controller';
 import { DataStorageController } from './controllers/data-storage.controller';
 import { DataDestinationController } from './controllers/data-destination.controller';
@@ -84,6 +84,7 @@ import { ConnectorStateService } from './connector-types/connector-message/servi
 import { ConnectorState } from './entities/connector-state.entity';
 import { ReportDataCache } from './entities/report-data-cache.entity';
 import { IdpModule } from '../idp/idp.module';
+import { createOperationTimeoutMiddleware } from '../common/middleware/operation-timeout.middleware';
 
 @Module({
   imports: [
@@ -179,4 +180,26 @@ import { IdpModule } from '../idp/idp.module';
     ConnectorStateService,
   ],
 })
-export class DataMartsModule {}
+export class DataMartsModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(createOperationTimeoutMiddleware(180000))
+      .forRoutes(
+        { path: 'data-marts/:id/definition', method: RequestMethod.PUT },
+        { path: 'data-marts/:id/sql-dry-run', method: RequestMethod.POST },
+        { path: 'data-marts/:id/publish', method: RequestMethod.PUT },
+        { path: 'data-marts/:id/actualize-schema', method: RequestMethod.POST },
+        { path: 'data-marts/:id/schema', method: RequestMethod.PUT }
+      );
+    consumer
+      .apply(createOperationTimeoutMiddleware(30000))
+      .exclude(
+        { path: 'data-marts/:id/definition', method: RequestMethod.PUT },
+        { path: 'data-marts/:id/sql-dry-run', method: RequestMethod.POST },
+        { path: 'data-marts/:id/publish', method: RequestMethod.PUT },
+        { path: 'data-marts/:id/actualize-schema', method: RequestMethod.POST },
+        { path: 'data-marts/:id/schema', method: RequestMethod.PUT }
+      )
+      .forRoutes({ path: '*', method: RequestMethod.ALL });
+  }
+}

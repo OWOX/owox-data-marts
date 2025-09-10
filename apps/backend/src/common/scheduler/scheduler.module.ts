@@ -24,6 +24,6 @@ import { GracefulShutdownService } from './services/graceful-shutdown.service';
     SystemTimeService,
     GracefulShutdownService,
   ],
-  exports: [SCHEDULER_FACADE],
+  exports: [SCHEDULER_FACADE, GracefulShutdownService],
 })
 export class SchedulerModule {}

@@ -1,12 +1,10 @@
 import { Button } from '@owox/ui/components/button';
 import { PlusIcon } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
-import { DataDestinationType } from '../../../../../data-destination/shared/enums';
 import { DataMartStatus } from '../../../../shared/enums/data-mart-status.enum';
 import type { DataMartStatusInfo } from '../../../../shared/types/data-mart-status.model';
 
 interface AddReportButtonProps {
-  destinationType: DataDestinationType;
   dataMartStatus?: DataMartStatusInfo;
   onAddReport: () => void;
 }
@@ -15,16 +13,7 @@ interface AddReportButtonProps {
  * Add Report Button component with conditional rendering and tooltip
  * Only shows for Google Sheets destinations with proper validation
  */
-export function AddReportButton({
-  destinationType,
-  dataMartStatus,
-  onAddReport,
-}: AddReportButtonProps) {
-  // Only show for Google Sheets destinations
-  if (destinationType !== DataDestinationType.GOOGLE_SHEETS) {
-    return null;
-  }
-
+export function AddReportButton({ dataMartStatus, onAddReport }: AddReportButtonProps) {
   const isDisabled = dataMartStatus?.code === DataMartStatus.DRAFT;
 
   return (
@@ -35,7 +24,7 @@ export function AddReportButton({
             onClick={onAddReport}
             variant='outline'
             size='sm'
-            aria-label='Add new Google Sheets report'
+            aria-label='Add new report'
             disabled={isDisabled}
           >
             <PlusIcon className='h-4 w-4' />
