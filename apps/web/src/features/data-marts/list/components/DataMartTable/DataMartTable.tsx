@@ -120,7 +120,7 @@ export function DataMartTable<TData, TValue>({
                 data-slot='checkbox-indicator'
                 className='pointer-events-none flex items-center justify-center text-current transition-none'
               >
-                <Check className='size-3.5' />
+                <Check className='size-3.5 text-white' />
               </span>
             )}
           </button>
@@ -141,7 +141,7 @@ export function DataMartTable<TData, TValue>({
                 data-slot='checkbox-indicator'
                 className='pointer-events-none flex items-center justify-center text-current transition-none'
               >
-                <Check className='size-3.5' />
+                <Check className='size-3.5 text-white' />
               </span>
             )}
           </button>
