@@ -20,8 +20,8 @@ export default class IdpAddUser extends BaseCommand {
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(IdpAddUser);
+    this.initializeLogging(flags['log-format']);
 
-    this.initializeLogging(flags);
     const idpProvider = await IdpFactory.createFromEnvironment(this);
     await idpProvider.initialize();
 

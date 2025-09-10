@@ -25,6 +25,8 @@ export interface EnvSetResult {
   setVars: string[];
   /** Variables that were ignored with reasons */
   ignoredVars: string[];
+  /** Variables that were skipped because they already exist */
+  skippedVars: string[];
   /** Whether the operation was successful */
   success: boolean;
 }
@@ -105,10 +107,12 @@ export class EnvManager {
    * - Converts values to strings automatically
    * - Validates keys (no empty/whitespace-only keys)
    * - Validates values (no undefined/null/empty values)
+   * - Respects existing variables unless override is true
    * - Returns detailed results for logging/debugging
    *
    * @param envVars - Object with environment variable key-value pairs
-   * @returns Result object with set variables, ignored variables, and messages
+   * @param override - Whether to override existing environment variables (default: false)
+   * @returns Result object with set variables, ignored variables, skipped variables, and messages
    *
    * @example
    * ```typescript
@@ -123,18 +127,21 @@ export class EnvManager {
    *
    * console.log(`✅ Set ${result.setVars.length} variables`);
    * console.log(`⚠️ Ignored ${result.ignoredVars.length} variables`);
+   * console.log(`⏭️ Skipped ${result.skippedVars.length} existing variables`);
    * ```
    */
-  static setFromObject(envVars: Record<string, unknown>): EnvSetResult {
+  static setFromObject(envVars: Record<string, unknown>, override = false): EnvSetResult {
     const messages: string[] = [];
     const setVars: string[] = [];
     const ignoredVars: string[] = [];
+    const skippedVars: string[] = [];
 
     if (!envVars || typeof envVars !== 'object') {
       return {
         messages: ['⚠️ Invalid environment variables object provided'],
         setVars,
         ignoredVars,
+        skippedVars,
         success: false,
       };
     }
@@ -143,6 +150,12 @@ export class EnvManager {
       const sanitizedKey = key.trim();
       if (!sanitizedKey) {
         ignoredVars.push(`"${key}" (invalid key)`);
+        continue;
+      }
+
+      // Check if variable already exists with valid value and handle override early
+      if (!override && process.env[sanitizedKey]?.trim()) {
+        skippedVars.push(`${sanitizedKey} (already exists)`);
         continue;
       }
 
@@ -166,6 +179,7 @@ export class EnvManager {
       messages,
       setVars,
       ignoredVars,
+      skippedVars,
       success: true,
     };
   }

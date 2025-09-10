@@ -4,7 +4,7 @@ import { EnvManager } from '@owox/internal-helpers';
 export function loadEnv(): void {
   const logger = createLogger('LoadEnv');
 
-  const result = EnvManager.loadFromFile('');
+  const result = EnvManager.loadFromFile();
 
   result.messages.forEach((message: string) => logger.log(message));
 }

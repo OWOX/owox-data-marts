@@ -18,9 +18,6 @@ const DEFAULT_PORT = 3000;
 
 export interface BootstrapOptions {
   express: Express;
-  port?: number;
-  logFormat?: string;
-  webEnabled?: boolean;
 }
 
 export async function bootstrap(options: BootstrapOptions): Promise<NestExpressApplication> {
@@ -35,9 +32,7 @@ export async function bootstrap(options: BootstrapOptions): Promise<NestExpressA
   const app = await NestFactory.create<NestExpressApplication>(
     AppModule,
     new ExpressAdapter(options.express),
-    {
-      logger,
-    }
+    { logger }
   );
 
   app.useLogger(createLogger());
@@ -51,7 +46,7 @@ export async function bootstrap(options: BootstrapOptions): Promise<NestExpressA
 
   app.enableShutdownHooks();
 
-  const port = options.port ?? configService.get<number>('PORT') ?? DEFAULT_PORT;
+  const port = configService.get<number>('PORT') ?? DEFAULT_PORT;
   await app.listen(port);
 
   const appUrl = await app.getUrl();
