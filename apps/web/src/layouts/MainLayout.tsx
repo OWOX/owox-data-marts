@@ -6,7 +6,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from '@owox/ui/components/sidebar';
-import { AppSidebar } from '../components/AppSidebar/app-sidebar.tsx';
+import { AppSidebar } from '../components/AppSidebar';
 import { ThemeProvider } from '../app/providers/theme-provider.tsx';
 import { storageService } from '../services';
 import { GlobalLoader, LoadingProvider, useLoading } from '../shared/components/GlobalLoader';
