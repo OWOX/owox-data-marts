@@ -6,6 +6,7 @@ import { DataDestinationController } from './controllers/data-destination.contro
 import { LookerStudioConnectorController } from './controllers/external/looker-studio-connector.controller';
 import { ReportController } from './controllers/report.controller';
 import { ScheduledTriggerController } from './controllers/scheduled-trigger.controller';
+import { ConsumptionTrackingService } from './services/consumption-tracking.service';
 import { ReportDataCacheService } from './services/report-data-cache.service';
 import { CreateDataMartService } from './use-cases/create-data-mart.service';
 import { ListDataMartsService } from './use-cases/list-data-marts.service';
@@ -177,6 +178,7 @@ import { IdpModule } from '../idp/idp.module';
     ConnectorOutputCaptureService,
     ConnectorMessageParserService,
     ConnectorStateService,
+    ConsumptionTrackingService,
   ],
 })
 export class DataMartsModule {}

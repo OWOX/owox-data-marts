@@ -3,6 +3,7 @@ import { BusinessViolationException } from '../../../../common/exceptions/busine
 import { CachedReaderData } from '../../../dto/domain/cached-reader-data.dto';
 import { Report } from '../../../entities/report.entity';
 import { ReportRunStatus } from '../../../enums/report-run-status.enum';
+import { ConsumptionTrackingService } from '../../../services/consumption-tracking.service';
 import { ReportService } from '../../../services/report.service';
 import { ConnectionConfigSchema } from '../schemas/connection-config.schema';
 import { ConnectorRequestConfigV1Schema } from '../schemas/connector-request-config.schema.v1';
@@ -28,7 +29,8 @@ export class LookerStudioConnectorApiService {
     private readonly schemaService: LookerStudioConnectorApiSchemaService,
     private readonly dataService: LookerStudioConnectorApiDataService,
     private readonly cacheService: ReportDataCacheService,
-    private readonly reportService: ReportService
+    private readonly reportService: ReportService,
+    private readonly consumptionTrackingService: ConsumptionTrackingService
   ) {}
 
   public async getConfig(request: GetConfigRequest): Promise<GetConfigResponse> {
@@ -60,6 +62,7 @@ export class LookerStudioConnectorApiService {
           await this.reportService.updateRunStatus(report.id, ReportRunStatus.ERROR, error.message);
         } else {
           await this.reportService.updateRunStatus(report.id, ReportRunStatus.SUCCESS);
+          await this.consumptionTrackingService.registerLookerReportRunConsumption(report);
         }
       }
     }
