@@ -137,6 +137,7 @@ describe('NodeJsEnvironment', () => {
       cwd: mockWorkDir,
       stdio: 'inherit',
       env: mockExecutionContext,
+      detached: true,
     });
   });
 
