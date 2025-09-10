@@ -62,10 +62,14 @@ class NodeJsEnvironment extends ExecutionEnvironment {
     return new Promise((resolve, reject) => {
       let spawnStdio = 'inherit';
       let logCapture = null;
+      let onSpawn = null;
 
       if (stdio && typeof stdio === 'object' && stdio.logCapture) {
         logCapture = stdio.logCapture;
         spawnStdio = 'pipe';
+        if (typeof stdio.onSpawn === 'function') {
+          onSpawn = stdio.onSpawn;
+        }
       } else if (stdio && Array.isArray(stdio)) {
         spawnStdio = stdio;
       } else if (typeof stdio === 'string') {
@@ -76,7 +80,17 @@ class NodeJsEnvironment extends ExecutionEnvironment {
         cwd: environmentPath,
         stdio: spawnStdio,
         env: executionContext,
+        // It is necessary to send signals to all group.
+        detached: true,
       });
+
+      if (onSpawn) {
+        try {
+          onSpawn(node.pid);
+        } catch (error) {
+          console.error(`Failed to call onSpawn callback: ${error.message}`);
+        }
+      }
 
       if (logCapture && node.stdout && node.stderr) {
         node.stdout.on('data', data => {

@@ -9,13 +9,17 @@ import { ConnectorMessageType } from '../../enums/connector-message-type-enum';
 export class ConnectorOutputCaptureService {
   constructor(private readonly connectorMessageParserService: ConnectorMessageParserService) {}
 
-  createCapture(onMessage: (message: ConnectorMessage) => void): ConnectorOutputCapture {
+  createCapture(
+    onMessage: (message: ConnectorMessage) => void,
+    onSpawn: (pid: number) => void
+  ): ConnectorOutputCapture {
     return {
       logCapture: {
         onStdout: (message: string) => this.captureMessage(message).forEach(onMessage),
         onStderr: (message: string) => this.captureError(message).forEach(onMessage),
         passThrough: false,
       },
+      onSpawn,
     };
   }
 

@@ -206,11 +206,12 @@ When the application receives a shutdown signal, the graceful shutdown service:
 
 1. Prevents new triggers from being processed
 2. Tracks active trigger processing
-3. Waits for active processing to complete
-4. Only terminates after all processing is complete or a configurable timeout is
-   reached
+3. Signals OS processes when available (`SIGTERM`; `SIGKILL` after timeout)
+4. Waits for active processing to complete or until the configurable timeout
+
+Internally, the service exposes helpers (`isInShutdownMode`, `registerActiveProcess`/`unregisterActiveProcess`, `updateProcessPid`) and `initiateShutdown(signal)`, which is invoked by the module lifecycle (`onModuleDestroy`).
 
 The timeout for graceful shutdown can be configured using the
 `SCHEDULER_GRACEFUL_SHUTDOWN_TIMEOUT_MINUTES` environment variable. If active
 processes are still running when the timeout is reached, the application will
-log details about these processes and then terminate.
+log details about these processes, send `SIGKILL` to known PIDs, and then terminate.

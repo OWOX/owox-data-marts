@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -29,6 +29,7 @@ import { ConnectorOutputState } from '../connector-types/interfaces/connector-ou
 import { ConnectorStateService } from '../connector-types/connector-message/services/connector-state.service';
 import { DataMartService } from './data-mart.service';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
+import { GracefulShutdownService } from '../../common/scheduler/services/graceful-shutdown.service';
 
 interface ConfigurationExecutionResult {
   configIndex: number;
@@ -38,7 +39,7 @@ interface ConfigurationExecutionResult {
 }
 
 @Injectable()
-export class ConnectorExecutionService {
+export class ConnectorExecutionService implements OnApplicationBootstrap {
   private readonly logger = new Logger(ConnectorExecutionService.name);
 
   constructor(
@@ -46,7 +47,8 @@ export class ConnectorExecutionService {
     private readonly dataMartRunRepository: Repository<DataMartRun>,
     private readonly connectorOutputCaptureService: ConnectorOutputCaptureService,
     private readonly connectorStateService: ConnectorStateService,
-    private readonly dataMartService: DataMartService
+    private readonly dataMartService: DataMartService,
+    private readonly gracefulShutdownService: GracefulShutdownService
   ) {}
 
   async cancelRun(dataMartId: string, runId: string): Promise<void> {
@@ -160,16 +162,25 @@ export class ConnectorExecutionService {
     runId: string,
     payload?: Record<string, unknown>
   ): Promise<void> {
+    const processId = `connector-run-${runId}`;
+
+    this.gracefulShutdownService.registerActiveProcess(processId);
+
     const state: ConnectorOutputState = { state: {}, at: '' };
     const capturedLogs: ConnectorMessage[] = [];
     const capturedErrors: ConnectorMessage[] = [];
 
     try {
+      if (this.gracefulShutdownService.isInShutdownMode()) {
+        throw new Error('Skipping connector execution. Application is shutting down.');
+      }
+
       await this.dataMartRunRepository.update(runId, {
         status: DataMartRunStatus.RUNNING,
       });
       const configurationResults = await this.runConnectorConfigurations(
         runId,
+        processId,
         dataMart,
         state,
         payload
@@ -199,16 +210,26 @@ export class ConnectorExecutionService {
       await this.updateRunState(dataMart.id, state);
 
       this.logger.debug(`Actualizing schema for DataMart ${dataMart.id} after connector execution`);
-      await this.dataMartService.actualizeSchema(
-        dataMart.id,
-        dataMart.projectId,
-        dataMart.createdById
-      );
+
+      // If the connector does not receive any data, the data storage resource will not be created.
+      // The connector will complete its work with the status “SUCCESS” but don't unregister active process.
+      try {
+        await this.dataMartService.actualizeSchema(
+          dataMart.id,
+          dataMart.projectId,
+          dataMart.createdById
+        );
+      } catch (error) {
+        this.logger.error(`Error schema actualization: ${error}`);
+      }
+
+      this.gracefulShutdownService.unregisterActiveProcess(processId);
     }
   }
 
   private async runConnectorConfigurations(
     runId: string,
+    processId: string,
     dataMart: DataMart,
     state: ConnectorOutputState,
     payload?: Record<string, unknown>
@@ -250,6 +271,9 @@ export class ConnectorExecutionService {
               this.logger.log(`${message.toFormattedString()}`);
               break;
           }
+        },
+        (pid: number) => {
+          this.gracefulShutdownService.updateProcessPid(processId, pid);
         }
       );
 
@@ -300,7 +324,10 @@ export class ConnectorExecutionService {
     capturedLogs: ConnectorMessage[],
     capturedErrors: ConnectorMessage[]
   ): Promise<void> {
-    const status = capturedErrors.length > 0 ? DataMartRunStatus.FAILED : DataMartRunStatus.SUCCESS;
+    let status = capturedErrors.length > 0 ? DataMartRunStatus.FAILED : DataMartRunStatus.SUCCESS;
+    if (this.gracefulShutdownService.isInShutdownMode()) {
+      status = DataMartRunStatus.INTERRUPTED;
+    }
 
     await this.dataMartRunRepository.update(runId, {
       status,
@@ -414,5 +441,48 @@ export class ConnectorExecutionService {
       data,
       state: state?.state,
     });
+  }
+
+  /**
+   * Get all runs by status
+   */
+  async getDataMartRunsByStatus(status: DataMartRunStatus): Promise<DataMartRun[]> {
+    return this.dataMartRunRepository.find({
+      where: { status },
+      order: { createdAt: 'ASC' },
+      relations: ['dataMart'],
+    });
+  }
+
+  /**
+   * Executes background connector for data mart runs that are in the INTERRUPTED status.
+   * Retrieves the list of interrupted runs, validates and checks if the respective data mats are already running,
+   * and then attempts to resume their execution in the background.
+   * @return {Promise<void>} A promise that resolves when all interrupted runs have been processed.
+   */
+  private async executeInterruptedRuns(): Promise<void> {
+    const interruptedRuns = await this.getDataMartRunsByStatus(DataMartRunStatus.INTERRUPTED);
+    for (const run of interruptedRuns) {
+      this.validateDataMartForConnector(run.dataMart);
+      const isRunning = await this.checkDataMartIsRunning(run.dataMart);
+      if (isRunning) {
+        throw new Error('DataMart is already running');
+      }
+
+      this.executeInBackground(run.dataMart, run.id, run.additionalParams).catch(error => {
+        this.logger.error(`Interrupted background execution failed for run ${run.id}:`, error);
+      });
+    }
+  }
+
+  /**
+   * Executes tasks or operations needed upon application bootstrap.
+   * This method is typically invoked automatically when the application starts to ensure
+   * any interrupted runs or pending processes are resumed and properly handled.
+   *
+   * @return {Promise<void>} A promise that resolves when the bootstrap operations are completed.
+   */
+  async onApplicationBootstrap(): Promise<void> {
+    await this.executeInterruptedRuns();
   }
 }

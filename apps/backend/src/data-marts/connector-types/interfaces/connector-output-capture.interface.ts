@@ -4,4 +4,5 @@ export interface ConnectorOutputCapture {
     onStderr: (message: string) => void;
     passThrough: boolean;
   };
+  onSpawn: (pid: number) => void;
 }
