@@ -82,11 +82,10 @@ export abstract class AbstractTriggerRunnerService<T extends TimeBasedTrigger>
 
     // Check if the application is shutting down
     if (this.shutdownService.isInShutdownMode()) {
-      const shutdownError = new Error(
-        `Cannot process trigger ${trigger.id}: Application is shutting down`
+      this.logger.warn(
+        `[${this.handlerName}] Cannot process trigger ${trigger.id}: Application is shutting down.`
       );
-      this.logger.warn(`[${this.handlerName}] ${shutdownError.message}`);
-      throw shutdownError;
+      return;
     }
 
     try {

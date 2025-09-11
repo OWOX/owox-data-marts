@@ -34,6 +34,7 @@ export const mapRunStatusToStatusType = (status: RunStatus): StatusTypeEnum => {
       return StatusTypeEnum.INFO;
     case RunStatus.FAILED:
     case RunStatus.CANCELLED:
+    case RunStatus.INTERRUPTED:
       return StatusTypeEnum.ERROR;
     default:
       return StatusTypeEnum.NEUTRAL;
@@ -74,6 +75,8 @@ export const getRunStatusText = (status: RunStatus): string => {
       return 'Failed';
     case RunStatus.CANCELLED:
       return 'Cancelled';
+    case RunStatus.INTERRUPTED:
+      return 'Interrupted';
     default:
       return 'Unknown';
   }

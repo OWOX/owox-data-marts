@@ -1,5 +1,18 @@
-import { Injectable, OnModuleDestroy, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+
+/**
+ * Represents a process tracked by the graceful shutdown service.
+ *
+ * @property id Unique identifier used within the service
+ * @property startTime when processing started (used to compute duration)
+ * @property pid Optional OS process ID; if absent, signal delivery is skipped
+ */
+interface ActiveProcess {
+  id: string;
+  startTime: Date;
+  pid?: number;
+}
 
 /**
  * Service that manages graceful shutdown for trigger runners.
@@ -18,7 +31,7 @@ export class GracefulShutdownService implements OnModuleDestroy {
   private shutdownPromise: Promise<void> | null = null;
   private shutdownResolve: (() => void) | null = null;
 
-  private activeProcesses = new Map<string, { id: string; startTime: Date }>();
+  private activeProcesses = new Map<string, ActiveProcess>();
 
   private readonly shutdownTimeoutMinutes: number;
 
@@ -77,17 +90,44 @@ export class GracefulShutdownService implements OnModuleDestroy {
   }
 
   /**
+   * Sends a signal to a specific process and handles errors appropriately.
+   */
+  private sendSignalToProcess(activeProcess: ActiveProcess, signal: string): void {
+    if (activeProcess.pid != null) {
+      try {
+        process.kill(-activeProcess.pid, signal);
+        this.logger.debug(
+          `Sent signal ${signal} to process ${activeProcess.id} (pid: ${activeProcess.pid})`
+        );
+      } catch (err) {
+        if (err?.code === 'ESRCH') {
+          this.logger.warn(
+            `Process ${activeProcess.id} (pid: ${activeProcess.pid}) not found when sending signal ${signal}`
+          );
+        } else {
+          this.logger.error(
+            `Failed to send signal ${signal} to process ${activeProcess.id} (pid: ${activeProcess.pid})`,
+            err?.stack || err
+          );
+        }
+      }
+    }
+  }
+
+  /**
    * Initiates the shutdown process.
    *
    * @returns A promise that resolves when the shutdown is complete
    */
-  public async initiateShutdown(): Promise<void> {
+  public async initiateShutdown(signal = 'SIGTERM'): Promise<void> {
     if (this.isShuttingDown) {
       return this.shutdownPromise!;
     }
 
     this.isShuttingDown = true;
-    this.logger.log(`Graceful shutdown initiated. Active processes: ${this.activeProcesses.size}`);
+    this.logger.log(
+      `Graceful shutdown initiated by signal "${signal}". Active processes: ${this.activeProcesses.size}`
+    );
 
     // If there are no active processes, complete immediately
     if (this.activeProcesses.size === 0) {
@@ -95,6 +135,10 @@ export class GracefulShutdownService implements OnModuleDestroy {
       this.shutdownPromise = Promise.resolve();
       return this.shutdownPromise;
     }
+
+    this.activeProcesses.forEach(activeProcess => {
+      this.sendSignalToProcess(activeProcess, signal);
+    });
 
     this.shutdownPromise = new Promise<void>(resolve => {
       this.shutdownResolve = resolve;
@@ -110,10 +154,13 @@ export class GracefulShutdownService implements OnModuleDestroy {
               );
 
               // Log details of remaining processes
-              this.activeProcesses.forEach((process, id) => {
-                const durationMs = new Date().getTime() - process.startTime.getTime();
+              this.activeProcesses.forEach(activeProcess => {
+                const durationMs = new Date().getTime() - activeProcess.startTime.getTime();
                 const durationMinutes = Math.round((durationMs / 60000) * 10) / 10; // Round to 1 decimal place
-                this.logger.warn(`Process ${id} has been running for ${durationMinutes}m`);
+                this.logger.warn(
+                  `Process ${activeProcess.id} has been running for ${durationMinutes}m`
+                );
+                this.sendSignalToProcess(activeProcess, 'SIGKILL');
               });
             }
             this.shutdownResolve();
@@ -137,6 +184,22 @@ export class GracefulShutdownService implements OnModuleDestroy {
       this.shutdownResolve();
       this.shutdownResolve = null;
     }
+  }
+
+  /**
+   * Updates the OS PID for a tracked process.
+   *
+   * @param processId Unique identifier of the tracked process in `activeProcesses`
+   * @param pid OS process ID to associate with the tracked process
+   */
+  public updateProcessPid(processId: string, pid: number): void {
+    const activeProcess = this.activeProcesses.get(processId);
+    if (!activeProcess) {
+      this.logger.warn(`Process ${processId} not found`);
+      return;
+    }
+
+    activeProcess.pid = pid;
   }
 
   /**

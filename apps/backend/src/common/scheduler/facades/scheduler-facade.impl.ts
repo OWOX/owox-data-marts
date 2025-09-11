@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { TimeBasedTrigger } from '../shared/entities/time-based-trigger.entity';
 import { TriggerRunnerFactory } from '../services/runners/trigger-runner.factory';
 import { TimeBasedTriggerFetcherFactory } from '../services/fetchers/time-based-trigger-fetcher.factory';
+import { GracefulShutdownService } from '../services/graceful-shutdown.service';
 
 /**
  * The SchedulerFacadeImpl class is an implementation of the SchedulerFacade interface, providing
@@ -25,7 +26,8 @@ export class SchedulerFacadeImpl implements SchedulerFacade {
     private readonly configService: ConfigService,
     private readonly triggerFetcherFactory: TimeBasedTriggerFetcherFactory,
     private readonly triggerRunnerFactory: TriggerRunnerFactory,
-    private readonly systemTimeService: SystemTimeService
+    private readonly systemTimeService: SystemTimeService,
+    private readonly gracefulShutdownService: GracefulShutdownService
   ) {}
 
   /**
@@ -49,8 +51,18 @@ export class SchedulerFacadeImpl implements SchedulerFacade {
     const timezone = this.configService.get<string>('SCHEDULER_TIMEZONE', this.defaultTimezone);
     const job = new CronJob(
       triggerHandler.processingCronExpression(),
-      () =>
-        fetcher.fetchTriggersReadyForProcessing().then(triggers => runner.runTriggers(triggers)),
+      () => {
+        if (this.gracefulShutdownService.isInShutdownMode()) {
+          this.logger.warn(
+            `[${triggerHandler.constructor.name}] Fetching triggers skipped. Application is shutdown.`
+          );
+          return Promise.resolve();
+        }
+
+        return fetcher
+          .fetchTriggersReadyForProcessing()
+          .then(triggers => runner.runTriggers(triggers));
+      },
       null,
       false,
       timezone

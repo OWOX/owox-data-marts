@@ -40,6 +40,15 @@ export function StatusBadge({ status }: StatusBadgeProps) {
           Cancelled
         </Badge>
       );
+    case RunStatus.INTERRUPTED:
+      return (
+        <Badge
+          variant='secondary'
+          className='bg-gray-50 text-gray-500 dark:bg-gray-950 dark:text-gray-400'
+        >
+          Interrupted
+        </Badge>
+      );
     default:
       return (
         <Badge
