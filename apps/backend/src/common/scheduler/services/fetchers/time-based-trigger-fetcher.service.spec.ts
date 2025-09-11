@@ -1,8 +1,9 @@
 import { TimeBasedTriggerFetcherService } from './time-based-trigger-fetcher.service';
 import { SystemTimeService } from '../system-time.service';
 import { TimeBasedTrigger, TriggerStatus } from '../../shared/entities/time-based-trigger.entity';
-import { LessThanOrEqual, OptimisticLockVersionMismatchError, Repository } from 'typeorm';
+import { FindOptionsWhere, LessThanOrEqual, Repository, UpdateResult } from 'typeorm';
 import { Logger } from '@nestjs/common';
+import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 
 // Create a concrete implementation of the abstract TimeBasedTrigger class for testing
 class TestTimeBasedTrigger extends TimeBasedTrigger {
@@ -32,7 +33,7 @@ describe('TimeBasedTriggerFetcherService', () => {
     // Create mock repository
     repository = {
       metadata: { name: 'TestTimeBasedTrigger' },
-      save: jest.fn().mockImplementation(async entity => entity as TestTimeBasedTrigger),
+      update: jest.fn().mockResolvedValue({ affected: 1 } as UpdateResult),
       find: jest.fn(),
     } as unknown as jest.Mocked<Repository<TestTimeBasedTrigger>>;
 
@@ -81,7 +82,7 @@ describe('TimeBasedTriggerFetcherService', () => {
       );
 
       // Verify the triggers were marked as ready
-      expect(repository.save).toHaveBeenCalledTimes(2);
+      expect(repository.update).toHaveBeenCalledTimes(2);
       expect(result.length).toBe(2);
       expect(result[0].status).toBe(TriggerStatus.READY);
       expect(result[1].status).toBe(TriggerStatus.READY);
@@ -96,27 +97,32 @@ describe('TimeBasedTriggerFetcherService', () => {
 
       // Assert
       expect(result).toEqual([]);
-      expect(repository.save).not.toHaveBeenCalled();
+      expect(repository.update).not.toHaveBeenCalled();
     });
 
     it('should handle optimistic lock version mismatch errors', async () => {
       // Arrange
       repository.find.mockResolvedValue(mockTriggers);
 
-      // Mock save to throw OptimisticLockVersionMismatchError for the first trigger
-      repository.save.mockImplementation(async trigger => {
-        if ((trigger as TestTimeBasedTrigger).id === 'trigger-1') {
-          throw new OptimisticLockVersionMismatchError('TestTimeBasedTrigger', 1, 2);
+      // Mock update to simulate optimistic lock conflict (affected: 0) for the first trigger
+      repository.update.mockImplementation(
+        async (
+          criteria: FindOptionsWhere<TestTimeBasedTrigger>,
+          _partial: QueryDeepPartialEntity<TestTimeBasedTrigger>
+        ) => {
+          if (criteria && (criteria as FindOptionsWhere<TestTimeBasedTrigger>).id === 'trigger-1') {
+            return { affected: 0 } as UpdateResult;
+          }
+          return { affected: 1 } as UpdateResult;
         }
-        return trigger as TestTimeBasedTrigger;
-      });
+      );
 
       // Act
       const result = await service.fetchTriggersReadyForProcessing();
 
       // Assert
-      // Verify both triggers were attempted to be saved
-      expect(repository.save).toHaveBeenCalledTimes(2);
+      // Verify both triggers were attempted to be updated
+      expect(repository.update).toHaveBeenCalledTimes(2);
 
       // Verify only the second trigger was returned (first one had lock conflict)
       expect(result.length).toBe(1);
@@ -142,8 +148,8 @@ describe('TimeBasedTriggerFetcherService', () => {
       // Verify an empty array is returned when an error occurs
       expect(result).toEqual([]);
 
-      // Verify no triggers were saved
-      expect(repository.save).not.toHaveBeenCalled();
+      // Verify no triggers were updated
+      expect(repository.update).not.toHaveBeenCalled();
     });
 
     it('should handle non-optimistic lock errors during markTriggersAsReady and return empty array', async () => {
@@ -151,8 +157,8 @@ describe('TimeBasedTriggerFetcherService', () => {
       repository.find.mockResolvedValue(mockTriggers);
       const testError = new Error('Non-optimistic lock error');
 
-      // Mock save to throw a non-optimistic lock error
-      repository.save.mockImplementation(async () => {
+      // Mock update to throw a non-optimistic lock error
+      repository.update.mockImplementation(async () => {
         throw testError;
       });
 
@@ -163,8 +169,8 @@ describe('TimeBasedTriggerFetcherService', () => {
       // Verify triggers were fetched
       expect(repository.find).toHaveBeenCalled();
 
-      // Verify save was attempted
-      expect(repository.save).toHaveBeenCalled();
+      // Verify update was attempted
+      expect(repository.update).toHaveBeenCalled();
 
       // Verify an empty array is returned when an error occurs
       expect(result).toEqual([]);

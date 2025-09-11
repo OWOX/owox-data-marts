@@ -1,12 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import {
-  FindManyOptions,
-  LessThanOrEqual,
-  OptimisticLockVersionMismatchError,
-  Repository,
-} from 'typeorm';
+import { FindManyOptions, FindOptionsWhere, LessThanOrEqual, Repository } from 'typeorm';
 import { TimeBasedTrigger, TriggerStatus } from '../../shared/entities/time-based-trigger.entity';
 import { SystemTimeService } from '../system-time.service';
+import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 
 /**
  * Service responsible for fetching time-based triggers that are ready for processing.
@@ -69,22 +65,27 @@ export class TimeBasedTriggerFetcherService<T extends TimeBasedTrigger> {
    */
   private async markTriggersAsReady(triggers: T[]): Promise<T[]> {
     const triggersToProcess: T[] = [];
-    for (let i = 0; i < triggers.length; i++) {
-      const trigger = triggers[i];
-      try {
-        trigger.status = TriggerStatus.READY;
-        await this.repository.save(trigger);
-        triggersToProcess.push(trigger);
-      } catch (error) {
-        if (error instanceof OptimisticLockVersionMismatchError) {
-          this.logger.log(
-            `[${this.entityName}] Optimistic lock conflict for trigger ${trigger.id}. Skipping as likely processed by another instance.`
-          );
-        } else {
-          throw error;
-        }
+    for (const trigger of triggers) {
+      const { affected } = await this.repository.update(
+        { id: trigger.id, version: trigger.version } as FindOptionsWhere<T>,
+        {
+          status: TriggerStatus.READY,
+          version: () => '"version" + 1',
+        } as QueryDeepPartialEntity<T>
+      );
+
+      if (!affected) {
+        this.logger.log(
+          `[${this.entityName}] Optimistic lock conflict for trigger ${trigger.id}. Skipping as likely processed by another instance.`
+        );
+        continue;
       }
+
+      trigger.status = TriggerStatus.READY;
+      trigger.version += 1;
+      triggersToProcess.push(trigger);
     }
+
     return triggersToProcess;
   }
 
