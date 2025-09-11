@@ -16,7 +16,7 @@ import { BaseCommand } from './base.js';
  * @interface ServeFlags
  */
 interface ServeFlags {
-  /** Log format configuration (e.g., 'json', 'text') */
+  /** Log format configuration (e.g., 'json', 'pretty') */
   'log-format': string;
   /** Port number for the application server */
   port: number;

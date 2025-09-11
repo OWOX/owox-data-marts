@@ -73,6 +73,7 @@ export async function createBetterAuthConfig(
     })
   );
 
+  const calcBaseURL = config.baseURL || `http://localhost:${process.env.PORT || '3000'}`;
   const authConfig: Record<string, unknown> = {
     database,
     plugins,
@@ -80,8 +81,8 @@ export async function createBetterAuthConfig(
       expiresIn: config.session?.maxAge || 60 * 60 * 24 * 7,
       updateAge: 60 * 60 * 24,
     },
-    trustedOrigins: config.baseURL ? [config.baseURL] : ['http://localhost:3000'],
-    baseURL: config.baseURL || 'http://localhost:3000',
+    trustedOrigins: [calcBaseURL, ...(config.trustedOrigins || [])],
+    baseURL: calcBaseURL,
     secret: config.secret,
     emailAndPassword: {
       enabled: true,
