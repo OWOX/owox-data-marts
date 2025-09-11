@@ -103,8 +103,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const tokenProvider = new DefaultTokenProvider(
         () => state.session?.accessToken ?? null,
         async () => {
-          const response = await refreshAccessTokenApi();
-          return response.accessToken;
+          // Need refresh with update session and user in the state
+          // for example when user change name we want to have updated user info
+          return await refresh();
         }
       );
       setTokenProvider(tokenProvider);
@@ -120,10 +121,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     signInApi();
   }, []);
 
-  /**
-   * Refresh access token using http-only cookie
-   */
-  const refreshToken = useCallback(async () => {
+  async function refresh(): Promise<string> {
     try {
       const response = await refreshAccessTokenApi();
 
@@ -148,11 +146,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
         type: 'SET_AUTHENTICATED',
         payload: { session: newSession },
       });
+      return accessToken;
     } catch (error: unknown) {
       clearTokenProvider();
       dispatch({ type: 'SET_UNAUTHENTICATED' });
       throw error;
     }
+  }
+
+  /**
+   * Refresh access token using http-only cookie
+   */
+  const refreshToken = useCallback(async () => {
+    await refresh();
   }, []);
 
   /**

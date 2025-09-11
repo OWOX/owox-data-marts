@@ -3,6 +3,7 @@ import axios, {
   type AxiosRequestConfig as OriginalAxiosRequestConfig,
   AxiosError,
   type InternalAxiosRequestConfig,
+  AxiosHeaders,
 } from 'axios';
 import toast from 'react-hot-toast';
 import type { ApiError } from './api-error.interface.ts';
@@ -43,6 +44,11 @@ const authStateManager = new AuthStateManager();
 apiClient.interceptors.request.use(
   (config: ExtendedInternalAxiosRequestConfig) => {
     if (config.skipAuthHeader) {
+      return config;
+    }
+
+    const headers = new AxiosHeaders(config.headers);
+    if (headers.has('X-OWOX-Authorization')) {
       return config;
     }
 
