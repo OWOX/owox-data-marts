@@ -75,6 +75,8 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
     */
     startImportProcessOfCatalogData(nodeName, accountIds, fields) {
 
+      let totalRecords = 0;
+
       for(var i in accountIds) {
         
         let accountId = accountIds[i];
@@ -84,8 +86,18 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
         if( data.length ) {
           this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for account ${accountId}`);
           this.getStorageByNode(nodeName, fields ).saveData( data );
+          totalRecords += data.length;
         }
 
+      }
+
+      // If no data was found but should create empty table
+      if (totalRecords === 0 && this.config.CreateEmptyTables?.value === "true") {
+        let storage = this.getStorageByNode(nodeName, fields);
+        let allFields = this.source.fieldsSchema[nodeName]?.fields ? 
+          Object.keys(this.source.fieldsSchema[nodeName].fields) : fields;
+        
+        this.createEmptyTableWithAllColumns(nodeName, allFields, storage);
       }
 
     }
@@ -102,6 +114,9 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
 
     */
     startImportProcessOfTimeSeriesData(accountsIds, timeSeriesNodes, startDate, daysToFetch = 1) {
+
+      // Track which nodes had data across all days/accounts
+      const nodesWithData = new Set();
 
       // start requesting data day by day from startDate to startDate + MaxFetchingDays
       for(var daysShift = 0; daysShift < daysToFetch; daysShift++) {
@@ -132,6 +147,7 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
 
               this.config.logMessage(`${data.length} records were fetched`);
               this.getStorageByNode(nodeName, timeSeriesNodes[ nodeName ] ).saveData(data);
+              nodesWithData.add(nodeName);
 
             }
             
@@ -145,7 +161,20 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
         }
         startDate.setDate( startDate.getDate() + 1);  // let's move on to the next date
 
-      }    
+      }
+
+      // Create empty tables for nodes that had no data if required
+      if (this.config.CreateEmptyTables?.value === "true") {
+        for (let nodeName in timeSeriesNodes) {
+          if (!nodesWithData.has(nodeName)) {
+            let storage = this.getStorageByNode(nodeName, timeSeriesNodes[nodeName]);
+            let allFields = this.source.fieldsSchema[nodeName]?.fields ? 
+              Object.keys(this.source.fieldsSchema[nodeName].fields) : timeSeriesNodes[nodeName];
+            
+            this.createEmptyTableWithAllColumns(nodeName, allFields, storage);
+          }
+        }
+      }
     }
   
 //---- getStorageName -------------------------------------------------

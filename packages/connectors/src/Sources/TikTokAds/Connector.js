@@ -166,7 +166,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
             let data = this.source.fetchData(nodeName, advertiserId, timeSeriesNodes[nodeName], currentDate);
 
             // Process fetched records
-            if (!data.length && daysShift == 0) {
+            if (!data.length) {
               this.config.logMessage(`ℹ️ No records have been fetched`);
             } else {
               this.config.logMessage(`${data.length} records were fetched`);
