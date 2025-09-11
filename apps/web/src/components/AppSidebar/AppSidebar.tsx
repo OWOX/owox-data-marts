@@ -12,7 +12,6 @@ import { UserMenu } from './UserMenu';
 import { ActionButton } from './ActionButton';
 import { MainMenu } from './MainMenu';
 
-// Prop types support
 interface AppSidebarProps {
   variant?: 'sidebar' | 'floating' | 'inset';
   collapsible?: 'offcanvas' | 'icon' | 'none';

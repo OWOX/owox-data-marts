@@ -1,4 +1,3 @@
-import type { FC } from 'react';
 import {
   DropdownMenuContent,
   DropdownMenuItem,
@@ -8,7 +7,7 @@ import { projectMenuItems } from './items';
 import type { ProjectMenuItem } from './types';
 import { SwitchProjectMenuItem } from './SwitchProjectMenuItem';
 
-export const ProjectMenuContent: FC = () => {
+export function ProjectMenuContent() {
   return (
     <DropdownMenuContent align='start' sideOffset={8} className='w-56'>
       {projectMenuItems
@@ -42,4 +41,4 @@ export const ProjectMenuContent: FC = () => {
         })}
     </DropdownMenuContent>
   );
-};
+}

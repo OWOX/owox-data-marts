@@ -1,4 +1,3 @@
-// sidebar-nav-menu.tsx
 import { NavLink } from 'react-router-dom';
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@owox/ui/components/sidebar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';

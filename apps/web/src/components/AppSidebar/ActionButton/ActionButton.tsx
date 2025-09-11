@@ -1,4 +1,3 @@
-// sidebar-cta-button.tsx
 import { NavLink } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { useProjectRoute } from '../../../shared/hooks';

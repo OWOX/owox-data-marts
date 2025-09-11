@@ -1,4 +1,3 @@
-// sidebar-nav-items.ts
 import { Box, DatabaseIcon, ArchiveRestore } from 'lucide-react';
 import type { MainMenuItem } from './types';
 

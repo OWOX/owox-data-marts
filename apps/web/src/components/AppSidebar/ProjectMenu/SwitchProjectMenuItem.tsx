@@ -1,4 +1,3 @@
-import type { FC } from 'react';
 import { useState } from 'react';
 import {
   DropdownMenuSub,
@@ -20,8 +19,7 @@ interface SwitchProjectMenuItemProps {
   icon: React.ComponentType<{ className?: string }>;
 }
 
-export const SwitchProjectMenuItem: FC<SwitchProjectMenuItemProps> = ({ title, icon: Icon }) => {
-  // Temporary project list; replace with API call later
+export function SwitchProjectMenuItem({ title, icon: Icon }: SwitchProjectMenuItemProps) {
   const [projects] = useState<Project[]>([
     { title: 'Project 1', href: '/project-1', isCurrent: true },
     { title: 'Project 2', href: '/project-2', isCurrent: false },
@@ -48,4 +46,4 @@ export const SwitchProjectMenuItem: FC<SwitchProjectMenuItemProps> = ({ title, i
       </DropdownMenuPortal>
     </DropdownMenuSub>
   );
-};
+}
