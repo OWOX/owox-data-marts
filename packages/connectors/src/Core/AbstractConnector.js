@@ -343,6 +343,34 @@ var AbstractConnector = class AbstractConnector {
     }
     //----------------------------------------------------------------
 
+  //---- createEmptyTableWithAllColumns -----------------------------
+    /**
+     * Creates an empty table with all available columns for a given node.
+     * This method should be called when no data is returned from API but
+     * we still want to create the table structure.
+     * 
+     * @param {string} nodeName - Name of the node/table to create
+     * @param {Array} allFields - All available fields for this node
+     * @param {Object} storage - Storage instance to use for table creation
+     */
+    createEmptyTableWithAllColumns(nodeName, allFields, storage) {
+      if (!storage || !allFields || !allFields.length) {
+        return;
+      }
+
+      // Create empty row with all fields
+      const emptyRow = {};
+      allFields.forEach(field => {
+        emptyRow[field] = null;
+      });
+
+      this.config.logMessage(`Creating empty table '${nodeName}' with ${allFields.length} columns`);
+      
+      // Save single empty row to trigger table creation with all columns
+      storage.saveData([emptyRow]);
+    }
+    //----------------------------------------------------------------
+
   //---- getDestinationName ----------------------------------
     /**
      * Resolves destination table name for a given node.
