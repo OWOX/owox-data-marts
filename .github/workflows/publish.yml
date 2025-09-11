@@ -74,6 +74,16 @@ jobs:
             echo "Waiting for @owox/backend@${{ steps.extract_latest_version.outputs.version }} to appear on npm ($i/30)..."
             sleep 10
           done
+
+          for i in {1..30}; do
+            if npm view @owox/internal-helpers@${{ steps.extract_latest_version.outputs.version }} > /dev/null 2>&1; then
+              echo "✅ @owox/internal-helpers@${{ steps.extract_latest_version.outputs.version }} exists on npm"
+              break
+            fi
+            echo "Waiting for @owox/internal-helpers@${{ steps.extract_latest_version.outputs.version }} to appear on npm ($i/30)..."
+            sleep 10
+          done
+
           for i in {1..30}; do
             if npm view @owox/idp-protocol@${{ steps.extract_latest_version.outputs.version }} > /dev/null 2>&1; then
               echo "✅ @owox/idp-protocol@${{ steps.extract_latest_version.outputs.version }} exists on npm"
@@ -163,6 +173,16 @@ jobs:
             echo "Waiting for @owox/backend@${{ steps.extract_next_version.outputs.version }} to appear on npm ($i/30)..."
             sleep 10
           done
+
+          for i in {1..30}; do
+            if npm view @owox/internal-helpers@${{ steps.extract_next_version.outputs.version }} > /dev/null 2>&1; then
+              echo "✅ @owox/internal-helpers@${{ steps.extract_next_version.outputs.version }} exists on npm"
+              break
+            fi
+            echo "Waiting for @owox/internal-helpers@${{ steps.extract_next_version.outputs.version }} to appear on npm ($i/30)..."
+            sleep 10
+          done
+
           for i in {1..30}; do
             if npm view @owox/idp-protocol@${{ steps.extract_next_version.outputs.version }} > /dev/null 2>&1; then
               echo "✅ @owox/idp-protocol@${{ steps.extract_next_version.outputs.version }} exists on npm"
