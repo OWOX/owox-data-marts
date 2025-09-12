@@ -46,6 +46,12 @@ IDP_BETTER_AUTH_MYSQL_USER=root
 IDP_BETTER_AUTH_MYSQL_PASSWORD=your-password
 IDP_BETTER_AUTH_MYSQL_DATABASE=owox_auth
 IDP_BETTER_AUTH_MYSQL_PORT=3306
+
+# SSL Configuration (optional)
+IDP_BETTER_AUTH_MYSQL_SSL_CA=/path/to/ca-cert.pem
+IDP_BETTER_AUTH_MYSQL_SSL_CERT=/path/to/client-cert.pem
+IDP_BETTER_AUTH_MYSQL_SSL_KEY=/path/to/client-key.pem
+IDP_BETTER_AUTH_MYSQL_SSL_REJECT_UNAUTHORIZED=true
 ```
 
 ### 3. Start the Application
@@ -148,6 +154,8 @@ owox idp add-user user@example.com
 
 ## Configuration Reference
 
+### Core Configuration
+
 | Variable                          | Required |          Default          | Description                                 |
 | --------------------------------- | :------: | :-----------------------: | ------------------------------------------- |
 | `IDP_PROVIDER`                    | **Yes**  |             –             | Set to `better-auth`                        |
@@ -157,12 +165,26 @@ owox idp add-user user@example.com
 | `IDP_BETTER_AUTH_BASE_URL`        |    No    |  `http://localhost:3000`  | Base URL for magic links                    |
 | `IDP_BETTER_AUTH_MAGIC_LINK_TTL`  |    No    |      `3600` (1 hour)      | Magic link expiration (seconds)             |
 | `IDP_BETTER_AUTH_SESSION_MAX_AGE` |    No    |     `604800` (7 days)     | Session duration (seconds)                  |
-| `IDP_BETTER_AUTH_MYSQL_HOST`      |    No    |        `localhost`        | MySQL host                                  |
-| `IDP_BETTER_AUTH_MYSQL_USER`      |    No    |          `root`           | MySQL user                                  |
-| `IDP_BETTER_AUTH_MYSQL_PASSWORD`  |    No    |      `your-password`      | MySQL password                              |
-| `IDP_BETTER_AUTH_MYSQL_DATABASE`  |    No    |        `owox_auth`        | MySQL database                              |
-| `IDP_BETTER_AUTH_MYSQL_PORT`      |    No    |          `3306`           | MySQL port                                  |
 | `IDP_BETTER_AUTH_TRUSTED_ORIGINS` |    No    |  `http://localhost:3000`  | Trusted origins for auth service            |
+
+### MySQL Configuration
+
+| Variable                         | Required |     Default     | Description    |
+| -------------------------------- | :------: | :-------------: | -------------- |
+| `IDP_BETTER_AUTH_MYSQL_HOST`     |    No    |   `localhost`   | MySQL host     |
+| `IDP_BETTER_AUTH_MYSQL_USER`     |    No    |     `root`      | MySQL user     |
+| `IDP_BETTER_AUTH_MYSQL_PASSWORD` |    No    | `your-password` | MySQL password |
+| `IDP_BETTER_AUTH_MYSQL_DATABASE` |    No    |   `owox_auth`   | MySQL database |
+| `IDP_BETTER_AUTH_MYSQL_PORT`     |    No    |     `3306`      | MySQL port     |
+
+### MySQL SSL Configuration
+
+| Variable                                        | Required | Default | Description                                      |
+| ----------------------------------------------- | :------: | :-----: | ------------------------------------------------ |
+| `IDP_BETTER_AUTH_MYSQL_SSL_CA`                  |    No    |    –    | Path to CA certificate file                      |
+| `IDP_BETTER_AUTH_MYSQL_SSL_CERT`                |    No    |    –    | Path to client certificate file                  |
+| `IDP_BETTER_AUTH_MYSQL_SSL_KEY`                 |    No    |    –    | Path to client private key file                  |
+| `IDP_BETTER_AUTH_MYSQL_SSL_REJECT_UNAUTHORIZED` |    No    |    –    | Reject unauthorized SSL connections (true/false) |
 
 ## Troubleshooting
 

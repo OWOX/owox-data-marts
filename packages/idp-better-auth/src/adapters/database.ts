@@ -64,7 +64,7 @@ export async function createMysqlAdapter(config: MySqlConfig): Promise<unknown> 
   try {
     const mysql = await import('mysql2/promise');
 
-    return (mysql as { default: { createPool: (config: unknown) => unknown } }).default.createPool({
+    const poolConfig: Record<string, unknown> = {
       host: config.host,
       user: config.user,
       password: config.password,
@@ -73,7 +73,16 @@ export async function createMysqlAdapter(config: MySqlConfig): Promise<unknown> 
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,
-    });
+    };
+
+    // Add SSL configuration if provided
+    if (config.ssl) {
+      poolConfig.ssl = config.ssl;
+    }
+
+    return (mysql as { default: { createPool: (config: unknown) => unknown } }).default.createPool(
+      poolConfig
+    );
   } catch {
     throw new Error('mysql2 is required for MySQL support. Install it with: npm install mysql2');
   }
