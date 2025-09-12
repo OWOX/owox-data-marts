@@ -1,5 +1,30 @@
 # owox
 
+## 0.7.0
+
+### Minor Changes
+
+- 7d83d7c: # Add configurable timeout middleware for long-running operations
+  - Increase server timeout from 2 minutes to 3 minutes (180s) to prevent timeout errors
+  - Add operation-specific timeout middleware for data mart operations:
+    - SQL editing operations: 3 minutes timeout
+    - Schema operations: 3 minutes timeout
+    - Publishing operations: 3 minutes timeout
+    - All other operations: 30 seconds timeout (default)
+  - Update frontend timeout configuration for specific operations to 3 minutes
+  - Prevent race conditions in timeout middleware by ensuring only one timeout per request
+  - Add proper cleanup and error handling in timeout middleware
+
+  This change fixes timeout issues for long-running operations like SQL editing, schema refresh, and data mart publishing while maintaining reasonable timeouts for other operations.
+
+### Patch Changes
+
+- @owox/backend@0.7.0
+- @owox/idp-protocol@0.7.0
+- @owox/idp-better-auth@0.7.0
+- @owox/idp-owox@0.7.0
+- @owox/web@0.7.0
+
 ## 0.6.0
 
 ### Minor Changes 0.6.0
@@ -257,7 +282,6 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
-
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -265,7 +289,6 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
-
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
