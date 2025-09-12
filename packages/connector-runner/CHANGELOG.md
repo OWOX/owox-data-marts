@@ -2,7 +2,7 @@
 
 ## 0.7.0
 
-### Patch Changes
+### Patch Changes 0.7.0
 
 - @owox/connectors@0.7.0
 
