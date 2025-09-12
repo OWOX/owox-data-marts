@@ -7,7 +7,7 @@ export enum RequestStatus {
   ERROR = 'error',
 }
 
-export const RequestStatusValues: ReadonlyArray<RequestStatus> = [
+export const RequestStatusValues: readonly RequestStatus[] = [
   RequestStatus.IDLE,
   RequestStatus.LOADING,
   RequestStatus.LOADED,
