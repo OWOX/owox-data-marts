@@ -1,9 +1,5 @@
-import { createRequire } from 'node:module';
-
+import { getPackageInfo } from '../utils/package-info.js';
 import { BaseCommand } from './base.js';
-
-const require = createRequire(import.meta.url);
-const packageInfo = require('../../package.json');
 
 /**
  * Command to apply database dumps for the OWOX Data Marts application.
@@ -24,9 +20,9 @@ export default class DumpApply extends BaseCommand {
    */
   public async run(): Promise<void> {
     const { flags } = await this.parse(DumpApply);
+    this.loadEnvironment(flags);
 
-    this.initializeLogging(flags);
-    this.setupLogFormat(flags['log-format']);
+    const packageInfo = getPackageInfo();
     this.log(`🚀 Starting OWOX Data Marts Dump Apply (v${packageInfo.version})...`);
 
     try {

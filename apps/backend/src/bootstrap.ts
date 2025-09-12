@@ -18,9 +18,6 @@ const DEFAULT_PORT = 3000;
 
 export interface BootstrapOptions {
   express: Express;
-  port?: number;
-  logFormat?: string;
-  webEnabled?: boolean;
 }
 
 export async function bootstrap(options: BootstrapOptions): Promise<NestExpressApplication> {
@@ -29,19 +26,13 @@ export async function bootstrap(options: BootstrapOptions): Promise<NestExpressA
 
   const configService = new ConfigService();
 
-  // Override env vars with options
-  if (options.port) process.env.PORT = options.port.toString();
-  if (options.logFormat) process.env.LOG_FORMAT = options.logFormat;
-
   await runMigrationsIfNeeded(configService);
 
   // Create NestJS app with existing Express instance using ExpressAdapter
   const app = await NestFactory.create<NestExpressApplication>(
     AppModule,
     new ExpressAdapter(options.express),
-    {
-      logger,
-    }
+    { logger }
   );
 
   app.useLogger(createLogger());
@@ -55,7 +46,7 @@ export async function bootstrap(options: BootstrapOptions): Promise<NestExpressA
 
   app.enableShutdownHooks();
 
-  const port = options.port ?? configService.get<number>('PORT') ?? DEFAULT_PORT;
+  const port = configService.get<number>('PORT') ?? DEFAULT_PORT;
 
   const server = await app.listen(port);
   server.setTimeout(180000);
