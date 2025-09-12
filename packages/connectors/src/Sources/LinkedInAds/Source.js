@@ -8,11 +8,23 @@
 var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
   constructor(config) {
     super(config.mergeParameters({
-      AccessToken: {
+      ClientID: {
         isRequired: true,
         requiredType: "string",
-        label: "Access Token",
-        description: "LinkedIn API Access Token for authentication"
+        label: "Client ID",
+        description: "LinkedIn API Client ID for authentication"
+      },
+      ClientSecret: {
+        isRequired: true,
+        requiredType: "string",
+        label: "Client Secret",
+        description: "LinkedIn API Client Secret for authentication"
+      },
+      RefreshToken: {
+        isRequired: true,
+        requiredType: "string",
+        label: "Refresh Token",
+        description: "LinkedIn API Refresh Token for authentication"
       },
       Version: {
         requiredType: "string",
@@ -72,7 +84,19 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
     this.fieldsSchema = LinkedInAdsFieldsSchema;
     this.MAX_FIELDS_PER_REQUEST = 20;
   }
-  
+
+  /**
+   * Returns credential fields for this source
+   * @returns {Object}
+   */
+  getCredentialFields() {
+    return {
+      ClientID: this.config.ClientID,
+      ClientSecret: this.config.ClientSecret,
+      RefreshToken: this.config.RefreshToken
+    };
+  }
+
   /**
    * Main entry point for fetching data from LinkedIn Ads API
    * @param {string} nodeName - Type of resource to fetch (e.g., adAccounts, adCampaigns)
@@ -345,7 +369,17 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
    */
   makeRequest(url) {
     console.log(`LinkedIn Ads API Request URL:`, url);
-    
+    OAuthUtils.getAccessToken({ 
+      config: this.config,
+      tokenUrl: "https://www.linkedin.com/oauth/v2/accessToken",
+      formData: {
+        grant_type: 'refresh_token',
+        refresh_token: this.config.RefreshToken.value,
+        client_id: this.config.ClientID.value,
+        client_secret: this.config.ClientSecret.value
+      }
+    });
+
     const headers = {
       "LinkedIn-Version": this.config.Version.value,
       "X-RestLi-Protocol-Version": "2.0.0",

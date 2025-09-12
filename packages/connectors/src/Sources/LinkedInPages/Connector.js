@@ -54,7 +54,7 @@ var LinkedInPagesConnector = class LinkedInPagesConnector extends AbstractConnec
     
     // Update LastRequestedDate only for time series data and incremental runs
     if (isTimeSeriesNode && this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
-      this.config.updateLastRequstedDate(dateInfo.endDate);
+      this.config.updateLastRequstedDate(dateInfo.actualEndDate);
     }
   }
 
@@ -71,6 +71,9 @@ var LinkedInPagesConnector = class LinkedInPagesConnector extends AbstractConnec
   fetchAndSaveData({ nodeName, urns, fields, isTimeSeriesNode, startDate, endDate }) {
     for (const urn of urns) {
       console.log(`Processing ${nodeName} for ${urn}${isTimeSeriesNode ? ` from ${startDate} to ${endDate}` : ''}`);
+      if (isTimeSeriesNode) {
+        console.log(`End date is +1 day due to LinkedIn Pages API requirements (to include actual end date in results)`);
+      }
       
       const params = { fields, ...(isTimeSeriesNode && { startDate, endDate }) };
       const data = this.source.fetchData(nodeName, urn, params);
@@ -134,11 +137,15 @@ var LinkedInPagesConnector = class LinkedInPagesConnector extends AbstractConnec
       return null;
     }
     
-    const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + daysToFetch - 1);
-    console.log(`Processing time series data from ${startDate} to ${endDate}`);
+    const actualEndDate = new Date(startDate);
+    actualEndDate.setDate(actualEndDate.getDate() + daysToFetch - 1);
     
-    return { startDate, endDate };
+    // LinkedIn Pages API requires end date to be one day after the last day of data needed
+    // This ensures we get data for the full range including the last day
+    const endDate = new Date(actualEndDate);
+    endDate.setDate(endDate.getDate() + 1);
+    
+    return { startDate, endDate, actualEndDate };
   }
 
 };
