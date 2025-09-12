@@ -6,7 +6,7 @@ const IdpOwoxToPayloadSchema = IdpOwoxPayloadSchema.transform(src => ({
   projectId: src.projectId,
   email: src.userEmail,
   fullName: src.userFullName,
-  avatar: src.userAvatar,
+  avatar: src.userAvatar ?? undefined,
   roles: src.roles,
   projectTitle: src.projectTitle,
 })).pipe(PayloadSchema);

@@ -7,7 +7,7 @@ export const IdpOwoxPayloadSchema = z
     projectId: z.string().min(1, 'projectId is required'),
     userEmail: z.string().email(),
     userFullName: z.string().min(1, 'userFullName is required'),
-    userAvatar: z.string().url(),
+    userAvatar: z.string().url().nullable(),
     roles: z.preprocess(
       val => {
         if (typeof val === 'string') {
