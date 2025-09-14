@@ -128,9 +128,8 @@ export abstract class BaseCommand extends Command {
    * @protected
    * @param {string | undefined} logFormat - Log format ('pretty' or 'json') or undefined for default
    */
-  protected initializeLogging(logFormat: string | undefined): void {
-    const calcLogFormat = logFormat || process.env.LOG_FORMAT || BaseCommand.DEFAULT_LOG_FORMAT;
-    this.useJsonLog = calcLogFormat === 'json';
+  protected initializeLogging(): void {
+    this.useJsonLog = process.env.LOG_FORMAT === 'json';
   }
 
   /**
@@ -149,48 +148,26 @@ export abstract class BaseCommand extends Command {
    * ```
    */
   protected loadEnvironment(flags: { 'env-file'?: string; 'log-format'?: string }): void {
-    this.initializeLogging(flags['log-format']);
-    this.log(`🔧 Setting environment variables...`);
-
-    const { 'env-file': envFile = '', ...flagsToEnv } = flags;
-
-    const setResult = EnvManager.setFromObject(flagsToEnv, true);
-    if (!setResult.success) {
-      for (const message of setResult.messages) {
-        this.log(message);
-      }
-    }
-
-    if (setResult.ignoredVars.length > 0) {
-      this.log(
-        `❌ Failed setup environment variables from flags: ${setResult.ignoredVars.join(', ')}`
-      );
-    }
-
-    const loadResult = EnvManager.loadFromFile(envFile);
-    for (const message of loadResult.messages) {
-      this.log(message);
-    }
-
-    // Set default values, if not exist in environment
-    const setDefaultResult = EnvManager.setFromObject({
+    const { 'env-file': envFile = '', ...flagVars } = flags;
+    const defaultVars = {
       LOG_FORMAT: BaseCommand.DEFAULT_LOG_FORMAT,
       PORT: BaseCommand.DEFAULT_PORT,
+    };
+
+    const setResult = EnvManager.setupEnvironment({
+      defaultVars,
+      envFile,
+      flagVars,
+      flagVarsOverride: true,
     });
-    if (!setDefaultResult.success) {
-      for (const message of setResult.messages) {
-        this.log(message);
-      }
-    }
 
-    if (setDefaultResult.ignoredVars.length > 0) {
-      this.log(
-        `❌ Failed setup environment variables from default values: ${setDefaultResult.ignoredVars.join(', ')}`
-      );
-    }
+    this.initializeLogging();
 
-    // repeat after loaded all env variables
-    this.initializeLogging(flags['log-format']);
+    this.log(`🔧 Setting environment variables...`);
+
+    for (const message of setResult.messages) {
+      this.log(message);
+    }
   }
 
   /**
