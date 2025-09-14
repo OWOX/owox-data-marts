@@ -1,5 +1,5 @@
 import { Command, Flags } from '@oclif/core';
-import { EnvManager } from '@owox/internal-helpers';
+import { EnvManager, LogLevel } from '@owox/internal-helpers';
 
 /**
  * Base command class that provides common functionality for all CLI commands.
@@ -122,11 +122,9 @@ export abstract class BaseCommand extends Command {
   }
 
   /**
-   * Initializes logging configuration based on provided log format.
-   * Should be called at the start of each command's run method.
+   * Initializes logging configuration based on LOG_FORMAT environment variable.
    *
    * @protected
-   * @param {string | undefined} logFormat - Log format ('pretty' or 'json') or undefined for default
    */
   protected initializeLogging(): void {
     this.useJsonLog = process.env.LOG_FORMAT === 'json';
@@ -165,8 +163,27 @@ export abstract class BaseCommand extends Command {
 
     this.log(`🔧 Setting environment variables...`);
 
-    for (const message of setResult.messages) {
-      this.log(message);
+    for (const logMessage of setResult.messages) {
+      switch (logMessage.logLevel) {
+        case LogLevel.ERROR: {
+          this.error(logMessage.message, { exit: false });
+          break;
+        }
+
+        case LogLevel.LOG: {
+          this.log(logMessage.message);
+          break;
+        }
+
+        case LogLevel.WARN: {
+          this.warn(logMessage.message);
+          break;
+        }
+
+        default: {
+          this.log(logMessage.message);
+        }
+      }
     }
   }
 

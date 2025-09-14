@@ -6,6 +6,25 @@ import path from 'node:path';
 let isEnvSet = false;
 
 /**
+ * Log levels for environment setup operations
+ */
+export enum LogLevel {
+  LOG = 'log',
+  WARN = 'warn',
+  ERROR = 'error',
+}
+
+/**
+ * Log message interface for environment setup operations
+ */
+export interface LogMessage {
+  /** Log level (log, warn, error) */
+  logLevel: LogLevel;
+  /** Log message content */
+  message: string;
+}
+
+/**
  * Configuration interface for environment setup operations
  */
 export interface EnvSetupConfig {
@@ -27,8 +46,8 @@ export interface EnvSetupConfig {
  * Result object returned by environment setup operations
  */
 export interface EnvSetupResult {
-  /** Log messages from the setting process */
-  messages: string[];
+  /** Log messages from the setting process with levels */
+  messages: LogMessage[];
   /** Whether the operation was successful */
   success: boolean;
 }
@@ -64,7 +83,8 @@ enum EnvObjectType {
  * - Load from .env files with priority system
  * - Set variables from objects with validation
  * - Prevent override of existing variables
- * - Comprehensive logging and error handling
+ * - Comprehensive logging with levels (log, warn, error) and error handling
+ * - Returns structured log messages with appropriate emojis
  */
 export class EnvManager {
   /**
@@ -83,28 +103,28 @@ export class EnvManager {
    * - %list% - Comma-separated list
    */
   private static readonly MESSAGES = {
-    FILE_PATH_SPECIFIED: 'Using specified environment file: %file%',
-    FILE_PATH_ENVIRONMENT: 'Using environment-defined file: %file%',
-    FILE_PATH_DEFAULT: 'Using default environment file: %file%',
-    FILE_NOT_FOUND: 'Environment file not found: %file%',
-    FILE_PROCESSING: 'Starting to process environment file: %file%',
-    FILE_PARSE_FAILED: 'Empty content or failed to parse environment file: %file%',
-    FILE_READ_FAILED: 'Failed to read file %file%: %error%',
-    FILE_SUCCESS: 'Environment file processed successfully',
-    FILE_FAILED: 'Failed to process environment file',
-    OBJECT_UNKNOWN: 'Unknown environment object type: %type%',
-    OBJECT_INVALID: 'Invalid %type% environment variables object provided',
-    OBJECT_START: 'Starting to set up %type% values to environment variables...',
-    OBJECT_FAILED: 'Failed to set up %type% values to environment variables',
-    DETAILS_SET: 'Set %qty% variables',
-    DETAILS_IGNORED: 'Ignored %qty% invalid variables: %list%',
-    DETAILS_SKIPPED: 'Skipped %qty% existing variables: %list%',
+    FILE_PATH_SPECIFIED: '📂 Using specified environment file: %file%',
+    FILE_PATH_ENVIRONMENT: '🌍 Using environment-defined file: %file%',
+    FILE_PATH_DEFAULT: '⚙️ Using default environment file: %file%',
+    FILE_NOT_FOUND: '🔍 Environment file not found: %file%',
+    FILE_PROCESSING: '🔄 Starting to process environment file: %file%',
+    FILE_PARSE_FAILED: '💥 Empty content or failed to parse environment file: %file%',
+    FILE_READ_FAILED: '📖 Failed to read file %file%: %error%',
+    FILE_SUCCESS: '✨ Environment file processed successfully',
+    FILE_FAILED: '🚫 Failed to process environment file',
+    OBJECT_UNKNOWN: '❓ Unknown environment object type: %type%',
+    OBJECT_INVALID: '🚨 Invalid %type% environment variables object provided',
+    OBJECT_START: '🚀 Starting to set up %type% values to environment variables...',
+    OBJECT_FAILED: '💔 Failed to set up %type% values to environment variables',
+    DETAILS_SET: '✅ Set %qty% variables',
+    DETAILS_IGNORED: '🗑️ Ignored %qty% invalid variables: %list%',
+    DETAILS_SKIPPED: '⏭️ Skipped %qty% existing variables: %list%',
   };
   /**
    * Internal log buffer for the current setup operation
    * Reset at the start of each setupEnvironment() call
    */
-  private static operationLog: string[] = [];
+  private static operationLog: LogMessage[] = [];
 
   /**
    * Setup environment variables from multiple sources with priority system
@@ -129,7 +149,9 @@ export class EnvManager {
    *
    * if (result.success) {
    *   console.log('Environment setup completed');
-   *   console.log(result.messages);
+   *   result.messages.forEach(msg => {
+   *     console[msg.logLevel](msg.message);
+   *   });
    * }
    * ```
    */
@@ -204,7 +226,7 @@ export class EnvManager {
     const result = this.loadFromFile(resolvedPath, envFileOverride);
     if (result.success) {
       this.logOperationDetails(result);
-      this.logSuccess(this.MESSAGES.FILE_SUCCESS);
+      this.logInfo(this.MESSAGES.FILE_SUCCESS);
     } else {
       this.logError(this.MESSAGES.FILE_FAILED);
     }
@@ -425,9 +447,7 @@ export class EnvManager {
   private static logOperationDetails(result: EnvOperationResult): void {
     const { setVars, ignoredVars, skippedVars } = result;
     if (setVars && setVars.length) {
-      this.logSuccess(
-        this.formatMessage(this.MESSAGES.DETAILS_SET, { qty: String(setVars.length) })
-      );
+      this.logInfo(this.formatMessage(this.MESSAGES.DETAILS_SET, { qty: String(setVars.length) }));
     }
 
     if (ignoredVars && ignoredVars.length) {
@@ -449,39 +469,30 @@ export class EnvManager {
   }
 
   /**
-   * Log informational message with info emoji
+   * Log informational message
    * @private
    * @param message - Message to log
    */
   private static logInfo(message: string): void {
-    this.operationLog.push(`ℹ️ ${message}`);
+    this.operationLog.push({ logLevel: LogLevel.LOG, message });
   }
 
   /**
-   * Log success message with checkmark emoji
-   * @private
-   * @param message - Success message to log
-   */
-  private static logSuccess(message: string): void {
-    this.operationLog.push(`✅ ${message}`);
-  }
-
-  /**
-   * Log error message with error emoji
+   * Log error message
    * @private
    * @param message - Error message to log
    */
   private static logError(message: string): void {
-    this.operationLog.push(`❌ ${message}`);
+    this.operationLog.push({ logLevel: LogLevel.ERROR, message });
   }
 
   /**
-   * Log warning message with warning emoji
+   * Log warning message
    * @private
    * @param message - Warning message to log
    */
   private static logWarning(message: string): void {
-    this.operationLog.push(`⚠️ ${message}`);
+    this.operationLog.push({ logLevel: LogLevel.WARN, message });
   }
 
   /**
