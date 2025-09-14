@@ -203,7 +203,10 @@ export class EnvManager {
    * @returns True if all operations succeeded, false otherwise
    */
   private static executeOperations(operations: Array<() => boolean>): boolean {
-    return operations.every(operation => operation());
+    return operations.reduce((allSuccessful, operation) => {
+      const result = operation();
+      return allSuccessful && result;
+    }, true);
   }
 
   /**
