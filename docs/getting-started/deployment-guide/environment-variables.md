@@ -85,9 +85,9 @@ owox serve --env-file .env.production --port 3030
 
 > **⚠️ Limited scope**: Only a limited set of variables can be configured through command line arguments. Currently supported: `PORT` (via `--port`) and `LOG_FORMAT` (via `--log-format`). For other variables, use environment files or system environment variables.
 
-### Option E: Through Command Line Variables
+### Option E: Through Environment Variables
 
-Set variables directly before running the command:
+Set environment variables directly before running the command:
 
 ```bash
 # Linux/macOS/Windows (Git Bash)
@@ -97,7 +97,10 @@ DB_TYPE=sqlite SQLITE_DB_PATH=./database/backend.db IDP_PROVIDER=none owox serve
 set DB_TYPE=sqlite && set SQLITE_DB_PATH=./database/backend.db && set IDP_PROVIDER=none && owox serve
 
 # Windows (PowerShell)
-$env:DB_TYPE="sqlite"; $env:SQLITE_DB_PATH="./database/backend.db"; $env:IDP_PROVIDER="none"; owox serve
+$env:DB_TYPE="sqlite"
+$env:SQLITE_DB_PATH="./database/backend.db"
+$env:IDP_PROVIDER="none"
+owox serve
 ```
 
 ## Environment Loading Priority
@@ -165,39 +168,63 @@ owox serve --env-file custom.env --port 3030
 
 ### Checking Variable Loading
 
-The system outputs detailed messages about the loading process:
+The system outputs detailed messages about the loading process to help you understand what's happening during environment setup:
 
 ```bash
 owox serve --env-file .env.production
 ```
 
-Expected messages:
+Expected success messages:
 
-- `✅ Environment variables successfully loaded from specified file: /absolute/path/.env.production`
-- `⚠️ No valid environment file found`
+- `📂 Using specified environment file: .env.production`
+- `🔄 Starting to process environment file: .env.production`
+- `✅ Set 5 variables`
+- `✨ Environment file processed successfully`
+
+Expected file path resolution messages:
+
+- `📂 Using specified environment file: /path/to/.env.production` (when `--env-file` is specified)
+- `⚙️ Using default environment file: /current/directory/.env` (default fallback)
+
+Expected file processing messages:
+
+- `🔄 Starting to process environment file: .env.production`
+- `✅ Set 5 variables`
+- `⏭️ Skipped 2 existing variables: PORT (already exists), LOG_FORMAT (already exists)`
+- `🗑️ Ignored 1 invalid variables: EMPTY_VAR (empty string value)`
+- `✨ Environment file processed successfully`
 
 ### Common Errors
 
 #### File Not Found
 
 ```text
-📁 File not found: /path/to/.env
+🔍 Environment file not found: /path/to/.env.production
 ```
 
-**Solution**: Check the correctness of the file path.
+**Solution**: Check the correctness of the file path and ensure the file exists.
+
+#### File Reading Error
+
+```text
+📖 Failed to read file /path/to/.env: ENOENT: no such file or directory
+```
+
+**Solution**: Verify file permissions and path accessibility.
 
 #### Parsing Error
 
 ```text
-❌ Failed to parse environment file /path/to/.env with error: [error details]
+💥 Empty content or failed to parse environment file: /path/to/.env
 ```
 
-**Solution**: Check the syntax of the `.env` file.
+**Solution**: Check the syntax of the `.env` file and ensure it's not empty. The file should contain valid `KEY=value` pairs.
 
 #### Variables Not Loading
 
 ```text
-⚠️ No valid environment file found
+🔍 Environment file not found: /current/directory/.env
+🚫 Failed to process environment file
 ```
 
 **Solution**:
@@ -205,6 +232,17 @@ Expected messages:
 1. Create a `.env` file in the root directory
 2. Specify the correct path via `--env-file`
 3. Set variables directly in the environment (without using a file):
-   - Via command line: `PORT=3030 DB_TYPE=sqlite owox serve`
+   - Via environment variables: `PORT=3030 DB_TYPE=sqlite owox serve`
    - Via hosting platform environment variables interface
    - Via system environment variables
+
+### Debug Tips
+
+#### Common Variable Issues
+
+When variables are ignored or skipped, the system provides specific reasons:
+
+- `EMPTY_VAR (empty string value)` - Variable has no value after trimming
+- `INVALID_KEY (invalid key)` - Key is empty or contains only whitespace
+- `UNDEFINED_VAR (undefined/null value)` - Variable is undefined or null
+- `PORT (already exists)` - Variable already exists and override is disabled
