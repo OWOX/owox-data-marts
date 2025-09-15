@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-var reportFields = {
+var reportPlacementFields = {
   'ad_id': {
     'description': 'The ID of the ad.',
     'type': 'string'
@@ -226,6 +226,10 @@ var reportFields = {
   },
   'currency': {
     'description': 'The currency of the account.',
+    'type': 'string'
+  },
+  'placement': {
+    'description': '[ONLY in PLACEMENT based report] \n Enum representing the placement of a creative.',
     'type': 'string'
   }
 };

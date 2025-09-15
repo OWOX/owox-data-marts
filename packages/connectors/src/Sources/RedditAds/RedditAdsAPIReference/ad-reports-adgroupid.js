@@ -5,9 +5,13 @@
  * file that was distributed with this source code.
  */
 
-var reportFields = {
+var reportAdGroupIdFields = {
   'ad_id': {
     'description': 'The ID of the ad.',
+    'type': 'string'
+  },
+  'ad_group_id': {
+    'description': '[ONLY in AD_GROUP_ID based report] The ID of the ad group.',
     'type': 'string'
   },
   'date': {

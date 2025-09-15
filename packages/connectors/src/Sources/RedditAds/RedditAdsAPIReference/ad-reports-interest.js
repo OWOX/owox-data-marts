@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-var reportFields = {
+var reportInterestFields = {
   'ad_id': {
     'description': 'The ID of the ad.',
     'type': 'string'
@@ -199,6 +199,10 @@ var reportFields = {
   'impressions': {
     'description': 'The number of impressions served for this report period.',
     'type': 'integer'
+  },
+  'interest': {
+    'description': '[ONLY in INTEREST based report] \nThe interests of the users being targeted.',
+    'type': 'string'
   },
   'post_id': {
     'description': 'The unique identifier of the post.',

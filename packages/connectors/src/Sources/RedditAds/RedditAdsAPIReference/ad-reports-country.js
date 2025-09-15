@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-var reportFields = {
+var reportCountryFields = {
   'ad_id': {
     'description': 'The ID of the ad.',
     'type': 'string'
@@ -171,6 +171,10 @@ var reportFields = {
   'conversion_view_content_views': {
     'description': 'The view through conversions count.',
     'type': 'integer'
+  },
+  'country': {
+    'description': '[ONLY in COUNTRY based report] The country targeted for the report.',
+    'type': 'string'
   },
   'cpc': {
     'description': 'The cost-per-click for this period.',

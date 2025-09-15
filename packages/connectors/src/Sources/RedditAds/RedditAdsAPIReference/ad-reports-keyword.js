@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-var reportFields = {
+var reportKeywordFields = {
   'ad_id': {
     'description': 'The ID of the ad.',
     'type': 'string'
@@ -226,6 +226,10 @@ var reportFields = {
   },
   'currency': {
     'description': 'The currency of the account.',
+    'type': 'string'
+  },
+  'keyword': {
+    'description': '[ONLY in KEYWORD based report] \n The keyword for the ad.',
     'type': 'string'
   }
 };

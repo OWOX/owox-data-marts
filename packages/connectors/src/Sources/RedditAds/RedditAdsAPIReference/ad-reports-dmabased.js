@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-var reportFields = {
+var reportDmaBasedFields = {
   'ad_id': {
     'description': 'The ID of the ad.',
     'type': 'string'
@@ -15,6 +15,10 @@ var reportFields = {
     'type': 'datetime',
     'GoogleBigQueryType': 'date', 
     'GoogleBigQueryPartitioned': true
+  },
+  'dma': {
+    'description': '[ONLY in DMA based report] The Designated Market Area (DMA) targeted for the reports.',
+    'type': 'string'
   },
   'clicks': {
     'description': 'The number of clicks detected for this report period.',

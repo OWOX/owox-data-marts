@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-var reportFields = {
+var reportAdAccountIdFields = {
   'ad_id': {
     'description': 'The ID of the ad.',
     'type': 'string'
@@ -223,6 +223,10 @@ var reportFields = {
   'frequency': {
     'description': 'The average number of times each user saw the ad.',
     'type': 'number'
+  },
+  'account_id': {
+    'description': '[ONLY in AD_ACCOUNT_ID based report] as account_id \n The ID of the account.',
+    'type': 'string'
   },
   'currency': {
     'description': 'The currency of the account.',

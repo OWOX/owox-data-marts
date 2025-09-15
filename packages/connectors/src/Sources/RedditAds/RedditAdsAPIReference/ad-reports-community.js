@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-var reportFields = {
+var reportCommunityFields = {
   'ad_id': {
     'description': 'The ID of the ad.',
     'type': 'string'
@@ -171,6 +171,10 @@ var reportFields = {
   'conversion_view_content_views': {
     'description': 'The view through conversions count.',
     'type': 'integer'
+  },
+  'community': {
+    'description': '[ONLY in COMMUNITY based report] The community/subreddit being targeted.',
+    'type': 'string'
   },
   'cpc': {
     'description': 'The cost-per-click for this period.',
