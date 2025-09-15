@@ -1,6 +1,6 @@
-import dotenv from 'dotenv';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import dotenv from 'dotenv';
 
 /** State variable to track if environment file has been loaded */
 let isEnvSet = false;
