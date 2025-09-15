@@ -16,12 +16,9 @@ OWOX Data Marts can receive environment variables in two ways:
 - **From system environment** - variables set directly in the runtime environment
 - **From configuration file** - variables loaded from a `.env` file
 
-Since the application consists of multiple components, each of them may attempt to load environment variables independently. To coordinate this process, a special variable `OWOX_ENV_SET=true` is used, which signals to all components that environment variables are already set and reloading is not needed.
-
 Depending on the selected database type for the backend (`DB_TYPE`) and identity provider (`IDP_PROVIDER`), you need to set the corresponding additional environment variables:
 
 - **For `DB_TYPE=mysql`** - add MySQL connection variables (`DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_DATABASE`)
-- **For `IDP_PROVIDER=owox`** - add OWOX IDP configuration variables (`IDP_OWOX_BASE_URL`, `IDP_OWOX_CLIENT_ID`, etc.)
 - **For `IDP_PROVIDER=better-auth`** - add Better Auth variables (`IDP_BETTER_AUTH_SECRET`, `IDP_BETTER_AUTH_BASE_URL`, etc.)
 
 The complete list of all available environment variables is located in the `.env.example` file in the project root directory.
@@ -36,29 +33,14 @@ By default, the `owox serve` command looks for a `.env` file in the current dire
 
 #### Creating Configuration File
 
-```bash
-# Linux/macOS
-touch .env
-
-# Windows (Command Prompt)
-echo. > .env
-
-# Windows (PowerShell)
-New-Item -ItemType File -Name ".env"
-
-# Or create the file through any text editor
-```
-
-#### File Configuration
-
-Edit the `.env` file and set the values required for your configuration:
+Create and edit the `.env` file and set the values required for your configuration:
 
 ```bash
-# Core OWOX variables
-OWOX_ENV_SET=true
+# Common variables
+PORT=3030
 LOG_FORMAT=pretty
 
-# Database (SQLite for development)
+# Database
 DB_TYPE=sqlite
 SQLITE_DB_PATH=./database/backend.db
 
@@ -77,16 +59,6 @@ owox serve
 # 2. If .env is in another location - via flag
 owox serve --env-file /path/to/.env
 owox serve -e /path/to/.env
-
-# 3. If .env is in another location - via environment variable
-# Linux/macOS/Windows (Git Bash)
-OWOX_ENV_FILE_PATH=/path/to/.env owox serve
-
-# Windows (Command Prompt)
-set OWOX_ENV_FILE_PATH=/path/to/.env && owox serve
-
-# Windows (PowerShell)
-$env:OWOX_ENV_FILE_PATH="/path/to/.env"; owox serve
 ```
 
 ### Option B: Through Docker/Containers
@@ -97,68 +69,96 @@ When using containers, environment variables are passed from outside the contain
 
 ### Option C: Through Hosting Platform
 
-Most hosting platforms provide an interface for setting environment variables:
+Most hosting platforms provide their own interface for setting environment variables. Usually it's an "Environment Variables" or "Config Vars" section in project settings.
 
-- **AWS Lambda**: Environment variables in console
-- **Google Cloud Run**: Environment variables in service settings
-- **Heroku**: Config Vars in app panel
-- **DigitalOcean App Platform**: Environment Variables in configuration
-- **Render**: Environment Variables in service settings
-- **Railway**: Variables in service settings
-- **Vercel**: Environment Variables in project settings
-- **Netlify**: Site settings → Environment variables
+### Option D: Through Command Line Arguments
 
-> **☁️ Hosting**: Each platform has its own interface for managing environment variables. Usually it's an "Environment Variables" or "Config Vars" section in project settings.
+Some environment variables can be configured directly through command line arguments. This option provides the highest priority for configuration:
 
-### Option D: Through Command Line Variables
+```bash
+# Using command line arguments (highest priority)
+owox serve --port 3030 --log-format json
+
+# Combined with environment file
+owox serve --env-file .env.production --port 3030
+```
+
+> **⚠️ Limited scope**: Only a limited set of variables can be configured through command line arguments. Currently supported: `PORT` (via `--port`) and `LOG_FORMAT` (via `--log-format`). For other variables, use environment files or system environment variables.
+
+### Option E: Through Command Line Variables
 
 Set variables directly before running the command:
 
 ```bash
 # Linux/macOS/Windows (Git Bash)
-OWOX_ENV_SET=true LOG_FORMAT=pretty DB_TYPE=sqlite SQLITE_DB_PATH=./database/backend.db IDP_PROVIDER=none owox serve
+DB_TYPE=sqlite SQLITE_DB_PATH=./database/backend.db IDP_PROVIDER=none owox serve
 
 # Windows (Command Prompt)
-set OWOX_ENV_SET=true && set LOG_FORMAT=pretty && set DB_TYPE=sqlite && set SQLITE_DB_PATH=./database/backend.db && set IDP_PROVIDER=none && owox serve
+set DB_TYPE=sqlite && set SQLITE_DB_PATH=./database/backend.db && set IDP_PROVIDER=none && owox serve
 
 # Windows (PowerShell)
-$env:OWOX_ENV_SET="true"; $env:LOG_FORMAT="pretty"; $env:DB_TYPE="sqlite"; $env:SQLITE_DB_PATH="./database/backend.db"; $env:IDP_PROVIDER="none"; owox serve
+$env:DB_TYPE="sqlite"; $env:SQLITE_DB_PATH="./database/backend.db"; $env:IDP_PROVIDER="none"; owox serve
 ```
 
 ## Environment Loading Priority
 
 This section describes the internal logic of the environment variable loading system. Understanding this order will help you configure the correct setup and diagnose problems.
 
-The system loads environment variables in the following priority order:
+The system loads environment variables in the following priority order (highest to lowest):
 
-### 1. Previous Loading Check
+### 1. Command Line Arguments (Highest Priority)
 
-First, the system checks the `OWOX_ENV_SET` variable. If it's set to `true`, loading is skipped. This is important for individual components that may independently load environment variables, as well as when environment variables are not set through a file.
+Variables specified through command line arguments override all other sources:
 
-### 2. Explicitly Specified File
+```bash
+owox serve --port 3030 --log-format json
+```
 
-If you passed a path to a configuration file:
+> **⚠️ Note**: Only `--port` and `--log-format` are currently supported as command line arguments.
+
+### 2. System Environment Variables
+
+Variables set directly in the runtime environment (system environment variables or variables set through hosting platform interfaces).
+
+### 3. Explicitly Specified Environment File
+
+When you specify a path to a configuration file via `--env-file`:
 
 ```bash
 owox serve --env-file /path/to/.env.production
 ```
 
-### 3. File Through Environment Variable
-
-If the `OWOX_ENV_FILE_PATH` variable is set:
-
-```bash
-OWOX_ENV_FILE_PATH=/path/to/.env owox serve
-```
-
-> **💡 Priority**: Explicitly specifying a file through the `--env-file` flag has higher priority than the `OWOX_ENV_FILE_PATH` environment variable.
-
 ### 4. Default .env File
 
-If none of the previous options worked, the system looks for a `.env` file in the current directory (from which the command was launched):
+If no environment file is explicitly specified, the system looks for a `.env` file in the current directory:
 
 ```bash
 owox serve
+```
+
+### 5. Default Values (Lowest Priority)
+
+If variables are not set through any of the above methods, the system uses default values:
+
+```text
+PORT=3000
+LOG_FORMAT=pretty
+```
+
+### Priority Example
+
+**Example demonstrating priority:**
+
+```bash
+# All these sources can provide PORT value:
+# 1. Command line argument (highest priority): --port 3030
+# 2. System environment: export PORT=3010
+# 3. Explicitly specified file: PORT=3020 in custom.env
+# 4. Default .env file: PORT=3000
+# 5. Default value: PORT=3000 (lowest priority)
+
+owox serve --env-file custom.env --port 3030
+# Result: PORT=3030 (from command line argument)
 ```
 
 ## Troubleshooting
@@ -174,7 +174,6 @@ owox serve --env-file .env.production
 Expected messages:
 
 - `✅ Environment variables successfully loaded from specified file: /absolute/path/.env.production`
-- `✅ Environment already configured via OWOX_ENV_SET=true`
 - `⚠️ No valid environment file found`
 
 ### Common Errors
@@ -185,7 +184,7 @@ Expected messages:
 📁 File not found: /path/to/.env
 ```
 
-**Solution**: Check the correctness of the file path
+**Solution**: Check the correctness of the file path.
 
 #### Parsing Error
 
@@ -193,7 +192,7 @@ Expected messages:
 ❌ Failed to parse environment file /path/to/.env with error: [error details]
 ```
 
-**Solution**: Check the syntax of the `.env` file
+**Solution**: Check the syntax of the `.env` file.
 
 #### Variables Not Loading
 
@@ -205,8 +204,7 @@ Expected messages:
 
 1. Create a `.env` file in the root directory
 2. Specify the correct path via `--env-file`
-3. Set the `OWOX_ENV_FILE_PATH` variable
-4. Set variables directly in the environment (without using a file):
-   - Via command line: `OWOX_ENV_SET=true DB_TYPE=sqlite owox serve`
+3. Set variables directly in the environment (without using a file):
+   - Via command line: `PORT=3030 DB_TYPE=sqlite owox serve`
    - Via hosting platform environment variables interface
    - Via system environment variables
