@@ -48,7 +48,6 @@ First, ensure your app is in **Development Mode**:
 
 Please, build the authorization URL. Use the template below and replace `YOUR_APP_ID` with your actual **App ID**.  
 
-- Open your app in [Meta for Developers](https://developers.facebook.com/)  
 - Go to **App Settings → Basic**  
 - Copy your **App ID**  
 - Also note your **App Secret** (you’ll need it in the next step)
@@ -69,7 +68,7 @@ Please, build the authorization URL. Use the template below and replace `YOUR_AP
 
 After authorization, you’ll be redirected to a URL like this (note the long `code` parameter):
 
-`http://localhost:8080/?code=AQBg6el516UZN-YDhnsDQOWUYjbavjIkykWvj5PxAOhgiHikl8HB0WOJLXwxRd6joT5x9u7XnWWsH4GbbzOo_McT5EVHzZkTt-bvb7qwVsLRUbPqKdyYQor73NuXNFpLMHK9xQZE2ucII2JBTxS0sGdlMq9ndP533lSR9ES22NKyaDTH2x9WJ8X07vBczF5phTB36KXm0t25Nw1tm576GFvO9OsJ6ie6KYcY6ILt9-ogW3hPCgnAYU399TRkV2njvpBd7FtvRSNyh7qybL93ToVnp_9LrjeRPm0MzPPF9Tg2dehcJlaDpZ0OmxKx7w8EOD3Wpb0Irmuf3unsBM4FsIe0ljQ6TSZiSvfghfLpviIakK08h1ATu0UXJTRVWYjCJ9itOQ30CiaNq9Th5Evtt8IW&state=abc123#_=_`
+```http://localhost:8080/?code=AQBg6el516UZN-YDhnsDQOWUYjbavjIkykWvj5PxAOhgiHikl8HB0WOJLXwxRd6joT5x9u7XnWWsH4GbbzOo_McT5EVHzZkTt-bvb7qwVsLRUbPqKdyYQor73NuXNFpLMHK9xQZE2ucII2JBTxS0sGdlMq9ndP533lSR9ES22NKyaDTH2x9WJ8X07vBczF5phTB36KXm0t25Nw1tm576GFvO9OsJ6ie6KYcY6ILt9-ogW3hPCgnAYU399TRkV2njvpBd7FtvRSNyh7qybL93ToVnp_9LrjeRPm0MzPPF9Tg2dehcJlaDpZ0OmxKx7w8EOD3Wpb0Irmuf3unsBM4FsIe0ljQ6TSZiSvfghfLpviIakK08h1ATu0UXJTRVWYjCJ9itOQ30CiaNq9Th5Evtt8IW&state=abc123#_=_```
 
 Copy and save the **code** value (everything after `code=` up to `&state=...`).  
 You will need this in the next step.
