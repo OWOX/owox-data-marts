@@ -153,8 +153,8 @@ export class BetterAuthProvider
   async shutdown(): Promise<void> {
     try {
       await this.store.shutdown();
-    } catch {
-      // ignore
+    } catch (error) {
+      console.error('Failed to shutdown BetterAuthProvider store:', error);
     }
   }
 

@@ -1,7 +1,7 @@
 import { betterAuth } from 'better-auth';
 import { magicLink, organization } from 'better-auth/plugins';
-import { createAccessControl } from 'better-auth/plugins/access';
 import { BetterAuthConfig } from '../types/index.js';
+import { createAccessControl } from 'better-auth/plugins/access';
 
 export async function createBetterAuthConfig(
   config: BetterAuthConfig,

@@ -1,7 +1,12 @@
 import { randomUUID } from 'crypto';
-import { DatabaseOperationResult, DatabaseUser } from '../types/database-models.js';
-import type { Role } from '../types/index.js';
-import type { AdminUserDetailsView, AdminUserView, DatabaseStore } from './DatabaseStore.js';
+import type {
+  DatabaseOperationResult,
+  DatabaseUser,
+  AdminUserDetailsView,
+  AdminUserView,
+  Role,
+} from '../types/index.js';
+import type { DatabaseStore } from './DatabaseStore.js';
 
 type MysqlExecResult = { affectedRows?: number };
 type MysqlPool = {
@@ -28,22 +33,27 @@ export class MysqlDatabaseStore implements DatabaseStore {
 
   private async getPool(): Promise<MysqlPool> {
     if (this.pool) return this.pool;
-    const mysql = await import('mysql2/promise');
-    const createPool =
-      (mysql as unknown as { createPool?: (cfg: unknown) => unknown }).createPool ||
-      (mysql as { default?: { createPool: (cfg: unknown) => unknown } }).default?.createPool;
-    if (!createPool) throw new Error('mysql2 createPool not available');
-    const poolUnknown = createPool({
-      host: this.config.host,
-      user: this.config.user,
-      password: this.config.password,
-      database: this.config.database,
-      port: this.config.port ?? 3306,
-      waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0,
-    });
-    this.pool = poolUnknown as MysqlPool;
+
+    try {
+      const mysql = await import('mysql2/promise');
+
+      this.pool = (
+        mysql as { default: { createPool: (config: unknown) => unknown } }
+      ).default.createPool({
+        host: this.config.host,
+        user: this.config.user,
+        password: this.config.password,
+        database: this.config.database,
+        port: this.config.port || 3306,
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0,
+      }) as MysqlPool;
+    } catch (error) {
+      console.error('Failed to initialize MySQL pool:', error);
+      throw new Error('mysql2 is required for MySQL support. Install it with: npm install mysql2');
+    }
+
     return this.pool;
   }
 
@@ -272,8 +282,8 @@ export class MysqlDatabaseStore implements DatabaseStore {
     if (this.pool && typeof this.pool.end === 'function') {
       try {
         await this.pool.end();
-      } catch {
-        // ignore
+      } catch (error) {
+        console.error('Failed to close MySQL pool:', error);
       } finally {
         this.pool = undefined;
       }

@@ -1,7 +1,12 @@
 import { randomUUID } from 'crypto';
-import { DatabaseOperationResult, DatabaseUser } from '../types/index.js';
-import type { Role } from '../types/index.js';
-import type { AdminUserDetailsView, AdminUserView, DatabaseStore } from './DatabaseStore.js';
+import type {
+  AdminUserDetailsView,
+  AdminUserView,
+  Role,
+  DatabaseOperationResult,
+  DatabaseUser,
+} from '../types/index.js';
+import type { DatabaseStore } from './DatabaseStore.js';
 
 type SqliteRunResult = { changes?: number };
 type SqliteStmt = {
@@ -47,8 +52,8 @@ export class SqliteDatabaseStore implements DatabaseStore {
   async shutdown(): Promise<void> {
     try {
       (this.db as { close?: () => void } | undefined)?.close?.();
-    } catch {
-      // ignore
+    } catch (error) {
+      console.error('Failed to close SQLite database:', error);
     } finally {
       this.db = undefined;
     }

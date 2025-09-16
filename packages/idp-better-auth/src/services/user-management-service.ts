@@ -84,7 +84,8 @@ export class UserManagementService {
         } else {
           return await this.listUsersDirectly();
         }
-      } catch {
+      } catch (error) {
+        console.warn('Fallback to direct users listing due to Better Auth handler error:', error);
         return await this.listUsersDirectly();
       }
     } catch (error) {
@@ -131,7 +132,8 @@ export class UserManagementService {
 
       try {
         await this.auth.handler(removeMemberRequest);
-      } catch {
+      } catch (error) {
+        console.warn('Failed to remove user from organization (continuing with deletion):', error);
         // Continue with user deletion even if organization removal fails
       }
 

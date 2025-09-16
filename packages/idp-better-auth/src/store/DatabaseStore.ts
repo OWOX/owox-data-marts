@@ -1,24 +1,5 @@
+import type { AdminUserDetailsView, AdminUserView, Role } from '../types/index.js';
 import { DatabaseOperationResult, DatabaseUser } from '../types/index.js';
-import type { Role } from '../types/index.js';
-
-export interface AdminUserView {
-  id: string;
-  email: string;
-  name: string | null;
-  role: string;
-  createdAt: string;
-  updatedAt: string | null;
-}
-
-export interface AdminUserDetailsView {
-  id: string;
-  email: string;
-  name: string | null;
-  role: string;
-  createdAt: string;
-  updatedAt: string | null;
-  organizationId: string | null;
-}
 
 export interface DatabaseStore {
   // Generic health/maintenance
