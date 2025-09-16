@@ -21,7 +21,7 @@ Depending on the selected database type for the backend (`DB_TYPE`) and identity
 - **For `DB_TYPE=mysql`** - add MySQL connection variables (`DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_DATABASE`)
 - **For `IDP_PROVIDER=better-auth`** - add Better Auth variables (`IDP_BETTER_AUTH_SECRET`, `IDP_BETTER_AUTH_BASE_URL`, etc.)
 
-The complete list of all available environment variables is located in the `.env.example` file in the project root directory.
+The complete list of all available environment variables is located in the [.env.example](https://github.com/OWOX/owox-data-marts/blob/main/.env.example) file in the project root directory.
 
 ## Configuration Methods
 
