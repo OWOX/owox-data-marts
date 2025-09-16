@@ -148,21 +148,21 @@ owox idp add-user user@example.com
 
 ## Configuration Reference
 
-| Variable                          | Required |          Default          | Description                                 |
-| --------------------------------- | :------: | :-----------------------: | ------------------------------------------- |
-| `IDP_PROVIDER`                    | **Yes**  |             –             | Set to `better-auth`                        |
-| `IDP_BETTER_AUTH_SECRET`          | **Yes**  |             –             | Secret key for signing (min. 32 characters) |
-| `IDP_BETTER_AUTH_DATABASE_TYPE`   |    No    |         `sqlite`          | Database type: `sqlite` or `mysql`          |
+| Variable                          | Required |                Default                | Description                                 |
+| --------------------------------- | :------: | :-----------------------------------: | ------------------------------------------- |
+| `IDP_PROVIDER`                    | **Yes**  |                   –                   | Set to `better-auth`                        |
+| `IDP_BETTER_AUTH_SECRET`          | **Yes**  |                   –                   | Secret key for signing (min. 32 characters) |
+| `IDP_BETTER_AUTH_DATABASE_TYPE`   |    No    |               `sqlite`                | Database type: `sqlite` or `mysql`          |
 | `IDP_BETTER_AUTH_SQLITE_DB_PATH`  |    No    | `<system application data directory>` | SQLite database file path                   |
-| `IDP_BETTER_AUTH_BASE_URL`        |    No    |  `http://localhost:3000`  | Base URL for magic links                    |
-| `IDP_BETTER_AUTH_MAGIC_LINK_TTL`  |    No    |      `3600` (1 hour)      | Magic link expiration (seconds)             |
-| `IDP_BETTER_AUTH_SESSION_MAX_AGE` |    No    |     `604800` (7 days)     | Session duration (seconds)                  |
-| `IDP_BETTER_AUTH_MYSQL_HOST`      |    No    |        `localhost`        | MySQL host                                  |
-| `IDP_BETTER_AUTH_MYSQL_USER`      |    No    |          `root`           | MySQL user                                  |
-| `IDP_BETTER_AUTH_MYSQL_PASSWORD`  |    No    |      `your-password`      | MySQL password                              |
-| `IDP_BETTER_AUTH_MYSQL_DATABASE`  |    No    |        `better_auth`        | MySQL database                              |
-| `IDP_BETTER_AUTH_MYSQL_PORT`      |    No    |          `3306`           | MySQL port                                  |
-| `IDP_BETTER_AUTH_TRUSTED_ORIGINS` |    No    |  `http://localhost:3000`  | Trusted origins for auth service            |
+| `IDP_BETTER_AUTH_BASE_URL`        |    No    |        `http://localhost:3000`        | Base URL for magic links                    |
+| `IDP_BETTER_AUTH_MAGIC_LINK_TTL`  |    No    |            `3600` (1 hour)            | Magic link expiration (seconds)             |
+| `IDP_BETTER_AUTH_SESSION_MAX_AGE` |    No    |           `604800` (7 days)           | Session duration (seconds)                  |
+| `IDP_BETTER_AUTH_MYSQL_HOST`      |    No    |              `localhost`              | MySQL host                                  |
+| `IDP_BETTER_AUTH_MYSQL_USER`      |    No    |                `root`                 | MySQL user                                  |
+| `IDP_BETTER_AUTH_MYSQL_PASSWORD`  |    No    |            `your-password`            | MySQL password                              |
+| `IDP_BETTER_AUTH_MYSQL_DATABASE`  |    No    |             `better_auth`             | MySQL database                              |
+| `IDP_BETTER_AUTH_MYSQL_PORT`      |    No    |                `3306`                 | MySQL port                                  |
+| `IDP_BETTER_AUTH_TRUSTED_ORIGINS` |    No    |        `http://localhost:3000`        | Trusted origins for auth service            |
 
 ## Troubleshooting
 
