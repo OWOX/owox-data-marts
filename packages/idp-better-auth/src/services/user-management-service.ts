@@ -2,9 +2,8 @@ import { createBetterAuthConfig } from '../auth/auth-config.js';
 import { MagicLinkService } from './magic-link-service.js';
 import { CryptoService } from './crypto-service.js';
 import { Payload, AddUserCommandResponse } from '@owox/idp-protocol';
-import { type Role } from '../types/index.js';
-import { OrganizationMembersResponse } from '../types/index.js';
-import { type Request as ExpressRequest } from 'express';
+import type { Role, OrganizationMembersResponse } from '../types/index.js';
+import type { Request as ExpressRequest } from 'express';
 import type { DatabaseStore } from '../store/DatabaseStore.js';
 
 export class UserManagementService {

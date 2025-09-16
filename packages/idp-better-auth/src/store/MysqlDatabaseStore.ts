@@ -141,17 +141,17 @@ export class MysqlDatabaseStore implements DatabaseStore {
       try {
         await pool.execute('DELETE FROM session WHERE userId = ?', [userId]);
       } catch {
-        // ignore optional table
+        // Non-fatal cleanup: table may not exist yet or may contain no rows for this user
       }
       try {
         await pool.execute('DELETE FROM account WHERE userId = ?', [userId]);
       } catch {
-        // ignore optional table
+        // Non-fatal cleanup: table may not exist yet or may contain no rows for this user
       }
       try {
         await pool.execute('DELETE FROM member WHERE userId = ?', [userId]);
       } catch {
-        // ignore optional table
+        // Non-fatal cleanup: table may not exist yet or may contain no rows for this user
       }
       const [res] = (await pool.execute('DELETE FROM user WHERE id = ?', [userId])) as [
         MysqlExecResult,

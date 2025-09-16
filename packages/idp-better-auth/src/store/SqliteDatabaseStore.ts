@@ -117,17 +117,17 @@ export class SqliteDatabaseStore implements DatabaseStore {
       try {
         this.getDb().prepare('DELETE FROM session WHERE userId = ?').run(userId);
       } catch {
-        // ignore optional table
+        // Non-fatal cleanup: table may not exist yet or may contain no rows for this user
       }
       try {
         this.getDb().prepare('DELETE FROM account WHERE userId = ?').run(userId);
       } catch {
-        // ignore optional table
+        // Non-fatal cleanup: table may not exist yet or may contain no rows for this user
       }
       try {
         this.getDb().prepare('DELETE FROM member WHERE userId = ?').run(userId);
       } catch {
-        // ignore optional table
+        // Non-fatal cleanup: table may not exist yet or may contain no rows for this user
       }
       const res = this.getDb().prepare('DELETE FROM user WHERE id = ?').run(userId);
       if (!res.changes) throw new Error(`User ${userId} not found`);
