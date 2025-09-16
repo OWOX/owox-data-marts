@@ -66,7 +66,7 @@ export class IdentityOwoxClient {
    * GET /api/idp/projects
    */
   async getProjects(accessToken: string): Promise<Projects> {
-    const { data } = await this.http.get<IntrospectionResponse>('/api/idp/projects', {
+    const { data } = await this.http.get<Projects>('/api/idp/projects', {
       headers: {
         Authorization: accessToken,
       },
