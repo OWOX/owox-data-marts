@@ -6,6 +6,7 @@ import {
   IdpProviderRemoveUserCommand,
   IdpProvider,
   Payload,
+  Projects,
 } from '@owox/idp-protocol';
 import { betterAuth } from 'better-auth';
 import { Express, type Request, Response, NextFunction } from 'express';
@@ -126,6 +127,15 @@ export class BetterAuthProvider
     next: NextFunction
   ): Promise<Response<Payload>> {
     return this.middlewareService.userApiMiddleware(req, res, next);
+  }
+
+  async projectsApiMiddleware(
+    _req: Request,
+    res: Response,
+    _next: NextFunction
+  ): Promise<Response<Projects>> {
+    // Always return empty list of projects
+    return Promise.resolve(res.json([]));
   }
 
   async initialize(): Promise<void> {

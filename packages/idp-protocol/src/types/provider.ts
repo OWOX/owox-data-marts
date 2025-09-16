@@ -1,4 +1,4 @@
-import { Payload, AuthResult } from './models.js';
+import { Payload, AuthResult, Projects } from './models.js';
 import { Express, NextFunction, Request, Response } from 'express';
 
 /**
@@ -32,6 +32,17 @@ export interface IdpProvider {
    * If the IDP implementation does not support user, this method should call the `next()` function.
    */
   userApiMiddleware(req: Request, res: Response, next: NextFunction): Promise<Response<Payload>>;
+
+  /**
+   * Projects api middleware. This method is used to handle the projects request and use response to send the projects response.
+   * <br/>
+   * If the IDP implementation does not support user, this method should call the `next()` function.
+   */
+  projectsApiMiddleware(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<Response<Projects>>;
 
   /**
    * Register routes with the express app.

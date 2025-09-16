@@ -1,4 +1,4 @@
-import { AuthResult, IdpProvider, Payload, ProtocolRoute } from '@owox/idp-protocol';
+import { AuthResult, IdpProvider, Payload, Projects, ProtocolRoute } from '@owox/idp-protocol';
 import e, { NextFunction } from 'express';
 import { IdpOwoxConfig } from './config';
 import { AuthorizationStore } from './auth/AuthorizationStore';
@@ -119,6 +119,17 @@ export class OwoxIdp implements IdpProvider {
       return res.status(401).json({ message: 'Unauthorized', reason: 'uam2' });
     }
     return res.json(payload);
+  }
+
+  async projectsApiMiddleware(req: e.Request, res: e.Response): Promise<e.Response<Projects>> {
+    const accessToken = req.headers['x-owox-authorization'] as string | undefined;
+    if (!accessToken) {
+      return res.status(401).json({ message: 'Unauthorized', reason: 'pam1' });
+    }
+
+    const projects: Projects = await this.identityClient.getProjects(accessToken);
+
+    return res.json(projects);
   }
 
   async accessTokenMiddleware(

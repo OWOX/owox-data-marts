@@ -11,6 +11,7 @@ export enum ProtocolRoute {
   SIGN_OUT = '/sign-out',
   ACCESS_TOKEN = '/access-token',
   USER = '/api/user',
+  PROJECTS = '/api/projects',
 }
 
 /**
@@ -35,6 +36,7 @@ export interface IdpProtocolMiddlewareOptions {
     signOut?: string;
     accessToken?: string;
     user?: string;
+    projects?: string;
   };
 }
 
@@ -89,6 +91,7 @@ export class IdpProtocolMiddleware {
       signOut: options.routes?.signOut ?? ProtocolRoute.SIGN_OUT,
       accessToken: options.routes?.accessToken ?? ProtocolRoute.ACCESS_TOKEN,
       user: options.routes?.user ?? ProtocolRoute.USER,
+      projects: options.routes?.projects ?? ProtocolRoute.PROJECTS,
     };
 
     this.validateConfiguration();
@@ -170,6 +173,11 @@ export class IdpProtocolMiddleware {
         path: this.routes.user,
         handler: (req: Request, res: Response, next: NextFunction) =>
           this.provider.userApiMiddleware(req, res, next),
+      },
+      {
+        path: this.routes.projects,
+        handler: (req: Request, res: Response, next: NextFunction) =>
+          this.provider.projectsApiMiddleware(req, res, next),
       },
     ];
 

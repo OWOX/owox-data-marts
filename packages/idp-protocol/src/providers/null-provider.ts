@@ -1,5 +1,5 @@
 import { IdpProvider } from '../types/provider.js';
-import { AuthResult, Payload } from '../types/models.js';
+import { AuthResult, Payload, Projects } from '../types/models.js';
 import { Express, Request, Response, NextFunction } from 'express';
 
 /**
@@ -59,6 +59,15 @@ export class NullIdpProvider implements IdpProvider {
       return Promise.resolve(res.status(401).json({ message: 'Unauthorized' }));
     }
     return Promise.resolve(res.json(this.defaultPayload));
+  }
+
+  projectsApiMiddleware(
+    _req: Request,
+    res: Response,
+    _next: NextFunction
+  ): Promise<Response<Projects>> {
+    // Always return empty list of projects
+    return Promise.resolve(res.json([]));
   }
 
   registerRoutes(_app: Express): void {
