@@ -229,7 +229,7 @@ var reportPlacementFields = {
     'type': 'string'
   },
   'placement': {
-    'description': '[ONLY in PLACEMENT based report] \n Enum representing the placement of a creative.',
+    'description': '[ONLY in PLACEMENT based report] Enum representing the placement of a creative.',
     'type': 'string'
   }
 };

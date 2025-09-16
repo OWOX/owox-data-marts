@@ -201,7 +201,7 @@ var reportInterestFields = {
     'type': 'integer'
   },
   'interest': {
-    'description': '[ONLY in INTEREST based report] \nThe interests of the users being targeted.',
+    'description': '[ONLY in INTEREST based report] The interests of the users being targeted.',
     'type': 'string'
   },
   'post_id': {

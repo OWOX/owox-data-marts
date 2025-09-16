@@ -229,7 +229,7 @@ var reportKeywordFields = {
     'type': 'string'
   },
   'keyword': {
-    'description': '[ONLY in KEYWORD based report] \n The keyword for the ad.',
+    'description': '[ONLY in KEYWORD based report] The keyword for the ad.',
     'type': 'string'
   }
 };

@@ -225,7 +225,7 @@ var reportAdAccountIdFields = {
     'type': 'number'
   },
   'account_id': {
-    'description': '[ONLY in AD_ACCOUNT_ID based report] as account_id \n The ID of the account.',
+    'description': '[ONLY in AD_ACCOUNT_ID based report] as account_id The ID of the account.',
     'type': 'string'
   },
   'currency': {
