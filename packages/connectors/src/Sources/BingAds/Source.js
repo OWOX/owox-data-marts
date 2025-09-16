@@ -101,9 +101,9 @@ var BingAdsSource = class BingAdsSource extends AbstractSource {
   }
 
   /**
-   * Retrieve and store an OAuth access token using the refresh token
+   * Retrieve and store OAuth tokens (access token and refresh token) using the refresh token
    */
-  getAccessToken() {
+  getTokens() {
     const tokenUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
     const scopes = [
       'https://ads.microsoft.com/msads.manage', // New scope
@@ -138,6 +138,13 @@ var BingAdsSource = class BingAdsSource extends AbstractSource {
         }
         
         this.config.AccessToken = { value: json.access_token };
+        
+        // Update refresh token if Microsoft provides a new one
+        if (json.refresh_token) {
+          this.config.RefreshToken = { value: json.refresh_token };
+          this.config.logMessage(`Updated refresh token to maintain 90-day validity`);
+        }
+        
         this.config.logMessage(`Successfully obtained access token with scope (${scope})`);
         return;
       } catch (error) {
@@ -192,7 +199,7 @@ var BingAdsSource = class BingAdsSource extends AbstractSource {
    * @private
    */
   _fetchCampaignData({ accountId, fields, onBatchReady }) {
-    this.getAccessToken();
+    this.getTokens();
     
     this.config.logMessage(`Fetching Campaigns, AssetGroups and AdGroups for account ${accountId}...`);
     
@@ -415,7 +422,7 @@ var BingAdsSource = class BingAdsSource extends AbstractSource {
    * @private
    */
   _fetchReportData({ accountId, fields, start_time, end_time, nodeName }) {
-    this.getAccessToken();
+    this.getTokens();
     const schema = this.fieldsSchema[nodeName];
     
     const submitResponse = this._submitReportRequest({ 
