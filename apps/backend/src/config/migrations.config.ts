@@ -68,7 +68,7 @@ async function acquireMigrationsLock(
   dataSource: DataSource,
   logger: ReturnType<typeof createLogger>
 ): Promise<() => Promise<void>> {
-  const createSql = `CREATE TABLE ${LOCK_TABLE_NAME} (id INTEGER)`;
+  const createSql = `CREATE TABLE ${LOCK_TABLE_NAME} (id INTEGER PRIMARY KEY)`;
   const dropSql = `DROP TABLE ${LOCK_TABLE_NAME}`;
 
   const startAt = Date.now();
