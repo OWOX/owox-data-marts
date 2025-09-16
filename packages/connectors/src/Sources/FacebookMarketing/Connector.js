@@ -94,10 +94,8 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
       // If no data was found but should create empty table
       if (totalRecords === 0 && this.config.CreateEmptyTables?.value === "true") {
         let storage = this.getStorageByNode(nodeName, fields);
-        let allFields = this.source.fieldsSchema[nodeName]?.fields ? 
-          Object.keys(this.source.fieldsSchema[nodeName].fields) : fields;
         
-        this.createEmptyTableWithAllColumns(nodeName, allFields, storage);
+        this.createEmptyTableStructure(nodeName, fields, storage);
       }
 
     }
@@ -168,10 +166,8 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
         for (let nodeName in timeSeriesNodes) {
           if (!nodesWithData.has(nodeName)) {
             let storage = this.getStorageByNode(nodeName, timeSeriesNodes[nodeName]);
-            let allFields = this.source.fieldsSchema[nodeName]?.fields ? 
-              Object.keys(this.source.fieldsSchema[nodeName].fields) : timeSeriesNodes[nodeName];
             
-            this.createEmptyTableWithAllColumns(nodeName, allFields, storage);
+            this.createEmptyTableStructure(nodeName, timeSeriesNodes[nodeName], storage);
           }
         }
       }
