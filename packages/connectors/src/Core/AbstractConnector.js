@@ -343,31 +343,54 @@ var AbstractConnector = class AbstractConnector {
     }
     //----------------------------------------------------------------
 
-  //---- createEmptyTableWithAllColumns -----------------------------
+  //---- createEmptyTableStructure -----------------------------
     /**
-     * Creates an empty table with all available columns for a given node.
+     * Creates an empty table structure with specified columns for a given node.
      * This method should be called when no data is returned from API but
-     * we still want to create the table structure.
+     * we still want to create the table structure without any data rows.
      * 
      * @param {string} nodeName - Name of the node/table to create
-     * @param {Array} allFields - All available fields for this node
+     * @param {Array} requestedFields - Requested fields for this node (from fields parameter)
      * @param {Object} storage - Storage instance to use for table creation
      */
-    createEmptyTableWithAllColumns(nodeName, allFields, storage) {
-      if (!storage || !allFields || !allFields.length) {
+    createEmptyTableStructure(nodeName, requestedFields, storage) {
+      if (!storage || !requestedFields || !requestedFields.length) {
         return;
       }
 
-      // Create empty row with all fields
-      const emptyRow = {};
-      allFields.forEach(field => {
-        emptyRow[field] = null;
+      this.config.logMessage(`Creating empty table structure for '${nodeName}' with fields: ${requestedFields.join(', ')}`);
+      
+      // Create temporary record with all requested fields to trigger column creation
+      const tempRecord = {};
+      requestedFields.forEach(field => {
+        tempRecord[field] = null;
       });
 
-      this.config.logMessage(`Creating empty table '${nodeName}' with ${allFields.length} columns`);
+      // Add a unique temporary identifier to be able to delete this record
+      const tempId = `__temp_${Date.now()}__`;
+      if (storage.uniqueKeyColumns && storage.uniqueKeyColumns.length > 0) {
+        // Set the unique key field with temp ID
+        tempRecord[storage.uniqueKeyColumns[0]] = tempId;
+      }
+
+      // Save the temporary record to create all columns
+      storage.saveData([tempRecord]);
       
-      // Save single empty row to trigger table creation with all columns
-      storage.saveData([emptyRow]);
+      // If storage has deleteRecord method, delete the temporary record
+      if (typeof storage.deleteRecord === 'function' && storage.uniqueKeyColumns && storage.uniqueKeyColumns.length > 0) {
+        try {
+          // Create unique key for deletion (same logic as in GoogleSheetsStorage)
+          const uniqueKey = storage.uniqueKeyColumns.reduce((accumulator, columnName) => {
+            accumulator += `|${tempRecord[columnName]}`;
+            return accumulator;
+          }, []);
+          
+          storage.deleteRecord(uniqueKey);
+          this.config.logMessage(`Temporary record removed from '${nodeName}' table`);
+        } catch (error) {
+          this.config.logMessage(`Warning: Could not delete temporary record from '${nodeName}': ${error.message}`);
+        }
+      }
     }
     //----------------------------------------------------------------
 
