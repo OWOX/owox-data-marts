@@ -34,13 +34,13 @@ Choose the appropriate **Business Portfolio**, then click the **Create App** but
 
 ![Facebook Business portfolio option](res/facebook_portfolio.png)
 
-## Step 4: Set Up Marketing API
+## Step 3: Set Up Marketing API
 
 Go to the new app. In your app dashboard, locate **Marketing API** and click **Set Up**.  
 
 ![Facebook Marketing API set up](res/facebook_setup.png)
 
-## Step 5: Get the temporary token
+## Step 4: Get the temporary token
 
 First, ensure your app is in **Development Mode**:
 
@@ -75,7 +75,7 @@ You will need this in the next step.
 
 ![Facebook copy code](res/facebook_copycode.png)
 
-## Step 6: Generate and Save the Access Token
+## Step 5: Generate and Save the Access Token
 
 Now, exchange the authorization code for an **Access Token**. Go to [ReqBin](https://reqbin.com/) or use **Postman**.  
 Send a `POST` request to:
@@ -98,7 +98,7 @@ You should receive a response containing your **Access Token**.
 Copy and securely save the generated **Access Token**.  
 This token will be required to authenticate your API requests.
 
-## Step 7: Use the Access Token
+## Step 6: Use the Access Token
 
 Once you have the access token, you can begin using it as described in the [Getting Started guide](GETTING_STARTED.md).
 
