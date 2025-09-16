@@ -119,7 +119,7 @@ For more details - watch the webinar replay - [**🎥 Own Your Data: How Data An
 | Bing Ads                   | 🟢 Public        | [Get started](packages/connectors/src/Sources/BingAds/GETTING_STARTED.md)           |
 | Reddit Ads                 | 🟢 Public        | [Get started](packages/connectors/src/Sources/RedditAds/GETTING_STARTED.md)         |
 | Hotline                    | ⚪️ In Discussion | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/55)                |
-| Shopify Ads                | ⚪️ In Discussion | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/63)                |
+| Shopify                    | ⚪️ In Discussion | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/63)                |
 | Google Business Profile    | ⚪️ In Discussion | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/61)                |
 
 ### Data Storages
