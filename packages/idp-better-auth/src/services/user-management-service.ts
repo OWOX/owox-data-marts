@@ -3,8 +3,9 @@ import { MagicLinkService } from './magic-link-service.js';
 import { CryptoService } from './crypto-service.js';
 import { Payload, AddUserCommandResponse } from '@owox/idp-protocol';
 import { type Role } from '../types/index.js';
-import { DatabaseUser, OrganizationMembersResponse } from '../types/database-models.js';
+import { OrganizationMembersResponse } from '../types/index.js';
 import { type Request as ExpressRequest } from 'express';
+import type { DatabaseStore } from '../store/DatabaseStore.js';
 
 export class UserManagementService {
   private static readonly DEFAULT_ORGANIZATION_ID = 'owox_data_marts_organization';
@@ -27,7 +28,8 @@ export class UserManagementService {
   constructor(
     private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
     private readonly magicLinkService: MagicLinkService,
-    private readonly cryptoService?: CryptoService
+    private readonly cryptoService: CryptoService | undefined,
+    private readonly store: DatabaseStore
   ) {
     this.baseURL = this.auth.options.baseURL || 'http://localhost:3000';
   }
@@ -93,14 +95,7 @@ export class UserManagementService {
 
   private async listUsersDirectly(): Promise<Payload[]> {
     try {
-      const db = this.auth.options.database;
-
-      if (!db || typeof db.prepare !== 'function') {
-        return [];
-      }
-
-      const stmt = db.prepare('SELECT id, email, name FROM user ORDER BY createdAt DESC');
-      const users = stmt.all() as DatabaseUser[];
+      const users = await this.store.getUsers();
 
       return users.map(
         (user): Payload => ({
@@ -152,45 +147,7 @@ export class UserManagementService {
 
   private async removeUserDirectly(userId: string): Promise<void> {
     try {
-      const db = this.auth.options.database;
-
-      if (!db || typeof db.prepare !== 'function') {
-        console.error('Database adapter does not support direct operations');
-        throw new Error('Database adapter does not support direct operations');
-      }
-
-      // Clean up user's sessions
-      try {
-        const deleteSessionsStmt = db.prepare('DELETE FROM session WHERE userId = ?');
-        deleteSessionsStmt.run(userId);
-      } catch {
-        // Session cleanup may not be needed
-      }
-
-      // Clean up user's accounts
-      try {
-        const deleteAccountsStmt = db.prepare('DELETE FROM account WHERE userId = ?');
-        deleteAccountsStmt.run(userId);
-      } catch {
-        // Account cleanup may not be needed
-      }
-
-      // Clean up organization memberships
-      try {
-        const deleteMembershipsStmt = db.prepare('DELETE FROM member WHERE userId = ?');
-        deleteMembershipsStmt.run(userId);
-      } catch {
-        // Organization membership cleanup may not be needed
-      }
-
-      // Finally, remove the user
-      const deleteUserStmt = db.prepare('DELETE FROM user WHERE id = ?');
-      const result = deleteUserStmt.run(userId);
-
-      if (result.changes === 0) {
-        console.error(`User ${userId} not found`);
-        throw new Error(`User ${userId} not found`);
-      }
+      await this.store.deleteUserCascade(userId);
     } catch (error) {
       console.error(`Failed to delete user ${userId}:`, error);
       throw new Error(
@@ -208,118 +165,16 @@ export class UserManagementService {
       throw new Error('No session found');
     }
 
-    if (!(await this.ensureDefaultOrganization())) {
-      await this.createDefaultOrganizationForUser(session.user.id, role);
+    const defaultOrg = {
+      id: UserManagementService.DEFAULT_ORGANIZATION_ID,
+      name: UserManagementService.DEFAULT_ORGANIZATION_NAME,
+      slug: UserManagementService.DEFAULT_ORGANIZATION_SLUG,
+    } as const;
+
+    if (!(await this.store.defaultOrganizationExists(defaultOrg.slug))) {
+      await this.store.createDefaultOrganizationForUser(defaultOrg, session.user.id, role);
     } else {
-      await this.addUserToOrganization(session.user.id, role);
-    }
-  }
-
-  private async ensureDefaultOrganization(): Promise<boolean> {
-    try {
-      const db = this.auth.options.database;
-
-      if (!db || typeof db.prepare !== 'function') {
-        console.error('Database adapter does not support direct operations for organization check');
-        throw new Error(
-          'Database adapter does not support direct operations for organization check'
-        );
-      }
-      const stmt = db.prepare('SELECT id FROM organization WHERE slug = ? LIMIT 1');
-      const existingOrg = stmt.get(UserManagementService.DEFAULT_ORGANIZATION_SLUG);
-      if (existingOrg) {
-        return true;
-      }
-    } catch (error) {
-      console.error('Error checking default organization:', error);
-      throw new Error('Error checking default organization');
-    }
-
-    return false;
-  }
-
-  private async createDefaultOrganizationForUser(userId: string, role: Role): Promise<void> {
-    try {
-      const db = this.getDbInstance();
-
-      const orgId = UserManagementService.DEFAULT_ORGANIZATION_ID;
-
-      try {
-        const insertOrgStmt = db.prepare(`
-          INSERT INTO organization (id, name, slug, metadata, createdAt) 
-          VALUES (?, ?, ?, ?, ?)
-        `);
-
-        const now = new Date().toISOString();
-        insertOrgStmt.run(
-          orgId,
-          UserManagementService.DEFAULT_ORGANIZATION_NAME,
-          UserManagementService.DEFAULT_ORGANIZATION_SLUG,
-          JSON.stringify({ isDefault: true, createdBy: userId }),
-          now
-        );
-
-        const insertMemberStmt = db.prepare(`
-          INSERT INTO member (id, organizationId, userId, role, createdAt) 
-          VALUES (?, ?, ?, ?, ?)
-        `);
-
-        const memberId = `${orgId}_${userId}`;
-        insertMemberStmt.run(memberId, orgId, userId, role, now);
-      } catch (dbError) {
-        if (
-          String(dbError).includes('UNIQUE constraint failed') ||
-          String(dbError).includes('already exists')
-        ) {
-          await this.addUserToOrganization(userId, role);
-        } else {
-          throw dbError;
-        }
-      }
-    } catch (error) {
-      console.error('Error creating default organization for user:', error);
-      throw new Error('Error creating default organization for user');
-    }
-  }
-
-  private async addUserToOrganization(userId: string, role: Role): Promise<void> {
-    const db = this.getDbInstance();
-
-    try {
-      // First check if user already exists in organization
-      const checkStmt = db.prepare(
-        'SELECT role FROM member WHERE userId = ? AND organizationId = ?'
-      );
-      const existingMember = checkStmt.get(userId, UserManagementService.DEFAULT_ORGANIZATION_ID);
-
-      if (existingMember) {
-        // Update existing member role
-        const updateStmt = db.prepare(
-          'UPDATE member SET role = ? WHERE userId = ? AND organizationId = ?'
-        );
-        updateStmt.run(role, userId, UserManagementService.DEFAULT_ORGANIZATION_ID);
-      } else {
-        // Insert new member
-        const insertMemberStmt = db.prepare(`
-          INSERT INTO member (id, organizationId, userId, role, createdAt) 
-          VALUES (?, ?, ?, ?, ?)
-        `);
-
-        const memberId = `${UserManagementService.DEFAULT_ORGANIZATION_ID}_${userId}`;
-        const now = new Date().toISOString();
-        insertMemberStmt.run(
-          memberId,
-          UserManagementService.DEFAULT_ORGANIZATION_ID,
-          userId,
-          role,
-          now
-        );
-      }
-    } catch (error) {
-      console.error('Error in addUserToOrganization:', error);
-      if (!String(error).includes('UNIQUE constraint failed')) {
-        throw error;
-      }
+      await this.store.addUserToOrganization(defaultOrg.id, session.user.id, role);
     }
   }
 
@@ -334,31 +189,7 @@ export class UserManagementService {
     }>
   > {
     try {
-      const db = this.getDbInstance();
-
-      const stmt = db.prepare(`
-        SELECT 
-          u.id, 
-          u.email, 
-          u.name, 
-          u.createdAt,
-          u.updatedAt,
-          COALESCE(m.role, 'viewer') as role
-        FROM user u
-        LEFT JOIN member m ON u.id = m.userId
-        ORDER BY u.createdAt DESC
-      `);
-
-      const users = stmt.all() as Array<{
-        id: string;
-        email: string;
-        name: string | null;
-        role: string;
-        createdAt: string;
-        updatedAt: string | null;
-      }>;
-
-      return users;
+      return await this.store.getUsersForAdmin();
     } catch (error) {
       console.error('Error getting users for admin:', error);
       throw new Error('Failed to get users for admin');
@@ -375,35 +206,7 @@ export class UserManagementService {
     organizationId: string | null;
   } | null> {
     try {
-      const db = this.getDbInstance();
-
-      const stmt = db.prepare(`
-        SELECT 
-          u.id, 
-          u.email, 
-          u.name, 
-          u.createdAt,
-          u.updatedAt,
-          COALESCE(m.role, 'viewer') as role,
-          m.organizationId
-        FROM user u
-        LEFT JOIN member m ON u.id = m.userId
-        WHERE u.id = ?
-      `);
-
-      const user = stmt.get(userId) as
-        | {
-            id: string;
-            email: string;
-            name: string | null;
-            role: string;
-            createdAt: string;
-            updatedAt: string | null;
-            organizationId: string | null;
-          }
-        | undefined;
-
-      return user || null;
+      return await this.store.getUserDetails(userId);
     } catch (error) {
       console.error('Error getting user details:', error);
       throw new Error('Failed to get user details');
@@ -426,14 +229,7 @@ export class UserManagementService {
 
   async updateUserName(userId: string, name: string): Promise<void> {
     try {
-      const db = this.getDbInstance();
-
-      const updateStmt = db.prepare('UPDATE user SET name = ? WHERE id = ?');
-      const result = updateStmt.run(name, userId);
-
-      if (result.changes === 0) {
-        throw new Error(`User ${userId} not found or name not updated`);
-      }
+      await this.store.updateUserName(userId, name);
     } catch (error) {
       console.error('Error updating user name:', error);
       throw new Error('Failed to update user name');
@@ -442,34 +238,11 @@ export class UserManagementService {
 
   async getUserRole(userId: string): Promise<string | null> {
     try {
-      const db = this.getDbInstance();
-
-      const stmt = db.prepare(`
-        SELECT role FROM member 
-        WHERE userId = ? AND organizationId = ?
-      `);
-
-      const member = stmt.get(userId, UserManagementService.DEFAULT_ORGANIZATION_ID) as
-        | { role: string }
-        | undefined;
-
-      return member ? member.role : null;
+      return await this.store.getUserRole(UserManagementService.DEFAULT_ORGANIZATION_ID, userId);
     } catch (error) {
       console.error('Failed to get user role:', error);
       throw new Error('Failed to get user role');
     }
-  }
-
-  private getDbInstance(): Awaited<
-    ReturnType<typeof createBetterAuthConfig>
-  >['options']['database'] {
-    const db = this.auth.options.database;
-
-    if (!db || typeof db.prepare !== 'function') {
-      throw new Error('Database adapter does not support direct operations');
-    }
-
-    return db;
   }
 
   // ========== Role Permission Methods ==========

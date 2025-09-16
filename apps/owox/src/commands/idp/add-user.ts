@@ -34,5 +34,7 @@ export default class IdpAddUser extends BaseCommand {
     } else {
       this.error('IDP provider does not support add-user command');
     }
+
+    await idpProvider.shutdown();
   }
 }

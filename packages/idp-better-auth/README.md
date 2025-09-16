@@ -44,7 +44,7 @@ IDP_BETTER_AUTH_DATABASE_TYPE=mysql
 IDP_BETTER_AUTH_MYSQL_HOST=localhost
 IDP_BETTER_AUTH_MYSQL_USER=root
 IDP_BETTER_AUTH_MYSQL_PASSWORD=your-password
-IDP_BETTER_AUTH_MYSQL_DATABASE=owox_auth
+IDP_BETTER_AUTH_MYSQL_DATABASE=better_auth
 IDP_BETTER_AUTH_MYSQL_PORT=3306
 ```
 
@@ -121,7 +121,7 @@ The admin dashboard (`/auth/dashboard`) provides:
 
 ## Database Management
 
-The database schema is automatically created on first startup. For SQLite, the file will be created at the path specified in `IDP_BETTER_AUTH_SQLITE_DB_PATH` or default path in system application temp directory.
+The database schema is automatically created on first startup. For SQLite, the file will be created at the path specified in `IDP_BETTER_AUTH_SQLITE_DB_PATH` or default path in the system application data directory.
 
 ### SQLite (Default)
 
@@ -132,9 +132,9 @@ The database schema is automatically created on first startup. For SQLite, the f
 ### MySQL
 
 - Requires MySQL server
-- Create database manually: `CREATE DATABASE owox_auth;`
-- Create user if needed: `CREATE USER 'owox_auth_user'@'localhost' IDENTIFIED BY 'your_password';`
-- Grant privileges: `GRANT ALL PRIVILEGES ON owox_auth.* TO 'owox_auth_user'@'localhost';`
+- Create database manually: `CREATE DATABASE better_auth;`
+- Create user if needed: `CREATE USER 'better_auth_user'@'localhost' IDENTIFIED BY 'your_password';`
+- Grant privileges: `GRANT ALL PRIVILEGES ON better_auth.* TO 'better_auth_user'@'localhost';`
 - Flush privileges: `FLUSH PRIVILEGES;`
 - Tables are created automatically
 
@@ -153,14 +153,14 @@ owox idp add-user user@example.com
 | `IDP_PROVIDER`                    | **Yes**  |             –             | Set to `better-auth`                        |
 | `IDP_BETTER_AUTH_SECRET`          | **Yes**  |             –             | Secret key for signing (min. 32 characters) |
 | `IDP_BETTER_AUTH_DATABASE_TYPE`   |    No    |         `sqlite`          | Database type: `sqlite` or `mysql`          |
-| `IDP_BETTER_AUTH_SQLITE_DB_PATH`  |    No    | `<system temp directory>` | SQLite database file path                   |
+| `IDP_BETTER_AUTH_SQLITE_DB_PATH`  |    No    | `<system application data directory>` | SQLite database file path                   |
 | `IDP_BETTER_AUTH_BASE_URL`        |    No    |  `http://localhost:3000`  | Base URL for magic links                    |
 | `IDP_BETTER_AUTH_MAGIC_LINK_TTL`  |    No    |      `3600` (1 hour)      | Magic link expiration (seconds)             |
 | `IDP_BETTER_AUTH_SESSION_MAX_AGE` |    No    |     `604800` (7 days)     | Session duration (seconds)                  |
 | `IDP_BETTER_AUTH_MYSQL_HOST`      |    No    |        `localhost`        | MySQL host                                  |
 | `IDP_BETTER_AUTH_MYSQL_USER`      |    No    |          `root`           | MySQL user                                  |
 | `IDP_BETTER_AUTH_MYSQL_PASSWORD`  |    No    |      `your-password`      | MySQL password                              |
-| `IDP_BETTER_AUTH_MYSQL_DATABASE`  |    No    |        `owox_auth`        | MySQL database                              |
+| `IDP_BETTER_AUTH_MYSQL_DATABASE`  |    No    |        `better_auth`        | MySQL database                              |
 | `IDP_BETTER_AUTH_MYSQL_PORT`      |    No    |          `3306`           | MySQL port                                  |
 | `IDP_BETTER_AUTH_TRUSTED_ORIGINS` |    No    |  `http://localhost:3000`  | Trusted origins for auth service            |
 

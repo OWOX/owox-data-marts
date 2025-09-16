@@ -1,13 +1,13 @@
 import { betterAuth } from 'better-auth';
 import { magicLink, organization } from 'better-auth/plugins';
-import { BetterAuthConfig } from '../types/index.js';
-import { createDatabaseAdapter } from '../adapters/database.js';
 import { createAccessControl } from 'better-auth/plugins/access';
+import { BetterAuthConfig } from '../types/index.js';
 
 export async function createBetterAuthConfig(
-  config: BetterAuthConfig
+  config: BetterAuthConfig,
+  options?: { adapter?: unknown }
 ): Promise<ReturnType<typeof betterAuth>> {
-  const database = await createDatabaseAdapter(config.database);
+  const database = options?.adapter;
 
   const plugins: unknown[] = [];
 
