@@ -46,7 +46,7 @@ export async function bootstrap(options: BootstrapOptions): Promise<NestExpressA
 
   app.enableShutdownHooks();
 
-  const port = configService.get<number>('PORT') ?? DEFAULT_PORT;
+  const port = configService.get<number>('PORT') || DEFAULT_PORT;
 
   const server = await app.listen(port);
   server.setTimeout(180000);

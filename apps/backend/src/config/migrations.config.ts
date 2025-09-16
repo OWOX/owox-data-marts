@@ -6,7 +6,7 @@ import { DataSource } from 'typeorm';
 export async function runMigrationsIfNeeded(config: ConfigService): Promise<void> {
   const logger = createLogger('MigrationRunner');
 
-  const runMigrations = config.get<string>('RUN_MIGRATIONS') ?? 'true';
+  const runMigrations = config.get<string>('RUN_MIGRATIONS')?.trim() || 'true';
   const shouldRun = runMigrations === 'true';
 
   if (!shouldRun) {

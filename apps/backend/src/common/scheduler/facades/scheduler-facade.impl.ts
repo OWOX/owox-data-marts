@@ -20,6 +20,7 @@ import { GracefulShutdownService } from '../services/graceful-shutdown.service';
 export class SchedulerFacadeImpl implements SchedulerFacade {
   private readonly logger = new Logger(SchedulerFacadeImpl.name);
   private readonly defaultTimezone = 'UTC';
+  private readonly executionEnabled: boolean;
 
   constructor(
     private readonly schedulerRegistry: SchedulerRegistry,
@@ -28,7 +29,10 @@ export class SchedulerFacadeImpl implements SchedulerFacade {
     private readonly triggerRunnerFactory: TriggerRunnerFactory,
     private readonly systemTimeService: SystemTimeService,
     private readonly gracefulShutdownService: GracefulShutdownService
-  ) {}
+  ) {
+    this.executionEnabled = configService.get<boolean>('BACKEND_WORKER_ENABLED', true);
+    this.logger.log(`executionEnabled=` + this.executionEnabled);
+  }
 
   /**
    * Registers a time-based trigger handler to the scheduler system. This method initializes the trigger,
@@ -49,9 +53,17 @@ export class SchedulerFacadeImpl implements SchedulerFacade {
       this.systemTimeService
     );
     const timezone = this.configService.get<string>('SCHEDULER_TIMEZONE', this.defaultTimezone);
+
     const job = new CronJob(
       triggerHandler.processingCronExpression(),
       () => {
+        if (!this.executionEnabled) {
+          this.logger.log(
+            `[${triggerHandler.constructor.name}] Execution skipped: BACKEND_WORKER_ENABLED is false.`
+          );
+          return Promise.resolve();
+        }
+
         if (this.gracefulShutdownService.isInShutdownMode()) {
           this.logger.warn(
             `[${triggerHandler.constructor.name}] Fetching triggers skipped. Application is shutdown.`
