@@ -30,8 +30,8 @@
   - Fixed indefinite "Running" status for Report Runs
   - Fixed indefinite "Running" status for Connector Runs caused by app shutdown  
     (added graceful shutdown for Connector Runner)
-  - Fixed MySQL adapter compatibility with adp-better-auth
-  - Fixed unexpected session logout for idp-owox
+  - Fixed MySQL adapter compatibility with idp-better-auth
+  - Fixed unexpected session logout for Cloud edition (idp-owox)
   - Fixed the error of multiple connector launches at the same time
 
 - 78b8972: # Clarifies LinkedIn Pages import steps, adds new images, and improves error handling and API logging
