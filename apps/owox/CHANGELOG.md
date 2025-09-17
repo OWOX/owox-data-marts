@@ -17,15 +17,7 @@
 
   This change fixes timeout issues for long-running operations like SQL editing, schema refresh, and data mart publishing while maintaining reasonable timeouts for other operations.
 
-- 78b8972: # Clarifies LinkedIn Pages import steps, adds new images, and improves error handling and API logging
-  - Updated GETTING_STARTED.md for LinkedIn Pages with clearer import options and detailed instructions for using Organization URN.
-  - Added new images to the documentation to improve user guidance and onboarding.
-  - Enhanced error handling in the LinkedIn Pages source code for more robust integration.
-  - Improved logging of API responses to assist with debugging and troubleshooting.
-
-- e6af151: # Refactor BankOfCanada connector according to common architecture and fix bugs
-- 4b487c8: # Refactor GitHub connector according to common architecture and fix bugs
-- 342e534: # Switch between projects in the app ✨
+- 342e534: # Switch between projects in the Cloud edition on app.owox.com ✨
 
   You can now quickly switch between your projects right from the sidebar menu. This makes it easier to:
   - Move between workspaces without signing out
@@ -34,7 +26,23 @@
 
   No setup required — just open the project switcher and choose the project you need.
 
-- ea803b2: # refactor: enhance Reddit Ads connector reporting logic with new field definitions
+- Fixes
+  - Fixed indefinite "Running" status for Report Runs
+  - Fixed indefinite "Running" status for Connector Runs caused by app shutdown  
+    (added graceful shutdown for Connector Runner)
+  - Fixed MySQL adapter compatibility with adp-better-auth
+  - Fixed unexpected session logout for idp-owox
+  - Fixed the error of multiple connector launches at the same time
+
+- 78b8972: # Clarifies LinkedIn Pages import steps, adds new images, and improves error handling and API logging
+  - Updated GETTING_STARTED.md for LinkedIn Pages with clearer import options and detailed instructions for using Organization URN.
+  - Added new images to the documentation to improve user guidance and onboarding.
+  - Enhanced error handling in the LinkedIn Pages source code for more robust integration.
+  - Improved logging of API responses to assist with debugging and troubleshooting.
+
+- e6af151: # Refactor BankOfCanada connector according to common architecture and fix bugs
+- 4b487c8: # Refactor GitHub connector according to common architecture and fix bugs
+- ea803b2: # Refactor: enhance Reddit Ads connector reporting logic with new field definitions
 
 ### Patch Changes 0.7.0
 
