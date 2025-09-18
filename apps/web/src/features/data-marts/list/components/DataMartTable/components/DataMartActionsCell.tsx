@@ -12,6 +12,7 @@ import {
 import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog';
 import type { DataMartListItem } from '../../../model/types';
 import { useDataMartList } from '../../../model/hooks';
+import { useProjectRoute } from '../../../../../../shared/hooks';
 
 interface DataMartActionsCellProps {
   row: { original: DataMartListItem };
@@ -19,6 +20,7 @@ interface DataMartActionsCellProps {
 }
 
 export const DataMartActionsCell = ({ row, onDeleteSuccess }: DataMartActionsCellProps) => {
+  const { scope } = useProjectRoute();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { deleteDataMart, refreshList } = useDataMartList();
@@ -49,7 +51,7 @@ export const DataMartActionsCell = ({ row, onDeleteSuccess }: DataMartActionsCel
         <DropdownMenuContent align='end'>
           <DropdownMenuItem>
             <Link
-              to={`/data-marts/${row.original.id}/data-setup`}
+              to={scope(`/data-marts/${row.original.id}/data-setup`)}
               className='dm-card-table-body-row-actiondropdownitem'
             >
               Open
