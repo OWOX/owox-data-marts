@@ -202,7 +202,7 @@ class ConnectorBuilder {
       allCoreClasses.push(...classNames);
 
       // For constants files, also extract constants
-      if (file.includes('Constants/')) {
+      if (file.includes('Constants/') || file.includes('Constants' + path.sep)) {
         const constantNames = this.extractConstantNames(fileContent);
         allConstants.push(...constantNames);
       }
@@ -411,7 +411,7 @@ class ConnectorBuilder {
         }
 
         // For constants files, also extract object/variable names
-        if (file.includes('Constants/')) {
+        if (file.includes('Constants/') || file.includes('Constants' + path.sep)) {
           const constantNames = this.extractConstantNames(fileContent);
           for (const constantName of constantNames) {
             coreClasses[constantName] = constantName;
