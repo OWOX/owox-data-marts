@@ -54,34 +54,40 @@ function updateFieldsSheet() {
   const config = new OWOX.GoogleSheetsConfig( CONFIG_RANGE );
 
   config.updateFieldsSheet(
-    new OWOX.LinkedInPagesSource( config.setParametersValues( {"AccessToken": "undefined", "Fields": "undefined"} ))
+    new OWOX.LinkedInPagesSource( config.setParametersValues({
+      "ClientID": "undefined",
+      "ClientSecret": "undefined", 
+      "RefreshToken": "undefined",
+      "Fields": "undefined"
+    }))
   );
 }
 
-function manageCredentials() {
+function manageCredentials(credentials) {
   const ui = SpreadsheetApp.getUi();
-  const Properties = PropertiesService.getDocumentProperties();
-  const currentKey = Properties.getProperty('AccessToken');
-  const response = ui.prompt(
-    currentKey ? 'Update your Access Token' : 'Add your Access Token',
-    'To import data from LinkedIn Pages API, you need to add an Access Token with r_organization_social, r_organization_followers, and r_social_engagement scopes. Please refer to the documentation for instructions.',
-    ui.ButtonSet.OK_CANCEL
-  );
+  const props = PropertiesService.getDocumentProperties();
 
-  // Check the user's response
-  if (response.getSelectedButton() === ui.Button.OK) {
-    const newKey = response.getResponseText(); 
+  if (!credentials) {
+    // Show credentials dialog
+    const config = new OWOX.GoogleSheetsConfig(CONFIG_RANGE);
+    const source = new OWOX.LinkedInPagesSource(config);
+    return config.showCredentialsDialog(source, props);
+  }
 
-    if (currentKey && newKey === "") {
-      Properties.deleteProperty('AccessToken');
-      ui.alert('☑️ Saved Access Token was deleted');
-    } else if (!/^[A-Za-z0-9\-_\.]+$/.test(newKey)) {
-      ui.alert('❌ The provided Access Token has an incorrect format');
-    } else {
-      // Save the input to document properties
-      Properties.setProperty('AccessToken', newKey);
-      ui.alert('✅ Access Token saved successfully');
-    }
+  try {
+    // Save credentials in the spreadsheet-bound properties
+    Object.entries(credentials).forEach(([key, value]) => {
+      if (value) {
+        props.setProperty(key, value);
+      } else {
+        props.deleteProperty(key);
+      }
+    });
+
+    ui.alert('✅ Credentials saved successfully');
+  } catch (e) {
+    console.error('Error saving credentials:', e);
+    ui.alert('❌ Error saving credentials: ' + e.message);
   }
 }
 
