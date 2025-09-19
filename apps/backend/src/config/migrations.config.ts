@@ -9,7 +9,7 @@ export async function runMigrationsIfNeeded(): Promise<void> {
   // Create ConfigService for migrations only
   const config = new ConfigService();
 
-  const runMigrations = config.get<string>('RUN_MIGRATIONS')?.trim() || 'true';
+  const runMigrations = config.get<string>('RUN_MIGRATIONS')?.trim().toLowerCase() || 'true';
   const shouldRun = runMigrations === 'true';
 
   if (!shouldRun) {
