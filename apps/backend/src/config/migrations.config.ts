@@ -6,11 +6,10 @@ import { DataSource } from 'typeorm';
 export async function runMigrationsIfNeeded(): Promise<void> {
   const logger = createLogger('MigrationRunner');
 
-  // Create ConfigService for migrations only
   const config = new ConfigService();
 
-  const runMigrations = config.get<string>('RUN_MIGRATIONS')?.trim().toLowerCase() || 'true';
-  const shouldRun = runMigrations === 'true';
+  const runMigrationsValue = config.get<string>('RUN_MIGRATIONS')?.trim().toLowerCase() || 'true';
+  const shouldRun = runMigrationsValue === 'true';
 
   if (!shouldRun) {
     logger.log('RUN_MIGRATIONS is not set to "true". Skipping migrations.');
