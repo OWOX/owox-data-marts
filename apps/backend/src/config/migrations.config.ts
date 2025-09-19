@@ -3,11 +3,13 @@ import { ConfigService } from '@nestjs/config';
 import { createDataSourceOptions } from './data-source-options.config';
 import { DataSource } from 'typeorm';
 
-export async function runMigrationsIfNeeded(config: ConfigService): Promise<void> {
+export async function runMigrationsIfNeeded(): Promise<void> {
   const logger = createLogger('MigrationRunner');
 
-  const runMigrations = config.get<string>('RUN_MIGRATIONS') ?? 'true';
-  const shouldRun = runMigrations === 'true';
+  const config = new ConfigService();
+
+  const runMigrationsValue = config.get<string>('RUN_MIGRATIONS')?.trim().toLowerCase() || 'true';
+  const shouldRun = runMigrationsValue === 'true';
 
   if (!shouldRun) {
     logger.log('RUN_MIGRATIONS is not set to "true". Skipping migrations.');

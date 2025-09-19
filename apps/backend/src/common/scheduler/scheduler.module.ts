@@ -9,20 +9,27 @@ import { GracefulShutdownService } from './services/graceful-shutdown.service';
 /**
  * The SchedulerModule provides functionality for scheduling and executing time-based triggers.
  *
- * This module allows for the registration of trigger handlers that can be executed either directly
- * or through Google Cloud Pub/Sub, depending on the configuration. It provides a facade pattern
- * implementation for easy integration with other modules.
+ * The SchedulerFacadeImpl automatically adapts its behavior based on the
+ * SCHEDULER_EXECUTION_ENABLED environment variable:
+ * - When true: Creates cron jobs and executes scheduled tasks (Worker mode)
+ * - When false: Only logs registrations without creating jobs (Registration mode)
+ *
+ * This allows for clean separation between API instances and Worker instances while
+ * maintaining the same interface for dependency injection.
  *
  * To use this module, import it into your application module and inject the SCHEDULER_FACADE token
  * where you need to register trigger handlers.
  */
 @Module({
   providers: [
-    { provide: SCHEDULER_FACADE, useClass: SchedulerFacadeImpl },
-    TimeBasedTriggerFetcherFactory,
-    TriggerRunnerFactory,
     SystemTimeService,
     GracefulShutdownService,
+    TimeBasedTriggerFetcherFactory,
+    TriggerRunnerFactory,
+    {
+      provide: SCHEDULER_FACADE,
+      useClass: SchedulerFacadeImpl,
+    },
   ],
   exports: [SCHEDULER_FACADE, GracefulShutdownService],
 })
