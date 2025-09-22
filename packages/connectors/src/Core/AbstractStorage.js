@@ -120,7 +120,7 @@ class AbstractStorage {
       throw new Error("Method saveDate() has to be implemented in a child class of AbstractStorage");
     }
     //----------------------------------------------------------------
-
+  
   //---- saveRecordsAddedToBuffer ------------------------------------
     /**
      * Add records from buffer to a sheet

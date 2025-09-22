@@ -347,7 +347,7 @@ var GoogleSheetsStorage = class GoogleSheetsStorage extends AbstractStorage {
     
     }
     //----------------------------------------------------------------
-
+  
   //---- addColumn ---------------------------------------------------
     /**
      * Adding a column to the sheet
