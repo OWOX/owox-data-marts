@@ -360,9 +360,14 @@ var AbstractConnector = class AbstractConnector {
 
       this.config.logMessage(`Creating empty table structure for '${nodeName}' with fields: ${requestedFields.join(', ')}`);
       
-      // Ask storage to initialize headers/columns without inserting any rows
-      if (typeof storage.initializeColumns === 'function') {
-        storage.initializeColumns(requestedFields);
+      // BigQuery-specific: create table using selected fields if supported
+      if (typeof storage.createTableIfItDoesntExist === 'function' 
+        && storage.constructor && storage.constructor.name === 'GoogleBigQueryStorage') {
+        try {
+          storage.createTableIfItDoesntExist(requestedFields);
+        } catch (e) {
+          this.config.logMessage(`Warning: Could not create table structure: ${e.message}`);
+        }
       }
     }
     //----------------------------------------------------------------
