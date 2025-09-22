@@ -15,7 +15,7 @@ class AbstractStorage {
      * @param schema (object) object with structure like {fieldName: {type: "number", description: "smth" } }
      * @param description (string) string with storage description }
      */
-    constructor(config, uniqueKeyColumns, schema = null, description = null) {
+    constructor(config, uniqueKeyColumns, schema = null, description = null, requestedFields = null) {
     
       if(typeof config.setParametersValues !== "function") {
         throw new Error(`Unable to create an AbstractStorage object. First parameter must be an instance of AbstractConfig class`);
@@ -26,6 +26,7 @@ class AbstractStorage {
       this.schema = schema;
       this.description = description;
       this.columnNames = [];
+      this.requestedFields = requestedFields;
     
       if( typeof uniqueKeyColumns == "string" ) {
         this.uniqueKeyColumns = [uniqueKeyColumns];
