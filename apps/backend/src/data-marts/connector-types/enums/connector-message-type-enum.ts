@@ -4,6 +4,7 @@ export enum ConnectorMessageType {
   STATUS = 'updateCurrentStatus',
   STATE = 'updateLastImportDate',
   REQUESTED_DATE = 'updateLastRequstedDate',
+  UPDATE_PARAMETER = 'updateParameter',
   WARNING = 'addWarningToCurrentStatus',
   UNKNOWN = 'unknown',
   ERROR = 'error',

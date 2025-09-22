@@ -238,6 +238,8 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     const { connector } = definition;
 
     const configurationResults: ConfigurationExecutionResult[] = [];
+    // Accumulate definition updates (e.g., refreshed secrets) to persist and reflect in UI
+    const definitionUpdates: Record<string, unknown> = {};
 
     for (const [configIndex, config] of connector.source.configuration.entries()) {
       const configLogs: ConnectorMessage[] = [];
@@ -253,8 +255,16 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
               success = false;
               break;
             case ConnectorMessageType.REQUESTED_DATE:
-              state.state = { date: message.date };
+              // Merge requested date without dropping previously accumulated keys
+              state.state = { ...(state.state || {}), date: message.date };
               state.at = message.at;
+              break;
+            case ConnectorMessageType.UPDATE_PARAMETER:
+              // Persist arbitrary parameter updates into state
+              state.state = { ...(state.state || {}), [message.parameter]: message.value };
+              state.at = message.at;
+              // Also accumulate for persisting into DataMart.definition so UI shows latest value
+              definitionUpdates[message.parameter] = message.value;
               break;
             case ConnectorMessageType.STATUS:
               if (message.status === Core.EXECUTION_STATUS.ERROR) {
@@ -316,6 +326,23 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
       }
     }
 
+    // If there are parameter updates, write them into connector source configuration and save DataMart
+    if (Object.keys(definitionUpdates).length > 0) {
+      try {
+        // Every config entry under connector.source.configuration receives updated values
+        if (Array.isArray(connector.source.configuration)) {
+          connector.source.configuration = connector.source.configuration.map(cfg => ({
+            ...cfg,
+            ...definitionUpdates,
+          }));
+        }
+        dataMart.definition = definition;
+        await this.dataMartService.save(dataMart);
+      } catch (e) {
+        this.logger.error(`Failed to persist definition updates: ${String(e)}`);
+      }
+    }
+
     return configurationResults;
   }
 
@@ -337,7 +364,8 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
   }
 
   private async updateRunState(dataMartId: string, state: ConnectorOutputState): Promise<void> {
-    if (state.state.date) {
+    // Persist state if any keys were set during run (not only date)
+    if (state.state && Object.keys(state.state).length > 0) {
       await this.connectorStateService.updateState(dataMartId, state);
     }
   }
@@ -357,6 +385,8 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
       name: connector.source.name,
       config: {
         ...config,
+        // Merge persisted state (e.g., updated RefreshToken) so next run gets the latest values
+        ...(state?.state || {}),
         Fields: fieldsConfig,
         ...(state?.state?.date
           ? { LastRequestedDate: new Date(state.state.date as string).toISOString().split('T')[0] }

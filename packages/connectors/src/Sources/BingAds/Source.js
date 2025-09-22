@@ -104,10 +104,11 @@ var BingAdsSource = class BingAdsSource extends AbstractSource {
    * Retrieve and store OAuth tokens (access token and refresh token) using the refresh token
    */
   getTokens() {
+    console.log('RefreshToken', this.config.RefreshToken)
     const tokenUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
     const scopes = [
-      'https://ads.microsoft.com/msads.manage', // New scope
-      'https://ads.microsoft.com/ads.manage'    // Old scope
+      'https://ads.microsoft.com/msads.manage offline_access', // New scope
+      'https://ads.microsoft.com/ads.manage offline_access'    // Old scope
     ];
     
     for (const scope of scopes) {
@@ -137,11 +138,25 @@ var BingAdsSource = class BingAdsSource extends AbstractSource {
           throw new Error(`Token error: ${json.error} - ${json.error_description}`);
         }
         
+        console.log('json', json)
         this.config.AccessToken = { value: json.access_token };
         
         // Update refresh token if Microsoft provides a new one
         if (json.refresh_token) {
-          this.config.RefreshToken = { value: json.refresh_token };
+          // Update in-memory value for current run
+          this.config.setParametersValues({ RefreshToken: json.refresh_token });
+          
+          // Persist across runs via backend state (parsed as ConnectorMessageType.UPDATE_PARAMETER)
+          const at = new Date();
+          console.log(
+            JSON.stringify({
+              type: 'updateParameter',
+              at: at.toISOString().split('T')[0] + ' ' + at.toISOString().split('T')[1].split('.')[0],
+              parameter: 'RefreshToken',
+              value: json.refresh_token,
+            })
+          );
+          
           this.config.logMessage(`Updated refresh token to maintain 90-day validity`);
         }
         
