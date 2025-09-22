@@ -75,8 +75,6 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
     */
     startImportProcessOfCatalogData(nodeName, accountIds, fields) {
 
-      let totalRecords = 0;
-
       for(var i in accountIds) {
         
         let accountId = accountIds[i];
@@ -89,10 +87,7 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
         }
 
         // Log and count only when we actually have data
-        if( data.length ) {
-          this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for account ${accountId}`);
-          totalRecords += data.length;
-        }
+        data.length && this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for account ${accountId}`);
 
       }
 
@@ -110,9 +105,6 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
 
     */
     startImportProcessOfTimeSeriesData(accountsIds, timeSeriesNodes, startDate, daysToFetch = 1) {
-
-      // Track which nodes had data across all days/accounts
-      const nodesWithData = new Set();
 
       // start requesting data day by day from startDate to startDate + MaxFetchingDays
       for(var daysShift = 0; daysShift < daysToFetch; daysShift++) {
@@ -137,13 +129,7 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
               this.getStorageByNode(nodeName, timeSeriesNodes[ nodeName ] ).saveData(data);
             }
 
-            // Log and track only when we actually have data
-            if( data.length ) {
-              this.config.logMessage(`${data.length} records were fetched`);
-              nodesWithData.add(nodeName);
-            } else if( daysShift == 0) {
-              this.config.logMessage(`ℹ️ No records have been fetched`);
-            }
+            this.config.logMessage(data.length ? `${data.length} records were fetched` : `ℹ️ No records have been fetched`);
             
           }
         
@@ -156,7 +142,6 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
         startDate.setDate( startDate.getDate() + 1);  // let's move on to the next date
 
       }
-
     }
   
 //---- getStorageName -------------------------------------------------

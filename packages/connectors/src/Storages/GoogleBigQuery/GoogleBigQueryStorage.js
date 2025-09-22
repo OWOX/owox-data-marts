@@ -76,13 +76,19 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
       let existingColumns = this.getAListOfExistingColumns();
 
+      this.existingColumns = existingColumns || {};
+
       // If there are no existing fields, it means the table has not been created yet
       if( Object.keys(existingColumns).length == 0 ) {
         this.createDatasetIfItDoesntExist();
-        existingColumns = this.createTableIfItDoesntExist();
+        this.existingColumns = this.createTableIfItDoesntExist();
+      } else if (this.requestedFields && Array.isArray(this.requestedFields)) {
+        // Check if there are new columns from requestedFields
+        let newFields = this.requestedFields.filter( column => !Object.keys(existingColumns).includes(column) );
+        if( newFields.length > 0 ) {
+          this.addNewColumns(newFields);
+        }
       }
-
-      this.existingColumns = existingColumns;
 
     }
 
@@ -122,6 +128,10 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
           queryResults.rows.map(row => {
             columns[ row.f[0].v ]  = {"name": row.f[0].v, "type": row.f[1].v}
           });
+        } else if (Array.isArray(queryResults)) {
+          queryResults.map(row => {
+            columns[ row.column_name ] = {"name": row.column_name, "type": row.data_type}
+          });
         }
 
         return columns;
@@ -143,11 +153,6 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
     }
 
   //---- createTableIfItDoesntExist ----------------------------------
-    /**
-     * Create table if it doesn't exist. When requestedFields is provided,
-     * use it as the list of columns to create (instead of uniqueKeyColumns),
-     * adding PRIMARY KEY only if all unique keys are included.
-     */
     createTableIfItDoesntExist() {
 
       let columns = [];
