@@ -343,35 +343,6 @@ var AbstractConnector = class AbstractConnector {
     }
     //----------------------------------------------------------------
 
-  //---- createEmptyTableStructure -----------------------------
-    /**
-     * Creates an empty table structure with specified columns for a given node.
-     * This method should be called when no data is returned from API but
-     * we still want to create the table structure without any data rows.
-     * 
-     * @param {string} nodeName - Name of the node/table to create
-     * @param {Array} requestedFields - Requested fields for this node (from fields parameter)
-     * @param {Object} storage - Storage instance to use for table creation
-     */
-    createEmptyTableStructure(nodeName, requestedFields, storage) {
-      if (!storage || !requestedFields || !requestedFields.length) {
-        return;
-      }
-
-      this.config.logMessage(`Creating empty table structure for '${nodeName}' with fields: ${requestedFields.join(', ')}`);
-      
-      // BigQuery-specific: create table using selected fields if supported
-      if (typeof storage.createTableIfItDoesntExist === 'function' 
-        && storage.constructor && storage.constructor.name === 'GoogleBigQueryStorage') {
-        try {
-          storage.createTableIfItDoesntExist(requestedFields);
-        } catch (e) {
-          this.config.logMessage(`Warning: Could not create table structure: ${e.message}`);
-        }
-      }
-    }
-    //----------------------------------------------------------------
-
   //---- getDestinationName ----------------------------------
     /**
      * Resolves destination table name for a given node.

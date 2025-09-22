@@ -83,19 +83,17 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
 
         let data = this.source.fetchData(nodeName, accountId, fields);
         
+        // Get storage and save data if we have data OR need to create empty table (only on first iteration)
+        if( data.length || (i == 0 && this.config.CreateEmptyTables?.value === "true") ) {
+          this.getStorageByNode(nodeName, fields ).saveData( data );
+        }
+
+        // Log and count only when we actually have data
         if( data.length ) {
           this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for account ${accountId}`);
-          this.getStorageByNode(nodeName, fields ).saveData( data );
           totalRecords += data.length;
         }
 
-      }
-
-      // If no data was found but should create empty table
-      if (totalRecords === 0 && this.config.CreateEmptyTables?.value === "true") {
-        let storage = this.getStorageByNode(nodeName, fields);
-        
-        this.createEmptyTableStructure(nodeName, fields, storage);
       }
 
     }
@@ -134,19 +132,17 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
             // fetching new data from a data source  
             let data = this.source.fetchData(nodeName, accountId, timeSeriesNodes[ nodeName ], startDate);
 
-              // there are fetched records to update
-            if( !data.length ) {      
-              
-              if( daysShift == 0) {
-                this.config.logMessage(`ℹ️ No records have been fetched`);
-              }
-
-            } else {
-
-              this.config.logMessage(`${data.length} records were fetched`);
+            // Get storage and save data if we have data OR need to create empty table
+            if( data.length || this.config.CreateEmptyTables?.value === "true" ) {
               this.getStorageByNode(nodeName, timeSeriesNodes[ nodeName ] ).saveData(data);
-              nodesWithData.add(nodeName);
+            }
 
+            // Log and track only when we actually have data
+            if( data.length ) {
+              this.config.logMessage(`${data.length} records were fetched`);
+              nodesWithData.add(nodeName);
+            } else if( daysShift == 0) {
+              this.config.logMessage(`ℹ️ No records have been fetched`);
             }
             
           }
@@ -161,16 +157,6 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
 
       }
 
-      // Create empty tables for nodes that had no data if required
-      if (this.config.CreateEmptyTables?.value === "true") {
-        for (let nodeName in timeSeriesNodes) {
-          if (!nodesWithData.has(nodeName)) {
-            let storage = this.getStorageByNode(nodeName, timeSeriesNodes[nodeName]);
-            
-            this.createEmptyTableStructure(nodeName, timeSeriesNodes[nodeName], storage);
-          }
-        }
-      }
     }
   
 //---- getStorageName -------------------------------------------------
