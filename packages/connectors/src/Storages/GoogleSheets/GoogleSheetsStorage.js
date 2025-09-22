@@ -347,6 +347,35 @@ var GoogleSheetsStorage = class GoogleSheetsStorage extends AbstractStorage {
     
     }
     //----------------------------------------------------------------
+
+  //---- initializeColumns -------------------------------------------
+    /**
+     * Initialize headers with provided columns without inserting any data rows
+     * @param {Array<string>} columnNames
+     */
+    initializeColumns(columnNames) {
+      if (!Array.isArray(columnNames) || columnNames.length === 0) {
+        return;
+      }
+
+      // Ensure sheet exists and has at least unique key headers
+      this.getDestinationSheet(this.config);
+
+      // If sheet is empty, add header with provided columns directly
+      if (this.isEmpty()) {
+        this.addHeader(columnNames);
+        this.columnNames = [...columnNames];
+        return;
+      }
+
+      // Otherwise, add missing columns to existing header in order
+      columnNames.forEach((columnName, index) => {
+        if (!this.columnNames.includes(columnName)) {
+          this.addColumn(columnName, this.columnNames.length + 1);
+        }
+      });
+    }
+    //----------------------------------------------------------------
   
   //---- addColumn ---------------------------------------------------
     /**

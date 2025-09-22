@@ -360,36 +360,9 @@ var AbstractConnector = class AbstractConnector {
 
       this.config.logMessage(`Creating empty table structure for '${nodeName}' with fields: ${requestedFields.join(', ')}`);
       
-      // Create temporary record with all requested fields to trigger column creation
-      const tempRecord = {};
-      requestedFields.forEach(field => {
-        tempRecord[field] = null;
-      });
-
-      // Add a unique temporary identifier to be able to delete this record
-      const tempId = `__temp_${Date.now()}__`;
-      if (storage.uniqueKeyColumns && storage.uniqueKeyColumns.length > 0) {
-        // Set the unique key field with temp ID
-        tempRecord[storage.uniqueKeyColumns[0]] = tempId;
-      }
-
-      // Save the temporary record to create all columns
-      storage.saveData([tempRecord]);
-      
-      // If storage has deleteRecord method, delete the temporary record
-      if (typeof storage.deleteRecord === 'function' && storage.uniqueKeyColumns && storage.uniqueKeyColumns.length > 0) {
-        try {
-          // Create unique key for deletion (same logic as in GoogleSheetsStorage)
-          const uniqueKey = storage.uniqueKeyColumns.reduce((accumulator, columnName) => {
-            accumulator += `|${tempRecord[columnName]}`;
-            return accumulator;
-          }, []);
-          
-          storage.deleteRecord(uniqueKey);
-          this.config.logMessage(`Temporary record removed from '${nodeName}' table`);
-        } catch (error) {
-          this.config.logMessage(`Warning: Could not delete temporary record from '${nodeName}': ${error.message}`);
-        }
+      // Ask storage to initialize headers/columns without inserting any rows
+      if (typeof storage.initializeColumns === 'function') {
+        storage.initializeColumns(requestedFields);
       }
     }
     //----------------------------------------------------------------
