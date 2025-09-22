@@ -82,6 +82,12 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
         default: "Daily",
         label: "Aggregation",
         description: "Aggregation for reports (e.g. Daily, Weekly, Monthly)"
+      },
+      CreateEmptyTables: {
+        requiredType: "string",
+        default: "true",
+        label: "Create Empty Tables",
+        description: "Create tables with all columns even if no data is returned from API"
       }
     }));
     this.fieldsSchema = MicrosoftAdsFieldsSchema;

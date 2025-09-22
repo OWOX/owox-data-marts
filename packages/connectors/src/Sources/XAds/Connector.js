@@ -40,20 +40,17 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
    * @param {Array<string>} options.fields - Array of fields to fetch
    */
   processNode({ nodeName, accountId, fields }) {
-    const storage = this.getStorageByNode(nodeName);
     if (this.source.fieldsSchema[nodeName].isTimeSeries) {
       this.processTimeSeriesNode({
         nodeName,
         accountId,
-        fields,
-        storage
+        fields
       });
     } else {
       this.processCatalogNode({
         nodeName,
         accountId,
-        fields,
-        storage
+        fields
       });
     }
   }
@@ -66,7 +63,7 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
    * @param {Array<string>} options.fields - Array of fields to fetch
    * @param {Object} options.storage - Storage instance
    */
-  processTimeSeriesNode({ nodeName, accountId, fields, storage }) {
+  processTimeSeriesNode({ nodeName, accountId, fields }) {
     const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
   
     if (daysToFetch <= 0) {
@@ -82,11 +79,11 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
 
       const data = this.source.fetchData({ nodeName, accountId, start_time: formattedDate, end_time: formattedDate, fields });
   
-      this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for ${accountId} on ${formattedDate}`);
+      this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${accountId} on ${formattedDate}` : `ℹ️ No records have been fetched`);
   
-      if (data.length > 0) {
-        const preparedData = this.addMissingFieldsToData(data, fields);
-        storage.saveData(preparedData);
+      if (data.length || this.config.CreateEmptyTables?.value === "true") {
+        const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
+        this.getStorageByNode(nodeName, fields).saveData(preparedData);
       }
 
       if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
@@ -103,22 +100,24 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
    * @param {Array<string>} options.fields - Array of fields to fetch
    * @param {Object} options.storage - Storage instance
    */
-  processCatalogNode({ nodeName, accountId, fields, storage }) {
+  processCatalogNode({ nodeName, accountId, fields }) {
     const data = this.source.fetchData({ nodeName, accountId, fields });
-    this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for ${accountId}`);
+    
+    this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${accountId}` : `ℹ️ No records have been fetched`);
 
-    if (data && data.length) {
-      const preparedData = this.addMissingFieldsToData(data, fields);
-      storage.saveData(preparedData);
+    if (data.length || this.config.CreateEmptyTables?.value === "true") {
+      const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
+      this.getStorageByNode(nodeName, fields).saveData(preparedData);
     }
   }
 
   /**
    * Get storage instance for a node
    * @param {string} nodeName - Name of the node
+   * @param {Array<string>} requestedFields - Requested fields for this node
    * @returns {Object} Storage instance
    */
-  getStorageByNode(nodeName) {
+  getStorageByNode(nodeName, requestedFields = null) {
     if (!("storages" in this)) {
       this.storages = {};
     }
@@ -137,7 +136,8 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
         }),
         uniqueFields,
         this.source.fieldsSchema[nodeName].fields,
-        `${this.source.fieldsSchema[nodeName].description} ${this.source.fieldsSchema[nodeName].documentation}`
+        `${this.source.fieldsSchema[nodeName].description} ${this.source.fieldsSchema[nodeName].documentation}`,
+        requestedFields
       );
     }
 

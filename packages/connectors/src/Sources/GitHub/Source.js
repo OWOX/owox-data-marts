@@ -56,6 +56,12 @@ var GitHubSource = class GitHubSource extends AbstractSource {
         requiredType: "string",
         label: "Fields",
         description: "Comma-separated list of fields to fetch (e.g., date,stars,contributors)"
+      },
+      CreateEmptyTables: {
+        requiredType: "string",
+        default: "true",
+        label: "Create Empty Tables",
+        description: "Create tables with all columns even if no data is returned from API"
       }
     }));
   

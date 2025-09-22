@@ -56,6 +56,12 @@ constructor(config) {
         default: "USD",
         label: "Base Currency",
         description: "Base currency for exchange rates (available for Developer+ plans)"
+      },
+      CreateEmptyTables: {
+        requiredType: "string",
+        default: "true",
+        label: "Create Empty Tables",
+        description: "Create tables with all columns even if no data is returned from API"
       }
     }) );
     

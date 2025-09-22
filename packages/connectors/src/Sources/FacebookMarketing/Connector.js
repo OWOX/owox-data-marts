@@ -85,7 +85,6 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
           this.getStorageByNode(nodeName, fields ).saveData( data );
         }
 
-        // Log and count only when we actually have data
         data.length && this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for account ${accountId}`);
 
       }
