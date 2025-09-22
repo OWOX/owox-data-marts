@@ -15,7 +15,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
      * @param schema (object) object with structure like {fieldName: {type: "number", description: "smth" } }
      * @param description (string) string with storage description }
      */
-    constructor(config, uniqueKeyColumns, schema = null, description = null) {
+    constructor(config, uniqueKeyColumns, schema = null, description = null, requestedFields = null) {
     
       super(
         config.mergeParameters({
@@ -55,7 +55,8 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         }),
         uniqueKeyColumns,
         schema,
-        description
+        description,
+        requestedFields
       );
 
       this.checkIfGoogleBigQueryIsConnected();
@@ -143,19 +144,18 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
   //---- createTableIfItDoesntExist ----------------------------------
     /**
-     * Create table if it doesn't exist. When selectedColumns is provided,
+     * Create table if it doesn't exist. When requestedFields is provided,
      * use it as the list of columns to create (instead of uniqueKeyColumns),
      * adding PRIMARY KEY only if all unique keys are included.
-     * @param {Array<string>=} selectedColumns
      */
-    createTableIfItDoesntExist(selectedColumns = null) {
+    createTableIfItDoesntExist() {
 
       let columns = [];
       let columnPartitioned = null;
       let existingColumns = {};
 
-      const useColumns = Array.isArray(selectedColumns) && selectedColumns.length
-        ? selectedColumns
+      const useColumns = Array.isArray(this.requestedFields) && this.requestedFields.length
+        ? this.requestedFields
         : this.uniqueKeyColumns;
 
       for (let i in useColumns) {

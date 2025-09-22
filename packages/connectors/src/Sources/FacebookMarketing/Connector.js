@@ -168,7 +168,7 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
    * @return AbstractStorage 
    * 
    */
-  getStorageByNode(nodeName) {
+  getStorageByNode(nodeName, requestedFields = null) {
 
     // initiate blank object for storages
     if( !("storages" in this) ) {
@@ -190,7 +190,8 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
         }),
         uniqueFields,
         this.source.fieldsSchema[ nodeName ]["fields"],
-        `${this.source.fieldsSchema[ nodeName ]["description"]} ${this.source.fieldsSchema[ nodeName ]["documentation"]}`
+        `${this.source.fieldsSchema[ nodeName ]["description"]} ${this.source.fieldsSchema[ nodeName ]["documentation"]}`,
+        requestedFields
       );
 
     }
