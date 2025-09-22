@@ -77,13 +77,12 @@ var LinkedInPagesConnector = class LinkedInPagesConnector extends AbstractConnec
       
       const params = { fields, ...(isTimeSeriesNode && { startDate, endDate }) };
       const data = this.source.fetchData(nodeName, urn, params);
-      const preparedData = this.addMissingFieldsToData(data, fields);
       
-      if (preparedData.length) {
-        this.config.logMessage(`${preparedData.length} rows of ${nodeName} were fetched for ${urn}${endDate ? ` from ${startDate} to ${endDate}` : ''}`);
-        this.getStorageByNode(nodeName).saveData(preparedData);
-      } else {
-        this.config.logMessage(`No data fetched for ${nodeName} and ${urn}${endDate ? ` from ${startDate} to ${endDate}` : ''}`);
+      this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${urn}${endDate ? ` from ${startDate} to ${endDate}` : ''}` : `ℹ️ No records have been fetched`);
+      
+      if (data.length || this.config.CreateEmptyTables?.value === "true") {
+        const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
+        this.getStorageByNode(nodeName, fields).saveData(preparedData);
       }
     }
   }
@@ -91,9 +90,10 @@ var LinkedInPagesConnector = class LinkedInPagesConnector extends AbstractConnec
   /**
    * Get or create storage instance for a node
    * @param {string} nodeName - Name of the node
+   * @param {Array<string>} requestedFields - Requested fields for this node
    * @returns {Object} - Storage instance
    */
-  getStorageByNode(nodeName) {
+  getStorageByNode(nodeName, requestedFields = null) {
     // initiate blank object for storages
     if (!("storages" in this)) {
       this.storages = {};
@@ -113,7 +113,8 @@ var LinkedInPagesConnector = class LinkedInPagesConnector extends AbstractConnec
         }),
         uniqueFields,
         this.source.fieldsSchema[nodeName]["fields"],
-        `${this.source.fieldsSchema[nodeName]["description"]} ${this.source.fieldsSchema[nodeName]["documentation"]}`
+        `${this.source.fieldsSchema[nodeName]["description"]} ${this.source.fieldsSchema[nodeName]["documentation"]}`,
+        requestedFields
       );
     }
 

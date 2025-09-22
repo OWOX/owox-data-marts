@@ -104,6 +104,12 @@ var XAdsSource = class XAdsSource extends AbstractSource {
         default: 20,
         label: "Max Stats Entity IDs",
         description: "Maximum number of entity_ids allowed per request for stats endpoint"
+      },
+      CreateEmptyTables: {
+        requiredType: "string",
+        default: "true",
+        label: "Create Empty Tables",
+        description: "Create tables with all columns even if no data is returned from API"
       }
     }));
 

@@ -116,18 +116,16 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
       try {
         let data = this.source.fetchData(nodeName, advertiserId, fields);
         
-        if (data.length) {
-          this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for advertiser ${advertiserId}`);
+        this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for advertiser ${advertiserId}` : `ℹ️ No records have been fetched`);
 
+        if (data.length || this.config.CreateEmptyTables?.value === "true") {
           try {
-            const preparedData = this.addMissingFieldsToData(data, fields);
+            const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
             this.getStorageByNode(nodeName, fields).saveData(preparedData);
           } catch (storageError) {
             this.config.logMessage(`❌ Error saving data to storage: ${storageError.message}`);
             console.error(`Error details: ${storageError.stack}`);
           }
-        } else {
-          this.config.logMessage(`No rows of ${nodeName} were fetched for advertiser ${advertiserId}`);
         }
       } catch (error) {
         this.config.logMessage(`❌ Error fetching ${nodeName} for advertiser ${advertiserId}: ${error.message}`);
@@ -165,13 +163,11 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
             // Fetching new data from the data source
             let data = this.source.fetchData(nodeName, advertiserId, timeSeriesNodes[nodeName], currentDate);
 
-            // Process fetched records
-            if (!data.length) {
-              this.config.logMessage(`ℹ️ No records have been fetched`);
-            } else {
-              this.config.logMessage(`${data.length} records were fetched`);
+            this.config.logMessage(data.length ? `${data.length} records were fetched` : `ℹ️ No records have been fetched`);
+
+            if (data.length || this.config.CreateEmptyTables?.value === "true") {
               try {
-                const preparedData = this.addMissingFieldsToData(data, timeSeriesNodes[nodeName]);
+                const preparedData = data.length ? this.addMissingFieldsToData(data, timeSeriesNodes[nodeName]) : data;
                 this.getStorageByNode(nodeName, timeSeriesNodes[nodeName]).saveData(preparedData);
               } catch (storageError) {
                 this.config.logMessage(`❌ Error saving data to storage: ${storageError.message}`);
@@ -223,8 +219,9 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
           }
         }),
         uniqueFields,
-                  this.source.fieldsSchema[nodeName]["fields"] || {},
-        `${this.source.fieldsSchema[ nodeName ]["description"]} ${this.source.fieldsSchema[ nodeName ]["documentation"]}`
+        this.source.fieldsSchema[nodeName]["fields"] || {},
+        `${this.source.fieldsSchema[ nodeName ]["description"]} ${this.source.fieldsSchema[ nodeName ]["documentation"]}`,
+        requestedFields
       );
     }
 

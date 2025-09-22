@@ -46,6 +46,12 @@ constructor( configRange ) {
       requiredType: "string",
       label: "Fields",
       description: "Comma-separated list of fields to fetch (e.g., date,label,rate)"
+    },
+    CreateEmptyTables: {
+      requiredType: "string",
+      default: "true",
+      label: "Create Empty Tables",
+      description: "Create tables with all columns even if no data is returned from API"
     }
   }));
 

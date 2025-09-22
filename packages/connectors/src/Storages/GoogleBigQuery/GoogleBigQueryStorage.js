@@ -167,10 +167,10 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         let columnName = useColumns[i];
         let columnDescription = '';
 
-        if (!(columnName in this.schema)) {
+        if( !(columnName in this.schema) ) {
           throw new Error(`Required field ${columnName} not found in schema`);
         }
-
+        
         let columnType = this.getColumnType(columnName);
         
         if( "description" in this.schema[ columnName ] ) {
@@ -183,7 +183,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         }
 
         columns.push(`${columnName} ${columnType}${columnDescription}`);
-
+        
         existingColumns[ columnName ] = {"name": columnName, "type": columnType};
 
       }

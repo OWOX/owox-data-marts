@@ -80,6 +80,12 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
         default: false,
         label: "Sandbox Mode",
         description: "Use sandbox environment for testing"
+      },
+      CreateEmptyTables: {
+        requiredType: "string",
+        default: "true",
+        label: "Create Empty Tables",
+        description: "Create tables with all columns even if no data is returned from API"
       }
     }));
 
