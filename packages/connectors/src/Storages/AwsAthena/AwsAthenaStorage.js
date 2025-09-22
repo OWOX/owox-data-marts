@@ -358,43 +358,6 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
       deasync.loopWhile(() => !done);
   }
 
-  //---- initializeColumns -------------------------------------------
-  /**
-   * Initialize Athena table with provided columns (no data insertion)
-   * Ensures table exists with unique keys, then adds requested columns from schema
-   * @param {Array<string>} columnNames
-   */
-  initializeColumns(columnNames) {
-    if (!Array.isArray(columnNames) || columnNames.length === 0) {
-      return;
-    }
-
-    // Ensure table exists and existingColumns are loaded
-    let done = false;
-    this.checkTableExists()
-      .then(() => {
-        // Build desired set: unique keys + requested fields that exist in schema
-        const desired = new Set();
-        this.uniqueKeyColumns.forEach(col => desired.add(col));
-        columnNames.forEach(col => {
-          if (col in this.schema) desired.add(col);
-        });
-
-        const existing = new Set(Object.keys(this.existingColumns || {}));
-        const toAdd = Array.from(desired).filter(col => !existing.has(col));
-
-        if (toAdd.length > 0) {
-          return this.addNewColumns(toAdd);
-        }
-        return Promise.resolve();
-      })
-      .then(() => { done = true; })
-      .catch(() => { done = true; });
-
-    // Block until finished (to match existing sync-like API)
-    deasync.loopWhile(() => !done);
-  }
-
   //---- uploadDataToS3TempFolder ---------------------------------
   /**
    * Upload data to S3 temp folder in batches

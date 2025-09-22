@@ -142,39 +142,51 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
     }
 
   //---- createTableIfItDoesntExist ----------------------------------
-    createTableIfItDoesntExist() {
+    /**
+     * Create table if it doesn't exist. When selectedColumns is provided,
+     * use it as the list of columns to create (instead of uniqueKeyColumns),
+     * adding PRIMARY KEY only if all unique keys are included.
+     * @param {Array<string>=} selectedColumns
+     */
+    createTableIfItDoesntExist(selectedColumns = null) {
 
       let columns = [];
       let columnPartitioned = null;
       let existingColumns = {};
 
-      for(var i in this.uniqueKeyColumns) {
-        
-        let columnName = this.uniqueKeyColumns[i];
+      const useColumns = Array.isArray(selectedColumns) && selectedColumns.length
+        ? selectedColumns
+        : this.uniqueKeyColumns;
+
+      for (let i in useColumns) {
+        let columnName = useColumns[i];
         let columnDescription = '';
 
-        if( !(columnName in this.schema) ) {
+        if (!(columnName in this.schema)) {
           throw new Error(`Required field ${columnName} not found in schema`);
         }
-        
+
         let columnType = this.getColumnType(columnName);
-        
-        if( "description" in this.schema[ columnName ] ) {
-          columnDescription = ` OPTIONS(description="${this.schema[ columnName ]["description"]}")`;
+
+        if ("description" in this.schema[columnName]) {
+          columnDescription = ` OPTIONS(description="${this.schema[columnName]["description"]}")`;
         }
 
-        if( "GoogleBigQueryPartitioned" in this.schema[ columnName ] 
-        && this.schema[ columnName ]["GoogleBigQueryPartitioned"] ) {
+        if ("GoogleBigQueryPartitioned" in this.schema[columnName]
+        && this.schema[columnName]["GoogleBigQueryPartitioned"]) {
           columnPartitioned = columnName;
         }
 
         columns.push(`${columnName} ${columnType}${columnDescription}`);
-        
-        existingColumns[ columnName ] = {"name": columnName, "type": columnType};
 
+        existingColumns[columnName] = { "name": columnName, "type": columnType };
       }
 
-      columns.push(`PRIMARY KEY (${this.uniqueKeyColumns.join(",")}) NOT ENFORCED`);
+      // Add PRIMARY KEY only if all unique keys are present in the created columns
+      const allUniqueKeysIncluded = this.uniqueKeyColumns.every(k => useColumns.includes(k));
+      if (allUniqueKeysIncluded) {
+        columns.push(`PRIMARY KEY (${this.uniqueKeyColumns.join(",")}) NOT ENFORCED`);
+      }
 
       columns = columns.join(",\n");
 
@@ -256,36 +268,6 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
 
     }
-
-  //---- initializeColumns -------------------------------------------
-    /**
-     * Initialize BigQuery table with provided columns without inserting rows
-     * Ensures dataset/table exist with unique keys and adds requested fields
-     * @param {Array<string>} columnNames
-     */
-    initializeColumns(columnNames) {
-      if (!Array.isArray(columnNames) || columnNames.length === 0) {
-        return;
-      }
-
-      // Ensure table exists and existingColumns are loaded
-      this.loadTableSchema();
-
-      // Build desired set: unique keys + requested fields that exist in schema
-      const desired = new Set();
-      this.uniqueKeyColumns.forEach(col => desired.add(col));
-      columnNames.forEach(col => {
-        if (col in this.schema) desired.add(col);
-      });
-
-      const existing = new Set(Object.keys(this.existingColumns || {}));
-      const toAdd = Array.from(desired).filter(col => !existing.has(col));
-
-      if (toAdd.length > 0) {
-        this.addNewColumns(toAdd);
-      }
-    }
-    //----------------------------------------------------------------
 
   //---- saveData ----------------------------------------------------
     /**
