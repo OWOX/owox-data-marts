@@ -81,7 +81,6 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
 
         let data = this.source.fetchData(nodeName, accountId, fields);
         
-        // Get storage and save data if we have data OR need to create empty table (only on first iteration)
         if( data.length || (i == 0 && this.config.CreateEmptyTables?.value === "true") ) {
           this.getStorageByNode(nodeName, fields ).saveData( data );
         }
@@ -124,7 +123,6 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
             // fetching new data from a data source  
             let data = this.source.fetchData(nodeName, accountId, timeSeriesNodes[ nodeName ], startDate);
 
-            // Get storage and save data if we have data OR need to create empty table
             if( data.length || this.config.CreateEmptyTables?.value === "true" ) {
               this.getStorageByNode(nodeName, timeSeriesNodes[ nodeName ] ).saveData(data);
             }
@@ -141,7 +139,7 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
         }
         startDate.setDate( startDate.getDate() + 1);  // let's move on to the next date
 
-      }
+      }    
     }
   
 //---- getStorageName -------------------------------------------------

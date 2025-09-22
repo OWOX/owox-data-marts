@@ -172,22 +172,22 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         }
 
         let columnType = this.getColumnType(columnName);
-
-        if ("description" in this.schema[columnName]) {
-          columnDescription = ` OPTIONS(description="${this.schema[columnName]["description"]}")`;
+        
+        if( "description" in this.schema[ columnName ] ) {
+          columnDescription = ` OPTIONS(description="${this.schema[ columnName ]["description"]}")`;
         }
 
-        if ("GoogleBigQueryPartitioned" in this.schema[columnName]
-        && this.schema[columnName]["GoogleBigQueryPartitioned"]) {
+        if( "GoogleBigQueryPartitioned" in this.schema[ columnName ] 
+        && this.schema[ columnName ]["GoogleBigQueryPartitioned"] ) {
           columnPartitioned = columnName;
         }
 
         columns.push(`${columnName} ${columnType}${columnDescription}`);
 
-        existingColumns[columnName] = { "name": columnName, "type": columnType };
+        existingColumns[ columnName ] = {"name": columnName, "type": columnType};
+
       }
 
-      // Add PRIMARY KEY only if all unique keys are present in the created columns
       const allUniqueKeysIncluded = this.uniqueKeyColumns.every(k => useColumns.includes(k));
       if (allUniqueKeysIncluded) {
         columns.push(`PRIMARY KEY (${this.uniqueKeyColumns.join(",")}) NOT ENFORCED`);
