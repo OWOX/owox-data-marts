@@ -257,6 +257,36 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
     }
 
+  //---- initializeColumns -------------------------------------------
+    /**
+     * Initialize BigQuery table with provided columns without inserting rows
+     * Ensures dataset/table exist with unique keys and adds requested fields
+     * @param {Array<string>} columnNames
+     */
+    initializeColumns(columnNames) {
+      if (!Array.isArray(columnNames) || columnNames.length === 0) {
+        return;
+      }
+
+      // Ensure table exists and existingColumns are loaded
+      this.loadTableSchema();
+
+      // Build desired set: unique keys + requested fields that exist in schema
+      const desired = new Set();
+      this.uniqueKeyColumns.forEach(col => desired.add(col));
+      columnNames.forEach(col => {
+        if (col in this.schema) desired.add(col);
+      });
+
+      const existing = new Set(Object.keys(this.existingColumns || {}));
+      const toAdd = Array.from(desired).filter(col => !existing.has(col));
+
+      if (toAdd.length > 0) {
+        this.addNewColumns(toAdd);
+      }
+    }
+    //----------------------------------------------------------------
+
   //---- saveData ----------------------------------------------------
     /**
      * Saving data to a storage

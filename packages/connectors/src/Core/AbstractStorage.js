@@ -120,6 +120,20 @@ class AbstractStorage {
       throw new Error("Method saveDate() has to be implemented in a child class of AbstractStorage");
     }
     //----------------------------------------------------------------
+
+  //---- initializeColumns -------------------------------------------
+    /**
+     * Initialize storage header with provided column names without adding any rows
+     * Child storages should override if they need custom behavior
+     * @param {Array<string>} columnNames
+     */
+    initializeColumns(columnNames) {
+      // Default implementation does nothing; storages can override
+      if (!Array.isArray(columnNames) || columnNames.length === 0) {
+        return;
+      }
+    }
+    //----------------------------------------------------------------
   
   //---- saveRecordsAddedToBuffer ------------------------------------
     /**
