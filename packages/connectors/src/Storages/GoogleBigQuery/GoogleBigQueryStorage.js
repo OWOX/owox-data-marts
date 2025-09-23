@@ -73,18 +73,16 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
   //---- loads Google BigQuery Table Schema ---------------------------
     loadTableSchema() {
 
-      let existingColumns = this.getAListOfExistingColumns();
-
-      this.existingColumns = existingColumns || {};
+      this.existingColumns = this.getAListOfExistingColumns() || {};
 
       // If there are no existing fields, it means the table has not been created yet
-      if( Object.keys(existingColumns).length == 0 ) {
+      if( Object.keys(this.existingColumns).length == 0 ) {
         this.createDatasetIfItDoesntExist();
         this.existingColumns = this.createTableIfItDoesntExist();
       } else {
         // Check if there are new columns from Fields config
         let selectedFields = this.getSelectedFields();
-        let newFields = selectedFields.filter( column => !Object.keys(existingColumns).includes(column) );
+        let newFields = selectedFields.filter( column => !Object.keys(this.existingColumns).includes(column) );
         if( newFields.length > 0 ) {
           this.addNewColumns(newFields);
         }
@@ -160,10 +158,10 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       let existingColumns = {};
 
       let selectedFields = this.getSelectedFields();
-      let useColumns = selectedFields.length > 0 ? selectedFields : this.uniqueKeyColumns;
+      let tableColumns = selectedFields.length > 0 ? selectedFields : this.uniqueKeyColumns;
 
-      for (let i in useColumns) {
-        let columnName = useColumns[i];
+      for (let i in tableColumns) {
+        let columnName = tableColumns[i];
         let columnDescription = '';
 
         if( !(columnName in this.schema) ) {
@@ -187,10 +185,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
       }
 
-      const allUniqueKeysIncluded = this.uniqueKeyColumns.every(k => useColumns.includes(k));
-      if (allUniqueKeysIncluded) {
-        columns.push(`PRIMARY KEY (${this.uniqueKeyColumns.join(",")}) NOT ENFORCED`);
-      }
+      columns.push(`PRIMARY KEY (${this.uniqueKeyColumns.join(",")}) NOT ENFORCED`);
 
       columns = columns.join(",\n");
 

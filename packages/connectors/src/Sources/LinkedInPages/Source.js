@@ -74,7 +74,7 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
         description: "LinkedIn Organization URNs to fetch data from"
       },
       CreateEmptyTables: {
-        requiredType: "string",
+        requiredType: "string",  // TODO: Change to boolean type
         default: "true",
         label: "Create Empty Tables",
         description: "Create tables with all columns even if no data is returned from API"

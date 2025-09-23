@@ -85,7 +85,7 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
         description: "Maximum number of days to fetch data for"
       },
       CreateEmptyTables: {
-        requiredType: "string",
+        requiredType: "string",  // TODO: Change to boolean type
         default: "true",
         label: "Create Empty Tables",
         description: "Create tables with all columns even if no data is returned from API"

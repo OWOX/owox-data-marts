@@ -23,7 +23,7 @@ A method for invoking importNewData() to determine the parameters required for f
    * Processes all nodes defined in the fields configuration
    */
   startImportProcess() {
-    const fields = ConnectorUtils.parseFields(this.config.Fields?.value || "historical date,historical base,historical currency,historical rate");
+    const fields = ConnectorUtils.parseFields(this.config.Fields?.value);
 
     for (const nodeName in fields) {
       this.processNode({

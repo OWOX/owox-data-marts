@@ -81,7 +81,7 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
 
         let data = this.source.fetchData(nodeName, accountId, fields);
         
-        if( data.length || (i == 0 && this.config.CreateEmptyTables?.value === "true") ) {
+        if(data.length || this.config.CreateEmptyTables?.value === "true") {
           this.getStorageByNode(nodeName).saveData( data );
         }
 
