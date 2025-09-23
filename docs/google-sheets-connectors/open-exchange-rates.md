@@ -21,7 +21,7 @@ Go to **OWOX → Manage credentials** from the menu.
 
 ![Open Exchange Rates Credentials](./res/openrates_credentials.png)
 
-Enter your **App ID** obtained by following this tutorial:  [How to obtain the App ID for the Open Exchange Rates connector](/packages/connectors/src/Sources/OpenExchangeRates/CREDENTIALS.md)
+Enter your **App ID** obtained by following this tutorial:  [How to obtain the App ID for the Open Exchange Rates connector](../../packages/connectors/src/Sources/OpenExchangeRates/CREDENTIALS.md)
 
 ![Open Exchange Rates App ID](./res/openrates_appid.png)
 
@@ -66,4 +66,4 @@ Should you encounter any issues or questions not addressed in this guide:
 
 ## License
 
-This connector is part of the OWOX Data Marts project and is distributed under the [MIT license](/licenses/MIT.md).
+This connector is part of the OWOX Data Marts project and is distributed under the [MIT license](../../licenses/MIT.md).
