@@ -1,4 +1,4 @@
-# Linkedin Ads
+# LinkedIn Ads
 
 This guide will walk you through the process of collecting the LinkedIn Ads data directly into Google Sheets.
 It provides access to advertiser information, campaigns, ad groups, ads, performance metrics, and custom audiences.
@@ -13,37 +13,37 @@ Once you have copied the template, proceed with the configuration steps:
 
 You can find your **Account URN** on the homepage of your LinkedIn Ads account:
 
-![LinkedIn Account URN](/packages/connectors/src/Sources/LinkedInAds/res/linkedin_account.png)
+![LinkedIn Account URN](./res/linkedin_account.png)
 
 Copy and paste the URN into the appropriate field in the spreadsheet:
 
-![Account URN](/packages/connectors/src/Sources/LinkedInAds/res/linkedin_pasteurn.png)
+![Account URN](./res/linkedin_pasteurn.png)
 
 ## Step 2: Select Fields to Import
 
 Several common data fields are pre-selected by default. To include additional fields in your import, go to the "Fields" tab and check the boxes next to the desired fields.
 
-![LinkedIn Fields](/packages/connectors/src/Sources/LinkedInAds/res/linkedin_fields.png)
+![LinkedIn Fields](./res/linkedin_fields.png)
 
 ## Step 3: Fill in Access Credentials
 
 Next, access the custom menu: **OWOX → Manage Credentials**.
 
-![LinkedIn Credentials](/packages/connectors/src/Sources/LinkedInAds/res/linkedin_credentials.png)
+![LinkedIn Credentials](./res/linkedin_credentials.png)
 
 Enter your Access Token obtained by following this tutorial: [**How to obtain the credentials for the LinkedIn Ads connector**](/packages/connectors/src/Sources/LinkedInAds/CREDENTIALS.md).
 
-![LinkedIn Token](/packages/connectors/src/Sources/LinkedInAds/res/linkedin_token.png)
+![LinkedIn Token](./res/linkedin_token.png)
 
 ## Step 3: Run connector
 
-Now you have **two options** for importing Linkedin Ads data:
+Now you have **two options** for importing LinkedIn Ads data:
 
 ### Option 1: Import Current Day's Data
 
 Choose **OWOX → Import New Data** to load data for the **current day**.
 
-![Facebook Import New Data](/packages/connectors/src/Sources/FacebookMarketing/res/facebook_newdata.png)
+![Facebook Import New Data](./res/facebook_newdata.png)
 
 > ℹ️ If you click **Import New Data** again after a successful initial load,  
 > the connector will import: **Current day's data**, plus **Additional days**, based on the value in the **Reimport Lookback Window** field.
@@ -55,7 +55,7 @@ Choose **Manual Backfill** to load historical data for a custom time range.
 1. Select the **Start Date** and **End Date**  
 2. Click the **Run Manual Backfill** button
 
-![Facebook Run Backfill](/packages/connectors/src/Sources/FacebookMarketing/res/facebook_runbackfill.png)
+![Facebook Run Backfill](./res/facebook_runbackfill.png)
 
 The process is complete when the **Log** field shows the message:  
 **"Import is finished"**  
