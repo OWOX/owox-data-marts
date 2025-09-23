@@ -29,7 +29,7 @@ Open the menu: **OWOX → Manage Credentials**
 
 ![Facebook Credentials](./res/fb_credentials.png)
 
-Enter your credentials obtained by following this guide: [**How to obtain the access token for the Facebook connector**](/packages/connectors/src/Sources/FacebookMarketing/CREDENTIALS.md)
+Enter your credentials obtained by following this guide: [**How to obtain the access token for the Facebook connector**](../../packages/connectors/src/Sources/FacebookMarketing/CREDENTIALS.md)
 
 ![Facebook Token](./res/fb_token.png)
 
@@ -79,4 +79,4 @@ To import more data:
 
 ## License
 
-This source is part of the OWOX Data Marts project and is distributed under the [MIT license](/licenses/MIT.md).
+This source is part of the OWOX Data Marts project and is distributed under the [MIT license](../../licenses/MIT.md).
