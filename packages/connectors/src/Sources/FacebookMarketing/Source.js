@@ -41,16 +41,16 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
           description: "List of fields to fetch from Facebook API"
         },
         ProcessShortLinks: {
-          requiredType: "string",
+          requiredType: "string", // TODO: Change to boolean type
           default: "true",
           label: "Process Short Links",
           description: "Enable automatic processing of short links in link_url_asset field"
         },
         CreateEmptyTables: {
-          requiredType: "string",
+          requiredType: "string", // TODO: Change to boolean type
           default: "true",
           label: "Create Empty Tables",
-          description: "Create tables with all columns even if no data is returned from API"
+          description: "Create tables with all columns even if no data is returned from API (true/false)"
         },
         ReimportLookbackWindow: {
           requiredType: "number",
