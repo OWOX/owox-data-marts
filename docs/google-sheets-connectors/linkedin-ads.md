@@ -31,7 +31,7 @@ Next, access the custom menu: **OWOX → Manage Credentials**.
 
 ![LinkedIn Credentials](./res/linkedin_credentials.png)
 
-Enter your Access Token obtained by following this tutorial: [**How to obtain the credentials for the LinkedIn Ads connector**](/packages/connectors/src/Sources/LinkedInAds/CREDENTIALS.md).
+Enter your Access Token obtained by following this tutorial: [**How to obtain the credentials for the LinkedIn Ads connector**](../../packages/connectors/src/Sources/LinkedInAds/CREDENTIALS.md).
 
 ![LinkedIn Token](./res/linkedin_token.png)
 
@@ -84,4 +84,4 @@ Should you encounter any issues or questions not addressed in this guide:
 
 ## License
 
-This source is part of the OWOX Data Marts project and is distributed under the [MIT license](/licenses/MIT.md).
+This source is part of the OWOX Data Marts project and is distributed under the [MIT license](../../licenses/MIT.md).
