@@ -45,7 +45,7 @@ Next, access the custom menu: **OWOX → Manage Credentials**.
 
 ![Bing Credentials](./res/bing_credentials.png)
 
-Enter your credentials obtained by following this guide: [**How to obtain the credentials for Bing Ads connector**](/packages/connectors/src/Sources/BingAds/CREDENTIALS.md).
+Enter your credentials obtained by following this guide: [**How to obtain the credentials for Bing Ads connector**](../../packages/connectors/src/Sources/BingAds/CREDENTIALS.md).
 
 ![Bing Token](./res/bing_creds.png)
 
@@ -92,4 +92,4 @@ Should you encounter any issues or questions not addressed in this guide:
 
 ## License
 
-This connector is part of the OWOX Data Marts project and is distributed under the [MIT license](/licenses/MIT.md).
+This connector is part of the OWOX Data Marts project and is distributed under the [MIT license](../../licenses/MIT.md).
