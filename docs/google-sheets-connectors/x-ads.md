@@ -19,7 +19,7 @@ The **Account ID** is: `18ce55in6wt`
 
 To include more fields, go to the **Fields** tab and check the boxes next to the fields you want to include.
 
-![X Ads Fields](/packages/connectors/src/Sources/XAds/res/xads_fields.png)
+![X Ads Fields](./res/xads_fields.png)
 
 ## Step 2: Select Fields to Import
 
@@ -29,11 +29,11 @@ Several common data fields are pre-selected by default. To include additional fi
 
 Next, access the custom menu: **OWOX → Manage Credentials**.
 
-Enter your credentials obtained by following this guide: [**How to obtain the credentials for the X Ads connector**](/packages/connectors/src/Sources/XAds/CREDENTIALS.md).
+Enter your credentials obtained by following this guide: [**How to obtain the credentials for the X Ads connector**](../../packages/connectors/src/Sources/XAds/CREDENTIALS.md).
 
 Click the **Save** button.
 
-![X Ads Credentials](/packages/connectors/src/Sources/XAds/res/xads_credentials.png)
+![X Ads Credentials](./res/xads_credentials.png)
 
 ## Step 3: Run connector
 
@@ -44,7 +44,7 @@ The process is complete when the **Log** sheet shows the message:
 
 In the **Google Sheets** template, the data will appear in new tabs labeled with the corresponding data types (e.g., *accounts*).  
 
-![X Ads Finished](/packages/connectors/src/Sources/XAds/res/xads_finished.png)
+![X Ads Finished](./res/xads_finished.png)
 
 ## Getting Help
 
@@ -57,4 +57,4 @@ Should you encounter any issues or questions not addressed in this guide:
 
 ## License
 
-This connector is part of the OWOX Data Marts project and is distributed under the [MIT license](/licenses/MIT.md).
+This connector is part of the OWOX Data Marts project and is distributed under the [MIT license](../../licenses/MIT.md).
