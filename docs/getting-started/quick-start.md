@@ -7,7 +7,7 @@ The table below summarizes the available options
 
 | Deployment Option | Guide | Best For |
 |-------------------|-------|----------|
-| **Local Deployment** | [Local Deployment](./deployment-guide/local-deployment.md) | Quick testing, learning, or running a demo on your own computer (macOS/Windows/Linux). |
+| **Local Deployment** | [Local Deployment Guide](./deployment-guide/local-deployment.md) | Quick testing, learning, or running a demo on your own computer (macOS/Windows/Linux). |
 | **DigitalOcean.com** | [DigitalOcean Guide](./deployment-guide/digitalocean.md) | Teams who want a simple and affordable cloud server setup with full control. |
 | **Render.com** | [Render Guide](./deployment-guide/render.md) | Teams who prefer a managed platform with built-in scaling and minimal DevOps work. |
 | **Cloud (OWOX SaaS)** | [OWOX Cloud](https://app.owox.com) | Fastest start, with no deployment setup required and automatic updates. |
