@@ -10,28 +10,28 @@ To begin importing data from Facebook Ads into Google Sheets, start by making a 
 
 You can find your **Account ID** on the **Account Overview** page in [Meta Ads Manager](https://adsmanager.facebook.com/adsmanager/manage/accounts).  
 
-![Facebook Account ID](/packages/connectors/src/Sources/FacebookMarketing/res/fb_accountid.png)
+![Facebook Account ID](./res/fb_accountid.png)
 
 Copy and paste the ID into the spreadsheet:  
 
-![Account ID](/packages/connectors/src/Sources/FacebookMarketing/res/fb_pasteid.png)
+![Account ID](./res/fb_pasteid.png)
 
 Next, **Select** the fields you want to collect
 
 Some fields are pre-filled by default.  
 To include additional fields, go to the **Fields** tab and check the boxes next to the fields you want to include.
 
-![Facebook Fields](/packages/connectors/src/Sources/FacebookMarketing/res/fb_fields.png)
+![Facebook Fields](,/res/fb_fields.png)
 
 ## Step 2: Manage Credentials
 
 Open the menu: **OWOX → Manage Credentials**
 
-![Facebook Credentials](/packages/connectors/src/Sources/FacebookMarketing/res/fb_credentials.png)
+![Facebook Credentials](./res/fb_credentials.png)
 
 Enter your credentials obtained by following this guide: [**How to obtain the access token for the Facebook connector**](/packages/connectors/src/Sources/FacebookMarketing/CREDENTIALS.md)
 
-![Facebook Token](/packages/connectors/src/Sources/FacebookMarketing/res/fb_token.png)
+![Facebook Token](./res/fb_token.png)
 
 ## Step 3: Run connector
 
@@ -41,30 +41,30 @@ Now you have **two options** for importing data from Facebook Ads:
 
 Choose **OWOX → Import New Data** to load data for the **current day**.
 
-![Facebook Import New Data](/packages/connectors/src/Sources/FacebookMarketing/res/facebook_newdata.png)
+![Facebook Import New Data](./res/facebook_newdata.png)
 
 > ℹ️ If you click **Import New Data** again after a successful initial load,  
 > the connector will import: **Current day's data**, plus **Additional days**, based on the value in the **Reimport Lookback Window** field.
 
-![Facebook Reimport](/packages/connectors/src/Sources/FacebookMarketing/res/facebook_reimport.png)
+![Facebook Reimport](./res/facebook_reimport.png)
 
 ### Option 2: Manual Backfill for Specific Date Range
 
 Choose **Manual Backfill** to load historical data for a custom time range.
 
-![Facebook Backfill](/packages/connectors/src/Sources/FacebookMarketing/res/facebook_backfill.png)
+![Facebook Backfill](./res/facebook_backfill.png)
 
 1. Select the **Start Date** and **End Date**  
 2. Click the **Run Manual Backfill** button
 
-![Facebook Run Backfill](/packages/connectors/src/Sources/FacebookMarketing/res/facebook_runbackfill.png)
+![Facebook Run Backfill](./res/facebook_runbackfill.png)
 
 The process is complete when the **Log** field shows the message:  
 **"Import is finished"**  
 
 Finally, your data will appear in new tabs labeled with the corresponding data types (e.g., *ad-account*, *ad-campaign*).  
 
-![Facebook Import Success Sheets](/packages/connectors/src/Sources/FacebookMarketing/res/facebook_importsheets.png)
+![Facebook Import Success Sheets](./res/facebook_importsheets.png)
 
 To import more data:
 
