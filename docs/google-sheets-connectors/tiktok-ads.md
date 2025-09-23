@@ -54,27 +54,27 @@ Once you have copied the template, proceed with the configuration steps:
 
 You can easily locate your **Advertiser ID** on the left-hand navigation bar within your [TikTok for Business dashboard](https://ads.tiktok.com/).
 
-![TikTok Advertiser ID](/packages/connectors/src/Sources/TikTokAds/res/tiktok_advid.png)
+![TikTok Advertiser ID](./res/tiktok_advid.png)
 
 Copy the Advertiser ID and paste it into the designated field in your spreadsheet:
 
-![Advertiser ID](/packages/connectors/src/Sources/TikTokAds/res/tiktok_pasteid.png)
+![Advertiser ID](./res/tiktok_pasteid.png)
 
 ## Step 2: Select Fields to Import
 
 Several common data fields are pre-selected by default. To include additional fields in your import, go to the "Fields" tab and check the boxes next to the desired fields.
 
-![TikTok Fields](/packages/connectors/src/Sources/TikTokAds/res/tiktok_fields.png)
+![TikTok Fields](./res/tiktok_fields.png)
 
 ## Step 3: Fill in Access Credentials
 
 Next, access the custom menu: **OWOX → Manage Credentials**.
 
-![TikTok Credentials](/packages/connectors/src/Sources/TikTokAds/res/tiktok_credentials.png)
+![TikTok Credentials](./res/tiktok_credentials.png)
 
-Enter your TikTok Business API credentials that you obtained by following the instructions in the [**TikTok Ads Source Authentication Guide**](/packages/connectors/src/Sources/TikTokAds/CREDENTIALS.md).
+Enter your TikTok Business API credentials that you obtained by following the instructions in the [**TikTok Ads Source Authentication Guide**](../../packages/connectors/src/Sources/TikTokAds/CREDENTIALS.md).
 
-![TikTok Token](/packages/connectors/src/Sources/TikTokAds/res/tiktok_token.png)
+![TikTok Token](./res/tiktok_token.png)
 
 ## Step 3: Run connector
 
@@ -84,7 +84,7 @@ Now you have **two options** for importing TikTok Ads data:
 
 Choose **OWOX → Import New Data** to load data for the **current day**.
 
-![Facebook Import New Data](/packages/connectors/src/Sources/FacebookMarketing/res/facebook_newdata.png)
+![Facebook Import New Data](./res/facebook_newdata.png)
 
 > ℹ️ If you click **Import New Data** again after a successful initial load,  
 > the connector will import: **Current day's data**, plus **Additional days**, based on the value in the **Reimport Lookback Window** field.
@@ -96,7 +96,7 @@ Choose **Manual Backfill** to load historical data for a custom time range.
 1. Select the **Start Date** and **End Date**  
 2. Click the **Run Manual Backfill** button
 
-![Facebook Run Backfill](/packages/connectors/src/Sources/FacebookMarketing/res/facebook_runbackfill.png)
+![Facebook Run Backfill](./res/facebook_runbackfill.png)
 
 The process is complete when the **Log** field shows the message:  
 **"Import is finished"**  
@@ -114,7 +114,7 @@ To import more data:
 - **Hourly Schedule:** To configure an automatic hourly import, select "OWOX" > "Schedule" > "Set Hourly Schedule"
 - **Remove Schedules:** To disable all existing scheduled runs, select "OWOX" > "Schedule" > "Delete All Schedules"
 
-![TikTok Import](/packages/connectors/src/Sources/TikTokAds/res/tiktok_import.png)
+![TikTok Import](./res/tiktok_import.png)
 
 ## Getting Help
 
@@ -127,4 +127,4 @@ Should you encounter any issues or questions not addressed in this guide:
 
 ## License
 
-This source is part of the OWOX Data Marts project and is distributed under the [MIT license](/licenses/MIT.md).
+This source is part of the OWOX Data Marts project and is distributed under the [MIT license](../../licenses/MIT.md).
