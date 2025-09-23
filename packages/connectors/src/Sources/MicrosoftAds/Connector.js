@@ -88,7 +88,7 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
 
       if (data.length || this.config.CreateEmptyTables?.value === "true") {
         const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-        this.getStorageByNode(nodeName, fields).saveData(preparedData);
+        this.getStorageByNode(nodeName).saveData(preparedData);
         data.length && this.config.logMessage(`Successfully saved ${data.length} rows for ${formattedDate}`);
       }
 
@@ -115,7 +115,7 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
       onBatchReady: (batchData) => {
         this.config.logMessage(`Saving batch of ${batchData.length} records to storage`);
         const preparedData = this.addMissingFieldsToData(batchData, fields);
-        this.getStorageByNode(nodeName, fields).saveData(preparedData);
+        this.getStorageByNode(nodeName).saveData(preparedData);
       }
     });
     
@@ -123,7 +123,7 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
 
     if (data.length || this.config.CreateEmptyTables?.value === "true") {
       const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-      this.getStorageByNode(nodeName, fields).saveData(preparedData);
+      this.getStorageByNode(nodeName).saveData(preparedData);
     }
   }
 
@@ -133,7 +133,7 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
    * @param {Array<string>} requestedFields - Requested fields for this node
    * @returns {Object} Storage instance
    */
-  getStorageByNode(nodeName, requestedFields = null) {
+  getStorageByNode(nodeName) {
     if (!("storages" in this)) {
       this.storages = {};
     }
@@ -152,8 +152,7 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
         }),
         uniqueFields,
         this.source.fieldsSchema[nodeName].fields,
-        `${this.source.fieldsSchema[nodeName].description} ${this.source.fieldsSchema[nodeName].documentation}`,
-        requestedFields
+        `${this.source.fieldsSchema[nodeName].description} ${this.source.fieldsSchema[nodeName].documentation}`
       );
     }
 

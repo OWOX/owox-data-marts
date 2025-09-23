@@ -15,7 +15,7 @@ class AbstractStorage {
      * @param schema (object) object with structure like {fieldName: {type: "number", description: "smth" } }
      * @param description (string) string with storage description }
      */
-    constructor(config, uniqueKeyColumns, schema = null, description = null, requestedFields = null) {
+    constructor(config, uniqueKeyColumns, schema = null, description = null) {
     
       if(typeof config.setParametersValues !== "function") {
         throw new Error(`Unable to create an AbstractStorage object. First parameter must be an instance of AbstractConfig class`);
@@ -26,7 +26,6 @@ class AbstractStorage {
       this.schema = schema;
       this.description = description;
       this.columnNames = [];
-      this.requestedFields = requestedFields;
     
       if( typeof uniqueKeyColumns == "string" ) {
         this.uniqueKeyColumns = [uniqueKeyColumns];
@@ -232,6 +231,25 @@ class AbstractStorage {
      */
     areHeadersNeeded() {
       return false;
+    }
+    //----------------------------------------------------------------
+
+  //---- getSelectedFields -------------------------------------------
+    /**
+     * Parse Fields config value and return array of selected field names
+     * @returns {Array<string>} Array of selected field names
+     */
+    getSelectedFields() {
+      if (!this.config.Fields || !this.config.Fields.value) {
+        return [];
+      }
+      
+      return this.config.Fields.value.split(',')
+        .map(field => field.trim())
+        .filter(field => field !== '')
+        .map(field => field.split(' '))
+        .filter(field => field.length === 2)
+        .map(field => field[1]);
     }
     //----------------------------------------------------------------
 

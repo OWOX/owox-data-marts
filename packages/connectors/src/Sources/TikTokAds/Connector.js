@@ -121,7 +121,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
         if (data.length || this.config.CreateEmptyTables?.value === "true") {
           try {
             const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-            this.getStorageByNode(nodeName, fields).saveData(preparedData);
+            this.getStorageByNode(nodeName).saveData(preparedData);
           } catch (storageError) {
             this.config.logMessage(`❌ Error saving data to storage: ${storageError.message}`);
             console.error(`Error details: ${storageError.stack}`);
@@ -168,7 +168,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
             if (data.length || this.config.CreateEmptyTables?.value === "true") {
               try {
                 const preparedData = data.length ? this.addMissingFieldsToData(data, timeSeriesNodes[nodeName]) : data;
-                this.getStorageByNode(nodeName, timeSeriesNodes[nodeName]).saveData(preparedData);
+                this.getStorageByNode(nodeName).saveData(preparedData);
               } catch (storageError) {
                 this.config.logMessage(`❌ Error saving data to storage: ${storageError.message}`);
                 console.error(`Error details: ${storageError.stack}`);
@@ -195,7 +195,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
    * @param {array} requestedFields - List of requested fields
    * @return {AbstractStorage} - Storage instance
    */
-  getStorageByNode(nodeName, requestedFields) {
+  getStorageByNode(nodeName) {
     // Initialize blank object for storages
     if (!("storages" in this)) {
       this.storages = {};
@@ -220,8 +220,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
         }),
         uniqueFields,
         this.source.fieldsSchema[nodeName]["fields"] || {},
-        `${this.source.fieldsSchema[ nodeName ]["description"]} ${this.source.fieldsSchema[ nodeName ]["documentation"]}`,
-        requestedFields
+        `${this.source.fieldsSchema[ nodeName ]["description"]} ${this.source.fieldsSchema[ nodeName ]["documentation"]}`
       );
     }
 
@@ -257,7 +256,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
            "stat_time_day" in this.source.fieldsSchema[nodeName]["fields"])) {
         
         try {
-          const storage = this.getStorageByNode(nodeName, []);
+          const storage = this.getStorageByNode(nodeName);
           
           // For Google Sheets storage, we need to manually find and delete old records
           if (storage instanceof GoogleSheetsStorage) {

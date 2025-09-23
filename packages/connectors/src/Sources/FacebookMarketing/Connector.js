@@ -82,7 +82,7 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
         let data = this.source.fetchData(nodeName, accountId, fields);
         
         if( data.length || (i == 0 && this.config.CreateEmptyTables?.value === "true") ) {
-          this.getStorageByNode(nodeName, fields ).saveData( data );
+          this.getStorageByNode(nodeName).saveData( data );
         }
 
         data.length && this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for account ${accountId}`);
@@ -123,7 +123,7 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
             let data = this.source.fetchData(nodeName, accountId, timeSeriesNodes[ nodeName ], startDate);
 
             if( data.length || this.config.CreateEmptyTables?.value === "true" ) {
-              this.getStorageByNode(nodeName, timeSeriesNodes[ nodeName ] ).saveData(data);
+              this.getStorageByNode(nodeName).saveData(data);
             }
 
             this.config.logMessage(data.length ? `${data.length} records were fetched` : `ℹ️ No records have been fetched`);
@@ -150,7 +150,7 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
    * @return AbstractStorage 
    * 
    */
-  getStorageByNode(nodeName, requestedFields = null) {
+  getStorageByNode(nodeName) {
 
     // initiate blank object for storages
     if( !("storages" in this) ) {
@@ -172,8 +172,7 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
         }),
         uniqueFields,
         this.source.fieldsSchema[ nodeName ]["fields"],
-        `${this.source.fieldsSchema[ nodeName ]["description"]} ${this.source.fieldsSchema[ nodeName ]["documentation"]}`,
-        requestedFields
+        `${this.source.fieldsSchema[ nodeName ]["description"]} ${this.source.fieldsSchema[ nodeName ]["documentation"]}`
       );
 
     }
