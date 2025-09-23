@@ -15,7 +15,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
    * @param schema (object) object with structure like {fieldName: {type: "string", description: "smth" } }
    * @param description (string) string with storage description }
    */
-  constructor(config, uniqueKeyColumns, schema = null, description = null, requestedFields = null) {
+  constructor(config, uniqueKeyColumns, schema = null, description = null) {
     super(
       config.mergeParameters({
         AWSRegion: {
@@ -57,8 +57,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
       }),
       uniqueKeyColumns,
       schema,
-      description,
-      requestedFields
+      description
     );
 
     this.initAWS();
@@ -181,33 +180,6 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
       });
   }
 
-  //---- getDefaultColumns -----------------------------------------------
-  /**
-   * Get default columns (unique keys + selected fields from config)
-   */
-  getDefaultColumns() {
-    const columns = [...this.uniqueKeyColumns];
-    
-    let selectedFields = [];
-    if (this.config.Fields && this.config.Fields.value) {
-      selectedFields = this.config.Fields.value.split(',')
-      .map(field => field.trim())
-      .filter(field => field !== '')
-      .map(field => field.split(' '))
-      .filter(field => field.length === 2)
-      .map(field => field[1]);
-    }
-    
-    // Add all other schema fields to the table
-    for (let columnName in this.schema) {
-      if (!this.uniqueKeyColumns.includes(columnName) && selectedFields.includes(columnName)) {
-        columns.push(columnName);
-      }
-    }
-    
-    return columns;
-  }
-
   //---- createTargetTable ----------------------------------------------
   /**
    * Create the target table in Athena
@@ -216,13 +188,8 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
     let columnDefinitions = [];
     let existingColumns = {};
     
-    // Use requestedFields if provided, otherwise use unique keys + selected fields
-    const useColumns = Array.isArray(this.requestedFields) && this.requestedFields.length
-      ? this.requestedFields
-      : this.getDefaultColumns();
-
-    // Process each column
-    for (let columnName of useColumns) {
+    // Process each unique key column from the schema
+    for (let columnName of this.uniqueKeyColumns) {
       if (!(columnName in this.schema)) {
         throw new Error(`Required field ${columnName} not found in schema`);
       }
@@ -232,6 +199,27 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
       
       columnDefinitions.push(`${columnName} ${columnType}`);
       existingColumns[columnName] = columnType;
+    }
+
+    let selectedFields = [];
+    if (this.config.Fields && this.config.Fields.value) {
+      selectedFields = this.config.Fields.value.split(',')
+      .map(field => field.trim())
+      .filter(field => field !== '')
+      .map(field => field.split(' '))
+      .filter(field => field.length === 2)
+      .map(field => field[1]);
+    } 
+
+    // Add all other schema fields to the table
+    for (let columnName in this.schema) {
+      if (!this.uniqueKeyColumns.includes(columnName) && selectedFields.includes(columnName)) {
+        // Use AthenaType if specified, otherwise fallback to schema type, default to string
+        let columnType = this.getColumnType(columnName);
+
+        columnDefinitions.push(`${columnName} ${columnType}`);
+        existingColumns[columnName] = columnType;
+      }
     }
     
     const s3Location = `s3://${this.config.S3BucketName.value}/${this.config.S3Prefix.value}`;
