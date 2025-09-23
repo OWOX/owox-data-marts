@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
 
 import {
   ConnectorRunner,
@@ -27,6 +28,7 @@ import { ConnectorOutputCaptureService } from '../connector-types/connector-mess
 import { ConnectorMessageType } from '../connector-types/enums/connector-message-type-enum';
 import { ConnectorOutputState } from '../connector-types/interfaces/connector-output-state';
 import { ConnectorStateService } from '../connector-types/connector-message/services/connector-state.service';
+import { ConsumptionTrackingService } from './consumption-tracking.service';
 import { DataMartService } from './data-mart.service';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { GracefulShutdownService } from '../../common/scheduler/services/graceful-shutdown.service';
@@ -48,7 +50,9 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     private readonly connectorOutputCaptureService: ConnectorOutputCaptureService,
     private readonly connectorStateService: ConnectorStateService,
     private readonly dataMartService: DataMartService,
-    private readonly gracefulShutdownService: GracefulShutdownService
+    private readonly gracefulShutdownService: GracefulShutdownService,
+    private readonly consumptionTracker: ConsumptionTrackingService,
+    private readonly configService: ConfigService
   ) {}
 
   async cancelRun(dataMartId: string, runId: string): Promise<void> {
@@ -169,6 +173,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     const state: ConnectorOutputState = { state: {}, at: '' };
     const capturedLogs: ConnectorMessage[] = [];
     const capturedErrors: ConnectorMessage[] = [];
+    let hasSuccessfulRun = false;
 
     try {
       if (this.gracefulShutdownService.isInShutdownMode()) {
@@ -193,6 +198,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
 
       const successCount = configurationResults.filter(r => r.success).length;
       const totalCount = configurationResults.length;
+      hasSuccessfulRun = successCount > 0;
       this.logger.log(
         `Connector execution completed: ${successCount}/${totalCount} configurations successful for DataMart ${dataMart.id}`
       );
@@ -208,6 +214,11 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     } finally {
       await this.updateRunStatus(runId, capturedLogs, capturedErrors);
       await this.updateRunState(dataMart.id, state);
+
+      if (hasSuccessfulRun) {
+        // Register connector run consumption only if at least one configuration succeeded
+        await this.consumptionTracker.registerConnectorRunConsumption(dataMart, runId);
+      }
 
       this.logger.debug(`Actualizing schema for DataMart ${dataMart.id} after connector execution`);
 
@@ -456,33 +467,74 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
 
   /**
    * Executes background connector for data mart runs that are in the INTERRUPTED status.
-   * Retrieves the list of interrupted runs, validates and checks if the respective data mats are already running,
-   * and then attempts to resume their execution in the background.
-   * @return {Promise<void>} A promise that resolves when all interrupted runs have been processed.
+   * Retrieves the list of interrupted runs, validates each run, checks if the respective data marts are already running,
+   * and attempts to resume their execution in the background. Runs that are already executing will be skipped,
+   * and runs that fail validation or execution will be logged with appropriate error messages.
+   *
+   * @return {Promise<void>} A promise that resolves when all interrupted runs have been processed,
+   *                         with execution statistics logged (started, skipped, failed counts).
    */
   private async executeInterruptedRuns(): Promise<void> {
     const interruptedRuns = await this.getDataMartRunsByStatus(DataMartRunStatus.INTERRUPTED);
-    for (const run of interruptedRuns) {
-      this.validateDataMartForConnector(run.dataMart);
-      const isRunning = await this.checkDataMartIsRunning(run.dataMart);
-      if (isRunning) {
-        throw new Error('DataMart is already running');
-      }
 
-      this.executeInBackground(run.dataMart, run.id, run.additionalParams).catch(error => {
-        this.logger.error(`Interrupted background execution failed for run ${run.id}:`, error);
-      });
+    if (interruptedRuns.length === 0) {
+      this.logger.log('No interrupted runs found to resume');
+      return;
     }
+
+    this.logger.log(`Starting execution of ${interruptedRuns.length} interrupted runs...`);
+    const promises: Promise<void>[] = [];
+    let skippedCount = 0;
+    let failedCount = 0;
+    let startedCount = 0;
+
+    for (const run of interruptedRuns) {
+      try {
+        this.validateDataMartForConnector(run.dataMart);
+        const isRunning = await this.checkDataMartIsRunning(run.dataMart);
+        if (isRunning) {
+          this.logger.warn(`Skipping interrupted run ${run.id}: DataMart is already running`);
+          skippedCount++;
+          continue;
+        }
+        promises.push(
+          this.executeInBackground(run.dataMart, run.id, run.additionalParams).catch(error => {
+            this.logger.error(`Interrupted background execution failed for run ${run.id}:`, error);
+            failedCount++;
+          })
+        );
+        startedCount++;
+      } catch (error) {
+        this.logger.error(`Failed to start interrupted run ${run.id}:`, error);
+        failedCount++;
+      }
+    }
+
+    await Promise.allSettled(promises);
+
+    this.logger.log(
+      `Interrupted runs execution completed: ${skippedCount} skipped, ${startedCount} started, ${failedCount} failed (total: ${interruptedRuns.length})`
+    );
   }
 
   /**
    * Executes tasks or operations needed upon application bootstrap.
-   * This method is typically invoked automatically when the application starts to ensure
+   * This method is invoked automatically when the application starts to ensure
    * any interrupted runs or pending processes are resumed and properly handled.
+   *
+   * Execution is controlled by the SCHEDULER_EXECUTION_ENABLED environment variable.
+   * If disabled, the method will skip interrupted runs execution and log the reason.
    *
    * @return {Promise<void>} A promise that resolves when the bootstrap operations are completed.
    */
   async onApplicationBootstrap(): Promise<void> {
+    const isExecutionEnabled = this.configService.get<boolean>('SCHEDULER_EXECUTION_ENABLED');
+
+    if (!isExecutionEnabled) {
+      this.logger.log('Skipping interrupted runs execution - scheduler execution disabled');
+      return;
+    }
+
     await this.executeInterruptedRuns();
   }
 }

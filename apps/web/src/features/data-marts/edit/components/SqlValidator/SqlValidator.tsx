@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { CheckCircle, XCircle, Loader2, Database } from 'lucide-react';
 import { formatBytes } from '../../../../../utils';
-import { useDebounce } from '../../../../../hooks/use-debounce.ts';
+import { useDebounce } from '../../../../../hooks/useDebounce.ts';
 import { dataMartService } from '../../../shared';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 

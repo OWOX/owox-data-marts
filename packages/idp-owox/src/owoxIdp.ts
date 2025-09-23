@@ -1,4 +1,4 @@
-import { AuthResult, IdpProvider, Payload, ProtocolRoute } from '@owox/idp-protocol';
+import { AuthResult, IdpProvider, Payload, Projects, ProtocolRoute } from '@owox/idp-protocol';
 import e, { NextFunction } from 'express';
 import { IdpOwoxConfig } from './config';
 import { AuthorizationStore } from './auth/AuthorizationStore';
@@ -79,7 +79,7 @@ export class OwoxIdp implements IdpProvider {
   }
 
   async signInMiddleware(
-    _req: e.Request,
+    req: e.Request,
     res: e.Response,
     _next: NextFunction
   ): Promise<void | e.Response> {
@@ -90,8 +90,17 @@ export class OwoxIdp implements IdpProvider {
     const expiresAt = new Date(Date.now() + ms('1m'));
     await this.store.save(state, codeVerifier, expiresAt);
 
-    const url = `${this.config.idpConfig.platformSignInUrl}?state=${state}&codeChallenge=${codeChallenge}&clientId=${clientId}`;
-    res.redirect(url);
+    const signInUrl = new URL(this.config.idpConfig.platformSignInUrl);
+    const params = signInUrl.searchParams;
+    params.set('state', state);
+    params.set('codeChallenge', codeChallenge);
+    params.set('clientId', clientId);
+
+    const projectId = (req.query?.projectId as string | undefined)?.toString();
+    if (projectId) {
+      params.set('projectId', projectId);
+    }
+    res.redirect(signInUrl.toString());
   }
 
   async signOutMiddleware(
@@ -119,6 +128,17 @@ export class OwoxIdp implements IdpProvider {
       return res.status(401).json({ message: 'Unauthorized', reason: 'uam2' });
     }
     return res.json(payload);
+  }
+
+  async projectsApiMiddleware(req: e.Request, res: e.Response): Promise<e.Response<Projects>> {
+    const accessToken = req.headers['x-owox-authorization'] as string | undefined;
+    if (!accessToken) {
+      return res.status(401).json({ message: 'Unauthorized', reason: 'pam1' });
+    }
+
+    const projects: Projects = await this.identityClient.getProjects(accessToken);
+
+    return res.json(projects);
   }
 
   async accessTokenMiddleware(

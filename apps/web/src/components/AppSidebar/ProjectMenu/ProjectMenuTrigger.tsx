@@ -1,12 +1,14 @@
 import { DropdownMenuTrigger } from '@owox/ui/components/dropdown-menu';
 import { ChevronDown } from 'lucide-react';
 import { Logo } from '../../Logo';
+import { useProject } from '../../../app/store/hooks';
 
 interface ProjectMenuTriggerProps {
   isOpen: boolean;
 }
 
 export function ProjectMenuTrigger({ isOpen }: ProjectMenuTriggerProps) {
+  const { title } = useProject();
   return (
     <DropdownMenuTrigger asChild>
       <button
@@ -26,7 +28,7 @@ export function ProjectMenuTrigger({ isOpen }: ProjectMenuTriggerProps) {
 
         <div className='grid flex-1 text-left text-sm leading-tight'>
           <span className='truncate font-medium'>OWOX Data Marts</span>
-          <span className='text-muted-foreground truncate text-xs'>Community Edition</span>
+          <span className='text-muted-foreground truncate text-xs'>{title ?? 'Project'}</span>
         </div>
 
         <ChevronDown

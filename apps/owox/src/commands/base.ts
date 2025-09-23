@@ -1,4 +1,5 @@
 import { Command, Flags } from '@oclif/core';
+import { EnvManager, LogLevel } from '@owox/internal-helpers';
 
 /**
  * Base command class that provides common functionality for all CLI commands.
@@ -22,7 +23,7 @@ import { Command, Flags } from '@oclif/core';
  *
  *   public async run(): Promise<void> {
  *     const { flags } = await this.parse(MyCommand);
- *     this.initializeLogging(flags);
+ *     this.initializeLogging(flags['log-format']);
  *
  *     this.log('Starting process...');
  *     try {
@@ -44,13 +45,29 @@ export abstract class BaseCommand extends Command {
    * @type {import('@oclif/core').FlagInput}
    */
   static baseFlags = {
+    'env-file': Flags.string({
+      char: 'e',
+      description: 'Path to environment file to load variables from',
+      helpValue: '/path/to/.env',
+    }),
     'log-format': Flags.string({
       char: 'f',
-      default: 'pretty',
       description: 'Log format to use (pretty or json)',
       options: ['pretty', 'json'],
     }),
   };
+  /**
+   * Default log format used when no format is specified
+   * @static
+   * @type {string}
+   */
+  static DEFAULT_LOG_FORMAT = 'pretty';
+  /**
+   * Default port number for server applications
+   * @static
+   * @type {number}
+   */
+  static DEFAULT_PORT = 3000;
   /**
    * Internal state indicating whether JSON logging is enabled
    * @protected
@@ -91,20 +108,83 @@ export abstract class BaseCommand extends Command {
     );
   }
 
+  /**
+   * Handles startup errors by formatting the error message and exiting the process.
+   * Converts any error type to a string message and prefixes it with context.
+   *
+   * @protected
+   * @param {unknown} error - Error of any type to be handled
+   * @throws {never} Always exits the process with exit code 1
+   */
   protected handleStartupError(error: unknown): void {
     const message = error instanceof Error ? error.message : String(error);
     this.error(`Failed to start dump process: ${message}`, { exit: 1 });
   }
 
   /**
-   * Initializes logging configuration based on provided flags.
-   * Should be called at the start of each command's run method.
+   * Initializes logging configuration based on LOG_FORMAT environment variable.
    *
    * @protected
-   * @param {object} flags - Command flags with log-format option
    */
-  protected initializeLogging(flags: { 'log-format'?: string }): void {
-    this.useJsonLog = flags['log-format'] === 'json';
+  protected initializeLogging(): void {
+    this.useJsonLog = process.env.LOG_FORMAT === 'json';
+  }
+
+  /**
+   * Loads environment variables from a file specified in flags or from default .env file.
+   * This method delegates to EnvManager.loadFromFile() and logs the loading process.
+   * If no env-file is specified, it attempts to load from the default .env file.
+   * Also sets default environment variables if they don't exist.
+   *
+   * @protected
+   * @param {object} flags - Command flags object containing 'env-file' and 'log-format' properties
+   *
+   * @example
+   * ```typescript
+   * const flags = { 'env-file': '/path/to/.env' };
+   * this.loadEnvironment(flags);
+   * ```
+   */
+  protected loadEnvironment(flags: { 'env-file'?: string; 'log-format'?: string }): void {
+    const { 'env-file': envFile = '', ...flagVars } = flags;
+    const defaultVars = {
+      LOG_FORMAT: BaseCommand.DEFAULT_LOG_FORMAT,
+      PORT: BaseCommand.DEFAULT_PORT,
+    };
+
+    const setResult = EnvManager.setupEnvironment({
+      defaultVars,
+      envFile,
+      flagVars,
+      flagVarsOverride: true,
+    });
+
+    this.initializeLogging();
+
+    this.log(`🔧 Setting environment variables...`);
+
+    for (const logMessage of setResult.messages) {
+      switch (logMessage.logLevel) {
+        case LogLevel.ERROR: {
+          this.error(logMessage.message, { exit: false });
+          break;
+        }
+
+        case LogLevel.LOG: {
+          this.log(logMessage.message);
+          break;
+        }
+
+        case LogLevel.WARN: {
+          this.warn(logMessage.message);
+          break;
+        }
+
+        default: {
+          this.log(logMessage.message);
+        }
+      }
+    }
   }
 
   /**
@@ -129,7 +209,8 @@ export abstract class BaseCommand extends Command {
   }
 
   /**
-   * Helper method to log messages in JSON format.
+   * Helper method to log structured data in JSON format.
+   * Outputs the JSON representation directly to console.
    *
    * @protected
    * @param {object} json - Object to be logged as JSON
@@ -141,12 +222,6 @@ export abstract class BaseCommand extends Command {
    */
   protected logJson(json: unknown): void {
     console.log(JSON.stringify(json));
-  }
-
-  protected setupLogFormat(logFormat: string): void {
-    // Set environment variables
-    process.env.LOG_FORMAT = logFormat;
-    this.log(`📦 Setup log format to ${logFormat}`);
   }
 
   /**

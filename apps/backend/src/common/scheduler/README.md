@@ -120,16 +120,61 @@ export class MyTriggerHandler implements TimeBasedTriggerHandler<MyTrigger>, OnM
 }
 ```
 
+**Note**: The `registerTimeBasedTriggerHandler` method automatically adapts its behavior based on the `SCHEDULER_EXECUTION_ENABLED` configuration. When set to `false`, it will only log the registration without creating cron jobs. When set to `true`, it will create and start the actual cron jobs for trigger execution.
+
 ## ⚙️ Configuration
 
 The Scheduler Module can be configured using environment variables:
 
 | Environment Variable                          | Description                                                                          | Default Value |
 | --------------------------------------------- | ------------------------------------------------------------------------------------ | ------------- |
+| `SCHEDULER_EXECUTION_ENABLED`                 | Enables/disables trigger execution. When `false`, only registration occurs without creating cron jobs | `true`       |
 | `SCHEDULER_TRIGGER_RUNNER_TYPE`               | The type of trigger runner to use (`direct` or `pubsub`)                             | `direct`      |
 | `SCHEDULER_PUBSUB_PROJECT_ID`                 | The Google Cloud project ID to use for Pub/Sub (required when using `pubsub` runner) | -             |
 | `SCHEDULER_TIMEZONE`                          | The timezone to use for cron expressions                                             | `UTC`         |
 | `SCHEDULER_GRACEFUL_SHUTDOWN_TIMEOUT_MINUTES` | The timeout in minutes for graceful shutdown                                         | `15`          |
+
+### 🔄 Execution Modes
+
+The Scheduler Module supports two execution modes controlled by the `SCHEDULER_EXECUTION_ENABLED` environment variable:
+
+#### 🔴 Registration Mode (`SCHEDULER_EXECUTION_ENABLED=false`)
+
+In registration mode, the scheduler facade only logs trigger handler registrations without creating actual cron jobs or executing triggers. This mode is suitable for:
+
+- **API instances**: Where you want to register handlers for completeness but not execute scheduled tasks
+- **Development environments**: Where you want to test handler registration without running actual schedules
+- **Service separation**: When you want to separate registration logic from execution logic
+
+```bash
+SCHEDULER_EXECUTION_ENABLED=false
+```
+
+When a trigger handler is registered in this mode:
+
+```text
+Handler 'MyTriggerHandler' registered but execution disabled.
+```
+
+#### 🟢 Worker Mode (`SCHEDULER_EXECUTION_ENABLED=true`)
+
+In worker mode, the scheduler facade creates actual cron jobs and executes triggers according to their schedules. This mode is suitable for:
+
+- **Worker instances**: Dedicated instances that handle scheduled task execution
+- **Production environments**: Where actual trigger processing should occur
+- **Single-instance deployments**: Where both API and scheduling functionality are needed
+
+```bash
+SCHEDULER_EXECUTION_ENABLED=true
+```
+
+When a trigger handler is registered in this mode:
+
+```text
+Time-based trigger handler 'MyTriggerHandler' initialized with cron '0 */5 * * * *' in timezone UTC
+```
+
+This adaptive behavior allows the same codebase to serve both API instances (registration only) and Worker instances (full execution) without requiring separate implementations.
 
 ### 🏃‍♂️ Runner Types
 

@@ -1,5 +1,58 @@
 # owox
 
+## 0.7.0
+
+### Minor Changes 0.7.0
+
+- 7d83d7c: # Add configurable timeout middleware for long-running operations
+  - Increase server timeout from 2 minutes to 3 minutes (180s) to prevent timeout errors
+  - Add operation-specific timeout middleware for data mart operations:
+    - SQL editing operations: 3 minutes timeout
+    - Schema operations: 3 minutes timeout
+    - Publishing operations: 3 minutes timeout
+    - All other operations: 30 seconds timeout (default)
+  - Update frontend timeout configuration for specific operations to 3 minutes
+  - Prevent race conditions in timeout middleware by ensuring only one timeout per request
+  - Add proper cleanup and error handling in timeout middleware
+
+  This change fixes timeout issues for long-running operations like SQL editing, schema refresh, and data mart publishing while maintaining reasonable timeouts for other operations.
+
+- 342e534: # Switch between projects in the Cloud edition on app.owox.com ✨
+
+  You can now quickly switch between your projects right from the sidebar menu. This makes it easier to:
+  - Move between workspaces without signing out
+  - Keep your context while browsing different projects
+  - Access project-specific data and settings faster
+
+  No setup required — just open the project switcher and choose the project you need.
+
+- Fixes
+  - Fixed indefinite "Running" status for Report Runs
+  - Fixed indefinite "Running" status for Connector Runs caused by app shutdown  
+    (added graceful shutdown for Connector Runner)
+  - Fixed MySQL adapter compatibility with idp-better-auth
+  - Fixed unexpected session logout for Cloud edition (idp-owox)
+  - Fixed the error of multiple connector launches at the same time
+
+- 78b8972: # Clarifies LinkedIn Pages import steps, adds new images, and improves error handling and API logging
+  - Updated GETTING_STARTED.md for LinkedIn Pages with clearer import options and detailed instructions for using Organization URN.
+  - Added new images to the documentation to improve user guidance and onboarding.
+  - Enhanced error handling in the LinkedIn Pages source code for more robust integration.
+  - Improved logging of API responses to assist with debugging and troubleshooting.
+
+- e6af151: # Refactor BankOfCanada connector according to common architecture and fix bugs
+- 4b487c8: # Refactor GitHub connector according to common architecture and fix bugs
+- ea803b2: # Refactor: enhance Reddit Ads connector reporting logic with new field definitions
+
+### Patch Changes 0.7.0
+
+- @owox/backend@0.7.0
+- @owox/idp-protocol@0.7.0
+- @owox/idp-better-auth@0.7.0
+- @owox/idp-owox@0.7.0
+- @owox/internal-helpers@0.7.0
+- @owox/web@0.7.0
+
 ## 0.6.0
 
 ### Minor Changes 0.6.0

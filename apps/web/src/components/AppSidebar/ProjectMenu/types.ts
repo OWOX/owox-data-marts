@@ -1,24 +1,17 @@
 import React from 'react';
 
-export type ProjectMenuItem =
+export type VisibilityConfig =
   | {
-      title: string;
-      href: string;
-      icon: React.ComponentType<{ className?: string }>;
-      visible: boolean;
-      type?: never;
+      flagKey: string;
+      expectedValue?: boolean | string;
     }
-  | {
-      type: 'separator';
-      title?: never;
-      href?: never;
-      icon?: never;
-      visible: boolean;
-    }
-  | {
-      type: 'switcher';
-      title: string;
-      href?: never;
-      icon: React.ComponentType<{ className?: string }>;
-      visible: boolean;
-    };
+  | boolean;
+
+export interface ProjectMenuItem {
+  type: 'menu-item' | 'separator';
+  title: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  visible: VisibilityConfig;
+  group: string;
+}

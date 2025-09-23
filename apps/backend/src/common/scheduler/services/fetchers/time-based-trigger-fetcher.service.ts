@@ -70,7 +70,7 @@ export class TimeBasedTriggerFetcherService<T extends TimeBasedTrigger> {
         { id: trigger.id, version: trigger.version } as FindOptionsWhere<T>,
         {
           status: TriggerStatus.READY,
-          version: () => '"version" + 1',
+          version: () => 'version + 1',
         } as QueryDeepPartialEntity<T>
       );
 

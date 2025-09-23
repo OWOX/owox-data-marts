@@ -90,7 +90,7 @@ var RedditFieldsSchema = {
     "overview": "User Ad Metrics by country",
     "description": "Retrieve ad performance metrics and details from Reddit Ads API by country.",
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
-    "fields": reportFields,
+    "fields": reportCountryFields,
     "uniqueKeys": ["ad_id", "date", "country"],
     "destinationName": "reddit_ads_report_by_COUNTRY",
     "isTimeSeries": true
@@ -99,7 +99,7 @@ var RedditFieldsSchema = {
     "overview": "User Ad Metrics by ad_group_id",
     "description": "Retrieve ad performance metrics and details from Reddit Ads API by ad_group_id.",
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
-    "fields": reportFields,
+    "fields": reportAdGroupIdFields,
     "uniqueKeys": ["ad_id", "date", "ad_group_id"],
     "destinationName": "reddit_ads_report_by_AD_GROUP_ID",
     "isTimeSeries": true
@@ -108,7 +108,7 @@ var RedditFieldsSchema = {
     "overview": "User Ad Metrics by campaign_id",
     "description": "Retrieve ad performance metrics and details from Reddit Ads API by campaign_id.",
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
-    "fields": reportFields,
+    "fields": reportCampaignIdFields,
     "uniqueKeys": ["ad_id", "date", "campaign_id"],
     "destinationName": "reddit_ads_report_by_CAMPAIGN_ID",
     "isTimeSeries": true
@@ -117,7 +117,7 @@ var RedditFieldsSchema = {
     "overview": "User Ad Metrics by dma",
     "description": "Retrieve ad performance metrics and details from Reddit Ads API by dma.",
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
-    "fields": reportFields,
+    "fields": reportDmaBasedFields,
     "uniqueKeys": ["ad_id", "date", "dma"],
     "destinationName": "reddit_ads_report_by_DMA",
     "isTimeSeries": true
@@ -126,7 +126,7 @@ var RedditFieldsSchema = {
     "overview": "User Ad Metrics by interest",
     "description": "Retrieve ad performance metrics and details from Reddit Ads API by interest.",
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
-    "fields": reportFields,
+    "fields": reportInterestFields,
     "uniqueKeys": ["ad_id", "date", "interest"],
     "destinationName": "reddit_ads_report_by_INTEREST",
     "isTimeSeries": true
@@ -135,7 +135,7 @@ var RedditFieldsSchema = {
     "overview": "User Ad Metrics by keyword",
     "description": "Retrieve ad performance metrics and details from Reddit Ads API by keyword.",
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
-    "fields": reportFields,
+    "fields": reportKeywordFields,
     "uniqueKeys": ["ad_id", "date", "keyword"],
     "destinationName": "reddit_ads_report_by_KEYWORD",
     "isTimeSeries": true
@@ -144,7 +144,7 @@ var RedditFieldsSchema = {
     "overview": "User Ad Metrics by placement",
     "description": "Retrieve ad performance metrics and details from Reddit Ads API by placement.",
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
-    "fields": reportFields,
+    "fields": reportPlacementFields,
     "uniqueKeys": ["ad_id", "date", "placement"],
     "destinationName": "reddit_ads_report_by_PLACEMENT",
     "isTimeSeries": true
@@ -153,7 +153,7 @@ var RedditFieldsSchema = {
     "overview": "User Ad Metrics by account_id",
     "description": "Retrieve ad performance metrics and details from Reddit Ads API by account_id.",
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
-    "fields": reportFields,
+    "fields": reportAdAccountIdFields,
     "uniqueKeys": ["ad_id", "date", "account_id"],
     "destinationName": "reddit_ads_report_by_AD_ACCOUNT_ID",
     "isTimeSeries": true
@@ -162,7 +162,7 @@ var RedditFieldsSchema = {
     "overview": "User Ad Metrics by community",
     "description": "Retrieve ad performance metrics and details from Reddit Ads API by community.",
     "documentation": "https://ads-api.reddit.com/docs/v3/operations/List%20Ad%20Metrics",
-    "fields": reportFields,
+    "fields": reportCommunityFields,
     "uniqueKeys": ["ad_id", "date", "community"],
     "destinationName": "reddit_ads_report_by_COMMUNITY",
     "isTimeSeries": true

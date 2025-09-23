@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { AccessTokenResponse, AuthError, User } from '../types';
+import type { AccessTokenResponse, AuthError, Projects, User } from '../types';
 
 /**
  * Auth API endpoints configuration
@@ -10,6 +10,7 @@ const AUTH_ENDPOINTS = {
   SIGN_OUT: '/auth/sign-out',
   ACCESS_TOKEN: '/auth/access-token',
   API_USER: '/auth/api/user',
+  API_PROJECTS: '/auth/api/projects',
 } as const;
 
 /**
@@ -121,6 +122,15 @@ export async function getUserApi(token: string): Promise<User> {
   return response.data;
 }
 
+export async function getProjectsApi(token: string): Promise<Projects> {
+  const response = await authClient.get<Projects>(AUTH_ENDPOINTS.API_PROJECTS, {
+    headers: {
+      'X-OWOX-Authorization': `Bearer ${token}`,
+    },
+  });
+  return response.data;
+}
+
 /**
  * Authentication API service object for backward compatibility
  */
@@ -129,6 +139,7 @@ export const AuthApiService = {
   signOut,
   refreshAccessToken,
   getUserApi,
+  getProjectsApi,
 };
 
 // Export as default for convenience

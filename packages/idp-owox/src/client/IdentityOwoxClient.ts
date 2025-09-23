@@ -13,6 +13,7 @@ import {
 } from './dto';
 import { IdentityOwoxClientConfig } from '../config';
 import ms from 'ms';
+import { Projects, ProjectsSchema } from '@owox/idp-protocol';
 
 /**
  * Represents a client for interacting with the Identity OWOX API.
@@ -59,6 +60,19 @@ export class IdentityOwoxClient {
     });
 
     return IntrospectionResponseSchema.parse(data);
+  }
+
+  /**
+   * GET /api/idp/projects
+   */
+  async getProjects(accessToken: string): Promise<Projects> {
+    const { data } = await this.http.get<Projects>('/api/idp/projects', {
+      headers: {
+        Authorization: accessToken,
+      },
+    });
+
+    return ProjectsSchema.parse(data);
   }
 
   /**

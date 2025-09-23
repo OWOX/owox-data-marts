@@ -30,6 +30,7 @@
     "dev:backend": "npm run dev -w @owox/backend",
     "dev:docs": "npm run dev -w @owox/docs",
     "dev:connectors": "npm run dev -w @owox/connectors",
+    "dev:owox": "npm run dev -w owox",
     "dev": "npm-run-all --parallel dev:web dev:backend dev:connectors",
     "format": "npm run format --workspaces --if-present",
     "format:check": "npm run format:check --workspaces --if-present",

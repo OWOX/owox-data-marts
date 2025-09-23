@@ -98,6 +98,7 @@ export class RunReportService {
     const { dataMart, dataDestination } = report;
     const reportReader = await this.reportReaderResolver.resolve(dataMart.storage.type);
     const reportWriter = await this.reportWriterResolver.resolve(dataDestination.type);
+    let processingError: Error | undefined = undefined;
     try {
       const reportDataDescription = await reportReader.prepareReportData(report);
       this.logger.debug(`Report data prepared for ${report.id}:`, reportDataDescription);
@@ -109,8 +110,11 @@ export class RunReportService {
         nextReportDataBatch = batch.nextDataBatchId;
         this.logger.debug(`${batch.dataRows.length} data rows written for report ${report.id}`);
       } while (nextReportDataBatch);
+    } catch (error) {
+      processingError = error;
+      throw error;
     } finally {
-      await reportWriter.finalize();
+      await reportWriter.finalize(processingError);
       await reportReader.finalize();
     }
   }

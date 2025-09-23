@@ -56,3 +56,28 @@ export interface DatabaseOperationResult {
   changes: number;
   lastInsertRowid?: number;
 }
+
+/**
+ * Admin users list view
+ */
+export interface AdminUserView {
+  id: string;
+  email: string;
+  name: string | null;
+  role: string;
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+/**
+ * Admin user details view
+ */
+export interface AdminUserDetailsView {
+  id: string;
+  email: string;
+  name: string | null;
+  role: string;
+  createdAt: string;
+  updatedAt: string | null;
+  organizationId: string | null;
+}

@@ -23,6 +23,17 @@ export const PayloadSchema = z
 
 export type Payload = z.infer<typeof PayloadSchema>;
 
+const ProjectSchema = z
+  .object({
+    id: z.string(),
+    title: z.string(),
+  })
+  .passthrough();
+
+export const ProjectsSchema = z.array(ProjectSchema);
+
+export type Projects = z.infer<typeof ProjectsSchema>;
+
 /**
  * Authentication result from IDP callback
  */

@@ -12,7 +12,7 @@ export default function CreateDataMartPage() {
   return (
     <div className='flex h-full w-full items-center justify-center'>
       <div className='mx-auto my-auto w-lg'>
-        <div className='dm-card !rounded-xl !p-8'>
+        <div className='bg-muted/50 dark:bg-sidebar rounded-xl border-b border-gray-200 p-12 pt-8 dark:border-gray-700/50'>
           <h2 className='mb-4 text-xl font-medium'>Create Data Mart</h2>
           <DataStorageProvider>
             <DataMartProvider>

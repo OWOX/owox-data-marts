@@ -2,14 +2,6 @@
 export { BetterAuthProvider } from './providers/better-auth-provider.js';
 export { createBetterAuthConfig } from './auth/auth-config.js';
 
-// Database adapters
-export {
-  createDatabaseAdapter,
-  createSqliteAdapter,
-  createMysqlAdapter,
-  getIdpSqliteDatabasePath,
-} from './adapters/database.js';
-
 // Services
 export { TemplateService } from './services/template-service.js';
 export { MagicLinkService } from './services/magic-link-service.js';
@@ -17,7 +9,6 @@ export { PageService } from './services/page-service.js';
 export { AuthenticationService } from './services/authentication-service.js';
 export { TokenService } from './services/token-service.js';
 export { UserManagementService } from './services/user-management-service.js';
-export { DatabaseService } from './services/database-service.js';
 export { RequestHandlerService } from './services/request-handler-service.js';
 export { MiddlewareService } from './services/middleware-service.js';
 export { CryptoService } from './services/crypto-service.js';

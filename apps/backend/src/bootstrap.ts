@@ -16,32 +16,27 @@ const PATH_PREFIX = 'api';
 const SWAGGER_PATH = 'swagger-ui';
 const DEFAULT_PORT = 3000;
 
+// HTTP server timeout configuration (in milliseconds)
+const SERVER_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes - overall request timeout
+const KEEP_ALIVE_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes - keep-alive connection timeout
+const HEADERS_TIMEOUT_MS = 3 * 60 * 1000 + 5 * 1000; // 3 minutes 5 seconds - headers timeout (slightly higher than keep-alive)
+
 export interface BootstrapOptions {
   express: Express;
-  port?: number;
-  logFormat?: string;
-  webEnabled?: boolean;
 }
 
 export async function bootstrap(options: BootstrapOptions): Promise<NestExpressApplication> {
   // Load env if not already loaded
   loadEnv();
 
-  const configService = new ConfigService();
-
-  // Override env vars with options
-  if (options.port) process.env.PORT = options.port.toString();
-  if (options.logFormat) process.env.LOG_FORMAT = options.logFormat;
-
-  await runMigrationsIfNeeded(configService);
+  // Run migrations if needed
+  await runMigrationsIfNeeded();
 
   // Create NestJS app with existing Express instance using ExpressAdapter
   const app = await NestFactory.create<NestExpressApplication>(
     AppModule,
     new ExpressAdapter(options.express),
-    {
-      logger,
-    }
+    { logger }
   );
 
   app.useLogger(createLogger());
@@ -55,12 +50,14 @@ export async function bootstrap(options: BootstrapOptions): Promise<NestExpressA
 
   app.enableShutdownHooks();
 
-  const port = options.port ?? configService.get<number>('PORT') ?? DEFAULT_PORT;
+  // Get ConfigService from the DI container to ensure it has access to all env variables
+  const appConfigService = app.get(ConfigService);
+  const port = appConfigService.get<number>('PORT') || DEFAULT_PORT;
 
   const server = await app.listen(port);
-  server.setTimeout(180000);
-  server.keepAliveTimeout = 180000;
-  server.headersTimeout = 185000;
+  server.setTimeout(SERVER_TIMEOUT_MS);
+  server.keepAliveTimeout = KEEP_ALIVE_TIMEOUT_MS;
+  server.headersTimeout = HEADERS_TIMEOUT_MS;
 
   const appUrl = await app.getUrl();
   const normalizedUrl = appUrl.replace('[::1]', 'localhost');

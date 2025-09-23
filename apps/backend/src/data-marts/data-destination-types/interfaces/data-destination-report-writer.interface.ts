@@ -27,6 +27,8 @@ export interface DataDestinationReportWriter extends TypedComponent<DataDestinat
   /**
    * Finalizes the report writing process
    * Performs any necessary cleanup or finalization steps
+   *
+   * @param processingError - Optional error that occurred during report processing
    */
-  finalize(): Promise<void>;
+  finalize(processingError?: Error): Promise<void>;
 }

@@ -12,6 +12,7 @@ import { storageService } from '../services';
 import { GlobalLoader, LoadingProvider, useLoading } from '../shared/components/GlobalLoader';
 import { Toaster } from '../shared/components/Toaster';
 import { AuthGuard } from '../features/idp';
+import { ProjectIdGuard } from '../features/idp/components/ProjectIdGuard';
 
 // Constants
 const SIDEBAR_STATE_KEY = 'sidebar_state';
@@ -35,7 +36,9 @@ function MainLayoutContent() {
                 <SidebarTrigger />
               </div>
             )}
-            <Outlet />
+            <ProjectIdGuard>
+              <Outlet />
+            </ProjectIdGuard>
           </div>
         </SidebarInset>
       </AuthGuard>

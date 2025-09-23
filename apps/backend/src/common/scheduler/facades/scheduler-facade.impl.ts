@@ -11,15 +11,20 @@ import { TimeBasedTriggerFetcherFactory } from '../services/fetchers/time-based-
 import { GracefulShutdownService } from '../services/graceful-shutdown.service';
 
 /**
- * The SchedulerFacadeImpl class is an implementation of the SchedulerFacade interface, providing
- * functionality to manage and register time-based trigger handlers in a scheduling system. It utilizes
- * the SchedulerRegistry to maintain and manage cron jobs and integrates configuration for customizable
- * scheduling behavior.
+ * The SchedulerFacadeImpl class is a unified implementation of the SchedulerFacade interface,
+ * providing adaptive functionality for scheduling and executing time-based triggers.
+ *
+ * This implementation automatically adapts its behavior based on the SCHEDULER_EXECUTION_ENABLED
+ * environment variable:
+ * - When true: Creates cron jobs and executes scheduled tasks (Worker mode)
+ * - When false: Only logs registrations without creating jobs (Registration mode)
+ *
+ * This allows the same codebase to serve both API instances (registration only) and Worker
+ * instances (full execution) without requiring separate implementations.
  */
 @Injectable()
 export class SchedulerFacadeImpl implements SchedulerFacade {
   private readonly logger = new Logger(SchedulerFacadeImpl.name);
-  private readonly defaultTimezone = 'UTC';
 
   constructor(
     private readonly schedulerRegistry: SchedulerRegistry,
@@ -31,8 +36,11 @@ export class SchedulerFacadeImpl implements SchedulerFacade {
   ) {}
 
   /**
-   * Registers a time-based trigger handler to the scheduler system. This method initializes the trigger,
-   * associates it with a cron job, and starts the job with the specified processing expression and timezone settings.
+   * Registers a time-based trigger handler to the scheduler system.
+   *
+   * Behavior depends on SCHEDULER_EXECUTION_ENABLED configuration:
+   * - When true: Creates cron jobs and starts execution (Worker mode)
+   * - When false: Only logs registration without creating jobs (Registration mode)
    *
    * @param triggerHandler The time-based trigger handler instance implementing the required processing logic and cron expression.
    * @return A promise that resolves when the handler is registered
@@ -40,22 +48,34 @@ export class SchedulerFacadeImpl implements SchedulerFacade {
   async registerTimeBasedTriggerHandler(
     triggerHandler: TimeBasedTriggerHandler<TimeBasedTrigger>
   ): Promise<void> {
+    const handlerName = triggerHandler.constructor.name;
+    const handlerCronExp = triggerHandler.processingCronExpression();
+    const isExecutionEnabled = this.configService.get<boolean>('SCHEDULER_EXECUTION_ENABLED');
+
+    // Registration-only mode: just log and return early
+    if (!isExecutionEnabled) {
+      this.logger.log(`Handler '${handlerName}' registered but execution disabled.`);
+      return;
+    }
+
+    // Worker mode: create cron jobs and full functionality
+    const timezone = this.configService.get<string>('SCHEDULER_TIMEZONE');
+
     const runner = await this.triggerRunnerFactory.createRunner(
       triggerHandler,
       this.systemTimeService
     );
+
     const fetcher = this.triggerFetcherFactory.createFetcher(
       triggerHandler.getTriggerRepository(),
       this.systemTimeService
     );
-    const timezone = this.configService.get<string>('SCHEDULER_TIMEZONE', this.defaultTimezone);
+
     const job = new CronJob(
-      triggerHandler.processingCronExpression(),
+      handlerCronExp,
       () => {
         if (this.gracefulShutdownService.isInShutdownMode()) {
-          this.logger.warn(
-            `[${triggerHandler.constructor.name}] Fetching triggers skipped. Application is shutdown.`
-          );
+          this.logger.warn(`[${handlerName}] Fetching triggers skipped. Application is shutdown.`);
           return Promise.resolve();
         }
 
@@ -68,12 +88,11 @@ export class SchedulerFacadeImpl implements SchedulerFacade {
       timezone
     );
 
-    this.schedulerRegistry.addCronJob(triggerHandler.constructor.name, job);
-
+    this.schedulerRegistry.addCronJob(handlerName, job);
     job.start();
 
     this.logger.log(
-      `Time-based trigger handler '${triggerHandler.constructor.name}' initialized '${triggerHandler.processingCronExpression()}' ${timezone}`
+      `Time-based trigger handler '${handlerName}' initialized with cron '${handlerCronExp}' in timezone ${timezone}`
     );
   }
 }

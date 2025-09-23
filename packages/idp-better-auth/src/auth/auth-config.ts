@@ -1,13 +1,13 @@
 import { betterAuth } from 'better-auth';
 import { magicLink, organization } from 'better-auth/plugins';
 import { BetterAuthConfig } from '../types/index.js';
-import { createDatabaseAdapter } from '../adapters/database.js';
 import { createAccessControl } from 'better-auth/plugins/access';
 
 export async function createBetterAuthConfig(
-  config: BetterAuthConfig
+  config: BetterAuthConfig,
+  options?: { adapter?: unknown }
 ): Promise<ReturnType<typeof betterAuth>> {
-  const database = await createDatabaseAdapter(config.database);
+  const database = options?.adapter;
 
   const plugins: unknown[] = [];
 
@@ -73,6 +73,7 @@ export async function createBetterAuthConfig(
     })
   );
 
+  const calcBaseURL = config.baseURL || `http://localhost:${process.env.PORT || '3000'}`;
   const authConfig: Record<string, unknown> = {
     database,
     plugins,
@@ -80,8 +81,8 @@ export async function createBetterAuthConfig(
       expiresIn: config.session?.maxAge || 60 * 60 * 24 * 7,
       updateAge: 60 * 60 * 24,
     },
-    trustedOrigins: config.baseURL ? [config.baseURL] : ['http://localhost:3000'],
-    baseURL: config.baseURL || 'http://localhost:3000',
+    trustedOrigins: [calcBaseURL, ...(config.trustedOrigins || [])],
+    baseURL: calcBaseURL,
     secret: config.secret,
     emailAndPassword: {
       enabled: true,

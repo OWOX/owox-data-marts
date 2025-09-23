@@ -20,8 +20,8 @@ export default class IdpAddUser extends BaseCommand {
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(IdpAddUser);
+    this.loadEnvironment(flags);
 
-    this.initializeLogging(flags);
     const idpProvider = await IdpFactory.createFromEnvironment(this);
     await idpProvider.initialize();
 
@@ -34,5 +34,7 @@ export default class IdpAddUser extends BaseCommand {
     } else {
       this.error('IDP provider does not support add-user command');
     }
+
+    await idpProvider.shutdown();
   }
 }

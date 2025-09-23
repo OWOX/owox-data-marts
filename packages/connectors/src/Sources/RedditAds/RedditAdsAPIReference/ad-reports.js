@@ -10,23 +10,11 @@ var reportFields = {
     'description': 'The ID of the ad.',
     'type': 'string'
   },
-  'ad_group_id': {
-    'description': '[ONLY in AD_GROUP_ID based report] The ID of the ad group.',
-    'type': 'string'
-  },
-  'campaign_id': {
-    'description': '[ONLY in CAMPAIGN_ID based report] The ID of the campaign.',
-    'type': 'string'
-  },
   'date': {
     'description': 'The date for this metric.',
     'type': 'datetime',
     'GoogleBigQueryType': 'date', 
     'GoogleBigQueryPartitioned': true
-  },
-  'dma': {
-    'description': '[ONLY in DMA based report] The Designated Market Area (DMA) targeted for the reports.',
-    'type': 'string'
   },
   'clicks': {
     'description': 'The number of clicks detected for this report period.',
@@ -184,14 +172,6 @@ var reportFields = {
     'description': 'The view through conversions count.',
     'type': 'integer'
   },
-  'country': {
-    'description': '[ONLY in COUNTRY based report] The country targeted for the report.',
-    'type': 'string'
-  },
-  'community': {
-    'description': '[ONLY in COMMUNITY based report] The community/subreddit being targeted.',
-    'type': 'string'
-  },
   'cpc': {
     'description': 'The cost-per-click for this period.',
     'type': 'number'
@@ -220,10 +200,6 @@ var reportFields = {
     'description': 'The number of impressions served for this report period.',
     'type': 'integer'
   },
-  'interest': {
-    'description': '[ONLY in INTEREST based report] \nThe interests of the users being targeted.',
-    'type': 'string'
-  },
   'post_id': {
     'description': 'The unique identifier of the post.',
     'type': 'string'
@@ -248,20 +224,8 @@ var reportFields = {
     'description': 'The average number of times each user saw the ad.',
     'type': 'number'
   },
-  'account_id': {
-    'description': '[ONLY in AD_ACCOUNT_ID based report] as account_id \n The ID of the account.',
-    'type': 'string'
-  },
   'currency': {
     'description': 'The currency of the account.',
-    'type': 'string'
-  },
-  'keyword': {
-    'description': '[ONLY in KEYWORD based report] \n The keyword for the ad.',
-    'type': 'string'
-  },
-  'placement': {
-    'description': '[ONLY in PLACEMENT based report] \n Enum representing the placement of a creative.',
     'type': 'string'
   }
 };
