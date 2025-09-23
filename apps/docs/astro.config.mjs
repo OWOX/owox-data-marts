@@ -84,7 +84,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         {
           label: 'Sources',
           autogenerate: { directory: 'packages/connectors/src/sources' },
-        },        
+        },
         {
           label: 'Google Sheets Connectors',
           items: [
