@@ -114,7 +114,6 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
   /**
    * Get storage instance for a node
    * @param {string} nodeName - Name of the node
-   * @param {Array<string>} requestedFields - Requested fields for this node
    * @returns {Object} Storage instance
    */
   getStorageByNode(nodeName) {

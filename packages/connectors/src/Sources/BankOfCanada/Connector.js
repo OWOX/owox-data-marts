@@ -91,7 +91,6 @@ var BankOfCanadaConnector = class BankOfCanadaConnector extends AbstractConnecto
   /**
    * Get storage instance for a node
    * @param {string} nodeName - Name of the node
-   * @param {Array<string>} requestedFields
    * @returns {Object} Storage instance
    */
   getStorageByNode(nodeName) {
