@@ -1,34 +1,23 @@
-# Quick Start 🚀 (no-code setup)
+# Quick Start 🚀
 
-A command-line interface for running OWOX Data Marts application. This CLI provides a simple way to start the pre-built OWOX Data Marts server with frontend and backend components.
+> OWOX Data Marts is an open-source tool for self-service analytics.  
+> You can deploy it in different ways depending on your needs and preferences.
 
-1. **Make sure Node.js ≥ 22.16.0 is installed**
+The table below summarizes the available options
 
-   If you don't have it installed, [download it here](https://nodejs.org/en/download)
-   (Windows / macOS / Linux installers are all listed there)
+| Deployment Option | Guide | Best For |
+|-------------------|-------|----------|
+| **Local Deployment** | [Local Deployment](./deployment-guide/local-deployment.md) | Quick testing, learning, or running a demo on your own computer (macOS/Windows/Linux). |
+| **DigitalOcean.com** | [DigitalOcean Guide](./deployment-guide/digitalocean.md) | Teams who want a simple and affordable cloud server setup with full control. |
+| **Render.com** | [Render Guide](./deployment-guide/render.md) | Teams who prefer a managed platform with built-in scaling and minimal DevOps work. |
+| **Cloud (OWOX SaaS)** | [OWOX Cloud](https://app.owox.com) | Fastest start, with no deployment setup required and automatic updates. |
+| **GCP Cloud Run** | To be done.. | Teams already using Google Cloud who want a serverless, auto-scaling deployment with minimal ops and tight integration into BigQuery and other GCP services |
 
-   > **Tip:** To avoid potential permission issues (`sudo`), consider using a Node Version Manager like [nvm](https://github.com/nvm-sh/nvm) for macOS/Linux or [nvm-windows](https://github.com/coreybutler/nvm-windows) for Windows.
-   > **Note**: If you encounter any installation issues, check the [issue](https://github.com/OWOX/owox-data-marts/issues/274).
+---
 
-2. **Open your terminal** and run **one** command
-
-   ```bash
-   npm install -g owox
-   ```
-
-   (You'll see a list of added packages. Some warns are possible — just ignore them.)
-
-3. **Start OWOX Data Marts** locally
-
-   ```bash
-   owox serve
-   ```
-
-   (Expected output:
-   🚀 Starting OWOX Data Marts...
-   📦 Starting server on port 3000...)
-
-4. **Open** your browser at **<http://localhost:3000>** and explore! 🎉
+💡 **Tip:**  
+If you have any questions or run into issues, don’t hesitate to open a ticket in our [GitHub Issues](https://github.com/OWOX/owox-data-marts/issues).  
+The community is active and usually responds quickly with helpful answers.
 
 ---
 
