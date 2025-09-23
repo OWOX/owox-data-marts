@@ -30,16 +30,10 @@ function MainLayoutContent() {
       <AuthGuard redirectTo='/auth/sign-in'>
         <AppSidebar variant='inset' collapsible='icon' />
         <SidebarInset>
-          <div className='relative h-full w-full'>
-            {showTrigger && (
-              <div className='absolute top-7 left-4 z-10 md:hidden'>
-                <SidebarTrigger />
-              </div>
-            )}
-            <ProjectIdGuard>
-              <Outlet />
-            </ProjectIdGuard>
-          </div>
+          {showTrigger && <SidebarTrigger />}
+          <ProjectIdGuard>
+            <Outlet />
+          </ProjectIdGuard>
         </SidebarInset>
       </AuthGuard>
     </>
