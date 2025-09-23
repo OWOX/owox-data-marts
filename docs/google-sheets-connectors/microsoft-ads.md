@@ -18,36 +18,36 @@ In your newly copied spreadsheet, navigate to the "Config" sheet.
 Log in to your Bing Ads account at [https://ads.microsoft.com/](https://ads.microsoft.com/).  
 Your **Account ID** and **Customer ID** can be found in the account URL.
 
-![Bing Add Account](/packages/connectors/src/Sources/BingAds/res/bing_addaccount.png)
+![Bing Add Account](./res/bing_addaccount.png)
 
 Copy and paste both values into the template.
 
-![Account ID](/packages/connectors/src/Sources/BingAds/res/bing_pasteid.png)
+![Account ID](./res/bing_pasteid.png)
 
 Select the **Report Aggregation** value.  
 Refer to the [Microsoft Ads documentation](https://learn.microsoft.com/en-us/advertising/reporting-service/reportaggregation?view=bingads-13) to learn more.  
 
-![Bing Aggregation](/packages/connectors/src/Sources/BingAds/res/bing_aggregation.png)
+![Bing Aggregation](./res/bing_aggregation.png)
 
 Choose the **Report Time Zone** to define the timezone for the reporting date range.
 
-![Bing Time Zone](/packages/connectors/src/Sources/BingAds/res/bing_timezone.png)
+![Bing Time Zone](./res/bing_timezone.png)
 
 ## Step 2: Select Fields to Import
 
 Several common data fields are pre-selected by default. To include additional fields in your import, go to the "Fields" tab and check the boxes next to the desired fields.
 
-![Bing Fields](/packages/connectors/src/Sources/BingAds/res/bing_fields.png)
+![Bing Fields](./res/bing_fields.png)
 
 ## Step 3: Fill in Access Credentials
 
 Next, access the custom menu: **OWOX → Manage Credentials**.
 
-![Bing Credentials](/packages/connectors/src/Sources/BingAds/res/bing_credentials.png)
+![Bing Credentials](./res/bing_credentials.png)
 
 Enter your credentials obtained by following this guide: [**How to obtain the credentials for Bing Ads connector**](/packages/connectors/src/Sources/BingAds/CREDENTIALS.md).
 
-![Bing Token](/packages/connectors/src/Sources/BingAds/res/bing_creds.png)
+![Bing Token](./res/bing_creds.png)
 
 ## Step 3: Run connector
 
@@ -57,7 +57,7 @@ Now you have **two options** for importing Microsoft Ads data:
 
 Choose **OWOX → Import New Data** to load data for the **current day**.
 
-![Facebook Import New Data](/packages/connectors/src/Sources/FacebookMarketing/res/facebook_newdata.png)
+![Facebook Import New Data](./res/facebook_newdata.png)
 
 > ℹ️ If you click **Import New Data** again after a successful initial load,  
 > the connector will import: **Current day's data**, plus **Additional days**, based on the value in the **Reimport Lookback Window** field.
@@ -69,7 +69,7 @@ Choose **Manual Backfill** to load historical data for a custom time range.
 1. Select the **Start Date** and **End Date**  
 2. Click the **Run Manual Backfill** button
 
-![Facebook Run Backfill](/packages/connectors/src/Sources/FacebookMarketing/res/facebook_runbackfill.png)
+![Facebook Run Backfill](./res/facebook_runbackfill.png)
 
 The process is complete when the **Log** field shows the message:  
 **"Import is finished"**  
