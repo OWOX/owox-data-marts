@@ -220,15 +220,15 @@
 
 /* DM Page: Header */
 .dm-page-header {
-  @apply px-12 py-6;
+  @apply px-8 py-4 md:px-12 md:py-6;
 }
 .dm-page-header-title {
-  @apply text-2xl font-medium;
+  @apply text-xl font-medium md:text-2xl;
 }
 
 /* DM Page: Content */
 .dm-page-content {
-  @apply px-4 sm:px-12;
+  @apply px-4 md:px-12;
 }
 
 /* DM Card */
@@ -242,13 +242,13 @@
   @apply flex items-center gap-2;
 }
 .dm-card-toolbar-search {
-  @apply relative w-[150px] sm:w-xs;
+  @apply relative w-[150px] md:w-xs;
 }
 .dm-card-toolbar-search-icon {
   @apply text-muted-foreground absolute top-2.5 left-2 h-4 w-4;
 }
 .dm-card-toolbar-search-input {
-  @apply border-muted dark:border-muted/50 rounded-md border bg-white pl-8 dark:bg-white/4 dark:hover:bg-white/8;
+  @apply border-muted dark:border-muted/50 rounded-md border bg-white pl-8 text-sm dark:bg-white/4 dark:hover:bg-white/8;
 }
 .dm-card-toolbar-btn-delete {
   @apply mx-2.5 h-8;
@@ -302,7 +302,7 @@
   @apply flex flex-col items-center justify-center px-4 pt-22 pb-24;
 }
 .dm-empty-state-ico {
-  @apply mb-6 h-16 w-16 text-gray-500/50 dark:text-gray-200/50;
+  @apply mb-6 h-16 w-16 text-neutral-400 dark:text-neutral-300;
 }
 .dm-empty-state-title {
   @apply text-foreground mb-3 text-center text-xl font-medium;
@@ -317,4 +317,55 @@
 }
 .dm-card-formcontrol {
   @apply dark:bg-black/16 dark:hover:bg-black/24;
+}
+
+/* 404 page tunnel background */
+.dm-empty-state-404page {
+  @apply relative flex h-full w-full items-center justify-center overflow-hidden px-4 py-12 sm:px-12;
+}
+.dm-empty-state-404page-foreground {
+  @apply relative z-10 flex w-full flex-col items-center justify-center;
+}
+.dm-empty-state-404page-background {
+  @apply pointer-events-none absolute -inset-[20%] z-0 bg-[length:40px_40px] lg:bg-[length:80px_80px];
+  --grid-color: rgba(0, 0, 0, 0.05);
+
+  background-image:
+    linear-gradient(to right, var(--grid-color) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px);
+
+  animation:
+    zoomTunnel 32s ease-in-out infinite,
+    tunnelScroll 16s linear infinite;
+}
+
+.dark .dm-empty-state-404page-background {
+  --grid-color: rgba(255, 255, 255, 0.04);
+}
+
+/* Zoom + subtle rotation */
+@keyframes zoomTunnel {
+  0% {
+    transform: scale(1) rotate(0deg);
+  }
+  50% {
+    transform: scale(1.5) rotate(45deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/* Infinite background scroll */
+@keyframes tunnelScroll {
+  from {
+    background-position:
+      0 0,
+      0 0;
+  }
+  to {
+    background-position:
+      80px 80px,
+      80px 80px;
+  }
 }
