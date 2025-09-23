@@ -298,28 +298,25 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
     // First check if target table exists, create if needed (even for empty data)
     this.checkTableExists()
       .then(() => {
-        if (data.length === 0) {
-          done = true;
-          return;
-        }
-
-        this.config.logMessage(`Saving ${data.length} records to Athena`);
-        
-        // Check if we need to add new columns
+        // Check if we need to add new columns (even for empty data)
         const allColumns = new Set();
-        data.forEach(row => {
-          Object.keys(row).forEach(column => allColumns.add(column));
-        });
+        if (data.length > 0) {
+          data.forEach(row => {
+            Object.keys(row).forEach(column => allColumns.add(column));
+          });
+        }
 
         if (this.config.Fields.value) {
           this.getSelectedFields().forEach(columnName => {
             if (columnName && !allColumns.has(columnName)) {
               allColumns.add(columnName);
-              data.forEach(row => {
-                if (!row[columnName]) {
-                  row[columnName] = '';
-                }
-              });
+              if (data.length > 0) {
+                data.forEach(row => {
+                  if (!row[columnName]) {
+                    row[columnName] = '';
+                  }
+                });
+              }
             }
           });
         }
@@ -332,6 +329,13 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
         return Promise.resolve();
       })
       .then(() => {
+        if (data.length === 0) {
+          done = true;
+          return;
+        }
+
+        this.config.logMessage(`Saving ${data.length} records to Athena`);
+        
         // Generate a unique temp folder name
         const tempFolder = `${this.config.S3Prefix.value}_temp/${this.uploadSid}`;
         
