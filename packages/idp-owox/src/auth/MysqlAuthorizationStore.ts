@@ -21,7 +21,7 @@ export class MysqlAuthorizationStore implements AuthorizationStore {
       database: this.config.database,
       waitForConnections: true,
       connectionLimit: this.config.connectionLimit ?? 10,
-      ssl: this.config.ssl,
+      ...(this.config.ssl === undefined ? {} : { ssl: this.config.ssl }),
     });
 
     await this.getPool().query(`

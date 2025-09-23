@@ -4,6 +4,7 @@ import ms from 'ms';
 import envPaths from 'env-paths';
 import { dirname, join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
+import { parseMysqlSslEnv } from '@owox/internal-helpers';
 
 const zMsString = z
   .string()
@@ -18,13 +19,6 @@ const parseCommaString = z.string().transform(s =>
     .map(x => x.trim())
     .filter(Boolean)
 );
-
-function normalizeSsl(input: unknown): PoolOptions['ssl'] {
-  if (input == null || input === false) return undefined;
-  if (input === true) return {};
-  if (typeof input === 'string') return input;
-  return undefined;
-}
 
 function getSqliteDefaultDbPath(): string {
   const paths = envPaths('owox', { suffix: '' });
@@ -89,15 +83,7 @@ export const DbEnvSchema = DbEnvRaw.transform(e => {
   const connectionLimit = e.IDP_OWOX_MYSQL_CONNECTION_LIMIT
     ? Number(e.IDP_OWOX_MYSQL_CONNECTION_LIMIT)
     : undefined;
-
-  let sslRaw: unknown = undefined;
-  if (e.IDP_OWOX_MYSQL_SSL) {
-    try {
-      sslRaw = JSON.parse(e.IDP_OWOX_MYSQL_SSL);
-    } catch {
-      sslRaw = e.IDP_OWOX_MYSQL_SSL;
-    }
-  }
+  const ssl = parseMysqlSslEnv(e.IDP_OWOX_MYSQL_SSL) as PoolOptions['ssl'];
 
   return {
     type: 'mysql' as const,
@@ -109,7 +95,7 @@ export const DbEnvSchema = DbEnvRaw.transform(e => {
       password: e.IDP_OWOX_MYSQL_PASSWORD,
       database: e.IDP_OWOX_MYSQL_DB,
       connectionLimit,
-      ssl: normalizeSsl(sslRaw),
+      ...(ssl === undefined ? {} : { ssl }),
     },
   };
 });

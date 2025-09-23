@@ -50,8 +50,26 @@ IDP_OWOX_MYSQL_PASSWORD=your-secret
 IDP_OWOX_MYSQL_DB=idp_owox
 # Optional
 IDP_OWOX_MYSQL_CONNECTION_LIMIT=10
-IDP_OWOX_MYSQL_SSL={"rejectUnauthorized":true}
+IDP_OWOX_MYSQL_SSL=
 ```
+
+#### MySQL SSL
+
+`IDP_OWOX_MYSQL_SSL` enables TLS for MySQL (mysql2). Supported formats:
+
+- Boolean-like (strings)
+  - `true` → `{}` (enable TLS with default options: `rejectUnauthorized: true`)
+  - `false` or empty → no `ssl` field (TLS disabled)
+
+- JSON object (forwarded to mysql2 TLS options)
+  - Strict CA verification:
+    - `{"rejectUnauthorized": true}`
+  - Custom CA bundle (inline PEM):
+    - `{"rejectUnauthorized": true, "ca": "-----BEGIN CERTIFICATE-----\\n...\\n-----END CERTIFICATE-----\\n"}`
+  - Mutual TLS (client cert + key):
+    - `{"rejectUnauthorized": true, "cert": "-----BEGIN CERTIFICATE-----\\n...\\n-----END CERTIFICATE-----\\n", "key": "-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n"}`
+  - Minimum TLS version (TLS 1.2):
+    - `{"minVersion": "TLSv1.2", "rejectUnauthorized": true}`
 
 ### 3. Authentication Flow
 

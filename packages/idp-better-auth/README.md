@@ -48,6 +48,24 @@ IDP_BETTER_AUTH_MYSQL_DATABASE=better_auth
 IDP_BETTER_AUTH_MYSQL_PORT=3306
 ```
 
+#### MySQL SSL
+
+`IDP_BETTER_AUTH_MYSQL_SSL` enables TLS for MySQL (mysql2). Supported formats:
+
+- Boolean-like (strings)
+  - `true` → `{}` (enable TLS with default options: `rejectUnauthorized: true`)
+  - `false` or empty → no `ssl` field (TLS disabled)
+
+- JSON object (forwarded to mysql2 TLS options)
+  - Strict CA verification:
+    - `{"rejectUnauthorized": true}`
+  - Custom CA bundle (inline PEM):
+    - `{"rejectUnauthorized": true, "ca": "-----BEGIN CERTIFICATE-----\\n...\\n-----END CERTIFICATE-----\\n"}`
+  - Mutual TLS (client cert + key):
+    - `{"rejectUnauthorized": true, "cert": "-----BEGIN CERTIFICATE-----\\n...\\n-----END CERTIFICATE-----\\n", "key": "-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n"}`
+  - Minimum TLS version (TLS 1.2):
+    - `{"minVersion": "TLSv1.2", "rejectUnauthorized": true}`
+
 ### 3. Start the Application
 
 ```bash
@@ -164,24 +182,6 @@ owox idp add-user user@example.com
 | `IDP_BETTER_AUTH_MYSQL_PORT`      |    No    |                `3306`                 | MySQL port                                  |
 | `IDP_BETTER_AUTH_MYSQL_SSL`       |    No    |                `false`                | Enable SSL: `true`, JSON, or string         |
 | `IDP_BETTER_AUTH_TRUSTED_ORIGINS` |    No    |        `http://localhost:3000`        | Trusted origins for auth service            |
-
-### SSL/TLS configuration (IDP_BETTER_AUTH_MYSQL_SSL)
-
-This variable enables TLS for MySQL (mysql2). Supported formats:
-
-- Boolean-like (strings)
-  - `true` → `{}` (enable TLS with default options: `rejectUnauthorized: true`)
-  - `false` → no `ssl` field (TLS disabled)
-
-- JSON object (forwarded to mysql2 TLS options)
-  - Strict CA verification:
-    - `{"rejectUnauthorized": true}`
-  - Custom CA bundle (inline PEM):
-    - `{"rejectUnauthorized": true, "ca": "-----BEGIN CERTIFICATE-----\\n...\\n-----END CERTIFICATE-----\\n"}`
-  - Mutual TLS (client cert + key):
-    - `{"rejectUnauthorized": true, "cert": "-----BEGIN CERTIFICATE-----\\n...\\n-----END CERTIFICATE-----\\n", "key": "-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n"}`
-  - Minimum TLS version (TLS 1.2):
-    - `{"minVersion": "TLSv1.2", "rejectUnauthorized": true}`
 
 ## Troubleshooting
 

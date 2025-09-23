@@ -31,7 +31,7 @@ export function createDataSourceOptions(config: ConfigService): DataSourceOption
       ...baseOptions,
     } as DataSourceOptions;
   } else if (dbType === DbType.mysql) {
-    const ssl = parseMysqlSslEnv(config.get<string>('DB_SSL'));
+    const ssl = parseMysqlSslEnv(config.get<string>('DB_MYSQL_SSL'));
 
     return {
       type: DbType.mysql,
