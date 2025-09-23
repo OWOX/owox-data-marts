@@ -13,17 +13,17 @@ Select the **Symbols** — currency codes you want to retrieve
 The default base currency is **US Dollars (USD)**.  
 You can find the list of supported currency symbols [Open Exchange Rates documentation](https://docs.openexchangerates.org/reference/supported-currencies).
 
-![Open Exchange Rates Currency](/packages/connectors/src/Sources/OpenExchangeRates/res/openrates_currency.png)
+![Open Exchange Rates Currency](./res/openrates_currency.png)
 
 ## Step 2: Add Your App ID
 
 Go to **OWOX → Manage credentials** from the menu.
 
-![Open Exchange Rates Credentials](/packages/connectors/src/Sources/OpenExchangeRates/res/openrates_credentials.png)
+![Open Exchange Rates Credentials](./res/openrates_credentials.png)
 
 Enter your **App ID** obtained by following this tutorial:  [How to obtain the App ID for the Open Exchange Rates connector](/packages/connectors/src/Sources/OpenExchangeRates/CREDENTIALS.md)
 
-![Open Exchange Rates App ID](/packages/connectors/src/Sources/OpenExchangeRates/res/openrates_appid.png)
+![Open Exchange Rates App ID](./res/openrates_appid.png)
 
 Click **Check and Save**. Once credentials are saved, go to menu.
 
@@ -53,7 +53,7 @@ The process is complete when the **Log** field shows the message:
 In the **Google Sheets** template:
 The data will appear in a new tab called **Data**.  
 
-![Open Exchange Rates Finished](/packages/connectors/src/Sources/OpenExchangeRates/res/openrates_finished.png)
+![Open Exchange Rates Finished](./res/openrates_finished.png)
 
 ## Getting Help
 
