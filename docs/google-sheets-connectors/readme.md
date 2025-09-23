@@ -10,7 +10,7 @@ Just **Google Sheets Templates** + Your full **control** + Amazing OWOX **Commun
 
 [🌐 Website](https://www.owox.com?utm_source=github&utm_medium=referral&utm_campaign=readme) | [💬 Join Community](https://github.com/OWOX/owox-data-marts/discussions) | [🆘 Create an Issue](https://github.com/OWOX/owox-data-marts/issues)
 
-![JavaScript Open-Source Connectors](/packages/connectors/res/main-cover.png)
+![JavaScript Open-Source Connectors](./res/main-cover.png)
 
 ## 🔌 Available Connectors
 
