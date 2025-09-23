@@ -15,7 +15,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
      * @param schema (object) object with structure like {fieldName: {type: "number", description: "smth" } }
      * @param description (string) string with storage description }
      */
-    constructor(config, uniqueKeyColumns, schema = null, description = null, requestedFields = null) {
+    constructor(config, uniqueKeyColumns, schema = null, description = null) {
     
       super(
         config.mergeParameters({
@@ -55,8 +55,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         }),
         uniqueKeyColumns,
         schema,
-        description,
-        requestedFields
+        description
       );
 
       this.checkIfGoogleBigQueryIsConnected();
@@ -82,9 +81,10 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       if( Object.keys(existingColumns).length == 0 ) {
         this.createDatasetIfItDoesntExist();
         this.existingColumns = this.createTableIfItDoesntExist();
-      } else if (this.requestedFields && Array.isArray(this.requestedFields)) {
-        // Check if there are new columns from requestedFields
-        let newFields = this.requestedFields.filter( column => !Object.keys(existingColumns).includes(column) );
+      } else {
+        // Check if there are new columns from Fields config
+        let selectedFields = this.getSelectedFields();
+        let newFields = selectedFields.filter( column => !Object.keys(existingColumns).includes(column) );
         if( newFields.length > 0 ) {
           this.addNewColumns(newFields);
         }
@@ -159,9 +159,8 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       let columnPartitioned = null;
       let existingColumns = {};
 
-      const useColumns = Array.isArray(this.requestedFields) && this.requestedFields.length
-        ? this.requestedFields
-        : this.uniqueKeyColumns;
+      let selectedFields = this.getSelectedFields();
+      let useColumns = selectedFields.length > 0 ? selectedFields : this.uniqueKeyColumns;
 
       for (let i in useColumns) {
         let columnName = useColumns[i];

@@ -201,22 +201,14 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
       existingColumns[columnName] = columnType;
     }
 
-    let selectedFields = [];
-    if (this.config.Fields && this.config.Fields.value) {
-      selectedFields = this.config.Fields.value.split(',')
-      .map(field => field.trim())
-      .filter(field => field !== '')
-      .map(field => field.split(' '))
-      .filter(field => field.length === 2)
-      .map(field => field[1]);
-    } 
-
+    let selectedFields = this.getSelectedFields(); 
+    
     // Add all other schema fields to the table
     for (let columnName in this.schema) {
       if (!this.uniqueKeyColumns.includes(columnName) && selectedFields.includes(columnName)) {
         // Use AthenaType if specified, otherwise fallback to schema type, default to string
         let columnType = this.getColumnType(columnName);
-
+        
         columnDefinitions.push(`${columnName} ${columnType}`);
         existingColumns[columnName] = columnType;
       }
@@ -320,20 +312,14 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
         });
 
         if (this.config.Fields.value) {
-          this.config.Fields.value.split(', ')
-            .map(field => field.trim())
-            .filter(field => field !== '')
-            .map(field => field.split(' '))
-            .filter(field => field.length === 2)
-            .map(field => field[1])
-            .forEach(columnName => {
-              if (columnName && !allColumns.has(columnName)) {
-                allColumns.add(columnName);
-                data.forEach(row => {
-                  if (!row[columnName]) {
-                    row[columnName] = '';
-                  }
-                });
+          this.getSelectedFields().forEach(columnName => {
+            if (columnName && !allColumns.has(columnName)) {
+              allColumns.add(columnName);
+              data.forEach(row => {
+                if (!row[columnName]) {
+                  row[columnName] = '';
+                }
+              });
             }
           });
         }

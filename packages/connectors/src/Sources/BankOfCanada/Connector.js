@@ -68,7 +68,7 @@ var BankOfCanadaConnector = class BankOfCanadaConnector extends AbstractConnecto
 
     if (data.length || this.config.CreateEmptyTables?.value === "true") {
       const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-      this.getStorageByNode(nodeName, fields).saveData(preparedData);
+      this.getStorageByNode(nodeName).saveData(preparedData);
     }
 
     if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
@@ -94,7 +94,7 @@ var BankOfCanadaConnector = class BankOfCanadaConnector extends AbstractConnecto
    * @param {Array<string>} requestedFields
    * @returns {Object} Storage instance
    */
-  getStorageByNode(nodeName, requestedFields = null) {
+  getStorageByNode(nodeName) {
     if (!("storages" in this)) {
       this.storages = {};
     }
@@ -113,8 +113,7 @@ var BankOfCanadaConnector = class BankOfCanadaConnector extends AbstractConnecto
         }),
         uniqueFields,
         this.source.fieldsSchema[nodeName].fields,
-        `${this.source.fieldsSchema[nodeName].description} ${this.source.fieldsSchema[nodeName].documentation}`,
-        requestedFields
+        `${this.source.fieldsSchema[nodeName].description} ${this.source.fieldsSchema[nodeName].documentation}`
       );
     }
 

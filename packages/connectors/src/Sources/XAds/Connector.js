@@ -83,7 +83,7 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
   
       if (data.length || this.config.CreateEmptyTables?.value === "true") {
         const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-        this.getStorageByNode(nodeName, fields).saveData(preparedData);
+        this.getStorageByNode(nodeName).saveData(preparedData);
       }
 
       if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
@@ -107,7 +107,7 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
 
     if (data.length || this.config.CreateEmptyTables?.value === "true") {
       const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-      this.getStorageByNode(nodeName, fields).saveData(preparedData);
+      this.getStorageByNode(nodeName).saveData(preparedData);
     }
   }
 
@@ -117,7 +117,7 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
    * @param {Array<string>} requestedFields - Requested fields for this node
    * @returns {Object} Storage instance
    */
-  getStorageByNode(nodeName, requestedFields = null) {
+  getStorageByNode(nodeName) {
     if (!("storages" in this)) {
       this.storages = {};
     }
@@ -136,8 +136,7 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
         }),
         uniqueFields,
         this.source.fieldsSchema[nodeName].fields,
-        `${this.source.fieldsSchema[nodeName].description} ${this.source.fieldsSchema[nodeName].documentation}`,
-        requestedFields
+        `${this.source.fieldsSchema[nodeName].description} ${this.source.fieldsSchema[nodeName].documentation}`
       );
     }
 

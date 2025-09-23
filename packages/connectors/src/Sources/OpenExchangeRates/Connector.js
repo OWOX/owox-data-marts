@@ -73,7 +73,7 @@ A method for invoking importNewData() to determine the parameters required for f
 
       if (data.length || this.config.CreateEmptyTables?.value === "true") {
         const preparedData = data.length ? data : [];
-        this.getStorageByNode(nodeName, fields).saveData(preparedData);
+        this.getStorageByNode(nodeName).saveData(preparedData);
       }
 
       if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
@@ -102,7 +102,7 @@ A method for invoking importNewData() to determine the parameters required for f
    * @return AbstractStorage 
    * 
    */
-  getStorageByNode(nodeName, requestedFields = null) {
+  getStorageByNode(nodeName) {
 
     // initiate blank object for storages
     if( !("storages" in this) ) {
@@ -124,8 +124,7 @@ A method for invoking importNewData() to determine the parameters required for f
         }),
         uniqueFields,
         this.source.fieldsSchema[ nodeName ]["fields"],
-        `${this.source.fieldsSchema[ nodeName ]["description"]} ${this.source.fieldsSchema[ nodeName ]["documentation"]}`,
-        requestedFields
+        `${this.source.fieldsSchema[ nodeName ]["description"]} ${this.source.fieldsSchema[ nodeName ]["documentation"]}`
       );
 
     }
