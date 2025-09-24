@@ -14,8 +14,7 @@ export class GetDataMartService {
   async run(command: GetDataMartCommand): Promise<DataMartDto> {
     const dataMart = await this.dataMartService.getByIdAndProjectIdAndUserId(
       command.id,
-      command.projectId,
-      command.userId
+      command.projectId
     );
     return this.mapper.toDomainDto(dataMart);
   }

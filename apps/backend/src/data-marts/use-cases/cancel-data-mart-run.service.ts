@@ -19,8 +19,7 @@ export class CancelDataMartRunService {
   async run(command: CancelDataMartRunCommand): Promise<void> {
     const dataMart = await this.dataMartService.getByIdAndProjectIdAndUserId(
       command.id,
-      command.projectId,
-      command.userId
+      command.projectId
     );
 
     if (dataMart.definitionType !== DataMartDefinitionType.CONNECTOR) {

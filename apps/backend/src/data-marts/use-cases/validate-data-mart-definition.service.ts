@@ -14,8 +14,7 @@ export class ValidateDataMartDefinitionService {
   async run(command: ValidateDataMartDefinitionCommand): Promise<ValidationResult> {
     const dataMart = await this.dataMartService.getByIdAndProjectIdAndUserId(
       command.id,
-      command.projectId,
-      command.userId
+      command.projectId
     );
 
     return await this.definitionValidatorFacade.validate(dataMart);

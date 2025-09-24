@@ -19,8 +19,7 @@ export class UpdateDataMartSchemaService {
     this.logger.debug(`Updating data mart ${command.id} schema ${command.schema}`);
     const dataMart = await this.dataMartService.getByIdAndProjectIdAndUserId(
       command.id,
-      command.projectId,
-      command.userId
+      command.projectId
     );
 
     dataMart.schema = await this.schemaParserFacade.validateAndParse(

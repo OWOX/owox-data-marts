@@ -14,8 +14,7 @@ export class RunDataMartService {
   async run(command: RunDataMartCommand): Promise<string> {
     const dataMart = await this.dataMartService.getByIdAndProjectIdAndUserId(
       command.id,
-      command.projectId,
-      command.userId
+      command.projectId
     );
 
     if (dataMart.definitionType !== DataMartDefinitionType.CONNECTOR) {

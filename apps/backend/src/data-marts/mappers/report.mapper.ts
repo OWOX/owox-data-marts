@@ -76,18 +76,18 @@ export class ReportMapper {
   }
 
   toGetCommand(id: string, context: AuthorizationContext): GetReportCommand {
-    return new GetReportCommand(id, context.projectId, context.userId);
+    return new GetReportCommand(id, context.projectId);
   }
 
   toListByDataMartCommand(
     dataMartId: string,
     context: AuthorizationContext
   ): ListReportsByDataMartCommand {
-    return new ListReportsByDataMartCommand(dataMartId, context.projectId, context.userId);
+    return new ListReportsByDataMartCommand(dataMartId, context.projectId);
   }
 
   toListByProjectCommand(context: AuthorizationContext): ListReportsByProjectCommand {
-    return new ListReportsByProjectCommand(context.projectId, context.userId);
+    return new ListReportsByProjectCommand(context.projectId);
   }
 
   toRunReportCommand(id: string, context: AuthorizationContext): RunReportCommand {
@@ -105,7 +105,6 @@ export class ReportMapper {
     return new UpdateReportCommand(
       id,
       context.projectId,
-      context.userId,
       dto.title,
       dto.dataDestinationId,
       dto.destinationConfig

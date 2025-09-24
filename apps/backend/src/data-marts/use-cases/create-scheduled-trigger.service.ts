@@ -23,8 +23,7 @@ export class CreateScheduledTriggerService {
   async run(command: CreateScheduledTriggerCommand): Promise<ScheduledTriggerDto> {
     const dataMart = await this.dataMartService.getByIdAndProjectIdAndUserId(
       command.dataMartId,
-      command.projectId,
-      command.userId
+      command.projectId
     );
 
     if (dataMart.status !== DataMartStatus.PUBLISHED) {

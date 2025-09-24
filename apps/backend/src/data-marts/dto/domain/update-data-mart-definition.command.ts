@@ -5,7 +5,6 @@ export class UpdateDataMartDefinitionCommand {
   constructor(
     public readonly id: string,
     public readonly projectId: string,
-    public readonly userId: string,
     public readonly definitionType: DataMartDefinitionType,
     public readonly definition: DataMartDefinition
   ) {}

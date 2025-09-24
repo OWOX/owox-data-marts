@@ -20,8 +20,7 @@ export class ActualizeDataMartSchemaService {
     this.logger.debug(`Actualizing data mart ${command.id} schema...`);
     const dataMart = await this.dataMartService.getByIdAndProjectIdAndUserId(
       command.id,
-      command.projectId,
-      command.userId
+      command.projectId
     );
 
     try {

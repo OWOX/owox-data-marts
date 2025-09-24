@@ -18,7 +18,6 @@ export class DeleteDataMartService {
     await this.dataMartRepo.softDelete({
       id: command.id,
       projectId: command.projectId,
-      createdById: command.userId,
     });
 
     // Delete all triggers related to this data mart

@@ -15,11 +15,7 @@ export class DataMartService {
     private readonly dataMartSchemaMergerFacade: DataMartSchemaMergerFacade
   ) {}
 
-  async getByIdAndProjectIdAndUserId(
-    id: string,
-    projectId: string,
-    _userId: string
-  ): Promise<DataMart> {
+  async getByIdAndProjectIdAndUserId(id: string, projectId: string): Promise<DataMart> {
     const entity = await this.dataMartRepository.findOne({
       where: { id, projectId },
     });
@@ -35,8 +31,8 @@ export class DataMartService {
     return this.dataMartRepository.find({ where: { storage: { id: storage.id } } });
   }
 
-  async actualizeSchema(id: string, projectId: string, userId: string): Promise<DataMart> {
-    const dataMart = await this.getByIdAndProjectIdAndUserId(id, projectId, userId);
+  async actualizeSchema(id: string, projectId: string): Promise<DataMart> {
+    const dataMart = await this.getByIdAndProjectIdAndUserId(id, projectId);
     await this.actualizeSchemaInEntity(dataMart);
     await this.dataMartRepository.save(dataMart);
     return dataMart;

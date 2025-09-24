@@ -225,11 +225,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
       // If the connector does not receive any data, the data storage resource will not be created.
       // The connector will complete its work with the status “SUCCESS” but don't unregister active process.
       try {
-        await this.dataMartService.actualizeSchema(
-          dataMart.id,
-          dataMart.projectId,
-          dataMart.createdById
-        );
+        await this.dataMartService.actualizeSchema(dataMart.id, dataMart.projectId);
       } catch (error) {
         this.logger.error(`Error schema actualization: ${error}`);
       }

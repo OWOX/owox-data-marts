@@ -20,12 +20,7 @@ export class ScheduledConnectorRunProcessor implements ScheduledTriggerProcessor
     }
 
     await this.runDataMartService.run(
-      new RunDataMartCommand(
-        trigger.dataMart.id,
-        trigger.dataMart.projectId,
-        trigger.createdById,
-        undefined
-      )
+      new RunDataMartCommand(trigger.dataMart.id, trigger.dataMart.projectId, undefined)
     );
     this.logger.log(`Trigger ${trigger.id} processed`);
   }

@@ -18,8 +18,7 @@ export class UpdateDataMartDefinitionService {
   async run(command: UpdateDataMartDefinitionCommand): Promise<DataMartDto> {
     const dataMart = await this.dataMartService.getByIdAndProjectIdAndUserId(
       command.id,
-      command.projectId,
-      command.userId
+      command.projectId
     );
 
     if (dataMart.definitionType && dataMart.definitionType !== command.definitionType) {

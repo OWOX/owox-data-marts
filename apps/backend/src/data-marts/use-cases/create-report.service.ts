@@ -26,8 +26,7 @@ export class CreateReportService {
     // Get the data mart and verify it's in published status
     const dataMart = await this.dataMartService.getByIdAndProjectIdAndUserId(
       command.dataMartId,
-      command.projectId,
-      command.userId
+      command.projectId
     );
     if (dataMart.status !== DataMartStatus.PUBLISHED) {
       throw new BusinessViolationException(
