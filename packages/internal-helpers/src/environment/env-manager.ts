@@ -1,18 +1,10 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import dotenv from 'dotenv';
+import { LogLevel } from '../index.js';
 
 /** State variable to track if environment file has been loaded */
 let isEnvSet = false;
-
-/**
- * Log levels for environment setup operations
- */
-export enum LogLevel {
-  LOG = 'log',
-  WARN = 'warn',
-  ERROR = 'error',
-}
 
 /**
  * Log message interface for environment setup operations
@@ -477,7 +469,7 @@ export class EnvManager {
    * @param message - Message to log
    */
   private static logInfo(message: string): void {
-    this.operationLog.push({ logLevel: LogLevel.LOG, message });
+    this.operationLog.push({ logLevel: LogLevel.INFO, message });
   }
 
   /**

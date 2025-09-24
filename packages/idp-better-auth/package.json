@@ -27,6 +27,7 @@
   "keywords": ["idp", "better-auth", "authentication", "owox"],
   "dependencies": {
     "@owox/idp-protocol": "*",
+    "@owox/internal-helpers": "*",
     "@types/cookie-parser": "^1.4.9",
     "@types/jsonwebtoken": "^9.0.10",
     "better-auth": "^1.3.4",

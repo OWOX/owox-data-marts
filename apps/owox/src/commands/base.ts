@@ -1,5 +1,5 @@
 import { Command, Flags } from '@oclif/core';
-import { EnvManager, LogLevel } from '@owox/internal-helpers';
+import { EnvManager, type ILogger, LoggerFactory } from '@owox/internal-helpers';
 
 /**
  * Base command class that provides common functionality for all CLI commands.
@@ -57,22 +57,16 @@ export abstract class BaseCommand extends Command {
     }),
   };
   /**
-   * Default log format used when no format is specified
-   * @static
-   * @type {string}
-   */
-  static DEFAULT_LOG_FORMAT = 'pretty';
-  /**
    * Default port number for server applications
    * @static
    * @type {number}
    */
   static DEFAULT_PORT = 3000;
   /**
-   * Internal state indicating whether JSON logging is enabled
+   * Logger instance for structured logging
    * @protected
    */
-  protected useJsonLog = false;
+  private logger: ILogger | undefined;
 
   /**
    * Handles error logging with support for both pretty and JSON formats.
@@ -87,15 +81,7 @@ export abstract class BaseCommand extends Command {
   error(input: Error | string, options?: { code?: string; exit?: false | number }): never {
     const message = typeof input === 'string' ? input : input.message;
 
-    if (this.useJsonLog) {
-      this.logJson({
-        context: this.constructor.name,
-        level: 'error',
-        message,
-        pid: process.pid,
-        timestamp: Date.now(),
-      });
-    }
+    this.logger?.error(message);
 
     if (options?.exit === false) {
       super.error(input, { ...options, exit: false });
@@ -127,7 +113,16 @@ export abstract class BaseCommand extends Command {
    * @protected
    */
   protected initializeLogging(): void {
-    this.useJsonLog = process.env.LOG_FORMAT === 'json';
+    try {
+      console.log('Initializing logging...');
+      this.logger = LoggerFactory.createNamedLogger(this.constructor.name.toLowerCase());
+      LoggerFactory.logConfigInfo();
+    } catch (error) {
+      this.error(
+        `Failed to initialize logging: ${error instanceof Error ? error.message : String(error)}`,
+        { exit: 1 }
+      );
+    }
   }
 
   /**
@@ -148,7 +143,6 @@ export abstract class BaseCommand extends Command {
   protected loadEnvironment(flags: { 'env-file'?: string; 'log-format'?: string }): void {
     const { 'env-file': envFile = '', ...flagVars } = flags;
     const defaultVars = {
-      LOG_FORMAT: BaseCommand.DEFAULT_LOG_FORMAT,
       PORT: BaseCommand.DEFAULT_PORT,
     };
 
@@ -161,29 +155,10 @@ export abstract class BaseCommand extends Command {
 
     this.initializeLogging();
 
-    this.log(`🔧 Setting environment variables...`);
+    this.logger?.info(`🔧 Setting environment variables...`);
 
     for (const logMessage of setResult.messages) {
-      switch (logMessage.logLevel) {
-        case LogLevel.ERROR: {
-          this.error(logMessage.message, { exit: false });
-          break;
-        }
-
-        case LogLevel.LOG: {
-          this.log(logMessage.message);
-          break;
-        }
-
-        case LogLevel.WARN: {
-          this.warn(logMessage.message);
-          break;
-        }
-
-        default: {
-          this.log(logMessage.message);
-        }
-      }
+      this.logger?.log(logMessage.logLevel, logMessage.message);
     }
   }
 
@@ -195,33 +170,15 @@ export abstract class BaseCommand extends Command {
    * @param {...unknown} args - Additional arguments for pretty format
    */
   log(message?: string, ...args: unknown[]): void {
-    if (this.useJsonLog) {
-      this.logJson({
-        context: this.constructor.name,
-        level: 'info',
-        message: message || '',
-        pid: process.pid,
-        timestamp: Date.now(),
-      });
+    if (this.logger) {
+      if (args.length > 0) {
+        this.logger.info({ args }, message || '');
+      } else {
+        this.logger.info(message || '');
+      }
     } else {
       super.log(message, ...args);
     }
-  }
-
-  /**
-   * Helper method to log structured data in JSON format.
-   * Outputs the JSON representation directly to console.
-   *
-   * @protected
-   * @param {object} json - Object to be logged as JSON
-   * @param {string} json.context - Command class name
-   * @param {'info' | 'warn' | 'error'} json.level - Log level
-   * @param {string} json.message - Log message
-   * @param {number} json.pid - Process ID
-   * @param {number} json.timestamp - Unix timestamp in milliseconds
-   */
-  protected logJson(json: unknown): void {
-    console.log(JSON.stringify(json));
   }
 
   /**
@@ -233,18 +190,7 @@ export abstract class BaseCommand extends Command {
    */
   warn(input: Error | string): Error | string {
     const message = typeof input === 'string' ? input : input.message;
-    if (this.useJsonLog) {
-      this.logJson({
-        context: this.constructor.name,
-        level: 'warn',
-        message,
-        pid: process.pid,
-        timestamp: Date.now(),
-      });
-
-      return input;
-    }
-
+    this.logger?.warn(message);
     return super.warn(input);
   }
 }
