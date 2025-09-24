@@ -465,55 +465,45 @@ var adAccountInsightsFields = {
   },
   'action_device': {
     'description': 'The device on which the conversion event you\'re tracking occurred. For example, \""Desktop\"" if someone converted on a desktop computer.',
-    'type': 'string',
-    'fieldType': 'breakdown'
+    'type': 'string'
   },
   'action_canvas_component_name': {
     'description': 'Name of a component within a Canvas ad.',
-    'type': 'string',
-    'fieldType': 'breakdown'
+    'type': 'string'
   },
   'action_carousel_card_id': {
     'description': 'The ID of the specific carousel card that people engaged with when they saw your ad.',
     'type': 'string',
-    'GoogleSheetsFormat': '@',
-    'fieldType': 'breakdown'
+    'GoogleSheetsFormat': '@'
   },
   'action_carousel_card_name': {
     'description': 'The specific carousel card that people engaged with when they saw your ad. The cards are identified by their headlines.',
-    'type': 'string',
-    'fieldType': 'breakdown'
+    'type': 'string'
   },
   'action_destination': {
     'description': 'The destination where people go after clicking on your ad. This could be your Facebook Page, an external URL for your conversion pixel or an app configured with the software development kit (SDK).',
-    'type': 'string',
-    'fieldType': 'breakdown'
+    'type': 'string'
   },
   'action_reaction': {
     'description': 'The number of reactions on your ads or boosted posts. The reactions button on an ad allows people to share different reactions on its content: Like, Love, Haha, Wow, Sad or Angry.',
-    'type': 'string',
-    'fieldType': 'breakdown'
+    'type': 'string'
   },
   'action_target_id': {
     'description': 'The ID of destination where people go after clicking on your ad. This could be your Facebook Page, an external URL for your conversion pixel or an app configured with the software development kit (SDK).',
     'type': 'string',
-    'GoogleSheetsFormat': '@',
-    'fieldType': 'breakdown'
+    'GoogleSheetsFormat': '@'
   },
   'action_type': {
     'description': 'The kind of actions taken on your ad, page, app or event after your ad was served to someone, even if they didn\'t click on it. Action types include page likes, app installs, conversions, event responses, and more.',
-    'type': 'string',
-    'fieldType': 'breakdown'
+    'type': 'string'
   },
   'action_video_sound': {
     'description': 'The sound status (on/off) when someone plays your video ad.',
-    'type': 'string',
-    'fieldType': 'breakdown'
+    'type': 'string'
   },
   'action_video_type': {
     'description': 'Video metrics breakdown.',
-    'type': 'string',
-    'fieldType': 'breakdown'
+    'type': 'string'
   },
   'ad_format_asset': {
     'description': 'The ID of the ad format asset involved in impression, click, or action',
