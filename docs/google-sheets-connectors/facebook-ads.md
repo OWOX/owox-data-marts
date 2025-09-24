@@ -21,7 +21,7 @@ Next, **Select** the fields you want to collect
 Some fields are pre-filled by default.  
 To include additional fields, go to the **Fields** tab and check the boxes next to the fields you want to include.
 
-![Facebook Fields](,/res/fb_fields.png)
+![Facebook Fields](./res/fb_fields.png)
 
 ## Step 2: Manage Credentials
 
