@@ -1,5 +1,6 @@
 import { AuthResult, IdpProvider, Payload, Projects, ProtocolRoute } from '@owox/idp-protocol';
 import e, { NextFunction } from 'express';
+import { ILogger, LoggerFactory } from '@owox/internal-helpers';
 import { IdpOwoxConfig } from './config';
 import { AuthorizationStore } from './auth/AuthorizationStore';
 import {
@@ -21,10 +22,12 @@ const COOKIE_NAME = 'refreshToken';
 export class OwoxIdp implements IdpProvider {
   private readonly store: AuthorizationStore;
   private readonly identityClient: IdentityOwoxClient;
+  private readonly logger: ILogger;
 
   constructor(private readonly config: IdpOwoxConfig) {
     this.store = createAuthorizationStore(config.dbConfig);
     this.identityClient = new IdentityOwoxClient(config.identityOwoxClientConfig);
+    this.logger = LoggerFactory.createNamedLogger('OwoxIdp');
   }
 
   initialize(): Promise<void> {
@@ -165,7 +168,7 @@ export class OwoxIdp implements IdpProvider {
       this.setTokenToCookie(res, req, newRefreshToken, auth.refreshTokenExpiresIn);
       return res.json(auth);
     } catch (error: unknown) {
-      console.log(this.formatError(error));
+      this.logger.error(this.formatError(error));
       res.clearCookie(COOKIE_NAME);
       return res.json({ reason: 'atm4' });
     }
@@ -176,12 +179,12 @@ export class OwoxIdp implements IdpProvider {
       const code = req.query.code as string | undefined;
       const state = req.query.state as string | undefined;
       if (!code) {
-        console.log('Redirect url should contain code param');
+        this.logger.warn('Redirect url should contain code param');
         return res.redirect(ProtocolRoute.SIGN_IN);
       }
 
       if (!state) {
-        console.log('Redirect url should contain state param');
+        this.logger.warn('Redirect url should contain state param');
         return res.redirect(ProtocolRoute.SIGN_IN);
       }
 
@@ -190,7 +193,7 @@ export class OwoxIdp implements IdpProvider {
         this.setTokenToCookie(res, req, response.refreshToken, response.refreshTokenExpiresIn);
         res.redirect('/');
       } catch (error: unknown) {
-        console.log(this.formatError(error));
+        this.logger.error(this.formatError(error));
         return res.redirect(ProtocolRoute.SIGN_IN);
       }
     });
