@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { ILogger, LoggerFactory } from '@owox/internal-helpers';
+import { Logger, LoggerFactory } from '@owox/internal-helpers';
 import type {
   DatabaseOperationResult,
   DatabaseUser,
@@ -30,7 +30,7 @@ export interface MysqlConnectionConfig {
 
 export class MysqlDatabaseStore implements DatabaseStore {
   private pool?: MysqlPool;
-  private readonly logger: ILogger;
+  private readonly logger: Logger;
 
   constructor(private readonly config: MysqlConnectionConfig) {
     this.logger = LoggerFactory.createNamedLogger('BetterAuthMysqlDatabaseStore');
@@ -56,7 +56,7 @@ export class MysqlDatabaseStore implements DatabaseStore {
         ssl: this.config.ssl,
       }) as MysqlPool;
     } catch (error) {
-      this.logger.error({ error }, 'Failed to initialize MySQL pool');
+      this.logger.error('Failed to initialize MySQL pool', { error });
       throw new Error('mysql2 is required for MySQL support. Install it with: npm install mysql2');
     }
 
@@ -289,7 +289,7 @@ export class MysqlDatabaseStore implements DatabaseStore {
       try {
         await this.pool.end();
       } catch (error) {
-        this.logger.error({ error }, 'Failed to close MySQL pool');
+        this.logger.error('Failed to close MySQL pool', { error });
       } finally {
         this.pool = undefined;
       }

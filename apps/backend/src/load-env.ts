@@ -7,6 +7,6 @@ export function loadEnv(): void {
   const result = EnvManager.setupEnvironment();
 
   result.messages.forEach(logMessage => {
-    logger.log(logMessage.logLevel, logMessage.message, undefined, true);
+    logger.log(logMessage.logLevel, logMessage.message);
   });
 }

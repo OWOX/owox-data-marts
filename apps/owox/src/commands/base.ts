@@ -1,5 +1,5 @@
 import { Command, Flags } from '@oclif/core';
-import { EnvManager, type ILogger, LoggerFactory } from '@owox/internal-helpers';
+import { EnvManager, type Logger, LoggerFactory } from '@owox/internal-helpers';
 
 /**
  * Base command class that provides common functionality for all CLI commands.
@@ -66,7 +66,7 @@ export abstract class BaseCommand extends Command {
    * Logger instance for structured logging
    * @protected
    */
-  private logger: ILogger | undefined;
+  private logger: Logger | undefined;
 
   /**
    * Handles error logging with support for both pretty and JSON formats.
@@ -172,7 +172,7 @@ export abstract class BaseCommand extends Command {
   log(message?: string, ...args: unknown[]): void {
     if (this.logger) {
       if (args.length > 0) {
-        this.logger.info({ args }, message || '');
+        this.logger.info(message || '', { args });
       } else {
         this.logger.info(message || '');
       }

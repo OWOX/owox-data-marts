@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { ILogger, LoggerFactory } from '@owox/internal-helpers';
+import { Logger, LoggerFactory } from '@owox/internal-helpers';
 import type {
   AdminUserDetailsView,
   AdminUserView,
@@ -23,7 +23,7 @@ type SqliteDb = {
 
 export class SqliteDatabaseStore implements DatabaseStore {
   private db?: SqliteDb;
-  private readonly logger: ILogger;
+  private readonly logger: Logger;
 
   constructor(private readonly dbPath: string) {
     this.logger = LoggerFactory.createNamedLogger('BetterAuthSqliteDatabaseStore');
@@ -57,7 +57,7 @@ export class SqliteDatabaseStore implements DatabaseStore {
     try {
       (this.db as { close?: () => void } | undefined)?.close?.();
     } catch (error) {
-      this.logger.error({ error }, 'Failed to close SQLite database');
+      this.logger.error('Failed to close SQLite database', { error });
     } finally {
       this.db = undefined;
     }

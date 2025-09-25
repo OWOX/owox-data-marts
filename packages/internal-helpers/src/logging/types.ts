@@ -35,24 +35,19 @@ export interface LoggerConfig {
 /**
  * Universal logger interface that all logger implementations must follow
  */
-export interface ILogger {
-  debug(messageOrMeta: string | Record<string, unknown>, message?: string): void;
-  info(messageOrMeta: string | Record<string, unknown>, message?: string): void;
-  warn(messageOrMeta: string | Record<string, unknown>, message?: string): void;
-  error(messageOrMeta: string | Record<string, unknown>, message?: string): void;
-  trace(messageOrMeta: string | Record<string, unknown>, message?: string): void;
-  log(
-    level: LogLevel,
-    messageOrMeta: string | Record<string, unknown>,
-    message?: string,
-    force?: boolean
-  ): void;
+export interface Logger {
+  debug(message: string, meta?: Record<string, unknown>): void;
+  info(message: string, meta?: Record<string, unknown>): void;
+  warn(message: string, meta?: Record<string, unknown>, exception?: Error): void;
+  error(message: string, meta?: Record<string, unknown>, exception?: Error): void;
+  trace(message: string, meta?: Record<string, unknown>): void;
+  log(level: LogLevel, message: string, meta?: Record<string, unknown>, exception?: Error): void;
 }
 
 /**
  * Logger provider interface that creates actual logger instances
  */
-export interface ILoggerProvider {
+export interface LoggerProvider {
   shutdown?(): Promise<void>;
-  log(level: LogLevel, messageOrMeta: string | Record<string, unknown>, message?: string): void;
+  log(level: LogLevel, message: string, meta?: Record<string, unknown>, exception?: Error): void;
 }

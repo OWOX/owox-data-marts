@@ -1,12 +1,12 @@
 import pino, { Logger as PinoLogger, LoggerOptions } from 'pino';
 import { createGcpLoggingPinoConfig } from '@google-cloud/pino-logging-gcp-config';
 import { LogFormat, LogLevel } from '../types.js';
-import type { ILoggerProvider, LoggerConfig } from '../types.js';
+import type { LoggerProvider, LoggerConfig } from '../types.js';
 
 /**
  * Pino logger provider implementation
  */
-export class PinoLoggerProvider implements ILoggerProvider {
+export class PinoLoggerProvider implements LoggerProvider {
   private readonly pinoLogger: PinoLogger;
 
   constructor(config: LoggerConfig) {
@@ -17,22 +17,24 @@ export class PinoLoggerProvider implements ILoggerProvider {
     return Promise.resolve(this.pinoLogger.flush());
   }
 
-  log(level: LogLevel, messageOrMeta: string | Record<string, unknown>, message?: string): void {
+  log(level: LogLevel, message: string, meta?: Record<string, unknown>, exception?: Error): void {
+    const logData = exception ? { ...meta, err: exception } : meta;
+
     switch (level) {
       case LogLevel.DEBUG:
-        this.pinoLogger.debug(messageOrMeta, message);
+        this.pinoLogger.debug(logData, message);
         break;
       case LogLevel.INFO:
-        this.pinoLogger.info(messageOrMeta, message);
+        this.pinoLogger.info(logData, message);
         break;
       case LogLevel.WARN:
-        this.pinoLogger.warn(messageOrMeta, message);
+        this.pinoLogger.warn(logData, message);
         break;
       case LogLevel.ERROR:
-        this.pinoLogger.error(messageOrMeta, message);
+        this.pinoLogger.error(logData, message);
         break;
       case LogLevel.TRACE:
-        this.pinoLogger.trace(messageOrMeta, message);
+        this.pinoLogger.trace(logData, message);
         break;
     }
   }
@@ -70,25 +72,5 @@ export class PinoLoggerProvider implements ILoggerProvider {
     }
 
     return baseOptions;
-  }
-
-  /**
-   * Convert numeric level to Pino level string
-   */
-  private logLevelToPinoLevel(level: number): string {
-    switch (level) {
-      case 10:
-        return 'trace';
-      case 20:
-        return 'debug';
-      case 30:
-        return 'info';
-      case 40:
-        return 'warn';
-      case 50:
-        return 'error';
-      default:
-        return 'info';
-    }
   }
 }

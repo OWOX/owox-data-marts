@@ -1,6 +1,6 @@
 import { AuthResult, IdpProvider, Payload, Projects, ProtocolRoute } from '@owox/idp-protocol';
 import e, { NextFunction } from 'express';
-import { ILogger, LoggerFactory } from '@owox/internal-helpers';
+import { Logger, LoggerFactory } from '@owox/internal-helpers';
 import { IdpOwoxConfig } from './config';
 import { AuthorizationStore } from './auth/AuthorizationStore';
 import {
@@ -22,7 +22,7 @@ const COOKIE_NAME = 'refreshToken';
 export class OwoxIdp implements IdpProvider {
   private readonly store: AuthorizationStore;
   private readonly identityClient: IdentityOwoxClient;
-  private readonly logger: ILogger;
+  private readonly logger: Logger;
 
   constructor(private readonly config: IdpOwoxConfig) {
     this.store = createAuthorizationStore(config.dbConfig);
