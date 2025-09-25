@@ -12,10 +12,7 @@ export class ValidateDataMartDefinitionService {
   ) {}
 
   async run(command: ValidateDataMartDefinitionCommand): Promise<ValidationResult> {
-    const dataMart = await this.dataMartService.getByIdAndProjectIdAndUserId(
-      command.id,
-      command.projectId
-    );
+    const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
 
     return await this.definitionValidatorFacade.validate(dataMart);
   }

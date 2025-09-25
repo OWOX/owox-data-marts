@@ -18,10 +18,7 @@ export class ActualizeDataMartSchemaService {
 
   async run(command: ActualizeDataMartSchemaCommand): Promise<DataMartDto> {
     this.logger.debug(`Actualizing data mart ${command.id} schema...`);
-    const dataMart = await this.dataMartService.getByIdAndProjectIdAndUserId(
-      command.id,
-      command.projectId
-    );
+    const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
 
     try {
       await this.definitionValidatorFacade.checkIsValid(dataMart);

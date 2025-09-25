@@ -14,7 +14,7 @@ export class GetDataMartRunsService {
   ) {}
 
   async run(command: GetDataMartRunsCommand): Promise<DataMartRunDto[]> {
-    await this.dataMartService.getByIdAndProjectIdAndUserId(command.id, command.projectId);
+    await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
 
     const runs = await this.connectorExecutionService.getDataMartRuns(
       command.id,

@@ -17,10 +17,7 @@ export class UpdateDataMartSchemaService {
 
   async run(command: UpdateDataMartSchemaCommand): Promise<DataMartDto> {
     this.logger.debug(`Updating data mart ${command.id} schema ${command.schema}`);
-    const dataMart = await this.dataMartService.getByIdAndProjectIdAndUserId(
-      command.id,
-      command.projectId
-    );
+    const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
 
     dataMart.schema = await this.schemaParserFacade.validateAndParse(
       command.schema,

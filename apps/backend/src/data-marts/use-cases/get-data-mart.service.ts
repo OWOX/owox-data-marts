@@ -12,10 +12,7 @@ export class GetDataMartService {
   ) {}
 
   async run(command: GetDataMartCommand): Promise<DataMartDto> {
-    const dataMart = await this.dataMartService.getByIdAndProjectIdAndUserId(
-      command.id,
-      command.projectId
-    );
+    const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
     return this.mapper.toDomainDto(dataMart);
   }
 }

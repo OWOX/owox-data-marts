@@ -21,7 +21,7 @@ export class CreateScheduledTriggerService {
   ) {}
 
   async run(command: CreateScheduledTriggerCommand): Promise<ScheduledTriggerDto> {
-    const dataMart = await this.dataMartService.getByIdAndProjectIdAndUserId(
+    const dataMart = await this.dataMartService.getByIdAndProjectId(
       command.dataMartId,
       command.projectId
     );

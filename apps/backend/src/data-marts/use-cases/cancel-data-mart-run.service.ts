@@ -17,10 +17,7 @@ export class CancelDataMartRunService {
   ) {}
 
   async run(command: CancelDataMartRunCommand): Promise<void> {
-    const dataMart = await this.dataMartService.getByIdAndProjectIdAndUserId(
-      command.id,
-      command.projectId
-    );
+    const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
 
     if (dataMart.definitionType !== DataMartDefinitionType.CONNECTOR) {
       throw new Error('Only data marts with connector definition can be cancelled');

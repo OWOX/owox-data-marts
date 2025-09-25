@@ -17,10 +17,7 @@ export class UpdateDataMartDescriptionService {
   ) {}
 
   async run(command: UpdateDataMartDescriptionCommand): Promise<DataMartDto> {
-    const dataMart = await this.dataMartService.getByIdAndProjectIdAndUserId(
-      command.id,
-      command.projectId
-    );
+    const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
 
     dataMart.description = command.description;
     await this.dataMartRepository.save(dataMart);

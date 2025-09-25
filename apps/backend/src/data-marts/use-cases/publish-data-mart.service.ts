@@ -17,10 +17,7 @@ export class PublishDataMartService {
   ) {}
 
   async run(command: PublishDataMartCommand): Promise<DataMartDto> {
-    const dataMart = await this.dataMartService.getByIdAndProjectIdAndUserId(
-      command.id,
-      command.projectId
-    );
+    const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
 
     if (dataMart.status !== DataMartStatus.DRAFT) {
       throw new BusinessViolationException(`DataMart is not in ${DataMartStatus.DRAFT} status`);

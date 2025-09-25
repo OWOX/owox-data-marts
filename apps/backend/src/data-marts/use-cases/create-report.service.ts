@@ -24,7 +24,7 @@ export class CreateReportService {
 
   async run(command: CreateReportCommand): Promise<ReportDto> {
     // Get the data mart and verify it's in published status
-    const dataMart = await this.dataMartService.getByIdAndProjectIdAndUserId(
+    const dataMart = await this.dataMartService.getByIdAndProjectId(
       command.dataMartId,
       command.projectId
     );

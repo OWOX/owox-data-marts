@@ -16,10 +16,7 @@ export class UpdateDataMartDefinitionService {
   ) {}
 
   async run(command: UpdateDataMartDefinitionCommand): Promise<DataMartDto> {
-    const dataMart = await this.dataMartService.getByIdAndProjectIdAndUserId(
-      command.id,
-      command.projectId
-    );
+    const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
 
     if (dataMart.definitionType && dataMart.definitionType !== command.definitionType) {
       throw new BusinessViolationException('DataMart already has definition');
