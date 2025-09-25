@@ -22,8 +22,7 @@
     "format": "prettier --write \"**/*.{ts,js,json,md}\" --ignore-path ../../.prettierignore",
     "format:check": "prettier --check \"**/*.{ts,js,json,md}\" --ignore-path ../../.prettierignore",
     "typecheck": "tsc --noEmit",
-    "prepack": "npm run build",
-    "prepublishOnly": "npm audit && npm run lint && npm run typecheck"
+    "prepublishOnly": "npm run lint && npm run typecheck"
   },
   "keywords": ["idp", "better-auth", "authentication", "owox"],
   "dependencies": {

@@ -73,7 +73,7 @@
     "build": "tsc",
     "build:backend": "npm run build -w @owox/backend --prefix ../..",
     "build:clean": "shx rm -rf dist oclif.manifest.json tsconfig.tsbuildinfo",
-    "build:dep": "npm run build:internal-helpers && npm run build:backend && npm run build:web && npm run build:idp-protocol && npm run build:idp-better-auth && npm run build:idp-owox",
+    "build:dep": "npm run build:internal-helpers && npm run build:web && npm run build:idp-protocol && npm run build:idp-better-auth && npm run build:idp-owox && npm run build:backend",
     "build:web": "npm run build -w @owox/web --prefix ../..",
     "build:idp-protocol": "npm run build -w @owox/idp-protocol --prefix ../..",
     "build:idp-better-auth": "npm run build -w @owox/idp-better-auth --prefix ../..",

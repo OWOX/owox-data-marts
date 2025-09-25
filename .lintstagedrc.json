@@ -1,5 +1,5 @@
 {
-  "**/*.{js,ts,mjs}": [
+  "**/*.{js,ts,mjs,cjs}": [
     "eslint --config ./eslint.config.mjs",
     "prettier --write --config ./prettier.config.mjs"
   ],

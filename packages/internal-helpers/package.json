@@ -27,7 +27,6 @@
     "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",
     "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",
     "prebuild": "npm run build:clean",
-    "prepack": "npm run build",
     "prepublishOnly": "npm run lint && npm run typecheck",
     "typecheck": "tsc --noEmit"
   },
