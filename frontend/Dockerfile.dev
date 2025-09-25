@@ -1,0 +1,21 @@
+FROM node:18-alpine
+
+# Install dependencies needed for node-gyp
+RUN apk add --no-cache libc6-compat
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json package-lock.json* ./
+
+# Install all dependencies (including devDependencies)
+RUN npm ci
+
+# Copy application code
+COPY . .
+
+# Expose port
+EXPOSE 3000
+
+# Command for development
+CMD ["npm", "run", "dev"]

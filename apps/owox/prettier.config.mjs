@@ -1,1 +1,0 @@
-export { config as default } from '@owox/prettier-config/typescript';

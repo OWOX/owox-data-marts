@@ -1,9 +1,0 @@
-{
-  "name": "@owox/typescript-config",
-  "version": "0.0.0",
-  "private": true,
-  "license": "ELv2",
-  "publishConfig": {
-    "access": "public"
-  }
-}
