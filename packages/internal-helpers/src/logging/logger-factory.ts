@@ -1,6 +1,6 @@
-import type { ILogger, ILoggerProvider, LoggerConfig } from './types.js';
+import type { Logger as LoggerInterface, LoggerProvider, LoggerConfig } from './types.js';
 import { PinoLoggerProvider } from './providers/index.js';
-import { Logger } from './logger.js';
+import { Logger as LoggerClass } from './logger.js';
 
 import { LogLevel, LogFormat } from './types.js';
 
@@ -9,12 +9,12 @@ export class LoggerFactory {
   private static readonly DEFAULT_NAME = 'default';
   private static readonly DEFAULT_LEVEL = LogLevel.WARN;
 
-  private static defaultLogger: ILogger | undefined;
+  private static defaultLogger: LoggerInterface | undefined;
 
-  static getDefault(): ILogger {
+  static getDefault(): LoggerInterface {
     if (!this.defaultLogger) {
       const resolvedConfig = this.resolveConfiguration();
-      this.defaultLogger = new Logger(
+      this.defaultLogger = new LoggerClass(
         this.resolveLoggerProvider(resolvedConfig),
         resolvedConfig.level
       );
@@ -22,29 +22,26 @@ export class LoggerFactory {
     return this.defaultLogger;
   }
 
-  static createNamedLogger(name: string): ILogger {
+  static createNamedLogger(name: string): LoggerInterface {
     const resolvedConfig = this.resolveConfiguration();
-    return new Logger(
+    return new LoggerClass(
       this.resolveLoggerProvider({ ...resolvedConfig, name }),
       resolvedConfig.level
     );
   }
 
-  static createCustomLogger(config: LoggerConfig): ILogger {
-    return new Logger(this.resolveLoggerProvider(config), config.level);
+  static createCustomLogger(config: LoggerConfig): LoggerInterface {
+    return new LoggerClass(this.resolveLoggerProvider(config), config.level);
   }
 
   static logConfigInfo(): void {
     const resolvedConfig = this.resolveConfiguration();
-    this.getDefault().log(
-      LogLevel.INFO,
-      `Logger configuration: format: ${resolvedConfig.format}, min-level: ${this.stringifyLogLevel(resolvedConfig.level)}`,
-      undefined,
-      true
+    this.getDefault().info(
+      `Logger configuration: format: ${resolvedConfig.format}, min-level: ${this.stringifyLogLevel(resolvedConfig.level)}`
     );
   }
 
-  private static resolveLoggerProvider(config: LoggerConfig): ILoggerProvider {
+  private static resolveLoggerProvider(config: LoggerConfig): LoggerProvider {
     return new PinoLoggerProvider(config);
   }
 

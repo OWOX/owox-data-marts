@@ -1,5 +1,5 @@
 import { LoggerService } from '@nestjs/common';
-import { LoggerFactory, type ILogger } from '@owox/internal-helpers';
+import { LoggerFactory, type Logger } from '@owox/internal-helpers';
 
 /**
  * Custom NestJS logger service that implements the LoggerService interface
@@ -7,7 +7,7 @@ import { LoggerFactory, type ILogger } from '@owox/internal-helpers';
  * across all OWOX packages.
  */
 export class CustomLoggerService implements LoggerService {
-  private logger: ILogger;
+  private logger: Logger;
 
   constructor(context?: string) {
     this.logger = LoggerFactory.createNamedLogger(context || 'NestJS');
@@ -20,7 +20,7 @@ export class CustomLoggerService implements LoggerService {
   log(message: unknown, ...optionalParams: unknown[]): void;
   log(message: unknown, ...optionalParams: unknown[]): void {
     const [context, ...params] = optionalParams;
-    this.logger.info({ context, params }, String(message));
+    this.logger.info(String(message), { context, params });
   }
 
   /**
@@ -30,7 +30,7 @@ export class CustomLoggerService implements LoggerService {
   error(message: unknown, ...optionalParams: unknown[]): void;
   error(message: unknown, ...optionalParams: unknown[]): void {
     const [trace, context, ...params] = optionalParams;
-    this.logger.error({ trace, context, params }, String(message));
+    this.logger.error(String(message), { trace, context, params });
   }
 
   /**
@@ -40,7 +40,7 @@ export class CustomLoggerService implements LoggerService {
   warn(message: unknown, ...optionalParams: unknown[]): void;
   warn(message: unknown, ...optionalParams: unknown[]): void {
     const [context, ...params] = optionalParams;
-    this.logger.warn({ context, params }, String(message));
+    this.logger.warn(String(message), { context, params });
   }
 
   /**
@@ -50,7 +50,7 @@ export class CustomLoggerService implements LoggerService {
   debug(message: unknown, ...optionalParams: unknown[]): void;
   debug(message: unknown, ...optionalParams: unknown[]): void {
     const [context, ...params] = optionalParams;
-    this.logger.debug({ context, params }, String(message));
+    this.logger.debug(String(message), { context, params });
   }
 
   /**
@@ -60,7 +60,7 @@ export class CustomLoggerService implements LoggerService {
   verbose(message: unknown, ...optionalParams: unknown[]): void;
   verbose(message: unknown, ...optionalParams: unknown[]): void {
     const [context, ...params] = optionalParams;
-    this.logger.trace({ context, params }, String(message));
+    this.logger.trace(String(message), { context, params });
   }
 
   /**
