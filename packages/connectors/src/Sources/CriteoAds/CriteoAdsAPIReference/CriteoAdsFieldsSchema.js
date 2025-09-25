@@ -9,7 +9,7 @@ var CriteoAdsFieldsSchema = {
   statistics: {
     overview: "Criteo Statistics",
     description: "Statistics and metrics for Criteo advertising campaigns.",
-    documentation: "https://developers.criteo.com/marketing-solutions/v2024.01/docs/campaign-statistics",
+    documentation: "https://developers.criteo.com/marketing-solutions/docs/campaign-statistics",
     fields: adStatisticsFields,
     uniqueKeys: ["CampaignId", "AdvertiserId", "AdsetId", "AdId", "Day"],
     destinationName: "criteo_ads_statistics",

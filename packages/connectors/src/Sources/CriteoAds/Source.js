@@ -61,12 +61,6 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
         default: 30,
         label: "Max Fetching Days",
         description: "Maximum number of days to fetch data for"
-      },
-      ApiVersion: {
-        requiredType: "string",
-        value: "2025-04",
-        label: "API Version",
-        description: "Criteo API version"
       }
     }));
 
@@ -168,7 +162,8 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
    * @private
    */
   _makeApiRequest(requestBody) {
-    const apiUrl = `https://api.criteo.com/${this.config.ApiVersion.value}/statistics/report`;
+    const apiVersion = "2025-07";
+    const apiUrl = `https://api.criteo.com/${apiVersion}/statistics/report`;
     const options = {
       method: 'post',
       headers: {
