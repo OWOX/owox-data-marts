@@ -26,12 +26,6 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
         label: "Refresh Token",
         description: "LinkedIn API Refresh Token for authentication"
       },
-      Version: {
-        requiredType: "string",
-        default: "202504",
-        label: "API Version",
-        description: "LinkedIn API version"
-      },
       ReimportLookbackWindow: {
         requiredType: "number",
         isRequired: true,
@@ -198,7 +192,7 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
     });
     
     const headers = {
-      "LinkedIn-Version": this.config.Version.value,
+      "LinkedIn-Version": "202509",
       "X-RestLi-Protocol-Version": "2.0.0",
     };
       
