@@ -16,10 +16,14 @@ import { CreateDataDestinationApiDto } from '../dto/presentation/create-data-des
 import { DataDestinationResponseApiDto } from '../dto/presentation/data-destination-response-api.dto';
 import { UpdateDataDestinationApiDto } from '../dto/presentation/update-data-destination-api.dto';
 import { DataDestination } from '../entities/data-destination.entity';
+import { PublicOriginService } from '../../common/config/public-origin.service';
 
 @Injectable()
 export class DataDestinationMapper {
-  constructor(private readonly credentialsUtils: DataDestinationCredentialsUtils) {}
+  constructor(
+    private readonly credentialsUtils: DataDestinationCredentialsUtils,
+    private readonly publicOriginService: PublicOriginService
+  ) {}
   toCreateCommand(
     context: AuthorizationContext,
     dto: CreateDataDestinationApiDto
@@ -47,7 +51,11 @@ export class DataDestinationMapper {
       dataDestination.type,
       dataDestination.projectId,
       (dataDestination.type === DataDestinationType.LOOKER_STUDIO
-        ? { ...dataDestination.credentials, destinationId: dataDestination.id }
+        ? {
+            ...dataDestination.credentials,
+            destinationId: dataDestination.id,
+            deploymentUrl: this.publicOriginService.getLookerStudioDeploymentUrl(),
+          }
         : dataDestination.credentials) as DataDestinationCredentialsDto,
       dataDestination.createdAt,
       dataDestination.modifiedAt

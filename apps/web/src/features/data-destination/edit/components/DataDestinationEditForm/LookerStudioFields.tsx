@@ -8,7 +8,6 @@ import {
   FormMessage,
   FormDescription,
 } from '@owox/ui/components/form';
-import { Input } from '@owox/ui/components/input';
 import { SecureJsonInput } from '../../../../../shared';
 import { useMemo } from 'react';
 import { isLookerStudioCredentials } from '../../../shared/model/types/looker-studio-credentials.ts';
@@ -22,7 +21,7 @@ export function LookerStudioFields({ form }: LookerStudioFieldsProps) {
   const credentials = form.getValues('credentials');
 
   const lookerStudioCredentials = useMemo(() => {
-    if (isLookerStudioCredentials(credentials)) {
+    if (credentials && isLookerStudioCredentials(credentials)) {
       return credentials;
     }
     return { deploymentUrl: '', destinationId: '', destinationSecretKey: '' };
@@ -34,24 +33,6 @@ export function LookerStudioFields({ form }: LookerStudioFieldsProps) {
 
   return (
     <>
-      <FormField
-        control={form.control}
-        name='credentials.deploymentUrl'
-        render={({ field }) => (
-          <FormItem className='w-full'>
-            <FormLabel tooltip='Enter the deployment URL that the Looker Studio connector will use'>
-              Deployment URL
-            </FormLabel>
-            <FormControl>
-              <Input placeholder='https://example.com' {...field} value={field.value || ''} />
-            </FormControl>
-            <FormDescription>
-              The deployment URL that the Looker Studio connector will use to access your data
-            </FormDescription>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
       {lookerStudioCredentials.destinationSecretKey && (
         <FormField
           control={form.control}

@@ -1,5 +1,4 @@
 import { type GoogleServiceAccountCredentialsDto } from '../../../../../shared/types';
-import type { LookerStudioCredentialsRequestDto } from './looker-studio-credentials.request.dto.ts';
 
 /**
  * Data transfer object for updating a data destination
@@ -13,5 +12,5 @@ export interface UpdateDataDestinationRequestDto {
   /**
    * Credentials for the selected destination type
    */
-  credentials?: GoogleServiceAccountCredentialsDto | LookerStudioCredentialsRequestDto;
+  credentials?: GoogleServiceAccountCredentialsDto;
 }

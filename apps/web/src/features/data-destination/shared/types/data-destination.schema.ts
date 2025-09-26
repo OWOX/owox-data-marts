@@ -18,7 +18,7 @@ const googleSheetsDestinationSchema = baseDataDestinationSchema.extend({
 // Using the shared schema for Looker Studio credentials
 const lookerStudioDestinationSchema = baseDataDestinationSchema.extend({
   type: z.literal(DataDestinationType.LOOKER_STUDIO),
-  credentials: lookerStudioCredentialsSchema,
+  credentials: lookerStudioCredentialsSchema.optional(),
 });
 
 // Combined schema with conditional validation based on type

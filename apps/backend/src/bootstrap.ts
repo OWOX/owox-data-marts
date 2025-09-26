@@ -10,11 +10,11 @@ import { runMigrationsIfNeeded } from './config/migrations.config';
 import { loadEnv } from './load-env';
 import { Express, text } from 'express';
 import { AppModule } from './app.module';
+import { DEFAULT_PORT } from './config/constants';
 
 const logger = createLogger('Bootstrap');
 const PATH_PREFIX = 'api';
 const SWAGGER_PATH = 'swagger-ui';
-const DEFAULT_PORT = 3000;
 
 // HTTP server timeout configuration (in milliseconds)
 const SERVER_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes - overall request timeout
