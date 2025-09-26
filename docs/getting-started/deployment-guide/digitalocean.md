@@ -32,8 +32,23 @@ Start with default settings and tune as you go. After creating an app, you'll ha
 
 ## Configure App-Level Environment Variables
 
-Go to App's `Settings` tab and edit `App-Level Environment Variables` via the `Bulk Editor` button with configuration **like** that:
+**Important!** Customize the configuration from example below with your deployment's specifics:
 
+**Step 1.** Paste your actual database credentials for:
+
+* `host` to `DB_HOST` and `IDP_BETTER_AUTH_MYSQL_HOST`
+* `port` to `DB_PORT` and `IDP_BETTER_AUTH_MYSQL_PORT`
+* `username` to `DB_USERNAME` and `IDP_BETTER_AUTH_MYSQL_USER`
+* `password` to `DB_PASSWORD` and `IDP_BETTER_AUTH_MYSQL_PASSWORD`
+* `database` to `DB_DATABASE` and `IDP_BETTER_AUTH_MYSQL_DATABASE`
+
+**Step 2.** Use a unique `IDP_BETTER_AUTH_SECRET` 32-character key that you can generate via `openssl rand -base64 32` in a local terminal or another method.
+
+**Step 3.** Update `IDP_BETTER_AUTH_BASE_URL` and `IDP_BETTER_AUTH_TRUSTED_ORIGINS` to contain your actual `Live App` URL.
+
+👉 Go to App's `Settings` tab and edit `App-Level Environment Variables` (App will be automatically redeployed) via the `Bulk Editor` button with configuration **like** that:
+
+**Example**
 ```text
 DB_TYPE=mysql
 DB_HOST=db-mysql-nyc3-77688-do-user-25711522-0.j.db.ondigitalocean.com
@@ -52,22 +67,6 @@ IDP_BETTER_AUTH_MYSQL_DATABASE=defaultdb
 IDP_BETTER_AUTH_BASE_URL=https://octopus-app-wqkna.ondigitalocean.app
 IDP_BETTER_AUTH_TRUSTED_ORIGINS=http://localhost:8080,https://octopus-app-wqkna.ondigitalocean.app
 ```
-
-**Important!** Customize the above configuration with your deployment's specifics:
-
-**Step 1.** Paste your actual database credentials for:
-
-* `host` to `DB_HOST` and `IDP_BETTER_AUTH_MYSQL_HOST`
-* `port` to `DB_PORT` and `IDP_BETTER_AUTH_MYSQL_PORT`
-* `username` to `DB_USERNAME` and `IDP_BETTER_AUTH_MYSQL_USER`
-* `password` to `DB_PASSWORD` and `IDP_BETTER_AUTH_MYSQL_PASSWORD`
-* `database` to `DB_DATABASE` and `IDP_BETTER_AUTH_MYSQL_DATABASE`
-
-**Step 2.** Use a unique `IDP_BETTER_AUTH_SECRET` 32-character key that you can generate via `openssl rand -base64 32` in a local terminal or another method.
-
-**Step 3.** Update `IDP_BETTER_AUTH_BASE_URL` and `IDP_BETTER_AUTH_TRUSTED_ORIGINS` to contain your actual `Live App` URL.
-
-After updating the `App-Level Environment Variables`, the App will be automatically redeployed.
 
 ## Add First Admin
 
