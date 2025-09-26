@@ -31,7 +31,5 @@ export function showErrorToast(error: unknown, fallbackMessage = 'Something went
   }
 
   // Show toast
-  toast.error(message, {
-    duration: 6000,
-  });
+  toast.error(message);
 }
