@@ -1,5 +1,50 @@
 # owox
 
+## 0.8.0
+
+### Minor Changes
+
+- 518cfe1: # refactor: rename Bing Ads to Microsoft Ads and update documentation, images, and references
+- 29f72ea: # Enhance DataMartCreateForm with New Storage Creation
+  - Updated storage selection to allow **creating new storage directly** from the form.
+  - Refined **CreateDataMartPage styling** for better visual consistency.
+
+- 099befb: # fix: allow deleting a datamart within a project if it was created by another user
+- edb4478: ✨ Google Tag Manager integration
+  - 🚀 Added Google Tag Manager support across the web app. Enable by setting `GOOGLE_TAG_MANAGER_CONTAINER_ID` in your environment. This allows non‑technical teams to ship marketing/analytics tags without deployments.
+
+  Why this matters
+  - 📊 Faster iteration on analytics and marketing experiments (no code release required for common changes).
+
+- 19c21a1: # Change LinkedIn authorization flow and fix LinkedIn Pages end date issue
+  - change LinkedIn flow from access token to refresh token
+  - fix LinkedIn Pages end date issue
+
+- 8a1ef12: # Secure MySQL connections (TLS/SSL)
+  - New, simple way to enable encrypted MySQL connections via environment variables:
+    - Backend (NestJS/TypeORM): `DB_SSL`
+    - Identity provider (Better Auth): `IDP_BETTER_AUTH_MYSQL_SSL`
+
+  Learn more
+  - See “MySQL SSL” section in the deployment guide: <https://docs.owox.com/docs/getting-started/deployment-guide/environment-variables/#mysql-ssl>
+
+- 32cd6c9: # Revamp NotFound Page and Improve Mobile Layout
+  - **Redesigned 404 page** with a new foreground card and animated background tunnel effect.
+  - Updated **styles** for improved responsiveness and visual appeal.
+  - Added **icons and navigation button** to guide users.
+  - Improved **mobile layout** and updated **SidebarTrigger icon** for consistency.
+
+- e19073a: # Refactor OpenHolidays connector according to common architecture and fix bugs
+
+### Patch Changes
+
+- @owox/internal-helpers@0.8.0
+- @owox/idp-protocol@0.8.0
+- @owox/idp-better-auth@0.8.0
+- @owox/idp-owox@0.8.0
+- @owox/backend@0.8.0
+- @owox/web@0.8.0
+
 ## 0.7.0
 
 ### Minor Changes 0.7.0
@@ -310,7 +355,6 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
-
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -318,7 +362,6 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
-
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
