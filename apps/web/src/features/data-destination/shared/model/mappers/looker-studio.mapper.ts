@@ -27,13 +27,8 @@ export class LookerStudioMapper implements DestinationMapper {
     const lookerStudioFormData = formData;
     const updateRequest: UpdateDataDestinationRequestDto = {
       title: lookerStudioFormData.title ?? '',
+      credentials: { type: DataDestinationCredentialsType.LOOKER_STUDIO_CREDENTIALS },
     };
-    if (lookerStudioFormData.credentials) {
-      updateRequest.credentials = {
-        deploymentUrl: (lookerStudioFormData.credentials as LookerStudioCredentials).deploymentUrl,
-        type: DataDestinationCredentialsType.LOOKER_STUDIO_CREDENTIALS,
-      };
-    }
     return updateRequest;
   }
 
@@ -42,10 +37,7 @@ export class LookerStudioMapper implements DestinationMapper {
     return {
       title: lookerStudioFormData.title,
       type: DataDestinationType.LOOKER_STUDIO,
-      credentials: {
-        deploymentUrl: (lookerStudioFormData.credentials as LookerStudioCredentials).deploymentUrl,
-        type: DataDestinationCredentialsType.LOOKER_STUDIO_CREDENTIALS,
-      },
+      credentials: { type: DataDestinationCredentialsType.LOOKER_STUDIO_CREDENTIALS },
     };
   }
 

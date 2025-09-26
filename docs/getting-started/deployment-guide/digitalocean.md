@@ -35,6 +35,7 @@ Start with default settings and tune as you go. After creating an app, you'll ha
 Go to App's `Settings` tab and edit `App-Level Environment Variables` via the `Bulk Editor` button with configuration **like** that:
 
 ```text
+PUBLIC_ORIGIN=https://octopus-app-wqkna.ondigitalocean.app
 DB_TYPE=mysql
 DB_HOST=db-mysql-nyc3-77688-do-user-25711522-0.j.db.ondigitalocean.com
 DB_PORT=25060
