@@ -35,7 +35,7 @@ import {
   AlertDialogTitle,
 } from '@owox/ui/components/alert-dialog';
 import { Check, Search, Trash2, Plus } from 'lucide-react';
-import { toast, Toaster } from 'react-hot-toast';
+import { toast } from 'react-hot-toast';
 import { EmptyDataMartsState } from './components/EmptyDataMartsState';
 import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
 import { useTableStorage } from '../../../../../hooks/useTableStorage';
@@ -171,7 +171,6 @@ export function DataMartTable<TData, TValue>({
   if (isLoading) {
     return (
       <div>
-        <Toaster />
         <CardSkeleton />
       </div>
     );
@@ -180,7 +179,6 @@ export function DataMartTable<TData, TValue>({
   if (!data.length) {
     return (
       <div className='dm-card'>
-        <Toaster />
         <EmptyDataMartsState />
       </div>
     );
@@ -188,7 +186,6 @@ export function DataMartTable<TData, TValue>({
 
   return (
     <div className='dm-card'>
-      <Toaster />
       {/* TOOLBAR */}
       <div className='dm-card-toolbar'>
         {/* LEFT Column */}
