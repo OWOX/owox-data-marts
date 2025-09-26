@@ -32,7 +32,7 @@ Start with default settings and tune as you go. After creating an app, you'll ha
 
 ## Configure App-Level Environment Variables
 
-**Important!** Customize the configuration from example below with your deployment's specifics:
+**Important!** Customize the configuration from the example below with your deployment specifics and wait until redeploy:
 
 **Step 1.** Paste your actual database credentials for:
 
@@ -48,7 +48,8 @@ Start with default settings and tune as you go. After creating an app, you'll ha
 
 👉 Go to App's `Settings` tab and edit `App-Level Environment Variables` (App will be automatically redeployed) via the `Bulk Editor` button with configuration **like** that:
 
-**Example**
+Example:
+
 ```text
 DB_TYPE=mysql
 DB_HOST=db-mysql-nyc3-77688-do-user-25711522-0.j.db.ondigitalocean.com
