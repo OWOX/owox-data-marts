@@ -5,6 +5,7 @@ import envPaths from 'env-paths';
 import { dirname, join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { parseMysqlSslEnv } from '@owox/internal-helpers';
+import { LoggerFactory } from '@owox/internal-helpers';
 
 const zMsString = z
   .string()
@@ -64,7 +65,8 @@ const DbEnvRaw = z.discriminatedUnion('IDP_OWOX_DB_TYPE', [SqliteEnvRaw, MysqlEn
 export const DbEnvSchema = DbEnvRaw.transform(e => {
   if (e.IDP_OWOX_DB_TYPE === 'sqlite') {
     const dbPath = e.IDP_OWOX_SQLITE_DB_PATH ?? getSqliteDefaultDbPath();
-    console.log(`idp-owox SQLite database path: ${dbPath}`);
+    const logger = LoggerFactory.createNamedLogger('IdpOwoxConfig');
+    logger.info(`idp-owox SQLite database path: ${dbPath}`);
 
     return {
       type: 'sqlite' as const,
