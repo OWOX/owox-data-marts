@@ -1,5 +1,11 @@
 # @owox/connector-runner
 
+## 0.8.0
+
+### Patch Changes 0.8.0
+
+- @owox/connectors@0.8.0
+
 ## 0.7.0
 
 ### Patch Changes 0.7.0
