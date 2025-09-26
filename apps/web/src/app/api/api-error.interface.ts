@@ -3,4 +3,5 @@ export interface ApiError {
   path: string;
   statusCode: number;
   timestamp: string;
+  details?: string;
 }

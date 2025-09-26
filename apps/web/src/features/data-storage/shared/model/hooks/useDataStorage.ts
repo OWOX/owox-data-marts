@@ -28,6 +28,7 @@ export function useDataStorage() {
         type: DataStorageActionType.FETCH_STORAGES_ERROR,
         payload: extractApiError(error),
       });
+      throw error;
     }
   }, [dispatch]);
 
@@ -42,6 +43,7 @@ export function useDataStorage() {
           type: DataStorageActionType.FETCH_STORAGE_ERROR,
           payload: extractApiError(error),
         });
+        throw error;
       }
     },
     [dispatch]
@@ -104,6 +106,7 @@ export function useDataStorage() {
           type: DataStorageActionType.DELETE_STORAGE_ERROR,
           payload: extractApiError(error),
         });
+        throw error;
       }
     },
     [dispatch]
