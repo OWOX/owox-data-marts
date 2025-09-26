@@ -47,7 +47,7 @@ The CLI provides an easy way to launch the pre-built OWOX Data Marts server, inc
 
    > **Tip:** You can [download Docker Desktop here](https://www.docker.com/products/docker-desktop/) or just ask your favorite AI tool to handle the installation on your computer 🤖
 
-3. Pull and run the OWOX Data Marts **image** with a persistent storage directory. Run **one** command in your terminal
+2. Pull and run the OWOX Data Marts **container image** with a persistent storage directory. Run **one** command in your terminal
 
    ```bash
    mkdir -p ~/owox-data
@@ -62,9 +62,7 @@ The CLI provides an easy way to launch the pre-built OWOX Data Marts server, inc
 
    (You'll see a list of added packages. You may see some warnings — just ignore them.)
 
-4. **Open** your browser at **<http://localhost:3000>** and explore! 🎉
-
-
+3. **Open** your browser at **<http://localhost:3000>** and explore! 🎉
 
    > **Tip:** To update your deployment to the latest version, run this command in your terminal
 
