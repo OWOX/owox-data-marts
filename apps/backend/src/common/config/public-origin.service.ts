@@ -62,9 +62,9 @@ export class PublicOriginService {
   }
 
   /**
-   * Returns a normalized deployment URL for Looker Studio connector.
+   * Returns a normalized deployment URL for Looker Studio.
    *
-   * Resolution order:
+   * Priority order:
    * 1) LOOKER_STUDIO_DESTINATION_ORIGIN (normalized to https and validated)
    * 2) PUBLIC_ORIGIN (via getPublicOrigin), then normalized to https
    *
@@ -74,9 +74,10 @@ export class PublicOriginService {
     const lsOrigin = (this.config.get<string>('LOOKER_STUDIO_DESTINATION_ORIGIN') || '').trim();
     const publicOrigin = this.getPublicOrigin();
     if (lsOrigin) {
-      const candidateWithHttps = this.ensureHttps(lsOrigin);
-      if (this.isValidUrl(candidateWithHttps)) return candidateWithHttps;
+      const lsOriginWithHttps = this.ensureHttps(lsOrigin);
+      if (this.isValidUrl(lsOriginWithHttps)) return lsOriginWithHttps;
     }
+
     return this.ensureHttps(publicOrigin);
   }
 
@@ -90,15 +91,14 @@ export class PublicOriginService {
    * @returns Public origin URL string (http)
    */
   getPublicOrigin(): string {
-    const rawPort = this.config.get<number | string>('PORT');
-    const normalizedPort = Number(rawPort);
-    const port =
-      Number.isFinite(normalizedPort) && normalizedPort > 0 ? normalizedPort : DEFAULT_PORT;
+    const rawPort = Number(this.config.get<number | string>('PORT'));
+    const port = Number.isFinite(rawPort) && rawPort > 0 ? rawPort : DEFAULT_PORT;
     const publicOriginRaw = (this.config.get<string>('PUBLIC_ORIGIN') || '').trim();
     if (publicOriginRaw) {
       const withProtocol = this.ensureHttp(publicOriginRaw);
       if (this.isValidUrl(withProtocol)) return withProtocol;
     }
+
     return `http://localhost:${port}`;
   }
 }
