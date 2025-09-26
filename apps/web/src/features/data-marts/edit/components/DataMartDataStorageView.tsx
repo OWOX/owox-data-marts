@@ -5,7 +5,8 @@ import { ListItemCard } from '../../../../shared/components/ListItemCard';
 import { DataStorageTypeModel } from '../../../data-storage/shared/types/data-storage-type.model.ts';
 import { DataStorageConfigSheet } from '../../../data-storage/edit';
 import { DataStorageProvider } from '../../../data-storage/shared/model/context';
-import { toast, Toaster } from 'react-hot-toast';
+import { toast } from 'react-hot-toast';
+import { AlertTriangle } from 'lucide-react';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 
 interface DataMartDataStorageViewProps {
@@ -40,7 +41,12 @@ export const DataMartDataStorageView = ({
     };
 
     if (!hasRequiredFields()) {
-      return 'Storage configuration is incomplete';
+      return (
+        <div className='text-destructive flex items-center space-x-2 text-sm'>
+          <AlertTriangle className='text-destructive h-4 w-4' />
+          <span className='text-destructive'>Storage configuration is incomplete</span>
+        </div>
+      );
     }
 
     const formatParam = (label: string, value: string) => {
@@ -100,7 +106,6 @@ export const DataMartDataStorageView = ({
 
   return (
     <>
-      <Toaster />
       <ListItemCard
         title={dataStorage.title}
         icon={dataStorageInfo.icon}
