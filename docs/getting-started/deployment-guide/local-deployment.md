@@ -81,4 +81,4 @@ The CLI provides an easy way to launch the pre-built OWOX Data Marts server, inc
 ---
 
 👉 Ready to contribute or run in development mode?
-Check out [contributing docs](../../apps/owox/CONTRIBUTING.md) for advanced setup and CLI commands.
+Check out [contributing docs](../../../apps/owox/CONTRIBUTING.md) for advanced setup and CLI commands.
