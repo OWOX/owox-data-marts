@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { Toaster } from 'react-hot-toast';
 import { ConnectorEditSheet } from './components/ConnectorEditSheet/ConnectorEditSheet';
 import { DataStorageType } from '../../data-storage/shared/model/types';
 import type { ConnectorConfig } from '../../data-marts/edit/model';
@@ -43,7 +42,6 @@ export const DataMartConnectorView = ({
 
   return (
     <>
-      <Toaster />
       {renderTrigger()}
       {isEditSheetOpen && (
         <ConnectorContextProvider>

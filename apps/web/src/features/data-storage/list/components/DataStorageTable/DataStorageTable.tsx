@@ -26,7 +26,6 @@ import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
 import { Plus, Search } from 'lucide-react';
 import { EmptyDataStoragesState } from './EmptyDataStoragesState';
-import { Toaster } from 'react-hot-toast';
 import { useTableStorage } from '../../../../../hooks/useTableStorage';
 
 interface DataStorageTableProps<TData, TValue> {
@@ -90,7 +89,6 @@ export function DataStorageTable<TData, TValue>({
   if (!data.length) {
     return (
       <div className='dm-card'>
-        <Toaster />
         <EmptyDataStoragesState onOpenTypeDialog={onOpenTypeDialog} />
       </div>
     );

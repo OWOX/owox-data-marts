@@ -82,7 +82,7 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
         toast.success(`Storage "${newStorage.title}" created successfully`);
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to create new storage');
+      console.error('Failed to create storage:', error);
     }
     setIsDataStorageTypeDialogOpen(false);
   };

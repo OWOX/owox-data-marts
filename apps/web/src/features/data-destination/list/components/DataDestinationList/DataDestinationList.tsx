@@ -54,8 +54,12 @@ export const DataDestinationList = ({
   }, [isCreateSheetInitiallyOpen, handleOpenCreateForm]);
 
   const handleEdit = async (id: string) => {
-    await getDataDestinationById(id);
-    setIsEditSheetOpen(true);
+    try {
+      await getDataDestinationById(id);
+      setIsEditSheetOpen(true);
+    } catch (error) {
+      console.error('Failed to open destination for editing:', error);
+    }
   };
 
   const handleDelete = (id: string) => {
@@ -92,6 +96,7 @@ export const DataDestinationList = ({
       try {
         await deleteDataDestination(destinationToDelete);
         await fetchDataDestinations();
+        toast.success('Destination deleted successfully');
       } catch (error) {
         console.error('Failed to delete destination:', error);
       } finally {
@@ -105,6 +110,7 @@ export const DataDestinationList = ({
     try {
       setIsEditSheetOpen(false);
       await fetchDataDestinations();
+      toast.success('Destination saved successfully');
     } catch (error) {
       console.error('Failed to save destination:', error);
     }

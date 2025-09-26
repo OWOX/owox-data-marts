@@ -102,6 +102,7 @@ export function useDataDestination() {
           type: DataDestinationActionType.DELETE_DESTINATION_ERROR,
           payload: error instanceof Error ? error.message : 'Failed to delete destination',
         });
+        throw error;
       }
     },
     [dispatch]

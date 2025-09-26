@@ -1,6 +1,5 @@
 import { InlineEditDescription } from '../../../../shared/components/InlineEditDescription';
 import { useOutletContext } from 'react-router-dom';
-import { Toaster } from '../../../../shared/components/Toaster';
 
 interface DataMartContextType {
   dataMart: {
@@ -18,8 +17,6 @@ export function DataMartOverview() {
 
   return (
     <div>
-      <Toaster />
-
       <InlineEditDescription
         description={dataMart.description}
         onUpdate={handleDescriptionUpdate}

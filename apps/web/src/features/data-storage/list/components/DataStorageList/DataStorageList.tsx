@@ -3,7 +3,7 @@ import { useDataStorage } from '../../../shared/model/hooks/useDataStorage.ts';
 import { DataStorageTable } from '../DataStorageTable';
 import { getDataStorageColumns, type DataStorageTableItem } from '../DataStorageTable';
 import { DataStorageConfigSheet } from '../../../edit';
-
+import toast from 'react-hot-toast';
 import { DataStorageType } from '../../../shared';
 import { DataStorageTypeDialog } from '../../../shared/components/DataStorageTypeDialog.tsx';
 import { DataStorageDetailsDialog } from '../DataStorageDetailsDialog';
@@ -57,6 +57,7 @@ export const DataStorageList = ({
       if (newStorage?.id) {
         await getDataStorageById(newStorage.id);
         setIsEditDrawerOpen(true);
+        toast.success(`Storage "${newStorage.title}" created successfully`);
       }
     } catch (error) {
       console.error('Failed to create storage:', error);
@@ -88,6 +89,7 @@ export const DataStorageList = ({
       try {
         await deleteDataStorage(storageToDelete);
         await fetchDataStorages();
+        toast.success('Storage deleted successfully');
       } catch (error) {
         console.error('Failed to delete storage:', error);
       } finally {
@@ -101,6 +103,7 @@ export const DataStorageList = ({
     try {
       setIsEditDrawerOpen(false);
       await fetchDataStorages();
+      toast.success('Storage saved successfully');
     } catch (error) {
       console.error('Failed to save storage:', error);
     }
