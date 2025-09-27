@@ -15,7 +15,7 @@ This guide will help you better understand our beliefs, values & save time durin
 
 OWOX Data Marts has a lot of terms inside, but here are the basic ones:
 
-- [**Data Mart**](#data-mart) is a business-ready artifact defined by analysts and shared with business users for reporting.
+- [**Data Mart**](#data-mart) is a set of meaningful data controlled by data analyst and used by business users (directly or indirectly).
 - [**Sources**](#source) are the platforms like Facebook or TikTok Ads, QuickBooks, from which raw data is collected via connectors.
 - [**Storage**](#storage) is a data warehouse (e.g., BigQuery, Athena) where all data is stored & processed.
 - [**Destination**](#destination) is a BI tool where business users access data (e.g., Google Sheets, Looker Studio).
