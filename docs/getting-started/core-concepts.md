@@ -15,12 +15,12 @@ This guide will help you better understand our beliefs, values & save time durin
 
 OWOX Data Marts has a lot of terms inside, but here are the basic ones:
 
-- [**Data Mart**](#data-mart) is a set of meaningful data controlled by data analyst and used by business users (directly or indirectly).
-- [**Sources**](#source) are the platforms like Facebook or TikTok Ads, QuickBooks, from which raw data is collected via connectors.
-- [**Storage**](#storage) is a data warehouse (e.g., BigQuery, Athena) where all data is stored & processed.
+- [**Data Mart**](#data-mart) is a set of meaningful data controlled by data analyst and used by business users for reporting (directly or indirectly).
+- [**Source**](#source) is a platform like Meta Ads or TikTok Ads, Reddit Ads, from which raw data is collected via connectors.
+- [**Storage**](#storage) is a data warehouse (e.g., Google BigQuery, AWS Athena) where all data is stored & processed.
 - [**Destination**](#destination) is a BI tool where business users access data (e.g., Google Sheets, Looker Studio).
-- [**Reports**](#report) are specific spreadsheet tabs where data is exported to.
-- [**Triggers**](#trigger) automated data delivery on a schedule.
+- [**Report**](#report) is a specific spreadsheet tab where data is exported to.
+- [**Trigger**](#trigger) rules for automated data delivery on a schedule.
 - [**Run**](#run-types) is a single manual or an automated data load action.
 
 ### Data Mart
