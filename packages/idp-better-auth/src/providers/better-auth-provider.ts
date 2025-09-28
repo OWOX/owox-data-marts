@@ -46,15 +46,17 @@ export class BetterAuthProvider
     const cryptoService = new CryptoService(this.auth);
     const magicLinkService = new MagicLinkService(this.auth, cryptoService);
 
-    // Initialize all business logic services
-    this.authenticationService = new AuthenticationService(this.auth, cryptoService);
-    this.tokenService = new TokenService(this.auth, cryptoService);
+    // Initialize UserManagementService first
     this.userManagementService = new UserManagementService(
       this.auth,
       magicLinkService,
       cryptoService,
       this.store
     );
+
+    // Initialize all other business logic services
+    this.authenticationService = new AuthenticationService(this.auth, cryptoService);
+    this.tokenService = new TokenService(this.auth, cryptoService, this.userManagementService);
     this.requestHandlerService = new RequestHandlerService(this.auth);
     this.pageService = new PageService(
       this.authenticationService,
