@@ -2,11 +2,13 @@ import { betterAuth } from 'better-auth';
 import { magicLink, organization } from 'better-auth/plugins';
 import { BetterAuthConfig } from '../types/index.js';
 import { createAccessControl } from 'better-auth/plugins/access';
+import { LoggerFactory, LogLevel } from '@owox/internal-helpers';
 
 export async function createBetterAuthConfig(
   config: BetterAuthConfig,
   options?: { adapter?: unknown }
 ): Promise<ReturnType<typeof betterAuth>> {
+  const logger = LoggerFactory.createNamedLogger('better-auth');
   const database = options?.adapter;
 
   const plugins: unknown[] = [];
@@ -102,6 +104,29 @@ export async function createBetterAuthConfig(
                 : true,
           },
         },
+      },
+    },
+    logger: {
+      disabled: false,
+      disableColors: true,
+      level: 'error',
+      log: (level: string, message: string, ...args: unknown[]) => {
+        switch (level) {
+          case 'error':
+            logger.log(LogLevel.ERROR, message, { args });
+            break;
+          case 'warn':
+            logger.log(LogLevel.WARN, message, { args });
+            break;
+          case 'info':
+            logger.log(LogLevel.INFO, message, { args });
+            break;
+          case 'debug':
+            logger.log(LogLevel.DEBUG, message, { args });
+            break;
+          default:
+            logger.log(LogLevel.INFO, message, { args });
+        }
       },
     },
     telemetry: { enabled: false },

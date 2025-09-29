@@ -114,7 +114,6 @@ export abstract class BaseCommand extends Command {
    */
   protected initializeLogging(): void {
     try {
-      console.log('Initializing logging...');
       this.logger = LoggerFactory.createNamedLogger(this.constructor.name.toLowerCase());
       LoggerFactory.logConfigInfo();
     } catch (error) {
