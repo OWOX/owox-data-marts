@@ -8,6 +8,7 @@ import { IdpProvider } from '../types/provider.js';
  */
 export enum ProtocolRoute {
   SIGN_IN = '/sign-in',
+  SIGN_UP = '/sign-up',
   SIGN_OUT = '/sign-out',
   ACCESS_TOKEN = '/access-token',
   USER = '/api/user',
@@ -33,6 +34,7 @@ export interface IdpProtocolMiddlewareOptions {
   basePath?: string;
   routes?: {
     signIn?: string;
+    signUp?: string;
     signOut?: string;
     accessToken?: string;
     user?: string;
@@ -88,6 +90,7 @@ export class IdpProtocolMiddleware {
     this.basePath = this.normalizeBasePath(options.basePath ?? this.DEFAULT_BASE_PATH);
     this.routes = {
       signIn: options.routes?.signIn ?? ProtocolRoute.SIGN_IN,
+      signUp: options.routes?.signUp ?? ProtocolRoute.SIGN_UP,
       signOut: options.routes?.signOut ?? ProtocolRoute.SIGN_OUT,
       accessToken: options.routes?.accessToken ?? ProtocolRoute.ACCESS_TOKEN,
       user: options.routes?.user ?? ProtocolRoute.USER,
@@ -158,6 +161,11 @@ export class IdpProtocolMiddleware {
         path: this.routes.signIn,
         handler: (req: Request, res: Response, next: NextFunction) =>
           this.provider.signInMiddleware(req, res, next),
+      },
+      {
+        path: this.routes.signUp,
+        handler: (req: Request, res: Response, next: NextFunction) =>
+          this.provider.signUpMiddleware(req, res, next),
       },
       {
         path: this.routes.signOut,

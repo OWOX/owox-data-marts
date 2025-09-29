@@ -132,11 +132,15 @@ const IdpEnvSchema = z
     IDP_OWOX_PLATFORM_SIGN_IN_URL: z
       .string()
       .url({ message: 'IDP_OWOX_PLATFORM_SIGN_IN_URL must be a valid URL' }),
+    IDP_OWOX_PLATFORM_SIGN_UP_URL: z
+      .string()
+      .url({ message: 'IDP_OWOX_PLATFORM_SIGN_UP_URL must be a valid URL' }),
     IDP_OWOX_CALLBACK_URL: z.string().min(1, 'IDP_OWOX_CALLBACK_URL is required'),
   })
   .transform(e => ({
     clientId: e.IDP_OWOX_CLIENT_ID,
     platformSignInUrl: e.IDP_OWOX_PLATFORM_SIGN_IN_URL,
+    platformSignUpUrl: e.IDP_OWOX_PLATFORM_SIGN_UP_URL,
     callbackUrl: e.IDP_OWOX_CALLBACK_URL,
   }));
 

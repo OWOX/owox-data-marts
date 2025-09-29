@@ -13,6 +13,13 @@ export interface IdpProvider {
   signInMiddleware(req: Request, res: Response, next: NextFunction): Promise<void | Response>;
 
   /**
+   * Sign up middleware. This method is used to handle the user registration request and send the sign up response.
+   * <br/>
+   * If the IDP implementation does not support sign up, this method should call the `next()` function.
+   */
+  signUpMiddleware(req: Request, res: Response, next: NextFunction): Promise<void | Response>;
+
+  /**
    * Sign out middleware. This method is used to handle the sign out request and use response to send the sign out response.
    * <br/>
    * If the IDP implementation does not support sign out, this method should call the `next()` function.

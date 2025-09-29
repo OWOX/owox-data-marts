@@ -83,24 +83,15 @@ export class OwoxIdp implements IdpProvider {
     res: e.Response,
     _next: NextFunction
   ): Promise<void | e.Response> {
-    const { codeVerifier, codeChallenge } = await generatePkce();
-    const state = generateState();
-    const clientId = this.config.idpConfig.clientId;
+    return this.redirectToAuthUrl(req, res, this.config.idpConfig.platformSignInUrl);
+  }
 
-    const expiresAt = new Date(Date.now() + ms('1m'));
-    await this.store.save(state, codeVerifier, expiresAt);
-
-    const signInUrl = new URL(this.config.idpConfig.platformSignInUrl);
-    const params = signInUrl.searchParams;
-    params.set('state', state);
-    params.set('codeChallenge', codeChallenge);
-    params.set('clientId', clientId);
-
-    const projectId = (req.query?.projectId as string | undefined)?.toString();
-    if (projectId) {
-      params.set('projectId', projectId);
-    }
-    res.redirect(signInUrl.toString());
+  async signUpMiddleware(
+    req: e.Request,
+    res: e.Response,
+    _next: NextFunction
+  ): Promise<void | e.Response> {
+    return this.redirectToAuthUrl(req, res, this.config.idpConfig.platformSignUpUrl);
   }
 
   async signOutMiddleware(
@@ -194,6 +185,31 @@ export class OwoxIdp implements IdpProvider {
         return res.redirect(ProtocolRoute.SIGN_IN);
       }
     });
+  }
+
+  private async redirectToAuthUrl(
+    req: e.Request,
+    res: e.Response,
+    authUrl: string
+  ): Promise<void | e.Response> {
+    const { codeVerifier, codeChallenge } = await generatePkce();
+    const state = generateState();
+    const clientId = this.config.idpConfig.clientId;
+
+    const expiresAt = new Date(Date.now() + ms('1m'));
+    await this.store.save(state, codeVerifier, expiresAt);
+
+    const redirectUrl = new URL(authUrl);
+    const params = redirectUrl.searchParams;
+    params.set('state', state);
+    params.set('codeChallenge', codeChallenge);
+    params.set('clientId', clientId);
+
+    const projectId = (req.query?.projectId as string | undefined)?.toString();
+    if (projectId) {
+      params.set('projectId', projectId);
+    }
+    res.redirect(redirectUrl.toString());
   }
 
   private async changeAuthCode(code: string, state: string): Promise<TokenResponse> {

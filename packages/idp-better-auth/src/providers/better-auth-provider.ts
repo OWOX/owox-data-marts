@@ -101,6 +101,14 @@ export class BetterAuthProvider
     return this.middlewareService.signInMiddleware(req, res, next);
   }
 
+  async signUpMiddleware(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void | Response> {
+    return this.middlewareService.signInMiddleware(req, res, next);
+  }
+
   async signOutMiddleware(
     req: Request,
     res: Response,

@@ -44,6 +44,7 @@ import { IdpProvider } from '@owox/idp-protocol';
 interface IdpProvider {
   // Middleware handlers
   signInMiddleware(req: Request, res: Response, next: NextFunction): Promise<void | Response>;
+  signUpMiddleware(req: Request, res: Response, next: NextFunction): Promise<void | Response>;
   signOutMiddleware(req: Request, res: Response, next: NextFunction): Promise<void | Response>;
   accessTokenMiddleware(req: Request, res: Response, next: NextFunction): Promise<void | Response>;
   userApiMiddleware(req: Request, res: Response, next: NextFunction): Promise<Response<Payload>>;
@@ -114,7 +115,7 @@ import { IdpProtocolMiddleware, NullIdpProvider } from '@owox/idp-protocol';
 const app = express();
 const provider = new NullIdpProvider();
 
-// Basic usage with default routes (/auth/sign-in, /auth/sign-out, /auth/access-token, /auth/api/user)
+// Basic usage with default routes (/auth/sign-in, /auth/sign-up, /auth/sign-out, /auth/access-token, /auth/api/user, /auth/api/projects)
 const middleware = new IdpProtocolMiddleware(provider);
 middleware.register(app);
 
@@ -123,6 +124,7 @@ const middleware = new IdpProtocolMiddleware(provider, {
   basePath: '/api/v1/auth',
   routes: {
     signIn: '/login',
+    signUp: '/register',
     signOut: '/logout',
     accessToken: '/token',
     user: '/me',
@@ -267,6 +269,7 @@ const middleware = new IdpProtocolMiddleware(provider, {
   basePath: '/api/v1/auth',
   routes: {
     signIn: ProtocolRoute.SIGN_IN, // '/sign-in'
+    signUp: ProtocolRoute.SIGN_UP, // '/sign-up'
     signOut: ProtocolRoute.SIGN_OUT, // '/sign-out'
     accessToken: '/token', // Custom route
     user: ProtocolRoute.USER, // '/api/user'
