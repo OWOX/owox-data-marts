@@ -69,8 +69,8 @@ All other types of Data Marts query data directly from the **Storage**.
 
 [**Storage**](../storages/manage-storages.md) is your project’s data warehouse (DWH) — a SQL-compatible system where all your data lives, such as:
 
-- Google BigQuery
-- AWS Athena
+- [Google BigQuery](../storages/supported-storages/google-bigquery.md)
+- [AWS Athena](../storages/supported-storages/aws-athena.md)
 - Databricks
 - Snowflake
 - etc
@@ -86,8 +86,8 @@ You can configure multiple **Storages**, but each **Data Mart** must be linked t
 
 A [**Destination**](../destinations/manage-destinations.md) is an interface or application used by business users to access the data. Supported destinations include:
 
-- [Google Sheets](../destinations/supported-destinations/google-spreadsheets.md)
-- Looker Studio
+- [Google Sheets](../destinations/supported-destinations/google-sheets.md)
+- [Looker Studio](../destinations/supported-destinations/looker-studio.md)
 - OData (compatible with Excel, Tableau, Power BI, etc)
 
 Each **Data Mart** can be linked to multiple **Destinations**.
