@@ -32,7 +32,7 @@ Go to the **Settings** tab and click the **Verify** button. Share the link with 
 
 ## Step 3: Request Access to the API
 
-Once your app is verified, navigate to the **Products** tab in the LinkedIn Developer Portal and request access to the necessary APIs.
+Once your app is verified, navigate to the **Products** tab and request access to the necessary APIs.
 
 If you need access to **LinkedIn Page** data to work with organic content and page analytics — such as posts, followers, reactions, comments, shares, and engagement metrics — request access to **Community Management API**.
 
@@ -42,7 +42,7 @@ When access is granted, the **Community Management API** will appear under the *
 
 ![LinkedIn Community API added](res/linkedin_management.png)
 
-## Step 4: Generate an Access Token
+## Step 4: Generate a Refresh Token
 
 Navigate to the **Auth** tab of your LinkedIn app.
 
@@ -83,7 +83,7 @@ On the next screen, click **Allow** to authorize the app.
 
 ![LinkedIn Allow access](res/linkedin_pages_allow.png)
 
-## Step 5: Save the Access Token
+## Step 5: Save the Refresh Token
 
 After the token is generated, **copy and securely store your Refresh Token**.
 
