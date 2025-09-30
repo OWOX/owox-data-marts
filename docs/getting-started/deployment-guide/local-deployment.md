@@ -64,6 +64,8 @@ The CLI provides an easy way to launch the pre-built OWOX Data Marts server, inc
 
 3. **Open** your browser at **<http://localhost:3000>** and explore! 🎉
 
+<https://github.com/user-attachments/assets/1074a269-70da-44de-8ddc-ec935154381d>
+
    > **Tip:** To update your deployment to the latest version, run this command in your terminal
 
    ```bash
