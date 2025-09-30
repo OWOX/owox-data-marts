@@ -166,22 +166,22 @@ owox idp add-user user@example.com
 
 ## Configuration Reference
 
-| Variable                          | Required |                  Default                  | Description                                  |
-| --------------------------------- | :------: |:-----------------------------------------:|----------------------------------------------|
-| `IDP_PROVIDER`                    | **Yes**  |                     –                     | Set to `better-auth`                         |
-| `IDP_BETTER_AUTH_SECRET`          | **Yes**  |                     –                     | Secret key for signing (min. 32 characters)  |
-| `IDP_BETTER_AUTH_DATABASE_TYPE`   |    No    |           `DB_TYPE` → 'sqlite'            | Database type: `sqlite` or `mysql`           |
-| `IDP_BETTER_AUTH_SQLITE_DB_PATH`  |    No    |   `<system application data directory>`   | SQLite database file path                    |
-| `IDP_BETTER_AUTH_BASE_URL`        |    No    | `PUBLIC_ORIGIN` → '<http://localhost:3000>' | Base URL for magic links                     |
-| `IDP_BETTER_AUTH_MAGIC_LINK_TTL`  |    No    |              `3600` (1 hour)              | Magic link expiration (seconds)              |
-| `IDP_BETTER_AUTH_SESSION_MAX_AGE` |    No    |             `604800` (7 days)             | Session duration (seconds)                   |
-| `IDP_BETTER_AUTH_MYSQL_HOST`      |    No    |                 `DB_HOST`                 | MySQL host                                   |
-| `IDP_BETTER_AUTH_MYSQL_USER`      |    No    |                 `DB_USER`                 | MySQL user                                   |
-| `IDP_BETTER_AUTH_MYSQL_PASSWORD`  |    No    |               `DB_PASSWORD`               | MySQL password                               |
-| `IDP_BETTER_AUTH_MYSQL_DATABASE`  |    No    |               `DB_DATABASE`               | MySQL database                               |
-| `IDP_BETTER_AUTH_MYSQL_PORT`      |    No    |                 `DB_PORT`                 | MySQL port                                   |
-| `IDP_BETTER_AUTH_MYSQL_SSL`       |    No    |                  `false`                  | Enable SSL: `true`, JSON, or string          |
-| `IDP_BETTER_AUTH_TRUSTED_ORIGINS` |    No    |        `IDP_BETTER_AUTH_BASE_URL`         | Trusted origins for auth service             |
+| Variable                          | Required |                   Default                   | Description                                 |
+| --------------------------------- | :------: | :-----------------------------------------: | ------------------------------------------- |
+| `IDP_PROVIDER`                    | **Yes**  |                      –                      | Set to `better-auth`                        |
+| `IDP_BETTER_AUTH_SECRET`          | **Yes**  |                      –                      | Secret key for signing (min. 32 characters) |
+| `IDP_BETTER_AUTH_DATABASE_TYPE`   |    No    |            `DB_TYPE` → 'sqlite'             | Database type: `sqlite` or `mysql`          |
+| `IDP_BETTER_AUTH_SQLITE_DB_PATH`  |    No    |    `<system application data directory>`    | SQLite database file path                   |
+| `IDP_BETTER_AUTH_BASE_URL`        |    No    | `PUBLIC_ORIGIN` → '<http://localhost:3000>' | Base URL for magic links                    |
+| `IDP_BETTER_AUTH_MAGIC_LINK_TTL`  |    No    |               `3600` (1 hour)               | Magic link expiration (seconds)             |
+| `IDP_BETTER_AUTH_SESSION_MAX_AGE` |    No    |              `604800` (7 days)              | Session duration (seconds)                  |
+| `IDP_BETTER_AUTH_MYSQL_HOST`      |    No    |                  `DB_HOST`                  | MySQL host                                  |
+| `IDP_BETTER_AUTH_MYSQL_USER`      |    No    |                  `DB_USER`                  | MySQL user                                  |
+| `IDP_BETTER_AUTH_MYSQL_PASSWORD`  |    No    |                `DB_PASSWORD`                | MySQL password                              |
+| `IDP_BETTER_AUTH_MYSQL_DATABASE`  |    No    |                `DB_DATABASE`                | MySQL database                              |
+| `IDP_BETTER_AUTH_MYSQL_PORT`      |    No    |                  `DB_PORT`                  | MySQL port                                  |
+| `IDP_BETTER_AUTH_MYSQL_SSL`       |    No    |                   `false`                   | Enable SSL: `true`, JSON, or string         |
+| `IDP_BETTER_AUTH_TRUSTED_ORIGINS` |    No    |         `IDP_BETTER_AUTH_BASE_URL`          | Trusted origins for auth service            |
 
 ## Troubleshooting
 
