@@ -205,9 +205,20 @@ export class UserManagementService {
     createdAt: string;
     updatedAt: string | null;
     organizationId: string | null;
+    hasPassword?: boolean;
   } | null> {
     try {
-      return await this.store.getUserDetails(userId);
+      const userDetails = await this.store.getUserDetails(userId);
+      if (!userDetails) {
+        return null;
+      }
+
+      const hasPassword = await this.store.userHasPassword(userId);
+
+      return {
+        ...userDetails,
+        hasPassword,
+      };
     } catch (error) {
       console.error('Error getting user details:', error);
       throw new Error('Failed to get user details');
@@ -287,5 +298,72 @@ export class UserManagementService {
    */
   hasHigherOrEqualPriority(currentRole: Role, targetRole: Role): boolean {
     return this.getRolePriority(currentRole) >= this.getRolePriority(targetRole);
+  }
+
+  /**
+   * Reset user password (admin-only operation)
+   * Clears existing password, revokes sessions, and generates new magic link
+   */
+  async resetUserPassword(userId: string, adminUserId: string): Promise<{ magicLink: string }> {
+    try {
+      const adminRole = await this.getUserRole(adminUserId);
+      if (adminRole !== 'admin') {
+        throw new Error('Only administrators can reset user passwords');
+      }
+
+      const user = await this.store.getUserById(userId);
+      if (!user) {
+        throw new Error(`User ${userId} not found`);
+      }
+
+      const userRole = await this.getUserRole(userId);
+      if (!userRole || !this.isValidRole(userRole)) {
+        throw new Error(`User ${userId} has invalid or missing role`);
+      }
+
+      if (userId !== adminUserId) {
+        await this.store.revokeUserSessions(userId);
+      }
+
+      await this.store.clearUserPassword(userId);
+
+      const magicLink = await this.magicLinkService.generateMagicLink(user.email, userRole as Role);
+
+      console.log(
+        `Password reset initiated for user ${user.email} (role: ${userRole}) by admin ${adminUserId}`
+      );
+
+      return { magicLink };
+    } catch (error) {
+      console.error('Error resetting user password:', error);
+      throw new Error(
+        `Failed to reset password: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Ensure user is added to default organization with specified role
+   * Creates organization if it doesn't exist
+   */
+  async ensureUserInDefaultOrganization(userId: string, role: Role): Promise<void> {
+    try {
+      const defaultOrg = {
+        id: UserManagementService.DEFAULT_ORGANIZATION_ID,
+        name: UserManagementService.DEFAULT_ORGANIZATION_NAME,
+        slug: UserManagementService.DEFAULT_ORGANIZATION_SLUG,
+      } as const;
+
+      if (!(await this.store.defaultOrganizationExists(defaultOrg.slug))) {
+        await this.store.createDefaultOrganizationForUser(defaultOrg, userId, role);
+      } else {
+        await this.store.addUserToOrganization(defaultOrg.id, userId, role);
+      }
+    } catch (error) {
+      console.error('Error ensuring user in default organization:', error);
+      throw new Error(
+        `Failed to add user to organization: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
   }
 }

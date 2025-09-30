@@ -57,7 +57,20 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             },
             {
               label: 'Setup Guide',
-              autogenerate: { directory: 'docs/getting-started/setup-guide' },
+              items: [
+                'docs/getting-started/setup-guide/connector-data-mart',
+                'docs/getting-started/setup-guide/sql-data-mart',
+                'docs/getting-started/setup-guide/table-data-mart',
+                'docs/getting-started/setup-guide/view-data-mart',
+                'docs/getting-started/setup-guide/pattern-data-mart',
+                'docs/getting-started/setup-guide/connector-triggers',
+                'docs/getting-started/setup-guide/report-triggers',
+                {
+                  label: 'Better Auth',
+                  autogenerate: { directory: 'docs/getting-started/setup-guide/better-auth' },
+                  collapsed: true,
+                },
+              ],
             },
           ],
         },

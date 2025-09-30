@@ -177,6 +177,7 @@ export class TemplateService {
       createdAt: string;
       updatedAt: string | null;
       organizationId: string | null;
+      hasPassword?: boolean;
     },
     currentUserRole?: string | null
   ): string {
@@ -196,9 +197,22 @@ export class TemplateService {
     };
     const roleBadgeClasses = getRoleBadgeClasses(user.role);
 
-    // Show delete button only if current user is admin
     const showDeleteButton = currentUserRole === 'admin';
     const deleteButtonHtml = showDeleteButton ? '' : 'style="display: none;"';
+
+    const showPasswordButton = currentUserRole === 'admin';
+    const passwordButtonStyle = showPasswordButton ? '' : 'style="display: none;"';
+
+    const hasPassword = user.hasPassword ?? false;
+    const passwordButtonText = hasPassword ? 'Reset Password' : 'Generate Magic Link';
+    const passwordButtonClass = hasPassword
+      ? 'bg-destructive hover:bg-destructive/90'
+      : 'bg-primary hover:bg-primary/90';
+
+    const hasPasswordText = hasPassword ? 'Yes' : 'No';
+    const hasPasswordBadgeClass = hasPassword
+      ? 'bg-success text-success-foreground'
+      : 'bg-muted text-muted-foreground';
 
     return template
       .replace(/{{USER_ID}}/g, user.id)
@@ -209,7 +223,13 @@ export class TemplateService {
       .replace('{{ORGANIZATION_ID}}', user.organizationId || 'Default Organization')
       .replace('{{CREATED_AT}}', this.formatDate(user.createdAt))
       .replace('{{UPDATED_AT}}', user.updatedAt ? this.formatDate(user.updatedAt) : 'Never')
-      .replace('{{DELETE_BUTTON_STYLE}}', deleteButtonHtml);
+      .replace('{{DELETE_BUTTON_STYLE}}', deleteButtonHtml)
+      .replace('{{PASSWORD_BUTTON_STYLE}}', passwordButtonStyle)
+      .replace('{{PASSWORD_BUTTON_TEXT}}', passwordButtonText)
+      .replace('{{PASSWORD_BUTTON_CLASS}}', passwordButtonClass)
+      .replace('{{HAS_PASSWORD}}', hasPassword.toString())
+      .replace('{{HAS_PASSWORD_TEXT}}', hasPasswordText)
+      .replace('{{HAS_PASSWORD_BADGE_CLASS}}', hasPasswordBadgeClass);
   }
 
   public static renderAddUser(allowedRoles: string[] = ['admin', 'editor', 'viewer']): string {

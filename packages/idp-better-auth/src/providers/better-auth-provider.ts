@@ -40,7 +40,8 @@ export class BetterAuthProvider
 
   private constructor(
     private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
-    private readonly store: DatabaseStore
+    private readonly store: DatabaseStore,
+    private readonly config: BetterAuthConfig
   ) {
     // Initialize core services
     const cryptoService = new CryptoService(this.auth);
@@ -77,7 +78,7 @@ export class BetterAuthProvider
     const store = createDatabaseStore(config.database);
     const adapter = await store.getAdapter();
     const auth = await createBetterAuthConfig(config, { adapter });
-    return new BetterAuthProvider(auth, store);
+    return new BetterAuthProvider(auth, store, config);
   }
 
   registerRoutes(app: Express): void {
@@ -151,6 +152,43 @@ export class BetterAuthProvider
     const { getMigrations } = await import('better-auth/db');
     const { runMigrations } = await getMigrations(this.auth.options);
     await runMigrations();
+
+    if (this.config.primaryAdminEmail) {
+      await this.initializePrimaryAdmin(this.config.primaryAdminEmail);
+    }
+  }
+
+  private async initializePrimaryAdmin(email: string): Promise<void> {
+    try {
+      const existingUser = await this.store.getUserByEmail(email);
+
+      if (!existingUser) {
+        console.warn(`Primary admin '${email}' not found. Creating admin user...`);
+        const result = await this.userManagementService.addUserViaMagicLink(email);
+
+        const user = await this.store.getUserByEmail(email);
+        if (user) {
+          await this.userManagementService.ensureUserInDefaultOrganization(user.id, 'admin');
+        }
+
+        console.warn(`Primary admin created. Magic link: ${result.magicLink}`);
+        return;
+      }
+
+      const hasPassword = await this.store.userHasPassword(existingUser.id);
+
+      if (!hasPassword) {
+        console.warn(
+          `Primary admin '${email}' exists but has no password. Generating new magic link...`
+        );
+        const result = await this.userManagementService.addUserViaMagicLink(email);
+        console.warn(`New magic link generated for admin: ${result.magicLink}`);
+        return;
+      }
+    } catch (error) {
+      console.error(`Failed to initialize primary admin '${email}':`, error);
+      throw error;
+    }
   }
 
   async introspectToken(token: string): Promise<Payload | null> {

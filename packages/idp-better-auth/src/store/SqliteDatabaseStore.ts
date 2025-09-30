@@ -108,6 +108,50 @@ export class SqliteDatabaseStore implements DatabaseStore {
     return row ?? null;
   }
 
+  async getUserByEmail(email: string): Promise<DatabaseUser | null> {
+    await this.connect();
+    const stmt = this.getDb().prepare(
+      'SELECT id, email, name, createdAt FROM user WHERE email = ?'
+    );
+    const row = stmt.get(email) as DatabaseUser | undefined;
+    return row ?? null;
+  }
+
+  async userHasPassword(userId: string): Promise<boolean> {
+    await this.connect();
+    try {
+      const stmt = this.getDb().prepare(
+        "SELECT password FROM account WHERE userId = ? AND providerId = 'credential'"
+      );
+      const row = stmt.get(userId) as { password?: string } | undefined;
+      console.log('row', row);
+      return !!(row?.password && row.password.length > 0);
+    } catch (e) {
+      console.log('error', e);
+      return false;
+    }
+  }
+
+  async clearUserPassword(userId: string): Promise<void> {
+    await this.connect();
+    try {
+      this.getDb()
+        .prepare("DELETE FROM account WHERE userId = ? AND providerId = 'credential'")
+        .run(userId);
+    } catch {
+      // Non-fatal: account might not exist
+    }
+  }
+
+  async revokeUserSessions(userId: string): Promise<void> {
+    await this.connect();
+    try {
+      this.getDb().prepare('DELETE FROM session WHERE userId = ?').run(userId);
+    } catch {
+      // Non-fatal: sessions might not exist
+    }
+  }
+
   async updateUserName(userId: string, name: string): Promise<void> {
     await this.connect();
     const stmt = this.getDb().prepare('UPDATE user SET name = ? WHERE id = ?');

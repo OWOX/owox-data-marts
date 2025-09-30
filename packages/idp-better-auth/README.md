@@ -129,13 +129,42 @@ The admin dashboard (`/auth/dashboard`) provides:
 - **User management**: View all users, their roles, and activity
 - **Add users**: Invite new users with specific roles (admin/editor/viewer)
 - **Role management**: Assign different permission levels
+- **Password reset**: Reset passwords for users and generate new magic links
+- **User details**: View detailed information including password status
 - **Magic links**: Generate new magic links for existing users
 
 ### User Roles
 
-- **Admin**: Full access, can manage all users and invite any role
+- **Admin**: Full access, can manage all users, reset passwords, and invite any role
 - **Editor**: Can invite editors and viewers
 - **Viewer**: Can only invite other viewers
+
+### Password Reset
+
+Admins can reset user passwords through the Admin Dashboard:
+
+1. Navigate to `/auth/dashboard`
+2. Click on a user to view their details
+3. Click **Reset Password** (for users with password) or **Generate Magic Link** (for users without password)
+4. Copy the generated magic link and share it securely via email
+
+> **Note**: If you need to reset the password for the only admin account, you'll need to create a new admin first using the `IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL` environment variable (see below).
+
+### Automatic Primary Admin
+
+Set the `IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL` environment variable to automatically create or manage a primary admin on startup:
+
+```bash
+IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL=admin@yourdomain.com
+```
+
+The system will:
+
+- Create the admin if it doesn't exist
+- Generate a magic link if the admin exists but has no password
+- Do nothing if the admin is already properly configured
+
+The magic link will be displayed in the server logs.
 
 ## Database Management
 
@@ -166,22 +195,23 @@ owox idp add-user user@example.com
 
 ## Configuration Reference
 
-| Variable                          | Required |                   Default                   | Description                                 |
-| --------------------------------- | :------: | :-----------------------------------------: | ------------------------------------------- |
-| `IDP_PROVIDER`                    | **Yes**  |                      –                      | Set to `better-auth`                        |
-| `IDP_BETTER_AUTH_SECRET`          | **Yes**  |                      –                      | Secret key for signing (min. 32 characters) |
-| `IDP_BETTER_AUTH_DATABASE_TYPE`   |    No    |            `DB_TYPE` → 'sqlite'             | Database type: `sqlite` or `mysql`          |
-| `IDP_BETTER_AUTH_SQLITE_DB_PATH`  |    No    |    `<system application data directory>`    | SQLite database file path                   |
-| `IDP_BETTER_AUTH_BASE_URL`        |    No    | `PUBLIC_ORIGIN` → '<http://localhost:3000>' | Base URL for magic links                    |
-| `IDP_BETTER_AUTH_MAGIC_LINK_TTL`  |    No    |               `3600` (1 hour)               | Magic link expiration (seconds)             |
-| `IDP_BETTER_AUTH_SESSION_MAX_AGE` |    No    |              `604800` (7 days)              | Session duration (seconds)                  |
-| `IDP_BETTER_AUTH_MYSQL_HOST`      |    No    |                  `DB_HOST`                  | MySQL host                                  |
-| `IDP_BETTER_AUTH_MYSQL_USER`      |    No    |                  `DB_USER`                  | MySQL user                                  |
-| `IDP_BETTER_AUTH_MYSQL_PASSWORD`  |    No    |                `DB_PASSWORD`                | MySQL password                              |
-| `IDP_BETTER_AUTH_MYSQL_DATABASE`  |    No    |                `DB_DATABASE`                | MySQL database                              |
-| `IDP_BETTER_AUTH_MYSQL_PORT`      |    No    |                  `DB_PORT`                  | MySQL port                                  |
-| `IDP_BETTER_AUTH_MYSQL_SSL`       |    No    |                   `false`                   | Enable SSL: `true`, JSON, or string         |
-| `IDP_BETTER_AUTH_TRUSTED_ORIGINS` |    No    |         `IDP_BETTER_AUTH_BASE_URL`          | Trusted origins for auth service            |
+| Variable                              | Required |                   Default                   | Description                                 |
+| ------------------------------------- | :------: | :-----------------------------------------: | ------------------------------------------- |
+| `IDP_PROVIDER`                        | **Yes**  |                      –                      | Set to `better-auth`                        |
+| `IDP_BETTER_AUTH_SECRET`              | **Yes**  |                      –                      | Secret key for signing (min. 32 characters) |
+| `IDP_BETTER_AUTH_DATABASE_TYPE`       |    No    |            `DB_TYPE` → 'sqlite'             | Database type: `sqlite` or `mysql`          |
+| `IDP_BETTER_AUTH_SQLITE_DB_PATH`      |    No    |    `<system application data directory>`    | SQLite database file path                   |
+| `IDP_BETTER_AUTH_BASE_URL`            |    No    | `PUBLIC_ORIGIN` → '<http://localhost:3000>' | Base URL for magic links                    |
+| `IDP_BETTER_AUTH_MAGIC_LINK_TTL`      |    No    |               `3600` (1 hour)               | Magic link expiration (seconds)             |
+| `IDP_BETTER_AUTH_SESSION_MAX_AGE`     |    No    |              `604800` (7 days)              | Session duration (seconds)                  |
+| `IDP_BETTER_AUTH_MYSQL_HOST`          |    No    |                  `DB_HOST`                  | MySQL host                                  |
+| `IDP_BETTER_AUTH_MYSQL_USER`          |    No    |                  `DB_USER`                  | MySQL user                                  |
+| `IDP_BETTER_AUTH_MYSQL_PASSWORD`      |    No    |                `DB_PASSWORD`                | MySQL password                              |
+| `IDP_BETTER_AUTH_MYSQL_DATABASE`      |    No    |                `DB_DATABASE`                | MySQL database                              |
+| `IDP_BETTER_AUTH_MYSQL_PORT`          |    No    |                  `DB_PORT`                  | MySQL port                                  |
+| `IDP_BETTER_AUTH_MYSQL_SSL`           |    No    |                   `false`                   | Enable SSL: `true`, JSON, or string         |
+| `IDP_BETTER_AUTH_TRUSTED_ORIGINS`     |    No    |         `IDP_BETTER_AUTH_BASE_URL`          | Trusted origins for auth service            |
+| `IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL` |    No    |                   –                   | Email for automatic primary admin creation  |
 
 ## Troubleshooting
 

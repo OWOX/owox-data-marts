@@ -45,6 +45,7 @@ export interface BetterAuthConfig {
   baseURL?: string;
   secret: string;
   magicLinkTll?: number;
+  primaryAdminEmail?: string;
 }
 
 export * from './auth-session.js';

@@ -173,6 +173,11 @@ export class PageService {
         this.authenticationService.requireAuthMiddleware.bind(this.authenticationService),
         this.adminGenerateMagicLink.bind(this)
       );
+      express.post(
+        '/auth/reset-password/:id',
+        this.authenticationService.requireAuthMiddleware.bind(this.authenticationService),
+        this.adminResetUserPassword.bind(this)
+      );
     } catch (error) {
       console.error('Failed to register page routes:', error);
       throw new Error('Failed to register page routes');
@@ -384,6 +389,35 @@ export class PageService {
     } catch (error) {
       console.error('Error generating magic link:', error);
       res.status(500).json({ error: 'Failed to generate magic link' });
+    }
+  }
+
+  async adminResetUserPassword(req: ExpressRequest, res: ExpressResponse): Promise<void> {
+    try {
+      const userId = req.params.id;
+      if (!userId) {
+        res.status(400).json({ error: 'User ID is required' });
+        return;
+      }
+
+      const session = await this.authenticationService.getSession(req);
+      if (!session?.user?.id) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const result = await this.userManagementService.resetUserPassword(userId, session.user.id);
+
+      res.json({
+        success: true,
+        magicLink: result.magicLink,
+        message:
+          'Password reset successfully. User has been signed out and a new magic link has been generated.',
+      });
+    } catch (error) {
+      console.error('Error resetting user password:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to reset password';
+      res.status(500).json({ error: errorMessage });
     }
   }
 

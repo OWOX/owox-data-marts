@@ -80,4 +80,5 @@ export interface AdminUserDetailsView {
   createdAt: string;
   updatedAt: string | null;
   organizationId: string | null;
+  hasPassword?: boolean;
 }

@@ -159,6 +159,7 @@ export class IdpFactory {
         (process.env.IDP_BETTER_AUTH_MAGIC_LINK_TTL || '3600') as string,
         10
       ),
+      primaryAdminEmail: process.env.IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL,
       secret: process.env.IDP_BETTER_AUTH_SECRET,
       session: {
         maxAge: Number.parseInt(
