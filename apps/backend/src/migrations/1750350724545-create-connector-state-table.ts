@@ -1,5 +1,5 @@
 import { MigrationInterface, QueryRunner, Table, TableForeignKey } from 'typeorm';
-import { softDropTable } from './helper';
+import { softDropTable } from './migration-utils';
 
 export class CreateConnectorStateTable1750350724545 implements MigrationInterface {
   name = 'CreateConnectorStateTable1750350724545';

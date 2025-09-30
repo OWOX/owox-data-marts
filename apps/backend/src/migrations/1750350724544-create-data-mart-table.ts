@@ -1,5 +1,5 @@
 import { MigrationInterface, QueryRunner, Table, TableForeignKey } from 'typeorm';
-import { softDropTable } from './helper';
+import { softDropTable } from './migration-utils';
 
 export class CreateDataMartTable1750350724544 implements MigrationInterface {
   name = 'CreateDataMartTable1750350724544';
