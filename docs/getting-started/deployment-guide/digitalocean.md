@@ -36,15 +36,13 @@ Start with default settings and tune as you go. After creating an app, you'll ha
 
 **Step 1.** Paste your actual database credentials for:
 
-* `host` to `DB_HOST` and `IDP_BETTER_AUTH_MYSQL_HOST`
-* `port` to `DB_PORT` and `IDP_BETTER_AUTH_MYSQL_PORT`
-* `username` to `DB_USERNAME` and `IDP_BETTER_AUTH_MYSQL_USER`
-* `password` to `DB_PASSWORD` and `IDP_BETTER_AUTH_MYSQL_PASSWORD`
-* `database` to `DB_DATABASE` and `IDP_BETTER_AUTH_MYSQL_DATABASE`
+* `host` to `DB_HOST`
+* `port` to `DB_PORT`
+* `username` to `DB_USERNAME`
+* `password` to `DB_PASSWORD`
+* `database` to `DB_DATABASE`
 
 **Step 2.** Use a unique `IDP_BETTER_AUTH_SECRET` 32-character key that you can generate via `openssl rand -base64 32` in a local terminal or another method.
-
-**Step 3.** Update `IDP_BETTER_AUTH_BASE_URL` and `IDP_BETTER_AUTH_TRUSTED_ORIGINS` to contain your actual `Live App` URL.
 
 👉 Go to App's `Settings` tab and edit `App-Level Environment Variables` (App will be automatically redeployed) via the `Bulk Editor` button with configuration **like** that:
 
@@ -59,15 +57,7 @@ DB_USERNAME=doadmin
 DB_PASSWORD=AVNS_yHuWeSyIc8ZaV7n0yxs
 DB_DATABASE=defaultdb
 IDP_PROVIDER=better-auth
-IDP_BETTER_AUTH_DATABASE_TYPE=mysql
 IDP_BETTER_AUTH_SECRET=pw/1VHJStJeLThUeFtHoRlKSdRHHIYKPMnYMSO+86bA=
-IDP_BETTER_AUTH_MYSQL_HOST=db-mysql-nyc3-77688-do-user-25711522-0.j.db.ondigitalocean.com
-IDP_BETTER_AUTH_MYSQL_PORT=25060
-IDP_BETTER_AUTH_MYSQL_USER=doadmin
-IDP_BETTER_AUTH_MYSQL_PASSWORD=AVNS_yHuWeSyIc8ZaV7n0yxs
-IDP_BETTER_AUTH_MYSQL_DATABASE=defaultdb
-IDP_BETTER_AUTH_BASE_URL=https://octopus-app-wqkna.ondigitalocean.app
-IDP_BETTER_AUTH_TRUSTED_ORIGINS=http://localhost:8080,https://octopus-app-wqkna.ondigitalocean.app
 ```
 
 ## Add First Admin
