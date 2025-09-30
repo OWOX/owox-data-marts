@@ -102,9 +102,9 @@ export const DataDestinationActionsCell: FC<DataDestinationActionsCellProps> = (
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => onDelete?.(id)}
-              className='dm-card-table-body-row-actiondropdownitem text-red-600'
+              className='dm-card-table-body-row-actiondropdownitem'
             >
-              Delete
+              <span className='text-red-600'>Delete</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

@@ -29,7 +29,6 @@ import { Button } from '@owox/ui/components/button';
 import { DataStorageTypeDialog } from '../../../data-storage/shared/components/DataStorageTypeDialog';
 import { DataStorageType } from '../../../data-storage/shared/model/types/data-storage-type.enum';
 import { Plus } from 'lucide-react';
-import { toast } from 'react-hot-toast';
 
 interface DataMartFormProps {
   initialData?: {
@@ -79,10 +78,9 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
       if (newStorage?.id) {
         await getDataStorageById(newStorage.id);
         form.setValue('storageId', newStorage.id);
-        toast.success(`Storage "${newStorage.title}" created successfully`);
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to create new storage');
+      console.error('Failed to create storage:', error);
     }
     setIsDataStorageTypeDialogOpen(false);
   };

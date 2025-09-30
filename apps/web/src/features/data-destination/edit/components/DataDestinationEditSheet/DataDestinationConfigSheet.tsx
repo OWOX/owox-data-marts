@@ -54,7 +54,9 @@ export function DataDestinationConfigSheet({
 
     if (!dataDestination) {
       const createData = mapper.mapToCreateRequest(data);
-      console.log(createData);
+      {
+        /* console.log(createData); */
+      }
       const newDestination = await createDataDestination(createData);
       if (newDestination) {
         onSaveSuccess(newDestination);

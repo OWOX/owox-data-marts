@@ -7,6 +7,7 @@ import type {
   CreateDataDestinationRequestDto,
   UpdateDataDestinationRequestDto,
 } from '../../services/types';
+import toast from 'react-hot-toast';
 
 export function useDataDestination() {
   const { state, dispatch } = useDataDestinationContext();
@@ -57,6 +58,7 @@ export function useDataDestination() {
           type: DataDestinationActionType.CREATE_DESTINATION_SUCCESS,
           payload: mappedDestination,
         });
+        toast.success('Destination created');
         return mappedDestination;
       } catch (error) {
         dispatch({
@@ -79,6 +81,7 @@ export function useDataDestination() {
           type: DataDestinationActionType.UPDATE_DESTINATION_SUCCESS,
           payload: mappedDestination,
         });
+        toast.success('Destination updated');
         return mappedDestination;
       } catch (error) {
         dispatch({
@@ -97,11 +100,13 @@ export function useDataDestination() {
       try {
         await dataDestinationService.deleteDataDestination(id);
         dispatch({ type: DataDestinationActionType.DELETE_DESTINATION_SUCCESS, payload: id });
+        toast.success('Destination deleted');
       } catch (error) {
         dispatch({
           type: DataDestinationActionType.DELETE_DESTINATION_ERROR,
           payload: error instanceof Error ? error.message : 'Failed to delete destination',
         });
+        throw error;
       }
     },
     [dispatch]

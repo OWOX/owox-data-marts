@@ -15,9 +15,7 @@ import {
   TableRow,
 } from '@owox/ui/components/table';
 import { getScheduledTriggerColumns } from './columns';
-import { TableToolbar } from './TableToolbar';
 import { TablePagination } from './TablePagination';
-import { useTableFilter } from './hooks/useTableFilter';
 import type { ScheduledTrigger } from '../../model/scheduled-trigger.model';
 import { ScheduledTriggerFormSheet } from '../ScheduledTriggerFormSheet/ScheduledTriggerFormSheet';
 import { useTableStorage } from '../../../../../hooks/useTableStorage';
@@ -36,10 +34,6 @@ export function ScheduledTriggerTable({
   onDeleteTrigger,
 }: ScheduledTriggerTableProps) {
   const [isFormSheetOpen, setIsFormSheetOpen] = useState(false);
-
-  const handleOpenFormSheet = useCallback(() => {
-    setIsFormSheetOpen(true);
-  }, []);
 
   const handleCloseFormSheet = useCallback(() => {
     setIsFormSheetOpen(false);
@@ -81,9 +75,6 @@ export function ScheduledTriggerTable({
     enableColumnResizing: false,
   });
 
-  // Table filter hook
-  const { value: filterValue, onChange: handleFilterChange } = useTableFilter(table);
-
   const handlePreviousClick = useCallback(() => {
     table.previousPage();
   }, [table]);
@@ -93,18 +84,10 @@ export function ScheduledTriggerTable({
   }, [table]);
 
   // Generate unique IDs for accessibility
-  const searchInputId = 'scheduled-triggers-search-input';
   const tableId = 'scheduled-triggers-table';
 
   return (
     <>
-      <TableToolbar
-        table={table}
-        searchInputId={searchInputId}
-        onAddTrigger={handleOpenFormSheet}
-        filterValue={filterValue}
-        onFilterChange={handleFilterChange}
-      />
       <div className='dm-card-table-wrap'>
         <Table id={tableId} className='dm-card-table' role='table' aria-label='Scheduled Triggers'>
           <TableHeader className='dm-card-table-header'>

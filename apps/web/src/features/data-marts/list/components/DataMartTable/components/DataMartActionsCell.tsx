@@ -59,12 +59,12 @@ export const DataMartActionsCell = ({ row, onDeleteSuccess }: DataMartActionsCel
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            className='dm-card-table-body-row-actiondropdownitem text-red-600'
+            className='dm-card-table-body-row-actiondropdownitem'
             onClick={() => {
               setIsDeleteDialogOpen(true);
             }}
           >
-            Delete
+            <span className='text-red-600'>Delete</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

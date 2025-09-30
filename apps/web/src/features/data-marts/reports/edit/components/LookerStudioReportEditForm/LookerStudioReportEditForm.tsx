@@ -173,9 +173,7 @@ export const LookerStudioReportEditForm = forwardRef<
               variant='default'
               type='submit'
               className='w-full'
-              aria-label={
-                mode === ReportFormMode.CREATE ? 'Create new report' : 'Save changes to report'
-              }
+              aria-label={mode === ReportFormMode.CREATE ? 'Create' : 'Save changes'}
               disabled={!isDirty || isSubmitting}
             >
               {isSubmitting
@@ -183,8 +181,8 @@ export const LookerStudioReportEditForm = forwardRef<
                   ? 'Creating...'
                   : 'Saving...'
                 : mode === ReportFormMode.CREATE
-                  ? 'Create new report'
-                  : 'Save changes to report'}
+                  ? 'Create'
+                  : 'Save changes'}
             </Button>
             {onCancel && (
               <Button

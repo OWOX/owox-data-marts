@@ -5,6 +5,7 @@ import type { CreateReportRequestDto, UpdateReportRequestDto } from '../../servi
 import type { ReportStatusPollingConfig } from '../../services';
 import { useReportContext, ReportActionType } from '../context';
 import { mapReportDtoToEntity } from '../mappers';
+import toast from 'react-hot-toast';
 
 export function useReport() {
   const { state, dispatch } = useReportContext();
@@ -77,11 +78,12 @@ export function useReport() {
         const report = await reportService.createReport(data);
         const mappedReport = mapReportDtoToEntity(report);
         dispatch({ type: ReportActionType.CREATE_REPORT_SUCCESS, payload: mappedReport });
+        toast.success('Report created');
         return mappedReport;
       } catch (error) {
         dispatch({
           type: ReportActionType.CREATE_REPORT_ERROR,
-          payload: error instanceof Error ? error.message : 'Failed to сreate report',
+          payload: error instanceof Error ? error.message : 'Failed to create report',
         });
         return null;
       }
@@ -96,6 +98,7 @@ export function useReport() {
         const report = await reportService.updateReport(id, data);
         const mappedReport = mapReportDtoToEntity(report);
         dispatch({ type: ReportActionType.UPDATE_REPORT_SUCCESS, payload: mappedReport });
+        toast.success('Report updated');
         return mappedReport;
       } catch (error) {
         dispatch({
@@ -114,6 +117,7 @@ export function useReport() {
       try {
         await reportService.deleteReport(id);
         dispatch({ type: ReportActionType.DELETE_REPORT_SUCCESS, payload: id });
+        toast.success('Report deleted');
       } catch (error) {
         dispatch({
           type: ReportActionType.DELETE_REPORT_ERROR,
@@ -183,6 +187,7 @@ export function useReport() {
         await fetchReportById(id);
         // Start polling for status updates
         startPollingReport(id);
+        toast.success('Report run started');
       } catch (error) {
         console.error('Failed to run report:', error);
       }
