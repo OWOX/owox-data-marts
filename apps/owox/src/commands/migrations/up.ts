@@ -2,7 +2,7 @@ import { BaseCommand } from '../base.js';
 
 /**
  * Command to run pending database migrations.
- * 
+ *
  * This command executes all pending migrations in chronological order,
  * updating the database schema to the latest version.
  */
@@ -24,10 +24,10 @@ export default class MigrationsUp extends BaseCommand {
     this.loadEnvironment(flags);
 
     this.log('🔄 Running pending migrations...');
-    
+
     try {
-      // Implementation will be added later
-      // Will use backend migration utilities
+      const { runMigrations } = await import('@owox/backend');
+      await runMigrations();
       this.log('✅ All migrations completed successfully');
     } catch (error) {
       this.handleStartupError(error);

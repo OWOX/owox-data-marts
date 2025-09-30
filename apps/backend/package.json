@@ -60,6 +60,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "migration:run": "cross-env OWOX_ENV_FILE_PATH=../../.env npx typeorm-ts-node-commonjs migration:run -d ./scripts/data-source.ts",
     "migration:revert": "cross-env OWOX_ENV_FILE_PATH=../../.env npx typeorm-ts-node-commonjs migration:revert -d ./scripts/data-source.ts",
+    "migration:show": "cross-env OWOX_ENV_FILE_PATH=../../.env npx typeorm-ts-node-commonjs migration:show -d ./scripts/data-source.ts",
     "migration:create-template": "ts-node commands/create-migration-template-command.ts",
     "dump:create": "ts-node commands/create-dump-command.ts",
     "dump:apply": "ts-node commands/apply-dump-command.ts"

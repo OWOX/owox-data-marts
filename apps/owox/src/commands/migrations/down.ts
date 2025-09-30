@@ -4,7 +4,7 @@ import { BaseCommand } from '../base.js';
 
 /**
  * Command to revert the last database migration.
- * 
+ *
  * This command reverts the most recently executed migration,
  * rolling back the database schema to the previous state.
  */
@@ -32,10 +32,10 @@ export default class MigrationsDown extends BaseCommand {
     this.loadEnvironment(flags);
 
     this.log('🔄 Reverting last migration...');
-    
+
     try {
-      // Implementation will be added later
-      // Will use backend migration utilities
+      const { revertMigration } = await import('@owox/backend');
+      await revertMigration();
       this.log('✅ Migration reverted successfully');
     } catch (error) {
       this.handleStartupError(error);

@@ -11,7 +11,7 @@ export default class Migrations extends BaseCommand {
   static override examples = [
     '<%= config.bin %> migrations up',
     '<%= config.bin %> migrations down',
-    '<%= config.bin %> migrations list',
+    '<%= config.bin %> migrations status',
   ];
   static override flags = {
     ...BaseCommand.baseFlags,
