@@ -13,6 +13,7 @@ import {
 import { StepNavigation } from './components';
 import type { ConnectorConfig } from '../../../../data-marts/edit/model';
 import type { ConnectorFieldsResponseApiDto } from '../../../shared/api/types/response/connector.response.dto';
+import { AppWizard, AppWizardLayout, AppWizardActions } from '@owox/ui/components/common/wizard';
 
 interface ConnectorEditFormProps {
   onSubmit: (connector: ConnectorConfig) => void;
@@ -346,9 +347,10 @@ export function ConnectorEditForm({
   };
 
   return (
-    <div className='flex h-full flex-col p-4'>
-      <div className='mb-6 flex-1 overflow-x-visible overflow-y-auto'>{renderCurrentStep()}</div>
-      <div className='bg-background -mx-4 border-t px-4 pt-4'>
+    <AppWizard>
+      <AppWizardLayout>{renderCurrentStep()}</AppWizardLayout>
+
+      <AppWizardActions variant='horizontal'>
         <StepNavigation
           currentStep={currentStep}
           totalSteps={totalSteps}
@@ -393,7 +395,7 @@ export function ConnectorEditForm({
             }
           }}
         />
-      </div>
-    </div>
+      </AppWizardActions>
+    </AppWizard>
   );
 }
