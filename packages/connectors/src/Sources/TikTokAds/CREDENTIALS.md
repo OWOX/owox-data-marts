@@ -1,4 +1,4 @@
-# TikTok Ads Source Authentication Guide
+# How to obtain the Access Token for TikTok Ads Source
 
 To connect to the TikTok Ads API and begin importing data, follow the steps below.
 
@@ -56,24 +56,29 @@ After your app is approved, you can generate an access token:
 
 ![TikTok URL](res/tiktok_url.png)
 
-1. **Retrieve `auth_code`:** After successfully authenticating your TikTok account, you will be redirected to the specified "Advertiser redirect URL." This URL will contain an `auth_code` as a query parameter.
+1. **Retrieve `auth_code`:** After successfully authenticating your TikTok account, you will be redirected to the specified "Advertiser redirect URL". This URL will contain an `auth_code` as a query parameter.
 
-1. **Exchange Code for Access Token:** Make a `POST` request to the TikTok API endpoint to exchange the `auth_code` for an `access_token`:
+![TikTok Auth Code](res/tiktok_auth_code.png)
 
-    * **Endpoint:** `https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/`
-    * **Parameters (in the request body):**
-        * `app_id`: Your unique application ID (e.g., in "APPID" format). You can find App ID above the URL from the previous step.
-        * `secret`: Your application's secret key. You can find and copy the Secret below App ID.
-        * `auth_code`: The `auth_code` obtained from the redirect URL.
-    * **Headers:**
-        * `Content-Type`: `application/json`
+To obtain an access token, send a `POST` request to the TikTok API in order to exchange the `auth_code` for an `access_token`.
+
+* **Endpoint:**  
+  `https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/`
+
+* **Request body parameters:**  
+  * `app_id` – your unique application ID (e.g., in the format `APPID`). You can find this above the URL in the previous step.  
+  * `secret` – your application’s secret key. Located directly below the App ID.  
+  * `auth_code` – the authorization code (`auth_code`) obtained from the redirect URL.  
+
+* **Headers:**  
+  * `Content-Type: application/json`
 
 ![TikTok Get query](res/tiktok_get.png)
 
-Once the request is successful, you’ll receive:
+If the request is successful, the response will include:  
 
-* An **access_token** to authorize future API calls.
-* A list of available **advertiser_ids** linked to the authorized TikTok Business account.
+* An **access_token** – required to authorize future API calls.  
+* A list of available **advertiser_ids** – representing TikTok Business accounts linked to the authorized app.  
 
 ![TikTok Query result](res/tiktok_queryresult.png)
 
