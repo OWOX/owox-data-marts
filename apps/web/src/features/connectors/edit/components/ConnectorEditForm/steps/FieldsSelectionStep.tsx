@@ -2,6 +2,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/too
 import type { ConnectorFieldsResponseApiDto } from '../../../../shared/api/types/response';
 import { Info, Search, KeyRound, ArrowDownZA, ArrowUpAZ, ArrowUpDown } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { AppWizardStepSection, AppWizardStep } from '@owox/ui/components/common/wizard';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -133,150 +134,151 @@ export function FieldsSelectionStep({
   };
 
   return (
-    <div className='space-y-4'>
-      <h4 className='text-lg font-medium'>Selected field for node: {selectedField}</h4>
-      <p className='text-muted-foreground text-sm'>
-        Can’t find the field you need? Open an{' '}
-        <ExternalAnchor href='https://github.com/OWOX/owox-data-marts/issues'>
-          issue here
-        </ExternalAnchor>
-        .
-      </p>
+    <AppWizardStep>
+      <AppWizardStepSection title={`Select Fields for node: '${selectedField}'`}>
+        <p className='text-muted-foreground text-sm'>
+          Can’t find the field you need? Open an{' '}
+          <ExternalAnchor href='https://github.com/OWOX/owox-data-marts/issues'>
+            issue here
+          </ExternalAnchor>
+          .
+        </p>
 
-      <div className='space-y-3'>
-        <div className='flex items-center justify-between gap-4'>
-          <div className='flex items-center space-x-2'>
-            <input
-              ref={masterCheckboxRef}
-              type='checkbox'
-              id='master-checkbox'
-              className='text-primary focus:ring-primary border-border h-4 w-4'
-              checked={allSelected}
-              onChange={handleMasterCheckboxChange}
-            />
-            <label htmlFor='master-checkbox' className='cursor-pointer text-sm font-medium'>
-              Select all fields ({selectedTotalCount}/{availableFieldNames.length})
-            </label>
-          </div>
-
-          <div className='flex items-center gap-2 pr-2'>
-            <div className='relative'>
-              <Search
-                className='text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 cursor-text'
-                onClick={() => {
-                  filterInputRef.current?.focus();
-                }}
-              />
+        <div className='space-y-3'>
+          <div className='flex items-center justify-between gap-4'>
+            <div className='flex items-center space-x-2'>
               <input
-                ref={filterInputRef}
-                type='text'
-                placeholder='Search'
-                value={filterText}
-                onChange={e => {
-                  setFilterText(e.target.value);
-                }}
-                className='focus:border-primary h-8 w-48 rounded-none border-0 bg-transparent pl-9 text-sm outline-none focus:border-b'
+                ref={masterCheckboxRef}
+                type='checkbox'
+                id='master-checkbox'
+                className='text-primary focus:ring-primary border-border h-4 w-4'
+                checked={allSelected}
+                onChange={handleMasterCheckboxChange}
               />
+              <label htmlFor='master-checkbox' className='cursor-pointer text-sm font-medium'>
+                Select all fields ({selectedTotalCount}/{availableFieldNames.length})
+              </label>
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant='ghost' size='icon' aria-label='Sort fields'>
-                  {sortOrder === ConnectorFieldSortOrder.ASC && <ArrowUpAZ className='h-4 w-4' />}
-                  {sortOrder === ConnectorFieldSortOrder.DESC && (
-                    <ArrowDownZA className='h-4 w-4' />
+
+            <div className='flex items-center gap-2 pr-2'>
+              <div className='relative'>
+                <Search
+                  className='text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 cursor-text'
+                  onClick={() => {
+                    filterInputRef.current?.focus();
+                  }}
+                />
+                <input
+                  ref={filterInputRef}
+                  type='text'
+                  placeholder='Search'
+                  value={filterText}
+                  onChange={e => {
+                    setFilterText(e.target.value);
+                  }}
+                  className='focus:border-primary h-8 w-48 rounded-none border-0 bg-transparent pl-9 text-sm outline-none focus:border-b'
+                />
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant='ghost' size='icon' aria-label='Sort fields'>
+                    {sortOrder === ConnectorFieldSortOrder.ASC && <ArrowUpAZ className='h-4 w-4' />}
+                    {sortOrder === ConnectorFieldSortOrder.DESC && (
+                      <ArrowDownZA className='h-4 w-4' />
+                    )}
+                    {sortOrder === ConnectorFieldSortOrder.ORIGINAL && (
+                      <ArrowUpDown className='h-4 w-4' />
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align='end'>
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setSortOrder(ConnectorFieldSortOrder.ASC);
+                    }}
+                  >
+                    <ArrowUpAZ className='text-muted-foreground mr-2 h-4 w-4' />
+                    A–Z
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setSortOrder(ConnectorFieldSortOrder.DESC);
+                    }}
+                  >
+                    <ArrowDownZA className='text-muted-foreground mr-2 h-4 w-4' />
+                    Z–A
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setSortOrder(ConnectorFieldSortOrder.ORIGINAL);
+                    }}
+                  >
+                    <ArrowUpDown className='text-muted-foreground mr-2 h-4 w-4' />
+                    Original
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+
+          <div className='border-border border-t'></div>
+
+          <div className='flex flex-col gap-3'>
+            {filteredFields.map(field => {
+              const isUniqueKey = uniqueKeys.includes(field.name);
+              return (
+                <div key={field.name} className='flex items-center space-x-2'>
+                  <input
+                    type='checkbox'
+                    id={`field-${field.name}`}
+                    name='selectedFields'
+                    value={field.name}
+                    className='text-primary focus:ring-primary border-border h-4 w-4'
+                    onChange={e => {
+                      if (!isUniqueKey) {
+                        onFieldToggle(field.name, e.target.checked);
+                      }
+                    }}
+                    checked={selectedFields.includes(field.name)}
+                    disabled={isUniqueKey}
+                  />
+                  <label
+                    htmlFor={`field-${field.name}`}
+                    className={`cursor-pointer text-sm ${isUniqueKey ? 'text-foreground font-medium' : 'text-muted-foreground'}`}
+                  >
+                    <div className='flex items-center gap-2'>
+                      {field.name}
+                      {isUniqueKey && <KeyRound className='text-primary h-3 w-3' />}
+                    </div>
+                  </label>
+                  {field.name && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className='text-muted-foreground/75 inline-block h-4 w-4 cursor-help' />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {isUniqueKey && (
+                          <div className='flex items-center gap-2'>
+                            <KeyRound className='text-secondary h-3 w-3' />
+                            <p className='font-semibold'>Unique key</p>
+                          </div>
+                        )}
+                        <p>Type: {field.type}</p>
+                        {field.description && <p>{field.description}</p>}
+                      </TooltipContent>
+                    </Tooltip>
                   )}
-                  {sortOrder === ConnectorFieldSortOrder.ORIGINAL && (
-                    <ArrowUpDown className='h-4 w-4' />
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align='end'>
-                <DropdownMenuItem
-                  onSelect={() => {
-                    setSortOrder(ConnectorFieldSortOrder.ASC);
-                  }}
-                >
-                  <ArrowUpAZ className='text-muted-foreground mr-2 h-4 w-4' />
-                  A–Z
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => {
-                    setSortOrder(ConnectorFieldSortOrder.DESC);
-                  }}
-                >
-                  <ArrowDownZA className='text-muted-foreground mr-2 h-4 w-4' />
-                  Z–A
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => {
-                    setSortOrder(ConnectorFieldSortOrder.ORIGINAL);
-                  }}
-                >
-                  <ArrowUpDown className='text-muted-foreground mr-2 h-4 w-4' />
-                  Original
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                </div>
+              );
+            })}
+            {filteredFields.length === 0 && filterText && (
+              <div className='text-muted-foreground py-4 text-center text-sm'>
+                No fields match "{filterText}"
+              </div>
+            )}
           </div>
         </div>
-
-        <div className='border-border border-t'></div>
-
-        <div className='flex flex-col gap-3'>
-          {filteredFields.map(field => {
-            const isUniqueKey = uniqueKeys.includes(field.name);
-            return (
-              <div key={field.name} className='flex items-center space-x-2'>
-                <input
-                  type='checkbox'
-                  id={`field-${field.name}`}
-                  name='selectedFields'
-                  value={field.name}
-                  className='text-primary focus:ring-primary border-border h-4 w-4'
-                  onChange={e => {
-                    if (!isUniqueKey) {
-                      onFieldToggle(field.name, e.target.checked);
-                    }
-                  }}
-                  checked={selectedFields.includes(field.name)}
-                  disabled={isUniqueKey}
-                />
-                <label
-                  htmlFor={`field-${field.name}`}
-                  className={`cursor-pointer text-sm ${isUniqueKey ? 'text-foreground font-medium' : 'text-muted-foreground'}`}
-                >
-                  <div className='flex items-center gap-2'>
-                    {field.name}
-                    {isUniqueKey && <KeyRound className='text-primary h-3 w-3' />}
-                  </div>
-                </label>
-                {field.name && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Info className='text-muted-foreground/75 inline-block h-4 w-4 cursor-help' />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {isUniqueKey && (
-                        <div className='flex items-center gap-2'>
-                          <KeyRound className='text-secondary h-3 w-3' />
-                          <p className='font-semibold'>Unique key</p>
-                        </div>
-                      )}
-                      <p>Type: {field.type}</p>
-                      {field.description && <p>{field.description}</p>}
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-              </div>
-            );
-          })}
-          {filteredFields.length === 0 && filterText && (
-            <div className='text-muted-foreground py-4 text-center text-sm'>
-              No fields match "{filterText}"
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+      </AppWizardStepSection>
+    </AppWizardStep>
   );
 }

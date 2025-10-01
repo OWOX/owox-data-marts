@@ -2,6 +2,12 @@ import { DataStorageType } from '../../../../../data-storage';
 import { Input } from '@owox/ui/components/input';
 import { TimeTriggerAnnouncement } from '../../../../../data-marts/scheduled-triggers';
 import { useCallback, useEffect, useState } from 'react';
+import {
+  AppWizardStepItem,
+  AppWizardStepLabel,
+  AppWizardStepSection,
+  AppWizardStep,
+} from '@owox/ui/components/common/wizard';
 
 interface TargetSetupStepProps {
   dataStorageType: DataStorageType;
@@ -108,16 +114,19 @@ export function TargetSetupStep({
   };
 
   return (
-    <div className='space-y-4'>
-      <h4 className='text-lg font-medium'>Setup target</h4>
-      <div className='flex flex-col gap-4'>
+    <AppWizardStep>
+      <AppWizardStepSection title='Set target'>
         {dataStorageType === DataStorageType.GOOGLE_BIGQUERY && (
-          <div className='flex flex-col gap-4'>
-            <div className='flex flex-col gap-2'>
-              <label htmlFor='dataset-name' className='text-muted-foreground text-sm'>
-                Enter dataset name for Google BigQuery where the connector data will be stored. The
-                dataset will be created automatically if it doesn't exist.
-              </label>
+          <>
+            <AppWizardStepItem>
+              <AppWizardStepLabel
+                required={true}
+                htmlFor='dataset-name'
+                tooltip='Enter dataset name for Google BigQuery where the connector data will be stored. The
+                    dataset will be created automatically if it doesn`t exist'
+              >
+                Dataset name
+              </AppWizardStepLabel>
               <Input
                 type='text'
                 id='dataset-name'
@@ -137,13 +146,17 @@ export function TargetSetupStep({
                   {datasetError}
                 </p>
               )}
-            </div>
+            </AppWizardStepItem>
 
-            <div className='flex flex-col gap-2'>
-              <label htmlFor='table-name' className='text-muted-foreground text-sm'>
-                Enter table name where the connector data will be stored. The table will be created
-                automatically if it doesn't exist.
-              </label>
+            <AppWizardStepItem>
+              <AppWizardStepLabel
+                required={true}
+                htmlFor='table-name'
+                tooltip='Enter table name where the connector data will be stored. The table will be created
+                automatically if it doesn`t exist'
+              >
+                Table name
+              </AppWizardStepLabel>
               <Input
                 type='text'
                 id='table-name'
@@ -163,23 +176,34 @@ export function TargetSetupStep({
                   {tableError}
                 </p>
               )}
-            </div>
+            </AppWizardStepItem>
 
-            <div className='text-muted-foreground mt-2 text-sm'>
-              Full path:{' '}
-              <span className='text-foreground/90'>
-                {datasetName || '[dataset]'}.{tableName || '[table]'}
-              </span>
-            </div>
-          </div>
+            <AppWizardStepItem>
+              <AppWizardStepLabel
+                htmlFor='gbq-full-path'
+                tooltip='Check your full path to target: dataset.table'
+              >
+                Auto-generated full path
+              </AppWizardStepLabel>
+              <Input
+                id='gbq-full-path'
+                disabled
+                value={`${datasetName || '[dataset]'}.${tableName || '[table]'}`}
+              />
+            </AppWizardStepItem>
+          </>
         )}
         {dataStorageType === DataStorageType.AWS_ATHENA && (
-          <div className='flex flex-col gap-4'>
-            <div className='flex flex-col gap-2'>
-              <label htmlFor='database-name' className='text-muted-foreground text-sm'>
-                Enter database name for Amazon Athena where the connector data will be stored. The
-                database will be created automatically if it doesn't exist.
-              </label>
+          <>
+            <AppWizardStepItem>
+              <AppWizardStepLabel
+                required={true}
+                htmlFor='database-name'
+                tooltip='Enter database name for Amazon Athena where the connector data will be stored. The
+                database will be created automatically if it doesn`t exist'
+              >
+                Database name
+              </AppWizardStepLabel>
               <Input
                 type='text'
                 id='database-name'
@@ -199,13 +223,17 @@ export function TargetSetupStep({
                   {datasetError}
                 </p>
               )}
-            </div>
+            </AppWizardStepItem>
 
-            <div className='flex flex-col gap-2'>
-              <label htmlFor='athena-table-name' className='text-muted-foreground text-sm'>
-                Enter table name where the connector data will be stored. The table will be created
-                automatically if it doesn't exist.
-              </label>
+            <AppWizardStepItem>
+              <AppWizardStepLabel
+                required={true}
+                htmlFor='athena-table-name'
+                tooltip='Enter table name where the connector data will be stored. The table will be created
+                automatically if it doesn`t exist'
+              >
+                Table name
+              </AppWizardStepLabel>
               <Input
                 type='text'
                 id='athena-table-name'
@@ -225,19 +253,28 @@ export function TargetSetupStep({
                   {tableError}
                 </p>
               )}
-            </div>
+            </AppWizardStepItem>
 
-            <div className='text-muted-foreground mt-2 text-sm'>
-              Full path:{' '}
-              <span className='text-foreground/90'>
-                {datasetName || '[database]'}.{tableName || '[table]'}
-              </span>
-            </div>
-          </div>
+            <AppWizardStepItem>
+              <AppWizardStepLabel
+                htmlFor='athena-full-path'
+                tooltip='Check your full path to target: database.table'
+              >
+                Auto-generated full path
+              </AppWizardStepLabel>
+              <Input
+                id='athena-full-path'
+                disabled
+                value={`${datasetName || '[database]'}.${tableName || '[table]'}`}
+              />
+            </AppWizardStepItem>
+          </>
         )}
+      </AppWizardStepSection>
 
+      <AppWizardStepSection title='Schedule updates'>
         <TimeTriggerAnnouncement />
-      </div>
-    </div>
+      </AppWizardStepSection>
+    </AppWizardStep>
   );
 }

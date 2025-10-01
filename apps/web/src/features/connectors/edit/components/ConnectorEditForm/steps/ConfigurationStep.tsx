@@ -8,9 +8,13 @@ import type { ConnectorSpecificationResponseApiDto } from '../../../../shared/ap
 import { RawBase64Icon } from '../../../../../../shared/icons';
 import { RequiredType } from '../../../../shared/api/types';
 import { useState, useEffect, useRef } from 'react';
-import { Button } from '@owox/ui/components/button';
-import { ExternalLinkIcon, Info } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import {
+  AppWizardStepItem,
+  AppWizardStepLabel,
+  AppWizardStepSection,
+  AppWizardStepHero,
+  AppWizardStep,
+} from '@owox/ui/components/common/wizard';
 
 interface ConfigurationStepProps {
   connector: ConnectorListItem;
@@ -307,56 +311,29 @@ export function ConfigurationStep({
     });
 
   return (
-    <div className='space-y-4'>
-      <div className='mb-2 flex items-center gap-2'>
-        {connector.logoBase64 && <RawBase64Icon base64={connector.logoBase64} size={32} />}
-        <h4 className='text-lg font-medium'>{connector.displayName} configuration</h4>
-      </div>
-      {connector.docUrl && (
-        <a href={connector.docUrl} target='_blank' rel='noopener noreferrer'>
-          <Button variant='link' className='mb-2 cursor-pointer text-sm'>
-            View documentation <ExternalLinkIcon className='h-4 w-4' />
-          </Button>
-        </a>
-      )}
-      <div className='flex flex-col gap-4'>
+    <AppWizardStep>
+      <AppWizardStepHero
+        icon={<RawBase64Icon base64={connector.logoBase64} size={48} />}
+        title={connector.displayName}
+        docUrl={connector.docUrl}
+      />
+      <AppWizardStepSection title='Configure Settings'>
         {sortedSpecifications.map(specification => (
-          <div key={specification.name} className='mb-2 space-y-1'>
+          <AppWizardStepItem key={specification.name}>
             {specification.requiredType !== RequiredType.BOOLEAN && (
-              <Label
+              <AppWizardStepLabel
                 htmlFor={specification.name}
-                className='group flex items-center justify-between gap-2 text-sm font-medium'
+                required={specification.required}
+                tooltip={specification.description}
               >
-                <span>
-                  {specification.title ?? specification.name}
-                  {specification.required && <span className='ml-1 text-red-500'>*</span>}
-                </span>
-                {specification.description && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type='button'
-                        tabIndex={-1}
-                        className='opacity-60 transition-opacity hover:opacity-100'
-                        aria-label='Help information'
-                      >
-                        <Info
-                          className='text-muted-foreground/50 hover:text-muted-foreground size-4 shrink-0 transition-colors'
-                          aria-hidden='true'
-                        />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side='top' align='center' role='tooltip'>
-                      {specification.description}
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-              </Label>
+                {specification.title ?? specification.name}
+              </AppWizardStepLabel>
             )}
+
             {renderInputForType(specification, configuration, handleValueChange)}
-          </div>
+          </AppWizardStepItem>
         ))}
-      </div>
-    </div>
+      </AppWizardStepSection>
+    </AppWizardStep>
   );
 }

@@ -3,6 +3,12 @@ import type { ConnectorFieldsResponseApiDto } from '../../../../shared/api/';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { Info } from 'lucide-react';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
+import {
+  AppWizardStepItem,
+  AppWizardStepLabel,
+  AppWizardStepSection,
+  AppWizardStep,
+} from '@owox/ui/components/common/wizard';
 
 interface NodesSelectionStepProps {
   connectorFields: ConnectorFieldsResponseApiDto[] | null;
@@ -53,47 +59,49 @@ export function NodesSelectionStep({
   }
 
   return (
-    <div className='space-y-4'>
-      <h4 className='text-lg font-medium'>{title}</h4>
-      <p className='text-muted-foreground text-sm'>
-        Can't find the node you need? Open an{' '}
-        <ExternalAnchor href='https://github.com/OWOX/owox-data-marts/issues'>
-          issue here
-        </ExternalAnchor>
-        .
-      </p>
-      <div className='flex flex-col gap-4'>
-        {connectorFields.map(field => (
-          <div key={field.name} className='flex items-center space-x-2'>
-            <input
-              type='radio'
-              id={field.name}
-              name='selectedField'
-              value={field.name}
-              className='text-primary focus:ring-primary border-border h-4 w-4'
-              onChange={e => {
-                onFieldSelect(e.target.value);
-              }}
-              checked={selectedField === field.name}
-            />
-            <label htmlFor={field.name} className='text-muted-foreground cursor-pointer text-sm'>
-              <div className='flex items-center gap-2'>{field.overview ?? field.name}</div>
-            </label>
-            {field.name && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Info className='text-muted-foreground/75 inline-block h-4 w-4 cursor-help' />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Table name: {field.destinationName ?? field.name}</p>
-                  {field.description && <p>{field.description}</p>}
-                  {field.documentation && <p>{field.documentation}</p>}
-                </TooltipContent>
-              </Tooltip>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
+    <AppWizardStep>
+      <AppWizardStepSection title='Choose Node'>
+        <p className='text-muted-foreground text-sm'>
+          Can't find the node you need? Open an{' '}
+          <ExternalAnchor href='https://github.com/OWOX/owox-data-marts/issues'>
+            issue here
+          </ExternalAnchor>
+          .
+        </p>
+        <AppWizardStepItem>
+          <AppWizardStepLabel required={true}>{title}</AppWizardStepLabel>
+          {connectorFields.map(field => (
+            <div key={field.name} className='flex items-center space-x-2'>
+              <input
+                type='radio'
+                id={field.name}
+                name='selectedField'
+                value={field.name}
+                className='text-primary focus:ring-primary border-border h-4 w-4'
+                onChange={e => {
+                  onFieldSelect(e.target.value);
+                }}
+                checked={selectedField === field.name}
+              />
+              <label htmlFor={field.name} className='text-muted-foreground cursor-pointer text-sm'>
+                <div className='flex items-center gap-2'>{field.overview ?? field.name}</div>
+              </label>
+              {field.name && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className='text-muted-foreground/75 inline-block h-4 w-4 cursor-help' />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Table name: {field.destinationName ?? field.name}</p>
+                    {field.description && <p>{field.description}</p>}
+                    {field.documentation && <p>{field.documentation}</p>}
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+          ))}
+        </AppWizardStepItem>
+      </AppWizardStepSection>
+    </AppWizardStep>
   );
 }
