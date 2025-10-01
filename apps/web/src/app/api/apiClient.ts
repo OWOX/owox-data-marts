@@ -102,17 +102,6 @@ apiClient.interceptors.response.use(
 
     if (error.response?.status === 403) {
       showApiErrorToast(error, 'Access forbidden - insufficient permissions');
-
-      // Don't dispatch auth:forbidden event for 403 errors
-      // 403 doesn't mean authentication problem - user is authenticated but lacks permission
-      // Let individual components handle 403 errors appropriately
-
-      // const data = error.response.data as ApiError;
-      // window.dispatchEvent(
-      //   new CustomEvent('auth:forbidden', {
-      //     detail: { message: data.message },
-      //   })
-      // );
     }
 
     if (error.response?.status === 400) {
