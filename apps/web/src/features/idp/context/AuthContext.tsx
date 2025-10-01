@@ -204,20 +204,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
       signOut();
     };
 
-    const handleForbidden = (event: Event) => {
-      const customEvent = event as CustomEvent<{ message?: string }>;
-      dispatch({
-        type: 'SET_ERROR',
-        payload: customEvent.detail.message ?? 'Access forbidden',
-      });
-    };
+    // const handleForbidden = (event: Event) => {
+    //   const customEvent = event as CustomEvent<{ message?: string }>;
+    //   dispatch({
+    //     type: 'SET_ERROR',
+    //     payload: customEvent.detail.message ?? 'Access forbidden',
+    //   });
+    // };
 
     window.addEventListener('auth:logout', handleLogout);
-    window.addEventListener('auth:forbidden', handleForbidden);
+    // window.addEventListener('auth:forbidden', handleForbidden);
 
     return () => {
       window.removeEventListener('auth:logout', handleLogout);
-      window.removeEventListener('auth:forbidden', handleForbidden);
+      // window.removeEventListener('auth:forbidden', handleForbidden);
       clearTokenProvider();
     };
   }, [signOut]);
