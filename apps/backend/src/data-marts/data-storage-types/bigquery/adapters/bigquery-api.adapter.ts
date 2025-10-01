@@ -1,4 +1,5 @@
 import { BigQuery, Job, Table, TableSchema } from '@google-cloud/bigquery';
+import { JWT } from 'google-auth-library';
 import { BigQueryConfig } from '../schemas/bigquery-config.schema';
 import { BigQueryCredentials } from '../schemas/bigquery-credentials.schema';
 
@@ -14,14 +15,19 @@ export class BigQueryApiAdapter {
    * @throws Error if invalid credentials or config are provided
    */
   constructor(credentials: BigQueryCredentials, config: BigQueryConfig) {
-    this.bigQuery = new BigQuery({
-      projectId: config.projectId,
-      location: config.location,
-      credentials: credentials,
+    const authClient = new JWT({
+      email: credentials.client_email,
+      key: credentials.private_key,
       scopes: [
         'https://www.googleapis.com/auth/bigquery',
         'https://www.googleapis.com/auth/drive.readonly',
       ],
+    });
+
+    this.bigQuery = new BigQuery({
+      projectId: config.projectId,
+      location: config.location,
+      authClient,
     });
   }
 

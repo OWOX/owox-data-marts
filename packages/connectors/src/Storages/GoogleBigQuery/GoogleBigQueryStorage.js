@@ -493,8 +493,16 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         let error = undefined;
         let bigqueryClient = null;
         if (this.config.ServiceAccountJson && this.config.ServiceAccountJson.value) {
+          const { JWT } = require('google-auth-library');
+          const credentials = JSON.parse(this.config.ServiceAccountJson.value);
+          const authClient = new JWT({
+            email: credentials.client_email,
+            key: credentials.private_key,
+            scopes: ['https://www.googleapis.com/auth/bigquery'],
+          });
           bigqueryClient = new BigQuery({
-            credentials: JSON.parse(this.config.ServiceAccountJson.value)
+            projectId: this.config.ProjectID.value || credentials.project_id,
+            authClient
           });
         } else {
           throw new Error("Service account JSON is required to connect to Google BigQuery in Node.js environment");
