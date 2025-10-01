@@ -20,7 +20,7 @@ Upload your app logo, check the box to accept the legal agreement, and click the
 
 ## Step 2: Verify the App
 
-Go to the **Settings** tab and click the **Verify** button. The administrator of your LinkedIn company page must then verify the app to grant it access to company data.  
+Go to the **Settings** tab and click the **Verify** button. Share the link with the administrator of your LinkedIn company page. The administrator must verify the app to grant it access to company data.
 
  ![LinkedIn app verifying](res/linkedin_verify.png)
 
@@ -32,7 +32,7 @@ Go to the **Settings** tab and click the **Verify** button. The administrator of
 
 ## Step 3: Request Access to the API
 
-Once your app is verified, navigate to the **Products** tab in the LinkedIn Developer Portal and request access to the necessary APIs.
+Once your app is verified, navigate to the **Products** tab and request access to the necessary APIs.
 
 If you need access to **advertising data**: to retrieve campaign performance, audience insights, ad creatives, and other paid media metrics, request access to the **Advertising API**.
 
@@ -46,9 +46,15 @@ When access is granted, the **Advertising API** will appear under the **Added Pr
 
 ![LinkedIn Adv API added](res/linkedin_addedapi.png)
 
-## Step 4: Generate an Access Token
+## Step 4: Generate a Refresh Token
 
-Navigate to the **Auth** tab of your LinkedIn app and click **OAuth 2.0 tools** on the right-hand side of the page.
+Navigate to the **Auth** tab of your LinkedIn app.
+
+Copy the Client ID and Client Secret, you will need it later.
+
+![LinkedIn Ads Credentials](res/linkedin_clientsecret.png)
+
+Click **OAuth 2.0 tools** on the right-hand side of the page.
 
 ![LinkedIn OAuth](res/linkedin_oauth.png)
 
@@ -81,16 +87,22 @@ On the next screen, click **Allow** to authorize the app.
 
 ![LinkedIn Allow access](res/linkedin_allow.png)
 
-## Step 5: Save the Access Token
+## Step 5: Save the Refresh Token
 
-After the token is generated, **copy and securely store your Access Token**.
+After the token is generated, **copy and securely store your Refresh Token**.
 
 > ⚠️ **Important:**  
-> Make sure you are copying the **Access Token**, not the **Refresh Token**.  
-> The **Access Token** is located at the **top** of the page.
+> Make sure you are copying the **Refresh Token**, not the **Access Token**.  
+> The **Refresh Token** is located at the **bottom** of the page.
 
 ![LinkedIn Copy token](res/linkedin_copytoken.png)
 
 ## ✅ You’re Ready to Go
 
-You can now use this token as described in the [Getting Started guide](GETTING_STARTED.md) to connect to LinkedIn Ads or LinkedIn Pages data sources.
+You can now use this token as described in the [Getting Started guide](GETTING_STARTED.md) to connect to LinkedIn Ads data source.
+
+If you encounter any issues:
+
+1. Please [visit Q&A](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) first
+2. If you want to report a bug, please [open an issue](https://github.com/OWOX/owox-data-marts/issues)
+3. Join the [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions or propose improvements

@@ -1,70 +1,86 @@
 # How to Import Data from the Linkedin Ads Source
 
-To receive data from the LinkedIn Ads source, please make a copy of the file
-["LinkedIn Ads → Google Sheets. Template"](https://docs.google.com/spreadsheets/d/1-eo1z9h5qKGfNDVmSoVYgyEkWfRWRy07NaU5hZnM4Vk/copy) or
-["LinkedIn Ads → Google BigQuery. Template"](https://docs.google.com/spreadsheets/d/1hHrS8FejfACt1lbOQCfY72YldjjMRP8Ft1aOxqqXYsA/copy).
+Before proceeding, please make sure that:
 
-Fill in required information:
+- You have created a **refresh token** (as described in [CREDENTIALS](CREDENTIALS)) and securely saved your **Client ID** and **Client Secret**.  
+- You have [set up **OWOX Data Marts**](https://docs.owox.com/docs/getting-started/quick-start/) and created at least one storage in the **Storages** section.  
 
-- **Start Date**
-- **Account URNs**
-- **Fields**
-- **Destination Dataset ID** (for **Google BigQuery** template)
-- **Destination Location** (for **Google BigQuery** template)
+![LinkedIn Ads Storage](res/linkedin_ads_storage.png)
 
-The import will begin from the selected **Start Date**.  
-> ⚠️ Note: Choosing a long date range may cause the import to fail due to high data volume.
+## Create the Data Mart
 
-![LinkedIn Start Date](res/linkedin_date.png)
+- Click **New Data Mart**.
+- Enter a title and select the Storage.
+- Click **Create Data Mart**.
 
-You can find your **Account URN** on the homepage of your LinkedIn Ads account:
+![LinkedIn Ads New Data Mart](res/linkedin_ads_newdatamart.png)
+
+## Set Up the Connector
+
+1. Select **Connector** as the input source type.
+2. Click **Set up connector** and choose **LinkedIn Ads**.  
+3. Fill in the required fields:
+    - **Client ID** – paste the ID you saved earlier.
+    - **Client Secret** – paste the secret you saved earlier.
+    - **Refresh Token** – paste the token you created following the [CREDENTIALS](CREDENTIALS) tutorial.
+    - **Account URNs** – you can find this value on your LinkedIn Campaign Manager.
+    - Leave the other fields as default and proceed to the next step.
+
+![LinkedIn Ads Input Source](res/linkedin_ads_connector.png)
+
+![LinkedIn Ads Fill Data](res/linkedin_ads_fill_data.png)
 
 ![LinkedIn Account URN](res/linkedin_account.png)
 
-Copy and paste the URN into the appropriate field in the spreadsheet:
+## Configure Data Import
 
-![Account URN](res/linkedin_pasteurn.png)
+1. Choose one of the available **endpoints**.  
+2. Select the required **fields**.  
+3. Specify the **dataset** where the data will be stored (or leave the default).  
+4. Click **Finish**, then **Save** and **Publish Data Mart**.
 
-To include fields, go to the **Fields** tab and check the boxes next to the fields you want to include.
+![LinkedIn Ads Publish Data Mart](res/linkedin_ads_publish.png)
 
-![LinkedIn Fields](res/linkedin_fields.png)
+## Run the Data Mart
 
-If you're using the **Google BigQuery** template, also provide:
+You now have two options for importing data from LinkedIn Pages:  
 
-- **Destination Dataset ID** in the format: `projectid.datasetid`
-- **Destination Location**
+Option 1: Import Current Day's Data
 
-> ℹ️ If the specified dataset doesn't exist, it will be created automatically.
+Choose **Manual run → Incremental load** to load data for the **current day**.
 
-![LinkedIn Dataset](res/linkedin_dataset.png)
+![Linkedin Ads Import New Data](res/linkedin_ads_incremental.png)
 
-Go to the menu: **OWOX → Manage Credentials**
+![Linkedin Ads Incremental Load](res/linkedin_ads_currentday.png)
 
-![LinkedIn Credentials](res/linkedin_credentials.png)
+> ℹ️ If you click **Incremental load** again after a successful initial load,  
+> the connector will import: **Current day's data**, plus **Additional days**, based on the value in the **Reimport Lookback Window** field.
 
-Enter your Access Token obtained by following this tutorial: [**How to obtain the credentials for the LinkedIn Ads connector**](CREDENTIALS.md).
+![LinkedIn Ads Reimport](res/linkedin_ads_reimportwindow.png)
 
-![LinkedIn Token](res/linkedin_token.png)
+Option 2: Manual Backfill for Specific Date Range
 
-Click **OK**. Once your credentials are saved, click: **OWOX → Import New Data**
+Choose **Backfill (custom period)** to load historical data.  
 
-![LinkedIn Import Data](res/linkedin_import.png)
+1. Select the **Start Date** and **End Date**.
+2. Click the **Run** button.
 
-The import process is complete when the Log data displays **"Import is finished"**.
+![LinkedIn Ads Backfill](res/linkedin_ads_daterange.png)
 
-Access Your Data:
+The process is complete when the **Run history** tab shows the message:  
+**"Success"**  
 
-- In the **Google Sheets** template, the data will appear in new tabs labeled with the corresponding data types (e.g., *adAccounts*, *adCampaignGroups*).  
+![LinkedIn Ads Success](res/linkedin_ads_successrun.png)
 
-![LinkedIn Finished](res/linkedin_success.png)
+## Access Your Data
 
-- In the **Google BigQuery** template, the data will be written to the dataset specified earlier.
+Once the run is complete, the data will be written to the dataset you specified earlier.
 
-![LinkedIn Finished](res/linkedin_bq.png)
+![LinkedIn Ads Import Success](res/linkedin_ads_bq.png)
 
 If you encounter any issues:
 
-1. Check the "Logs" sheet for specific error messages
+1. Check the Run history for specific error messages
 2. Please [visit Q&A](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) first
 3. If you want to report a bug, please [open an issue](https://github.com/OWOX/owox-data-marts/issues)
 4. Join the [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions or propose improvements
