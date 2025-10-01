@@ -7,7 +7,7 @@ import { LogLevel, LogFormat } from './types.js';
 export class LoggerFactory {
   private static readonly DEFAULT_FORMAT = LogFormat.PRETTY;
   private static readonly DEFAULT_NAME = 'default';
-  private static readonly DEFAULT_LEVEL = LogLevel.WARN;
+  private static readonly DEFAULT_LEVEL = LogLevel.INFO;
 
   private static defaultLogger: LoggerInterface | undefined;
 

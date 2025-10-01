@@ -18,5 +18,5 @@
 
 **Migration:**
 
-- Replace `LOG_LEVELS=log,warn,error` with `LOG_LEVEL=warn` (threshold-based) or app will use default `warn` level
+- Replace `LOG_LEVELS=log,warn,error` with `LOG_LEVEL=info` (threshold-based) or app will use default `info` level
 - Remove `environment` parameter from LoggerFactory calls
