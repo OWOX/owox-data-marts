@@ -23,7 +23,7 @@ Before proceeding, please make sure that:
     - **Client ID** – paste the ID you saved earlier.
     - **Client Secret** – paste the secret you saved earlier.
     - **Refresh Token** – paste the token you created following the [CREDENTIALS](CREDENTIALS) tutorial.
-    - **Account URNs** – you can find this value on your LinkedIn Campaign Manager.
+    - **Account URNs** – you can find this value on your [LinkedIn Campaign Manager](https://www.linkedin.com/campaignmanager/).
     - Leave the other fields as default and proceed to the next step.
 
 ![LinkedIn Ads Input Source](res/linkedin_ads_connector.png)

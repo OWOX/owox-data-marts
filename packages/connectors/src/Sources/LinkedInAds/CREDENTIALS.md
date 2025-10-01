@@ -1,6 +1,6 @@
 # How to obtain the Access Token for Linkedin Ads Source
 
-To connect to LinkedIn Ads through the API, you need to create an app, request access to the API, and generate an access token. Follow the steps below to complete the process.
+To connect to LinkedIn Ads through the API, you need to create an app, request access to the API, and generate a refresh token. Follow the steps below to complete the process.
 
 ## Step 1: Create a LinkedIn App
 
