@@ -53,7 +53,7 @@ export function ScheduledTriggerActionsCell({
               onEditTrigger(trigger.id);
             }}
           >
-            <Pencil className='h-4 w-4' aria-hidden='true' />
+            <Pencil className='text-foreground h-4 w-4' aria-hidden='true' />
             Edit trigger
           </DropdownMenuItem>
           <DropdownMenuSeparator />

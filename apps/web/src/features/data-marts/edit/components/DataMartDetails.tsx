@@ -208,7 +208,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                         e.preventDefault();
                       }}
                     >
-                      <Play className='h-4 w-4' />
+                      <Play className='text-foreground h-4 w-4' />
                       <span>Manual Run...</span>
                     </DropdownMenuItem>
                   </ConnectorRunView>

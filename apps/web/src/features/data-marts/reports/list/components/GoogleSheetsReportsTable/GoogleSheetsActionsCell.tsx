@@ -101,7 +101,7 @@ export function GoogleSheetsActionsCell({
             }}
             role='menuitem'
           >
-            <Pencil className='h-4 w-4' aria-hidden='true' />
+            <Pencil className='text-foreground h-4 w-4' aria-hidden='true' />
             Edit report
           </DropdownMenuItem>
           {isGoogleSheetsDestinationConfig(row.original.destinationConfig) && (
@@ -116,7 +116,7 @@ export function GoogleSheetsActionsCell({
                 role='menuitem'
                 aria-label={isRunning ? 'Running report...' : `Run report: ${row.original.title}`}
               >
-                <Play className='h-4 w-4' aria-hidden='true' />
+                <Play className='text-foreground h-4 w-4' aria-hidden='true' />
                 {isRunning ? 'Running...' : 'Run report'}
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
@@ -132,7 +132,7 @@ export function GoogleSheetsActionsCell({
                     e.stopPropagation();
                   }}
                 >
-                  <FileText className='h-4 w-4' aria-hidden='true' />
+                  <FileText className='text-foreground h-4 w-4' aria-hidden='true' />
                   Open document
                 </a>
               </DropdownMenuItem>

@@ -1,5 +1,5 @@
 import { useState, type FC } from 'react';
-import { MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, Trash2, Pencil, Copy, KeyRound } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import {
   DropdownMenu,
@@ -72,38 +72,32 @@ export const DataDestinationActionsCell: FC<DataDestinationActionsCellProps> = (
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end'>
-            <DropdownMenuItem
-              onClick={() => void onEdit?.(id)}
-              className='dm-card-table-body-row-actiondropdownitem'
-            >
-              Edit
+            <DropdownMenuItem onClick={() => void onEdit?.(id)}>
+              <Pencil className='text-foreground h-4 w-4' aria-hidden='true' />
+              <span>Edit</span>
             </DropdownMenuItem>
 
             {isLookerStudio && hasSecretKey && (
               <>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={handleCopyJsonConfig}
-                  className='dm-card-table-body-row-actiondropdownitem'
-                >
-                  Copy JSON Config
+                <DropdownMenuItem onClick={handleCopyJsonConfig}>
+                  <Copy className='text-foreground h-4 w-4' aria-hidden='true' />
+                  <span>Copy JSON Config</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => {
                     onRotateSecretKey?.(id);
                   }}
-                  className='dm-card-table-body-row-actiondropdownitem'
                 >
-                  Rotate Secret Key
+                  <KeyRound className='text-foreground h-4 w-4' aria-hidden='true' />
+                  <span>Rotate Secret Key</span>
                 </DropdownMenuItem>
               </>
             )}
 
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => onDelete?.(id)}
-              className='dm-card-table-body-row-actiondropdownitem'
-            >
+            <DropdownMenuItem onClick={() => onDelete?.(id)}>
+              <Trash2 className='h-4 w-4 text-red-600' aria-hidden='true' />
               <span className='text-red-600'>Delete</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
