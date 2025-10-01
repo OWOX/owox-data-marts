@@ -1,18 +1,8 @@
 # TikTok Ads Source Authentication Guide
 
-This guide provides a comprehensive walkthrough for obtaining an access token from the TikTok Business API, essential for integrating with the TikTok Ads source.
+To connect to the TikTok Ads API and begin importing data, follow the steps below.
 
-## Prerequisites
-
-To successfully authenticate and retrieve data, ensure you meet the following requirements:
-
-1. **TikTok For Business Account:** You must have an active TikTok For Business account.
-2. **Advertiser Access:** You need advertiser-level access to the specific ad accounts from which you intend to extract data.
-3. **Developer Access:** You must have developer privileges within TikTok For Business to create and manage an application.
-
-## Steps to Obtain Credentials
-
-### 1. Create a Developer App
+## Step 1. Create a Developer App
 
 Follow these steps to register your application within the TikTok For Business developer portal:
 
@@ -28,7 +18,7 @@ Follow these steps to register your application within the TikTok For Business d
 
 ![TikTok Become a Developer](res/tiktok_developer.png)
 
-### 2. Configure the App
+## Step 2. Configure the App
 
 Once your developer application is approved, proceed to configure your new app:
 
@@ -44,6 +34,7 @@ Once your developer application is approved, proceed to configure your new app:
         * `Ad Account Information -> Read Ad Account Information`
     * **Ads Management:**
         * `Campaign -> Read Campaigns`
+        * `Ad Group -> Read Ad Groups`
         * `Ad -> Read Ads`
     * **Audience Management:**
         * `Read Custom Audiences`
@@ -57,7 +48,7 @@ Once your developer application is approved, proceed to configure your new app:
 
 ![TikTok Approved](res/tiktok_approved.png)
 
-### 3. Generate an Access Token
+## Step 3. Generate an Access Token
 
 After your app is approved, you can generate an access token:
 
@@ -71,8 +62,8 @@ After your app is approved, you can generate an access token:
 
     * **Endpoint:** `https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/`
     * **Parameters (in the request body):**
-        * `app_id`: Your unique application ID (e.g., in "APPID" format).
-        * `secret`: Your application's secret key.
+        * `app_id`: Your unique application ID (e.g., in "APPID" format). You can find App ID above the URL from the previous step.
+        * `secret`: Your application's secret key. You can find and copy the Secret below App ID.
         * `auth_code`: The `auth_code` obtained from the redirect URL.
     * **Headers:**
         * `Content-Type`: `application/json`
@@ -86,17 +77,14 @@ Once the request is successful, you’ll receive:
 
 ![TikTok Query result](res/tiktok_queryresult.png)
 
-## Token Validity and Refreshing
+## Step 4: Use the Access Token
 
-Understanding token validity and refresh mechanisms is crucial for continuous data access:
+Once you have the access token, you can begin using it as described in the [Getting Started guide](GETTING_STARTED.md).
 
-* **Production Environments:** For robust production applications, implement a token refresh mechanism using the `refresh_token` provided during the initial token generation. This ensures uninterrupted data flow without manual intervention.
-* **Regular Use:** For less frequent or manual use of the source, it is recommended to regenerate a new access token daily before initiating your data imports to avoid token expiration issues.
+## Troubleshooting and Support
 
-## Security Considerations
+If you encounter any issues:
 
-Adhere to these security best practices to protect your credentials and data:
-
-* **Secure Storage:** Always store your access tokens and refresh tokens in a secure, encrypted manner. Avoid hardcoding them directly into your application code.
-* **Confidentiality:** Never share your app secret or access tokens with unauthorized individuals or publicly expose them.
-* **Refresh Logic:** For production systems, prioritize implementing robust token refresh logic to minimize the exposure window of access tokens and enhance security.
+1. Please [visit Q&A](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) first
+2. If you want to report a bug, please [open an issue](https://github.com/OWOX/owox-data-marts/issues)
+3. Join the [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions or propose improvements
