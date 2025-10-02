@@ -4,44 +4,17 @@
 
 # Better Auth: Primary Admin Setup & Password Reset
 
-## What's New
+- **Primary admin auto-creation**: Configure `IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL` to automatically create or manage primary admin on server startup
+- **Password reset UI**: Admins can reset user passwords through Admin Dashboard (`/auth/dashboard`) with automatic magic link generation
+- **Enhanced documentation**: Added comprehensive user management guide at `/docs/getting-started/setup-guide/members-management/better-auth.md`
 
-### Automatic Primary Admin Creation
+**Features:**
 
-You can now automatically create or manage a primary admin on server startup using an environment variable:
+- Auto-creates admin if doesn't exist (generates magic link in logs)
+- Generates new magic link if admin exists without password
+- Password reset button for existing users with passwords
+- Magic link generation for users without passwords
 
-```bash
-IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL=admin@yourdomain.com
-```
+**New Environment Variables:**
 
-The system will:
-
-- Create the admin if it doesn't exist (generates magic link in logs)
-- Generate a new magic link if admin exists but has no password (shown in logs)
-- Do nothing if admin is already properly configured
-
-### Password Reset for Admins
-
-Admins can now reset user passwords through the Admin Dashboard UI:
-
-1. Navigate to `/auth/dashboard`
-2. Click on a user to view their details
-3. Click **Reset Password** (for users with password) or **Generate Magic Link** (for users without password)
-4. Copy the generated magic link and share it securely
-
-### Documentation
-
-New documentation added at [https://docs.owox.com/docs/getting-started/setup-guide/members-management/better-auth.md](https://docs.owox.com/docs/getting-started/setup-guide/members-management/better-auth):
-
-- User management guide
-- Password reset procedures
-- Handling single-admin scenarios
-- Role permissions reference
-
-## Configuration
-
-New environment variable:
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL` | Email for automatic primary admin creation | – |
+- `IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL` – Email for automatic primary admin creation
