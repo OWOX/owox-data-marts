@@ -1,65 +1,85 @@
-# How to Import Data from X Ads
+# How to Import Data from X Ads Source
 
-To begin importing data from X Ads, start by making a copy of one of the following templates:
+Before proceeding, please make sure that:
 
-- [**X Ads → Google Sheets. Template**](https://docs.google.com/spreadsheets/d/1LM5RTill31OF_n3XPtvoSW4LquD3JbzK3lgQbzTSPlE/copy)
-- [**X Ads → Google BigQuery. Template**](https://docs.google.com/spreadsheets/d/1l-zRdOkuWsD-0xEmh0BIEb8aF4k0fksk4G3xGU5W6bM/copy)
+- You have created a [CREDENTIALS](CREDENTIALS): API Key, API Secret, Access Token, Access Token Secret.  
+- You have [set up **OWOX Data Marts**](https://docs.owox.com/docs/getting-started/quick-start/) and created at least one storage in the **Storages** section.
 
-Fill in required information:
+![X Ads Storage](res/x_ads_storage.png)
 
-- **Start Date**
-- **Account IDs**
-- **Fields**
+## Create the Data Mart
 
-The import will begin from the selected **Start Date**.  
-> ⚠️ Note: Choosing a long date range may cause the import to fail due to high data volume.
+- Click **New Data Mart**.
+- Enter a title and select the Storage.
+- Click **Create Data Mart**.
 
-To find your **Account ID**, go to [https://ads.x.com](https://ads.x.com/) and look at the URL of your account.  
-For example, in this link:  
-`https://ads.x.com/campaign_form/18ce55in6wt/campaign/new`  
-The **Account ID** is: `18ce55in6wt`
+![X Ads New Data Mart](res/x_ads_newdatamart.png)
 
-To include more fields, go to the **Fields** tab and check the boxes next to the fields you want to include.
+## Set Up the Connector
 
-![X Ads Fields](res/xads_fields.png)
+1. Select **Connector** as the input source type.  
+2. Click **Set up connector** and choose **X Ads**.  
+3. Fill in the required fields:  
+   - **Consumer Key (API Key)** and **Consumer Secret (API Secret)** – available in the **Consumer Keys** section of your X Ads app.  
+   - **Access Token** and **Access Token Secret** – available in the **Authentication Tokens** section of your X Ads app.  
+   - **Account ID** – you can get this ID on [https://ads.x.com](https://ads.x.com/) and look at the URL of your account. For example, in this link: `https://ads.x.com/campaign_form/18ce55in6wt/campaign/new` the **Account ID** is: `18ce55in6wt`
+4. Leave all other fields as default and proceed to the next step.  
 
-If you're using the **Google BigQuery** template, also fill in:
+![X Ads Input Source](res/x_ads_connector.png)
 
-- **Destination Dataset ID** in the format: `projectid.datasetid`
-- **Destination Location** (e.g., `US`, `EU`)
+![X Ads Fill Data](res/x_ads_filldata.png)
 
-> ℹ️ If the specified dataset doesn't exist, it will be created automatically.
+![X Ads Account ID](res/x_ads_account.png)
 
-![X Ads Start Settings](res/xads_start.png)
+## Configure Data Import
 
-Open the menu: **OWOX → Manage Credentials**
+1. Choose one of the available **endpoints**.  
+2. Select the required **fields**.  
+3. Specify the **dataset** where the data will be stored (or leave the default).  
+4. Click **Finish**, then **Save** and **Publish Data Mart**.
 
-Enter your credentials obtained by following this guide: [**How to obtain the credentials for the X Ads connector**](CREDENTIALS.md).
+![X Ads Publish Data Mart](res/x_ads_publish.png)
 
-Click the **Save** button.
+## Run the Data Mart
 
-![X Ads Credentials](res/xads_credentials.png)
+You now have two options for importing data from LinkedIn Pages:  
 
-Once your credentials are saved, click: **OWOX → Import New Data**
+Option 1: Import Current Day's Data
 
-The process is complete when the **Log** sheet shows the message:  
-**"Import is finished"**  
+Choose **Manual run → Incremental load** to load data for the **current day**.
 
-Access Your Data:
+![X Ads Import New Data](res/x_ads_incremental.png)
 
-- In the **Google Sheets** template, the data will appear in new tabs labeled with the corresponding data types (e.g., *accounts*).  
+![X Ads Incremental Load](res/x_ads_currentday.png)
 
-![X Ads Finished](res/xads_finished.png)
+> ℹ️ If you click **Incremental load** again after a successful initial load,  
+> the connector will import: **Current day's data**, plus **Additional days**, based on the value in the **Reimport Lookback Window** field.
 
-- In the **Google BigQuery** template, the data will be written to the dataset specified earlier.
+![X Ads Reimport](res/x_ads_reimportwindow.png)
 
-![X Ads Finished](res/xads_gbq.png)
+Option 2: Manual Backfill for Specific Date Range
 
-## Getting Help
+Choose **Backfill (custom period)** to load historical data.  
 
-Should you encounter any issues or questions not addressed in this guide:
+1. Select the **Start Date** and **End Date**.
+2. Click the **Run** button.
 
-1. **Check Logs:** Review the "Logs" sheet in your spreadsheet for specific error messages, which can often provide clues to the problem.
-2. **Visit Q&A:** Before opening a new issue, please check the existing discussions and answers in our [Q&A section](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a).
-3. **Report a Bug:** If you identify a bug, please [open an issue](https://github.com/OWOX/owox-data-marts/issues) on our GitHub repository.
-4. **Join the Discussion:** Feel free to join our [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions, share insights, or propose improvements to the source.
+![X Ads Backfill](res/x_ads_daterange.png)
+
+The process is complete when the **Run history** tab shows the message:  
+**"Success"**  
+
+![C Ads Success](res/x_ads_successrun.png)
+
+## Access Your Data
+
+Once the run is complete, the data will be written to the dataset you specified earlier.
+
+![X Ads Import Success](res/xads_gbq.png)
+
+If you encounter any issues:
+
+1. Check the Run history for specific error messages
+2. Please [visit Q&A](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) first
+3. If you want to report a bug, please [open an issue](https://github.com/OWOX/owox-data-marts/issues)
+4. Join the [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions or propose improvements
