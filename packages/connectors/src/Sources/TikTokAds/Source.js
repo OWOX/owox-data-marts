@@ -70,13 +70,13 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
         description: "Maximum number of days to fetch data for"
       },
       IncludeDeleted: {
-        requiredType: "boolean",
+        requiredType: "bool",
         default: false,
         label: "Include Deleted",
         description: "Include deleted entities in results"
       },
       SandboxMode: {
-        requiredType: "boolean",
+        requiredType: "bool",
         default: false,
         label: "Sandbox Mode",
         description: "Use sandbox environment for testing"
@@ -167,7 +167,7 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
       this.config.AppId.value,
       this.config.AccessToken.value,
       this.config.AppSecret.value,
-      this.config.SandboxMode && this.config.SandboxMode.value
+      this.config.SandboxMode && this.config.SandboxMode.value === true
     );
     
     // Store the current advertiser ID so it can be used if missing in records
@@ -186,7 +186,7 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
 
     // Filter parameter for including deleted entities
     let filtering = null;
-    if (this.config.IncludeDeleted && this.config.IncludeDeleted.value) {
+    if (this.config.IncludeDeleted && this.config.IncludeDeleted.value === true) {
       if (nodeName === 'campaigns') {
         filtering = {"secondary_status": "CAMPAIGN_STATUS_ALL"};
       } else if (nodeName === 'ad_groups') {
