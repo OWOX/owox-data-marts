@@ -130,9 +130,9 @@ class AbstractConfig {
           }
 
           // there is a type restriction for parameter values
-          if( "requiredType" in parameter && parameter.value ) {
+          if( "requiredType" in parameter && parameter.value !== null && parameter.value !== undefined ) {
 
-              if( !(["string", "number", "date"].includes( parameter.requiredType )) ) {
+              if( !(["string", "number", "date", "boolean"].includes( parameter.requiredType )) ) {
 
                 throw new Error(`Parameter '${name}' has wrong requiredType in configuration`)
 
@@ -141,6 +141,11 @@ class AbstractConfig {
               && typeof parameter.value !== parameter.requiredType ) {
 
                 throw new Error(`Parameter '${name}' must a a ${parameter.requiredType}. Got ${typeof parameter} instead`)
+
+              // parameters must be a boolean
+              } else if ( parameter.requiredType == "boolean" && typeof parameter.value !== "boolean" ) {
+
+                throw new Error(`Parameter '${name}' must be a ${parameter.requiredType}. Got ${typeof parameter.value} instead`)
 
               // parameters must be a date
               } else if ( parameter.requiredType == "date" && parameter.value.constructor.name != "Date" ) {
