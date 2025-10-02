@@ -71,7 +71,7 @@ A method for invoking importNewData() to determine the parameters required for f
 
       this.config.logMessage(data.length ? `${data.length} rows were fetched` : `ℹ️ No records have been fetched`);
 
-      if (data.length || this.config.CreateEmptyTables?.value === "true") {
+      if (data.length || this.config.CreateEmptyTables?.value) {
         const preparedData = data.length ? data : [];
         this.getStorageByNode(nodeName).saveData(preparedData);
       }

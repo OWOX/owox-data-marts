@@ -118,7 +118,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
         
         this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for advertiser ${advertiserId}` : `ℹ️ No records have been fetched`);
 
-        if (data.length || this.config.CreateEmptyTables?.value === "true") {
+        if (data.length || this.config.CreateEmptyTables?.value) {
           try {
             const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
             this.getStorageByNode(nodeName).saveData(preparedData);
@@ -165,7 +165,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
 
             this.config.logMessage(data.length ? `${data.length} records were fetched` : `ℹ️ No records have been fetched`);
 
-            if (data.length || this.config.CreateEmptyTables?.value === "true") {
+            if (data.length || this.config.CreateEmptyTables?.value) {
               try {
                 const preparedData = data.length ? this.addMissingFieldsToData(data, timeSeriesNodes[nodeName]) : data;
                 this.getStorageByNode(nodeName).saveData(preparedData);

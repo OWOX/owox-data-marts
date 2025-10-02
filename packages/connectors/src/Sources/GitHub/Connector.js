@@ -66,7 +66,7 @@ var GitHubConnector = class GitHubConnector extends AbstractConnector {
 
     this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched` : `ℹ️ No records have been fetched`);
 
-    if (data.length || this.config.CreateEmptyTables?.value === "true") {
+    if (data.length || this.config.CreateEmptyTables?.value) {
       const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
       this.getStorageByNode(nodeName).saveData(preparedData);
     }

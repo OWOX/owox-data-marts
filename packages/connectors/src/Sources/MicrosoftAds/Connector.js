@@ -86,7 +86,7 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
 
       this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${accountId} on ${formattedDate}` : `ℹ️ No records have been fetched`);
 
-      if (data.length || this.config.CreateEmptyTables?.value === "true") {
+      if (data.length || this.config.CreateEmptyTables?.value) {
         const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
         this.getStorageByNode(nodeName).saveData(preparedData);
         data.length && this.config.logMessage(`Successfully saved ${data.length} rows for ${formattedDate}`);
@@ -121,7 +121,7 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
     
     this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${accountId}` : `ℹ️ No records have been fetched`);
 
-    if (data.length || this.config.CreateEmptyTables?.value === "true") {
+    if (data.length || this.config.CreateEmptyTables?.value) {
       const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
       this.getStorageByNode(nodeName).saveData(preparedData);
     }

@@ -63,8 +63,8 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
         description: "Maximum number of days to fetch data for"
       },
       CreateEmptyTables: {
-        requiredType: "string",  // TODO: Change to boolean type
-        default: "true",
+        requiredType: "boolean",
+        default: true,
         label: "Create Empty Tables",
         description: "Create tables with all columns even if no data is returned from API"
       }

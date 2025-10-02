@@ -84,8 +84,8 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
         description: "Aggregation for reports (e.g. Daily, Weekly, Monthly)"
       },
       CreateEmptyTables: {
-        requiredType: "string",  // TODO: Change to boolean type
-        default: "true",
+        requiredType: "boolean",
+        default: true,
         label: "Create Empty Tables",
         description: "Create tables with all columns even if no data is returned from API"
       }

@@ -77,7 +77,7 @@ var LinkedInAdsConnector = class LinkedInAdsConnector extends AbstractConnector 
       
       this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${urn}${endDate ? ` from ${startDate} to ${endDate}` : ''}` : `ℹ️ No records have been fetched`);
       
-      if (data.length || this.config.CreateEmptyTables?.value === "true") {
+      if (data.length || this.config.CreateEmptyTables?.value) {
         const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
         this.getStorageByNode(nodeName).saveData(preparedData);
       }

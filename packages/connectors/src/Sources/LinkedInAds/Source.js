@@ -74,8 +74,8 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
         description: "LinkedIn Ads Account URNs to fetch data from"
       },
       CreateEmptyTables: {
-        requiredType: "string",  // TODO: Change to boolean type
-        default: "true",
+        requiredType: "boolean",
+        default: true,
         label: "Create Empty Tables",
         description: "Create tables with all columns even if no data is returned from API"
       }

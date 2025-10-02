@@ -58,8 +58,8 @@ var GitHubSource = class GitHubSource extends AbstractSource {
         description: "Comma-separated list of fields to fetch (e.g., date,stars,contributors)"
       },
       CreateEmptyTables: {
-        requiredType: "string",  // TODO: Change to boolean type
-        default: "true",
+        requiredType: "boolean",
+        default: true,
         label: "Create Empty Tables",
         description: "Create tables with all columns even if no data is returned from API"
       }
