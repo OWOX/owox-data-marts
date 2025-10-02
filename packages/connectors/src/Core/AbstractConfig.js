@@ -145,7 +145,12 @@ class AbstractConfig {
               // parameters must be a boolean
               } else if ( parameter.requiredType == "boolean" && typeof parameter.value !== "boolean" ) {
 
-                throw new Error(`Parameter '${name}' must be a ${parameter.requiredType}. Got ${typeof parameter.value} instead`)
+                // Convert string "true"/"false" to boolean for backward compatibility
+                if (typeof parameter.value === "string" && (parameter.value.toLowerCase() === "true" || parameter.value.toLowerCase() === "false")) {
+                  parameter.value = parameter.value.toLowerCase() === "true";
+                } else {
+                  throw new Error(`Parameter '${name}' must be a ${parameter.requiredType}. Got ${typeof parameter.value} instead`)
+                }
 
               // parameters must be a date
               } else if ( parameter.requiredType == "date" && parameter.value.constructor.name != "Date" ) {
