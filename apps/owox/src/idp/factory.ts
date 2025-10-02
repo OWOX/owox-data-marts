@@ -155,7 +155,7 @@ export class IdpFactory {
     return BetterAuthProvider.create({
       baseURL,
       database,
-      magicLinkTll: Number.parseInt(
+      magicLinkTtl: Number.parseInt(
         (process.env.IDP_BETTER_AUTH_MAGIC_LINK_TTL || '3600') as string,
         10
       ),

@@ -327,7 +327,10 @@ export class PageService {
 
       res.json({
         success: true,
-        magicLink: { url: magicLink, ttl: this.config.magicLinkTll as number },
+        magicLink: {
+          url: magicLink,
+          ttl: this.config.magicLinkTtl,
+        },
         email,
         role,
       });
@@ -438,7 +441,10 @@ export class PageService {
 
       res.json({
         success: true,
-        magicLink: { url: result.magicLink, ttl: this.config.magicLinkTll as number },
+        magicLink: {
+          url: result.magicLink,
+          ttl: this.config.magicLinkTtl,
+        },
         message:
           'Password reset successfully. User has been signed out and a new magic link has been generated.',
       });

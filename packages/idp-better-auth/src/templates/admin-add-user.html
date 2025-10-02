@@ -249,13 +249,12 @@
     }
     
     function showSuccess(magicLink) {
-      document.getElementById('generated-link').value = magicLink?.url || '';
+      document.getElementById('generated-link').value = magicLink.url;
       const ttlInfo = document.getElementById('ttl-info');
-      const ttlSeconds = magicLink?.ttl;
-      if (ttlInfo && typeof ttlSeconds === 'number') {
-        const minutes = Math.round(ttlSeconds / 60);
-        const unit = minutes === 1 ? 'minute' : 'minutes';
-        ttlInfo.textContent = `Lifetime: ~${minutes} ${unit}`;
+      if (ttlInfo && typeof magicLink.ttl === 'number') {
+        const ttlInMinutes = Math.round(magicLink.ttl / 60);
+        const unit = ttlInMinutes === 1 ? 'minute' : 'minutes';
+        ttlInfo.textContent = `Lifetime: ~${ttlInMinutes} ${unit}`;
         ttlInfo.classList.remove('hidden');
       }
       document.getElementById('success-result').classList.remove('hidden');

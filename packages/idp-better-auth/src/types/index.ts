@@ -44,7 +44,7 @@ export interface BetterAuthConfig {
   trustedOrigins?: string[];
   baseURL?: string;
   secret: string;
-  magicLinkTll?: number;
+  magicLinkTtl: number;
   primaryAdminEmail?: string;
 }
 
