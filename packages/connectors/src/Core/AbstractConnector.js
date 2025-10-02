@@ -163,20 +163,10 @@ var AbstractConnector = class AbstractConnector {
       let data = this.source.fetchData(startDate, endDate);
 
       // there are fetched records to update
-      if( !data.length ) {      
-        
-        this.config.logMessage("ℹ️ No records have been fetched");
-        
-        // Only update LastRequestedDate for incremental runs
-        if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
-        this.config.updateLastRequstedDate(endDate);
-        }
+      this.config.logMessage(data.length ? `${data.length} rows were fetched` : `ℹ️ No records have been fetched`);
 
-      } else {
-
-        this.config.logMessage(`${data.length} rows were fetched`);
+      if( data.length || this.config.CreateEmptyTables?.value === "true" ) {
         this.storage.saveData(data);
-
       }
 
       // Only update LastRequestedDate for incremental runs
