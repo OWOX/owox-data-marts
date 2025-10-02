@@ -18,6 +18,10 @@ async def get_current_user(
     db: Session = Depends(get_db)
 ) -> User:
     """Get current authenticated user from JWT token"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"🔐 [AUTH] Authentication attempt started")
     
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -28,26 +32,38 @@ async def get_current_user(
     try:
         # Extract token from credentials
         token = credentials.credentials
+        logger.info(f"🔑 [AUTH] Token received: {token[:10]}... (length: {len(token)})")
         
-        # Verify token and get username
-        username = verify_token(token)
-        if username is None:
+        # Verify token and get user_id
+        user_id = verify_token(token)
+        logger.info(f"🔍 [AUTH] Token verification result: {user_id}")
+        
+        if user_id is None:
+            logger.error(f"❌ [AUTH] Token verification failed - invalid token")
             raise credentials_exception
             
-    except Exception:
+    except Exception as e:
+        logger.error(f"❌ [AUTH] Token verification exception: {type(e).__name__}: {str(e)}")
         raise credentials_exception
     
-    # Get user from database
-    user = db.query(User).filter(User.username == username).first()
+    # Get user from database by UUID
+    logger.info(f"🔍 [AUTH] Looking up user by ID: {user_id}")
+    user = db.query(User).filter(User.id == user_id).first()
+    
     if user is None:
+        logger.error(f"❌ [AUTH] User not found in database: {user_id}")
         raise credentials_exception
+    
+    logger.info(f"✅ [AUTH] User found: {user.email} (active: {user.is_active})")
         
     if not user.is_active:
+        logger.error(f"❌ [AUTH] User is inactive: {user.email}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Inactive user"
         )
     
+    logger.info(f"🎉 [AUTH] Authentication successful for user: {user.email}")
     return user
 
 
@@ -75,13 +91,13 @@ def get_optional_current_user(
         # Extract token from credentials
         token = credentials.credentials
         
-        # Verify token and get username
-        username = verify_token(token)
-        if username is None:
+        # Verify token and get user_id
+        user_id = verify_token(token)
+        if user_id is None:
             return None
             
-        # Get user from database
-        user = db.query(User).filter(User.username == username).first()
+        # Get user from database by UUID
+        user = db.query(User).filter(User.id == user_id).first()
         if user is None or not user.is_active:
             return None
             

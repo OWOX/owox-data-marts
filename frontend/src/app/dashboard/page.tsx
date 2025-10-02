@@ -4,12 +4,16 @@ import Link from 'next/link'
 import { useQuery } from 'react-query'
 import { platformCredentialsApi } from '@/lib/api/platform-credentials'
 import { 
-  KeyIcon, 
-  DatabaseIcon, 
+  LockClosedIcon, 
+  CircleStackIcon, 
   CloudArrowUpIcon, 
   ChartBarIcon,
   PlusIcon
 } from '@heroicons/react/24/outline'
+
+// Use correct icon names
+const KeyIcon = LockClosedIcon // For Platform Credentials
+const DatabaseIcon = CircleStackIcon // For Data Marts
 
 export default function DashboardPage() {
   const { data: credentials = [], isLoading } = useQuery(

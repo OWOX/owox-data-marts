@@ -28,10 +28,10 @@ class Settings(BaseSettings):
         raise ValueError(v)
     
     # Database
-    DATABASE_URL: str = "postgresql://owox:owox123@localhost:5432/owox_data_marts"
+    DATABASE_URL: str = "postgresql://postgres:postgres@postgres:5432/owox_data_marts"
     
     # Redis
-    REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_URL: str = "redis://redis:6379/0"
     
     # Platform APIs
     LINKEDIN_CLIENT_ID: Optional[str] = None
@@ -42,12 +42,10 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: Optional[str] = None
     GOOGLE_PROJECT_ID: Optional[str] = None
     
-    # Encryption
-    ENCRYPTION_KEY: Optional[str] = None
     
     # Celery
-    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
-    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
+    CELERY_BROKER_URL: str = "redis://redis:6379/0"
+    CELERY_RESULT_BACKEND: str = "redis://redis:6379/0"
     
     class Config:
         env_file = ".env"

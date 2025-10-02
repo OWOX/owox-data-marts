@@ -21,9 +21,12 @@ def read_reports(
     """
     Retrieve reports for current user
     """
-    reports = crud_report.get_multi_by_user(
-        db, user_id=current_user.id, skip=skip, limit=limit
-    )
+    from app.models.report import Report as ReportModel
+    
+    reports = db.query(ReportModel).filter(
+        ReportModel.created_by_id == current_user.id
+    ).offset(skip).limit(limit).all()
+    
     return reports
 
 
@@ -33,34 +36,68 @@ def create_report(
     db: Session = Depends(get_db),
     report_in: ReportCreate,
     current_user: User = Depends(deps.get_current_user),
+    project_id: str = "default"
 ) -> Any:
     """
     Create new report
     """
-    report = crud_report.create_with_user(
-        db=db, obj_in=report_in, user_id=current_user.id
+    from app.models.report import Report as ReportModel, ReportStatus
+    import uuid
+    
+    # Create report directly
+    db_report = ReportModel(
+        id=uuid.uuid4(),
+        title=report_in.title,
+        description=report_in.description,
+        data_mart_id=report_in.data_mart_id,
+        report_type=report_in.report_type,
+        status=ReportStatus.DRAFT,
+        is_public=report_in.is_public,
+        config=report_in.report_config,
+        project_id=project_id,
+        created_by_id=current_user.id
     )
-    return report
+    
+    db.add(db_report)
+    db.commit()
+    db.refresh(db_report)
+    
+    return db_report
 
 
 @router.put("/{report_id}", response_model=Report)
 def update_report(
     *,
     db: Session = Depends(get_db),
-    report_id: int,
+    report_id: str,
     report_in: ReportUpdate,
     current_user: User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Update a report
     """
-    report = crud_report.get(db=db, id=report_id)
+    from app.models.report import Report as ReportModel
+    
+    report = db.query(ReportModel).filter(ReportModel.id == report_id).first()
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
-    if report.user_id != current_user.id:
+    if report.created_by_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not enough permissions")
     
-    report = crud_report.update(db=db, db_obj=report, obj_in=report_in)
+    # Update fields
+    if report_in.title is not None:
+        report.title = report_in.title
+    if report_in.description is not None:
+        report.description = report_in.description
+    if report_in.status is not None:
+        report.status = report_in.status
+    if report_in.report_config is not None:
+        report.config = report_in.report_config
+    if report_in.is_public is not None:
+        report.is_public = report_in.is_public
+    
+    db.commit()
+    db.refresh(report)
     return report
 
 
@@ -68,16 +105,18 @@ def update_report(
 def read_report(
     *,
     db: Session = Depends(get_db),
-    report_id: int,
+    report_id: str,
     current_user: User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Get report by ID
     """
-    report = crud_report.get(db=db, id=report_id)
+    from app.models.report import Report as ReportModel
+    
+    report = db.query(ReportModel).filter(ReportModel.id == report_id).first()
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
-    if report.user_id != current_user.id and not report.is_public:
+    if report.created_by_id != current_user.id and not report.is_public:
         raise HTTPException(status_code=403, detail="Not enough permissions")
     return report
 
@@ -86,17 +125,20 @@ def read_report(
 def delete_report(
     *,
     db: Session = Depends(get_db),
-    report_id: int,
+    report_id: str,
     current_user: User = Depends(deps.get_current_user),
 ) -> Any:
     """
     Delete a report
     """
-    report = crud_report.get(db=db, id=report_id)
+    from app.models.report import Report as ReportModel
+    
+    report = db.query(ReportModel).filter(ReportModel.id == report_id).first()
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
-    if report.user_id != current_user.id:
+    if report.created_by_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not enough permissions")
     
-    report = crud_report.remove(db=db, id=report_id)
+    db.delete(report)
+    db.commit()
     return {"message": "Report deleted successfully"}

@@ -1,84 +1,91 @@
 from typing import Any, List
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api import deps
-from app.crud.crud_data_mart import data_mart as crud_data_mart
 from app.database.database import get_db
-from app.models.user import User
-from app.schemas.data_mart import DataMart, DataMartCreate, DataMartUpdate
+from app.auth.idp_guard import get_current_active_user, require_permission
+from app.models import User
+from app.schemas.data_mart import DataMartResponse, DataMartCreate, DataMartUpdate
+from app.services.data_marts.data_mart_service import data_mart_service
 
 router = APIRouter()
 
 
-@router.get("/", response_model=List[DataMart])
+@router.get("/", response_model=List[DataMartResponse])
 def read_data_marts(
     db: Session = Depends(get_db),
     skip: int = 0,
     limit: int = 100,
-    current_user: User = Depends(deps.get_current_user),
+    current_user: User = Depends(get_current_active_user),
+    project_id: str = "default"  # TODO: Get from user context
 ) -> Any:
     """
-    Retrieve data marts for current user
+    Retrieve data marts for current project
     """
-    data_marts = crud_data_mart.get_multi_by_user(
-        db, user_id=current_user.id, skip=skip, limit=limit
+    data_marts = data_mart_service.get_by_project(
+        db, project_id=project_id, skip=skip, limit=limit
     )
     return data_marts
 
 
-@router.post("/", response_model=DataMart)
+@router.post("/", response_model=DataMartResponse)
 def create_data_mart(
     *,
     db: Session = Depends(get_db),
     data_mart_in: DataMartCreate,
-    current_user: User = Depends(deps.get_current_user),
+    current_user: User = Depends(get_current_active_user),
+    project_id: str = "default"  # TODO: Get from user context
 ) -> Any:
     """
     Create new data mart
     """
-    data_mart = crud_data_mart.create_with_user(
-        db=db, obj_in=data_mart_in, user_id=current_user.id
+    data_mart = data_mart_service.create_data_mart(
+        db=db, 
+        data_mart_data=data_mart_in, 
+        created_by_id=str(current_user.id),
+        project_id=project_id
     )
     return data_mart
 
 
-@router.put("/{data_mart_id}", response_model=DataMart)
+@router.put("/{data_mart_id}", response_model=DataMartResponse)
 def update_data_mart(
     *,
     db: Session = Depends(get_db),
-    data_mart_id: int,
+    data_mart_id: str,
     data_mart_in: DataMartUpdate,
-    current_user: User = Depends(deps.get_current_user),
+    current_user: User = Depends(get_current_active_user),
 ) -> Any:
     """
     Update a data mart
     """
-    data_mart = crud_data_mart.get(db=db, id=data_mart_id)
+    data_mart = data_mart_service.update_data_mart(
+        db=db, data_mart_id=data_mart_id, data_mart_data=data_mart_in
+    )
     if not data_mart:
-        raise HTTPException(status_code=404, detail="Data mart not found")
-    if data_mart.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not enough permissions")
-    
-    data_mart = crud_data_mart.update(db=db, db_obj=data_mart, obj_in=data_mart_in)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Data mart not found"
+        )
     return data_mart
 
 
-@router.get("/{data_mart_id}", response_model=DataMart)
+@router.get("/{data_mart_id}", response_model=DataMartResponse)
 def read_data_mart(
     *,
     db: Session = Depends(get_db),
-    data_mart_id: int,
-    current_user: User = Depends(deps.get_current_user),
+    data_mart_id: str,
+    current_user: User = Depends(get_current_active_user),
 ) -> Any:
     """
     Get data mart by ID
     """
-    data_mart = crud_data_mart.get(db=db, id=data_mart_id)
+    data_mart = data_mart_service.get_by_id(db=db, data_mart_id=data_mart_id)
     if not data_mart:
-        raise HTTPException(status_code=404, detail="Data mart not found")
-    if data_mart.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not enough permissions")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Data mart not found"
+        )
     return data_mart
 
 
@@ -86,17 +93,35 @@ def read_data_mart(
 def delete_data_mart(
     *,
     db: Session = Depends(get_db),
-    data_mart_id: int,
-    current_user: User = Depends(deps.get_current_user),
+    data_mart_id: str,
+    current_user: User = Depends(get_current_active_user),
 ) -> Any:
     """
     Delete a data mart
     """
-    data_mart = crud_data_mart.get(db=db, id=data_mart_id)
-    if not data_mart:
-        raise HTTPException(status_code=404, detail="Data mart not found")
-    if data_mart.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not enough permissions")
-    
-    data_mart = crud_data_mart.remove(db=db, id=data_mart_id)
+    success = data_mart_service.delete_data_mart(db=db, data_mart_id=data_mart_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Data mart not found"
+        )
     return {"message": "Data mart deleted successfully"}
+
+
+@router.put("/{data_mart_id}/publish", response_model=DataMartResponse)
+def publish_data_mart(
+    *,
+    db: Session = Depends(get_db),
+    data_mart_id: str,
+    current_user: User = Depends(get_current_active_user),
+) -> Any:
+    """
+    Publish a data mart
+    """
+    data_mart = data_mart_service.publish_data_mart(db=db, data_mart_id=data_mart_id)
+    if not data_mart:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Data mart not found"
+        )
+    return data_mart

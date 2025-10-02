@@ -8,8 +8,6 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from urllib.parse import quote
 import httpx
-from cryptography.fernet import Fernet
-
 from app.core.config import settings
 from app.models.platform_credential import PlatformCredential
 from app.models.data_collection import DataCollection, CollectionStatus
@@ -25,26 +23,7 @@ class LinkedInAdsService:
     MAX_FIELDS_PER_REQUEST = 20
     
     def __init__(self):
-        self.encryption_key = settings.ENCRYPTION_KEY
-        if self.encryption_key:
-            self.fernet = Fernet(self.encryption_key.encode())
-    
-    def encrypt_credentials(self, credentials: Dict[str, Any]) -> str:
-        """Encrypt credentials for secure storage"""
-        if not self.fernet:
-            raise ValueError("Encryption key not configured")
-        
-        credentials_json = json.dumps(credentials)
-        encrypted_data = self.fernet.encrypt(credentials_json.encode())
-        return encrypted_data.decode()
-    
-    def decrypt_credentials(self, encrypted_credentials: str) -> Dict[str, Any]:
-        """Decrypt stored credentials"""
-        if not self.fernet:
-            raise ValueError("Encryption key not configured")
-        
-        decrypted_data = self.fernet.decrypt(encrypted_credentials.encode())
-        return json.loads(decrypted_data.decode())
+        pass
     
     async def validate_credentials(self, credentials: Dict[str, Any]) -> Dict[str, Any]:
         """Validate LinkedIn API credentials"""
@@ -87,50 +66,102 @@ class LinkedInAdsService:
             return {"valid": False, "error": str(e)}
     
     async def get_ad_accounts(self, credentials: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Fetch LinkedIn Ad Accounts - Fixed to match original implementation approach"""
+        """Fetch LinkedIn Ad Accounts - Enhanced with comprehensive logging"""
+        logger.info(f"🚀 [LINKEDIN SERVICE] Starting get_ad_accounts request")
+        
         try:
+            # Log credentials info (secure)
             access_token = credentials.get("access_token")
+            if not access_token:
+                logger.error(f"❌ [LINKEDIN SERVICE] No access token provided in credentials")
+                raise Exception("Access token is required")
             
-            async with httpx.AsyncClient() as client:
+            logger.info(f"🔑 [LINKEDIN SERVICE] Access token present: {access_token[:10]}... (length: {len(access_token)})")
+            
+            # Log other credential info
+            other_keys = [k for k in credentials.keys() if k != "access_token"]
+            logger.info(f"📋 [LINKEDIN SERVICE] Other credential keys: {other_keys}")
+            
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 # Use same headers and auth method as analytics
                 headers = {
                     "LinkedIn-Version": self.API_VERSION,
                     "X-RestLi-Protocol-Version": "2.0.0",
                 }
+                logger.info(f"📤 [LINKEDIN SERVICE] Request headers: {headers}")
                 
                 # Try the correct LinkedIn API endpoint for listing ad accounts
-                # The original JS doesn't list accounts - it fetches by known URN
-                # Let's try the proper LinkedIn Marketing API endpoint
                 base_url = f"{self.BASE_URL}adAccounts?q=search"
                 auth_url = f"{base_url}&oauth2_access_token={access_token}"
                 
-                logger.info(f"LinkedIn Accounts API request: {auth_url}")
-                response = await client.get(auth_url, headers=headers)
-                logger.info(f"LinkedIn Accounts API response: {response.status_code} - {response.text}")
+                # Log URL (without token for security)
+                logger.info(f"🌐 [LINKEDIN SERVICE] Base URL: {base_url}")
+                logger.info(f"🌐 [LINKEDIN SERVICE] Full URL with token: {base_url}&oauth2_access_token={access_token[:10]}...")
                 
-                if response.status_code == 200:
+                logger.info(f"📞 [LINKEDIN SERVICE] Making HTTP GET request to LinkedIn API")
+                response = await client.get(auth_url, headers=headers)
+                
+                # Log response details
+                logger.info(f"📥 [LINKEDIN SERVICE] Response status: {response.status_code}")
+                logger.info(f"📥 [LINKEDIN SERVICE] Response headers: {dict(response.headers)}")
+                logger.info(f"📥 [LINKEDIN SERVICE] Response content length: {len(response.content)} bytes")
+                
+                if response.status_code != 200:
+                    logger.error(f"❌ [LINKEDIN SERVICE] API request failed")
+                    logger.error(f"❌ [LINKEDIN SERVICE] Status: {response.status_code}")
+                    logger.error(f"❌ [LINKEDIN SERVICE] Response text: {response.text}")
+                    logger.error(f"❌ [LINKEDIN SERVICE] Response headers: {dict(response.headers)}")
+                    
+                    # Check for specific error types
+                    if response.status_code == 401:
+                        logger.error(f"🔐 [LINKEDIN SERVICE] Authentication failed - token may be expired or invalid")
+                    elif response.status_code == 403:
+                        logger.error(f"🚫 [LINKEDIN SERVICE] Forbidden - insufficient permissions or scope")
+                    elif response.status_code == 429:
+                        logger.error(f"⏱️ [LINKEDIN SERVICE] Rate limit exceeded")
+                    
+                    raise Exception(f"LinkedIn API request failed: {response.status_code} - {response.text}")
+                
+                # Parse response
+                logger.info(f"✅ [LINKEDIN SERVICE] API request successful, parsing response")
+                try:
                     data = response.json()
-                    accounts = []
+                    logger.info(f"📊 [LINKEDIN SERVICE] Parsed JSON response successfully")
+                except json.JSONDecodeError as e:
+                    logger.error(f"❌ [LINKEDIN SERVICE] Failed to parse JSON response: {str(e)}")
+                    logger.error(f"❌ [LINKEDIN SERVICE] Raw response: {response.text}")
+                    raise Exception(f"Invalid JSON response from LinkedIn API: {str(e)}")
+                
+                # Process response data
+                elements = data.get("elements", [])
+                logger.info(f"📊 [LINKEDIN SERVICE] LinkedIn returned {len(elements)} account elements")
+                
+                if not elements:
+                    logger.warning(f"⚠️ [LINKEDIN SERVICE] No account elements found in response")
+                    logger.info(f"📊 [LINKEDIN SERVICE] Full response data: {data}")
+                
+                accounts = []
+                for i, element in enumerate(elements):
+                    logger.info(f"🔄 [LINKEDIN SERVICE] Processing element {i+1}/{len(elements)}: {element}")
                     
-                    logger.info(f"LinkedIn returned {len(data.get('elements', []))} account elements")
-                    
-                    for element in data.get("elements", []):
-                        # Convert properly to handle integer IDs
-                        accounts.append({
-                            "id": str(element.get("id", "")),  # Convert int to string
-                            "name": element.get("name", ""),
-                            "status": element.get("status", ""),
-                            "currency": element.get("currency"),
-                            "type": element.get("type")
-                        })
-                    
-                    logger.info(f"Processed accounts: {accounts}")
-                    return accounts
-                else:
-                    raise Exception(f"Failed to fetch ad accounts: {response.status_code}")
+                    # Convert properly to handle integer IDs
+                    account = {
+                        "id": str(element.get("id", "")),  # Convert int to string
+                        "name": element.get("name", ""),
+                        "status": element.get("status", ""),
+                        "currency": element.get("currency"),
+                        "type": element.get("type")
+                    }
+                    accounts.append(account)
+                    logger.info(f"✅ [LINKEDIN SERVICE] Processed account: {account}")
+                
+                logger.info(f"🎉 [LINKEDIN SERVICE] Successfully processed {len(accounts)} accounts")
+                logger.info(f"📊 [LINKEDIN SERVICE] Final accounts list: {accounts}")
+                return accounts
                     
         except Exception as e:
-            logger.error(f"Error fetching LinkedIn ad accounts: {str(e)}")
+            logger.error(f"❌ [LINKEDIN SERVICE] Error in get_ad_accounts: {type(e).__name__}: {str(e)}")
+            logger.exception(f"❌ [LINKEDIN SERVICE] Full traceback:")
             raise
     
     async def collect_ad_analytics(
@@ -141,9 +172,19 @@ class LinkedInAdsService:
         end_date: datetime,
         fields: List[str]
     ) -> List[Dict[str, Any]]:
-        """Collect LinkedIn Ads analytics data"""
+        """Collect LinkedIn Ads analytics data - Enhanced with comprehensive logging"""
+        logger.info(f"🚀 [LINKEDIN ANALYTICS] Starting analytics collection")
+        logger.info(f"📅 [LINKEDIN ANALYTICS] Date range: {start_date} to {end_date}")
+        logger.info(f"🎯 [LINKEDIN ANALYTICS] Account URNs: {account_urns}")
+        logger.info(f"📊 [LINKEDIN ANALYTICS] Requested fields: {fields}")
+        
         try:
             access_token = credentials.get("access_token")
+            if not access_token:
+                logger.error(f"❌ [LINKEDIN ANALYTICS] No access token provided")
+                raise Exception("Access token is required")
+                
+            logger.info(f"🔑 [LINKEDIN ANALYTICS] Access token present: {access_token[:10]}...")
             all_results = []
             
             async with httpx.AsyncClient(timeout=60.0) as client:
@@ -152,16 +193,17 @@ class LinkedInAdsService:
                     "LinkedIn-Version": self.API_VERSION,
                     "X-RestLi-Protocol-Version": "2.0.0",
                 }
+                logger.info(f"📤 [LINKEDIN ANALYTICS] Request headers: {headers}")
                 
-                for account_urn in account_urns:
-                    logger.info(f"Processing account: {account_urn}")
+                for account_index, account_urn in enumerate(account_urns):
+                    logger.info(f"🔄 [LINKEDIN ANALYTICS] Processing account {account_index+1}/{len(account_urns)}: {account_urn}")
                     
                     # Prepare field chunks (LinkedIn has field limits)
                     field_chunks = self._prepare_analytics_field_chunks(fields)
-                    logger.info(f"Field chunks: {field_chunks}")
+                    logger.info(f"📋 [LINKEDIN ANALYTICS] Prepared {len(field_chunks)} field chunks: {field_chunks}")
                     
-                    for field_chunk in field_chunks:
-                        logger.info(f"Processing field chunk: {field_chunk}")
+                    for chunk_index, field_chunk in enumerate(field_chunks):
+                        logger.info(f"🔄 [LINKEDIN ANALYTICS] Processing field chunk {chunk_index+1}/{len(field_chunks)}: {field_chunk}")
                         
                         base_url = self._build_analytics_url(
                             account_urn, start_date, end_date, field_chunk
@@ -170,49 +212,73 @@ class LinkedInAdsService:
                         # Add oauth2_access_token as query parameter (like original TypeScript)
                         auth_url = f"{base_url}&oauth2_access_token={access_token}"
                         
-                        # Add debug logging
-                        logger.info(f"Making LinkedIn API request to: {auth_url}")
+                        # Log URL construction
+                        logger.info(f"🌐 [LINKEDIN ANALYTICS] Base URL: {base_url}")
+                        logger.info(f"🌐 [LINKEDIN ANALYTICS] Full URL with token: {base_url}&oauth2_access_token={access_token[:10]}...")
                         
+                        logger.info(f"📞 [LINKEDIN ANALYTICS] Making API request...")
                         response = await client.get(auth_url, headers=headers)
                         
-                        logger.info(f"LinkedIn API Response Status: {response.status_code}")
-                        logger.info(f"LinkedIn API Response Headers: {dict(response.headers)}")
+                        logger.info(f"📥 [LINKEDIN ANALYTICS] Response status: {response.status_code}")
+                        logger.info(f"📥 [LINKEDIN ANALYTICS] Response headers: {dict(response.headers)}")
+                        logger.info(f"📥 [LINKEDIN ANALYTICS] Response size: {len(response.content)} bytes")
                         
                         if response.status_code == 200:
-                            data = response.json()
-                            elements = data.get("elements", [])
-                            logger.info(f"LinkedIn API returned {len(elements)} elements")
-                            logger.info(f"Sample data: {elements[:2] if elements else 'No elements'}")
-                            
-                            # Merge results from different field chunks
-                            all_results = self._merge_analytics_results(all_results, elements)
+                            try:
+                                data = response.json()
+                                elements = data.get("elements", [])
+                                logger.info(f"✅ [LINKEDIN ANALYTICS] Successfully parsed {len(elements)} elements")
+                                logger.info(f"📊 [LINKEDIN ANALYTICS] Sample data: {elements[:1] if elements else 'No elements'}")
+                                
+                                # Merge results from different field chunks
+                                previous_count = len(all_results)
+                                all_results = self._merge_analytics_results(all_results, elements)
+                                new_count = len(all_results)
+                                logger.info(f"🔄 [LINKEDIN ANALYTICS] Merged results: {previous_count} -> {new_count} (+{new_count - previous_count})")
+                                
+                            except json.JSONDecodeError as e:
+                                logger.error(f"❌ [LINKEDIN ANALYTICS] Failed to parse JSON response: {str(e)}")
+                                logger.error(f"❌ [LINKEDIN ANALYTICS] Raw response: {response.text[:500]}...")
+                                raise Exception(f"Invalid JSON response: {str(e)}")
+                                
                         else:
-                            logger.error(f"LinkedIn API error: {response.status_code}")
-                            logger.error(f"LinkedIn API response: {response.text}")
+                            logger.error(f"❌ [LINKEDIN ANALYTICS] API request failed")
+                            logger.error(f"❌ [LINKEDIN ANALYTICS] Status: {response.status_code}")
+                            logger.error(f"❌ [LINKEDIN ANALYTICS] Response: {response.text}")
                             
-                            # Don't raise exception, continue with other accounts
+                            # Check for specific error types with enhanced logging
                             if response.status_code == 400:
-                                logger.warning(f"Bad request for account {account_urn}, skipping...")
+                                logger.warning(f"⚠️ [LINKEDIN ANALYTICS] Bad request for account {account_urn}")
+                                logger.warning(f"⚠️ [LINKEDIN ANALYTICS] This might be due to invalid account URN or field combination")
                                 continue
                             elif response.status_code == 401:
-                                logger.error("Authentication failed - check access token")
+                                logger.error(f"🔐 [LINKEDIN ANALYTICS] Authentication failed - token expired or invalid")
                                 raise Exception("Authentication failed - invalid access token")
                             elif response.status_code == 403:
-                                logger.warning(f"Forbidden access to account {account_urn}, skipping...")
+                                logger.warning(f"🚫 [LINKEDIN ANALYTICS] Forbidden access to account {account_urn}")
+                                logger.warning(f"🚫 [LINKEDIN ANALYTICS] User may not have access to this account")
                                 continue
+                            elif response.status_code == 429:
+                                logger.error(f"⏱️ [LINKEDIN ANALYTICS] Rate limit exceeded")
+                                raise Exception("LinkedIn API rate limit exceeded")
                             else:
                                 raise Exception(f"API request failed: {response.status_code} - {response.text}")
             
-            logger.info(f"Total results before transformation: {len(all_results)}")
+            logger.info(f"📊 [LINKEDIN ANALYTICS] Total raw results collected: {len(all_results)}")
             
             # Transform date ranges
+            logger.info(f"🔄 [LINKEDIN ANALYTICS] Transforming date ranges...")
             transformed_results = self._transform_analytics_date_ranges(all_results)
-            logger.info(f"Final results count: {len(transformed_results)}")
+            logger.info(f"✅ [LINKEDIN ANALYTICS] Transformation complete: {len(transformed_results)} final results")
+            
+            if transformed_results:
+                logger.info(f"📊 [LINKEDIN ANALYTICS] Sample transformed result: {transformed_results[0]}")
             
             return transformed_results
             
         except Exception as e:
-            logger.error(f"Error collecting LinkedIn analytics: {str(e)}")
+            logger.error(f"❌ [LINKEDIN ANALYTICS] Error in collect_ad_analytics: {type(e).__name__}: {str(e)}")
+            logger.exception(f"❌ [LINKEDIN ANALYTICS] Full traceback:")
             raise
     
     def _prepare_analytics_field_chunks(self, fields: List[str]) -> List[List[str]]:

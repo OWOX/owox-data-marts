@@ -7,13 +7,17 @@ import { platformCredentialsApi } from '@/lib/api/platform-credentials'
 import { getPlatformInfo } from '@/lib/platforms'
 import { 
   PlusIcon, 
-  KeyIcon, 
+  LockClosedIcon, 
   CheckCircleIcon, 
   ExclamationTriangleIcon,
   TrashIcon,
   PencilIcon
 } from '@heroicons/react/24/outline'
+
 import toast from 'react-hot-toast'
+
+// Use correct icon name
+const KeyIcon = LockClosedIcon
 
 export default function CredentialsPage() {
   const [deletingId, setDeletingId] = useState<number | null>(null)
@@ -85,63 +89,71 @@ export default function CredentialsPage() {
           {credentials.map((credential) => {
             const platformInfo = getPlatformInfo(credential.platform_name)
             return (
-              <div key={credential.id} className="card">
-                <div className="card-body">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="text-2xl">{platformInfo?.icon || '🔗'}</div>
-                      <div>
-                        <h3 className="text-lg font-medium text-gray-900">
-                          {credential.platform_display_name}
-                        </h3>
-                        <p className="text-sm text-gray-500">{credential.account_name}</p>
+              <div key={credential.id} className="card hover:shadow-md transition-shadow">
+                <Link href={`/dashboard/credentials/${credential.id}`}>
+                  <div className="card-body cursor-pointer">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="text-2xl">{platformInfo?.icon || '🔗'}</div>
+                        <div>
+                          <h3 className="text-lg font-medium text-gray-900">
+                            {credential.platform_display_name}
+                          </h3>
+                          <p className="text-sm text-gray-500">{credential.account_name}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        {credential.is_valid ? (
+                          <CheckCircleIcon className="h-5 w-5 text-green-500" title="Valid" />
+                        ) : (
+                          <ExclamationTriangleIcon className="h-5 w-5 text-red-500" title="Invalid" />
+                        )}
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      {credential.is_valid ? (
-                        <CheckCircleIcon className="h-5 w-5 text-green-500" title="Valid" />
-                      ) : (
-                        <ExclamationTriangleIcon className="h-5 w-5 text-red-500" title="Invalid" />
+                    
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-500">Status:</span>
+                        <span className={`font-medium ${
+                          credential.is_active ? 'text-green-600' : 'text-gray-500'
+                        }`}>
+                          {credential.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                      
+                      {credential.last_validated_at && (
+                        <div className="flex items-center justify-between text-sm mt-1">
+                          <span className="text-gray-500">Last validated:</span>
+                          <span className="text-gray-600">
+                            {new Date(credential.last_validated_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {credential.validation_error && (
+                        <div className="mt-2 p-2 bg-red-50 rounded-md">
+                          <p className="text-xs text-red-600">{credential.validation_error}</p>
+                        </div>
                       )}
                     </div>
                   </div>
-                  
-                  <div className="mt-4">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-500">Status:</span>
-                      <span className={`font-medium ${
-                        credential.is_active ? 'text-green-600' : 'text-gray-500'
-                      }`}>
-                        {credential.is_active ? 'Active' : 'Inactive'}
-                      </span>
-                    </div>
-                    
-                    {credential.last_validated_at && (
-                      <div className="flex items-center justify-between text-sm mt-1">
-                        <span className="text-gray-500">Last validated:</span>
-                        <span className="text-gray-600">
-                          {new Date(credential.last_validated_at).toLocaleDateString()}
-                        </span>
-                      </div>
-                    )}
-                    
-                    {credential.validation_error && (
-                      <div className="mt-2 p-2 bg-red-50 rounded-md">
-                        <p className="text-xs text-red-600">{credential.validation_error}</p>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="mt-6 flex justify-between">
+                </Link>
+                
+                <div className="card-body pt-0">
+                  <div className="flex justify-between">
                     <Link 
                       href={`/dashboard/credentials/${credential.id}/edit`}
                       className="btn-outline text-sm"
+                      onClick={(e) => e.stopPropagation()}
                     >
                       <PencilIcon className="mr-1 h-4 w-4" />
                       Edit
                     </Link>
                     <button
-                      onClick={() => handleDelete(credential.id)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDelete(credential.id)
+                      }}
                       disabled={deletingId === credential.id}
                       className="btn-outline text-sm text-red-600 border-red-300 hover:bg-red-50"
                     >

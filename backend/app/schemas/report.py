@@ -1,5 +1,5 @@
 from typing import Optional, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, UUID4
 from datetime import datetime
 from app.models.report import ReportStatus, ReportType
 
@@ -12,7 +12,7 @@ class ReportBase(BaseModel):
 
 
 class ReportCreate(ReportBase):
-    data_mart_id: int
+    data_mart_id: UUID4
     report_config: Optional[Dict[str, Any]] = None
 
 
@@ -25,13 +25,15 @@ class ReportUpdate(BaseModel):
 
 
 class Report(ReportBase):
-    id: int
-    user_id: int
-    data_mart_id: int
+    id: UUID4
+    created_by_id: UUID4
+    data_mart_id: UUID4
     status: ReportStatus
-    report_config: Optional[Dict[str, Any]]
+    project_id: str
+    config: Optional[Dict[str, Any]]
+    query: Optional[str]
     share_token: Optional[str]
-    view_count: int
+    view_count: str
     last_viewed_at: Optional[datetime]
     created_at: datetime
     updated_at: Optional[datetime]

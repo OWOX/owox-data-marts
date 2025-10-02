@@ -8,6 +8,9 @@ from app.crud.base import CRUDBase
 from app.models.platform_credential import PlatformCredential
 from app.schemas.platform_credential import PlatformCredentialCreate, PlatformCredentialUpdate
 
+import logging
+
+logger = logging  # use logging module global methods for now.
 
 class CRUDPlatformCredential(CRUDBase[PlatformCredential, PlatformCredentialCreate, PlatformCredentialUpdate]):
     
@@ -37,8 +40,20 @@ class CRUDPlatformCredential(CRUDBase[PlatformCredential, PlatformCredentialCrea
     def create_with_user(
         self, db: Session, *, obj_in: PlatformCredentialCreate, user_id: int
     ) -> PlatformCredential:
-        encrypted_creds = self._encrypt_credentials(obj_in.credentials)
+
+
         
+        logger.info("------- Temporary checks  --------")
+        logger.info(f"obj_in.credentials: {obj_in.credentials}")
+
+        logger.info("------- Encryption process  --------")
+        encrypted_creds = self._encrypt_credentials(obj_in.credentials)
+        logger.info(f"Encrypted credentials: {encrypted_creds}")
+        logger.info(f"Decrypted credentials: {self._decrypt_credentials(encrypted_creds)}")
+
+        logger.info("---------------------------------------------")
+        logger.info("------- PlatformCredential creation  --------")
+        logger.info("---------------------------------------------")
         db_obj = PlatformCredential(
             user_id=user_id,
             platform_name=obj_in.platform_name,

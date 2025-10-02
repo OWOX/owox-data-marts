@@ -21,6 +21,7 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
             hashed_password=get_password_hash(obj_in.password),
             is_active=obj_in.is_active,
             avatar_url=obj_in.avatar_url,
+            project_id="default",  # Default project for now
         )
         db.add(db_obj)
         db.commit()

@@ -49,40 +49,46 @@ export interface BigQueryTableRequest {
   platform_credential_id: number
   dataset_id: string
   table_id: string
-  schema: { name: string; type: string }[]
 }
 
 // LinkedIn API
 export const linkedInApi = {
   async createCredentials(data: {
-    platform_display_name: string
-    credentials: { access_token: string }
-    account_name?: string
+    credentials: { 
+      access_token: string;
+      client_id: string;
+      client_secret: string;
+    }
+    account_name?: string;
+    display_name?: string;
   }): Promise<PlatformCredential> {
+    console.log('🚀 [LINKEDIN API] Creating credentials via platforms.ts')
     return apiRequest('/platforms/linkedin/credentials', {
       method: 'POST',
       body: JSON.stringify({
         platform_name: 'linkedin',
-        ...data,
+        platform_display_name: data.display_name || data.account_name || 'LinkedIn Account',
+        credentials: data.credentials,
+        account_name: data.account_name
       }),
     })
   },
 
   async getAccounts(credentialId: number): Promise<LinkedInAccount[]> {
+    console.log('🔍 [LINKEDIN API] Getting accounts for credential:', credentialId)
     return apiRequest(`/platforms/linkedin/credentials/${credentialId}/accounts`)
   },
 
   async collectData(request: DataCollectionRequest): Promise<{
-    status: string
+    message: string
     records_collected: number
-    data: any[]
   }> {
+    console.log('📊 [LINKEDIN API] Collecting data with request:', request)
     return apiRequest('/platforms/linkedin/collect-data', {
       method: 'POST',
       body: JSON.stringify(request),
     })
   },
-
   async getFields(): Promise<{ fields: string[]; field_count: number }> {
     return apiRequest('/platforms/linkedin/fields')
   }

@@ -4,12 +4,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
-from app.core import security
 from app.core.config import settings
+from app.database.database import get_db
+from app.auth.idp_provider import idp_provider
+from app.auth.idp_guard import get_current_active_user
+from app.schemas.auth import Token, UserLogin, UserRegister, UserResponse, ChangePassword
+from app.schemas.user import UserCreate, User
+from app.models import User as UserModel
 from app.crud.crud_user import user as crud_user
-from app.database.base import get_db
-from app.schemas.token import Token
-from app.schemas.user import User, UserCreate
 
 router = APIRouter()
 
@@ -22,7 +24,7 @@ def login_for_access_token(
     """
     OAuth2 compatible token login, get an access token for future requests
     """
-    user = crud_user.authenticate(
+    user = idp_provider.authenticate_user(
         db, email=form_data.username, password=form_data.password
     )
     if not user:
@@ -38,13 +40,15 @@ def login_for_access_token(
         )
     
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = security.create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
+    access_token = idp_provider.create_access_token(
+        data={"sub": str(user.id)}, expires_delta=access_token_expires
     )
     
     return {
         "access_token": access_token,
         "token_type": "bearer",
+        "expires_in": int(access_token_expires.total_seconds()),
+        "user_id": str(user.id)
     }
 
 

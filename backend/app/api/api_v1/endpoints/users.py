@@ -1,6 +1,9 @@
 from typing import Any, List
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
 from sqlalchemy.orm import Session
+import shutil
+import os
+from pathlib import Path
 
 from app.api import deps
 from app.crud.crud_user import user as crud_user
@@ -82,3 +85,38 @@ def create_user(
         )
     user = crud_user.create(db, obj_in=user_in)
     return user
+
+
+@router.post("/me/avatar")
+async def upload_avatar(
+    *,
+    db: Session = Depends(get_db),
+    file: UploadFile = File(...),
+    current_user: UserModel = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Upload avatar for current user
+    """
+    # Validate file type
+    if not file.content_type.startswith('image/'):
+        raise HTTPException(status_code=400, detail="File must be an image")
+    
+    # Create uploads directory if it doesn't exist
+    upload_dir = Path("/app/uploads/avatars")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Generate filename
+    file_extension = os.path.splitext(file.filename)[1]
+    filename = f"{current_user.id}{file_extension}"
+    file_path = upload_dir / filename
+    
+    # Save file
+    with file_path.open("wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    # Update user avatar_url in database
+    avatar_url = f"/uploads/avatars/{filename}"
+    current_user.avatar_url = avatar_url
+    db.commit()
+    
+    return {"avatar_url": avatar_url, "message": "Avatar uploaded successfully"}

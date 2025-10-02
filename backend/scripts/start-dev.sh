@@ -9,9 +9,9 @@ while ! nc -z postgres 5432; do
 done
 echo "Database is ready!"
 
-# Initialize database tables using Python script
+# Initialize database tables using direct creation (bypass Alembic for now)
 echo "Initializing database tables..."
-python scripts/init_db.py
+python scripts/create_tables_direct.py
 
 echo "Starting FastAPI server..."
 # Start the FastAPI server

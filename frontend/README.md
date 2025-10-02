@@ -1,6 +1,6 @@
-# OWOX Data Marts - Next.js Frontend
+# Connector Data Marts - Next.js Frontend
 
-A modern Next.js frontend for the OWOX Data Marts platform, providing an intuitive interface for managing platform credentials and data collection.
+A modern Next.js frontend for the Connector Data Marts platform, providing an intuitive interface for managing platform credentials and data collection.
 
 ## Features
 

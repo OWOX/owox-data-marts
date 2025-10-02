@@ -1,14 +1,16 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON, Enum
+from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, ForeignKey, Enum
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.database.base import Base
 import enum
+import uuid
 
 
 class CollectionStatus(str, enum.Enum):
     PENDING = "pending"
     RUNNING = "running"
-    COMPLETED = "completed"
+    SUCCESS = "success"
     FAILED = "failed"
     CANCELLED = "cancelled"
 
@@ -16,15 +18,16 @@ class CollectionStatus(str, enum.Enum):
 class DataCollection(Base):
     __tablename__ = "data_collections"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    data_mart_id = Column(Integer, ForeignKey("data_marts.id"), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    
+    # User and data mart references
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    data_mart_id = Column(UUID(as_uuid=True), ForeignKey("data_marts.id"), nullable=False)
     platform_credential_id = Column(Integer, ForeignKey("platform_credentials.id"), nullable=True)
     
     # Collection details
     collection_name = Column(String(255), nullable=False)
     status = Column(Enum(CollectionStatus), default=CollectionStatus.PENDING)
-    
     # Progress tracking
     total_records = Column(Integer, nullable=True)
     processed_records = Column(Integer, default=0)

@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.database.base import Base
@@ -8,7 +9,7 @@ class PlatformCredential(Base):
     __tablename__ = "platform_credentials"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     platform_name = Column(String(100), nullable=False)  # facebook, linkedin, tiktok, etc.
     platform_display_name = Column(String(200), nullable=False)
     

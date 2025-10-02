@@ -22,3 +22,4 @@ google-api-python-client==2.108.0
 requests==2.31.0
 aiofiles==23.2.0
 python-dateutil==2.8.2
+pandas==2.1.3

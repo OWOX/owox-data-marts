@@ -2,7 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from 'react-query'
 import { useState } from 'react'
-import { AuthProvider } from '@/lib/auth/AuthContext'
+import { AuthProvider } from '@/contexts/AuthContext'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({

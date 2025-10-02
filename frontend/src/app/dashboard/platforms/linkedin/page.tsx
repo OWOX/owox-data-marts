@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
+import { ApiClient } from '@/lib/api'
 import { PlusIcon, TrashIcon, PlayIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
@@ -37,47 +38,52 @@ export default function LinkedInPage() {
 
   const fetchCredentials = async () => {
     try {
-      const response = await fetch('/api/platform-credentials?platform=linkedin')
-      if (response.ok) {
-        const data = await response.json()
-        setCredentials(data)
-      }
-    } catch (error) {
-      console.error('Error fetching credentials:', error)
+      console.log('🔍 [LINKEDIN FRONTEND] Fetching credentials...')
+      const data = await ApiClient.get('/platform-credentials?platform=linkedin')
+      console.log('✅ [LINKEDIN FRONTEND] Credentials loaded:', data.length)
+      setCredentials(data)
+    } catch (error: any) {
+      console.error('❌ [LINKEDIN FRONTEND] Error fetching credentials:', error)
+      toast.error('Failed to fetch LinkedIn credentials')
     }
   }
 
   const handleAddCredential = async (data: any) => {
     setLoading(true)
     try {
-      const response = await fetch('/api/platforms/linkedin/credentials', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          platform_name: 'linkedin',
-          platform_display_name: data.display_name,
-          credentials: {
-            access_token: data.access_token
-          },
-          account_name: data.account_name
-        })
+      console.log('🚀 [LINKEDIN FRONTEND] Creating credential with data:', {
+        display_name: data.display_name,
+        account_name: data.account_name,
+        access_token_preview: data.access_token?.substring(0, 10) + '...',
+        client_id: data.client_id,
+        client_secret_preview: data.client_secret?.substring(0, 10) + '...'
       })
-
-      if (response.ok) {
-        const newCredential = await response.json()
-        setCredentials([...credentials, newCredential])
-        setShowAddCredential(false)
-        reset()
-        toast.success('LinkedIn credentials added successfully!')
-      } else {
-        const error = await response.json()
-        toast.error(`Failed to add credentials: ${error.detail}`)
+      
+      const credentialData = {
+        platform_name: 'linkedin',
+        platform_display_name: data.display_name,
+        credentials: {
+          access_token: data.access_token,
+          client_id: data.client_id,
+          client_secret: data.client_secret
+        },
+        account_name: data.account_name
       }
-    } catch (error) {
-      toast.error('Error adding LinkedIn credentials')
+      
+      console.log('📤 [LINKEDIN FRONTEND] Sending credential data:', credentialData)
+      
+      const newCredential = await ApiClient.post('/platforms/linkedin/credentials', credentialData)
+      
+      console.log('✅ [LINKEDIN FRONTEND] Credential created successfully:', newCredential)
+      setCredentials([...credentials, newCredential])
+      setShowAddCredential(false)
+      reset()
+      toast.success('LinkedIn credentials added successfully!')
+      
+    } catch (error: any) {
+      console.error('❌ [LINKEDIN FRONTEND] Error creating credential:', error)
+      const errorMessage = error.response?.data?.detail || error.message || 'Unknown error'
+      toast.error(`Failed to add credentials: ${errorMessage}`)
     } finally {
       setLoading(false)
     }
@@ -86,21 +92,19 @@ export default function LinkedInPage() {
   const fetchAccounts = async (credentialId: number) => {
     setLoading(true)
     try {
-      const response = await fetch(`/api/platforms/linkedin/credentials/${credentialId}/accounts`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setAccounts(data)
-        setSelectedCredential(credentialId)
-      } else {
-        toast.error('Failed to fetch LinkedIn accounts')
-      }
-    } catch (error) {
-      toast.error('Error fetching accounts')
+      console.log('🔍 [LINKEDIN FRONTEND] Fetching accounts for credential:', credentialId)
+      
+      const data = await ApiClient.get(`/platforms/linkedin/credentials/${credentialId}/accounts`)
+      
+      console.log('✅ [LINKEDIN FRONTEND] Accounts loaded:', data)
+      setAccounts(data)
+      setSelectedCredential(credentialId)
+      toast.success(`Found ${data.length} LinkedIn accounts`)
+      
+    } catch (error: any) {
+      console.error('❌ [LINKEDIN FRONTEND] Error fetching accounts:', error)
+      const errorMessage = error.response?.data?.detail || error.message || 'Unknown error'
+      toast.error(`Failed to fetch accounts: ${errorMessage}`)
     } finally {
       setLoading(false)
     }
@@ -109,30 +113,25 @@ export default function LinkedInPage() {
   const startDataCollection = async (accountId: string) => {
     setLoading(true)
     try {
-      const response = await fetch('/api/platforms/linkedin/collect-data', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          platform_credential_id: selectedCredential,
-          account_urns: [`urn:li:sponsoredAccount:${accountId}`],
-          start_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
-          end_date: new Date(),
-          fields: ['impressions', 'clicks', 'costInUsd', 'dateRange', 'pivotValues']
-        })
-      })
-
-      if (response.ok) {
-        const result = await response.json()
-        toast.success(`Data collection started! ${result.records_collected} records collected.`)
-      } else {
-        const error = await response.json()
-        toast.error(`Failed to collect data: ${error.detail}`)
+      console.log('🚀 [LINKEDIN FRONTEND] Starting data collection for account:', accountId)
+      const collectionData = {
+        platform_credential_id: selectedCredential,
+        account_urns: [`urn:li:sponsoredAccount:${accountId}`],
+        start_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        end_date: new Date().toISOString().split('T')[0],
+        fields: ['impressions', 'clicks', 'costInUsd', 'dateRange', 'pivotValues']
       }
-    } catch (error) {
-      toast.error('Error starting data collection')
+      console.log('📊 [LINKEDIN FRONTEND] Collection parameters:', collectionData)
+      
+      const result = await ApiClient.post('/platforms/linkedin/collect-data', collectionData)
+      
+      console.log('✅ [LINKEDIN FRONTEND] Data collection result:', result)
+      toast.success(`Data collection started! ${result.records_collected || 'N/A'} records collected.`)
+      
+    } catch (error: any) {
+      console.error('❌ [LINKEDIN FRONTEND] Error in data collection:', error)
+      const errorMessage = error.response?.data?.detail || error.message || 'Unknown error'
+      toast.error(`Failed to collect data: ${errorMessage}`)
     } finally {
       setLoading(false)
     }
@@ -162,7 +161,13 @@ export default function LinkedInPage() {
       {/* Add Credential Form */}
       {showAddCredential && (
         <div className="bg-white shadow rounded-lg p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Add LinkedIn Account</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Add LinkedIn Account</h3>
+          <p className="text-sm text-gray-600 mb-6">
+            You need to create a LinkedIn Developer App and get your credentials. 
+            <a href="https://www.linkedin.com/developers/apps" target="_blank" className="text-primary-600 hover:text-primary-500 ml-1">
+              Learn more →
+            </a>
+          </p>
           <form onSubmit={handleSubmit(handleAddCredential)} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Display Name</label>
@@ -178,7 +183,7 @@ export default function LinkedInPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Access Token</label>
+              <label className="block text-sm font-medium text-gray-700">Access Token *</label>
               <input
                 type="password"
                 {...register('access_token', { required: 'Access token is required' })}
@@ -187,6 +192,32 @@ export default function LinkedInPage() {
               />
               {errors.access_token && (
                 <p className="mt-1 text-sm text-red-600">{errors.access_token.message as string}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Client ID *</label>
+              <input
+                type="text"
+                {...register('client_id', { required: 'Client ID is required' })}
+                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                placeholder="LinkedIn App Client ID"
+              />
+              {errors.client_id && (
+                <p className="mt-1 text-sm text-red-600">{errors.client_id.message as string}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Client Secret *</label>
+              <input
+                type="password"
+                {...register('client_secret', { required: 'Client secret is required' })}
+                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                placeholder="LinkedIn App Client Secret"
+              />
+              {errors.client_secret && (
+                <p className="mt-1 text-sm text-red-600">{errors.client_secret.message as string}</p>
               )}
             </div>
 

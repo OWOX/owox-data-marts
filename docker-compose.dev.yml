@@ -1,0 +1,171 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: owox-postgres-dev
+    environment:
+      POSTGRES_DB: owox_data_marts
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST_AUTH_METHOD: trust  # Allow connections without password for development
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - owox-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d owox_data_marts"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for Celery and Caching
+  redis:
+    image: redis:7-alpine
+    container_name: owox-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - owox-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Backend (Development)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: owox-backend-dev
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/owox_data_marts
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - ENVIRONMENT=development
+      - PYTHONPATH=/app
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - backend_cache:/app/__pycache__
+      - csv_exports:/app/exports
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - owox-network
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        python -c 'import time; time.sleep(10)' &&
+        echo 'Running Alembic migrations...' &&
+        alembic upgrade head &&
+        echo 'Starting FastAPI server...' &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Celery Worker (Development)
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: owox-celery-worker-dev
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/owox_data_marts
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - ENVIRONMENT=development
+      - PYTHONPATH=/app
+    volumes:
+      - ./backend:/app
+      - backend_cache:/app/__pycache__
+      - csv_exports:/app/exports
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - owox-network
+    command: >
+      sh -c "
+        echo 'Waiting for backend to be ready...' &&
+        python -c 'import time; time.sleep(20)' &&
+        echo 'Starting Celery worker...' &&
+        celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
+      "
+
+  # Celery Beat (Scheduler) - Development
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: owox-celery-beat-dev
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/owox_data_marts
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - ENVIRONMENT=development
+      - PYTHONPATH=/app
+    volumes:
+      - ./backend:/app
+      - backend_cache:/app/__pycache__
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - owox-network
+    command: >
+      sh -c "
+        echo 'Waiting for backend to be ready...' &&
+        python -c 'import time; time.sleep(25)' &&
+        echo 'Starting Celery beat...' &&
+        celery -A app.tasks.celery_app beat --loglevel=info
+      "
+
+  # Next.js Frontend (Development)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: owox-frontend-dev
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+      - NODE_ENV=development
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+      - frontend_next:/app/.next
+    depends_on:
+      - backend
+    networks:
+      - owox-network
+    command: npm run dev
+
+volumes:
+  postgres_data:
+  redis_data:
+  backend_cache:
+  csv_exports:
+  frontend_node_modules:
+  frontend_next:
+
+networks:
+  owox-network:
+    driver: bridge

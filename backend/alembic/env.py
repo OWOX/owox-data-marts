@@ -8,7 +8,7 @@ import sys
 # Add the app directory to the Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from app.database.database import Base
+from app.database.base import Base
 from app.models import *  # Import all models
 from app.core.config import settings
 

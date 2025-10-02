@@ -1,10 +1,35 @@
 'use client'
 
-import { useAuth } from '@/lib/auth/AuthContext'
+import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import { DashboardSidebar } from '@/components/dashboard/DashboardSidebar'
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader'
+import { SidebarProvider, useSidebar } from '@/contexts/SidebarContext'
+import { clsx } from 'clsx'
+
+function DashboardContent({ children }: { children: React.ReactNode }) {
+  const { isCollapsed } = useSidebar()
+  
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <DashboardSidebar />
+      <div 
+        className={clsx(
+          'transition-all duration-300',
+          isCollapsed ? 'pl-16' : 'pl-64'
+        )}
+      >
+        <DashboardHeader />
+        <main className="py-6">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            {children}
+          </div>
+        </main>
+      </div>
+    </div>
+  )
+}
 
 export default function DashboardLayout({
   children,
@@ -33,16 +58,8 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <DashboardSidebar />
-      <div className="pl-64">
-        <DashboardHeader />
-        <main className="py-6">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            {children}
-          </div>
-        </main>
-      </div>
-    </div>
+    <SidebarProvider>
+      <DashboardContent>{children}</DashboardContent>
+    </SidebarProvider>
   )
 }

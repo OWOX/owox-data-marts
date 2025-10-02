@@ -9,7 +9,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-gray-900">OWOX Data Marts</h1>
+              <h1 className="text-2xl font-bold text-gray-900">Connector Data Marts</h1>
             </div>
             <div className="flex items-center space-x-4">
               <Link href="/login" className="text-gray-500 hover:text-gray-700">
@@ -104,7 +104,7 @@ export default function HomePage() {
       <footer className="bg-white border-t border-gray-200 mt-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center text-gray-500">
-            <p>&copy; 2024 OWOX Data Marts. All rights reserved.</p>
+            <p>&copy; 2024 Connector Data Marts. All rights reserved.</p>
           </div>
         </div>
       </footer>

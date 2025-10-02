@@ -6,7 +6,7 @@ import { Toaster } from 'react-hot-toast'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
-  title: 'OWOX Data Marts',
+  title: 'Connector Data Marts',
   description: 'Self-Service Analytics Platform',
 }
 
