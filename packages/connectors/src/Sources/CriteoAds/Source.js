@@ -30,7 +30,8 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
       AccessToken: {
         requiredType: "string",
         label: "Access Token",
-        description: "Criteo API Access Token for authentication"
+        description: "Criteo API Access Token for authentication",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       ReimportLookbackWindow: {
         requiredType: "number",
@@ -54,7 +55,8 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
         isRequired: true,
         requiredType: "string",
         label: "Client Secret",
-        description: "Your Criteo API Client Secret"
+        description: "Your Criteo API Client Secret",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       MaxFetchingDays: {
         requiredType: "number",

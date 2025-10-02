@@ -17,7 +17,8 @@ constructor(config) {
         requiredType: "string",
         label: "App ID",
         description: "OpenExchangeRates API App ID",
-        errorMessage: "You need to add App Id first. Go to Google Sheets Menu ⟩ OWOX ⟩ 🔑 Manage Credentials'"
+        errorMessage: "You need to add App Id first. Go to Google Sheets Menu ⟩ OWOX ⟩ 🔑 Manage Credentials'",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       StartDate: {
         requiredType: "date",

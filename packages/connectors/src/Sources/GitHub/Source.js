@@ -13,7 +13,8 @@ var GitHubSource = class GitHubSource extends AbstractSource {
       AccessToken: {
         isRequired: true,
         label: "Access Token",
-        description: "GitHub API Access Token for authentication"
+        description: "GitHub API Access Token for authentication",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       RepositoryName: {
         isRequired: true,

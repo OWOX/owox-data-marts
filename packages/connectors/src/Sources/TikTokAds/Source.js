@@ -13,7 +13,8 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
         isRequired: true,
         requiredType: "string",
         label: "Access Token",
-        description: "TikTok Ads API Access Token for authentication"
+        description: "TikTok Ads API Access Token for authentication",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       AppId: {
         requiredType: "string",
@@ -25,7 +26,8 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
         requiredType: "string",
         isRequired: true,
         label: "App Secret",
-        description: "TikTok Ads API Application Secret"
+        description: "TikTok Ads API Application Secret",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       AdvertiserIDs: {
         isRequired: true,
