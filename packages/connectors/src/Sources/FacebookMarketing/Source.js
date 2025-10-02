@@ -41,8 +41,8 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
           description: "List of fields to fetch from Facebook API"
         },
         ProcessShortLinks: {
-          requiredType: "string",
-          default: "true",
+          requiredType: "boolean",
+          default: true,
           label: "Process Short Links",
           description: "Enable automatic processing of short links in link_url_asset field"
         },
@@ -259,7 +259,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       const allData = results.length === 1 ? results[0].data : this._mergeInsightsResults(results);
       
       // Process short links if link_url_asset data is present
-      if (this.config.ProcessShortLinks.value === "true" && allData.length > 0 && allData.some(record => record.link_url_asset)) {
+      if (this.config.ProcessShortLinks.value && allData.length > 0 && allData.some(record => record.link_url_asset)) {
         return processShortLinks(allData, { 
           shortLinkField: 'link_url_asset',
           urlFieldName: 'website_url'
