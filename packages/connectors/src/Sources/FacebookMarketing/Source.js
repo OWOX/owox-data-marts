@@ -41,7 +41,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
           description: "List of fields to fetch from Facebook API"
         },
         ProcessShortLinks: {
-          requiredType: "string", // TODO: Change to boolean type
+          requiredType: "string",
           default: "true",
           label: "Process Short Links",
           description: "Enable automatic processing of short links in link_url_asset field"
