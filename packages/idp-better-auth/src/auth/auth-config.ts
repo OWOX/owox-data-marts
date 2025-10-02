@@ -16,13 +16,33 @@ export async function createBetterAuthConfig(
   plugins.push(
     magicLink({
       sendMagicLink: async ({ email, token, url }) => {
-        (
-          global as unknown as {
-            lastMagicLink: string;
-            lastEmail: string;
-            lastToken: string;
+        try {
+          const original = new URL(url);
+          const tokenParam = original.searchParams.get('token') || token;
+          const callbackParam = original.searchParams.get('callbackURL') || '';
+          const preConfirmPage = new URL(original.origin);
+          preConfirmPage.pathname = '/auth/magic-link';
+          preConfirmPage.searchParams.set('token', tokenParam);
+          if (callbackParam) {
+            preConfirmPage.searchParams.set('callbackURL', callbackParam);
           }
-        ).lastMagicLink = url;
+
+          (
+            global as unknown as {
+              lastMagicLink: string;
+              lastEmail: string;
+              lastToken: string;
+            }
+          ).lastMagicLink = preConfirmPage.toString();
+        } catch {
+          (
+            global as unknown as {
+              lastMagicLink: string;
+              lastEmail: string;
+              lastToken: string;
+            }
+          ).lastMagicLink = url;
+        }
         (
           global as unknown as {
             lastMagicLink: string;
@@ -38,7 +58,7 @@ export async function createBetterAuthConfig(
           }
         ).lastToken = token;
       },
-      expiresIn: 3600, // 1 hour
+      expiresIn: config.magicLinkTll || 3600, // 1 hour
       disableSignUp: false,
     })
   );

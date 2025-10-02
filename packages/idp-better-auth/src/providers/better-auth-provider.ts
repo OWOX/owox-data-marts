@@ -63,7 +63,8 @@ export class BetterAuthProvider
     this.pageService = new PageService(
       this.authenticationService,
       this.userManagementService,
-      cryptoService
+      cryptoService,
+      config
     );
     this.middlewareService = new MiddlewareService(
       this.authenticationService,

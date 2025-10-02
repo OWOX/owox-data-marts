@@ -184,6 +184,7 @@
                 Copy
               </button>
             </div>
+          <p id="ttl-info-reset" class="mt-2 text-xs text-muted-foreground hidden"></p>
           </div>
         </div>
       </div>
@@ -266,8 +267,16 @@
 
         if (response.ok) {
           const result = await response.json();
-          document.getElementById('magic-link-url').value = result.magicLink;
+          const magicLink = result.magicLink || {};
+          document.getElementById('magic-link-url').value = magicLink.url || '';
           document.getElementById('magic-link-result').classList.remove('hidden');
+          const ttlInfo = document.getElementById('ttl-info-reset');
+          if (ttlInfo && typeof magicLink.ttl === 'number') {
+            const minutes = Math.round(magicLink.ttl / 60);
+            const unit = minutes === 1 ? 'minute' : 'minutes';
+            ttlInfo.textContent = `Lifetime: ~${minutes} ${unit}`;
+            ttlInfo.classList.remove('hidden');
+          }
 
           // Scroll to the magic link result
           document.getElementById('magic-link-result').scrollIntoView({ behavior: 'smooth', block: 'center' });

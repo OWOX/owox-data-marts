@@ -90,6 +90,11 @@ export class TemplateService {
     return this.loadTemplate('password-success.html');
   }
 
+  public static renderMagicLinkConfirm(verifyUrl: string): string {
+    const template = this.loadTemplate('magic-link-confirm.html');
+    return template.replace('{{VERIFY_URL}}', verifyUrl);
+  }
+
   public static renderAdminDashboard(
     users: Array<{
       id: string;

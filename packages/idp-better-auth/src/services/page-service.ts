@@ -7,14 +7,15 @@ import { AuthenticationService } from './authentication-service.js';
 import { TemplateService } from './template-service.js';
 import { UserManagementService } from './user-management-service.js';
 import { CryptoService } from './crypto-service.js';
-import { Role } from '../types/index.js';
+import { BetterAuthConfig, Role } from '../types/index.js';
 import { logger } from '../logger.js';
 
 export class PageService {
   constructor(
     private readonly authenticationService: AuthenticationService,
     private readonly userManagementService: UserManagementService,
-    private readonly cryptoService: CryptoService
+    private readonly cryptoService: CryptoService,
+    private readonly config: BetterAuthConfig
   ) {}
 
   async signInPage(req: ExpressRequest, res: ExpressResponse): Promise<void> {
@@ -84,6 +85,27 @@ export class PageService {
     } catch (error) {
       logger.error('Password update failed', {}, error as Error);
       res.status(500).send('Failed to set password');
+    }
+  }
+
+  async magicLinkConfirm(req: ExpressRequest, res: ExpressResponse): Promise<void> {
+    try {
+      const token = (req.query.token as string) || '';
+      const callbackURL = (req.query.callbackURL as string) || '';
+
+      if (!token || !callbackURL) {
+        res.redirect('/auth/sign-in?error=Invalid magic link');
+        return;
+      }
+
+      const verifyUrl = `/auth/better-auth/magic-link/verify?token=${encodeURIComponent(
+        token
+      )}&callbackURL=${encodeURIComponent(callbackURL)}`;
+
+      res.send(TemplateService.renderMagicLinkConfirm(verifyUrl));
+    } catch (error) {
+      logger.error('Error rendering magic link preconfirm page', {}, error as Error);
+      res.redirect('/auth/sign-in?error=Something went wrong with the magic link');
     }
   }
 
@@ -183,6 +205,7 @@ export class PageService {
         this.authenticationService.requireAuthMiddleware.bind(this.authenticationService),
         this.adminResetUserPassword.bind(this)
       );
+      express.get('/auth/magic-link', this.magicLinkConfirm.bind(this));
     } catch (error) {
       logger.error('Failed to register page routes', {}, error as Error);
       throw new Error('Failed to register page routes');
@@ -304,7 +327,7 @@ export class PageService {
 
       res.json({
         success: true,
-        magicLink,
+        magicLink: { url: magicLink, ttl: this.config.magicLinkTll as number },
         email,
         role,
       });
@@ -415,7 +438,7 @@ export class PageService {
 
       res.json({
         success: true,
-        magicLink: result.magicLink,
+        magicLink: { url: result.magicLink, ttl: this.config.magicLinkTll as number },
         message:
           'Password reset successfully. User has been signed out and a new magic link has been generated.',
       });
