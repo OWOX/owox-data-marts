@@ -42,7 +42,7 @@ Before proceeding, please make sure that:
 
 ## Run the Data Mart
 
-You now have two options for importing data from LinkedIn Pages:  
+You now have two options for importing data from X Ads:  
 
 Option 1: Import Current Day's Data
 
