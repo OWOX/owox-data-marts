@@ -22,6 +22,7 @@ import { MiddlewareService } from '../services/middleware-service.js';
 import { PageService } from '../services/page-service.js';
 import type { DatabaseStore } from '../store/DatabaseStore.js';
 import { createDatabaseStore } from '../store/DatabaseStoreFactory.js';
+import { logger } from '../logger.js';
 
 export class BetterAuthProvider
   implements
@@ -163,7 +164,7 @@ export class BetterAuthProvider
       const existingUser = await this.store.getUserByEmail(email);
 
       if (!existingUser) {
-        console.warn(`Primary admin '${email}' not found. Creating admin user...`);
+        logger.warn(`Primary admin not found. Creating admin user with email: ${email}`);
         const result = await this.userManagementService.addUserViaMagicLink(email);
 
         const user = await this.store.getUserByEmail(email);
@@ -171,22 +172,24 @@ export class BetterAuthProvider
           await this.userManagementService.ensureUserInDefaultOrganization(user.id, 'admin');
         }
 
-        console.warn(`Primary admin created. Magic link: ${result.magicLink}`);
+        logger.warn(`Primary admin created. Magic link: ${result.magicLink}`, { email });
         return;
       }
 
       const hasPassword = await this.store.userHasPassword(existingUser.id);
 
       if (!hasPassword) {
-        console.warn(
-          `Primary admin '${email}' exists but has no password. Generating new magic link...`
+        logger.warn(
+          `Primary admin exists but has no password. Generating new magic link with email: ${email}`
         );
         const result = await this.userManagementService.addUserViaMagicLink(email);
-        console.warn(`New magic link generated for admin: ${result.magicLink}`);
+        logger.warn(
+          `New magic link generated for admin with email: ${email} and magic link: ${result.magicLink}`
+        );
         return;
       }
     } catch (error) {
-      console.error(`Failed to initialize primary admin '${email}':`, error);
+      logger.error('Failed to initialize primary admin', { email }, error as Error);
       throw error;
     }
   }
@@ -215,7 +218,7 @@ export class BetterAuthProvider
     try {
       await this.store.shutdown();
     } catch (error) {
-      console.error('Failed to shutdown BetterAuthProvider store:', error);
+      logger.error('Failed to shutdown BetterAuthProvider store', {}, error as Error);
     }
   }
 

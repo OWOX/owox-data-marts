@@ -38,10 +38,15 @@ export interface LoggerConfig {
 export interface Logger {
   debug(message: string, meta?: Record<string, unknown>): void;
   info(message: string, meta?: Record<string, unknown>): void;
-  warn(message: string, meta?: Record<string, unknown>, exception?: Error): void;
-  error(message: string, meta?: Record<string, unknown>, exception?: Error): void;
+  warn(message: string, meta?: Record<string, unknown>, exception?: Error | unknown): void;
+  error(message: string, meta?: Record<string, unknown>, exception?: Error | unknown): void;
   trace(message: string, meta?: Record<string, unknown>): void;
-  log(level: LogLevel, message: string, meta?: Record<string, unknown>, exception?: Error): void;
+  log(
+    level: LogLevel,
+    message: string,
+    meta?: Record<string, unknown>,
+    exception?: Error | unknown
+  ): void;
 }
 
 /**
@@ -49,5 +54,10 @@ export interface Logger {
  */
 export interface LoggerProvider {
   shutdown?(): Promise<void>;
-  log(level: LogLevel, message: string, meta?: Record<string, unknown>, exception?: Error): void;
+  log(
+    level: LogLevel,
+    message: string,
+    meta?: Record<string, unknown>,
+    exception?: Error | unknown
+  ): void;
 }

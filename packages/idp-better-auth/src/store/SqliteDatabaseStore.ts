@@ -1,5 +1,4 @@
 import { randomUUID } from 'crypto';
-import { Logger, LoggerFactory } from '@owox/internal-helpers';
 import type {
   AdminUserDetailsView,
   AdminUserView,
@@ -8,6 +7,7 @@ import type {
   DatabaseUser,
 } from '../types/index.js';
 import type { DatabaseStore } from './DatabaseStore.js';
+import { logger } from '../logger.js';
 
 type SqliteRunResult = { changes?: number };
 type SqliteStmt = {
@@ -23,11 +23,8 @@ type SqliteDb = {
 
 export class SqliteDatabaseStore implements DatabaseStore {
   private db?: SqliteDb;
-  private readonly logger: Logger;
 
-  constructor(private readonly dbPath: string) {
-    this.logger = LoggerFactory.createNamedLogger('BetterAuthSqliteDatabaseStore');
-  }
+  constructor(private readonly dbPath: string) {}
 
   async connect(): Promise<void> {
     if (this.db) return;
@@ -57,7 +54,7 @@ export class SqliteDatabaseStore implements DatabaseStore {
     try {
       (this.db as { close?: () => void } | undefined)?.close?.();
     } catch (error) {
-      this.logger.error('Failed to close SQLite database', { error });
+      logger.error('Failed to close SQLite database', {}, error as Error);
     } finally {
       this.db = undefined;
     }
@@ -124,10 +121,10 @@ export class SqliteDatabaseStore implements DatabaseStore {
         "SELECT password FROM account WHERE userId = ? AND providerId = 'credential'"
       );
       const row = stmt.get(userId) as { password?: string } | undefined;
-      console.log('row', row);
+      logger.debug('Checking user password', { userId, hasPassword: !!row?.password });
       return !!(row?.password && row.password.length > 0);
     } catch (e) {
-      console.log('error', e);
+      logger.error('Error checking user password', { userId }, e as Error);
       return false;
     }
   }

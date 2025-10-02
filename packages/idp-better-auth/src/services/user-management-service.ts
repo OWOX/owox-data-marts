@@ -5,6 +5,7 @@ import { Payload, AddUserCommandResponse } from '@owox/idp-protocol';
 import type { Role, OrganizationMembersResponse } from '../types/index.js';
 import type { Request as ExpressRequest } from 'express';
 import type { DatabaseStore } from '../store/DatabaseStore.js';
+import { logger } from '../logger.js';
 
 export class UserManagementService {
   private static readonly DEFAULT_ORGANIZATION_ID = 'owox_data_marts_organization';
@@ -42,7 +43,7 @@ export class UserManagementService {
         magicLink,
       };
     } catch (error) {
-      console.error('Error adding user:', error);
+      logger.error('Error adding user', { username }, error as Error);
       throw new Error(
         `Failed to add user: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
@@ -84,11 +85,15 @@ export class UserManagementService {
           return await this.listUsersDirectly();
         }
       } catch (error) {
-        console.warn('Fallback to direct users listing due to Better Auth handler error:', error);
+        logger.warn(
+          'Fallback to direct users listing due to Better Auth handler error',
+          {},
+          error as Error
+        );
         return await this.listUsersDirectly();
       }
     } catch (error) {
-      console.error('Error listing users:', error);
+      logger.error('Error listing users', {}, error as Error);
       throw new Error('Failed to list users');
     }
   }
@@ -107,7 +112,7 @@ export class UserManagementService {
         })
       );
     } catch (error) {
-      console.error('Error listing users directly from database:', error);
+      logger.error('Error listing users directly from database', {}, error as Error);
       return [];
     }
   }
@@ -132,14 +137,18 @@ export class UserManagementService {
       try {
         await this.auth.handler(removeMemberRequest);
       } catch (error) {
-        console.warn('Failed to remove user from organization (continuing with deletion):', error);
+        logger.warn(
+          'Failed to remove user from organization (continuing with deletion)',
+          { userId },
+          error as Error
+        );
         // Continue with user deletion even if organization removal fails
       }
 
       // Step 2: Remove user from Better Auth system
       await this.removeUserDirectly(userId);
     } catch (error) {
-      console.error('Error removing user:', error);
+      logger.error('Error removing user', { userId }, error as Error);
       throw new Error(
         `Failed to remove user: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
@@ -150,7 +159,7 @@ export class UserManagementService {
     try {
       await this.store.deleteUserCascade(userId);
     } catch (error) {
-      console.error(`Failed to delete user ${userId}:`, error);
+      logger.error('Failed to delete user', { userId }, error as Error);
       throw new Error(
         `Failed to delete user ${userId}: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
@@ -192,7 +201,7 @@ export class UserManagementService {
     try {
       return await this.store.getUsersForAdmin();
     } catch (error) {
-      console.error('Error getting users for admin:', error);
+      logger.error('Error getting users for admin', {}, error as Error);
       throw new Error('Failed to get users for admin');
     }
   }
@@ -220,7 +229,7 @@ export class UserManagementService {
         hasPassword,
       };
     } catch (error) {
-      console.error('Error getting user details:', error);
+      logger.error('Error getting user details', { userId }, error as Error);
       throw new Error('Failed to get user details');
     }
   }
@@ -234,7 +243,7 @@ export class UserManagementService {
       const magicLink = await this.magicLinkService.generateMagicLink(email, role);
       return magicLink;
     } catch (error) {
-      console.error('Error generating magic link for user:', error);
+      logger.error('Error generating magic link for user', { email, role }, error as Error);
       throw new Error('Failed to generate magic link');
     }
   }
@@ -243,7 +252,7 @@ export class UserManagementService {
     try {
       await this.store.updateUserName(userId, name);
     } catch (error) {
-      console.error('Error updating user name:', error);
+      logger.error('Error updating user name', { userId, name }, error as Error);
       throw new Error('Failed to update user name');
     }
   }
@@ -252,7 +261,7 @@ export class UserManagementService {
     try {
       return await this.store.getUserRole(UserManagementService.DEFAULT_ORGANIZATION_ID, userId);
     } catch (error) {
-      console.error('Failed to get user role:', error);
+      logger.error('Failed to get user role', { userId }, error as Error);
       throw new Error('Failed to get user role');
     }
   }
@@ -329,13 +338,16 @@ export class UserManagementService {
 
       const magicLink = await this.magicLinkService.generateMagicLink(user.email, userRole as Role);
 
-      console.log(
-        `Password reset initiated for user ${user.email} (role: ${userRole}) by admin ${adminUserId}`
-      );
+      logger.info('Password reset initiated', {
+        userEmail: user.email,
+        userId,
+        userRole,
+        adminUserId,
+      });
 
       return { magicLink };
     } catch (error) {
-      console.error('Error resetting user password:', error);
+      logger.error('Error resetting user password', { userId, adminUserId }, error as Error);
       throw new Error(
         `Failed to reset password: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
@@ -360,7 +372,7 @@ export class UserManagementService {
         await this.store.addUserToOrganization(defaultOrg.id, userId, role);
       }
     } catch (error) {
-      console.error('Error ensuring user in default organization:', error);
+      logger.error('Error ensuring user in default organization', { userId, role }, error as Error);
       throw new Error(
         `Failed to add user to organization: ${error instanceof Error ? error.message : 'Unknown error'}`
       );

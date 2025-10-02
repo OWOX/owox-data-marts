@@ -211,7 +211,7 @@ owox idp add-user user@example.com
 | `IDP_BETTER_AUTH_MYSQL_PORT`          |    No    |                  `DB_PORT`                  | MySQL port                                  |
 | `IDP_BETTER_AUTH_MYSQL_SSL`           |    No    |                   `false`                   | Enable SSL: `true`, JSON, or string         |
 | `IDP_BETTER_AUTH_TRUSTED_ORIGINS`     |    No    |         `IDP_BETTER_AUTH_BASE_URL`          | Trusted origins for auth service            |
-| `IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL` |    No    |                   –                   | Email for automatic primary admin creation  |
+| `IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL` |    No    |                      –                      | Email for automatic primary admin creation  |
 
 ## Troubleshooting
 

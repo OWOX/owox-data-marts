@@ -16,12 +16,12 @@ export class Logger implements LoggerInterface {
       this.adapter.log(LogLevel.INFO, message, meta);
     }
   }
-  warn(message: string, meta?: Record<string, unknown>, exception?: Error): void {
+  warn(message: string, meta?: Record<string, unknown>, exception?: Error | unknown): void {
     if (LogLevel.WARN >= this.level) {
       this.adapter.log(LogLevel.WARN, message, meta, exception);
     }
   }
-  error(message: string, meta?: Record<string, unknown>, exception?: Error): void {
+  error(message: string, meta?: Record<string, unknown>, exception?: Error | unknown): void {
     if (LogLevel.ERROR >= this.level) {
       this.adapter.log(LogLevel.ERROR, message, meta, exception);
     }
@@ -31,7 +31,12 @@ export class Logger implements LoggerInterface {
       this.adapter.log(LogLevel.TRACE, message, meta);
     }
   }
-  log(level: LogLevel, message: string, meta?: Record<string, unknown>, exception?: Error): void {
+  log(
+    level: LogLevel,
+    message: string,
+    meta?: Record<string, unknown>,
+    exception?: Error | unknown
+  ): void {
     if (level >= this.level) {
       this.adapter.log(level, message, meta, exception);
     }

@@ -66,8 +66,10 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 'docs/getting-started/setup-guide/connector-triggers',
                 'docs/getting-started/setup-guide/report-triggers',
                 {
-                  label: 'Better Auth',
-                  autogenerate: { directory: 'docs/getting-started/setup-guide/better-auth' },
+                  label: 'Members Management',
+                  autogenerate: {
+                    directory: 'docs/getting-started/setup-guide/members-management',
+                  },
                   collapsed: true,
                 },
               ],

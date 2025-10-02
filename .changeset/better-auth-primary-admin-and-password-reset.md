@@ -31,7 +31,7 @@ Admins can now reset user passwords through the Admin Dashboard UI:
 
 ### Documentation
 
-New documentation added at `/docs/getting-started/setup-guide/better-auth/project-members.md`:
+New documentation added at [https://docs.owox.com/docs/getting-started/setup-guide/members-management/better-auth.md](https://docs.owox.com/docs/getting-started/setup-guide/members-management/better-auth):
 
 - User management guide
 - Password reset procedures

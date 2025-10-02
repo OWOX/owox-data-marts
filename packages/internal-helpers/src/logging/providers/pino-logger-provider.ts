@@ -17,7 +17,12 @@ export class PinoLoggerProvider implements LoggerProvider {
     return Promise.resolve(this.pinoLogger.flush());
   }
 
-  log(level: LogLevel, message: string, meta?: Record<string, unknown>, exception?: Error): void {
+  log(
+    level: LogLevel,
+    message: string,
+    meta?: Record<string, unknown>,
+    exception?: Error | unknown
+  ): void {
     const logData = exception ? { ...meta, err: exception } : meta;
 
     switch (level) {
