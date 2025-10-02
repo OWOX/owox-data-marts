@@ -85,6 +85,15 @@ export class SqliteAuthorizationStore implements AuthorizationStore {
     }
   }
 
+  async isHealthy(): Promise<boolean> {
+    try {
+      this.getDb().prepare('SELECT 1').get();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private getTime(date?: Date): number {
     const ms = date ? date.getTime() : Date.now();
     return Math.floor(ms / 1000);
