@@ -95,23 +95,16 @@ export function Combobox({
           />
           <CommandEmpty>{emptyMessage}</CommandEmpty>
           {Object.entries(groupedOptions).map(([groupName, groupOptions]) => {
-            const filteredOptions = searchQuery
-              ? groupOptions.filter(option =>
-                  option.label.toLowerCase().includes(searchQuery.toLowerCase())
-                )
-              : groupOptions;
-
-            if (filteredOptions.length === 0) return null;
-
             return (
               <CommandGroup key={groupName || 'default'} heading={groupName}>
-                {filteredOptions.map(option => (
+                {groupOptions.map(option => (
                   <CommandItem
                     key={option.value}
                     value={option.value}
                     onSelect={() => {
                       handleSelect(option.value);
                     }}
+                    keywords={[option.label]}
                   >
                     <Check
                       className={cn(
