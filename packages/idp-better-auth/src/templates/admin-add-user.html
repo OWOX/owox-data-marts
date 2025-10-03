@@ -158,6 +158,7 @@
                 Copy
               </button>
             </div>
+          <p id="ttl-info" class="mt-2 text-xs text-muted-foreground hidden"></p>
           </div>
 
           <div class="mt-4 flex justify-between items-center">
@@ -248,7 +249,14 @@
     }
     
     function showSuccess(magicLink) {
-      document.getElementById('generated-link').value = magicLink;
+      document.getElementById('generated-link').value = magicLink.url;
+      const ttlInfo = document.getElementById('ttl-info');
+      if (ttlInfo && typeof magicLink.ttl === 'number') {
+        const ttlInMinutes = Math.round(magicLink.ttl / 60);
+        const unit = ttlInMinutes === 1 ? 'minute' : 'minutes';
+        ttlInfo.textContent = `Lifetime: ~${ttlInMinutes} ${unit}`;
+        ttlInfo.classList.remove('hidden');
+      }
       document.getElementById('success-result').classList.remove('hidden');
       document.getElementById('error-result').classList.add('hidden');
     }

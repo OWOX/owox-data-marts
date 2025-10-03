@@ -8,6 +8,7 @@ import { ScheduledTriggerMapper } from '../mappers';
 import type { ScheduledTriggerConfig } from '../trigger-config.types.ts';
 import { useDataMartContext } from '../../../edit/model';
 import { useConnector } from '../../../../connectors/shared/model/hooks/useConnector.ts';
+import { toast } from 'react-hot-toast';
 
 interface ScheduledTriggerProviderProps {
   children: React.ReactNode;
@@ -105,6 +106,7 @@ export function ScheduledTriggerProvider({ children }: ScheduledTriggerProviderP
         );
         const trigger = await ScheduledTriggerMapper.mapFromDtoWithReportData(triggerDto, dataMart);
         dispatch({ type: 'CREATE_TRIGGER_SUCCESS', payload: trigger });
+        toast.success('Trigger created');
         return trigger;
       } catch (error) {
         dispatch({
@@ -139,6 +141,7 @@ export function ScheduledTriggerProvider({ children }: ScheduledTriggerProviderP
         );
         const trigger = await ScheduledTriggerMapper.mapFromDtoWithReportData(triggerDto, dataMart);
         dispatch({ type: 'UPDATE_TRIGGER_SUCCESS', payload: trigger });
+        toast.success('Trigger updated');
       } catch (error) {
         dispatch({
           type: 'UPDATE_TRIGGER_ERROR',
@@ -155,6 +158,7 @@ export function ScheduledTriggerProvider({ children }: ScheduledTriggerProviderP
     try {
       await scheduledTriggerService.deleteScheduledTrigger(dataMartId, id);
       dispatch({ type: 'DELETE_TRIGGER_SUCCESS', payload: id });
+      toast.success('Trigger deleted');
     } catch (error) {
       dispatch({
         type: 'DELETE_TRIGGER_ERROR',

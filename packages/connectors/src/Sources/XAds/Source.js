@@ -12,25 +12,29 @@ var XAdsSource = class XAdsSource extends AbstractSource {
         isRequired: true,
         requiredType: "string",
         label: "Consumer Key (API Key)",
-        description: "Your X Ads API Consumer Key"
+        description: "Your X Ads API Consumer Key",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       ConsumerSecret: {
         isRequired: true,
         requiredType: "string",
         label: "Consumer Secret (API Secret)",
-        description: "Your X Ads API Consumer Secret"
+        description: "Your X Ads API Consumer Secret",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       AccessToken: {
         isRequired: true,
         requiredType: "string",
         label: "Access Token",
-        description: "Your X Ads API Access Token"
+        description: "Your X Ads API Access Token",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       AccessTokenSecret: {
         isRequired: true,
         requiredType: "string",
         label: "Access Token Secret",
-        description: "Your X Ads API Access Token Secret"
+        description: "Your X Ads API Access Token Secret",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       AccountIDs: {
         isRequired: true,

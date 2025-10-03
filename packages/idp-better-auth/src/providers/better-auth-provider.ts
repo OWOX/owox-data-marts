@@ -22,6 +22,7 @@ import { MiddlewareService } from '../services/middleware-service.js';
 import { PageService } from '../services/page-service.js';
 import type { DatabaseStore } from '../store/DatabaseStore.js';
 import { createDatabaseStore } from '../store/DatabaseStoreFactory.js';
+import { logger } from '../logger.js';
 
 export class BetterAuthProvider
   implements
@@ -40,26 +41,30 @@ export class BetterAuthProvider
 
   private constructor(
     private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
-    private readonly store: DatabaseStore
+    private readonly store: DatabaseStore,
+    private readonly config: BetterAuthConfig
   ) {
     // Initialize core services
     const cryptoService = new CryptoService(this.auth);
     const magicLinkService = new MagicLinkService(this.auth, cryptoService);
 
-    // Initialize all business logic services
-    this.authenticationService = new AuthenticationService(this.auth, cryptoService);
-    this.tokenService = new TokenService(this.auth, cryptoService);
+    // Initialize UserManagementService first
     this.userManagementService = new UserManagementService(
       this.auth,
       magicLinkService,
       cryptoService,
       this.store
     );
+
+    // Initialize all other business logic services
+    this.authenticationService = new AuthenticationService(this.auth, cryptoService);
+    this.tokenService = new TokenService(this.auth, cryptoService, this.userManagementService);
     this.requestHandlerService = new RequestHandlerService(this.auth);
     this.pageService = new PageService(
       this.authenticationService,
       this.userManagementService,
-      cryptoService
+      cryptoService,
+      config
     );
     this.middlewareService = new MiddlewareService(
       this.authenticationService,
@@ -75,7 +80,7 @@ export class BetterAuthProvider
     const store = createDatabaseStore(config.database);
     const adapter = await store.getAdapter();
     const auth = await createBetterAuthConfig(config, { adapter });
-    return new BetterAuthProvider(auth, store);
+    return new BetterAuthProvider(auth, store, config);
   }
 
   registerRoutes(app: Express): void {
@@ -98,6 +103,17 @@ export class BetterAuthProvider
     res: Response,
     next: NextFunction
   ): Promise<void | Response> {
+    return this.middlewareService.signInMiddleware(req, res, next);
+  }
+
+  async signUpMiddleware(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void | Response> {
+    // Trade-off: Currently redirects to sign-in flow as Better Auth doesn't have
+    // a separate sign-up implementation yet. The product uses magic link authentication
+    // where sign-up and sign-in are handled through the same flow.
     return this.middlewareService.signInMiddleware(req, res, next);
   }
 
@@ -138,6 +154,45 @@ export class BetterAuthProvider
     const { getMigrations } = await import('better-auth/db');
     const { runMigrations } = await getMigrations(this.auth.options);
     await runMigrations();
+
+    if (this.config.primaryAdminEmail) {
+      await this.initializePrimaryAdmin(this.config.primaryAdminEmail);
+    }
+  }
+
+  private async initializePrimaryAdmin(email: string): Promise<void> {
+    try {
+      const existingUser = await this.store.getUserByEmail(email);
+
+      if (!existingUser) {
+        logger.warn(`Primary admin not found. Creating admin user with email: ${email}`);
+        const result = await this.userManagementService.addUserViaMagicLink(email);
+
+        const user = await this.store.getUserByEmail(email);
+        if (user) {
+          await this.userManagementService.ensureUserInDefaultOrganization(user.id, 'admin');
+        }
+
+        logger.warn(`Primary admin created. Magic link: ${result.magicLink}`, { email });
+        return;
+      }
+
+      const hasPassword = await this.store.userHasPassword(existingUser.id);
+
+      if (!hasPassword) {
+        logger.warn(
+          `Primary admin exists but has no password. Generating new magic link with email: ${email}`
+        );
+        const result = await this.userManagementService.addUserViaMagicLink(email);
+        logger.warn(
+          `New magic link generated for admin with email: ${email} and magic link: ${result.magicLink}`
+        );
+        return;
+      }
+    } catch (error) {
+      logger.error('Failed to initialize primary admin', { email }, error as Error);
+      throw error;
+    }
   }
 
   async introspectToken(token: string): Promise<Payload | null> {
@@ -164,7 +219,7 @@ export class BetterAuthProvider
     try {
       await this.store.shutdown();
     } catch (error) {
-      console.error('Failed to shutdown BetterAuthProvider store:', error);
+      logger.error('Failed to shutdown BetterAuthProvider store', {}, error as Error);
     }
   }
 

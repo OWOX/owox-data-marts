@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { MoreHorizontal, SquareArrowOutUpRight, Play } from 'lucide-react';
+import { MoreHorizontal, Pencil, Play, FileText, Trash2 } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import {
   DropdownMenu,
@@ -101,6 +101,7 @@ export function GoogleSheetsActionsCell({
             }}
             role='menuitem'
           >
+            <Pencil className='text-foreground h-4 w-4' aria-hidden='true' />
             Edit report
           </DropdownMenuItem>
           {isGoogleSheetsDestinationConfig(row.original.destinationConfig) && (
@@ -114,10 +115,9 @@ export function GoogleSheetsActionsCell({
                 disabled={isRunning}
                 role='menuitem'
                 aria-label={isRunning ? 'Running report...' : `Run report: ${row.original.title}`}
-                className='flex items-center gap-1'
               >
+                <Play className='text-foreground h-4 w-4' aria-hidden='true' />
                 {isRunning ? 'Running...' : 'Run report'}
-                <Play className='h-3 w-3' aria-hidden='true' />
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <a
@@ -127,21 +127,19 @@ export function GoogleSheetsActionsCell({
                   )}
                   target='_blank'
                   rel='noopener noreferrer'
-                  className='flex items-center gap-1'
                   role='menuitem'
                   onClick={e => {
                     e.stopPropagation();
                   }}
                 >
+                  <FileText className='text-foreground h-4 w-4' aria-hidden='true' />
                   Open document
-                  <SquareArrowOutUpRight className='h-3 w-3' aria-hidden='true' />
                 </a>
               </DropdownMenuItem>
             </>
           )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            className='text-red-600'
             onClick={e => {
               e.stopPropagation();
               handleDeleteClick();
@@ -149,7 +147,8 @@ export function GoogleSheetsActionsCell({
             role='menuitem'
             aria-label={`Delete report: ${row.original.title}`}
           >
-            Delete
+            <Trash2 className='h-4 w-4 text-red-600' aria-hidden='true' />
+            <span className='text-red-600'>Delete report</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

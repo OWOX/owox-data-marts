@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { Logger, LoggerFactory } from '@owox/internal-helpers';
 import type {
   DatabaseOperationResult,
   DatabaseUser,
@@ -29,8 +30,11 @@ export interface MysqlConnectionConfig {
 
 export class MysqlDatabaseStore implements DatabaseStore {
   private pool?: MysqlPool;
+  private readonly logger: Logger;
 
-  constructor(private readonly config: MysqlConnectionConfig) {}
+  constructor(private readonly config: MysqlConnectionConfig) {
+    this.logger = LoggerFactory.createNamedLogger('BetterAuthMysqlDatabaseStore');
+  }
 
   private async getPool(): Promise<MysqlPool> {
     if (this.pool) return this.pool;
@@ -52,7 +56,7 @@ export class MysqlDatabaseStore implements DatabaseStore {
         ssl: this.config.ssl,
       }) as MysqlPool;
     } catch (error) {
-      console.error('Failed to initialize MySQL pool:', error);
+      this.logger.error('Failed to initialize MySQL pool', { error });
       throw new Error('mysql2 is required for MySQL support. Install it with: npm install mysql2');
     }
 
@@ -125,6 +129,56 @@ export class MysqlDatabaseStore implements DatabaseStore {
       name: r.name != null ? String(r.name) : undefined,
       createdAt: this.toIso(r.createdAt) ?? undefined,
     };
+  }
+
+  async getUserByEmail(email: string): Promise<DatabaseUser | null> {
+    const pool = await this.getPool();
+    const [rows] = (await pool.execute(
+      'SELECT id, email, name, createdAt FROM user WHERE email = ? LIMIT 1',
+      [email]
+    )) as [Array<Record<string, unknown>>, unknown];
+    const r = (rows as Array<Record<string, unknown>>)[0];
+    if (!r) return null;
+    return {
+      id: String(r.id),
+      email: String(r.email),
+      name: r.name != null ? String(r.name) : undefined,
+      createdAt: this.toIso(r.createdAt) ?? undefined,
+    };
+  }
+
+  async userHasPassword(userId: string): Promise<boolean> {
+    const pool = await this.getPool();
+    try {
+      const [rows] = (await pool.execute(
+        "SELECT password FROM account WHERE userId = ? AND providerId = 'credential' LIMIT 1",
+        [userId]
+      )) as [Array<Record<string, unknown>>, unknown];
+      const r = (rows as Array<Record<string, unknown>>)[0];
+      return !!(r?.password && String(r.password).length > 0);
+    } catch {
+      return false;
+    }
+  }
+
+  async clearUserPassword(userId: string): Promise<void> {
+    const pool = await this.getPool();
+    try {
+      await pool.execute("DELETE FROM account WHERE userId = ? AND providerId = 'credential'", [
+        userId,
+      ]);
+    } catch {
+      // Non-fatal: account might not exist
+    }
+  }
+
+  async revokeUserSessions(userId: string): Promise<void> {
+    const pool = await this.getPool();
+    try {
+      await pool.execute('DELETE FROM session WHERE userId = ?', [userId]);
+    } catch {
+      // Non-fatal: sessions might not exist
+    }
   }
 
   async updateUserName(userId: string, name: string): Promise<void> {
@@ -285,7 +339,7 @@ export class MysqlDatabaseStore implements DatabaseStore {
       try {
         await this.pool.end();
       } catch (error) {
-        console.error('Failed to close MySQL pool:', error);
+        this.logger.error('Failed to close MySQL pool', { error });
       } finally {
         this.pool = undefined;
       }

@@ -76,13 +76,12 @@ export function SchemaFieldActionsButton<TData>({
 
           {showDeleteField && (
             <DropdownMenuItem
-              className='text-destructive focus:text-destructive cursor-pointer'
               onClick={() => {
                 setIsDeleteConfirmOpen(true);
               }}
             >
-              <Trash2 className='mr-2 h-4 w-4' />
-              Delete field
+              <Trash2 className='h-4 w-4 text-red-600' aria-hidden='true' />
+              <span className='text-red-600'>Delete field</span>
             </DropdownMenuItem>
           )}
         </DropdownMenuContent>

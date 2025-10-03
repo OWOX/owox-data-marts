@@ -86,6 +86,7 @@ import { ConnectorState } from './entities/connector-state.entity';
 import { ReportDataCache } from './entities/report-data-cache.entity';
 import { IdpModule } from '../idp/idp.module';
 import { createOperationTimeoutMiddleware } from '../common/middleware/operation-timeout.middleware';
+import { CommonModule } from '../common/common.module';
 
 @Module({
   imports: [
@@ -100,6 +101,7 @@ import { createOperationTimeoutMiddleware } from '../common/middleware/operation
       ReportDataCache,
     ]),
     SchedulerModule,
+    CommonModule,
     IdpModule,
   ],
   controllers: [

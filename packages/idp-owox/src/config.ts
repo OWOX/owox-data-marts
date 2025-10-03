@@ -5,6 +5,7 @@ import envPaths from 'env-paths';
 import { dirname, join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { parseMysqlSslEnv } from '@owox/internal-helpers';
+import { LoggerFactory } from '@owox/internal-helpers';
 
 const zMsString = z
   .string()
@@ -64,7 +65,8 @@ const DbEnvRaw = z.discriminatedUnion('IDP_OWOX_DB_TYPE', [SqliteEnvRaw, MysqlEn
 export const DbEnvSchema = DbEnvRaw.transform(e => {
   if (e.IDP_OWOX_DB_TYPE === 'sqlite') {
     const dbPath = e.IDP_OWOX_SQLITE_DB_PATH ?? getSqliteDefaultDbPath();
-    console.log(`idp-owox SQLite database path: ${dbPath}`);
+    const logger = LoggerFactory.createNamedLogger('IdpOwoxConfig');
+    logger.info(`idp-owox SQLite database path: ${dbPath}`);
 
     return {
       type: 'sqlite' as const,
@@ -132,11 +134,15 @@ const IdpEnvSchema = z
     IDP_OWOX_PLATFORM_SIGN_IN_URL: z
       .string()
       .url({ message: 'IDP_OWOX_PLATFORM_SIGN_IN_URL must be a valid URL' }),
+    IDP_OWOX_PLATFORM_SIGN_UP_URL: z
+      .string()
+      .url({ message: 'IDP_OWOX_PLATFORM_SIGN_UP_URL must be a valid URL' }),
     IDP_OWOX_CALLBACK_URL: z.string().min(1, 'IDP_OWOX_CALLBACK_URL is required'),
   })
   .transform(e => ({
     clientId: e.IDP_OWOX_CLIENT_ID,
     platformSignInUrl: e.IDP_OWOX_PLATFORM_SIGN_IN_URL,
+    platformSignUpUrl: e.IDP_OWOX_PLATFORM_SIGN_UP_URL,
     callbackUrl: e.IDP_OWOX_CALLBACK_URL,
   }));
 

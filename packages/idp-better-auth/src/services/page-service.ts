@@ -7,13 +7,15 @@ import { AuthenticationService } from './authentication-service.js';
 import { TemplateService } from './template-service.js';
 import { UserManagementService } from './user-management-service.js';
 import { CryptoService } from './crypto-service.js';
-import { Role } from '../types/index.js';
+import { BetterAuthConfig, Role } from '../types/index.js';
+import { logger } from '../logger.js';
 
 export class PageService {
   constructor(
     private readonly authenticationService: AuthenticationService,
     private readonly userManagementService: UserManagementService,
-    private readonly cryptoService: CryptoService
+    private readonly cryptoService: CryptoService,
+    private readonly config: BetterAuthConfig
   ) {}
 
   async signInPage(req: ExpressRequest, res: ExpressResponse): Promise<void> {
@@ -24,7 +26,7 @@ export class PageService {
         return;
       }
     } catch (error) {
-      console.error('Error checking authentication for sign-in page:', error);
+      logger.error('Error checking authentication for sign-in page', {}, error as Error);
       res.send(TemplateService.renderSignIn());
       return;
     }
@@ -42,7 +44,7 @@ export class PageService {
 
       res.send(TemplateService.renderPasswordSetup());
     } catch (error) {
-      console.error('Error loading password setup page:', error);
+      logger.error('Error loading password setup page', {}, error as Error);
       res.redirect('/auth/sign-in');
     }
   }
@@ -76,13 +78,34 @@ export class PageService {
         if (error instanceof Error && error.message === 'User already has a password') {
           res.status(400).send('User already has a password');
         } else {
-          console.error('Failed to set password:', error);
+          logger.error('Failed to set password', {}, error as Error);
           res.status(500).send('Failed to set password. Please try again.');
         }
       }
     } catch (error) {
-      console.error('Password update failed:', error);
+      logger.error('Password update failed', {}, error as Error);
       res.status(500).send('Failed to set password');
+    }
+  }
+
+  async magicLinkConfirm(req: ExpressRequest, res: ExpressResponse): Promise<void> {
+    try {
+      const token = (req.query.token as string) || '';
+      const callbackURL = (req.query.callbackURL as string) || '';
+
+      if (!token || !callbackURL) {
+        res.redirect('/auth/sign-in?error=Invalid magic link');
+        return;
+      }
+
+      const verifyUrl = `/auth/better-auth/magic-link/verify?token=${encodeURIComponent(
+        token
+      )}&callbackURL=${encodeURIComponent(callbackURL)}`;
+
+      res.send(TemplateService.renderMagicLinkConfirm(verifyUrl));
+    } catch (error) {
+      logger.error('Error rendering magic link preconfirm page', {}, error as Error);
+      res.redirect('/auth/sign-in?error=Something went wrong with the magic link');
     }
   }
 
@@ -104,7 +127,7 @@ export class PageService {
       try {
         role = await this.cryptoService.decrypt(req.query.role as string);
       } catch (error) {
-        console.error('Failed to decrypt role:', error);
+        logger.error('Failed to decrypt role', {}, error as Error);
         res.redirect('/auth/sign-in?error=Invalid magic link');
         return;
       }
@@ -120,7 +143,11 @@ export class PageService {
             await this.userManagementService.addMemberToOrganization(req, role as Role);
           }
         } catch (error) {
-          console.error('Failed to ensure user in organization after magic link success:', error);
+          logger.error(
+            'Failed to ensure user in organization after magic link success',
+            {},
+            error as Error
+          );
           throw new Error(
             `Failed to ensure user in organization after magic link success: ${error instanceof Error ? error.message : 'Unknown error'}`
           );
@@ -129,7 +156,7 @@ export class PageService {
 
       res.redirect('/auth/setup-password');
     } catch (error) {
-      console.error('Magic link success handler failed:', error);
+      logger.error('Magic link success handler failed', {}, error as Error);
       res.redirect('/auth/sign-in?error=Something went wrong');
     }
   }
@@ -173,8 +200,14 @@ export class PageService {
         this.authenticationService.requireAuthMiddleware.bind(this.authenticationService),
         this.adminGenerateMagicLink.bind(this)
       );
+      express.post(
+        '/auth/reset-password/:id',
+        this.authenticationService.requireAuthMiddleware.bind(this.authenticationService),
+        this.adminResetUserPassword.bind(this)
+      );
+      express.get('/auth/magic-link', this.magicLinkConfirm.bind(this));
     } catch (error) {
-      console.error('Failed to register page routes:', error);
+      logger.error('Failed to register page routes', {}, error as Error);
       throw new Error('Failed to register page routes');
     }
   }
@@ -188,7 +221,7 @@ export class PageService {
       const html = TemplateService.renderAdminDashboard(users, currentUserEmail);
       res.send(html);
     } catch (error) {
-      console.error('Error loading admin dashboard:', error);
+      logger.error('Error loading admin dashboard', {}, error as Error);
       res.status(500).send('Error loading dashboard');
     }
   }
@@ -217,7 +250,7 @@ export class PageService {
       const html = TemplateService.renderUserDetails(user, currentUserRole);
       res.send(html);
     } catch (error) {
-      console.error('Error loading user details:', error);
+      logger.error('Error loading user details', {}, error as Error);
       res.status(500).send('Error loading user details');
     }
   }
@@ -246,7 +279,7 @@ export class PageService {
       const html = TemplateService.renderAddUser(allowedRoles);
       res.send(html);
     } catch (error) {
-      console.error('Error loading add user page:', error);
+      logger.error('Error loading add user page', {}, error as Error);
       res.status(500).send('Error loading page');
     }
   }
@@ -294,12 +327,15 @@ export class PageService {
 
       res.json({
         success: true,
-        magicLink,
+        magicLink: {
+          url: magicLink,
+          ttl: this.config.magicLinkTtl,
+        },
         email,
         role,
       });
     } catch (error) {
-      console.error('Error adding user:', error);
+      logger.error('Error adding user', {}, error as Error);
       res.status(500).json({ error: 'Failed to generate magic link' });
     }
   }
@@ -328,7 +364,7 @@ export class PageService {
       await this.userManagementService.removeUser(userId);
       res.json({ success: true });
     } catch (error) {
-      console.error('Error deleting user:', error);
+      logger.error('Error deleting user', {}, error as Error);
       res.status(500).json({ error: 'Failed to delete user' });
     }
   }
@@ -382,8 +418,40 @@ export class PageService {
         role,
       });
     } catch (error) {
-      console.error('Error generating magic link:', error);
+      logger.error('Error generating magic link', {}, error as Error);
       res.status(500).json({ error: 'Failed to generate magic link' });
+    }
+  }
+
+  async adminResetUserPassword(req: ExpressRequest, res: ExpressResponse): Promise<void> {
+    try {
+      const userId = req.params.id;
+      if (!userId) {
+        res.status(400).json({ error: 'User ID is required' });
+        return;
+      }
+
+      const session = await this.authenticationService.getSession(req);
+      if (!session?.user?.id) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const result = await this.userManagementService.resetUserPassword(userId, session.user.id);
+
+      res.json({
+        success: true,
+        magicLink: {
+          url: result.magicLink,
+          ttl: this.config.magicLinkTtl,
+        },
+        message:
+          'Password reset successfully. User has been signed out and a new magic link has been generated.',
+      });
+    } catch (error) {
+      logger.error('Error resetting user password', {}, error as Error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to reset password';
+      res.status(500).json({ error: errorMessage });
     }
   }
 
@@ -403,7 +471,7 @@ export class PageService {
         .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
         .join(' ');
     } catch (error) {
-      console.error('Error generating name from email:', error);
+      logger.error('Error generating name from email', { email }, error as Error);
       return email; // Fallback to full email
     }
   }

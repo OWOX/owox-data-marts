@@ -45,11 +45,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             'docs/getting-started/core-concepts',
             {
               label: 'Editions',
-              items: [
-                'docs/editions/all-editions',
-                'docs/editions/appsscript-edition',
-                'docs/editions/agency',
-              ],
+              items: ['docs/editions/all-editions', 'docs/editions/agency'],
             },
             {
               label: 'Deployment Guide',
@@ -57,7 +53,22 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             },
             {
               label: 'Setup Guide',
-              autogenerate: { directory: 'docs/getting-started/setup-guide' },
+              items: [
+                'docs/getting-started/setup-guide/connector-data-mart',
+                'docs/getting-started/setup-guide/sql-data-mart',
+                'docs/getting-started/setup-guide/table-data-mart',
+                'docs/getting-started/setup-guide/view-data-mart',
+                'docs/getting-started/setup-guide/pattern-data-mart',
+                'docs/getting-started/setup-guide/connector-triggers',
+                'docs/getting-started/setup-guide/report-triggers',
+                {
+                  label: 'Members Management',
+                  autogenerate: {
+                    directory: 'docs/getting-started/setup-guide/members-management',
+                  },
+                  collapsed: true,
+                },
+              ],
             },
           ],
         },
@@ -88,6 +99,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         {
           label: 'Google Sheets Connectors',
           items: [
+            'docs/editions/appsscript-edition',
             'docs/google-sheets-connectors/readme',
             'docs/google-sheets-connectors/facebook-ads',
             'docs/google-sheets-connectors/tiktok-ads',

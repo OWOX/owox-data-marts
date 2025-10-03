@@ -7,6 +7,7 @@ import type {
   DatabaseUser,
 } from '../types/index.js';
 import type { DatabaseStore } from './DatabaseStore.js';
+import { logger } from '../logger.js';
 
 type SqliteRunResult = { changes?: number };
 type SqliteStmt = {
@@ -53,7 +54,7 @@ export class SqliteDatabaseStore implements DatabaseStore {
     try {
       (this.db as { close?: () => void } | undefined)?.close?.();
     } catch (error) {
-      console.error('Failed to close SQLite database:', error);
+      logger.error('Failed to close SQLite database', {}, error as Error);
     } finally {
       this.db = undefined;
     }
@@ -102,6 +103,50 @@ export class SqliteDatabaseStore implements DatabaseStore {
     const stmt = this.getDb().prepare('SELECT id, email, name, createdAt FROM user WHERE id = ?');
     const row = stmt.get(userId) as DatabaseUser | undefined;
     return row ?? null;
+  }
+
+  async getUserByEmail(email: string): Promise<DatabaseUser | null> {
+    await this.connect();
+    const stmt = this.getDb().prepare(
+      'SELECT id, email, name, createdAt FROM user WHERE email = ?'
+    );
+    const row = stmt.get(email) as DatabaseUser | undefined;
+    return row ?? null;
+  }
+
+  async userHasPassword(userId: string): Promise<boolean> {
+    await this.connect();
+    try {
+      const stmt = this.getDb().prepare(
+        "SELECT password FROM account WHERE userId = ? AND providerId = 'credential'"
+      );
+      const row = stmt.get(userId) as { password?: string } | undefined;
+      logger.debug('Checking user password', { userId, hasPassword: !!row?.password });
+      return !!(row?.password && row.password.length > 0);
+    } catch (e) {
+      logger.error('Error checking user password', { userId }, e as Error);
+      return false;
+    }
+  }
+
+  async clearUserPassword(userId: string): Promise<void> {
+    await this.connect();
+    try {
+      this.getDb()
+        .prepare("DELETE FROM account WHERE userId = ? AND providerId = 'credential'")
+        .run(userId);
+    } catch {
+      // Non-fatal: account might not exist
+    }
+  }
+
+  async revokeUserSessions(userId: string): Promise<void> {
+    await this.connect();
+    try {
+      this.getDb().prepare('DELETE FROM session WHERE userId = ?').run(userId);
+    } catch {
+      // Non-fatal: sessions might not exist
+    }
   }
 
   async updateUserName(userId: string, name: string): Promise<void> {

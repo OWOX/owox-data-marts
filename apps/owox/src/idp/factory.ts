@@ -63,16 +63,42 @@ export class IdpFactory {
     }
   }
 
+  /**
+   * Build BetterAuth MySQL config using prioritized environment variables.
+   * Priority: IDP_BETTER_AUTH_MYSQL_*, DB_*.
+   */
+  private static buildBetterAuthMySqlConfig(): MySqlConfig {
+    const ssl = parseMysqlSslEnv(process.env.IDP_BETTER_AUTH_MYSQL_SSL || process.env.DB_MYSQL_SSL);
+
+    const host = process.env.IDP_BETTER_AUTH_MYSQL_HOST || process.env.DB_HOST;
+    const user = process.env.IDP_BETTER_AUTH_MYSQL_USER || process.env.DB_USERNAME;
+    const password = process.env.IDP_BETTER_AUTH_MYSQL_PASSWORD || process.env.DB_PASSWORD;
+    const databaseName = process.env.IDP_BETTER_AUTH_MYSQL_DATABASE || process.env.DB_DATABASE;
+    const port = Number.parseInt(
+      (process.env.IDP_BETTER_AUTH_MYSQL_PORT || process.env.DB_PORT) as string,
+      10
+    );
+
+    return {
+      database: databaseName as string,
+      host: host as string,
+      password: password as string,
+      port,
+      type: 'mysql',
+      user: user as string,
+      ...(ssl === undefined ? {} : { ssl }),
+    } satisfies MySqlConfig as MySqlConfig;
+  }
+
   private static async createBetterAuthProvider(command: BaseCommand): Promise<BetterAuthProvider> {
     if (!process.env.IDP_BETTER_AUTH_SECRET) {
       command.error('IDP_BETTER_AUTH_SECRET is not set');
     }
 
     // Database configuration
-    const databaseType = (process.env.IDP_BETTER_AUTH_DATABASE_TYPE || 'sqlite') as
-      | 'custom'
-      | 'mysql'
-      | 'sqlite';
+    const databaseType = (process.env.IDP_BETTER_AUTH_DATABASE_TYPE ||
+      process.env.DB_TYPE ||
+      'sqlite') as 'custom' | 'mysql' | 'sqlite';
 
     let database: CustomDatabaseConfig | MySqlConfig | SqliteConfig;
     switch (databaseType) {
@@ -85,19 +111,7 @@ export class IdpFactory {
       }
 
       case 'mysql': {
-        const ssl = parseMysqlSslEnv(process.env.IDP_BETTER_AUTH_MYSQL_SSL);
-
-        database = {
-          database: process.env.IDP_BETTER_AUTH_MYSQL_DATABASE || 'better_auth',
-          host: process.env.IDP_BETTER_AUTH_MYSQL_HOST || 'localhost',
-          password: process.env.IDP_BETTER_AUTH_MYSQL_PASSWORD || '',
-          port: process.env.IDP_BETTER_AUTH_MYSQL_PORT
-            ? Number.parseInt(process.env.IDP_BETTER_AUTH_MYSQL_PORT, 10)
-            : 3306,
-          type: 'mysql' as const,
-          user: process.env.IDP_BETTER_AUTH_MYSQL_USER || 'root',
-          ...(ssl === undefined ? {} : { ssl }),
-        } as MySqlConfig;
+        database = this.buildBetterAuthMySqlConfig();
         break;
       }
 
@@ -114,21 +128,46 @@ export class IdpFactory {
       }
     }
 
+    const publicOriginOrDefault = (() => {
+      const po = process.env.PUBLIC_ORIGIN;
+      if (po && po.trim() !== '') {
+        return po;
+      }
+
+      return `http://localhost:${process.env.PORT}`;
+    })();
+
+    const baseURL = process.env.IDP_BETTER_AUTH_BASE_URL || publicOriginOrDefault;
+
+    const trustedOrigins = (() => {
+      const list = process.env.IDP_BETTER_AUTH_TRUSTED_ORIGINS;
+      if (list && list.trim() !== '') {
+        return list
+          .split(',')
+          .map(origin => origin.trim())
+          .filter(Boolean);
+      }
+
+      const fallback = baseURL;
+      return fallback && fallback.trim() !== '' ? [fallback] : undefined;
+    })();
+
     return BetterAuthProvider.create({
-      baseURL: process.env.IDP_BETTER_AUTH_BASE_URL,
+      baseURL,
       database,
-      magicLinkTll: process.env.IDP_BETTER_AUTH_MAGIC_LINK_TTL
-        ? Number.parseInt(process.env.IDP_BETTER_AUTH_MAGIC_LINK_TTL, 10)
-        : 3600,
+      magicLinkTtl: Number.parseInt(
+        (process.env.IDP_BETTER_AUTH_MAGIC_LINK_TTL || '3600') as string,
+        10
+      ),
+      primaryAdminEmail: process.env.IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL,
       secret: process.env.IDP_BETTER_AUTH_SECRET,
       session: {
-        maxAge: process.env.IDP_BETTER_AUTH_SESSION_MAX_AGE
-          ? Number.parseInt(process.env.IDP_BETTER_AUTH_SESSION_MAX_AGE, 10)
-          : 604_800,
+        maxAge: Number.parseInt(
+          (process.env.IDP_BETTER_AUTH_SESSION_MAX_AGE || '604800') as string,
+          10
+        ),
       },
-      trustedOrigins: process.env.IDP_BETTER_AUTH_TRUSTED_ORIGINS?.split(',').map(origin =>
-        origin.trim()
-      ),
+      trustedOrigins,
     });
   }
 

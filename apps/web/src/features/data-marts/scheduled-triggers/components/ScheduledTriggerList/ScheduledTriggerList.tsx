@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useScheduledTrigger } from '../../model';
 import { ScheduledTriggerTable } from '../ScheduledTriggerTable';
 import { ScheduledTriggerFormSheet } from '../ScheduledTriggerFormSheet/ScheduledTriggerFormSheet';
-import { toast } from 'react-hot-toast';
 interface ScheduledTriggerListProps {
   dataMartId: string;
 }
@@ -33,10 +32,8 @@ export function ScheduledTriggerList({ dataMartId }: ScheduledTriggerListProps) 
   const handleDeleteTrigger = async (triggerId: string) => {
     try {
       await deleteScheduledTrigger(dataMartId, triggerId);
-      toast.success('Trigger deleted successfully');
     } catch (error) {
       console.error('Error deleting trigger:', error);
-      toast.error('Failed to delete trigger');
     }
   };
 

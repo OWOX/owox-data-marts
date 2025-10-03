@@ -12,6 +12,7 @@ var YOUR_DATE_SOURCE_Source = class YOUR_DATE_SOURCE_Source extends AbstractSour
     super( configRange.mergeParameters({
       AccessToken: {
         isRequired: true,
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       DestinationSheetName: {
         isRequired: true,

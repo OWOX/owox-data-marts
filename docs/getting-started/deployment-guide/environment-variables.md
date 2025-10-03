@@ -24,6 +24,19 @@ Depending on the selected database type for the backend (`DB_TYPE`) and identity
 
 The complete list of all available environment variables is located in the [.env.example](https://github.com/OWOX/owox-data-marts/blob/main/.env.example) file in the project root directory.
 
+### Public URLs
+
+- **PUBLIC_ORIGIN**: Base public URL of the application (scheme + host [+ optional port]).
+  - Examples: `http://localhost:3000`, `https://data-marts.example.com`
+  - Default: `http://localhost:${PORT}`
+  - In production, set this to your actual deployment URL.
+
+- **LOOKER_STUDIO_DESTINATION_ORIGIN**: Public origin used to generate the deployment URL for the Looker Studio Destination.
+  - If empty, it falls back to `PUBLIC_ORIGIN`.
+  - Example: `https://looker.example.com`
+
+See also: mysql2 official SSL documentation — <https://sidorares.github.io/node-mysql2/docs/documentation/ssl>
+
 ## Configuration Methods
 
 You can configure environment variables using one of the following methods:

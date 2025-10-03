@@ -18,13 +18,15 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
         isRequired: true,
         requiredType: "string",
         label: "Client Secret",
-        description: "LinkedIn API Client Secret for authentication"
+        description: "LinkedIn API Client Secret for authentication",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       RefreshToken: {
         isRequired: true,
         requiredType: "string",
         label: "Refresh Token",
-        description: "LinkedIn API Refresh Token for authentication"
+        description: "LinkedIn API Refresh Token for authentication",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       ReimportLookbackWindow: {
         requiredType: "number",

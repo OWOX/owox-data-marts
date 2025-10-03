@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@owox/ui/components/button';
 import {
@@ -52,19 +52,20 @@ export const DataMartActionsCell = ({ row, onDeleteSuccess }: DataMartActionsCel
           <DropdownMenuItem>
             <Link
               to={scope(`/data-marts/${row.original.id}/data-setup`)}
-              className='dm-card-table-body-row-actiondropdownitem'
+              className='flex gap-2 text-left'
             >
-              Open
+              <Pencil className='text-foreground h-4 w-4' aria-hidden='true' />
+              <span>Edit</span>
             </Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            className='dm-card-table-body-row-actiondropdownitem text-red-600'
             onClick={() => {
               setIsDeleteDialogOpen(true);
             }}
           >
-            Delete
+            <Trash2 className='h-4 w-4 text-red-600' aria-hidden='true' />
+            <span className='text-red-600'>Delete</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

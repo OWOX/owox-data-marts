@@ -3,6 +3,7 @@ import { Payload } from '@owox/idp-protocol';
 import { AuthenticationService } from './authentication-service.js';
 import { PageService } from './page-service.js';
 import { UserManagementService } from './user-management-service.js';
+import { logger } from '../logger.js';
 
 export class MiddlewareService {
   private static readonly DEFAULT_ORGANIZATION_ID = '0';
@@ -64,7 +65,7 @@ export class MiddlewareService {
 
       return res.json(payload);
     } catch (error) {
-      console.error('User API middleware error:', error);
+      logger.error('User API middleware error', {}, error as Error);
       return res.status(401).json({ error: 'Unauthorized' });
     }
   }

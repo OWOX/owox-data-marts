@@ -1,5 +1,125 @@
 # owox
 
+## 0.8.0
+
+### Minor Changes 0.8.0
+
+- 2932470: # Better Auth: Primary Admin Setup & Password Reset
+  - **Primary admin auto-creation**: Configure `IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL` to automatically create or manage primary admin on server startup
+  - **Password reset UI**: Admins can reset user passwords through Admin Dashboard (`/auth/dashboard`) with automatic magic link generation
+  - **Enhanced documentation**: Added comprehensive user management guide at `/docs/getting-started/setup-guide/members-management/better-auth.md`
+
+  **Features:**
+  - Auto-creates admin if doesn't exist (generates magic link in logs)
+  - Generates new magic link if admin exists without password
+  - Password reset button for existing users with passwords
+  - Magic link generation for users without passwords
+
+  **New Environment Variables:**
+  - `IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL` – Email for automatic primary admin creation
+
+- 518cfe1: # refactor: rename Bing Ads to Microsoft Ads and update documentation, images, and references
+- 29f72ea: # Enhance DataMartCreateForm with New Storage Creation
+  - Updated storage selection to allow **creating new storage directly** from the form.
+  - Refined **CreateDataMartPage styling** for better visual consistency.
+
+- 099befb: # fix: allow deleting a datamart within a project if it was created by another user
+- 25ab28e: # fix: a user with the viewer role is not allowed to modify objects in the application with ipd = better-auth
+- edb4478: ✨ Google Tag Manager integration
+  - 🚀 Added Google Tag Manager support across the web app. Enable by setting `GOOGLE_TAG_MANAGER_CONTAINER_ID` in your environment. This allows non‑technical teams to ship marketing/analytics tags without deployments.
+
+  Why this matters
+  - 📊 Faster iteration on analytics and marketing experiments (no code release required for common changes).
+
+- 19c21a1: # ⚠️ Breaking Change: LinkedIn Authentication Update
+
+  **What changed:**
+  LinkedIn connectors now require **3 credentials** instead of 1 Access Token: Client ID, Client Secret, and Refresh Token.
+
+  **What you need to do:**
+  1. Go to [LinkedIn Developer Portal](https://developer.linkedin.com/) → your app → **Auth** tab
+  2. Copy these 3 values:
+     - **Client ID** (top of Auth page)
+     - **Client Secret** (top of Auth page)
+     - **Refresh Token** (generate via OAuth 2.0 tools)
+
+  **How to update:**
+  1. Go to your OWOX Data Marts
+  2. Find your LinkedIn connector configuration
+  3. Enter the 3 new credentials instead of the old Access Token:
+     - **Client ID**
+     - **Client Secret**
+     - **Refresh Token**
+
+- b41b62d: # Logging System Architecture Refactor
+  - **Refactored logging architecture**: Extracted Pino logger creation from LoggerFactory into a provider-agnostic architecture while maintaining backward compatibility
+  - **Simplified configuration**: Removed `environment` presets from LoggerConfig, now only `LogLevel` controls logging behavior
+  - **Environment variables update**:
+    - Changed from `LOG_LEVELS` (comma-separated) to `LOG_LEVEL` (threshold-based)
+    - Updated `.env.example` with clear documentation
+  - **Enhanced TypeORM integration**: Improved `CustomDataSourceLogger` with proper parameter usage and context formatting
+
+  **Breaking Changes:**
+  - `LOG_LEVELS` environment variable renamed to `LOG_LEVEL`
+  - Removed `environment` field from `LoggerConfig` interface
+
+  **Migration:**
+  - Replace `LOG_LEVELS=log,warn,error` with `LOG_LEVEL=info` (threshold-based) or app will use default `info` level
+  - Remove `environment` parameter from LoggerFactory calls
+
+- 8a1ef12: # Secure MySQL connections (TLS/SSL)
+  - New, simple way to enable encrypted MySQL connections via environment variables:
+    - Backend (NestJS/TypeORM): `DB_SSL`
+    - Identity provider (Better Auth): `IDP_BETTER_AUTH_MYSQL_SSL`
+
+  Learn more
+  - See “MySQL SSL” section in the deployment guide: <https://docs.owox.com/docs/getting-started/deployment-guide/environment-variables/#mysql-ssl>
+
+- 32cd6c9: # Revamp NotFound Page and Improve Mobile Layout
+  - **Redesigned 404 page** with a new foreground card and animated background tunnel effect.
+  - Updated **styles** for improved responsiveness and visual appeal.
+  - Added **icons and navigation button** to guide users.
+  - Improved **mobile layout** and updated **SidebarTrigger icon** for consistency.
+
+- e19073a: # Refactor OpenHolidays connector according to common architecture and fix bugs
+- 90a8711: # Simplified MySQL configuration in the `idp-better-auth`
+  - **idp-better-auth** uses the `DB_*` environment variables unless `IDP_BETTER_AUTH_MYSQL_*` is specified.
+
+- fc17562: # Enhance Error Handling and Notifications
+  - Enhanced **API error handling** and notifications across components.
+  - Updated **Toaster** component styles for improved clarity and consistency.
+  - Other UI improvements
+
+- af2e412: # Updated Google BigQuery & Google Sheets authentication
+  - Switched to JWT-based auth client (`google-auth-library`).
+  - Removed deprecated credential paths and warnings.
+  - Improved reliability of loads/queries.
+  - No action required — existing service account JSON keys continue to work.
+
+- 58e2ead: # Updated Looker Studio data destination
+  - Clarify `PUBLIC_ORIGIN`: base public URL of the application (scheme + host [+ optional port]).
+    - Examples: `http://localhost:3000`, `https://data-marts.example.com`
+    - Default: `http://localhost:${PORT}`
+    - In production, set this to your actual deployment URL.
+  - Introduce `LOOKER_STUDIO_DESTINATION_ORIGIN`: public origin used to generate the deployment URL for the Looker Studio destination.
+    - If empty, it falls back to `PUBLIC_ORIGIN`.
+    - Example: `https://looker.example.com`
+
+  Heads up
+  - When retrieving the current JSON config for a Looker Studio Data Destination, the `deploymentUrl` field is now generated from `LOOKER_STUDIO_DESTINATION_ORIGIN` (fallback: `PUBLIC_ORIGIN`). If you previously set `deploymentUrl` manually during creation, it is now populated from the environment variable values.
+
+  Learn more
+  - See “Public URLs” section in the deployment guide: <https://docs.owox.com/docs/getting-started/deployment-guide/environment-variables/#public-urls>
+
+### Patch Changes 0.8.0
+
+- @owox/internal-helpers@0.8.0
+- @owox/idp-protocol@0.8.0
+- @owox/idp-better-auth@0.8.0
+- @owox/idp-owox@0.8.0
+- @owox/backend@0.8.0
+- @owox/web@0.8.0
+
 ## 0.7.0
 
 ### Minor Changes 0.7.0

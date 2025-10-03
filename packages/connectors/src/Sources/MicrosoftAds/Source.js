@@ -13,7 +13,8 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
         isRequired: true,
         requiredType: "string",
         label: "Developer Token",
-        description: "Your Microsoft Ads API Developer Token"
+        description: "Your Microsoft Ads API Developer Token",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       ClientID: {
         isRequired: true,
@@ -25,13 +26,15 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
         isRequired: true,
         requiredType: "string",
         label: "Client Secret",
-        description: "Your Microsoft Ads API Client Secret"
+        description: "Your Microsoft Ads API Client Secret",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       RefreshToken: {
         isRequired: true,
         requiredType: "string",
         label: "Refresh Token",
-        description: "Your Microsoft Ads API Refresh Token"
+        description: "Your Microsoft Ads API Refresh Token",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       AccountID: {
         isRequired: true,

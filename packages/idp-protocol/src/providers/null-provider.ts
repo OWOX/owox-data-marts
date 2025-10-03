@@ -30,16 +30,11 @@ export class NullIdpProvider implements IdpProvider {
   }
 
   signInMiddleware(req: Request, res: Response, _next: NextFunction): Promise<void> {
-    const isSecure =
-      req.protocol !== 'http' && !(req.hostname === 'localhost' || req.hostname === '127.0.0.1');
+    return this.setAuthCookieAndRedirect(req, res);
+  }
 
-    res.cookie('refreshToken', this.defaultRefreshToken, {
-      httpOnly: true,
-      secure: isSecure,
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 30 * 1000,
-    });
-    return Promise.resolve(res.redirect('/'));
+  signUpMiddleware(req: Request, res: Response, _next: NextFunction): Promise<void> {
+    return this.setAuthCookieAndRedirect(req, res);
   }
 
   signOutMiddleware(_req: Request, res: Response, _next: NextFunction): Promise<void> {
@@ -92,5 +87,25 @@ export class NullIdpProvider implements IdpProvider {
 
   async revokeToken(_token: string): Promise<void> {
     // No-op for NULL provider
+  }
+
+  /**
+   * Sets the authentication cookie in the response and redirects the user to the root path.
+   *
+   * @param {Request} req The HTTP request object containing the client's request.
+   * @param {Response} res The HTTP response object used to send back the response, including the cookie and redirect.
+   * @return {Promise<void>} A promise that resolves when the cookie is set and the redirect response is sent to the client.
+   */
+  private setAuthCookieAndRedirect(req: Request, res: Response): Promise<void> {
+    const isSecure =
+      req.protocol !== 'http' && !(req.hostname === 'localhost' || req.hostname === '127.0.0.1');
+
+    res.cookie('refreshToken', this.defaultRefreshToken, {
+      httpOnly: true,
+      secure: isSecure,
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 30 * 1000,
+    });
+    return Promise.resolve(res.redirect('/'));
   }
 }

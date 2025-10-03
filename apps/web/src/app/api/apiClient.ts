@@ -5,8 +5,7 @@ import axios, {
   type InternalAxiosRequestConfig,
   AxiosHeaders,
 } from 'axios';
-import toast from 'react-hot-toast';
-import type { ApiError } from './api-error.interface.ts';
+import { showApiErrorToast } from '../../shared/utils';
 import { AuthStateManager } from './auth-state-manager';
 import { getTokenProvider } from './token-provider';
 
@@ -102,19 +101,11 @@ apiClient.interceptors.response.use(
     }
 
     if (error.response?.status === 403) {
-      const data = error.response.data as ApiError;
-      toast.error(data.message || 'Access forbidden - insufficient permissions');
-
-      window.dispatchEvent(
-        new CustomEvent('auth:forbidden', {
-          detail: { message: data.message },
-        })
-      );
+      showApiErrorToast(error, 'Access forbidden - insufficient permissions');
     }
 
     if (error.response?.status === 400) {
-      const data = error.response.data as ApiError;
-      toast.error(data.message);
+      showApiErrorToast(error, 'Bad request');
     }
 
     return Promise.reject(error);

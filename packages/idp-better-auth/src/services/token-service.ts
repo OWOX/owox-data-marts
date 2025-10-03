@@ -1,13 +1,16 @@
 import { createBetterAuthConfig } from '../auth/auth-config.js';
 import { CryptoService } from './crypto-service.js';
-import { Payload, AuthResult } from '@owox/idp-protocol';
+import { Payload, AuthResult, Role } from '@owox/idp-protocol';
+import type { UserManagementService } from './user-management-service.js';
+import { logger } from '../logger.js';
 
 export class TokenService {
   private static readonly DEFAULT_ORGANIZATION_ID = '0';
 
   constructor(
     private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
-    private readonly cryptoService: CryptoService
+    private readonly cryptoService: CryptoService,
+    private readonly userManagementService: UserManagementService
   ) {}
 
   async introspectToken(token: string): Promise<Payload | null> {
@@ -30,15 +33,24 @@ export class TokenService {
         return null;
       }
 
-      return {
+      // Get the user role from the database
+      const userRole = await this.userManagementService.getUserRole(session.user.id);
+
+      const payload: Payload = {
         userId: session.user.id,
         projectId: TokenService.DEFAULT_ORGANIZATION_ID,
         email: session.user.email,
         fullName: session.user.name || session.user.email,
-        roles: ['admin'],
       };
+
+      // Only include the role if the user has a role assigned
+      if (userRole) {
+        payload.roles = [userRole as Role];
+      }
+
+      return payload;
     } catch (error) {
-      console.error('Token introspection failed:', error);
+      logger.error('Token introspection failed', {}, error as Error);
       throw new Error('Token introspection failed');
     }
   }
@@ -68,7 +80,7 @@ export class TokenService {
         accessToken: encryptedToken,
       };
     } catch (error) {
-      console.error('Token refresh failed:', error);
+      logger.error('Token refresh failed', {}, error as Error);
       throw new Error('Token refresh failed');
     }
   }
@@ -96,7 +108,7 @@ export class TokenService {
         });
       }
     } catch (error) {
-      console.error('Failed to revoke token:', error);
+      logger.error('Failed to revoke token', {}, error as Error);
       throw new Error('Failed to revoke token');
     }
   }

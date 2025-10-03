@@ -1,6 +1,6 @@
 {
   "name": "@owox/idp-better-auth",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "type": "module",
   "author": "OWOX",
   "license": "ELv2",
@@ -13,8 +13,9 @@
   },
   "scripts": {
     "build": "tsc && node ./scripts/copy-public.cjs",
-    "build:dep": "npm run build:idp-protocol",
+    "build:dep": "npm run build:internal-helpers && npm run build:idp-protocol",
     "build:idp-protocol": "npm run build -w @owox/idp-protocol --prefix ../..",
+    "build:internal-helpers": "npm run build -w @owox/internal-helpers --prefix ../..",
     "clean": "rimraf dist",
     "test": "jest",
     "lint": "eslint . --config ./eslint.config.js",
@@ -27,6 +28,7 @@
   "keywords": ["idp", "better-auth", "authentication", "owox"],
   "dependencies": {
     "@owox/idp-protocol": "*",
+    "@owox/internal-helpers": "*",
     "@types/cookie-parser": "^1.4.9",
     "@types/jsonwebtoken": "^9.0.10",
     "better-auth": "^1.3.4",

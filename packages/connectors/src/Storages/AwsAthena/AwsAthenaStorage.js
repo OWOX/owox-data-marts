@@ -169,7 +169,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
         let columns = {};
         if (results && results.length > 0) {
           results.forEach(row => {
-            columns[row] = 'string';
+            columns[row] = this.getColumnType(row);
           });
         }
         this.existingColumns = columns;
@@ -264,11 +264,8 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
 
     for (let columnName of newColumns) {
       if (columnName in this.schema) {
-        let columnType = 'string';
-        if ("AthenaType" in this.schema[columnName]) {
-          columnType = this.schema[columnName]["AthenaType"];
-        }
-        
+        let columnType = this.getColumnType(columnName);
+ 
         columnsToAdd.push(`${columnName} ${columnType}`);
         this.existingColumns[columnName] = columnType;  
       }
