@@ -1,66 +1,82 @@
 # How to Import Data from the Open Exchange Rates Source
 
-To begin importing exchange rate data from the Open Exchange Rates source, follow the steps below.
+Before you begin, please ensure that:
 
-## Step 1: Make a Copy of the Template
+- You have already create App ID, as described in [CREDENTIALS](CREDENTIALS.md).  
+- You have [set up **OWOX Data Marts**](https://docs.owox.com/docs/getting-started/quick-start/) and created at least one storage in the **Storages** section.  
 
-Choose the appropriate template depending on your data destination:
+![Open Exchange Rates Storage](res/openrates_storage.png)
 
-- [**Open Exchange Rates → Google Sheets Template**](https://docs.google.com/spreadsheets/d/1rvjCh_aGAcYgZRPzrePhkginVH6pJ5GoyN51z5HJD_I/copy)
-- [**Open Exchange Rates → Google BigQuery Template**](https://docs.google.com/spreadsheets/d/1_SQUJgu_rr9hH8Utzpx54cin49y_w1ImX6EsaQBiFNM/copy)
+## Create the Data Mart
 
-## Step 2: Fill in the Required Parameters
+- Click **New Data Mart**.
+- Enter a title and select the Storage.
+- Click **Create Data Mart**.
 
-Required Fields:
+![Open Exchange Rates New Data Mart](res/openrates_newdatamart.png)
 
-- **Start Date** — the import will begin from this date  
-- **Symbols** — currency codes you want to retrieve
+1. Select **Connector** as the input source type.  
+2. Click **Set up connector** and choose **Open Exchange Rates**.  
+3. Fill in App ID you obtained in the [CREDENTIALS](CREDENTIALS.md) guide.  
+   - Leave the other fields as default.  
+   - Proceed to the next step.
 
-![Open Exchange Rates Start Date](res/openrates_date.png)
+![Open Exchange Rates Input Source](res/openrates_inputsource.png)
 
-The default base currency is **US Dollars (USD)**.  
+![Open Exchange Rates Setup Connector](res/openrates_setupconnector.png)
+
+## Configure Data Import
+
+- Choose one of the available **endpoints**.
+- Select the required **fields**.  
+
+> The default base currency is **US Dollars (USD)**.  
 You can find the list of supported currency symbols [Open Exchange Rates documentation](https://docs.openexchangerates.org/reference/supported-currencies).
 
-![Open Exchange Rates Currency](res/openrates_currency.png)
+- Specify the **dataset** where the data will be stored (or leave the default).  
+- Click **Finish**, then **Save** and **Publish Data Mart**.  
 
-## Step 3: Configure BigQuery Destination (if applicable)
+![Open Exchange Rates Publish Data Mart](res/openrates_publishdatamart.png)
 
-If you’re using the **Google BigQuery** template, also fill in:
+## Run the Data Mart
 
-- **Destination Dataset ID** — format: `projectid.datasetid`
-- **Destination Location**
+You now have two options for importing data from Open Exchange Rates:  
 
-> ℹ️ If the specified dataset doesn't exist, it will be created automatically.
+Option 1: Import Current Day's Data
 
-![Open Exchange Rates Dataset](res/openrates_dataset.png)
+Choose **Manual run → Incremental load** to load data for the **current day**.
 
-## Step 4: Add Your App ID
+![Open Exchange Rates Manual Run](res/openrates_manualrun.png)
 
-Go to **OWOX → Manage credentials** from the menu.
+![Open Exchange Rates Incremental Load](res/openrates_currentday.png)
 
-![Open Exchange Rates Credentials](res/openrates_credentials.png)
+> ℹ️ If you click **Incremental load** again after a successful initial load,  
+> the connector will import: **Current day's data**, plus **Additional days**, based on the value in the **Reimport Lookback Window** field.
 
-Enter your **App ID** obtained by following this tutorial:  [How to obtain the App ID for the Open Exchange Rates connector](CREDENTIALS.md)
+![Open Exchange Rates Reimport](res/openrates_reimportwindow.png)
 
-![Open Exchange Rates App ID](res/openrates_appid.png)
+Option 2: Manual Backfill for Specific Date Range
 
-## Step 5: Run the Import
+- Choose **Backfill (custom period)** to load historical data.  
 
-Once your credentials are saved, go to **OWOX → Import New Data** to start the data import process.
+1. Select the **Start Date** and **End Date**.  
+2. Click **Run**.  
 
-![Open Exchange Rates Import](res/openrates_import.png)
+![Open Exchange Rates Backfill](res/openrates_daterange.png)
 
-The import is complete when the **Log** sheet shows the message:  
-> **"Import is finished"**
+The process is complete when the **Run history** tab shows the message: **"Success"**  
 
-## Step 6: Access Your Data
+![Open Exchange Rates Success](res/openrates_successrun.png)
 
-In the **Google Sheets** template:
-The data will appear in a new tab called **Data**.  
+## Access Your Data
 
-![Open Exchange Rates Finished](res/openrates_finished.png)
+Once the run is complete, the data will be written to the dataset you specified earlier.  
 
-In the **Google BigQuery** template:
-The data will be written to the BigQuery dataset you specified earlier.  
+![Open Exchange Rates Import Success](res/openrates_importgbq.png)
 
-![Open Exchange Rates Finished](res/openrates_finished_bq.png)
+If you encounter any issues:
+
+1. Check the Run history for specific error messages
+2. Please [visit Q&A](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) first
+3. If you want to report a bug, please [open an issue](https://github.com/OWOX/owox-data-marts/issues)
+4. Join the [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions or propose improvements
