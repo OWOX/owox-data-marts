@@ -15,11 +15,11 @@ Before you begin, please ensure that:
 
 ![Open Exchange Rates New Data Mart](res/openrates_newdatamart.png)
 
-1. Select **Connector** as the input source type.  
-2. Click **Set up connector** and choose **Open Exchange Rates**.  
-3. Fill in App ID you obtained in the [CREDENTIALS](CREDENTIALS.md) guide.  
-   - Leave the other fields as default.  
-   - Proceed to the next step.
+- Select **Connector** as the input source type.  
+- Click **Set up connector** and choose **Open Exchange Rates**.  
+- Fill in App ID you obtained in the [CREDENTIALS](CREDENTIALS.md) guide.  
+- Leave the other fields as default.  
+- Proceed to the next step.
 
 ![Open Exchange Rates Input Source](res/openrates_inputsource.png)
 
@@ -58,9 +58,8 @@ Choose **Manual run → Incremental load** to load data for the **current day**.
 Option 2: Manual Backfill for Specific Date Range
 
 - Choose **Backfill (custom period)** to load historical data.  
-
-1. Select the **Start Date** and **End Date**.  
-2. Click **Run**.  
+- Select the **Start Date** and **End Date**.  
+- Click **Run**.  
 
 ![Open Exchange Rates Backfill](res/openrates_daterange.png)
 

@@ -10,13 +10,13 @@ Enter a name for your app, then click "**Generate New App ID**".
 
 ![Open Exchange Rates New ID](res/openrates_newid.png)
 
-Copy the provided ID.
+Copy the provided App ID.
 
 ![Open Exchange Rates Copy ID](res/openrates_copyid.png)
 
 ## ✅ You’re Ready to Go
 
-You can now use this ID as described in the [Getting Started guide](GETTING_STARTED.md).
+You can now use this App ID as described in the [Getting Started guide](GETTING_STARTED.md).
 
 ## Troubleshooting and Support
 
