@@ -5,6 +5,8 @@ Before you begin, please ensure that:
 - You have already obtained all required credentials, as described in [CREDENTIALS](CREDENTIALS.md).  
 - You have [set up **OWOX Data Marts**](https://docs.owox.com/docs/getting-started/quick-start/) and created at least one storage in the **Storages** section.  
 
+![Microsoft Ads Storage](res/microsoft_storage.png)
+
 ## Create the Data Mart
 
 - Click **New Data Mart**.
