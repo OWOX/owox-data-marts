@@ -1,9 +1,9 @@
 # How to Import Data from the Reddit Ads Source
 
-To start importing data from Reddit Ads, make a copy of one of the following templates:
+Before you begin, please ensure that:
 
-- [**Reddit Ads → Google Sheets. Template**](https://docs.google.com/spreadsheets/d/1lLhr5LEzQeSt6cwv07B0CKR8WgN5-_8MuL3ChkJej5w/copy)
-- [**Reddit Ads → Google BigQuery. Template**](https://docs.google.com/spreadsheets/d/1LC1PRlDtK--U03pWHt_soasiKxfMwfZcY0V2Pf7roDY/copy)
+- You have already obtained all required credentials, as described in [CREDENTIALS](CREDENTIALS.md).  
+- You have [set up **OWOX Data Marts**](https://docs.owox.com/docs/getting-started/quick-start/) and created at least one storage in the **Storages** section.  
 
 Fill in required parameters:
 
