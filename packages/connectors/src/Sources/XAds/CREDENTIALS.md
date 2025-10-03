@@ -69,9 +69,12 @@ In the **API Key and Secret** section:
 
 ## Step 5: Request a Temporary OAuth Token
 
-Make a **POST** request to `https://api.twitter.com/oauth/request_token`.
+Next, make a request using Postman or another tool (e.g., [ReqBin](https://reqbin.com/)).
 
-**In the Authorization tab, use the following OAuth 1.0 settings:**
+- **Endpoint:** `https://api.twitter.com/oauth/request_token`  
+- **Method:** `POST`  
+
+In the Authorization tab, use the following OAuth 1.0 settings:
 
 - **Signature Method**: HMAC-SHA1  
 - **Consumer Key**: your **API Key** from Step 4  
@@ -100,9 +103,12 @@ You will be redirected to a URL containing `oauth_token` and `oauth_verifier`.
 
 ## Step 7: Exchange for Permanent Tokens
 
-Make a **POST** request to `https://api.twitter.com/oauth/access_token`.
+Make request using Postman or another tool (e.g., [ReqBin](https://reqbin.com/)).
 
-**In the Authorization tab, use the following OAuth 1.0 settings:**
+- **Endpoint:** `https://api.twitter.com/oauth/access_token`  
+- **Method:** `POST`  
+
+In the Authorization tab, use the following OAuth 1.0 settings:
 
 - **Consumer Key**: your **API Key**
 - **Consumer Secret**: your **API Secret**
@@ -130,7 +136,7 @@ Refer to the [Getting Started Guide](GETTING_STARTED.md) to complete the setup.
 
 ## Troubleshooting and Support
 
-If you encounter any issues after saving your credentials in the Google Sheet:
+If you encounter any issues:
 
 1. Browse the [Q&A section](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) — your question might already be answered.
 2. To report a bug or technical issue, [open a GitHub issue](https://github.com/OWOX/owox-data-marts/issues).

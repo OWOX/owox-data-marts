@@ -33,7 +33,11 @@ Click the **Register** button.
 
 ## Step 2: Generate Client Credentials
 
-In your registered app, go to **Client credentials** -> **Add a certificate or secret**.
+First, copy and save your **Client ID**:
+
+![Microsoft Client ID](res/microsoft_clientid.png)
+
+Then, go to **Client credentials** -> **Add a certificate or secret**.
 
 ![Microsoft Create Secret](res/microsoft_createsecret.png)
 

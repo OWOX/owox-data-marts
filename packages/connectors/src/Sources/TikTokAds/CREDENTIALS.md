@@ -60,13 +60,15 @@ After your app is approved, you can generate an access token:
 
 ![TikTok Auth Code](res/tiktok_auth_code.png)
 
-To obtain an access token, send a `POST` request to the TikTok API in order to exchange the `auth_code` for an `access_token`.
+Next, exchange the authorization code for a **access token** using Postman or another tool (e.g., [ReqBin](https://reqbin.com/)).
 
 * **Endpoint:**  
   `https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/`
 
+* **Method:** `POST`  
+
 * **Request body parameters:**  
-  * `app_id` – your unique application ID (e.g., in the format `APPID`). You can find this above the URL in the previous step.  
+  * `app_id` – your unique application ID (e.g., in the format `"APPID"`). You can find this above the URL in the previous step.  
   * `secret` – your application’s secret key. Located directly below the App ID.  
   * `auth_code` – the authorization code (`auth_code`) obtained from the redirect URL.  
 
