@@ -2,7 +2,7 @@
 
 Before proceeding, please make sure that:
 
-- You have already created an **access token**, as described in [GETTING_STARTED.md](GETTING_STARTED.md).  
+- You have already created an **access token**, as described in [CREDENTIALS](CREDENTIALS.md).  
 - You [have run **OWOX Data Marts**](https://docs.owox.com/docs/getting-started/quick-start/) and created at least one storage in the **Storages** section.  
 
 ![Facebook Storage](res/facebook_nodejs_storage.png)

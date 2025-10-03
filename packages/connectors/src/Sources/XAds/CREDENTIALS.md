@@ -130,7 +130,7 @@ Refer to the [Getting Started Guide](GETTING_STARTED.md) to complete the setup.
 
 ## Troubleshooting and Support
 
-If you encounter any issues after saving your credentials in the Google Sheet:
+If you encounter any issues:
 
 1. Check if there is a specific error message.
 2. Browse the [Q&A section](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) — your question might already be answered.
