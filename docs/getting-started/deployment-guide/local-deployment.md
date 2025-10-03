@@ -55,8 +55,6 @@ The CLI provides an easy way to launch the pre-built OWOX Data Marts server, inc
    --name owox-data-marts \
    -p 127.0.0.1:3000:3000 \
    -v "$HOME/owox-data:/root/.local/share/owox/sqlite" \
-   -e PORT=3000 \
-   -e TRUSTED_ORIGINS="http://localhost:3000,http://127.0.0.1:3000" \
    ghcr.io/owox/owox-data-marts:latest
    ```
 
@@ -75,8 +73,6 @@ The CLI provides an easy way to launch the pre-built OWOX Data Marts server, inc
    --name owox-data-marts \
    -p 127.0.0.1:3000:3000 \
    -v "$HOME/owox-data:/root/.local/share/owox/sqlite" \
-   -e PORT=3000 \
-   -e TRUSTED_ORIGINS="http://localhost:3000,http://127.0.0.1:3000" \
    ghcr.io/owox/owox-data-marts:latest
    ```
 
