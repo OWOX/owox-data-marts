@@ -83,7 +83,7 @@ For more details on the types of deployment in your infrastructure, check out ou
 
 ## 🔌 Available Connectors
 
-**OWOX Data Marts** includes growing library of ** data connectors** that:
+**OWOX Data Marts** includes growing library of **data connectors** that:
 
 - Pull data from **any APIs** like Facebook Marketing, TikTok Ads, LinkedIn Ads, etc.
 - Require **zero external tools** or sharing credentials
