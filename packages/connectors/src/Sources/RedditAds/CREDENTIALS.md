@@ -55,7 +55,7 @@ You will then be redirected to a URL similar to:
 
 Copy the value of the `code` parameter — for example: ```tPy-1pWJgMkzJrBmdFvIxWzS42girQ```
 
-![Reddit Copy Code](res/reddit_copycode)
+![Reddit Copy Code](res/reddit_copycode.png)
 
 ## Step 3: Exchange Authorization Code for a Refresh Token
 
@@ -108,8 +108,8 @@ Reddit requires a properly formatted `User-Agent` header for all API requests. U
 
 You now have all required credentials:
 
-- **App ID**  
-- **Secret**  
+- **Client ID** (**App ID**)
+- **Client Secret** (**Secret**)
 - **Redirect URI**: `https://www.reddit.com/prefs/apps`  
 - **Refresh Token**  
 - **User-Agent Header**  

@@ -5,89 +5,84 @@ Before you begin, please ensure that:
 - You have already obtained all required credentials, as described in [CREDENTIALS](CREDENTIALS.md).  
 - You have [set up **OWOX Data Marts**](https://docs.owox.com/docs/getting-started/quick-start/) and created at least one storage in the **Storages** section.  
 
-Fill in required parameters:
+![Reddit Ads Storage](res/reddit_storage.png)
 
-- **Account IDs**
-- **Fields**
-- **Destination Dataset ID** (applicable only for the **Google BigQuery** template)
-- **Destination Location** (applicable only for the **Google BigQuery** template)
+## Create the Data Mart
 
-You can find your **Account ID** on the homepage of your [Reddit Ads account](https://ads.reddit.com/):
+- Click **New Data Mart**.
+- Enter a title and select the Storage.
+- Click **Create Data Mart**.
 
-![Reddit Account ID](res/reddit_accountid.png)
+![Reddit Ads New Data Mart](res/reddit_newdatamart.png)
 
-Copy and paste the ID into the appropriate field in the spreadsheet:
+## Set Up the Connector
 
-![Account ID](res/reddit_pasteid.png)
+1. Select **Connector** as the input source type.
+2. Click **Set up connector** and choose **Reddit Ads**.  
+3. Fill in the required fields:
+    - **Client ID** – paste the App ID you saved earlier.
+    - **Client Secret** – paste the secret you saved earlier.
+    - **Redirect URI** – paste `https://www.reddit.com/prefs/apps`
+    - **Refresh Token** – paste the token you created following the [CREDENTIALS](CREDENTIALS) tutorial.
+    - **User Agent** – `googleapps:owox-data-marts.redditads:v1.0.0 (by /u/your_reddit_username)` (replace `your_reddit_username` with your actual Reddit username).
+    - **Account ID** – you can find this value on your [Reddit Ads Manager](https://ads.reddit.com/).
+    - Leave the other fields as default and proceed to the next step.
 
-Some fields are pre-filled by default.  
-To include additional fields, go to the **Fields** tab and check the boxes next to the ones you need.
+![Reddit Ads Input Source](res/reddit_connector.png)
 
-![Reddit Fields](res/reddit_fields.png)
+![Reddit Ads Fill Data](res/reddit_fill_data.png)
 
-If you are using the **Google BigQuery** template, you must also specify:
+![Reddit Ads Account ID](res/reddit_accountid.png)
 
-- **Destination Dataset ID** in the format: `projectid.datasetid`
-- **Destination Location** (e.g., `US`, `EU`)
+## Configure Data Import
 
-> ℹ️ **Important:** If the specified BigQuery dataset does not already exist in your Google Cloud project, it will be automatically created during the import process.
+1. Choose one of the available **endpoints**.  
+2. Select the required **fields**.  
+3. Specify the **dataset** where the data will be stored (or leave the default).  
+4. Click **Finish**, then **Save** and **Publish Data Mart**.
 
-![Reddit Dataset](res/reddit_dataset.png)
+![Reddit Ads Publish Data Mart](res/reddit_publish.png)
 
-Open the menu: **OWOX → Manage Credentials**
+## Run the Data Mart
 
-![Reddit Credentials](res/reddit_credentials.png)
-
-Enter your credentials as described in this guide:  
-[**How to obtain the credentials for the Reddit Ads connector**](CREDENTIALS.md)
-
-![Reddit Token](res/reddit_tokens.png)
-
-Click **Check and Save**. Once credentials are saved, go to menu.
-
-Now you have **two options** for importing data from Reddit Ads:
+You now have two options for importing data from LinkedIn Pages:  
 
 Option 1: Import Current Day's Data
 
-Choose **OWOX → Import New Data** to load data for the **current day**.
+Choose **Manual run → Incremental load** to load data for the **current day**.
 
-![Reddit Import New Data](res/reddit_importcurrentday.png)
+![Reddit Ads Import New Data](res/reddit_incremental.png)
 
-> ℹ️ If you click **Import New Data** again after a successful initial load,  
+![Reddit Ads Incremental Load](res/reddit_currentday.png)
+
+> ℹ️ If you click **Incremental load** again after a successful initial load,  
 > the connector will import: **Current day's data**, plus **Additional days**, based on the value in the **Reimport Lookback Window** field.
 
-![Reddit Reimport](res/reddit_reimport.png)
+![Reddit Ads Reimport](res/reddit_reimportwindow.png)
 
 Option 2: Manual Backfill for Specific Date Range
 
-Choose **Manual Backfill** to load historical data for a custom time range.
+Choose **Backfill (custom period)** to load historical data.  
 
-![Reddit Backfill](res/reddit_backfill.png)
+1. Select the **Start Date** and **End Date**.
+2. Click the **Run** button.
 
-1. Select the **Start Date** and **End Date**  
-2. Click the **Run Manual Backfill** button
+![Reddit Ads Backfill](res/reddit_daterange.png)
 
-![Reddit Run Backfill](res/reddit_runbackfill.png)
+The process is complete when the **Run history** tab shows the message:  
+**"Success"**  
 
-The process is complete when the **Log** field shows the message:  
-**"Import is finished"**  
+![Reddit Ads Success](res/reddit_successrun.png)
 
-Access Your Data:
+## Access Your Data
 
-- In the **Google Sheets** template, the data will appear in new tabs labeled with the corresponding data types (e.g., *accounts*).  
+Once the run is complete, the data will be written to the dataset you specified earlier.
 
-![Reddit Finished](res/reddit_success.png)
-
-- In the **Google BigQuery** template, the data will be written to the dataset specified earlier.
-
-![Reddit Finished](res/reddit_finish.png)
-
-Want to include more fields? You can customize the imported data by selecting additional checkboxes in the **Fields** tab.
-After adjusting your field selection, run the import again to retrieve the updated data.
+![Reddit Ads Import Success](res/reddit_bq.png)
 
 If you encounter any issues:
 
-1. Check the "Logs" sheet for specific error messages
+1. Check the Run history for specific error messages
 2. Please [visit Q&A](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) first
 3. If you want to report a bug, please [open an issue](https://github.com/OWOX/owox-data-marts/issues)
 4. Join the [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions or propose improvements
