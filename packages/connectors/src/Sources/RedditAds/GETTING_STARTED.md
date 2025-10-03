@@ -18,10 +18,10 @@ Before you begin, please ensure that:
 ## Set Up the Connector
 
 1. Select **Connector** as the input source type.
-2. Click **Set up connector** and choose **Reddit Ads**.  
+2. Click **Setup connector** and choose **Reddit Ads**.  
 3. Fill in the required fields:
     - **Client ID** – paste the App ID you saved earlier.
-    - **Client Secret** – paste the secret you saved earlier.
+    - **Client Secret** – paste the Secret you saved earlier.
     - **Redirect URI** – paste `https://www.reddit.com/prefs/apps`
     - **Refresh Token** – paste the token you created following the [CREDENTIALS](CREDENTIALS) tutorial.
     - **User Agent** – `googleapps:owox-data-marts.redditads:v1.0.0 (by /u/your_reddit_username)` (replace `your_reddit_username` with your actual Reddit username).
@@ -45,7 +45,7 @@ Before you begin, please ensure that:
 
 ## Run the Data Mart
 
-You now have two options for importing data from LinkedIn Pages:  
+You now have two options for importing data from Reddit Ads:  
 
 Option 1: Import Current Day's Data
 
