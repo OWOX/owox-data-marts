@@ -58,7 +58,7 @@ export async function createBetterAuthConfig(
           }
         ).lastToken = token;
       },
-      expiresIn: config.magicLinkTtl || 3600, // 1 hour
+      expiresIn: config.magicLinkTtl,
       disableSignUp: false,
     })
   );
