@@ -1,6 +1,7 @@
 # Environment Variables
 
-This document describes how to configure environment variables for working with OWOX Data Marts. The system automatically loads configuration when starting the application with the `serve` command.
+This document describes how to configure environment variables for working with OWOX Data Marts.
+The system automatically loads configuration when starting the application with the `owox serve` command.
 
 ## Table of Contents
 
@@ -22,26 +23,6 @@ Depending on the selected database type for the backend (`DB_TYPE`) and identity
 - **For `IDP_PROVIDER=better-auth`** - add Better Auth variables (`IDP_BETTER_AUTH_SECRET`, `IDP_BETTER_AUTH_BASE_URL`, etc.)
 
 The complete list of all available environment variables is located in the [.env.example](https://github.com/OWOX/owox-data-marts/blob/main/.env.example) file in the project root directory.
-
-### MySQL SSL
-
-`DB_MYSQL_SSL`, `IDP_BETTER_AUTH_MYSQL_SSL`, `IDP_OWOX_MYSQL_SSL`  enable TLS for MySQL (mysql2). Supported formats:
-
-- Boolean-like (strings)
-  - `true` → `{}` (enable TLS with default options: `rejectUnauthorized: true`)
-  - `false` or empty → no `ssl` field (TLS disabled)
-
-- JSON object (forwarded to mysql2 TLS options)
-  - Strict CA verification:
-    - `{"rejectUnauthorized": true}`
-  - Custom CA bundle (inline PEM):
-    - `{"rejectUnauthorized": true, "ca": "-----BEGIN CERTIFICATE-----\\n...\\n-----END CERTIFICATE-----\\n"}`
-  - Mutual TLS (client cert + key):
-    - `{"rejectUnauthorized": true, "cert": "-----BEGIN CERTIFICATE-----\\n...\\n-----END CERTIFICATE-----\\n", "key": "-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n"}`
-  - Minimum TLS version (TLS 1.2):
-    - `{"minVersion": "TLSv1.2", "rejectUnauthorized": true}`
-
-See also: mysql2 official SSL documentation — <https://sidorares.github.io/node-mysql2/docs/documentation/ssl>
 
 ## Configuration Methods
 
@@ -183,6 +164,26 @@ LOG_FORMAT=pretty
 owox serve --env-file custom.env --port 3030
 # Result: PORT=3030 (from command line argument)
 ```
+
+## MySQL SSL
+
+`DB_MYSQL_SSL`, `IDP_BETTER_AUTH_MYSQL_SSL`, `IDP_OWOX_MYSQL_SSL`  enable TLS for MySQL (mysql2). Supported formats:
+
+- Boolean-like (strings)
+  - `true` → `{}` (enable TLS with default options: `rejectUnauthorized: true`)
+  - `false` or empty → no `ssl` field (TLS disabled)
+
+- JSON object (forwarded to mysql2 TLS options)
+  - Strict CA verification:
+    - `{"rejectUnauthorized": true}`
+  - Custom CA bundle (inline PEM):
+    - `{"rejectUnauthorized": true, "ca": "-----BEGIN CERTIFICATE-----\\n...\\n-----END CERTIFICATE-----\\n"}`
+  - Mutual TLS (client cert + key):
+    - `{"rejectUnauthorized": true, "cert": "-----BEGIN CERTIFICATE-----\\n...\\n-----END CERTIFICATE-----\\n", "key": "-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n"}`
+  - Minimum TLS version (TLS 1.2):
+    - `{"minVersion": "TLSv1.2", "rejectUnauthorized": true}`
+
+See also: mysql2 official SSL documentation — <https://sidorares.github.io/node-mysql2/docs/documentation/ssl>
 
 ## Troubleshooting
 
