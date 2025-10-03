@@ -5,14 +5,13 @@ import { Skeleton } from '@owox/ui/components/skeleton';
 import { Combobox } from '../../../../../../shared/components/Combobox/combobox.tsx';
 import type { ConnectorListItem } from '../../../../shared/model/types/connector';
 import type { ConnectorSpecificationResponseApiDto } from '../../../../shared/api/types';
-import { RawBase64Icon } from '../../../../../../shared/icons';
+import { StepperHeroBlock } from '../components';
 import { RequiredType } from '../../../../shared/api/types';
 import { useState, useEffect, useRef } from 'react';
 import {
   AppWizardStepItem,
   AppWizardStepLabel,
   AppWizardStepSection,
-  AppWizardStepHero,
   AppWizardStep,
 } from '@owox/ui/components/common/wizard';
 
@@ -312,11 +311,7 @@ export function ConfigurationStep({
 
   return (
     <AppWizardStep>
-      <AppWizardStepHero
-        icon={<RawBase64Icon base64={connector.logoBase64} size={48} />}
-        title={connector.displayName}
-        docUrl={connector.docUrl}
-      />
+      <StepperHeroBlock connector={connector} />
       <AppWizardStepSection title='Configure Settings'>
         {sortedSpecifications.map(specification => (
           <AppWizardStepItem key={specification.name}>

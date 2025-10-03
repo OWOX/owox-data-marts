@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useRef } from 'react';
 import { cn } from '@owox/ui/lib/utils';
 import { Label } from '@owox/ui/components/label';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
@@ -152,7 +153,7 @@ function AppWizardStepLabel({
           </TooltipContent>
         </Tooltip>
       ) : (
-        <span className='flex items-center gap-1'>{children}</span>
+        <span>{children}</span>
       )}
 
       {tooltip && (
@@ -212,13 +213,43 @@ function AppWizardStepHero({
   icon,
   title,
   docUrl,
+  variant = 'default',
   className,
   ...props
 }: {
   icon?: React.ReactNode;
   title: string;
   docUrl?: string | null;
+  variant?: 'default' | 'compact';
 } & React.HTMLAttributes<HTMLDivElement>) {
+  if (variant === 'compact') {
+    return (
+      <div
+        data-slot='wizard-step-hero'
+        className={cn(
+          'border-border mb-6 flex items-center justify-between gap-4 border-b pb-4',
+          className
+        )}
+        {...props}
+      >
+        <div className='flex items-center gap-2'>
+          {icon && <div>{icon}</div>}
+          <h2 className='text-md font-medium'>{title}</h2>
+        </div>
+
+        {docUrl != null && (
+          <Button variant='outline' asChild>
+            <Link to={docUrl} target='_blank' rel='noopener noreferrer'>
+              Documentation
+              <ExternalLinkIcon className='h-4 w-4' />
+            </Link>
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  // Default variant (original design)
   return (
     <div
       data-slot='wizard-step-hero'
@@ -230,9 +261,9 @@ function AppWizardStepHero({
       <h2 className='text-xl font-medium'>{title}</h2>
 
       {docUrl != null && (
-        <Button variant={'outline'} className='mt-3 mb-6' asChild>
+        <Button variant='outline' className='mt-3 mb-6' asChild>
           <Link to={docUrl} target='_blank' rel='noopener noreferrer'>
-            View connector documentation
+            Documentation
             <ExternalLinkIcon className='h-4 w-4' />
           </Link>
         </Button>
@@ -329,6 +360,142 @@ function AppWizardGridItem({
   );
 }
 
+/**
+ * AppWizardStepCardItem — standardized "card-style" field component.
+ *
+ * Supports radio, checkbox, and text inputs with consistent wizard styling.
+ *
+ * Features:
+ * - Works inside AppWizardStepItem for layout consistency.
+ * - Supports "selected" (highlighted) and "disabled" states, styled same as AppWizardGridItem.
+ * - Integrates with AppWizardStepLabel for consistent typography and accessibility.
+ * - Optional tooltip for extra context/help.
+ *
+ * Example (radio):
+ * <AppWizardStepCardItem
+ *   type="radio"
+ *   name="selectedField"
+ *   value="users"
+ *   label="Users table"
+ *   checked={selectedField === "users"}
+ *   onChange={setSelectedField}
+ *   tooltip="This table stores user accounts"
+ *   selected={selectedField === "users"}
+ * />
+ */
+type AppWizardStepCardItemProps = {
+  type: 'radio' | 'checkbox' | 'text';
+  id: string;
+  name: string;
+  value?: string;
+  label?: React.ReactNode;
+  checked?: boolean;
+  selected?: boolean;
+  disabled?: boolean;
+  tooltip?: React.ReactNode;
+  rightIcon?: React.ReactNode;
+  onChange?: (value: string | boolean) => void;
+} & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'value' | 'type'>;
+
+function AppWizardStepCardItem({
+  type,
+  id,
+  name,
+  value,
+  label,
+  checked,
+  selected = false,
+  disabled = false,
+  tooltip,
+  rightIcon,
+  onChange,
+  className = '',
+  ...props
+}: AppWizardStepCardItemProps) {
+  // Normalize onChange callback (different for checkbox vs. others)
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!onChange) return;
+    if (type === 'checkbox') {
+      onChange(e.target.checked);
+    } else {
+      onChange(e.target.value);
+    }
+  };
+
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <div
+      data-slot='wizard-step-card-item'
+      onClick={e => {
+        if (disabled) return;
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'INPUT' || target.tagName === 'LABEL' || target.closest('label')) {
+          return;
+        }
+        if (inputRef.current) {
+          inputRef.current.click();
+        }
+      }}
+      className={cn(
+        'group border-border flex items-center gap-2 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-transparent dark:bg-white/4',
+        disabled ? 'cursor-not-allowed' : 'cursor-pointer hover:shadow-sm dark:hover:bg-white/8',
+        selected ? 'ring-primary border-transparent ring-2 dark:bg-white/8' : '',
+        className
+      )}
+    >
+      {/* Input element (radio / checkbox / text) */}
+      <input
+        ref={inputRef}
+        id={id}
+        type={type}
+        name={name}
+        value={value}
+        checked={checked}
+        disabled={disabled}
+        onChange={handleChange}
+        className={cn(
+          'text-primary focus:ring-primary border-border cursor-pointer',
+          // Radios/checkboxes are compact, text inputs expand
+          type === 'radio' || type === 'checkbox' ? 'h-4 w-4' : 'h-8 w-full rounded-md border px-2'
+        )}
+        {...props}
+      />
+
+      {/* Label next to the input (uses AppWizardStepLabel for consistency) */}
+      {label && (
+        <AppWizardStepLabel
+          htmlFor={id}
+          className={cn('cursor-pointer', disabled && 'cursor-not-allowed')}
+        >
+          {label}
+        </AppWizardStepLabel>
+      )}
+
+      {/* Right side container (tooltip + rightIcon) */}
+      {(tooltip || rightIcon) && (
+        <div className='ml-auto flex shrink-0 items-center gap-2'>
+          {tooltip && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info
+                  className='text-muted-foreground/75 hidden h-4 w-4 group-hover:inline-block'
+                  data-tooltip-trigger
+                />
+              </TooltipTrigger>
+              <TooltipContent side='top' align='center'>
+                {tooltip}
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+          {rightIcon && <div className='flex items-center'>{rightIcon}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Re-export for unified import
 export {
   AppWizard,
@@ -341,4 +508,5 @@ export {
   AppWizardStep,
   AppWizardGrid,
   AppWizardGridItem,
+  AppWizardStepCardItem,
 };

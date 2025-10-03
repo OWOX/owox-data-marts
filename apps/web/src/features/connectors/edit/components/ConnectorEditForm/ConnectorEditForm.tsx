@@ -274,6 +274,7 @@ export function ConnectorEditForm({
         case 1:
           return selectedNode && connectorFields ? (
             <FieldsSelectionStep
+              connector={selectedConnector}
               connectorFields={connectorFields}
               selectedField={selectedNode}
               selectedFields={selectedFields}
@@ -315,6 +316,7 @@ export function ConnectorEditForm({
         return selectedConnector && connectorFields ? (
           <NodesSelectionStep
             connectorFields={connectorFields}
+            connector={selectedConnector}
             selectedField={selectedNode}
             connectorName={selectedConnector.displayName}
             loading={loadingFields}
@@ -324,6 +326,7 @@ export function ConnectorEditForm({
       case 4:
         return selectedNode && connectorFields ? (
           <FieldsSelectionStep
+            connector={selectedConnector}
             connectorFields={connectorFields}
             selectedField={selectedNode}
             selectedFields={selectedFields}

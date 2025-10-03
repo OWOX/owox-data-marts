@@ -7,7 +7,9 @@ import {
   AppWizardStepLabel,
   AppWizardStepSection,
   AppWizardStep,
+  AppWizardStepHero,
 } from '@owox/ui/components/common/wizard';
+import { GoogleBigQueryIcon, AwsAthenaIcon } from '../../../../../../shared';
 
 interface TargetSetupStepProps {
   dataStorageType: DataStorageType;
@@ -114,167 +116,154 @@ export function TargetSetupStep({
   };
 
   return (
-    <AppWizardStep>
-      <AppWizardStepSection title='Set target'>
+    <>
+      <AppWizardStep>
         {dataStorageType === DataStorageType.GOOGLE_BIGQUERY && (
           <>
-            <AppWizardStepItem>
-              <AppWizardStepLabel
-                required={true}
-                htmlFor='dataset-name'
-                tooltip='Enter dataset name for Google BigQuery where the connector data will be stored. The
+            <AppWizardStepHero
+              icon={<GoogleBigQueryIcon />}
+              title='Google BigQuery'
+              docUrl='https://docs.owox.com/docs/storages/supported-storages/google-bigquery/'
+              variant='compact'
+            />
+            <AppWizardStepSection title='Choose where to store your data'>
+              <AppWizardStepItem>
+                <AppWizardStepLabel
+                  required={true}
+                  htmlFor='dataset-name'
+                  tooltip='Enter dataset name for Google BigQuery where the connector data will be stored. The
                     dataset will be created automatically if it doesn`t exist'
-              >
-                Dataset name
-              </AppWizardStepLabel>
-              <Input
-                type='text'
-                id='dataset-name'
-                placeholder='Enter dataset name'
-                autoComplete='off'
-                className='box-border w-full'
-                value={datasetName}
-                aria-invalid={Boolean(datasetError)}
-                aria-describedby={datasetError ? 'dataset-name-error' : undefined}
-                onChange={e => {
-                  handleDatasetNameChange(e.target.value);
-                }}
-                required
-              />
-              {datasetError && (
-                <p id='dataset-name-error' className='text-destructive text-sm'>
-                  {datasetError}
-                </p>
-              )}
-            </AppWizardStepItem>
+                >
+                  Dataset name
+                </AppWizardStepLabel>
+                <Input
+                  type='text'
+                  id='dataset-name'
+                  placeholder='Enter dataset name'
+                  autoComplete='off'
+                  className='box-border w-full'
+                  value={datasetName}
+                  aria-invalid={Boolean(datasetError)}
+                  aria-describedby={datasetError ? 'dataset-name-error' : undefined}
+                  onChange={e => {
+                    handleDatasetNameChange(e.target.value);
+                  }}
+                  required
+                />
+                {datasetError && (
+                  <p id='dataset-name-error' className='text-destructive text-sm'>
+                    {datasetError}
+                  </p>
+                )}
+              </AppWizardStepItem>
 
-            <AppWizardStepItem>
-              <AppWizardStepLabel
-                required={true}
-                htmlFor='table-name'
-                tooltip='Enter table name where the connector data will be stored. The table will be created
+              <AppWizardStepItem>
+                <AppWizardStepLabel
+                  required={true}
+                  htmlFor='table-name'
+                  tooltip='Enter table name where the connector data will be stored. The table will be created
                 automatically if it doesn`t exist'
-              >
-                Table name
-              </AppWizardStepLabel>
-              <Input
-                type='text'
-                id='table-name'
-                placeholder='Enter table name'
-                autoComplete='off'
-                className='box-border w-full'
-                value={tableName}
-                aria-invalid={Boolean(tableError)}
-                aria-describedby={tableError ? 'table-name-error' : undefined}
-                onChange={e => {
-                  handleTableNameChange(e.target.value);
-                }}
-                required
-              />
-              {tableError && (
-                <p id='table-name-error' className='text-destructive text-sm'>
-                  {tableError}
-                </p>
-              )}
-            </AppWizardStepItem>
-
-            <AppWizardStepItem>
-              <AppWizardStepLabel
-                htmlFor='gbq-full-path'
-                tooltip='Check your full path to target: dataset.table'
-              >
-                Auto-generated full path
-              </AppWizardStepLabel>
-              <Input
-                id='gbq-full-path'
-                disabled
-                value={`${datasetName || '[dataset]'}.${tableName || '[table]'}`}
-              />
-            </AppWizardStepItem>
+                >
+                  Table name
+                </AppWizardStepLabel>
+                <Input
+                  type='text'
+                  id='table-name'
+                  placeholder='Enter table name'
+                  autoComplete='off'
+                  className='box-border w-full'
+                  value={tableName}
+                  aria-invalid={Boolean(tableError)}
+                  aria-describedby={tableError ? 'table-name-error' : undefined}
+                  onChange={e => {
+                    handleTableNameChange(e.target.value);
+                  }}
+                  required
+                />
+                {tableError && (
+                  <p id='table-name-error' className='text-destructive text-sm'>
+                    {tableError}
+                  </p>
+                )}
+              </AppWizardStepItem>
+            </AppWizardStepSection>
           </>
         )}
         {dataStorageType === DataStorageType.AWS_ATHENA && (
           <>
-            <AppWizardStepItem>
-              <AppWizardStepLabel
-                required={true}
-                htmlFor='database-name'
-                tooltip='Enter database name for Amazon Athena where the connector data will be stored. The
+            <AppWizardStepHero
+              icon={<AwsAthenaIcon />}
+              title='AWS Athena'
+              docUrl='https://docs.owox.com/docs/storages/supported-storages/aws-athena/'
+              variant='compact'
+            />
+            <AppWizardStepSection title='Choose where to store your data'>
+              <AppWizardStepItem>
+                <AppWizardStepLabel
+                  required={true}
+                  htmlFor='database-name'
+                  tooltip='Enter database name for Amazon Athena where the connector data will be stored. The
                 database will be created automatically if it doesn`t exist'
-              >
-                Database name
-              </AppWizardStepLabel>
-              <Input
-                type='text'
-                id='database-name'
-                placeholder='Enter database name'
-                autoComplete='off'
-                className='box-border w-full'
-                value={datasetName}
-                aria-invalid={Boolean(datasetError)}
-                aria-describedby={datasetError ? 'database-name-error' : undefined}
-                onChange={e => {
-                  handleDatasetNameChange(e.target.value);
-                }}
-                required
-              />
-              {datasetError && (
-                <p id='database-name-error' className='text-destructive text-sm'>
-                  {datasetError}
-                </p>
-              )}
-            </AppWizardStepItem>
+                >
+                  Database name
+                </AppWizardStepLabel>
+                <Input
+                  type='text'
+                  id='database-name'
+                  placeholder='Enter database name'
+                  autoComplete='off'
+                  className='box-border w-full'
+                  value={datasetName}
+                  aria-invalid={Boolean(datasetError)}
+                  aria-describedby={datasetError ? 'database-name-error' : undefined}
+                  onChange={e => {
+                    handleDatasetNameChange(e.target.value);
+                  }}
+                  required
+                />
+                {datasetError && (
+                  <p id='database-name-error' className='text-destructive text-sm'>
+                    {datasetError}
+                  </p>
+                )}
+              </AppWizardStepItem>
 
-            <AppWizardStepItem>
-              <AppWizardStepLabel
-                required={true}
-                htmlFor='athena-table-name'
-                tooltip='Enter table name where the connector data will be stored. The table will be created
+              <AppWizardStepItem>
+                <AppWizardStepLabel
+                  required={true}
+                  htmlFor='athena-table-name'
+                  tooltip='Enter table name where the connector data will be stored. The table will be created
                 automatically if it doesn`t exist'
-              >
-                Table name
-              </AppWizardStepLabel>
-              <Input
-                type='text'
-                id='athena-table-name'
-                placeholder='Enter table name'
-                autoComplete='off'
-                className='box-border w-full'
-                value={tableName}
-                aria-invalid={Boolean(tableError)}
-                aria-describedby={tableError ? 'athena-table-name-error' : undefined}
-                onChange={e => {
-                  handleTableNameChange(e.target.value);
-                }}
-                required
-              />
-              {tableError && (
-                <p id='athena-table-name-error' className='text-destructive text-sm'>
-                  {tableError}
-                </p>
-              )}
-            </AppWizardStepItem>
-
-            <AppWizardStepItem>
-              <AppWizardStepLabel
-                htmlFor='athena-full-path'
-                tooltip='Check your full path to target: database.table'
-              >
-                Auto-generated full path
-              </AppWizardStepLabel>
-              <Input
-                id='athena-full-path'
-                disabled
-                value={`${datasetName || '[database]'}.${tableName || '[table]'}`}
-              />
-            </AppWizardStepItem>
+                >
+                  Table name
+                </AppWizardStepLabel>
+                <Input
+                  type='text'
+                  id='athena-table-name'
+                  placeholder='Enter table name'
+                  autoComplete='off'
+                  className='box-border w-full'
+                  value={tableName}
+                  aria-invalid={Boolean(tableError)}
+                  aria-describedby={tableError ? 'athena-table-name-error' : undefined}
+                  onChange={e => {
+                    handleTableNameChange(e.target.value);
+                  }}
+                  required
+                />
+                {tableError && (
+                  <p id='athena-table-name-error' className='text-destructive text-sm'>
+                    {tableError}
+                  </p>
+                )}
+              </AppWizardStepItem>
+            </AppWizardStepSection>
           </>
         )}
-      </AppWizardStepSection>
-
-      <AppWizardStepSection title='Schedule updates'>
-        <TimeTriggerAnnouncement />
-      </AppWizardStepSection>
-    </AppWizardStep>
+        <AppWizardStepSection title='Schedule updates'>
+          <TimeTriggerAnnouncement />
+        </AppWizardStepSection>
+      </AppWizardStep>
+    </>
   );
 }
