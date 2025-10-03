@@ -45,10 +45,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             'docs/getting-started/core-concepts',
             {
               label: 'Editions',
-              items: [
-                'docs/editions/all-editions',
-                'docs/editions/agency',
-              ],
+              items: ['docs/editions/all-editions', 'docs/editions/agency'],
             },
             {
               label: 'Deployment Guide',
