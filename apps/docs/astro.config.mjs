@@ -45,11 +45,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             'docs/getting-started/core-concepts',
             {
               label: 'Editions',
-              items: [
-                'docs/editions/all-editions',
-                'docs/editions/appsscript-edition',
-                'docs/editions/agency',
-              ],
+              items: ['docs/editions/all-editions', 'docs/editions/agency'],
             },
             {
               label: 'Deployment Guide',
@@ -103,6 +99,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         {
           label: 'Google Sheets Connectors',
           items: [
+            'docs/editions/appsscript-edition',
             'docs/google-sheets-connectors/readme',
             'docs/google-sheets-connectors/facebook-ads',
             'docs/google-sheets-connectors/tiktok-ads',
