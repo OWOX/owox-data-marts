@@ -1,5 +1,21 @@
 # owox
 
+## 0.9.0
+
+### Minor Changes 0.9.0
+
+- 438c48f: # Added magic link confirmation page to `idb-better-auth`
+  - Generated magic links direct users to a confirmation page before the password setup page.
+
+### Patch Changes 0.9.0
+
+- @owox/internal-helpers@0.9.0
+- @owox/idp-protocol@0.9.0
+- @owox/idp-better-auth@0.9.0
+- @owox/idp-owox@0.9.0
+- @owox/backend@0.9.0
+- @owox/web@0.9.0
+
 ## 0.8.0
 
 ### Minor Changes 0.8.0
