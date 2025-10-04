@@ -31,15 +31,10 @@ export function StepNavigation({
   const isLastStep = currentStep === totalSteps;
 
   return (
-    <div className='flex items-center justify-between'>
+    <>
       <div className='flex-1'>
         {canGoBack && (
-          <Button
-            variant='outline'
-            onClick={onBack}
-            disabled={isLoading}
-            className='flex items-center gap-2'
-          >
+          <Button variant='outline' onClick={onBack} disabled={isLoading}>
             <ChevronLeft className='h-4 w-4' />
             {backLabel}
           </Button>
@@ -52,24 +47,16 @@ export function StepNavigation({
 
       <div className='flex flex-1 justify-end'>
         {isLastStep ? (
-          <Button
-            onClick={onFinish}
-            disabled={!canGoNext || isLoading}
-            className='flex items-center gap-2'
-          >
+          <Button variant='default' onClick={onFinish} disabled={!canGoNext || isLoading}>
             {finishLabel}
           </Button>
         ) : (
-          <Button
-            onClick={onNext}
-            disabled={!canGoNext || isLoading}
-            className='flex items-center gap-2'
-          >
+          <Button variant='default' onClick={onNext} disabled={!canGoNext || isLoading}>
             {nextLabel}
             <ChevronRight className='h-4 w-4' />
           </Button>
         )}
       </div>
-    </div>
+    </>
   );
 }
