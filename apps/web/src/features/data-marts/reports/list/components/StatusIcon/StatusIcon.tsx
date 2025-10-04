@@ -29,6 +29,11 @@ const statusConfig = {
     color: 'text-primary animate-spin',
     label: 'In progress',
   },
+  [ReportStatusEnum.CANCELLED]: {
+    icon: XCircle,
+    color: 'text-gray-500',
+    label: 'Cancelled',
+  },
 } as const;
 
 export function StatusIcon({ status, error }: StatusIconProps) {

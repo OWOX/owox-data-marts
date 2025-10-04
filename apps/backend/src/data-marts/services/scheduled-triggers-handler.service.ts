@@ -2,13 +2,13 @@ import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SCHEDULER_FACADE, SchedulerFacade } from '../../common/scheduler/shared/scheduler.facade';
-import { TimeBasedTriggerHandler } from '../../common/scheduler/shared/time-based-trigger-handler.interface';
+import { TriggerHandler } from '../../common/scheduler/shared/trigger-handler.interface';
 import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
 import { ScheduledTriggerProcessorFacade } from '../scheduled-trigger-types/facades/scheduled-trigger-processor.facade';
 
 @Injectable()
 export class ScheduledTriggersHandlerService
-  implements TimeBasedTriggerHandler<DataMartScheduledTrigger>, OnModuleInit
+  implements TriggerHandler<DataMartScheduledTrigger>, OnModuleInit
 {
   private readonly logger = new Logger(ScheduledTriggersHandlerService.name);
 
@@ -20,10 +20,13 @@ export class ScheduledTriggersHandlerService
     private readonly processorFacade: ScheduledTriggerProcessorFacade
   ) {}
 
-  async handleTrigger(trigger: DataMartScheduledTrigger): Promise<void> {
+  async handleTrigger(
+    trigger: DataMartScheduledTrigger,
+    options?: { signal?: AbortSignal }
+  ): Promise<void> {
     try {
       this.logger.log(`Processing trigger ${trigger.type} ${trigger.id}`);
-      await this.processorFacade.process(trigger);
+      await this.processorFacade.process(trigger, options?.signal);
       this.logger.log(`Trigger ${trigger.type} ${trigger.id} processed successfully`);
     } catch (error) {
       this.logger.error(`Error processing trigger ${trigger.type} ${trigger.id}`, error);
@@ -38,8 +41,12 @@ export class ScheduledTriggersHandlerService
     return '* * * * *'; // every minute
   }
 
+  stuckTriggerTimeoutSeconds(): number {
+    return 60 * 60; // 1 hour
+  }
+
   async onModuleInit(): Promise<void> {
     // Self-register with the scheduler facade
-    await this.schedulerFacade.registerTimeBasedTriggerHandler(this);
+    await this.schedulerFacade.registerTriggerHandler(this);
   }
 }

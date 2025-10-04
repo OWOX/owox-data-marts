@@ -12,8 +12,8 @@ export class ScheduledTriggerProcessorFacade {
     private readonly resolver: TypeResolver<ScheduledTriggerType, ScheduledTriggerProcessor>
   ) {}
 
-  async process(trigger: DataMartScheduledTrigger): Promise<void> {
+  async process(trigger: DataMartScheduledTrigger, signal?: AbortSignal): Promise<void> {
     const processor = await this.resolver.resolve(trigger.type);
-    await processor.process(trigger);
+    await processor.process(trigger, signal);
   }
 }

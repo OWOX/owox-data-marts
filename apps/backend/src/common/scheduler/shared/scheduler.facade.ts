@@ -1,4 +1,4 @@
-import { TimeBasedTriggerHandler } from './time-based-trigger-handler.interface';
+import { TriggerHandler } from './trigger-handler.interface';
 import { InjectionToken } from '@nestjs/common';
 import { TimeBasedTrigger } from './entities/time-based-trigger.entity';
 
@@ -12,20 +12,18 @@ export const SCHEDULER_FACADE = 'SCHEDULER_FACADE' as InjectionToken<SchedulerFa
  * Facade interface for the scheduler module.
  *
  * This interface provides a simplified API for interacting with the scheduler module.
- * It allows for the registration of time-based trigger handlers that will be executed
+ * It allows for the registration of trigger handlers that will be executed
  * according to their specified cron expressions.
  */
 export interface SchedulerFacade {
   /**
-   * Registers a time-based trigger handler with the scheduler.
+   * Registers a trigger handler with the scheduler.
    *
    * Once registered, the handler will be executed according to its processing cron expression.
    * The handler is responsible for defining how triggers are processed and when they should run.
    *
-   * @param timeBasedTriggerHandler The trigger handler to register
+   * @param triggerHandler The trigger handler to register
    * @returns A promise that resolves when the handler is registered
    */
-  registerTimeBasedTriggerHandler(
-    timeBasedTriggerHandler: TimeBasedTriggerHandler<TimeBasedTrigger>
-  ): Promise<void>;
+  registerTriggerHandler(triggerHandler: TriggerHandler<TimeBasedTrigger>): Promise<void>;
 }

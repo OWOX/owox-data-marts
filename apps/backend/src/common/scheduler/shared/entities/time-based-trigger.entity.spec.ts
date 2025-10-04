@@ -1,4 +1,5 @@
-import { TimeBasedTrigger, TriggerStatus } from './time-based-trigger.entity';
+import { TimeBasedTrigger } from './time-based-trigger.entity';
+import { TriggerStatus } from './trigger-status';
 
 // Create a concrete implementation of the abstract TimeBasedTrigger class for testing
 class TestTimeBasedTrigger extends TimeBasedTrigger {}

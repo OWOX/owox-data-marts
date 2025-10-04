@@ -1,4 +1,4 @@
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, UpdateDateColumn } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
 import { ScheduledTrigger } from '../../common/scheduler/shared/entities/scheduled-trigger.entity';
 import { createZodTransformer } from '../../common/zod/zod-transformer';
 import { DataMart } from './data-mart.entity';
@@ -29,10 +29,4 @@ export class DataMartScheduledTrigger extends ScheduledTrigger {
 
   @Column()
   createdById: string;
-
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  modifiedAt: Date;
 }

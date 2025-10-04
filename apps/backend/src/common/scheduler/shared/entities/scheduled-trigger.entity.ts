@@ -1,4 +1,5 @@
-import { TimeBasedTrigger, TriggerStatus } from './time-based-trigger.entity';
+import { TimeBasedTrigger } from './time-based-trigger.entity';
+import { TriggerStatus } from './trigger-status';
 import { Column } from 'typeorm';
 import { CronTime } from 'cron';
 

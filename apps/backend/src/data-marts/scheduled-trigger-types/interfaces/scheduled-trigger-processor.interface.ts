@@ -10,5 +10,5 @@ export interface ScheduledTriggerProcessor extends TypedComponent<ScheduledTrigg
    * Processes a scheduled trigger
    * @param trigger The trigger to process
    */
-  process(trigger: DataMartScheduledTrigger): Promise<void>;
+  process(trigger: DataMartScheduledTrigger, signal?: AbortSignal): Promise<void>;
 }

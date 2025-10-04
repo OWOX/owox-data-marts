@@ -29,6 +29,12 @@ export const ReportStatusModel = {
       icon: XCircle,
       color: 'text-red-500',
     },
+    [ReportStatusEnum.CANCELLED]: {
+      status: ReportStatusEnum.CANCELLED,
+      displayName: 'Cancelled',
+      icon: XCircle,
+      color: 'text-gray-500',
+    },
   },
 
   getInfo(status: ReportStatusEnum): ReportStatusInfo {

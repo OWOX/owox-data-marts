@@ -1,21 +1,24 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { FindManyOptions, FindOptionsWhere, LessThanOrEqual, Repository } from 'typeorm';
-import { TimeBasedTrigger, TriggerStatus } from '../../shared/entities/time-based-trigger.entity';
+import { FindManyOptions, FindOptionsWhere, In, LessThanOrEqual, Repository } from 'typeorm';
+import { Trigger } from '../../shared/entities/trigger.entity';
+import { TriggerStatus } from '../../shared/entities/trigger-status';
 import { SystemTimeService } from '../system-time.service';
 import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
+import { TriggerFetchStrategy } from './strategies/trigger-fetch-strategy.interface';
 
 /**
- * Service responsible for fetching time-based triggers that are ready for processing.
+ * Generic service responsible for fetching triggers that are ready for processing.
  *
- * This service queries the database for triggers that are due for execution based on their
- * next run timestamp, and marks them as ready for processing. It handles optimistic locking
+ * This service queries the database for triggers using a configurable strategy,
+ * and marks them as ready for processing. It handles optimistic locking
  * to ensure triggers are not processed multiple times in distributed environments.
+ * Supports both time-based and immediate triggers through strategy pattern.
  *
- * @typeParam T - The type of trigger this service fetches, must extend TimeBasedTrigger
+ * @typeParam T - The type of trigger this service fetches, must extend Trigger
  */
 @Injectable()
-export class TimeBasedTriggerFetcherService<T extends TimeBasedTrigger> {
-  private readonly logger = new Logger(TimeBasedTriggerFetcherService.name);
+export class TriggerFetcherService<T extends Trigger> {
+  private readonly logger = new Logger(TriggerFetcherService.name);
   private readonly entityName: string;
 
   /**
@@ -23,10 +26,14 @@ export class TimeBasedTriggerFetcherService<T extends TimeBasedTrigger> {
    *
    * @param repository The TypeORM repository for the trigger entity
    * @param systemClock The system time service used to get the current time
+   * @param stuckTriggerTimeoutSeconds The timeout in seconds after which a trigger is considered stuck
+   * @param fetchStrategy The strategy for determining which triggers are ready for processing
    */
   constructor(
     private readonly repository: Repository<T>,
-    private readonly systemClock: SystemTimeService
+    private readonly systemClock: SystemTimeService,
+    private readonly stuckTriggerTimeoutSeconds: number,
+    private readonly fetchStrategy: TriggerFetchStrategy<T>
   ) {
     this.entityName = this.repository.metadata.name;
   }
@@ -46,12 +53,26 @@ export class TimeBasedTriggerFetcherService<T extends TimeBasedTrigger> {
     const startTime = this.systemClock.now();
 
     try {
+      await this.recoverStuckTriggers();
       const triggers = await this.findTriggersReadyForProcessing(startTime);
       return await this.markTriggersAsReady(triggers);
     } catch (error) {
       this.logCriticalFailure(error);
     }
     return [];
+  }
+
+  /**
+   * Fetches a list of triggers that are in the "CANCELLING" status.
+   *
+   * @return {Promise<T[]>} A promise that resolves to an array of triggers with the status set to "CANCELLING".
+   */
+  async fetchTriggersForRunCancellation(): Promise<T[]> {
+    return this.repository.find({
+      where: {
+        status: TriggerStatus.CANCELLING,
+      },
+    } as FindManyOptions<T>);
   }
 
   /**
@@ -90,23 +111,44 @@ export class TimeBasedTriggerFetcherService<T extends TimeBasedTrigger> {
   }
 
   /**
-   * Finds triggers that are ready for processing based on their next run timestamp.
-   * Only returns active triggers in IDLE status that are due for execution.
+   * Finds triggers that are ready for processing using the configured strategy.
+   * The strategy determines the specific criteria for selecting triggers.
    *
-   * @param currentTime The current time to compare against next run timestamps
+   * @param currentTime The current time to use for time-based comparisons
    * @returns A promise that resolves to an array of triggers that are ready for processing
    */
   private async findTriggersReadyForProcessing(currentTime: Date): Promise<T[]> {
-    return this.repository.find({
-      where: {
-        nextRunTimestamp: LessThanOrEqual(currentTime),
-        isActive: true,
-        status: TriggerStatus.IDLE,
-      },
-      order: {
-        nextRunTimestamp: 'ASC',
-      },
-    } as FindManyOptions<T>);
+    const findOptions = this.fetchStrategy.getFindOptions(currentTime);
+    return this.repository.find(findOptions);
+  }
+
+  /**
+   * Recovers stuck triggers by identifying triggers that are in processing, cancelling, or ready states
+   * and have surpassed the timeout threshold. Updates their status to idle and increments their version.
+   *
+   * @return {Promise<void>} A promise that resolves when the recovery process is complete.
+   */
+  private async recoverStuckTriggers(): Promise<void> {
+    const stuckStartTime = new Date(
+      this.systemClock.now().getTime() - this.stuckTriggerTimeoutSeconds * 1000
+    );
+    const recoveryStatus = TriggerStatus.IDLE;
+    const { affected } = await this.repository.update(
+      {
+        status: In([TriggerStatus.PROCESSING, TriggerStatus.CANCELLING, TriggerStatus.READY]),
+        modifiedAt: LessThanOrEqual(stuckStartTime),
+      } as FindOptionsWhere<T>,
+      {
+        status: recoveryStatus,
+        version: () => 'version + 1',
+      } as QueryDeepPartialEntity<T>
+    );
+
+    if (affected) {
+      this.logger.warn(
+        `[${this.entityName}] ${affected} stuck triggers returned to ${recoveryStatus} status.`
+      );
+    }
   }
 
   /**

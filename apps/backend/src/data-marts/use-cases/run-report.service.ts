@@ -39,7 +39,7 @@ export class RunReportService {
     });
   }
 
-  async run(command: RunReportCommand): Promise<void> {
+  async run(command: RunReportCommand, signal?: AbortSignal): Promise<void> {
     if (this.gracefulShutdownService.isInShutdownMode()) {
       throw new BusinessViolationException(
         'Application is shutting down, cannot start new reports'
@@ -76,13 +76,17 @@ export class RunReportService {
       await this.dataMartService.actualizeSchemaInEntity(report.dataMart);
       await this.dataMartService.save(report.dataMart);
 
-      await this.executeReport(report);
-      report.lastRunStatus = ReportRunStatus.SUCCESS;
-      this.logger.log(`Report run ${report.id} finished successfully`);
+      await this.executeReport(report, signal);
     } catch (error) {
-      this.logger.error(`Error running report ${report.id}:`, error);
-      report.lastRunStatus = ReportRunStatus.ERROR;
-      report.lastRunError = error.toString();
+      if (error.name === 'AbortError') {
+        this.logger.log(`Report run ${report.id} was aborted by user.`);
+        report.lastRunStatus = ReportRunStatus.CANCELLED;
+        report.lastRunError = 'Report run was cancelled by user';
+      } else {
+        this.logger.error(`Error running report ${report.id}:`, error);
+        report.lastRunStatus = ReportRunStatus.ERROR;
+        report.lastRunError = error.toString();
+      }
     } finally {
       try {
         await this.reportRepository.save(report);
@@ -94,22 +98,27 @@ export class RunReportService {
     }
   }
 
-  private async executeReport(report: Report): Promise<void> {
+  private async executeReport(report: Report, signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted();
     const { dataMart, dataDestination } = report;
     const reportReader = await this.reportReaderResolver.resolve(dataMart.storage.type);
     const reportWriter = await this.reportWriterResolver.resolve(dataDestination.type);
     let processingError: Error | undefined = undefined;
     try {
+      signal?.throwIfAborted();
       const reportDataDescription = await reportReader.prepareReportData(report);
       this.logger.debug(`Report data prepared for ${report.id}:`, reportDataDescription);
       await reportWriter.prepareToWriteReport(report, reportDataDescription);
       let nextReportDataBatch: string | undefined | null = undefined;
       do {
+        signal?.throwIfAborted();
         const batch = await reportReader.readReportDataBatch(nextReportDataBatch);
         await reportWriter.writeReportDataBatch(batch);
         nextReportDataBatch = batch.nextDataBatchId;
         this.logger.debug(`${batch.dataRows.length} data rows written for report ${report.id}`);
       } while (nextReportDataBatch);
+      report.lastRunStatus = ReportRunStatus.SUCCESS;
+      this.logger.log(`Report run ${report.id} finished successfully`);
     } catch (error) {
       processingError = error;
       throw error;

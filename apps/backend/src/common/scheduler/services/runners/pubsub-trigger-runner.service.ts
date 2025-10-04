@@ -1,7 +1,7 @@
 import { Message, PubSub } from '@google-cloud/pubsub';
 import { Injectable } from '@nestjs/common';
-import { TimeBasedTrigger } from '../../shared/entities/time-based-trigger.entity';
-import { TimeBasedTriggerHandler } from '../../shared/time-based-trigger-handler.interface';
+import { Trigger } from '../../shared/entities/trigger.entity';
+import { TriggerHandler } from '../../shared/trigger-handler.interface';
 import { SystemTimeService } from '../system-time.service';
 import { AbstractTriggerRunnerService } from './abstract-trigger-runner.service';
 import { GracefulShutdownService } from '../graceful-shutdown.service';
@@ -21,9 +21,7 @@ import { FindOneOptions } from 'typeorm';
  * @typeParam T - The type of trigger this service processes, must extend TimeBasedTrigger
  */
 @Injectable()
-export class PubsubTriggerRunnerService<
-  T extends TimeBasedTrigger,
-> extends AbstractTriggerRunnerService<T> {
+export class PubsubTriggerRunnerService<T extends Trigger> extends AbstractTriggerRunnerService<T> {
   private readonly pubSubClient: PubSub;
   private readonly topicName: string;
   private readonly subscriptionName: string;
@@ -37,7 +35,7 @@ export class PubsubTriggerRunnerService<
    * @param shutdownService The graceful shutdown service used to manage shutdown state
    */
   constructor(
-    handler: TimeBasedTriggerHandler<T>,
+    handler: TriggerHandler<T>,
     systemClock: SystemTimeService,
     private readonly googleCloudProject: string,
     shutdownService: GracefulShutdownService

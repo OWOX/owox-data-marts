@@ -1,13 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { TriggerFetcherService } from '../services/fetchers/trigger-fetcher.service';
+import { TriggerRunnerService } from '../services/runners/trigger-runner.interface';
+import { Trigger } from '../shared/entities/trigger.entity';
 import { SchedulerFacade } from '../shared/scheduler.facade';
-import { TimeBasedTriggerHandler } from '../shared/time-based-trigger-handler.interface';
+import { TriggerHandler } from '../shared/trigger-handler.interface';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
 import { SystemTimeService } from '../services/system-time.service';
 import { ConfigService } from '@nestjs/config';
-import { TimeBasedTrigger } from '../shared/entities/time-based-trigger.entity';
 import { TriggerRunnerFactory } from '../services/runners/trigger-runner.factory';
-import { TimeBasedTriggerFetcherFactory } from '../services/fetchers/time-based-trigger-fetcher.factory';
+import { TriggerFetcherFactory } from '../services/fetchers/trigger-fetcher-factory.service';
 import { GracefulShutdownService } from '../services/graceful-shutdown.service';
 
 /**
@@ -26,10 +28,15 @@ import { GracefulShutdownService } from '../services/graceful-shutdown.service';
 export class SchedulerFacadeImpl implements SchedulerFacade {
   private readonly logger = new Logger(SchedulerFacadeImpl.name);
 
+  /**
+   * Static variable for abort run check frequency configuration
+   */
+  private static readonly ABORT_RUN_CHECK_CRON_EXPRESSION = '*/5 * * * * *';
+
   constructor(
     private readonly schedulerRegistry: SchedulerRegistry,
     private readonly configService: ConfigService,
-    private readonly triggerFetcherFactory: TimeBasedTriggerFetcherFactory,
+    private readonly triggerFetcherFactory: TriggerFetcherFactory,
     private readonly triggerRunnerFactory: TriggerRunnerFactory,
     private readonly systemTimeService: SystemTimeService,
     private readonly gracefulShutdownService: GracefulShutdownService
@@ -45,8 +52,8 @@ export class SchedulerFacadeImpl implements SchedulerFacade {
    * @param triggerHandler The time-based trigger handler instance implementing the required processing logic and cron expression.
    * @return A promise that resolves when the handler is registered
    */
-  async registerTimeBasedTriggerHandler(
-    triggerHandler: TimeBasedTriggerHandler<TimeBasedTrigger>
+  async registerTriggerHandler<T extends Trigger>(
+    triggerHandler: TriggerHandler<T>
   ): Promise<void> {
     const handlerName = triggerHandler.constructor.name;
     const handlerCronExp = triggerHandler.processingCronExpression();
@@ -68,11 +75,48 @@ export class SchedulerFacadeImpl implements SchedulerFacade {
 
     const fetcher = this.triggerFetcherFactory.createFetcher(
       triggerHandler.getTriggerRepository(),
-      this.systemTimeService
+      this.systemTimeService,
+      triggerHandler.stuckTriggerTimeoutSeconds()
     );
 
-    const job = new CronJob(
+    // Create and start processing job
+    const processingJob = this.createProcessingCronJob(
+      handlerName,
       handlerCronExp,
+      timezone,
+      fetcher,
+      runner
+    );
+    this.startCronJob(handlerName, processingJob);
+
+    // Create and start abort run job
+    const abortRunJob = this.createAbortRunCronJob(handlerName, timezone, fetcher, runner);
+    this.startCronJob(`${handlerName} [abort-run-check]`, abortRunJob);
+
+    this.logger.log(
+      `Time-based trigger handler '${handlerName}' initialized with cron '${handlerCronExp}' in timezone ${timezone}`
+    );
+  }
+
+  /**
+   * Creates a cron job for processing triggers
+   *
+   * @param handlerName The name of the trigger handler
+   * @param cronExpression The cron expression for scheduling
+   * @param timezone The timezone for cron execution
+   * @param fetcher The trigger fetcher instance
+   * @param runner The trigger runner instance
+   * @returns The created CronJob instance
+   */
+  private createProcessingCronJob<T extends Trigger>(
+    handlerName: string,
+    cronExpression: string,
+    timezone: string | undefined,
+    fetcher: TriggerFetcherService<T>,
+    runner: TriggerRunnerService<T>
+  ): CronJob {
+    return new CronJob(
+      cronExpression,
       () => {
         if (this.gracefulShutdownService.isInShutdownMode()) {
           this.logger.warn(`[${handlerName}] Fetching triggers skipped. Application is shutdown.`);
@@ -87,12 +131,49 @@ export class SchedulerFacadeImpl implements SchedulerFacade {
       false,
       timezone
     );
+  }
 
-    this.schedulerRegistry.addCronJob(handlerName, job);
-    job.start();
+  /**
+   * Creates a cron job for aborting running triggers
+   *
+   * @param handlerName The name of the trigger handler
+   * @param timezone The timezone for cron execution
+   * @param fetcher The trigger fetcher instance
+   * @param runner The trigger runner instance
+   * @returns The created CronJob instance
+   */
+  private createAbortRunCronJob<T extends Trigger>(
+    handlerName: string,
+    timezone: string | undefined,
+    fetcher: TriggerFetcherService<T>,
+    runner: TriggerRunnerService<T>
+  ): CronJob {
+    return new CronJob(
+      SchedulerFacadeImpl.ABORT_RUN_CHECK_CRON_EXPRESSION,
+      () => {
+        if (this.gracefulShutdownService.isInShutdownMode()) {
+          this.logger.warn(`[${handlerName}] Canceling triggers skipped. Application is shutdown.`);
+          return Promise.resolve();
+        }
 
-    this.logger.log(
-      `Time-based trigger handler '${handlerName}' initialized with cron '${handlerCronExp}' in timezone ${timezone}`
+        return fetcher
+          .fetchTriggersForRunCancellation()
+          .then(triggers => runner.abortTriggerRuns(triggers));
+      },
+      null,
+      false,
+      timezone
     );
+  }
+
+  /**
+   * Registers and starts a cron job
+   *
+   * @param jobName The name to register the job under
+   * @param cronJob The CronJob instance to register and start
+   */
+  private startCronJob(jobName: string, cronJob: CronJob): void {
+    this.schedulerRegistry.addCronJob(jobName, cronJob);
+    cronJob.start();
   }
 }

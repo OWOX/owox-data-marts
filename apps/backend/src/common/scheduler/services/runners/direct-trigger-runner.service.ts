@@ -1,5 +1,5 @@
-import { TimeBasedTrigger } from '../../shared/entities/time-based-trigger.entity';
-import { TimeBasedTriggerHandler } from '../../shared/time-based-trigger-handler.interface';
+import { Trigger } from '../../shared/entities/trigger.entity';
+import { TriggerHandler } from '../../shared/trigger-handler.interface';
 import { SystemTimeService } from '../system-time.service';
 import { AbstractTriggerRunnerService } from './abstract-trigger-runner.service';
 import { GracefulShutdownService } from '../graceful-shutdown.service';
@@ -13,9 +13,7 @@ import { GracefulShutdownService } from '../graceful-shutdown.service';
  *
  * @typeParam T - The type of trigger this service processes, must extend TimeBasedTrigger
  */
-export class DirectTriggerRunnerService<
-  T extends TimeBasedTrigger,
-> extends AbstractTriggerRunnerService<T> {
+export class DirectTriggerRunnerService<T extends Trigger> extends AbstractTriggerRunnerService<T> {
   /**
    * Creates a new instance of the DirectTriggerRunnerService.
    *
@@ -24,7 +22,7 @@ export class DirectTriggerRunnerService<
    * @param shutdownService The graceful shutdown service used to manage shutdown state
    */
   constructor(
-    handler: TimeBasedTriggerHandler<T>,
+    handler: TriggerHandler<T>,
     systemClock: SystemTimeService,
     shutdownService: GracefulShutdownService
   ) {
