@@ -1,14 +1,19 @@
 // eslint-disable-next-line n/no-extraneous-import
 import type { NestExpressApplication } from '@nestjs/platform-express';
-import type { BootstrapOptions } from '@owox/backend';
+import type { IdpProvider } from '@owox/idp-protocol';
 
 import { Flags } from '@oclif/core';
+import { BootstrapOptions, createHealthProbe, HealthProbeAware } from '@owox/backend';
 import { IdpProtocolMiddleware } from '@owox/idp-protocol';
 import express from 'express';
 
 import { IdpFactory } from '../idp/factory.js';
 import { getPackageInfo } from '../utils/package-info.js';
-import { registerPublicFlagsRoute, setupWebStaticAssets } from '../web/index.js';
+import {
+  registerHealthRoutes,
+  registerPublicFlagsRoute,
+  setupWebStaticAssets,
+} from '../web/index.js';
 import { BaseCommand } from './base.js';
 
 /**
@@ -172,11 +177,22 @@ export default class Serve extends BaseCommand {
     const expressApp = express();
     expressApp.set('trust proxy', 1);
 
+    // Holders for late-bound dependencies used by early health routes
+    let currentIdp: IdpProvider | null = null;
+    let currentBackendApp: HealthProbeAware | null = null;
+    registerHealthRoutes(
+      expressApp,
+      () => currentIdp,
+      () => currentBackendApp,
+      () => this.isShuttingDown
+    );
+
     const idpProvider = await IdpFactory.createFromEnvironment(this);
     await idpProvider.initialize();
     const idpProtocolMiddleware = new IdpProtocolMiddleware(idpProvider);
     idpProtocolMiddleware.register(expressApp);
     expressApp.set('idp', idpProvider);
+    currentIdp = idpProvider;
 
     // Register public route to expose whitelisted flags
     registerPublicFlagsRoute(expressApp);
@@ -196,6 +212,7 @@ export default class Serve extends BaseCommand {
 
     try {
       this.app = await bootstrap({ express: expressApp } as BootstrapOptions);
+      currentBackendApp = createHealthProbe(this.app);
 
       this.log(`📝 Process ID: ${process.pid}`);
       this.log(`✅ Server started successfully. Open http://localhost:${port} in your browser.`);

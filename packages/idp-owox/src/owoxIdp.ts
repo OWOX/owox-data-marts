@@ -81,6 +81,10 @@ export class OwoxIdp implements IdpProvider {
     return this.store.shutdown();
   }
 
+  async isHealthy(): Promise<boolean> {
+    return await this.store.isHealthy();
+  }
+
   async signInMiddleware(
     req: e.Request,
     res: e.Response,

@@ -97,6 +97,15 @@ export class MysqlAuthorizationStore implements AuthorizationStore {
     }
   }
 
+  async isHealthy(): Promise<boolean> {
+    try {
+      await this.getPool().query('SELECT 1');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private getPool(): Pool {
     if (!this.pool) throw new Error('MysqlAuthorizationStore is not initialized');
     return this.pool;
