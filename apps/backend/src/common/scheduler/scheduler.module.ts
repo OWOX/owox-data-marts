@@ -3,7 +3,7 @@ import { SchedulerFacadeImpl } from './facades/scheduler-facade.impl';
 import { SCHEDULER_FACADE } from './shared/scheduler.facade';
 import { TriggerRunnerFactory } from './services/runners/trigger-runner.factory';
 import { SystemTimeService } from './services/system-time.service';
-import { TimeBasedTriggerFetcherFactory } from './services/fetchers/time-based-trigger-fetcher.factory';
+import { TriggerFetcherFactory } from './services/fetchers/trigger-fetcher-factory.service';
 import { GracefulShutdownService } from './services/graceful-shutdown.service';
 
 /**
@@ -24,7 +24,7 @@ import { GracefulShutdownService } from './services/graceful-shutdown.service';
   providers: [
     SystemTimeService,
     GracefulShutdownService,
-    TimeBasedTriggerFetcherFactory,
+    TriggerFetcherFactory,
     TriggerRunnerFactory,
     {
       provide: SCHEDULER_FACADE,

@@ -1,7 +1,8 @@
 import { Injectable, Logger, Type } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TimeBasedTrigger } from '../../shared/entities/time-based-trigger.entity';
-import { TimeBasedTriggerHandler } from '../../shared/time-based-trigger-handler.interface';
+import { Trigger } from '../../shared/entities/trigger.entity';
+import { TriggerHandler } from '../../shared/trigger-handler.interface';
 import { SystemTimeService } from '../system-time.service';
 import { TriggerRunnerService } from './trigger-runner.interface';
 import { DirectTriggerRunnerService } from './direct-trigger-runner.service';
@@ -101,8 +102,8 @@ export class TriggerRunnerFactory {
    * @returns A promise that resolves to a trigger runner instance
    * @throws If the runner initialization fails
    */
-  async createRunner<T extends TimeBasedTrigger>(
-    triggerHandler: TimeBasedTriggerHandler<T>,
+  async createRunner<T extends Trigger>(
+    triggerHandler: TriggerHandler<T>,
     systemTimeService: SystemTimeService
   ): Promise<TriggerRunnerService<T>> {
     const runnerTypeString = this.configService.get<string>(
@@ -148,9 +149,9 @@ export class TriggerRunnerFactory {
    * @param shutdownService The graceful shutdown service used to manage shutdown state
    * @returns A trigger runner instance
    */
-  private async createRunnerInstance<T extends TimeBasedTrigger>(
-    RunnerClass: Type<TriggerRunnerService<TimeBasedTrigger>>,
-    triggerHandler: TimeBasedTriggerHandler<T>,
+  private async createRunnerInstance<T extends Trigger>(
+    RunnerClass: Type<TriggerRunnerService<Trigger>>,
+    triggerHandler: TriggerHandler<T>,
     systemTimeService: SystemTimeService,
     config: Record<string, unknown>,
     shutdownService: GracefulShutdownService

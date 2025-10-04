@@ -1,5 +1,6 @@
-import { TimeBasedTrigger, TriggerStatus } from '../../shared/entities/time-based-trigger.entity';
-import { TimeBasedTriggerHandler } from '../../shared/time-based-trigger-handler.interface';
+import { Trigger } from '../../shared/entities/trigger.entity';
+import { TriggerStatus } from '../../shared/entities/trigger-status';
+import { TriggerHandler } from '../../shared/trigger-handler.interface';
 import { Logger } from '@nestjs/common';
 import { QueryFailedError, Repository } from 'typeorm';
 import { SystemTimeService } from '../system-time.service';
@@ -15,10 +16,11 @@ import { GracefulShutdownService } from '../graceful-shutdown.service';
  *
  * @typeParam T - The type of trigger this service processes, must extend TimeBasedTrigger
  */
-export abstract class AbstractTriggerRunnerService<T extends TimeBasedTrigger>
+export abstract class AbstractTriggerRunnerService<T extends Trigger>
   implements TriggerRunnerService<T>
 {
   protected readonly logger = new Logger(this.constructor.name);
+  protected readonly abortControllersByTriggerId: Map<string, AbortController> = new Map();
   protected readonly handlerName: string;
 
   /**
@@ -29,7 +31,7 @@ export abstract class AbstractTriggerRunnerService<T extends TimeBasedTrigger>
    * @param shutdownService The graceful shutdown service used to manage shutdown state
    */
   protected constructor(
-    protected readonly handler: TimeBasedTriggerHandler<T>,
+    protected readonly handler: TriggerHandler<T>,
     protected readonly systemClock: SystemTimeService,
     protected readonly shutdownService: GracefulShutdownService
   ) {
@@ -65,6 +67,22 @@ export abstract class AbstractTriggerRunnerService<T extends TimeBasedTrigger>
     this.logger.debug(`[${this.handlerName}] Processing ${triggers.length} triggers`);
 
     await this.processTriggers(triggers);
+  }
+
+  /**
+   * Aborts the execution of the provided triggers by invoking their associated abort controllers.
+   *
+   * @param {T[]} triggers - An array of triggers whose runs need to be aborted. Each trigger is expected to have a unique identifier.
+   * @return {Promise<void>} A promise that resolves when all associated triggers have been processed for abortion.
+   */
+  public async abortTriggerRuns(triggers: T[]): Promise<void> {
+    for (const trigger of triggers) {
+      const abortController = this.abortControllersByTriggerId.get(trigger.id);
+      if (abortController) {
+        abortController.abort();
+        this.logger.log(`[${this.handlerName}] Aborting trigger run for trigger ${trigger.id}`);
+      }
+    }
   }
 
   /**
@@ -116,9 +134,15 @@ export abstract class AbstractTriggerRunnerService<T extends TimeBasedTrigger>
    * @returns A promise that resolves when the trigger has been executed
    */
   private async executeTrigger(trigger: T, repository: Repository<T>): Promise<void> {
-    await this.handler.handleTrigger(trigger);
-    trigger.onSuccess(this.systemClock.now());
-    await repository.save(trigger);
+    const abortController = new AbortController();
+    this.abortControllersByTriggerId.set(trigger.id, abortController);
+    try {
+      await this.handler.handleTrigger(trigger, { signal: abortController.signal });
+      trigger.onSuccess(this.systemClock.now());
+      await repository.save(trigger);
+    } finally {
+      this.abortControllersByTriggerId.delete(trigger.id);
+    }
   }
 
   /**

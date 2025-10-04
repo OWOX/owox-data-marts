@@ -1,5 +1,5 @@
 import { ScheduledTrigger } from './scheduled-trigger.entity';
-import { TriggerStatus } from './time-based-trigger.entity';
+import { TriggerStatus } from './trigger-status';
 
 // Create a concrete implementation of the abstract ScheduledTrigger class for testing
 class TestScheduledTrigger extends ScheduledTrigger {
