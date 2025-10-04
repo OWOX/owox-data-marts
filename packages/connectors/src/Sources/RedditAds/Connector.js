@@ -39,20 +39,17 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
    * @param {Array<string>} options.fields - Array of fields to fetch
    */
   processNode({ nodeName, accountId, fields }) {
-    const storage = this.getStorageByNode(nodeName);
     if (this.source.fieldsSchema[nodeName].isTimeSeries) {
       this.processTimeSeriesNode({
         nodeName,
         accountId,
-        fields,
-        storage
+        fields
       });
     } else {
       this.processCatalogNode({
         nodeName,
         accountId,
-        fields,
-        storage
+        fields
       });
     }
   }
@@ -65,7 +62,7 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
    * @param {Array<string>} options.fields - Array of fields to fetch
    * @param {Object} options.storage - Storage instance
    */
-  processTimeSeriesNode({ nodeName, accountId, fields, storage }) {
+  processTimeSeriesNode({ nodeName, accountId, fields }) {
     const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
   
     if (daysToFetch <= 0) {
@@ -83,14 +80,11 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
 
               const data = this.source.fetchData(nodeName, accountId, fields, currentDate);
   
-      if (!data.length) {      
-        if (i == 0) {
-          this.config.logMessage(`ℹ️ No records have been fetched`);
-        }
-      } else {
-        this.config.logMessage(`${data.length} records were fetched`);
-        const preparedData = this.addMissingFieldsToData(data, fields);
-        storage.saveData(preparedData);
+      this.config.logMessage(data.length ? `${data.length} records were fetched` : `ℹ️ No records have been fetched`);
+
+      if (data.length || this.config.CreateEmptyTables?.value) {
+        const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
+        this.getStorageByNode(nodeName).saveData(preparedData);
       }
 
       if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
@@ -107,13 +101,14 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
    * @param {Array<string>} options.fields - Array of fields to fetch
    * @param {Object} options.storage - Storage instance
    */
-  processCatalogNode({ nodeName, accountId, fields, storage }) {
-          const data = this.source.fetchData(nodeName, accountId, fields);
-    this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for account ${accountId}`);
+  processCatalogNode({ nodeName, accountId, fields }) {
+    const data = this.source.fetchData(nodeName, accountId, fields);
+    
+    this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for account ${accountId}` : `ℹ️ No records have been fetched`);
 
-    if (data && data.length) {
-      const preparedData = this.addMissingFieldsToData(data, fields);
-      storage.saveData(preparedData);
+    if (data.length || this.config.CreateEmptyTables?.value) {
+      const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
+      this.getStorageByNode(nodeName).saveData(preparedData);
     }
   }
 

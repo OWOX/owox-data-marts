@@ -38,12 +38,10 @@ var CriteoAdsConnector = class CriteoAdsConnector extends AbstractConnector {
    * @param {Array<string>} options.fields - Array of fields to fetch
    */
   processNode({ nodeName, advertiserId, fields }) {
-    const storage = this.getStorageByNode(nodeName);
     this.processTimeSeriesNode({
       nodeName,
       advertiserId,
-      fields,
-      storage
+      fields
     });
   }
 
@@ -55,7 +53,7 @@ var CriteoAdsConnector = class CriteoAdsConnector extends AbstractConnector {
    * @param {Array<string>} options.fields - Array of fields to fetch
    * @param {Object} options.storage - Storage instance
    */
-  processTimeSeriesNode({ nodeName, advertiserId, fields, storage }) {
+  processTimeSeriesNode({ nodeName, advertiserId, fields }) {
     const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
   
     if (daysToFetch <= 0) {
@@ -69,18 +67,18 @@ var CriteoAdsConnector = class CriteoAdsConnector extends AbstractConnector {
       
       const formattedDate = EnvironmentAdapter.formatDate(currentDate, "UTC", "yyyy-MM-dd");
 
-              const data = this.source.fetchData({ 
+      const data = this.source.fetchData({ 
         nodeName, 
         accountId: advertiserId, 
         date: currentDate, 
         fields 
       });
 
-      this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for ${advertiserId} on ${formattedDate}`);
+      this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${advertiserId} on ${formattedDate}` : `ℹ️ No records have been fetched`);
 
-      if (data.length > 0) {
-        const preparedData = this.addMissingFieldsToData(data, fields);
-        storage.saveData(preparedData);
+      if (data.length || this.config.CreateEmptyTables?.value) {
+        const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
+        this.getStorageByNode(nodeName).saveData(preparedData);
       }
 
       // Only update LastRequestedDate for incremental runs

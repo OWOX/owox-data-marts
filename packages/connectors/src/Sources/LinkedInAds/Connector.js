@@ -74,13 +74,12 @@ var LinkedInAdsConnector = class LinkedInAdsConnector extends AbstractConnector 
       
       const params = { fields, ...(isTimeSeriesNode && { startDate, endDate }) };
       const data = this.source.fetchData(nodeName, urn, params);
-      const preparedData = this.addMissingFieldsToData(data, fields);
       
-      if (preparedData.length) {
-        this.config.logMessage(`${preparedData.length} rows of ${nodeName} were fetched for ${urn}${endDate ? ` from ${startDate} to ${endDate}` : ''}`);
+      this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${urn}${endDate ? ` from ${startDate} to ${endDate}` : ''}` : `ℹ️ No records have been fetched`);
+      
+      if (data.length || this.config.CreateEmptyTables?.value) {
+        const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
         this.getStorageByNode(nodeName).saveData(preparedData);
-      } else {
-        this.config.logMessage(`No data fetched for ${nodeName} and ${urn}${endDate ? ` from ${startDate} to ${endDate}` : ''}`);
       }
     }
   }

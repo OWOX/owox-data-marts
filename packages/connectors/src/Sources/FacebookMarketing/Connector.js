@@ -81,10 +81,11 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
 
         let data = this.source.fetchData(nodeName, accountId, fields);
         
-        if( data.length ) {
-          this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for account ${accountId}`);
-          this.getStorageByNode(nodeName, fields ).saveData( data );
+        if(data.length || this.config.CreateEmptyTables?.value) {
+          this.getStorageByNode(nodeName).saveData( data );
         }
+
+        data.length && this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for account ${accountId}`);
 
       }
 
@@ -121,19 +122,11 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
             // fetching new data from a data source  
             let data = this.source.fetchData(nodeName, accountId, timeSeriesNodes[ nodeName ], startDate);
 
-              // there are fetched records to update
-            if( !data.length ) {      
-              
-              if( daysShift == 0) {
-                this.config.logMessage(`ℹ️ No records have been fetched`);
-              }
-
-            } else {
-
-              this.config.logMessage(`${data.length} records were fetched`);
-              this.getStorageByNode(nodeName, timeSeriesNodes[ nodeName ] ).saveData(data);
-
+            if( data.length || this.config.CreateEmptyTables?.value ) {
+              this.getStorageByNode(nodeName).saveData(data);
             }
+
+            this.config.logMessage(data.length ? `${data.length} records were fetched` : `ℹ️ No records have been fetched`);
             
           }
         

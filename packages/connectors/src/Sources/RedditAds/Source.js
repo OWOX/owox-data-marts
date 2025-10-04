@@ -86,6 +86,12 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
         default: 31,
         label: "Max Fetching Days",
         description: "Maximum number of days to fetch data for"
+      },
+      CreateEmptyTables: {
+        requiredType: "boolean",
+        default: true,
+        label: "Create Empty Tables",
+        description: "Create tables with all columns even if no data is returned from API"
       }
     }));
 

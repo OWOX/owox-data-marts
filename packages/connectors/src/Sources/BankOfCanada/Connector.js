@@ -34,11 +34,10 @@ var BankOfCanadaConnector = class BankOfCanadaConnector extends AbstractConnecto
    * @param {Array<string>} options.fields - Array of fields to fetch
    */
   processNode({ nodeName, fields }) {
-    const storage = this.getStorageByNode(nodeName);
     if (this.source.fieldsSchema[nodeName].isTimeSeries) {
-      this.processTimeSeriesNode({ nodeName, fields, storage });
+      this.processTimeSeriesNode({ nodeName, fields });
     } else {
-      this.processCatalogNode({ nodeName, fields, storage });
+      this.processCatalogNode({ nodeName, fields });
     }
   }
 
@@ -49,7 +48,7 @@ var BankOfCanadaConnector = class BankOfCanadaConnector extends AbstractConnecto
    * @param {Array<string>} options.fields - Array of fields to fetch
    * @param {Object} options.storage - Storage instance
    */
-  processTimeSeriesNode({ nodeName, fields, storage }) {
+  processTimeSeriesNode({ nodeName, fields }) {
     const dateRange = this.prepareDateRange();
     
     if (!dateRange) {
@@ -65,11 +64,11 @@ var BankOfCanadaConnector = class BankOfCanadaConnector extends AbstractConnecto
       fields 
     });
 
-    this.config.logMessage(`${data.length} rows of ${nodeName} were fetched from ${dateRange.startDate} to ${dateRange.endDate}`);
+    this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched from ${dateRange.startDate} to ${dateRange.endDate}` : `ℹ️ No records have been fetched`);
 
-    if (data.length > 0) {
-      const preparedData = this.addMissingFieldsToData(data, fields);
-      storage.saveData(preparedData);
+    if (data.length || this.config.CreateEmptyTables?.value) {
+      const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
+      this.getStorageByNode(nodeName).saveData(preparedData);
     }
 
     if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
@@ -84,7 +83,7 @@ var BankOfCanadaConnector = class BankOfCanadaConnector extends AbstractConnecto
    * @param {Array<string>} options.fields - Array of fields to fetch
    * @param {Object} options.storage - Storage instance
    */
-  processCatalogNode({ nodeName, fields, storage }) {
+  processCatalogNode({ nodeName, fields }) {
     // Placeholder for future catalog nodes
     console.log(`Catalog node processing not implemented for ${nodeName}`);
   }
