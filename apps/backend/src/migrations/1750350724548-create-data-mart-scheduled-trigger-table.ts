@@ -1,5 +1,5 @@
 import { MigrationInterface, QueryRunner, Table, TableForeignKey } from 'typeorm';
-import { softDropTable } from './helper';
+import { softDropTable } from './migration-utils';
 
 export class CreateDataMartScheduledTriggerTable1750350724548 implements MigrationInterface {
   name = 'CreateDataMartScheduledTriggerTable1750350724548';

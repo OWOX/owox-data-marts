@@ -1,5 +1,5 @@
 import { MigrationInterface, QueryRunner, Table, TableForeignKey } from 'typeorm';
-import { softDropTable } from './helper';
+import { softDropTable } from './migration-utils';
 
 export class CreateReportDataCacheTable1754139488045 implements MigrationInterface {
   name = 'CreateReportDataCacheTable1754139488045';

@@ -1,107 +1,136 @@
-import { createLogger } from '../common/logger/logger.service';
 import { ConfigService } from '@nestjs/config';
-import { createDataSourceOptions } from './data-source-options.config';
 import { DataSource } from 'typeorm';
 
-export async function runMigrationsIfNeeded(): Promise<void> {
-  const logger = createLogger('MigrationRunner');
+import { createLogger } from '../common/logger/logger.service';
+import { createDataSourceOptions } from './data-source-options.config';
+import {
+  runMigrations as executeRunMigrations,
+  revertMigration as executeRevertMigration,
+  listMigrations as executeListMigrations,
+} from 'src/migrations/migration-utils';
 
+/**
+ * Enumeration of available migration actions
+ */
+enum MigrationAction {
+  UP = 'up',
+  DOWN = 'down',
+  STATUS = 'status',
+}
+
+const logger = createLogger('MigrationAPI');
+
+/**
+ * Conditionally runs database migrations based on the RUN_MIGRATIONS environment variable.
+ * Only executes migrations if RUN_MIGRATIONS is set to 'true'.
+ * @throws {Error} When migration execution fails or database connection issues occur
+ */
+export async function runMigrationsIfNeeded(): Promise<void> {
+  logger.debug('Checking if migrations should be executed...');
   const config = new ConfigService();
 
-  const runMigrationsValue = config.get<string>('RUN_MIGRATIONS')?.trim().toLowerCase() || 'true';
-  const shouldRun = runMigrationsValue === 'true';
-
-  if (!shouldRun) {
+  if (!shouldRunMigrations(config)) {
     logger.debug('RUN_MIGRATIONS is not set to "true". Skipping migrations.');
     return;
   }
 
-  const dataSource = new DataSource(createDataSourceOptions(config));
-
-  if (!dataSource.isInitialized) {
-    await dataSource.initialize();
-  }
-
-  const releaseLock = await acquireMigrationsLock(dataSource, logger);
-  try {
-    const migrations = await dataSource.runMigrations();
-    if (migrations.length === 0) {
-      logger.log('No new migrations to run');
-    } else {
-      logger.log(`Executed ${migrations.length} migration(s):`);
-      migrations.forEach(m => {
-        logger.log(`- ${m.name}`);
-      });
-    }
-  } finally {
-    await releaseLock().catch(err =>
-      logger.error(`Failed to release migrations lock: ${String(err)}`)
-    );
-    await dataSource.destroy();
-  }
+  logger.debug('RUN_MIGRATIONS is enabled. Proceeding with migrations.');
+  await runMigrations();
 }
-
-const LOCK_TABLE_NAME = '__migrations_lock__';
-const WAIT_DELAY_SECONDS = 5; // Wait 5 seconds between retries
-const MAX_WAIT_SECONDS = 5 * 60; // Max 5 minutes total
 
 /**
- * Acquires a distributed lock for running migrations to prevent multiple instances
- * from running the same migration simultaneously.
- *
- * **How it works:**
- * 1. Attempts to create a temporary lock table `__migrations_lock__`
- * 2. If table creation succeeds - lock is acquired, migration can proceed
- * 3. If table already exists - another instance is running migrations, wait and retry
- * 4. After migration completes - lock table is dropped to release the lock
- *
- * **Multi-instance safety:**
- * - Service 0 creates lock table and runs migrations
- * - Services 1-9 wait until lock table is dropped
- * - After lock release, services 1-9 check migration status and skip already completed ones
- *
- * @see https://github.com/typeorm/typeorm/issues/4588 - Known TypeORM issue with multiple instances
- *
- * @param dataSource - TypeORM DataSource instance
- * @param logger - Logger instance for debugging
- * @returns Promise that resolves to a release function
+ * Executes all pending database migrations.
+ * This will run all migrations that haven't been executed yet.
+ * @throws {Error} When migration execution fails or database connection issues occur
  */
-async function acquireMigrationsLock(
-  dataSource: DataSource,
-  logger: ReturnType<typeof createLogger>
-): Promise<() => Promise<void>> {
-  const createSql = `CREATE TABLE ${LOCK_TABLE_NAME} (id INTEGER PRIMARY KEY)`;
-  const dropSql = `DROP TABLE ${LOCK_TABLE_NAME}`;
-
-  const startAt = Date.now();
-
-  while (true) {
-    try {
-      await dataSource.query(createSql);
-      logger.debug(`Acquired migrations lock using table ${LOCK_TABLE_NAME}`);
-      break;
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      const isAlreadyExists = message.toLowerCase().includes('already exists');
-      if (!isAlreadyExists) {
-        throw error;
-      }
-
-      if (Date.now() - startAt > MAX_WAIT_SECONDS * 1000) {
-        throw new Error(`Timed out waiting for migrations lock after ${MAX_WAIT_SECONDS} seconds`);
-      }
-
-      logger.debug(`Another instance is running migrations. Waiting ${WAIT_DELAY_SECONDS}s...`);
-      await sleepInSeconds(WAIT_DELAY_SECONDS);
-    }
-  }
-
-  return async () => {
-    await dataSource.query(dropSql);
-    logger.debug(`Released migrations lock by dropping ${LOCK_TABLE_NAME}`);
-  };
+export async function runMigrations(): Promise<void> {
+  logger.debug('Starting migration execution (UP action)');
+  await executeMigrationAction(MigrationAction.UP);
 }
 
-function sleepInSeconds(seconds: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, seconds * 1000));
+/**
+ * Reverts the most recent database migration.
+ * This will undo the last executed migration.
+ * @throws {Error} When migration revert fails or database connection issues occur
+ */
+export async function revertMigration(): Promise<void> {
+  logger.debug('Starting migration revert (DOWN action)');
+  await executeMigrationAction(MigrationAction.DOWN);
+}
+
+/**
+ * Retrieves and displays the current status of database migrations.
+ * @throws {Error} When unable to connect to database or retrieve migration status
+ */
+export async function getMigrationStatus(): Promise<void> {
+  logger.debug('Retrieving migration status (STATUS action)');
+  await executeMigrationAction(MigrationAction.STATUS);
+}
+
+/**
+ * Executes a specific migration action with proper database connection management.
+ * @param action - The migration action to execute (UP, DOWN, or STATUS)
+ * @throws {Error} When database connection fails, migration execution fails, or invalid action provided
+ */
+async function executeMigrationAction(action: MigrationAction): Promise<void> {
+  logger.debug(`Executing migration action: ${action}`);
+  const config = new ConfigService();
+  const dataSource = new DataSource(createDataSourceOptions(config));
+
+  try {
+    if (!dataSource.isInitialized) {
+      logger.debug('Initializing data source for migration action');
+      await dataSource.initialize();
+      logger.debug('Data source initialized successfully');
+    } else {
+      logger.debug('Data source already initialized');
+    }
+
+    switch (action) {
+      case MigrationAction.UP:
+        logger.debug('Executing UP migrations...');
+        await executeRunMigrations(dataSource);
+        logger.log('Migrations executed successfully');
+        return;
+      case MigrationAction.DOWN:
+        logger.debug('Executing DOWN migration (revert)...');
+        await executeRevertMigration(dataSource);
+        logger.log('Migration reverted successfully');
+        return;
+      case MigrationAction.STATUS: {
+        logger.debug('Retrieving migration status...');
+        await executeListMigrations(dataSource);
+        logger.debug('Migration status retrieval completed');
+        return;
+      }
+      default:
+        logger.warn(`Unexpected migration action: ${action}`);
+    }
+  } catch (error) {
+    logger.debug(`Migration action ${action} encountered an error: ${String(error)}`);
+    logger.error(`Migration ${action} failed: ${String(error)}`);
+    // Throwing an error for an external handler
+    throw error;
+  } finally {
+    if (dataSource.isInitialized) {
+      logger.debug('Destroying data source connection');
+      await dataSource.destroy();
+      logger.debug('Data source connection destroyed successfully');
+    } else {
+      logger.debug('Data source was not initialized, no cleanup needed');
+    }
+  }
+}
+
+/**
+ * Determines whether migrations should be executed based on the RUN_MIGRATIONS environment variable.
+ * @param config - The configuration service instance
+ * @returns True if migrations should run, false otherwise
+ */
+function shouldRunMigrations(config: ConfigService): boolean {
+  const runMigrationsValue = config.get<string>('RUN_MIGRATIONS')?.trim().toLowerCase() || 'true';
+  logger.debug(`RUN_MIGRATIONS environment variable value: '${runMigrationsValue}'`);
+  const shouldRun = runMigrationsValue === 'true';
+  logger.debug(`Should run migrations: ${shouldRun}`);
+  return shouldRun;
 }
