@@ -82,7 +82,11 @@ export function Combobox({
           <ChevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className='max-h-[300px] overflow-auto p-0' align='start' sideOffset={5}>
+      <PopoverContent
+        className='max-h-[300px] min-w-[300px] overflow-auto p-0'
+        align='start'
+        sideOffset={5}
+      >
         <Command>
           <CommandInput
             placeholder={`Search ${placeholder.toLowerCase()}...`}
@@ -91,23 +95,16 @@ export function Combobox({
           />
           <CommandEmpty>{emptyMessage}</CommandEmpty>
           {Object.entries(groupedOptions).map(([groupName, groupOptions]) => {
-            const filteredOptions = searchQuery
-              ? groupOptions.filter(option =>
-                  option.label.toLowerCase().includes(searchQuery.toLowerCase())
-                )
-              : groupOptions;
-
-            if (filteredOptions.length === 0) return null;
-
             return (
               <CommandGroup key={groupName || 'default'} heading={groupName}>
-                {filteredOptions.map(option => (
+                {groupOptions.map(option => (
                   <CommandItem
                     key={option.value}
                     value={option.value}
                     onSelect={() => {
                       handleSelect(option.value);
                     }}
+                    keywords={[option.label]}
                   >
                     <Check
                       className={cn(
