@@ -3,10 +3,11 @@ import { APP_FILTER } from '@nestjs/core';
 import { IdpGuard } from './guards';
 import { IdpExceptionFilter } from './filters/idp-exception.filter';
 import { IdpProviderService } from './services/idp-provider.service';
+import { IntercomController } from './controllers/intercom.controller';
 
 @Module({
   imports: [],
-  controllers: [],
+  controllers: [IntercomController],
   providers: [
     IdpProviderService,
     IdpGuard,

@@ -3,6 +3,7 @@ import routes from './routes';
 import './styles/App.css';
 import { AuthProvider } from './features/idp';
 import { GoogleTagManager as GTM } from '../src/app/gtm/GoogleTagManager.tsx';
+import { IntercomChat } from './app/intercom/IntercomChat';
 import { AppStoreProvider, AppBootstrap } from './app/store';
 
 function App() {
@@ -13,6 +14,7 @@ function App() {
       <AppStoreProvider>
         <AppBootstrap>
           <GTM />
+          <IntercomChat />
           <RouterProvider router={router} />
         </AppBootstrap>
       </AppStoreProvider>
