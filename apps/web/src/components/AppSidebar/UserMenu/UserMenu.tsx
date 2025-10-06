@@ -32,13 +32,7 @@ export function UserMenu() {
           avatar={avatar}
           initials={initials}
         />
-        <UserMenuContent
-          items={UserMenuItems({
-            theme,
-            setTheme,
-            signOut,
-          })}
-        />
+        <UserMenuContent items={UserMenuItems({ theme, setTheme, signOut })} />
       </DropdownMenu>
     </div>
   );

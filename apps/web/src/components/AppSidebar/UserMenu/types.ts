@@ -2,16 +2,26 @@ import type { LucideIcon } from 'lucide-react';
 
 export type UserMenuItem =
   | {
+      type: 'item';
       title: string;
       icon: LucideIcon;
       onClick: () => void;
       className?: string;
-      type?: never;
     }
   | {
       type: 'separator';
-      title?: never;
-      icon?: never;
-      onClick?: never;
-      className?: never;
+    }
+  | {
+      type: 'submenu';
+      title: string;
+      icon: LucideIcon;
+      submenu: {
+        value: string | undefined;
+        onChange: (value: string) => void;
+        options: {
+          value: string;
+          label: string;
+          icon?: LucideIcon;
+        }[];
+      };
     };
