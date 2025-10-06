@@ -23,12 +23,9 @@ export default class MigrationsUp extends BaseCommand {
     const { flags } = await this.parse(MigrationsUp);
     this.loadEnvironment(flags);
 
-    this.log('🔄 Running pending migrations...');
-
     try {
       const { runMigrations } = await import('@owox/backend');
       await runMigrations();
-      this.log('✅ All migrations completed successfully');
     } catch (error) {
       this.handleStartupError(error);
     }

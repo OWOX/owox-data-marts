@@ -19,14 +19,14 @@ export async function softDropTable(queryRunner: QueryRunner, tableName: string)
   logger.debug(`Starting soft drop for table: ${tableName}`);
   let n = 0;
   let backupName = `${tableName}_backup`;
-  
+
   logger.debug(`Checking if backup table exists: ${backupName}`);
   while (await queryRunner.hasTable(backupName)) {
     n += 1;
     backupName = `${tableName}_backup_${n}`;
     logger.debug(`Backup table exists, trying new name: ${backupName}`);
   }
-  
+
   logger.debug(`Renaming table ${tableName} to ${backupName}`);
   await queryRunner.renameTable(tableName, backupName);
   logger.debug(`Successfully renamed table ${tableName} to ${backupName}`);
@@ -44,14 +44,11 @@ export async function runMigrations(dataSource: DataSource): Promise<void> {
   try {
     logger.debug('Lock acquired, starting migration execution...');
     const migrations = await dataSource.runMigrations();
-    
+
     if (migrations.length === 0) {
       logger.log('No new migrations to run');
     } else {
-      logger.log(`Executed ${migrations.length} migration(s):`);
-      migrations.forEach(m => {
-        logger.log(`- ${m.name}`);
-      });
+      logger.log(`Successfully executed ${migrations.length} migration(s)`);
     }
   } finally {
     logger.debug('Releasing migrations lock...');
@@ -91,13 +88,19 @@ export async function revertMigration(dataSource: DataSource): Promise<void> {
  */
 export async function listMigrations(dataSource: DataSource): Promise<void> {
   logger.debug('Retrieving migration status from database...');
-  
+  logger.log('Migration status:');
+
+  await sleepInSeconds(0.25);
+
   try {
-    // showMigrations() returns boolean indicating if there are pending migrations
-    // and also prints the migration status to console
     const hasPendingMigrations = await dataSource.showMigrations();
-    logger.debug(`Migration status check completed. Has pending migrations: ${hasPendingMigrations}`);
-    
+
+    await sleepInSeconds(0.25);
+
+    logger.debug(
+      `Migration status check completed. Has pending migrations: ${hasPendingMigrations}`
+    );
+
     if (hasPendingMigrations) {
       logger.log('There are pending migrations that need to be executed');
     } else {
@@ -145,7 +148,7 @@ async function acquireMigrationsLock(dataSource: DataSource): Promise<() => Prom
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       const isAlreadyExists = message.toLowerCase().includes('already exists');
-      
+
       if (!isAlreadyExists) {
         logger.debug(`Lock acquisition failed with unexpected error: ${message}`);
         throw error;
@@ -157,7 +160,9 @@ async function acquireMigrationsLock(dataSource: DataSource): Promise<() => Prom
         throw new Error(`Timed out waiting for migrations lock after ${MAX_WAIT_SECONDS} seconds`);
       }
 
-      logger.debug(`Lock table exists (elapsed: ${elapsedSeconds}s). Waiting ${WAIT_DELAY_SECONDS}s before retry...`);
+      logger.debug(
+        `Lock table exists (elapsed: ${elapsedSeconds}s). Waiting ${WAIT_DELAY_SECONDS}s before retry...`
+      );
       await sleepInSeconds(WAIT_DELAY_SECONDS);
     }
   }

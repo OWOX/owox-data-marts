@@ -28,8 +28,6 @@ export default class MigrationsStatus extends BaseCommand {
     const { flags } = await this.parse(MigrationsStatus);
     this.loadEnvironment(flags);
 
-    this.log('📋 Migration Status:');
-
     try {
       const { getMigrationStatus } = await import('@owox/backend');
       await getMigrationStatus();

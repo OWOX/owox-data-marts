@@ -75,6 +75,7 @@ export async function getMigrationStatus(): Promise<void> {
 async function executeMigrationAction(action: MigrationAction): Promise<void> {
   logger.debug(`Executing migration action: ${action}`);
   const config = new ConfigService();
+  config.set('TYPEORM_LOGGING', 'schema');
   const dataSource = new DataSource(createDataSourceOptions(config));
 
   try {
@@ -90,12 +91,12 @@ async function executeMigrationAction(action: MigrationAction): Promise<void> {
       case MigrationAction.UP:
         logger.debug('Executing UP migrations...');
         await executeRunMigrations(dataSource);
-        logger.log('Migrations executed successfully');
+        logger.debug('Migrations executed successfully');
         return;
       case MigrationAction.DOWN:
         logger.debug('Executing DOWN migration (revert)...');
         await executeRevertMigration(dataSource);
-        logger.log('Migration reverted successfully');
+        logger.debug('Migration reverted successfully');
         return;
       case MigrationAction.STATUS: {
         logger.debug('Retrieving migration status...');

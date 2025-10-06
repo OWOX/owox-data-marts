@@ -31,12 +31,9 @@ export default class MigrationsDown extends BaseCommand {
     const { flags } = await this.parse(MigrationsDown);
     this.loadEnvironment(flags);
 
-    this.log('🔄 Reverting last migration...');
-
     try {
       const { revertMigration } = await import('@owox/backend');
       await revertMigration();
-      this.log('✅ Migration reverted successfully');
     } catch (error) {
       this.handleStartupError(error);
     }
