@@ -1,9 +1,9 @@
 // eslint-disable-next-line n/no-extraneous-import
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import type { BootstrapOptions, HealthProbeAware } from '@owox/backend';
 import type { IdpProvider } from '@owox/idp-protocol';
 
 import { Flags } from '@oclif/core';
-import { BootstrapOptions, createHealthProbe, HealthProbeAware } from '@owox/backend';
 import { IdpProtocolMiddleware } from '@owox/idp-protocol';
 import express from 'express';
 
@@ -172,7 +172,7 @@ export default class Serve extends BaseCommand {
 
     this.log(`📦 Starting server on port ${port} with ${logFormat} logs...`);
 
-    const { bootstrap } = await import('@owox/backend');
+    const { bootstrap, createHealthProbe } = await import('@owox/backend');
 
     const expressApp = express();
     expressApp.set('trust proxy', 1);
