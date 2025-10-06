@@ -20,7 +20,7 @@
     "node": ">=22.16.0"
   },
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
+    "build": "npm run build -w owox",
     "build:dep": "npm run build:dep --workspaces --if-present",
     "build:docs": "npm run build -w @owox/docs",
     "clean": "npx -y shx echo '☢️  Starting total cleanup...' && npx -y shx rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/dist packages/*/dist + && npx -y shx echo '✅ Cleanup complete!'",
@@ -47,9 +47,10 @@
     "lint:md:all:fix": "markdownlint-cli2 --fix",
     "lint:md:root": "cross-env MDLINT_CONTEXT=root npx markdownlint-cli2",
     "lint:md:root:fix": "cross-env MDLINT_CONTEXT=root npx markdownlint-cli2 --fix",
-    "migration:run": "npm run migration:run -w @owox/backend",
-    "migration:revert": "npm run migration:revert -w @owox/backend",
-    "migration:create-template": "npm run migration:create-template -w @owox/backend",
+    "migrations:create-template": "npm run migrations:create-template -w @owox/backend",
+    "migrations:down": "npm run migrations:down --prefix apps/owox",
+    "migrations:status": "npm run migrations:status --prefix apps/owox",
+    "migrations:up": "npm run migrations:up --prefix apps/owox",
     "dump:create": "npm run dump:create -w @owox/backend",
     "dump:apply": "npm run dump:apply -w @owox/backend",
     "postinstall": "npm run setup:husky || echo 'Warning: Git hooks setup failed'",
