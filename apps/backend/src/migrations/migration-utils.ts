@@ -46,7 +46,7 @@ export async function runMigrations(dataSource: DataSource): Promise<void> {
     const migrations = await dataSource.runMigrations();
 
     if (migrations.length === 0) {
-      logger.log('No new migrations to run');
+      logger.debug('No new migrations to run (migrations.length = 0)');
     } else {
       logger.log(`Successfully executed ${migrations.length} migration(s)`);
     }
@@ -71,7 +71,7 @@ export async function revertMigration(dataSource: DataSource): Promise<void> {
   try {
     logger.debug('Lock acquired, starting migration revert...');
     await dataSource.undoLastMigration();
-    logger.log('Successfully reverted last migration');
+    logger.debug('Successfully reverted last migration');
   } finally {
     logger.debug('Releasing migrations lock after revert...');
     await releaseLock().catch(err => {
@@ -84,18 +84,20 @@ export async function revertMigration(dataSource: DataSource): Promise<void> {
 /**
  * Lists migration status (executed and pending migrations).
  * @param dataSource - TypeORM DataSource instance
+ * @returns Promise that resolves when migration status is displayed
  * @throws {Error} When unable to retrieve migration status
  */
 export async function listMigrations(dataSource: DataSource): Promise<void> {
   logger.debug('Retrieving migration status from database...');
   logger.log('Migration status:');
 
-  await sleepInSeconds(0.25);
-
   try {
+    // checking the logging queue
+    await sleepInSeconds(1);
+
     const hasPendingMigrations = await dataSource.showMigrations();
 
-    await sleepInSeconds(0.25);
+    await sleepInSeconds(0.5);
 
     logger.debug(
       `Migration status check completed. Has pending migrations: ${hasPendingMigrations}`
@@ -130,7 +132,8 @@ export async function listMigrations(dataSource: DataSource): Promise<void> {
  * @see https://github.com/typeorm/typeorm/issues/4588 - Known TypeORM issue with multiple instances
  *
  * @param dataSource - TypeORM DataSource instance
- * @returns Promise that resolves to a release function
+ * @returns Promise that resolves to a function that releases the lock
+ * @throws {Error} When lock cannot be acquired within the timeout period
  */
 async function acquireMigrationsLock(dataSource: DataSource): Promise<() => Promise<void>> {
   logger.debug(`Attempting to acquire migrations lock using table: ${LOCK_TABLE_NAME}`);

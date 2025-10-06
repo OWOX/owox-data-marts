@@ -22,7 +22,7 @@ const logger = createLogger('MigrationAPI');
 
 /**
  * Conditionally runs database migrations based on the RUN_MIGRATIONS environment variable.
- * Only executes migrations if RUN_MIGRATIONS is set to 'true'.
+ * Only executes migrations if RUN_MIGRATIONS is set to 'true' (default behavior when not set).
  * @throws {Error} When migration execution fails or database connection issues occur
  */
 export async function runMigrationsIfNeeded(): Promise<void> {
@@ -60,6 +60,7 @@ export async function revertMigration(): Promise<void> {
 
 /**
  * Retrieves and displays the current status of database migrations.
+ * Shows which migrations have been executed and which are pending.
  * @throws {Error} When unable to connect to database or retrieve migration status
  */
 export async function getMigrationStatus(): Promise<void> {
@@ -69,6 +70,7 @@ export async function getMigrationStatus(): Promise<void> {
 
 /**
  * Executes a specific migration action with proper database connection management.
+ * Automatically handles database connection initialization and cleanup.
  * @param action - The migration action to execute (UP, DOWN, or STATUS)
  * @throws {Error} When database connection fails, migration execution fails, or invalid action provided
  */
@@ -125,6 +127,7 @@ async function executeMigrationAction(action: MigrationAction): Promise<void> {
 
 /**
  * Determines whether migrations should be executed based on the RUN_MIGRATIONS environment variable.
+ * Defaults to 'true' when RUN_MIGRATIONS is not set or empty.
  * @param config - The configuration service instance
  * @returns True if migrations should run, false otherwise
  */

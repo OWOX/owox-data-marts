@@ -4,7 +4,8 @@ import { BaseCommand } from '../base.js';
  * Migration management commands for OWOX Data Marts.
  *
  * This is the main entry point for all migration-related operations.
- * Use specific subcommands to perform migration tasks.
+ * Use specific subcommands (up, down, status) to perform migration tasks.
+ * When called without subcommands, displays usage information.
  */
 export default class Migrations extends BaseCommand {
   static override description = 'Manage database migrations for OWOX Data Marts';
@@ -18,7 +19,9 @@ export default class Migrations extends BaseCommand {
   };
 
   /**
-   * Shows helpful message when migrations command is called without subcommands
+   * Shows helpful message when migrations command is called without subcommands.
+   * Parses command flags and loads environment configuration before displaying usage guidance.
+   * @returns Promise that resolves when the help message is displayed
    */
   public async run(): Promise<void> {
     const { flags } = await this.parse(Migrations);

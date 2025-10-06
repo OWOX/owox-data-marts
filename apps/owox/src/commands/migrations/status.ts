@@ -1,28 +1,24 @@
-import { Flags } from '@oclif/core';
-
 import { BaseCommand } from '../base.js';
 
 /**
- * Command to list database migration status.
+ * Command to display database migration status.
  *
  * This command shows the current state of all migrations,
  * indicating which have been executed and which are pending.
  */
 export default class MigrationsStatus extends BaseCommand {
   static override description = 'List database migration status';
-  static override examples = ['<%= config.bin %> migrations list'];
+  static override examples = ['<%= config.bin %> migrations status'];
   static override flags = {
     ...BaseCommand.baseFlags,
-    format: Flags.string({
-      char: 'f',
-      default: 'table',
-      description: 'Output format for migration list',
-      options: ['table', 'json'],
-    }),
   };
 
   /**
-   * Main execution method for listing migrations
+   * Main execution method for displaying migration status.
+   * Parses command flags, loads environment configuration, and retrieves
+   * the current database migration status using the backend migration utilities.
+   * @returns Promise that resolves when the migration status is displayed
+   * @throws {Error} When migration status retrieval fails or startup errors occur
    */
   public async run(): Promise<void> {
     const { flags } = await this.parse(MigrationsStatus);
