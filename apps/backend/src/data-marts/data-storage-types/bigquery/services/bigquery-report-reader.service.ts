@@ -200,7 +200,7 @@ export class BigQueryReportReader implements DataStorageReportReader {
     } else if (isCellPresent && cell instanceof BigQueryRange) {
       return JSON.stringify(cell, null, 2);
     } else if (isCellPresent && cell instanceof Buffer) {
-      return cell.toString('utf-8');
+      return cell.toString('base64');
     } else if (isCellPresent && typeof cell === 'object') {
       if (cell.constructor.name === 'Big') {
         // BigQuery NUMERIC and BIGNUMERIC wrapper handling
