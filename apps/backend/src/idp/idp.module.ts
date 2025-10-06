@@ -4,6 +4,8 @@ import { IdpGuard } from './guards';
 import { IdpExceptionFilter } from './filters/idp-exception.filter';
 import { IdpProviderService } from './services/idp-provider.service';
 import { IntercomController } from './controllers/intercom.controller';
+import { IssueIntercomJwtService } from './use-cases/issue-intercom-jwt.service';
+import { IntercomMapper } from './mappers/intercom.mapper';
 
 @Module({
   imports: [],
@@ -11,6 +13,8 @@ import { IntercomController } from './controllers/intercom.controller';
   providers: [
     IdpProviderService,
     IdpGuard,
+    IssueIntercomJwtService,
+    IntercomMapper,
     {
       provide: APP_FILTER,
       useClass: IdpExceptionFilter,
