@@ -1,5 +1,10 @@
 import { applyDecorators } from '@nestjs/common';
-import { ApiOperation, ApiOkResponse, ApiBadRequestResponse, ApiUnauthorizedResponse } from '@nestjs/swagger';
+import {
+  ApiOperation,
+  ApiOkResponse,
+  ApiBadRequestResponse,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { IntercomTokenResponseApiDto } from '../../dto/presentation/intercom-token-response-api.dto';
 
 export function IssueIntercomJwtSpec() {
