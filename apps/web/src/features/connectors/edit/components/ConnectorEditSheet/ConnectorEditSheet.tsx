@@ -1,5 +1,10 @@
-import { DialogDescription, DialogTitle } from '@owox/ui/components/dialog';
-import { Sheet, SheetContent, SheetHeader } from '@owox/ui/components/sheet';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@owox/ui/components/sheet';
 import type { DataStorageType } from '../../../../data-storage';
 import { ConnectorEditForm } from '../ConnectorEditForm/ConnectorEditForm';
 import type { ConnectorConfig } from '../../../../data-marts/edit';
@@ -41,33 +46,31 @@ export function ConnectorEditSheet({
 
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
-      <SheetContent className='flex h-screen min-w-[480px] flex-col'>
+      <SheetContent>
         <SheetHeader>
-          <DialogTitle>
+          <SheetTitle>
             {mode === 'fields-only'
               ? 'Edit Fields'
               : existingConnector?.source.name
                 ? `Table filled by connector`
-                : 'Setup Connector'}
-          </DialogTitle>
-          <DialogDescription>
+                : 'Connector Setup'}
+          </SheetTitle>
+          <SheetDescription>
             {mode === 'fields-only'
-              ? 'Select which fields to include in your data mart'
-              : 'Setup your connector to use in your data mart'}
-          </DialogDescription>
+              ? 'Select which fields to include in your Data Mart'
+              : 'Follow these easy steps to configure it'}
+          </SheetDescription>
         </SheetHeader>
-        <div className='flex-1 overflow-x-visible overflow-y-auto'>
-          <ConnectorEditForm
-            onSubmit={configuredConnector => {
-              onSubmit(configuredConnector);
-              onClose();
-            }}
-            dataStorageType={dataStorageType}
-            configurationOnly={configurationOnly || mode === 'configuration-only'}
-            existingConnector={existingConnector}
-            mode={mode}
-          />
-        </div>
+        <ConnectorEditForm
+          onSubmit={configuredConnector => {
+            onSubmit(configuredConnector);
+            onClose();
+          }}
+          dataStorageType={dataStorageType}
+          configurationOnly={configurationOnly || mode === 'configuration-only'}
+          existingConnector={existingConnector}
+          mode={mode}
+        />
       </SheetContent>
     </Sheet>
   );
