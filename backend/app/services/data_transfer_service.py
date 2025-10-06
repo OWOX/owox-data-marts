@@ -12,6 +12,7 @@ from pathlib import Path
 from app.database.database import get_db
 from app.crud.crud_platform_data_collection import platform_data_collection
 from app.services.data_marts.data_destination_service import DataDestinationService
+from app.services.storage.bigquery_facade import BigQueryFacade
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +50,8 @@ class DataTransferService:
                 # Add destination name to config for CSV filename
                 csv_config = {**destination.configuration, 'destination_name': destination.name}
                 result = await self._transfer_to_csv(collection_data, csv_config)
+            elif destination.storage_type.upper() == "BIGQUERY":
+                result = await self._transfer_to_bigquery(collection_data, destination.configuration, destination)
             else:
                 raise Exception(f"Unsupported destination type: {destination.storage_type}")
             
@@ -205,6 +208,117 @@ class DataTransferService:
             
         except Exception as e:
             logger.error(f"❌ [DATA TRANSFER] CSV transfer failed: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
+            raise e
+    
+    async def _transfer_to_bigquery(self, data: list, config: dict, destination) -> Dict[str, Any]:
+        """Transfer data to BigQuery destination"""
+        try:
+            import json  # For parsing JSON credentials
+            logger.info(f"🏔️ [DATA TRANSFER] Transferring to BigQuery")
+            
+            # Convert to DataFrame for easier handling
+            df = pd.DataFrame(data)
+            
+            # Extract BigQuery configuration
+            # Frontend uses 'destination_project_id', 'destination_dataset_id', etc.
+            bigquery_config = {
+                'project_id': config.get('destination_project_id') or config.get('project_id'),
+                'dataset_id': config.get('destination_dataset_id') or config.get('dataset_id', 'owox_data_marts'),
+                'location': config.get('location', 'US')
+            }
+            
+            # Extract credentials from destination's credentials field or configuration
+            service_account_key = None
+            
+            # First, try to get from destination.configuration field (where frontend stores them)
+            # Frontend stores it as 'service_account_json' (not 'service_account_key')
+            if config.get('service_account_json'):
+                try:
+                    # Parse the JSON string to get the actual service account object
+                    service_account_key = json.loads(config.get('service_account_json'))
+                    logger.info("🔑 [DATA TRANSFER] Using BigQuery credentials from destination.configuration (service_account_json)")
+                except json.JSONDecodeError as e:
+                    logger.error(f"❌ [DATA TRANSFER] Failed to parse service_account_json: {e}")
+                    service_account_key = None
+            elif config.get('service_account_key'):
+                # Fallback to direct service_account_key if it exists
+                service_account_key = config.get('service_account_key')
+                logger.info("🔑 [DATA TRANSFER] Using BigQuery credentials from destination.configuration (service_account_key)")
+            
+            # Fallback to destination.credentials field
+            elif hasattr(destination, 'credentials') and destination.credentials:
+                try:
+                    # Parse JSON string if needed
+                    if isinstance(destination.credentials, str):
+                        creds_dict = json.loads(destination.credentials)
+                    else:
+                        creds_dict = destination.credentials
+                    
+                    service_account_key = creds_dict.get('service_account_key')
+                    if service_account_key:
+                        logger.info("🔑 [DATA TRANSFER] Using BigQuery credentials from destination.credentials")
+                except (json.JSONDecodeError, TypeError) as e:
+                    logger.warning(f"⚠️ [DATA TRANSFER] Failed to parse destination.credentials: {e}")
+            
+            credentials = {
+                'service_account_key': service_account_key
+            }
+            
+            # If no service account key found, try environment variable
+            if not credentials['service_account_key']:
+                import os
+                google_credentials = os.getenv('GOOGLE_APPLICATION_CREDENTIALS_JSON')
+                if google_credentials:
+                    try:
+                        credentials['service_account_key'] = json.loads(google_credentials)
+                        logger.info("🔑 [DATA TRANSFER] Using BigQuery credentials from environment variable")
+                    except json.JSONDecodeError:
+                        logger.error("❌ [DATA TRANSFER] Invalid JSON in GOOGLE_APPLICATION_CREDENTIALS_JSON")
+                        raise Exception("Invalid BigQuery credentials configuration")
+                else:
+                    logger.error("❌ [DATA TRANSFER] No BigQuery credentials found")
+                    raise Exception("BigQuery credentials not configured")
+            
+            logger.info(f"📋 [DATA TRANSFER] BigQuery config: project={bigquery_config['project_id']}, dataset={bigquery_config['dataset_id']}")
+            
+            # Create BigQuery facade
+            bq_facade = BigQueryFacade(bigquery_config, credentials)
+            
+            # Test connection first
+            connection_test = bq_facade.test_connection()
+            if connection_test['status'] != 'success':
+                raise Exception(f"BigQuery connection failed: {connection_test['message']}")
+            
+            logger.info("✅ [DATA TRANSFER] BigQuery connection successful")
+            
+            # Convert DataFrame to list of dicts for BigQuery insertion
+            records_for_bq = df.to_dict('records')
+            
+            # Use table name from config - frontend uses 'destination_table_name'
+            table_name = config.get('destination_table_name') or config.get('table_name', 'linkedin_data')
+            
+            logger.info(f"📊 [DATA TRANSFER] Data columns: {list(df.columns)}")
+            logger.info(f"📋 [DATA TRANSFER] Transferring {len(records_for_bq)} records to table {table_name}")
+            
+            # Insert data to BigQuery (table will be created automatically if it doesn't exist)
+            result = bq_facade.insert_data(table_name, records_for_bq)
+            
+            if result['status'] == 'success':
+                records_transferred = result.get('rows_inserted', len(records_for_bq))
+                logger.info(f"✅ [DATA TRANSFER] Successfully loaded {records_transferred} records to BigQuery table {table_name}")
+                
+                return {
+                    'records_transferred': records_transferred,
+                    'destination_info': f'BigQuery table: {bigquery_config["project_id"]}.{bigquery_config["dataset_id"]}.{table_name}'
+                }
+            else:
+                logger.error(f"❌ [DATA TRANSFER] BigQuery insert failed: {result['message']}")
+                raise Exception(f"Failed to load data to BigQuery: {result['message']}")
+                
+        except Exception as e:
+            logger.error(f"❌ [DATA TRANSFER] BigQuery transfer failed: {str(e)}")
             import traceback
             logger.error(traceback.format_exc())
             raise e

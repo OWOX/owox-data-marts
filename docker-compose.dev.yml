@@ -48,6 +48,7 @@ services:
       - SECRET_KEY=dev-secret-key-change-in-production
       - ENVIRONMENT=development
       - PYTHONPATH=/app
+      - GOOGLE_APPLICATION_CREDENTIALS_JSON=${GOOGLE_APPLICATION_CREDENTIALS_JSON}
     ports:
       - "8000:8000"
     volumes:
@@ -88,6 +89,7 @@ services:
       - SECRET_KEY=dev-secret-key-change-in-production
       - ENVIRONMENT=development
       - PYTHONPATH=/app
+      - GOOGLE_APPLICATION_CREDENTIALS_JSON=${GOOGLE_APPLICATION_CREDENTIALS_JSON}
     volumes:
       - ./backend:/app
       - backend_cache:/app/__pycache__
@@ -119,6 +121,7 @@ services:
       - SECRET_KEY=dev-secret-key-change-in-production
       - ENVIRONMENT=development
       - PYTHONPATH=/app
+      - GOOGLE_APPLICATION_CREDENTIALS_JSON=${GOOGLE_APPLICATION_CREDENTIALS_JSON}
     volumes:
       - ./backend:/app
       - backend_cache:/app/__pycache__
