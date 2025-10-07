@@ -4,6 +4,8 @@
 
 ### Minor Changes 0.8.0
 
+<https://github.com/user-attachments/assets/de14394e-b126-429f-89bf-b606f867dae7>
+
 - 2932470: # Better Auth: Primary Admin Setup & Password Reset
   - **Primary admin auto-creation**: Configure `IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL` to automatically create or manage primary admin on server startup
   - **Password reset UI**: Admins can reset user passwords through Admin Dashboard (`/auth/dashboard`) with automatic magic link generation
@@ -24,7 +26,7 @@
   - Refined **CreateDataMartPage styling** for better visual consistency.
 
 - 099befb: # fix: allow deleting a datamart within a project if it was created by another user
-- 25ab28e: # fix: a user with the viewer role is not allowed to modify objects in the application with ipd = better-auth
+- 25ab28e: # fix: a user with the viewer role is not allowed to modify objects in the application with idp = better-auth
 - edb4478: ✨ Google Tag Manager integration
   - 🚀 Added Google Tag Manager support across the web app. Enable by setting `GOOGLE_TAG_MANAGER_CONTAINER_ID` in your environment. This allows non‑technical teams to ship marketing/analytics tags without deployments.
 
@@ -123,6 +125,8 @@
 ## 0.7.0
 
 ### Minor Changes 0.7.0
+
+<https://github.com/user-attachments/assets/5b5e5b28-60e9-4c4e-9b2c-1b61e8ec4e74>
 
 - 7d83d7c: # Add configurable timeout middleware for long-running operations
   - Increase server timeout from 2 minutes to 3 minutes (180s) to prevent timeout errors
