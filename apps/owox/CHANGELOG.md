@@ -26,7 +26,7 @@
   - Refined **CreateDataMartPage styling** for better visual consistency.
 
 - 099befb: # fix: allow deleting a datamart within a project if it was created by another user
-- 25ab28e: # fix: a user with the viewer role is not allowed to modify objects in the application with ipd = better-auth
+- 25ab28e: # fix: a user with the viewer role is not allowed to modify objects in the application with idp = better-auth
 - edb4478: ✨ Google Tag Manager integration
   - 🚀 Added Google Tag Manager support across the web app. Enable by setting `GOOGLE_TAG_MANAGER_CONTAINER_ID` in your environment. This allows non‑technical teams to ship marketing/analytics tags without deployments.
 
