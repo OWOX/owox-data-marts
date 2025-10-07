@@ -199,7 +199,7 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
         control={control}
         name='definition'
         render={({ field }) => (
-          <FormItem>
+          <FormItem className='dark:bg-white/2'>
             <FormControl>
               <div className='space-y-3'>
                 {!isConnectorConfigured(field.value as ConnectorDefinitionConfig) ||

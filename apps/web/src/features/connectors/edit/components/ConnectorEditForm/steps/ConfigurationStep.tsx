@@ -1,16 +1,22 @@
 import { Label } from '@owox/ui/components/label';
 import { Input } from '@owox/ui/components/input';
 import { Textarea } from '@owox/ui/components/textarea';
-import { Skeleton } from '@owox/ui/components/skeleton';
 import { Combobox } from '../../../../../../shared/components/Combobox/combobox.tsx';
 import type { ConnectorListItem } from '../../../../shared/model/types/connector';
 import type { ConnectorSpecificationResponseApiDto } from '../../../../shared/api/types';
-import { RawBase64Icon } from '../../../../../../shared/icons';
+import { StepperHeroBlock } from '../components';
 import { RequiredType } from '../../../../shared/api/types';
 import { useState, useEffect, useRef } from 'react';
-import { Button } from '@owox/ui/components/button';
-import { ExternalLinkIcon, Info } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import {
+  AppWizardStepItem,
+  AppWizardStepLabel,
+  AppWizardStepSection,
+  AppWizardStep,
+  AppWizardStepHero,
+  AppWizardStepLoading,
+} from '@owox/ui/components/common/wizard';
+import { OpenIssueLink } from '../components';
+import { Unplug } from 'lucide-react';
 
 interface ConfigurationStepProps {
   connector: ConnectorListItem;
@@ -266,25 +272,21 @@ export function ConfigurationStep({
   }, [configuration, connectorSpecification, onValidationChange]);
 
   if (loading) {
-    return (
-      <div className='space-y-2'>
-        <h4 className='text-lg font-medium'>Configuration</h4>
-        <p className='text-muted-foreground mb-8 text-sm'>Loading connector configuration...</p>
-        <div className='flex flex-col gap-4'>
-          {Array.from({ length: 3 }).map((_, index) => (
-            <div key={index} className='mb-2 space-y-1'>
-              <Skeleton className='h-4 w-32' />
-              <Skeleton className='h-10 w-full' />
-              <Skeleton className='h-3 w-48' />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+    return <AppWizardStepLoading variant='list' />;
   }
 
   if (!connectorSpecification || connectorSpecification.length === 0) {
-    return null;
+    return (
+      <AppWizardStep>
+        <StepperHeroBlock connector={connector} />
+        <AppWizardStepHero
+          icon={<Unplug size={56} strokeWidth={1} />}
+          title='No configuration found'
+          subtitle='This connector might not be fully implemented yet or there could be other issues.'
+        />
+        <OpenIssueLink label='Need configuration?' />
+      </AppWizardStep>
+    );
   }
 
   // Sort specifications by priority:
@@ -307,56 +309,27 @@ export function ConfigurationStep({
     });
 
   return (
-    <div className='space-y-4'>
-      <div className='mb-2 flex items-center gap-2'>
-        {connector.logoBase64 && <RawBase64Icon base64={connector.logoBase64} size={32} />}
-        <h4 className='text-lg font-medium'>{connector.displayName} configuration</h4>
-      </div>
-      {connector.docUrl && (
-        <a href={connector.docUrl} target='_blank' rel='noopener noreferrer'>
-          <Button variant='link' className='mb-2 cursor-pointer text-sm'>
-            View documentation <ExternalLinkIcon className='h-4 w-4' />
-          </Button>
-        </a>
-      )}
-      <div className='flex flex-col gap-4'>
-        {sortedSpecifications.map(specification => (
-          <div key={specification.name} className='mb-2 space-y-1'>
-            {specification.requiredType !== RequiredType.BOOLEAN && (
-              <Label
-                htmlFor={specification.name}
-                className='group flex items-center justify-between gap-2 text-sm font-medium'
-              >
-                <span>
+    <>
+      <AppWizardStep>
+        <StepperHeroBlock connector={connector} />
+        <AppWizardStepSection title='Configure Settings'>
+          {sortedSpecifications.map(specification => (
+            <AppWizardStepItem key={specification.name}>
+              {specification.requiredType !== RequiredType.BOOLEAN && (
+                <AppWizardStepLabel
+                  htmlFor={specification.name}
+                  required={specification.required}
+                  tooltip={specification.description}
+                >
                   {specification.title ?? specification.name}
-                  {specification.required && <span className='ml-1 text-red-500'>*</span>}
-                </span>
-                {specification.description && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type='button'
-                        tabIndex={-1}
-                        className='opacity-60 transition-opacity hover:opacity-100'
-                        aria-label='Help information'
-                      >
-                        <Info
-                          className='text-muted-foreground/50 hover:text-muted-foreground size-4 shrink-0 transition-colors'
-                          aria-hidden='true'
-                        />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side='top' align='center' role='tooltip'>
-                      {specification.description}
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-              </Label>
-            )}
-            {renderInputForType(specification, configuration, handleValueChange)}
-          </div>
-        ))}
-      </div>
-    </div>
+                </AppWizardStepLabel>
+              )}
+
+              {renderInputForType(specification, configuration, handleValueChange)}
+            </AppWizardStepItem>
+          ))}
+        </AppWizardStepSection>
+      </AppWizardStep>
+    </>
   );
 }

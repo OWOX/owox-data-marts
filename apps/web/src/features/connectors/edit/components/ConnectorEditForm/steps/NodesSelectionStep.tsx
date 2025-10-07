@@ -1,10 +1,19 @@
-import { Skeleton } from '@owox/ui/components/skeleton';
 import type { ConnectorFieldsResponseApiDto } from '../../../../shared/api/';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
-import { Info } from 'lucide-react';
-import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
+import {
+  AppWizardStepSection,
+  AppWizardStep,
+  AppWizardStepCardItem,
+  AppWizardStepHero,
+  AppWizardStepLoading,
+} from '@owox/ui/components/common/wizard';
+import { OpenIssueLink } from '../components';
+import { StepperHeroBlock } from '../components';
+import type { ConnectorListItem } from '../../../../shared/model/types/connector';
+import { ChevronRight, Unplug } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface NodesSelectionStepProps {
+  connector: ConnectorListItem;
   connectorFields: ConnectorFieldsResponseApiDto[] | null;
   selectedField: string;
   connectorName?: string;
@@ -13,6 +22,7 @@ interface NodesSelectionStepProps {
 }
 
 export function NodesSelectionStep({
+  connector,
   connectorFields,
   selectedField,
   connectorName,
@@ -22,78 +32,71 @@ export function NodesSelectionStep({
   const title = connectorName ? `Select node for ${connectorName}` : 'Select node';
 
   if (loading) {
-    return (
-      <div className='space-y-4'>
-        <h4 className='text-lg font-medium'>{title}</h4>
-        <div className='flex flex-col gap-4'>
-          {Array.from({ length: 3 }).map((_, index) => (
-            <div key={index} className='flex items-center space-x-2'>
-              <Skeleton className='h-4 w-4 rounded-full' />
-              <Skeleton className='h-4 w-32' />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+    return <AppWizardStepLoading variant='list' />;
   }
 
   if (!connectorFields || connectorFields.length === 0) {
     return (
-      <div className='space-y-4'>
-        <h4 className='text-lg font-medium'>{title}</h4>
-        <p className='text-destructive text-sm'>
-          {connectorName ? `No nodes found for ${connectorName}` : 'No nodes found'}
-        </p>
-        <p className='text-muted-foreground text-muted-foreground text-sm'>
-          This connector might not be fully implemented yet or there could be other issues. Please
-          create an issue on GitHub to report this problem.
-        </p>
-      </div>
+      <AppWizardStep>
+        <StepperHeroBlock connector={connector} />
+        <AppWizardStepHero
+          icon={<Unplug size={56} strokeWidth={1} />}
+          title={connectorName ? `No nodes found for ${connectorName}` : 'No nodes found'}
+          subtitle='This connector might not be fully implemented yet or there could be other issues.'
+        />
+        <OpenIssueLink label='Need nodes?' />
+      </AppWizardStep>
     );
   }
 
   return (
-    <div className='space-y-4'>
-      <h4 className='text-lg font-medium'>{title}</h4>
-      <p className='text-muted-foreground text-sm'>
-        Can't find the node you need? Open an{' '}
-        <ExternalAnchor href='https://github.com/OWOX/owox-data-marts/issues'>
-          issue here
-        </ExternalAnchor>
-        .
-      </p>
-      <div className='flex flex-col gap-4'>
+    <AppWizardStep>
+      <StepperHeroBlock connector={connector} />
+      <AppWizardStepSection title={title}>
         {connectorFields.map(field => (
-          <div key={field.name} className='flex items-center space-x-2'>
-            <input
-              type='radio'
-              id={field.name}
-              name='selectedField'
-              value={field.name}
-              className='text-primary focus:ring-primary border-border h-4 w-4'
-              onChange={e => {
-                onFieldSelect(e.target.value);
-              }}
-              checked={selectedField === field.name}
-            />
-            <label htmlFor={field.name} className='text-muted-foreground cursor-pointer text-sm'>
-              <div className='flex items-center gap-2'>{field.overview ?? field.name}</div>
-            </label>
-            {field.name && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Info className='text-muted-foreground/75 inline-block h-4 w-4 cursor-help' />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Table name: {field.destinationName ?? field.name}</p>
-                  {field.description && <p>{field.description}</p>}
-                  {field.documentation && <p>{field.documentation}</p>}
-                </TooltipContent>
-              </Tooltip>
-            )}
-          </div>
+          <AppWizardStepCardItem
+            key={field.name}
+            type='radio'
+            id={field.name}
+            name='selectedField'
+            value={field.name}
+            label={field.overview ?? field.name}
+            checked={selectedField === field.name}
+            onChange={value => {
+              onFieldSelect(value as string);
+            }}
+            tooltip={
+              field.name && (
+                <div className='flex flex-col gap-2 py-1'>
+                  <p>
+                    <span className='font-semibold'>Table name:</span>{' '}
+                    {field.destinationName ?? field.name}
+                  </p>
+                  {field.description && (
+                    <p>
+                      <span className='font-semibold'>Description:</span> {field.description}
+                    </p>
+                  )}
+                  {field.documentation && (
+                    <Link
+                      to={field.documentation}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      className='bg-muted/16 hover:bg-muted/20 dark:bg-muted/8 dark:hover:bg-muted/16 flex items-center justify-center gap-1 rounded-sm px-2 py-1 font-semibold'
+                    >
+                      Read more
+                      <ChevronRight className='h-3 w-3' />
+                    </Link>
+                  )}
+                </div>
+              )
+            }
+            selected={selectedField === field.name}
+          />
         ))}
-      </div>
-    </div>
+
+        <OpenIssueLink label='Need another node?' />
+      </AppWizardStepSection>
+    </AppWizardStep>
   );
 }
