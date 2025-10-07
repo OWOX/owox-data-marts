@@ -144,12 +144,8 @@ async function acquireMigrationsLock(dataSource: DataSource): Promise<() => Prom
       logger.debug(`Successfully acquired migrations lock using table ${LOCK_TABLE_NAME}`);
       break;
     } catch (error: unknown) {
-      const stringError = String(error);
-      const message = error instanceof Error ? error.message : stringError;
-      const isAlreadyExists = stringError.toLowerCase().includes('already exists');
-
+      const isAlreadyExists = String(error).toLowerCase().includes('already exists');
       if (!isAlreadyExists) {
-        logger.debug(`Lock acquisition failed with unexpected error: ${message}`);
         throw error;
       }
 
