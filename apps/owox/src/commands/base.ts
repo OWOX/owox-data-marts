@@ -104,7 +104,7 @@ export abstract class BaseCommand extends Command {
    */
   protected handleStartupError(error: unknown): void {
     const message = error instanceof Error ? error.message : String(error);
-    this.error(`Failed to start dump process: ${message}`, { exit: 1 });
+    this.error(`Failed to start process: ${message}`, { exit: 1 });
   }
 
   /**
@@ -139,11 +139,13 @@ export abstract class BaseCommand extends Command {
    * this.loadEnvironment(flags);
    * ```
    */
-  protected loadEnvironment(flags: { 'env-file'?: string; 'log-format'?: string }): void {
-    const { 'env-file': envFile = '', ...flagVars } = flags;
+  protected loadEnvironment(flags: Record<string, boolean | number | string | undefined>): void {
+    const { 'env-file': envFileValue = '', ...flagVars } = flags;
     const defaultVars = {
       PORT: BaseCommand.DEFAULT_PORT,
     };
+
+    const envFile = typeof envFileValue === 'string' ? envFileValue : String(envFileValue);
 
     const setResult = EnvManager.setupEnvironment({
       defaultVars,

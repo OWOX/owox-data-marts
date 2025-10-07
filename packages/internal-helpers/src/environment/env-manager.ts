@@ -80,11 +80,6 @@ enum EnvObjectType {
  */
 export class EnvManager {
   /**
-   * Environment variable name for custom .env file path
-   */
-  private static readonly DEFAULT_ENV_FILE_PATH = 'OWOX_ENV_FILE_PATH';
-
-  /**
    * Template messages for logging with placeholder support
    *
    * Templates use %placeholder% syntax for dynamic content:
@@ -400,8 +395,7 @@ export class EnvManager {
    *
    * Priority order:
    * 1. Specified filePath parameter (if not empty after trimming)
-   * 2. OWOX_ENV_FILE_PATH environment variable (if set and not empty)
-   * 3. Default .env file in current working directory
+   * 2. Default .env file in current working directory
    *
    * @private
    * @param filePath - User-specified file path (may be empty for fallback logic)
@@ -413,14 +407,6 @@ export class EnvManager {
     if (sanitizedPath) {
       this.logInfo(this.formatMessage(this.MESSAGES.FILE_PATH_SPECIFIED, { file: sanitizedPath }));
       return sanitizedPath;
-    } else if (process.env[this.DEFAULT_ENV_FILE_PATH]) {
-      const envSanitizedPath = process.env[this.DEFAULT_ENV_FILE_PATH]?.trim();
-      if (envSanitizedPath) {
-        this.logInfo(
-          this.formatMessage(this.MESSAGES.FILE_PATH_ENVIRONMENT, { file: envSanitizedPath })
-        );
-        return envSanitizedPath;
-      }
     }
 
     const defaultPath = path.resolve(process.cwd(), '.env');
