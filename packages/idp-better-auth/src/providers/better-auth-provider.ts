@@ -223,6 +223,10 @@ export class BetterAuthProvider
     }
   }
 
+  async isHealthy(): Promise<boolean> {
+    return await this.store.isHealthy();
+  }
+
   async addUser(username: string, _password?: string): Promise<AddUserCommandResponse> {
     return this.userManagementService.addUserViaMagicLink(username);
   }

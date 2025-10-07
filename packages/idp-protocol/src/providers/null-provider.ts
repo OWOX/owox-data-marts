@@ -73,6 +73,11 @@ export class NullIdpProvider implements IdpProvider {
     // Nothing to initialize
   }
 
+  async isHealthy(): Promise<boolean> {
+    // Null provider has no external dependencies
+    return true;
+  }
+
   async shutdown(): Promise<void> {
     // Nothing to cleanup
   }

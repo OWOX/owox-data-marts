@@ -9,6 +9,11 @@ export interface AuthorizationStore {
   initialize(): Promise<void>;
 
   /**
+   * Verify DB connectivity for health probe.
+   */
+  isHealthy(): Promise<boolean>;
+
+  /**
    * Save mapping state -> code_verifier.
    * Update existing record if it already exists.
    * @param state unique key (state)
