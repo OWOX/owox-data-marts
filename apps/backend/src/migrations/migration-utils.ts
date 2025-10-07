@@ -1,4 +1,4 @@
-import { DataSource, QueryRunner, QueryFailedError } from 'typeorm';
+import { DataSource, QueryRunner } from 'typeorm';
 
 import { createLogger } from '../common/logger/logger.service';
 
@@ -144,8 +144,9 @@ async function acquireMigrationsLock(dataSource: DataSource): Promise<() => Prom
       logger.debug(`Successfully acquired migrations lock using table ${LOCK_TABLE_NAME}`);
       break;
     } catch (error: unknown) {
-      const message = error instanceof QueryFailedError ? error.message : String(error);
-      const isAlreadyExists = message.toLowerCase().includes('already exists');
+      const stringError = String(error);
+      const message = error instanceof Error ? error.message : stringError;
+      const isAlreadyExists = stringError.toLowerCase().includes('already exists');
 
       if (!isAlreadyExists) {
         logger.debug(`Lock acquisition failed with unexpected error: ${message}`);
