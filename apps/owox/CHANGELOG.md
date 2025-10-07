@@ -4,7 +4,7 @@
 
 ### Minor Changes 0.8.0
 
-<img width="1920" height="1080" alt="changelog-odm-080-v2" src="https://github.com/user-attachments/assets/de14394e-b126-429f-89bf-b606f867dae7" />
+<https://github.com/user-attachments/assets/de14394e-b126-429f-89bf-b606f867dae7>
 
 - 2932470: # Better Auth: Primary Admin Setup & Password Reset
   - **Primary admin auto-creation**: Configure `IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL` to automatically create or manage primary admin on server startup
@@ -126,7 +126,7 @@
 
 ### Minor Changes 0.7.0
 
-<img width="1920" height="1080" alt="changelog-odm-070-v2" src="https://github.com/user-attachments/assets/5b5e5b28-60e9-4c4e-9b2c-1b61e8ec4e74" />
+<https://github.com/user-attachments/assets/5b5e5b28-60e9-4c4e-9b2c-1b61e8ec4e74>
 
 - 7d83d7c: # Add configurable timeout middleware for long-running operations
   - Increase server timeout from 2 minutes to 3 minutes (180s) to prevent timeout errors
