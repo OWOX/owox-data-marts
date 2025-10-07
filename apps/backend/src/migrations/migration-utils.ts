@@ -1,4 +1,4 @@
-import { DataSource, QueryRunner } from 'typeorm';
+import { DataSource, QueryRunner, QueryFailedError } from 'typeorm';
 
 import { createLogger } from '../common/logger/logger.service';
 
@@ -92,12 +92,7 @@ export async function listMigrations(dataSource: DataSource): Promise<void> {
   logger.log('Migration status:');
 
   try {
-    // checking the logging queue
-    await sleepInSeconds(1);
-
     const hasPendingMigrations = await dataSource.showMigrations();
-
-    await sleepInSeconds(0.5);
 
     logger.debug(
       `Migration status check completed. Has pending migrations: ${hasPendingMigrations}`
@@ -149,7 +144,7 @@ async function acquireMigrationsLock(dataSource: DataSource): Promise<() => Prom
       logger.debug(`Successfully acquired migrations lock using table ${LOCK_TABLE_NAME}`);
       break;
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = error instanceof QueryFailedError ? error.message : String(error);
       const isAlreadyExists = message.toLowerCase().includes('already exists');
 
       if (!isAlreadyExists) {

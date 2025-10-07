@@ -109,11 +109,6 @@ async function executeMigrationAction(action: MigrationAction): Promise<void> {
       default:
         logger.warn(`Unexpected migration action: ${action}`);
     }
-  } catch (error) {
-    logger.debug(`Migration action ${action} encountered an error: ${String(error)}`);
-    logger.error(`Migration ${action} failed: ${String(error)}`);
-    // Throwing an error for an external handler
-    throw error;
   } finally {
     if (dataSource.isInitialized) {
       logger.debug('Destroying data source connection');
