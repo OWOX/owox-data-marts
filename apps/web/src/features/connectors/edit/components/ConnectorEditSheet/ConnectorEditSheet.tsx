@@ -1,8 +1,13 @@
 import { DialogDescription, DialogTitle } from '@owox/ui/components/dialog';
 import { Sheet, SheetContent, SheetHeader } from '@owox/ui/components/sheet';
-import type { DataStorageType } from '../../../../data-storage/shared/model/types';
+import type { DataStorageType } from '../../../../data-storage';
 import { ConnectorEditForm } from '../ConnectorEditForm/ConnectorEditForm';
-import type { ConnectorConfig } from '../../../../data-marts/edit/model';
+import type { ConnectorConfig } from '../../../../data-marts/edit';
+import { useEffect } from 'react';
+import {
+  raiseIntercomLauncher,
+  resetIntercomLauncher,
+} from '../../../../../app/intercom/intercomUtils';
 
 interface ConnectorEditSheetProps {
   isOpen: boolean;
@@ -23,6 +28,17 @@ export function ConnectorEditSheet({
   existingConnector = null,
   mode = 'full',
 }: ConnectorEditSheetProps) {
+  useEffect(() => {
+    if (isOpen) {
+      raiseIntercomLauncher(55);
+    } else {
+      resetIntercomLauncher();
+    }
+    return () => {
+      resetIntercomLauncher();
+    };
+  }, [isOpen]);
+
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
       <SheetContent className='flex h-screen min-w-[480px] flex-col'>

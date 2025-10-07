@@ -10,6 +10,7 @@ export default defineConfig(({ mode }) => ({
     sourcemap: mode === 'development',
   },
   server: {
+    host: '0.0.0.0',
     hmr: {
       overlay: false,
     },

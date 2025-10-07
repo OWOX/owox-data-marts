@@ -3,6 +3,7 @@ import { useFlags } from '../store/hooks';
 import { RequestStatus } from '../../shared/types/request-status';
 import { useAuth, type User } from '../../features/idp';
 import apiClient from '../api/apiClient';
+import { resetIntercomLauncher } from './intercomUtils';
 
 declare global {
   interface Window {
@@ -111,6 +112,7 @@ export function IntercomChat(): null {
     loadIntercomScript(appId, () => {
       void initializeIntercom(appId, user).then(() => {
         initializedRef.current = true;
+        resetIntercomLauncher();
       });
     });
   }, [flags, callState, user]);
