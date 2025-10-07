@@ -91,6 +91,11 @@ export interface IdpProvider {
   initialize(): Promise<void>;
 
   /**
+   * Health probe for the IDP. Check if the IDP is healthy to handle requests.
+   */
+  isHealthy(): Promise<boolean>;
+
+  /**
    * Shutdown the IDP, close all connections and release resources
    */
   shutdown(): Promise<void>;

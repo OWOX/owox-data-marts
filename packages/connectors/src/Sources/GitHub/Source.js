@@ -13,7 +13,8 @@ var GitHubSource = class GitHubSource extends AbstractSource {
       AccessToken: {
         isRequired: true,
         label: "Access Token",
-        description: "GitHub API Access Token for authentication"
+        description: "GitHub API Access Token for authentication",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       RepositoryName: {
         isRequired: true,
@@ -56,6 +57,12 @@ var GitHubSource = class GitHubSource extends AbstractSource {
         requiredType: "string",
         label: "Fields",
         description: "Comma-separated list of fields to fetch (e.g., date,stars,contributors)"
+      },
+      CreateEmptyTables: {
+        requiredType: "boolean",
+        default: true,
+        label: "Create Empty Tables",
+        description: "Create tables with all columns even if no data is returned from API"
       }
     }));
   

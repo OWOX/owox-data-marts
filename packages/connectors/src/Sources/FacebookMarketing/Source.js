@@ -16,7 +16,8 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
           isRequired: true,
           requiredType: "string",
           label: "Access Token",
-          description: "Facebook API Access Token for authentication"
+          description: "Facebook API Access Token for authentication",
+          attributes: [CONFIG_ATTRIBUTES.SECRET]
         },
         AccoundIDs: {
           isRequired: true,
@@ -41,10 +42,16 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
           description: "List of fields to fetch from Facebook API"
         },
         ProcessShortLinks: {
-          requiredType: "string",
-          default: "true",
+          requiredType: "boolean",
+          default: true,
           label: "Process Short Links",
           description: "Enable automatic processing of short links in link_url_asset field"
+        },
+        CreateEmptyTables: {
+          requiredType: "boolean",
+          default: true,
+          label: "Create Empty Tables",
+          description: "Create tables with all columns even if no data is returned from API (true/false)"
         },
         ReimportLookbackWindow: {
           requiredType: "number",
@@ -259,7 +266,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       const allData = results.length === 1 ? results[0].data : this._mergeInsightsResults(results);
       
       // Process short links if link_url_asset data is present
-      if (this.config.ProcessShortLinks.value === "true" && allData.length > 0 && allData.some(record => record.link_url_asset)) {
+      if (this.config.ProcessShortLinks.value && allData.length > 0 && allData.some(record => record.link_url_asset)) {
         return processShortLinks(allData, { 
           shortLinkField: 'link_url_asset',
           urlFieldName: 'website_url'

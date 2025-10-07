@@ -13,7 +13,8 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
         isRequired: true,
         requiredType: "string",
         label: "Access Token",
-        description: "TikTok Ads API Access Token for authentication"
+        description: "TikTok Ads API Access Token for authentication",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       AppId: {
         requiredType: "string",
@@ -25,7 +26,8 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
         requiredType: "string",
         isRequired: true,
         label: "App Secret",
-        description: "TikTok Ads API Application Secret"
+        description: "TikTok Ads API Application Secret",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       AdvertiserIDs: {
         isRequired: true,
@@ -70,16 +72,22 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
         description: "Maximum number of days to fetch data for"
       },
       IncludeDeleted: {
-        requiredType: "bool",
+        requiredType: "boolean",
         default: false,
         label: "Include Deleted",
         description: "Include deleted entities in results"
       },
       SandboxMode: {
-        requiredType: "bool",
+        requiredType: "boolean",
         default: false,
         label: "Sandbox Mode",
         description: "Use sandbox environment for testing"
+      },
+      CreateEmptyTables: {
+        requiredType: "boolean",
+        default: true,
+        label: "Create Empty Tables",
+        description: "Create tables with all columns even if no data is returned from API"
       }
     }));
 
@@ -161,7 +169,7 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
       this.config.AppId.value,
       this.config.AccessToken.value,
       this.config.AppSecret.value,
-      this.config.SandboxMode && this.config.SandboxMode.value === true
+      this.config.SandboxMode && this.config.SandboxMode.value
     );
     
     // Store the current advertiser ID so it can be used if missing in records
@@ -180,7 +188,7 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
 
     // Filter parameter for including deleted entities
     let filtering = null;
-    if (this.config.IncludeDeleted && this.config.IncludeDeleted.value === true) {
+    if (this.config.IncludeDeleted && this.config.IncludeDeleted.value) {
       if (nodeName === 'campaigns') {
         filtering = {"secondary_status": "CAMPAIGN_STATUS_ALL"};
       } else if (nodeName === 'ad_groups') {

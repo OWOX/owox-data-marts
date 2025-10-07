@@ -1,81 +1,85 @@
 # How to Import Data from the Criteo Ads Source
 
-To start importing data from Criteo Ads, make a copy of one of the following templates:
+Before proceeding, please make sure that:
 
-- [**Criteo Ads → Google Sheets. Template**](https://docs.google.com/spreadsheets/d/1bJRlgl4vwgfjTZ7yuE8oJ2s4yCF6mEIU5LG8u9BTpZc/copy)
-- [**Criteo Ads → Google BigQuery. Template**](https://docs.google.com/spreadsheets/d/13jfyXIBp6DF8TY4kGg5l0ZaYz2eTf3RT4IAfMwfR3Y4/copy)
+- You securely saved your **Client ID** and **Client Secret** as described in [CREDENTIALS](CREDENTIALS).
+- You have [set up **OWOX Data Marts**](https://docs.owox.com/docs/getting-started/quick-start/) and created at least one storage in the **Storages** section.
 
-Fill in the required information:
+![Criteo Ads Storage](res/criteo_storage.png)
 
-- **Start date**
-- **Advertiser IDs**
-- **Fields**
-- **Destination Dataset ID** (applicable only for the **Google BigQuery** template)
-- **Destination Location** (applicable only for the **Google BigQuery** template)
+## Create the Data Mart
 
-The import will begin from the selected **Start Date**.  
-> ⚠️ **Note:** Choosing a long date range may result in import failure due to high data volume.
+- Click **New Data Mart**.
+- Enter a title and select the Storage.
+- Click **Create Data Mart**.
 
-![Criteo Start Date](res/criteo_startdate.png)
+![Criteo Ads New Data Mart](res/criteo_newdatamart.png)
 
-You can find your **Advertiser ID** on the homepage of your [Criteo Ads account](https://marketing.criteo.com/):
+## Set Up the Connector
 
-![Criteo Account ID](res/criteo_accountid.png)
+1. Select **Connector** as the input source type.
+2. Click **Set up connector** and choose **Criteo Ads**.  
+3. Fill in the required fields:
+    - **Advertiser ID** – you can find it on the homepage of your [Criteo Ads account](https://marketing.criteo.com/)
+    - **Client ID** – paste the ID you saved earlier.
+    - **Client Secret** – paste the secret you saved earlier.
+    - Leave the other fields as default and proceed to the next step.
 
-Copy and paste the ID into the appropriate field in the spreadsheet:
+![Criteo Ads Input Source](res/criteo_connector.png)
 
-![Criteo Paste Account ID](res/criteo_pasteid.png)
+![Criteo Ads Fill Data](res/criteo_fill_data.png)
 
-To include fields, go to the **Fields** tab and check the boxes next to the ones you need.
+![Criteo Ads Account ID](res/criteo_accountid.png)
 
-![Criteo Fields](res/criteo_fields.png)
+## Configure Data Import
 
-If you are using the **Google BigQuery** template, you must also specify:
+1. Choose one of the available **endpoints**.  
+2. Select the required **fields**.  
+3. Specify the **dataset** where the data will be stored (or leave the default).  
+4. Click **Finish**, then **Save** and **Publish Data Mart**.
 
-- **Destination Dataset ID** in the format: `projectid.datasetid`
-- **Destination Location** (e.g., `US`, `EU`)
+![Criteo Ads Publish Data Mart](res/criteo_publish.png)
 
-> ℹ️ **Important:** If the specified BigQuery dataset does not already exist in your Google Cloud project, it will be automatically created during the import process.
+## Run the Data Mart
 
-![Criteo Dataset](res/criteo_dataset.png)
+You now have two options for importing data from Criteo Ads:  
 
-Open the menu: **OWOX → Manage Credentials**
+Option 1: Import Current Day's Data
 
-![Criteo Credentials](res/criteo_credentials.png)
+Choose **Manual run → Incremental load** to load data for the **current day**.
 
-Enter your credentials obtained as described in this guide: [**Get Your Credentials**](CREDENTIALS.md)
+![Criteo Ads Import New Data](res/criteo_incremental.png)
 
-![Criteo Secret](res/criteo_secret.png)
+![Criteo Ads Incremental Load](res/criteo_currentday.png)
 
-Click **Save**. Once credentials are saved, go to:
-**OWOX → Import New Data**
+> ℹ️ If you click **Incremental load** again after a successful initial load,  
+> the connector will import: **Current day's data**, plus **Additional days**, based on the value in the **Reimport Lookback Window** field.
 
-![Criteo Import Data](res/criteo_import.png)
+![Criteo Ads Reimport](res/criteo_reimportwindow.png)
 
-The import process is complete when the Log data displays **"Import is finished"**.
+Option 2: Manual Backfill for Specific Date Range
 
-- In the **Google Sheets** template, the data will be available in a new tab **statistics**.
+Choose **Backfill (custom period)** to load historical data.  
 
-![Criteo Finished](res/criteo_success.png)
+1. Select the **Start Date** and **End Date**.
+2. Click the **Run** button.
 
-- In the **Google BigQuery** template, the data will be written to the dataset specified earlier.
+![Criteo Ads Backfill](res/criteo_daterange.png)
 
-![Criteo Finished](res/criteo_finish.png)
+The process is complete when the **Run history** tab shows the message:  
+**"Success"**  
 
-To include more fields later, check the appropriate boxes in the **Fields** tab and click:  
-**OWOX → Import New Data**
+![Criteo Ads Success](res/criteo_successrun.png)
 
-> ⚠️ **Important:** To change the date range:
->
-> 1. Clear existing data in the **Status** columns
-> 2. Update the **Start Date** and/or **End Date**
-> 3. Run **OWOX → Import New Data** again
+## Access Your Data
 
-![Criteo Clear](res/criteo_clear.png)
+Once the run is complete, the data will be written to the dataset you specified earlier.
+
+![Criteo Ads Import Success](res/criteo_bq.png)
 
 If you encounter any issues:
 
-1. Check the "Logs" sheet for specific error messages
+1. Check the Run history for specific error messages
 2. Please [visit Q&A](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) first
 3. If you want to report a bug, please [open an issue](https://github.com/OWOX/owox-data-marts/issues)
 4. Join the [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions or propose improvements

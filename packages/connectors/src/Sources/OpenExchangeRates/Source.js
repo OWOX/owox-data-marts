@@ -17,7 +17,8 @@ constructor(config) {
         requiredType: "string",
         label: "App ID",
         description: "OpenExchangeRates API App ID",
-        errorMessage: "You need to add App Id first. Go to Google Sheets Menu ⟩ OWOX ⟩ 🔑 Manage Credentials'"
+        errorMessage: "You need to add App Id first. Go to Google Sheets Menu ⟩ OWOX ⟩ 🔑 Manage Credentials'",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       StartDate: {
         requiredType: "date",
@@ -56,6 +57,12 @@ constructor(config) {
         default: "USD",
         label: "Base Currency",
         description: "Base currency for exchange rates (available for Developer+ plans)"
+      },
+      CreateEmptyTables: {
+        requiredType: "boolean",
+        default: true,
+        label: "Create Empty Tables",
+        description: "Create tables with all columns even if no data is returned from API"
       }
     }) );
     

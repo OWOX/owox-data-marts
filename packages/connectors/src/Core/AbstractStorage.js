@@ -234,6 +234,25 @@ class AbstractStorage {
     }
     //----------------------------------------------------------------
 
+  //---- getSelectedFields -------------------------------------------
+    /**
+     * Parse Fields config value and return array of selected field names
+     * @returns {Array<string>} Array of selected field names
+     */
+    getSelectedFields() {
+      if (!this.config.Fields || !this.config.Fields.value) {
+        return [];
+      }
+      
+      return this.config.Fields.value.split(',')
+        .map(field => field.trim())
+        .filter(field => field !== '')
+        .map(field => field.split(' '))
+        .filter(field => field.length === 2)
+        .map(field => field[1]);
+    }
+    //----------------------------------------------------------------
+
   //---- getColumnType -----------------------------------------------
     /**
      * Get column type for storage from schema

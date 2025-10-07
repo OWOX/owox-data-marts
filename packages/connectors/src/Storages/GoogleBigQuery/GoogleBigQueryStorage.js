@@ -73,15 +73,20 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
   //---- loads Google BigQuery Table Schema ---------------------------
     loadTableSchema() {
 
-      let existingColumns = this.getAListOfExistingColumns();
+      this.existingColumns = this.getAListOfExistingColumns() || {};
 
       // If there are no existing fields, it means the table has not been created yet
-      if( Object.keys(existingColumns).length == 0 ) {
+      if( Object.keys(this.existingColumns).length == 0 ) {
         this.createDatasetIfItDoesntExist();
-        existingColumns = this.createTableIfItDoesntExist();
+        this.existingColumns = this.createTableIfItDoesntExist();
+      } else {
+        // Check if there are new columns from Fields config
+        let selectedFields = this.getSelectedFields();
+        let newFields = selectedFields.filter( column => !Object.keys(this.existingColumns).includes(column) );
+        if( newFields.length > 0 ) {
+          this.addNewColumns(newFields);
+        }
       }
-
-      this.existingColumns = existingColumns;
 
     }
 
@@ -121,6 +126,10 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
           queryResults.rows.map(row => {
             columns[ row.f[0].v ]  = {"name": row.f[0].v, "type": row.f[1].v}
           });
+        } else if (Array.isArray(queryResults)) {
+          queryResults.map(row => {
+            columns[ row.column_name ] = {"name": row.column_name, "type": row.data_type}
+          });
         }
 
         return columns;
@@ -148,9 +157,11 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       let columnPartitioned = null;
       let existingColumns = {};
 
-      for(var i in this.uniqueKeyColumns) {
-        
-        let columnName = this.uniqueKeyColumns[i];
+      let selectedFields = this.getSelectedFields();
+      let tableColumns = selectedFields.length > 0 ? selectedFields : this.uniqueKeyColumns;
+
+      for (let i in tableColumns) {
+        let columnName = tableColumns[i];
         let columnDescription = '';
 
         if( !(columnName in this.schema) ) {
@@ -493,8 +504,16 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         let error = undefined;
         let bigqueryClient = null;
         if (this.config.ServiceAccountJson && this.config.ServiceAccountJson.value) {
+          const { JWT } = require('google-auth-library');
+          const credentials = JSON.parse(this.config.ServiceAccountJson.value);
+          const authClient = new JWT({
+            email: credentials.client_email,
+            key: credentials.private_key,
+            scopes: ['https://www.googleapis.com/auth/bigquery'],
+          });
           bigqueryClient = new BigQuery({
-            credentials: JSON.parse(this.config.ServiceAccountJson.value)
+            projectId: this.config.ProjectID.value || credentials.project_id,
+            authClient
           });
         } else {
           throw new Error("Service account JSON is required to connect to Google BigQuery in Node.js environment");

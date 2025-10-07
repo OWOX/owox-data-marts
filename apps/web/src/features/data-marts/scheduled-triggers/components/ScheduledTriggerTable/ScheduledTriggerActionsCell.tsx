@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import {
   DropdownMenu,
@@ -49,21 +49,21 @@ export function ScheduledTriggerActionsCell({
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end'>
           <DropdownMenuItem
-            className='dm-card-table-body-row-actiondropdownitem'
             onClick={() => {
               onEditTrigger(trigger.id);
             }}
           >
-            Edit
+            <Pencil className='text-foreground h-4 w-4' aria-hidden='true' />
+            Edit trigger
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            className='dm-card-table-body-row-actiondropdownitem text-red-600'
             onClick={() => {
               setIsDeleteDialogOpen(true);
             }}
           >
-            Delete
+            <Trash2 className='h-4 w-4 text-red-600' aria-hidden='true' />
+            <span className='text-red-600'>Delete trigger</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

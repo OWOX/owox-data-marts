@@ -18,13 +18,15 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
         isRequired: true,
         requiredType: "string",
         label: "Client Secret",
-        description: "LinkedIn API Client Secret for authentication"
+        description: "LinkedIn API Client Secret for authentication",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       RefreshToken: {
         isRequired: true,
         requiredType: "string",
         label: "Refresh Token",
-        description: "LinkedIn API Refresh Token for authentication"
+        description: "LinkedIn API Refresh Token for authentication",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       ReimportLookbackWindow: {
         requiredType: "number",
@@ -72,6 +74,12 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
         isRequired: true,
         label: "Organization URNs",
         description: "LinkedIn Organization URNs to fetch data from"
+      },
+      CreateEmptyTables: {
+        requiredType: "boolean",
+        default: true,
+        label: "Create Empty Tables",
+        description: "Create tables with all columns even if no data is returned from API"
       }
     }));
     

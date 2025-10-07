@@ -18,7 +18,8 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
         isRequired: true,
         requiredType: "string",
         label: "Client Secret",
-        description: "Reddit Ads API Client Secret"
+        description: "Reddit Ads API Client Secret",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       RedirectUri: {
         isRequired: true,
@@ -30,7 +31,8 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
         isRequired: true,
         requiredType: "string",
         label: "Refresh Token",
-        description: "Reddit Ads API Refresh Token"
+        description: "Reddit Ads API Refresh Token",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       UserAgent: {
         isRequired: true,
@@ -41,7 +43,8 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
       AccessToken: {
         requiredType: "string",
         label: "Access Token",
-        description: "Reddit Ads API Access Token (auto-generated)"
+        description: "Reddit Ads API Access Token (auto-generated)",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       AccountIDs: {
         isRequired: true,
@@ -83,6 +86,12 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
         default: 31,
         label: "Max Fetching Days",
         description: "Maximum number of days to fetch data for"
+      },
+      CreateEmptyTables: {
+        requiredType: "boolean",
+        default: true,
+        label: "Create Empty Tables",
+        description: "Create tables with all columns even if no data is returned from API"
       }
     }));
 

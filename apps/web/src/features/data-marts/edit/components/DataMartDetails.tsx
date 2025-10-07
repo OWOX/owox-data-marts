@@ -19,6 +19,7 @@ import { DataMartDefinitionType, DataMartStatus, getValidationErrorMessages } fr
 import { toast } from 'react-hot-toast';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { ConnectorRunView } from '../../../connectors/edit/components/ConnectorRunSheet/ConnectorRunView.tsx';
+import { Skeleton } from '@owox/ui/components/skeleton';
 
 interface DataMartDetailsProps {
   id: string;
@@ -68,9 +69,8 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
 
     try {
       await publishDataMart(dataMart.id);
-      toast.success('Data mart published successfully');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to publish data mart');
+      console.log(error instanceof Error ? error.message : 'Failed to publish Data Mart');
     } finally {
       setIsPublishing(false);
     }
@@ -79,14 +79,13 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   const handleManualRun = async (payload: Record<string, unknown>) => {
     if (!dataMart) return;
     if (dataMart.status.code !== DataMartStatus.PUBLISHED) {
-      toast.error('Manual run is only available for published data marts');
+      toast.error('Manual run is only available for published Data Marts');
       return;
     }
     await runDataMart({
       id: dataMart.id,
       payload,
     });
-    toast.success('Manual run triggered successfully');
   };
 
   if (isLoading) {
@@ -94,7 +93,14 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   }
 
   if (!dataMart) {
-    return <div className='p-4'>No data mart found</div>;
+    return (
+      <div className='dm-page-content flex flex-col gap-4 py-4 md:py-8'>
+        <Skeleton key={0} className='h-16 w-full' />
+        {Array.from({ length: 3 }).map((_, index) => (
+          <Skeleton key={index + 1} className='h-48 w-full' />
+        ))}
+      </div>
+    );
   }
 
   return (
@@ -141,8 +147,8 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
               </TooltipTrigger>
               <TooltipContent>
                 {dataMart.status.code === DataMartStatus.PUBLISHED
-                  ? 'Published data mart is available for scheduled runs'
-                  : 'Draft data mart is not available for scheduled runs. Publish to make it available'}
+                  ? 'Your published Data Mart is ready for scheduled runs'
+                  : 'Draft Data Mart is not available for scheduled runs. Publish it to activate scheduling.'}
               </TooltipContent>
             </Tooltip>
             {dataMart.status.code === DataMartStatus.DRAFT && (
@@ -164,9 +170,9 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                 </TooltipTrigger>
                 {!dataMart.canPublish && (
                   <TooltipContent>
-                    <div>Data mart cannot be published. Please fix the validation issues:</div>
+                    <div>Cannot publish Data Mart. Fix the issues below.</div>
                     {dataMart.validationErrors.length > 0 && (
-                      <ul className='mt-2 list-disc pl-5'>
+                      <ul className='mt-1 list-disc space-y-1 pl-4'>
                         {getValidationErrorMessages(dataMart.validationErrors).map(
                           (message, index) => (
                             <li key={index}>{message}</li>
@@ -202,7 +208,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                         e.preventDefault();
                       }}
                     >
-                      <Play className='mr-2 h-4 w-4' />
+                      <Play className='text-foreground h-4 w-4' />
                       <span>Manual Run...</span>
                     </DropdownMenuItem>
                   </ConnectorRunView>
@@ -210,13 +216,12 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                 </>
               )}
               <DropdownMenuItem
-                className='text-red-600'
                 onClick={() => {
                   setIsDeleteDialogOpen(true);
                 }}
               >
-                <Trash2 className='mr-2 h-4 w-4' />
-                Delete
+                <Trash2 className='h-4 w-4 text-red-600' />
+                <span className='text-red-600'>Delete Data Mart</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -286,7 +291,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
               setIsDeleteDialogOpen(false);
               navigate('/data-marts');
             } catch (error) {
-              console.error('Failed to delete data mart:', error);
+              console.error('Failed to delete Data Mart:', error);
             }
           })();
         }}

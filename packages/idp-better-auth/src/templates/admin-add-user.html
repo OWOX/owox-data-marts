@@ -143,8 +143,6 @@
         </div>
         <div class="ml-3 flex-1">
           <h3 class="text-lg font-medium text-success mb-2">Magic Link Generated Successfully!</h3>
-          <p class="text-sm text-success mb-4">☝️ <strong>Share carefully with colleague via email only.</strong> This is a one-time link; messenger can auto-open URL and make it unusable</p>
-          
           <div class="bg-white border border-success/20 rounded-md p-3">
             <label class="block text-sm font-medium text-success mb-2">Magic Link:</label>
             <div class="flex items-center space-x-2">
@@ -158,6 +156,7 @@
                 Copy
               </button>
             </div>
+          <p id="ttl-info" class="mt-2 text-xs text-muted-foreground hidden"></p>
           </div>
 
           <div class="mt-4 flex justify-between items-center">
@@ -248,7 +247,14 @@
     }
     
     function showSuccess(magicLink) {
-      document.getElementById('generated-link').value = magicLink;
+      document.getElementById('generated-link').value = magicLink.url;
+      const ttlInfo = document.getElementById('ttl-info');
+      if (ttlInfo && typeof magicLink.ttl === 'number') {
+        const ttlInMinutes = Math.round(magicLink.ttl / 60);
+        const unit = ttlInMinutes === 1 ? 'minute' : 'minutes';
+        ttlInfo.textContent = `Lifetime: ~${ttlInMinutes} ${unit}`;
+        ttlInfo.classList.remove('hidden');
+      }
       document.getElementById('success-result').classList.remove('hidden');
       document.getElementById('error-result').classList.add('hidden');
     }

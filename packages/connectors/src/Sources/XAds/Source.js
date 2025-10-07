@@ -12,25 +12,29 @@ var XAdsSource = class XAdsSource extends AbstractSource {
         isRequired: true,
         requiredType: "string",
         label: "Consumer Key (API Key)",
-        description: "Your X Ads API Consumer Key"
+        description: "Your X Ads API Consumer Key",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       ConsumerSecret: {
         isRequired: true,
         requiredType: "string",
         label: "Consumer Secret (API Secret)",
-        description: "Your X Ads API Consumer Secret"
+        description: "Your X Ads API Consumer Secret",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       AccessToken: {
         isRequired: true,
         requiredType: "string",
         label: "Access Token",
-        description: "Your X Ads API Access Token"
+        description: "Your X Ads API Access Token",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       AccessTokenSecret: {
         isRequired: true,
         requiredType: "string",
         label: "Access Token Secret",
-        description: "Your X Ads API Access Token Secret"
+        description: "Your X Ads API Access Token Secret",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       AccountIDs: {
         isRequired: true,
@@ -104,6 +108,12 @@ var XAdsSource = class XAdsSource extends AbstractSource {
         default: 20,
         label: "Max Stats Entity IDs",
         description: "Maximum number of entity_ids allowed per request for stats endpoint"
+      },
+      CreateEmptyTables: {
+        requiredType: "boolean",
+        default: true,
+        label: "Create Empty Tables",
+        description: "Create tables with all columns even if no data is returned from API"
       }
     }));
 

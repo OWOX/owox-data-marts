@@ -14,7 +14,6 @@ import {
   getSortedRowModel,
   type ColumnDef,
 } from '@tanstack/react-table';
-import { Toaster } from 'react-hot-toast';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import { useReport } from '../../../shared';
 import { useOutletContext } from 'react-router-dom';
@@ -114,7 +113,6 @@ export function GoogleSheetsReportsTable({
 
   return (
     <div className='w-full'>
-      <Toaster />
       <div className='dm-card-table-wrap'>
         <Table
           id={tableId}

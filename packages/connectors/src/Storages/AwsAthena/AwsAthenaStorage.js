@@ -201,15 +201,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
       existingColumns[columnName] = columnType;
     }
 
-    let selectedFields = [];
-    if (this.config.Fields && this.config.Fields.value) {
-      selectedFields = this.config.Fields.value.split(',')
-      .map(field => field.trim())
-      .filter(field => field !== '')
-      .map(field => field.split(' '))
-      .filter(field => field.length === 2)
-      .map(field => field[1]);
-    } 
+    let selectedFields = this.getSelectedFields(); 
     
     // Add all other schema fields to the table
     for (let columnName in this.schema) {
@@ -301,37 +293,30 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
    * @returns {Promise}
    */
   saveData(data) {
-    if (data.length === 0) {
-      return;
-    }
     let done = false;
 
-    this.config.logMessage(`Saving ${data.length} records to Athena`);
-    
-    // First check if target table exists, create if needed
+    // First check if target table exists, create if needed (even for empty data)
     this.checkTableExists()
       .then(() => {
-        // Check if we need to add new columns
+        // Check if we need to add new columns (even for empty data)
         const allColumns = new Set();
-        data.forEach(row => {
-          Object.keys(row).forEach(column => allColumns.add(column));
-        });
+        if (data.length > 0) {
+          data.forEach(row => {
+            Object.keys(row).forEach(column => allColumns.add(column));
+          });
+        }
 
         if (this.config.Fields.value) {
-          this.config.Fields.value.split(', ')
-            .map(field => field.trim())
-            .filter(field => field !== '')
-            .map(field => field.split(' '))
-            .filter(field => field.length === 2)
-            .map(field => field[1])
-            .forEach(columnName => {
-              if (columnName && !allColumns.has(columnName)) {
-                allColumns.add(columnName);
+          this.getSelectedFields().forEach(columnName => {
+            if (columnName && !allColumns.has(columnName)) {
+              allColumns.add(columnName);
+              if (data.length > 0) {
                 data.forEach(row => {
                   if (!row[columnName]) {
                     row[columnName] = '';
                   }
                 });
+              }
             }
           });
         }
@@ -344,6 +329,13 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
         return Promise.resolve();
       })
       .then(() => {
+        if (data.length === 0) {
+          done = true;
+          return;
+        }
+
+        this.config.logMessage(`Saving ${data.length} records to Athena`);
+        
         // Generate a unique temp folder name
         const tempFolder = `${this.config.S3Prefix.value}_temp/${this.uploadSid}`;
         

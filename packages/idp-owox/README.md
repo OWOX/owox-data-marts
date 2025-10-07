@@ -23,7 +23,8 @@ IDP_OWOX_DEFAULT_HEADERS={"x-trace-id":"debug-local"}
 
 # IDP App configuration
 IDP_OWOX_CLIENT_ID=app-owox
-IDP_OWOX_PLATFORM_SIGN_IN_URL=https://bi.owox.com/ui/p/signin
+IDP_OWOX_PLATFORM_SIGN_IN_URL=https://platform.owox.com/ui/p/signin
+IDP_OWOX_PLATFORM_SIGN_UP_URL=https://platform.owox.com/ui/p/signup
 IDP_OWOX_CALLBACK_URL=/auth/callback
 
 # JWT validation

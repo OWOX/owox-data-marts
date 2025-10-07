@@ -5,6 +5,7 @@ import {
   type Response as ExpressResponse,
   type NextFunction,
 } from 'express';
+import { logger } from '../logger.js';
 
 export class RequestHandlerService {
   private static readonly AUTH_ROUTE_PREFIX = '/auth/better-auth';
@@ -29,7 +30,7 @@ export class RequestHandlerService {
         const body = await response.text();
         res.send(body);
       } catch (error) {
-        console.error('Auth handler error:', error);
+        logger.error('Auth handler error', { path: req.path }, error as Error);
         res.status(500).json({ error: 'Internal server error' });
       }
     });
@@ -55,7 +56,7 @@ export class RequestHandlerService {
 
       return fetchRequest;
     } catch (error) {
-      console.error('Failed to convert Express request to Fetch request:', error);
+      logger.error('Failed to convert Express request to Fetch request', {}, error as Error);
       throw new Error('Failed to convert request format');
     }
   }

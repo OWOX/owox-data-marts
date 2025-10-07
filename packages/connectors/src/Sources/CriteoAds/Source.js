@@ -30,7 +30,8 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
       AccessToken: {
         requiredType: "string",
         label: "Access Token",
-        description: "Criteo API Access Token for authentication"
+        description: "Criteo API Access Token for authentication",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       ReimportLookbackWindow: {
         requiredType: "number",
@@ -54,13 +55,20 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
         isRequired: true,
         requiredType: "string",
         label: "Client Secret",
-        description: "Your Criteo API Client Secret"
+        description: "Your Criteo API Client Secret",
+        attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       MaxFetchingDays: {
         requiredType: "number",
         default: 30,
         label: "Max Fetching Days",
         description: "Maximum number of days to fetch data for"
+      },
+      CreateEmptyTables: {
+        requiredType: "boolean",
+        default: true,
+        label: "Create Empty Tables",
+        description: "Create tables with all columns even if no data is returned from API"
       }
     }));
 

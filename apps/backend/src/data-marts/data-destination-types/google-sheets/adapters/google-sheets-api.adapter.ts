@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { GoogleAuth } from 'google-auth-library';
+import { JWT } from 'google-auth-library';
 import { google, sheets_v4 } from 'googleapis';
 import { GoogleServiceAccountKey } from '../../../../common/schemas/google-service-account-key.schema';
 import { GoogleSheetsCredentials } from '../schemas/google-sheets-credentials.schema';
@@ -20,7 +20,7 @@ export class GoogleSheetsApiAdapter {
   constructor(credentials: GoogleSheetsCredentials) {
     this.service = google.sheets({
       version: 'v4',
-      auth: GoogleSheetsApiAdapter.createGoogleAuth(credentials.serviceAccountKey),
+      auth: GoogleSheetsApiAdapter.createAuthClient(credentials.serviceAccountKey),
     });
   }
 
@@ -32,8 +32,7 @@ export class GoogleSheetsApiAdapter {
    */
   public static async validateCredentials(credentials: GoogleSheetsCredentials): Promise<boolean> {
     try {
-      const googleAuth = GoogleSheetsApiAdapter.createGoogleAuth(credentials.serviceAccountKey);
-      const authClient = await googleAuth.getClient();
+      const authClient = GoogleSheetsApiAdapter.createAuthClient(credentials.serviceAccountKey);
       await authClient.getAccessToken();
       return true;
     } catch (error) {
@@ -141,11 +140,12 @@ export class GoogleSheetsApiAdapter {
   }
 
   /**
-   * Creates a GoogleAuth instance
+   * Creates a JWT AuthClient for Google Sheets
    */
-  private static createGoogleAuth(serviceAccountKey: GoogleServiceAccountKey): GoogleAuth {
-    return new GoogleAuth({
-      credentials: serviceAccountKey,
+  private static createAuthClient(serviceAccountKey: GoogleServiceAccountKey): JWT {
+    return new JWT({
+      email: serviceAccountKey.client_email,
+      key: serviceAccountKey.private_key,
       scopes: GoogleSheetsApiAdapter.SHEETS_SCOPE,
     });
   }

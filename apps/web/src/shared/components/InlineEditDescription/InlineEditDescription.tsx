@@ -1,7 +1,6 @@
 import { useState, useEffect, type KeyboardEvent, useRef } from 'react';
 import { cn } from '@owox/ui/lib/utils';
 import { Textarea } from '@owox/ui/components/textarea';
-import toast from 'react-hot-toast';
 
 interface InlineEditDescriptionProps {
   description: string | null;
@@ -62,10 +61,8 @@ export function InlineEditDescription({
       const newDescription = trimmedDescription === '' ? null : trimmedDescription;
       await onUpdate(newDescription);
       setIsEditing(false);
-      toast.success('Description updated');
     } catch (error) {
       console.error('Failed to update description:', error);
-      toast.error('Failed to update description');
       setEditedDescription(description ?? '');
     } finally {
       setIsLoading(false);
@@ -113,13 +110,13 @@ export function InlineEditDescription({
         <div className='mt-2 text-xs text-gray-500'>
           <span>
             Press{' '}
-            <kbd className='rounded border border-gray-300 bg-gray-100 px-1 py-0.5 font-sans'>
+            <kbd className='rounded border border-neutral-200 bg-neutral-100 px-1 py-0.5 font-sans dark:border-neutral-900 dark:bg-neutral-900'>
               Ctrl+Enter
             </kbd>{' '}
             to save •{' '}
           </span>
           <span>
-            <kbd className='rounded border border-gray-300 bg-gray-100 px-1 py-0.5 font-sans'>
+            <kbd className='rounded border border-neutral-200 bg-neutral-100 px-1 py-0.5 font-sans dark:border-neutral-900 dark:bg-neutral-900'>
               Esc
             </kbd>{' '}
             to cancel •{' '}

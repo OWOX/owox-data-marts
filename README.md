@@ -81,28 +81,16 @@ Here’s how to get started locally on your machine:
 
 For more details on the types of deployment in your infrastructure, check out our [Quick Start Guide](./docs/getting-started/quick-start.md)
 
-### Google Sheets Edition
-
-Alternatively, you can run any of [our connectors](#data-sources) using Google Sheet templates we've developed for [OWOX Data Marts Apps Script Edition](./docs/editions/appsscript-edition.md)
-
-- Pick your platform (eg, Facebook Ads) from [existing integrations](#data-sources)
-- Make a copy of the template
-- Add your credentials — **they stay private**
-- Run the connector to pull your data
-- Schedule it for hourly/daily/weekly/monthly updates
-
-For more details - watch the webinar replay - [**🎥 Own Your Data: How Data Analysts Can Connect Any Data**](https://www.youtube.com/live/nQYfHX-IjY8?t=66s)
-
 ## 🔌 Available Connectors
 
-**OWOX Data Marts** includes growing library of JavaScript **connectors** that:
+**OWOX Data Marts** includes growing library of **data connectors** that:
 
 - Pull data from **any APIs** like Facebook Marketing, TikTok Ads, LinkedIn Ads, etc.
 - Require **zero external tools** or sharing credentials
 - Don't require **ANY data engineering resources**
 - Free, open-source, and **customizable**
 - Give full control over the logic
-- Works with [Google Sheets](packages/connectors/src/Storages/GoogleSheets/README.md) & [BigQuery](packages/connectors/src/Storages/GoogleBigQuery/README.md)
+- Works with [BigQuery](packages/connectors/src/Storages/GoogleBigQuery/README.md) and [AWS Athena](packages/connectors/src/Storages/AwsAthena/README.md)
 
 ### Data Sources
 
@@ -124,11 +112,11 @@ For more details - watch the webinar replay - [**🎥 Own Your Data: How Data An
 
 ### Data Storages
 
-| Name            | Status    | Environment          | Links                                                               |
-| --------------- | --------- | -------------------- | ------------------------------------------------------------------- |
-| Google Sheets   | 🟢 Public | Apps Script          | [Readme](packages/connectors/src/Storages/GoogleSheets/README.md)   |
-| Google BigQuery | 🟢 Public | Node.js, Apps Script | [Readme](packages/connectors/src/Storages/GoogleBigQuery/README.md) |
-| AWS Athena      | 🟢 Public | Node.js              | [Readme](packages/connectors/src/Storages/AwsAthena/README.md)      |
+| Name            | Status    | Links                                                               |
+| --------------- | --------- | ------------------------------------------------------------------- |
+| Google Sheets   | 🟢 Public | [Readme](packages/connectors/src/Storages/GoogleSheets/README.md)   |
+| Google BigQuery | 🟢 Public | [Readme](packages/connectors/src/Storages/GoogleBigQuery/README.md) |
+| AWS Athena      | 🟢 Public | [Readme](packages/connectors/src/Storages/AwsAthena/README.md)      |
 
 If you find an integration missing, you can share your use case and request it in the [discussions](https://github.com/OWOX/owox-data-marts/discussions)
 

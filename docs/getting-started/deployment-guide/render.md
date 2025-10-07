@@ -47,8 +47,6 @@ Go **Environment** section in menu and set:
 | `PUBLIC_ORIGIN`                | `https://owox-your-company-name.onrender.com`               | Public origin (external URL) of your app. It is formed automatically from the name you entered. Just copy it from UI.                                              |
 | `IDP_PROVIDER`                 | `better-auth`                                               | Authentication provider                                                        |
 | `IDP_BETTER_AUTH_SECRET`       | `your_secret_key`                                           | Recommended: use a 32-character key. You can generate one with command `openssl rand -base64 32` in local terminal.                      |
-| `IDP_BETTER_AUTH_BASE_URL`     | `https://owox-your-company-name.onrender.com`               | Deployment URL. It is formed automatically from the name you entered. Just copy it from UI|
-| `IDP_BETTER_AUTH_TRUSTED_ORIGINS` | `http://localhost:10000,https://owox-your-company-name.onrender.com` | Comma-separated list of allowed origins. Include both local development (`http://localhost:10000`) and your production `PUBLIC_ORIGIN`. |
 
 ### Step 2: Add first admin
 

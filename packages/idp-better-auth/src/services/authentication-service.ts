@@ -3,6 +3,7 @@ import { CryptoService } from './crypto-service.js';
 import { AuthSession, SessionValidationResult } from '../types/auth-session.js';
 import { type Request, type Response, type NextFunction } from 'express';
 import type { UserManagementService } from './user-management-service.js';
+import { logger } from '../logger.js';
 
 export class AuthenticationService {
   private userManagementService?: UserManagementService;
@@ -40,7 +41,7 @@ export class AuthenticationService {
         },
       };
     } catch (error) {
-      console.error('Failed to get session:', error);
+      logger.error('Failed to get session', {}, error as Error);
       throw new Error('Failed to get session');
     }
   }
@@ -65,7 +66,7 @@ export class AuthenticationService {
       const response = await this.auth.handler(request);
       return response;
     } catch (error) {
-      console.error('Sign-in failed:', error);
+      logger.error('Sign-in failed', { email }, error as Error);
       throw new Error('Sign-in failed');
     }
   }
@@ -76,7 +77,7 @@ export class AuthenticationService {
         headers: req.headers as unknown as Headers,
       });
     } catch (error) {
-      console.error('Sign-out failed:', error);
+      logger.error('Sign-out failed', {}, error as Error);
       throw new Error('Sign-out failed');
     }
   }
@@ -85,7 +86,7 @@ export class AuthenticationService {
     try {
       const session = await this.getSession(req);
       if (!session) {
-        console.error('No session found for access token generation');
+        logger.error('No session found for access token generation');
         throw new Error('No session found');
       }
 
@@ -95,13 +96,13 @@ export class AuthenticationService {
         sessionTokenMatch && sessionTokenMatch[1] ? decodeURIComponent(sessionTokenMatch[1]) : null;
 
       if (!sessionToken) {
-        console.error('No session token found in cookies');
+        logger.error('No session token found in cookies');
         throw new Error('No session token found');
       }
 
       return await this.cryptoService.encrypt(sessionToken);
     } catch (error) {
-      console.error('Failed to generate access token:', error);
+      logger.error('Failed to generate access token', {}, error as Error);
       throw new Error('Failed to generate access token');
     }
   }
@@ -162,7 +163,7 @@ export class AuthenticationService {
         return res.redirect(`/auth/sign-in?error=${encodeURIComponent(errorMessage)}`);
       }
     } catch (error) {
-      console.error('Sign-in middleware error:', error);
+      logger.error('Sign-in middleware error', {}, error as Error);
       const errorMessage = 'An error occurred during sign in. Please try again.';
       return res.redirect(`/auth/sign-in?error=${encodeURIComponent(errorMessage)}`);
     }
@@ -183,7 +184,7 @@ export class AuthenticationService {
 
       return res.redirect(redirectPath);
     } catch (error) {
-      console.error('Sign-out middleware error:', error);
+      logger.error('Sign-out middleware error', {}, error as Error);
       return res.status(500).json({ error: 'Sign-out failed' });
     }
   }
@@ -204,7 +205,7 @@ export class AuthenticationService {
 
       return res.json({ accessToken });
     } catch (error) {
-      console.error('Access token middleware error:', error);
+      logger.error('Access token middleware error', {}, error as Error);
       return res.status(401).json({ error: 'Unauthorized' });
     }
   }
@@ -225,7 +226,7 @@ export class AuthenticationService {
           throw new Error('User already has a password');
         }
       }
-      console.error('Failed to set password:', error);
+      logger.error('Failed to set password', {}, error as Error);
       throw new Error('Failed to set password');
     }
   }
@@ -249,7 +250,7 @@ export class AuthenticationService {
 
       next();
     } catch (error) {
-      console.error('Authentication middleware error:', error);
+      logger.error('Authentication middleware error', {}, error as Error);
       return res.redirect('/auth/sign-in');
     }
   }

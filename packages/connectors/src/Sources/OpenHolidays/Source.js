@@ -58,6 +58,12 @@ var OpenHolidaysSource = class OpenHolidaysSource extends AbstractSource {
         requiredType: "string",
         label: "Fields",
         description: "List of fields to fetch from Open Holidays API"
+      },
+      CreateEmptyTables: {
+        requiredType: "boolean",
+        default: true,
+        label: "Create Empty Tables",
+        description: "Create tables with all columns even if no data is returned from API"
       }
     }));
     

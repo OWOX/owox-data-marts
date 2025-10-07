@@ -99,11 +99,11 @@
           <p class="mt-1 max-w-2xl text-sm text-muted-foreground">Personal details and account information</p>
         </div>
         <div class="flex space-x-3">
-          <button onclick="generateMagicLink()" class="inline-flex items-center px-3 py-2 border border-input shadow-sm text-sm leading-4 font-medium rounded-md text-foreground bg-white hover:bg-muted/30 transition-colors">
+          <button id="password-action-btn" onclick="handlePasswordAction()" class="inline-flex items-center px-3 py-2 text-sm leading-4 font-medium rounded-md text-primary-foreground {{PASSWORD_BUTTON_CLASS}} transition-colors disabled:opacity-50 disabled:cursor-not-allowed" {{PASSWORD_BUTTON_STYLE}}>
             <svg class="-ml-0.5 mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
             </svg>
-            Generate Magic Link
+            {{PASSWORD_BUTTON_TEXT}}
           </button>
           <button onclick="confirmDelete()" class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-primary-foreground bg-destructive hover:bg-destructive/90 transition-colors" {{DELETE_BUTTON_STYLE}}>
             <svg class="-ml-0.5 mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -140,10 +140,18 @@
             <dd class="mt-1 text-sm text-foreground sm:mt-0 sm:col-span-2">{{ORGANIZATION_ID}}</dd>
           </div>
           <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+            <dt class="text-sm font-medium text-muted-foreground">Has Password</dt>
+            <dd class="mt-1 text-sm text-foreground sm:mt-0 sm:col-span-2">
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{HAS_PASSWORD_BADGE_CLASS}}">
+                {{HAS_PASSWORD_TEXT}}
+              </span>
+            </dd>
+          </div>
+          <div class="bg-muted/20 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
             <dt class="text-sm font-medium text-muted-foreground">Created</dt>
             <dd class="mt-1 text-sm text-foreground sm:mt-0 sm:col-span-2">{{CREATED_AT}}</dd>
           </div>
-          <div class="bg-muted/20 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+          <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
             <dt class="text-sm font-medium text-muted-foreground">Last updated</dt>
             <dd class="mt-1 text-sm text-foreground sm:mt-0 sm:col-span-2">{{UPDATED_AT}}</dd>
           </div>
@@ -152,23 +160,29 @@
     </div>
 
     <!-- Magic Link Result (hidden by default) -->
-    <div id="magic-link-result" class="bg-success/10 border border-success/20 rounded-md p-4 mb-4 hidden">
-      <div class="flex">
+    <div id="magic-link-result" class="mt-6 bg-success/10 border border-success/20 rounded-lg p-6 hidden">
+      <div class="flex items-start">
         <div class="flex-shrink-0">
-          <svg class="h-5 w-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="h-6 w-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
           </svg>
         </div>
         <div class="ml-3 flex-1">
-          <h3 class="text-sm font-medium text-success-foreground">Magic Link Generated</h3>
-          <div class="mt-2">
-            <p class="text-sm text-success">The magic link has been generated successfully:</p>
-            <div class="mt-2 flex items-center space-x-2">
-              <input id="magic-link-url" type="text" readonly class="flex-1 min-w-0 px-3 py-2 border border-success/30 rounded-md text-sm bg-white font-mono">
-              <button onclick="copyMagicLink()" class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-success-foreground bg-success hover:bg-success/90 transition-colors">
+          <h3 class="text-lg font-medium text-success mb-2">Magic Link Generated Successfully!</h3>
+          <div class="bg-white border border-success/20 rounded-md p-3">
+            <label class="block text-sm font-medium text-success mb-2">Magic Link:</label>
+            <div class="flex items-center space-x-2">
+              <input id="magic-link-url" type="text" readonly
+                     class="flex-1 min-w-0 px-3 py-2 border border-success/30 rounded-md text-sm bg-white font-mono text-foreground">
+              <button onclick="copyMagicLink()"
+                      class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-success-foreground bg-success hover:bg-success/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ring transition-colors">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                </svg>
                 Copy
               </button>
             </div>
+          <p id="ttl-info" class="mt-2 text-xs text-muted-foreground hidden"></p>
           </div>
         </div>
       </div>
@@ -226,30 +240,55 @@
       }
     }
 
-    async function generateMagicLink() {
+    async function handlePasswordAction() {
+      const hasPassword = '{{HAS_PASSWORD}}' === 'true';
+
+      if (hasPassword) {
+        // Reset password flow
+        if (!confirm('Are you sure you want to reset the password for {{USER_EMAIL}}? This will sign them out and generate a new magic link.')) {
+          return;
+        }
+      }
+
+      // Disable button
+      const button = document.getElementById('password-action-btn');
+      button.disabled = true;
+
       try {
-        const response = await fetch('/auth/generate-magic-link', {
+        const response = await fetch('/auth/reset-password/{{USER_ID}}', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          credentials: 'include',
-          body: JSON.stringify({
-            userId: '{{USER_ID}}',
-            email: '{{USER_EMAIL}}',
-            role: '{{USER_ROLE}}'
-          })
+          credentials: 'include'
         });
-        
+
         if (response.ok) {
           const result = await response.json();
-          document.getElementById('magic-link-url').value = result.magicLink;
+          document.getElementById('magic-link-url').value = result.magicLink.url;
           document.getElementById('magic-link-result').classList.remove('hidden');
+          const ttlInfo = document.getElementById('ttl-info');
+          if (ttlInfo && typeof result.magicLink.ttl === 'number') {
+            const ttlInMinutes = Math.round(result.magicLink.ttl / 60);
+            const unit = ttlInMinutes === 1 ? 'minute' : 'minutes';
+            ttlInfo.textContent = `Lifetime: ~${ttlInMinutes} ${unit}`;
+            ttlInfo.classList.remove('hidden');
+          }
+
+          // Scroll to the magic link result
+          document.getElementById('magic-link-result').scrollIntoView({ behavior: 'smooth', block: 'center' });
         } else {
-          alert('Failed to generate magic link');
+          const error = await response.json();
+          alert('Failed: ' + (error.error || 'Unknown error'));
+
+          // Re-enable button on error
+          button.disabled = false;
         }
       } catch (error) {
-        alert('Error generating magic link: ' + error.message);
+        alert('Error: ' + error.message);
+
+        // Re-enable button on error
+        button.disabled = false;
       }
     }
 
@@ -257,13 +296,13 @@
       const input = document.getElementById('magic-link-url');
       input.select();
       document.execCommand('copy');
-      
+
       // Show feedback
-      const button = event.target;
-      const originalText = button.textContent;
-      button.textContent = 'Copied!';
+      const button = event.target.closest('button');
+      const originalHTML = button.innerHTML;
+      button.innerHTML = '<svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Copied!';
       setTimeout(() => {
-        button.textContent = originalText;
+        button.innerHTML = originalHTML;
       }, 2000);
     }
 

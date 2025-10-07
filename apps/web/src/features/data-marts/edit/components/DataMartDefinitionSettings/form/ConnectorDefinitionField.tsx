@@ -69,7 +69,6 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
       id: dataMart.id,
       payload,
     });
-    toast.success('Manual run triggered successfully');
   };
 
   const updateConnectorConfiguration = (configIndex: number) => (connector: ConnectorConfig) => {

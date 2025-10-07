@@ -1,11 +1,15 @@
+import { useState, useCallback } from 'react';
 import {
   CollapsibleCard,
   CollapsibleCardHeader,
   CollapsibleCardHeaderTitle,
+  CollapsibleCardHeaderActions,
   CollapsibleCardContent,
   CollapsibleCardFooter,
 } from '../../../shared/components/CollapsibleCard';
-import { Timer } from 'lucide-react';
+import { Button } from '@owox/ui/components/button';
+import { Timer, Plus } from 'lucide-react';
+import { ScheduledTriggerFormSheet } from '../../../features/data-marts/scheduled-triggers/components/ScheduledTriggerFormSheet/ScheduledTriggerFormSheet';
 import {
   ScheduledTriggerList,
   ScheduledTriggerProvider,
@@ -15,6 +19,16 @@ import { ConnectorContextProvider } from '../../../features/connectors/shared/mo
 
 export function DataMartTriggersContent() {
   const { dataMart } = useDataMartContext();
+  const [isFormSheetOpen, setIsFormSheetOpen] = useState(false);
+
+  const handleOpenFormSheet = useCallback(() => {
+    setIsFormSheetOpen(true);
+  }, []);
+
+  const handleCloseFormSheet = useCallback(() => {
+    setIsFormSheetOpen(false);
+  }, []);
+
   return (
     <CollapsibleCard>
       <CollapsibleCardHeader>
@@ -24,11 +38,26 @@ export function DataMartTriggersContent() {
         >
           Time triggers
         </CollapsibleCardHeaderTitle>
+        <CollapsibleCardHeaderActions>
+          <Button variant='outline' onClick={handleOpenFormSheet} aria-label='Add new trigger'>
+            <Plus className='h-4 w-4' aria-hidden='true' />
+            Add Trigger
+          </Button>
+        </CollapsibleCardHeaderActions>
       </CollapsibleCardHeader>
       <CollapsibleCardContent>
         <ConnectorContextProvider>
           <ScheduledTriggerProvider>
-            {dataMart && <ScheduledTriggerList dataMartId={dataMart.id}></ScheduledTriggerList>}
+            {dataMart && (
+              <>
+                <ScheduledTriggerList dataMartId={dataMart.id} />
+                <ScheduledTriggerFormSheet
+                  isOpen={isFormSheetOpen}
+                  onClose={handleCloseFormSheet}
+                  dataMartId={dataMart.id}
+                />
+              </>
+            )}
           </ScheduledTriggerProvider>
         </ConnectorContextProvider>
       </CollapsibleCardContent>

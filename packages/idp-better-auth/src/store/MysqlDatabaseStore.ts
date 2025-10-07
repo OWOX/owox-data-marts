@@ -131,6 +131,56 @@ export class MysqlDatabaseStore implements DatabaseStore {
     };
   }
 
+  async getUserByEmail(email: string): Promise<DatabaseUser | null> {
+    const pool = await this.getPool();
+    const [rows] = (await pool.execute(
+      'SELECT id, email, name, createdAt FROM user WHERE email = ? LIMIT 1',
+      [email]
+    )) as [Array<Record<string, unknown>>, unknown];
+    const r = (rows as Array<Record<string, unknown>>)[0];
+    if (!r) return null;
+    return {
+      id: String(r.id),
+      email: String(r.email),
+      name: r.name != null ? String(r.name) : undefined,
+      createdAt: this.toIso(r.createdAt) ?? undefined,
+    };
+  }
+
+  async userHasPassword(userId: string): Promise<boolean> {
+    const pool = await this.getPool();
+    try {
+      const [rows] = (await pool.execute(
+        "SELECT password FROM account WHERE userId = ? AND providerId = 'credential' LIMIT 1",
+        [userId]
+      )) as [Array<Record<string, unknown>>, unknown];
+      const r = (rows as Array<Record<string, unknown>>)[0];
+      return !!(r?.password && String(r.password).length > 0);
+    } catch {
+      return false;
+    }
+  }
+
+  async clearUserPassword(userId: string): Promise<void> {
+    const pool = await this.getPool();
+    try {
+      await pool.execute("DELETE FROM account WHERE userId = ? AND providerId = 'credential'", [
+        userId,
+      ]);
+    } catch {
+      // Non-fatal: account might not exist
+    }
+  }
+
+  async revokeUserSessions(userId: string): Promise<void> {
+    const pool = await this.getPool();
+    try {
+      await pool.execute('DELETE FROM session WHERE userId = ?', [userId]);
+    } catch {
+      // Non-fatal: sessions might not exist
+    }
+  }
+
   async updateUserName(userId: string, name: string): Promise<void> {
     const pool = await this.getPool();
     const [res] = (await pool.execute('UPDATE user SET name = ? WHERE id = ?', [name, userId])) as [
