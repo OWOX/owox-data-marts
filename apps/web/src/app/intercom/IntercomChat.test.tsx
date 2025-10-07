@@ -127,10 +127,6 @@ describe('IntercomChat', () => {
     expect(script).not.toBeNull();
     if (!script) throw new Error('intercom-widget-script not found');
 
-    if (import.meta.env.MODE !== 'test') {
-      expect(script.src).toContain(`https://widget.intercom.io/widget/${appId}`);
-    }
-
     // Simulate script load
     if (typeof script.onload === 'function') {
       script.onload();
