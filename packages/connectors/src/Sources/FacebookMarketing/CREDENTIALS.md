@@ -46,19 +46,18 @@ First, ensure your app is in **Development Mode**:
 
 ![Facebook Development Mode](res/facebook_devmode.png)
 
-Please, build the authorization URL. Use the template below and replace `YOUR_APP_ID` with your actual **App ID**.  
-
 - Go to **App Settings → Basic**  
 - Copy your **App ID**  
 - Also note your **App Secret** (you’ll need it in the next step)
 
-`https://www.facebook.com/v23.0/dialog/oauth?client_id=YOUR_APP_ID&redirect_uri=http://localhost:8080/&scope=ads_read,read_insights&state=abc123`
-
 ![Facebook Copy App ID](res/facebook_copyappid.png)
 
-**Example**:
+Please, build the authorization URL. Use the template below and replace `YOUR_APP_ID` with your actual **App ID**.  
 
-`https://www.facebook.com/v23.0/dialog/oauth?client_id=665881219608750&redirect_uri=http://localhost:8080/&response_type=code&scope=ads_read,read_insights&state=abc123`
+`https://www.facebook.com/v23.0/dialog/oauth?client_id=YOUR_APP_ID&redirect_uri=http://localhost:8080/&scope=ads_read,read_insights&state=abc123`
+
+> **Example**:
+> `https://www.facebook.com/v23.0/dialog/oauth?client_id=665881219608750&redirect_uri=http://localhost:8080/&response_type=code&scope=ads_read,read_insights&state=abc123`
 
 - Open the generated URL in your browser  
 - Make sure you are logged in with the account that has access to the desired ad account  
@@ -66,9 +65,7 @@ Please, build the authorization URL. Use the template below and replace `YOUR_AP
 
 ![Facebook Connect](res/facebook_reconnect.png)
 
-After authorization, you’ll be redirected to a URL like this (note the long `code` parameter):
-
-`http://localhost:8080/?code=AQBg6el516UZN-YDhnsDQOWUYjbavjIkykWvj5PxAOhgiHikl8HB0WOJLXwxRd6joT5x9u7XnWWsH4GbbzOo_McT5EVHzZkTt-bvb7qwVsLRUbPqKdyYQor73NuXNFpLMHK9xQZE2ucII2JBTxS0sGdlMq9ndP533lSR9ES22NKyaDTH2x9WJ8X07vBczF5phTB36KXm0t25Nw1tm576GFvO9OsJ6ie6KYcY6ILt9-ogW3hPCgnAYU399TRkV2njvpBd7FtvRSNyh7qybL93ToVnp_9LrjeRPm0MzPPF9Tg2dehcJlaDpZ0OmxKx7w8EOD3Wpb0Irmuf3unsBM4FsIe0ljQ6TSZiSvfghfLpviIakK08h1ATu0UXJTRVWYjCJ9itOQ30CiaNq9Th5Evtt8IW&state=abc123#_=_`
+After authorization, you’ll be redirected to a URL (note the long `code` parameter).
 
 Copy and save the **code** value (everything after `code=` up to `&state=...`).  
 You will need this in the next step.
@@ -79,15 +76,25 @@ You will need this in the next step.
 
 Now, exchange the authorization code for an **Access Token**. Go to [ReqBin](https://reqbin.com/) or use **Postman**.  
 Send a `POST` request to:
-`https://graph.facebook.com/v23.0/oauth/access_token` with the following parameters:
 
-```client_id=YOU_APP_ID&
+``` code
+https://graph.facebook.com/v23.0/oauth/access_token
+```
+
+with the following parameters in the **Body** tab:
+
+``` code
+client_id=YOU_APP_ID&
 client_secret=YOUR_APP_SECRET&
 redirect_uri=http://localhost:8080/&
 code=CODE_FROM_THE_PREVIOUS_STEP
 ```
 
-![Facebook Query](res/facebook_query.png)
+![Facebook Query Format](res/facebook_query_format.png)
+
+![Facebook Query Ampersand](res/facebook_ampersand.png)
+
+![Facebook Query Send](res/facebook_send.png)
 
 Click the **Send** button.
 
@@ -101,6 +108,50 @@ This token will be required to authenticate your API requests.
 ## Step 6: Use the Access Token
 
 Once you have the access token, you can begin using it as described in the [Getting Started guide](GETTING_STARTED.md).
+
+## Troubleshooting Access Token Errors
+
+If you encounter any errors while obtaining the access token, please refer to the possible causes and solutions below:
+
+### Error: `This authorization code has been used`
+
+**Cause:**  
+The authorization code you’re trying to use has already been exchanged for an access token.  
+Each authorization code can only be used **once**.
+
+**Solution:**  
+Repeat **Step 4** to generate a new temporary authorization code and try again.
+
+### Error: `redirect_uri isn't an absolute URI. Check RFC 3986`
+
+**Cause:**  
+The `redirect_uri` parameter in your request is incorrectly formatted or incomplete.  
+This field must contain a **valid absolute URI**.
+
+**Solution:**  
+Verify that the `redirect_uri` exactly matches the format shown below:  
+
+![Facebook URI format](res/facebook_uri_format.png)
+
+Example of a correct format:  
+
+``` code
+http://localhost:8080/
+```
+
+### Error: `This authorization code has expired`
+
+**Cause:**  
+The temporary authorization code has expired.  
+Facebook (and other platforms) issue short-lived codes that must be exchanged for tokens within a limited time window.
+
+**Solution:**  
+Repeat **Step 4** to obtain a new temporary code and retry the request.
+
+---
+
+✅ **Tip:**  
+Always generate and use the authorization code **immediately** after receiving it to avoid expiration issues.
 
 ## Troubleshooting and Support
 
