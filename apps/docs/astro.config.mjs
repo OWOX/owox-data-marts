@@ -129,11 +129,26 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               collapsed: true,
             },
             { label: 'Documentation', autogenerate: { directory: 'apps/docs' }, collapsed: true },
-            { label: 'CLI Application', autogenerate: { directory: 'apps/owox' }, collapsed: true },
+            {
+              label: 'CLI Application',
+              items: [
+                'apps/owox/readme',
+                'apps/owox/contributing',
+                'apps/owox/publishing',
+                'apps/owox/src/web/readme',
+              ],
+              collapsed: true,
+            },
             { label: 'Web Application', autogenerate: { directory: 'apps/web' }, collapsed: true },
             {
               label: 'Backend Application',
-              autogenerate: { directory: 'apps/backend' },
+              items: [
+                'apps/backend/readme',
+                'apps/backend/modular-conventions',
+                'apps/backend/publishing',
+                'apps/backend/src/common/scheduler/readme',
+                'apps/backend/src/migrations/readme',
+              ],
               collapsed: true,
             },
             {
