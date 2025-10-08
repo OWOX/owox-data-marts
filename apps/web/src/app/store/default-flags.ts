@@ -8,4 +8,6 @@ export const DEFAULT_FLAGS: Record<string, unknown> = {
   MENU_FEEDBACK_VISIBLE: 'true',
   MENU_ISSUES_VISIBLE: 'true',
   MENU_LICENSE_VISIBLE: 'true',
+  MENU_HELP_CENTER_VISIBLE: 'true',
+  MENU_SLACK_COMMUNITY_VISIBLE: 'true',
 };
