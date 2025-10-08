@@ -1,33 +1,20 @@
-import {
-  BadRequestException,
-  Delete,
-  Get,
-  HttpException,
-  Logger,
-  NotFoundException,
-  Param,
-} from '@nestjs/common';
-import { Repository } from 'typeorm';
+import { Delete, Get, Logger, Param } from '@nestjs/common';
 import { Auth, AuthContext, AuthorizationContext, Role } from '../../../idp';
 import { TriggerStatus } from './entities/trigger-status';
-import { UiTrigger } from './entities/ui-trigger.entity';
+import { UiTriggerService } from './ui-trigger.service';
 
 /**
  * Abstract controller for managing UI triggers.
  *
- * This class provides methods to interact with and control the lifecycle
- * of UI triggers, including fetching their statuses, retrieving responses,
- * and aborting trigger runs. It is designed to operate with triggers specific
- * to a user and ensures secure access through role-based authentication.
+ * This class provides HTTP endpoints for UI trigger operations
+ * and delegates business logic to UiTriggerService.
  *
  * @template UiResponseType The type of the response payload associated with the UI trigger.
  */
 export abstract class UiTriggerController<UiResponseType> {
   protected readonly logger: Logger;
 
-  protected constructor(
-    protected readonly triggerRepository: Repository<UiTrigger<UiResponseType>>
-  ) {
+  protected constructor(protected readonly triggerService: UiTriggerService<UiResponseType>) {
     this.logger = new Logger(this.constructor.name);
   }
 
@@ -37,9 +24,7 @@ export abstract class UiTriggerController<UiResponseType> {
     @Param('triggerId') triggerId: string,
     @AuthContext() context: AuthorizationContext
   ): Promise<TriggerStatus> {
-    this.logger.debug(`Checking trigger status for trigger ${triggerId}`);
-    const trigger = await this.getTriggerByIdAndUserId(triggerId, context.userId);
-    return trigger.status;
+    return this.triggerService.getTriggerStatus(triggerId, context.userId);
   }
 
   @Auth(Role.viewer())
@@ -48,27 +33,7 @@ export abstract class UiTriggerController<UiResponseType> {
     @Param('triggerId') triggerId: string,
     @AuthContext() context: AuthorizationContext
   ): Promise<UiResponseType> {
-    this.logger.debug(`Getting trigger response for trigger ${triggerId}`);
-    const trigger = await this.getTriggerByIdAndUserId(triggerId, context.userId);
-
-    if (trigger.status === TriggerStatus.SUCCESS) {
-      const response = trigger.uiResponse;
-      await this.triggerRepository.remove(trigger);
-      return response;
-    }
-
-    if (trigger.status === TriggerStatus.ERROR) {
-      const response = trigger.uiResponse;
-      await this.triggerRepository.remove(trigger);
-      throw new BadRequestException(response);
-    }
-
-    if (trigger.status === TriggerStatus.CANCELLED) {
-      await this.triggerRepository.remove(trigger);
-      throw new BadRequestException('Request was cancelled by user');
-    }
-
-    throw new HttpException('Trigger response is not ready', 408);
+    return this.triggerService.getTriggerResponse(triggerId, context.userId);
   }
 
   @Auth(Role.viewer())
@@ -77,33 +42,6 @@ export abstract class UiTriggerController<UiResponseType> {
     @Param('triggerId') triggerId: string,
     @AuthContext() context: AuthorizationContext
   ): Promise<void> {
-    this.logger.debug(`Aborting trigger run for trigger ${triggerId}`);
-    const trigger = await this.getTriggerByIdAndUserId(triggerId, context.userId);
-
-    if (trigger.status === TriggerStatus.IDLE) {
-      await this.triggerRepository.remove(trigger);
-    }
-
-    if (trigger.status === TriggerStatus.PROCESSING || trigger.status === TriggerStatus.READY) {
-      trigger.status = TriggerStatus.CANCELLING;
-      await this.triggerRepository.save(trigger);
-    }
-
-    throw new BadRequestException("Request can't be cancelled at current state");
-  }
-
-  protected async getTriggerByIdAndUserId(
-    id: string,
-    userId: string
-  ): Promise<UiTrigger<UiResponseType>> {
-    const trigger = await this.triggerRepository.findOne({
-      where: { id, userId },
-    });
-
-    if (!trigger) {
-      throw new NotFoundException(`Trigger with id ${id} not found`);
-    }
-
-    return trigger;
+    return this.triggerService.abortTriggerRun(triggerId, context.userId);
   }
 }

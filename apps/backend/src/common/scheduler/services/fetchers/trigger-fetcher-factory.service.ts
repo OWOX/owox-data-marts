@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { Trigger } from '../../shared/entities/trigger.entity';
+import { TimeBasedTrigger } from '../../shared/entities/time-based-trigger.entity';
 import { TriggerFetcherService } from './trigger-fetcher.service';
 import { SystemTimeService } from '../system-time.service';
 import { TriggerFetchStrategy } from './strategies/trigger-fetch-strategy.interface';
@@ -9,23 +10,23 @@ import { ImmediateFetchStrategy } from './strategies/immediate-fetch.strategy';
 
 /**
  * Factory for creating TriggerFetcherService instances.
- * This factory automatically detects the appropriate fetch strategy based on entity metadata.
- * Supports both time-based triggers (with nextRunTimestamp) and immediate triggers (without).
+ * This factory automatically detects the appropriate fetch strategy based on entity class inheritance.
+ * Supports both time-based triggers (extending TimeBasedTrigger) and immediate triggers (extending Trigger directly).
  */
 @Injectable()
 export class TriggerFetcherFactory {
   private readonly logger = new Logger(TriggerFetcherFactory.name);
 
   /**
-   * Creates a new TimeBasedTriggerFetcherService instance with auto-detected strategy.
-   * The strategy is determined by checking if the entity has a nextRunTimestamp column:
+   * Creates a new TriggerFetcherService instance with an auto-detected strategy.
+   * The strategy is determined by checking if the entity extends TimeBasedTrigger:
    * - If yes: uses TimeBasedFetchStrategy (fetches by time)
    * - If no: uses ImmediateFetchStrategy (fetches by status only)
    *
    * @param repository The TypeORM repository for the trigger entity
    * @param systemTimeService The system time service used to get the current time
    * @param stuckTriggerTimeoutSeconds The timeout in seconds after which a trigger is considered stuck
-   * @returns A new TimeBasedTriggerFetcherService instance with appropriate strategy
+   * @returns A new TriggerFetcherService instance with an appropriate strategy
    */
   createFetcher<T extends Trigger>(
     repository: Repository<T>,
@@ -48,8 +49,8 @@ export class TriggerFetcherFactory {
   }
 
   /**
-   * Detects the appropriate fetch strategy based on entity metadata.
-   * Checks if the entity has a nextRunTimestamp column to determine the strategy.
+   * Detects the appropriate fetch strategy based on entity class inheritance.
+   * Checks if the entity extends TimeBasedTrigger to determine the strategy.
    *
    * @param repository The TypeORM repository for the trigger entity
    * @returns The appropriate TriggerFetchStrategy instance
@@ -57,17 +58,34 @@ export class TriggerFetcherFactory {
   private detectFetchStrategy<T extends Trigger>(
     repository: Repository<T>
   ): TriggerFetchStrategy<T> {
-    const metadata = repository.metadata;
+    const entityClass = repository.metadata.target;
 
-    // Check if the entity has a nextRunTimestamp column
-    const hasNextRunTimestamp = metadata.columns.some(
-      column => column.propertyName === 'nextRunTimestamp'
+    const strategy =
+      typeof entityClass === 'string'
+        ? new ImmediateFetchStrategy<T>()
+        : this.getStrategyForEntityClass<T>(entityClass);
+
+    this.logger.debug(
+      `[${repository.metadata.name}] Detected fetch strategy: ${strategy.constructor.name}`
     );
 
-    if (hasNextRunTimestamp) {
-      return new TimeBasedFetchStrategy() as TriggerFetchStrategy<T>;
-    } else {
-      return new ImmediateFetchStrategy<T>();
-    }
+    return strategy;
+  }
+
+  /**
+   * Determines and retrieves the appropriate fetch strategy for a given entity class.
+   *
+   * @param {Function} entityClass - The class of the entity for which the fetch strategy is to be determined.
+   * @return {TriggerFetchStrategy<T>} The fetch strategy determined for the provided entity class.
+   */
+  private getStrategyForEntityClass<T extends Trigger>(
+    entityClass: Function // eslint-disable-line @typescript-eslint/no-unsafe-function-type
+  ): TriggerFetchStrategy<T> {
+    const isTimeBasedTrigger =
+      entityClass.prototype instanceof TimeBasedTrigger || entityClass === TimeBasedTrigger;
+
+    return isTimeBasedTrigger
+      ? (new TimeBasedFetchStrategy() as TriggerFetchStrategy<T>)
+      : new ImmediateFetchStrategy<T>();
   }
 }
