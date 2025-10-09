@@ -1,14 +1,14 @@
 import type { ProjectMenuItem } from './types';
-import { GitHubIcon, OWOXBIIcon } from '../../../shared';
+import { GitHubIcon, OWOXBIIcon, SlackIcon } from '../../../shared';
 import {
   Gem,
-  AlertCircle,
+  BadgeAlert,
   Scale,
   MessageCircle,
   Settings,
   BriefcaseBusiness,
   Users,
-  MessageCircleQuestion,
+  Info,
 } from 'lucide-react';
 
 export const projectMenuItems: ProjectMenuItem[] = [
@@ -27,30 +27,6 @@ export const projectMenuItems: ProjectMenuItem[] = [
     icon: Gem,
     visible: { flagKey: 'MENU_UPGRADE_OPTIONS_VISIBLE', expectedValue: 'true' },
     group: 'community',
-  },
-  {
-    type: 'menu-item',
-    title: 'Leave your feedback',
-    href: 'https://github.com/OWOX/owox-data-marts/discussions',
-    icon: MessageCircle,
-    visible: { flagKey: 'MENU_FEEDBACK_VISIBLE', expectedValue: 'true' },
-    group: 'feedback',
-  },
-  {
-    type: 'menu-item',
-    title: 'Issues',
-    href: 'https://github.com/OWOX/owox-data-marts/issues',
-    icon: AlertCircle,
-    visible: { flagKey: 'MENU_ISSUES_VISIBLE', expectedValue: 'true' },
-    group: 'feedback',
-  },
-  {
-    type: 'menu-item',
-    title: 'License',
-    href: 'https://github.com/OWOX/owox-data-marts#License-1-ov-file',
-    icon: Scale,
-    visible: { flagKey: 'MENU_LICENSE_VISIBLE', expectedValue: 'true' },
-    group: 'legal',
   },
   {
     type: 'menu-item',
@@ -94,18 +70,50 @@ export const projectMenuItems: ProjectMenuItem[] = [
   },
   {
     type: 'menu-item',
+    title: 'Documentation',
+    href: 'https://docs.owox.com/?utm_source=app_owox_com&utm_medium=community_edition&utm_campaign=documentation&utm_keyword=documentation&utm_content=header_dropdown',
+    icon: Info,
+    visible: { flagKey: 'MENU_HELP_CENTER_VISIBLE', expectedValue: 'true' },
+    group: 'feedback',
+  },
+  {
+    type: 'menu-item',
+    title: 'Leave Feedback',
+    href: 'https://github.com/OWOX/owox-data-marts/discussions',
+    icon: MessageCircle,
+    visible: { flagKey: 'MENU_FEEDBACK_VISIBLE', expectedValue: 'true' },
+    group: 'feedback',
+  },
+  {
+    type: 'menu-item',
+    title: 'Issues',
+    href: 'https://github.com/OWOX/owox-data-marts/issues',
+    icon: BadgeAlert,
+    visible: { flagKey: 'MENU_ISSUES_VISIBLE', expectedValue: 'true' },
+    group: 'feedback',
+  },
+  {
+    type: 'menu-item',
+    title: 'Slack Community',
+    href: 'https://join.slack.com/t/owox-data-marts/shared_invite/zt-3fffrsau9-UlobJVlXzRLpXmvs0ffvoQ',
+    icon: SlackIcon,
+    visible: { flagKey: 'MENU_SLACK_COMMUNITY_VISIBLE', expectedValue: 'true' },
+    group: 'feedback',
+  },
+  {
+    type: 'menu-item',
+    title: 'License',
+    href: 'https://github.com/OWOX/owox-data-marts#License-1-ov-file',
+    icon: Scale,
+    visible: { flagKey: 'MENU_LICENSE_VISIBLE', expectedValue: 'true' },
+    group: 'legal',
+  },
+  {
+    type: 'menu-item',
     title: 'OWOX BI',
     href: 'https://bi.owox.com/',
     icon: OWOXBIIcon,
     visible: { flagKey: 'MENU_OWOX_BI_VISIBLE', expectedValue: 'true' },
-    group: 'external',
-  },
-  {
-    type: 'menu-item',
-    title: 'Help Center',
-    href: 'https://support.owox.com/',
-    icon: MessageCircleQuestion,
-    visible: { flagKey: 'MENU_HELP_CENTER_VISIBLE', expectedValue: 'true' },
     group: 'external',
   },
 ];

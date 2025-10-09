@@ -10,6 +10,7 @@ import { type AwsRedshiftIcon } from './aws-redshift-icon';
 import { type AzureSynapseIcon } from './azure-synapse-icon';
 import { type RawBase64Icon } from './raw-base64-icon';
 import { type OWOXBIIcon } from './owox-bi-icon';
+import { type SlackIcon } from './slack-icon';
 import { type LucideIcon } from 'lucide-react';
 
 export type LocalIcon =
@@ -24,5 +25,6 @@ export type LocalIcon =
   | typeof AwsRedshiftIcon
   | typeof AzureSynapseIcon
   | typeof OWOXBIIcon
+  | typeof SlackIcon
   | typeof RawBase64Icon;
 export type AppIcon = LucideIcon | LocalIcon;
