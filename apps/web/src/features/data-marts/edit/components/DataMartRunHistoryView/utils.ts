@@ -111,11 +111,30 @@ export const formatDate = (dateString: string) => {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 };
 
-export const getDisplayTimestamp = (logEntry: LogEntry): string => {
-  if (logEntry.metadata?.at) {
-    return formatDate(logEntry.metadata.at as string);
+export const parseDate = (dateString: string): Date => {
+  const cleaned = dateString.trim();
+
+  // 2024-03-15 14:30:00
+  let match = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?$/.exec(
+    cleaned
+  );
+  if (match) {
+    return new Date(
+      `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6] || '00'}Z`
+    );
   }
-  return formatDate(logEntry.timestamp);
+
+  // DD.MM.YYYY HH:mm
+  match = /^(\d{1,2})[./](\d{1,2})[./](\d{4})\s+(\d{1,2}):(\d{1,2})$/.exec(cleaned);
+  if (match) {
+    return new Date(`${match[3]}-${match[2]}-${match[1]}T${match[4]}:${match[5]}:00Z`);
+  }
+
+  const date = new Date(cleaned);
+  if (!isNaN(date.getTime())) {
+    return date;
+  }
+  return new Date();
 };
 
 export const getDisplayType = (logEntry: LogEntry): string => {
