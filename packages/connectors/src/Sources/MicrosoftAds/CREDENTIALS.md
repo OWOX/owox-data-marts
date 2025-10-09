@@ -77,10 +77,13 @@ Click **Request Token**, and copy the generated **Developer Token**.
 ## Step 5: Generate an Authorization Code
 
 Great! Create a URL by replacing `CLIENTID` with your **Client ID**:
-`https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=CLIENTID&response_type=code&redirect_uri=http://localhost:8080&scope=https://ads.microsoft.com/msads.manage offline_access`
+
+``` code
+https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=CLIENTID&response_type=code&redirect_uri=http://localhost:8080&scope=https://ads.microsoft.com/msads.manage offline_access
+```
 
 Open the URL in your browser. Log in and authorize the app by clicking **Accept**. After authorization, you will be redirected to:  
-`http://localhost:8080/?code=YOUR_CODE`  
+`http://localhost:8080/?code=YOUR_AUTHORIZATION_CODE`  
 
 Copy the `code` value from the URL.
 
@@ -92,20 +95,28 @@ Copy the `code` value from the URL.
 
 ## Step 6: Exchange Authorization Code for a Refresh Token
 
-Use [ReqBin](https://reqbin.com/) or Postman to exchange this code for a refresh token by making a GET request to
-`https://login.microsoftonline.com/common/oauth2/v2.0/token`
-with the following parameters (as form data or in the body of the request):
+Use [ReqBin](https://reqbin.com/) or **Postman** to exchange this code for a refresh token by making a **POST** request to
 
-- `client_id` = `YOUR_CLIENT_ID`  
-- `client_secret` = `YOUR_CLIENT_SECRET`  
-- `grant_type` = `authorization_code`  
-- `code` = `YOUR_AUTHORIZATION_CODE`  
-- `redirect_uri` = `http://localhost:8080`  
-- `scope` = `https://ads.microsoft.com/msads.manage offline_access`
+``` code
+https://login.microsoftonline.com/common/oauth2/v2.0/token
+```
 
-![Microsoft GET Request](res/microsoft_getrequest.png)
+with the following parameters in the **Body** tab (replace _YOUR_CLIENT_ID_, _YOUR_CLIENT_SECRET_ and _YOUR_AUTHORIZATION_CODE_ with actual values):
 
-After a successful request, you will receive a **Refresh Token** in the response. Store it securely — this token will be used to authenticate API requests.
+``` code
+client_id=YOUR_CLIENT_ID&  
+client_secret=YOUR_CLIENT_SECRET&  
+grant_type=authorization_code& 
+code=YOUR_AUTHORIZATION_CODE&  
+redirect_uri=http://localhost:8080&  
+scope=https://ads.microsoft.com/msads.manage offline_access
+```
+
+![Microsoft Make Query](res/microsoft_makequery.png)
+
+![Microsoft Ampersand](res/microsoft_ampersand.png)
+
+Clicks **Send** button. After a successful request, you will receive a **Refresh Token** in the response. Store it securely — this token will be used to authenticate API requests.
 
 ![Microsoft Refresh](res/microsoft_refresh.png)
 
@@ -120,4 +131,43 @@ At this point, you should have the following credentials:
 - **Client Secret**  
 - **Refresh Token**
 
-These credentials are required to connect to the Microsoft Ads source and begin importing your advertising data.
+These credentials are required to [connect to the Microsoft Ads source](GETTING_STARTED) and begin importing your advertising data.
+
+## Troubleshooting Refresh Token Errors
+
+If you encounter any errors while obtaining the refresh token, check the possible causes and recommended solutions below.
+
+### Error: `Invalid client secret provided. Ensure the secret being sent in the request is the client secret value, not the client secret ID, for a secret added to app '(YOUR APP ID)'`
+
+**Cause:**  
+You are using the **Secret ID** instead of the **Secret Value** in your request.  
+Only the **Secret Value** can be used to authenticate your app — the **Secret ID** will not work.
+
+**Solution:**  
+
+1. Return to **Step 2** and confirm that you copied the **Secret Value**, not the **Secret ID**.  
+2. If the Secret Value is no longer visible (it is shown only once), create a **new Client Secret** in your app and copy the value immediately.  
+
+![Microsoft Secret Value](res/microsoft_secretvalue.png)
+
+### Error: `The provided value for the 'code' parameter is not valid. The code has expired.`
+
+**Cause:**  
+The temporary authorization code has expired.  
+Microsoft (and other platforms) issue short-lived authorization codes that must be exchanged for tokens within a limited time window (usually just a few minutes).
+
+**Solution:**  
+Repeat **Step 5** to obtain a new temporary authorization code and retry the request.
+
+---
+
+✅ **Tip:**  
+Always generate and use the authorization code **immediately** after receiving it to avoid expiration issues.
+
+## Troubleshooting and Support
+
+If you encounter any other issues:
+
+1. Please [visit Q&A](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) first
+2. If you want to report a bug, please [open an issue](https://github.com/OWOX/owox-data-marts/issues)
+3. Join the [discussion forum](https://github.com/OWOX/owox-data-marts/discussions) to ask questions or propose improvements
