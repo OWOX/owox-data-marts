@@ -155,7 +155,7 @@ Always generate and use the authorization code **immediately** after receiving i
 
 ## Troubleshooting and Support
 
-If you encounter any issues:
+If you encounter any other issues:
 
 1. Please [visit Q&A](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a) first
 2. If you want to report a bug, please [open an issue](https://github.com/OWOX/owox-data-marts/issues)
