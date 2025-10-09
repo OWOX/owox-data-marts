@@ -95,13 +95,13 @@ Copy the `code` value from the URL.
 
 ## Step 6: Exchange Authorization Code for a Refresh Token
 
-Use [ReqBin](https://reqbin.com/) or Postman to exchange this code for a refresh token by making a POST request to
+Use [ReqBin](https://reqbin.com/) or **Postman** to exchange this code for a refresh token by making a **POST** request to
 
 ``` code
 https://login.microsoftonline.com/common/oauth2/v2.0/token
 ```
 
-with the following parameters in the **Body** tab::
+with the following parameters in the **Body** tab (replace _YOUR_CLIENT_ID_, _YOUR_CLIENT_SECRET_ and _YOUR_AUTHORIZATION_CODE_ with actual values):
 
 ``` code
 client_id=YOUR_CLIENT_ID&  

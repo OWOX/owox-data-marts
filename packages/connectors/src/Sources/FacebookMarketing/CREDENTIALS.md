@@ -54,7 +54,9 @@ First, ensure your app is in **Development Mode**:
 
 Please, build the authorization URL. Use the template below and replace `YOUR_APP_ID` with your actual **App ID**.  
 
-`https://www.facebook.com/v23.0/dialog/oauth?client_id=YOUR_APP_ID&redirect_uri=http://localhost:8080/&scope=ads_read,read_insights&state=abc123`
+``` code
+https://www.facebook.com/v23.0/dialog/oauth?client_id=YOUR_APP_ID&redirect_uri=http://localhost:8080/&scope=ads_read,read_insights&state=abc123
+```
 
 > **Example**:
 > `https://www.facebook.com/v23.0/dialog/oauth?client_id=665881219608750&redirect_uri=http://localhost:8080/&response_type=code&scope=ads_read,read_insights&state=abc123`
