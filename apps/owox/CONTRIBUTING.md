@@ -66,33 +66,63 @@ This will remove the global link, and `owox` will no longer be accessible global
 
 ## Commands
 
-<!-- commands -->
-
 - [`owox serve`](#owox-serve)
+- [`owox migrations`](#owox-migrations)
 - [`owox help [COMMAND]`](#owox-help-command)
 
-## `owox serve`
+### `owox serve`
 
 Start the OWOX Data Marts application in production mode
 
 ```bash
 USAGE
-  $ owox serve [-p <value>]
+  $ owox serve [-e /path/to/.env] [-f pretty|json] [-p <value>] [--web-enabled]
 
 FLAGS
-  -p, --port=<value>  [default: 3000] Port number for the application
+  -e, --env-file=/path/to/.env  Path to environment file to load variables from
+  -f, --log-format=<option>     Log format to use (pretty or json)
+                                <options: pretty|json>
+  -p, --port=<value>            Port number for the application
+      --[no-]web-enabled        Enable web interface
 
 DESCRIPTION
-  Start the OWOX Data Marts application in production mode
+  Start the OWOX Data Marts application
 
 EXAMPLES
   $ owox serve
   $ owox serve --port 8080
-  $ owox serve -p 3001
-  $ PORT=8080 owox serve
+  $ owox serve -p 3001 --log-format=json
+  $ owox serve --no-web-enabled
 ```
 
-## `owox help [COMMAND]`
+### `owox migrations`
+
+Manage database migrations for OWOX Data Marts
+
+```bash
+USAGE
+  $ owox migrations [-e /path/to/.env] [-f pretty|json]
+
+FLAGS
+  -e, --env-file=/path/to/.env  Path to environment file to load variables from
+  -f, --log-format=<option>     Log format to use (pretty or json)
+                                <options: pretty|json>
+
+DESCRIPTION
+  Manage database migrations for OWOX Data Marts
+
+EXAMPLES
+  $ owox migrations up
+  $ owox migrations down
+  $ owox migrations status
+
+COMMANDS
+  migrations up      Run pending database migrations
+  migrations down    Revert the last database migration
+  migrations status  List database migration status
+```
+
+### `owox help [COMMAND]`
 
 Display help for owox.
 
@@ -110,8 +140,6 @@ DESCRIPTION
   Display help for owox.
 ```
 
-<!-- commandsstop -->
-
 ## FAQ
 
 This section explains the purpose of the files located in the `bin` directory of the CLI.
@@ -121,7 +149,6 @@ This section explains the purpose of the files located in the `bin` directory of
 The `bin` folder contains the executable entry points for your CLI. Their presence and format are designed to support different operating systems and operational modes (development/production).
 
 - **`run.js` (and `run.cmd`)**: These are the primary "production" entry points for your CLI.
-
   - **`run.js`**: This is the main executable file for Unix-based systems (Linux, macOS). The `#!/usr/bin/env node` (shebang) line at the beginning tells the operating system to execute this file using Node.js. This file launches the compiled version of your CLI (from the `dist` folder).
   - **`run.cmd`**: This is the equivalent of `run.js` for Windows operating systems. Windows does not understand shebangs, so a separate `.cmd` (or `.bat`) file is required to explicitly instruct the system to execute the Node.js script using the `node` interpreter.
 

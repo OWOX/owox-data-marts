@@ -143,7 +143,6 @@ async function findMarkdownFiles() {
     '**/node_modules/**',
     '**/CHANGELOG.md',
     'apps/docs/src/**',
-    'apps/backend/src/**',
     'apps/web/src/**',
   ];
 

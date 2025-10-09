@@ -1,4 +1,4 @@
-# 🕒 Scheduler Module
+# Scheduler Module
 
 ## 🎯 Purpose
 
@@ -126,13 +126,13 @@ export class MyTriggerHandler implements TimeBasedTriggerHandler<MyTrigger>, OnM
 
 The Scheduler Module can be configured using environment variables:
 
-| Environment Variable                          | Description                                                                          | Default Value |
-| --------------------------------------------- | ------------------------------------------------------------------------------------ | ------------- |
-| `SCHEDULER_EXECUTION_ENABLED`                 | Enables/disables trigger execution. When `false`, only registration occurs without creating cron jobs | `true`       |
-| `SCHEDULER_TRIGGER_RUNNER_TYPE`               | The type of trigger runner to use (`direct` or `pubsub`)                             | `direct`      |
-| `SCHEDULER_PUBSUB_PROJECT_ID`                 | The Google Cloud project ID to use for Pub/Sub (required when using `pubsub` runner) | -             |
-| `SCHEDULER_TIMEZONE`                          | The timezone to use for cron expressions                                             | `UTC`         |
-| `SCHEDULER_GRACEFUL_SHUTDOWN_TIMEOUT_MINUTES` | The timeout in minutes for graceful shutdown                                         | `15`          |
+| Environment Variable                          | Description                                                                                           | Default Value |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------- |
+| `SCHEDULER_EXECUTION_ENABLED`                 | Enables/disables trigger execution. When `false`, only registration occurs without creating cron jobs | `true`        |
+| `SCHEDULER_TRIGGER_RUNNER_TYPE`               | The type of trigger runner to use (`direct` or `pubsub`)                                              | `direct`      |
+| `SCHEDULER_PUBSUB_PROJECT_ID`                 | The Google Cloud project ID to use for Pub/Sub (required when using `pubsub` runner)                  | -             |
+| `SCHEDULER_TIMEZONE`                          | The timezone to use for cron expressions                                                              | `UTC`         |
+| `SCHEDULER_GRACEFUL_SHUTDOWN_TIMEOUT_MINUTES` | The timeout in minutes for graceful shutdown                                                          | `15`          |
 
 ### 🔄 Execution Modes
 
