@@ -15,7 +15,7 @@ export class UpdateDataMartDefinitionService {
     private readonly dataMartService: DataMartService,
     private readonly definitionValidatorFacade: DataMartDefinitionValidatorFacade,
     private readonly mapper: DataMartMapper,
-    private readonly secretMaskingService: ConnectorSecretService
+    private readonly connectorSecretService: ConnectorSecretService
   ) {}
 
   async run(command: UpdateDataMartDefinitionCommand): Promise<DataMartDto> {
@@ -27,7 +27,7 @@ export class UpdateDataMartDefinitionService {
     dataMart.definitionType = command.definitionType;
 
     if (command.definitionType === DataMartDefinitionType.CONNECTOR && command.definition) {
-      dataMart.definition = await this.secretMaskingService.mergeDefinitionSecrets(
+      dataMart.definition = await this.connectorSecretService.mergeDefinitionSecrets(
         command.definition as ConnectorDefinition,
         dataMart.definition as ConnectorDefinition | undefined
       );

@@ -42,7 +42,7 @@ import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum'
 export class DataMartMapper {
   constructor(
     private readonly dataStorageMapper: DataStorageMapper,
-    private readonly secretMaskingService: ConnectorSecretService
+    private readonly connectorSecretService: ConnectorSecretService
   ) {}
 
   toCreateDomainCommand(
@@ -89,7 +89,7 @@ export class DataMartMapper {
   async toResponse(dto: DataMartDto): Promise<DataMartResponseApiDto> {
     const maskedDefinition =
       dto.definitionType === DataMartDefinitionType.CONNECTOR
-        ? await this.secretMaskingService.mask(dto.definition as ConnectorDefinition)
+        ? await this.connectorSecretService.mask(dto.definition as ConnectorDefinition)
         : dto.definition;
     return {
       id: dto.id,
@@ -253,7 +253,7 @@ export class DataMartMapper {
         status: run.status,
         dataMartId: run.dataMartId,
         definitionRun:
-          (await this.secretMaskingService.mask(run.definitionRun)) ?? run.definitionRun,
+          (await this.connectorSecretService.mask(run.definitionRun)) ?? run.definitionRun,
         logs: run.logs,
         errors: run.errors,
         createdAt: run.createdAt,
