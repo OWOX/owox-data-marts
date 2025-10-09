@@ -1,6 +1,8 @@
-import { TimeBasedTriggerFetcherService } from './time-based-trigger-fetcher.service';
+import { TimeBasedFetchStrategy } from './strategies/time-based-fetch.strategy';
+import { TriggerFetcherService } from './trigger-fetcher.service';
 import { SystemTimeService } from '../system-time.service';
-import { TimeBasedTrigger, TriggerStatus } from '../../shared/entities/time-based-trigger.entity';
+import { TimeBasedTrigger } from '../../shared/entities/time-based-trigger.entity';
+import { TriggerStatus } from '../../shared/entities/trigger-status';
 import { FindOptionsWhere, LessThanOrEqual, Repository, UpdateResult } from 'typeorm';
 import { Logger } from '@nestjs/common';
 import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
@@ -19,21 +21,37 @@ class TestTimeBasedTrigger extends TimeBasedTrigger {
 }
 
 describe('TimeBasedTriggerFetcherService', () => {
-  let service: TimeBasedTriggerFetcherService<TestTimeBasedTrigger>;
+  let service: TriggerFetcherService<TestTimeBasedTrigger>;
   let repository: jest.Mocked<Repository<TestTimeBasedTrigger>>;
   let systemTimeService: jest.Mocked<SystemTimeService>;
 
   const mockCurrentTime = new Date('2023-01-01T12:00:00Z');
-  const mockTriggers = [
-    new TestTimeBasedTrigger('trigger-1', new Date('2023-01-01T11:00:00Z')),
-    new TestTimeBasedTrigger('trigger-2', new Date('2023-01-01T11:30:00Z')),
-  ];
+  const trigger1 = new TestTimeBasedTrigger('trigger-1', new Date('2023-01-01T11:00:00Z'));
+  const trigger2 = new TestTimeBasedTrigger('trigger-2', new Date('2023-01-01T11:30:00Z'));
+  const mockTriggers = [trigger1, trigger2];
 
   beforeEach(async () => {
     // Create mock repository
     repository = {
       metadata: { name: 'TestTimeBasedTrigger' },
-      update: jest.fn().mockResolvedValue({ affected: 1 } as UpdateResult),
+      update: jest
+        .fn()
+        .mockImplementation(
+          async (
+            criteria: FindOptionsWhere<TestTimeBasedTrigger>,
+            _partial: QueryDeepPartialEntity<TestTimeBasedTrigger>
+          ) => {
+            if (criteria) {
+              if (
+                (criteria as FindOptionsWhere<TestTimeBasedTrigger>).id === 'trigger-1' ||
+                (criteria as FindOptionsWhere<TestTimeBasedTrigger>).id === 'trigger-2'
+              ) {
+                return { affected: 1 } as UpdateResult;
+              }
+            }
+            return { affected: 0 } as UpdateResult;
+          }
+        ),
       find: jest.fn(),
     } as unknown as jest.Mocked<Repository<TestTimeBasedTrigger>>;
 
@@ -48,9 +66,11 @@ describe('TimeBasedTriggerFetcherService', () => {
     jest.spyOn(Logger.prototype, 'log').mockImplementation();
 
     // Create service instance
-    service = new TimeBasedTriggerFetcherService<TestTimeBasedTrigger>(
+    service = new TriggerFetcherService<TestTimeBasedTrigger>(
       repository,
-      systemTimeService
+      systemTimeService,
+      0,
+      new TimeBasedFetchStrategy<TestTimeBasedTrigger>()
     );
   });
 
@@ -82,7 +102,7 @@ describe('TimeBasedTriggerFetcherService', () => {
       );
 
       // Verify the triggers were marked as ready
-      expect(repository.update).toHaveBeenCalledTimes(2);
+      expect(repository.update).toHaveBeenCalledTimes(3);
       expect(result.length).toBe(2);
       expect(result[0].status).toBe(TriggerStatus.READY);
       expect(result[1].status).toBe(TriggerStatus.READY);
@@ -97,7 +117,7 @@ describe('TimeBasedTriggerFetcherService', () => {
 
       // Assert
       expect(result).toEqual([]);
-      expect(repository.update).not.toHaveBeenCalled();
+      expect(repository.update).toHaveBeenCalledTimes(1);
     });
 
     it('should handle optimistic lock version mismatch errors', async () => {
@@ -110,10 +130,15 @@ describe('TimeBasedTriggerFetcherService', () => {
           criteria: FindOptionsWhere<TestTimeBasedTrigger>,
           _partial: QueryDeepPartialEntity<TestTimeBasedTrigger>
         ) => {
-          if (criteria && (criteria as FindOptionsWhere<TestTimeBasedTrigger>).id === 'trigger-1') {
-            return { affected: 0 } as UpdateResult;
+          if (criteria) {
+            if ((criteria as FindOptionsWhere<TestTimeBasedTrigger>).id === 'trigger-1') {
+              return { affected: 0 } as UpdateResult;
+            }
+            if ((criteria as FindOptionsWhere<TestTimeBasedTrigger>).id === 'trigger-2') {
+              return { affected: 1 } as UpdateResult;
+            }
           }
-          return { affected: 1 } as UpdateResult;
+          return { affected: 0 } as UpdateResult;
         }
       );
 
@@ -122,7 +147,7 @@ describe('TimeBasedTriggerFetcherService', () => {
 
       // Assert
       // Verify both triggers were attempted to be updated
-      expect(repository.update).toHaveBeenCalledTimes(2);
+      expect(repository.update).toHaveBeenCalledTimes(3);
 
       // Verify only the second trigger was returned (first one had lock conflict)
       expect(result.length).toBe(1);
@@ -149,18 +174,26 @@ describe('TimeBasedTriggerFetcherService', () => {
       expect(result).toEqual([]);
 
       // Verify no triggers were updated
-      expect(repository.update).not.toHaveBeenCalled();
+      expect(repository.update).toHaveBeenCalledTimes(1);
     });
 
     it('should handle non-optimistic lock errors during markTriggersAsReady and return empty array', async () => {
       // Arrange
-      repository.find.mockResolvedValue(mockTriggers);
+      repository.find.mockResolvedValue([trigger1]);
       const testError = new Error('Non-optimistic lock error');
 
       // Mock update to throw a non-optimistic lock error
-      repository.update.mockImplementation(async () => {
-        throw testError;
-      });
+      repository.update.mockImplementation(
+        async (
+          criteria: FindOptionsWhere<TestTimeBasedTrigger>,
+          _partial: QueryDeepPartialEntity<TestTimeBasedTrigger>
+        ) => {
+          if (criteria && (criteria as FindOptionsWhere<TestTimeBasedTrigger>).id === 'trigger-1') {
+            throw testError;
+          }
+          return { affected: 0 } as UpdateResult;
+        }
+      );
 
       // Act
       const result = await service.fetchTriggersReadyForProcessing();

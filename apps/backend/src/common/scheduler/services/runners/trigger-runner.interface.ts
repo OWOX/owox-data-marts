@@ -1,4 +1,4 @@
-import { TimeBasedTrigger } from '../../shared/entities/time-based-trigger.entity';
+import { Trigger } from '../../shared/entities/trigger.entity';
 
 /**
  * Interface for services that run time-based triggers.
@@ -9,7 +9,7 @@ import { TimeBasedTrigger } from '../../shared/entities/time-based-trigger.entit
  *
  * @typeParam T - The type of trigger this service processes, must extend TimeBasedTrigger
  */
-export interface TriggerRunnerService<T extends TimeBasedTrigger> {
+export interface TriggerRunnerService<T extends Trigger> {
   /**
    * Processes a batch of triggers.
    *
@@ -21,4 +21,12 @@ export interface TriggerRunnerService<T extends TimeBasedTrigger> {
    * @returns A promise that resolves when all triggers have been processed or scheduled for processing
    */
   runTriggers(triggers: T[]): Promise<void>;
+
+  /**
+   * Aborts the execution of specified trigger runs.
+   *
+   * @param {T[]} triggers - An array of trigger objects to be aborted.
+   * @return {Promise<void>} A promise that resolves when the trigger runs have been successfully aborted.
+   */
+  abortTriggerRuns(triggers: T[]): Promise<void>;
 }

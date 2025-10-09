@@ -13,7 +13,7 @@ export class ScheduledReportRunProcessor implements ScheduledTriggerProcessor {
 
   constructor(private readonly runReportService: RunReportService) {}
 
-  async process(trigger: DataMartScheduledTrigger): Promise<void> {
+  async process(trigger: DataMartScheduledTrigger, signal: AbortSignal): Promise<void> {
     this.logger.log(`Processing trigger ${trigger.id}`);
 
     if (trigger.type !== this.type) {
@@ -29,7 +29,7 @@ export class ScheduledReportRunProcessor implements ScheduledTriggerProcessor {
       userId: trigger.createdById,
     } as RunReportCommand;
 
-    await this.runReportService.run(runReportCommand);
+    await this.runReportService.run(runReportCommand, signal);
     this.logger.log(`Trigger ${trigger.id} processed`);
   }
 }
