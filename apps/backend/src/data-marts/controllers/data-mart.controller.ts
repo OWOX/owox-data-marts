@@ -35,8 +35,7 @@ import {
   GetDataMartRunsSpec,
   CancelDataMartRunSpec,
 } from './spec/data-mart.api';
-import { AuthContext, AuthorizationContext, Auth } from '../../idp';
-import { Role, Strategy } from '../../idp/types/role-config.types';
+import { AuthContext, AuthorizationContext, Auth, Role, Strategy } from '../../idp';
 import { RunDataMartService } from '../use-cases/run-data-mart.service';
 import { ValidateDataMartDefinitionService } from '../use-cases/validate-data-mart-definition.service';
 import { ActualizeDataMartSchemaService } from '../use-cases/actualize-data-mart-schema.service';

@@ -55,11 +55,11 @@ export class ReportMapper {
     return entities.map(entity => this.toDomainDto(entity));
   }
 
-  toResponse(dto: ReportDto): ReportResponseApiDto {
+  async toResponse(dto: ReportDto): Promise<ReportResponseApiDto> {
     return {
       id: dto.id,
       title: dto.title,
-      dataMart: this.dataMartMapper.toResponse(dto.dataMart),
+      dataMart: await this.dataMartMapper.toResponse(dto.dataMart),
       dataDestinationAccess: this.dataDestinationMapper.toApiResponse(dto.dataDestinationAccess),
       destinationConfig: dto.destinationConfig,
       lastRunAt: dto.lastRunAt,
@@ -71,8 +71,8 @@ export class ReportMapper {
     };
   }
 
-  toResponseList(dtos: ReportDto[]): ReportResponseApiDto[] {
-    return dtos.map(dto => this.toResponse(dto));
+  async toResponseList(dtos: ReportDto[]): Promise<ReportResponseApiDto[]> {
+    return Promise.all(dtos.map(dto => this.toResponse(dto)));
   }
 
   toGetCommand(id: string, context: AuthorizationContext): GetReportCommand {

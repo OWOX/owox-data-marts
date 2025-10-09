@@ -3,10 +3,10 @@ import { Input } from '@owox/ui/components/input';
 import { Textarea } from '@owox/ui/components/textarea';
 import { Combobox } from '../../../../../../shared/components/Combobox/combobox.tsx';
 import type { ConnectorListItem } from '../../../../shared/model/types/connector';
-import type { ConnectorSpecificationResponseApiDto } from '../../../../shared/api/types';
+import type { ConnectorSpecificationResponseApiDto } from '../../../../shared/api';
 import { StepperHeroBlock } from '../components';
-import { RequiredType } from '../../../../shared/api/types';
-import { useState, useEffect, useRef } from 'react';
+import { RequiredType } from '../../../../shared/api';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import {
   AppWizardStepItem,
   AppWizardStepLabel,
@@ -17,6 +17,8 @@ import {
 } from '@owox/ui/components/common/wizard';
 import { OpenIssueLink } from '../components';
 import { Unplug } from 'lucide-react';
+import { SECRET_MASK } from '../../../../../../shared/constants/secrets';
+import { Button } from '@owox/ui/components/button';
 
 interface ConfigurationStepProps {
   connector: ConnectorListItem;
@@ -25,20 +27,58 @@ interface ConfigurationStepProps {
   onValidationChange?: (isValid: boolean) => void;
   initialConfiguration?: Record<string, unknown>;
   loading?: boolean;
+  isEditingExisting?: boolean;
 }
 
 function renderInputForType(
   specification: ConnectorSpecificationResponseApiDto,
   configuration: Record<string, unknown>,
-  onValueChange: (name: string, value: unknown) => void
+  onValueChange: (name: string, value: unknown) => void,
+  flags?: { isSecret?: boolean; isEditingExisting?: boolean; isSecretEditing?: boolean }
 ) {
-  const { name, title, requiredType, options, placeholder, default: defaultValue } = specification;
+  const {
+    name,
+    title,
+    requiredType,
+    options: specOptions,
+    placeholder,
+    default: defaultValue,
+  } = specification;
 
   const displayName = title ?? name;
   const inputId = name;
 
-  if (options && options.length > 0) {
-    const comboboxOptions = options.map((option: string) => ({
+  const { isSecret = false, isEditingExisting = false, isSecretEditing = false } = flags ?? {};
+
+  if (isSecret) {
+    const isReadonly = isEditingExisting && !isSecretEditing;
+    return (
+      <Input
+        id={specification.name}
+        {...(!isReadonly ? { name: specification.name } : {})}
+        type={isReadonly ? 'password' : 'text'}
+        autoComplete={isReadonly ? 'new-password' : 'off'}
+        autoCorrect='off'
+        autoCapitalize='off'
+        spellCheck={false}
+        value={isReadonly ? SECRET_MASK : (configuration[specification.name] as string) || ''}
+        {...(isReadonly ? { readOnly: true, disabled: true } : {})}
+        {...(!isReadonly
+          ? { placeholder: placeholder ?? `Enter ${displayName.toLowerCase()}` }
+          : {})}
+        {...(!isReadonly
+          ? {
+              onChange: (e: ChangeEvent<HTMLInputElement>) => {
+                onValueChange(specification.name, e.target.value);
+              },
+            }
+          : {})}
+      />
+    );
+  }
+
+  if (specOptions && specOptions.length > 0) {
+    const comboboxOptions = specOptions.map((option: string) => ({
       value: option,
       label: option,
     }));
@@ -190,19 +230,30 @@ export function ConfigurationStep({
   onValidationChange,
   initialConfiguration,
   loading = false,
+  isEditingExisting = false,
 }: ConfigurationStepProps) {
   const [configuration, setConfiguration] = useState<Record<string, unknown>>({});
   const initializedRef = useRef(false);
   const updatingFromParentRef = useRef(false);
+  const [secretEditing, setSecretEditing] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (connectorSpecification) {
       updatingFromParentRef.current = true;
-      const config = { ...(initialConfiguration ?? {}) };
+
+      const config: Record<string, unknown> = { ...(initialConfiguration ?? {}) };
 
       connectorSpecification.forEach(spec => {
+        const isSecret = Array.isArray(spec.attributes)
+          ? spec.attributes.includes('SECRET')
+          : false;
+
         if (config[spec.name] === undefined && spec.default !== undefined) {
           config[spec.name] = spec.default;
+        }
+
+        if (isEditingExisting && isSecret) {
+          config[spec.name] = SECRET_MASK;
         }
       });
 
@@ -212,7 +263,7 @@ export function ConfigurationStep({
         updatingFromParentRef.current = false;
       }, 0);
     }
-  }, [connectorSpecification, initialConfiguration]);
+  }, [connectorSpecification, initialConfiguration, isEditingExisting]);
 
   useEffect(() => {
     if (
@@ -221,7 +272,7 @@ export function ConfigurationStep({
       Object.keys(initialConfiguration).length > 0
     ) {
       updatingFromParentRef.current = true;
-      setConfiguration(initialConfiguration);
+      setConfiguration({ ...initialConfiguration });
       setTimeout(() => {
         updatingFromParentRef.current = false;
       }, 0);
@@ -313,21 +364,56 @@ export function ConfigurationStep({
       <AppWizardStep>
         <StepperHeroBlock connector={connector} />
         <AppWizardStepSection title='Configure Settings'>
-          {sortedSpecifications.map(specification => (
-            <AppWizardStepItem key={specification.name}>
-              {specification.requiredType !== RequiredType.BOOLEAN && (
-                <AppWizardStepLabel
-                  htmlFor={specification.name}
-                  required={specification.required}
-                  tooltip={specification.description}
-                >
-                  {specification.title ?? specification.name}
-                </AppWizardStepLabel>
-              )}
+          {sortedSpecifications.map(specification => {
+            const isSecret = Array.isArray(specification.attributes)
+              ? specification.attributes.includes('SECRET')
+              : false;
 
-              {renderInputForType(specification, configuration, handleValueChange)}
-            </AppWizardStepItem>
-          ))}
+            const isSecretEditing = secretEditing[specification.name];
+
+            const handleSecretEditToggle = (name: string, enable: boolean) => {
+              setSecretEditing(prev => ({ ...prev, [name]: enable }));
+              if (!enable) {
+                setConfiguration(prev => ({ ...prev, [name]: SECRET_MASK }));
+              } else {
+                setConfiguration(prev => ({ ...prev, [name]: '' }));
+              }
+            };
+
+            return (
+              <AppWizardStepItem key={specification.name}>
+                {specification.requiredType !== RequiredType.BOOLEAN && (
+                  <div className='flex items-center justify-between'>
+                    <AppWizardStepLabel
+                      htmlFor={specification.name}
+                      required={specification.required}
+                      tooltip={specification.description}
+                    >
+                      {specification.title ?? specification.name}
+                    </AppWizardStepLabel>
+                    {isSecret && isEditingExisting && (
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        type='button'
+                        onClick={() => {
+                          handleSecretEditToggle(specification.name, !isSecretEditing);
+                        }}
+                      >
+                        {isSecretEditing ? 'Cancel' : 'Edit'}
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                {renderInputForType(specification, configuration, handleValueChange, {
+                  isSecret,
+                  isEditingExisting,
+                  isSecretEditing,
+                })}
+              </AppWizardStepItem>
+            );
+          })}
         </AppWizardStepSection>
       </AppWizardStep>
     </>

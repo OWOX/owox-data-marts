@@ -2,7 +2,7 @@ import { useConnector } from '../../../shared/model/hooks/useConnector';
 import type { ConnectorListItem } from '../../../shared/model/types/connector';
 import { useEffect, useState, useCallback } from 'react';
 
-import { DataStorageType } from '../../../../data-storage/shared/model/types';
+import { DataStorageType } from '../../../../data-storage';
 import {
   ConnectorSelectionStep,
   ConfigurationStep,
@@ -11,8 +11,8 @@ import {
   TargetSetupStep,
 } from './steps';
 import { StepNavigation } from './components';
-import type { ConnectorConfig } from '../../../../data-marts/edit/model';
-import type { ConnectorFieldsResponseApiDto } from '../../../shared/api/types/response/connector.response.dto';
+import type { ConnectorConfig } from '../../../../data-marts/edit';
+import type { ConnectorFieldsResponseApiDto } from '../../../shared/api';
 import { AppWizard, AppWizardLayout, AppWizardActions } from '@owox/ui/components/common/wizard';
 
 interface ConnectorEditFormProps {
@@ -265,6 +265,7 @@ export function ConnectorEditForm({
           onValidationChange={handleConfigurationValidationChange}
           initialConfiguration={connectorConfiguration}
           loading={loadingSpecification}
+          isEditingExisting={Boolean(existingConnector?.source.configuration.length)}
         />
       ) : null;
     }
@@ -310,6 +311,7 @@ export function ConnectorEditForm({
             onValidationChange={handleConfigurationValidationChange}
             initialConfiguration={connectorConfiguration}
             loading={loadingSpecification}
+            isEditingExisting={false}
           />
         ) : null;
       case 3:
