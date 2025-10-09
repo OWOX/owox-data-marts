@@ -1,5 +1,49 @@
 # owox
 
+## 0.9.0
+
+### Minor Changes 0.9.0
+
+- 701a05f: # Add System Theme Option to User Menu
+  - Added **System** option to the theme switcher for automatic theme selection.
+  - Enhanced **UserMenu** with theme selection and submenu support for better usability.
+
+- 54df91e: # Convert boolean parameters to proper boolean type
+
+  Updated boolean configuration parameters to use proper `boolean` type instead of `string` or `bool` types:
+  - **ProcessShortLinks** (FacebookMarketing): `string` → `boolean`
+  - **SandboxMode** (TikTokAds): `bool` → `boolean`
+  - **IncludeDeleted** (TikTokAds): `bool` → `boolean`
+
+- 8402b05: # Add new CLI commands for database migrations
+  - `migrations up` - run all pending migrations
+  - `migrations down` - revert last migration
+  - `migrations status` - migration's status check
+
+- 0b0a8fb: # Enhanced Connector Setup Flow
+  - Improved structure with **AppWizard** components for a more consistent and flexible setup layout
+  - Better usability across all setup steps
+  - Refined **accessibility** and **visual design** throughout the connector editing interface
+
+- 32b0314: # Enhanced connectors to support CreateEmptyTables configuration option
+  - Now tables will be created even when no data is fetched, if the CreateEmptyTables parameter is set to "true".
+
+- 438c48f: # Added magic link confirmation page to `idb-better-auth`
+  - Generated magic links direct users to a confirmation page before the password setup page.
+
+- 95dcaec: # Intercom chat integration
+
+  💬 Intercom chat integration is now available in the Web app for faster support and onboarding.
+
+### Patch Changes 0.9.0
+
+- @owox/internal-helpers@0.9.0
+- @owox/idp-protocol@0.9.0
+- @owox/idp-better-auth@0.9.0
+- @owox/idp-owox@0.9.0
+- @owox/backend@0.9.0
+- @owox/web@0.9.0
+
 ## 0.8.0
 
 ### Minor Changes 0.8.0
