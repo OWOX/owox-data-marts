@@ -73,12 +73,6 @@ var XAdsSource = class XAdsSource extends AbstractSource {
         label: "Max Fetching Days",
         description: "Maximum number of days to fetch data for"
       },
-      BaseUrl: {
-        requiredType: "string",
-        default: "https://ads-api.x.com/",
-        label: "Base URL",
-        description: "X Ads API base URL"
-      },
       Version: {
         requiredType: "string",
         default: "12",
@@ -120,6 +114,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
     this.fieldsSchema = XAdsFieldsSchema;
     this._tweetsCache = new Map(); // Map<accountId, {data: Array, fields: Set}>
     this._promotedTweetsCache = new Map(); // Map<accountId, {data: Array, fields: Set}>
+    this.BaseUrl = "https://api.twitter.com/"; // Base URL for X Ads API
   }
 
   /**
@@ -411,7 +406,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
    * Pull JSON from the Ads API (raw, no field-filter).
    */
   _rawFetch(path, params = {}) {
-    const url = `${this.config.BaseUrl.value}${this.config.Version.value}/${path}`;
+    const url = `${this.BaseUrl}${this.config.Version.value}/${path}`;
     const qs = Object.keys(params).length
       ? '?' + Object.entries(params)
           .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
