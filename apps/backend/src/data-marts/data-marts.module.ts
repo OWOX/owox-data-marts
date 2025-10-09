@@ -87,6 +87,7 @@ import { ReportDataCache } from './entities/report-data-cache.entity';
 import { IdpModule } from '../idp/idp.module';
 import { createOperationTimeoutMiddleware } from '../common/middleware/operation-timeout.middleware';
 import { CommonModule } from '../common/common.module';
+import { ConnectorSecretService } from './services/connector-secret.service';
 
 @Module({
   imports: [
@@ -182,6 +183,7 @@ import { CommonModule } from '../common/common.module';
     ConnectorMessageParserService,
     ConnectorStateService,
     ConsumptionTrackingService,
+    ConnectorSecretService,
   ],
 })
 export class DataMartsModule {
