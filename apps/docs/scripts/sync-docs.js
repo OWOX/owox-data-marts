@@ -437,17 +437,42 @@ function processFrontmatterMetaInfo(frontmatter, metaData, filePaths) {
 }
 
 /**
- * Reads and parses CSV file containing metadata for pages (meta titles, descriptions, OG tags)
- * @returns {Array<Object>} - Array of metadata objects with pagePath, metaTitle, metaDescription, ogTitle, ogDescription
+ * Reads and parses CSV file containing metadata for pages (meta titles, descriptions, OG tags).
+ * Validates CSV structure and headers, throws errors if validation fails.
+ * @returns {Array<Object>} Array of metadata objects with pagePath, metaTitle, metaDescription, ogTitle, ogDescription
+ * @throws {Error} If CSV file cannot be read, has missing required headers, or has parsing errors
  */
 function prepareMetadataContent() {
   const csvContent = fs.readFileSync(path.join(APP_LOCATION, '/data/meta-content.csv'), 'utf-8');
 
-  const { data } = Papa.parse(csvContent, {
+  const { data, errors, meta } = Papa.parse(csvContent, {
     header: true,
     skipEmptyLines: true,
     transform: value => value.trim(),
   });
+
+  // Validate that all required headers are present in the CSV file
+  const expectedHeaders = ['pagePath', 'metaTitle', 'metaDescription', 'ogTitle', 'ogDescription'];
+  const actualHeaders = meta.fields || [];
+
+  const missingHeaders = expectedHeaders.filter(header => !actualHeaders.includes(header));
+  if (missingHeaders.length > 0) {
+    throw new Error(
+      `❌ Missing required CSV headers: ${missingHeaders.join(', ')}\n` +
+        `   Expected: ${expectedHeaders.join(', ')}\n` +
+        `   Found: ${actualHeaders.join(', ')}`
+    );
+  }
+
+  // Check for CSV parsing errors (e.g., field mismatch, malformed rows)
+  if (errors.length > 0) {
+    const errorsLog = errors
+      .map(error => `\n  - Row ${error.row}: ${error.message} (${error.type})`)
+      .join('');
+    throw new Error(`❌ CSV parsing failed with errors:${errorsLog}`);
+  }
+
+  console.log(`✅ CSV metadata parsed and validated successfully (${data.length} entries)`);
 
   return data;
 }
