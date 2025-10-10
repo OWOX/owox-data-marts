@@ -291,7 +291,7 @@ export function ConnectorEditForm({
       case 1:
         return (
           <ConnectorSelectionStep
-            connectors={connectors}
+            connectors={[...connectors].sort((a, b) => a.displayName.localeCompare(b.displayName))}
             selectedConnector={selectedConnector}
             loading={loading}
             error={error}
