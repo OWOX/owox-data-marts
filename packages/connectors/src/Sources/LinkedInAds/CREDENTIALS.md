@@ -50,7 +50,7 @@ When access is granted, the **Advertising API** will appear under the **Added Pr
 
 Navigate to the **Auth** tab of your LinkedIn app.
 
-Copy the Client ID and Client Secret, you will need it later.
+Copy the Client ID and Primary Client Secret, you will need it later.
 
 ![LinkedIn Ads Credentials](res/linkedin_clientsecret.png)
 

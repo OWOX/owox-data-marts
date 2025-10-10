@@ -17,8 +17,8 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
       ClientSecret: {
         isRequired: true,
         requiredType: "string",
-        label: "Client Secret",
-        description: "LinkedIn API Client Secret for authentication",
+        label: "Primary Client Secret",
+        description: "LinkedIn API Primary Client Secret for authentication",
         attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       RefreshToken: {

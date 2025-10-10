@@ -46,7 +46,7 @@ When access is granted, the **Community Management API** will appear under the *
 
 Navigate to the **Auth** tab of your LinkedIn app.
 
-Copy the Client ID and Client Secret, you will need it later.
+Copy the Client ID and Primary Client Secret, you will need it later.
 
 ![LinkedIn Pages Credentials](res/linkedin_clientsecret.png)
 
