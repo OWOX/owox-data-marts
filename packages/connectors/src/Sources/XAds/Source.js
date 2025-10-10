@@ -114,7 +114,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
     this.fieldsSchema = XAdsFieldsSchema;
     this._tweetsCache = new Map(); // Map<accountId, {data: Array, fields: Set}>
     this._promotedTweetsCache = new Map(); // Map<accountId, {data: Array, fields: Set}>
-    this.BaseUrl = "https://api.twitter.com/"; // Base URL for X Ads API
+    this.BASE_URL = "https://api.twitter.com/"; // Base URL for X Ads API
   }
 
   /**
@@ -406,7 +406,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
    * Pull JSON from the Ads API (raw, no field-filter).
    */
   _rawFetch(path, params = {}) {
-    const url = `${this.BaseUrl}${this.config.Version.value}/${path}`;
+    const url = `${this.BASE_URL}${this.config.Version.value}/${path}`;
     const qs = Object.keys(params).length
       ? '?' + Object.entries(params)
           .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
