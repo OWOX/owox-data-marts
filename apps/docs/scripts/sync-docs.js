@@ -397,15 +397,13 @@ function processFrontmatterMetaInfo(frontmatter, metaData, filePaths) {
   // replace root page path
   const pagePath = calcPagePath === '/readme/' ? '/' : calcPagePath;
 
-  const metaContent = metaData
-    .filter(metaContent => metaContent.pagePath === pagePath)
-    .reduce((_, metaContent) => metaContent, {});
+  const metaContent = metaData.find(metaContent => metaContent.pagePath === pagePath) || {};
 
   frontmatter.description = metaContent.metaDescription || `Documentation for ${relativePath}`;
 
   // add metainfo if present
   if (metaContent.pagePath) {
-    frontmatter.head = [];
+    frontmatter.head = frontmatter.head || [];
 
     const { metaTitle, ogTitle, ogDescription } = metaContent;
 
