@@ -7,9 +7,10 @@ import { ConfigurationView } from './ConfigurationView';
 import type { DataMartRunItem } from '../../model/types/data-mart-run';
 import { CopyButton } from '@owox/ui/components/common/copy-button';
 import { LogViewType } from './types';
-import { formatDate, getDisplayType, getRunSummary, parseLogEntry } from './utils';
+import { getDisplayType, getRunSummary, parseLogEntry } from './utils';
 import { getStatusIcon } from './icons';
 import { useClipboard } from '../../../../../hooks/useClipboard';
+import { formatDateTime } from '../../../../../utils/date-formatters';
 
 interface RunItemProps {
   run: DataMartRunItem;
@@ -79,7 +80,9 @@ export function RunItem({
         <div className='flex items-center gap-3'>
           {getStatusIcon(run.status)}
           <div className='text-foreground font-mono text-sm font-medium'>
-            {formatDate(new Date(run.createdAt).toISOString())}
+            {formatDateTime(
+              run.createdAt instanceof Date ? run.createdAt.toISOString() : run.createdAt
+            )}
           </div>
           <div className='text-muted-foreground flex items-center gap-1 text-xs'>
             <MessageSquare className='h-3 w-3' />

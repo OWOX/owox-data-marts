@@ -1,6 +1,6 @@
 import type { LogEntry } from './types';
 import { LogLevel } from './types';
-import { getDisplayType, formatDate, parseDate } from './utils';
+import { getDisplayType } from './utils';
 import { getLogLevelIcon, getLogLevelColor } from './icons';
 
 interface StructuredLogsViewProps {
@@ -39,7 +39,7 @@ export function StructuredLogsView({ logs }: StructuredLogsViewProps) {
             onClick={handleStopPropagation}
           >
             <div className='text-muted-foreground flex-shrink-0 font-mono text-xs'>
-              {formatDate(parseDate(getDisplayTimestamp(logEntry)).toISOString())}
+              {getDisplayTimestamp(logEntry)}
             </div>
             <div className='flex min-w-0 flex-shrink-0 items-center gap-2'>
               {getLogLevelIcon(logEntry.level)}
