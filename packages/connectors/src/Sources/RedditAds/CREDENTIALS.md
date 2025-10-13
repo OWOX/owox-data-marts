@@ -108,8 +108,8 @@ Reddit requires a properly formatted `User-Agent` header for all API requests. U
 
 You now have all required credentials:
 
-- **Client ID** (**App ID**)
-- **Client Secret** (**Secret**)
+- **App ID**
+- **Secret**
 - **Redirect URI**: `https://www.reddit.com/prefs/apps`  
 - **Refresh Token**  
 - **User-Agent Header**  
