@@ -87,10 +87,16 @@ export class TriggerFetcherService<T extends Trigger> {
   private async markTriggersAsReady(triggers: T[]): Promise<T[]> {
     const triggersToProcess: T[] = [];
     for (const trigger of triggers) {
+      const timeNow = this.systemClock.now();
       const { affected } = await this.repository.update(
-        { id: trigger.id, version: trigger.version } as FindOptionsWhere<T>,
+        {
+          id: trigger.id,
+          version: trigger.version,
+          status: TriggerStatus.IDLE,
+        } as FindOptionsWhere<T>,
         {
           status: TriggerStatus.READY,
+          modifiedAt: timeNow,
           version: () => 'version + 1',
         } as QueryDeepPartialEntity<T>
       );
@@ -103,6 +109,7 @@ export class TriggerFetcherService<T extends Trigger> {
       }
 
       trigger.status = TriggerStatus.READY;
+      trigger.modifiedAt = timeNow;
       trigger.version += 1;
       triggersToProcess.push(trigger);
     }
