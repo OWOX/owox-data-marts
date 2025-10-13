@@ -6,7 +6,7 @@
  */
 
 /* eslint-disable no-unused-vars */
-var adAccountInsightsFields = {
+var adAccountInsightsFieldsByCountry = {
   'account_currency': {
     'description': 'Currency that is used by your ad account.',
     'type': 'string'
@@ -462,5 +462,11 @@ var adAccountInsightsFields = {
     'description': 'wish_bid',
     'type': 'numeric string',
     'GoogleBigQueryType': 'numeric'
+  },
+  'country': {
+    'description': 'The country where the people you\'ve reached are located. This is based on information, such as a person\'s hometown, their current city, and the geographical location where they tend to be when they visit Meta.',
+    'type': 'string',
+    'fieldType': 'breakdown'
   }
 }
+

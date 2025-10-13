@@ -6,7 +6,7 @@
  */
 
 /* eslint-disable no-unused-vars */
-var adAccountInsightsFields = {
+var adAccountInsightsFieldsByLinkUrlAsset = {
   'account_currency': {
     'description': 'Currency that is used by your ad account.',
     'type': 'string'
@@ -462,5 +462,11 @@ var adAccountInsightsFields = {
     'description': 'wish_bid',
     'type': 'numeric string',
     'GoogleBigQueryType': 'numeric'
+  },
+  'link_url_asset': {
+    'description': 'The ID of the URL asset involved in impression, click or action.',
+    'type': 'object',
+    'fieldType': 'breakdown'
   }
 }
+

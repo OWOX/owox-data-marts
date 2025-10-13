@@ -77,6 +77,24 @@ var FacebookMarketingFieldsSchema = {
         "destinationName": "facebook_ads_ad_account_insights",
         "limit": 500
     },
+    "ad-account/insights-by-country": {
+        "description": "Interface for insights with breakdown by country.",
+        "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
+        "fields" : adAccountInsightsFieldsByCountry,
+        'uniqueKeys': ["ad_id", "date_start", "date_stop", "country"],
+        "isTimeSeries": true,
+        "destinationName": "facebook_ads_ad_account_insights_by_country",
+        "limit": 500
+    },
+    "ad-account/insights-by-link-url-asset": {
+        "description": "Interface for insights with breakdown by link URL asset.",
+        "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
+        "fields" : adAccountInsightsFieldsByLinkUrlAsset,
+        'uniqueKeys': ["ad_id", "date_start", "date_stop", "link_url_asset"],
+        "isTimeSeries": true,
+        "destinationName": "facebook_ads_ad_account_insights_by_link_url_asset",
+        "limit": 500
+    },
     "ad-group": {
         "overview": "Ad",
         "description": "Contains information for an ad, such as creative elements and measurement information.",
