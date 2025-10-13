@@ -47,12 +47,6 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
         label: "Max Fetching Days",
         description: "Maximum number of days to fetch data for"
       },
-      BaseUrl: {
-        requiredType: "string",
-        default: "https://api.linkedin.com/rest/",
-        label: "Base URL",
-        description: "LinkedIn API base URL"
-      },
       StartDate: {
         requiredType: "date",
         label: "Start Date",
@@ -85,6 +79,8 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
     
     this.fieldsSchema = LinkedInAdsFieldsSchema;
     this.MAX_FIELDS_PER_REQUEST = 20;
+    this.BASE_URL = "https://api.linkedin.com/rest/";
+  
   }
 
   /**
@@ -140,7 +136,7 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
    * @returns {Array} - Array containing the single resource
    */
   fetchSingleResource({ urn, resourceType, params }) {
-    let url = `${this.config.BaseUrl.value}${resourceType}/${encodeURIComponent(urn)}`;
+    let url = `${this.BASE_URL}${resourceType}/${encodeURIComponent(urn)}`;
     url += `?fields=${this.formatFields(params.fields)}`;
       
     const result = this.makeRequest(url);
@@ -157,7 +153,7 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
    * @returns {Array} - Array of fetched resources
    */
   fetchAdResource({ urn, resourceType, params, queryType = 'search' }) {
-    let url = `${this.config.BaseUrl.value}adAccounts/${encodeURIComponent(urn)}/${resourceType}?q=${queryType}&pageSize=100`;
+    let url = `${this.BASE_URL}adAccounts/${encodeURIComponent(urn)}/${resourceType}?q=${queryType}&pageSize=100`;
     url += `&fields=${this.formatFields(params.fields)}`;
     
     return this.fetchWithPagination(url);
@@ -262,7 +258,7 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
    */
   buildAdAnalyticsUrl({ startDate, endDate, encodedUrn, fields }) {
     // Construct the URL for the LinkedIn Analytics API
-    return `${this.config.BaseUrl.value}adAnalytics?q=statistics` +
+    return `${this.BASE_URL}adAnalytics?q=statistics` +
       `&dateRange=(start:${this.formatDateForUrl(startDate)},` +
       `end:${this.formatDateForUrl(endDate)})` +
       `&pivots=List(CREATIVE,CAMPAIGN,CAMPAIGN_GROUP,ACCOUNT)` +

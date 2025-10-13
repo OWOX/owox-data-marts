@@ -47,12 +47,6 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
         label: "Max Fetching Days",
         description: "Maximum number of days to fetch data for"
       },
-      BaseUrl: {
-        requiredType: "string",
-        default: "https://api.linkedin.com/rest/",
-        label: "Base URL",
-        description: "LinkedIn API base URL"
-      },
       StartDate: {
         requiredType: "date",
         label: "Start Date",
@@ -84,6 +78,7 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
     }));
     
     this.fieldsSchema = LinkedInPagesFieldsSchema;
+    this.BASE_URL = "https://api.linkedin.com/rest/";
   }
 
   /**
@@ -155,9 +150,9 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
     const { urn, nodeName, endpoint, entityParam, formatter, params } = options;
     const orgUrn = `urn:li:organization:${urn}`;
     const encodedUrn = encodeURIComponent(orgUrn);
-    
-    let url = `${this.config.BaseUrl.value}${endpoint}?q=${entityParam}&${entityParam}=${encodedUrn}`;
-    
+
+    let url = `${this.BASE_URL}${endpoint}?q=${entityParam}&${entityParam}=${encodedUrn}`;
+
     const isTimeSeries = this.fieldsSchema[nodeName].isTimeSeries;
 
     if (isTimeSeries && params.startDate && params.endDate) {
