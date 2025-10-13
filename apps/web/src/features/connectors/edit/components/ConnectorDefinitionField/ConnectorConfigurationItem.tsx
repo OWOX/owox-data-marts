@@ -1,6 +1,6 @@
 import { Button } from '@owox/ui/components/button';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
-import { Info, Trash2, Settings } from 'lucide-react';
+import { Info, Trash2, ChevronRight } from 'lucide-react';
 import { DataMartConnectorView } from '../../DataMartConnectorView';
 import { DataStorageType } from '../../../../data-storage';
 import type { ConnectorConfig, ConnectorDefinitionConfig } from '../../../../data-marts/edit/model';
@@ -52,13 +52,17 @@ export function ConnectorConfigurationItem({
     const node = connectorDef.connector.source.node || 'No node selected';
     return (
       <div className='flex flex-wrap items-center gap-2'>
-        <span className='text-muted-foreground/75'>Node:</span>{' '}
+        <span className='text-muted-foreground/75'>Data:</span>{' '}
         <span className='text-muted-foreground font-medium'>{node}</span>
+        <span className='text-muted-foreground'>•</span>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Settings className='h-4 w-4' />
+            <span className='text-muted-foreground flex items-center gap-1 font-medium'>
+              <span>Edit config</span>
+              <ChevronRight className='h-3 w-3' />
+            </span>
           </TooltipTrigger>
-          <TooltipContent>Open connector configuration</TooltipContent>
+          <TooltipContent>Edit connector configuration</TooltipContent>
         </Tooltip>
       </div>
     );

@@ -207,7 +207,7 @@ export function FieldsSelectionStep({
         {/* end: Search & Sorting */}
 
         <AppWizardStepSection
-          title={`Selected ${String(selectedTotalCount)} of ${String(availableFieldNames.length)} fields for node '${selectedField}'`}
+          title={`Selected ${String(selectedTotalCount)} of ${String(availableFieldNames.length)} fields for "${selectedField}" data`}
         >
           {filteredFields.map(field => {
             const isUniqueKey = uniqueKeys.includes(field.name);

@@ -29,7 +29,7 @@ export function NodesSelectionStep({
   loading = false,
   onFieldSelect,
 }: NodesSelectionStepProps) {
-  const title = connectorName ? `Select node for ${connectorName}` : 'Select node';
+  const title = connectorName ? `Select data for ${connectorName}` : 'Select data';
 
   if (loading) {
     return <AppWizardStepLoading variant='list' />;
@@ -44,7 +44,7 @@ export function NodesSelectionStep({
           title={connectorName ? `No nodes found for ${connectorName}` : 'No nodes found'}
           subtitle='This connector might not be fully implemented yet or there could be other issues.'
         />
-        <OpenIssueLink label='Need nodes?' />
+        <OpenIssueLink label='Missing some data?' />
       </AppWizardStep>
     );
   }
@@ -95,7 +95,7 @@ export function NodesSelectionStep({
           />
         ))}
 
-        <OpenIssueLink label='Need another node?' />
+        <OpenIssueLink label='Missing some data?' />
       </AppWizardStepSection>
     </AppWizardStep>
   );
