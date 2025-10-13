@@ -8,6 +8,8 @@ Inside the OWOX Docs project (`apps/docs` from the monorepo root), you'll find t
 
 ```bash
 .
+├── data/
+│   └── meta-content.csv     # SEO metadata for documentation pages
 ├── public/
 ├── scripts/
 │   ├── env-config.js        # Environment configuration script
@@ -35,6 +37,18 @@ Static assets, such as favicons, can be placed in the `public/` directory. These
 The `scripts/` directory contains scripts for synchronizing documentation content and configuring the environment.
 
 > ℹ️ For information about required environment variables for production, see [⚠️ Environment Variables](#️-environment-variables).
+
+## 📊 SEO Metadata Configuration
+
+The `data/meta-content.csv` file contains SEO metadata for documentation pages. This file is used during the sync process to enhance page frontmatter with custom meta information.
+
+The CSV file has the following columns:
+
+- **pagePath** - The URL path of the page (e.g., `/`, `/docs/getting-started/quick-start/`)
+- **metaTitle** - Custom page title for the browser tab
+- **metaDescription** - Meta description for search engines
+- **ogTitle** - Open Graph title for social media sharing
+- **ogDescription** - Open Graph description for social media sharing
 
 ## 🧞 Commands
 
