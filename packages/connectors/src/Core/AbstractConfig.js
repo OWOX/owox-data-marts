@@ -153,7 +153,7 @@ class AbstractConfig {
                 }
 
               // parameters must be a date
-              } else if ( parameter.requiredType == "date" && parameter.value.constructor.name != "Date" ) {
+              } else if ( parameter.requiredType == "date" && parameter.value && parameter.value.constructor.name != "Date" ) {
 
                 // Check if the value is a string and matches the format YYYY-MM-DD cast it to a date
                 if (parameter.value.constructor.name == "String" && parameter.value.match(/^\d{4}-\d{2}-\d{2}$/)) {
