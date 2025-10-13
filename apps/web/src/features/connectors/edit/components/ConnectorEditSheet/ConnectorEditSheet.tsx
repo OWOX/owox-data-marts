@@ -50,15 +50,17 @@ export function ConnectorEditSheet({
         <SheetHeader>
           <SheetTitle>
             {mode === 'fields-only'
-              ? 'Edit Fields'
+              ? 'Connector Fields'
               : existingConnector?.source.name
-                ? `Table filled by connector`
-                : 'Connector Setup'}
+                ? `Edit Connector`
+                : 'Set Up Connector'}
           </SheetTitle>
           <SheetDescription>
             {mode === 'fields-only'
-              ? 'Select which fields to include in your Data Mart'
-              : 'Follow these easy steps to configure it'}
+              ? 'Select fields for your Data Mart'
+              : existingConnector?.source.name
+                ? 'Update configuration'
+                : 'Follow these steps to set it up'}
           </SheetDescription>
         </SheetHeader>
         <ConnectorEditForm
