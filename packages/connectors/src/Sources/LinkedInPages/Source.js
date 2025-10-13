@@ -78,7 +78,7 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
     }));
     
     this.fieldsSchema = LinkedInPagesFieldsSchema;
-    this.BaseUrl = "https://api.linkedin.com/rest/";
+    this.BASE_URL = "https://api.linkedin.com/rest/";
   }
 
   /**
@@ -150,9 +150,9 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
     const { urn, nodeName, endpoint, entityParam, formatter, params } = options;
     const orgUrn = `urn:li:organization:${urn}`;
     const encodedUrn = encodeURIComponent(orgUrn);
-    
-    let url = `${this.BaseUrl}${endpoint}?q=${entityParam}&${entityParam}=${encodedUrn}`;
-    
+
+    let url = `${this.BASE_URL}${endpoint}?q=${entityParam}&${entityParam}=${encodedUrn}`;
+
     const isTimeSeries = this.fieldsSchema[nodeName].isTimeSeries;
 
     if (isTimeSeries && params.startDate && params.endDate) {
