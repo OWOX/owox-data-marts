@@ -462,55 +462,39 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
   }
 
   /**
-   * Executes background connector for data mart runs that are in the INTERRUPTED status.
-   * Retrieves the list of interrupted runs, validates each run, checks if the respective data marts are already running,
-   * and attempts to resume their execution in the background. Runs that are already executing will be skipped,
-   * and runs that fail validation or execution will be logged with appropriate error messages.
+   * Schedules background execution for data mart runs with the INTERRUPTED status.
+   * For each run, validates the data mart and ensures it is not already running,
+   * then starts execution in the background and logs any background errors.
    *
-   * @return {Promise<void>} A promise that resolves when all interrupted runs have been processed,
-   *                         with execution statistics logged (started, skipped, failed counts).
+   * Note: This method does not await completion of background executions and resolves
+   * once scheduling is completed.
+   *
+   * @throws {Error} If the data mart is not a connector type or not published.
+   * @throws {Error} If the data mart is already running.
+   * @return {Promise<void>} Resolves after scheduling background executions.
    */
   private async executeInterruptedRuns(): Promise<void> {
     const interruptedRuns = await this.getDataMartRunsByStatus(DataMartRunStatus.INTERRUPTED);
-
     if (interruptedRuns.length === 0) {
       this.logger.log('No interrupted runs found to resume');
       return;
     }
 
     this.logger.log(`Starting execution of ${interruptedRuns.length} interrupted runs...`);
-    const promises: Promise<void>[] = [];
-    let skippedCount = 0;
-    let failedCount = 0;
-    let startedCount = 0;
-
     for (const run of interruptedRuns) {
-      try {
-        this.validateDataMartForConnector(run.dataMart);
-        const isRunning = await this.checkDataMartIsRunning(run.dataMart);
-        if (isRunning) {
-          this.logger.warn(`Skipping interrupted run ${run.id}: DataMart is already running`);
-          skippedCount++;
-          continue;
-        }
-        promises.push(
-          this.executeInBackground(run.dataMart, run.id, run.additionalParams).catch(error => {
-            this.logger.error(`Interrupted background execution failed for run ${run.id}:`, error);
-            failedCount++;
-          })
-        );
-        startedCount++;
-      } catch (error) {
-        this.logger.error(`Failed to start interrupted run ${run.id}:`, error);
-        failedCount++;
+      this.validateDataMartForConnector(run.dataMart);
+      const isRunning = await this.checkDataMartIsRunning(run.dataMart);
+      if (isRunning) {
+        this.logger.warn(`Skipping interrupted run ${run.id}: DataMart is already running`);
+        continue;
+      } else {
+        this.logger.log(`Starting execution of interrupted run ${run.id}`);
       }
+
+      this.executeInBackground(run.dataMart, run.id, run.additionalParams).catch(error => {
+        this.logger.error(`Interrupted background execution failed for run ${run.id}:`, error);
+      });
     }
-
-    await Promise.allSettled(promises);
-
-    this.logger.log(
-      `Interrupted runs execution completed: ${skippedCount} skipped, ${startedCount} started, ${failedCount} failed (total: ${interruptedRuns.length})`
-    );
   }
 
   /**
