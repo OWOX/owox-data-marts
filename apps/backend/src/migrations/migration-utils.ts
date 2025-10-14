@@ -10,6 +10,7 @@ const logger = createLogger('MigrationService');
 
 /**
  * Instead of dropping tables, rename them to preserve data.
+ * Automatically drops all foreign keys, indices, and other constraints before renaming to avoid naming conflicts.
  * Creates a backup table with incremental naming if backup already exists.
  * @param queryRunner - TypeORM query runner instance
  * @param tableName - Name of the table to backup
@@ -17,6 +18,50 @@ const logger = createLogger('MigrationService');
  */
 export async function softDropTable(queryRunner: QueryRunner, tableName: string): Promise<void> {
   logger.debug(`Starting soft drop for table: ${tableName}`);
+
+  // Get table metadata to find all constraints and indices
+  const table = await queryRunner.getTable(tableName);
+  if (!table) {
+    logger.warn(`Table ${tableName} does not exist, skipping soft drop`);
+    return;
+  }
+
+  // Drop all foreign keys first (they may depend on indices)
+  if (table.foreignKeys && table.foreignKeys.length > 0) {
+    logger.debug(`Dropping ${table.foreignKeys.length} foreign keys from table ${tableName}`);
+    for (const foreignKey of table.foreignKeys) {
+      logger.debug(`Dropping foreign key: ${foreignKey.name}`);
+      await queryRunner.dropForeignKey(tableName, foreignKey);
+    }
+  }
+
+  // Drop all indices to avoid naming conflicts when table is recreated
+  if (table.indices && table.indices.length > 0) {
+    logger.debug(`Dropping ${table.indices.length} indices from table ${tableName}`);
+    for (const index of table.indices) {
+      logger.debug(`Dropping index: ${index.name}`);
+      await queryRunner.dropIndex(tableName, index.name!);
+    }
+  }
+
+  // Drop check constraints if any exist
+  if (table.checks && table.checks.length > 0) {
+    logger.debug(`Dropping ${table.checks.length} check constraints from table ${tableName}`);
+    for (const check of table.checks) {
+      logger.debug(`Dropping check constraint: ${check.name}`);
+      await queryRunner.dropCheckConstraint(tableName, check);
+    }
+  }
+
+  // Drop unique constraints if any exist (excluding those from unique indices)
+  if (table.uniques && table.uniques.length > 0) {
+    logger.debug(`Dropping ${table.uniques.length} unique constraints from table ${tableName}`);
+    for (const unique of table.uniques) {
+      logger.debug(`Dropping unique constraint: ${unique.name}`);
+      await queryRunner.dropUniqueConstraint(tableName, unique);
+    }
+  }
+
   let n = 0;
   let backupName = `${tableName}_backup`;
 
