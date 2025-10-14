@@ -3,8 +3,10 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { DataMartDefinitionValidatorFacade } from '../data-storage-types/facades/data-mart-definition-validator-facade.service';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
 import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-definition.command';
+import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
+import { ConnectorSecretService } from '../services/connector-secret.service';
 import { DataMartService } from '../services/data-mart.service';
 
 @Injectable()
@@ -12,7 +14,8 @@ export class UpdateDataMartDefinitionService {
   constructor(
     private readonly dataMartService: DataMartService,
     private readonly definitionValidatorFacade: DataMartDefinitionValidatorFacade,
-    private readonly mapper: DataMartMapper
+    private readonly mapper: DataMartMapper,
+    private readonly connectorSecretService: ConnectorSecretService
   ) {}
 
   async run(command: UpdateDataMartDefinitionCommand): Promise<DataMartDto> {
@@ -22,7 +25,15 @@ export class UpdateDataMartDefinitionService {
       throw new BusinessViolationException('DataMart already has definition');
     }
     dataMart.definitionType = command.definitionType;
-    dataMart.definition = command.definition;
+
+    if (command.definitionType === DataMartDefinitionType.CONNECTOR && command.definition) {
+      dataMart.definition = await this.connectorSecretService.mergeDefinitionSecrets(
+        command.definition as ConnectorDefinition,
+        dataMart.definition as ConnectorDefinition | undefined
+      );
+    } else {
+      dataMart.definition = command.definition;
+    }
 
     await this.definitionValidatorFacade.checkIsValid(dataMart);
 

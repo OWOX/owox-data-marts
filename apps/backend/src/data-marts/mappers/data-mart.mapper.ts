@@ -35,10 +35,15 @@ import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-r
 import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { CancelDataMartRunCommand } from '../dto/domain/cancel-data-mart-run.command';
+import { ConnectorSecretService } from '../services/connector-secret.service';
+import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 
 @Injectable()
 export class DataMartMapper {
-  constructor(private readonly dataStorageMapper: DataStorageMapper) {}
+  constructor(
+    private readonly dataStorageMapper: DataStorageMapper,
+    private readonly connectorSecretService: ConnectorSecretService
+  ) {}
 
   toCreateDomainCommand(
     context: AuthorizationContext,
@@ -81,14 +86,18 @@ export class DataMartMapper {
     };
   }
 
-  toResponse(dto: DataMartDto): DataMartResponseApiDto {
+  async toResponse(dto: DataMartDto): Promise<DataMartResponseApiDto> {
+    const maskedDefinition =
+      dto.definitionType === DataMartDefinitionType.CONNECTOR
+        ? await this.connectorSecretService.mask(dto.definition as ConnectorDefinition)
+        : dto.definition;
     return {
       id: dto.id,
       title: dto.title,
       status: dto.status,
       storage: this.dataStorageMapper.toApiResponse(dto.storage),
       definitionType: dto.definitionType,
-      definition: dto.definition,
+      definition: maskedDefinition,
       description: dto.description,
       schema: dto.schema,
       triggersCount: dto.triggersCount,
@@ -98,8 +107,8 @@ export class DataMartMapper {
     };
   }
 
-  toResponseList(dtos: DataMartDto[]): DataMartResponseApiDto[] {
-    return dtos.map(dto => this.toResponse(dto));
+  async toResponseList(dtos: DataMartDto[]): Promise<DataMartResponseApiDto[]> {
+    return Promise.all(dtos.map(dto => this.toResponse(dto)));
   }
 
   toUpdateDefinitionCommand(
@@ -237,17 +246,19 @@ export class DataMartMapper {
     return entities.map(entity => this.toDataMartRunDto(entity));
   }
 
-  toRunsResponse(runs: DataMartRunDto[]): DataMartRunsResponseApiDto {
-    return {
-      runs: runs.map(run => ({
+  async toRunsResponse(runs: DataMartRunDto[]): Promise<DataMartRunsResponseApiDto> {
+    const maskedRuns = await Promise.all(
+      runs.map(async run => ({
         id: run.id,
         status: run.status,
         dataMartId: run.dataMartId,
-        definitionRun: run.definitionRun,
+        definitionRun:
+          (await this.connectorSecretService.mask(run.definitionRun)) ?? run.definitionRun,
         logs: run.logs,
         errors: run.errors,
         createdAt: run.createdAt,
-      })),
-    };
+      }))
+    );
+    return { runs: maskedRuns };
   }
 }
