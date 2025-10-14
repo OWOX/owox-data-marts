@@ -252,7 +252,8 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
      * @private
      */
     _fetchInsightsData({ nodeName, accountId, fields, timeRange, url }) {
-      const { regularFields, breakdowns } = this._prepareFieldsAndBreakdowns(nodeName, fields);
+      const breakdowns = this.fieldsSchema[nodeName].breakdowns || [];
+      const regularFields = this._prepareFields({ nodeName, fields, breakdowns });
       
       const requestUrl = this._buildInsightsUrl({
         accountId,
@@ -276,32 +277,23 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       return allData;
     }
 
-  //---- _prepareFieldsAndBreakdowns --------------------------------------
+  //---- _prepareFields --------------------------------------
     /**
-     * Prepare and separate regular fields from breakdown fields
+     * Filter and prepare fields for API request
+     * Filters out fields that don't exist in schema and removes breakdown fields
+     * Breakdowns are passed separately in &breakdowns= parameter, not in &fields=
      * 
-     * @param {string} nodeName - Node name
-     * @param {Array} fields - All fields
-     * @return {Object} Object with regularFields and breakdowns
+     * @param {Object} params - Parameters object
+     * @param {string} params.nodeName - Node name
+     * @param {Array} params.fields - All fields
+     * @param {Array} params.breakdowns - Breakdown fields to exclude
+     * @return {Array} Regular fields ready for API request
      * @private
      */
-    _prepareFieldsAndBreakdowns(nodeName, fields) {
-      // Filter out fields that don't exist in schema
-      // This is a backward compatible fallback for ad-account/insights endpoint
-      // which previously supported breakdown fields (country, link_url_asset, etc.)
-      // but now they are moved to separate endpoints (insights-by-country, insights-by-link-url-asset)
-      const availableFields = fields.filter(field => this.fieldsSchema[nodeName].fields[field]);
-      
-      const regularFields = availableFields.filter(field => 
-        !this.fieldsSchema[nodeName].fields[field].fieldType || 
-        this.fieldsSchema[nodeName].fields[field].fieldType !== 'breakdown'
+    _prepareFields({ nodeName, fields, breakdowns }) {
+      return fields.filter(field => 
+        this.fieldsSchema[nodeName].fields[field] && !breakdowns.includes(field)
       );
-      
-      const breakdowns = availableFields.filter(field => 
-        this.fieldsSchema[nodeName].fields[field].fieldType === 'breakdown'
-      );
-      
-      return { regularFields, breakdowns };
     }
 
   //---- _buildInsightsUrl ------------------------------------------------

@@ -32,10 +32,6 @@ var adAccountInsightsFieldsByCountry = {
     'description': 'ad_click_actions',
     'type': 'list<AdsActionStats>'
   },
-  'ad_format_asset': {
-    'description': 'ad_format_asset',
-    'type': 'string'
-  },
   'ad_id': {
     'description': 'The unique ID of the ad you\'re viewing in reporting.',
     'type': 'numeric string',
@@ -128,6 +124,10 @@ var adAccountInsightsFieldsByCountry = {
     'description': 'The number of clicks on your ads.',
     'type': 'numeric string',
     'GoogleBigQueryType': 'numeric'
+  },
+  'country': {
+    'description': 'The country where the people you\'ve reached are located. This is based on information, such as a person\'s hometown, their current city, and the geographical location where they tend to be when they visit Meta.',
+    'type': 'string'
   },
   'conversion_values': {
     'description': 'conversion_values',
@@ -462,11 +462,6 @@ var adAccountInsightsFieldsByCountry = {
     'description': 'wish_bid',
     'type': 'numeric string',
     'GoogleBigQueryType': 'numeric'
-  },
-  'country': {
-    'description': 'The country where the people you\'ve reached are located. This is based on information, such as a person\'s hometown, their current city, and the geographical location where they tend to be when they visit Meta.',
-    'type': 'string',
-    'fieldType': 'breakdown'
   }
 }
 

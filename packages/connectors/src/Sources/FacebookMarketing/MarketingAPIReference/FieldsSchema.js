@@ -81,6 +81,7 @@ var FacebookMarketingFieldsSchema = {
         "description": "Interface for insights with breakdown by country.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
         "fields" : adAccountInsightsFieldsByCountry,
+        "breakdowns": ["country"],
         'uniqueKeys': ["ad_id", "date_start", "date_stop", "country"],
         "isTimeSeries": true,
         "destinationName": "facebook_ads_ad_account_insights_by_country",
@@ -90,7 +91,8 @@ var FacebookMarketingFieldsSchema = {
         "description": "Interface for insights with breakdown by link URL asset.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
         "fields" : adAccountInsightsFieldsByLinkUrlAsset,
-        'uniqueKeys': ["ad_id", "date_start", "date_stop", "link_url_asset"],
+        "breakdowns": ["link_url_asset"],
+        'uniqueKeys': ["ad_id", "date_start", "date_stop"],
         "isTimeSeries": true,
         "destinationName": "facebook_ads_ad_account_insights_by_link_url_asset",
         "limit": 500
