@@ -252,7 +252,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
      * @private
      */
     _fetchInsightsData({ nodeName, accountId, fields, timeRange, url }) {
-      const { regularFields, breakdowns } = this._separateFieldsAndBreakdowns(nodeName, fields);
+      const { regularFields, breakdowns } = this._prepareFieldsAndBreakdowns(nodeName, fields);
       
       const requestUrl = this._buildInsightsUrl({
         accountId,
@@ -276,23 +276,28 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       return allData;
     }
 
-  //---- _separateFieldsAndBreakdowns --------------------------------------
+  //---- _prepareFieldsAndBreakdowns --------------------------------------
     /**
-     * Separate regular fields from breakdown fields
+     * Prepare and separate regular fields from breakdown fields
      * 
      * @param {string} nodeName - Node name
      * @param {Array} fields - All fields
      * @return {Object} Object with regularFields and breakdowns
      * @private
      */
-    _separateFieldsAndBreakdowns(nodeName, fields) {
-      const regularFields = fields.filter(field => 
-        !this.fieldsSchema[nodeName].fields[field] || 
+    _prepareFieldsAndBreakdowns(nodeName, fields) {
+      // Filter out fields that don't exist in schema
+      // This is a backward compatible fallback for ad-account/insights endpoint
+      // which previously supported breakdown fields (country, link_url_asset, etc.)
+      // but now they are moved to separate endpoints (insights-by-country, insights-by-link-url-asset)
+      const availableFields = fields.filter(field => this.fieldsSchema[nodeName].fields[field]);
+      
+      const regularFields = availableFields.filter(field => 
+        !this.fieldsSchema[nodeName].fields[field].fieldType || 
         this.fieldsSchema[nodeName].fields[field].fieldType !== 'breakdown'
       );
       
-      const breakdowns = fields.filter(field => 
-        this.fieldsSchema[nodeName].fields[field] && 
+      const breakdowns = availableFields.filter(field => 
         this.fieldsSchema[nodeName].fields[field].fieldType === 'breakdown'
       );
       
