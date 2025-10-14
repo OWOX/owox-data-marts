@@ -11,14 +11,14 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
       ClientId: {
         isRequired: true,
         requiredType: "string",
-        label: "Client ID",
-        description: "Reddit Ads API Client ID"
+        label: "App ID",
+        description: "Reddit Ads API App ID"
       },
       ClientSecret: {
         isRequired: true,
         requiredType: "string",
-        label: "Client Secret",
-        description: "Reddit Ads API Client Secret",
+        label: "Secret",
+        description: "Reddit Ads API Secret",
         attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       RedirectUri: {
