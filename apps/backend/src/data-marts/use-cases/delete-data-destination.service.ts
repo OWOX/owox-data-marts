@@ -23,13 +23,13 @@ export class DeleteDataDestinationService {
       command.projectId
     );
 
-    const reportsCount = await this.reportRepository.count({
-      where: {
-        dataDestination: {
-          id: destination.id,
-        },
-      },
-    });
+    const reportsCount = await this.reportRepository
+      .createQueryBuilder('report')
+      .innerJoin('report.dataMart', 'dataMart')
+      .where('report.dataDestinationId = :destinationId', {
+        destinationId: destination.id,
+      })
+      .getCount();
 
     if (reportsCount > 0) {
       throw new BusinessViolationException(
