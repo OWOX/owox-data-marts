@@ -2,7 +2,7 @@
 
 Before proceeding, please make sure that:
 
-- You have created a **refresh token** (as described in [CREDENTIALS](CREDENTIALS)) and securely saved your **Client ID** and **Client Secret**.  
+- You have created a **refresh token** (as described in [CREDENTIALS](CREDENTIALS)) and securely saved your **Client ID** and **Primary Client Secret**.  
 - You have [set up **OWOX Data Marts**](https://docs.owox.com/docs/getting-started/quick-start/) and created at least one storage in the **Storages** section.  
 
 ![LinkedIn Pages Storage](res/linkedin_pages_storage.png)
@@ -21,7 +21,7 @@ Before proceeding, please make sure that:
 2. Click **Set up connector** and choose **LinkedIn Pages**.  
 3. Fill in the required fields:
     - **Client ID** – paste the ID you saved earlier.
-    - **Client Secret** – paste the secret you saved earlier.
+    - **Primary Client Secret** – paste the secret you saved earlier.
     - **Refresh Token** – paste the token you created following the [CREDENTIALS](CREDENTIALS) tutorial.
     - **Organization URNs** – you can find this value on your LinkedIn company page.
     - Leave the other fields as default and proceed to the next step.
