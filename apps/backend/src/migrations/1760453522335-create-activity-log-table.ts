@@ -48,13 +48,6 @@ export class CreateActivityLogTable1760453522335 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    // Drop indices before soft dropping the table to avoid naming conflicts
-    await queryRunner.dropIndex('activity_log', 'idx_activity_log_occurred_at');
-    await queryRunner.dropIndex('activity_log', 'idx_activity_log_eventType');
-    await queryRunner.dropIndex('activity_log', 'idx_activity_log_entity');
-    await queryRunner.dropIndex('activity_log', 'idx_activity_log_project');
-    await queryRunner.dropIndex('activity_log', 'idx_activity_log_user');
-
     await softDropTable(queryRunner, 'activity_log');
   }
 }
