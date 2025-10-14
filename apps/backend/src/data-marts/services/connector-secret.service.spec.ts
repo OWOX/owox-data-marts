@@ -1,14 +1,14 @@
 import type { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
-import { SpecificationConnectorService } from '../use-cases/connector/specification-connector.service';
+import { ConnectorService } from './connector.service';
 import { ConnectorSecretService, SECRET_MASK } from './connector-secret.service';
 
-describe('ConnectorSecretMaskingService', () => {
+describe('ConnectorSecretService', () => {
   const createService = (secretFields: string[]) => {
     const specService = {
-      run: jest
+      getConnectorSpecification: jest
         .fn()
         .mockResolvedValue(secretFields.map(name => ({ name, attributes: ['SECRET'] }))),
-    } as unknown as SpecificationConnectorService;
+    } as unknown as ConnectorService;
 
     const service = new ConnectorSecretService(specService);
     return { service, specService };
