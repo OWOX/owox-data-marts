@@ -142,7 +142,18 @@ var GitHubSource = class GitHubSource extends AbstractSource {
     });
     const result = JSON.parse(response.getContentText());
 
+    // Check for GitHub API error response
+    if (result && result.message === 'Not Found') {
+      throw new Error(
+        "The repository was not found. The repository name should be in the format: owner/repo"
+      );
+    }
+
     return result;
+  } catch (error) {
+    this.config.logMessage(`Error: ${error.message}`);
+    console.error(error.stack);
+    return null;
   }
 
   /**
@@ -167,6 +178,7 @@ var GitHubSource = class GitHubSource extends AbstractSource {
       }
       return result;
     });
-  }
-    
+  } 
+
 }
+
