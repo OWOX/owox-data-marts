@@ -153,7 +153,7 @@ var GitHubSource = class GitHubSource extends AbstractSource {
   } catch (error) {
     this.config.logMessage(`Error: ${error.message}`);
     console.error(error.stack);
-    return null;
+    throw error;
   }
 
   /**
