@@ -514,6 +514,8 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
       return;
     }
 
-    await this.executeInterruptedRuns();
+    this.executeInterruptedRuns().catch(err =>
+      this.logger.error('Failed to execute interrupted runs', err)
+    );
   }
 }
