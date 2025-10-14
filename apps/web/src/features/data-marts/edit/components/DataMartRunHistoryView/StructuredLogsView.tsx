@@ -1,6 +1,6 @@
 import type { LogEntry } from './types';
 import { LogLevel } from './types';
-import { getDisplayTimestamp, getDisplayType } from './utils';
+import { getDisplayType } from './utils';
 import { getLogLevelIcon, getLogLevelColor } from './icons';
 
 interface StructuredLogsViewProps {
@@ -10,6 +10,13 @@ interface StructuredLogsViewProps {
 export function StructuredLogsView({ logs }: StructuredLogsViewProps) {
   const handleStopPropagation = (e: React.MouseEvent) => {
     e.stopPropagation();
+  };
+
+  const getDisplayTimestamp = (logEntry: LogEntry): string => {
+    if (logEntry.metadata?.at) {
+      return logEntry.metadata.at as string;
+    }
+    return logEntry.timestamp;
   };
 
   if (logs.length === 0) {

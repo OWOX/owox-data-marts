@@ -1,6 +1,15 @@
 import type { LogEntry } from './types';
 import { LogLevel } from './types';
 import type { DataMartDefinitionConfigDto } from '../../model/types/data-mart-definition-config';
+import { formatDateTime, parseDate } from '../../../../../utils/date-formatters';
+
+/**
+ * Format timestamp string to display format
+ * Parses the timestamp and formats it in browser's local timezone
+ */
+const formatTimestamp = (timestamp: string): string => {
+  return formatDateTime(parseDate(timestamp).toISOString());
+};
 
 export const parseLogEntry = (log: string, index: number, isError = false): LogEntry => {
   // Split log into lines for multiline format
@@ -19,11 +28,13 @@ export const parseLogEntry = (log: string, index: number, isError = false): LogE
 
       return {
         id: `log-${index.toString()}`,
-        timestamp: timestamp,
+        timestamp: formatTimestamp(timestamp),
         level: isError ? LogLevel.ERROR : LogLevel.INFO,
         message: processedMessage.message,
         metadata: {
-          at: processedMessage.metadata?.at ?? timestamp,
+          at: processedMessage.metadata?.at
+            ? formatTimestamp(processedMessage.metadata.at as string)
+            : formatTimestamp(timestamp),
           type: processedMessage.metadata?.type ?? (type !== 'unknown' ? type : null),
         },
       };
@@ -36,10 +47,15 @@ export const parseLogEntry = (log: string, index: number, isError = false): LogE
 
     return {
       id: `log-${index.toString()}`,
-      timestamp: structuredMatch[1],
+      timestamp: formatTimestamp(structuredMatch[1]),
       level: isError ? LogLevel.ERROR : (structuredMatch[2] as LogLevel),
       message: processedMessage.message,
-      metadata: processedMessage.metadata,
+      metadata: processedMessage.metadata?.at
+        ? {
+            ...processedMessage.metadata,
+            at: formatTimestamp(processedMessage.metadata.at as string),
+          }
+        : processedMessage.metadata,
     };
   }
 
@@ -47,10 +63,15 @@ export const parseLogEntry = (log: string, index: number, isError = false): LogE
   const processedMessage = processJSONMessage(log);
   return {
     id: `log-${index.toString()}`,
-    timestamp: new Date().toISOString(),
+    timestamp: formatTimestamp(new Date().toISOString()),
     level: isError ? LogLevel.ERROR : LogLevel.INFO,
     message: processedMessage.message,
-    metadata: processedMessage.metadata,
+    metadata: processedMessage.metadata?.at
+      ? {
+          ...processedMessage.metadata,
+          at: formatTimestamp(processedMessage.metadata.at as string),
+        }
+      : processedMessage.metadata,
   };
 };
 
@@ -97,25 +118,6 @@ export const processJSONMessage = (
   }
 
   return { message };
-};
-
-export const formatDate = (dateString: string) => {
-  const date = new Date(dateString);
-  const year = String(date.getFullYear());
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
-
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-};
-
-export const getDisplayTimestamp = (logEntry: LogEntry): string => {
-  if (logEntry.metadata?.at) {
-    return formatDate(logEntry.metadata.at as string);
-  }
-  return formatDate(logEntry.timestamp);
 };
 
 export const getDisplayType = (logEntry: LogEntry): string => {
