@@ -78,7 +78,7 @@ export class BackfillConnectorConfigIds1760007800968 implements MigrationInterfa
       .getRepository(DataMart)
       .createQueryBuilder()
       .update()
-      .set({ definition: def as DataMart['definition'], modifiedAt: () => 'CURRENT_TIMESTAMP' })
+      .set({ definition: def as DataMart['definition'] })
       .where('id = :id', { id })
       .execute();
   }

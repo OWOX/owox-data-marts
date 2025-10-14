@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
-import { SpecificationConnectorService } from '../use-cases/connector/specification-connector.service';
+import { ConnectorService } from './connector.service';
 // @ts-expect-error - Package lacks TypeScript declarations
 import { Core } from '@owox/connectors';
 
@@ -17,7 +17,7 @@ export const SECRET_MASK = '**********' as const;
  * - merges secret fields during updates to avoid overwriting stored values with placeholders.
  */
 export class ConnectorSecretService {
-  constructor(private readonly specificationConnectorService: SpecificationConnectorService) {}
+  constructor(private readonly connectorService: ConnectorService) {}
 
   /**
    * Checks whether a value is a secret mask.
@@ -40,7 +40,7 @@ export class ConnectorSecretService {
    * @returns Set of secret field names
    */
   private async getSecretFieldNames(connectorName: string): Promise<Set<string>> {
-    const specification = await this.specificationConnectorService.run(connectorName);
+    const specification = await this.connectorService.getConnectorSpecification(connectorName);
     return new Set(
       specification
         .filter(field => (field.attributes || []).includes(Core.CONFIG_ATTRIBUTES.SECRET))
