@@ -386,16 +386,20 @@ function processFrontmatterSidebar(frontmatter, filePaths) {
  * @param {Object} filePaths - Object containing source, relative, and destination paths
  */
 function processFrontmatterMetaInfo(frontmatter, metaData, filePaths) {
-  const { relativePath } = filePaths;
+  const { sourcePath, relativePath } = filePaths;
 
   const filePathObj = path.parse(normalizePathToKebabCase(relativePath));
-  const calcPagePath = `/${filePathObj.dir.replaceAll('\\', '/')}/${filePathObj.name}/`.replaceAll(
+  let pagePath = `/${filePathObj.dir.replaceAll('\\', '/')}/${filePathObj.name}/`.replaceAll(
     '//',
     '/'
   );
 
-  // replace root page path
-  const pagePath = calcPagePath === '/readme/' ? '/' : calcPagePath;
+  // handle custom page path cases
+  if (pagePath === '/readme/') {
+    pagePath = '/';
+  } else if (sourcePath === CHANGELOG_PATH) {
+    pagePath = '/docs/changelog/';
+  }
 
   const metaContent = metaData.find(metaContent => metaContent.pagePath === pagePath) || {};
 
