@@ -12,7 +12,7 @@ export class CreateActivityLogTable1760453522335 implements MigrationInterface {
           { name: 'id', type: 'varchar', isPrimary: true },
           { name: 'occuredAt', type: 'datetime', default: 'CURRENT_TIMESTAMP' },
           { name: 'eventType', type: 'varchar', isNullable: false },
-          { name: 'entityName', type: 'varchar', isNullable: true },
+          { name: 'entityType', type: 'varchar', isNullable: true },
           { name: 'entityId', type: 'varchar', isNullable: true },
           { name: 'projectId', type: 'varchar', isNullable: true },
           { name: 'userId', type: 'varchar', isNullable: true },
@@ -31,7 +31,7 @@ export class CreateActivityLogTable1760453522335 implements MigrationInterface {
           },
           {
             name: 'idx_activity_log_entity',
-            columnNames: ['entityName', 'entityId'],
+            columnNames: ['entityType', 'entityId'],
           },
           {
             name: 'idx_activity_log_projectId',
