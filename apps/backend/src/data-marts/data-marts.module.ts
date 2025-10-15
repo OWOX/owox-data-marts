@@ -88,6 +88,10 @@ import { IdpModule } from '../idp/idp.module';
 import { createOperationTimeoutMiddleware } from '../common/middleware/operation-timeout.middleware';
 import { CommonModule } from '../common/common.module';
 import { ConnectorSecretService } from './services/connector-secret.service';
+import { SqlDryRunTrigger } from './entities/sql-dry-run-trigger.entity';
+import { SqlDryRunTriggerService } from './services/sql-dry-run-trigger.service';
+import { SqlDryRunTriggerHandlerService } from './services/sql-dry-run-trigger-handler.service';
+import { SqlDryRunTriggerController } from './controllers/sql-dry-run-trigger.controller';
 
 @Module({
   imports: [
@@ -100,6 +104,7 @@ import { ConnectorSecretService } from './services/connector-secret.service';
       DataMartScheduledTrigger,
       ConnectorState,
       ReportDataCache,
+      SqlDryRunTrigger,
     ]),
     SchedulerModule,
     CommonModule,
@@ -113,6 +118,7 @@ import { ConnectorSecretService } from './services/connector-secret.service';
     ConnectorController,
     ScheduledTriggerController,
     LookerStudioConnectorController,
+    SqlDryRunTriggerController,
   ],
   providers: [
     ...dataStorageResolverProviders,
@@ -170,6 +176,8 @@ import { ConnectorSecretService } from './services/connector-secret.service';
     ActualizeDataMartSchemaService,
     UpdateDataMartSchemaService,
     ScheduledTriggersHandlerService,
+    SqlDryRunTriggerService,
+    SqlDryRunTriggerHandlerService,
     ScheduledTriggerService,
     ScheduledTriggerMapper,
     CreateScheduledTriggerService,
@@ -192,7 +200,6 @@ export class DataMartsModule {
       .apply(createOperationTimeoutMiddleware(180000))
       .forRoutes(
         { path: 'data-marts/:id/definition', method: RequestMethod.PUT },
-        { path: 'data-marts/:id/sql-dry-run', method: RequestMethod.POST },
         { path: 'data-marts/:id/publish', method: RequestMethod.PUT },
         { path: 'data-marts/:id/actualize-schema', method: RequestMethod.POST },
         { path: 'data-marts/:id/schema', method: RequestMethod.PUT }
@@ -201,7 +208,6 @@ export class DataMartsModule {
       .apply(createOperationTimeoutMiddleware(30000))
       .exclude(
         { path: 'data-marts/:id/definition', method: RequestMethod.PUT },
-        { path: 'data-marts/:id/sql-dry-run', method: RequestMethod.POST },
         { path: 'data-marts/:id/publish', method: RequestMethod.PUT },
         { path: 'data-marts/:id/actualize-schema', method: RequestMethod.POST },
         { path: 'data-marts/:id/schema', method: RequestMethod.PUT }

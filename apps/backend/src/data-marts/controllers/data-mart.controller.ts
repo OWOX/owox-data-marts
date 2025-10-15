@@ -31,7 +31,6 @@ import {
   ValidateDataMartDefinitionSpec,
   ActualizeDataMartSchemaSpec,
   UpdateDataMartSchemaSpec,
-  SqlDryRunSpec,
   GetDataMartRunsSpec,
   CancelDataMartRunSpec,
 } from './spec/data-mart.api';
@@ -43,9 +42,6 @@ import { UpdateDataMartSchemaService } from '../use-cases/update-data-mart-schem
 import { DataMartValidationResponseApiDto } from '../dto/presentation/data-mart-validation-response-api.dto';
 import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-response-api.dto';
 import { UpdateDataMartSchemaApiDto } from '../dto/presentation/update-data-mart-schema-api.dto';
-import { SqlDryRunService } from '../use-cases/sql-dry-run.service';
-import { SqlDryRunRequestApiDto } from '../dto/presentation/sql-dry-run-request-api.dto';
-import { SqlDryRunResponseApiDto } from '../dto/presentation/sql-dry-run-response-api.dto';
 import { RunDataMartRequestApiDto } from '../dto/presentation/run-data-mart-request-api.dto';
 
 @Controller('data-marts')
@@ -65,7 +61,6 @@ export class DataMartController {
     private readonly validateDefinitionService: ValidateDataMartDefinitionService,
     private readonly actualizeSchemaService: ActualizeDataMartSchemaService,
     private readonly updateSchemaService: UpdateDataMartSchemaService,
-    private readonly sqlDryRunService: SqlDryRunService,
     private readonly getDataMartRunsService: GetDataMartRunsService,
     private readonly cancelDataMartRunService: CancelDataMartRunService
   ) {}
@@ -226,20 +221,6 @@ export class DataMartController {
     const command = this.mapper.toUpdateSchemaCommand(id, context, dto);
     const dataMart = await this.updateSchemaService.run(command);
     return this.mapper.toResponse(dataMart);
-  }
-
-  @Auth(Role.editor(Strategy.INTROSPECT))
-  @Post(':id/sql-dry-run')
-  @HttpCode(200)
-  @SqlDryRunSpec()
-  async sqlDryRun(
-    @AuthContext() context: AuthorizationContext,
-    @Param('id') id: string,
-    @Body() dto: SqlDryRunRequestApiDto
-  ): Promise<SqlDryRunResponseApiDto> {
-    const command = this.mapper.toSqlDryRunCommand(id, context, dto);
-    const result = await this.sqlDryRunService.run(command);
-    return this.mapper.toSqlDryRunResponse(result);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))

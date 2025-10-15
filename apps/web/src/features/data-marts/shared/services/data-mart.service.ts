@@ -1,4 +1,6 @@
+import type { AxiosRequestConfig } from '../../../../app/api';
 import { ApiService } from '../../../../services';
+import type { TaskStatus } from '../enums/task-status.enum.ts';
 import type {
   CreateDataMartRequestDto,
   CreateDataMartResponseDto,
@@ -8,9 +10,10 @@ import type {
   UpdateDataMartDefinitionRequestDto,
   UpdateDataMartSchemaRequestDto,
   SqlValidationResponseDto,
-  SqlValidationRequestDto,
 } from '../types/api';
 import type { DataMartRun, DataMartRunItem } from '../../edit/model/types/data-mart-run';
+import type { CreateSqlDryRunTaskResponseDto } from '../types/api/response/create-sql-dry-run-task.response.dto.ts';
+import type { TaskStatusResponseDto } from '../types/api/response/task-status.response.dto.ts';
 
 /**
  * Data Mart Service
@@ -160,26 +163,59 @@ export class DataMartService extends ApiService {
   }
 
   /**
-   * Validate SQL query
+   * Create SQL dry run trigger
    * @param id Data mart ID
    * @param sql SQL query to validate
-   * @param abortController Optional AbortController to cancel the request
-   * @param skipLoading Optional flag to skip global loading indicator
+   * @returns Promise with trigger ID
+   */
+  async createSqlDryRunTrigger(id: string, sql: string): Promise<CreateSqlDryRunTaskResponseDto> {
+    return this.post<CreateSqlDryRunTaskResponseDto>(`/${id}/sql-dry-run-triggers`, { sql }, {
+      skipLoadingIndicator: true,
+    } as AxiosRequestConfig);
+  }
+
+  /**
+   * Get SQL dry run trigger status
+   * @param id Data mart ID
+   * @param triggerId Trigger ID
+   * @returns Promise with trigger status
+   */
+  async getSqlDryRunTriggerStatus(id: string, triggerId: string): Promise<TaskStatus> {
+    const response = await this.get<TaskStatusResponseDto>(
+      `/${id}/sql-dry-run-triggers/${triggerId}/status`,
+      undefined,
+      { skipLoadingIndicator: true } as AxiosRequestConfig
+    );
+    return response.status;
+  }
+
+  /**
+   * Get SQL dry run trigger response (result)
+   * @param id Data mart ID
+   * @param triggerId Trigger ID
    * @returns Promise with validation result
    */
-  async validateSql(
+  async getSqlDryRunTriggerResponse(
     id: string,
-    sql: string,
-    abortController?: AbortController,
-    skipLoading = true
+    triggerId: string
   ): Promise<SqlValidationResponseDto> {
-    const data: SqlValidationRequestDto = { sql };
-    const config = {
-      ...(abortController ? { signal: abortController.signal } : {}),
-      skipLoadingIndicator: skipLoading,
-      timeout: 180000,
-    };
-    return this.post<SqlValidationResponseDto>(`/${id}/sql-dry-run`, data, config);
+    return this.get<SqlValidationResponseDto>(
+      `/${id}/sql-dry-run-triggers/${triggerId}`,
+      undefined,
+      { skipLoadingIndicator: true } as AxiosRequestConfig
+    );
+  }
+
+  /**
+   * Abort SQL dry run trigger
+   * @param id Data mart ID
+   * @param triggerId Trigger ID
+   * @returns Promise<void>
+   */
+  async abortSqlDryRunTrigger(id: string, triggerId: string): Promise<void> {
+    await this.delete(`/${id}/sql-dry-run-triggers/${triggerId}`, {
+      skipLoadingIndicator: true,
+    } as AxiosRequestConfig);
   }
 
   /**
