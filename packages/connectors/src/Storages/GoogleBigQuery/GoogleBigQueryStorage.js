@@ -542,7 +542,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
   //---- obfuscateSpecialCharacters ----------------------------------
     obfuscateSpecialCharacters(inputString) {
   
-      return String(inputString).replace(/\\/g, '\\\\').replace(/\n/g, ' ').replace(/'/g, "\\'").replace(/"/g, '\\"'); 
+      return String(inputString).replace(/\\/g, '\\\\').replace(/[\x00-\x1F]/g, ' ').replace(/'/g, "\\'").replace(/"/g, '\\"'); 
   
     }
 
