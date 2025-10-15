@@ -45,7 +45,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
           requiredType: "boolean",
           default: true,
           label: "Process Short Links",
-          description: "Enable automatic processing of short links in link_url_asset field"
+          description: "Enable automatic processing of short links in link_url_asset field. Only available for ad-account/insights-by-link-url-asset endpoint as it requires breakdown by link_url_asset"
         },
         CreateEmptyTables: {
           requiredType: "boolean",
@@ -155,8 +155,10 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
           break;
   
         case 'ad-account/insights':
-          return this._fetchInsightsData(nodeName, accountId, fields, timeRange, url);
-  
+        case 'ad-account/insights-by-country':
+        case 'ad-account/insights-by-link-url-asset':
+          return this._fetchInsightsData({ nodeName, accountId, fields, timeRange, url });
+
         case 'ad-group':
           url += `act_${accountId}/ads?fields=${fields.join(",")}&limit=${this.fieldsSchema[nodeName].limit}`;
           break;
@@ -240,30 +242,29 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
     /**
      * Fetch insights data with breakdown support
      * 
-     * @param {string} nodeName - Node name
-     * @param {string} accountId - Account ID
-     * @param {Array} fields - Fields to fetch
-     * @param {string} timeRange - Time range parameter
+     * @param {Object} params - Parameters object
+     * @param {string} params.nodeName - Node name
+     * @param {string} params.accountId - Account ID
+     * @param {Array} params.fields - Fields to fetch
+     * @param {string} params.timeRange - Time range parameter
+     * @param {string} params.url - Base URL
      * @return {Array} Processed insights data
      * @private
      */
-    _fetchInsightsData(nodeName, accountId, fields, timeRange, url) {
-      const { regularFields, breakdownFields } = this._separateFieldsAndBreakdowns(nodeName, fields);
+    _fetchInsightsData({ nodeName, accountId, fields, timeRange, url }) {
+      const breakdowns = this.fieldsSchema[nodeName].breakdowns || [];
+      const regularFields = this._prepareFields({ nodeName, fields, breakdowns });
       
-      if (breakdownFields.length === 0) {
-        // No breakdown fields - single request
-        const requestUrl = this._buildInsightsUrl(accountId, regularFields, null, timeRange, nodeName, url);
-        return this._fetchPaginatedData(requestUrl, nodeName);
-      }
-      
-      // Fetch data for each breakdown field
-      const results = breakdownFields.map(breakdown => {
-        const requestUrl = this._buildInsightsUrl(accountId, regularFields, breakdown, timeRange, nodeName, url);
-        const data = this._fetchPaginatedData(requestUrl, nodeName, `breakdown: ${breakdown}`);
-        return { breakdown, data };
+      const requestUrl = this._buildInsightsUrl({
+        accountId,
+        fields: regularFields,
+        breakdowns,
+        timeRange,
+        nodeName,
+        url
       });
       
-      const allData = results.length === 1 ? results[0].data : this._mergeInsightsResults(results);
+      const allData = this._fetchPaginatedData(requestUrl, nodeName);
       
       // Process short links if link_url_asset data is present
       if (this.config.ProcessShortLinks.value && allData.length > 0 && allData.some(record => record.link_url_asset)) {
@@ -276,92 +277,50 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       return allData;
     }
 
-  //---- _separateFieldsAndBreakdowns --------------------------------------
+  //---- _prepareFields --------------------------------------
     /**
-     * Separate regular fields from breakdown fields
+     * Filter and prepare fields for API request
+     * Filters out fields that don't exist in schema and removes breakdown fields
+     * Breakdowns are passed separately in &breakdowns= parameter, not in &fields=
      * 
-     * @param {string} nodeName - Node name
-     * @param {Array} fields - All fields
-     * @return {Object} Object with regularFields and breakdownFields
+     * @param {Object} params - Parameters object
+     * @param {string} params.nodeName - Node name
+     * @param {Array} params.fields - All fields
+     * @param {Array} params.breakdowns - Breakdown fields to exclude
+     * @return {Array} Regular fields ready for API request
      * @private
      */
-    _separateFieldsAndBreakdowns(nodeName, fields) {
-      const regularFields = fields.filter(field => 
-        !this.fieldsSchema[nodeName].fields[field] || 
-        this.fieldsSchema[nodeName].fields[field].fieldType !== 'breakdown'
+    _prepareFields({ nodeName, fields, breakdowns }) {
+      return fields.filter(field => 
+        this.fieldsSchema[nodeName].fields[field] && !breakdowns.includes(field)
       );
-      
-      const breakdownFields = fields.filter(field => 
-        this.fieldsSchema[nodeName].fields[field] && 
-        this.fieldsSchema[nodeName].fields[field].fieldType === 'breakdown'
-      );
-      
-      return { regularFields, breakdownFields };
     }
 
   //---- _buildInsightsUrl ------------------------------------------------
     /**
      * Build insights URL for request
      * 
-     * @param {string} accountId - Account ID
-     * @param {Array} regularFields - Regular fields
-     * @param {string} breakdown - Breakdown field (can be null)
-     * @param {string} timeRange - Time range
-     * @param {string} nodeName - Node name
+     * @param {Object} params - Parameters object
+     * @param {string} params.accountId - Account ID
+     * @param {Array} params.fields - Fields to fetch
+     * @param {Array} params.breakdowns - Breakdown fields
+     * @param {string} params.timeRange - Time range
+     * @param {string} params.nodeName - Node name
+     * @param {string} params.url - Base URL
      * @return {string} Complete URL
      * @private
      */
-    _buildInsightsUrl(accountId, regularFields, breakdown, timeRange, nodeName, url) {
-      let insightsUrl = `${url}act_${accountId}/insights?level=ad&period=day&time_range=${timeRange}&fields=${regularFields.join(",")}&limit=${this.fieldsSchema[nodeName].limit}`;
+    _buildInsightsUrl({ accountId, fields, breakdowns, timeRange, nodeName, url }) {
+      let insightsUrl = `${url}act_${accountId}/insights?level=ad&period=day&time_range=${timeRange}&fields=${fields.join(",")}&limit=${this.fieldsSchema[nodeName].limit}`;
       
-      if (breakdown) {
-        insightsUrl += `&breakdowns=${breakdown}`;
+      if (breakdowns.length > 0) {
+        insightsUrl += `&breakdowns=${breakdowns.join(",")}`;
       }
       
       console.log(`Facebook API URL:`, insightsUrl);
       
       insightsUrl += `&access_token=${this.config.AccessToken.value}`;
       return insightsUrl;
-    }
-
-  //---- _mergeInsightsResults ----------------------------------------------
-    /**
-     * Merge insights results from multiple breakdown requests
-     * Simple approach: start with first data, then add/update from additional data
-     * 
-     * @param {Array} results - Array of {breakdown, data} objects
-     * @return {Array} Merged insights data with all records preserved
-     * @private
-     */
-    _mergeInsightsResults(results) {
-      if (results.length === 0) return [];
-      if (results.length === 1) return results[0].data;
-      
-      let mergedData = results[0].data.slice();
-      
-      for (let i = 1; i < results.length; i++) {
-        const additionalData = results[i].data;
-        const additionalBreakdown = results[i].breakdown;
-        
-        for (const additionalRecord of additionalData) {
-          const value = additionalRecord[additionalBreakdown];
-          if (value === null || value === "undefined" || value === undefined) continue;
-          
-          const existingRecord = mergedData.find(record =>  record.ad_id === additionalRecord.ad_id);
-          
-          if (existingRecord) {
-            existingRecord[additionalBreakdown] = value;
-          } else {
-            const newRecord = {};
-            for (const key in additionalRecord) {
-              newRecord[key] = additionalRecord[key];
-            }
-            mergedData.push(newRecord);
-          }
-        }
-      }
-      
-      return mergedData;
     }
 
   //---- _fetchPaginatedData -----------------------------------------------
