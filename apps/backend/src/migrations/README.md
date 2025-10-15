@@ -22,7 +22,7 @@ In OWOX Data Marts, migrations handle:
   use and ensure all queries are cross-database compatible.
 - All migrations must be compatible with both MySQL and SQLite.
 - All migration files are located in the `/src/migrations` directory and must be
-  named with a leading timestamp(фeg, `1680000000000-add-user-table.ts`).
+  named with a leading timestamp(e.g., `1680000000000-add-user-table.ts`).
 - Migrations can be executed automatically on NestJS application startup if the
   environment variable `RUN_MIGRATIONS` is set to `true`.
 
