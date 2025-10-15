@@ -341,8 +341,9 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
       const configId = (config as Record<string, unknown>)._id as string;
 
       if (!configId) {
-        this.logger.warn(
+        this.logger.error(
           `Configuration at index ${configIndex} is missing _id. Skipping this configuration.`,
+          undefined,
           ConnectorExecutionService.name,
           {
             dataMartId: dataMart.id,
