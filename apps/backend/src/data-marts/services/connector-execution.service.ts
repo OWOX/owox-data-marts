@@ -26,12 +26,13 @@ import { BigQueryCredentials } from '../data-storage-types/bigquery/schemas/bigq
 import { ConnectorMessage } from '../connector-types/connector-message/schemas/connector-message.schema';
 import { ConnectorOutputCaptureService } from '../connector-types/connector-message/services/connector-output-capture.service';
 import { ConnectorMessageType } from '../connector-types/enums/connector-message-type-enum';
-import { ConnectorOutputState } from '../connector-types/interfaces/connector-output-state';
+import { ConnectorStateItem } from '../connector-types/interfaces/connector-state';
 import { ConnectorStateService } from '../connector-types/connector-message/services/connector-state.service';
 import { ConsumptionTrackingService } from './consumption-tracking.service';
 import { DataMartService } from './data-mart.service';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { GracefulShutdownService } from '../../common/scheduler/services/graceful-shutdown.service';
+import { ConnectorExecutionError } from '../errors/connector-execution.error';
 
 interface ConfigurationExecutionResult {
   configIndex: number;
@@ -64,15 +65,26 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     });
 
     if (!run) {
-      throw new Error('Data mart run not found');
+      throw new ConnectorExecutionError('Data mart run not found', undefined, {
+        dataMartId,
+        runId,
+      });
     }
 
     if (run.status === DataMartRunStatus.SUCCESS || run.status === DataMartRunStatus.FAILED) {
-      throw new Error('Cannot cancel completed data mart run');
+      throw new ConnectorExecutionError('Cannot cancel completed data mart run', undefined, {
+        dataMartId,
+        runId,
+        projectId: run?.dataMart?.projectId,
+      });
     }
 
     if (run.status === DataMartRunStatus.CANCELLED) {
-      throw new Error('Data mart run is already cancelled');
+      throw new ConnectorExecutionError('Data mart run is already cancelled', undefined, {
+        dataMartId,
+        runId,
+        projectId: run?.dataMart?.projectId,
+      });
     }
 
     if (run.status === DataMartRunStatus.RUNNING) {
@@ -89,13 +101,27 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     this.validateDataMartForConnector(dataMart);
     const isRunning = await this.checkDataMartIsRunning(dataMart);
     if (isRunning) {
-      throw new Error('DataMart is already running');
+      throw new ConnectorExecutionError('DataMart is already running', undefined, {
+        dataMartId: dataMart.id,
+        projectId: dataMart.projectId,
+      });
     }
 
     const dataMartRun = await this.createDataMartRun(dataMart, payload);
 
     this.executeInBackground(dataMart, dataMartRun.id, payload).catch(error => {
-      this.logger.error(`Background execution failed for run ${dataMartRun.id}:`, error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Background execution failed: ${errorMessage}`,
+        error?.stack,
+        ConnectorExecutionService.name,
+        {
+          dataMartId: dataMart.id,
+          projectId: dataMart.projectId,
+          runId: dataMartRun.id,
+          error: errorMessage,
+        }
+      );
     });
 
     return dataMartRun.id;
@@ -129,11 +155,17 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
 
   private validateDataMartForConnector(dataMart: DataMart): void {
     if (dataMart.definitionType !== DataMartDefinitionType.CONNECTOR) {
-      throw new Error('DataMart is not a connector type');
+      throw new ConnectorExecutionError('DataMart is not a connector type', undefined, {
+        dataMartId: dataMart.id,
+        projectId: dataMart.projectId,
+      });
     }
 
     if (dataMart.status !== DataMartStatus.PUBLISHED) {
-      throw new Error('DataMart is not published');
+      throw new ConnectorExecutionError('DataMart is not published', undefined, {
+        dataMartId: dataMart.id,
+        projectId: dataMart.projectId,
+      });
     }
   }
 
@@ -170,14 +202,21 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
 
     this.gracefulShutdownService.registerActiveProcess(processId);
 
-    const state: ConnectorOutputState = { state: {}, at: '' };
     const capturedLogs: ConnectorMessage[] = [];
     const capturedErrors: ConnectorMessage[] = [];
     let hasSuccessfulRun = false;
 
     try {
       if (this.gracefulShutdownService.isInShutdownMode()) {
-        throw new Error('Skipping connector execution. Application is shutting down.');
+        throw new ConnectorExecutionError(
+          'Skipping connector execution. Application is shutting down.',
+          undefined,
+          {
+            dataMartId: dataMart.id,
+            projectId: dataMart.projectId,
+            runId,
+          }
+        );
       }
 
       await this.dataMartRunRepository.update(runId, {
@@ -187,7 +226,6 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
         runId,
         processId,
         dataMart,
-        state,
         payload
       );
 
@@ -200,34 +238,88 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
       const totalCount = configurationResults.length;
       hasSuccessfulRun = successCount > 0;
       this.logger.log(
-        `Connector execution completed: ${successCount}/${totalCount} configurations successful for DataMart ${dataMart.id}`
+        `Connector execution completed: ${successCount}/${totalCount} configurations successful`,
+        ConnectorExecutionService.name,
+        {
+          dataMartId: dataMart.id,
+          projectId: dataMart.projectId,
+          runId,
+          successCount,
+          totalCount,
+        }
       );
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       capturedErrors.push({
         type: ConnectorMessageType.ERROR,
         at: new Date().toISOString(),
-        error: error instanceof Error ? error.message : String(error),
-        toFormattedString: () =>
-          `[ERROR] ${error instanceof Error ? error.message : String(error)}`,
+        error: errorMessage,
+        toFormattedString: () => `[ERROR] ${errorMessage}`,
       });
-      this.logger.error(`Error running connector configurations: ${error}`);
+
+      // Log with metadata if available
+      if (error instanceof ConnectorExecutionError) {
+        const meta =
+          typeof error.meta === 'object' && error.meta !== null
+            ? (error.meta as Record<string, unknown>)
+            : {};
+        this.logger.error(
+          `Error running connector configurations: ${errorMessage}`,
+          error?.stack,
+          ConnectorExecutionService.name,
+          {
+            ...meta,
+            error: errorMessage,
+          }
+        );
+      } else {
+        this.logger.error(
+          `Error running connector configurations: ${errorMessage}`,
+          error?.stack,
+          ConnectorExecutionService.name,
+          {
+            dataMartId: dataMart.id,
+            projectId: dataMart.projectId,
+            runId,
+            error: errorMessage,
+          }
+        );
+      }
     } finally {
       await this.updateRunStatus(runId, capturedLogs, capturedErrors);
-      await this.updateRunState(dataMart.id, state);
 
       if (hasSuccessfulRun) {
         // Register connector run consumption only if at least one configuration succeeded
         await this.consumptionTracker.registerConnectorRunConsumption(dataMart, runId);
       }
 
-      this.logger.debug(`Actualizing schema for DataMart ${dataMart.id} after connector execution`);
+      this.logger.debug(
+        `Actualizing schema after connector execution`,
+        ConnectorExecutionService.name,
+        {
+          dataMartId: dataMart.id,
+          projectId: dataMart.projectId,
+          runId,
+        }
+      );
 
       // If the connector does not receive any data, the data storage resource will not be created.
       // The connector will complete its work with the status “SUCCESS” but don't unregister active process.
       try {
         await this.dataMartService.actualizeSchema(dataMart.id, dataMart.projectId);
       } catch (error) {
-        this.logger.error(`Error schema actualization: ${error}`);
+        const schemaError = error instanceof Error ? error.message : String(error);
+        this.logger.error(
+          `Error schema actualization: ${schemaError}`,
+          error?.stack,
+          ConnectorExecutionService.name,
+          {
+            dataMartId: dataMart.id,
+            projectId: dataMart.projectId,
+            runId,
+            error: schemaError,
+          }
+        );
       }
 
       this.gracefulShutdownService.unregisterActiveProcess(processId);
@@ -238,7 +330,6 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     runId: string,
     processId: string,
     dataMart: DataMart,
-    state: ConnectorOutputState,
     payload?: Record<string, unknown>
   ): Promise<ConfigurationExecutionResult[]> {
     const definition = dataMart.definition as DataMartConnectorDefinition;
@@ -247,6 +338,22 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     const configurationResults: ConfigurationExecutionResult[] = [];
 
     for (const [configIndex, config] of connector.source.configuration.entries()) {
+      const configId = (config as Record<string, unknown>)._id as string;
+
+      if (!configId) {
+        this.logger.warn(
+          `Configuration at index ${configIndex} is missing _id. Skipping this configuration.`,
+          ConnectorExecutionService.name,
+          {
+            dataMartId: dataMart.id,
+            projectId: dataMart.projectId,
+            runId,
+            configIndex,
+          }
+        );
+        continue;
+      }
+
       const configLogs: ConnectorMessage[] = [];
       const configErrors: ConnectorMessage[] = [];
       let success = true;
@@ -256,26 +363,80 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
           switch (message.type) {
             case ConnectorMessageType.ERROR:
               configErrors.push(message);
-              this.logger.error(`${message.toFormattedString()}`);
+              this.logger.error(
+                `${message.toFormattedString()}`,
+                undefined,
+                ConnectorExecutionService.name,
+                {
+                  dataMartId: dataMart.id,
+                  projectId: dataMart.projectId,
+                  runId,
+                  configId,
+                }
+              );
               success = false;
               break;
             case ConnectorMessageType.REQUESTED_DATE:
-              state.state = { date: message.date };
-              state.at = message.at;
+              this.connectorStateService
+                .updateState(dataMart.id, configId, {
+                  state: { date: message.date },
+                  at: message.at,
+                })
+                .catch(error => {
+                  const errorMessage = error instanceof Error ? error.message : String(error);
+                  this.logger.error(
+                    `Failed to save state: ${errorMessage}`,
+                    error?.stack,
+                    ConnectorExecutionService.name,
+                    {
+                      dataMartId: dataMart.id,
+                      projectId: dataMart.projectId,
+                      runId,
+                      configId,
+                      error: errorMessage,
+                    }
+                  );
+                });
               break;
             case ConnectorMessageType.STATUS:
               if (message.status === Core.EXECUTION_STATUS.ERROR) {
                 success = false;
                 configErrors.push(message);
-                this.logger.error(`${message.toFormattedString()}`);
+                this.logger.error(
+                  `${message.toFormattedString()}`,
+                  undefined,
+                  ConnectorExecutionService.name,
+                  {
+                    meta: {
+                      dataMartId: dataMart.id,
+                      projectId: dataMart.projectId,
+                      runId,
+                      configId,
+                    },
+                  }
+                );
               } else {
                 configLogs.push(message);
-                this.logger.log(`${message.toFormattedString()}`);
+                this.logger.log(`${message.status}`, ConnectorExecutionService.name, {
+                  meta: {
+                    dataMartId: dataMart.id,
+                    projectId: dataMart.projectId,
+                    runId,
+                    configId,
+                  },
+                });
               }
               break;
             default:
               configLogs.push(message);
-              this.logger.log(`${message.toFormattedString()}`);
+              this.logger.log(`${message.toFormattedString()}`, ConnectorExecutionService.name, {
+                meta: {
+                  dataMartId: dataMart.id,
+                  projectId: dataMart.projectId,
+                  runId,
+                  configId,
+                },
+              });
               break;
           }
         },
@@ -288,15 +449,27 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
         const configuration = new Config({
           name: connector.source.name,
           datamartId: dataMart.id,
-          source: await this.getSourceConfig(dataMart.id, connector, config),
+          source: await this.getSourceConfig(dataMart.id, connector, config, configId),
           storage: this.getStorageConfig(dataMart),
         });
-        const runConfig = this.getRunConfig(payload, state);
+
+        // Get state for this specific configuration
+        const configState = await this.connectorStateService.getState(dataMart.id, configId);
+        const runConfig = this.getRunConfig(payload, configState);
+
         const connectorRunner = new ConnectorRunner();
         await connectorRunner.run(dataMart.id, runId, configuration, runConfig, logCaptureConfig);
         if (configErrors.length === 0) {
           this.logger.log(
-            `Configuration ${configIndex + 1} completed successfully for DataMart ${dataMart.id}`
+            `Configuration ${configIndex + 1} completed successfully`,
+            ConnectorExecutionService.name,
+            {
+              dataMartId: dataMart.id,
+              projectId: dataMart.projectId,
+              runId,
+              configId,
+              configIndex,
+            }
           );
         }
       } catch (error) {
@@ -310,8 +483,17 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
             `[ERROR] Configuration ${configIndex + 1} failed: ${errorMessage}`,
         });
         this.logger.error(
-          `Configuration ${configIndex + 1} failed for DataMart ${dataMart.id}:`,
-          error
+          `Configuration ${configIndex + 1} failed: ${errorMessage}`,
+          error?.stack,
+          ConnectorExecutionService.name,
+          {
+            dataMartId: dataMart.id,
+            projectId: dataMart.projectId,
+            runId,
+            configId,
+            configIndex,
+            error: errorMessage,
+          }
         );
       } finally {
         configurationResults.push({
@@ -343,22 +525,18 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     });
   }
 
-  private async updateRunState(dataMartId: string, state: ConnectorOutputState): Promise<void> {
-    if (state.state.date) {
-      await this.connectorStateService.updateState(dataMartId, state);
-    }
-  }
-
   //TODO
   private async getSourceConfig(
     dataMartId: string,
     connector: DataMartConnectorDefinition['connector'],
-    config: Record<string, unknown>
+    config: Record<string, unknown>,
+    configId: string
   ): Promise<SourceConfig> {
     const fieldsConfig = connector.source.fields
       .map(field => `${connector.source.node} ${field}`)
       .join(', ');
-    const state = await this.connectorStateService.getState(dataMartId);
+
+    const state = await this.connectorStateService.getState(dataMartId, configId);
 
     return new SourceConfig({
       name: connector.source.name,
@@ -384,7 +562,15 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
         return this.createAthenaStorageConfig(dataMart, connector);
 
       default:
-        throw new Error(`Unsupported storage type: ${dataMart.storage.type}`);
+        throw new ConnectorExecutionError(
+          `Unsupported storage type: ${dataMart.storage.type}`,
+          undefined,
+          {
+            dataMartId: dataMart.id,
+            projectId: dataMart.projectId,
+            storageType: dataMart.storage.type,
+          }
+        );
     }
   }
 
@@ -432,7 +618,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     });
   }
 
-  private getRunConfig(payload?: Record<string, unknown>, state?: ConnectorOutputState): RunConfig {
+  private getRunConfig(payload?: Record<string, unknown>, state?: ConnectorStateItem): RunConfig {
     const type = payload?.runType || 'INCREMENTAL';
     const data = payload?.data
       ? Object.entries(payload.data).map(([key, value]) => {
@@ -446,7 +632,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     return new RunConfig({
       type,
       data,
-      state: state?.state,
+      state: state?.state || {},
     });
   }
 
@@ -456,21 +642,19 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
   async getDataMartRunsByStatus(status: DataMartRunStatus): Promise<DataMartRun[]> {
     return this.dataMartRunRepository.find({
       where: { status },
+      order: { createdAt: 'ASC' },
       relations: ['dataMart'],
     });
   }
 
   /**
-   * Schedules background execution for data mart runs with the INTERRUPTED status.
-   * For each run, validates the data mart and ensures it is not already running,
-   * then starts execution in the background and logs any background errors.
+   * Executes background connector for data mart runs that are in the INTERRUPTED status.
+   * Retrieves the list of interrupted runs, validates each run, checks if the respective data marts are already running,
+   * and attempts to resume their execution in the background. Runs that are already executing will be skipped,
+   * and runs that fail validation or execution will be logged with appropriate error messages.
    *
-   * Note: This method does not await completion of background executions and resolves
-   * once scheduling is completed.
-   *
-   * @throws {Error} If the data mart is not a connector type or not published.
-   * @throws {Error} If the data mart is already running.
-   * @return {Promise<void>} Resolves after scheduling background executions.
+   * @return {Promise<void>} A promise that resolves when all interrupted runs have been processed,
+   *                         with execution statistics logged (started, skipped, failed counts).
    */
   private async executeInterruptedRuns(): Promise<void> {
     const interruptedRuns = await this.getDataMartRunsByStatus(DataMartRunStatus.INTERRUPTED);
@@ -484,14 +668,39 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
       this.validateDataMartForConnector(run.dataMart);
       const isRunning = await this.checkDataMartIsRunning(run.dataMart);
       if (isRunning) {
-        this.logger.warn(`Skipping interrupted run ${run.id}: DataMart is already running`);
+        this.logger.warn(
+          `Skipping interrupted run ${run.id}: DataMart is already running`,
+          ConnectorExecutionService.name,
+          {
+            dataMartId: run.dataMart.id,
+            projectId: run.dataMart.projectId,
+            runId: run.id,
+          }
+        );
         continue;
       } else {
-        this.logger.log(`Starting execution of interrupted run ${run.id}`);
+        this.logger.log(
+          `Starting execution of interrupted run ${run.id}`,
+          ConnectorExecutionService.name,
+          {
+            dataMartId: run.dataMart.id,
+            projectId: run.dataMart.projectId,
+            runId: run.id,
+          }
+        );
       }
 
       this.executeInBackground(run.dataMart, run.id, run.additionalParams).catch(error => {
-        this.logger.error(`Interrupted background execution failed for run ${run.id}:`, error);
+        this.logger.error(
+          `Interrupted background execution failed for run ${run.id}:`,
+          error?.stack,
+          ConnectorExecutionService.name,
+          {
+            dataMartId: run.dataMart.id,
+            projectId: run.dataMart.projectId,
+            runId: run.id,
+          }
+        );
       });
     }
   }
