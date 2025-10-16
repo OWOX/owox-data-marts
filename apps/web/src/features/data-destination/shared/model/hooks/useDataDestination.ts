@@ -8,6 +8,7 @@ import type {
   UpdateDataDestinationRequestDto,
 } from '../../services/types';
 import toast from 'react-hot-toast';
+import { trackEvent } from '../../../../../utils/data-layer';
 
 export function useDataDestination() {
   const { state, dispatch } = useDataDestinationContext();
@@ -22,9 +23,16 @@ export function useDataDestination() {
         payload: mappedDestinations,
       });
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load destinations';
       dispatch({
         type: DataDestinationActionType.FETCH_DESTINATIONS_ERROR,
-        payload: error instanceof Error ? error.message : 'Failed to load destinations',
+        payload: message,
+      });
+      trackEvent({
+        event: 'data_destination_error',
+        category: 'DataDestination',
+        action: 'ListError',
+        label: message,
       });
     }
   }, [dispatch]);
@@ -39,9 +47,16 @@ export function useDataDestination() {
           payload: mappedDestination,
         });
       } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to load destination';
         dispatch({
           type: DataDestinationActionType.FETCH_DESTINATION_ERROR,
-          payload: error instanceof Error ? error.message : 'Failed to load destination',
+          payload: message,
+        });
+        trackEvent({
+          event: 'data_destination_error',
+          category: 'DataDestination',
+          action: 'GetError',
+          label: message,
         });
       }
     },
@@ -58,12 +73,25 @@ export function useDataDestination() {
           type: DataDestinationActionType.CREATE_DESTINATION_SUCCESS,
           payload: mappedDestination,
         });
+        trackEvent({
+          event: 'data_destination_created',
+          category: 'DataDestination',
+          action: 'Create',
+          label: mappedDestination.type,
+        });
         toast.success('Destination created');
         return mappedDestination;
       } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to create destination';
         dispatch({
           type: DataDestinationActionType.CREATE_DESTINATION_ERROR,
-          payload: error instanceof Error ? error.message : 'Failed to create destination',
+          payload: message,
+        });
+        trackEvent({
+          event: 'data_destination_error',
+          category: 'DataDestination',
+          action: 'CreateError',
+          label: requestData.type,
         });
         return null;
       }
@@ -81,12 +109,25 @@ export function useDataDestination() {
           type: DataDestinationActionType.UPDATE_DESTINATION_SUCCESS,
           payload: mappedDestination,
         });
+        trackEvent({
+          event: 'data_destination_updated',
+          category: 'DataDestination',
+          action: 'Update',
+          label: mappedDestination.type,
+        });
         toast.success('Destination updated');
         return mappedDestination;
       } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to update destination';
         dispatch({
           type: DataDestinationActionType.UPDATE_DESTINATION_ERROR,
-          payload: error instanceof Error ? error.message : 'Failed to update destination',
+          payload: message,
+        });
+        trackEvent({
+          event: 'data_destination_error',
+          category: 'DataDestination',
+          action: 'UpdateError',
+          label: message,
         });
         return null;
       }
@@ -100,11 +141,23 @@ export function useDataDestination() {
       try {
         await dataDestinationService.deleteDataDestination(id);
         dispatch({ type: DataDestinationActionType.DELETE_DESTINATION_SUCCESS, payload: id });
+        trackEvent({
+          event: 'data_destination_deleted',
+          category: 'DataDestination',
+          action: 'Delete',
+        });
         toast.success('Destination deleted');
       } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to delete destination';
         dispatch({
           type: DataDestinationActionType.DELETE_DESTINATION_ERROR,
-          payload: error instanceof Error ? error.message : 'Failed to delete destination',
+          payload: message,
+        });
+        trackEvent({
+          event: 'data_destination_error',
+          category: 'DataDestination',
+          action: 'DeleteError',
+          label: message,
         });
         throw error;
       }
@@ -119,8 +172,22 @@ export function useDataDestination() {
   const rotateSecretKey = useCallback(async (id: DataDestination['id']) => {
     try {
       const response = await dataDestinationService.rotateSecretKey(id);
-      return mapDataDestinationFromDto(response);
+      const destination = mapDataDestinationFromDto(response);
+      trackEvent({
+        event: 'data_destination_updated',
+        category: 'DataDestination',
+        action: 'RotateSecretKey',
+        label: destination.type,
+      });
+      return destination;
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to rotate secret key';
+      trackEvent({
+        event: 'data_destination_error',
+        category: 'DataDestination',
+        action: 'RotateSecretKeyError',
+        label: message,
+      });
       console.error('Failed to rotate secret key:', error);
       throw error;
     }

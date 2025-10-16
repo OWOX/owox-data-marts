@@ -13,8 +13,9 @@ import type {
   ScheduledReportRunConfig,
   ScheduledTriggerConfig,
 } from '../../model/trigger-config.types';
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
+import { trackEvent } from '../../../../../utils/data-layer';
 
 interface ScheduledTriggerFormSheetProps {
   isOpen: boolean;
@@ -111,6 +112,29 @@ export function ScheduledTriggerFormSheet({
     }
     handleFormSubmitSuccess();
   };
+
+  const wasOpenRef = useRef<boolean>(false);
+  useEffect(() => {
+    const mode = isEditMode ? 'Edit' : 'Create';
+    const triggerType = selectedTrigger?.type ?? preSelectedType;
+    if (isOpen && !wasOpenRef.current) {
+      trackEvent({
+        event: 'scheduled_trigger_config_open',
+        category: 'ScheduledTrigger',
+        action: mode,
+        label: triggerType,
+      });
+      wasOpenRef.current = true;
+    } else if (!isOpen && wasOpenRef.current) {
+      trackEvent({
+        event: 'scheduled_trigger_config_close',
+        category: 'ScheduledTrigger',
+        action: mode,
+        label: triggerType,
+      });
+      wasOpenRef.current = false;
+    }
+  }, [isOpen, isEditMode, selectedTrigger, preSelectedType]);
 
   return (
     <>

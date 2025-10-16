@@ -1,7 +1,7 @@
 import type { DataDestination } from '../../../shared';
 import { DataDestinationForm } from '../DataDestinationEditForm';
 import type { DataDestinationFormData } from '../../../shared';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
 import {
   Sheet,
@@ -12,6 +12,7 @@ import {
 } from '@owox/ui/components/sheet';
 import { useDataDestination } from '../../../shared';
 import { DestinationMapperFactory } from '../../../shared/model/mappers/destination-mapper.factory.ts';
+import { trackEvent } from '../../../../../utils/data-layer';
 
 interface DataDestinationEditSheetProps {
   isOpen: boolean;
@@ -67,6 +68,28 @@ export function DataDestinationConfigSheet({
     }
     onClose();
   };
+
+  const wasOpenRef = useRef<boolean>(false);
+  useEffect(() => {
+    const mode = dataDestination ? 'Edit' : 'Create';
+    if (isOpen && !wasOpenRef.current) {
+      trackEvent({
+        event: 'data_destination_config_open',
+        category: 'DataDestination',
+        action: mode,
+        label: dataDestination?.type,
+      });
+      wasOpenRef.current = true;
+    } else if (!isOpen && wasOpenRef.current) {
+      trackEvent({
+        event: 'data_destination_config_close',
+        category: 'DataDestination',
+        action: mode,
+        label: dataDestination?.type,
+      });
+      wasOpenRef.current = false;
+    }
+  }, [isOpen, dataDestination]);
 
   return (
     <>

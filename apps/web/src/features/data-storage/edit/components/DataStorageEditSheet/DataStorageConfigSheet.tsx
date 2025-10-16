@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
 import {
   Sheet,
@@ -11,6 +11,7 @@ import type { DataStorage } from '../../../shared/model/types/data-storage.ts';
 import { DataStorageForm } from '../DataStorageEditForm';
 import type { DataStorageFormData } from '../../../shared';
 import { useDataStorage } from '../../../shared/model/hooks/useDataStorage.ts';
+import { trackEvent } from '../../../../../utils/data-layer';
 
 interface DataStorageEditSheetProps {
   isOpen: boolean;
@@ -57,6 +58,28 @@ export function DataStorageConfigSheet({
       }
     }
   };
+
+  const wasOpenRef = useRef<boolean>(false);
+  useEffect(() => {
+    const mode = dataStorage ? 'Edit' : 'Create';
+    if (isOpen && !wasOpenRef.current) {
+      trackEvent({
+        event: 'data_storage_config_open',
+        category: 'DataStorage',
+        action: mode,
+        label: dataStorage?.type,
+      });
+      wasOpenRef.current = true;
+    } else if (!isOpen && wasOpenRef.current) {
+      trackEvent({
+        event: 'data_storage_config_close',
+        category: 'DataStorage',
+        action: mode,
+        label: dataStorage?.type,
+      });
+      wasOpenRef.current = false;
+    }
+  }, [isOpen, dataStorage]);
 
   return (
     <>

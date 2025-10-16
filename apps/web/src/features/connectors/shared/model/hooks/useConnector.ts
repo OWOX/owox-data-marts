@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { ConnectorActionType, useConnectorContext } from '../context';
 import { ConnectorApiService } from '../../api';
 import { mapConnectorListFromDto } from '../mappers/connector-list.mapper';
+import { trackEvent } from '../../../../../utils/data-layer';
 
 export function useConnector() {
   const { state, dispatch } = useConnectorContext();
@@ -17,9 +18,16 @@ export function useConnector() {
       const response = await connectorApiService.getAvailableConnectors();
       dispatch({ type: ConnectorActionType.FETCH_CONNECTORS_SUCCESS, payload: response });
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
       dispatch({
         type: ConnectorActionType.FETCH_CONNECTORS_ERROR,
-        payload: error instanceof Error ? error.message : 'Unknown error',
+        payload: message,
+      });
+      trackEvent({
+        event: 'connector_error',
+        category: 'Connector',
+        action: 'ListError',
+        label: message,
       });
     }
   }, [dispatch]);
@@ -35,9 +43,16 @@ export function useConnector() {
           payload: response,
         });
       } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
         dispatch({
           type: ConnectorActionType.FETCH_CONNECTOR_SPECIFICATION_ERROR,
-          payload: error instanceof Error ? error.message : 'Unknown error',
+          payload: message,
+        });
+        trackEvent({
+          event: 'connector_error',
+          category: 'Connector',
+          action: 'SpecificationError',
+          label: connectorName,
         });
       }
     },
@@ -52,9 +67,16 @@ export function useConnector() {
         const response = await connectorApiService.getConnectorFields(connectorName);
         dispatch({ type: ConnectorActionType.FETCH_CONNECTOR_FIELDS_SUCCESS, payload: response });
       } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
         dispatch({
           type: ConnectorActionType.FETCH_CONNECTOR_FIELDS_ERROR,
-          payload: error instanceof Error ? error.message : 'Unknown error',
+          payload: message,
+        });
+        trackEvent({
+          event: 'connector_error',
+          category: 'Connector',
+          action: 'FieldsError',
+          label: connectorName,
         });
       }
     },
