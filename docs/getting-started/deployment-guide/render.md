@@ -42,11 +42,11 @@ In the Advanced → **Disks** section, add:
 
 Go **Environment** section in menu and set:
 
-| NAME_OF_VARIABLE               | Value (example)                                              | Notes                                                                                                          |
-|--------------------------------|--------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
-| `PUBLIC_ORIGIN`                | `https://owox-your-company-name.onrender.com`               | Public origin (external URL) of your app. It is formed automatically from the name you entered. Just copy it from UI.                                              |
-| `IDP_PROVIDER`                 | `better-auth`                                               | Authentication provider                                                        |
-| `IDP_BETTER_AUTH_SECRET`       | `your_secret_key`                                           | Recommended: use a 32-character key. You can generate one with command `openssl rand -base64 32` in local terminal.                      |
+| NAME_OF_VARIABLE               | Value (example)                                              | Notes                                                                                                                                                               |
+|--------------------------------|--------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `PUBLIC_ORIGIN`                | `https://owox-your-company-name.onrender.com`               | Public origin (external URL) of your app. It is formed automatically from the name you entered. Just copy it from UI. Make sure there is no `/` in the end of URL.   |
+| `IDP_PROVIDER`                 | `better-auth`                                               | Authentication provider                                                                                                                                              |
+| `IDP_BETTER_AUTH_SECRET`       | `your_secret_key`                                           | Recommended: use a 32-character key. You can generate one with command `openssl rand -base64 32` in local terminal.                                                  |
 
 ### Step 2: Add first admin
 
