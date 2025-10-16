@@ -17,7 +17,7 @@ var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
    * Processes all nodes defined in the fields configuration
    */
   startImportProcess() {
-    const customerIds = FormatUtils.parseIds(this.config.CustomerId.value, {prefix: ''});
+    const customerIds = FormatUtils.parseIds(this.config.CustomerId.value, { stripCharacters: '-' });
     const fields = FormatUtils.parseFields(this.config.Fields.value);
     
     for (const nodeName in fields) {
