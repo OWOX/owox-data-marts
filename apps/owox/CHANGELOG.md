@@ -1,5 +1,73 @@
 # owox
 
+## 0.9.0
+
+### Minor Changes
+
+- 701a05f: # Add System Theme Option to User Menu
+  - Added **System** option to the theme switcher for automatic theme selection.
+  - Enhanced **UserMenu** with theme selection and submenu support for better usability.
+
+- 54df91e: # Convert boolean parameters to proper boolean type
+
+  Updated boolean configuration parameters to use proper `boolean` type instead of `string` or `bool` types:
+  - **ProcessShortLinks** (FacebookMarketing): `string` → `boolean`
+  - **SandboxMode** (TikTokAds): `bool` → `boolean`
+  - **IncludeDeleted** (TikTokAds): `bool` → `boolean`
+
+- 8402b05: # Add new CLI commands for database migrations
+  - `migrations up` - run all pending migrations
+  - `migrations down` - revert last migration
+  - `migrations status` - migration's status check
+
+- 8fffa5e: # Mask connector secrets in UI
+  - Secret fields in connector configuration are masked on the configuration page and in the Run History tab.
+
+- 0b0a8fb: # Enhanced Connector Setup Flow
+  - Improved structure with **AppWizard** components for a more consistent and flexible setup layout
+  - Better usability across all setup steps
+  - Refined **accessibility** and **visual design** throughout the connector editing interface
+
+- 32b0314: # Enhanced connectors to support CreateEmptyTables configuration option
+  - Now tables will be created even when no data is fetched, if the CreateEmptyTables parameter is set to "true".
+
+- 8e673e9: # Enhanced Google BigQuery Location Options
+  - Updated location labels to include region codes alongside city names for better clarity (e.g., `us-central1 (Iowa)` instead of just `Iowa`).
+  - Improved Combobox component with better search functionality using keywords and increased minimum width for better display of longer location names.
+
+- 43adfcb: # Split Facebook Marketing insights endpoint into three separate endpoints
+  - Split `ad-account/insights` into three endpoints: base insights, insights by country, and insights by link URL asset
+  - Added `ad-account/insights-by-country` endpoint with country breakdown
+  - Added `ad-account/insights-by-link-url-asset` endpoint with link_url_asset breakdown
+  - Refactored insights data fetching to use object parameters and separate fields from breakdowns
+  - **⚠️ Breaking Changes:** `ad-account/insights` endpoint no longer supports breakdown fields
+  - **⚠️ Breaking Changes:** if your data mart was using `ad-account/insights` with breakdown fields (e.g., country, link_url_asset), you need to recreate it using the appropriate new endpoint:
+    - Use `ad-account/insights-by-country` for country breakdown
+    - Use `ad-account/insights-by-link-url-asset` for link URL asset breakdown
+
+- 646511d: # Fix data mart run history time logs
+  - Fixed bad time in data mart run history logs. Now the time is displayed in the correct timezone.
+
+- 438c48f: # Added magic link confirmation page to `idb-better-auth`
+  - Generated magic links direct users to a confirmation page before the password setup page.
+
+- 9773ba4: # Improvements & Bug Fixes
+
+  This update includes general interface improvements, performance enhancements, and minor fixes to ensure a smoother and more reliable user experience.
+
+- 95dcaec: # Intercom chat integration
+
+  💬 Intercom chat integration is now available in the Web app for faster support and onboarding.
+
+### Patch Changes
+
+- @owox/internal-helpers@0.9.0
+- @owox/idp-protocol@0.9.0
+- @owox/idp-better-auth@0.9.0
+- @owox/idp-owox@0.9.0
+- @owox/backend@0.9.0
+- @owox/web@0.9.0
+
 ## 0.8.0
 
 ### Minor Changes 0.8.0
@@ -434,7 +502,6 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
-
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -442,7 +509,6 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
-
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
