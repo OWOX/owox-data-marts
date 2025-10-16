@@ -28,7 +28,7 @@ You will use these 👆 credentials later in [Section 3. Configure App-Level Env
 Follow <https://cloud.digitalocean.com/apps/new?source_provider=ghcr> with the following parameters:
 
 * Repository: `owox/owox-data-marts`
-* Image tag or digest: `latest` (or `next`)
+* Image tag or digest: `latest`
 
 Start with default settings and tune as you go. After creating an app, you'll have a `Live App` URL like `https://owox-data-marts-best-enma6.ondigitalocean.app`. You will need this URL later.
 
