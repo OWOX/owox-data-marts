@@ -126,13 +126,18 @@ class AbstractConfig {
           
           // if parameter's value is required but value is absent
           if( (!parameter.value && parameter.value !== 0) && parameter.isRequired == true) {
-            throw new Error(parameter.errorMessage ? parameter.errorMessage : `Unable to load the configuration. The parameter ‘${name}’ is required but was provided with an empty value`)
+            throw new Error(parameter.errorMessage ? parameter.errorMessage : `Unable to load the configuration. The parameter '${name}' is required but was provided with an empty value`)
+          }
+
+          if (parameter.oneOf && Array.isArray(parameter.oneOf)) {
+            this._validateOneOf(name, parameter);
+            continue;
           }
 
           // there is a type restriction for parameter values
           if( "requiredType" in parameter && parameter.value !== null && parameter.value !== undefined ) {
 
-              if( !(["string", "number", "date", "boolean"].includes( parameter.requiredType )) ) {
+              if( !(["string", "number", "date", "boolean", "object"].includes( parameter.requiredType )) ) {
 
                 throw new Error(`Parameter '${name}' has wrong requiredType in configuration`)
 
@@ -169,6 +174,56 @@ class AbstractConfig {
 
         return this;
 
+    }
+    //----------------------------------------------------------------
+
+  //---- validateOneOf -----------------------------------------------
+    /**
+     * Validate oneOf parameter structure
+     * @param {string} name - Parameter name
+     * @param {Object} parameter - Parameter configuration
+     * @private
+     */
+    _validateOneOf(name, parameter) {
+      // Check if value is set and matches one of the oneOf options
+      if (!parameter.value) {
+        if (parameter.isRequired || parameter.required) {
+          throw new Error(`Parameter '${name}' is required but no value selected`);
+        }
+        return;
+      }
+
+      // Find the selected oneOf option
+      const selectedOption = parameter.oneOf.find(opt => opt.value === parameter.value);
+      
+      if (!selectedOption) {
+        const validValues = parameter.oneOf.map(opt => opt.value).join(', ');
+        throw new Error(`Parameter '${name}' has invalid value '${parameter.value}'. Valid options: ${validValues}`);
+      }
+
+      // Validate nested items if they exist
+      if (selectedOption.items && parameter.items) {
+        for (const itemName in selectedOption.items) {
+          const itemConfig = selectedOption.items[itemName];
+          const itemValue = parameter.items[itemName];
+
+          // Check if required item is present
+          if (itemConfig.isRequired && (!itemValue || (!itemValue.value && itemValue.value !== 0))) {
+            throw new Error(`Parameter '${name}.${itemName}' is required but was not provided`);
+          }
+
+          // Validate item type if value exists
+          if (itemValue && itemValue.value !== null && itemValue.value !== undefined && itemConfig.requiredType) {
+            if (itemConfig.requiredType === "string" && typeof itemValue.value !== "string") {
+              throw new Error(`Parameter '${name}.${itemName}' must be a string`);
+            } else if (itemConfig.requiredType === "number" && typeof itemValue.value !== "number") {
+              throw new Error(`Parameter '${name}.${itemName}' must be a number`);
+            } else if (itemConfig.requiredType === "boolean" && typeof itemValue.value !== "boolean") {
+              throw new Error(`Parameter '${name}.${itemName}' must be a boolean`);
+            }
+          }
+        }
+      }
     }
     //----------------------------------------------------------------
 

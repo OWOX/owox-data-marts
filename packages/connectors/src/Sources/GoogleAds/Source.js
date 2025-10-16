@@ -8,42 +8,76 @@
 var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
   constructor(config) {
     super(config.mergeParameters({
-      DeveloperToken: {
-        isRequired: true,
-        requiredType: "string",
-        label: "Developer Token",
-        description: "Google Ads API Developer Token"
-      },
       CustomerId: {
         isRequired: true,
         requiredType: "string", 
         label: "Customer ID",
         description: "Google Ads Customer ID (format: 123-456-7890)"
       },
-      ClientID: {
-        isRequired: true,
-        requiredType: "string",
-        label: "Client ID",
-        description: "OAuth2 Client ID"
+      AuthType: {
+        requiredType: "object",
+        label: "Auth Type",
+        description: "Authentication type",
+        required: true,
+        oneOf: [
+          {
+            label: "OAuth2",
+            value: "oauth2",
+            requiredType: "object",
+            items: {
+              AccessToken: {
+                isRequired: false,
+                requiredType: "string",
+                label: "Access Token (optional)",
+                description: "OAuth2 Access Token (if not provided, will be obtained using refresh token)"
+              },
+              RefreshToken: {
+                isRequired: true,
+                requiredType: "string",
+                label: "Refresh Token",
+                description: "OAuth2 Refresh Token"
+              },
+              ClientId: {
+                isRequired: true,
+                requiredType: "string",
+                label: "Client ID",
+                description: "OAuth2 Client ID"
+              },
+              ClientSecret: {
+                isRequired: true,
+                requiredType: "string",
+                label: "Client Secret",
+                description: "OAuth2 Client Secret"
+              },
+              DeveloperToken: {
+                isRequired: true,
+                requiredType: "string",
+                label: "Developer Token",
+                description: "Google Ads API Developer Token"
+              }
+            }
+          },
+          { 
+            label: "Service Account", 
+            value: "service_account", 
+            requiredType: "object",
+            items: {
+              ServiceAccountKeyFile: {
+                isRequired: true,
+                requiredType: "string",
+                label: "Service Account Key (JSON)",
+                description: "Google Service Account JSON key file content"
+              },
+              DeveloperToken: {
+                isRequired: true,
+                requiredType: "string",
+                label: "Developer Token",
+                description: "Google Ads API Developer Token"
+              }
+            }
+          }
+        ]
       },
-      ClientSecret: {
-        isRequired: true,
-        requiredType: "string",
-        label: "Client Secret",
-        description: "OAuth2 Client Secret"
-      },
-      RefreshToken: {
-        isRequired: true,
-        requiredType: "string",
-        label: "Refresh Token",
-        description: "OAuth2 Refresh Token"
-      },
-      // ServiceAccountKeyFile: {
-      //   isRequired: true,
-      //   requiredType: "string",
-      //   label: "Service Account Key (JSON)",
-      //   description: "Google Service Account JSON key file content"
-      // },
       StartDate: {
         requiredType: "date",
         label: "Start Date",
@@ -64,17 +98,33 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
     }));
     
     this.fieldsSchema = GoogleAdsFieldsSchema;
+    this.accessToken = null;
+    this.tokenExpiryTime = null;
   }
 
   /**
-   * Get access token using OAuth2 refresh token
+   * Get access token based on authentication type
    */
   getAccessToken() {
-    if (this.config.AccessToken?.value) {
-      return this.config.AccessToken.value;
+    // Check if we have a cached token that's still valid
+    if (this.accessToken && this.tokenExpiryTime && Date.now() < this.tokenExpiryTime) {
+      return this.accessToken;
     }
 
-    return this._getOAuth2Token();
+    // Determine authentication type
+    const authType = this.config.AuthType?.value;
+    
+    if (!authType) {
+      throw new Error("AuthType not configured");
+    }
+
+    if (authType === "oauth2") {
+      return this._getOAuth2Token();
+    } else if (authType === "service_account") {
+      return this._getServiceAccountToken();
+    } else {
+      throw new Error(`Unknown authentication type: ${authType}`);
+    }
   }
 
   /**
@@ -83,38 +133,35 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
    */
   _getOAuth2Token() {
     try {
+      const authConfig = this.config.AuthType.items;
+      
+      // Check if access token is provided directly
+      if (authConfig.AccessToken?.value) {
+        this.accessToken = authConfig.AccessToken.value;
+        this.config.logMessage("✅ Using provided OAuth2 access token");
+        return this.accessToken;
+      }
+
       const tokenUrl = "https://oauth2.googleapis.com/token";
       
-      const form = {
+      const formData = {
         grant_type: 'refresh_token',
-        client_id: this.config.ClientID.value,
-        client_secret: this.config.ClientSecret.value,
-        refresh_token: this.config.RefreshToken.value
+        client_id: authConfig.ClientId.value,
+        client_secret: authConfig.ClientSecret.value,
+        refresh_token: authConfig.RefreshToken.value
       };
       
-      const options = {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        payload: form,
-        body: Object.entries(form)
-          .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-          .join('&'),
-        muteHttpExceptions: true
-      };
+      const accessToken = OAuthUtils.getAccessToken({
+        config: this.config,
+        tokenUrl,
+        formData
+      });
       
-      const response = this.urlFetchWithRetry(tokenUrl, options);
-      const tokenData = JSON.parse(response.getContentText());
+      this.accessToken = accessToken;
+      // Token expiry will be managed by caching mechanism
+      this.tokenExpiryTime = Date.now() + (3600 - 60) * 1000; // 1 hour minus 1 minute buffer
       
-      if (tokenData.error) {
-        throw new Error(`OAuth2 error: ${tokenData.error_description || tokenData.error}`);
-      }
-      
-      this.config.AccessToken = { value: tokenData.access_token };
-      
-      this.config.logMessage("✅ Successfully authenticated with OAuth2");
-      return tokenData.access_token;
+      return this.accessToken;
       
     } catch (error) {
       this.config.logMessage(`❌ OAuth2 authentication failed: ${error.message}`);
@@ -122,120 +169,30 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
     }
   }
 
-  // ============================================================================
-  // SERVICE ACCOUNT AUTHENTICATION (COMMENTED OUT - for future use)
-  // ============================================================================
-  
-  // /**
-  //  * Get access token using Service Account authentication
-  //  */
-  // getAccessToken() {
-  //   if (this.accessToken && this.tokenExpiryTime && Date.now() < this.tokenExpiryTime) {
-  //     return this.accessToken;
-  //   }
-  //
-  //   return this._getServiceAccountToken();
-  // }
-
-  // /**
-  //  * Get access token using Service Account (Direct Access method)
-  //  * Node.js implementation using crypto module for JWT signing
-  //  * Based on: https://developers.google.com/google-ads/api/docs/oauth/service-accounts#direct
-  //  */
-  // _getServiceAccountToken() {
-  //   try {
-  //     const serviceAccountData = JSON.parse(this.config.ServiceAccountKeyFile.value);
-  //     
-  //     const now = Math.floor(Date.now() / 1000);
-  //     const jwt = this._createJWTForNodeJS({
-  //       iss: serviceAccountData.client_email,
-  //       scope: "https://www.googleapis.com/auth/adwords",
-  //       aud: "https://oauth2.googleapis.com/token",
-  //       exp: now + 3600, // 1 година
-  //       iat: now
-  //     }, serviceAccountData.private_key);
-  //     
-  //     const tokenUrl = "https://oauth2.googleapis.com/token";
-  //     const formData = new URLSearchParams({
-  //       grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-  //       assertion: jwt
-  //     });
-  //     
-  //     const options = {
-  //       method: 'POST',
-  //       headers: {
-  //         'Content-Type': 'application/x-www-form-urlencoded'
-  //       },
-  //       payload: formData.toString(),
-  //       body: formData.toString() // Для Node.js
-  //     };
-  //     
-  //     const response = this.urlFetchWithRetry(tokenUrl, options);
-  //     const tokenData = JSON.parse(response.getContentText());
-  //     
-  //     if (tokenData.error) {
-  //       throw new Error(`Service Account auth error: ${tokenData.error_description}`);
-  //     }
-  //     
-  //     this.accessToken = tokenData.access_token;
-  //     this.tokenExpiryTime = Date.now() + (tokenData.expires_in - 60) * 1000; // Мінус 1 хвилина для запасу
-  //     
-  //     this.config.logMessage("✅ Successfully authenticated with Service Account");
-  //     return this.accessToken;
-  //     
-  //   } catch (error) {
-  //     this.config.logMessage(`❌ Service Account authentication failed: ${error.message}`);
-  //     throw new Error(`Service Account authentication failed: ${error.message}`);
-  //   }
-  // }
-
-  // /**
-  //  * Create JWT token for Node.js using crypto module
-  //  * Node.js implementation for Service Account authentication
-  //  */
-  // _createJWTForNodeJS(payload, privateKey) {
-  //   const header = {
-  //     alg: "RS256",
-  //     typ: "JWT"
-  //   };
-  //   
-  //   // Base64URL encode header and payload
-  //   const headerB64 = this._base64URLEncode(JSON.stringify(header));
-  //   const payloadB64 = this._base64URLEncode(JSON.stringify(payload));
-  //   const signatureInput = `${headerB64}.${payloadB64}`;
-  //   
-  //   if (typeof require !== 'undefined') {
-  //     const crypto = require('crypto');
-  //     const signature = crypto.sign('RSA-SHA256', Buffer.from(signatureInput), privateKey);
-  //     const signatureB64 = this._base64URLEncode(signature);
-  //     return `${headerB64}.${payloadB64}.${signatureB64}`;
-  //   } else {
-  //     throw new Error("JWT signing not implemented for Apps Script environment. Use OAuth AccessToken instead.");
-  //   }
-  // }
-
-  // /**
-  //  * Base64URL encoding (RFC 4648 Section 5)
-  //  */
-  // _base64URLEncode(data) {
-  //   let base64;
-  //   
-  //   if (typeof data === 'string') {
-  //     if (typeof Buffer !== 'undefined') {
-  //       base64 = Buffer.from(data, 'utf8').toString('base64');
-  //     } else {
-  //       base64 = Utilities.base64Encode(data);
-  //     }
-  //   } else {
-  //     base64 = data.toString('base64');
-  //   }
-  //   
-  //   // Convert base64 to base64url
-  //   return base64
-  //     .replace(/\+/g, '-')
-  //     .replace(/\//g, '_')
-  //     .replace(/=/g, '');
-  // }
+  /**
+   * Get access token using Service Account (Direct Access method)
+   * Based on: https://developers.google.com/google-ads/api/docs/oauth/service-accounts#direct
+   */
+  _getServiceAccountToken() {
+    try {
+      const authConfig = this.config.AuthType.items;
+      
+      const accessToken = OAuthUtils.getServiceAccountToken({
+        config: this.config,
+        serviceAccountKeyJson: authConfig.ServiceAccountKeyFile.value,
+        scope: "https://www.googleapis.com/auth/adwords"
+      });
+      
+      this.accessToken = accessToken;
+      this.tokenExpiryTime = Date.now() + (3600 - 60) * 1000; // 1 hour minus 1 minute buffer
+      
+      return this.accessToken;
+      
+    } catch (error) {
+      this.config.logMessage(`❌ Service Account authentication failed: ${error.message}`);
+      throw new Error(`Service Account authentication failed: ${error.message}`);
+    }
+  }
 
   /**
    * Fetch data from Google Ads API
@@ -248,6 +205,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
    * @returns {Array<Object>} - Fetched data
    */
   fetchData(nodeName, customerId, options) {
+    console.log('Fetching data from Google Ads API for customer:', customerId);
     const { fields, startDate } = options;
     const query = this._buildQuery({ nodeName, fields, startDate });
     return this.makeRequest({ customerId, query, nodeName, fields });
@@ -322,7 +280,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
    */
   makeRequest({ customerId, query, nodeName, fields }) {
     const accessToken = this.getAccessToken();
-    const url = `https://googleads.googleapis.com/v21/customers/${customerId.replace(/-/g, '')}/googleAds:search`;
+    const url = `https://googleads.googleapis.com/v21/customers/${customerId}/googleAds:search`;
     
     console.log(`Google Ads API Request URL: ${url}`);
     console.log(`GAQL Query: ${query}`);
@@ -345,7 +303,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
-          'developer-token': this.config.DeveloperToken.value,
+          'developer-token': this.config.AuthType.items?.DeveloperToken?.value,
           'Content-Type': 'application/json'
         },
         payload: JSON.stringify(requestBody),
