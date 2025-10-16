@@ -14,12 +14,13 @@ var FormatUtils = {
    * @param {string} idsString - Comma/semicolon separated list of IDs
    * @param {Object} options
    * @param {string} options.prefix - ID prefix, e.g. 'urn:li:organization:'
+   * @param {string} [options.stripCharacters] - Characters to remove from ID
    * @return {Array<number>} Array of numeric IDs
    */
-  parseIds: function(idsString, {prefix}) {
+  parseIds: function(idsString, {prefix, stripCharacters = ''}) {
     return String(idsString)
       .split(/[,;]\s*/)
-      .map(id => this.formatId(id.trim(), {prefix}));
+      .map(id => this.formatId(id.trim(), {prefix, stripCharacters}));
   },
 
   /**
@@ -27,9 +28,14 @@ var FormatUtils = {
    * @param {string|number} id
    * @param {Object} options
    * @param {string} options.prefix - ID prefix, e.g. 'urn:li:organization:'
+   * @param {string} [options.stripCharacters] - Characters to remove from ID
    * @return {number} Numeric ID
    */
-  formatId: function(id, {prefix}) {
+  formatId: function(id, {prefix, stripCharacters = ''}) {
+    if (stripCharacters) {
+      id = String(id).split(stripCharacters).join('');
+    }
+    
     if (typeof id === 'string' && id.startsWith(prefix)) {
       return parseInt(id.replace(prefix, ''));
     }
