@@ -4,6 +4,8 @@
 
 ### Minor Changes 0.9.0
 
+![OWOX Data Marts - v0.9.0](https://github.com/user-attachments/assets/ef52acdb-33d3-41c8-b0ae-8f7f1f9099c7)
+
 - 701a05f: # Add System Theme Option to User Menu
   - Added **System** option to the theme switcher for automatic theme selection.
   - Enhanced **UserMenu** with theme selection and submenu support for better usability.
