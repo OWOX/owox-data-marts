@@ -37,6 +37,7 @@ import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { CancelDataMartRunCommand } from '../dto/domain/cancel-data-mart-run.command';
 import { ConnectorSecretService } from '../services/connector-secret.service';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
+import { RunType } from '../../common/scheduler/shared/types';
 
 @Injectable()
 export class DataMartMapper {
@@ -170,7 +171,7 @@ export class DataMartMapper {
     context: AuthorizationContext,
     payload?: Record<string, unknown>
   ): RunDataMartCommand {
-    return new RunDataMartCommand(id, context.projectId, payload);
+    return new RunDataMartCommand(id, context.projectId, context.userId, RunType.manual, payload);
   }
 
   toCancelRunCommand(
