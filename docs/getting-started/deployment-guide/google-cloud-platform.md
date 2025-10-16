@@ -64,7 +64,7 @@ Go to **Users** section and click `Add user account`.
 
 Use **Built-in authentication** with
 
-* **User name** `owox-data-marts-app`
+* **User name**: `owox-data-marts-app`
 * **Password**: generate it and save for further configuration
 and click `Add`.
 
@@ -98,7 +98,7 @@ Copy **Endpoint URL** and save for further configuration.
 
 #### `Containers` → `Variables & Secrets` tab
 
-**Important!** Customize the configuration from the example below with your deployment specifics:
+**Important!** Customize the configuration from the example below with your deployment specifics.
 
 **Step 1.** Paste your actual `Endpoint URL` to `PUBLIC_ORIGIN`. E.g. `https://owox-data-marts-312784848198.europe-west1.run.app` (make sure there is no `/` in the end of URL):
 
