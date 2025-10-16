@@ -92,11 +92,7 @@ export function TargetSetupStep({
       newTableError === null
     );
 
-    if (
-      !target ||
-      target.fullyQualifiedName !== newFullyQualifiedName ||
-      target.isValid !== newIsValid
-    ) {
+    if (target?.fullyQualifiedName !== newFullyQualifiedName || target.isValid !== newIsValid) {
       updateTarget(newDatasetName, newTableName, newDatasetError, newTableError);
     }
   }, [target, sanitizedDestinationName, sanitizedConnectorName, updateTarget]);
