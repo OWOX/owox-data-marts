@@ -2,7 +2,7 @@ import { ReportDataHeader } from '../../../dto/domain/report-data-header.dto';
 import { ConsumptionTrackingService } from '../../../services/consumption-tracking.service';
 import { DataDestinationReportWriter } from '../../interfaces/data-destination-report-writer.interface';
 import { DataDestinationType } from '../../enums/data-destination-type.enum';
-import { Injectable, Logger, Scope } from '@nestjs/common';
+import { Inject, Injectable, Logger, Scope } from '@nestjs/common';
 import { isGoogleSheetsDestination } from '../../data-destination-config.guards';
 import { isGoogleSheetsCredentials } from '../../data-destination-credentials.guards';
 import { GoogleSheetsConfig } from '../schemas/google-sheets-config.schema';
@@ -15,6 +15,9 @@ import { SheetMetadataFormatter } from './sheet-formatters/sheet-metadata-format
 import { GoogleSheetsApiAdapter } from '../adapters/google-sheets-api.adapter';
 import { GoogleSheetsApiAdapterFactory } from '../adapters/google-sheets-api-adapter.factory';
 import { SheetValuesFormatter } from './sheet-formatters/sheet-values-formatter';
+import { SheetsReportRunSuccessfullyEvent } from '../../../events/sheets-report-run-successfully.event';
+import { OWOX_PRODUCER } from '../../../../common/producer/producer.module';
+import { OwoxProducer } from '@owox/internal-helpers';
 
 /**
  * Service for writing report data to Google Sheets
@@ -45,7 +48,9 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
     private readonly metadataFormatter: SheetMetadataFormatter,
     private readonly valuesFormatter: SheetValuesFormatter,
     private readonly adapterFactory: GoogleSheetsApiAdapterFactory,
-    private readonly consumptionTrackingService: ConsumptionTrackingService
+    private readonly consumptionTrackingService: ConsumptionTrackingService,
+    @Inject(OWOX_PRODUCER)
+    private readonly producer: OwoxProducer
   ) {}
 
   /**
@@ -127,6 +132,16 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
         googleSheetsDocumentTitle: this.spreadsheetTitle,
         googleSheetsListTitle: this.sheetTitle,
       });
+
+      const dataMart = this.report.dataMart;
+      await this.producer.produceEvent(
+        new SheetsReportRunSuccessfullyEvent(
+          dataMart.id,
+          this.report.id,
+          dataMart.projectId,
+          this.report.createdById
+        )
+      );
     }
   }
 

@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
@@ -33,6 +33,10 @@ import { DataMartService } from './data-mart.service';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { GracefulShutdownService } from '../../common/scheduler/services/graceful-shutdown.service';
 import { ConnectorExecutionError } from '../errors/connector-execution.error';
+import { OWOX_PRODUCER } from '../../common/producer/producer.module';
+import { OwoxProducer } from '@owox/internal-helpers';
+import { ConnectorRunSuccessfullyEvent } from '../events/connector-run-successfully.event';
+import { RunType } from '../../common/scheduler/shared/types';
 
 interface ConfigurationExecutionResult {
   configIndex: number;
@@ -53,7 +57,9 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     private readonly dataMartService: DataMartService,
     private readonly gracefulShutdownService: GracefulShutdownService,
     private readonly consumptionTracker: ConsumptionTrackingService,
-    private readonly configService: ConfigService
+    private readonly configService: ConfigService,
+    @Inject(OWOX_PRODUCER)
+    private readonly producer: OwoxProducer
   ) {}
 
   async cancelRun(dataMartId: string, runId: string): Promise<void> {
@@ -97,7 +103,12 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
   /**
    * Start a connector run
    */
-  async run(dataMart: DataMart, payload?: Record<string, unknown>): Promise<string> {
+  async run(
+    dataMart: DataMart,
+    createdById: string,
+    runType: RunType,
+    payload?: Record<string, unknown>
+  ): Promise<string> {
     this.validateDataMartForConnector(dataMart);
     const isRunning = await this.checkDataMartIsRunning(dataMart);
     if (isRunning) {
@@ -107,14 +118,14 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
       });
     }
 
-    const dataMartRun = await this.createDataMartRun(dataMart, payload);
+    const dataMartRun = await this.createDataMartRun(dataMart, createdById, runType, payload);
 
-    this.executeInBackground(dataMart, dataMartRun.id, payload).catch(error => {
+    this.executeInBackground(dataMart, dataMartRun, payload).catch(error => {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error(`Background execution failed: ${errorMessage}`, error?.stack, {
         dataMartId: dataMart.id,
         projectId: dataMart.projectId,
-        runId: dataMartRun.id,
+        runId: dataMartRun,
         error: errorMessage,
       });
     });
@@ -174,12 +185,16 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
 
   private async createDataMartRun(
     dataMart: DataMart,
+    createdById: string,
+    runType: RunType,
     payload?: Record<string, unknown>
   ): Promise<DataMartRun> {
     const dataMartRun = this.dataMartRunRepository.create({
       dataMartId: dataMart.id,
       definitionRun: dataMart.definition,
       status: DataMartRunStatus.PENDING,
+      createdById: createdById,
+      runType: runType,
       logs: [],
       errors: [],
       additionalParams: payload ? { payload: payload } : undefined,
@@ -190,9 +205,10 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
 
   private async executeInBackground(
     dataMart: DataMart,
-    runId: string,
+    run: DataMartRun,
     payload?: Record<string, unknown>
   ): Promise<void> {
+    const runId = run.id;
     const processId = `connector-run-${runId}`;
 
     this.gracefulShutdownService.registerActiveProcess(processId);
@@ -262,6 +278,15 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
       if (hasSuccessfulRun) {
         // Register connector run consumption only if at least one configuration succeeded
         await this.consumptionTracker.registerConnectorRunConsumption(dataMart, runId);
+        await this.producer.produceEvent(
+          new ConnectorRunSuccessfullyEvent(
+            dataMart.id,
+            runId,
+            dataMart.projectId,
+            run.createdById!,
+            run.runType!
+          )
+        );
       }
 
       this.logger.debug(`Actualizing schema after connector execution`, {
@@ -617,7 +642,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
         });
       }
 
-      this.executeInBackground(run.dataMart, run.id, run.additionalParams).catch(error => {
+      this.executeInBackground(run.dataMart, run, run.additionalParams).catch(error => {
         this.logger.error(
           `Interrupted background execution failed for run ${run.id}:`,
           error?.stack,
