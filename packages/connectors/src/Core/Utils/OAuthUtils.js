@@ -108,7 +108,6 @@ var OAuthUtils = {
 
   /**
    * Create JWT token for Service Account authentication
-   * Works in both Node.js (using crypto) and Apps Script (using Utilities)
    * 
    * @param {Object} options - JWT creation options
    * @param {Object} options.payload - JWT payload
@@ -116,6 +115,8 @@ var OAuthUtils = {
    * @returns {string} - JWT token
    */
   createJWT({ payload, privateKey }) {
+    const crypto = require('crypto');
+    
     const header = {
       alg: "RS256",
       typ: "JWT"
@@ -126,21 +127,10 @@ var OAuthUtils = {
     const payloadB64 = this._base64URLEncode(JSON.stringify(payload));
     const signatureInput = `${headerB64}.${payloadB64}`;
     
-    // Sign using Node.js crypto or Apps Script Utilities
-    let signature;
-    if (typeof require !== 'undefined') {
-      // Node.js environment
-      const crypto = require('crypto');
-      const sign = crypto.createSign('RSA-SHA256');
-      sign.update(signatureInput);
-      sign.end();
-      signature = sign.sign(privateKey);
-    } else if (typeof Utilities !== 'undefined' && Utilities.computeRsaSha256Signature) {
-      // Apps Script environment
-      signature = Utilities.computeRsaSha256Signature(signatureInput, privateKey);
-    } else {
-      throw new Error("JWT signing not supported in this environment");
-    }
+    const sign = crypto.createSign('RSA-SHA256');
+    sign.update(signatureInput);
+    sign.end();
+    const signature = sign.sign(privateKey);
     
     const signatureB64 = this._base64URLEncode(signature);
     return `${headerB64}.${payloadB64}.${signatureB64}`;
@@ -148,7 +138,6 @@ var OAuthUtils = {
 
   /**
    * Base64URL encoding (RFC 4648 Section 5)
-   * Works in both Node.js and Apps Script environments
    * 
    * @param {string|Buffer} data - Data to encode
    * @returns {string} - Base64URL encoded string
@@ -158,24 +147,9 @@ var OAuthUtils = {
     let base64;
     
     if (typeof data === 'string') {
-      if (typeof Buffer !== 'undefined') {
-        // Node.js
-        base64 = Buffer.from(data, 'utf8').toString('base64');
-      } else if (typeof Utilities !== 'undefined') {
-        // Apps Script
-        base64 = Utilities.base64Encode(data);
-      } else {
-        throw new Error("Base64 encoding not supported in this environment");
-      }
+      base64 = Buffer.from(data, 'utf8').toString('base64');
     } else {
-      // data is a Buffer or byte array
-      if (typeof Buffer !== 'undefined' && Buffer.isBuffer(data)) {
-        base64 = data.toString('base64');
-      } else if (typeof Utilities !== 'undefined') {
-        base64 = Utilities.base64Encode(data);
-      } else {
-        throw new Error("Base64 encoding not supported in this environment");
-      }
+      base64 = data.toString('base64');
     }
     
     // Convert base64 to base64url
