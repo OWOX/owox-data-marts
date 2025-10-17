@@ -66,7 +66,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
             value: "service_account", 
             requiredType: "object",
             items: {
-              ServiceAccountKeyFile: {
+              ServiceAccountKey: {
                 isRequired: true,
                 requiredType: "string",
                 label: "Service Account Key (JSON)",
@@ -210,7 +210,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
       
       const accessToken = OAuthUtils.getServiceAccountToken({
         config: this.config,
-        serviceAccountKeyJson: authConfig.ServiceAccountKeyFile.value,
+        serviceAccountKeyJson: authConfig.ServiceAccountKey.value,
         scope: "https://www.googleapis.com/auth/adwords"
       });
       
