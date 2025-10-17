@@ -57,8 +57,11 @@ export class SchemaActualizeTriggerHandlerService
     return 10 * 60; // 10 minutes
   }
 
+  triggerTtlSeconds(): number {
+    return 60 * 60; // 1 hour
+  }
+
   async onModuleInit(): Promise<void> {
     await this.schedulerFacade.registerTriggerHandler(this);
-    this.logger.log('Schema actualize trigger handler registered');
   }
 }

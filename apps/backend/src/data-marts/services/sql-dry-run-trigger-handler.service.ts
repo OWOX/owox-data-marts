@@ -94,10 +94,16 @@ export class SqlDryRunTriggerHandlerService
   }
 
   /**
+   * Set TTL for triggers to 1 hour (triggers should be processed within 1 hour)
+   */
+  triggerTtlSeconds(): number {
+    return 60 * 60; // 1 hour
+  }
+
+  /**
    * Self-register with the scheduler facade when module initializes
    */
   async onModuleInit(): Promise<void> {
     await this.schedulerFacade.registerTriggerHandler(this);
-    this.logger.log('SQL dry run trigger handler registered with scheduler');
   }
 }
