@@ -62,9 +62,9 @@ export class PinoLoggerProvider implements LoggerProvider {
           colorizeObjects: true,
           timestampKey: 'time',
           translateTime: 'yyyy-mm-dd HH:MM:ss.l',
-          ignore: 'pid,hostname,context,params',
+          ignore: 'pid,hostname,context,params,metadata',
           singleLine: true,
-          messageFormat: '{if context}<{context}>: {end}{msg}{if params} {params}{end}',
+          messageFormat: '{if context}<{context}>: {end}{msg}',
         },
       };
     } else if (config.format === LogFormat.GCP_CLOUD_LOGGING) {
