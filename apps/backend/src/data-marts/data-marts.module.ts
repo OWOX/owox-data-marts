@@ -92,6 +92,10 @@ import { SqlDryRunTrigger } from './entities/sql-dry-run-trigger.entity';
 import { SqlDryRunTriggerService } from './services/sql-dry-run-trigger.service';
 import { SqlDryRunTriggerHandlerService } from './services/sql-dry-run-trigger-handler.service';
 import { SqlDryRunTriggerController } from './controllers/sql-dry-run-trigger.controller';
+import { SchemaActualizeTrigger } from './entities/schema-actualize-trigger.entity';
+import { SchemaActualizeTriggerService } from './services/schema-actualize-trigger.service';
+import { SchemaActualizeTriggerHandlerService } from './services/schema-actualize-trigger-handler.service';
+import { SchemaActualizeTriggerController } from './controllers/schema-actualize-trigger.controller';
 
 @Module({
   imports: [
@@ -105,6 +109,7 @@ import { SqlDryRunTriggerController } from './controllers/sql-dry-run-trigger.co
       ConnectorState,
       ReportDataCache,
       SqlDryRunTrigger,
+      SchemaActualizeTrigger,
     ]),
     SchedulerModule,
     CommonModule,
@@ -119,6 +124,7 @@ import { SqlDryRunTriggerController } from './controllers/sql-dry-run-trigger.co
     ScheduledTriggerController,
     LookerStudioConnectorController,
     SqlDryRunTriggerController,
+    SchemaActualizeTriggerController,
   ],
   providers: [
     ...dataStorageResolverProviders,
@@ -178,6 +184,8 @@ import { SqlDryRunTriggerController } from './controllers/sql-dry-run-trigger.co
     ScheduledTriggersHandlerService,
     SqlDryRunTriggerService,
     SqlDryRunTriggerHandlerService,
+    SchemaActualizeTriggerService,
+    SchemaActualizeTriggerHandlerService,
     ScheduledTriggerService,
     ScheduledTriggerMapper,
     CreateScheduledTriggerService,
@@ -200,17 +208,13 @@ export class DataMartsModule {
       .apply(createOperationTimeoutMiddleware(180000))
       .forRoutes(
         { path: 'data-marts/:id/definition', method: RequestMethod.PUT },
-        { path: 'data-marts/:id/publish', method: RequestMethod.PUT },
-        { path: 'data-marts/:id/actualize-schema', method: RequestMethod.POST },
-        { path: 'data-marts/:id/schema', method: RequestMethod.PUT }
+        { path: 'data-marts/:id/publish', method: RequestMethod.PUT }
       );
     consumer
       .apply(createOperationTimeoutMiddleware(30000))
       .exclude(
         { path: 'data-marts/:id/definition', method: RequestMethod.PUT },
-        { path: 'data-marts/:id/publish', method: RequestMethod.PUT },
-        { path: 'data-marts/:id/actualize-schema', method: RequestMethod.POST },
-        { path: 'data-marts/:id/schema', method: RequestMethod.PUT }
+        { path: 'data-marts/:id/publish', method: RequestMethod.PUT }
       )
       .forRoutes({ path: '*', method: RequestMethod.ALL });
   }

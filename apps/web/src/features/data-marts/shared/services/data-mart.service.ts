@@ -218,6 +218,39 @@ export class DataMartService extends ApiService {
     } as AxiosRequestConfig);
   }
 
+  // Schema actualize trigger API
+  async createSchemaActualizeTrigger(id: string): Promise<{ triggerId: string }> {
+    return this.post<{ triggerId: string }>(`/${id}/schema-actualize-triggers`, undefined, {
+      skipLoadingIndicator: true,
+    } as AxiosRequestConfig);
+  }
+
+  async getSchemaActualizeTriggerStatus(id: string, triggerId: string): Promise<TaskStatus> {
+    const response = await this.get<TaskStatusResponseDto>(
+      `/${id}/schema-actualize-triggers/${triggerId}/status`,
+      undefined,
+      { skipLoadingIndicator: true } as AxiosRequestConfig
+    );
+    return response.status;
+  }
+
+  async getSchemaActualizeTriggerResponse(
+    id: string,
+    triggerId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    return this.get<{ success: boolean; error?: string }>(
+      `/${id}/schema-actualize-triggers/${triggerId}`,
+      undefined,
+      { skipLoadingIndicator: true } as AxiosRequestConfig
+    );
+  }
+
+  async abortSchemaActualizeTrigger(id: string, triggerId: string): Promise<void> {
+    await this.delete(`/${id}/schema-actualize-triggers/${triggerId}`, {
+      skipLoadingIndicator: true,
+    } as AxiosRequestConfig);
+  }
+
   /**
    * Get run history for a data mart
    * @param id Data mart ID

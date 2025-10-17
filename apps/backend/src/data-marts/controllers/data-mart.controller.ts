@@ -29,7 +29,6 @@ import {
   DeleteDataMartSpec,
   RunDataMartSpec,
   ValidateDataMartDefinitionSpec,
-  ActualizeDataMartSchemaSpec,
   UpdateDataMartSchemaSpec,
   GetDataMartRunsSpec,
   CancelDataMartRunSpec,
@@ -37,7 +36,6 @@ import {
 import { AuthContext, AuthorizationContext, Auth, Role, Strategy } from '../../idp';
 import { RunDataMartService } from '../use-cases/run-data-mart.service';
 import { ValidateDataMartDefinitionService } from '../use-cases/validate-data-mart-definition.service';
-import { ActualizeDataMartSchemaService } from '../use-cases/actualize-data-mart-schema.service';
 import { UpdateDataMartSchemaService } from '../use-cases/update-data-mart-schema.service';
 import { DataMartValidationResponseApiDto } from '../dto/presentation/data-mart-validation-response-api.dto';
 import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-response-api.dto';
@@ -59,7 +57,6 @@ export class DataMartController {
     private readonly mapper: DataMartMapper,
     private readonly runDataMartService: RunDataMartService,
     private readonly validateDefinitionService: ValidateDataMartDefinitionService,
-    private readonly actualizeSchemaService: ActualizeDataMartSchemaService,
     private readonly updateSchemaService: UpdateDataMartSchemaService,
     private readonly getDataMartRunsService: GetDataMartRunsService,
     private readonly cancelDataMartRunService: CancelDataMartRunService
@@ -196,18 +193,6 @@ export class DataMartController {
     const command = this.mapper.toDefinitionValidateCommand(id, context);
     const validationResult = await this.validateDefinitionService.run(command);
     return this.mapper.toDefinitionValidationResponse(validationResult);
-  }
-
-  @Auth(Role.editor(Strategy.INTROSPECT))
-  @Post(':id/actualize-schema')
-  @ActualizeDataMartSchemaSpec()
-  async actualizeSchema(
-    @AuthContext() context: AuthorizationContext,
-    @Param('id') id: string
-  ): Promise<DataMartResponseApiDto> {
-    const command = this.mapper.toActualizeSchemaCommand(id, context);
-    const dataMart = await this.actualizeSchemaService.run(command);
-    return this.mapper.toResponse(dataMart);
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))

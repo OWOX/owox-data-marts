@@ -127,7 +127,7 @@ export function useSqlDryRunTrigger(dataMartId: string): UseSqlDryRunTriggerRetu
         }, POLLING_INTERVAL);
 
         // Initial poll
-        void pollTriggerStatus(triggerId);
+        await pollTriggerStatus(triggerId);
       } catch (error) {
         setIsLoading(false);
         setResult({

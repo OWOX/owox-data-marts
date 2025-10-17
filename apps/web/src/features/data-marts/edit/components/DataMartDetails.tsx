@@ -45,6 +45,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     error,
     getErrorMessage,
     runs,
+    getDataMart,
   } = useDataMart(id);
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -267,6 +268,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
             getDataMartRuns,
             loadMoreDataMartRuns,
             runs,
+            getDataMart,
           }}
         />
       </div>
