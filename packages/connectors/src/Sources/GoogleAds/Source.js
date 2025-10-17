@@ -25,13 +25,6 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
             value: "oauth2",
             requiredType: "object",
             items: {
-              AccessToken: {
-                isRequired: false,
-                requiredType: "string",
-                label: "Access Token (optional)",
-                description: "OAuth2 Access Token (if not provided, will be obtained using refresh token)",
-                attributes: [CONFIG_ATTRIBUTES.SECRET]
-              },
               RefreshToken: {
                 isRequired: true,
                 requiredType: "string",
@@ -135,6 +128,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
 
   /**
    * Get access token based on authentication type
+   * Supports OAuth2 and Service Account authentication
    */
   getAccessToken() {
     // Check if we have a cached token that's still valid
@@ -142,86 +136,44 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
       return this.accessToken;
     }
 
-    // Determine authentication type
     const authType = this.config.AuthType?.value;
-    
     if (!authType) {
       throw new Error("AuthType not configured");
     }
 
-    if (authType === "oauth2") {
-      return this._getOAuth2Token();
-    } else if (authType === "service_account") {
-      return this._getServiceAccountToken();
-    } else {
-      throw new Error(`Unknown authentication type: ${authType}`);
-    }
-  }
+    const authConfig = this.config.AuthType.items;
+    let accessToken;
 
-  /**
-   * Get access token using OAuth2 refresh token
-   * Based on: https://developers.google.com/identity/protocols/oauth2/web-server#offline
-   */
-  _getOAuth2Token() {
     try {
-      const authConfig = this.config.AuthType.items;
-      
-      // Check if access token is provided directly
-      if (authConfig.AccessToken?.value) {
-        this.accessToken = authConfig.AccessToken.value;
-        this.config.logMessage("✅ Using provided OAuth2 access token");
-        return this.accessToken;
+      if (authType === "oauth2") {
+        accessToken = OAuthUtils.getAccessToken({
+          config: this.config,
+          tokenUrl: "https://oauth2.googleapis.com/token",
+          formData: {
+            grant_type: 'refresh_token',
+            client_id: authConfig.ClientId.value,
+            client_secret: authConfig.ClientSecret.value,
+            refresh_token: authConfig.RefreshToken.value
+          }
+        });
+      } else if (authType === "service_account") {
+        accessToken = OAuthUtils.getServiceAccountToken({
+          config: this.config,
+          tokenUrl: "https://oauth2.googleapis.com/token",
+          serviceAccountKeyJson: authConfig.ServiceAccountKey.value,
+          scope: "https://www.googleapis.com/auth/adwords"
+        });
+      } else {
+        throw new Error(`Unknown authentication type: ${authType}`);
       }
 
-      const tokenUrl = "https://oauth2.googleapis.com/token";
-      
-      const formData = {
-        grant_type: 'refresh_token',
-        client_id: authConfig.ClientId.value,
-        client_secret: authConfig.ClientSecret.value,
-        refresh_token: authConfig.RefreshToken.value
-      };
-      
-      const accessToken = OAuthUtils.getAccessToken({
-        config: this.config,
-        tokenUrl,
-        formData
-      });
-      
       this.accessToken = accessToken;
-      // Token expiry will be managed by caching mechanism
-      this.tokenExpiryTime = Date.now() + (3600 - 60) * 1000; // 1 hour minus 1 minute buffer
+      this.tokenExpiryTime = Date.now() + (3600 - 60) * 1000;
       
       return this.accessToken;
-      
     } catch (error) {
-      this.config.logMessage(`❌ OAuth2 authentication failed: ${error.message}`);
-      throw new Error(`OAuth2 authentication failed: ${error.message}`);
-    }
-  }
-
-  /**
-   * Get access token using Service Account (Direct Access method)
-   * Based on: https://developers.google.com/google-ads/api/docs/oauth/service-accounts#direct
-   */
-  _getServiceAccountToken() {
-    try {
-      const authConfig = this.config.AuthType.items;
-      
-      const accessToken = OAuthUtils.getServiceAccountToken({
-        config: this.config,
-        serviceAccountKeyJson: authConfig.ServiceAccountKey.value,
-        scope: "https://www.googleapis.com/auth/adwords"
-      });
-      
-      this.accessToken = accessToken;
-      this.tokenExpiryTime = Date.now() + (3600 - 60) * 1000; // 1 hour minus 1 minute buffer
-      
-      return this.accessToken;
-      
-    } catch (error) {
-      this.config.logMessage(`❌ Service Account authentication failed: ${error.message}`);
-      throw new Error(`Service Account authentication failed: ${error.message}`);
+      this.config.logMessage(`❌ Authentication failed: ${error.message}`);
+      throw new Error(`Authentication failed: ${error.message}`);
     }
   }
 
