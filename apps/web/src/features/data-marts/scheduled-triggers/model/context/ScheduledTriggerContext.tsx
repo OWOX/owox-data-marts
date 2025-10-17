@@ -9,6 +9,7 @@ import type { ScheduledTriggerConfig } from '../trigger-config.types.ts';
 import { useDataMartContext } from '../../../edit/model';
 import { useConnector } from '../../../../connectors/shared/model/hooks/useConnector.ts';
 import { toast } from 'react-hot-toast';
+import { trackEvent } from '../../../../../utils/data-layer';
 
 interface ScheduledTriggerProviderProps {
   children: React.ReactNode;
@@ -35,9 +36,17 @@ export function ScheduledTriggerProvider({ children }: ScheduledTriggerProviderP
         );
         dispatch({ type: 'FETCH_TRIGGERS_SUCCESS', payload: triggers });
       } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Failed to fetch scheduled triggers';
         dispatch({
           type: 'FETCH_TRIGGERS_ERROR',
-          payload: error instanceof Error ? error.message : 'Failed to fetch scheduled triggers',
+          payload: message,
+        });
+        trackEvent({
+          event: 'scheduled_trigger_error',
+          category: 'ScheduledTrigger',
+          action: 'ListError',
+          label: message,
         });
       }
     },
@@ -56,9 +65,17 @@ export function ScheduledTriggerProvider({ children }: ScheduledTriggerProviderP
         );
         dispatch({ type: 'FETCH_TRIGGERS_SUCCESS', payload: triggers });
       } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Failed to fetch scheduled triggers';
         dispatch({
           type: 'FETCH_TRIGGERS_ERROR',
-          payload: error instanceof Error ? error.message : 'Failed to fetch scheduled triggers',
+          payload: message,
+        });
+        trackEvent({
+          event: 'scheduled_trigger_error',
+          category: 'ScheduledTrigger',
+          action: 'ListError',
+          label: message,
         });
       }
     },
@@ -73,9 +90,17 @@ export function ScheduledTriggerProvider({ children }: ScheduledTriggerProviderP
         const trigger = await ScheduledTriggerMapper.mapFromDtoWithReportData(triggerDto, dataMart);
         dispatch({ type: 'FETCH_TRIGGER_SUCCESS', payload: trigger });
       } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Failed to fetch scheduled trigger';
         dispatch({
           type: 'FETCH_TRIGGER_ERROR',
-          payload: error instanceof Error ? error.message : 'Failed to fetch scheduled trigger',
+          payload: message,
+        });
+        trackEvent({
+          event: 'scheduled_trigger_error',
+          category: 'ScheduledTrigger',
+          action: 'GetError',
+          label: message,
         });
       }
     },
@@ -106,12 +131,26 @@ export function ScheduledTriggerProvider({ children }: ScheduledTriggerProviderP
         );
         const trigger = await ScheduledTriggerMapper.mapFromDtoWithReportData(triggerDto, dataMart);
         dispatch({ type: 'CREATE_TRIGGER_SUCCESS', payload: trigger });
+        trackEvent({
+          event: 'scheduled_trigger_created',
+          category: 'ScheduledTrigger',
+          action: 'Create',
+          label: type,
+        });
         toast.success('Trigger created');
         return trigger;
       } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Failed to create scheduled trigger';
         dispatch({
           type: 'CREATE_TRIGGER_ERROR',
-          payload: error instanceof Error ? error.message : 'Failed to create scheduled trigger',
+          payload: message,
+        });
+        trackEvent({
+          event: 'scheduled_trigger_error',
+          category: 'ScheduledTrigger',
+          action: 'CreateError',
+          label: message,
         });
         throw error;
       }
@@ -141,11 +180,25 @@ export function ScheduledTriggerProvider({ children }: ScheduledTriggerProviderP
         );
         const trigger = await ScheduledTriggerMapper.mapFromDtoWithReportData(triggerDto, dataMart);
         dispatch({ type: 'UPDATE_TRIGGER_SUCCESS', payload: trigger });
+        trackEvent({
+          event: 'scheduled_trigger_updated',
+          category: 'ScheduledTrigger',
+          action: 'Update',
+          label: trigger.type,
+        });
         toast.success('Trigger updated');
       } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Failed to update scheduled trigger';
         dispatch({
           type: 'UPDATE_TRIGGER_ERROR',
-          payload: error instanceof Error ? error.message : 'Failed to update scheduled trigger',
+          payload: message,
+        });
+        trackEvent({
+          event: 'scheduled_trigger_error',
+          category: 'ScheduledTrigger',
+          action: 'UpdateError',
+          label: message,
         });
         throw error;
       }
@@ -158,11 +211,24 @@ export function ScheduledTriggerProvider({ children }: ScheduledTriggerProviderP
     try {
       await scheduledTriggerService.deleteScheduledTrigger(dataMartId, id);
       dispatch({ type: 'DELETE_TRIGGER_SUCCESS', payload: id });
+      trackEvent({
+        event: 'scheduled_trigger_deleted',
+        category: 'ScheduledTrigger',
+        action: 'Delete',
+        label: id,
+      });
       toast.success('Trigger deleted');
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to delete scheduled trigger';
       dispatch({
         type: 'DELETE_TRIGGER_ERROR',
-        payload: error instanceof Error ? error.message : 'Failed to delete scheduled trigger',
+        payload: message,
+      });
+      trackEvent({
+        event: 'scheduled_trigger_error',
+        category: 'ScheduledTrigger',
+        action: 'DeleteError',
+        label: message,
       });
       throw error;
     }

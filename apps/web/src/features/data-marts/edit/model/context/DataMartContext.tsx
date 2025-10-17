@@ -34,6 +34,7 @@ import type {
 import { extractApiError } from '../../../../../app/api';
 import type { DataMartSchema } from '../../../shared/types/data-mart-schema.types';
 import toast from 'react-hot-toast';
+import { trackEvent } from '../../../../../utils/data-layer';
 
 // Props interface
 interface DataMartProviderProps {
@@ -66,12 +67,25 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       const response = await dataMartService.createDataMart(data);
       const dataMart = mapLimitedDataMartFromDto(response);
       dispatch({ type: 'CREATE_DATA_MART_SUCCESS', payload: dataMart });
+      trackEvent({
+        event: 'data_mart_created',
+        category: 'DataMart',
+        action: 'Create',
+        label: dataMart.id,
+      });
       toast.success('Data Mart created');
       return dataMart;
     } catch (error) {
+      const apiError = extractApiError(error);
       dispatch({
         type: 'CREATE_DATA_MART_ERROR',
-        payload: extractApiError(error),
+        payload: apiError,
+      });
+      trackEvent({
+        event: 'data_mart_error',
+        category: 'DataMart',
+        action: 'CreateError',
+        label: apiError.message,
       });
       throw error;
     }
@@ -84,10 +98,23 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       const response = await dataMartService.updateDataMart(id, data);
       const dataMart = mapDataMartFromDto(response);
       dispatch({ type: 'UPDATE_DATA_MART_SUCCESS', payload: dataMart });
+      trackEvent({
+        event: 'data_mart_updated',
+        category: 'DataMart',
+        action: 'Update',
+        label: dataMart.id,
+      });
     } catch (error) {
+      const apiError = extractApiError(error);
       dispatch({
         type: 'UPDATE_DATA_MART_ERROR',
-        payload: extractApiError(error),
+        payload: apiError,
+      });
+      trackEvent({
+        event: 'data_mart_error',
+        category: 'DataMart',
+        action: 'UpdateError',
+        label: apiError.message,
       });
     }
   };
@@ -98,11 +125,24 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       dispatch({ type: 'DELETE_DATA_MART_START' });
       await dataMartService.deleteDataMart(id);
       dispatch({ type: 'DELETE_DATA_MART_SUCCESS' });
+      trackEvent({
+        event: 'data_mart_deleted',
+        category: 'DataMart',
+        action: 'Delete',
+        label: id,
+      });
       toast.success('Data Mart deleted');
     } catch (error) {
+      const apiError = extractApiError(error);
       dispatch({
         type: 'DELETE_DATA_MART_ERROR',
-        payload: extractApiError(error),
+        payload: apiError,
+      });
+      trackEvent({
+        event: 'data_mart_error',
+        category: 'DataMart',
+        action: 'DeleteError',
+        label: apiError.message,
       });
     }
   };
@@ -113,11 +153,24 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       dispatch({ type: 'UPDATE_DATA_MART_TITLE_START' });
       await dataMartService.updateDataMartTitle(id, title);
       dispatch({ type: 'UPDATE_DATA_MART_TITLE_SUCCESS', payload: title });
+      trackEvent({
+        event: 'data_mart_updated',
+        category: 'DataMart',
+        action: 'UpdateTitle',
+        label: title,
+      });
       toast.success('Title updated');
     } catch (error) {
+      const apiError = extractApiError(error);
       dispatch({
         type: 'UPDATE_DATA_MART_TITLE_ERROR',
-        payload: extractApiError(error),
+        payload: apiError,
+      });
+      trackEvent({
+        event: 'data_mart_error',
+        category: 'DataMart',
+        action: 'UpdateTitleError',
+        label: apiError.message,
       });
     }
   };
@@ -128,11 +181,23 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       dispatch({ type: 'UPDATE_DATA_MART_DESCRIPTION_START' });
       await dataMartService.updateDataMartDescription(id, description);
       dispatch({ type: 'UPDATE_DATA_MART_DESCRIPTION_SUCCESS', payload: description ?? '' });
+      trackEvent({
+        event: 'data_mart_updated',
+        category: 'DataMart',
+        action: 'UpdateDescription',
+      });
       toast.success('Description updated');
     } catch (error) {
+      const apiError = extractApiError(error);
       dispatch({
         type: 'UPDATE_DATA_MART_DESCRIPTION_ERROR',
-        payload: extractApiError(error),
+        payload: apiError,
+      });
+      trackEvent({
+        event: 'data_mart_error',
+        category: 'DataMart',
+        action: 'UpdateDescriptionError',
+        label: apiError.message,
       });
     }
   };
@@ -202,10 +267,23 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         payload: { definitionType, definition },
       });
       dispatch({ type: 'UPDATE_DATA_MART_SUCCESS', payload: dataMart });
+      trackEvent({
+        event: 'data_mart_updated',
+        category: 'DataMart',
+        action: 'UpdateDefinition',
+        label: definitionType,
+      });
     } catch (error) {
+      const apiError = extractApiError(error);
       dispatch({
         type: 'UPDATE_DATA_MART_DEFINITION_ERROR',
-        payload: extractApiError(error),
+        payload: apiError,
+      });
+      trackEvent({
+        event: 'data_mart_error',
+        category: 'DataMart',
+        action: 'UpdateDefinitionError',
+        label: apiError.message,
       });
     }
   };
@@ -219,9 +297,16 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       dispatch({ type: 'PUBLISH_DATA_MART_SUCCESS', payload: dataMart });
       toast.success('Data Mart published');
     } catch (error) {
+      const apiError = extractApiError(error);
       dispatch({
         type: 'PUBLISH_DATA_MART_ERROR',
-        payload: extractApiError(error),
+        payload: apiError,
+      });
+      trackEvent({
+        event: 'data_mart_error',
+        category: 'DataMart',
+        action: 'PublishError',
+        label: apiError.message,
       });
       throw error;
     }
@@ -235,9 +320,16 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       await dataMartService.runDataMart(request.id, request.payload);
       dispatch({ type: 'RUN_DATA_MART_SUCCESS' });
     } catch (error) {
+      const apiError = extractApiError(error);
       dispatch({
         type: 'RUN_DATA_MART_ERROR',
-        payload: extractApiError(error),
+        payload: apiError,
+      });
+      trackEvent({
+        event: 'data_mart_error',
+        category: 'DataMart',
+        action: 'RunError',
+        label: apiError.message,
       });
     }
   };
@@ -248,9 +340,16 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       await getDataMartRuns(id);
       toast.success('Data Mart run canceled');
     } catch (error) {
+      const apiError = extractApiError(error);
       dispatch({
         type: 'RUN_DATA_MART_ERROR',
-        payload: extractApiError(error),
+        payload: apiError,
+      });
+      trackEvent({
+        event: 'data_mart_error',
+        category: 'DataMart',
+        action: 'CancelRunError',
+        label: apiError.message,
       });
     }
   };
@@ -264,9 +363,16 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       dispatch({ type: 'ACTUALIZE_DATA_MART_SCHEMA_SUCCESS', payload: dataMart });
       toast.success('Output schema actualized');
     } catch (error) {
+      const apiError = extractApiError(error);
       dispatch({
         type: 'ACTUALIZE_DATA_MART_SCHEMA_ERROR',
-        payload: extractApiError(error),
+        payload: apiError,
+      });
+      trackEvent({
+        event: 'data_mart_error',
+        category: 'DataMart',
+        action: 'ActualizeSchemaError',
+        label: apiError.message,
       });
     }
   };
@@ -280,9 +386,16 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       dispatch({ type: 'UPDATE_DATA_MART_SCHEMA_SUCCESS', payload: dataMart });
       toast.success('Output schema updated');
     } catch (error) {
+      const apiError = extractApiError(error);
       dispatch({
         type: 'UPDATE_DATA_MART_SCHEMA_ERROR',
-        payload: extractApiError(error),
+        payload: apiError,
+      });
+      trackEvent({
+        event: 'data_mart_error',
+        category: 'DataMart',
+        action: 'UpdateSchemaError',
+        label: apiError.message,
       });
     }
   };

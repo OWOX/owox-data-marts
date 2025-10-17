@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import { ReportFormMode } from '../../../shared';
+import { trackEvent } from '../../../../../../utils/data-layer';
 
 /**
  * Custom hook for managing report modal states
@@ -25,6 +26,12 @@ export function useReportSidesheet() {
     setMode(ReportFormMode.CREATE);
     setEditingReport(null);
     setIsOpen(true);
+    trackEvent({
+      event: 'report_open',
+      category: 'Report',
+      action: 'CreateReport',
+      label: 'ReportForm',
+    });
   };
 
   /**
@@ -34,6 +41,12 @@ export function useReportSidesheet() {
     setMode(ReportFormMode.EDIT);
     setEditingReport(report);
     setIsOpen(true);
+    trackEvent({
+      event: 'report_open',
+      category: 'Report',
+      action: 'EditReport',
+      label: report.dataDestination.type,
+    });
   };
 
   /**
@@ -42,6 +55,12 @@ export function useReportSidesheet() {
   const handleCloseModal = () => {
     setIsOpen(false);
     setEditingReport(null);
+    trackEvent({
+      event: 'report_close',
+      category: 'Report',
+      action: mode === ReportFormMode.EDIT ? 'Edit' : 'Create',
+      label: 'ReportForm',
+    });
   };
 
   return {

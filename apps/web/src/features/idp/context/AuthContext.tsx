@@ -12,6 +12,7 @@ import {
   clearTokenProvider,
   DefaultTokenProvider,
 } from '../../../app/api/token-provider';
+import { pushToDataLayer, trackUserIdentified, trackLogout } from '../../../utils/data-layer';
 
 /**
  * Auth reducer actions
@@ -185,7 +186,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * Redirect to sign-out page and clear local session
    */
   const signOut = useCallback(() => {
-    signOutApi();
+    try {
+      trackLogout();
+    } finally {
+      signOutApi();
+    }
   }, []);
 
   /**
@@ -198,6 +203,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     void initializeAuth();
   }, [initializeAuth]);
+
+  useEffect(() => {
+    if (state.user) {
+      pushToDataLayer({ projectId: state.user.projectId });
+      trackUserIdentified({
+        userId: state.user.id,
+        userEmail: state.user.email,
+        userFullName: state.user.fullName,
+      });
+    }
+  }, [state.user]);
 
   useEffect(() => {
     const handleLogout = () => {
