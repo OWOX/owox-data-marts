@@ -56,12 +56,12 @@ var OAuthUtils = {
    * 
    * @param {Object} options - Configuration options
    * @param {Object} options.config - Configuration object
+   * @param {string} options.tokenUrl - Token URL
    * @param {string} options.serviceAccountKeyJson - Service Account JSON key content
    * @param {string} options.scope - OAuth scope (e.g., "https://www.googleapis.com/auth/adwords")
-   * @param {string} [options.tokenUrl] - Token URL (defaults to Google's OAuth2 endpoint)
    * @returns {string} - The access token
    */
-  getServiceAccountToken({ config, serviceAccountKeyJson, scope, tokenUrl = "https://oauth2.googleapis.com/token" }) {
+  getServiceAccountToken({ config, tokenUrl, serviceAccountKeyJson, scope }) {
     try {
       const serviceAccountData = JSON.parse(serviceAccountKeyJson);
       
@@ -71,34 +71,26 @@ var OAuthUtils = {
           iss: serviceAccountData.client_email,
           scope: scope,
           aud: tokenUrl,
-          exp: now + 3600, // 1 hour
+          exp: now + 3600,
           iat: now
         },
         privateKey: serviceAccountData.private_key
       });
       
-      const formBody = `grant_type=${encodeURIComponent("urn:ietf:params:oauth:grant-type:jwt-bearer")}&assertion=${encodeURIComponent(jwt)}`;
-      
-      const options = {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        payload: formBody,
-        body: formBody,
-        muteHttpExceptions: true
+      const formData = {
+        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        assertion: jwt
       };
       
-      const resp = EnvironmentAdapter.fetch(tokenUrl, options);
-      const json = JSON.parse(resp.getContentText());
-      
-      if (json.error) {
-        throw new Error(`Service Account auth error: ${json.error_description || json.error}`);
-      }
+      const accessToken = this.getAccessToken({
+        config,
+        tokenUrl,
+        formData
+      });
       
       config.logMessage("✅ Successfully authenticated with Service Account");
       
-      return json.access_token;
+      return accessToken;
       
     } catch (error) {
       config.logMessage(`❌ Service Account authentication failed: ${error.message}`);
