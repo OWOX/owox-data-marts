@@ -64,10 +64,14 @@ export function useSchemaActualizeTrigger(
               onSuccess?.();
               toast.success('Output schema actualized', { duration: undefined, id: triggerId });
             } else {
-              setError(response.error ?? 'Schema actualization failed');
+              const errorMessage = response.error ?? 'Schema actualization failed';
+              setError(errorMessage);
+              toast.error(errorMessage, { duration: undefined, id: triggerId });
             }
           } catch (e) {
-            setError(e instanceof Error ? e.message : 'Schema actualization failed');
+            const errorMessage = e instanceof Error ? e.message : 'Schema actualization failed';
+            setError(errorMessage);
+            toast.error(errorMessage, { duration: undefined, id: triggerId });
           }
           setIsLoading(false);
           currentTriggerIdRef.current = null;
@@ -78,7 +82,9 @@ export function useSchemaActualizeTrigger(
       } catch (e) {
         stopPolling();
         setIsLoading(false);
-        setError(e instanceof Error ? e.message : 'Schema actualization failed');
+        const errorMessage = e instanceof Error ? e.message : 'Schema actualization failed';
+        setError(errorMessage);
+        toast.error(errorMessage, { duration: undefined, id: triggerId });
         currentTriggerIdRef.current = null;
         isProcessingRef.current = false;
       }
