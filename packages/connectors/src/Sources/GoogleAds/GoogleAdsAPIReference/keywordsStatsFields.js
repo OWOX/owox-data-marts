@@ -5,25 +5,25 @@
  * file that was distributed with this source code.
  */
 
-var keywordFields = {
+var keywordStatsFields = {
   'keyword_id': {
     'description': 'Keyword Criterion ID',
-    'apiName': 'keyword_view.resource_name',
+    'apiName': 'ad_group_criterion.criterion_id',
     'type': 'string'
   },
   'keyword_text': {
     'description': 'Keyword Text',
-    'apiName': 'keyword_view.criterion_id',
+    'apiName': 'ad_group_criterion.keyword.text',
     'type': 'string'
   },
   'keyword_match_type': {
     'description': 'Keyword Match Type (EXACT, PHRASE, BROAD)',
-    'apiName': 'keyword_view.match_type',
+    'apiName': 'ad_group_criterion.keyword.match_type',
     'type': 'string'
   },
   'keyword_status': {
     'description': 'Criterion Status (ENABLED, PAUSED, REMOVED)',
-    'apiName': 'keyword_view.status',
+    'apiName': 'ad_group_criterion.status',
     'type': 'string'
   },
   'ad_group_id': {
@@ -85,6 +85,57 @@ var keywordFields = {
     'description': 'Quality Score',
     'apiName': 'ad_group_criterion.quality_info.quality_score',
     'type': 'number'
+  },
+  'conversion_rate': {
+    'description': 'Conversion Rate',
+    'apiName': 'metrics.conversions_from_interactions_rate',
+    'type': 'number'
+  },
+  'view_through_conversions': {
+    'description': 'View-Through Conversions',
+    'apiName': 'metrics.view_through_conversions',
+    'type': 'number'
+  },
+  'all_conversions': {
+    'description': 'All Conversions (including cross-device, store visits, etc.)',
+    'apiName': 'metrics.all_conversions',
+    'type': 'number'
+  },
+  'all_conversions_value': {
+    'description': 'All Conversions Value',
+    'apiName': 'metrics.all_conversions_value',
+    'type': 'number'
+  },
+  'average_cost': {
+    'description': 'Average Cost Per Interaction',
+    'apiName': 'metrics.average_cost',
+    'type': 'number'
+  },
+  'average_cpm': {
+    'description': 'Average CPM (Cost Per Thousand Impressions)',
+    'apiName': 'metrics.average_cpm',
+    'type': 'number'
+  },
+  'search_impression_share': {
+    'description': 'Search Impression Share',
+    'apiName': 'metrics.search_impression_share',
+    'type': 'number'
+  },
+  'search_rank_lost_impression_share': {
+    'description': 'Search Rank Lost Impression Share',
+    'apiName': 'metrics.search_rank_lost_impression_share',
+    'type': 'number'
+  },
+  'top_impression_percentage': {
+    'description': 'Top Impression Percentage',
+    'apiName': 'metrics.top_impression_percentage',
+    'type': 'number'
+  },
+  'absolute_top_impression_percentage': {
+    'description': 'Absolute Top Impression Percentage',
+    'apiName': 'metrics.absolute_top_impression_percentage',
+    'type': 'number'
   }
 };
+
 

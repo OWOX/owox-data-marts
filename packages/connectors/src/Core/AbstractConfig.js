@@ -107,6 +107,59 @@ class AbstractConfig {
     }
     //----------------------------------------------------------------
 
+  //---- _validateParameterType --------------------------------------
+    /**
+     * Validate parameter type and convert if needed
+     * @param {string} name - Parameter name
+     * @param {Object} parameter - Parameter configuration
+     * @private
+     */
+    _validateParameterType(name, parameter) {
+      if (!("requiredType" in parameter) || parameter.value === null || parameter.value === undefined) {
+        return;
+      }
+
+      const allowedTypes = ["string", "number", "date", "boolean", "object"];
+      if (!allowedTypes.includes(parameter.requiredType)) {
+        throw new Error(`Parameter '${name}' has wrong requiredType in configuration`);
+      }
+
+      // parameters must be either string or number
+      if (parameter.requiredType === "string" || parameter.requiredType === "number") {
+        if (typeof parameter.value !== parameter.requiredType) {
+          throw new Error(`Parameter '${name}' must be a ${parameter.requiredType}. Got ${typeof parameter.value} instead`);
+        }
+        return;
+      }
+
+      // parameters must be a boolean
+      if (parameter.requiredType === "boolean") {
+        if (typeof parameter.value !== "boolean") {
+          // Convert string "true"/"false" to boolean for backward compatibility
+          if (typeof parameter.value === "string" && (parameter.value.toLowerCase() === "true" || parameter.value.toLowerCase() === "false")) {
+            parameter.value = parameter.value.toLowerCase() === "true";
+          } else {
+            throw new Error(`Parameter '${name}' must be a ${parameter.requiredType}. Got ${typeof parameter.value} instead`);
+          }
+        }
+        return;
+      }
+
+      // parameters must be a date
+      if (parameter.requiredType === "date") {
+        if (parameter.value.constructor.name !== "Date") {
+          // Check if the value is a string and matches the format YYYY-MM-DD cast it to a date
+          if (parameter.value.constructor.name === "String" && parameter.value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            parameter.value = new Date(parameter.value);
+          } else {
+            throw new Error(`Parameter '${name}' must be a ${parameter.requiredType}. Got ${typeof parameter.value} instead`);
+          }
+        }
+        return;
+      }
+    }
+    //----------------------------------------------------------------
+
   //---- validate ----------------------------------------------------
     /**
      * Validate if all parameters meet restrictions
@@ -134,41 +187,8 @@ class AbstractConfig {
             continue;
           }
 
-          // there is a type restriction for parameter values
-          if( "requiredType" in parameter && parameter.value !== null && parameter.value !== undefined ) {
-
-              if( !(["string", "number", "date", "boolean", "object"].includes( parameter.requiredType )) ) {
-
-                throw new Error(`Parameter '${name}' has wrong requiredType in configuration`)
-
-              // parameters must be eigher string or number
-              } else if( ( parameter.requiredType == "string" || parameter.requiredType == "number" ) 
-              && typeof parameter.value !== parameter.requiredType ) {
-
-                throw new Error(`Parameter '${name}' must a a ${parameter.requiredType}. Got ${typeof parameter} instead`)
-
-              // parameters must be a boolean
-              } else if ( parameter.requiredType == "boolean" && typeof parameter.value !== "boolean" ) {
-
-                // Convert string "true"/"false" to boolean for backward compatibility
-                if (typeof parameter.value === "string" && (parameter.value.toLowerCase() === "true" || parameter.value.toLowerCase() === "false")) {
-                  parameter.value = parameter.value.toLowerCase() === "true";
-                } else {
-                  throw new Error(`Parameter '${name}' must be a ${parameter.requiredType}. Got ${typeof parameter.value} instead`)
-                }
-
-              // parameters must be a date
-              } else if ( parameter.requiredType == "date" && parameter.value && parameter.value.constructor.name != "Date" ) {
-
-                // Check if the value is a string and matches the format YYYY-MM-DD cast it to a date
-                if (parameter.value.constructor.name == "String" && parameter.value.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                  parameter.value = new Date(parameter.value);
-                } else {
-                  throw new Error(`Parameter '${name}' must be a ${parameter.requiredType}. Got ${typeof parameter} instead`)
-                }
-              }
-        
-          }
+          // Validate parameter type
+          this._validateParameterType(name, parameter);
 
         };
 
@@ -187,7 +207,7 @@ class AbstractConfig {
     _validateOneOf(name, parameter) {
       // Check if value is set and matches one of the oneOf options
       if (!parameter.value) {
-        if (parameter.isRequired || parameter.required) {
+        if (parameter.isRequired) {
           throw new Error(`Parameter '${name}' is required but no value selected`);
         }
         return;
@@ -212,15 +232,9 @@ class AbstractConfig {
             throw new Error(`Parameter '${name}.${itemName}' is required but was not provided`);
           }
 
-          // Validate item type if value exists
-          if (itemValue && itemValue.value !== null && itemValue.value !== undefined && itemConfig.requiredType) {
-            if (itemConfig.requiredType === "string" && typeof itemValue.value !== "string") {
-              throw new Error(`Parameter '${name}.${itemName}' must be a string`);
-            } else if (itemConfig.requiredType === "number" && typeof itemValue.value !== "number") {
-              throw new Error(`Parameter '${name}.${itemName}' must be a number`);
-            } else if (itemConfig.requiredType === "boolean" && typeof itemValue.value !== "boolean") {
-              throw new Error(`Parameter '${name}.${itemName}' must be a boolean`);
-            }
+          // Validate item type using shared validation method
+          if (itemValue) {
+            this._validateParameterType(`${name}.${itemName}`, itemValue);
           }
         }
       }

@@ -18,7 +18,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         requiredType: "object",
         label: "Auth Type",
         description: "Authentication type",
-        required: true,
+        isRequired: true,
         oneOf: [
           {
             label: "OAuth2",
@@ -29,13 +29,15 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
                 isRequired: false,
                 requiredType: "string",
                 label: "Access Token (optional)",
-                description: "OAuth2 Access Token (if not provided, will be obtained using refresh token)"
+                description: "OAuth2 Access Token (if not provided, will be obtained using refresh token)",
+                attributes: [CONFIG_ATTRIBUTES.SECRET]
               },
               RefreshToken: {
                 isRequired: true,
                 requiredType: "string",
                 label: "Refresh Token",
-                description: "OAuth2 Refresh Token"
+                description: "OAuth2 Refresh Token",
+                attributes: [CONFIG_ATTRIBUTES.SECRET]
               },
               ClientId: {
                 isRequired: true,
@@ -47,13 +49,15 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
                 isRequired: true,
                 requiredType: "string",
                 label: "Client Secret",
-                description: "OAuth2 Client Secret"
+                description: "OAuth2 Client Secret",
+                attributes: [CONFIG_ATTRIBUTES.SECRET]
               },
               DeveloperToken: {
                 isRequired: true,
                 requiredType: "string",
                 label: "Developer Token",
-                description: "Google Ads API Developer Token"
+                description: "Google Ads API Developer Token",
+                attributes: [CONFIG_ATTRIBUTES.SECRET]
               }
             }
           },
@@ -66,13 +70,15 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
                 isRequired: true,
                 requiredType: "string",
                 label: "Service Account Key (JSON)",
-                description: "Google Service Account JSON key file content"
+                description: "Google Service Account JSON key file content",
+                attributes: [CONFIG_ATTRIBUTES.SECRET]
               },
               DeveloperToken: {
                 isRequired: true,
                 requiredType: "string",
                 label: "Developer Token",
-                description: "Google Ads API Developer Token"
+                description: "Google Ads API Developer Token",
+                attributes: [CONFIG_ATTRIBUTES.SECRET]
               }
             }
           }
@@ -94,6 +100,31 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         isRequired: true,
         label: "Fields",
         description: "List of fields to fetch from Google Ads API"
+      },
+      CreateEmptyTables: {
+        requiredType: "boolean",
+        default: true,
+        label: "Create Empty Tables",
+        description: "Create tables with all columns even if no data is returned from API (true/false)"
+      },
+      ReimportLookbackWindow: {
+        requiredType: "number",
+        isRequired: true,
+        default: 2,
+        label: "Reimport Lookback Window",
+        description: "Number of days to look back when reimporting data"
+      },
+      CleanUpToKeepWindow: {
+        requiredType: "number",
+        label: "Clean Up To Keep Window",
+        description: "Number of days to keep data before cleaning up"
+      },
+      MaxFetchingDays: {
+        requiredType: "number",
+        isRequired: true,
+        default: 31,
+        label: "Max Fetching Days",
+        description: "Maximum number of days to fetch data for"
       }
     }));
     
@@ -230,17 +261,17 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
    */
   _getResourceName(nodeName) {
     switch (nodeName) {
-      case 'campaign_catalog':
-      case 'campaign_stats':
+      case 'campaigns':
+      case 'campaigns_stats':
         return 'campaign';
-      case 'ad_group_catalog':
-      case 'ad_group_stats':
+      case 'ad_groups':
+      case 'ad_groups_stats':
         return 'ad_group';
-      case 'ad_group_ad_stats':
+      case 'ad_group_ads_stats':
         return 'ad_group_ad';
-      case 'keyword_stats':
+      case 'keywords_stats':
         return 'keyword_view';
-      case 'criterion_catalog':
+      case 'criterion':
         return 'ad_group_criterion';
       default:
         throw new Error(`Unknown resource name for nodeName: ${nodeName}`);
@@ -332,47 +363,56 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
   }
 
   /**
-   * Flatten nested API response to snake_case keys
-   * {campaign: {id: "123"}} → {"campaign_id": "123"}
-   * {adGroup: {baseAdGroup: "456"}} → {"ad_group_base_ad_group": "456"}
-   * @param {Object} obj - Nested object
-   * @param {string} prefix - Current prefix for recursion
-   * @returns {Object} - Flattened object with snake_case keys
-   * @private
-   */
-  _flattenToSnakeCase(obj, prefix = '') {
-    const flattened = {};
-    
-    for (const [key, value] of Object.entries(obj)) {
-      const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-      const fullKey = prefix ? `${prefix}_${snakeKey}` : snakeKey;
-      
-      if (value && typeof value === 'object' && !Array.isArray(value)) {
-        Object.assign(flattened, this._flattenToSnakeCase(value, fullKey));
-      } else {
-        flattened[fullKey] = value;
-      }
-    }
-    
-    return flattened;
-  }
-
-  /**
    * Map API result to requested column names
    * @param {Object} result - API response result
-   * @param {string} nodeName - Name of the node (unused, kept for consistency)
+   * @param {string} nodeName - Name of the node for schema lookup
    * @param {Array<string>} requestedFields - Fields that were requested (e.g. ['ad_group_id', 'campaign_id'])
    * @returns {Object} - Mapped result with column names as keys
    * @private
    */
   _mapResultToColumns(result, nodeName, requestedFields) {
-    const flattened = this._flattenToSnakeCase(result);
     const mapped = {};
     
     for (const fieldName of requestedFields) {
-      mapped[fieldName] = flattened[fieldName];
+      // Get apiName from schema (e.g. 'ad_group_criterion.criterion_id')
+      const fieldConfig = this.fieldsSchema[nodeName].fields[fieldName];
+      if (!fieldConfig) {
+        mapped[fieldName] = null;
+        continue;
+      }
+      
+      // Convert apiName path to camelCase path for API response
+      // 'ad_group_criterion.criterion_id' -> 'adGroupCriterion.criterionId'
+      const camelPath = fieldConfig.apiName
+        .split('.')
+        .map(part => this._snakeToCamel(part))
+        .join('.');
+      
+      // Get value from nested API response
+      mapped[fieldName] = this._getNestedValue(result, camelPath);
     }
     
     return mapped;
+  }
+
+  /**
+   * Convert snake_case to camelCase
+   * @param {string} str - Snake case string
+   * @returns {string} - CamelCase string
+   * @private
+   */
+  _snakeToCamel(str) {
+    return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+  }
+  
+  /**
+   * Get nested value from object using dot-notation path
+   * @param {Object} obj - Object to search in
+   * @param {string} path - Dot-notation path (e.g. 'adGroupCriterion.criterionId')
+   * @returns {*} - Value at path or undefined
+   * @private
+   */
+  _getNestedValue(obj, path) {
+    return path.split('.').reduce((current, key) => current?.[key], obj);
   }
 };

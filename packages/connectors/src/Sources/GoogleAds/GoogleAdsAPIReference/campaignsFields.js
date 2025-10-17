@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-var campaignCatalogFields = {
+var campaignFields = {
   'campaign_id': {
     'description': 'Campaign ID',
     'apiName': 'campaign.id',
@@ -35,6 +35,32 @@ var campaignCatalogFields = {
     'description': 'Campaign End Date',
     'apiName': 'campaign.end_date',
     'type': 'string'
+  },
+  'campaign_bidding_strategy_type': {
+    'description': 'Bidding Strategy Type (MANUAL_CPC, TARGET_CPA, TARGET_ROAS, etc.)',
+    'apiName': 'campaign.bidding_strategy_type',
+    'type': 'string'
+  },
+  'campaign_budget_amount_micros': {
+    'description': 'Campaign Budget Amount in Micros',
+    'apiName': 'campaign_budget.amount_micros',
+    'type': 'number'
+  },
+  'campaign_target_cpa_micros': {
+    'description': 'Target CPA in Micros (if using Target CPA bidding)',
+    'apiName': 'campaign.target_cpa.target_cpa_micros',
+    'type': 'number'
+  },
+  'campaign_target_roas': {
+    'description': 'Target ROAS (if using Target ROAS bidding)',
+    'apiName': 'campaign.target_roas.target_roas',
+    'type': 'number'
+  },
+  'campaign_advertising_channel_sub_type': {
+    'description': 'Advertising Channel Sub Type',
+    'apiName': 'campaign.advertising_channel_sub_type',
+    'type': 'string'
   }
 };
+
 
