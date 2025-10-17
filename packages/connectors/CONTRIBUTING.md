@@ -1,4 +1,4 @@
-# Developer Guide for Custom Data Source Integrations
+# How to Contribute
 
 There are thousands of different data sources, with their APIs constantly changing, making it impossible to develop integrations for all possible use cases. Therefore, the goal of this guide is to provide clear and understandable steps to adjust existing integrations and develop new ones.
 
@@ -25,11 +25,13 @@ The build system automatically:
 
 **No manual registration is required** — just create your connector files in the correct location.
 
-## Creating a New Integration
+## Creating a New Source
 
-For detailed step-by-step instructions on creating a new connector, see [CREATING_CONNECTOR.md](./CREATING_CONNECTOR.md).
+For detailed step-by-step instructions on creating a new source, see [Creating a New Source](./CREATING_CONNECTOR.md).
 
 ## Architecture Concepts
+
+![Architecture Concepts](./res/architecture-uml.svg)
 
 ### Connector
 

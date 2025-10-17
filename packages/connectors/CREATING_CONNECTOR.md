@@ -1,6 +1,6 @@
-# Creating a New Integration
+# Creating a New Source
 
-To create an integration with a new data source, follow these steps:
+To create a new source with a new data source, follow these steps:
 
 ## 1. Create Connector Directory
 
@@ -272,9 +272,10 @@ After creating your connector:
 
 3. **Test integration:**
    - Run backend application with `npm run dev -w owox`
-   - Create new data mart with new connector
+   - Move to OWOX Data Marts application in your browser: `http://localhost:3000`
+   - Create new data mart with new source connector
    - Create a configuration with required parameters
-   - Test connector with existing storage
+   - Test source with existing storage
 
 ## 6. Optional Files
 
