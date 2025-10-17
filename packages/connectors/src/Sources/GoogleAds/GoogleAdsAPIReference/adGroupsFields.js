@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-var adGroupCatalogFields = {
+var adGroupFields = {
   'ad_group_id': {
     'description': 'Ad Group ID',
     'apiName': 'ad_group.id',
@@ -35,6 +35,22 @@ var adGroupCatalogFields = {
     'description': 'Campaign Name',
     'apiName': 'campaign.name',
     'type': 'string'
+  },
+  'ad_group_cpc_bid_micros': {
+    'description': 'Ad Group CPC Bid in Micros',
+    'apiName': 'ad_group.cpc_bid_micros',
+    'type': 'number'
+  },
+  'ad_group_cpm_bid_micros': {
+    'description': 'Ad Group CPM Bid in Micros',
+    'apiName': 'ad_group.cpm_bid_micros',
+    'type': 'number'
+  },
+  'ad_group_target_cpa_micros': {
+    'description': 'Ad Group Target CPA in Micros',
+    'apiName': 'ad_group.target_cpa_micros',
+    'type': 'number'
   }
 };
+
 

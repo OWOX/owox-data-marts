@@ -55,6 +55,41 @@ var criterionFields = {
     'description': 'Whether to target (false) or exclude (true) the criterion',
     'apiName': 'ad_group_criterion.negative',
     'type': 'boolean'
+  },
+  'cpc_bid_micros': {
+    'description': 'CPC Bid in Micros',
+    'apiName': 'ad_group_criterion.cpc_bid_micros',
+    'type': 'number'
+  },
+  'effective_cpc_bid_micros': {
+    'description': 'Effective CPC Bid in Micros (includes bid modifiers)',
+    'apiName': 'ad_group_criterion.effective_cpc_bid_micros',
+    'type': 'number'
+  },
+  'position_estimates_first_page_cpc_micros': {
+    'description': 'Estimated CPC Bid needed to appear on first page',
+    'apiName': 'ad_group_criterion.position_estimates.first_page_cpc_micros',
+    'type': 'number'
+  },
+  'position_estimates_top_of_page_cpc_micros': {
+    'description': 'Estimated CPC Bid needed to appear at top of page',
+    'apiName': 'ad_group_criterion.position_estimates.top_of_page_cpc_micros',
+    'type': 'number'
+  },
+  'position_estimates_first_position_cpc_micros': {
+    'description': 'Estimated CPC Bid needed to appear in first position',
+    'apiName': 'ad_group_criterion.position_estimates.first_position_cpc_micros',
+    'type': 'number'
+  },
+  'ad_group_name': {
+    'description': 'Ad Group Name',
+    'apiName': 'ad_group.name',
+    'type': 'string'
+  },
+  'campaign_name': {
+    'description': 'Campaign Name',
+    'apiName': 'campaign.name',
+    'type': 'string'
   }
 };
 
