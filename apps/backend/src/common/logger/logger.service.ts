@@ -8,9 +8,20 @@ import { LoggerFactory, type Logger } from '@owox/internal-helpers';
  */
 export class CustomLoggerService implements LoggerService {
   private logger: Logger;
+  private context: string;
 
   constructor(context?: string) {
-    this.logger = LoggerFactory.createNamedLogger(context || 'NestJS');
+    this.context = context || 'NestJS';
+    this.logger = LoggerFactory.createNamedLogger(this.context);
+  }
+
+  /**
+   * Create a new logger with a child context
+   * @param context - The child context
+   * @returns A new logger with the child context
+   */
+  child(context?: string): CustomLoggerService {
+    return new CustomLoggerService(this.context + '::' + context);
   }
 
   /**
@@ -20,7 +31,7 @@ export class CustomLoggerService implements LoggerService {
   log(message: unknown, ...optionalParams: unknown[]): void;
   log(message: unknown, ...optionalParams: unknown[]): void {
     const [context, ...params] = optionalParams;
-    this.logger.info(String(message), { context, params });
+    this.logger.info(String(message), this.destructureParams(undefined, context, params));
   }
 
   /**
@@ -30,7 +41,7 @@ export class CustomLoggerService implements LoggerService {
   error(message: unknown, ...optionalParams: unknown[]): void;
   error(message: unknown, ...optionalParams: unknown[]): void {
     const [trace, context, ...params] = optionalParams;
-    this.logger.error(String(message), { trace, context, params });
+    this.logger.error(String(message), this.destructureParams(trace, context, params));
   }
 
   /**
@@ -40,7 +51,7 @@ export class CustomLoggerService implements LoggerService {
   warn(message: unknown, ...optionalParams: unknown[]): void;
   warn(message: unknown, ...optionalParams: unknown[]): void {
     const [context, ...params] = optionalParams;
-    this.logger.warn(String(message), { context, params });
+    this.logger.warn(String(message), this.destructureParams(undefined, context, params));
   }
 
   /**
@@ -50,7 +61,7 @@ export class CustomLoggerService implements LoggerService {
   debug(message: unknown, ...optionalParams: unknown[]): void;
   debug(message: unknown, ...optionalParams: unknown[]): void {
     const [context, ...params] = optionalParams;
-    this.logger.debug(String(message), { context, params });
+    this.logger.debug(String(message), this.destructureParams(undefined, context, params));
   }
 
   /**
@@ -60,7 +71,7 @@ export class CustomLoggerService implements LoggerService {
   verbose(message: unknown, ...optionalParams: unknown[]): void;
   verbose(message: unknown, ...optionalParams: unknown[]): void {
     const [context, ...params] = optionalParams;
-    this.logger.trace(String(message), { context, params });
+    this.logger.trace(String(message), this.destructureParams(undefined, context, params));
   }
 
   /**
@@ -70,6 +81,64 @@ export class CustomLoggerService implements LoggerService {
   setLogLevels?(_levels: string[]): void {
     // This is called by NestJS but we handle log levels through environment variables
     // in our LoggerFactory, so we don't need to implement this
+  }
+
+  /**
+   * Destructure the optional parameters
+   * @param optionalParams - The optional parameters
+   * @returns The destructured parameters
+   */
+  private destructureParams(
+    trace?: unknown,
+    context?: unknown,
+    params?: unknown[]
+  ): { context: string; trace: unknown; params: unknown[]; metadata: Record<string, unknown> } {
+    const output: {
+      context: string;
+      trace: unknown;
+      params: unknown[];
+      metadata: Record<string, unknown>;
+    } = {
+      context: this.context ?? '',
+      trace: undefined,
+      params: [],
+      metadata: {},
+    };
+    if (trace) {
+      switch (typeof trace) {
+        case 'string':
+          output.trace = trace;
+          break;
+        case 'object':
+          output.metadata = { ...output.metadata, ...trace };
+          break;
+        default:
+          output.params.push(trace);
+          break;
+      }
+    }
+    if (context) {
+      switch (typeof context) {
+        case 'string':
+          output.context = context;
+          break;
+        case 'object':
+          output.metadata = { ...output.metadata, ...context };
+          break;
+        default:
+          output.params.push(context);
+          break;
+      }
+    }
+    if (params && params.length > 0) {
+      for (const param of params) {
+        if (typeof param === 'object' && param !== null) {
+          output.metadata = { ...output.metadata, ...param };
+        }
+        output.params.push(param);
+      }
+    }
+    return output;
   }
 }
 
