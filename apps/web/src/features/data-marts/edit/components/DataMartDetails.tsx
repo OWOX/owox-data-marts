@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useDataMart } from '../model';
 import {
   DropdownMenu,
@@ -20,6 +20,7 @@ import { toast } from 'react-hot-toast';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { ConnectorRunView } from '../../../connectors/edit/components/ConnectorRunSheet/ConnectorRunView.tsx';
 import { Skeleton } from '@owox/ui/components/skeleton';
+import { useSchemaActualizeTrigger } from '../../shared/hooks/useSchemaActualizeTrigger';
 
 interface DataMartDetailsProps {
   id: string;
@@ -51,6 +52,15 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
 
+  const dataMartId = dataMart?.id ?? '';
+
+  const onActualizeSuccess = useCallback(() => {
+    if (!dataMartId) return;
+    void getDataMart(dataMartId);
+  }, [dataMartId, getDataMart]);
+
+  const { run: runActualize } = useSchemaActualizeTrigger(dataMartId, onActualizeSuccess);
+
   const navigation = [
     { name: 'Overview', path: 'overview' },
     { name: 'Data Setup', path: 'data-setup' },
@@ -70,6 +80,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
 
     try {
       await publishDataMart(dataMart.id);
+      void runActualize();
     } catch (error) {
       console.log(error instanceof Error ? error.message : 'Failed to publish Data Mart');
     } finally {
