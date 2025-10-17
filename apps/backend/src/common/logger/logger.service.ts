@@ -134,6 +134,8 @@ export class CustomLoggerService implements LoggerService {
       for (const param of params) {
         if (typeof param === 'object' && param !== null) {
           output.metadata = { ...output.metadata, ...param };
+        } else if (typeof param === 'string') {
+          output.context = param;
         }
         output.params.push(param);
       }
