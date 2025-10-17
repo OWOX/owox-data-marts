@@ -1,133 +1,96 @@
 # Google Cloud Platform
 
-> **Google Cloud Platform** lets you run serverless, container-based applications alongside a fully managed relational database
-> – delivering autoscaling, reliability, and minimal operational overhead.
->
-> Required services for deployment:
->
-> * **Cloud Run**: a fully managed application hosting that allows you to run container on top of Google's highly scalable infrastructure
-> * **Cloud SQL**: a fully managed database service for MySQL, reducing your overall cost of operations and freeing up teams to focus on innovation
+Deploying OWOX Data Marts on Google Cloud Platform (GCP) relies on two managed services:
 
-## Create a MySQL instance
+- **Cloud SQL for MySQL** – hosts the application database with minimal operational overhead.
+- **Cloud Run** – provides a serverless runtime for the application container.
 
-Follow <https://console.cloud.google.com/sql/instances/create;engine=MySQL> link and further guide to create a MySQL instance.  
+The sections below walk through provisioning these services, configuring application secrets, and performing the first admin sign-in.
 
-### Choose a Cloud SQL edition
+## 1. Create the Cloud SQL Instance
 
-**Enterprise** is OK for most deployments.
+1. Open the Cloud SQL creation wizard: <https://console.cloud.google.com/sql/instances/create;engine=MySQL>.
+2. **Edition**: choose **Enterprise** (sufficient for most workloads) and start with the **Sandbox** preset. You can increase resources later.
+3. **Instance info**:
+   - **Database version**: `MySQL 8.0`.
+   - **Instance ID**: `owox-data-marts-db` (or another descriptive name).
+   - **Password**: Generate a password for the `root` user and store it securely. The application will not use `root`, but you may need it for maintenance.
+4. **Region**: pick the same region you plan to use for Cloud Run.
+5. **Machine configuration**: start with `General purpose – Shared core` – `1 vCPU, 1.7 GB RAM`. Monitor usage and scale if needed.
+6. **Connections**: for quick setup, you can allow public access by adding the `0.0.0.0/0` network. While this is not the best choice from a security perspective, it can help initial testing; check **I acknowledge the risks**, then replace the rule with a more restricted network as soon as possible.
+7. Click **Create instance**. Provisioning can take several minutes; refresh manually if required.
+8. After creation, note the following from the **Connect to this instance** section:
+   - **Public IP address** (for example `136.113.41.46`).
+   - **Default TCP port** (typically `3306`).
 
-Choose a preset for this edition: start with **Sandbox** and tune as you go.
+### Create the Application Database
 
-### Instance info
+1. Within the instance, open the **Databases** tab.
+2. Click **Create database** and set **Database name** to `owox-data-marts-db`.
+3. Click **Create**.
 
-Database version: **MySQL 8.0**
+### Create the Application User
 
-**Instance ID**: `owox-data-marts-db`
+1. Switch to the **Users** tab and click **Add user account**.
+2. Choose **Built-in authentication** and enter:
+   - **User name**: `owox-data-marts-app`.
+   - **Password**: generate a strong password and store it securely.
+3. Click **Add**.
 
-**Password**: generate `root` user's password and save it. We will NOT use `root` user for OWOX Data Marts deployment,
-but you may need it for other use cases.
+## 2. Deploy the Cloud Run Service
 
-### Choose region and zonal availability
+1. Launch the Cloud Run deployment wizard: <https://console.cloud.google.com/run/create?enableapi=true&deploymentType=container>.
+2. **Container image URL**: `us-docker.pkg.dev/owox-registry/ghcr/owox/owox-data-marts:latest`.
+3. **Service name**: choose a descriptive name, e.g. `owox-data-marts`.
+4. **Region**: select the same region as the Cloud SQL instance.
+5. Copy the generated **Endpoint URL** and store it; it becomes your `PUBLIC_ORIGIN`.
+6. **Authentication**: select `Allow public access`. OWOX Data Marts provides built-in authentication.
+7. **Billing**: choose `Instance-based`.
+8. **Service scaling**: set to `Manual scaling` and keep **Number of instances** at `1`. OWOX Data Marts requires at least one instance running continuously to enable scheduled scenarios.
+9. **Ingress**: set to `All`.
 
-**Region**: choose a region you want to store OWOX Data Marts configuration
+### Configure Container Settings
 
-### Customize your instance
+Under **Containers, Volumes, Networking, Security** / **Containers** → **Settings**:
 
-**Machine configuration**. Start with `General purpose - Shared core` – `1 vCPU, 1.7 GB` and tune as you go.
+- **Memory**: `1GiB`
+- **CPU**: `1`
+- **Execution environment**: `Second generation`
 
-**Connections**. The easiest way to use CloudSQL instances is to allow connecting to it from anywhere.
-While it is not the best practice from the security view point, you can change it later.
+### Configure Environment Variables
 
-Use `Add network`:
+Open **Containers, Volumes, Networking, Security** / **Containers** → **Variables & Secrets** and add the variables below. Replace the placeholder values with the credentials collected in earlier steps.
 
-* **Name**: `all`
-* **IP range**: `0.0.0.0/0`
-* check **I acknowledge the risks**.
-and click **Done**.
+#### Application URL
 
-### Create an instance
+- `PUBLIC_ORIGIN`: use the Cloud Run endpoint, e.g. `https://owox-data-marts-312784848198.europe-west1.run.app`. Ensure there is no trailing slash.
 
-Press `Create instance` and wait till instance will be created.
-It may take ~10 minutes, manual page refresh may be needed.
-See `Connect to this instance` section, save for further configuration:
+#### Database connection
 
-* **Default TCP database port number** (e.g `3306`)
-* **Public IP address** (e.g. `34.41.185.251`)
+- `DB_TYPE`: `mysql`
+- `DB_HOST`: Cloud SQL public IP address
+- `DB_PORT`: Cloud SQL port (default `3306`)
+- `DB_USERNAME`: `owox-data-marts-app`
+- `DB_PASSWORD`: the password generated for `owox-data-marts-app`
+- `DB_DATABASE`: `owox-data-marts-db`
 
-### Create a database
+#### Authentication
 
-Go to **Databases** section and click `Create database`. Enter **Database Name** `owox-data-marts-db` and click `Create`.
+- `IDP_PROVIDER`: `better-auth`
+- `IDP_BETTER_AUTH_SECRET`: a unique 32-character secret. Generate one locally, e.g. `openssl rand -base64 32`.
+- `IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL`: the email for the first admin user, e.g. `your@company.com`.
 
-### Create a user
+#### Logging
 
-Go to **Users** section and click `Add user account`.
+- `LOG_FORMAT`: `gcp-cloud-logging`
 
-Use **Built-in authentication** with
-
-* **User name**: `owox-data-marts-app`
-* **Password**: generate it and save for further configuration
-and click `Add`.
-
-## Create a Cloud Run service
-
-Follow <https://console.cloud.google.com/run/create?enableapi=true&deploymentType=container> link and further guide to create a Cloud Run service.
-
-### Configure
-
-**Container image URL**: `us-docker.pkg.dev/owox-registry/ghcr/owox/owox-data-marts:latest`
-
-Copy **Endpoint URL** and save for further configuration.
-
-**Authentication**: `Allow public access`. OWOX Data Marts application provides built-in authentication.
-
-**Billing**: `Instance-based`
-
-**Service scaling**: `Manual scaling`
-
-**Number of instances**: `1`. OWOX Data Marts application requires at least one instance running continuously to enable scheduled scenarios.
-
-**Ingress**: `All`
-
-### Containers, Volumes, Networking, Security
-
-#### `Containers` → `Settings` tab
-
-**Resources**: Memory: `1GiB`, CPU: `1`
-
-**Execution environment**: Second generation
-
-#### `Containers` → `Variables & Secrets` tab
-
-**Important!** Customize the configuration from the example below with your deployment specifics.
-
-**Step 1.** Paste your actual `Endpoint URL` to `PUBLIC_ORIGIN`. E.g. `https://owox-data-marts-312784848198.europe-west1.run.app` (make sure there is no `/` in the end of URL):
-
-**Step 2.** Paste your actual database configuration for:
-
-* `DB_TYPE` to `mysql`
-* `DB_HOST` to database's **Public IP address**
-* `DB_PORT` to database's **Default TCP database port number**
-* `DB_USERNAME` to `owox-data-marts-app`
-* `DB_PASSWORD` to `owox-data-marts-app` user's generated password
-* `DB_DATABASE` to `owox-data-marts-db`
-
-**Step 3.** Configure built-in authentication with:
-
-* `IDP_PROVIDER` to `better-auth`
-* `IDP_BETTER_AUTH_SECRET` to a unique 32-character key that you can generate via `openssl rand -base64 32` in a local terminal or another method.
-* `IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL` to email you will use to sign in (something like `your@company.com`)
-
-**Step 4.** Configure logging
-
-* `LOG_FORMAT` to `gcp-cloud-logging`
-
-Example:
+Example configuration block (do not reuse as-is):
 
 ```text
 PUBLIC_ORIGIN=https://owox-data-marts-312784848198.europe-west1.run.app
 
 DB_TYPE=mysql
-DB_HOST=34.41.185.251
+DB_HOST=136.113.41.46
 DB_PORT=3306
 DB_USERNAME=owox-data-marts-app
 DB_PASSWORD=PO$sTNkf?TRoY83g
@@ -140,19 +103,22 @@ IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL=your@company.com
 LOG_FORMAT=gcp-cloud-logging
 ```
 
-**Step 5.** Click `Create` and wait till service will be up.
+When all variables are in place, click **Create** and wait for the deployment to finish.
 
-## Add First Admin
+## 3. Create the First Admin User
 
-Open `owox-data-marts` service → `Observability` → `Logs`.
+1. Open the newly created Cloud Run service.
+2. Navigate to **Observability** → **Logs**.
+3. Search for log entries containing `Primary admin created`.
+4. Open the matching log line and copy the magic link from `jsonPayload.message`.
+5. Follow the link to set a password for the email specified in `IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL`.
+6. Sign in to OWOX Data Marts with that email and password.
 
-Search logs by `Primary admin created` and open corresponding warning.
-Follow a magic link from `jsonPayload` → `message`.
+## 4. Rollout Updates
 
-Page behind a magic link allows setting up password for email configured in `IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL`.
+When a new OWOX Data Marts release is available, or you need to adjust the application configuration:
 
-Now you may use that user's email and password to sign in to OWOX Data Marts.
-
-## Update Deployment
-
-Click `Edit & deploy new revision` and click `Deploy`.
+1. Open the Cloud Run service.
+2. Click **Edit & deploy new revision**.
+3. Update the container image to the desired OWOX Data Marts tag (the `latest` tag documented above already tracks the newest release) and adjust settings or variables if required.
+4. Click **Deploy** to roll out the update.
