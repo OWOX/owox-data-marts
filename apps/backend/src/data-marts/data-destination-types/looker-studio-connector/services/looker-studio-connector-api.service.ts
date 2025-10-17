@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { BusinessViolationException } from '../../../../common/exceptions/business-violation.exception';
 import { CachedReaderData } from '../../../dto/domain/cached-reader-data.dto';
 import { Report } from '../../../entities/report.entity';
@@ -14,6 +14,9 @@ import { LookerStudioConnectorApiConfigService } from './looker-studio-connector
 import { LookerStudioConnectorApiDataService } from './looker-studio-connector-api-data.service';
 import { LookerStudioConnectorApiSchemaService } from './looker-studio-connector-api-schema.service';
 import { ReportDataCacheService } from '../../../services/report-data-cache.service';
+import { OWOX_PRODUCER } from '../../../../common/producer/producer.module';
+import { OwoxProducer } from '@owox/internal-helpers';
+import { LookerReportRunSuccessfullyEvent } from '../../../events/looker-report-run-successfully.event';
 
 interface ValidatedRequestData {
   connectionConfig: { destinationSecretKey: string };
@@ -30,7 +33,9 @@ export class LookerStudioConnectorApiService {
     private readonly dataService: LookerStudioConnectorApiDataService,
     private readonly cacheService: ReportDataCacheService,
     private readonly reportService: ReportService,
-    private readonly consumptionTrackingService: ConsumptionTrackingService
+    private readonly consumptionTrackingService: ConsumptionTrackingService,
+    @Inject(OWOX_PRODUCER)
+    private readonly producer: OwoxProducer
   ) {}
 
   public async getConfig(request: GetConfigRequest): Promise<GetConfigResponse> {
@@ -63,6 +68,15 @@ export class LookerStudioConnectorApiService {
         } else {
           await this.reportService.updateRunStatus(report.id, ReportRunStatus.SUCCESS);
           await this.consumptionTrackingService.registerLookerReportRunConsumption(report);
+          const dataMart = report.dataMart;
+          await this.producer.produceEvent(
+            new LookerReportRunSuccessfullyEvent(
+              dataMart.id,
+              report.id,
+              dataMart.projectId,
+              report.createdById
+            )
+          );
         }
       }
     }

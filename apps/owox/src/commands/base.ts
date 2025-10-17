@@ -103,7 +103,7 @@ export abstract class BaseCommand extends Command {
    * @throws {never} Always exits the process with exit code 1
    */
   protected handleStartupError(error: unknown): void {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = error instanceof Error ? error.stack || error.message : String(error);
     this.error(`Failed to start process: ${message}`, { exit: 1 });
   }
 
