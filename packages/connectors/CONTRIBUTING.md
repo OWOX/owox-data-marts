@@ -1,63 +1,89 @@
 # Developer Guide for Custom Data Source Integrations
 
-There are thousands of different data sources, with their APIs constantly changing, making it impossible to develop integrations for all possible use cases.
-Therefore, the goal of this guide is to provide clear and understandable steps to adjust existing integrations and develop new ones.
+There are thousands of different data sources, with their APIs constantly changing, making it impossible to develop integrations for all possible use cases. Therefore, the goal of this guide is to provide clear and understandable steps to adjust existing integrations and develop new ones.
 
-## Google Sheets Files Structure
+## Architecture Overview
 
-The Google Sheets document contains the configuration in the Config sheet, control options in the menu, and an attached Apps Script `Code.gs`. The purpose of this document is to provide a user interface for Google Sheets users and to make relevant calls to library's objects. Feel free to make a copy of the Google Sheets document and modify `Code.gs` as needed.
+The `@owox/connectors` package is a Node.js library that bundles data source connectors and storage implementations. The package automatically discovers all connectors in the `src/Sources/` directory.
 
-![Google Sheets Files Schema](res/google-sheets-files-structure.svg)
+### Key Components
 
-To make the integration work, you need to connect the appropriate library to `Code.gs`. Google Sheets templates for specific data sources already have the required library connected. If you create a blank Google Sheets document, you will need to connect a library to `Code.gs` manually.
+- **Core** (`src/Core/`) — Abstract base classes and utilities shared across all connectors (TypeScript/JavaScript)
+- **Sources** (`src/Sources/[SOURCE_NAME]/`) — Data source-specific implementations
+- **Storages** (`src/Storages/`) — Storage implementations for persisting data
+- **Constants** (`src/Constants/`) — Shared constants and enumerations
+- **Configs** (`src/Configs/`) — Configuration utilities
 
-Library files connected to templates are updated automaticaly based on Github repository. So to make your own changes you need to make a library copy first.
+### Build System
 
-![Google Sheets Adding Apps Script Library](res/google-sheets-adding-apps-script-library.png)
+The build system automatically:
 
-> ℹ️ **Note:** It is highly recommended that you use the UTC time zone only to avoid unexpected data discrepancies. V8 runtime is a mandatory requirement, not an option.
+1. Discovers all connectors in `src/Sources/*/`
+2. Bundles each connector with its dependencies into isolated modules
+3. Generates a single distributable package with all connectors
+4. Creates manifests with metadata for each connector
 
-Library contatins two types of files:
+**No manual registration is required** — just create your connector files in the correct location.
 
-- `Core/*` — Core scripts, which are the same for all integrations, are primarily written in TypeScript (at least, it will be soon!)
-- `Sources/*` — Data source-specific files are primarily written in Apps Script. You may need to modify them to suit your custom requirements.
+## Creating a New Integration
 
-![Google Sheets Files Schema](res/google-sheets-files-links.png)
+For detailed step-by-step instructions on creating a new connector, see [CREATING_CONNECTOR.md](./CREATING_CONNECTOR.md).
 
-## Creating a New Integation
-
-To create integration with a new data source, do the following:
-
-1. Make a copy of Google Sheets and Apps Script documents from [this folder](https://drive.google.com/drive/u/0/folders/1Yy2QOb0B6-DcKaowmjH3jxtdi8q2KtoU)
-2. Replace the library added to Google Sheets with the new Apps Script created from the template
-3. Replace `YOUR_DATA_SOURCE` in source code with the name of the data source you are creating the integration with
-4. Create methods code according to the integration requirements. Please refer to the UML section for detailed information.
-5. Create a new folder integration based on `packages/connectors/src/Templates` template.
-6. [Add all relevant files](https://docs.github.com/en/repositories/working-with-files/managing-files/adding-a-file-to-a-repository) to the created folder. You can also do this from a web browser
-7. Specify the correct title of your data source in the `manifest.json` file.
-
-## UML
-
-![Google Sheets UML](res/google-sheets-uml.svg)
+## Architecture Concepts
 
 ### Connector
 
-`Connector` is responsible for data transfer orchestrations. There are three parameters required to create a `Connector`: `Config`, `Source`, and `Storage`.
+The `Connector` class orchestrates the data transfer process. It requires three components:
 
-All data connectors are stored in `src/Sources/[SOURCE_NAME]/Connector.js`.
+1. **Config** — configuration parameters and validation
+2. **Source** — data fetching logic
+3. **Storage** — data persistence (optional, can be null)
 
-It must be an instance of `AbstractConnector`
+Key responsibilities:
+
+- Validate configuration parameters
+- Calculate date ranges for incremental/backfill imports
+- Coordinate between Source and Storage
+- Handle status updates and logging
+- Implement retry logic for the entire import process
+
+All connectors must extend `AbstractConnector` (in `src/Core/AbstractConnector.js`).
 
 ### Source
 
-`Source` is responsible for fetching data from the Data Source. This object has a `fetchData()` method, which is required for data source-specific implementation.
-It must be an instance of `AbstractSource`
+The `Source` class is responsible for fetching data from the external API. It must implement:
+
+- `fetchData(startDate, endDate)` — fetch data for a date range
+- `isValidToRetry(error)` — determine if an error is transient (optional)
+
+Helper methods available:
+
+- `urlFetchWithRetry(url, options)` — HTTP fetch with automatic retry
+- `calculateBackoff(attemptNumber)` — exponential backoff calculation
+- `getFieldsSchema()` — return available fields for the data source
+
+All sources must extend `AbstractSource` (in `src/Core/AbstractSource.js`).
 
 ### Storage
 
-`Storage` is responsible for adding new data and updating existing data in storage. Currently, only Google Sheets is supported as a data storage option.
+The `Storage` class handles data persistence. It must implement:
 
-It must be an instance of `AbstractStorage`
+- `saveData(data)` — persist data to storage
+- `areHeadersNeeded()` — check if headers need to be created
+- `addHeader(columns)` — create table/sheet headers
+
+All storages must extend `AbstractStorage` (in `src/Core/AbstractStorage.js`).
+
+### Config
+
+Configuration objects handle:
+
+- Parameter definition and validation
+- Status tracking (in_progress, done, error)
+- Logging and error handling
+- State persistence (LastRequestedDate, LastImportDate)
+
+Configuration classes extend `AbstractConfig` (in `src/Core/AbstractConfig.js`).
 
 ## Legal
 
