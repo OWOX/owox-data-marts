@@ -1,6 +1,8 @@
 # How to Contribute
 
-There are thousands of different data sources, with their APIs constantly changing, making it impossible to develop integrations for all possible use cases. Therefore, the goal of this guide is to provide clear and understandable steps to adjust existing integrations and develop new ones.
+There are thousands of data sources and their APIs constantly evolve, so no single team can build and maintain every connector. Within the OWOX Data Marts project we collaborate as a community to share this responsibility, and this guide explains how you can work with us to adjust existing integrations and create new ones.
+
+When contributing, please keep the wider community in mind. We review pull requests for technical quality and for how broadly the connector can be applied beyond the contributor's specific scenario. If you plan work that cannot be contributed back, be ready to maintain your own fork. We highly recommend designing every connector so that it can be upstreamed when requirements allow.
 
 ## Architecture Overview
 
@@ -89,15 +91,13 @@ Configuration classes extend `AbstractConfig` (in `src/Core/AbstractConfig.js`).
 
 ## Legal
 
-To clarify the intellectual property license granted with Contributions from any person or entity, we must have on file a signed Contributor License Agreement ("CLA") from each Contributor, indicating agreement with the license terms.
+The `@owox/connectors` package is distributed under the MIT License. By submitting a contribution to this package, you affirm that you have the right to do so and that your work will be released under the same MIT License.
 
-This agreement is for your protection as a Contributor as well as the protection of us and the users of owox-data-marts. It does not change your rights to use your own Contributions for any other purpose.
+To clarify the intellectual property rights granted with each contribution, we also require a signed Contributor License Agreement ("CLA") from every contributor. This protects you as the author, the OWOX team that stewards the project, and the community that depends on these connectors, ensuring everyone can rely on consistent MIT terms within this package.
 
-For more details, please review the full [OWOX CLA](https://cla-assistant.io/OWOX/js-data-connectors).
+For more details, review the full [OWOX CLA](https://cla-assistant.io/OWOX/js-data-connectors).
 
-Pull Request authors must sign [OWOX CLA](https://cla-assistant.io/OWOX/js-data-connectors). It will show up in an automated comment after you create a PR.
-
-If you cannot or do not want to sign this CLA (e.g., your employment contract for your employer may not allow this), **you should not submit a PR**. Instead, please open an issue, and someone else can do the work.
+Pull request authors must sign the [OWOX CLA](https://cla-assistant.io/OWOX/js-data-connectors). The signing link appears automatically once you open a PR. If you cannot sign the CLA (for example, due to employment restrictions), **do not submit a PR**. Instead, please open an issue so that someone else can help.
 
 ## Questions
 
