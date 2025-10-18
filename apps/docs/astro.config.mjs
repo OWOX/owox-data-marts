@@ -122,9 +122,9 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             {
               label: 'Connectors',
               items: [
-                'packages/connectors/environment-adapter',
                 'packages/connectors/contributing',
                 'packages/connectors/creating-connector',
+                'packages/connectors/environment-adapter',
                 'packages/connectors/publishing',
               ],
               collapsed: true,

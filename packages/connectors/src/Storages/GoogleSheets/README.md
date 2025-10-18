@@ -1,4 +1,4 @@
-# Google Sheets Storage
+# Google Sheets Storage (deprecated)
 
 ## Description
 
@@ -9,7 +9,7 @@ Storage for Google Sheets
 This storage works in the following environments:
 
 - ❌ Node.js
-- ✅ Apps Script
+- ✅ Apps Script (deprecated)
 
 ## Dependencies
 

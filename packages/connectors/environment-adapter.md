@@ -1,10 +1,10 @@
 # EnvironmentAdapter
 
-The `EnvironmentAdapter` class provides a unified interface for environment-specific operations across Google Apps Script and Node.js environments. It abstracts away platform differences and allows your code to work consistently in both environments.
+The `EnvironmentAdapter` class provides a unified interface for environment-specific operations across Google Apps Script (deprecated) and Node.js environments. It abstracts away platform differences and allows your code to work consistently in both environments.
 
 ## Motivation
 
-- Use singe connectors source code in both environments: Node.js and Apps Script
+- Use singe connectors source code in both environments: Node.js and Apps Script (deprecated)
 
 ## Key Features
 
@@ -20,7 +20,7 @@ The `EnvironmentAdapter` class provides a unified interface for environment-spec
 
 ```javascript
 // The EnvironmentAdapter is available as a global class
-// No explicit import needed in Google Apps Script
+// No explicit import needed in Google Apps Script (deprecated)
 
 // In Node.js, ensure it's available through your bundle system
 ```
@@ -45,7 +45,7 @@ class UnsupportedEnvironmentException extends AbstractException {}
 
 ### What You Must Know
 
-**EnvironmentAdapter** is a required class that makes your connector work in both Google Apps Script and Node.js environments. You MUST use it for all HTTP requests and environment-specific operations.
+**EnvironmentAdapter** is a required class that makes your connector work in both Google Apps Script (deprecated) and Node.js environments. You MUST use it for all HTTP requests and environment-specific operations.
 
 ### What NOT to Do
 
@@ -434,7 +434,7 @@ const options = {
         "Header-Name": "Header-Value"
     },
     payload: "request body data",
-    // Google Apps Script specific options
+    // Google Apps Script (deprecated) specific options
     muteHttpExceptions: true,
     followRedirects: true,
     validateHttpsCertificates: true
@@ -471,7 +471,7 @@ function safeApiCall(url, options) {
 
 ⚠️ **Important**: Date formatting behavior differs between environments:
 
-- **Google Apps Script**: Full formatting support with timezone and format patterns
+- **Google Apps Script (deprecated)**: Full formatting support with timezone and format patterns
 - **Node.js**: Always returns ISO date format (YYYY-MM-DD) regardless of parameters
 
 ```javascript
@@ -490,7 +490,7 @@ function getFormattedDate(date) {
 
 UUIDs are generated using:
 
-- **Google Apps Script**: Platform-specific UUID generation
+- **Google Apps Script (deprecated)**: Platform-specific UUID generation
 - **Node.js**: `crypto.randomUUID()`
 
 ### Encoding and Cryptography
@@ -548,7 +548,7 @@ function robustApiCall(url, retries = 3) {
 
 **Solution**:
 
-- Ensure you're running in Google Apps Script or Node.js
+- Ensure you're running in Google Apps Script (deprecated) or Node.js
 - Check that required dependencies are installed in Node.js
 - Verify `ENVIRONMENT` constants are properly defined
 
@@ -577,7 +577,7 @@ try {
 **Solution**:
 
 ```javascript
-// For Google Apps Script, add timeout options
+// For Google Apps Script (deprecated), add timeout options
 const options = {
     method: "GET",
     muteHttpExceptions: true,

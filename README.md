@@ -114,7 +114,6 @@ For more details on the types of deployment in your infrastructure, check out ou
 
 | Name            | Status    | Links                                                               |
 | --------------- | --------- | ------------------------------------------------------------------- |
-| Google Sheets   | 🟢 Public | [Readme](packages/connectors/src/Storages/GoogleSheets/README.md)   |
 | Google BigQuery | 🟢 Public | [Readme](packages/connectors/src/Storages/GoogleBigQuery/README.md) |
 | AWS Athena      | 🟢 Public | [Readme](packages/connectors/src/Storages/AwsAthena/README.md)      |
 
