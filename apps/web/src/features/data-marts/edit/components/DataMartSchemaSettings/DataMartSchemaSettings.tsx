@@ -8,22 +8,20 @@ import type {
 import type { DataMartContextType } from '../../model/context/types.ts';
 import { useOperationState, useSchemaState } from './hooks';
 import { SchemaContent } from './SchemaContent';
+import { useSchemaActualizeTrigger } from '../../../shared/hooks/useSchemaActualizeTrigger';
 
 /**
  * Main component for editing data mart schema settings
  * Uses custom hooks for state management and the SchemaContent component for rendering
  */
 export function DataMartSchemaSettings() {
-  const { dataMart, updateDataMartSchema, actualizeDataMartSchema, isLoading, error } =
+  const { dataMart, updateDataMartSchema, isLoading, error, getDataMart } =
     useOutletContext<DataMartContextType>();
 
   const initialSchema = dataMart?.schema;
 
   const { schema, isDirty, updateSchema, resetSchema } = useSchemaState(initialSchema);
-  const { operationStatus, startSaveOperation, startActualizeOperation } = useOperationState(
-    isLoading,
-    error
-  );
+  const { operationStatus, startSaveOperation } = useOperationState(isLoading, error);
 
   // Reset schema when operation is successful
   useEffect(() => {
@@ -40,26 +38,35 @@ export function DataMartSchemaSettings() {
     [updateSchema]
   );
 
+  const dataMartId = dataMart?.id ?? '';
+
+  const onActualizeSuccess = useCallback(() => {
+    if (!dataMartId) return;
+    void getDataMart(dataMartId);
+  }, [dataMartId, getDataMart]);
+
+  const { run: runActualize, isLoading: isActualizeLoading } = useSchemaActualizeTrigger(
+    dataMartId,
+    onActualizeSuccess
+  );
+
   if (!dataMart) {
     return <div>Error: Data mart not found</div>;
   }
-
-  const { id: dataMartId } = dataMart;
 
   // Handle save
   const handleSave = () => {
     if (dataMartId && schema) {
       startSaveOperation();
-      void updateDataMartSchema(dataMartId, schema);
+      void updateDataMartSchema(dataMartId, schema).then(() => {
+        void runActualize();
+      });
     }
   };
 
   // Handle actualize
   const handleActualize = () => {
-    if (dataMartId) {
-      startActualizeOperation();
-      void actualizeDataMartSchema(dataMartId);
-    }
+    void runActualize();
   };
 
   // Handle discard
@@ -85,7 +92,12 @@ export function DataMartSchemaSettings() {
             </Button>
           </div>
           <div>
-            <Button type='button' variant='outline' onClick={handleActualize}>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={handleActualize}
+              disabled={isActualizeLoading}
+            >
               Refresh schema
             </Button>
           </div>

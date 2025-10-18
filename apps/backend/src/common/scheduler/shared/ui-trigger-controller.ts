@@ -1,5 +1,5 @@
 import { Delete, Get, Logger, Param } from '@nestjs/common';
-import { Auth, AuthContext, AuthorizationContext, Role } from '../../../idp';
+import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../../idp';
 import { TriggerStatus } from './entities/trigger-status';
 import { UiTriggerService } from './ui-trigger.service';
 
@@ -18,16 +18,17 @@ export abstract class UiTriggerController<UiResponseType> {
     this.logger = new Logger(this.constructor.name);
   }
 
-  @Auth(Role.viewer())
+  @Auth(Role.viewer(Strategy.PARSE))
   @Get('/:triggerId/status')
   public async getTriggerStatus(
     @Param('triggerId') triggerId: string,
     @AuthContext() context: AuthorizationContext
-  ): Promise<TriggerStatus> {
-    return this.triggerService.getTriggerStatus(triggerId, context.userId);
+  ): Promise<{ status: TriggerStatus }> {
+    const status = await this.triggerService.getTriggerStatus(triggerId, context.userId);
+    return { status };
   }
 
-  @Auth(Role.viewer())
+  @Auth(Role.viewer(Strategy.PARSE))
   @Get('/:triggerId')
   public async getTriggerResponse(
     @Param('triggerId') triggerId: string,
@@ -36,7 +37,7 @@ export abstract class UiTriggerController<UiResponseType> {
     return this.triggerService.getTriggerResponse(triggerId, context.userId);
   }
 
-  @Auth(Role.viewer())
+  @Auth(Role.viewer(Strategy.PARSE))
   @Delete('/:triggerId')
   public async abortTriggerRun(
     @Param('triggerId') triggerId: string,

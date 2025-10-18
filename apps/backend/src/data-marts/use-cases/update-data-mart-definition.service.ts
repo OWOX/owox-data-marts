@@ -35,11 +35,8 @@ export class UpdateDataMartDefinitionService {
       dataMart.definition = command.definition;
     }
 
-    await this.definitionValidatorFacade.checkIsValid(dataMart);
-
-    if (dataMart.definitionType !== DataMartDefinitionType.CONNECTOR) {
-      // connectors can change data mart schema only after its run, not on config update
-      await this.dataMartService.actualizeSchemaInEntity(dataMart);
+    if (dataMart.definitionType !== DataMartDefinitionType.SQL) {
+      await this.definitionValidatorFacade.checkIsValid(dataMart);
     }
 
     await this.dataMartService.save(dataMart);

@@ -56,5 +56,6 @@ export function useDataMart(id?: string) {
     getDataMartRuns,
     loadMoreDataMartRuns,
     runs,
+    getDataMart,
   };
 }

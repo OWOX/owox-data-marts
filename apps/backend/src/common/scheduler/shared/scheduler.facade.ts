@@ -1,6 +1,6 @@
 import { TriggerHandler } from './trigger-handler.interface';
 import { InjectionToken } from '@nestjs/common';
-import { TimeBasedTrigger } from './entities/time-based-trigger.entity';
+import { Trigger } from './entities/trigger.entity';
 
 /**
  * Injection token for the SchedulerFacade.
@@ -25,5 +25,5 @@ export interface SchedulerFacade {
    * @param triggerHandler The trigger handler to register
    * @returns A promise that resolves when the handler is registered
    */
-  registerTriggerHandler(triggerHandler: TriggerHandler<TimeBasedTrigger>): Promise<void>;
+  registerTriggerHandler<T extends Trigger>(triggerHandler: TriggerHandler<T>): Promise<void>;
 }

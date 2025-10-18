@@ -47,5 +47,14 @@ export interface TriggerHandler<T extends Trigger> {
    *
    * @return {number} The number of seconds configured for the stuck trigger timeout.
    */
-  stuckTriggerTimeoutSeconds(): number;
+  stuckTriggerTimeoutSeconds?(): number;
+
+  /**
+   * Returns the TTL (time-to-live) duration in seconds for triggers.
+   * This TTL defines the maximum amount of time a trigger can remain in the system
+   * before being automatically deleted.
+   *
+   * @return {number} The number of seconds configured for the trigger TTL.
+   */
+  triggerTtlSeconds?(): number;
 }

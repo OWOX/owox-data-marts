@@ -26,12 +26,14 @@ export class TriggerFetcherFactory {
    * @param repository The TypeORM repository for the trigger entity
    * @param systemTimeService The system time service used to get the current time
    * @param stuckTriggerTimeoutSeconds The timeout in seconds after which a trigger is considered stuck
+   * @param triggerTtlSeconds The TTL in seconds for triggers
    * @returns A new TriggerFetcherService instance with an appropriate strategy
    */
   createFetcher<T extends Trigger>(
     repository: Repository<T>,
     systemTimeService: SystemTimeService,
-    stuckTriggerTimeoutSeconds: number
+    stuckTriggerTimeoutSeconds: number | undefined,
+    triggerTtlSeconds: number | undefined
   ): TriggerFetcherService<T> {
     const strategy = this.detectFetchStrategy<T>(repository);
     const strategyName = strategy.constructor.name;
@@ -44,6 +46,7 @@ export class TriggerFetcherFactory {
       repository,
       systemTimeService,
       stuckTriggerTimeoutSeconds,
+      triggerTtlSeconds,
       strategy
     );
   }
