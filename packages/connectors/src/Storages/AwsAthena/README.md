@@ -9,7 +9,6 @@ Storage for AWS Athena
 This storage works in the following environments:
 
 - ✅ Node.js
-- ❌ Apps Script
 
 ## Dependencies
 
