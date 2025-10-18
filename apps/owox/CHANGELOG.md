@@ -1,5 +1,29 @@
 # owox
 
+## 0.10.0
+
+### Minor Changes
+
+- 7b8747c: # Fix incremental state management for multiple connector configurations
+
+  Fixed an issue where incremental updates only saved state for the last configuration when a Data Mart had 2+ connector configurations. Now each configuration's state is tracked separately using its `_id`. Also enhanced logging with structured metadata (dataMartId, projectId, runId, configId).
+
+  **Changes:**
+  - Updated state structure to support array of states per configuration: `{at, states: [{_id, state, at}]}`
+  - Modified `ConnectorStateService` to handle `configId` parameter for getting and updating state
+  - Updated `ConnectorExecutionService` to extract and pass `configId` from configuration
+  - Added database migration to transform existing state data from old to new format
+  - Enhanced logging with structured metadata (dataMartId, projectId, runId, configId)
+
+### Patch Changes
+
+- @owox/internal-helpers@0.10.0
+- @owox/idp-protocol@0.10.0
+- @owox/idp-better-auth@0.10.0
+- @owox/idp-owox@0.10.0
+- @owox/backend@0.10.0
+- @owox/web@0.10.0
+
 ## 0.9.0
 
 ### Minor Changes 0.9.0
@@ -504,7 +528,6 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
-
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -512,7 +535,6 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
-
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
