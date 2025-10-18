@@ -125,9 +125,9 @@ Want to build a connector? We'd love your help.
 
 **To contribute to existing integrations or create a new one:**
 
-- [Join our community](https://github.com/OWOX/owox-data-marts/discussions)
+- Join [Discussions](https://github.com/OWOX/owox-data-marts/discussions)
+- Join [Slack Community](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3fffrsau9-UlobJVlXzRLpXmvs0ffvoQ)
 - Read the [contributor guide](packages/connectors/CONTRIBUTING.md)
-- Watch or read [this tutorial](packages/connectors/TUTORIAL.md) of how we built a new connector in < 25 minutes
 - Check open [requests](https://github.com/OWOX/owox-data-marts/issues)
 
 All you need to get started is the desire to build a new connector. No software installation is required on your computer.
