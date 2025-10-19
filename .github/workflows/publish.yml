@@ -24,6 +24,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Authenticate to Google Cloud via Workload Identity Federation
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROJECT }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+
       - name: Set lowercase repository name
         id: repo_lower
         run: |
@@ -146,6 +152,9 @@ jobs:
           tags: |
             ghcr.io/${{ steps.repo_lower.outputs.repo_lower }}:${{ steps.extract_latest_version.outputs.version }}
             ghcr.io/${{ steps.repo_lower.outputs.repo_lower }}:latest
+            us-docker.pkg.dev/owox-registry/owox-data-marts/${{ steps.repo_lower.outputs.repo_lower }}:${{ steps.extract_latest_version.outputs.version }}
+            us-docker.pkg.dev/owox-registry/owox-data-marts/${{ steps.repo_lower.outputs.repo_lower }}:latest
+
 
       - name: Create dummy changeset
         run: |
@@ -247,3 +256,5 @@ jobs:
           tags: |
             ghcr.io/${{ steps.repo_lower.outputs.repo_lower }}:${{ steps.extract_next_version.outputs.version }}
             ghcr.io/${{ steps.repo_lower.outputs.repo_lower }}:next
+            us-docker.pkg.dev/owox-registry/owox-data-marts/${{ steps.repo_lower.outputs.repo_lower }}:${{ steps.extract_latest_version.outputs.version }}
+            us-docker.pkg.dev/owox-registry/owox-data-marts/${{ steps.repo_lower.outputs.repo_lower }}:next
