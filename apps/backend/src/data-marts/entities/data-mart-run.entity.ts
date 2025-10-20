@@ -10,6 +10,7 @@ import { DataMart } from './data-mart.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import { RunType } from '../../common/scheduler/shared/types';
+import { DataMartRunType } from 'src/data-marts/enums/data-mart-run-type.enum';
 
 @Entity()
 export class DataMartRun {
@@ -22,6 +23,9 @@ export class DataMartRun {
 
   @Column()
   dataMartId: string;
+
+  @Column()
+  type: DataMartRunType;
 
   @Column({ type: 'json', nullable: true })
   definitionRun?: DataMartDefinition;
