@@ -125,7 +125,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
       this.logger.error(`Background execution failed: ${errorMessage}`, error?.stack, {
         dataMartId: dataMart.id,
         projectId: dataMart.projectId,
-        runId: dataMartRun,
+        runId: dataMartRun.id,
         error: errorMessage,
       });
     });
