@@ -126,7 +126,7 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
               this.getStorageByNode(nodeName).saveData(data);
             }
 
-            this.config.logMessage(data.length ? `${data.length} records were fetched` : `ℹ️ No records have been fetched`);
+            this.config.logMessage(data.length ? `${data.length} records were fetched` : `No records have been fetched`);
             
           }
         

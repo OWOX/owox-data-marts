@@ -79,7 +79,7 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
 
       const data = this.source.fetchData({ nodeName, accountId, start_time: formattedDate, end_time: formattedDate, fields });
   
-      this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${accountId} on ${formattedDate}` : `ℹ️ No records have been fetched`);
+      this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${accountId} on ${formattedDate}` : `No records have been fetched`);
   
       if (data.length || this.config.CreateEmptyTables?.value) {
         const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
@@ -103,7 +103,7 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
   processCatalogNode({ nodeName, accountId, fields }) {
     const data = this.source.fetchData({ nodeName, accountId, fields });
     
-    this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${accountId}` : `ℹ️ No records have been fetched`);
+    this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${accountId}` : `No records have been fetched`);
 
     if (data.length || this.config.CreateEmptyTables?.value) {
       const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;

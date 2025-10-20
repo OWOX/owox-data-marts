@@ -236,7 +236,7 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
           // Validate the data level
           const validDataLevels = ["AUCTION_ADVERTISER", "AUCTION_CAMPAIGN", "AUCTION_ADGROUP", "AUCTION_AD"];
           if (!validDataLevels.includes(dataLevel)) {
-            this.config.logMessage(`⚠️ Invalid data_level: ${dataLevel}. Using default AUCTION_AD.`);
+            this.config.logMessage(`Invalid data_level: ${dataLevel}. Using default AUCTION_AD.`);
             dataLevel = "AUCTION_AD";
           }
           

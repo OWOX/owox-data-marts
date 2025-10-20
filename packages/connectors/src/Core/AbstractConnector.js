@@ -30,7 +30,7 @@ var AbstractConnector = class AbstractConnector {
 
       } catch(error) {
 
-        config.logMessage(`❌ ${error.stack}`);
+        config.logMessage(`${error.stack}`);
 
         // in case current status is not In progress, we need to update it to "Error". We cannot overwrite "In progress" status with "Error" to avoid import dublication
         if( !config.isInProgress() ) {
@@ -82,10 +82,10 @@ var AbstractConnector = class AbstractConnector {
           }
         });
         
-        this.config.logMessage(`🔧 Manual Backfill mode activated with custom parameters`);
+        this.config.logMessage(`Manual Backfill mode activated with custom parameters`);
         
       } else if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
-        this.config.logMessage(`🔄 Incremental mode activated`);
+        this.config.logMessage(`Incremental mode activated`);
       }
     }
     //----------------------------------------------------------------
@@ -101,16 +101,16 @@ var AbstractConnector = class AbstractConnector {
         // if import is already in progress skip this run in order to avoid dublication 
         if( this.config.isInProgress() ) {
 
-          this.config.logMessage("⚠️ Import is already in progress");
+          this.config.logMessage("Import is already in progress");
           this.config.addWarningToCurrentStatus();
 
         // stat a new import
         } else {
 
-          this.config.logMessage("⚫️ Configuration was loaded successfully", true);
+          this.config.logMessage("Configuration was loaded successfully", true);
           this.config.handleStatusUpdate({ status: EXECUTION_STATUS.IMPORT_IN_PROGRESS });
           this.config.updateLastImportDate();
-          this.config.logMessage("🟢 Start importing new data");
+          this.config.logMessage("Start importing new data");
 
           if (this.storage !== null && this.storage.areHeadersNeeded()) {
             this.storage.addHeader(this.storage.uniqueKeyColumns);
@@ -119,7 +119,7 @@ var AbstractConnector = class AbstractConnector {
 
           this.startImportProcess();
 
-          this.config.logMessage("✅ Import is finished");
+          this.config.logMessage("Import is finished");
           this.config.handleStatusUpdate({ 
             status: EXECUTION_STATUS.IMPORT_DONE
           });      
@@ -133,7 +133,7 @@ var AbstractConnector = class AbstractConnector {
           status: EXECUTION_STATUS.ERROR, 
           error: error
         });
-        this.config.logMessage(`❌ ${error.stack}`);
+        this.config.logMessage(`${error.stack}`);
         throw error;
 
       }
@@ -163,7 +163,7 @@ var AbstractConnector = class AbstractConnector {
       let data = this.source.fetchData(startDate, endDate);
 
       // there are fetched records to update
-      this.config.logMessage(data.length ? `${data.length} rows were fetched` : `ℹ️ No records have been fetched`);
+      this.config.logMessage(data.length ? `${data.length} rows were fetched` : `No records have been fetched`);
 
       if( data.length || this.config.CreateEmptyTables?.value === "true" ) {
         this.storage.saveData(data);
@@ -250,7 +250,7 @@ var AbstractConnector = class AbstractConnector {
         }
       
       if (endDate > today) {
-        this.config.logMessage(`⚠️ Warning: EndDate (${endDate.toISOString().split('T')[0]}) is in the future, adjusting to today`);
+        this.config.logMessage(`Warning: EndDate (${endDate.toISOString().split('T')[0]}) is in the future, adjusting to today`);
         endDate = today;
       }
 

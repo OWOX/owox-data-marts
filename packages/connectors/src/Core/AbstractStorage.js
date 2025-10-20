@@ -144,7 +144,7 @@ class AbstractStorage {
         // if import is already in progress skip this run in order to avoid dublication 
         if( this.config.isInProgress() ) {
         // add retry
-          this.config.logMessage("⚠️ Unable to start cleanup because import is in progress");
+          this.config.logMessage("Unable to start cleanup because import is in progress");
           this.config.addWarningToCurrentStatus();
     
     
@@ -157,7 +157,7 @@ class AbstractStorage {
         } else {
     
           this.config.handleStatusUpdate({ status: EXECUTION_STATUS.CLEANUP_IN_PROGRESS });
-          this.config.logMessage(`🧹 Start cleaning expired rows`, true);
+          this.config.logMessage(`Start cleaning expired rows`, true);
     
           let deletedRows = 0;
           let maxDate = new Date();
@@ -192,13 +192,13 @@ class AbstractStorage {
           
         }
     
-        this.config.logMessage("✅ Cleanup is finished");
+        this.config.logMessage("Cleanup is finished");
         this.config.handleStatusUpdate({ status: EXECUTION_STATUS.CLEANUP_DONE });
     
     
       } catch( error ) {
     
-        this.config.logMessage(`❌ ${error.message}`);
+        this.config.logMessage(`${error.message}`);
         throw error;
     
       }
