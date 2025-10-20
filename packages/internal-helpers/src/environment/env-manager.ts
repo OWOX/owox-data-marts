@@ -90,22 +90,22 @@ export class EnvManager {
    * - %list% - Comma-separated list
    */
   private static readonly MESSAGES = {
-    FILE_PATH_SPECIFIED: '📂 Using specified environment file: %file%',
-    FILE_PATH_ENVIRONMENT: '🌍 Using environment-defined file: %file%',
-    FILE_PATH_DEFAULT: '⚙️ Using default environment file: %file%',
-    FILE_NOT_FOUND: '🔍 Environment file not found: %file%',
-    FILE_PROCESSING: '🔄 Starting to process environment file: %file%',
-    FILE_PARSE_FAILED: '💥 Empty content or failed to parse environment file: %file%',
-    FILE_READ_FAILED: '📖 Failed to read file %file%: %error%',
-    FILE_SUCCESS: '✨ Environment file processed successfully',
-    FILE_FAILED: '🚫 Failed to process environment file',
-    OBJECT_UNKNOWN: '❓ Unknown environment object type: %type%',
-    OBJECT_INVALID: '🚨 Invalid %type% environment variables object provided',
-    OBJECT_START: '🚀 Starting to set up %type% values to environment variables...',
-    OBJECT_FAILED: '💔 Failed to set up %type% values to environment variables',
-    DETAILS_SET: '✅ Set %qty% variables',
-    DETAILS_IGNORED: '🗑️ Ignored %qty% invalid variables: %list%',
-    DETAILS_SKIPPED: '⏭️ Skipped %qty% existing variables: %list%',
+    FILE_PATH_SPECIFIED: 'Using specified environment file: %file%',
+    FILE_PATH_ENVIRONMENT: 'Using environment-defined file: %file%',
+    FILE_PATH_DEFAULT: 'Using default environment file: %file%',
+    FILE_NOT_FOUND: 'Environment file not found: %file%',
+    FILE_PROCESSING: 'Starting to process environment file: %file%',
+    FILE_PARSE_FAILED: 'Empty content or failed to parse environment file: %file%',
+    FILE_READ_FAILED: 'Failed to read file %file%: %error%',
+    FILE_SUCCESS: 'Environment file processed successfully',
+    FILE_FAILED: 'Failed to process environment file',
+    OBJECT_UNKNOWN: 'Unknown environment object type: %type%',
+    OBJECT_INVALID: 'Invalid %type% environment variables object provided',
+    OBJECT_START: 'Starting to set up %type% values to environment variables...',
+    OBJECT_FAILED: 'Failed to set up %type% values to environment variables',
+    DETAILS_SET: 'Set %qty% variables',
+    DETAILS_IGNORED: 'Ignored %qty% invalid variables: %list%',
+    DETAILS_SKIPPED: 'Skipped %qty% existing variables: %list%',
   };
   /**
    * Internal log buffer for the current setup operation
@@ -338,9 +338,9 @@ export class EnvManager {
    *   ' ': 'value'          // ignored (invalid key)
    * });
    *
-   * console.log(`✅ Set ${result.setVars?.length} variables`);
-   * console.log(`⚠️ Ignored ${result.ignoredVars?.length} variables`);
-   * console.log(`⏭️ Skipped ${result.skippedVars?.length} existing variables`);
+   * console.log(`Set ${result.setVars?.length} variables`);
+   * console.log(`Ignored ${result.ignoredVars?.length} variables`);
+   * console.log(`Skipped ${result.skippedVars?.length} existing variables`);
    * ```
    */
   private static setFromObject(

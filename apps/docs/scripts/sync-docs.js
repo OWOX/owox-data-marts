@@ -24,7 +24,7 @@ const CHANGELOG_PATH = path.join(MONOREPO_ROOT, 'apps/owox/CHANGELOG.md');
  * Main sync function that orchestrates the entire process
  */
 async function syncDocs() {
-  console.log('🔄 Starting documentation sync...');
+  console.log('Starting documentation sync...');
 
   // 1. Clear previos results and setup directories
   prepareFileSystem();
@@ -35,7 +35,7 @@ async function syncDocs() {
   // 4. Process manifests for Connectors
   await processManifests();
 
-  console.log(`✅ Documentation sync completed successfully!`);
+  console.log(`Documentation sync completed successfully!`);
 }
 
 /**
@@ -61,7 +61,7 @@ async function processMarkdownFiles() {
 
   const metaData = prepareMetadataContent();
 
-  console.log(`📄 Processing ${sourceFiles.length} .md files...`);
+  console.log(`Processing ${sourceFiles.length} .md files...`);
 
   // Process each file
   for (const sourceFilePath of sourceFiles) {
@@ -100,7 +100,7 @@ async function processManifests() {
     return;
   }
 
-  console.log(`📄 Processing ${manifestFiles.length} manifest.json files...`);
+  console.log(`Processing ${manifestFiles.length} manifest.json files...`);
 
   for (const manifestPath of manifestFiles) {
     const relativeManifestPath = path.relative(MONOREPO_ROOT, manifestPath);
@@ -110,7 +110,7 @@ async function processManifests() {
     const manifestData = JSON.parse(manifestContent);
 
     if (!manifestData.title) {
-      console.warn(`⚠️ Skipping manifest, no 'title' field found in: ${relativeManifestPath}`);
+      console.warn(`Skipping manifest, no 'title' field found in: ${relativeManifestPath}`);
       continue;
     }
 
@@ -461,7 +461,7 @@ function prepareMetadataContent() {
   const missingHeaders = expectedHeaders.filter(header => !actualHeaders.includes(header));
   if (missingHeaders.length > 0) {
     throw new Error(
-      `❌ Missing required CSV headers: ${missingHeaders.join(', ')}\n` +
+      `Missing required CSV headers: ${missingHeaders.join(', ')}\n` +
         `   Expected: ${expectedHeaders.join(', ')}\n` +
         `   Found: ${actualHeaders.join(', ')}`
     );
@@ -472,17 +472,17 @@ function prepareMetadataContent() {
     const errorsLog = errors
       .map(error => `\n  - Row ${error.row}: ${error.message} (${error.type})`)
       .join('');
-    throw new Error(`❌ CSV parsing failed with errors:${errorsLog}`);
+    throw new Error(`CSV parsing failed with errors:${errorsLog}`);
   }
 
-  console.log(`✅ CSV metadata parsed and validated successfully (${data.length} entries)`);
+  console.log(`CSV metadata parsed and validated successfully (${data.length} entries)`);
 
   return data;
 }
 
 // Execute the sync process
 syncDocs().catch(error => {
-  console.error('❌ An error occurred during sync:', error);
+  console.error('An error occurred during sync:', error);
 
   process.exit(1);
 });
