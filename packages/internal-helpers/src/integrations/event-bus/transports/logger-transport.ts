@@ -24,7 +24,9 @@ export class LoggerTransport implements EventTransport {
       payload: event.payload,
     } satisfies Record<string, unknown>;
 
-    const message = buildOwoxMessage(body);
+    const message = {
+      event: buildOwoxMessage(body),
+    };
 
     // Emit structured message in logs
     this.logger.info('Event', message as unknown as Record<string, unknown>);

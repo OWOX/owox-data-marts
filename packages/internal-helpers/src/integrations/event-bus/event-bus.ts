@@ -19,11 +19,25 @@ export class EventBus {
    * one failure is logged and won't break the others.
    */
   async produceEvent<TPayload extends object>(event: BaseEvent<TPayload>): Promise<void> {
-    await Promise.all(
-      this.transports.map(async t => {
-        await t.send(event);
-      })
-    );
+    const results = await Promise.allSettled(this.transports.map(t => t.send(event)));
+
+    const isRejected = <T>(r: PromiseSettledResult<T>): r is PromiseRejectedResult =>
+      r.status === 'rejected';
+
+    const errors = results
+      .map((r, i) => ({ r, t: this.transports[i] }))
+      .filter(({ r }) => isRejected(r)) as { r: PromiseRejectedResult; t: EventTransport }[];
+
+    if (errors.length > 0) {
+      const details = errors
+        .map(({ r, t }) => `${t.name ?? t.constructor.name}: ${String(r.reason)}`)
+        .join('; ');
+
+      throw new AggregateError(
+        errors.map(e => e.r.reason),
+        `Failed to send via ${errors.length} transports — ${details}`
+      );
+    }
   }
 
   getEnabledTransportNames(): readonly string[] {
