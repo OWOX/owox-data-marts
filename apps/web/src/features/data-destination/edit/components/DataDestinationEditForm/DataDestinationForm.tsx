@@ -38,7 +38,7 @@ export function DataDestinationForm({
   const form = useForm<DataDestinationFormData>({
     resolver: zodResolver(dataDestinationSchema),
     defaultValues: initialData ?? {
-      title: '',
+      title: 'New Destination',
       type: DataDestinationType.GOOGLE_SHEETS,
     },
     mode: 'onTouched',

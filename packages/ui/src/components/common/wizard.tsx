@@ -195,7 +195,7 @@ function AppWizardStepSection({
   children: React.ReactNode;
 } & React.HTMLAttributes<HTMLElement>) {
   return (
-    <section data-slot='wizard-step-section' className={cn('mb-4', className)} {...props}>
+    <section data-slot='wizard-step-section' className={cn('mb-8', className)} {...props}>
       {title && (
         <h3 className='text-muted-foreground/75 mb-2 text-xs font-semibold tracking-wide uppercase'>
           {title}
@@ -305,10 +305,7 @@ function AppWizardGrid({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div
-      className={cn('grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3', className)}
-      {...props}
-    >
+    <div className={cn('grid grid-cols-1 gap-4 md:grid-cols-2', className)} {...props}>
       {children}
     </div>
   );

@@ -1,4 +1,4 @@
-import { AlertCircle, CodeIcon, Unplug } from 'lucide-react';
+import { AlertCircle, Unplug } from 'lucide-react';
 import { Alert, AlertDescription } from '@owox/ui/components/alert';
 import type { ConnectorListItem } from '../../../../shared/model/types/connector';
 import { RawBase64Icon } from '../../../../../../shared/icons';
@@ -64,12 +64,6 @@ export function ConnectorSelectionStep({
               }}
             />
           ))}
-          <AppWizardGridItem
-            key='custom-code'
-            icon={<CodeIcon className='h-5 w-5' />}
-            title='Custom code'
-            disabled
-          />
         </AppWizardGrid>
       </AppWizardStepSection>
 

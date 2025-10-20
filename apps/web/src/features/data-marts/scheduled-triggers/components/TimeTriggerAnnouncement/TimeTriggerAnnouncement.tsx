@@ -8,7 +8,8 @@ export function TimeTriggerAnnouncement() {
         <div>
           <p className='font-medium'>Time Triggers</p>
           <p className='text-muted-foreground'>
-            Go to the <span className='font-medium'>Triggers tab</span> to set up automatic runs.
+            Set up automatic runs in the <span className='font-medium'>Triggers</span> tab once
+            you’ve saved and published this Data Mart.
           </p>
         </div>
       </div>

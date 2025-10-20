@@ -99,6 +99,36 @@ export function FieldsSelectionStep({
     }
   }, [selectedField, uniqueKeys, availableFields, selectedFields, onFieldToggle]);
 
+  // HotKey for Selecting/Unselecting all fields
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const isModifierPressed = event.ctrlKey || event.metaKey;
+      const isHotkeyPressed =
+        isModifierPressed && event.shiftKey && event.key.toLowerCase() === 'a';
+
+      // Prevent triggering while typing in inputs
+      const activeTag = (document.activeElement as HTMLElement).tagName;
+      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
+
+      if (isHotkeyPressed) {
+        event.preventDefault();
+
+        const availableNames = availableFields.map(field => field.name);
+        const notYetSelected = availableNames.filter(name => !selectedFields.includes(name));
+        const shouldSelectAll = notYetSelected.length > 0;
+
+        availableNames.forEach(fieldName => {
+          onFieldToggle(fieldName, shouldSelectAll);
+        });
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [availableFields, selectedFields, onFieldToggle]);
+
   if (!selectedField || !connectorFields) {
     return (
       <AppWizardStep>
