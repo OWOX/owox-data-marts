@@ -9,33 +9,37 @@ The sections below walk through provisioning these services, configuring applica
 
 ## 1. Create the Cloud SQL Instance
 
-1. Open the Cloud SQL creation wizard: <https://console.cloud.google.com/sql/instances/create;engine=MySQL>.
+1. Open the Cloud SQL creation wizard: <https://console.cloud.google.com/sql/instances/create;engine=MySQL>
 2. **Edition**: choose **Enterprise** (sufficient for most workloads) and start with the **Sandbox** preset. You can increase resources later.
 3. **Instance info**:
-   - **Database version**: `MySQL 8.0`.
-   - **Instance ID**: `owox-data-marts-db` (or another descriptive name).
+   - **Database version**: `MySQL 8.0`
+   - **Instance ID**: `owox-data-marts-db` (or another descriptive name)
    - **Password**: Generate a password for the `root` user and store it securely. The application will not use `root`, but you may need it for maintenance.
 4. **Region**: pick the same region you plan to use for Cloud Run.
 5. **Machine configuration**: start with `General purpose – Shared core` – `1 vCPU, 1.7 GB RAM`. Monitor usage and scale if needed.
 6. **Connections**: for quick setup, you can allow public access by adding the `0.0.0.0/0` network. While this is not the best choice from a security perspective, it can help initial testing; check **I acknowledge the risks**, then replace the rule with a more restricted network as soon as possible.
 7. Click **Create instance**. Provisioning can take several minutes; refresh manually if required.
 8. After creation, note the following from the **Connect to this instance** section:
-   - **Public IP address** (for example `136.113.41.46`).
-   - **Default TCP port** (typically `3306`).
+   - **Public IP address** (for example `136.113.41.46`)
+   - **Default TCP port** (typically `3306`)
+
+<https://github.com/user-attachments/assets/9d9a5474-4ff6-4c24-b979-b06be77ca2f4>
 
 ### Create the Application Database
 
 1. Within the instance, open the **Databases** tab.
-2. Click **Create database** and set **Database name** to `owox-data-marts-db`.
+2. Click **Create database** and set **Database name** to `owox-data-marts-db`
 3. Click **Create**.
 
 ### Create the Application User
 
 1. Switch to the **Users** tab and click **Add user account**.
 2. Choose **Built-in authentication** and enter:
-   - **User name**: `owox-data-marts-app`.
+   - **User name**: `owox-data-marts-app`
    - **Password**: generate a strong password and store it securely.
 3. Click **Add**.
+
+<https://github.com/user-attachments/assets/ea398e16-c571-44d0-9003-625bd517d60d>
 
 ## 2. Deploy the Cloud Run Service
 
@@ -104,6 +108,8 @@ LOG_FORMAT=gcp-cloud-logging
 ```
 
 When all variables are in place, click **Create** and wait for the deployment to finish.
+
+<https://github.com/user-attachments/assets/b8bb0314-397a-44c2-8158-f0316370a34b>
 
 ## 3. Create the First Admin User
 
