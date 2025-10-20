@@ -23,7 +23,7 @@ export default class DumpCreate extends BaseCommand {
     this.loadEnvironment(flags);
 
     const packageInfo = getPackageInfo();
-    this.log(`🚀 Starting OWOX Data Marts Dump Create (v${packageInfo.version})...`);
+    this.log(`Starting OWOX Data Marts Dump Create (v${packageInfo.version})...`);
 
     try {
       const { dumpInserts } = await import('@owox/backend');

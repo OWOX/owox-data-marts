@@ -156,7 +156,7 @@ export abstract class BaseCommand extends Command {
 
     this.initializeLogging();
 
-    this.logger?.info(`🔧 Setting environment variables...`);
+    this.logger?.info(`Setting environment variables...`);
 
     for (const logMessage of setResult.messages) {
       this.logger?.log(logMessage.logLevel, logMessage.message);

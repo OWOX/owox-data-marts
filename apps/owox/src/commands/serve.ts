@@ -91,7 +91,7 @@ export default class Serve extends BaseCommand {
     this.loadEnvironment(flags);
 
     const packageInfo = getPackageInfo();
-    this.log(`🚀 Starting OWOX Data Marts (v${packageInfo.version})...`);
+    this.log(`Starting OWOX Data Marts (v${packageInfo.version})...`);
 
     this.setupGracefulShutdown();
 
@@ -170,7 +170,7 @@ export default class Serve extends BaseCommand {
     const port = process.env.PORT;
     const logFormat = process.env.LOG_FORMAT;
 
-    this.log(`📦 Starting server on port ${port} with ${logFormat} logs...`);
+    this.log(`Starting server on port ${port} with ${logFormat} logs...`);
 
     const { bootstrap, createHealthProbe } = await import('@owox/backend');
 
@@ -202,20 +202,20 @@ export default class Serve extends BaseCommand {
       const staticAssetsConfigured = setupWebStaticAssets(expressApp);
 
       if (staticAssetsConfigured) {
-        this.log('🌐 Web interface static assets configured');
+        this.log('Web interface static assets configured');
       } else {
-        this.warn('⚠️  Web static assets not found, continuing without web interface');
+        this.warn(' Web static assets not found, continuing without web interface');
       }
     } else {
-      this.log('🚫 Web interface disabled');
+      this.log('Web interface disabled');
     }
 
     try {
       this.app = await bootstrap({ express: expressApp } as BootstrapOptions);
       currentBackendApp = createHealthProbe(this.app);
 
-      this.log(`📝 Process ID: ${process.pid}`);
-      this.log(`✅ Server started successfully. Open http://localhost:${port} in your browser.`);
+      this.log(`Process ID: ${process.pid}`);
+      this.log(`Server started successfully. Open http://localhost:${port} in your browser.`);
 
       // Keep process alive until shutdown
       await this.waitForShutdown();
