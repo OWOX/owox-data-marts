@@ -1,8 +1,0 @@
-export enum ConnectorRunStatus {
-  PENDING = 'PENDING',
-  RUNNING = 'RUNNING',
-  SUCCESS = 'SUCCESS',
-  FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED',
-  INTERRUPTED = 'INTERRUPTED',
-}
