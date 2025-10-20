@@ -39,7 +39,8 @@
     "dotenv": "^16.4.7",
     "pino": "^9.11.0",
     "pino-pretty": "^13.1.1",
-    "@google-cloud/pino-logging-gcp-config": "^1.2.0"
+    "@google-cloud/pino-logging-gcp-config": "^1.2.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^22.10.7",
