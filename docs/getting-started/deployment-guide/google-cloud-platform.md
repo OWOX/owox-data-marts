@@ -75,7 +75,7 @@ Open **Containers, Volumes, Networking, Security** / **Containers** → **Variab
 - `DB_HOST`: Cloud SQL public IP address
 - `DB_PORT`: Cloud SQL port (default `3306`)
 - `DB_USERNAME`: `owox-data-marts-app`
-- `DB_PASSWORD`: the password generated for `owox-data-marts-app`
+- `DB_PASSWORD`: the password generated for `owox-data-marts-app` Application User
 - `DB_DATABASE`: `owox-data-marts-db`
 
 #### Authentication
