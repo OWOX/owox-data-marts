@@ -101,18 +101,24 @@ function renderInputForType(
     case RequiredType.BOOLEAN:
       return (
         <div className='flex items-center space-x-2'>
-          <input
+          <Input
             type='checkbox'
             id={inputId}
             name={name}
-            checked={(configuration[name] as boolean) || (defaultValue as boolean) || false}
+            checked={(configuration[name] as boolean) || false}
             onChange={e => {
               onValueChange(name, e.target.checked);
             }}
             className='text-primary focus:ring-primary border-border h-4 w-4 rounded'
           />
           <Label htmlFor={inputId} className='cursor-pointer text-sm'>
-            {displayName}
+            <AppWizardStepLabel
+              htmlFor={inputId}
+              required={specification.required}
+              tooltip={specification.description}
+            >
+              {displayName}
+            </AppWizardStepLabel>
           </Label>
         </div>
       );
