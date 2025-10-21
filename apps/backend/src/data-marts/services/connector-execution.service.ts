@@ -97,6 +97,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     if (run.status === DataMartRunStatus.RUNNING) {
       await this.dataMartRunRepository.update(runId, {
         status: DataMartRunStatus.CANCELLED,
+        finishedAt: new Date(Date.now()),
       });
     }
   }
@@ -234,7 +235,9 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
 
       await this.dataMartRunRepository.update(runId, {
         status: DataMartRunStatus.RUNNING,
+        startedAt: new Date(Date.now()),
       });
+
       const configurationResults = await this.runConnectorConfigurations(
         runId,
         processId,
@@ -482,6 +485,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
 
     await this.dataMartRunRepository.update(runId, {
       status,
+      finishedAt: new Date(Date.now()),
       logs: capturedLogs.map(log => JSON.stringify(log)),
       errors: capturedErrors.map(error => JSON.stringify(error)),
     });

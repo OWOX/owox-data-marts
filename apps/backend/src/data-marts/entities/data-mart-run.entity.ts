@@ -48,6 +48,12 @@ export class DataMartRun {
   @CreateDateColumn()
   createdAt: Date;
 
+  @Column({ type: 'datetime', nullable: true })
+  startedAt: Date;
+
+  @Column({ type: 'datetime', nullable: true })
+  finishedAt: Date;
+
   @Column({ type: 'json', nullable: true })
   additionalParams?: Record<string, unknown>;
 }
