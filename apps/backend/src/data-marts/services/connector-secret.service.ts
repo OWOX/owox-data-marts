@@ -113,8 +113,6 @@ export class ConnectorSecretService {
     previous: ConnectorDefinition | undefined
   ): Promise<ConnectorDefinition> {
     const secretFieldNames = await this.getSecretFieldNames(incoming.connector.source.name);
-    if (secretFieldNames.size === 0) return incoming;
-
     const previousConfiguration = previous?.connector?.source?.configuration || [];
 
     const mergedConfiguration = incoming.connector.source.configuration.map(item => {
