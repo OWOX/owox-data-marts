@@ -63,13 +63,9 @@ Under **Containers, Volumes, Networking, Security** / **Containers** → **Setti
 
 ### Configure Environment Variables
 
-Open **Containers, Volumes, Networking, Security** / **Containers** → **Variables & Secrets** and add the variables below. Replace the placeholder values with the credentials collected in earlier steps.
-
-#### Application URL
+Open **Containers, Volumes, Networking, Security** / **Containers** → **Variables & Secrets** and add the variables below. Replace the placeholder values with the credentials collected in earlier steps:
 
 - `PUBLIC_ORIGIN`: use the Cloud Run endpoint, e.g. `https://owox-data-marts-312784848198.europe-west1.run.app`. Ensure there is no trailing slash.
-
-#### Database connection
 
 - `DB_TYPE`: `mysql`
 - `DB_HOST`: Cloud SQL public IP address
@@ -78,15 +74,13 @@ Open **Containers, Volumes, Networking, Security** / **Containers** → **Variab
 - `DB_PASSWORD`: the password generated for `owox-data-marts-app` Application User
 - `DB_DATABASE`: `owox-data-marts-db`
 
-#### Authentication
-
 - `IDP_PROVIDER`: `better-auth`
 - `IDP_BETTER_AUTH_SECRET`: a unique 32-character secret. Generate one locally, e.g. `openssl rand -base64 32`.
 - `IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL`: the email for the first admin user, e.g. `your@company.com`.
 
-#### Logging
-
 - `LOG_FORMAT`: `gcp-cloud-logging`
+
+🏁 When all variables are in place, click **Create** and wait for the deployment to finish.
 
 Example configuration block (do not reuse as-is):
 
@@ -106,8 +100,6 @@ IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL=your@company.com
 
 LOG_FORMAT=gcp-cloud-logging
 ```
-
-When all variables are in place, click **Create** and wait for the deployment to finish.
 
 <https://github.com/user-attachments/assets/b8bb0314-397a-44c2-8158-f0316370a34b>
 
