@@ -97,6 +97,16 @@ var FacebookMarketingFieldsSchema = {
         "destinationName": "facebook_ads_ad_account_insights_by_link_url_asset",
         "limit": 500
     },
+        "ad-account/insights-by-publisher-platform": {
+        "description": "Interface for insights with breakdown by publisher platform.",
+        "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
+        "fields" : adAccountInsightsFieldsByPublisherPlatform,
+        "breakdowns": ["publisher_platform"],
+        'uniqueKeys': ["ad_id", "date_start", "date_stop", "publisher_platform"],
+        "isTimeSeries": true,
+        "destinationName": "facebook_ads_ad_account_insights_by_publisher_platform",
+        "limit": 500
+    },
     "ad-group": {
         "overview": "Ad",
         "description": "Contains information for an ad, such as creative elements and measurement information.",

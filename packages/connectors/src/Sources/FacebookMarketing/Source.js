@@ -150,6 +150,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         case 'ad-account/insights':
         case 'ad-account/insights-by-country':
         case 'ad-account/insights-by-link-url-asset':
+        case 'ad-account/insights-by-publisher-platform':
           return this._fetchInsightsData({ nodeName, accountId, fields, timeRange, url });
 
         case 'ad-group':
@@ -284,9 +285,16 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
      * @private
      */
     _prepareFields({ nodeName, fields, breakdowns }) {
-      return fields.filter(field => 
-        this.fieldsSchema[nodeName].fields[field] && !breakdowns.includes(field)
-      );
+      const node = this.fieldsSchema[nodeName];
+      if (!node || !node.fields) return [];
+      return (fields || []).filter(field => {
+        const schemaField = node.fields[field];
+        if (!schemaField) return false; // unknown -> exclude
+        if (breakdowns && breakdowns.includes(field)) return false; // passed as breakdown
+        if (schemaField.fieldType === 'breakdown') return false; // declared breakdown-only
+        if (schemaField.supportsFieldsParam === false) return false; // explicitly unsupported
+        return true;
+      });
     }
 
   //---- _buildInsightsUrl ------------------------------------------------
@@ -303,9 +311,9 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
      * @return {string} Complete URL
      * @private
      */
-    _buildInsightsUrl({ accountId, fields, breakdowns, timeRange, nodeName, url }) {
+     _buildInsightsUrl({ accountId, fields, breakdowns, timeRange, nodeName, url }) {
+      console.log('Insights request fields for', nodeName, ':', fields);
       let insightsUrl = `${url}act_${accountId}/insights?level=ad&period=day&time_range=${timeRange}&fields=${fields.join(",")}&limit=${this.fieldsSchema[nodeName].limit}`;
-      
       if (breakdowns.length > 0) {
         insightsUrl += `&breakdowns=${breakdowns.join(",")}`;
       }
