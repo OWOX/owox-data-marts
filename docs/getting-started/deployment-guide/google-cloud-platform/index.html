@@ -133,9 +133,9 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 </video>
 <div class="sl-heading-wrapper level-h2"><h2 id="2-deploy-the-cloud-run-service">2. Deploy the Cloud Run Service</h2><a class="sl-anchor-link" href="#2-deploy-the-cloud-run-service"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only">Section titled “2. Deploy the Cloud Run Service”</span></a></div>
 <ol>
-<li>Launch the Cloud Run deployment wizard: <a href="https://console.cloud.google.com/run/create?enableapi=true&#x26;deploymentType=container" rel="noopener noreferrer" target="_blank">https://console.cloud.google.com/run/create?enableapi=true&#x26;deploymentType=container</a>.</li>
-<li><strong>Container image URL</strong>: <code dir="auto">us-docker.pkg.dev/owox-registry/ghcr/owox/owox-data-marts:latest</code>.</li>
-<li><strong>Service name</strong>: choose a descriptive name, e.g. <code dir="auto">owox-data-marts</code>.</li>
+<li>Launch the Cloud Run deployment wizard: <a href="https://console.cloud.google.com/run/create?enableapi=true&#x26;deploymentType=container" rel="noopener noreferrer" target="_blank">https://console.cloud.google.com/run/create?enableapi=true&#x26;deploymentType=container</a></li>
+<li><strong>Container image URL</strong>: <code dir="auto">us-docker.pkg.dev/owox-registry/ghcr/owox/owox-data-marts:latest</code></li>
+<li><strong>Service name</strong>: choose a descriptive name, e.g. <code dir="auto">owox-data-marts</code></li>
 <li><strong>Region</strong>: select the same region as the Cloud SQL instance.</li>
 <li>Copy the generated <strong>Endpoint URL</strong> and store it; it becomes your <code dir="auto">PUBLIC_ORIGIN</code>.</li>
 <li><strong>Authentication</strong>: select <code dir="auto">Allow public access</code>. OWOX Data Marts provides built-in authentication.</li>
@@ -154,7 +154,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <p>Open <strong>Containers, Volumes, Networking, Security</strong> / <strong>Containers</strong> → <strong>Variables &#x26; Secrets</strong> and add the variables below. Replace the placeholder values with the credentials collected in earlier steps:</p>
 <ul>
 <li>
-<p><code dir="auto">PUBLIC_ORIGIN</code>: use the Cloud Run endpoint, e.g. <code dir="auto">https://owox-data-marts-312784848198.europe-west1.run.app</code>. Ensure there is no trailing slash.</p>
+<p><code dir="auto">PUBLIC_ORIGIN</code>: use the Cloud Run endpoint from the above, e.g. <code dir="auto">https://owox-data-marts-312784848198.europe-west1.run.app</code> (ensure there is no trailing slash)</p>
 </li>
 <li>
 <p><code dir="auto">DB_TYPE</code>: <code dir="auto">mysql</code></p>
@@ -191,7 +191,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 </li>
 </ul>
 <p>🏁 When all variables are in place, click <strong>Create</strong> and wait for the deployment to finish.</p>
-<p>Example configuration block (do not reuse as-is):</p>
+<p>Example environment variables configuration block (do not reuse as-is):</p>
 <div class="expressive-code"><link rel="stylesheet" href="/_astro/ec.v4551.css"><script type="module" src="/_astro/ec.p1z7b.js"></script><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="text"><code><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">PUBLIC_ORIGIN=https://owox-data-marts-312784848198.europe-west1.run.app</span></div></div><div class="ec-line"><div class="code">
 </div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">DB_TYPE=mysql</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">DB_HOST=136.113.41.46</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">DB_PORT=3306</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">DB_USERNAME=owox-data-marts-app</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">DB_PASSWORD=PO$sTNkf?TRoY83g</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">DB_DATABASE=owox-data-marts-db</span></div></div><div class="ec-line"><div class="code">
 </div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">IDP_PROVIDER=better-auth</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">IDP_BETTER_AUTH_SECRET=pw/1VHJStJeLThUeFtHoRlKSdRHHIYKPMnYMSO+86bA=</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL=your@company.com</span></div></div><div class="ec-line"><div class="code">
@@ -199,18 +199,24 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <!-- markdownlint-disable-next-line MD033 MD034 -->
 <video controls playsinline muted style="max-width: 100%; height: auto;">
   <!-- markdownlint-disable-next-line MD033 MD034 -->
-  <source src="https://github.com/user-attachments/assets/b8bb0314-397a-44c2-8158-f0316370a34b" type="video/mp4">
+  <source src="https://github.com/user-attachments/assets/40391cc7-4825-44da-ba78-9926b4e1707a" type="video/mp4">
   Your browser does not support the video tag.
 </video>
 <div class="sl-heading-wrapper level-h2"><h2 id="3-create-the-first-admin-user">3. Create the First Admin User</h2><a class="sl-anchor-link" href="#3-create-the-first-admin-user"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only">Section titled “3. Create the First Admin User”</span></a></div>
 <ol>
 <li>Open the newly created Cloud Run service.</li>
 <li>Navigate to <strong>Observability</strong> → <strong>Logs</strong>.</li>
-<li>Search for log entries containing <code dir="auto">Primary admin created</code>.</li>
+<li>Search for log entries containing <code dir="auto">Primary admin created</code></li>
 <li>Open the matching log line and copy the magic link from <code dir="auto">jsonPayload.message</code>.</li>
 <li>Follow the link to set a password for the email specified in <code dir="auto">IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL</code>.</li>
 <li>Sign in to OWOX Data Marts with that email and password.</li>
 </ol>
+<!-- markdownlint-disable-next-line MD033 MD034 -->
+<video controls playsinline muted style="max-width: 100%; height: auto;">
+  <!-- markdownlint-disable-next-line MD033 MD034 -->
+  <source src="https://github.com/user-attachments/assets/0c2538d2-930b-48d9-8c99-482c6d0dc38a" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
 <div class="sl-heading-wrapper level-h2"><h2 id="4-rollout-updates">4. Rollout Updates</h2><a class="sl-anchor-link" href="#4-rollout-updates"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only">Section titled “4. Rollout Updates”</span></a></div>
 <p>When a new OWOX Data Marts release is available, or you need to adjust the application configuration:</p>
 <ol>
