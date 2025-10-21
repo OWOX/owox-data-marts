@@ -6,7 +6,7 @@
  */
 
 /* eslint-disable no-unused-vars */
-var adAccountInsightsFieldsByCountry = {
+var adAccountInsightsFieldsByPublisherPlatform = {
   'account_currency': {
     'description': 'Currency that is used by your ad account.',
     'type': 'string'
@@ -125,10 +125,6 @@ var adAccountInsightsFieldsByCountry = {
     'description': 'The number of clicks on your ads.',
     'type': 'numeric string',
     'GoogleBigQueryType': 'numeric'
-  },
-  'country': {
-    'description': 'The country where the people you\'ve reached are located. This is based on information, such as a person\'s hometown, their current city, and the geographical location where they tend to be when they visit Meta.',
-    'type': 'string'
   },
   'conversion_values': {
     'description': 'conversion_values',
@@ -352,6 +348,10 @@ var adAccountInsightsFieldsByCountry = {
     'description': 'The percentage of times people saw your ad and performed an outbound click.',
     'type': 'list<AdsActionStats>'
   },
+  'publisher_platform': {
+    'description': 'Which platform your ad was shown, for example on Facebook, Instagram, or Audience Network.',
+    'type': 'string'
+  },
   'purchase_roas': {
     'description': 'The total return on ad spend (ROAS) from purchases. This is based on information received from one or more of your connected Facebook Business Tools and attributed to your ads.',
     'type': 'list<AdsActionStats>'
@@ -470,4 +470,3 @@ var adAccountInsightsFieldsByCountry = {
     'GoogleBigQueryType': 'numeric'
   }
 }
-
