@@ -321,7 +321,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       // buffer must be saved only in case if it is larger than maxBufferSize
       if( bufferSize && bufferSize >= maxBufferSize ) {
         
-        console.log(`🔄 Starting BigQuery MERGE operation for ${bufferSize} records...`);
+        console.log(`Starting BigQuery MERGE operation for ${bufferSize} records...`);
         
         // Split buffer into smaller chunks if needed to avoid query size limits
         this.executeQueryWithSizeLimit();
@@ -378,7 +378,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       const maxQuerySize = 1024 * 1024; // 1MB in bytes
       
       if (querySize > maxQuerySize) {
-        console.log(`⚠️  Query size (${Math.round(querySize/1024)}KB) exceeds BigQuery limit. Reducing batch size from ${batchSize} to ${Math.floor(batchSize/2)}`);
+        console.log(`Query size (${Math.round(querySize/1024)}KB) exceeds BigQuery limit. Reducing batch size from ${batchSize} to ${Math.floor(batchSize/2)}`);
         
         // Recursively try with half the batch size
         this.executeMergeQueryRecursively(recordKeys, Math.floor(batchSize / 2));
@@ -389,7 +389,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         // Execute the query
         this.executeQuery(query);
         this.totalRecordsProcessed += currentBatch.length;
-        console.log(`✅ BigQuery MERGE completed successfully for ${currentBatch.length} records (Total processed: ${this.totalRecordsProcessed})`);
+        console.log(`BigQuery MERGE completed successfully for ${currentBatch.length} records (Total processed: ${this.totalRecordsProcessed})`);
         
         // Process remaining records if any
         if (remainingRecords.length > 0) {
@@ -399,7 +399,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       } catch (error) {
         // If query fails due to size (even though we checked), reduce batch size
         if (error.message && error.message.includes('query is too large')) {
-          console.log(`⚠️  Query execution failed due to size. Reducing batch size from ${batchSize} to ${Math.floor(batchSize/2)}`);
+          console.log(`Query execution failed due to size. Reducing batch size from ${batchSize} to ${Math.floor(batchSize/2)}`);
           this.executeMergeQueryRecursively(recordKeys, Math.floor(batchSize / 2));
         } else {
           // Re-throw other errors

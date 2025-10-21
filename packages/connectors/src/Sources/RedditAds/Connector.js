@@ -80,7 +80,7 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
 
               const data = this.source.fetchData(nodeName, accountId, fields, currentDate);
   
-      this.config.logMessage(data.length ? `${data.length} records were fetched` : `ℹ️ No records have been fetched`);
+      this.config.logMessage(data.length ? `${data.length} records were fetched` : `No records have been fetched`);
 
       if (data.length || this.config.CreateEmptyTables?.value) {
         const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
@@ -104,7 +104,7 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
   processCatalogNode({ nodeName, accountId, fields }) {
     const data = this.source.fetchData(nodeName, accountId, fields);
     
-    this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for account ${accountId}` : `ℹ️ No records have been fetched`);
+    this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for account ${accountId}` : `No records have been fetched`);
 
     if (data.length || this.config.CreateEmptyTables?.value) {
       const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;

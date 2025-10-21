@@ -105,7 +105,7 @@ var OpenHolidaysSource = class OpenHolidaysSource extends AbstractSource {
     });
 
     if (!holidays || !holidays.length) {
-      this.config.logMessage("ℹ️ No public holidays found for the requested period.");
+      this.config.logMessage("No public holidays found for the requested period.");
       return [];
     }
 

@@ -69,7 +69,7 @@ A method for invoking importNewData() to determine the parameters required for f
       // Fetching new data from a data source  
       let data = this.source.fetchData(currentDate);
 
-      this.config.logMessage(data.length ? `${data.length} rows were fetched` : `ℹ️ No records have been fetched`);
+      this.config.logMessage(data.length ? `${data.length} rows were fetched` : `No records have been fetched`);
 
       if (data.length || this.config.CreateEmptyTables?.value) {
         const preparedData = data.length ? data : [];

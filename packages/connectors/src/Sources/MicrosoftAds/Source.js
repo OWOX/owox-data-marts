@@ -361,7 +361,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
           // Update batch size for future iterations
           batchSize = newBatchSize;
         } else {
-          this.config.logMessage(`⚠️ Failed to fetch ${entityType.toLowerCase()} for campaigns ${campaignBatch.join(', ')}: ${error.message}`);
+          this.config.logMessage(`Failed to fetch ${entityType.toLowerCase()} for campaigns ${campaignBatch.join(', ')}: ${error.message}`);
           throw new Error(`Failed to fetch ${entityType}: ${error.message}`);
         }
       }
