@@ -68,8 +68,9 @@ Open **Containers, Volumes, Networking, Security** / **Containers** → **Variab
 - `PUBLIC_ORIGIN`: use the Cloud Run endpoint, e.g. `https://owox-data-marts-312784848198.europe-west1.run.app`. Ensure there is no trailing slash.
 
 - `DB_TYPE`: `mysql`
-- `DB_HOST`: Cloud SQL public IP address
-- `DB_PORT`: Cloud SQL port (default `3306`)
+- `DB_HOST`: Cloud SQL public IP address generated for Cloud SQL Instance
+- `DB_PORT`: Cloud SQL port (default `3306`) generated for Cloud SQL Instance
+- `DB_MYSQL_SSL`: `{"rejectUnauthorized": false}`
 - `DB_USERNAME`: `owox-data-marts-app`
 - `DB_PASSWORD`: the password generated for `owox-data-marts-app` Application User
 - `DB_DATABASE`: `owox-data-marts-db`
