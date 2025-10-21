@@ -94,6 +94,7 @@ DB_PORT=3306
 DB_USERNAME=owox-data-marts-app
 DB_PASSWORD=PO$sTNkf?TRoY83g
 DB_DATABASE=owox-data-marts-db
+DB_MYSQL_SSL={"rejectUnauthorized": false}
 
 IDP_PROVIDER=better-auth
 IDP_BETTER_AUTH_SECRET=pw/1VHJStJeLThUeFtHoRlKSdRHHIYKPMnYMSO+86bA=
