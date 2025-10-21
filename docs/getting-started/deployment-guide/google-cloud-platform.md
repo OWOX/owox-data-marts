@@ -43,9 +43,9 @@ The sections below walk through provisioning these services, configuring applica
 
 ## 2. Deploy the Cloud Run Service
 
-1. Launch the Cloud Run deployment wizard: <https://console.cloud.google.com/run/create?enableapi=true&deploymentType=container>.
-2. **Container image URL**: `us-docker.pkg.dev/owox-registry/ghcr/owox/owox-data-marts:latest`.
-3. **Service name**: choose a descriptive name, e.g. `owox-data-marts`.
+1. Launch the Cloud Run deployment wizard: <https://console.cloud.google.com/run/create?enableapi=true&deploymentType=container>
+2. **Container image URL**: `us-docker.pkg.dev/owox-registry/ghcr/owox/owox-data-marts:latest`
+3. **Service name**: choose a descriptive name, e.g. `owox-data-marts`
 4. **Region**: select the same region as the Cloud SQL instance.
 5. Copy the generated **Endpoint URL** and store it; it becomes your `PUBLIC_ORIGIN`.
 6. **Authentication**: select `Allow public access`. OWOX Data Marts provides built-in authentication.
@@ -65,7 +65,7 @@ Under **Containers, Volumes, Networking, Security** / **Containers** → **Setti
 
 Open **Containers, Volumes, Networking, Security** / **Containers** → **Variables & Secrets** and add the variables below. Replace the placeholder values with the credentials collected in earlier steps:
 
-- `PUBLIC_ORIGIN`: use the Cloud Run endpoint, e.g. `https://owox-data-marts-312784848198.europe-west1.run.app`. Ensure there is no trailing slash.
+- `PUBLIC_ORIGIN`: use the Cloud Run endpoint from the above, e.g. `https://owox-data-marts-312784848198.europe-west1.run.app` (ensure there is no trailing slash)
 
 - `DB_TYPE`: `mysql`
 - `DB_HOST`: Cloud SQL public IP address generated for Cloud SQL Instance
@@ -83,7 +83,7 @@ Open **Containers, Volumes, Networking, Security** / **Containers** → **Variab
 
 🏁 When all variables are in place, click **Create** and wait for the deployment to finish.
 
-Example configuration block (do not reuse as-is):
+Example environment variables configuration block (do not reuse as-is):
 
 ```text
 PUBLIC_ORIGIN=https://owox-data-marts-312784848198.europe-west1.run.app
@@ -102,16 +102,18 @@ IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL=your@company.com
 LOG_FORMAT=gcp-cloud-logging
 ```
 
-<https://github.com/user-attachments/assets/b8bb0314-397a-44c2-8158-f0316370a34b>
+<https://github.com/user-attachments/assets/40391cc7-4825-44da-ba78-9926b4e1707a>
 
 ## 3. Create the First Admin User
 
 1. Open the newly created Cloud Run service.
 2. Navigate to **Observability** → **Logs**.
-3. Search for log entries containing `Primary admin created`.
+3. Search for log entries containing `Primary admin created`
 4. Open the matching log line and copy the magic link from `jsonPayload.message`.
 5. Follow the link to set a password for the email specified in `IDP_BETTER_AUTH_PRIMARY_ADMIN_EMAIL`.
 6. Sign in to OWOX Data Marts with that email and password.
+
+<https://github.com/user-attachments/assets/0c2538d2-930b-48d9-8c99-482c6d0dc38a>
 
 ## 4. Rollout Updates
 
