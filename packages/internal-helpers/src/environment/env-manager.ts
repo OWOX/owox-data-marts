@@ -211,12 +211,12 @@ export class EnvManager {
       this.logWarning(this.formatMessage(this.MESSAGES.FILE_NOT_FOUND, { file: resolvedPath }));
       return false;
     }
-    this.logInfo(this.formatMessage(this.MESSAGES.FILE_PROCESSING, { file: resolvedPath }));
+    this.logDebug(this.formatMessage(this.MESSAGES.FILE_PROCESSING, { file: resolvedPath }));
 
     const result = this.loadFromFile(resolvedPath, envFileOverride);
     if (result.success) {
       this.logOperationDetails(result);
-      this.logInfo(this.MESSAGES.FILE_SUCCESS);
+      this.logDebug(this.MESSAGES.FILE_SUCCESS);
     } else {
       this.logError(this.MESSAGES.FILE_FAILED);
     }
@@ -251,7 +251,7 @@ export class EnvManager {
         return false;
       }
 
-      this.logInfo(this.formatMessage(this.MESSAGES.OBJECT_START, { type }));
+      this.logDebug(this.formatMessage(this.MESSAGES.OBJECT_START, { type }));
       const result = this.setFromObject(vars, override);
       if (result.success) {
         this.logOperationDetails(result);
@@ -405,12 +405,12 @@ export class EnvManager {
     const sanitizedPath = filePath.trim();
 
     if (sanitizedPath) {
-      this.logInfo(this.formatMessage(this.MESSAGES.FILE_PATH_SPECIFIED, { file: sanitizedPath }));
+      this.logDebug(this.formatMessage(this.MESSAGES.FILE_PATH_SPECIFIED, { file: sanitizedPath }));
       return sanitizedPath;
     }
 
     const defaultPath = path.resolve(process.cwd(), '.env');
-    this.logInfo(this.formatMessage(this.MESSAGES.FILE_PATH_DEFAULT, { file: defaultPath }));
+    this.logDebug(this.formatMessage(this.MESSAGES.FILE_PATH_DEFAULT, { file: defaultPath }));
     return defaultPath;
   }
 
@@ -428,11 +428,11 @@ export class EnvManager {
   private static logOperationDetails(result: EnvOperationResult): void {
     const { setVars, ignoredVars, skippedVars } = result;
     if (setVars && setVars.length) {
-      this.logInfo(this.formatMessage(this.MESSAGES.DETAILS_SET, { qty: String(setVars.length) }));
+      this.logDebug(this.formatMessage(this.MESSAGES.DETAILS_SET, { qty: String(setVars.length) }));
     }
 
     if (ignoredVars && ignoredVars.length) {
-      this.logWarning(
+      this.logDebug(
         this.formatMessage(this.MESSAGES.DETAILS_IGNORED, {
           qty: String(ignoredVars.length),
           list: ignoredVars.join(', '),
@@ -440,7 +440,7 @@ export class EnvManager {
       );
     }
     if (skippedVars && skippedVars.length) {
-      this.logInfo(
+      this.logDebug(
         this.formatMessage(this.MESSAGES.DETAILS_SKIPPED, {
           qty: String(skippedVars.length),
           list: skippedVars.join(', '),
@@ -474,6 +474,15 @@ export class EnvManager {
    */
   private static logWarning(message: string): void {
     this.operationLog.push({ logLevel: LogLevel.WARN, message });
+  }
+
+  /**
+   * Log debug message
+   * @private
+   * @param message - Message to log
+   */
+  private static logDebug(message: string): void {
+    this.operationLog.push({ logLevel: LogLevel.DEBUG, message });
   }
 
   /**
