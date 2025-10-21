@@ -1,4 +1,4 @@
-import type { TaskStatus } from '../../../enums/task-status.enum.ts';
+import type { TaskStatus } from '../../../../../../shared/types/task-status.enum.ts';
 
 export interface TaskStatusResponseDto {
   status: TaskStatus;

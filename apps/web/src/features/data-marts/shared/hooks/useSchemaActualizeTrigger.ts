@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { TaskStatus } from '../enums/task-status.enum.ts';
+import { TaskStatus } from '../../../../shared/types/task-status.enum.ts';
 import { dataMartService } from '../services/data-mart.service';
 
 interface UseSchemaActualizeTriggerReturn {

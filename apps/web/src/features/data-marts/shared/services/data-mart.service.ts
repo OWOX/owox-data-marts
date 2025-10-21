@@ -1,6 +1,6 @@
 import type { AxiosRequestConfig } from '../../../../app/api';
 import { ApiService } from '../../../../services';
-import type { TaskStatus } from '../enums/task-status.enum.ts';
+import type { TaskStatus } from '../../../../shared/types/task-status.enum.ts';
 import type {
   CreateDataMartRequestDto,
   CreateDataMartResponseDto,
