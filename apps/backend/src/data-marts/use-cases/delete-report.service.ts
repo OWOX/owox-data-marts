@@ -3,14 +3,14 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Report } from '../entities/report.entity';
 import { GetReportCommand } from '../dto/domain/get-report.command';
-import { ScheduledTriggerService } from '../services/scheduled-trigger.service';
+import { ReportService } from '../services/report.service';
 
 @Injectable()
 export class DeleteReportService {
   constructor(
     @InjectRepository(Report)
     private readonly reportRepository: Repository<Report>,
-    private readonly scheduledTriggerService: ScheduledTriggerService
+    private readonly reportService: ReportService
   ) {}
 
   async run(command: GetReportCommand): Promise<void> {
@@ -28,14 +28,6 @@ export class DeleteReportService {
       throw new NotFoundException(`Report with ID ${command.id} not found`);
     }
 
-    // Delete report
-    await this.reportRepository.remove(report);
-
-    // Delete all triggers related to this report
-    await this.scheduledTriggerService.deleteAllByReportIdAndDataMartIdAndProjectId(
-      command.id,
-      report.dataMart.id,
-      report.dataMart.projectId
-    );
+    await this.reportService.deleteReport(report);
   }
 }

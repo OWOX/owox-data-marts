@@ -5,12 +5,14 @@ import { DataDestinationType } from '../data-destination-types/enums/data-destin
 import { LookerStudioConnectorCredentialsType } from '../data-destination-types/looker-studio-connector/schemas/looker-studio-connector-credentials.schema';
 import { Report } from '../entities/report.entity';
 import { ReportRunStatus } from '../enums/report-run-status.enum';
+import { ScheduledTriggerService } from './scheduled-trigger.service';
 
 @Injectable()
 export class ReportService {
   constructor(
     @InjectRepository(Report)
-    private readonly repository: Repository<Report>
+    private readonly repository: Repository<Report>,
+    private readonly scheduledTriggerService: ScheduledTriggerService
   ) {}
 
   async getByIdAndDataMartIdAndProjectId(
@@ -86,5 +88,33 @@ export class ReportService {
       lastRunError: error,
       runsCount: () => 'runsCount + 1',
     });
+  }
+
+  async deleteReport(report: Report): Promise<void> {
+    // Delete all triggers related to this report
+    await this.scheduledTriggerService.deleteAllByReportIdAndDataMartIdAndProjectId(
+      report.id,
+      report.dataMart.id,
+      report.dataMart.projectId
+    );
+
+    // Delete report
+    await this.repository.remove(report);
+  }
+
+  async deleteAllByDataMartIdAndProjectId(dataMartId: string, projectId: string): Promise<void> {
+    const reports = await this.repository.find({
+      where: {
+        dataMart: {
+          id: dataMartId,
+          projectId,
+        },
+      },
+      relations: ['dataMart'],
+    });
+
+    for (const report of reports) {
+      await this.deleteReport(report);
+    }
   }
 }
