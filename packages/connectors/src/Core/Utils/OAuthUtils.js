@@ -43,7 +43,8 @@ var OAuthUtils = {
         throw new Error(`Token error: ${json.error}`);
       }
       
-      config.logMessage(`✅ Successfully obtained access token`);
+      config.AccessToken = { value: json.access_token };
+      config.logMessage(`Successfully obtained access token`);
       
       return json.access_token;
     } catch (error) {
