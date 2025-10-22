@@ -81,6 +81,14 @@ export abstract class UiTriggerService<UiResponseType> {
       return;
     }
 
+    if (trigger.status === TriggerStatus.SUCCESS) {
+      this.logger.debug(
+        `Trigger ${triggerId} already in final state ${trigger.status}, removing it`
+      );
+      await this.triggerRepository.remove(trigger);
+      return;
+    }
+
     throw new BadRequestException("Request can't be cancelled at current state");
   }
 
