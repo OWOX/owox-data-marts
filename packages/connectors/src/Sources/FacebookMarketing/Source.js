@@ -150,7 +150,11 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         case 'ad-account/insights':
         case 'ad-account/insights-by-country':
         case 'ad-account/insights-by-link-url-asset':
-        case 'ad-account/insights-by-publisher-platform':
+        case 'ad-account/insights-by-publisher-platform-and-position':
+        case 'ad-account/insights-by-device-platform':
+        case 'ad-account/insights-by-region':
+        case 'ad-account/insights-by-product-id':
+        case 'ad-account/insights-by-age-and-gender':
           return this._fetchInsightsData({ nodeName, accountId, fields, timeRange, url });
 
         case 'ad-group':
