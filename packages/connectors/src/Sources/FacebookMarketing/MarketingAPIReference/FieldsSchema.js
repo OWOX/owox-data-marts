@@ -77,6 +77,16 @@ var FacebookMarketingFieldsSchema = {
         "destinationName": "facebook_ads_ad_account_insights",
         "limit": 500
     },
+    "ad-account/insights-by-age-and-gender": {
+        "description": "Interface for insights with breakdown by age and gender.",
+        "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
+        "fields" : adAccountInsightsFieldsByAgeAndGender,
+        "breakdowns": ["age", "gender"],
+        'uniqueKeys': ["ad_id", "date_start", "date_stop", "age", "gender"],
+        "isTimeSeries": true,
+        "destinationName": "facebook_ads_ad_account_insights_by_age_and_gender",
+        "limit": 500
+    },
     "ad-account/insights-by-country": {
         "description": "Interface for insights with breakdown by country.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
@@ -85,6 +95,16 @@ var FacebookMarketingFieldsSchema = {
         'uniqueKeys': ["ad_id", "date_start", "date_stop", "country"],
         "isTimeSeries": true,
         "destinationName": "facebook_ads_ad_account_insights_by_country",
+        "limit": 500
+    },
+    "ad-account/insights-by-device-platform": {
+        "description": "Interface for insights with breakdown by device platform.",
+        "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
+        "fields" : adAccountInsightsFieldsByDevicePlatform,
+        "breakdowns": ["device_platform"],
+        'uniqueKeys': ["ad_id", "date_start", "date_stop", "device_platform"],
+        "isTimeSeries": true,
+        "destinationName": "facebook_ads_ad_account_insights_by_device_platform",
         "limit": 500
     },
     "ad-account/insights-by-link-url-asset": {
@@ -97,14 +117,34 @@ var FacebookMarketingFieldsSchema = {
         "destinationName": "facebook_ads_ad_account_insights_by_link_url_asset",
         "limit": 500
     },
-        "ad-account/insights-by-publisher-platform": {
-        "description": "Interface for insights with breakdown by publisher platform.",
+    "ad-account/insights-by-product-id": {
+        "description": "Interface for insights with breakdown by product ID.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
-        "fields" : adAccountInsightsFieldsByPublisherPlatform,
-        "breakdowns": ["publisher_platform"],
-        'uniqueKeys': ["ad_id", "date_start", "date_stop", "publisher_platform"],
+        "fields" : adAccountInsightsFieldsByProductId,
+        "breakdowns": ["product_id"],
+        'uniqueKeys': ["ad_id", "date_start", "date_stop", "product_id"],
         "isTimeSeries": true,
-        "destinationName": "facebook_ads_ad_account_insights_by_publisher_platform",
+        "destinationName": "facebook_ads_ad_account_insights_by_product_id",
+        "limit": 500
+    },
+    "ad-account/insights-by-publisher-platform-and-position": {
+        "description": "Interface for insights with breakdown by publisher platform and position.",
+        "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
+        "fields" : adAccountInsightsFieldsByPublisherPlatformAndPosition,
+        "breakdowns": ["publisher_platform", "platform_position"],
+        'uniqueKeys': ["ad_id", "date_start", "date_stop", "publisher_platform", "platform_position"],
+        "isTimeSeries": true,
+        "destinationName": "facebook_ads_ad_account_insights_by_publisher_platform_and_position",
+        "limit": 500
+    },
+    "ad-account/insights-by-region": {
+        "description": "Interface for insights with breakdown by region.",
+        "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
+        "fields" : adAccountInsightsFieldsByRegion,
+        "breakdowns": ["region"],
+        'uniqueKeys': ["ad_id", "date_start", "date_stop", "region"],
+        "isTimeSeries": true,
+        "destinationName": "facebook_ads_ad_account_insights_by_region",
         "limit": 500
     },
     "ad-group": {

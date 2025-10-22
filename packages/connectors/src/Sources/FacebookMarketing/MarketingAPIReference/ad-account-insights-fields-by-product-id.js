@@ -6,7 +6,7 @@
  */
 
 /* eslint-disable no-unused-vars */
-var adAccountInsightsFieldsByPublisherPlatform = {
+var adAccountInsightsFieldsByProductId = {
   'account_currency': {
     'description': 'Currency that is used by your ad account.',
     'type': 'string'
@@ -348,8 +348,8 @@ var adAccountInsightsFieldsByPublisherPlatform = {
     'description': 'The percentage of times people saw your ad and performed an outbound click.',
     'type': 'list<AdsActionStats>'
   },
-  'publisher_platform': {
-    'description': 'Which platform your ad was shown, for example on Facebook, Instagram, or Audience Network.',
+  'product_id': {
+    'description': 'The ID of the product associated with the ad.',
     'type': 'string'
   },
   'purchase_roas': {
