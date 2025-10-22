@@ -17,7 +17,9 @@ export async function main() {
   try {
     const app = express();
     app.set('trust proxy', 1);
-
+    app.get('/api/flags', (_req, res) => {
+      res.json({});
+    });
     await setupIdp(app);
 
     await bootstrap({ express: app });

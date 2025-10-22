@@ -33,19 +33,126 @@ export class ConnectorSecretService {
   }
 
   /**
-   * Returns a set of field names that have the `SECRET` attribute in the
-   * connector specification.
+   * Collects all secret field names recursively from oneOf items.
    *
-   * @param connectorName Connector name
-   * @returns Set of secret field names
+   * @param specification Connector specification
+   * @returns Set of all secret field names including nested ones
    */
-  private async getSecretFieldNames(connectorName: string): Promise<Set<string>> {
+  private async getAllSecretFieldNames(connectorName: string): Promise<Set<string>> {
     const specification = await this.connectorService.getConnectorSpecification(connectorName);
-    return new Set(
-      specification
-        .filter(field => (field.attributes || []).includes(Core.CONFIG_ATTRIBUTES.SECRET))
-        .map(field => field.name)
-    );
+    const secretFields = new Set<string>();
+
+    const collectSecretFields = (fields: unknown[]): void => {
+      for (const field of fields as Array<{
+        name: string;
+        attributes?: string[];
+        oneOf?: unknown;
+      }>) {
+        if ((field.attributes || []).includes(Core.CONFIG_ATTRIBUTES.SECRET)) {
+          secretFields.add(field.name);
+        }
+
+        if (field.oneOf && Array.isArray(field.oneOf)) {
+          for (const oneOfOption of field.oneOf) {
+            if (oneOfOption.items) {
+              const nestedFields = Object.values(oneOfOption.items);
+              collectSecretFields(
+                nestedFields as Array<{ name: string; attributes?: string[]; oneOf?: unknown }>
+              );
+            }
+          }
+        }
+      }
+    };
+
+    collectSecretFields(specification);
+    return secretFields;
+  }
+
+  /**
+   * Recursively masks secret fields in an object, including nested oneOf fields.
+   *
+   * @param item Item to mask
+   * @param secretFieldNames Set of secret field names
+   * @returns Masked item
+   */
+  private maskRecursively(item: unknown, secretFieldNames: Set<string>): unknown {
+    if (!item || typeof item !== 'object') {
+      return item;
+    }
+
+    if (Array.isArray(item)) {
+      return item.map(element => this.maskRecursively(element, secretFieldNames));
+    }
+
+    const maskedItem = { ...(item as Record<string, unknown>) };
+
+    for (const [key, value] of Object.entries(maskedItem)) {
+      if (secretFieldNames.has(key)) {
+        maskedItem[key] = SECRET_MASK;
+      } else if (value && typeof value === 'object') {
+        maskedItem[key] = this.maskRecursively(value, secretFieldNames);
+      }
+    }
+
+    return maskedItem;
+  }
+
+  /**
+   * Recursively merges secret fields from previous configuration into incoming.
+   *
+   * @param incoming Incoming configuration object
+   * @param previous Previous configuration object
+   * @param secretFieldNames Set of secret field names
+   * @returns Merged configuration object
+   */
+  private mergeSecretsRecursively(
+    incoming: unknown,
+    previous: unknown,
+    secretFieldNames: Set<string>
+  ): unknown {
+    if (!incoming || typeof incoming !== 'object') {
+      return incoming;
+    }
+
+    if (Array.isArray(incoming)) {
+      return incoming.map((element, index) => {
+        const prevElement = Array.isArray(previous) ? previous[index] : undefined;
+        return this.mergeSecretsRecursively(element, prevElement, secretFieldNames);
+      });
+    }
+
+    const incomingItem = { ...(incoming as Record<string, unknown>) };
+    const previousItem = (previous && typeof previous === 'object' ? previous : {}) as Record<
+      string,
+      unknown
+    >;
+
+    for (const [key, value] of Object.entries(incomingItem)) {
+      if (secretFieldNames.has(key)) {
+        if (value === undefined || this.isSecretMask(value)) {
+          if (previousItem[key] !== undefined) {
+            incomingItem[key] = previousItem[key];
+          }
+        }
+      } else if (value && typeof value === 'object') {
+        incomingItem[key] = this.mergeSecretsRecursively(
+          value,
+          previousItem[key],
+          secretFieldNames
+        );
+      }
+    }
+
+    for (const key of secretFieldNames) {
+      if (!Object.prototype.hasOwnProperty.call(incomingItem, key)) {
+        if (previousItem[key] !== undefined) {
+          incomingItem[key] = previousItem[key];
+        }
+      }
+    }
+
+    return incomingItem;
   }
 
   /**
@@ -62,20 +169,14 @@ export class ConnectorSecretService {
   ): Promise<ConnectorDefinition | undefined> {
     if (!definition) return definition;
 
-    const secretFieldNames = await this.getSecretFieldNames(definition.connector.source.name);
+    const secretFieldNames = await this.getAllSecretFieldNames(definition.connector.source.name);
     if (secretFieldNames.size === 0) {
       return definition;
     }
 
-    const maskedConfiguration = definition.connector.source.configuration.map(item => {
-      const maskedItem = { ...(item as Record<string, unknown>) };
-      for (const fieldName of secretFieldNames) {
-        if (Object.prototype.hasOwnProperty.call(maskedItem, fieldName)) {
-          maskedItem[fieldName] = SECRET_MASK;
-        }
-      }
-      return maskedItem as Record<string, unknown>;
-    });
+    const maskedConfiguration = definition.connector.source.configuration.map(item =>
+      this.maskRecursively(item, secretFieldNames)
+    );
 
     return {
       ...definition,
@@ -112,7 +213,7 @@ export class ConnectorSecretService {
     incoming: ConnectorDefinition,
     previous: ConnectorDefinition | undefined
   ): Promise<ConnectorDefinition> {
-    const secretFieldNames = await this.getSecretFieldNames(incoming.connector.source.name);
+    const secretFieldNames = await this.getAllSecretFieldNames(incoming.connector.source.name);
     const previousConfiguration = previous?.connector?.source?.configuration || [];
 
     const mergedConfiguration = incoming.connector.source.configuration.map(item => {
@@ -133,18 +234,7 @@ export class ConnectorSecretService {
         return incomingItem;
       }
 
-      for (const fieldName of secretFieldNames) {
-        if (
-          !Object.prototype.hasOwnProperty.call(incomingItem, fieldName) ||
-          this.isSecretMask(incomingItem[fieldName])
-        ) {
-          if (previousItem[fieldName] !== undefined) {
-            incomingItem[fieldName] = previousItem[fieldName];
-          }
-        }
-      }
-
-      return incomingItem;
+      return this.mergeSecretsRecursively(incomingItem, previousItem, secretFieldNames);
     });
 
     return {

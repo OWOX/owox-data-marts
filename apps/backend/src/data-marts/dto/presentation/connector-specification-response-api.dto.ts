@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-export class ConnectorSpecificationResponseApiDto {
+export class ConnectorSpecificationItemResponseApiDto {
   @ApiProperty({ example: 'accessToken' })
   name: string;
 
@@ -40,4 +40,65 @@ export class ConnectorSpecificationResponseApiDto {
     required: false,
   })
   attributes?: string[];
+}
+
+export class ConnectorSpecificationOneOfOptionResponseApiDto {
+  @ApiProperty({ example: 'Access Token' })
+  label: string;
+
+  @ApiProperty({ example: 'accessToken' })
+  value: string;
+
+  @ApiProperty({
+    enum: ['string', 'number', 'boolean', 'bool', 'object', 'array', 'date'],
+    example: 'string',
+    required: false,
+  })
+  requiredType?: 'string' | 'number' | 'boolean' | 'bool' | 'object' | 'array' | 'date';
+
+  @ApiProperty({
+    type: [ConnectorSpecificationItemResponseApiDto],
+    example: [
+      {
+        name: 'apiKey',
+        title: 'API Key',
+        description: 'Your API key',
+        default: 'default_value',
+        requiredType: 'string',
+        required: true,
+        options: ['option1', 'option2'],
+        placeholder: 'Enter your API key...',
+        attributes: ['MANUAL_BACKFILL', 'HIDE_IN_UI'],
+      },
+    ],
+  })
+  items: Record<string, ConnectorSpecificationItemResponseApiDto>;
+}
+
+export class ConnectorSpecificationResponseApiDto extends ConnectorSpecificationItemResponseApiDto {
+  @ApiProperty({
+    type: [ConnectorSpecificationOneOfOptionResponseApiDto],
+    example: [
+      {
+        label: 'Access Token',
+        value: 'accessToken',
+        requiredType: 'string',
+        items: [
+          {
+            name: 'apiKey',
+            title: 'API Key',
+            description: 'Your API key',
+            default: 'default_value',
+            requiredType: 'string',
+            required: true,
+            options: ['option1', 'option2'],
+            placeholder: 'Enter your API key...',
+            attributes: ['MANUAL_BACKFILL', 'HIDE_IN_UI'],
+          },
+        ],
+      },
+    ],
+    required: false,
+  })
+  oneOf?: ConnectorSpecificationOneOfOptionResponseApiDto[];
 }

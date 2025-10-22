@@ -22,11 +22,13 @@ var AbstractSource = class AbstractSource {
       this.config = config.mergeParameters({
         MaxFetchRetries: {
           requiredType: "number",
-          default: 3
+          default: 3,
+          attributes: [CONFIG_ATTRIBUTES.ADVANCED]
         },
         InitialRetryDelay: {
           requiredType: "number",
-          default: 5000
+          default: 5000,
+          attributes: [CONFIG_ATTRIBUTES.ADVANCED]
         }
       });
     }

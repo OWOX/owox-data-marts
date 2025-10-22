@@ -7,6 +7,13 @@ import { ConnectorDefinition } from '../connector-types/connector-definition';
 import { ConnectorSpecification } from '../connector-types/connector-specification';
 import { ConnectorFieldsSchema } from '../connector-types/connector-fields-schema';
 
+interface ConnectorSpecificationOneOf {
+  label: string;
+  value: string;
+  requiredType: string;
+  items: Record<string, ConnectorConfigField>;
+}
+
 interface ConnectorConfigField {
   description: string;
   label: string;
@@ -15,8 +22,8 @@ interface ConnectorConfigField {
   isRequired: boolean;
   options?: unknown[];
   placeholder?: string;
-  showInUI?: boolean;
   attributes?: Core.CONFIG_ATTRIBUTES[];
+  oneOf?: ConnectorSpecificationOneOf[];
 }
 
 interface ConnectorConfig {
@@ -124,8 +131,29 @@ export class ConnectorService {
       required: config[key].isRequired,
       options: config[key].options,
       placeholder: config[key].placeholder,
-      showInUI: config[key].showInUI,
       attributes: config[key].attributes,
+      oneOf: config[key].oneOf?.map(oneOf => ({
+        label: oneOf.label,
+        value: oneOf.value,
+        requiredType: oneOf.requiredType,
+        items: Object.entries(oneOf.items).reduce(
+          (acc, [itemKey, itemValue]) => {
+            acc[itemKey] = {
+              name: itemKey,
+              title: itemValue.label,
+              description: itemValue.description,
+              default: itemValue.default,
+              requiredType: itemValue.requiredType,
+              required: itemValue.isRequired,
+              options: itemValue.options,
+              placeholder: itemValue.placeholder,
+              attributes: itemValue.attributes,
+            };
+            return acc;
+          },
+          {} as Record<string, unknown>
+        ),
+      })),
     }));
   }
 

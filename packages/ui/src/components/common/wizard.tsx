@@ -5,10 +5,16 @@ import { useRef } from 'react';
 import { cn } from '@owox/ui/lib/utils';
 import { Label } from '@owox/ui/components/label';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
-import { Info, ExternalLinkIcon } from 'lucide-react';
+import { Info, ExternalLinkIcon, ChevronDown } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { Link } from 'react-router-dom';
 import { Skeleton } from '@owox/ui/components/skeleton';
+import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from '@owox/ui/components/collapsible';
 
 /**
  * AppWizard — base wrapper for multi-step wizard flows.
@@ -108,6 +114,100 @@ function AppWizardStepItem({
     >
       {children}
     </div>
+  );
+}
+
+interface AppWizardStepItemOneOfProps extends React.HTMLAttributes<HTMLDivElement> {
+  label: string;
+  options: { value: string; label: string }[];
+  value: string;
+  onValueChange: (value: string) => void;
+  required?: boolean;
+  tooltip?: React.ReactNode | string;
+}
+
+function AppWizardStepItemOneOf({
+  label,
+  children,
+  className = '',
+  options,
+  value,
+  onValueChange,
+  required = false,
+  tooltip,
+  ...props
+}: AppWizardStepItemOneOfProps) {
+  return (
+    <div
+      data-slot='wizard-step-item-one-of'
+      className={cn(
+        'group border-border flex flex-col gap-2 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-transparent dark:bg-white/4',
+        className
+      )}
+      {...props}
+    >
+      <Tabs value={value} onValueChange={onValueChange}>
+        <div className='flex items-center'>
+          <AppWizardStepLabel required={required} tooltip={tooltip} className='w-full'>
+            {label}
+          </AppWizardStepLabel>
+          <TabsList>
+            {options.map((option: { value: string; label: string }) => (
+              <TabsTrigger key={option.value} value={option.value}>
+                {option.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
+        {children}
+      </Tabs>
+    </div>
+  );
+}
+
+interface AppWizardCollapsibleProps {
+  title: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  className?: string;
+}
+
+function AppWizardCollapsible({
+  title,
+  children,
+  defaultOpen = false,
+  className = '',
+}: AppWizardCollapsibleProps) {
+  const [isOpen, setIsOpen] = React.useState(defaultOpen);
+
+  return (
+    <Collapsible
+      open={isOpen}
+      onOpenChange={setIsOpen}
+      data-slot='wizard-collapsible'
+      className={cn('group flex flex-col gap-2 py-3', className)}
+    >
+      <CollapsibleTrigger asChild>
+        <button
+          type='button'
+          className={cn(
+            'text-foreground flex w-full items-center justify-between gap-2 px-4 py-3 text-sm font-medium',
+            !isOpen &&
+              'border-border rounded-md border-b bg-white transition-shadow duration-200 outline-none hover:shadow-sm dark:border-transparent dark:bg-white/4'
+          )}
+        >
+          <span className='text-muted-foreground/75 text-xs font-semibold tracking-wide uppercase'>
+            {title}
+          </span>
+          <ChevronDown
+            className={cn('h-4 w-4 transition-transform duration-200', isOpen && 'rotate-180')}
+          />
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className='data-[state=open]:animate-collapsible-down data-[state=closed]:animate-collapsible-up overflow-hidden'>
+        <div className='flex flex-col gap-2 pt-2'>{children}</div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
@@ -547,4 +647,6 @@ export {
   AppWizardGridItem,
   AppWizardStepCardItem,
   AppWizardStepLoading,
+  AppWizardStepItemOneOf,
+  AppWizardCollapsible,
 };
