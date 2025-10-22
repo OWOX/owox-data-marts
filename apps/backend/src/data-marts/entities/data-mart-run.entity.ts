@@ -11,6 +11,7 @@ import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import { RunType } from '../../common/scheduler/shared/types';
 import { DataMartRunType } from 'src/data-marts/enums/data-mart-run-type.enum';
+import { DataMartRunReportDefinition } from 'src/data-marts/dto/schemas/data-mart-run/data-mart-run-report-definition.schema';
 
 @Entity()
 export class DataMartRun {
@@ -29,6 +30,12 @@ export class DataMartRun {
 
   @Column({ type: 'json', nullable: true })
   definitionRun?: DataMartDefinition;
+
+  @Column()
+  reportId: string;
+
+  @Column({ type: 'json', nullable: true })
+  reportDefinition?: DataMartRunReportDefinition;
 
   @Column({ nullable: true })
   status?: DataMartRunStatus;

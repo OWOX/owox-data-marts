@@ -22,6 +22,7 @@ import {
   RunReportSpec,
   UpdateReportSpec,
 } from './spec/report.api';
+import { RunType } from 'src/common/scheduler/shared/types';
 
 @Controller('reports')
 @ApiTags('Reports')
@@ -102,7 +103,7 @@ export class ReportController {
     @AuthContext() context: AuthorizationContext,
     @Param('id') id: string
   ): Promise<void> {
-    const command = this.mapper.toRunReportCommand(id, context);
+    const command = this.mapper.toRunReportCommand(id, context, RunType.manual);
     this.runReportService.runInBackground(command);
   }
 

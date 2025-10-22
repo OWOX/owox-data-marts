@@ -14,6 +14,10 @@ import { RunReportCommand } from '../dto/domain/run-report.command';
 import { Report } from '../entities/report.entity';
 import { ReportRunStatus } from '../enums/report-run-status.enum';
 import { DataMartService } from '../services/data-mart.service';
+import { DataMartRun } from 'src/data-marts/entities/data-mart-run.entity';
+import { DataMartRunType } from 'src/data-marts/enums/data-mart-run-type.enum';
+import { DataMartRunStatus } from 'src/data-marts/enums/data-mart-run-status.enum';
+import { RunType } from 'src/common/scheduler/shared/types';
 
 @Injectable()
 export class RunReportService {
@@ -22,6 +26,8 @@ export class RunReportService {
   constructor(
     @InjectRepository(Report)
     private readonly reportRepository: Repository<Report>,
+    @InjectRepository(DataMartRun)
+    private readonly dataMartRunRepository: Repository<DataMartRun>,
     @Inject(DATA_STORAGE_REPORT_READER_RESOLVER)
     private readonly reportReaderResolver: TypeResolver<DataStorageType, DataStorageReportReader>,
     @Inject(DATA_DESTINATION_REPORT_WRITER_RESOLVER)
@@ -69,6 +75,8 @@ export class RunReportService {
     delete report.lastRunError;
     await this.reportRepository.save(report);
 
+    const dataMartRun = await this.createDataMartRun(report, command.userId, command.runType);
+
     try {
       this.gracefulShutdownService.registerActiveProcess(processId);
 
@@ -76,19 +84,38 @@ export class RunReportService {
       await this.dataMartService.actualizeSchemaInEntity(report.dataMart);
       await this.dataMartService.save(report.dataMart);
 
+      await this.startDataMartRun(dataMartRun);
+
       await this.executeReport(report, signal);
+
+      report.lastRunStatus = ReportRunStatus.SUCCESS;
+      dataMartRun.status = DataMartRunStatus.SUCCESS;
+
+      this.logger.log(`Report run ${report.id} finished successfully`);
     } catch (error) {
       if (error.name === 'AbortError') {
-        this.logger.log(`Report run ${report.id} was aborted by user.`);
         report.lastRunStatus = ReportRunStatus.CANCELLED;
         report.lastRunError = 'Report run was cancelled by user';
+
+        dataMartRun.status = DataMartRunStatus.CANCELLED;
+
+        this.logger.log(`Report run ${report.id} was aborted by user.`);
       } else {
-        this.logger.error(`Error running report ${report.id}:`, error);
+        const errorString = error.toString();
         report.lastRunStatus = ReportRunStatus.ERROR;
-        report.lastRunError = error.toString();
+        report.lastRunError = errorString;
+
+        dataMartRun.status = DataMartRunStatus.FAILED;
+        dataMartRun.errors?.push(errorString);
+
+        this.logger.error(`Error running report ${report.id}:`, error);
       }
     } finally {
       try {
+        // TODO: save results in transaction
+        dataMartRun.finishedAt = new Date(Date.now());
+        await this.dataMartRunRepository.save(dataMartRun);
+
         await this.reportRepository.save(report);
       } catch (saveError) {
         this.logger.error(`Failed to save report status for ${report.id}:`, saveError);
@@ -117,8 +144,6 @@ export class RunReportService {
         nextReportDataBatch = batch.nextDataBatchId;
         this.logger.debug(`${batch.dataRows.length} data rows written for report ${report.id}`);
       } while (nextReportDataBatch);
-      report.lastRunStatus = ReportRunStatus.SUCCESS;
-      this.logger.log(`Report run ${report.id} finished successfully`);
     } catch (error) {
       processingError = error;
       throw error;
@@ -126,5 +151,45 @@ export class RunReportService {
       await reportWriter.finalize(processingError);
       await reportReader.finalize();
     }
+  }
+
+  private async createDataMartRun(
+    report: Report,
+    createdById: string,
+    runType: RunType
+  ): Promise<DataMartRun> {
+    const { id, title, dataMart, destinationConfig, dataDestination } = report;
+
+    const reportDefinition = {
+      title,
+      destination: {
+        id: dataDestination.id,
+        type: dataDestination.type,
+        title: dataDestination.title,
+      },
+      destinationConfig,
+    };
+
+    const dataMartRun = this.dataMartRunRepository.create({
+      dataMartId: dataMart.id,
+      type: DataMartRunType.GOOGLE_SHEETS_EXPORT,
+      reportId: id,
+      definitionRun: dataMart.definition,
+      status: DataMartRunStatus.PENDING,
+      createdById: createdById,
+      runType: runType,
+      logs: [],
+      errors: [],
+      reportDefinition,
+    });
+
+    return this.dataMartRunRepository.save(dataMartRun);
+  }
+
+  private async startDataMartRun(dataMartRun: DataMartRun): Promise<void> {
+    dataMartRun.status = DataMartRunStatus.RUNNING;
+    dataMartRun.startedAt = new Date(Date.now());
+
+    await this.dataMartRunRepository.save(dataMartRun);
   }
 }
