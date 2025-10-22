@@ -18,113 +18,152 @@ export function useSchemaActualizeTrigger(
 ): UseSchemaActualizeTriggerReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const currentTriggerIdRef = useRef<string | null>(null);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const isProcessingRef = useRef<boolean>(false);
 
-  const stopPolling = useCallback(() => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
+  const currentTriggerIdRef = useRef<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const isMountedRef = useRef<boolean>(true);
+
+  const onSuccessRef = useRef<typeof onSuccess>(onSuccess);
+  onSuccessRef.current = onSuccess;
+
+  const setSafeLoading = useCallback((val: boolean) => {
+    if (isMountedRef.current) setIsLoading(val);
+  }, []);
+  const setSafeError = useCallback((val: string | null) => {
+    if (isMountedRef.current) setError(val);
   }, []);
 
-  const cancel = useCallback(async () => {
-    if (currentTriggerIdRef.current) {
+  const handleError = useCallback(
+    (e: unknown, triggerId: string) => {
+      const errorMessage = e instanceof Error ? e.message : 'Schema actualization failed';
+      toast.dismiss(triggerId);
+      setSafeError(errorMessage);
+      setSafeLoading(false);
+      currentTriggerIdRef.current = null;
+      abortControllerRef.current = null;
+      toast.error(errorMessage, { duration: undefined, id: triggerId });
+    },
+    [setSafeError, setSafeLoading]
+  );
+
+  const cancel = useCallback(async (): Promise<void> => {
+    const triggerId = currentTriggerIdRef.current;
+
+    abortControllerRef.current?.abort();
+
+    if (triggerId) {
+      toast.dismiss(triggerId);
       try {
-        await dataMartService.abortSchemaActualizeTrigger(dataMartId, currentTriggerIdRef.current);
+        await dataMartService.abortSchemaActualizeTrigger(dataMartId, triggerId);
       } catch {
-        // ignore
+        // ignore server abort errors
       }
     }
-    stopPolling();
-    setIsLoading(false);
-    currentTriggerIdRef.current = null;
-    isProcessingRef.current = false;
-  }, [dataMartId, stopPolling]);
 
-  const poll = useCallback(
-    async (triggerId: string) => {
-      if (isProcessingRef.current) return;
-      isProcessingRef.current = true;
-      try {
-        const status = await dataMartService.getSchemaActualizeTriggerStatus(dataMartId, triggerId);
-        if (
-          status === TaskStatus.SUCCESS ||
-          status === TaskStatus.ERROR ||
-          status === TaskStatus.CANCELLED
-        ) {
-          stopPolling();
-          try {
-            const response = await dataMartService.getSchemaActualizeTriggerResponse(
-              dataMartId,
-              triggerId
-            );
-            if (response.success) {
-              onSuccess?.();
-              toast.success('Output schema actualized', { duration: undefined, id: triggerId });
-            } else {
-              const errorMessage = response.error ?? 'Schema actualization failed';
-              setError(errorMessage);
+    currentTriggerIdRef.current = null;
+    abortControllerRef.current = null;
+    setSafeLoading(false);
+  }, [dataMartId, setSafeLoading]);
+
+  const pollTriggerStatus = useCallback(
+    async (triggerId: string, signal: AbortSignal): Promise<void> => {
+      const isFinal = (status: TaskStatus): boolean =>
+        status === TaskStatus.SUCCESS ||
+        status === TaskStatus.ERROR ||
+        status === TaskStatus.CANCELLED;
+
+      while (!signal.aborted && currentTriggerIdRef.current === triggerId) {
+        try {
+          const status = await dataMartService.getSchemaActualizeTriggerStatus(
+            dataMartId,
+            triggerId
+          );
+
+          if (isFinal(status)) {
+            try {
+              const response = await dataMartService.getSchemaActualizeTriggerResponse(
+                dataMartId,
+                triggerId
+              );
+
+              toast.dismiss(triggerId);
+              if (response.success) {
+                onSuccessRef.current?.();
+                toast.success('Output schema actualized', { duration: undefined, id: triggerId });
+              } else {
+                const errorMessage = response.error ?? 'Schema actualization failed';
+                setSafeError(errorMessage);
+                toast.error(errorMessage, { duration: undefined, id: triggerId });
+              }
+            } catch (e) {
+              const errorMessage = e instanceof Error ? e.message : 'Schema actualization failed';
+              toast.dismiss(triggerId);
+              setSafeError(errorMessage);
               toast.error(errorMessage, { duration: undefined, id: triggerId });
             }
-          } catch (e) {
-            const errorMessage = e instanceof Error ? e.message : 'Schema actualization failed';
-            setError(errorMessage);
-            toast.error(errorMessage, { duration: undefined, id: triggerId });
+
+            setSafeLoading(false);
+            currentTriggerIdRef.current = null;
+            abortControllerRef.current = null;
+            return;
           }
-          setIsLoading(false);
-          currentTriggerIdRef.current = null;
-          isProcessingRef.current = false;
-        } else {
-          isProcessingRef.current = false;
+
+          await new Promise(resolve => setTimeout(resolve, POLLING_INTERVAL));
+        } catch (e) {
+          handleError(e, triggerId);
         }
-      } catch (e) {
-        stopPolling();
-        setIsLoading(false);
-        const errorMessage = e instanceof Error ? e.message : 'Schema actualization failed';
-        setError(errorMessage);
-        toast.error(errorMessage, { duration: undefined, id: triggerId });
-        currentTriggerIdRef.current = null;
-        isProcessingRef.current = false;
       }
     },
-    [dataMartId, onSuccess, stopPolling]
+    [dataMartId, setSafeError, setSafeLoading, handleError]
   );
 
   const run = useCallback(async () => {
     if (currentTriggerIdRef.current) await cancel();
-    setError(null);
-    setIsLoading(true);
+
+    setSafeError(null);
+    setSafeLoading(true);
+
     try {
       const { triggerId } = await dataMartService.createSchemaActualizeTrigger(dataMartId);
+
       toast.loading('Synchronizing schema with the data storage state. This may take a while.', {
         duration: Infinity,
         id: triggerId,
       });
+
       currentTriggerIdRef.current = triggerId;
-      pollingIntervalRef.current = setInterval(() => {
-        void poll(triggerId);
-      }, POLLING_INTERVAL);
-      await poll(triggerId);
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+
+      try {
+        await pollTriggerStatus(triggerId, abortController.signal);
+      } catch (e) {
+        handleError(e, triggerId);
+      }
     } catch (e) {
-      setIsLoading(false);
-      setError(e instanceof Error ? e.message : 'Failed to start schema actualization');
+      setSafeLoading(false);
+      setSafeError(e instanceof Error ? e.message : 'Failed to start schema actualization');
     }
-  }, [dataMartId, cancel, poll]);
+  }, [dataMartId, cancel, pollTriggerStatus, setSafeError, setSafeLoading, handleError]);
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
-      stopPolling();
-      if (currentTriggerIdRef.current) {
-        dataMartService
-          .abortSchemaActualizeTrigger(dataMartId, currentTriggerIdRef.current)
-          .catch(() => {
-            /* ignore */
-          });
+      isMountedRef.current = false;
+
+      const triggerId = currentTriggerIdRef.current;
+      abortControllerRef.current?.abort();
+
+      if (triggerId) {
+        toast.dismiss(triggerId);
+        dataMartService.abortSchemaActualizeTrigger(dataMartId, triggerId).catch(() => undefined);
       }
+
+      currentTriggerIdRef.current = null;
+      abortControllerRef.current = null;
     };
-  }, [dataMartId, stopPolling]);
+  }, [dataMartId]);
 
   return { run, isLoading, cancel, error };
 }

@@ -11,7 +11,7 @@ import type {
   UpdateDataMartSchemaRequestDto,
   SqlValidationResponseDto,
 } from '../types/api';
-import type { DataMartRun, DataMartRunItem } from '../../edit/model/types/data-mart-run';
+import type { DataMartRun, DataMartRunItem } from '../../edit';
 import type { CreateSqlDryRunTaskResponseDto } from '../types/api/response/create-sql-dry-run-task.response.dto.ts';
 import type { TaskStatusResponseDto } from '../types/api/response/task-status.response.dto.ts';
 
@@ -263,6 +263,4 @@ export class DataMartService extends ApiService {
     return response.runs;
   }
 }
-
-// Create a singleton instance
 export const dataMartService = new DataMartService();
