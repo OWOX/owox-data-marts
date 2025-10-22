@@ -28,8 +28,9 @@
   - Environment setup now shows only essential information instead of detailed variable counts and processing steps.
 
 - 3370b36: # Added migration to rename Bing Ads connector to Microsoft Ads
-
-  Fixed an issue where Run History tab was not displaying history if the user previously used the Bing Ads connector.
+  - Fixed an issue where Run History tab was not displaying history if the user previously used the Bing Ads connector.
+ 
+- Fixed Looker Studio Connector error with deleted Data Marts.
 
 ### Patch Changes 0.10.0
 
