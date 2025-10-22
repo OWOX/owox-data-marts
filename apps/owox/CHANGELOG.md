@@ -4,6 +4,8 @@
 
 ### Minor Changes 0.10.0
 
+![OWOX Data Marts - v0.10.0](https://github.com/user-attachments/assets/09ec0e4e-428a-4ac2-bded-cd056886367d)
+
 - 7b8747c: # Fix incremental state management for multiple connector configurations
 
   Fixed an issue where incremental updates only saved state for the last configuration when a Data Mart had 2+ connector configurations. Now each configuration's state is tracked separately using its `_id`. Also enhanced logging with structured metadata (dataMartId, projectId, runId, configId).
@@ -26,8 +28,9 @@
   - Environment setup now shows only essential information instead of detailed variable counts and processing steps.
 
 - 3370b36: # Added migration to rename Bing Ads connector to Microsoft Ads
+  - Fixed an issue where Run History tab was not displaying history if the user previously used the Bing Ads connector.
 
-  Fixed an issue where Run History tab was not displaying history if the user previously used the Bing Ads connector.
+- Fixed Looker Studio Connector error with deleted Data Marts.
 
 ### Patch Changes 0.10.0
 
