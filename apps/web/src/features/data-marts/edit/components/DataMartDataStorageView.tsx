@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { DataStorage } from '../../../data-storage/shared/model/types/data-storage.ts';
-import { DataStorageType } from '../../../data-storage';
+import { DataStorageType, isDataStorageConfigValid } from '../../../data-storage';
 import { ListItemCard } from '../../../../shared/components/ListItemCard';
 import { DataStorageTypeModel } from '../../../data-storage/shared/types/data-storage-type.model.ts';
 import { DataStorageConfigSheet } from '../../../data-storage/edit';
@@ -27,19 +27,9 @@ export const DataMartDataStorageView = ({
   };
 
   const getSubtitle = () => {
-    // Check if necessary config fields exist based on storage type
-    const hasRequiredFields = () => {
-      switch (dataStorage.type) {
-        case DataStorageType.GOOGLE_BIGQUERY:
-          return Boolean(dataStorage.config.projectId && dataStorage.config.location);
-        case DataStorageType.AWS_ATHENA:
-          return Boolean(dataStorage.config.region && dataStorage.config.outputBucket);
-        default:
-          return false;
-      }
-    };
+    const storageIsValid = isDataStorageConfigValid(dataStorage);
 
-    if (!hasRequiredFields()) {
+    if (!storageIsValid) {
       return (
         <div className='flex items-center space-x-2 text-sm'>
           <AlertTriangle className='h-4 w-4 text-red-500' />

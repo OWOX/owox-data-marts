@@ -4,6 +4,7 @@ import {
   DATA_MART_VALIDATION_ERROR_MESSAGES,
 } from '../enums';
 import type { DataMart } from '../../edit';
+import { isDataStorageConfigValid } from '../../../data-storage';
 
 /**
  * Validate a data mart before publishing
@@ -18,12 +19,12 @@ export const validateDataMartForPublishing = (dataMart: DataMart): DataMartValid
     errors.push(DataMartValidationError.ALREADY_PUBLISHED);
   }
 
-  // Check if definition type is set
-  if (!dataMart.definitionType) {
-    errors.push(DataMartValidationError.MISSING_DEFINITION_TYPE);
+  // Check if the storage configuration is set
+  if (!isDataStorageConfigValid(dataMart.storage)) {
+    errors.push(DataMartValidationError.INVALID_STORAGE);
   }
 
-  // Check if definition is set
+  // Check if the definition is set
   if (!dataMart.definition) {
     errors.push(DataMartValidationError.MISSING_DEFINITION);
   }
