@@ -4,6 +4,8 @@
 
 ### Minor Changes 0.10.0
 
+![OWOX Data Marts - v0.10.0](https://github.com/user-attachments/assets/09ec0e4e-428a-4ac2-bded-cd056886367d)
+
 - 7b8747c: # Fix incremental state management for multiple connector configurations
 
   Fixed an issue where incremental updates only saved state for the last configuration when a Data Mart had 2+ connector configurations. Now each configuration's state is tracked separately using its `_id`. Also enhanced logging with structured metadata (dataMartId, projectId, runId, configId).
