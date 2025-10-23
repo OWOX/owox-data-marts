@@ -37,6 +37,7 @@ import { OWOX_PRODUCER } from '../../common/producer/producer.module';
 import { OwoxProducer } from '@owox/internal-helpers';
 import { ConnectorRunSuccessfullyEvent } from '../events/connector-run-successfully.event';
 import { RunType } from '../../common/scheduler/shared/types';
+import { DataMartRunType } from 'src/data-marts/enums/data-mart-run-type.enum';
 
 interface ConfigurationExecutionResult {
   configIndex: number;
@@ -96,6 +97,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     if (run.status === DataMartRunStatus.RUNNING) {
       await this.dataMartRunRepository.update(runId, {
         status: DataMartRunStatus.CANCELLED,
+        finishedAt: new Date(Date.now()),
       });
     }
   }
@@ -191,6 +193,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
   ): Promise<DataMartRun> {
     const dataMartRun = this.dataMartRunRepository.create({
       dataMartId: dataMart.id,
+      type: DataMartRunType.CONNECTOR,
       definitionRun: dataMart.definition,
       status: DataMartRunStatus.PENDING,
       createdById: createdById,
@@ -232,7 +235,9 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
 
       await this.dataMartRunRepository.update(runId, {
         status: DataMartRunStatus.RUNNING,
+        startedAt: new Date(Date.now()),
       });
+
       const configurationResults = await this.runConnectorConfigurations(
         runId,
         processId,
@@ -480,6 +485,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
 
     await this.dataMartRunRepository.update(runId, {
       status,
+      finishedAt: new Date(Date.now()),
       logs: capturedLogs.map(log => JSON.stringify(log)),
       errors: capturedErrors.map(error => JSON.stringify(error)),
     });

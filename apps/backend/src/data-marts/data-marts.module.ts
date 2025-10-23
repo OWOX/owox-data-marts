@@ -88,6 +88,7 @@ import { IdpModule } from '../idp/idp.module';
 import { createOperationTimeoutMiddleware } from '../common/middleware/operation-timeout.middleware';
 import { CommonModule } from '../common/common.module';
 import { ConnectorSecretService } from './services/connector-secret.service';
+import { DataMartRunService } from 'src/data-marts/services/data-mart-run.service';
 
 @Module({
   imports: [
@@ -184,6 +185,7 @@ import { ConnectorSecretService } from './services/connector-secret.service';
     ConnectorStateService,
     ConsumptionTrackingService,
     ConnectorSecretService,
+    DataMartRunService,
   ],
 })
 export class DataMartsModule {
