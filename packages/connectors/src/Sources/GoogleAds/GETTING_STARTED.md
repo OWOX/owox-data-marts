@@ -5,13 +5,15 @@ Before proceeding, please make sure that:
 - You have already created a credentials, as described in [CREDENTIALS](CREDENTIALS.md).  
 - You [have run **OWOX Data Marts**](https://docs.owox.com/docs/getting-started/quick-start/) and created at least one storage in the **Storages** section.
 
+![Google Ads Storage](res/googleads_storage.png)
+
 ## Create the Data Mart
 
 - Click **New Data Mart**.
 - Enter a title and select the Storage.
 - Click **Create Data Mart**.
 
-![Google Ads Storage](res/googleads_storage.png)
+![Google Ads New Data Mart](res/googleads_newdatamart.png)
 
 ## Set Up the Connector
 
