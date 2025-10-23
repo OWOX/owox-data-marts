@@ -14,7 +14,7 @@ class AbstractConfig {
       this.addParameter('Environment', {
         value: AbstractConfig.detectEnvironment(),
         requiredType: "number",
-        showInUI: false
+        attributes: [CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM, CONFIG_ATTRIBUTES.ADVANCED]
       });
 
       for(var name in configData) {

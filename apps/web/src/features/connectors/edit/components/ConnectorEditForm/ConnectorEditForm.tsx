@@ -191,7 +191,7 @@ export function ConnectorEditForm({
   useEffect(() => {
     if (connectorSpecification) {
       const hasRequiredFields = connectorSpecification.some(
-        spec => spec.required && spec.showInUI !== false && spec.name !== 'Fields'
+        spec => spec.required && spec.name !== 'Fields'
       );
       if (!hasRequiredFields) {
         setConfigurationIsValid(true);

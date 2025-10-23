@@ -1,6 +1,34 @@
 const { StorageType } = require('../../core/types/storage-definitions');
 
 /**
+ * This is a helper function to transform the value of a configuration object to a format that can be used by the connector runner.
+ *
+ * NEED TO BE REPLACED WITH A MORE EFFICIENT SOLUTION WHEN WE HAVE A BETTER CONFIGURATION FORMAT
+ * @param {*} value configuration value to transform
+ * @returns {Object} transformed configuration value
+ */
+function recursiveValueTransform(value) {
+  const valueType = typeof value;
+  if (valueType === 'object') {
+    if (Object.keys(value).includes('value') || Object.keys.length > 1) {
+      return value;
+    } else {
+      const firstKey = Object.keys(value)[0];
+      return {
+        value: firstKey,
+        items: Object.fromEntries(
+          Object.entries(value[firstKey]).map(([key, value]) => [
+            key,
+            recursiveValueTransform(value),
+          ])
+        ),
+      };
+    }
+  }
+  return { value: value };
+}
+
+/**
  * Source configuration for data mart runs
  */
 class SourceConfig {
@@ -22,10 +50,7 @@ class SourceConfig {
 
     this._name = config.name;
     this._config = Object.fromEntries(
-      Object.entries(config.config).map(([key, value]) => [
-        key,
-        typeof value !== 'object' ? { value: value } : value,
-      ])
+      Object.entries(config.config).map(([key, value]) => [key, recursiveValueTransform(value)])
     );
   }
 

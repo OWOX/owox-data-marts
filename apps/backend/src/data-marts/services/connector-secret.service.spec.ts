@@ -3,11 +3,32 @@ import { ConnectorService } from './connector.service';
 import { ConnectorSecretService, SECRET_MASK } from './connector-secret.service';
 
 describe('ConnectorSecretService', () => {
-  const createService = (secretFields: string[]) => {
+  const createService = (
+    secretFields: string[],
+    oneOfConfig?: Array<{
+      fieldName: string;
+      oneOfOptions: Array<{
+        label: string;
+        value: string;
+        items: Record<string, { name: string; attributes?: string[] }>;
+      }>;
+    }>
+  ) => {
+    const baseFields = secretFields.map(name => ({ name, attributes: ['SECRET'] }));
+
+    const fieldsWithOneOf = oneOfConfig
+      ? oneOfConfig.map(config => ({
+          name: config.fieldName,
+          oneOf: config.oneOfOptions.map(option => ({
+            label: option.label,
+            value: option.value,
+            items: option.items,
+          })),
+        }))
+      : [];
+
     const specService = {
-      getConnectorSpecification: jest
-        .fn()
-        .mockResolvedValue(secretFields.map(name => ({ name, attributes: ['SECRET'] }))),
+      getConnectorSpecification: jest.fn().mockResolvedValue([...baseFields, ...fieldsWithOneOf]),
     } as unknown as ConnectorService;
 
     const service = new ConnectorSecretService(specService);
@@ -113,6 +134,265 @@ describe('ConnectorSecretService', () => {
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
       expect(cfg[0].AccessToken).toBe(SECRET_MASK);
       expect(cfg[0]._id).toBe('y');
+    });
+  });
+
+  describe('oneOf fields', () => {
+    describe('mask', () => {
+      it('masks secret fields inside oneOf nested objects', async () => {
+        const { service } = createService(
+          [],
+          [
+            {
+              fieldName: 'AuthType',
+              oneOfOptions: [
+                {
+                  label: 'Service Account',
+                  value: 'service_account',
+                  items: {
+                    ServiceAccountKey: { name: 'ServiceAccountKey', attributes: ['SECRET'] },
+                    DeveloperToken: { name: 'DeveloperToken', attributes: ['SECRET'] },
+                  },
+                },
+                {
+                  label: 'OAuth2',
+                  value: 'oauth2',
+                  items: {
+                    ClientId: { name: 'ClientId' },
+                    ClientSecret: { name: 'ClientSecret', attributes: ['SECRET'] },
+                  },
+                },
+              ],
+            },
+          ]
+        );
+
+        const def = makeDefinition([
+          {
+            _id: 'a',
+            AuthType: {
+              service_account: {
+                _internal: 'oneOf',
+                ServiceAccountKey: '{"private_key": "secret-key"}',
+                DeveloperToken: 'dev-token-123',
+              },
+            },
+            CustomerId: '123456',
+          },
+        ]);
+
+        const masked = await service.mask(def);
+        expect(masked).toBeDefined();
+        const cfg = masked!.connector.source.configuration as Array<Record<string, unknown>>;
+        const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
+
+        expect(authType.service_account.ServiceAccountKey).toBe(SECRET_MASK);
+        expect(authType.service_account.DeveloperToken).toBe(SECRET_MASK);
+        expect(authType.service_account._internal).toBe('oneOf');
+        expect(cfg[0].CustomerId).toBe('123456');
+      });
+
+      it('masks different oneOf variants independently', async () => {
+        const { service } = createService(
+          [],
+          [
+            {
+              fieldName: 'AuthType',
+              oneOfOptions: [
+                {
+                  label: 'Service Account',
+                  value: 'service_account',
+                  items: {
+                    ServiceAccountKey: { name: 'ServiceAccountKey', attributes: ['SECRET'] },
+                  },
+                },
+                {
+                  label: 'OAuth2',
+                  value: 'oauth2',
+                  items: {
+                    ClientSecret: { name: 'ClientSecret', attributes: ['SECRET'] },
+                  },
+                },
+              ],
+            },
+          ]
+        );
+
+        const def = makeDefinition([
+          {
+            _id: 'a',
+            AuthType: {
+              oauth2: {
+                _internal: 'oneOf',
+                ClientId: 'client-123',
+                ClientSecret: 'secret-456',
+              },
+            },
+          },
+        ]);
+
+        const masked = await service.mask(def);
+        const cfg = masked!.connector.source.configuration as Array<Record<string, unknown>>;
+        const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
+
+        expect(authType.oauth2.ClientId).toBe('client-123');
+        expect(authType.oauth2.ClientSecret).toBe(SECRET_MASK);
+      });
+    });
+
+    describe('mergeDefinitionSecrets', () => {
+      it('merges secret fields inside oneOf nested objects', async () => {
+        const { service } = createService(
+          [],
+          [
+            {
+              fieldName: 'AuthType',
+              oneOfOptions: [
+                {
+                  label: 'Service Account',
+                  value: 'service_account',
+                  items: {
+                    ServiceAccountKey: { name: 'ServiceAccountKey', attributes: ['SECRET'] },
+                    DeveloperToken: { name: 'DeveloperToken', attributes: ['SECRET'] },
+                  },
+                },
+              ],
+            },
+          ]
+        );
+
+        const previous = makeDefinition([
+          {
+            _id: 'a',
+            AuthType: {
+              service_account: {
+                _internal: 'oneOf',
+                ServiceAccountKey: '{"private_key": "prev-key"}',
+                DeveloperToken: 'prev-token',
+              },
+            },
+          },
+        ]);
+
+        const incoming = makeDefinition([
+          {
+            _id: 'a',
+            AuthType: {
+              service_account: {
+                _internal: 'oneOf',
+                ServiceAccountKey: SECRET_MASK,
+                DeveloperToken: SECRET_MASK,
+              },
+            },
+          },
+        ]);
+
+        const merged = await service.mergeDefinitionSecrets(incoming, previous);
+        const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
+        const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
+
+        expect(authType.service_account.ServiceAccountKey).toBe('{"private_key": "prev-key"}');
+        expect(authType.service_account.DeveloperToken).toBe('prev-token');
+      });
+
+      it('updates nested secret when new value provided', async () => {
+        const { service } = createService(
+          [],
+          [
+            {
+              fieldName: 'AuthType',
+              oneOfOptions: [
+                {
+                  label: 'Service Account',
+                  value: 'service_account',
+                  items: {
+                    ServiceAccountKey: { name: 'ServiceAccountKey', attributes: ['SECRET'] },
+                  },
+                },
+              ],
+            },
+          ]
+        );
+
+        const previous = makeDefinition([
+          {
+            _id: 'a',
+            AuthType: {
+              service_account: {
+                ServiceAccountKey: 'old-key',
+              },
+            },
+          },
+        ]);
+
+        const incoming = makeDefinition([
+          {
+            _id: 'a',
+            AuthType: {
+              service_account: {
+                ServiceAccountKey: 'new-key',
+              },
+            },
+          },
+        ]);
+
+        const merged = await service.mergeDefinitionSecrets(incoming, previous);
+        const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
+        const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
+
+        expect(authType.service_account.ServiceAccountKey).toBe('new-key');
+      });
+
+      it('keeps previous nested secret when incoming omits it', async () => {
+        const { service } = createService(
+          [],
+          [
+            {
+              fieldName: 'AuthType',
+              oneOfOptions: [
+                {
+                  label: 'Service Account',
+                  value: 'service_account',
+                  items: {
+                    ServiceAccountKey: { name: 'ServiceAccountKey', attributes: ['SECRET'] },
+                    DeveloperToken: { name: 'DeveloperToken', attributes: ['SECRET'] },
+                  },
+                },
+              ],
+            },
+          ]
+        );
+
+        const previous = makeDefinition([
+          {
+            _id: 'a',
+            AuthType: {
+              service_account: {
+                ServiceAccountKey: 'prev-key',
+                DeveloperToken: 'prev-token',
+              },
+            },
+          },
+        ]);
+
+        const incoming = makeDefinition([
+          {
+            _id: 'a',
+            AuthType: {
+              service_account: {
+                ServiceAccountKey: 'new-key',
+              },
+            },
+          },
+        ]);
+
+        const merged = await service.mergeDefinitionSecrets(incoming, previous);
+        const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
+        const authType = cfg[0].AuthType as Record<string, Record<string, unknown>>;
+
+        expect(authType.service_account.ServiceAccountKey).toBe('new-key');
+        expect(authType.service_account.DeveloperToken).toBe('prev-token');
+      });
     });
   });
 });
