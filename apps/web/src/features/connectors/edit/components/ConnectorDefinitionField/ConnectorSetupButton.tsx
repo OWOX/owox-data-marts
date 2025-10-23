@@ -7,14 +7,26 @@ import type { ConnectorConfig } from '../../../../data-marts/edit/model';
 interface ConnectorSetupButtonProps {
   storageType: DataStorageType;
   onSetupConnector: (connector: ConnectorConfig) => void;
+  preset?: string;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
-export function ConnectorSetupButton({ storageType, onSetupConnector }: ConnectorSetupButtonProps) {
+export function ConnectorSetupButton({
+  storageType,
+  onSetupConnector,
+  preset,
+  isOpen,
+  onClose,
+}: ConnectorSetupButtonProps) {
   return (
     <DataMartConnectorView
       dataStorageType={storageType}
       onSubmit={onSetupConnector}
       configurationOnly={false}
+      preset={preset}
+      isOpen={isOpen}
+      onClose={onClose}
     >
       <Button
         type='button'

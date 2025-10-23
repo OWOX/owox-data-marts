@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useFormContext } from 'react-hook-form';
 import { DataMartDefinitionType } from '../../../../shared';
 import { DataStorageType } from '../../../../../data-storage';
@@ -11,13 +12,24 @@ import type { DataMartDefinitionFormData } from '../../../model/schema/data-mart
 interface DataMartDefinitionFormProps {
   definitionType: DataMartDefinitionType;
   storageType: DataStorageType;
+  preset?: string;
 }
 
 export function DataMartDefinitionForm({
   definitionType,
   storageType,
+  preset,
 }: DataMartDefinitionFormProps) {
   const { control } = useFormContext<DataMartDefinitionFormData>();
+  const [shouldAutoOpenConnector, setShouldAutoOpenConnector] = useState(false);
+
+  useEffect(() => {
+    if (definitionType === DataMartDefinitionType.CONNECTOR && !preset) {
+      setShouldAutoOpenConnector(true);
+    } else {
+      setShouldAutoOpenConnector(false);
+    }
+  }, [definitionType, preset]);
 
   return (
     <div className='space-y-2'>
@@ -36,7 +48,12 @@ export function DataMartDefinitionForm({
       )}
 
       {definitionType === DataMartDefinitionType.CONNECTOR && (
-        <ConnectorDefinitionField control={control} storageType={storageType} />
+        <ConnectorDefinitionField
+          control={control}
+          storageType={storageType}
+          preset={preset}
+          autoOpen={shouldAutoOpenConnector}
+        />
       )}
     </div>
   );
