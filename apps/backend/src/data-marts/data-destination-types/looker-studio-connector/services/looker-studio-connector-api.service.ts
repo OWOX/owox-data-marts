@@ -17,6 +17,13 @@ import { ReportDataCacheService } from '../../../services/report-data-cache.serv
 import { OWOX_PRODUCER } from '../../../../common/producer/producer.module';
 import { OwoxProducer } from '@owox/internal-helpers';
 import { LookerReportRunSuccessfullyEvent } from '../../../events/looker-report-run-successfully.event';
+import { DataMartRun } from 'src/data-marts/entities/data-mart-run.entity';
+import { RunType } from 'src/common/scheduler/shared/types';
+import { DataMartRunStatus } from 'src/data-marts/enums/data-mart-run-status.enum';
+import {
+  DataMartRunService,
+  ReportRunFinishContext,
+} from 'src/data-marts/services/data-mart-run.service';
 
 interface ValidatedRequestData {
   connectionConfig: { destinationSecretKey: string };
@@ -35,7 +42,8 @@ export class LookerStudioConnectorApiService {
     private readonly reportService: ReportService,
     private readonly consumptionTrackingService: ConsumptionTrackingService,
     @Inject(OWOX_PRODUCER)
-    private readonly producer: OwoxProducer
+    private readonly producer: OwoxProducer,
+    private readonly dataMartRunService: DataMartRunService
   ) {}
 
   public async getConfig(request: GetConfigRequest): Promise<GetConfigResponse> {
@@ -55,14 +63,32 @@ export class LookerStudioConnectorApiService {
     const { report, cachedReader } = await this.getReportAndCachedReader(request);
     let error: Error | null = null;
     const isSampleExtraction = Boolean(request.request.scriptParams?.sampleExtraction);
+
+    let dataMartRun: DataMartRun | null = null;
+    const dataMartRunFinishContext: ReportRunFinishContext = { status: DataMartRunStatus.SUCCESS };
     try {
+      if (!isSampleExtraction) {
+        dataMartRun = await this.dataMartRunService.createAndStartReportRun(report, {
+          createdById: report.createdById,
+          runType: RunType.manual,
+        });
+      }
+
       return await this.dataService.getData(request, report, cachedReader, isSampleExtraction);
     } catch (e) {
+      dataMartRunFinishContext.status = DataMartRunStatus.FAILED;
+      dataMartRunFinishContext.errors = [e.toString()];
+
       this.logger.error('Failed to get data:', e);
       error = e;
       throw e;
     } finally {
       if (!isSampleExtraction) {
+        //TODO: write results in transaction
+        if (dataMartRun) {
+          await this.dataMartRunService.finishReportRun(dataMartRun, dataMartRunFinishContext);
+        }
+
         if (error) {
           await this.reportService.updateRunStatus(report.id, ReportRunStatus.ERROR, error.message);
         } else {
