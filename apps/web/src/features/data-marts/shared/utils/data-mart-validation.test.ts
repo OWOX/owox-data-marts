@@ -67,27 +67,53 @@ describe('data-mart-validation', () => {
       expect(errors).toContain(DataMartValidationError.ALREADY_PUBLISHED);
     });
 
-    it('should return MISSING_DEFINITION_TYPE error when definitionType is null', () => {
-      const dataMart = createMockDataMart({ definitionType: null });
-      const errors = validateDataMartForPublishing(dataMart);
-      expect(errors).toContain(DataMartValidationError.MISSING_DEFINITION_TYPE);
-    });
-
     it('should return MISSING_DEFINITION error when definition is null', () => {
       const dataMart = createMockDataMart({ definition: null });
       const errors = validateDataMartForPublishing(dataMart);
       expect(errors).toContain(DataMartValidationError.MISSING_DEFINITION);
     });
 
-    it('should return multiple errors when multiple conditions are not met', () => {
+    it('should return INVALID_STORAGE when BigQuery storage config is incomplete', () => {
       const dataMart = createMockDataMart({
-        definitionType: null,
-        definition: null,
+        storage: {
+          id: 'storage-id',
+          title: 'Test Storage',
+          type: DataStorageType.GOOGLE_BIGQUERY,
+          createdAt: new Date(),
+          modifiedAt: new Date(),
+          config: {
+            projectId: '',
+            location: 'EU',
+          },
+          credentials: {
+            serviceAccount: '{}',
+          },
+        },
       });
       const errors = validateDataMartForPublishing(dataMart);
-      expect(errors).toContain(DataMartValidationError.MISSING_DEFINITION_TYPE);
-      expect(errors).toContain(DataMartValidationError.MISSING_DEFINITION);
-      expect(errors.length).toBe(2);
+      expect(errors).toContain(DataMartValidationError.INVALID_STORAGE);
+    });
+
+    it('should return INVALID_STORAGE when Athena storage config is incomplete', () => {
+      const dataMart = createMockDataMart({
+        storage: {
+          id: 'storage-id',
+          title: 'Test Storage',
+          type: DataStorageType.AWS_ATHENA,
+          createdAt: new Date(),
+          modifiedAt: new Date(),
+          config: {
+            region: '',
+            outputBucket: '',
+          },
+          credentials: {
+            accessKeyId: 'AKIA...',
+            secretAccessKey: 'SECRET',
+          },
+        },
+      });
+      const errors = validateDataMartForPublishing(dataMart);
+      expect(errors).toContain(DataMartValidationError.INVALID_STORAGE);
     });
   });
 
