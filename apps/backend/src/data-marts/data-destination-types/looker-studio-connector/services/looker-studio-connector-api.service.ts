@@ -122,20 +122,15 @@ export class LookerStudioConnectorApiService {
 
     // Validate request config
     const requestConfigResult = ConnectorRequestConfigV1Schema.safeParse(
-      request.request.configParams
+      request.request?.configParams
     );
     if (!requestConfigResult.success) {
       throw new BusinessViolationException('Incompatible request config provided');
     }
 
-    const requestConfig = requestConfigResult.data;
-    if (!requestConfig.reportId) {
-      throw new BusinessViolationException('ReportId is required');
-    }
-
     return {
       connectionConfig: connectionConfigResult.data,
-      requestConfig: { reportId: requestConfig.reportId },
+      requestConfig: { reportId: requestConfigResult.data.reportId },
     };
   }
 }

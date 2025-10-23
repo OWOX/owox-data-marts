@@ -33,7 +33,7 @@ export const DateRangeSchema = z.object({
 export const GetDataRequestSchema = z.object({
   connectionConfig: ConnectionConfigSchema,
   request: z.object({
-    configParams: ConnectorRequestConfigV1Schema.optional(),
+    configParams: ConnectorRequestConfigV1Schema,
     scriptParams: z
       .object({
         sampleExtraction: z.boolean().optional(),
