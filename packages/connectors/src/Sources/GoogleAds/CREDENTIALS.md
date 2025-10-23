@@ -15,6 +15,8 @@ To connect to the **Google Ads API** and start importing data with OWOX Data Mar
 6. In the **Keys** tab, click **Add Key → Create New Key → JSON**.  
 7. The JSON key file will be downloaded automatically — please **store it securely**, as you will need it later.  
 
+![Google Ads Add service account keys](res/googleads_service.png)
+
 ## Step 2: Set Up Access in Google Ads
 
 **Prerequisites**:
@@ -31,6 +33,8 @@ If you don’t have one yet, follow Google’s instructions to create it:
 4. Assign **Read-only** permissions.  
 5. Click **Add account**
 
+![Google Ads Add service account email](res/googleads_addservice.png)
+
 ## Step 3: Register in the API Center
 
 1. In the same **Admin** section of Google Ads, open **API Center**.  
@@ -44,12 +48,16 @@ If you don’t have one yet, follow Google’s instructions to create it:
 3. Accept the Terms and Conditions checkbox.  
 4. Click **Create Token**.
 
+![Google Ads Request API](res/googleads_apirequest.png)
+
 ## Step 4: Save Your Developer Token and Customer ID
 
 After completing the registration:
 
 - Copy and securely save your **Developer Token**.  
 - Copy your **Customer ID** (from the top of your Google Ads account).  
+
+![Google Ads Developer Token](res/googleads_devtoken.png)
 
 At this point, you should have the following credentials:
 
