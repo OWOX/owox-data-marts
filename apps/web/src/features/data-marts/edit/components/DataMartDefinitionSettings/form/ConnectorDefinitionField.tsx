@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useFormContext, type Control } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { type DataMartDefinitionFormData } from '../../../model/schema/data-mart-definition.schema';
@@ -31,12 +31,26 @@ import type { ConnectorRunFormData } from '../../../../../connectors/shared/mode
 interface ConnectorDefinitionFieldProps {
   control: Control<DataMartDefinitionFormData>;
   storageType: DataStorageType;
+  preset?: string;
+  autoOpen?: boolean;
 }
 
-export function ConnectorDefinitionField({ control, storageType }: ConnectorDefinitionFieldProps) {
+export function ConnectorDefinitionField({
+  control,
+  storageType,
+  preset,
+  autoOpen = false,
+}: ConnectorDefinitionFieldProps) {
   const { dataMart, runDataMart } = useOutletContext<DataMartContextType>();
   const { setValue, getValues, trigger } = useFormContext<DataMartDefinitionFormData>();
   const [isEditSheetOpen, setIsEditSheetOpen] = useState(false);
+  const [isSetupSheetOpen, setIsSetupSheetOpen] = useState(false);
+
+  useEffect(() => {
+    if (autoOpen) {
+      setIsSetupSheetOpen(true);
+    }
+  }, [autoOpen]);
 
   const triggerValidation = () => {
     setTimeout(() => void trigger('definition'), 0);
@@ -207,6 +221,11 @@ export function ConnectorDefinitionField({ control, storageType }: ConnectorDefi
                   <ConnectorSetupButton
                     storageType={storageType}
                     onSetupConnector={setupConnector}
+                    preset={preset}
+                    isOpen={isSetupSheetOpen}
+                    onClose={() => {
+                      setIsSetupSheetOpen(false);
+                    }}
                   />
                 ) : (
                   <div className='space-y-3'>

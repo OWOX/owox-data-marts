@@ -21,6 +21,8 @@ interface ConnectorEditFormProps {
   configurationOnly?: boolean;
   existingConnector?: ConnectorConfig | null;
   mode?: 'full' | 'configuration-only' | 'fields-only';
+  initialStep?: number;
+  preselectedConnector?: string | null;
 }
 
 export function ConnectorEditForm({
@@ -29,6 +31,8 @@ export function ConnectorEditForm({
   configurationOnly = false,
   existingConnector = null,
   mode = 'full',
+  initialStep,
+  preselectedConnector,
 }: ConnectorEditFormProps) {
   const [selectedConnector, setSelectedConnector] = useState<ConnectorListItem | null>(null);
   const [selectedNode, setSelectedNode] = useState<string>('');
@@ -88,6 +92,35 @@ export function ConnectorEditForm({
     },
     [loadedFields, fetchConnectorFields]
   );
+
+  useEffect(() => {
+    if (!preselectedConnector) return;
+    if (selectedConnector) return;
+    if (connectors.length === 0) return;
+
+    const found = connectors.find(c => c.name === preselectedConnector);
+    if (found) {
+      setSelectedConnector(found);
+      // set default configuration if existing connector wasn't provided
+      // ssetConnectorConfiguration(found ? {} : {});
+      // set step to requested initialStep (or 2 by default)
+      setCurrentStep(initialStep ?? 2);
+      // if in full flow ensure fields/spec are loaded:
+      void loadSpecificationSafely(found.name);
+      if (!configurationOnly && mode !== 'fields-only') {
+        void loadFieldsSafely(found.name);
+      }
+    }
+  }, [
+    preselectedConnector,
+    connectors,
+    selectedConnector,
+    initialStep,
+    configurationOnly,
+    mode,
+    loadSpecificationSafely,
+    loadFieldsSafely,
+  ]);
 
   // Regular modes initialization
   useEffect(() => {

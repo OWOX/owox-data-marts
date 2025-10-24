@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { ConnectorEditSheet } from './components/ConnectorEditSheet/ConnectorEditSheet';
 import { DataStorageType } from '../../data-storage/shared/model/types';
@@ -11,6 +11,9 @@ interface DataMartConnectorViewProps {
   children?: ReactNode;
   configurationOnly?: boolean;
   existingConnector?: ConnectorConfig | null;
+  preset?: string;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 export const DataMartConnectorView = ({
@@ -19,42 +22,68 @@ export const DataMartConnectorView = ({
   children,
   configurationOnly = false,
   existingConnector = null,
+  preset,
+  isOpen: externalIsOpen,
+  onClose: externalOnClose,
 }: DataMartConnectorViewProps) => {
-  const [isEditSheetOpen, setIsEditSheetOpen] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [initialStep, setInitialStep] = useState<number>(1);
+  const [preselectedConnector, setPreselectedConnector] = useState<string | undefined>();
 
+  // External open state sync
+  useEffect(() => {
+    if (externalIsOpen !== undefined) {
+      setIsSheetOpen(externalIsOpen);
+    }
+  }, [externalIsOpen]);
+
+  // Manual open (trigger button)
   const handleTriggerClick = () => {
-    setIsEditSheetOpen(true);
+    setPreselectedConnector(undefined);
+    setInitialStep(1);
+    setIsSheetOpen(true);
   };
 
   const handleClose = () => {
-    setIsEditSheetOpen(false);
+    setIsSheetOpen(false);
+    externalOnClose?.();
   };
 
-  const renderTrigger = () => {
-    if (!children) return null;
+  // Auto-open logic based on preset
+  useEffect(() => {
+    if (!preset) return;
 
-    return (
-      <div onClick={handleTriggerClick} style={{ cursor: 'pointer' }}>
-        {children}
-      </div>
-    );
-  };
+    if (preset === 'connector') {
+      setPreselectedConnector(undefined);
+      setInitialStep(1);
+      setIsSheetOpen(true);
+    } else {
+      setPreselectedConnector(preset);
+      setInitialStep(2);
+      setIsSheetOpen(true);
+    }
+  }, [preset]);
 
   return (
     <>
-      {renderTrigger()}
-      {isEditSheetOpen && (
-        <ConnectorContextProvider>
-          <ConnectorEditSheet
-            isOpen={isEditSheetOpen}
-            onClose={handleClose}
-            dataStorageType={dataStorageType}
-            onSubmit={onSubmit}
-            configurationOnly={configurationOnly}
-            existingConnector={existingConnector}
-          />
-        </ConnectorContextProvider>
+      {children && (
+        <div onClick={handleTriggerClick} style={{ cursor: 'pointer' }}>
+          {children}
+        </div>
       )}
+
+      <ConnectorContextProvider>
+        <ConnectorEditSheet
+          isOpen={isSheetOpen}
+          onClose={handleClose}
+          dataStorageType={dataStorageType}
+          onSubmit={onSubmit}
+          configurationOnly={configurationOnly}
+          existingConnector={existingConnector}
+          initialStep={initialStep}
+          preselectedConnector={preselectedConnector}
+        />
+      </ConnectorContextProvider>
     </>
   );
 };

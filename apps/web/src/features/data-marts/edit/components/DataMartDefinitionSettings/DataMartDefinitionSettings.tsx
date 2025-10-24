@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { DataMartDefinitionTypeSelector } from './form/DataMartDefinitionTypeSelector.tsx';
 import { DataMartDefinitionForm } from './form/DataMartDefinitionForm.tsx';
 import { DataMartDefinitionType } from '../../../shared';
-
+import { useDataMartPreset } from '../../../shared/utils/useDataMartPreset.ts';
 import {
   createDataMartDefinitionSchema,
   type DataMartDefinitionFormData,
@@ -14,12 +14,13 @@ import { useOutletContext } from 'react-router-dom';
 import type { DataMartContextType } from '../../model/context/types.ts';
 import { getEmptyDefinition } from '../../utils/definition-helpers.ts';
 import SqlValidator from '../SqlValidator/SqlValidator.tsx';
-import type { SqlDefinitionConfig } from '../../model';
+import type { DataMartDefinitionConfigDto, SqlDefinitionConfig } from '../../model';
 import { useSchemaActualizeTrigger } from '../../../shared/hooks/useSchemaActualizeTrigger';
 
 export function DataMartDefinitionSettings() {
   const { dataMart, updateDataMartDefinition, getDataMart } =
     useOutletContext<DataMartContextType>();
+  const preset = useDataMartPreset();
 
   if (!dataMart) {
     throw new Error('Data mart not found');
@@ -99,6 +100,21 @@ export function DataMartDefinitionSettings() {
     }
   }, [definitionType, reset, getInitialFormValues]);
 
+  const getEmptyDefinitionForUpdate = (type: DataMartDefinitionType): DataMartDefinitionConfigDto =>
+    getEmptyDefinition(type) as DataMartDefinitionConfigDto;
+
+  useEffect(() => {
+    if (!definitionType && !initialDefinitionType && preset?.definitionType) {
+      setDefinitionType(preset.definitionType);
+      const initialValues = {
+        definitionType: preset.definitionType,
+        definition: getEmptyDefinitionForUpdate(preset.definitionType),
+      } as DataMartDefinitionFormData;
+
+      reset(initialValues);
+    }
+  }, [preset, definitionType, initialDefinitionType, reset]);
+
   // Handle validation state changes from SqlValidator
   const handleValidationStateChange = useCallback(
     (state: {
@@ -155,7 +171,11 @@ export function DataMartDefinitionSettings() {
 
     return (
       <form onSubmit={handleFormSubmit} className='space-y-4'>
-        <DataMartDefinitionForm definitionType={definitionType} storageType={storageType} />
+        <DataMartDefinitionForm
+          definitionType={definitionType}
+          storageType={storageType}
+          preset={preset?.connectorSourceTitle}
+        />
         <div className='flex items-center gap-4'>
           <Button variant={'default'} type='submit' disabled={!isValid || !isDirty}>
             Save

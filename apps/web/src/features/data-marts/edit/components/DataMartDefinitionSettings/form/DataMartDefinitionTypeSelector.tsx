@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { DataMartDefinitionType } from '../../../../shared';
 import {
   Select,
@@ -28,6 +28,12 @@ export function DataMartDefinitionTypeSelector({
   const [selectedType, setSelectedType] = useState<DataMartDefinitionType | null>(
     initialType ?? null
   );
+
+  useEffect(() => {
+    if (initialType !== undefined && initialType !== selectedType) {
+      setSelectedType(initialType);
+    }
+  }, [initialType, selectedType]);
 
   const handleTypeChange = (type: DataMartDefinitionType) => {
     setSelectedType(type);

@@ -4,12 +4,12 @@ interface RawBase64IconProps {
   base64?: string | null;
 }
 
-export const RawBase64Icon = ({ className, size = 24, base64 }: RawBase64IconProps) => {
+export const RawBase64Icon = ({ className = '', size = 24, base64 }: RawBase64IconProps) => {
   return (
     <img
       src={base64 ?? undefined}
       alt='icon'
-      className={className}
+      className={`max-w-none ${className}`}
       style={{ width: size, height: size }}
     />
   );
