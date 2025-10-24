@@ -6,7 +6,7 @@
  */
 
 /* eslint-disable no-unused-vars */
-var adAccountInsightsFieldsByCountry = {
+var adAccountInsightsFieldsByDevicePlatform = {
   'account_currency': {
     'description': 'Currency that is used by your ad account.',
     'type': 'string'
@@ -125,10 +125,6 @@ var adAccountInsightsFieldsByCountry = {
     'description': 'The number of clicks on your ads.',
     'type': 'numeric string',
     'GoogleBigQueryType': 'numeric'
-  },
-  'country': {
-    'description': 'The country where the people you\'ve reached are located. This is based on information, such as a person\'s hometown, their current city, and the geographical location where they tend to be when they visit Meta.',
-    'type': 'string'
   },
   'conversion_values': {
     'description': 'conversion_values',
@@ -263,6 +259,10 @@ var adAccountInsightsFieldsByCountry = {
     'description': 'description_asset',
     'type': 'AdAssetDescription',
     'supportsFieldsParam': false
+  },
+  'device_platform': {
+    'description': 'device_platform',
+    'type': 'string'
   },
   'frequency': {
     'description': 'The average number of times each person saw your ad. This metric is estimated.',
@@ -470,4 +470,3 @@ var adAccountInsightsFieldsByCountry = {
     'GoogleBigQueryType': 'numeric'
   }
 }
-

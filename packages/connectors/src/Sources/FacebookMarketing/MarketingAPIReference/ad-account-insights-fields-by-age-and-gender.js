@@ -6,7 +6,7 @@
  */
 
 /* eslint-disable no-unused-vars */
-var adAccountInsightsFieldsByCountry = {
+var adAccountInsightsFieldsByAgeAndGender = {
   'account_currency': {
     'description': 'Currency that is used by your ad account.',
     'type': 'string'
@@ -52,6 +52,10 @@ var adAccountInsightsFieldsByCountry = {
   },
   'adset_name': {
     'description': 'The name of the ad set you\'re viewing in reporting. An ad set is a group of ads that share the same budget, schedule, delivery optimization and targeting.',
+    'type': 'string'
+  },
+  'age': {
+    'description': 'The age range of the people who saw your ad. This is based on the age people have listed in their Facebook profiles.',
     'type': 'string'
   },
   'attribution_setting': {
@@ -125,10 +129,6 @@ var adAccountInsightsFieldsByCountry = {
     'description': 'The number of clicks on your ads.',
     'type': 'numeric string',
     'GoogleBigQueryType': 'numeric'
-  },
-  'country': {
-    'description': 'The country where the people you\'ve reached are located. This is based on information, such as a person\'s hometown, their current city, and the geographical location where they tend to be when they visit Meta.',
-    'type': 'string'
   },
   'conversion_values': {
     'description': 'conversion_values',
@@ -278,6 +278,10 @@ var adAccountInsightsFieldsByCountry = {
     'description': 'The number of people who performed a Full View on your Page\'s post as a result of your ad.',
     'type': 'numeric string',
     'GoogleBigQueryType': 'numeric'
+  },
+  'gender': {
+    'description': 'The gender of the people who saw your ad. This is based on the gender people have listed in their Facebook profiles.',
+    'type': 'string'
   },
   'image_asset': {
     'description': 'image_asset',
@@ -470,4 +474,3 @@ var adAccountInsightsFieldsByCountry = {
     'GoogleBigQueryType': 'numeric'
   }
 }
-
