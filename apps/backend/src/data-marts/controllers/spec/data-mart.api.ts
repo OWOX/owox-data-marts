@@ -102,14 +102,6 @@ export function ValidateDataMartDefinitionSpec() {
   );
 }
 
-export function ActualizeDataMartSchemaSpec() {
-  return applyDecorators(
-    ApiOperation({ summary: 'Actualize DataMart schema' }),
-    ApiParam({ name: 'id', type: String }),
-    ApiOkResponse({ type: DataMartResponseApiDto })
-  );
-}
-
 export function UpdateDataMartSchemaSpec() {
   return applyDecorators(
     ApiOperation({ summary: 'Update DataMart schema' }),

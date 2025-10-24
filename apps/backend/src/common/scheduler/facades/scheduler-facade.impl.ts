@@ -76,7 +76,8 @@ export class SchedulerFacadeImpl implements SchedulerFacade {
     const fetcher = this.triggerFetcherFactory.createFetcher(
       triggerHandler.getTriggerRepository(),
       this.systemTimeService,
-      triggerHandler.stuckTriggerTimeoutSeconds()
+      triggerHandler.stuckTriggerTimeoutSeconds?.(),
+      triggerHandler.triggerTtlSeconds?.()
     );
 
     // Create and start processing job

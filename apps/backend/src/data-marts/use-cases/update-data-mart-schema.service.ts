@@ -25,15 +25,6 @@ export class UpdateDataMartSchemaService {
     );
     await this.dataMartService.save(dataMart);
 
-    if (dataMart.definition) {
-      try {
-        await this.dataMartService.actualizeSchemaInEntity(dataMart);
-        await this.dataMartService.save(dataMart);
-      } catch (error) {
-        this.logger.warn('Failed to actualize schema on update', error);
-      }
-    }
-
     this.logger.debug(`Data mart ${command.id} schema updated`);
     return this.mapper.toDomainDto(dataMart);
   }
