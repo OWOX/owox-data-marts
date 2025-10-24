@@ -61,13 +61,6 @@ var YourDataSourceSource = class YourDataSourceSource extends AbstractSource {
         description: "End date for data import",
         attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
-      MaxFetchingDays: {
-        requiredType: "number",
-        isRequired: true,
-        default: 31,
-        label: "Max Fetching Days",
-        description: "Maximum number of days to fetch in one run"
-      },
       ReimportLookbackWindow: {
         requiredType: "number",
         isRequired: true,
@@ -170,7 +163,6 @@ Configuration parameters are defined in the Source constructor using `config.mer
 
 - `StartDate` — start date for initial import
 - `EndDate` — end date for backfill operations
-- `MaxFetchingDays` — maximum days per import run
 - `ReimportLookbackWindow` — days to reimport for data consistency
 - `CreateEmptyTables` — whether to create tables with no data
 

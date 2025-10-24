@@ -67,13 +67,6 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
         label: "Reimport Lookback Window",
         description: "Number of days to look back when reimporting data"
       },
-      MaxFetchingDays: {
-        requiredType: "number",
-        isRequired: true,
-        default: 30,
-        label: "Max Fetching Days",
-        description: "Maximum number of days to fetch data for"
-      },
       ReportTimezone: {
         requiredType: "string",
         default: "GreenwichMeanTimeDublinEdinburghLisbonLondon",
