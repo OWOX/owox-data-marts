@@ -101,4 +101,8 @@ Pull request authors must sign the [OWOX CLA](https://cla-assistant.io/OWOX/js-d
 
 ## Questions
 
-Got a questions? Feel free to ask the community [in the Discussion section](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a).
+Got a question? Feel free to ask the community:
+
+- Check [Issues](https://github.com/OWOX/owox-data-marts/issues)
+- Join [Discussions](https://github.com/OWOX/owox-data-marts/discussions)
+- Join [Slack Community](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3fffrsau9-UlobJVlXzRLpXmvs0ffvoQ)
