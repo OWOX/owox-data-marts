@@ -72,6 +72,13 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
                 label: "Developer Token",
                 description: "Google Ads API Developer Token",
                 attributes: [CONFIG_ATTRIBUTES.SECRET]
+              },
+              LoginCustomerId: {
+                isRequired: true,
+                requiredType: "string",
+                label: "Login Customer ID",
+                description: "Login Customer ID of manager account (must be provided without dashes, e.g., '1234567890' not '123-456-7890'). Required for accessing client accounts through a manager account.",
+                attributes: [CONFIG_ATTRIBUTES.SECRET]
               }
             }
           }
@@ -161,6 +168,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
           config: this.config,
           tokenUrl: "https://oauth2.googleapis.com/token",
           serviceAccountKeyJson: authConfig.ServiceAccountKey.value,
+          loginCustomerId: authConfig.LoginCustomerId.value,
           scope: "https://www.googleapis.com/auth/adwords"
         });
       } else {
@@ -287,6 +295,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'developer-token': this.config.AuthType.items?.DeveloperToken?.value,
+          'login-customer-id': this.config.AuthType.items?.LoginCustomerId?.value,
           'Content-Type': 'application/json'
         },
         payload: JSON.stringify(requestBody),
