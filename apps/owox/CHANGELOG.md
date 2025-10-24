@@ -1,5 +1,51 @@
 # owox
 
+## 0.11.0
+
+### Minor Changes
+
+- 5cd552c: # Improve Data Mart Creation Flow and Connector Editor Experience
+
+  This update brings several enhancements to the Data Mart creation flow and connector-related components, improving UI consistency, usability, and workflow efficiency.
+
+  **Changes**
+  - **Data Mart creation flow**:
+    - Added new icons for Facebook Ads, X Ads, and LinkedIn Ads
+    - Updated Empty Data Marts state with options to create Data Marts in different modes
+    - Improved **DataMartDefinitionSettings** to handle mode-based initialization
+    - Enhanced **CreateDataMartPage** to set default titles based on selected mode
+    - Added animations on the Empty Data Marts page for a smoother user experience
+  - **UX improvements**: implemented auto-open logic for Connector Setup Sheet when selecting a definition type
+  - **UI improvements**: updated theme handling in **DataMartCodeEditor** for consistent styling
+
+- f96f9aa: # Add Google Ads connector
+
+  Added new Google Ads connector with Service Account authentication
+
+  Available data nodes:
+  - `campaigns`, `campaigns_stats` - Campaign data
+  - `ad_groups`, `ad_groups_stats` - Ad group data
+  - `ad_group_ads_stats` - Ad performance data
+  - `keywords_stats` - Keyword performance data
+  - `criterion` - Criteria data
+
+- b11b726: # Added support for oneOf fields with recursive secret masking
+
+  This release adds comprehensive support for oneOf configuration fields with nested secret handling. The connector secret service now recursively masks and merges secret fields within oneOf structures, ensuring sensitive data like API keys and tokens in nested authentication configurations are properly protected.
+
+  New UI components include ButtonGroup for value-based selection and AppWizardCollapsible for expandable sections. Fixed an issue where the wrong oneOf variant was pre-selected when editing existing configurations.
+
+  Added Advanced Fields section to the connector configuration form, allowing users to configure advanced settings for the connector.
+
+### Patch Changes
+
+- @owox/internal-helpers@0.11.0
+- @owox/idp-protocol@0.11.0
+- @owox/idp-better-auth@0.11.0
+- @owox/idp-owox@0.11.0
+- @owox/backend@0.11.0
+- @owox/web@0.11.0
+
 ## 0.10.0
 
 ### Minor Changes 0.10.0
@@ -545,7 +591,6 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
-
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -553,7 +598,6 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
-
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
