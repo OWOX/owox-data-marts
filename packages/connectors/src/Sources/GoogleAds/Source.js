@@ -77,8 +77,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
                 isRequired: true,
                 requiredType: "string",
                 label: "Login Customer ID",
-                description: "Login Customer ID of manager account (must be provided without dashes, e.g., '1234567890' not '123-456-7890'). Required for accessing client accounts through a manager account.",
-                attributes: [CONFIG_ATTRIBUTES.SECRET]
+                description: "Login Customer ID of manager account (must be provided without dashes, e.g., '1234567890' not '123-456-7890'). Required for accessing client accounts through a manager account."
               }
             }
           }
