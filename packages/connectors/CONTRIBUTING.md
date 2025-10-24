@@ -4,6 +4,16 @@ There are thousands of data sources and their APIs constantly evolve, so no sing
 
 When contributing, please keep the wider community in mind. We review pull requests for technical quality and for how broadly the connector can be applied beyond the contributor's specific scenario. If you plan work that cannot be contributed back, be ready to maintain your own fork. We highly recommend designing every connector so that it can be upstreamed when requirements allow.
 
+## Prerequisites
+
+Set up the following tools locally before you start developing:
+
+- Node.js 22.16.0 or later (see `engines.node` requirement in root `package.json`)
+- npm 10 or later (ships with the Node 22 installer)
+- Git (any recent 2.x release) for working with the repository
+
+After installing the tools, run `npm install` from the repository root to install all workspace dependencies, including those needed for this package.
+
 ## Architecture Overview
 
 The `@owox/connectors` package is a Node.js library that bundles data source connectors and storage implementations. The package automatically discovers all connectors in the `src/Sources/` directory.
@@ -101,4 +111,8 @@ Pull request authors must sign the [OWOX CLA](https://cla-assistant.io/OWOX/js-d
 
 ## Questions
 
-Got a questions? Feel free to ask the community [in the Discussion section](https://github.com/OWOX/owox-data-marts/discussions/categories/q-a).
+Got a question? Feel free to ask the community:
+
+- Check [Issues](https://github.com/OWOX/owox-data-marts/issues)
+- Join [Discussions](https://github.com/OWOX/owox-data-marts/discussions)
+- Join [Slack Community](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3fffrsau9-UlobJVlXzRLpXmvs0ffvoQ)
