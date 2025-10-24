@@ -100,7 +100,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           label: 'Google Sheets Connectors',
           items: [
             'docs/editions/appsscript-edition',
-            'docs/google-sheets-connectors/readme',
             'docs/google-sheets-connectors/facebook-ads',
             'docs/google-sheets-connectors/tiktok-ads',
             'docs/google-sheets-connectors/linkedin-ads',
