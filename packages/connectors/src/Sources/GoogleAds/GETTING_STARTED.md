@@ -83,6 +83,8 @@ Choose **Backfill (custom period)** to load historical data for a custom time ra
 The process is complete when the **Run history** tab shows the message:  
 **"Success"**  
 
+![Google Ads Success](res/googleads_success.png)
+
 ## Access Your Data
 
 The data will be written to the dataset specified earlier.
