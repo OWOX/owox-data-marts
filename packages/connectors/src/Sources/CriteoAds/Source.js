@@ -58,12 +58,6 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
         description: "Your Criteo API Client Secret",
         attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
-      MaxFetchingDays: {
-        requiredType: "number",
-        default: 30,
-        label: "Max Fetching Days",
-        description: "Maximum number of days to fetch data for"
-      },
       CreateEmptyTables: {
         requiredType: "boolean",
         default: true,

@@ -254,7 +254,7 @@ var AbstractConnector = class AbstractConnector {
         endDate = today;
       }
 
-      // Calculate days between start and end date (no MaxFetchingDays limit for manual backfill)
+      // Calculate days between start and end date
       const daysToFetch = Math.max(
         0,
         Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
@@ -273,10 +273,9 @@ var AbstractConnector = class AbstractConnector {
     _getIncrementalDateRange() {
       let startDate = this._getIncrementalStartDate();
       
-      // Calculate days to fetch directly (limited by MaxFetchingDays and today)
+      // Calculate days to fetch from startDate to today
       const today = new Date();
-      const maxDaysToToday = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-      const daysToFetch = Math.max(0, Math.min(this.config.MaxFetchingDays.value, maxDaysToToday));
+      const daysToFetch = Math.max(0, Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
 
       return [startDate, daysToFetch];
     }
@@ -289,20 +288,17 @@ var AbstractConnector = class AbstractConnector {
      * @private
      */
     _getIncrementalStartDate() {
-      // If lastRequestedDate exists, always use it (ignore StartDate)
+      // If lastRequestedDate exists, always use it (apply lookback window)
       if (this.config.LastRequestedDate && this.config.LastRequestedDate.value) {
         let lastRequestedDate = this._parseLastRequestedDate();
         let lookbackDate = this._applyLookbackWindow(lastRequestedDate);
         return lookbackDate;
       }
 
-      // If StartDate exists, use it
-      if (this.config.StartDate && this.config.StartDate.value) {
-        return this.config.StartDate.value;
-      }
-
-      // If neither LastRequestedDate nor StartDate exists, use today's date
-      return new Date();
+      // First run: no state exists
+      // Start from the 1st of last month
+      const today = new Date();
+      return new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
     }
     //----------------------------------------------------------------
 

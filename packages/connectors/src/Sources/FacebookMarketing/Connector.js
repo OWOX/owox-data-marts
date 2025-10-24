@@ -104,7 +104,7 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
     */
     startImportProcessOfTimeSeriesData(accountsIds, timeSeriesNodes, startDate, daysToFetch = 1) {
 
-      // start requesting data day by day from startDate to startDate + MaxFetchingDays
+      // start requesting data day by day from startDate to startDate + daysToFetch
       for(var daysShift = 0; daysShift < daysToFetch; daysShift++) {
 
       //this.config.logMessage(`Start importing data for ${EnvironmentAdapter.formatDate(startDate, "UTC", "yyyy-MM-dd")}`);
