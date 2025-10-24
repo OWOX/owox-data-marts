@@ -120,14 +120,18 @@ export class LookerStudioConnectorApiService {
       throw new BusinessViolationException('Incompatible connection config provided');
     }
 
-    // Check request config
-    const requestConfigParams = request.request?.configParams;
-    if (!requestConfigParams) {
-      throw new BusinessViolationException('Request config not provided');
+    // Check request and configParams
+    if (!request.request) {
+      throw new BusinessViolationException('Request not provided');
+    }
+
+    const { configParams } = request.request;
+    if (!configParams) {
+      throw new BusinessViolationException('Request configParams not provided');
     }
 
     // Validate request config
-    const requestConfigResult = ConnectorRequestConfigV1Schema.safeParse(requestConfigParams);
+    const requestConfigResult = ConnectorRequestConfigV1Schema.safeParse(configParams);
     if (!requestConfigResult.success) {
       throw new BusinessViolationException('Incompatible request config provided');
     }
