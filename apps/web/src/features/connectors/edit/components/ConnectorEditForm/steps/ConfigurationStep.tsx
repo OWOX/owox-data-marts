@@ -1,7 +1,7 @@
 import type { ConnectorListItem } from '../../../../shared/model/types/connector';
 import type { ConnectorSpecificationResponseApiDto } from '../../../../shared/api';
 import { StepperHeroBlock } from '../components';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AppWizardStepSection,
   AppWizardStep,
@@ -96,22 +96,51 @@ export function ConfigurationStep({
     }));
   };
 
-  const validateConfiguration = (
-    config: Record<string, unknown>,
-    specs: ConnectorSpecificationResponseApiDto[]
-  ) => {
-    const requiredSpecs = specs.filter(spec => spec.required && spec.name !== 'Fields');
+  const validateValue = useCallback((value: unknown): boolean => {
+    if (value === null || value === undefined) return false;
+    if (typeof value === 'string' && value.trim() === '') return false;
+    if (Array.isArray(value) && value.length === 0) return false;
 
-    return requiredSpecs.every(spec => {
-      const value = config[spec.name];
+    return true;
+  }, []);
 
-      if (value === null || value === undefined) return false;
-      if (typeof value === 'string' && value.trim() === '') return false;
-      if (Array.isArray(value) && value.length === 0) return false;
+  const validateOneOfReqursive = useCallback(
+    (value: unknown, spec: ConnectorSpecificationResponseApiDto): boolean => {
+      if (typeof value !== 'object' || value === null) return validateValue(value);
 
-      return true;
-    });
-  };
+      const oneOfs = spec.oneOf?.filter(
+        oneOf => oneOf.value === Object.keys(value as Record<string, unknown>)[0]
+      );
+      if (oneOfs) {
+        return oneOfs.every(oneOf =>
+          Object.entries(oneOf.items).every(([, item]) => {
+            if (oneOf.value in value) {
+              return validateOneOfReqursive((value as Record<string, unknown>)[oneOf.value], item);
+            }
+            return false;
+          })
+        );
+      }
+
+      return validateValue((value as Record<string, unknown>)[spec.name]);
+    },
+    [validateValue]
+  );
+
+  const validateConfiguration = useCallback(
+    (config: Record<string, unknown>, specs: ConnectorSpecificationResponseApiDto[]) => {
+      const requeredOneOfSpecs = specs.filter(spec => spec.required && spec.oneOf);
+      const isValidOneOf = requeredOneOfSpecs.some(spec =>
+        validateOneOfReqursive(config[spec.name], spec)
+      );
+
+      const requiredSpecs = specs.filter(spec => spec.required && spec.name !== 'Fields');
+      const isValidRequired = requiredSpecs.every(spec => validateValue(config[spec.name]));
+
+      return isValidOneOf && isValidRequired;
+    },
+    [validateValue, validateOneOfReqursive]
+  );
 
   const handleSecretEditToggle = (name: string, enable: boolean) => {
     setSecretEditing(prev => ({ ...prev, [name]: enable }));
@@ -127,7 +156,7 @@ export function ConfigurationStep({
       const isValid = validateConfiguration(configuration, connectorSpecification);
       onValidationChange(isValid);
     }
-  }, [configuration, connectorSpecification, onValidationChange]);
+  }, [configuration, connectorSpecification, onValidationChange, validateConfiguration]);
 
   if (loading) {
     return <AppWizardStepLoading variant='list' />;
