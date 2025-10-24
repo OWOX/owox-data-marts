@@ -1,13 +1,19 @@
 import { DataMartDefinitionType } from '../../shared';
 import type { AppIcon } from '../../../../shared/icons';
-import { XAdsIcon, FacebookAdsIcon, LinkedInAdsIcon } from '../../../../shared';
+import {
+  FacebookAdsIcon,
+  LinkedInAdsIcon,
+  TikTokAdsIcon,
+  MicrosoftAdsIcon,
+} from '../../../../shared';
 import { Code, Plug, Box } from 'lucide-react';
 
 // Keys list and type
 export const DATA_MART_PRESETS = [
   'facebook',
-  'x',
   'linkedin',
+  'tiktok',
+  'microsoft',
   'connector',
   'sql',
   'blank',
@@ -33,19 +39,26 @@ export const dataMartPresetsMap: Record<DataMartPresetKey, DataMartPreset> = {
     definitionType: DataMartDefinitionType.CONNECTOR,
     icon: FacebookAdsIcon,
   },
-  x: {
-    title: 'X Ads',
-    datamartTitle: 'X Ads Data Mart',
-    connectorSourceTitle: 'XAds',
-    definitionType: DataMartDefinitionType.CONNECTOR,
-    icon: XAdsIcon,
-  },
   linkedin: {
     title: 'LinkedIn Ads',
     datamartTitle: 'LinkedIn Ads Data Mart',
     connectorSourceTitle: 'LinkedInAds',
     definitionType: DataMartDefinitionType.CONNECTOR,
     icon: LinkedInAdsIcon,
+  },
+  tiktok: {
+    title: 'TikTok Ads',
+    datamartTitle: 'TikTok Ads Data Mart',
+    connectorSourceTitle: 'TikTokAds',
+    definitionType: DataMartDefinitionType.CONNECTOR,
+    icon: TikTokAdsIcon,
+  },
+  microsoft: {
+    title: 'Microsoft Ads',
+    datamartTitle: 'Microsoft Ads Data Mart',
+    connectorSourceTitle: 'MicrosoftAds',
+    definitionType: DataMartDefinitionType.CONNECTOR,
+    icon: MicrosoftAdsIcon,
   },
   connector: {
     title: 'Other connector',

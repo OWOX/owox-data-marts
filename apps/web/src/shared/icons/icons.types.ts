@@ -15,6 +15,8 @@ import { type DataMartPlusIcon } from './data-mart-plus-icon';
 import { type XAdsIcon } from './x-ads-icon';
 import { type FacebookAdsIcon } from './facebook-ads-icon';
 import { type LinkedInAdsIcon } from './linkedin-ads-icon';
+import { type TikTokAdsIcon } from './tiktok-ads-icon';
+import { type MicrosoftAdsIcon } from './microsoft-ads-icon';
 import { type LucideIcon } from 'lucide-react';
 
 export type LocalIcon =
@@ -34,5 +36,7 @@ export type LocalIcon =
   | typeof XAdsIcon
   | typeof FacebookAdsIcon
   | typeof LinkedInAdsIcon
+  | typeof TikTokAdsIcon
+  | typeof MicrosoftAdsIcon
   | typeof RawBase64Icon;
 export type AppIcon = LucideIcon | LocalIcon;

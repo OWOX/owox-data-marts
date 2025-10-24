@@ -15,4 +15,6 @@ export * from './data-mart-plus-icon';
 export * from './x-ads-icon';
 export * from './facebook-ads-icon';
 export * from './linkedin-ads-icon';
+export * from './tiktok-ads-icon';
+export * from './microsoft-ads-icon';
 export * from './icons.types';

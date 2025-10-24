@@ -15,14 +15,16 @@ interface EmptyStateCardProps extends React.HTMLAttributes<HTMLDivElement> {
 
 export function EmptyStateCard({ children, className = '', ...props }: EmptyStateCardProps) {
   return (
-    <div
-      className={cn(
-        '-m-4 flex flex-col items-start justify-between gap-12 overflow-hidden px-8 py-16 lg:flex-row-reverse lg:px-16 lg:py-24 2xl:items-center',
-        className
-      )}
-      {...props}
-    >
-      {children}
+    <div className='dm-card'>
+      <div
+        className={cn(
+          '-m-4 flex flex-col items-start justify-between gap-12 overflow-hidden px-8 py-16 lg:flex-row-reverse lg:px-16 lg:py-24 2xl:items-center',
+          className
+        )}
+        {...props}
+      >
+        {children}
+      </div>
     </div>
   );
 }
@@ -100,7 +102,7 @@ export function EmptyStateCardIllustration({
 }: EmptyStateCardIllustrationProps) {
   return (
     <div
-      className={cn('relative flex w-full justify-center lg:w-1/4 2xl:w-1/2', className)}
+      className={cn('relative flex w-full justify-center lg:w-[30%] 2xl:w-[35%]', className)}
       {...props}
     >
       <div className='absolute inset-0 flex items-center justify-center'>
@@ -146,7 +148,7 @@ export function EmptyStateCardContent({
   ...props
 }: EmptyStateCardContentProps) {
   return (
-    <div className={cn('w-full space-y-8 lg:w-3/4 2xl:w-1/2', className)} {...props}>
+    <div className={cn('w-full space-y-8 lg:w-[70%] 2xl:w-[65%]', className)} {...props}>
       {children}
     </div>
   );

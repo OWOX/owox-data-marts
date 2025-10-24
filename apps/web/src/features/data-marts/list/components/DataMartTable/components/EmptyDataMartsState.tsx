@@ -41,8 +41,8 @@ export function EmptyDataMartsState() {
         <EmptyStateCardHeader>
           <EmptyStateCardTitle>Let’s Build Your First Data&nbsp;Mart</EmptyStateCardTitle>
           <EmptyStateCardSubTitle>
-            Choose how you want to start — connect a data source, write an SQL query, or begin with
-            a blank setup to explore freely.
+            Choose how you want to&nbsp;start&nbsp;&ndash; connect a&nbsp;data source, write
+            an&nbsp;SQL query, or&nbsp;begin with a&nbsp;blank setup to&nbsp;explore freely.
           </EmptyStateCardSubTitle>
         </EmptyStateCardHeader>
 
