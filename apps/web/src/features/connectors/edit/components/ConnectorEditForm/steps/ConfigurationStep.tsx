@@ -104,7 +104,7 @@ export function ConfigurationStep({
     return true;
   }, []);
 
-  const validateOneOfReqursive = useCallback(
+  const validateOneOfRecursive = useCallback(
     (value: unknown, spec: ConnectorSpecificationResponseApiDto): boolean => {
       if (typeof value !== 'object' || value === null) return validateValue(value);
 
@@ -115,7 +115,7 @@ export function ConfigurationStep({
         return oneOfs.every(oneOf =>
           Object.entries(oneOf.items).every(([, item]) => {
             if (oneOf.value in value) {
-              return validateOneOfReqursive((value as Record<string, unknown>)[oneOf.value], item);
+              return validateOneOfRecursive((value as Record<string, unknown>)[oneOf.value], item);
             }
             return false;
           })
@@ -129,17 +129,19 @@ export function ConfigurationStep({
 
   const validateConfiguration = useCallback(
     (config: Record<string, unknown>, specs: ConnectorSpecificationResponseApiDto[]) => {
-      const requeredOneOfSpecs = specs.filter(spec => spec.required && spec.oneOf);
-      const isValidOneOf = requeredOneOfSpecs.some(spec =>
-        validateOneOfReqursive(config[spec.name], spec)
-      );
+      const requiredOneOfSpecs = specs.filter(spec => spec.required && spec.oneOf);
+
+      const isValidOneOf =
+        requiredOneOfSpecs.length === 0
+          ? true
+          : requiredOneOfSpecs.some(spec => validateOneOfRecursive(config[spec.name], spec));
 
       const requiredSpecs = specs.filter(spec => spec.required && spec.name !== 'Fields');
       const isValidRequired = requiredSpecs.every(spec => validateValue(config[spec.name]));
 
       return isValidOneOf && isValidRequired;
     },
-    [validateValue, validateOneOfReqursive]
+    [validateValue, validateOneOfRecursive]
   );
 
   const handleSecretEditToggle = (name: string, enable: boolean) => {
