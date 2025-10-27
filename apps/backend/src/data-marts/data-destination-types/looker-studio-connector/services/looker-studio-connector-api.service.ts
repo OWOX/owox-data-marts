@@ -114,6 +114,11 @@ export class LookerStudioConnectorApiService {
   private validateAndExtractRequestData(
     request: GetSchemaRequest | GetDataRequest
   ): ValidatedRequestData {
+    // Check connection config
+    if (!request.connectionConfig) {
+      throw new BusinessViolationException('Connection config not provided');
+    }
+
     // Validate connection config
     const connectionConfigResult = ConnectionConfigSchema.safeParse(request.connectionConfig);
     if (!connectionConfigResult.success) {
