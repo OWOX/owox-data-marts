@@ -76,7 +76,6 @@ import { UpdateDataMartSchemaService } from './use-cases/update-data-mart-schema
 import { SqlDryRunService } from './use-cases/sql-dry-run.service';
 import { DataMartSchemaParserFacade } from './data-storage-types/facades/data-mart-schema-parser-facade.service';
 import { DataMartScheduledTrigger } from './entities/data-mart-scheduled-trigger.entity';
-import { SchedulerModule } from '../common/scheduler/scheduler.module';
 import { ScheduledTriggersHandlerService } from './services/scheduled-triggers-handler.service';
 import { ReportService } from './services/report.service';
 import { ConnectorOutputCaptureService } from './connector-types/connector-message/services/connector-output-capture.service';
@@ -102,7 +101,6 @@ import { DataMartRunService } from 'src/data-marts/services/data-mart-run.servic
       ConnectorState,
       ReportDataCache,
     ]),
-    SchedulerModule,
     CommonModule,
     IdpModule,
   ],
