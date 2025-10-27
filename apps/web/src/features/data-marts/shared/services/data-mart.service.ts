@@ -256,10 +256,16 @@ export class DataMartService extends ApiService {
    * @param id Data mart ID
    * @param limit Number of runs to fetch (default: 5)
    * @param offset Number of runs to skip (default: 0)
+   * @param config
    * @returns Promise with run history
    */
-  async getDataMartRuns(id: string, limit = 5, offset = 0): Promise<DataMartRunItem[]> {
-    const response = await this.get<DataMartRun>(`/${id}/runs`, { limit, offset });
+  async getDataMartRuns(
+    id: string,
+    limit = 5,
+    offset = 0,
+    config?: AxiosRequestConfig
+  ): Promise<DataMartRunItem[]> {
+    const response = await this.get<DataMartRun>(`/${id}/runs`, { limit, offset }, config);
     return response.runs;
   }
 }
