@@ -262,5 +262,14 @@ export class DataMartService extends ApiService {
     const response = await this.get<DataMartRun>(`/${id}/runs`, { limit, offset });
     return response.runs;
   }
+
+  /**
+   * Get data marts by connector name
+   * @param connectorName Connector name
+   * @returns Promise with data mart list response
+   */
+  async getDataMartsByConnectorName(connectorName: string): Promise<DataMartResponseDto[]> {
+    return this.get<DataMartResponseDto[]>(`/?connectorName=${connectorName}`);
+  }
 }
 export const dataMartService = new DataMartService();

@@ -121,7 +121,9 @@ export class DataMartMapper {
       id,
       context.projectId,
       dto.definitionType,
-      dto.definition
+      dto.definition,
+      dto.sourceDataMartId,
+      dto.sourceConfigurationIndex
     );
   }
 
@@ -138,8 +140,8 @@ export class DataMartMapper {
     return new GetDataMartRunsCommand(id, context.projectId, limit, offset);
   }
 
-  toListCommand(context: AuthorizationContext): ListDataMartsCommand {
-    return new ListDataMartsCommand(context.projectId);
+  toListCommand(context: AuthorizationContext, connectorName?: string): ListDataMartsCommand {
+    return new ListDataMartsCommand(context.projectId, connectorName);
   }
 
   toUpdateTitleCommand(

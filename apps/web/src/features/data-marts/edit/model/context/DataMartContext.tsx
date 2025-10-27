@@ -248,9 +248,31 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
           break;
 
         case DataMartDefinitionType.CONNECTOR: {
+          const connectorDef = definition as ConnectorDefinitionConfig;
+
+          let sourceDataMartId: string | undefined;
+          let sourceConfigurationIndex: number | undefined;
+
+          for (const config of connectorDef.connector.source.configuration) {
+            const configWithMetadata = config as Record<string, unknown> & {
+              _copiedFrom?: {
+                dataMartId: string;
+                dataMartTitle: string;
+                configIndex: number;
+              };
+            };
+            if (configWithMetadata._copiedFrom) {
+              sourceDataMartId = configWithMetadata._copiedFrom.dataMartId;
+              sourceConfigurationIndex = configWithMetadata._copiedFrom.configIndex;
+              break;
+            }
+          }
+
           requestData = {
             definitionType: DataMartDefinitionType.CONNECTOR,
-            definition: mapConnectorDefinitionToDto(definition as ConnectorDefinitionConfig),
+            definition: mapConnectorDefinitionToDto(connectorDef),
+            sourceDataMartId,
+            sourceConfigurationIndex,
           } as UpdateDataMartConnectorDefinitionRequestDto;
           break;
         }

@@ -248,4 +248,61 @@ export class ConnectorSecretService {
       },
     } as ConnectorDefinition;
   }
+
+  /**
+   * Merges secret fields from a specific source configuration into incoming definition.
+   *
+   * This method is used when copying configuration from an existing Data Mart.
+   * It takes secrets from a specific configuration (by index) in the source definition
+   * and merges them into the incoming definition's configurations.
+   *
+   * @param incoming New definition coming from the client
+   * @param sourceDefinition Definition from the source Data Mart to copy secrets from
+   * @param sourceConfigIndex Index of the configuration in source to use for secrets
+   * @returns Definition with correctly merged secret values from source
+   */
+  async mergeDefinitionSecretsFromSource(
+    incoming: ConnectorDefinition,
+    sourceDefinition: ConnectorDefinition,
+    sourceConfigIndex: number
+  ): Promise<ConnectorDefinition> {
+    if (incoming.connector.source.name !== sourceDefinition.connector.source.name) {
+      throw new Error(
+        `Cannot copy secrets from different connector type. ` +
+          `Source: ${sourceDefinition.connector.source.name}, ` +
+          `Target: ${incoming.connector.source.name}`
+      );
+    }
+
+    if (
+      sourceConfigIndex < 0 ||
+      sourceConfigIndex >= sourceDefinition.connector.source.configuration.length
+    ) {
+      throw new Error(
+        `Invalid source configuration index: ${sourceConfigIndex}. ` +
+          `Source has ${sourceDefinition.connector.source.configuration.length} configurations.`
+      );
+    }
+
+    const secretFieldNames = await this.getAllSecretFieldNames(incoming.connector.source.name);
+    const sourceConfig = sourceDefinition.connector.source.configuration[sourceConfigIndex];
+
+    const mergedConfiguration = incoming.connector.source.configuration.map(incomingItem => {
+      return this.mergeSecretsRecursively(incomingItem, sourceConfig, secretFieldNames) as Record<
+        string,
+        unknown
+      >;
+    });
+
+    return {
+      ...incoming,
+      connector: {
+        ...incoming.connector,
+        source: {
+          ...incoming.connector.source,
+          configuration: mergedConfiguration,
+        },
+      },
+    } as ConnectorDefinition;
+  }
 }

@@ -12,6 +12,14 @@ import { OpenIssueLink } from '../components';
 import { Unplug } from 'lucide-react';
 import { SECRET_MASK } from '../../../../../../shared/constants/secrets';
 import { ConfigurationListRender } from './ConfigurationStep/ConfigurationListRender';
+import { CopyConfigurationButton } from '../../../../../data-marts/edit/components/DataMartDefinitionSettings/form/CopyConfigurationButton';
+
+interface CopiedConfiguration {
+  dataMartId: string;
+  dataMartTitle: string;
+  configIndex: number;
+  configuration: Record<string, unknown>;
+}
 
 interface ConfigurationStepProps {
   connector: ConnectorListItem;
@@ -153,6 +161,21 @@ export function ConfigurationStep({
     }
   };
 
+  const handleCopyConfiguration = (copiedConfig: CopiedConfiguration) => {
+    const newConfig: Record<string, unknown> = { ...configuration };
+
+    Object.entries(copiedConfig.configuration).forEach(([key, value]) => {
+      newConfig[key] = value;
+    });
+
+    newConfig._copiedFrom = {
+      dataMartId: copiedConfig.dataMartId,
+      dataMartTitle: copiedConfig.dataMartTitle,
+      configIndex: copiedConfig.configIndex,
+    };
+    setConfiguration(newConfig);
+  };
+
   useEffect(() => {
     if (connectorSpecification && onValidationChange) {
       const isValid = validateConfiguration(configuration, connectorSpecification);
@@ -206,7 +229,17 @@ export function ConfigurationStep({
     <>
       <AppWizardStep>
         <StepperHeroBlock connector={connector} />
-        <AppWizardStepSection title='Configure Settings'>
+        <AppWizardStepSection>
+          <div className='flex items-center justify-between'>
+            <h3 className='text-muted-foreground/75 text-xs font-semibold tracking-wide uppercase'>
+              Configure Settings
+            </h3>
+            <CopyConfigurationButton
+              currentConnectorName={connector.name}
+              onCopyConfiguration={handleCopyConfiguration}
+              connectorSpecification={connectorSpecification}
+            />
+          </div>
           {requiredFields.length > 0 && (
             <ConfigurationListRender
               items={requiredFields}

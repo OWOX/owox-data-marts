@@ -77,8 +77,11 @@ export class DataMartController {
   @Auth(Role.viewer(Strategy.PARSE))
   @Get()
   @ListDataMartsSpec()
-  async list(@AuthContext() context: AuthorizationContext): Promise<DataMartResponseApiDto[]> {
-    const command = this.mapper.toListCommand(context);
+  async list(
+    @AuthContext() context: AuthorizationContext,
+    @Query('connectorName') connectorName?: string
+  ): Promise<DataMartResponseApiDto[]> {
+    const command = this.mapper.toListCommand(context, connectorName);
     const dataMarts = await this.listDataMartsService.run(command);
     return this.mapper.toResponseList(dataMarts);
   }
