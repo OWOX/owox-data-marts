@@ -18,14 +18,7 @@ import {
 } from '@owox/ui/components/tooltip';
 import { dataMartService } from '../../../../shared';
 import type { DataMartResponseDto } from '../../../../shared/types/api';
-import type { ConnectorDefinitionConfig } from '../../../model/types/connector-definition-config';
-
-export interface CopiedConfiguration {
-  dataMartId: string;
-  dataMartTitle: string;
-  configIndex: number;
-  configuration: Record<string, unknown>;
-}
+import type { ConnectorDefinitionConfig, CopiedConfiguration } from '../../../model/types';
 
 interface CopyConfigurationButtonProps {
   currentConnectorName: string;
@@ -44,9 +37,14 @@ export function CopyConfigurationButton({
 
   const loadDataMarts = useCallback(async () => {
     setLoading(true);
-    const response = await dataMartService.getDataMartsByConnectorName(currentConnectorName);
-    setDataMarts(response);
-    setLoading(false);
+    try {
+      const response = await dataMartService.getDataMartsByConnectorName(currentConnectorName);
+      setDataMarts(response);
+    } catch {
+      setDataMarts([]);
+    } finally {
+      setLoading(false);
+    }
   }, [currentConnectorName]);
 
   useEffect(() => {
@@ -69,6 +67,7 @@ export function CopyConfigurationButton({
   };
 
   const getConfigurationPreview = (config: Record<string, unknown>) => {
+    const INDENT_SIZE_PX = 12;
     const configFields: { key: string; value: string; indent: number }[] = [];
 
     const isRequiredField = (fieldName: string): boolean => {
@@ -116,10 +115,12 @@ export function CopyConfigurationButton({
           <div
             key={index}
             className='flex gap-2'
-            style={{ paddingLeft: `${String(indent * 12)}px` }}
+            style={{ paddingLeft: `${String(indent * INDENT_SIZE_PX)}px` }}
           >
             {key && <span className='font-medium'>{key}:</span>}
-            <span className='text-muted-foreground truncate'>{value}</span>
+            <span className='text-muted-foreground truncate' title={value}>
+              {value}
+            </span>
           </div>
         ))}
       </div>

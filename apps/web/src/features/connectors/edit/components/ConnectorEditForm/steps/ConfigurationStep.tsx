@@ -13,13 +13,7 @@ import { Unplug } from 'lucide-react';
 import { SECRET_MASK } from '../../../../../../shared/constants/secrets';
 import { ConfigurationListRender } from './ConfigurationStep/ConfigurationListRender';
 import { CopyConfigurationButton } from '../../../../../data-marts/edit/components/DataMartDefinitionSettings/form/CopyConfigurationButton';
-
-interface CopiedConfiguration {
-  dataMartId: string;
-  dataMartTitle: string;
-  configIndex: number;
-  configuration: Record<string, unknown>;
-}
+import type { CopiedConfiguration } from '../../../../../data-marts/edit/model/types';
 
 interface ConfigurationStepProps {
   connector: ConnectorListItem;
