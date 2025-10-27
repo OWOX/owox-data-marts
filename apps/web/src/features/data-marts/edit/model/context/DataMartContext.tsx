@@ -314,12 +314,13 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
 
   // Run a data mart
   const runDataMart = async (request: RunDataMartRequestDto) => {
+    const toastId = toast.loading('Manual run started');
     try {
       dispatch({ type: 'RUN_DATA_MART_START' });
-      toast.loading('Manual run started');
       await dataMartService.runDataMart(request.id, request.payload);
       dispatch({ type: 'RUN_DATA_MART_SUCCESS' });
     } catch (error) {
+      toast.dismiss(toastId);
       const apiError = extractApiError(error);
       dispatch({
         type: 'RUN_DATA_MART_ERROR',
