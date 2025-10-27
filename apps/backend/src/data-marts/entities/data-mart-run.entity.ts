@@ -25,13 +25,13 @@ export class DataMartRun {
   @Column()
   dataMartId: string;
 
-  @Column()
+  @Column({ nullable: true })
   type: DataMartRunType;
 
   @Column({ type: 'json', nullable: true })
   definitionRun?: DataMartDefinition;
 
-  @Column()
+  @Column({ nullable: true })
   reportId: string;
 
   @Column({ type: 'json', nullable: true })

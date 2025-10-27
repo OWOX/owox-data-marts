@@ -8,6 +8,7 @@ import { DataMartRunStatus } from 'src/data-marts/enums/data-mart-run-status.enu
 import { DataMartRunType } from 'src/data-marts/enums/data-mart-run-type.enum';
 import { Report } from 'src/data-marts/entities/report.entity';
 import { DataDestinationType } from 'src/data-marts/data-destination-types/enums/data-destination-type.enum';
+import { SystemTimeService } from 'src/common/scheduler/services/system-time.service';
 
 export interface ReportRunContext {
   createdById: string;
@@ -24,11 +25,12 @@ export interface ReportRunFinishContext {
 export class DataMartRunService {
   constructor(
     @InjectRepository(DataMartRun)
-    private readonly dataMartRunRepository: Repository<DataMartRun>
+    private readonly dataMartRunRepository: Repository<DataMartRun>,
+    private readonly systemClock: SystemTimeService
   ) {}
 
   public async createReportRun(report: Report, context: ReportRunContext): Promise<DataMartRun> {
-    const dataMartRun = this.prepareDataMart(report, context);
+    const dataMartRun = this.createReportRunFromReport(report, context);
     dataMartRun.status = DataMartRunStatus.PENDING;
 
     return this.dataMartRunRepository.save(dataMartRun);
@@ -38,19 +40,19 @@ export class DataMartRunService {
     report: Report,
     context: ReportRunContext
   ): Promise<DataMartRun> {
-    const dataMartRun = this.prepareDataMart(report, context);
-    this.processStartDataMart(dataMartRun);
+    const dataMartRun = this.createReportRunFromReport(report, context);
 
-    return this.dataMartRunRepository.save(dataMartRun);
+    return this.markReportRunAsStarted(dataMartRun);
   }
 
-  public async startReportRun(dataMartRun: DataMartRun): Promise<void> {
-    this.processStartDataMart(dataMartRun);
+  public async markReportRunAsStarted(dataMartRun: DataMartRun): Promise<DataMartRun> {
+    dataMartRun.status = DataMartRunStatus.RUNNING;
+    dataMartRun.startedAt = this.systemClock.now();
 
-    await this.dataMartRunRepository.save(dataMartRun);
+    return await this.dataMartRunRepository.save(dataMartRun);
   }
 
-  public async finishReportRun(
+  public async markReportRunAsFinished(
     dataMartRun: DataMartRun,
     context: ReportRunFinishContext
   ): Promise<void> {
@@ -64,12 +66,12 @@ export class DataMartRunService {
       dataMartRun.errors = dataMartRun.errors?.concat(context.errors);
     }
 
-    dataMartRun.finishedAt = new Date(Date.now());
+    dataMartRun.finishedAt = this.systemClock.now();
 
     await this.dataMartRunRepository.save(dataMartRun);
   }
 
-  private prepareDataMart(report: Report, context: ReportRunContext): DataMartRun {
+  private createReportRunFromReport(report: Report, context: ReportRunContext): DataMartRun {
     const { id, title, dataMart, destinationConfig, dataDestination } = report;
 
     const reportDefinition = {
@@ -84,7 +86,7 @@ export class DataMartRunService {
 
     const dataMartRunDraft = {
       dataMartId: dataMart.id,
-      type: this.defineType(dataDestination.type),
+      type: this.defineTypeFromDataDestinationType(dataDestination.type),
       reportId: id,
       definitionRun: dataMart.definition,
       createdById: context.createdById,
@@ -99,7 +101,9 @@ export class DataMartRunService {
     return dataMartRun;
   }
 
-  private defineType(dataDestinationType: DataDestinationType): DataMartRunType {
+  private defineTypeFromDataDestinationType(
+    dataDestinationType: DataDestinationType
+  ): DataMartRunType {
     switch (dataDestinationType) {
       case DataDestinationType.GOOGLE_SHEETS:
         return DataMartRunType.GOOGLE_SHEETS_EXPORT;
@@ -108,10 +112,5 @@ export class DataMartRunService {
       default:
         throw Error(`Unexpected Data Destination Type - ${dataDestinationType}`);
     }
-  }
-
-  private processStartDataMart(dataMartRun: DataMartRun) {
-    dataMartRun.status = DataMartRunStatus.RUNNING;
-    dataMartRun.startedAt = new Date(Date.now());
   }
 }

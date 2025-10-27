@@ -86,7 +86,10 @@ export class LookerStudioConnectorApiService {
       if (!isSampleExtraction) {
         //TODO: write results in transaction
         if (dataMartRun) {
-          await this.dataMartRunService.finishReportRun(dataMartRun, dataMartRunFinishContext);
+          await this.dataMartRunService.markReportRunAsFinished(
+            dataMartRun,
+            dataMartRunFinishContext
+          );
         }
 
         if (error) {

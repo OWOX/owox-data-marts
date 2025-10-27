@@ -95,7 +95,7 @@ export class RunReportService {
       await this.dataMartService.actualizeSchemaInEntity(report.dataMart);
       await this.dataMartService.save(report.dataMart);
 
-      await this.dataMartRunService.startReportRun(dataMartRun);
+      await this.dataMartRunService.markReportRunAsStarted(dataMartRun);
 
       await this.executeReport(report, signal);
 
@@ -123,7 +123,10 @@ export class RunReportService {
     } finally {
       try {
         // TODO: save results in transaction
-        await this.dataMartRunService.finishReportRun(dataMartRun, dataMartRunFinishContext);
+        await this.dataMartRunService.markReportRunAsFinished(
+          dataMartRun,
+          dataMartRunFinishContext
+        );
         await this.reportRepository.save(report);
       } catch (saveError) {
         this.logger.error(`Failed to save report status for ${report.id}:`, saveError);

@@ -1,18 +1,27 @@
-import { MigrationInterface, QueryRunner, TableIndex } from 'typeorm';
+import { MigrationInterface, QueryRunner, TableColumn, TableIndex } from 'typeorm';
 
 export class AddTypeColumnToDataMartRun1760974391785 implements MigrationInterface {
+  private readonly TABLE_NAME = 'data_mart_run';
   public readonly name = 'AddTypeColumnToDataMartRun1760974391785';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Add Type Column
-    await queryRunner.query(`ALTER TABLE data_mart_run ADD COLUMN type VARCHAR(255) DEFAULT NULL`);
+    await queryRunner.addColumn(
+      this.TABLE_NAME,
+      new TableColumn({
+        name: 'type',
+        type: 'varchar',
+        isNullable: true,
+        default: null,
+      })
+    );
 
     // Fill column values by 'CONNECTOR' type
-    await queryRunner.query(`UPDATE data_mart_run SET type='CONNECTOR'`);
+    await queryRunner.query(`UPDATE ${this.TABLE_NAME} SET type='CONNECTOR'`);
 
     // Add Index for Type Column
     await queryRunner.createIndex(
-      'data_mart_run',
+      this.TABLE_NAME,
       new TableIndex({
         name: 'idx_dmr_type',
         columnNames: ['type'],
@@ -21,7 +30,7 @@ export class AddTypeColumnToDataMartRun1760974391785 implements MigrationInterfa
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.dropIndex('data_mart_run', 'idx_dmr_type');
-    await queryRunner.query(`ALTER TABLE data_mart_run DROP COLUMN type`);
+    await queryRunner.dropIndex(this.TABLE_NAME, 'idx_dmr_type');
+    await queryRunner.dropColumn(this.TABLE_NAME, 'type');
   }
 }
