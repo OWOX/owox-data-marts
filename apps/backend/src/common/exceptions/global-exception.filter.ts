@@ -1,7 +1,13 @@
-import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  ExceptionFilter,
+  Catch,
+  ArgumentsHost,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../../idp';
-import { LoggerFactory } from '@owox/internal-helpers';
 
 const safe = (v: unknown, maxLength = 5000): string => {
   try {
@@ -23,7 +29,7 @@ const safe = (v: unknown, maxLength = 5000): string => {
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
-  private readonly logger = LoggerFactory.createNamedLogger(GlobalExceptionFilter.name);
+  private readonly logger = new Logger(GlobalExceptionFilter.name);
 
   catch(exception: unknown, host: ArgumentsHost) {
     if (host.getType() !== 'http') return;
@@ -50,25 +56,16 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     const httpResponsePayload = isHttp ? (exception as HttpException).getResponse() : undefined;
 
-    this.logger.error(
-      `Unhandled exception caught by ${GlobalExceptionFilter.name}`,
-      {
-        status,
-        method: request?.method,
-        url: request?.originalUrl || request?.url,
-        requestId: body.requestId,
-        authContext: {
-          userId: request?.idpContext?.userId,
-          projectId: request?.idpContext?.projectId,
-          roles: request?.idpContext?.roles,
-        },
-        body: safe(request?.body),
-        query: safe(request?.query),
-        params: safe(request?.params),
-        httpResponse: safe(httpResponsePayload),
-      },
-      err
-    );
+    this.logger.error(`Unhandled exception caught by ${GlobalExceptionFilter.name}`, err, {
+      status,
+      method: request?.method,
+      url: request?.originalUrl || request?.url,
+      requestId: body.requestId,
+      body: safe(request?.body),
+      query: safe(request?.query),
+      params: safe(request?.params),
+      httpResponse: safe(httpResponsePayload),
+    });
 
     if (response.headersSent) {
       try {

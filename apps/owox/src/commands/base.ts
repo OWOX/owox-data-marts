@@ -1,6 +1,8 @@
 import { Command, Flags } from '@oclif/core';
 import { EnvManager, type Logger, LoggerFactory } from '@owox/internal-helpers';
 
+import { getPackageInfo } from '../utils/index.js';
+
 /**
  * Base command class that provides common functionality for all CLI commands.
  * Implements configurable logging system with support for pretty and JSON formats.
@@ -142,6 +144,7 @@ export abstract class BaseCommand extends Command {
   protected loadEnvironment(flags: Record<string, boolean | number | string | undefined>): void {
     const { 'env-file': envFileValue = '', ...flagVars } = flags;
     const defaultVars = {
+      APP_OWOX_VERSION: getPackageInfo().version,
       PORT: BaseCommand.DEFAULT_PORT,
     };
 

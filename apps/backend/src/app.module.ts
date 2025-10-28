@@ -7,12 +7,18 @@ import { CommonModule } from './common/common.module';
 import { IdpModule } from './idp/idp.module';
 import { createDataSourceOptions } from './config/data-source-options.config';
 import { validateConfig } from './config/env-validation.config';
+import { ClsModule } from 'nestjs-cls';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateConfig,
+    }),
+
+    ClsModule.forRoot({
+      global: true,
+      middleware: { mount: true },
     }),
 
     TypeOrmModule.forRootAsync({

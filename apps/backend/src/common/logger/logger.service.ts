@@ -1,5 +1,8 @@
 import { LoggerService } from '@nestjs/common';
 import { LoggerFactory, type Logger } from '@owox/internal-helpers';
+import * as process from 'node:process';
+import { ClsService, ClsServiceManager } from 'nestjs-cls';
+import { AUTH_CONTEXT } from '../../idp/guards/idp.guard';
 
 /**
  * Custom NestJS logger service that implements the LoggerService interface
@@ -9,10 +12,12 @@ import { LoggerFactory, type Logger } from '@owox/internal-helpers';
 export class CustomLoggerService implements LoggerService {
   private logger: Logger;
   private context: string;
+  private cls: ClsService;
 
   constructor(context?: string) {
     this.context = context || 'NestJS';
     this.logger = LoggerFactory.createNamedLogger(this.context);
+    this.cls = ClsServiceManager.getClsService();
   }
 
   /**
@@ -41,7 +46,7 @@ export class CustomLoggerService implements LoggerService {
   error(message: unknown, ...optionalParams: unknown[]): void;
   error(message: unknown, ...optionalParams: unknown[]): void {
     const [trace, context, ...params] = optionalParams;
-    this.logger.error(String(message), this.destructureParams(trace, context, params));
+    this.logger.error(String(message), this.destructureParams(trace, context, params), trace);
   }
 
   /**
@@ -140,6 +145,12 @@ export class CustomLoggerService implements LoggerService {
         output.params.push(param);
       }
     }
+    output.metadata.version = process.env.APP_OWOX_VERSION || 'unknown';
+    const authContext = this.cls.get<Record<string, unknown>>(AUTH_CONTEXT);
+    if (authContext) {
+      output.metadata.authContext = authContext;
+    }
+
     return output;
   }
 }

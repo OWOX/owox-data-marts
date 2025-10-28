@@ -10,6 +10,7 @@ import { Strategy } from '../types';
 import type { RoleConfig } from '../types';
 import { Reflector } from '@nestjs/core';
 import { IdpProviderService } from '../services/idp-provider.service';
+import { ClsService } from 'nestjs-cls';
 
 export interface AuthenticatedRequest extends Request {
   idpContext: {
@@ -26,11 +27,14 @@ export interface AuthenticatedRequest extends Request {
   };
 }
 
+export const AUTH_CONTEXT = 'AuthContext';
+
 @Injectable()
 export class IdpGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
-    private idpProviderService: IdpProviderService
+    private idpProviderService: IdpProviderService,
+    private readonly cls: ClsService
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -61,6 +65,12 @@ export class IdpGuard implements CanActivate {
         roles: tokenPayload.roles,
         projectTitle: tokenPayload.projectTitle,
       };
+
+      this.cls.set(AUTH_CONTEXT, {
+        userId: tokenPayload.userId,
+        projectId: tokenPayload.projectId,
+        roles: tokenPayload.roles,
+      });
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error;
