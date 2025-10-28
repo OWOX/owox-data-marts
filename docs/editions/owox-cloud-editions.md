@@ -26,16 +26,16 @@ Legend:
 
 ## Security & Control
 
-|                                     | **Starter**                                                | **Team**                                                | **Enterprise**                                   |
-| ----------------------------------- | :------------------------------------------------------------: | :---------------------------------------------------------: | :------------------------------------------------: |
-| **Users Management** [^7]           | ✅                                                           | ✅                                                        | ✅                                               |
-| **Social Sign-In** [^8]             | ✅                                                           | ✅                                                        | ✅                                               |
-| **SSO (SAML)** [^9]                 | ❌                                                           | ❌                                                        | ✅                                                                   |
-| **Access Permissions** [^10]        | ❌                                                           | ❌                                                        | ✅                                               |
-| **Multiple Projects** [^11]         | ❌                                                          | ✅                                                        | ✅                                               |
-| **Monitoring & Logging** [^12]      | ❌                                                           | ❌                                                        | ✅                                               |
-| **Telemetry** [^13]                 | ⏳                                                         | ⏳                                                      | ✅      
-| **How to start**                    | [Get started free](https://www.owox.com/app-signup) | [Contact our team](https://www.owox.com/pricing) | [Contact our team](https://www.owox.com/pricing) 
+|                                     | **Starter** | **Team** | **Enterprise** |
+|-------------------------------------|:----------:|:--------:|:--------------:|
+| **Users Management** [^7]           | ✅ | ✅ | ✅ |
+| **Social Sign-In** [^8]             | ✅ | ✅ | ✅ |
+| **SSO (SAML)** [^9]                 | ❌ | ❌ | ✅ |
+| **Access Permissions** [^10]        | ❌ | ❌ | ✅ |
+| **Multiple Projects** [^11]         | ❌ | ✅ | ✅ |
+| **Monitoring & Logging** [^12]      | ❌ | ❌ | ✅ |
+| **Telemetry** [^13]                 | ⏳ | ⏳ | ✅ |
+| **How to start**                    | [Get started free](https://www.owox.com/app-signup) | [Contact our team](https://www.owox.com/pricing) | [Contact our team](https://www.owox.com/pricing) |
 
 
 
