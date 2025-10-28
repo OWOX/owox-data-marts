@@ -31,10 +31,10 @@ Legend:
 | **Users Management** [^7]           | ✅                                                           | ✅                                                        | ✅                                               |
 | **Social Sign-In** [^8]             | ✅                                                           | ✅                                                        | ✅                                               |
 | **SSO (SAML)** [^9]                 | ❌                                                           | ❌                                                        | ✅                                                                   |
-| **Access Permissions** [^11]        | ❌                                                           | ❌                                                        | ✅                                               |
-| **Multiple Projects** [^12]         | ❌                                                          | ✅                                                        | ✅                                               |
-| **Monitoring & Logging** [^13]      | ❌                                                           | ❌                                                        | ✅                                               |
-| **Telemetry** [^14]                 | ⏳                                                         | ⏳                                                      | ✅      
+| **Access Permissions** [^10]        | ❌                                                           | ❌                                                        | ✅                                               |
+| **Multiple Projects** [^11]         | ❌                                                          | ✅                                                        | ✅                                               |
+| **Monitoring & Logging** [^12]      | ❌                                                           | ❌                                                        | ✅                                               |
+| **Telemetry** [^13]                 | ⏳                                                         | ⏳                                                      | ✅      
 | **How to start**                    | [Get started free](https://www.owox.com/app-signup) | [Contact our team](https://www.owox.com/pricing) | [Contact our team](https://www.owox.com/pricing) 
 
 
@@ -75,12 +75,10 @@ _This page will be updated regularly as we develop more features and refine edit
 
 [^9]: **SSO (SAML)** _(coming soon)_ — Enable secure, one-click access with your organization’s SSO — no separate passwords to manage.
 
-[^10]: **High Availability Cluster** _(coming soon)_ — Stay resilient at scale with high-availability architecture built for performance.
+[^10]: **Access Permissions (including Contexts)** _(coming soon)_ — Give the right people/teams the right access, and block everything else.
 
-[^11]: **Access Permissions (including Contexts)** _(coming soon)_ — Give the right people/teams the right access, and block everything else.
+[^11]: **Multiple Projects** — Manage multiple business environments under one account — with clean separation and full control.
 
-[^12]: **Multiple Projects** — Manage multiple business environments under one account — with clean separation and full control.
+[^12]: **Monitoring & Advanced Logging** _(coming soon)_ — Stay ahead of failures with complete visibility into data workflows and system performance.
 
-[^13]: **Monitoring & Advanced Logging** _(coming soon)_ — Stay ahead of failures with complete visibility into data workflows and system performance.
-
-[^14]: **Telemetry** _(coming soon)_ — Gain insight into data usage patterns so you can declutter, govern, and optimize your reporting layer.
+[^13]: **Telemetry** _(coming soon)_ — Gain insight into data usage patterns so you can declutter, govern, and optimize your reporting layer.
