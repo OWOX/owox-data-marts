@@ -69,6 +69,7 @@ export function RunItem({
     }
   };
 
+  console.log(run);
   return (
     <div className='dm-card-block'>
       <div
@@ -79,11 +80,13 @@ export function RunItem({
       >
         <div className='flex items-center gap-3'>
           {getStatusIcon(run.status)}
+          <div>runType icon</div>
           <div className='text-foreground font-mono text-sm font-medium'>
             {formatDateTime(
               run.createdAt instanceof Date ? run.createdAt.toISOString() : run.createdAt
             )}
           </div>
+          <div>TriggerType text</div>
           <div className='text-muted-foreground flex items-center gap-1 text-xs'>
             <MessageSquare className='h-3 w-3' />
             {getRunSummary(run)}

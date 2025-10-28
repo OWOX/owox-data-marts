@@ -1,10 +1,10 @@
 import React from 'react';
 import { CopyButton, CopyButtonVariant } from '@owox/ui/components/common/copy-button';
-import type { DataMartDefinitionConfigDto } from '../../model/types/data-mart-definition-config';
+import type { DataMartDefinitionConfig } from '../../model/types/data-mart-definition-config';
 import { useClipboard } from '../../../../../hooks/useClipboard';
 
 interface ConfigurationViewProps {
-  definitionRun: DataMartDefinitionConfigDto | null;
+  definitionRun: DataMartDefinitionConfig | null;
 }
 
 export function ConfigurationView({ definitionRun }: ConfigurationViewProps) {

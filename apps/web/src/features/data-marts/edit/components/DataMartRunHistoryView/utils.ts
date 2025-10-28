@@ -1,6 +1,6 @@
 import type { LogEntry } from './types';
 import { LogLevel } from './types';
-import type { DataMartDefinitionConfigDto } from '../../model/types/data-mart-definition-config';
+import type { DataMartDefinitionConfig } from '../../model/types/data-mart-definition-config';
 import { formatDateTime, parseDate } from '../../../../../utils/date-formatters';
 
 /**
@@ -145,7 +145,7 @@ export const downloadLogs = (run: {
   id: string;
   logs: string[];
   errors: string[];
-  definitionRun: DataMartDefinitionConfigDto | null;
+  definitionRun: DataMartDefinitionConfig | null;
 }) => {
   const blob = new Blob([JSON.stringify(run, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);

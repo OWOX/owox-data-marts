@@ -9,22 +9,23 @@ import {
   Ban,
   CircleStop,
 } from 'lucide-react';
-import { RunStatus, LogLevel } from './types';
+import { LogLevel } from './types';
+import { DataMartRunStatus } from '../../../shared';
 
-export function getStatusIcon(status: RunStatus) {
+export function getStatusIcon(status: DataMartRunStatus) {
   return (
     <div className='flex items-center gap-2'>
       {(() => {
         switch (status) {
-          case RunStatus.SUCCESS:
+          case DataMartRunStatus.SUCCESS:
             return <CheckCircle className='h-4 w-4 text-green-500' />;
-          case RunStatus.FAILED:
+          case DataMartRunStatus.FAILED:
             return <XCircle className='h-4 w-4 text-red-500' />;
-          case RunStatus.RUNNING:
+          case DataMartRunStatus.RUNNING:
             return <Loader2 className='text-primary h-4 w-4 animate-spin' />;
-          case RunStatus.CANCELLED:
+          case DataMartRunStatus.CANCELLED:
             return <Ban className='h-4 w-4 text-gray-500' />;
-          case RunStatus.INTERRUPTED:
+          case DataMartRunStatus.INTERRUPTED:
             return <CircleStop className='h-4 w-4 text-gray-500' />;
           default:
             return <Circle className='h-4 w-4 text-gray-500' />;

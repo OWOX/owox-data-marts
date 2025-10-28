@@ -1,14 +1,16 @@
 import { type ReactNode, useCallback, useReducer } from 'react';
 import { DataMartContext } from './context.ts';
 import { initialState, reducer } from './reducer.ts';
-import { mapDataMartFromDto, mapLimitedDataMartFromDto } from '../mappers';
 import {
+  mapDataMartFromDto,
+  mapDataMartRunListResponseDtoToEntity,
+  mapLimitedDataMartFromDto,
   mapConnectorDefinitionToDto,
   mapSqlDefinitionToDto,
   mapTableDefinitionToDto,
   mapTablePatternDefinitionToDto,
   mapViewDefinitionToDto,
-} from '../mappers/definition-mappers';
+} from '../mappers';
 import { dataMartService } from '../../../shared';
 import type {
   CreateDataMartRequestDto,
@@ -405,8 +407,9 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     try {
       dispatch({ type: 'FETCH_DATA_MART_RUNS_START' });
       const response = await dataMartService.getDataMartRuns(id, limit, offset);
-      dispatch({ type: 'FETCH_DATA_MART_RUNS_SUCCESS', payload: response });
-      return response;
+      const dataMartRuns = mapDataMartRunListResponseDtoToEntity(response);
+      dispatch({ type: 'FETCH_DATA_MART_RUNS_SUCCESS', payload: dataMartRuns });
+      return dataMartRuns;
     } catch (error) {
       dispatch({
         type: 'FETCH_DATA_MART_RUNS_ERROR',
@@ -421,8 +424,9 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     try {
       dispatch({ type: 'LOAD_MORE_DATA_MART_RUNS_START' });
       const response = await dataMartService.getDataMartRuns(id, limit, offset);
-      dispatch({ type: 'LOAD_MORE_DATA_MART_RUNS_SUCCESS', payload: response });
-      return response;
+      const dataMartRuns = mapDataMartRunListResponseDtoToEntity(response);
+      dispatch({ type: 'LOAD_MORE_DATA_MART_RUNS_SUCCESS', payload: dataMartRuns });
+      return dataMartRuns;
     } catch (error) {
       dispatch({
         type: 'LOAD_MORE_DATA_MART_RUNS_ERROR',

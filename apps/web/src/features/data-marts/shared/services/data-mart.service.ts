@@ -9,8 +9,8 @@ import type {
   UpdateDataMartSchemaRequestDto,
   SqlValidationResponseDto,
   SqlValidationRequestDto,
+  DataMartRunListResponseDto,
 } from '../types/api';
-import type { DataMartRun, DataMartRunItem } from '../../edit/model/types/data-mart-run';
 
 /**
  * Data Mart Service
@@ -189,9 +189,9 @@ export class DataMartService extends ApiService {
    * @param offset Number of runs to skip (default: 0)
    * @returns Promise with run history
    */
-  async getDataMartRuns(id: string, limit = 5, offset = 0): Promise<DataMartRunItem[]> {
-    const response = await this.get<DataMartRun>(`/${id}/runs`, { limit, offset });
-    return response.runs;
+  async getDataMartRuns(id: string, limit = 5, offset = 0): Promise<DataMartRunListResponseDto> {
+    const response = await this.get<DataMartRunListResponseDto>(`/${id}/runs`, { limit, offset });
+    return response;
   }
 }
 
