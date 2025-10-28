@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Button } from '@owox/ui/components/button';
-import { TextCursorInput } from 'lucide-react';
+import { Box, ChevronRight, PackageSearch } from 'lucide-react';
+import { cn } from '@owox/ui/lib/utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -131,74 +132,93 @@ export function CopyConfigurationButton({
     <TooltipProvider>
       <DropdownMenu open={open} onOpenChange={setOpen}>
         <DropdownMenuTrigger asChild>
-          <Button type='button' variant='ghost' size='sm'>
-            <TextCursorInput className='h-4 w-4' />
-            Use settings from...
+          <Button type='button' variant='ghost' size='sm' className='cursor-pointer'>
+            <span className='text-muted-foreground/75 text-xs font-semibold tracking-wide uppercase'>
+              Auto-fill from&hellip;
+            </span>
+            <ChevronRight
+              className={cn(
+                'text-foreground/75 h-3.5 w-3.5 transition-transform duration-200',
+                open && 'rotate-90'
+              )}
+            />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align='start' className='w-64'>
+        <DropdownMenuContent side='bottom' align='end' className='w-72'>
           {loading ? (
-            <DropdownMenuItem disabled>Loading...</DropdownMenuItem>
+            <DropdownMenuItem disabled>Loading&hellip;</DropdownMenuItem>
           ) : dataMarts.length === 0 ? (
-            <DropdownMenuItem disabled>
-              No Data Marts with this connector definition found
-            </DropdownMenuItem>
-          ) : (
-            <>
-              <div className='p-2 text-sm font-bold'>
-                Select Data Mart to copy configuration settings from:{' '}
+            <div className='flex flex-col items-center justify-center gap-2 p-4 text-center'>
+              <div className='bg-muted/70 rounded-full p-3'>
+                <PackageSearch className='text-muted-foreground h-6 w-6' strokeWidth={1.5} />
               </div>
-              {dataMarts.map(dataMart => {
-                const definition = dataMart.definition as ConnectorDefinitionConfig;
-                const configurations = definition.connector.source.configuration;
+              <span className='text-foreground text-sm font-medium'>
+                No matching Data&nbsp;Marts
+              </span>
+              <span className='text-muted-foreground text-sm'>
+                You can auto-fill settings only from connector-based Data&nbsp;Marts with
+                the&nbsp;same source.
+              </span>
+            </div>
+          ) : (
+            <div className='flex flex-col gap-2'>
+              <div className='text-muted-foreground border-b p-2 text-sm'>
+                Select one of your existing Data Marts to&nbsp;auto-fill settings in&nbsp;this form
+              </div>
+              <div>
+                {dataMarts.map(dataMart => {
+                  const definition = dataMart.definition as ConnectorDefinitionConfig;
+                  const configurations = definition.connector.source.configuration;
 
-                if (configurations.length === 0) return null;
+                  if (configurations.length === 0) return null;
 
-                if (configurations.length === 1) {
+                  if (configurations.length === 1) {
+                    return (
+                      <Tooltip key={dataMart.id} delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <DropdownMenuItem
+                            onSelect={() => {
+                              handleSelect(dataMart, 0);
+                            }}
+                          >
+                            <Box className='text-foreground h-4 w-4' />
+                            {dataMart.title}
+                          </DropdownMenuItem>
+                        </TooltipTrigger>
+                        <TooltipContent side='right' className='max-w-sm'>
+                          {getConfigurationPreview(configurations[0])}
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  }
                   return (
-                    <Tooltip key={dataMart.id} delayDuration={300}>
-                      <TooltipTrigger asChild>
-                        <DropdownMenuItem
-                          onSelect={() => {
-                            handleSelect(dataMart, 0);
-                          }}
-                        >
-                          {dataMart.title}
-                        </DropdownMenuItem>
-                      </TooltipTrigger>
-                      <TooltipContent side='right' className='max-w-sm'>
-                        {getConfigurationPreview(configurations[0])}
-                      </TooltipContent>
-                    </Tooltip>
+                    <DropdownMenuSub key={dataMart.id}>
+                      <DropdownMenuSubTrigger>
+                        <span>{dataMart.title}</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        {configurations.map((config, index) => (
+                          <Tooltip key={index} delayDuration={300}>
+                            <TooltipTrigger asChild>
+                              <DropdownMenuItem
+                                onSelect={() => {
+                                  handleSelect(dataMart, index);
+                                }}
+                              >
+                                Configuration {index + 1}
+                              </DropdownMenuItem>
+                            </TooltipTrigger>
+                            <TooltipContent side='right' className='max-w-sm'>
+                              {getConfigurationPreview(config)}
+                            </TooltipContent>
+                          </Tooltip>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
                   );
-                }
-                return (
-                  <DropdownMenuSub key={dataMart.id}>
-                    <DropdownMenuSubTrigger>
-                      <span>{dataMart.title}</span>
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent>
-                      {configurations.map((config, index) => (
-                        <Tooltip key={index} delayDuration={300}>
-                          <TooltipTrigger asChild>
-                            <DropdownMenuItem
-                              onSelect={() => {
-                                handleSelect(dataMart, index);
-                              }}
-                            >
-                              Configuration {index + 1}
-                            </DropdownMenuItem>
-                          </TooltipTrigger>
-                          <TooltipContent side='right' className='max-w-sm'>
-                            {getConfigurationPreview(config)}
-                          </TooltipContent>
-                        </Tooltip>
-                      ))}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                );
-              })}
-            </>
+                })}
+              </div>
+            </div>
           )}
         </DropdownMenuContent>
       </DropdownMenu>

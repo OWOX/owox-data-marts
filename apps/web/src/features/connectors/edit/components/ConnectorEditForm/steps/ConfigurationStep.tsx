@@ -246,7 +246,7 @@ export function ConfigurationStep({
           )}
           {advancedFields.length > 0 && (
             <ConfigurationListRender
-              collapsibleTitle='Advanced Fields'
+              collapsibleTitle='Advanced Settings'
               items={advancedFields}
               configuration={configuration}
               onValueChange={handleValueChange}
