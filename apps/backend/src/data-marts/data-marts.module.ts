@@ -10,6 +10,7 @@ import { ConsumptionTrackingService } from './services/consumption-tracking.serv
 import { ReportDataCacheService } from './services/report-data-cache.service';
 import { CreateDataMartService } from './use-cases/create-data-mart.service';
 import { ListDataMartsService } from './use-cases/list-data-marts.service';
+import { ListDataMartsByConnectorNameService } from './use-cases/list-data-marts-by-connector-name.service';
 import { GetDataMartService } from './use-cases/get-data-mart.service';
 import { GetDataMartRunsService } from './use-cases/get-data-mart-runs.service';
 import { DataMartMapper } from './mappers/data-mart.mapper';
@@ -136,6 +137,7 @@ import { SchemaActualizeTriggerController } from './controllers/schema-actualize
     DataMartService,
     CreateDataMartService,
     ListDataMartsService,
+    ListDataMartsByConnectorNameService,
     GetDataMartService,
     GetDataMartRunsService,
     UpdateDataMartDefinitionService,

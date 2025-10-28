@@ -38,6 +38,7 @@ import { CancelDataMartRunCommand } from '../dto/domain/cancel-data-mart-run.com
 import { ConnectorSecretService } from '../services/connector-secret.service';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { RunType } from '../../common/scheduler/shared/types';
+import { ListDataMartsByConnectorNameCommand } from '../dto/domain/list-data-mart-by-connector-name';
 
 @Injectable()
 export class DataMartMapper {
@@ -263,5 +264,12 @@ export class DataMartMapper {
       }))
     );
     return { runs: maskedRuns };
+  }
+
+  toListDataMartsByConnectorNameCommand(
+    connectorName: string,
+    context: AuthorizationContext
+  ): ListDataMartsByConnectorNameCommand {
+    return new ListDataMartsByConnectorNameCommand(connectorName, context.projectId);
   }
 }
