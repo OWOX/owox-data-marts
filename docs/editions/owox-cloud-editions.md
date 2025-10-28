@@ -37,8 +37,6 @@ Legend:
 | **Telemetry** [^13]                 | ⏳ | ⏳ | ✅ |
 | **How to start**                    | [Get started free](https://www.owox.com/app-signup) | [Contact our team](https://www.owox.com/pricing) | [Contact our team](https://www.owox.com/pricing) |
 
-
-
 ## Terms of Service
 
 |                                                                                              | **Starter**                                                | **Team**                                                | **Enterprise**                                   |
