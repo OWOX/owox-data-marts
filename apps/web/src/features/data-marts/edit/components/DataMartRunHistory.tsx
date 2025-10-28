@@ -5,7 +5,6 @@ import { Button } from '../../../../shared/components/Button';
 import { SkeletonList } from '@owox/ui/components/common/skeleton-list';
 import { RunItem } from './DataMartRunHistoryView/RunItem';
 import { LogViewType } from './DataMartRunHistoryView/types';
-
 import type { DataMartContextType } from '../model/context/types';
 
 export function DataMartRunHistory() {
@@ -76,6 +75,7 @@ export function DataMartRunHistory() {
               setSearchTerm={setSearchTerm}
               cancelDataMartRun={cancelDataMartRun}
               dataMartId={dataMart?.id}
+              connectorInfo={dataMart?.connectorInfo ?? null}
             />
           ))}
 

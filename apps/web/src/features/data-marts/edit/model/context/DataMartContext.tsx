@@ -37,6 +37,7 @@ import { extractApiError } from '../../../../../app/api';
 import type { DataMartSchema } from '../../../shared/types/data-mart-schema.types';
 import toast from 'react-hot-toast';
 import { trackEvent } from '../../../../../utils/data-layer';
+import { getConnectorInfo } from '../helpers';
 
 // Props interface
 interface DataMartProviderProps {
@@ -53,6 +54,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       dispatch({ type: 'FETCH_DATA_MART_START' });
       const response = await dataMartService.getDataMartById(id);
       const dataMart = mapDataMartFromDto(response);
+      dataMart.connectorInfo = await getConnectorInfo(dataMart);
       dispatch({ type: 'FETCH_DATA_MART_SUCCESS', payload: dataMart });
     } catch (error) {
       dispatch({
@@ -263,7 +265,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
 
       const response = await dataMartService.updateDataMartDefinition(id, requestData);
       const dataMart = mapDataMartFromDto(response);
-
+      dataMart.connectorInfo = await getConnectorInfo(dataMart);
       dispatch({
         type: 'UPDATE_DATA_MART_DEFINITION_SUCCESS',
         payload: { definitionType, definition },
@@ -296,6 +298,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       dispatch({ type: 'PUBLISH_DATA_MART_START' });
       const response = await dataMartService.publishDataMart(id);
       const dataMart = mapDataMartFromDto(response);
+      dataMart.connectorInfo = await getConnectorInfo(dataMart);
       dispatch({ type: 'PUBLISH_DATA_MART_SUCCESS', payload: dataMart });
       toast.success('Data Mart published');
     } catch (error) {
@@ -362,6 +365,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       dispatch({ type: 'ACTUALIZE_DATA_MART_SCHEMA_START' });
       const response = await dataMartService.actualizeDataMartSchema(id);
       const dataMart = mapDataMartFromDto(response);
+      dataMart.connectorInfo = await getConnectorInfo(dataMart);
       dispatch({ type: 'ACTUALIZE_DATA_MART_SCHEMA_SUCCESS', payload: dataMart });
       toast.success('Output schema actualized');
     } catch (error) {
@@ -385,6 +389,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       dispatch({ type: 'UPDATE_DATA_MART_SCHEMA_START' });
       const response = await dataMartService.updateDataMartSchema(id, { schema });
       const dataMart = mapDataMartFromDto(response);
+      dataMart.connectorInfo = await getConnectorInfo(dataMart);
       dispatch({ type: 'UPDATE_DATA_MART_SCHEMA_SUCCESS', payload: dataMart });
       toast.success('Output schema updated');
     } catch (error) {

@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from 'react';
 import { ChevronRight, MessageSquare } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { LogControls } from './LogControls';
@@ -11,6 +12,9 @@ import { getDisplayType, getRunSummary, parseLogEntry } from './utils';
 import { getStatusIcon } from './icons';
 import { useClipboard } from '../../../../../hooks/useClipboard';
 import { formatDateTime } from '../../../../../utils/date-formatters';
+import { TriggerTypeBadge } from './TriggerTypeBadge';
+import { TypeIcon } from './TypeIcon';
+import type { ConnectorListItem } from '../../../../connectors/shared/model/types/connector';
 
 interface RunItemProps {
   run: DataMartRunItem;
@@ -22,6 +26,7 @@ interface RunItemProps {
   setSearchTerm: (term: string) => void;
   cancelDataMartRun: (id: string, runId: string) => Promise<void>;
   dataMartId?: string;
+  connectorInfo: ConnectorListItem | null;
 }
 
 export function RunItem({
@@ -34,10 +39,11 @@ export function RunItem({
   setSearchTerm,
   cancelDataMartRun,
   dataMartId,
+  connectorInfo,
 }: RunItemProps) {
   const { copiedSection, handleCopy } = useClipboard();
 
-  const getFilteredLogs = () => {
+  const filteredLogs = useMemo(() => {
     if (run.logs.length === 0 && run.errors.length === 0) return [];
 
     const parsedLogs = run.logs.map((log, index) => parseLogEntry(log, index));
@@ -56,20 +62,28 @@ export function RunItem({
 
       return matchesSearch;
     });
-  };
+  }, [run.logs, run.errors, searchTerm]);
 
-  const renderLogsContent = () => {
+  const renderLogsContent = useCallback(() => {
     if (logViewType === LogViewType.STRUCTURED) {
-      const filteredLogs = getFilteredLogs();
       return <StructuredLogsView logs={filteredLogs} />;
     } else if (logViewType === LogViewType.RAW) {
       return <RawLogsView logs={run.logs} errors={run.errors} />;
     } else {
-      return <ConfigurationView definitionRun={run.definitionRun} />;
+      return (
+        <ConfigurationView
+          definitionRun={run.definitionRun}
+          reportDefinition={run.reportDefinition}
+        />
+      );
     }
-  };
+  }, [logViewType, filteredLogs, run.logs, run.errors, run.definitionRun, run.reportDefinition]);
 
-  console.log(run);
+  const startedAtValue = useMemo(() => {
+    const resolvedDate = run.startedAt ?? run.createdAt;
+    return formatDateTime(resolvedDate.toISOString());
+  }, [run.createdAt, run.startedAt]);
+
   return (
     <div className='dm-card-block'>
       <div
@@ -80,13 +94,11 @@ export function RunItem({
       >
         <div className='flex items-center gap-3'>
           {getStatusIcon(run.status)}
-          <div>runType icon</div>
-          <div className='text-foreground font-mono text-sm font-medium'>
-            {formatDateTime(
-              run.createdAt instanceof Date ? run.createdAt.toISOString() : run.createdAt
-            )}
+          <div>
+            <TypeIcon type={run.type} connectorInfo={connectorInfo} />
           </div>
-          <div>TriggerType text</div>
+          <div className='text-foreground font-mono text-sm font-medium'>{startedAtValue}</div>
+          <TriggerTypeBadge triggerType={run.triggerType} />
           <div className='text-muted-foreground flex items-center gap-1 text-xs'>
             <MessageSquare className='h-3 w-3' />
             {getRunSummary(run)}
