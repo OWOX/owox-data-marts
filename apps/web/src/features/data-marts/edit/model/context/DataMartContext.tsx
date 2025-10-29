@@ -252,31 +252,35 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
             } as UpdateDataMartTablePatternDefinitionRequestDto;
             break;
 
-        case DataMartDefinitionType.CONNECTOR: {
-          const connectorDef = definition as ConnectorDefinitionConfig;
+          case DataMartDefinitionType.CONNECTOR: {
+            const connectorDef = definition as ConnectorDefinitionConfig;
 
-          let sourceDataMartId: string | undefined;
+            let sourceDataMartId: string | undefined;
 
-          for (const config of connectorDef.connector.source.configuration) {
-            const configWithMetadata = config as Record<string, unknown> & {
-              _copiedFrom?: {
-                dataMartId: string;
-                dataMartTitle: string;
-                configId: string;
+            for (const config of connectorDef.connector.source.configuration) {
+              const configWithMetadata = config as Record<string, unknown> & {
+                _copiedFrom?: {
+                  dataMartId: string;
+                  dataMartTitle: string;
+                  configId: string;
+                };
               };
-            };
-            if (configWithMetadata._copiedFrom) {
-              sourceDataMartId = configWithMetadata._copiedFrom.dataMartId;
-              break;
+              if (configWithMetadata._copiedFrom) {
+                sourceDataMartId = configWithMetadata._copiedFrom.dataMartId;
+                break;
+              }
             }
+
+            requestData = {
+              definitionType: DataMartDefinitionType.CONNECTOR,
+              definition: mapConnectorDefinitionToDto(connectorDef),
+              sourceDataMartId,
+            } as UpdateDataMartConnectorDefinitionRequestDto;
+            break;
           }
 
-          requestData = {
-            definitionType: DataMartDefinitionType.CONNECTOR,
-            definition: mapConnectorDefinitionToDto(connectorDef),
-            sourceDataMartId,
-          } as UpdateDataMartConnectorDefinitionRequestDto;
-          break;
+          default:
+            throw new Error(`Unsupported definition type: ${String(definitionType)}`);
         }
 
         const response = await dataMartService.updateDataMartDefinition(id, requestData);
@@ -333,7 +337,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     }
   }, []);
 
-   /**
+  /**
    * Retrieves a list of Data Mart runs from the server with the specified parameters.
    * Dispatches actions to indicate the state of the asynchronous operation.
    *
@@ -345,7 +349,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
    * @returns {Promise<Object>} A promise that resolves to the response containing the Data Mart runs.
    * @throws {Error} Throws an error if the operation fails, with the error being dispatched for error handling.
    */
-  const getDataMartRuns = useCallback( 
+  const getDataMartRuns = useCallback(
     async (id: string, limit = 5, offset = 0, options?: { silent?: boolean }) => {
       try {
         if (!options?.silent) {
@@ -367,7 +371,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         });
         throw error;
       }
-    }, 
+    },
     []
   );
 
@@ -423,7 +427,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       });
     }
   }, []);
-      
+
   const cancelDataMartRun = useCallback(
     async (id: string, runId: string): Promise<void> => {
       try {
