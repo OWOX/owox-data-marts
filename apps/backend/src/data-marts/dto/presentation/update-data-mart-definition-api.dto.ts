@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { DataMartDefinition } from '../schemas/data-mart-table-definitions/data-mart-definition';
 import { DataMartDefinitionType } from '../../enums/data-mart-definition-type.enum';
-import { IsEnum, IsNotEmptyObject, IsOptional, IsUUID, IsNumber } from 'class-validator';
+import { IsEnum, IsNotEmptyObject, IsOptional, IsUUID, IsString } from 'class-validator';
 
 export class UpdateDataMartDefinitionApiDto {
   @ApiProperty({ enum: DataMartDefinitionType, example: DataMartDefinitionType.SQL })
@@ -17,8 +17,8 @@ export class UpdateDataMartDefinitionApiDto {
   @IsUUID()
   sourceDataMartId?: string;
 
-  @ApiProperty({ required: false, description: 'Source configuration index to copy from' })
+  @ApiProperty({ required: false, description: 'Source configuration ID to copy from' })
   @IsOptional()
-  @IsNumber()
-  sourceConfigurationIndex?: number;
+  @IsString()
+  sourceConfigurationId?: string;
 }

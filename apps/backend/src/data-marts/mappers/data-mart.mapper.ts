@@ -124,7 +124,7 @@ export class DataMartMapper {
       dto.definitionType,
       dto.definition,
       dto.sourceDataMartId,
-      dto.sourceConfigurationIndex
+      dto.sourceConfigurationId
     );
   }
 

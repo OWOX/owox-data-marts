@@ -165,7 +165,7 @@ export function ConfigurationStep({
     newConfig._copiedFrom = {
       dataMartId: copiedConfig.dataMartId,
       dataMartTitle: copiedConfig.dataMartTitle,
-      configIndex: copiedConfig.configIndex,
+      configId: copiedConfig.configId,
     };
     setConfiguration(newConfig);
   };

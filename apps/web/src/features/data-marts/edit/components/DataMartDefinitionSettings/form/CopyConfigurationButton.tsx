@@ -54,15 +54,19 @@ export function CopyConfigurationButton({
     }
   }, [open, loadDataMarts]);
 
-  const handleSelect = (dataMart: DataMartResponseDto, configIndex: number) => {
-    const definition = dataMart.definition as ConnectorDefinitionConfig;
-    const configuration = definition.connector.source.configuration[configIndex];
+  const handleSelect = (dataMart: DataMartResponseDto, config: Record<string, unknown>) => {
+    const configId = (config as Record<string, unknown> & { _id?: string })._id;
+
+    if (!configId) {
+      console.error('Configuration does not have _id field');
+      return;
+    }
 
     onCopyConfiguration({
       dataMartId: dataMart.id,
       dataMartTitle: dataMart.title,
-      configIndex,
-      configuration,
+      configId,
+      configuration: config,
     });
     setOpen(false);
   };
@@ -178,7 +182,7 @@ export function CopyConfigurationButton({
                         <TooltipTrigger asChild>
                           <DropdownMenuItem
                             onSelect={() => {
-                              handleSelect(dataMart, 0);
+                              handleSelect(dataMart, configurations[0]);
                             }}
                           >
                             <Box className='text-foreground h-4 w-4' />
@@ -193,7 +197,8 @@ export function CopyConfigurationButton({
                   }
                   return (
                     <DropdownMenuSub key={dataMart.id}>
-                      <DropdownMenuSubTrigger>
+                      <DropdownMenuSubTrigger className='flex items-center gap-2'>
+                        <Box className='text-foreground h-4 w-4' />
                         <span>{dataMart.title}</span>
                       </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent>
@@ -202,7 +207,7 @@ export function CopyConfigurationButton({
                             <TooltipTrigger asChild>
                               <DropdownMenuItem
                                 onSelect={() => {
-                                  handleSelect(dataMart, index);
+                                  handleSelect(dataMart, config);
                                 }}
                               >
                                 Configuration {index + 1}

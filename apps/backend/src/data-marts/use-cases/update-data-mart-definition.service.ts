@@ -27,7 +27,7 @@ export class UpdateDataMartDefinitionService {
     dataMart.definitionType = command.definitionType;
 
     if (command.definitionType === DataMartDefinitionType.CONNECTOR && command.definition) {
-      if (command.sourceDataMartId && command.sourceConfigurationIndex !== undefined) {
+      if (command.sourceDataMartId && command.sourceConfigurationId) {
         const sourceDataMart = await this.dataMartService.getByIdAndProjectId(
           command.sourceDataMartId,
           command.projectId
@@ -45,7 +45,7 @@ export class UpdateDataMartDefinitionService {
         dataMart.definition = await this.connectorSecretService.mergeDefinitionSecretsFromSource(
           command.definition as ConnectorDefinition,
           sourceDataMart.definition as ConnectorDefinition,
-          command.sourceConfigurationIndex
+          command.sourceConfigurationId
         );
       } else {
         dataMart.definition = await this.connectorSecretService.mergeDefinitionSecrets(

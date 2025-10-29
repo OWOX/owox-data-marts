@@ -253,18 +253,43 @@ export class ConnectorSecretService {
    * Merges secret fields from a specific source configuration into incoming definition.
    *
    * This method is used when copying configuration from an existing Data Mart.
-   * It takes secrets from a specific configuration (by index) in the source definition
+   * It takes secrets from a specific configuration (by _id) in the source definition
    * and merges them into the incoming definition's configurations.
+   *
+   * Logic flow:
+   * 1. Validates that both source and incoming definitions use the same connector type.
+   *    Throws an error if connector types don't match to prevent incompatible secret merging.
+   *
+   * 2. Finds the source configuration by its _id in the source definition's configuration array.
+   *    Throws an error if the configuration with the specified _id is not found.
+   *
+   * 3. Retrieves all secret field names from the connector specification to know which
+   *    fields need to be merged.
+   *
+   * 4. Maps over each configuration item in the incoming definition and recursively merges
+   *    secret fields from the source configuration. This ensures that masked secrets (*********)
+   *    are replaced with actual values from the source.
+   *
+   * 5. For each merged configuration item:
+   *    - If it contains a `_copiedFrom` metadata field (added by the frontend to track
+   *      copy operations), removes this field and generates a new unique _id.
+   *    - This ensures copied configurations get fresh identifiers and don't retain
+   *      temporary tracking metadata.
+   *
+   * 6. Returns a new definition object with the same structure as incoming, but with
+   *    configuration array containing items with properly merged secrets.
    *
    * @param incoming New definition coming from the client
    * @param sourceDefinition Definition from the source Data Mart to copy secrets from
-   * @param sourceConfigIndex Index of the configuration in source to use for secrets
+   * @param sourceConfigId ID (_id field) of the configuration in source to use for secrets
    * @returns Definition with correctly merged secret values from source
+   * @throws Error if connector types don't match
+   * @throws Error if source configuration with specified _id is not found
    */
   async mergeDefinitionSecretsFromSource(
     incoming: ConnectorDefinition,
     sourceDefinition: ConnectorDefinition,
-    sourceConfigIndex: number
+    sourceConfigId: string
   ): Promise<ConnectorDefinition> {
     if (incoming.connector.source.name !== sourceDefinition.connector.source.name) {
       throw new Error(
@@ -274,24 +299,30 @@ export class ConnectorSecretService {
       );
     }
 
-    if (
-      sourceConfigIndex < 0 ||
-      sourceConfigIndex >= sourceDefinition.connector.source.configuration.length
-    ) {
+    const sourceConfig = sourceDefinition.connector.source.configuration.find(
+      config => (config as Record<string, unknown> & { _id?: string })._id === sourceConfigId
+    );
+
+    if (!sourceConfig) {
       throw new Error(
-        `Invalid source configuration index: ${sourceConfigIndex}. ` +
+        `Source configuration with _id "${sourceConfigId}" not found. ` +
           `Source has ${sourceDefinition.connector.source.configuration.length} configurations.`
       );
     }
 
     const secretFieldNames = await this.getAllSecretFieldNames(incoming.connector.source.name);
-    const sourceConfig = sourceDefinition.connector.source.configuration[sourceConfigIndex];
 
     const mergedConfiguration = incoming.connector.source.configuration.map(incomingItem => {
-      return this.mergeSecretsRecursively(incomingItem, sourceConfig, secretFieldNames) as Record<
-        string,
-        unknown
-      >;
+      const mergedItem = this.mergeSecretsRecursively(
+        incomingItem,
+        sourceConfig,
+        secretFieldNames
+      ) as Record<string, unknown>;
+      if (Object.prototype.hasOwnProperty.call(mergedItem, '_copiedFrom')) {
+        delete mergedItem._copiedFrom;
+        mergedItem._id = randomUUID();
+      }
+      return mergedItem;
     });
 
     return {
