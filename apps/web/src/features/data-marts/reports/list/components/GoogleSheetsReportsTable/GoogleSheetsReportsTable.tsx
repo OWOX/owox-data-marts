@@ -20,12 +20,16 @@ import { useOutletContext } from 'react-router-dom';
 import type { DataMartContextType } from '../../../../edit/model/context/types';
 import { DataDestinationType } from '../../../../../data-destination';
 import { useTableStorage } from '../../../../../../hooks/useTableStorage';
-import type { DataDestination } from '../../../../../data-destination/shared/model/types';
+import type { DataDestination } from '../../../../../data-destination';
+import { useAutoRefresh } from '../../../../../../hooks/useAutoRefresh';
 
 interface GoogleSheetsReportsTableProps {
   destination: DataDestination;
   onEditReport: (report: DataMartReport) => void;
+  autoRefreshEnabled?: boolean;
 }
+
+const REFRESH_INTERVAL_MS = 5000;
 
 /**
  * GoogleSheetsReportsTable
@@ -36,6 +40,7 @@ interface GoogleSheetsReportsTableProps {
 export function GoogleSheetsReportsTable({
   destination,
   onEditReport,
+  autoRefreshEnabled = false,
 }: GoogleSheetsReportsTableProps) {
   const { dataMart } = useOutletContext<DataMartContextType>();
   const { fetchReportsByDataMartId, reports, stopAllPolling, setPollingConfig } = useReport();
@@ -72,7 +77,16 @@ export function GoogleSheetsReportsTable({
     void fetchData();
   }, [fetchReportsByDataMartId, dataMart]);
 
-  // Stop polling when component unmounts
+  useAutoRefresh({
+    enabled: !!dataMart && autoRefreshEnabled,
+    intervalMs: REFRESH_INTERVAL_MS,
+    onTick: () => {
+      if (dataMart) {
+        void fetchReportsByDataMartId(dataMart.id, { silent: true });
+      }
+    },
+  });
+
   useEffect(() => {
     return () => {
       stopAllPolling();
