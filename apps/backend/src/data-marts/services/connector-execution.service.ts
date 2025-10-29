@@ -4,15 +4,15 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 
-import {
-  ConnectorRunner,
-  Config,
-  StorageConfig,
-  SourceConfig,
-  RunConfig,
-} from '@owox/connector-runner';
 // @ts-expect-error - Package lacks TypeScript declarations
 import { Core } from '@owox/connectors';
+import { spawn } from 'child_process';
+
+const { Config, StorageConfig, SourceConfig, RunConfig } = Core;
+type Config = InstanceType<typeof Core.Config>;
+type StorageConfig = InstanceType<typeof Core.StorageConfig>;
+type SourceConfig = InstanceType<typeof Core.SourceConfig>;
+type RunConfig = InstanceType<typeof Core.RunConfig>;
 
 import { ConnectorDefinition as DataMartConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMart } from '../entities/data-mart.entity';
@@ -422,8 +422,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
         const configState = await this.connectorStateService.getState(dataMart.id, configId);
         const runConfig = this.getRunConfig(payload, configState);
 
-        const connectorRunner = new ConnectorRunner();
-        await connectorRunner.run(dataMart.id, runId, configuration, runConfig, logCaptureConfig);
+        await this.runConnector(dataMart.id, runId, configuration, runConfig, logCaptureConfig);
         if (configErrors.length === 0) {
           this.logger.log(`Configuration ${configIndex + 1} completed successfully`, {
             dataMartId: dataMart.id,
@@ -466,6 +465,94 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     }
 
     return configurationResults;
+  }
+
+  /**
+   * Run connector using direct spawn without temporary directories
+   */
+  private async runConnector(
+    datamartId: string,
+    runId: string,
+    configuration: Config,
+    runConfig: RunConfig,
+    stdio: {
+      logCapture?: { onStdout?: (message: string) => void; onStderr?: (message: string) => void };
+      onSpawn?: (pid: number | undefined) => void;
+    }
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      let spawnStdio: 'inherit' | 'pipe' | Array<string | number> = 'inherit';
+      let logCapture: {
+        onStdout?: (message: string) => void;
+        onStderr?: (message: string) => void;
+      } | null = null;
+      let onSpawn: ((pid: number | undefined) => void) | null = null;
+
+      if (stdio && typeof stdio === 'object' && stdio.logCapture) {
+        logCapture = stdio.logCapture;
+        spawnStdio = 'pipe';
+        if (typeof stdio.onSpawn === 'function') {
+          onSpawn = stdio.onSpawn;
+        }
+      }
+
+      // Prepare environment variables
+      const env = {
+        ...process.env,
+        OW_DATAMART_ID: datamartId,
+        OW_RUN_ID: runId,
+        OW_CONFIG: JSON.stringify(configuration.toObject()),
+        OW_RUN_CONFIG: JSON.stringify(runConfig),
+      };
+
+      // Spawn the connector runner directly
+      // Use require.resolve to find the runner in the installed package
+      const runnerPath = require.resolve('@owox/connectors/runner');
+
+      const node = spawn('node', [runnerPath], {
+        stdio: spawnStdio,
+        env,
+        detached: true,
+      });
+
+      if (onSpawn) {
+        try {
+          onSpawn(node.pid);
+        } catch (error) {
+          this.logger.error(
+            `Failed to call onSpawn callback: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+      }
+
+      if (logCapture && node.stdout && node.stderr) {
+        node.stdout.on('data', data => {
+          const message = data.toString();
+          if (logCapture.onStdout) {
+            logCapture.onStdout(message);
+          }
+        });
+
+        node.stderr.on('data', data => {
+          const message = data.toString();
+          if (logCapture.onStderr) {
+            logCapture.onStderr(message);
+          }
+        });
+      }
+
+      node.on('close', code => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`Connector process exited with code ${code}`));
+        }
+      });
+
+      node.on('error', error => {
+        reject(error);
+      });
+    });
   }
 
   private async updateRunStatus(
