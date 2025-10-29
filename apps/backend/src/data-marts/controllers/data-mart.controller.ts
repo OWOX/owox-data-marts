@@ -32,6 +32,7 @@ import {
   UpdateDataMartSchemaSpec,
   GetDataMartRunsSpec,
   CancelDataMartRunSpec,
+  ListDataMartsByConnectorNameSpec,
 } from './spec/data-mart.api';
 import { AuthContext, AuthorizationContext, Auth, Role, Strategy } from '../../idp';
 import { RunDataMartService } from '../use-cases/run-data-mart.service';
@@ -41,6 +42,7 @@ import { DataMartValidationResponseApiDto } from '../dto/presentation/data-mart-
 import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-response-api.dto';
 import { UpdateDataMartSchemaApiDto } from '../dto/presentation/update-data-mart-schema-api.dto';
 import { RunDataMartRequestApiDto } from '../dto/presentation/run-data-mart-request-api.dto';
+import { ListDataMartsByConnectorNameService } from '../use-cases/list-data-marts-by-connector-name.service';
 
 @Controller('data-marts')
 @ApiTags('DataMarts')
@@ -59,7 +61,8 @@ export class DataMartController {
     private readonly validateDefinitionService: ValidateDataMartDefinitionService,
     private readonly updateSchemaService: UpdateDataMartSchemaService,
     private readonly getDataMartRunsService: GetDataMartRunsService,
-    private readonly cancelDataMartRunService: CancelDataMartRunService
+    private readonly cancelDataMartRunService: CancelDataMartRunService,
+    private readonly listDataMartsByConnectorNameService: ListDataMartsByConnectorNameService
   ) {}
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -77,9 +80,24 @@ export class DataMartController {
   @Auth(Role.viewer(Strategy.PARSE))
   @Get()
   @ListDataMartsSpec()
-  async list(@AuthContext() context: AuthorizationContext): Promise<DataMartResponseApiDto[]> {
-    const command = this.mapper.toListCommand(context);
+  async list(
+    @AuthContext() context: AuthorizationContext,
+    @Query('connectorName') connectorName?: string
+  ): Promise<DataMartResponseApiDto[]> {
+    const command = this.mapper.toListCommand(context, connectorName);
     const dataMarts = await this.listDataMartsService.run(command);
+    return this.mapper.toResponseList(dataMarts);
+  }
+
+  @Auth(Role.viewer(Strategy.PARSE))
+  @Get('by-connector/:connectorName')
+  @ListDataMartsByConnectorNameSpec()
+  async listDataMartsByConnectorName(
+    @AuthContext() context: AuthorizationContext,
+    @Param('connectorName') connectorName: string
+  ): Promise<DataMartResponseApiDto[]> {
+    const command = this.mapper.toListDataMartsByConnectorNameCommand(connectorName, context);
+    const dataMarts = await this.listDataMartsByConnectorNameService.run(command);
     return this.mapper.toResponseList(dataMarts);
   }
 

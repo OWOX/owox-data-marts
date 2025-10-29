@@ -7,6 +7,8 @@ import { DataMartDto } from '../dto/domain/data-mart.dto';
 import { ListDataMartsCommand } from '../dto/domain/list-data-marts.command';
 import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
 import { Report } from '../entities/report.entity';
+import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
+import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 
 @Injectable()
 export class ListDataMartsService {
@@ -21,9 +23,23 @@ export class ListDataMartsService {
   ) {}
 
   async run(command: ListDataMartsCommand): Promise<DataMartDto[]> {
-    const dataMarts = await this.dataMartRepo.find({
+    let dataMarts = await this.dataMartRepo.find({
       where: { projectId: command.projectId },
     });
+
+    if (dataMarts.length === 0) {
+      return [];
+    }
+
+    if (command.connectorName) {
+      dataMarts = dataMarts.filter(dm => {
+        if (!dm.definition || dm.definitionType !== DataMartDefinitionType.CONNECTOR) {
+          return false;
+        }
+        const connectorDef = dm.definition as unknown as ConnectorDefinition;
+        return connectorDef?.connector?.source?.name === command.connectorName;
+      });
+    }
 
     if (dataMarts.length === 0) {
       return [];
