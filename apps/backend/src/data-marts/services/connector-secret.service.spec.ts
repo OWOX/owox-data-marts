@@ -395,4 +395,125 @@ describe('ConnectorSecretService', () => {
       });
     });
   });
+
+  describe('mergeDefinitionSecretsFromSource', () => {
+    it('copies secrets from correct source configurations using _copiedFrom.configId metadata', async () => {
+      const { service } = createService(['AccessToken']);
+
+      const sourceDefinition = makeDefinition([
+        { _id: 'source-id-1', AccessToken: 'access1', AccoundIDs: '1' },
+        { _id: 'source-id-2', AccessToken: 'access2', AccoundIDs: '2' },
+        { _id: 'source-id-3', AccessToken: 'access3', AccoundIDs: '3' },
+      ]);
+
+      const incoming = makeDefinition([
+        {
+          AccessToken: SECRET_MASK,
+          AccoundIDs: '1',
+          _copiedFrom: { configId: 'source-id-1' },
+        },
+        {
+          AccessToken: SECRET_MASK,
+          AccoundIDs: '3',
+          _copiedFrom: { configId: 'source-id-3' },
+        },
+      ]);
+
+      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
+
+      expect(cfg[0].AccessToken).toBe('access1');
+      expect(cfg[0].AccoundIDs).toBe('1');
+      expect(cfg[0]._copiedFrom).toBeUndefined();
+      expect(typeof cfg[0]._id).toBe('string');
+      expect(cfg[0]._id).not.toBe('source-id-1');
+
+      expect(cfg[1].AccessToken).toBe('access3');
+      expect(cfg[1].AccoundIDs).toBe('3');
+      expect(cfg[1]._copiedFrom).toBeUndefined();
+      expect(typeof cfg[1]._id).toBe('string');
+      expect(cfg[1]._id).not.toBe('source-id-3');
+    });
+
+    it('throws error when connector types do not match', async () => {
+      const { service } = createService(['AccessToken']);
+
+      const sourceDefinition = makeDefinition([{ _id: 'source-1', AccessToken: 'access1' }]);
+
+      const incoming = {
+        connector: {
+          source: {
+            name: 'GoogleAds',
+            configuration: [
+              {
+                AccessToken: SECRET_MASK,
+                _copiedFrom: { configId: 'source-1' },
+              },
+            ],
+            node: 'campaigns',
+            fields: ['id'],
+          },
+          storage: { fullyQualifiedName: 'dataset.table' },
+        },
+      } as unknown as ConnectorDefinition;
+
+      await expect(
+        service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition)
+      ).rejects.toThrow('Cannot copy secrets from different connector type');
+    });
+
+    it('throws error when _copiedFrom.configId metadata is missing', async () => {
+      const { service } = createService(['AccessToken']);
+
+      const sourceDefinition = makeDefinition([{ _id: 'source-1', AccessToken: 'access1' }]);
+
+      const incoming = makeDefinition([
+        {
+          AccessToken: SECRET_MASK,
+          AccoundIDs: '1',
+        },
+      ]);
+
+      await expect(
+        service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition)
+      ).rejects.toThrow('Missing _copiedFrom.configId metadata');
+    });
+
+    it('throws error when source configuration with specified configId is not found', async () => {
+      const { service } = createService(['AccessToken']);
+
+      const sourceDefinition = makeDefinition([{ _id: 'source-1', AccessToken: 'access1' }]);
+
+      const incoming = makeDefinition([
+        {
+          AccessToken: SECRET_MASK,
+          _copiedFrom: { configId: 'non-existent-id' },
+        },
+      ]);
+
+      await expect(
+        service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition)
+      ).rejects.toThrow('Source configuration with _id "non-existent-id" not found');
+    });
+
+    it('generates new _id for each copied configuration', async () => {
+      const { service } = createService(['AccessToken']);
+
+      const sourceDefinition = makeDefinition([{ _id: 'source-1', AccessToken: 'access1' }]);
+
+      const incoming = makeDefinition([
+        {
+          AccessToken: SECRET_MASK,
+          _copiedFrom: { configId: 'source-1' },
+        },
+      ]);
+
+      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
+
+      expect(cfg[0]._id).not.toBe('source-1');
+      expect(typeof cfg[0]._id).toBe('string');
+      expect((cfg[0]._id as string).length).toBeGreaterThan(0);
+    });
+  });
 });

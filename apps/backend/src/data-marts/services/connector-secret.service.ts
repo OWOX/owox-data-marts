@@ -250,46 +250,46 @@ export class ConnectorSecretService {
   }
 
   /**
-   * Merges secret fields from a specific source configuration into incoming definition.
+   * Merges secret fields from source configurations into incoming definition.
    *
-   * This method is used when copying configuration from an existing Data Mart.
-   * It takes secrets from a specific configuration (by _id) in the source definition
-   * and merges them into the incoming definition's configurations.
+   * This method is used when copying configurations from an existing Data Mart.
+   * Each incoming configuration must have a `_copiedFrom.configId` metadata field that specifies
+   * the _id of the source configuration to copy secrets from.
    *
    * Logic flow:
    * 1. Validates that both source and incoming definitions use the same connector type.
    *    Throws an error if connector types don't match to prevent incompatible secret merging.
    *
-   * 2. Finds the source configuration by its _id in the source definition's configuration array.
-   *    Throws an error if the configuration with the specified _id is not found.
-   *
-   * 3. Retrieves all secret field names from the connector specification to know which
+   * 2. Retrieves all secret field names from the connector specification to know which
    *    fields need to be merged.
    *
-   * 4. Maps over each configuration item in the incoming definition and recursively merges
-   *    secret fields from the source configuration. This ensures that masked secrets (*********)
-   *    are replaced with actual values from the source.
+   * 3. Maps over each configuration item in the incoming definition:
+   *    - Extracts the `_copiedFrom.configId` metadata (which contains the _id of the source config)
+   *    - Finds the corresponding source configuration by matching its _id
+   *    - Recursively merges secret fields from that specific source configuration
+   *    - This ensures that masked secrets (*********) are replaced with actual values
+   *      from the correct source configuration
    *
-   * 5. For each merged configuration item:
-   *    - If it contains a `_copiedFrom` metadata field (added by the frontend to track
-   *      copy operations), removes this field and generates a new unique _id.
+   * 4. For each merged configuration item:
+   *    - Removes the `_copiedFrom` metadata field (added by the frontend to track copy operations)
+   *    - Generates a new unique _id for the copied configuration
    *    - This ensures copied configurations get fresh identifiers and don't retain
-   *      temporary tracking metadata.
+   *      temporary tracking metadata
    *
-   * 6. Returns a new definition object with the same structure as incoming, but with
-   *    configuration array containing items with properly merged secrets.
+   * 5. Returns a new definition object with the same structure as incoming, but with
+   *    configuration array containing items with properly merged secrets from their
+   *    respective source configurations.
    *
-   * @param incoming New definition coming from the client
+   * @param incoming New definition coming from the client with _copiedFrom.configId metadata on each config
    * @param sourceDefinition Definition from the source Data Mart to copy secrets from
-   * @param sourceConfigId ID (_id field) of the configuration in source to use for secrets
-   * @returns Definition with correctly merged secret values from source
+   * @returns Definition with correctly merged secret values from source configurations
    * @throws Error if connector types don't match
+   * @throws Error if _copiedFrom.configId metadata is missing
    * @throws Error if source configuration with specified _id is not found
    */
   async mergeDefinitionSecretsFromSource(
     incoming: ConnectorDefinition,
-    sourceDefinition: ConnectorDefinition,
-    sourceConfigId: string
+    sourceDefinition: ConnectorDefinition
   ): Promise<ConnectorDefinition> {
     if (incoming.connector.source.name !== sourceDefinition.connector.source.name) {
       throw new Error(
@@ -299,29 +299,42 @@ export class ConnectorSecretService {
       );
     }
 
-    const sourceConfig = sourceDefinition.connector.source.configuration.find(
-      config => (config as Record<string, unknown> & { _id?: string })._id === sourceConfigId
-    );
-
-    if (!sourceConfig) {
-      throw new Error(
-        `Source configuration with _id "${sourceConfigId}" not found. ` +
-          `Source has ${sourceDefinition.connector.source.configuration.length} configurations.`
-      );
-    }
-
     const secretFieldNames = await this.getAllSecretFieldNames(incoming.connector.source.name);
 
     const mergedConfiguration = incoming.connector.source.configuration.map(incomingItem => {
+      const itemWithMetadata = incomingItem as Record<string, unknown> & {
+        _copiedFrom?: { configId: string };
+      };
+
+      if (!itemWithMetadata._copiedFrom?.configId) {
+        throw new Error(
+          'Missing _copiedFrom.configId metadata on configuration item. ' +
+            'Each configuration must specify which source configuration to copy from.'
+        );
+      }
+
+      const sourceConfigId = itemWithMetadata._copiedFrom.configId;
+
+      const sourceConfig = sourceDefinition.connector.source.configuration.find(
+        config => (config as Record<string, unknown> & { _id?: string })._id === sourceConfigId
+      );
+
+      if (!sourceConfig) {
+        throw new Error(
+          `Source configuration with _id "${sourceConfigId}" not found. ` +
+            `Source has ${sourceDefinition.connector.source.configuration.length} configurations.`
+        );
+      }
+
       const mergedItem = this.mergeSecretsRecursively(
         incomingItem,
         sourceConfig,
         secretFieldNames
       ) as Record<string, unknown>;
-      if (Object.prototype.hasOwnProperty.call(mergedItem, '_copiedFrom')) {
-        delete mergedItem._copiedFrom;
-        mergedItem._id = randomUUID();
-      }
+
+      delete mergedItem._copiedFrom;
+      mergedItem._id = randomUUID();
+
       return mergedItem;
     });
 

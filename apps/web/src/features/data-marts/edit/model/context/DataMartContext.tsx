@@ -251,7 +251,6 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
           const connectorDef = definition as ConnectorDefinitionConfig;
 
           let sourceDataMartId: string | undefined;
-          let sourceConfigurationId: string | undefined;
 
           for (const config of connectorDef.connector.source.configuration) {
             const configWithMetadata = config as Record<string, unknown> & {
@@ -263,7 +262,6 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
             };
             if (configWithMetadata._copiedFrom) {
               sourceDataMartId = configWithMetadata._copiedFrom.dataMartId;
-              sourceConfigurationId = configWithMetadata._copiedFrom.configId;
               break;
             }
           }
@@ -272,7 +270,6 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
             definitionType: DataMartDefinitionType.CONNECTOR,
             definition: mapConnectorDefinitionToDto(connectorDef),
             sourceDataMartId,
-            sourceConfigurationId,
           } as UpdateDataMartConnectorDefinitionRequestDto;
           break;
         }
