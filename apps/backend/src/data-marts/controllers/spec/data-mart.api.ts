@@ -102,14 +102,6 @@ export function ValidateDataMartDefinitionSpec() {
   );
 }
 
-export function ActualizeDataMartSchemaSpec() {
-  return applyDecorators(
-    ApiOperation({ summary: 'Actualize DataMart schema' }),
-    ApiParam({ name: 'id', type: String }),
-    ApiOkResponse({ type: DataMartResponseApiDto })
-  );
-}
-
 export function UpdateDataMartSchemaSpec() {
   return applyDecorators(
     ApiOperation({ summary: 'Update DataMart schema' }),
@@ -144,5 +136,13 @@ export function CancelDataMartRunSpec() {
     ApiParam({ name: 'id', description: 'DataMart ID' }),
     ApiParam({ name: 'runId', description: 'Run ID' }),
     ApiNoContentResponse({ description: 'DataMart run cancelled' })
+  );
+}
+
+export function ListDataMartsByConnectorNameSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'List DataMarts by connector name' }),
+    ApiParam({ name: 'connectorName', description: 'Connector name' }),
+    ApiOkResponse({ type: DataMartResponseApiDto, isArray: true })
   );
 }

@@ -10,7 +10,7 @@ interface DataMartCodeEditorProps {
 
 export function DataMartCodeEditor({ initialValue, onChange }: DataMartCodeEditorProps) {
   const [sqlCode, setSqlCode] = useState<string>(initialValue?.sqlQuery ?? '');
-  const { theme } = useTheme();
+  const { resolvedTheme } = useTheme();
 
   useEffect(() => {
     if (initialValue?.sqlQuery && initialValue.sqlQuery !== sqlCode) {
@@ -32,7 +32,7 @@ export function DataMartCodeEditor({ initialValue, onChange }: DataMartCodeEdito
         language='sql'
         value={sqlCode}
         onChange={handleEditorChange}
-        theme={theme === 'dark' ? 'vs-dark' : 'light'}
+        theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
         options={{
           selectOnLineNumbers: true,
           hideCursorInOverviewRuler: true,

@@ -64,7 +64,7 @@ var BankOfCanadaConnector = class BankOfCanadaConnector extends AbstractConnecto
       fields 
     });
 
-    this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched from ${dateRange.startDate} to ${dateRange.endDate}` : `ℹ️ No records have been fetched`);
+    this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched from ${dateRange.startDate} to ${dateRange.endDate}` : `No records have been fetched`);
 
     if (data.length || this.config.CreateEmptyTables?.value) {
       const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;

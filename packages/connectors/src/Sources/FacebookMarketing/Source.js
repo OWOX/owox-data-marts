@@ -64,13 +64,6 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
           requiredType: "number",
           label: "Clean Up To Keep Window",
           description: "Number of days to keep data before cleaning up"
-        },
-        MaxFetchingDays: {
-          requiredType: "number",
-          isRequired: true,
-          default: 31,
-          label: "Max Fetching Days",
-          description: "Maximum number of days to fetch data for"
         }
       }));
       

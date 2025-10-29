@@ -70,6 +70,7 @@ describe('TimeBasedTriggerFetcherService', () => {
       repository,
       systemTimeService,
       0,
+      0,
       new TimeBasedFetchStrategy<TestTimeBasedTrigger>()
     );
   });
@@ -102,7 +103,7 @@ describe('TimeBasedTriggerFetcherService', () => {
       );
 
       // Verify the triggers were marked as ready
-      expect(repository.update).toHaveBeenCalledTimes(3);
+      expect(repository.update).toHaveBeenCalledTimes(2);
       expect(result.length).toBe(2);
       expect(result[0].status).toBe(TriggerStatus.READY);
       expect(result[1].status).toBe(TriggerStatus.READY);
@@ -117,7 +118,7 @@ describe('TimeBasedTriggerFetcherService', () => {
 
       // Assert
       expect(result).toEqual([]);
-      expect(repository.update).toHaveBeenCalledTimes(1);
+      expect(repository.update).toHaveBeenCalledTimes(0);
     });
 
     it('should handle optimistic lock version mismatch errors', async () => {
@@ -147,7 +148,7 @@ describe('TimeBasedTriggerFetcherService', () => {
 
       // Assert
       // Verify both triggers were attempted to be updated
-      expect(repository.update).toHaveBeenCalledTimes(3);
+      expect(repository.update).toHaveBeenCalledTimes(2);
 
       // Verify only the second trigger was returned (first one had lock conflict)
       expect(result.length).toBe(1);
@@ -174,7 +175,7 @@ describe('TimeBasedTriggerFetcherService', () => {
       expect(result).toEqual([]);
 
       // Verify no triggers were updated
-      expect(repository.update).toHaveBeenCalledTimes(1);
+      expect(repository.update).toHaveBeenCalledTimes(0);
     });
 
     it('should handle non-optimistic lock errors during markTriggersAsReady and return empty array', async () => {

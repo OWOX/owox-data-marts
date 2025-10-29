@@ -8,7 +8,7 @@ export interface ConnectorDefinitionDto {
   docUrl: string | null;
 }
 
-export interface ConnectorSpecificationResponseApiDto {
+export interface ConnectorSpecificationItemResponseApiDto {
   name: string;
   title?: string;
   description?: string;
@@ -17,8 +17,19 @@ export interface ConnectorSpecificationResponseApiDto {
   required?: boolean;
   options?: string[];
   placeholder?: string;
-  showInUI?: boolean;
   attributes?: string[];
+}
+
+export interface ConnectorSpecificationOneOfResponeApiDto {
+  label: string;
+  value: string;
+  requiredType?: RequiredType;
+  items: Record<string, ConnectorSpecificationItemResponseApiDto>;
+}
+
+export interface ConnectorSpecificationResponseApiDto
+  extends ConnectorSpecificationItemResponseApiDto {
+  oneOf?: ConnectorSpecificationOneOfResponeApiDto[];
 }
 
 export interface ConnectorFieldResponseApiDto {

@@ -1,0 +1,15 @@
+export enum TaskStatus {
+  IDLE = 'IDLE',
+
+  READY = 'READY',
+
+  PROCESSING = 'PROCESSING',
+
+  SUCCESS = 'SUCCESS',
+
+  ERROR = 'ERROR',
+
+  CANCELLING = 'CANCELLING',
+
+  CANCELLED = 'CANCELLED',
+}

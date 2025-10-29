@@ -96,16 +96,19 @@ For more details on the types of deployment in your infrastructure, check out ou
 
 | Name                            | Status           | Links                                                                               |
 | ------------------------------- | ---------------- | ----------------------------------------------------------------------------------- |
-| Facebook Ads                    | 🟢 Public        | [Get started](packages/connectors/src/Sources/FacebookMarketing/GETTING_STARTED.md) |
-| Open Exchange Rates             | 🟢 Public        | [Get started](packages/connectors/src/Sources/OpenExchangeRates/GETTING_STARTED.md) |
 | Bank of Canada                  | 🟢 Public        | [Get started](packages/connectors/src/Sources/BankOfCanada/GETTING_STARTED.md)      |
+| Criteo Ads                      | 🟢 Public        | [Get started](packages/connectors/src/Sources/CriteoAds/GETTING_STARTED.md)         |
+| Facebook Ads                    | 🟢 Public        | [Get started](packages/connectors/src/Sources/FacebookMarketing/GETTING_STARTED.md) |
+| GitHub                          | 🟢 Public        | [Get started](packages/connectors/src/Sources/GitHub/GETTING_STARTED.md)            |
+| Google Ads                      | 🟢 Public        | [Get started](packages/connectors/src/Sources/GoogleAds/GETTING_STARTED.md)         |
 | LinkedIn Ads                    | 🟢 Public        | [Get started](packages/connectors/src/Sources/LinkedInAds/GETTING_STARTED.md)       |
 | LinkedIn Pages                  | 🟢 Public        | [Get started](packages/connectors/src/Sources/LinkedInPages/GETTING_STARTED.md)     |
+| Microsoft Ads (former Bing Ads) | 🟢 Public        | [Get started](packages/connectors/src/Sources/MicrosoftAds/GETTING_STARTED.md)      |
+| Open Exchange Rates             | 🟢 Public        | [Get started](packages/connectors/src/Sources/OpenExchangeRates/GETTING_STARTED.md) |
+| Open Holidays                   | 🟢 Public        | [Get started](packages/connectors/src/Sources/OpenHolidays/GETTING_STARTED.md)      |
+| Reddit Ads                      | 🟢 Public        | [Get started](packages/connectors/src/Sources/RedditAds/GETTING_STARTED.md)         |
 | TikTok Ads                      | 🟢 Public        | [Get started](packages/connectors/src/Sources/TikTokAds/GETTING_STARTED.md)         |
 | X Ads (former Twitter Ads)      | 🟢 Public        | [Get started](packages/connectors/src/Sources/XAds/GETTING_STARTED.md)              |
-| Criteo Ads                      | 🟢 Public        | [Get started](packages/connectors/src/Sources/CriteoAds/GETTING_STARTED.md)         |
-| Microsoft Ads (former Bing Ads) | 🟢 Public        | [Get started](packages/connectors/src/Sources/MicrosoftAds/GETTING_STARTED.md)      |
-| Reddit Ads                      | 🟢 Public        | [Get started](packages/connectors/src/Sources/RedditAds/GETTING_STARTED.md)         |
 | Hotline                         | ⚪️ In Discussion | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/55)                |
 | Shopify Ads                     | ⚪️ In Discussion | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/63)                |
 | Google Business Profile         | ⚪️ In Discussion | [Discussion](https://github.com/OWOX/owox-data-marts/discussions/61)                |
@@ -125,12 +128,10 @@ Want to build a connector? We'd love your help.
 
 **To contribute to existing integrations or create a new one:**
 
+- Read the [Contributor Guide](packages/connectors/CONTRIBUTING.md)
+- Check [Issues](https://github.com/OWOX/owox-data-marts/issues)
 - Join [Discussions](https://github.com/OWOX/owox-data-marts/discussions)
 - Join [Slack Community](https://join.slack.com/t/owox-data-marts/shared_invite/zt-3fffrsau9-UlobJVlXzRLpXmvs0ffvoQ)
-- Read the [contributor guide](packages/connectors/CONTRIBUTING.md)
-- Check open [requests](https://github.com/OWOX/owox-data-marts/issues)
-
-All you need to get started is the desire to build a new connector. No software installation is required on your computer.
 
 Whether you're adding a new platform, tweaking an existing connector, or improving docs, we'll support and **spotlight you**.
 

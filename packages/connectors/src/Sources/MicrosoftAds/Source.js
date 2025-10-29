@@ -67,13 +67,6 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
         label: "Reimport Lookback Window",
         description: "Number of days to look back when reimporting data"
       },
-      MaxFetchingDays: {
-        requiredType: "number",
-        isRequired: true,
-        default: 30,
-        label: "Max Fetching Days",
-        description: "Maximum number of days to fetch data for"
-      },
       ReportTimezone: {
         requiredType: "string",
         default: "GreenwichMeanTimeDublinEdinburghLisbonLondon",
@@ -300,7 +293,12 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
     const pollResult = MicrosoftAdsHelper.pollUntilStatus({ 
       url: pollUrl, 
       options: pollOpts, 
-      isDone: status => status.RequestStatus === 'Completed' 
+      isDone: status => {
+        if (!status.RequestStatus || status.RequestStatus === 'Failed') {
+          throw new Error('Bulk download failed');
+        }
+        return status.RequestStatus === 'Completed';
+      }
     });
     const csvRows = MicrosoftAdsHelper.downloadCsvRows(pollResult.ResultFileUrl);
     const result = MicrosoftAdsHelper.csvRowsToObjects(csvRows);
@@ -361,7 +359,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
           // Update batch size for future iterations
           batchSize = newBatchSize;
         } else {
-          this.config.logMessage(`⚠️ Failed to fetch ${entityType.toLowerCase()} for campaigns ${campaignBatch.join(', ')}: ${error.message}`);
+          this.config.logMessage(`Failed to fetch ${entityType.toLowerCase()} for campaigns ${campaignBatch.join(', ')}: ${error.message}`);
           throw new Error(`Failed to fetch ${entityType}: ${error.message}`);
         }
       }
@@ -537,7 +535,12 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
     return MicrosoftAdsHelper.pollUntilStatus({ 
       url: pollUrl, 
       options: pollOpts, 
-      isDone: status => status.ReportRequestStatus.Status === 'Success' 
+      isDone: status => {
+        if (!status.ReportRequestStatus || status.ReportRequestStatus.Status === 'Error') {
+          throw new Error('Report generation failed');
+        } 
+        return status.ReportRequestStatus.Status === 'Success';
+      }
     });
   }
 };

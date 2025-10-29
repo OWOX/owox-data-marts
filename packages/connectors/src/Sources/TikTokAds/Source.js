@@ -64,13 +64,6 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
         label: "Clean Up To Keep Window",
         description: "Number of days to keep data before cleaning up"
       },
-      MaxFetchingDays: {
-        requiredType: "number",
-        isRequired: true,
-        default: 31,
-        label: "Max Fetching Days",
-        description: "Maximum number of days to fetch data for"
-      },
       IncludeDeleted: {
         requiredType: "boolean",
         default: false,
@@ -236,7 +229,7 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
           // Validate the data level
           const validDataLevels = ["AUCTION_ADVERTISER", "AUCTION_CAMPAIGN", "AUCTION_ADGROUP", "AUCTION_AD"];
           if (!validDataLevels.includes(dataLevel)) {
-            this.config.logMessage(`⚠️ Invalid data_level: ${dataLevel}. Using default AUCTION_AD.`);
+            this.config.logMessage(`Invalid data_level: ${dataLevel}. Using default AUCTION_AD.`);
             dataLevel = "AUCTION_AD";
           }
           

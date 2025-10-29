@@ -1,15 +1,8 @@
-import { Label } from '@owox/ui/components/label';
-import { Input } from '@owox/ui/components/input';
-import { Textarea } from '@owox/ui/components/textarea';
-import { Combobox } from '../../../../../../shared/components/Combobox/combobox.tsx';
 import type { ConnectorListItem } from '../../../../shared/model/types/connector';
 import type { ConnectorSpecificationResponseApiDto } from '../../../../shared/api';
 import { StepperHeroBlock } from '../components';
-import { RequiredType } from '../../../../shared/api';
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  AppWizardStepItem,
-  AppWizardStepLabel,
   AppWizardStepSection,
   AppWizardStep,
   AppWizardStepHero,
@@ -18,7 +11,9 @@ import {
 import { OpenIssueLink } from '../components';
 import { Unplug } from 'lucide-react';
 import { SECRET_MASK } from '../../../../../../shared/constants/secrets';
-import { Button } from '@owox/ui/components/button';
+import { ConfigurationListRender } from './ConfigurationStep/ConfigurationListRender';
+import { CopyConfigurationButton } from '../../../../../data-marts/edit/components/DataMartDefinitionSettings/form/CopyConfigurationButton';
+import type { CopiedConfiguration } from '../../../../../data-marts/edit/model/types';
 
 interface ConfigurationStepProps {
   connector: ConnectorListItem;
@@ -28,205 +23,6 @@ interface ConfigurationStepProps {
   initialConfiguration?: Record<string, unknown>;
   loading?: boolean;
   isEditingExisting?: boolean;
-}
-
-function renderInputForType(
-  specification: ConnectorSpecificationResponseApiDto,
-  configuration: Record<string, unknown>,
-  onValueChange: (name: string, value: unknown) => void,
-  flags?: { isSecret?: boolean; isEditingExisting?: boolean; isSecretEditing?: boolean }
-) {
-  const {
-    name,
-    title,
-    requiredType,
-    options: specOptions,
-    placeholder,
-    default: defaultValue,
-  } = specification;
-
-  const displayName = title ?? name;
-  const inputId = name;
-
-  const { isSecret = false, isEditingExisting = false, isSecretEditing = false } = flags ?? {};
-
-  if (isSecret) {
-    const isReadonly = isEditingExisting && !isSecretEditing;
-    return (
-      <Input
-        id={specification.name}
-        {...(!isReadonly ? { name: specification.name } : {})}
-        type={isReadonly ? 'password' : 'text'}
-        autoComplete={isReadonly ? 'new-password' : 'off'}
-        autoCorrect='off'
-        autoCapitalize='off'
-        spellCheck={false}
-        value={isReadonly ? SECRET_MASK : (configuration[specification.name] as string) || ''}
-        {...(isReadonly ? { readOnly: true, disabled: true } : {})}
-        {...(!isReadonly
-          ? { placeholder: placeholder ?? `Enter ${displayName.toLowerCase()}` }
-          : {})}
-        {...(!isReadonly
-          ? {
-              onChange: (e: ChangeEvent<HTMLInputElement>) => {
-                onValueChange(specification.name, e.target.value);
-              },
-            }
-          : {})}
-      />
-    );
-  }
-
-  if (specOptions && specOptions.length > 0) {
-    const comboboxOptions = specOptions.map((option: string) => ({
-      value: option,
-      label: option,
-    }));
-
-    return (
-      <Combobox
-        options={comboboxOptions}
-        value={(configuration[name] as string) || (defaultValue as string) || ''}
-        onValueChange={(value: string) => {
-          onValueChange(name, value);
-        }}
-        placeholder={placeholder ?? `Select ${displayName.toLowerCase()}`}
-        emptyMessage='No options available'
-        className='w-full'
-      />
-    );
-  }
-
-  switch (requiredType) {
-    case RequiredType.BOOLEAN:
-      return (
-        <div className='flex items-center space-x-2'>
-          <Input
-            type='checkbox'
-            id={inputId}
-            name={name}
-            checked={(configuration[name] as boolean) || false}
-            onChange={e => {
-              onValueChange(name, e.target.checked);
-            }}
-            className='text-primary focus:ring-primary border-border h-4 w-4 rounded'
-          />
-          <Label htmlFor={inputId} className='cursor-pointer text-sm'>
-            <AppWizardStepLabel
-              htmlFor={inputId}
-              required={specification.required}
-              tooltip={specification.description}
-            >
-              {displayName}
-            </AppWizardStepLabel>
-          </Label>
-        </div>
-      );
-
-    case RequiredType.NUMBER:
-      return (
-        <Input
-          id={inputId}
-          name={name}
-          type='number'
-          value={(configuration[name] as string) || (defaultValue as string) || ''}
-          placeholder={placeholder ?? `Enter ${displayName.toLowerCase()}`}
-          onChange={e => {
-            const numValue = parseFloat(e.target.value) || 0;
-            onValueChange(name, numValue);
-          }}
-        />
-      );
-
-    case RequiredType.ARRAY:
-      return (
-        <Textarea
-          id={inputId}
-          name={name}
-          value={
-            Array.isArray(configuration[name])
-              ? (configuration[name] as string[]).join('\n')
-              : Array.isArray(defaultValue)
-                ? defaultValue.join('\n')
-                : ''
-          }
-          placeholder={placeholder ?? `Enter ${displayName.toLowerCase()} (one per line)`}
-          rows={4}
-          onChange={e => {
-            const arrayValue = e.target.value.split('\n').filter(line => line.trim());
-            onValueChange(name, arrayValue);
-          }}
-        />
-      );
-
-    case RequiredType.OBJECT:
-      return (
-        <Textarea
-          id={inputId}
-          name={name}
-          value={
-            configuration[name] && typeof configuration[name] === 'object'
-              ? JSON.stringify(configuration[name], null, 2)
-              : typeof defaultValue === 'object'
-                ? JSON.stringify(defaultValue, null, 2)
-                : ''
-          }
-          placeholder={placeholder ?? `Enter ${displayName.toLowerCase()} as JSON`}
-          rows={6}
-          className='font-mono'
-          onChange={e => {
-            try {
-              const objectValue = JSON.parse(e.target.value) as Record<string, unknown>;
-              onValueChange(name, objectValue);
-            } catch {
-              onValueChange(name, e.target.value);
-            }
-          }}
-        />
-      );
-    case RequiredType.DATE: {
-      const parseDateValue = (value: unknown): string => {
-        if (!value) return '';
-        if (typeof value !== 'string' && typeof value !== 'number') return '';
-        const dateStr = typeof value === 'string' ? value : value.toString();
-        try {
-          const date = new Date(dateStr);
-          if (isNaN(date.getTime())) return '';
-          return date.toISOString().split('T')[0];
-        } catch {
-          return '';
-        }
-      };
-
-      return (
-        <Input
-          id={inputId}
-          name={name}
-          type='date'
-          value={(configuration[name] as string) || parseDateValue(defaultValue) || ''}
-          placeholder={placeholder ?? `Enter ${displayName.toLowerCase()}`}
-          onChange={e => {
-            onValueChange(name, e.target.value);
-          }}
-        />
-      );
-    }
-
-    case RequiredType.STRING:
-    default:
-      return (
-        <Input
-          id={inputId}
-          name={name}
-          type='text'
-          value={(configuration[name] as string) || (defaultValue as string) || ''}
-          placeholder={placeholder ?? `Enter ${displayName.toLowerCase()}`}
-          onChange={e => {
-            onValueChange(name, e.target.value);
-          }}
-        />
-      );
-  }
 }
 
 export function ConfigurationStep({
@@ -302,23 +98,76 @@ export function ConfigurationStep({
     }));
   };
 
-  const validateConfiguration = (
-    config: Record<string, unknown>,
-    specs: ConnectorSpecificationResponseApiDto[]
-  ) => {
-    const requiredSpecs = specs.filter(
-      spec => spec.required && spec.showInUI !== false && spec.name !== 'Fields'
-    );
+  const validateValue = useCallback((value: unknown): boolean => {
+    if (value === null || value === undefined) return false;
+    if (typeof value === 'string' && value.trim() === '') return false;
+    if (Array.isArray(value) && value.length === 0) return false;
 
-    return requiredSpecs.every(spec => {
-      const value = config[spec.name];
+    return true;
+  }, []);
 
-      if (value === null || value === undefined) return false;
-      if (typeof value === 'string' && value.trim() === '') return false;
-      if (Array.isArray(value) && value.length === 0) return false;
+  const validateOneOfRecursive = useCallback(
+    (value: unknown, spec: ConnectorSpecificationResponseApiDto): boolean => {
+      if (typeof value !== 'object' || value === null) return validateValue(value);
 
-      return true;
+      const oneOfs = spec.oneOf?.filter(
+        oneOf => oneOf.value === Object.keys(value as Record<string, unknown>)[0]
+      );
+      if (oneOfs) {
+        return oneOfs.every(oneOf =>
+          Object.entries(oneOf.items).every(([, item]) => {
+            if (oneOf.value in value) {
+              return validateOneOfRecursive((value as Record<string, unknown>)[oneOf.value], item);
+            }
+            return false;
+          })
+        );
+      }
+
+      return validateValue((value as Record<string, unknown>)[spec.name]);
+    },
+    [validateValue]
+  );
+
+  const validateConfiguration = useCallback(
+    (config: Record<string, unknown>, specs: ConnectorSpecificationResponseApiDto[]) => {
+      const requiredOneOfSpecs = specs.filter(spec => spec.required && spec.oneOf);
+
+      const isValidOneOf =
+        requiredOneOfSpecs.length === 0
+          ? true
+          : requiredOneOfSpecs.some(spec => validateOneOfRecursive(config[spec.name], spec));
+
+      const requiredSpecs = specs.filter(spec => spec.required && spec.name !== 'Fields');
+      const isValidRequired = requiredSpecs.every(spec => validateValue(config[spec.name]));
+
+      return isValidOneOf && isValidRequired;
+    },
+    [validateValue, validateOneOfRecursive]
+  );
+
+  const handleSecretEditToggle = (name: string, enable: boolean) => {
+    setSecretEditing(prev => ({ ...prev, [name]: enable }));
+    if (!enable) {
+      setConfiguration(prev => ({ ...prev, [name]: SECRET_MASK }));
+    } else {
+      setConfiguration(prev => ({ ...prev, [name]: '' }));
+    }
+  };
+
+  const handleCopyConfiguration = (copiedConfig: CopiedConfiguration) => {
+    const newConfig: Record<string, unknown> = { ...configuration };
+
+    Object.entries(copiedConfig.configuration).forEach(([key, value]) => {
+      newConfig[key] = value;
     });
+
+    newConfig._copiedFrom = {
+      dataMartId: copiedConfig.dataMartId,
+      dataMartTitle: copiedConfig.dataMartTitle,
+      configId: copiedConfig.configId,
+    };
+    setConfiguration(newConfig);
   };
 
   useEffect(() => {
@@ -326,7 +175,7 @@ export function ConfigurationStep({
       const isValid = validateConfiguration(configuration, connectorSpecification);
       onValidationChange(isValid);
     }
-  }, [configuration, connectorSpecification, onValidationChange]);
+  }, [configuration, connectorSpecification, onValidationChange, validateConfiguration]);
 
   if (loading) {
     return <AppWizardStepLoading variant='list' />;
@@ -352,7 +201,7 @@ export function ConfigurationStep({
   // 3. Non-required fields without default value
   // 4. All others (non-required with default value)
   const sortedSpecifications = [...connectorSpecification]
-    .filter(spec => spec.showInUI !== false && spec.name !== 'Fields')
+    .filter(spec => spec.name !== 'Fields' && !spec.attributes?.includes('HIDE_IN_CONFIG_FORM'))
     .sort((a, b) => {
       const getPriority = (spec: ConnectorSpecificationResponseApiDto) => {
         const hasDefault = spec.default != null && spec.default !== '';
@@ -365,61 +214,47 @@ export function ConfigurationStep({
       return getPriority(a) - getPriority(b);
     });
 
+  const requiredFields = sortedSpecifications.filter(
+    spec => !spec.attributes?.includes('ADVANCED')
+  );
+  const advancedFields = sortedSpecifications.filter(spec => spec.attributes?.includes('ADVANCED'));
+
   return (
     <>
       <AppWizardStep>
         <StepperHeroBlock connector={connector} />
-        <AppWizardStepSection title='Configure Settings'>
-          {sortedSpecifications.map(specification => {
-            const isSecret = Array.isArray(specification.attributes)
-              ? specification.attributes.includes('SECRET')
-              : false;
-
-            const isSecretEditing = secretEditing[specification.name];
-
-            const handleSecretEditToggle = (name: string, enable: boolean) => {
-              setSecretEditing(prev => ({ ...prev, [name]: enable }));
-              if (!enable) {
-                setConfiguration(prev => ({ ...prev, [name]: SECRET_MASK }));
-              } else {
-                setConfiguration(prev => ({ ...prev, [name]: '' }));
-              }
-            };
-
-            return (
-              <AppWizardStepItem key={specification.name}>
-                {specification.requiredType !== RequiredType.BOOLEAN && (
-                  <div className='flex items-center justify-between'>
-                    <AppWizardStepLabel
-                      htmlFor={specification.name}
-                      required={specification.required}
-                      tooltip={specification.description}
-                    >
-                      {specification.title ?? specification.name}
-                    </AppWizardStepLabel>
-                    {isSecret && isEditingExisting && (
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        type='button'
-                        onClick={() => {
-                          handleSecretEditToggle(specification.name, !isSecretEditing);
-                        }}
-                      >
-                        {isSecretEditing ? 'Cancel' : 'Edit'}
-                      </Button>
-                    )}
-                  </div>
-                )}
-
-                {renderInputForType(specification, configuration, handleValueChange, {
-                  isSecret,
-                  isEditingExisting,
-                  isSecretEditing,
-                })}
-              </AppWizardStepItem>
-            );
-          })}
+        <AppWizardStepSection>
+          <div className='flex items-center justify-between'>
+            <h3 className='text-muted-foreground/75 text-xs font-semibold tracking-wide uppercase'>
+              Configure Settings
+            </h3>
+            <CopyConfigurationButton
+              currentConnectorName={connector.name}
+              onCopyConfiguration={handleCopyConfiguration}
+              connectorSpecification={connectorSpecification}
+            />
+          </div>
+          {requiredFields.length > 0 && (
+            <ConfigurationListRender
+              items={requiredFields}
+              configuration={configuration}
+              onValueChange={handleValueChange}
+              onSecretEditToggle={handleSecretEditToggle}
+              secretEditing={secretEditing}
+              isEditingExisting={isEditingExisting}
+            />
+          )}
+          {advancedFields.length > 0 && (
+            <ConfigurationListRender
+              collapsibleTitle='Advanced Settings'
+              items={advancedFields}
+              configuration={configuration}
+              onValueChange={handleValueChange}
+              onSecretEditToggle={handleSecretEditToggle}
+              secretEditing={secretEditing}
+              isEditingExisting={isEditingExisting}
+            />
+          )}
         </AppWizardStepSection>
       </AppWizardStep>
     </>

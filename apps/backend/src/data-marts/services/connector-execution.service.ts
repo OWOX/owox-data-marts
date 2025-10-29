@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
@@ -116,10 +117,9 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     this.validateDataMartForConnector(dataMart);
     const isRunning = await this.checkDataMartIsRunning(dataMart);
     if (isRunning) {
-      throw new ConnectorExecutionError('DataMart is already running', undefined, {
-        dataMartId: dataMart.id,
-        projectId: dataMart.projectId,
-      });
+      throw new BusinessViolationException(
+        'Connector is already running. Please wait until it finishes'
+      );
     }
 
     const dataMartRun = await this.createDataMartRun(dataMart, createdById, runType, payload);
@@ -611,7 +611,6 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
   async getDataMartRunsByStatus(status: DataMartRunStatus): Promise<DataMartRun[]> {
     return this.dataMartRunRepository.find({
       where: { status },
-      order: { createdAt: 'ASC' },
       relations: ['dataMart'],
     });
   }

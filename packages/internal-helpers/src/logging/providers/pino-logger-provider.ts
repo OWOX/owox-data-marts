@@ -1,16 +1,19 @@
-import pino, { Logger as PinoLogger, LoggerOptions } from 'pino';
 import { createGcpLoggingPinoConfig } from '@google-cloud/pino-logging-gcp-config';
+import pino, { DestinationStream, LoggerOptions, Logger as PinoLogger } from 'pino';
+import type { LoggerConfig, LoggerProvider } from '../types.js';
 import { LogFormat, LogLevel } from '../types.js';
-import type { LoggerProvider, LoggerConfig } from '../types.js';
 
 /**
  * Pino logger provider implementation
  */
 export class PinoLoggerProvider implements LoggerProvider {
+  private static sharedPrettyTransport: DestinationStream | null = null;
   private readonly pinoLogger: PinoLogger;
 
   constructor(config: LoggerConfig) {
-    this.pinoLogger = pino(this.buildPinoOptions(config));
+    const options = this.buildPinoOptions(config);
+    const destination = PinoLoggerProvider.resolveDestination(config.format);
+    this.pinoLogger = destination ? pino(options, destination) : pino(options);
   }
 
   shutdown(): Promise<void> {
@@ -54,20 +57,7 @@ export class PinoLoggerProvider implements LoggerProvider {
       ...config.options,
     };
 
-    if (config.format === LogFormat.PRETTY) {
-      baseOptions.transport = {
-        target: 'pino-pretty',
-        options: {
-          colorize: true,
-          colorizeObjects: true,
-          timestampKey: 'time',
-          translateTime: 'yyyy-mm-dd HH:MM:ss.l',
-          ignore: 'pid,hostname,context,params,metadata',
-          singleLine: true,
-          messageFormat: '{if context}<{context}>: {end}{msg}',
-        },
-      };
-    } else if (config.format === LogFormat.GCP_CLOUD_LOGGING) {
+    if (config.format === LogFormat.GCP_CLOUD_LOGGING) {
       return createGcpLoggingPinoConfig(
         {},
         {
@@ -77,5 +67,29 @@ export class PinoLoggerProvider implements LoggerProvider {
     }
 
     return baseOptions;
+  }
+
+  private static resolveDestination(format: LogFormat): DestinationStream | undefined {
+    if (format === LogFormat.PRETTY) {
+      return this.getSharedPrettyTransport();
+    }
+    return undefined;
+  }
+
+  private static getSharedPrettyTransport(): DestinationStream {
+    if (this.sharedPrettyTransport) return this.sharedPrettyTransport;
+    this.sharedPrettyTransport = pino.transport({
+      target: 'pino-pretty',
+      options: {
+        colorize: true,
+        colorizeObjects: true,
+        timestampKey: 'time',
+        translateTime: 'yyyy-mm-dd HH:MM:ss.l',
+        ignore: 'pid,hostname,context,params,metadata',
+        singleLine: true,
+        messageFormat: '{if context}<{context}>: {end}{msg}',
+      },
+    }) as unknown as DestinationStream;
+    return this.sharedPrettyTransport;
   }
 }

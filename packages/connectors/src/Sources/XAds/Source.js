@@ -66,13 +66,6 @@ var XAdsSource = class XAdsSource extends AbstractSource {
         label: "Clean Up To Keep Window",
         description: "Number of days to keep data before cleaning up"
       },
-      MaxFetchingDays: {
-        requiredType: "number",
-        isRequired: true,
-        default: 31,
-        label: "Max Fetching Days",
-        description: "Maximum number of days to fetch data for"
-      },
       Version: {
         requiredType: "string",
         default: "12",
@@ -114,7 +107,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
     this.fieldsSchema = XAdsFieldsSchema;
     this._tweetsCache = new Map(); // Map<accountId, {data: Array, fields: Set}>
     this._promotedTweetsCache = new Map(); // Map<accountId, {data: Array, fields: Set}>
-    this.BASE_URL = "https://api.twitter.com/"; // Base URL for X Ads API
+    this.BASE_URL = "https://ads-api.x.com/"; // Base URL for X Ads API
   }
 
   /**

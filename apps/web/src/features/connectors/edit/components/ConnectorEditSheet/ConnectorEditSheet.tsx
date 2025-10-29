@@ -22,6 +22,8 @@ interface ConnectorEditSheetProps {
   configurationOnly?: boolean;
   existingConnector?: ConnectorConfig | null;
   mode?: 'full' | 'configuration-only' | 'fields-only';
+  initialStep?: number;
+  preselectedConnector?: string | null;
 }
 
 export function ConnectorEditSheet({
@@ -32,6 +34,8 @@ export function ConnectorEditSheet({
   configurationOnly = false,
   existingConnector = null,
   mode = 'full',
+  initialStep,
+  preselectedConnector,
 }: ConnectorEditSheetProps) {
   useEffect(() => {
     if (isOpen) {
@@ -72,6 +76,8 @@ export function ConnectorEditSheet({
           configurationOnly={configurationOnly || mode === 'configuration-only'}
           existingConnector={existingConnector}
           mode={mode}
+          initialStep={initialStep}
+          preselectedConnector={preselectedConnector}
         />
       </SheetContent>
     </Sheet>

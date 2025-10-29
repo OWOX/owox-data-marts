@@ -29,24 +29,20 @@ import {
   DeleteDataMartSpec,
   RunDataMartSpec,
   ValidateDataMartDefinitionSpec,
-  ActualizeDataMartSchemaSpec,
   UpdateDataMartSchemaSpec,
-  SqlDryRunSpec,
   GetDataMartRunsSpec,
   CancelDataMartRunSpec,
+  ListDataMartsByConnectorNameSpec,
 } from './spec/data-mart.api';
 import { AuthContext, AuthorizationContext, Auth, Role, Strategy } from '../../idp';
 import { RunDataMartService } from '../use-cases/run-data-mart.service';
 import { ValidateDataMartDefinitionService } from '../use-cases/validate-data-mart-definition.service';
-import { ActualizeDataMartSchemaService } from '../use-cases/actualize-data-mart-schema.service';
 import { UpdateDataMartSchemaService } from '../use-cases/update-data-mart-schema.service';
 import { DataMartValidationResponseApiDto } from '../dto/presentation/data-mart-validation-response-api.dto';
 import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-response-api.dto';
 import { UpdateDataMartSchemaApiDto } from '../dto/presentation/update-data-mart-schema-api.dto';
-import { SqlDryRunService } from '../use-cases/sql-dry-run.service';
-import { SqlDryRunRequestApiDto } from '../dto/presentation/sql-dry-run-request-api.dto';
-import { SqlDryRunResponseApiDto } from '../dto/presentation/sql-dry-run-response-api.dto';
 import { RunDataMartRequestApiDto } from '../dto/presentation/run-data-mart-request-api.dto';
+import { ListDataMartsByConnectorNameService } from '../use-cases/list-data-marts-by-connector-name.service';
 
 @Controller('data-marts')
 @ApiTags('DataMarts')
@@ -63,11 +59,10 @@ export class DataMartController {
     private readonly mapper: DataMartMapper,
     private readonly runDataMartService: RunDataMartService,
     private readonly validateDefinitionService: ValidateDataMartDefinitionService,
-    private readonly actualizeSchemaService: ActualizeDataMartSchemaService,
     private readonly updateSchemaService: UpdateDataMartSchemaService,
-    private readonly sqlDryRunService: SqlDryRunService,
     private readonly getDataMartRunsService: GetDataMartRunsService,
-    private readonly cancelDataMartRunService: CancelDataMartRunService
+    private readonly cancelDataMartRunService: CancelDataMartRunService,
+    private readonly listDataMartsByConnectorNameService: ListDataMartsByConnectorNameService
   ) {}
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -85,9 +80,24 @@ export class DataMartController {
   @Auth(Role.viewer(Strategy.PARSE))
   @Get()
   @ListDataMartsSpec()
-  async list(@AuthContext() context: AuthorizationContext): Promise<DataMartResponseApiDto[]> {
-    const command = this.mapper.toListCommand(context);
+  async list(
+    @AuthContext() context: AuthorizationContext,
+    @Query('connectorName') connectorName?: string
+  ): Promise<DataMartResponseApiDto[]> {
+    const command = this.mapper.toListCommand(context, connectorName);
     const dataMarts = await this.listDataMartsService.run(command);
+    return this.mapper.toResponseList(dataMarts);
+  }
+
+  @Auth(Role.viewer(Strategy.PARSE))
+  @Get('by-connector/:connectorName')
+  @ListDataMartsByConnectorNameSpec()
+  async listDataMartsByConnectorName(
+    @AuthContext() context: AuthorizationContext,
+    @Param('connectorName') connectorName: string
+  ): Promise<DataMartResponseApiDto[]> {
+    const command = this.mapper.toListDataMartsByConnectorNameCommand(connectorName, context);
+    const dataMarts = await this.listDataMartsByConnectorNameService.run(command);
     return this.mapper.toResponseList(dataMarts);
   }
 
@@ -204,18 +214,6 @@ export class DataMartController {
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
-  @Post(':id/actualize-schema')
-  @ActualizeDataMartSchemaSpec()
-  async actualizeSchema(
-    @AuthContext() context: AuthorizationContext,
-    @Param('id') id: string
-  ): Promise<DataMartResponseApiDto> {
-    const command = this.mapper.toActualizeSchemaCommand(id, context);
-    const dataMart = await this.actualizeSchemaService.run(command);
-    return this.mapper.toResponse(dataMart);
-  }
-
-  @Auth(Role.editor(Strategy.INTROSPECT))
   @Put(':id/schema')
   @UpdateDataMartSchemaSpec()
   async updateSchema(
@@ -226,20 +224,6 @@ export class DataMartController {
     const command = this.mapper.toUpdateSchemaCommand(id, context, dto);
     const dataMart = await this.updateSchemaService.run(command);
     return this.mapper.toResponse(dataMart);
-  }
-
-  @Auth(Role.editor(Strategy.INTROSPECT))
-  @Post(':id/sql-dry-run')
-  @HttpCode(200)
-  @SqlDryRunSpec()
-  async sqlDryRun(
-    @AuthContext() context: AuthorizationContext,
-    @Param('id') id: string,
-    @Body() dto: SqlDryRunRequestApiDto
-  ): Promise<SqlDryRunResponseApiDto> {
-    const command = this.mapper.toSqlDryRunCommand(id, context, dto);
-    const result = await this.sqlDryRunService.run(command);
-    return this.mapper.toSqlDryRunResponse(result);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))

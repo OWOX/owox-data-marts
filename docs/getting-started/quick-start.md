@@ -1,7 +1,14 @@
 # Quick Start 🚀
 
-> OWOX Data Marts is an open-source tool for self-service analytics.  
-> You can deploy it in different ways depending on your needs and preferences.
+**OWOX Data Marts** is an open-source self-service analytics platform. It gives you full control over data connectivity and data enablement — entirely on your terms, with free community edition available.
+
+## 🔌 Data Connectivity
+
+Easily collect marketing, financial, and CRM data into Google Sheets, BigQuery, AWS Athena, and other destinations. Define your own extraction logic, schema, and scheduling.
+
+## 🚀 Data Enablement
+
+Build and manage reliable Data Marts. Deliver clean, business-ready data to stakeholders via Google Sheets, Looker Studio — while retaining full control over data logic and freshness.
 
 The table below summarizes the available options
 

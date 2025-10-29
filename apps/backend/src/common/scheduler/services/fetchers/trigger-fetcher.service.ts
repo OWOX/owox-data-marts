@@ -27,12 +27,14 @@ export class TriggerFetcherService<T extends Trigger> {
    * @param repository The TypeORM repository for the trigger entity
    * @param systemClock The system time service used to get the current time
    * @param stuckTriggerTimeoutSeconds The timeout in seconds after which a trigger is considered stuck
+   * @param triggerTtlSeconds The TTL in seconds for triggers
    * @param fetchStrategy The strategy for determining which triggers are ready for processing
    */
   constructor(
     private readonly repository: Repository<T>,
     private readonly systemClock: SystemTimeService,
-    private readonly stuckTriggerTimeoutSeconds: number,
+    private readonly stuckTriggerTimeoutSeconds: number | undefined,
+    private readonly triggerTtlSeconds: number | undefined,
     private readonly fetchStrategy: TriggerFetchStrategy<T>
   ) {
     this.entityName = this.repository.metadata.name;
@@ -53,6 +55,7 @@ export class TriggerFetcherService<T extends Trigger> {
     const startTime = this.systemClock.now();
 
     try {
+      await this.deleteTriggersByTtl();
       await this.recoverStuckTriggers();
       const triggers = await this.findTriggersReadyForProcessing(startTime);
       return await this.markTriggersAsReady(triggers);
@@ -136,6 +139,11 @@ export class TriggerFetcherService<T extends Trigger> {
    * @return {Promise<void>} A promise that resolves when the recovery process is complete.
    */
   private async recoverStuckTriggers(): Promise<void> {
+    if (!this.stuckTriggerTimeoutSeconds) {
+      this.logger.debug('[TriggerFetcherService] Stuck trigger timeout is not configured.');
+      return;
+    }
+
     const stuckStartTime = new Date(
       this.systemClock.now().getTime() - this.stuckTriggerTimeoutSeconds * 1000
     );
@@ -155,6 +163,30 @@ export class TriggerFetcherService<T extends Trigger> {
       this.logger.warn(
         `[${this.entityName}] ${affected} stuck triggers returned to ${recoveryStatus} status.`
       );
+    }
+  }
+
+  /**
+   * Deletes expired triggers from the database based on the configured TTL (time-to-live) value.
+   *
+   * The method calculates the expiration based on the current system clock and the TTL value,
+   * then removes any triggers with a creation date that falls before the TTL start time.
+   *
+   * @return {Promise<void>} A promise that resolves when the deletion operation is complete.
+   */
+  private async deleteTriggersByTtl(): Promise<void> {
+    if (!this.triggerTtlSeconds) {
+      this.logger.debug('[TriggerFetcherService] Trigger TTL is not configured.');
+      return;
+    }
+
+    const ttlStartTime = new Date(this.systemClock.now().getTime() - this.triggerTtlSeconds * 1000);
+    const { affected } = await this.repository.delete({
+      createdAt: LessThanOrEqual(ttlStartTime),
+    } as FindOptionsWhere<T>);
+
+    if (affected) {
+      this.logger.log(`[${this.entityName}] ${affected} triggers deleted due to TTL.`);
     }
   }
 

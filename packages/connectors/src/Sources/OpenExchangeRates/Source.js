@@ -17,7 +17,7 @@ constructor(config) {
         requiredType: "string",
         label: "App ID",
         description: "OpenExchangeRates API App ID",
-        errorMessage: "You need to add App Id first. Go to Google Sheets Menu ⟩ OWOX ⟩ 🔑 Manage Credentials'",
+        errorMessage: "You need to add App Id first. Go to Google Sheets Menu ⟩ OWOX ⟩ Manage Credentials'",
         attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       StartDate: {
@@ -38,13 +38,6 @@ constructor(config) {
         default: 2,
         label: "Reimport Lookback Window",
         description: "Number of days to look back when reimporting data"
-      },
-      MaxFetchingDays: {
-        requiredType: "number",
-        isRequired: true,
-        default: 30,
-        label: "Max Fetching Days",
-        description: "Maximum number of days to fetch data for"
       },
       Symbols: {
         requiredType: "string",
@@ -94,7 +87,7 @@ constructor(config) {
     
     const url = `${urlWithoutKey}&app_id=${app_id}`;
     
-    this.config.logMessage(`🔄 Fetching rates for ${date}`);
+    this.config.logMessage(`Fetching rates for ${date}`);
   
     var response = EnvironmentAdapter.fetch(url, {'method': 'get', 'muteHttpExceptions': true} );
     var historical = JSON.parse( response.getContentText() );

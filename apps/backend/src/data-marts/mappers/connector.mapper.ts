@@ -1,9 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { ConnectorDefinition } from '../connector-types/connector-definition';
-import { ConnectorSpecification } from '../connector-types/connector-specification';
+import {
+  ConnectorSpecification,
+  ConnectorSpecificationSchema,
+  ConnectorSpecificationItem,
+} from '../connector-types/connector-specification';
 import { ConnectorFieldsSchema } from '../connector-types/connector-fields-schema';
 import { ConnectorDefinitionResponseApiDto } from '../dto/presentation/connector-definition-response-api.dto';
-import { ConnectorSpecificationResponseApiDto } from '../dto/presentation/connector-specification-response-api.dto';
+import {
+  ConnectorSpecificationResponseApiDto,
+  ConnectorSpecificationItemResponseApiDto,
+  ConnectorSpecificationOneOfOptionResponseApiDto,
+} from '../dto/presentation/connector-specification-response-api.dto';
 import { ConnectorFieldsResponseApiDto } from '../dto/presentation/connector-fields-response-api.dto';
 
 @Injectable()
@@ -27,18 +35,7 @@ export class ConnectorMapper {
   toSpecificationResponse(
     specification: ConnectorSpecification
   ): ConnectorSpecificationResponseApiDto[] {
-    return specification.map(item => ({
-      name: item.name,
-      title: item.title,
-      description: item.description,
-      default: item.default,
-      requiredType: item.requiredType,
-      required: item.required,
-      options: item.options,
-      placeholder: item.placeholder,
-      showInUI: item.showInUI,
-      attributes: item.attributes,
-    }));
+    return specification.map(item => this.specificationItemToResponse(item));
   }
 
   toFieldsResponse(fields: ConnectorFieldsSchema): ConnectorFieldsResponseApiDto[] {
@@ -55,5 +52,51 @@ export class ConnectorMapper {
         description: field.description,
       })),
     }));
+  }
+
+  private mapSpecificationItem(
+    item: ConnectorSpecificationItem
+  ): ConnectorSpecificationItemResponseApiDto {
+    return {
+      name: item.name,
+      title: item.title,
+      description: item.description,
+      default: item.default,
+      requiredType: item.requiredType,
+      required: item.required,
+      options: item.options,
+      placeholder: item.placeholder,
+      attributes: item.attributes,
+    };
+  }
+
+  private specificationItemToResponse(
+    item: ConnectorSpecificationSchema
+  ): ConnectorSpecificationResponseApiDto {
+    return {
+      name: item.name,
+      title: item.title,
+      description: item.description,
+      default: item.default,
+      requiredType: item.requiredType,
+      required: item.required,
+      options: item.options,
+      placeholder: item.placeholder,
+      attributes: item.attributes,
+      oneOf: item.oneOf?.map(
+        (oneOf): ConnectorSpecificationOneOfOptionResponseApiDto => ({
+          label: oneOf.label,
+          value: oneOf.value,
+          requiredType: oneOf.requiredType,
+          items: Object.entries(oneOf.items).reduce(
+            (acc, [key, value]) => {
+              acc[key] = this.mapSpecificationItem(value);
+              return acc;
+            },
+            {} as Record<string, ConnectorSpecificationItemResponseApiDto>
+          ),
+        })
+      ),
+    };
   }
 }

@@ -1,5 +1,6 @@
 import { ApiService } from '../../../../../services';
 import type { CreateReportRequestDto, ReportResponseDto, UpdateReportRequestDto } from './types';
+import type { AxiosRequestConfig } from '../../../../../app/api';
 
 /**
  * Report Service
@@ -34,10 +35,14 @@ export class ReportService extends ApiService {
   /**
    * List reports by data mart ID
    * @param dataMartId Data mart ID
+   * @param config
    * @returns Promise with list of reports
    */
-  async getReportsByDataMartId(dataMartId: string): Promise<ReportResponseDto[]> {
-    return this.get<ReportResponseDto[]>(`/data-mart/${dataMartId}`);
+  async getReportsByDataMartId(
+    dataMartId: string,
+    config?: AxiosRequestConfig
+  ): Promise<ReportResponseDto[]> {
+    return this.get<ReportResponseDto[]>(`/data-mart/${dataMartId}`, undefined, config);
   }
 
   /**

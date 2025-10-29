@@ -32,15 +32,24 @@ const MicrosoftAdsHelper = {
     const startTime = Date.now();
     const timeout = 15 * 60 * 1000; // 15 minutes in ms
     let statusResult;
-    do {
-      if (Date.now() - startTime > timeout) {
-        throw new Error('Polling timed out after 15 minutes');
+    
+    try {
+      do {
+        if (Date.now() - startTime > timeout) {
+          throw new Error('Polling timed out after 15 minutes');
+        }
+        EnvironmentAdapter.sleep(interval);
+        const response = EnvironmentAdapter.fetch(url, options);
+        statusResult = JSON.parse(response.getContentText());
+      } while (!isDone(statusResult));
+      
+      return statusResult;
+    } catch (error) {
+      if (statusResult) {
+        throw new Error(`${error.message}\nAPI Response: ${JSON.stringify(statusResult, null, 2)}`);
       }
-      EnvironmentAdapter.sleep(interval);
-      const response = EnvironmentAdapter.fetch(url, options);
-      statusResult = JSON.parse(response.getContentText());
-    } while (!isDone(statusResult));
-    return statusResult;
+      throw error;
+    }
   },
 
   /**

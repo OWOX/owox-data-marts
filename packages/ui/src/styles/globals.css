@@ -369,3 +369,73 @@
       80px 80px;
   }
 }
+
+/* Animated Icon for Empty Data Marts page */
+/* --- Entrance (only once) --- */
+@keyframes icon-entrance {
+  0% {
+    transform: translateY(4px) scale(0.95);
+    opacity: 0;
+  }
+  20% {
+    transform: translateY(2px) scale(0.98);
+    opacity: 0.6;
+  }
+  40% {
+    transform: translateY(0) scale(1.05);
+    opacity: 1;
+  }
+  60% {
+    transform: translateY(0) scale(1.02);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* --- Existing animations (unchanged visuals) --- */
+@keyframes ring-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.25;
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0);
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 0.5;
+    box-shadow: 0 0 60px rgba(0, 0, 0, 0.1);
+  }
+}
+
+@keyframes glow-burst {
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+/* --- Classes --- */
+.animate-ring-pulse {
+  @apply absolute rounded-full border border-neutral-300/20 dark:border-neutral-600/20;
+  animation: ring-pulse 6s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/* entrance + continuous pulse */
+.animate-icon-entrance {
+  @apply relative h-32 w-32 text-neutral-400 lg:h-48 lg:w-48 xl:h-64 xl:w-64 2xl:h-72 2xl:w-72 dark:text-neutral-300;
+  animation: icon-entrance 1.6s ease-out forwards;
+}
+
+.animate-glow-burst {
+  @apply absolute top-1/2 left-1/2 h-44 w-44 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-tr from-neutral-300/50 to-transparent blur-2xl dark:from-neutral-600/30;
+  animation:
+    glow-burst 1.6s ease-out forwards,
+    glow-pulse 6s 1.6s ease-in-out infinite;
+}

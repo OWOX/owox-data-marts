@@ -33,19 +33,126 @@ export class ConnectorSecretService {
   }
 
   /**
-   * Returns a set of field names that have the `SECRET` attribute in the
-   * connector specification.
+   * Collects all secret field names recursively from oneOf items.
    *
-   * @param connectorName Connector name
-   * @returns Set of secret field names
+   * @param specification Connector specification
+   * @returns Set of all secret field names including nested ones
    */
-  private async getSecretFieldNames(connectorName: string): Promise<Set<string>> {
+  private async getAllSecretFieldNames(connectorName: string): Promise<Set<string>> {
     const specification = await this.connectorService.getConnectorSpecification(connectorName);
-    return new Set(
-      specification
-        .filter(field => (field.attributes || []).includes(Core.CONFIG_ATTRIBUTES.SECRET))
-        .map(field => field.name)
-    );
+    const secretFields = new Set<string>();
+
+    const collectSecretFields = (fields: unknown[]): void => {
+      for (const field of fields as Array<{
+        name: string;
+        attributes?: string[];
+        oneOf?: unknown;
+      }>) {
+        if ((field.attributes || []).includes(Core.CONFIG_ATTRIBUTES.SECRET)) {
+          secretFields.add(field.name);
+        }
+
+        if (field.oneOf && Array.isArray(field.oneOf)) {
+          for (const oneOfOption of field.oneOf) {
+            if (oneOfOption.items) {
+              const nestedFields = Object.values(oneOfOption.items);
+              collectSecretFields(
+                nestedFields as Array<{ name: string; attributes?: string[]; oneOf?: unknown }>
+              );
+            }
+          }
+        }
+      }
+    };
+
+    collectSecretFields(specification);
+    return secretFields;
+  }
+
+  /**
+   * Recursively masks secret fields in an object, including nested oneOf fields.
+   *
+   * @param item Item to mask
+   * @param secretFieldNames Set of secret field names
+   * @returns Masked item
+   */
+  private maskRecursively(item: unknown, secretFieldNames: Set<string>): unknown {
+    if (!item || typeof item !== 'object') {
+      return item;
+    }
+
+    if (Array.isArray(item)) {
+      return item.map(element => this.maskRecursively(element, secretFieldNames));
+    }
+
+    const maskedItem = { ...(item as Record<string, unknown>) };
+
+    for (const [key, value] of Object.entries(maskedItem)) {
+      if (secretFieldNames.has(key)) {
+        maskedItem[key] = SECRET_MASK;
+      } else if (value && typeof value === 'object') {
+        maskedItem[key] = this.maskRecursively(value, secretFieldNames);
+      }
+    }
+
+    return maskedItem;
+  }
+
+  /**
+   * Recursively merges secret fields from previous configuration into incoming.
+   *
+   * @param incoming Incoming configuration object
+   * @param previous Previous configuration object
+   * @param secretFieldNames Set of secret field names
+   * @returns Merged configuration object
+   */
+  private mergeSecretsRecursively(
+    incoming: unknown,
+    previous: unknown,
+    secretFieldNames: Set<string>
+  ): unknown {
+    if (!incoming || typeof incoming !== 'object') {
+      return incoming;
+    }
+
+    if (Array.isArray(incoming)) {
+      return incoming.map((element, index) => {
+        const prevElement = Array.isArray(previous) ? previous[index] : undefined;
+        return this.mergeSecretsRecursively(element, prevElement, secretFieldNames);
+      });
+    }
+
+    const incomingItem = { ...(incoming as Record<string, unknown>) };
+    const previousItem = (previous && typeof previous === 'object' ? previous : {}) as Record<
+      string,
+      unknown
+    >;
+
+    for (const [key, value] of Object.entries(incomingItem)) {
+      if (secretFieldNames.has(key)) {
+        if (value === undefined || this.isSecretMask(value)) {
+          if (previousItem[key] !== undefined) {
+            incomingItem[key] = previousItem[key];
+          }
+        }
+      } else if (value && typeof value === 'object') {
+        incomingItem[key] = this.mergeSecretsRecursively(
+          value,
+          previousItem[key],
+          secretFieldNames
+        );
+      }
+    }
+
+    for (const key of secretFieldNames) {
+      if (!Object.prototype.hasOwnProperty.call(incomingItem, key)) {
+        if (previousItem[key] !== undefined) {
+          incomingItem[key] = previousItem[key];
+        }
+      }
+    }
+
+    return incomingItem;
   }
 
   /**
@@ -62,20 +169,14 @@ export class ConnectorSecretService {
   ): Promise<ConnectorDefinition | undefined> {
     if (!definition) return definition;
 
-    const secretFieldNames = await this.getSecretFieldNames(definition.connector.source.name);
+    const secretFieldNames = await this.getAllSecretFieldNames(definition.connector.source.name);
     if (secretFieldNames.size === 0) {
       return definition;
     }
 
-    const maskedConfiguration = definition.connector.source.configuration.map(item => {
-      const maskedItem = { ...(item as Record<string, unknown>) };
-      for (const fieldName of secretFieldNames) {
-        if (Object.prototype.hasOwnProperty.call(maskedItem, fieldName)) {
-          maskedItem[fieldName] = SECRET_MASK;
-        }
-      }
-      return maskedItem as Record<string, unknown>;
-    });
+    const maskedConfiguration = definition.connector.source.configuration.map(item =>
+      this.maskRecursively(item, secretFieldNames)
+    );
 
     return {
       ...definition,
@@ -112,9 +213,7 @@ export class ConnectorSecretService {
     incoming: ConnectorDefinition,
     previous: ConnectorDefinition | undefined
   ): Promise<ConnectorDefinition> {
-    const secretFieldNames = await this.getSecretFieldNames(incoming.connector.source.name);
-    if (secretFieldNames.size === 0) return incoming;
-
+    const secretFieldNames = await this.getAllSecretFieldNames(incoming.connector.source.name);
     const previousConfiguration = previous?.connector?.source?.configuration || [];
 
     const mergedConfiguration = incoming.connector.source.configuration.map(item => {
@@ -135,18 +234,108 @@ export class ConnectorSecretService {
         return incomingItem;
       }
 
-      for (const fieldName of secretFieldNames) {
-        if (
-          !Object.prototype.hasOwnProperty.call(incomingItem, fieldName) ||
-          this.isSecretMask(incomingItem[fieldName])
-        ) {
-          if (previousItem[fieldName] !== undefined) {
-            incomingItem[fieldName] = previousItem[fieldName];
-          }
-        }
+      return this.mergeSecretsRecursively(incomingItem, previousItem, secretFieldNames);
+    });
+
+    return {
+      ...incoming,
+      connector: {
+        ...incoming.connector,
+        source: {
+          ...incoming.connector.source,
+          configuration: mergedConfiguration,
+        },
+      },
+    } as ConnectorDefinition;
+  }
+
+  /**
+   * Merges secret fields from source configurations into incoming definition.
+   *
+   * This method is used when copying configurations from an existing Data Mart.
+   * Each incoming configuration must have a `_copiedFrom.configId` metadata field that specifies
+   * the _id of the source configuration to copy secrets from.
+   *
+   * Logic flow:
+   * 1. Validates that both source and incoming definitions use the same connector type.
+   *    Throws an error if connector types don't match to prevent incompatible secret merging.
+   *
+   * 2. Retrieves all secret field names from the connector specification to know which
+   *    fields need to be merged.
+   *
+   * 3. Maps over each configuration item in the incoming definition:
+   *    - Extracts the `_copiedFrom.configId` metadata (which contains the _id of the source config)
+   *    - Finds the corresponding source configuration by matching its _id
+   *    - Recursively merges secret fields from that specific source configuration
+   *    - This ensures that masked secrets (*********) are replaced with actual values
+   *      from the correct source configuration
+   *
+   * 4. For each merged configuration item:
+   *    - Removes the `_copiedFrom` metadata field (added by the frontend to track copy operations)
+   *    - Generates a new unique _id for the copied configuration
+   *    - This ensures copied configurations get fresh identifiers and don't retain
+   *      temporary tracking metadata
+   *
+   * 5. Returns a new definition object with the same structure as incoming, but with
+   *    configuration array containing items with properly merged secrets from their
+   *    respective source configurations.
+   *
+   * @param incoming New definition coming from the client with _copiedFrom.configId metadata on each config
+   * @param sourceDefinition Definition from the source Data Mart to copy secrets from
+   * @returns Definition with correctly merged secret values from source configurations
+   * @throws Error if connector types don't match
+   * @throws Error if _copiedFrom.configId metadata is missing
+   * @throws Error if source configuration with specified _id is not found
+   */
+  async mergeDefinitionSecretsFromSource(
+    incoming: ConnectorDefinition,
+    sourceDefinition: ConnectorDefinition
+  ): Promise<ConnectorDefinition> {
+    if (incoming.connector.source.name !== sourceDefinition.connector.source.name) {
+      throw new Error(
+        `Cannot copy secrets from different connector type. ` +
+          `Source: ${sourceDefinition.connector.source.name}, ` +
+          `Target: ${incoming.connector.source.name}`
+      );
+    }
+
+    const secretFieldNames = await this.getAllSecretFieldNames(incoming.connector.source.name);
+
+    const mergedConfiguration = incoming.connector.source.configuration.map(incomingItem => {
+      const itemWithMetadata = incomingItem as Record<string, unknown> & {
+        _copiedFrom?: { configId: string };
+      };
+
+      if (!itemWithMetadata._copiedFrom?.configId) {
+        throw new Error(
+          'Missing _copiedFrom.configId metadata on configuration item. ' +
+            'Each configuration must specify which source configuration to copy from.'
+        );
       }
 
-      return incomingItem;
+      const sourceConfigId = itemWithMetadata._copiedFrom.configId;
+
+      const sourceConfig = sourceDefinition.connector.source.configuration.find(
+        config => (config as Record<string, unknown> & { _id?: string })._id === sourceConfigId
+      );
+
+      if (!sourceConfig) {
+        throw new Error(
+          `Source configuration with _id "${sourceConfigId}" not found. ` +
+            `Source has ${sourceDefinition.connector.source.configuration.length} configurations.`
+        );
+      }
+
+      const mergedItem = this.mergeSecretsRecursively(
+        incomingItem,
+        sourceConfig,
+        secretFieldNames
+      ) as Record<string, unknown>;
+
+      delete mergedItem._copiedFrom;
+      mergedItem._id = randomUUID();
+
+      return mergedItem;
     });
 
     return {

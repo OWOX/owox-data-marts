@@ -17,7 +17,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
       let advertiserIds = TikTokAdsHelper.parseAdvertiserIds(this.config.AdvertiserIDs.value || "");
       
       if (!advertiserIds || advertiserIds.length === 0) {
-        this.config.logMessage("❌ No advertiser IDs specified. Please configure AdvertiserIDs parameter.");
+        this.config.logMessage("No advertiser IDs specified. Please configure AdvertiserIDs parameter.");
         return;
       }
 
@@ -36,7 +36,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
         
         // Ensure schema exists for this node
         if (!this.source.fieldsSchema || !this.source.fieldsSchema[nodeName]) {
-          this.config.logMessage(`⚠️ Unknown object type: ${nodeName}. Skipping.`);
+          this.config.logMessage(`Unknown object type: ${nodeName}. Skipping.`);
           continue;
         }
         
@@ -63,13 +63,13 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
           const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
 
           if (!startDate) {
-            this.config.logMessage("❌ There is nothing to import in this data range");
+            this.config.logMessage("There is nothing to import in this data range");
             return;
           }
           
           this.startImportProcessOfTimeSeriesData(advertiserIds, timeSeriesNodes, startDate, daysToFetch);
         } catch (error) {
-          this.config.logMessage(`❌ Error determining date range: ${error.message}`);
+          this.config.logMessage(`Error determining date range: ${error.message}`);
           console.error(error.stack);
         }
       }
@@ -78,11 +78,11 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
       try {
         this.cleanUpExpiredData();
       } catch (error) {
-        this.config.logMessage(`❌ Error during data cleanup: ${error.message}`);
+        this.config.logMessage(`Error during data cleanup: ${error.message}`);
         console.error(error.stack);
       }
     } catch (error) {
-      this.config.logMessage(`❌ Error during import process: ${error.message}`);
+      this.config.logMessage(`Error during import process: ${error.message}`);
       console.error(error.stack);
     }
   }
@@ -116,19 +116,19 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
       try {
         let data = this.source.fetchData(nodeName, advertiserId, fields);
         
-        this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for advertiser ${advertiserId}` : `ℹ️ No records have been fetched`);
+        this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for advertiser ${advertiserId}` : `No records have been fetched`);
 
         if (data.length || this.config.CreateEmptyTables?.value) {
           try {
             const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
             this.getStorageByNode(nodeName).saveData(preparedData);
           } catch (storageError) {
-            this.config.logMessage(`❌ Error saving data to storage: ${storageError.message}`);
+            this.config.logMessage(`Error saving data to storage: ${storageError.message}`);
             console.error(`Error details: ${storageError.stack}`);
           }
         }
       } catch (error) {
-        this.config.logMessage(`❌ Error fetching ${nodeName} for advertiser ${advertiserId}: ${error.message}`);
+        this.config.logMessage(`Error fetching ${nodeName} for advertiser ${advertiserId}: ${error.message}`);
         console.error(`Error details: ${error.stack}`);
         // Continue with other advertisers rather than stopping the whole process
       }
@@ -163,19 +163,19 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
             // Fetching new data from the data source
             let data = this.source.fetchData(nodeName, advertiserId, timeSeriesNodes[nodeName], currentDate);
 
-            this.config.logMessage(data.length ? `${data.length} records were fetched` : `ℹ️ No records have been fetched`);
+            this.config.logMessage(data.length ? `${data.length} records were fetched` : `No records have been fetched`);
 
             if (data.length || this.config.CreateEmptyTables?.value) {
               try {
                 const preparedData = data.length ? this.addMissingFieldsToData(data, timeSeriesNodes[nodeName]) : data;
                 this.getStorageByNode(nodeName).saveData(preparedData);
               } catch (storageError) {
-                this.config.logMessage(`❌ Error saving data to storage: ${storageError.message}`);
+                this.config.logMessage(`Error saving data to storage: ${storageError.message}`);
                 console.error(`Error details: ${storageError.stack}`);
               }
             }
           } catch (error) {
-            this.config.logMessage(`❌ Error fetching ${nodeName} for advertiser ${advertiserId} on ${formattedDate}: ${error.message}`);
+            this.config.logMessage(`Error fetching ${nodeName} for advertiser ${advertiserId} on ${formattedDate}: ${error.message}`);
             console.error(`Error details: ${error.stack}`);
             // Continue with other nodes rather than stopping the whole process
           }
@@ -287,7 +287,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
             }
           }
         } catch (error) {
-          this.config.logMessage(`❌ Error cleaning up old data from ${nodeName}: ${error.message}`);
+          this.config.logMessage(`Error cleaning up old data from ${nodeName}: ${error.message}`);
           console.error(`Error details: ${error.stack}`);
         }
       }

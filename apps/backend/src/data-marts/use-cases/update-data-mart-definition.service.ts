@@ -27,19 +27,37 @@ export class UpdateDataMartDefinitionService {
     dataMart.definitionType = command.definitionType;
 
     if (command.definitionType === DataMartDefinitionType.CONNECTOR && command.definition) {
-      dataMart.definition = await this.connectorSecretService.mergeDefinitionSecrets(
-        command.definition as ConnectorDefinition,
-        dataMart.definition as ConnectorDefinition | undefined
-      );
+      if (command.sourceDataMartId) {
+        const sourceDataMart = await this.dataMartService.getByIdAndProjectId(
+          command.sourceDataMartId,
+          command.projectId
+        );
+
+        if (
+          !sourceDataMart.definition ||
+          sourceDataMart.definitionType !== DataMartDefinitionType.CONNECTOR
+        ) {
+          throw new BusinessViolationException(
+            'Source Data Mart does not have a connector definition'
+          );
+        }
+
+        dataMart.definition = await this.connectorSecretService.mergeDefinitionSecretsFromSource(
+          command.definition as ConnectorDefinition,
+          sourceDataMart.definition as ConnectorDefinition
+        );
+      } else {
+        dataMart.definition = await this.connectorSecretService.mergeDefinitionSecrets(
+          command.definition as ConnectorDefinition,
+          dataMart.definition as ConnectorDefinition | undefined
+        );
+      }
     } else {
       dataMart.definition = command.definition;
     }
 
-    await this.definitionValidatorFacade.checkIsValid(dataMart);
-
-    if (dataMart.definitionType !== DataMartDefinitionType.CONNECTOR) {
-      // connectors can change data mart schema only after its run, not on config update
-      await this.dataMartService.actualizeSchemaInEntity(dataMart);
+    if (dataMart.definitionType !== DataMartDefinitionType.SQL) {
+      await this.definitionValidatorFacade.checkIsValid(dataMart);
     }
 
     await this.dataMartService.save(dataMart);

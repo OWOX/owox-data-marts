@@ -39,6 +39,7 @@ import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum'
 import { RunType } from '../../common/scheduler/shared/types';
 import { DataMartRunType } from 'src/data-marts/enums/data-mart-run-type.enum';
 import { DataMartDefinition } from 'src/data-marts/dto/schemas/data-mart-table-definitions/data-mart-definition';
+import { ListDataMartsByConnectorNameCommand } from '../dto/domain/list-data-mart-by-connector-name';
 
 @Injectable()
 export class DataMartMapper {
@@ -122,7 +123,9 @@ export class DataMartMapper {
       id,
       context.projectId,
       dto.definitionType,
-      dto.definition
+      dto.definition,
+      dto.sourceDataMartId,
+      dto.sourceConfigurationId
     );
   }
 
@@ -139,8 +142,8 @@ export class DataMartMapper {
     return new GetDataMartRunsCommand(id, context.projectId, limit, offset);
   }
 
-  toListCommand(context: AuthorizationContext): ListDataMartsCommand {
-    return new ListDataMartsCommand(context.projectId);
+  toListCommand(context: AuthorizationContext, connectorName?: string): ListDataMartsCommand {
+    return new ListDataMartsCommand(context.projectId, connectorName);
   }
 
   toUpdateTitleCommand(
@@ -280,5 +283,12 @@ export class DataMartMapper {
       })
     );
     return { runs: maskedRuns };
+  }
+
+  toListDataMartsByConnectorNameCommand(
+    connectorName: string,
+    context: AuthorizationContext
+  ): ListDataMartsByConnectorNameCommand {
+    return new ListDataMartsByConnectorNameCommand(connectorName, context.projectId);
   }
 }

@@ -177,11 +177,7 @@ export function DataMartTable<TData, TValue>({
   }
 
   if (!data.length) {
-    return (
-      <div className='dm-card'>
-        <EmptyDataMartsState />
-      </div>
-    );
+    return <EmptyDataMartsState />;
   }
 
   return (
