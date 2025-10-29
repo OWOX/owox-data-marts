@@ -293,7 +293,12 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
     const pollResult = MicrosoftAdsHelper.pollUntilStatus({ 
       url: pollUrl, 
       options: pollOpts, 
-      isDone: status => status.RequestStatus === 'Completed' 
+      isDone: status => {
+        if (!status.RequestStatus || status.RequestStatus === 'Failed') {
+          throw new Error('Bulk download failed');
+        }
+        return status.RequestStatus === 'Completed';
+      }
     });
     const csvRows = MicrosoftAdsHelper.downloadCsvRows(pollResult.ResultFileUrl);
     const result = MicrosoftAdsHelper.csvRowsToObjects(csvRows);
@@ -530,7 +535,12 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
     return MicrosoftAdsHelper.pollUntilStatus({ 
       url: pollUrl, 
       options: pollOpts, 
-      isDone: status => status.ReportRequestStatus.Status === 'Success' 
+      isDone: status => {
+        if (!status.ReportRequestStatus || status.ReportRequestStatus.Status === 'Error') {
+          throw new Error('Report generation failed');
+        } 
+        return status.ReportRequestStatus.Status === 'Success';
+      }
     });
   }
 };
