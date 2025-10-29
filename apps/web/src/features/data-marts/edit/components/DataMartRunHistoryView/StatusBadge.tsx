@@ -49,6 +49,15 @@ export function StatusBadge({ status }: StatusBadgeProps) {
           Interrupted
         </Badge>
       );
+    case DataMartRunStatus.PENDING:
+      return (
+        <Badge
+          variant='secondary'
+          className='bg-gray-50 text-gray-500 dark:bg-gray-950 dark:text-gray-400'
+        >
+          Pending
+        </Badge>
+      );
     default:
       return (
         <Badge
