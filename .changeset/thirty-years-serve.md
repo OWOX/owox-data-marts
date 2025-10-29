@@ -2,7 +2,7 @@
 'owox': minor
 ---
 
-# Add new acebook Marketing insights endpoints and improve Facebook field schema filtering
+# Add new Facebook Marketing insights endpoints and improve Facebook field schema filtering
 
 Introduced several new **Facebook Marketing API insights** endpoints with specific breakdowns:
 
