@@ -107,7 +107,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
     this.fieldsSchema = XAdsFieldsSchema;
     this._tweetsCache = new Map(); // Map<accountId, {data: Array, fields: Set}>
     this._promotedTweetsCache = new Map(); // Map<accountId, {data: Array, fields: Set}>
-    this.BASE_URL = "https://ads-api.twitter.com/"; // Base URL for X Ads API
+    this.BASE_URL = "https://ads-api.x.com/"; // Base URL for X Ads API
   }
 
   /**
