@@ -602,7 +602,6 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
   async getDataMartRunsByStatus(status: DataMartRunStatus): Promise<DataMartRun[]> {
     return this.dataMartRunRepository.find({
       where: { status },
-      order: { createdAt: 'ASC' },
       relations: ['dataMart'],
     });
   }
