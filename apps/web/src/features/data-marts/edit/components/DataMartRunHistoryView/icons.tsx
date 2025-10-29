@@ -8,9 +8,11 @@ import {
   Loader2,
   Ban,
   CircleStop,
+  Timer,
+  Hand,
 } from 'lucide-react';
 import { LogLevel } from './types';
-import { DataMartRunStatus } from '../../../shared';
+import { DataMartRunStatus, DataMartRunTriggerType } from '../../../shared';
 
 export function getStatusIcon(status: DataMartRunStatus) {
   return (
@@ -63,4 +65,14 @@ export function getLogLevelColor(level: LogLevel) {
     default:
       return 'text-muted-foreground';
   }
+}
+
+export function getTriggerTypeIcon(triggerType: DataMartRunTriggerType | null) {
+  const iconSize = 18;
+
+  return triggerType === DataMartRunTriggerType.SCHEDULED ? (
+    <Timer size={iconSize} />
+  ) : (
+    <Hand size={iconSize} />
+  );
 }
