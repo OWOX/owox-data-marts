@@ -540,17 +540,29 @@ class ConnectorBuilder {
 export default defineConfig({
   build: {
     lib: {
-      entry: 'build/index.js',
+      entry: {
+        index: 'build/index.js',
+        'runtime/connector-runner': 'src/runtime/connector-runner.js',
+      },
       name: 'ConnectorBundle',
-      fileName: 'index',
       formats: ['cjs', 'es'],
     },
     outDir: 'dist',
     emptyOutDir: false,
     minify: false,
     rollupOptions: {
+      external: [
+        '@owox/connectors',
+        '@kaciras/deasync',
+        'sync-request',
+        'adm-zip',
+        '@google-cloud/bigquery',
+        '@aws-sdk/client-athena',
+        '@aws-sdk/client-s3',
+        '@aws-sdk/lib-storage',
+      ],
       output: {
-        inlineDynamicImports: true,
+        preserveModules: false,
       },
       watch: {
         exclude: ['dist/**', 'build/**', 'node_modules/**'],
