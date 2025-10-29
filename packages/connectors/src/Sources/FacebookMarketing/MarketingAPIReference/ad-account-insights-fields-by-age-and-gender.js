@@ -77,11 +77,6 @@ var adAccountInsightsFieldsByAgeAndGender = {
     'type': 'numeric string',
     'GoogleBigQueryType': 'numeric'
   },
-  'body_asset': {
-    'description': 'body_asset',
-    'type': 'AdAssetBody',
-    'supportsFieldsParam': false
-  },
   'buying_type': {
     'description': 'The method by which you pay for and target ads in your campaigns: through dynamic auction bidding, fixed-price bidding, or reach and frequency buying. This field is currently only visible at the campaign level.',
     'type': 'string'
@@ -259,11 +254,6 @@ var adAccountInsightsFieldsByAgeAndGender = {
     'description': 'dda_results',
     'type': 'list<AdsInsightsDdaResult>'
   },
-  'description_asset': {
-    'description': 'description_asset',
-    'type': 'AdAssetDescription',
-    'supportsFieldsParam': false
-  },
   'frequency': {
     'description': 'The average number of times each person saw your ad. This metric is estimated.',
     'type': 'numeric string',
@@ -282,11 +272,6 @@ var adAccountInsightsFieldsByAgeAndGender = {
   'gender': {
     'description': 'The gender of the people who saw your ad. This is based on the gender people have listed in their Facebook profiles.',
     'type': 'string'
-  },
-  'image_asset': {
-    'description': 'image_asset',
-    'type': 'AdAssetImage',
-    'supportsFieldsParam': false
   },
   'impressions': {
     'description': 'The number of times your ads were on screen.',
@@ -385,28 +370,13 @@ var adAccountInsightsFieldsByAgeAndGender = {
     'GoogleSheetsFormat': '$#,##0.00',
     'GoogleBigQueryType': 'numeric'
   },
-  'title_asset': {
-    'description': 'title_asset',
-    'type': 'AdAssetTitle',
-    'supportsFieldsParam': false
-  },
   'updated_time': {
     'description': 'updated_time',
     'type': 'string'
   },
-  'user_segment_key': {
-    'description': 'user_segment_key',
-    'type': 'string',
-    'supportsFieldsParam': false
-  },
   'video_30_sec_watched_actions': {
     'description': 'The number of times your video played for at least 30 seconds, or for nearly its total length if it\'s shorter than 30 seconds. For each impression of a video, we\'ll count video views separately and exclude any time spent replaying the video.',
     'type': 'list<AdsActionStats>'
-  },
-  'video_asset': {
-    'description': 'video_asset',
-    'type': 'AdAssetVideo',
-    'supportsFieldsParam': false
   },
   'video_avg_time_watched_actions': {
     'description': 'The average time a video was played, including any time spent replaying the video for a single impression.',

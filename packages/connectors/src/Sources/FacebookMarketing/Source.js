@@ -289,16 +289,9 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
      * @private
      */
     _prepareFields({ nodeName, fields, breakdowns }) {
-      const node = this.fieldsSchema[nodeName];
-      if (!node || !node.fields) return [];
-      return (fields || []).filter(field => {
-        const schemaField = node.fields[field];
-        if (!schemaField) return false; // unknown -> exclude
-        if (breakdowns && breakdowns.includes(field)) return false; // passed as breakdown
-        if (schemaField.fieldType === 'breakdown') return false; // declared breakdown-only
-        if (schemaField.supportsFieldsParam === false) return false; // explicitly unsupported
-        return true;
-      });
+      return fields.filter(field => 
+        this.fieldsSchema[nodeName].fields[field] && !breakdowns.includes(field)
+      );
     }
 
   //---- _buildInsightsUrl ------------------------------------------------
