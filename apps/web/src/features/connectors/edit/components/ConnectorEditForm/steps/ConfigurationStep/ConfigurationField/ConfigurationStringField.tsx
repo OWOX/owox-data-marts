@@ -12,7 +12,7 @@ export function ConfigurationStringField({
   configuration,
   onValueChange,
 }: ConfigurationStringFieldProps) {
-  const { name, placeholder, default: defaultValue } = specification;
+  const { name, placeholder } = specification;
   const displayName = specification.title ?? specification.name;
 
   return (
@@ -20,7 +20,7 @@ export function ConfigurationStringField({
       id={name}
       name={name}
       type='text'
-      value={(configuration[name] as string) || (defaultValue as string) || ''}
+      value={(configuration[name] as string) || ''}
       placeholder={placeholder ?? `Enter ${displayName.toLowerCase()}`}
       onChange={e => {
         onValueChange(name, e.target.value);
