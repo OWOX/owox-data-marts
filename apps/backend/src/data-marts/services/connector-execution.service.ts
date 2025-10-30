@@ -8,11 +8,11 @@ import { ConfigService } from '@nestjs/config';
 import { Core } from '@owox/connectors';
 import { spawn } from 'cross-spawn';
 
-const { Config, StorageConfig, SourceConfig, RunConfig } = Core;
-type Config = InstanceType<typeof Core.Config>;
-type StorageConfig = InstanceType<typeof Core.StorageConfig>;
-type SourceConfig = InstanceType<typeof Core.SourceConfig>;
-type RunConfig = InstanceType<typeof Core.RunConfig>;
+const { ConfigDto, StorageConfigDto, SourceConfigDto, RunConfigDto } = Core;
+type ConfigDto = InstanceType<typeof Core.ConfigDto>;
+type StorageConfigDto = InstanceType<typeof Core.StorageConfigDto>;
+type SourceConfigDto = InstanceType<typeof Core.SourceConfigDto>;
+type RunConfigDto = InstanceType<typeof Core.RunConfigDto>;
 
 import { ConnectorDefinition as DataMartConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMart } from '../entities/data-mart.entity';
@@ -411,7 +411,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
       );
 
       try {
-        const configuration = new Config({
+        const configuration = new ConfigDto({
           name: connector.source.name,
           datamartId: dataMart.id,
           source: await this.getSourceConfig(dataMart.id, connector, config, configId),
@@ -470,8 +470,8 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
   private async runConnector(
     datamartId: string,
     runId: string,
-    configuration: Config,
-    runConfig: RunConfig,
+    configuration: ConfigDto,
+    runConfig: RunConfigDto,
     stdio: {
       logCapture?: { onStdout?: (message: string) => void; onStderr?: (message: string) => void };
       onSpawn?: (pid: number | undefined) => void;
@@ -579,14 +579,14 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     connector: DataMartConnectorDefinition['connector'],
     config: Record<string, unknown>,
     configId: string
-  ): Promise<SourceConfig> {
+  ): Promise<SourceConfigDto> {
     const fieldsConfig = connector.source.fields
       .map(field => `${connector.source.node} ${field}`)
       .join(', ');
 
     const state = await this.connectorStateService.getState(dataMartId, configId);
 
-    return new SourceConfig({
+    return new SourceConfigDto({
       name: connector.source.name,
       config: {
         ...config,
@@ -598,7 +598,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     });
   }
 
-  private getStorageConfig(dataMart: DataMart): StorageConfig {
+  private getStorageConfig(dataMart: DataMart): StorageConfigDto {
     const definition = dataMart.definition as DataMartConnectorDefinition;
     const { connector } = definition;
 
@@ -625,12 +625,12 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
   private createBigQueryStorageConfig(
     dataMart: DataMart,
     connector: DataMartConnectorDefinition['connector']
-  ): StorageConfig {
+  ): StorageConfigDto {
     const storageConfig = dataMart.storage.config as BigQueryConfig;
     const credentials = dataMart.storage.credentials as BigQueryCredentials;
     const datasetId = connector.storage?.fullyQualifiedName.split('.')[0];
 
-    return new StorageConfig({
+    return new StorageConfigDto({
       name: DataStorageType.GOOGLE_BIGQUERY,
       config: {
         DestinationLocation: storageConfig?.location,
@@ -647,11 +647,11 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
   private createAthenaStorageConfig(
     dataMart: DataMart,
     connector: DataMartConnectorDefinition['connector']
-  ): StorageConfig {
+  ): StorageConfigDto {
     const storageConfig = dataMart.storage.config as AthenaConfig;
     const credentials = dataMart.storage.credentials as AthenaCredentials;
     const clearBucketName = storageConfig.outputBucket.replace(/^s3:\/\//, '').replace(/\/$/, '');
-    return new StorageConfig({
+    return new StorageConfigDto({
       name: DataStorageType.AWS_ATHENA,
       config: {
         AWSRegion: storageConfig.region,
@@ -666,7 +666,10 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     });
   }
 
-  private getRunConfig(payload?: Record<string, unknown>, state?: ConnectorStateItem): RunConfig {
+  private getRunConfig(
+    payload?: Record<string, unknown>,
+    state?: ConnectorStateItem
+  ): RunConfigDto {
     const type = payload?.runType || 'INCREMENTAL';
     const data = payload?.data
       ? Object.entries(payload.data).map(([key, value]) => {
@@ -685,7 +688,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
       data,
       state: state?.state || {},
     });
-    return new RunConfig({
+    return new RunConfigDto({
       type,
       data,
       state: state?.state || {},
