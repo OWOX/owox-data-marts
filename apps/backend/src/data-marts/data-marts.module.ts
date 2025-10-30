@@ -63,10 +63,10 @@ import { DeleteDataMartService } from './use-cases/delete-data-mart.service';
 import { DataDestination } from './entities/data-destination.entity';
 import { Report } from './entities/report.entity';
 import { ConnectorController } from './controllers/connector.controller';
+import { connectorProviders } from './services/connector/connector.module';
 import { AvailableConnectorService } from './use-cases/connector/available-connector.service';
-import { ConnectorService } from './services/connector.service';
-import { ConnectorExecutionService } from './services/connector-execution.service';
 import { ConnectorMapper } from './mappers/connector.mapper';
+import { ConnectorState } from './entities/connector-state.entity';
 import { SpecificationConnectorService } from './use-cases/connector/specification-connector.service';
 import { FieldsConnectorService } from './use-cases/connector/fields-connector.service';
 import { RunDataMartService } from './use-cases/run-data-mart.service';
@@ -80,15 +80,10 @@ import { DataMartScheduledTrigger } from './entities/data-mart-scheduled-trigger
 import { SchedulerModule } from '../common/scheduler/scheduler.module';
 import { ScheduledTriggersHandlerService } from './services/scheduled-triggers-handler.service';
 import { ReportService } from './services/report.service';
-import { ConnectorOutputCaptureService } from './connector-types/connector-message/services/connector-output-capture.service';
-import { ConnectorMessageParserService } from './connector-types/connector-message/services/connector-message-parser.service';
-import { ConnectorStateService } from './connector-types/connector-message/services/connector-state.service';
-import { ConnectorState } from './entities/connector-state.entity';
 import { ReportDataCache } from './entities/report-data-cache.entity';
 import { IdpModule } from '../idp/idp.module';
 import { createOperationTimeoutMiddleware } from '../common/middleware/operation-timeout.middleware';
 import { CommonModule } from '../common/common.module';
-import { ConnectorSecretService } from './services/connector-secret.service';
 import { SqlDryRunTrigger } from './entities/sql-dry-run-trigger.entity';
 import { SqlDryRunTriggerService } from './services/sql-dry-run-trigger.service';
 import { SqlDryRunTriggerHandlerService } from './services/sql-dry-run-trigger-handler.service';
@@ -134,6 +129,7 @@ import { SchemaActualizeTriggerController } from './controllers/schema-actualize
     ...dataDestinationFacadesProviders,
     ...scheduledTriggerProviders,
     ...scheduledTriggerFacadesProviders,
+    ...connectorProviders,
     DataMartService,
     CreateDataMartService,
     ListDataMartsService,
@@ -173,8 +169,6 @@ import { SchemaActualizeTriggerController } from './controllers/schema-actualize
     RunReportService,
     UpdateReportService,
     AvailableConnectorService,
-    ConnectorService,
-    ConnectorExecutionService,
     ConnectorMapper,
     SpecificationConnectorService,
     FieldsConnectorService,
@@ -197,11 +191,7 @@ import { SchemaActualizeTriggerController } from './controllers/schema-actualize
     DeleteScheduledTriggerService,
     ReportService,
     ReportDataCacheService,
-    ConnectorOutputCaptureService,
-    ConnectorMessageParserService,
-    ConnectorStateService,
     ConsumptionTrackingService,
-    ConnectorSecretService,
   ],
 })
 export class DataMartsModule {

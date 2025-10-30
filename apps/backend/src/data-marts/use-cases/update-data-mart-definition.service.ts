@@ -6,7 +6,7 @@ import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-
 import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
-import { ConnectorSecretService } from '../services/connector-secret.service';
+import { ConnectorSecretService } from '../services/connector/connector-secret.service';
 import { DataMartService } from '../services/data-mart.service';
 
 @Injectable()

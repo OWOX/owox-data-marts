@@ -3,9 +3,9 @@ import { Injectable, Logger } from '@nestjs/common';
 // @ts-expect-error - Package lacks TypeScript declarations
 import { AvailableConnectors, Connectors, Core } from '@owox/connectors';
 
-import { ConnectorDefinition } from '../connector-types/connector-definition';
-import { ConnectorSpecification } from '../connector-types/connector-specification';
-import { ConnectorFieldsSchema } from '../connector-types/connector-fields-schema';
+import { ConnectorDefinition } from '../../connector-types/connector-definition';
+import { ConnectorSpecification } from '../../connector-types/connector-specification';
+import { ConnectorFieldsSchema } from '../../connector-types/connector-fields-schema';
 
 interface ConnectorSpecificationOneOf {
   label: string;

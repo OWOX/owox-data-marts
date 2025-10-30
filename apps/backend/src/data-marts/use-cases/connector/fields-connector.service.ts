@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ConnectorService } from '../../services/connector.service';
+import { ConnectorService } from '../../services/connector/connector.service';
 import { ConnectorFieldsSchema } from '../../connector-types/connector-fields-schema';
 
 @Injectable()

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { DataMartService } from '../services/data-mart.service';
-import { ConnectorExecutionService } from '../services/connector-execution.service';
+import { ConnectorExecutionService } from '../services/connector/connector-execution.service';
 import { GetDataMartRunsCommand } from '../dto/domain/get-data-mart-runs.command';
 import { DataMartRunDto } from '../dto/domain/data-mart-run.dto';
 

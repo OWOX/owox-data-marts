@@ -35,7 +35,7 @@ import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-r
 import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { CancelDataMartRunCommand } from '../dto/domain/cancel-data-mart-run.command';
-import { ConnectorSecretService } from '../services/connector-secret.service';
+import { ConnectorSecretService } from '../services/connector/connector-secret.service';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { RunType } from '../../common/scheduler/shared/types';
 import { ListDataMartsByConnectorNameCommand } from '../dto/domain/list-data-mart-by-connector-name';

@@ -5,7 +5,7 @@ import { GoogleSheetsConfig } from '../data-destination-types/google-sheets/sche
 import { ConnectorDefinition as DataMartConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMart } from '../entities/data-mart.entity';
 import { Report } from '../entities/report.entity';
-import { ConnectorService } from './connector.service';
+import { ConnectorService } from './connector/connector.service';
 
 @Injectable()
 export class ConsumptionTrackingService {

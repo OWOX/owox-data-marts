@@ -1,43 +1,34 @@
 import { Inject, Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
-import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 
 // @ts-expect-error - Package lacks TypeScript declarations
 import { Core } from '@owox/connectors';
-import { spawn } from 'child_process';
 
-const { Config, StorageConfig, SourceConfig, RunConfig } = Core;
-type Config = InstanceType<typeof Core.Config>;
-type StorageConfig = InstanceType<typeof Core.StorageConfig>;
-type SourceConfig = InstanceType<typeof Core.SourceConfig>;
-type RunConfig = InstanceType<typeof Core.RunConfig>;
-
-import { ConnectorDefinition as DataMartConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
-import { DataMart } from '../entities/data-mart.entity';
-import { DataMartRun } from '../entities/data-mart-run.entity';
-import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
-import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
-import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
-import { BigQueryConfig } from '../data-storage-types/bigquery/schemas/bigquery-config.schema';
-import { AthenaConfig } from '../data-storage-types/athena/schemas/athena-config.schema';
-import { AthenaCredentials } from '../data-storage-types/athena/schemas/athena-credentials.schema';
-import { BigQueryCredentials } from '../data-storage-types/bigquery/schemas/bigquery-credentials.schema';
-import { ConnectorMessage } from '../connector-types/connector-message/schemas/connector-message.schema';
-import { ConnectorOutputCaptureService } from '../connector-types/connector-message/services/connector-output-capture.service';
-import { ConnectorMessageType } from '../connector-types/enums/connector-message-type-enum';
-import { ConnectorStateItem } from '../connector-types/interfaces/connector-state';
-import { ConnectorStateService } from '../connector-types/connector-message/services/connector-state.service';
-import { ConsumptionTrackingService } from './consumption-tracking.service';
-import { DataMartService } from './data-mart.service';
-import { DataMartStatus } from '../enums/data-mart-status.enum';
-import { GracefulShutdownService } from '../../common/scheduler/services/graceful-shutdown.service';
-import { ConnectorExecutionError } from '../errors/connector-execution.error';
-import { OWOX_PRODUCER } from '../../common/producer/producer.module';
+import { ConnectorDefinition as DataMartConnectorDefinition } from '../../dto/schemas/data-mart-table-definitions/connector-definition.schema';
+import { DataMart } from '../../entities/data-mart.entity';
+import { DataMartRun } from '../../entities/data-mart-run.entity';
+import { DataMartDefinitionType } from '../../enums/data-mart-definition-type.enum';
+import { DataMartRunStatus } from '../../enums/data-mart-run-status.enum';
+import { ConnectorMessage } from '../../connector-types/connector-message/schemas/connector-message.schema';
+import { ConnectorOutputCaptureService } from '../../connector-types/connector-message/services/connector-output-capture.service';
+import { ConnectorMessageType } from '../../connector-types/enums/connector-message-type-enum';
+import { ConnectorStateService } from '../../connector-types/connector-message/services/connector-state.service';
+import { ConsumptionTrackingService } from '../consumption-tracking.service';
+import { DataMartService } from '../data-mart.service';
+import { DataMartStatus } from '../../enums/data-mart-status.enum';
+import { GracefulShutdownService } from '../../../common/scheduler/services/graceful-shutdown.service';
+import { ConnectorExecutionError } from '../../errors/connector-execution.error';
+import { OWOX_PRODUCER } from '../../../common/producer/producer.module';
 import { OwoxProducer } from '@owox/internal-helpers';
-import { ConnectorRunSuccessfullyEvent } from '../events/connector-run-successfully.event';
-import { RunType } from '../../common/scheduler/shared/types';
+import { ConnectorRunSuccessfullyEvent } from '../../events/connector-run-successfully.event';
+import { RunType } from '../../../common/scheduler/shared/types';
+import { ConnectorConfigurationFactory } from './connector-configuration.factory';
+import { ConnectorProcessService } from './connector-process.service';
+import { ExecutionContext } from './execution-context';
+import { ContextualLogger } from './contextual-logger';
 
 interface ConfigurationExecutionResult {
   configIndex: number;
@@ -59,6 +50,8 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     private readonly gracefulShutdownService: GracefulShutdownService,
     private readonly consumptionTracker: ConsumptionTrackingService,
     private readonly configService: ConfigService,
+    private readonly configurationFactory: ConnectorConfigurationFactory,
+    private readonly processService: ConnectorProcessService,
     @Inject(OWOX_PRODUCER)
     private readonly producer: OwoxProducer
   ) {}
@@ -208,10 +201,11 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     run: DataMartRun,
     payload?: Record<string, unknown>
   ): Promise<void> {
-    const runId = run.id;
-    const processId = `connector-run-${runId}`;
+    // Create execution context for this run
+    const executionContext = ExecutionContext.fromRun(dataMart, run);
+    const contextLogger = new ContextualLogger(this.logger, executionContext);
 
-    this.gracefulShutdownService.registerActiveProcess(processId);
+    this.gracefulShutdownService.registerActiveProcess(executionContext.processId);
 
     const capturedLogs: ConnectorMessage[] = [];
     const capturedErrors: ConnectorMessage[] = [];
@@ -222,20 +216,16 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
         throw new ConnectorExecutionError(
           'Skipping connector execution. Application is shutting down.',
           undefined,
-          {
-            dataMartId: dataMart.id,
-            projectId: dataMart.projectId,
-            runId,
-          }
+          executionContext.toLogContext()
         );
       }
 
-      await this.dataMartRunRepository.update(runId, {
+      await this.dataMartRunRepository.update(executionContext.runId, {
         status: DataMartRunStatus.RUNNING,
       });
       const configurationResults = await this.runConnectorConfigurations(
-        runId,
-        processId,
+        executionContext.runId,
+        executionContext.processId,
         dataMart,
         payload
       );
@@ -248,12 +238,11 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
       const successCount = configurationResults.filter(r => r.success).length;
       const totalCount = configurationResults.length;
       hasSuccessfulRun = successCount > 0;
-      this.logger.log(
+
+      // Using contextual logger - automatically includes execution context
+      contextLogger.log(
         `Connector execution completed: ${successCount}/${totalCount} configurations successful`,
         {
-          dataMartId: dataMart.id,
-          projectId: dataMart.projectId,
-          runId,
           successCount,
           totalCount,
         }
@@ -266,22 +255,22 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
         error: errorMessage,
         toFormattedString: () => `[ERROR] ${errorMessage}`,
       });
-      this.logger.error(`Error running connector configurations: ${errorMessage}`, error?.stack, {
-        dataMartId: dataMart.id,
-        projectId: dataMart.projectId,
-        runId,
+      contextLogger.error(`Error running connector configurations: ${errorMessage}`, error?.stack, {
         error: errorMessage,
       });
     } finally {
-      await this.updateRunStatus(runId, capturedLogs, capturedErrors);
+      await this.updateRunStatus(executionContext.runId, capturedLogs, capturedErrors);
 
       if (hasSuccessfulRun) {
         // Register connector run consumption only if at least one configuration succeeded
-        await this.consumptionTracker.registerConnectorRunConsumption(dataMart, runId);
+        await this.consumptionTracker.registerConnectorRunConsumption(
+          dataMart,
+          executionContext.runId
+        );
         await this.producer.produceEvent(
           new ConnectorRunSuccessfullyEvent(
             dataMart.id,
-            runId,
+            executionContext.runId,
             dataMart.projectId,
             run.createdById!,
             run.runType!
@@ -289,11 +278,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
         );
       }
 
-      this.logger.debug(`Actualizing schema after connector execution`, {
-        dataMartId: dataMart.id,
-        projectId: dataMart.projectId,
-        runId,
-      });
+      contextLogger.debug(`Actualizing schema after connector execution`);
 
       // If the connector does not receive any data, the data storage resource will not be created.
       // The connector will complete its work with the status “SUCCESS” but don't unregister active process.
@@ -301,15 +286,12 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
         await this.dataMartService.actualizeSchema(dataMart.id, dataMart.projectId);
       } catch (error) {
         const schemaError = error instanceof Error ? error.message : String(error);
-        this.logger.error(`Error schema actualization: ${schemaError}`, error?.stack, {
-          dataMartId: dataMart.id,
-          projectId: dataMart.projectId,
-          runId,
+        contextLogger.error(`Error schema actualization: ${schemaError}`, error?.stack, {
           error: schemaError,
         });
       }
 
-      this.gracefulShutdownService.unregisterActiveProcess(processId);
+      this.gracefulShutdownService.unregisterActiveProcess(executionContext.processId);
     }
   }
 
@@ -411,18 +393,24 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
       );
 
       try {
-        const configuration = new Config({
-          name: connector.source.name,
-          datamartId: dataMart.id,
-          source: await this.getSourceConfig(dataMart.id, connector, config, configId),
-          storage: this.getStorageConfig(dataMart),
-        });
+        const configuration = await this.configurationFactory.createConfiguration(
+          dataMart,
+          connector,
+          config,
+          configId
+        );
 
         // Get state for this specific configuration
         const configState = await this.connectorStateService.getState(dataMart.id, configId);
-        const runConfig = this.getRunConfig(payload, configState);
+        const runConfig = this.configurationFactory.createRunConfig(payload, configState);
 
-        await this.runConnector(dataMart.id, runId, configuration, runConfig, logCaptureConfig);
+        await this.processService.runConnector(
+          dataMart.id,
+          runId,
+          configuration,
+          runConfig,
+          logCaptureConfig
+        );
         if (configErrors.length === 0) {
           this.logger.log(`Configuration ${configIndex + 1} completed successfully`, {
             dataMartId: dataMart.id,
@@ -467,94 +455,6 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     return configurationResults;
   }
 
-  /**
-   * Run connector using direct spawn without temporary directories
-   */
-  private async runConnector(
-    datamartId: string,
-    runId: string,
-    configuration: Config,
-    runConfig: RunConfig,
-    stdio: {
-      logCapture?: { onStdout?: (message: string) => void; onStderr?: (message: string) => void };
-      onSpawn?: (pid: number | undefined) => void;
-    }
-  ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      let spawnStdio: 'inherit' | 'pipe' | Array<string | number> = 'inherit';
-      let logCapture: {
-        onStdout?: (message: string) => void;
-        onStderr?: (message: string) => void;
-      } | null = null;
-      let onSpawn: ((pid: number | undefined) => void) | null = null;
-
-      if (stdio && typeof stdio === 'object' && stdio.logCapture) {
-        logCapture = stdio.logCapture;
-        spawnStdio = 'pipe';
-        if (typeof stdio.onSpawn === 'function') {
-          onSpawn = stdio.onSpawn;
-        }
-      }
-
-      // Prepare environment variables
-      const env = {
-        ...process.env,
-        OW_DATAMART_ID: datamartId,
-        OW_RUN_ID: runId,
-        OW_CONFIG: JSON.stringify(configuration.toObject()),
-        OW_RUN_CONFIG: JSON.stringify(runConfig),
-      };
-
-      // Spawn the connector runner directly
-      // Use require.resolve to find the runner in the installed package
-      const runnerPath = require.resolve('@owox/connectors/runner');
-
-      const node = spawn('node', [runnerPath], {
-        stdio: spawnStdio,
-        env,
-        detached: true,
-      });
-
-      if (onSpawn) {
-        try {
-          onSpawn(node.pid);
-        } catch (error) {
-          this.logger.error(
-            `Failed to call onSpawn callback: ${error instanceof Error ? error.message : String(error)}`
-          );
-        }
-      }
-
-      if (logCapture && node.stdout && node.stderr) {
-        node.stdout.on('data', data => {
-          const message = data.toString();
-          if (logCapture.onStdout) {
-            logCapture.onStdout(message);
-          }
-        });
-
-        node.stderr.on('data', data => {
-          const message = data.toString();
-          if (logCapture.onStderr) {
-            logCapture.onStderr(message);
-          }
-        });
-      }
-
-      node.on('close', code => {
-        if (code === 0) {
-          resolve();
-        } else {
-          reject(new Error(`Connector process exited with code ${code}`));
-        }
-      });
-
-      node.on('error', error => {
-        reject(error);
-      });
-    });
-  }
-
   private async updateRunStatus(
     runId: string,
     capturedLogs: ConnectorMessage[],
@@ -569,117 +469,6 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
       status,
       logs: capturedLogs.map(log => JSON.stringify(log)),
       errors: capturedErrors.map(error => JSON.stringify(error)),
-    });
-  }
-
-  //TODO
-  private async getSourceConfig(
-    dataMartId: string,
-    connector: DataMartConnectorDefinition['connector'],
-    config: Record<string, unknown>,
-    configId: string
-  ): Promise<SourceConfig> {
-    const fieldsConfig = connector.source.fields
-      .map(field => `${connector.source.node} ${field}`)
-      .join(', ');
-
-    const state = await this.connectorStateService.getState(dataMartId, configId);
-
-    return new SourceConfig({
-      name: connector.source.name,
-      config: {
-        ...config,
-        Fields: fieldsConfig,
-        ...(state?.state?.date
-          ? { LastRequestedDate: new Date(state.state.date as string).toISOString().split('T')[0] }
-          : {}),
-      },
-    });
-  }
-
-  private getStorageConfig(dataMart: DataMart): StorageConfig {
-    const definition = dataMart.definition as DataMartConnectorDefinition;
-    const { connector } = definition;
-
-    switch (dataMart.storage.type as DataStorageType) {
-      case DataStorageType.GOOGLE_BIGQUERY:
-        return this.createBigQueryStorageConfig(dataMart, connector);
-
-      case DataStorageType.AWS_ATHENA:
-        return this.createAthenaStorageConfig(dataMart, connector);
-
-      default:
-        throw new ConnectorExecutionError(
-          `Unsupported storage type: ${dataMart.storage.type}`,
-          undefined,
-          {
-            dataMartId: dataMart.id,
-            projectId: dataMart.projectId,
-            storageType: dataMart.storage.type,
-          }
-        );
-    }
-  }
-
-  private createBigQueryStorageConfig(
-    dataMart: DataMart,
-    connector: DataMartConnectorDefinition['connector']
-  ): StorageConfig {
-    const storageConfig = dataMart.storage.config as BigQueryConfig;
-    const credentials = dataMart.storage.credentials as BigQueryCredentials;
-    const datasetId = connector.storage?.fullyQualifiedName.split('.')[0];
-
-    return new StorageConfig({
-      name: DataStorageType.GOOGLE_BIGQUERY,
-      config: {
-        DestinationLocation: storageConfig?.location,
-        DestinationDatasetID: `${storageConfig.projectId}.${datasetId}`,
-        DestinationProjectID: storageConfig.projectId,
-        DestinationDatasetName: datasetId,
-        DestinationTableNameOverride: `${connector.source.node} ${connector.storage?.fullyQualifiedName.split('.')[1]}`,
-        ProjectID: storageConfig.projectId,
-        ServiceAccountJson: JSON.stringify(credentials),
-      },
-    });
-  }
-
-  private createAthenaStorageConfig(
-    dataMart: DataMart,
-    connector: DataMartConnectorDefinition['connector']
-  ): StorageConfig {
-    const storageConfig = dataMart.storage.config as AthenaConfig;
-    const credentials = dataMart.storage.credentials as AthenaCredentials;
-    const clearBucketName = storageConfig.outputBucket.replace(/^s3:\/\//, '').replace(/\/$/, '');
-    return new StorageConfig({
-      name: DataStorageType.AWS_ATHENA,
-      config: {
-        AWSRegion: storageConfig.region,
-        AWSAccessKeyId: credentials.accessKeyId,
-        AWSSecretAccessKey: credentials.secretAccessKey,
-        S3BucketName: clearBucketName,
-        S3Prefix: dataMart.id,
-        AthenaDatabaseName: connector.storage?.fullyQualifiedName.split('.')[0],
-        DestinationTableNameOverride: `${connector.source.node} ${connector.storage?.fullyQualifiedName.split('.')[1]}`,
-        AthenaOutputLocation: `s3://${clearBucketName}/owox-data-marts/${dataMart.id}`,
-      },
-    });
-  }
-
-  private getRunConfig(payload?: Record<string, unknown>, state?: ConnectorStateItem): RunConfig {
-    const type = payload?.runType || 'INCREMENTAL';
-    const data = payload?.data
-      ? Object.entries(payload.data).map(([key, value]) => {
-          return {
-            configField: key,
-            value: value,
-          };
-        })
-      : [];
-
-    return new RunConfig({
-      type,
-      data,
-      state: state?.state || {},
     });
   }
 
