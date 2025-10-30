@@ -498,7 +498,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
         OW_DATAMART_ID: datamartId,
         OW_RUN_ID: runId,
         OW_CONFIG: JSON.stringify(configuration.toObject()),
-        OW_RUN_CONFIG: JSON.stringify(runConfig),
+        OW_RUN_CONFIG: JSON.stringify(runConfig.toObject()),
       };
 
       this.logger.log(
@@ -676,7 +676,15 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
           };
         })
       : [];
-
+    this.logger.log(`Creating run config`, {
+      payload,
+      state,
+    });
+    this.logger.log(`Returning run config`, {
+      type,
+      data,
+      state: state?.state || {},
+    });
     return new RunConfig({
       type,
       data,
