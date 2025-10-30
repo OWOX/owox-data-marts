@@ -14,6 +14,7 @@ export enum LogLevel {
  */
 export enum LogFormat {
   PRETTY = 'pretty',
+  PRETTY_VERBOSE = 'pretty-verbose',
   JSON = 'json',
   GCP_CLOUD_LOGGING = 'gcp-cloud-logging',
 }

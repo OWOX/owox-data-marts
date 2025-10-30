@@ -8,6 +8,7 @@ import { LogFormat, LogLevel } from '../types.js';
  */
 export class PinoLoggerProvider implements LoggerProvider {
   private static sharedPrettyTransport: DestinationStream | null = null;
+  private static sharedPrettyVerboseTransport: DestinationStream | null = null;
   private readonly pinoLogger: PinoLogger;
 
   constructor(config: LoggerConfig) {
@@ -73,6 +74,9 @@ export class PinoLoggerProvider implements LoggerProvider {
     if (format === LogFormat.PRETTY) {
       return this.getSharedPrettyTransport();
     }
+    if (format === LogFormat.PRETTY_VERBOSE) {
+      return this.getSharedPrettyVerboseTransport();
+    }
     return undefined;
   }
 
@@ -91,5 +95,22 @@ export class PinoLoggerProvider implements LoggerProvider {
       },
     }) as unknown as DestinationStream;
     return this.sharedPrettyTransport;
+  }
+
+  private static getSharedPrettyVerboseTransport(): DestinationStream {
+    if (this.sharedPrettyVerboseTransport) return this.sharedPrettyVerboseTransport;
+    this.sharedPrettyVerboseTransport = pino.transport({
+      target: 'pino-pretty',
+      options: {
+        colorize: true,
+        colorizeObjects: true,
+        timestampKey: 'time',
+        translateTime: 'yyyy-mm-dd HH:MM:ss.l',
+        ignore: 'pid,hostname,context,params',
+        singleLine: true,
+        messageFormat: '{if context}<{context}>: {end}{msg}',
+      },
+    }) as unknown as DestinationStream;
+    return this.sharedPrettyVerboseTransport;
   }
 }

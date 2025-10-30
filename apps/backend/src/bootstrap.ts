@@ -41,7 +41,7 @@ export async function bootstrap(options: BootstrapOptions): Promise<NestExpressA
   );
 
   app.useLogger(createLogger());
-  app.useGlobalFilters(new BaseExceptionFilter(), new GlobalExceptionFilter());
+  app.useGlobalFilters(new GlobalExceptionFilter(), new BaseExceptionFilter());
   app.setGlobalPrefix(PATH_PREFIX);
 
   app.use(text({ type: 'application/jwt' }));

@@ -141,6 +141,8 @@ export class LoggerFactory {
         return LogFormat.JSON;
       case 'pretty':
         return LogFormat.PRETTY;
+      case 'pretty-verbose':
+        return LogFormat.PRETTY_VERBOSE;
       case 'gcp-cloud-logging':
         return LogFormat.GCP_CLOUD_LOGGING;
       default:

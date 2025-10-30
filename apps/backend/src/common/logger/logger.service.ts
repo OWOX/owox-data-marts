@@ -145,7 +145,7 @@ export class CustomLoggerService implements LoggerService {
         output.params.push(param);
       }
     }
-    output.metadata.version = process.env.APP_OWOX_VERSION || 'unknown';
+    output.metadata.appVersion = process.env.APP_OWOX_VERSION || 'unknown';
     const authContext = this.cls.get<Record<string, unknown>>(AUTH_CONTEXT);
     if (authContext) {
       output.metadata.authContext = authContext;

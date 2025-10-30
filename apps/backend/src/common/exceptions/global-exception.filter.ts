@@ -41,11 +41,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const isHttp = exception instanceof HttpException;
     const status = isHttp ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    const body = {
+    const httpResponsePayload = isHttp ? (exception as HttpException).getResponse() : undefined;
+
+    const responseBody = {
       statusCode: status,
       timestamp: new Date().toISOString(),
       path: request?.originalUrl || request?.url,
-      message: 'Internal server error',
       requestId: (request?.headers?.['x-request-id'] as string) || undefined,
     };
 
@@ -54,18 +55,25 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         ? exception
         : new Error(typeof exception === 'string' ? exception : 'Unhandled exception');
 
-    const httpResponsePayload = isHttp ? (exception as HttpException).getResponse() : undefined;
-
-    this.logger.error(`Unhandled exception caught by ${GlobalExceptionFilter.name}`, err, {
+    const logBody = {
       status,
       method: request?.method,
       url: request?.originalUrl || request?.url,
-      requestId: body.requestId,
-      body: safe(request?.body),
+      requestId: responseBody.requestId,
       query: safe(request?.query),
       params: safe(request?.params),
       httpResponse: safe(httpResponsePayload),
-    });
+    };
+
+    if (status >= 500) {
+      this.logger.error(
+        `Unhandled exception caught by ${GlobalExceptionFilter.name}`,
+        err,
+        logBody
+      );
+    } else {
+      this.logger.log(`Handled HTTP ${status} by ${GlobalExceptionFilter.name}`, logBody);
+    }
 
     if (response.headersSent) {
       try {
@@ -76,6 +84,6 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       return;
     }
 
-    response.status(status).json(body);
+    response.status(status).json(responseBody);
   }
 }
