@@ -6,7 +6,7 @@ import { ConfigService } from '@nestjs/config';
 
 // @ts-expect-error - Package lacks TypeScript declarations
 import { Core } from '@owox/connectors';
-import { spawn } from 'child_process';
+import { spawn } from 'cross-spawn';
 
 const { Config, StorageConfig, SourceConfig, RunConfig } = Core;
 type Config = InstanceType<typeof Core.Config>;
@@ -467,9 +467,6 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     return configurationResults;
   }
 
-  /**
-   * Run connector using direct spawn without temporary directories
-   */
   private async runConnector(
     datamartId: string,
     runId: string,
@@ -496,7 +493,6 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
         }
       }
 
-      // Prepare environment variables
       const env = {
         ...process.env,
         OW_DATAMART_ID: datamartId,
@@ -505,10 +501,15 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
         OW_RUN_CONFIG: JSON.stringify(runConfig),
       };
 
-      // Spawn the connector runner directly
-      // Use require.resolve to find the runner in the installed package
-      const runnerPath = require.resolve('@owox/connectors/runner');
+      this.logger.log(
+        `Spawning new process for connector runner execution for datamart ${datamartId} and run ${runId}`,
+        {
+          datamartId,
+          runId,
+        }
+      );
 
+      const runnerPath = require.resolve('@owox/connectors/runner');
       const node = spawn('node', [runnerPath], {
         stdio: spawnStdio,
         env,

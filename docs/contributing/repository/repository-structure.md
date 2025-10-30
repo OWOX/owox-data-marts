@@ -34,9 +34,6 @@ owox-data-marts/
 │   ├── connectors/        # Data connectors and API integrations
 │   │   └── src/           # Source code
 │   │
-│   ├── connector-runner/  # Core connector execution logic
-│   │   └── src/           # Source code
-│   │
 │   ├── eslint-config/     # Shared ESLint configurations
 │   │
 │   ├── prettier-config/   # Shared Prettier configurations
@@ -95,12 +92,6 @@ owox-data-marts/
 
 - Data Source integrations
 - Shared across backend and CLI
-
-### Connector runner (`packages/connector-runner/`)
-
-- Core logic for connector execution
-- Used by backend and CLI
-- [README](../../../packages/connector-runner/README.md)
 
 ### ESLint Config (`packages/eslint-config/`)
 
