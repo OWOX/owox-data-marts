@@ -542,7 +542,7 @@ export default defineConfig({
     lib: {
       entry: {
         index: 'build/index.js',
-        'runtime/connector-runner': 'src/runtime/connector-runner.js',
+        'connector-runner': 'src/connector-runner.js',
       },
       name: 'ConnectorBundle',
       formats: ['cjs', 'es'],
