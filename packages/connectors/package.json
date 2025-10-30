@@ -28,7 +28,7 @@
     "dist/**/*.cjs"
   ],
   "bin": {
-    "owox-connector-runner": "./dist/runtime/connector-runner.cjs"
+    "owox-connector-runner": "./dist/connector-runner.cjs"
   },
   "exports": {
     ".": {
@@ -36,7 +36,7 @@
       "require": "./dist/index.cjs"
     },
     "./runner": {
-      "require": "./dist/runtime/connector-runner.cjs"
+      "require": "./dist/connector-runner.cjs"
     }
   },
   "dependencies": {
