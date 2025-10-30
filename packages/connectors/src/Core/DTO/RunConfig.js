@@ -30,7 +30,3 @@ class RunConfig {
     };
   }
 }
-
-module.exports = {
-  RunConfig,
-};

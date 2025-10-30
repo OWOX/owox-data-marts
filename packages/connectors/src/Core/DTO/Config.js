@@ -261,10 +261,3 @@ class Config {
     return new Config(obj);
   }
 }
-
-// CommonJS exports
-module.exports = {
-  Config,
-  SourceConfig,
-  StorageConfig,
-};
