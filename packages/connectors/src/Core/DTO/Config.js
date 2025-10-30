@@ -1,5 +1,3 @@
-const { StorageType } = require('../../core/types/storage-definitions');
-
 /**
  * This is a helper function to transform the value of a configuration object to a format that can be used by the connector runner.
  *
