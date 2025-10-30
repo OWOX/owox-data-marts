@@ -3,7 +3,7 @@ import globals from 'globals';
 import { config as baseConfig } from './base.js';
 
 /**
- * ESLint configuration for Node.js projects (like connector-runner)
+ * ESLint configuration for Node.js projects
  * Supports both TypeScript and JavaScript
  *
  * @type {import("eslint").Linter.Config}
