@@ -29,7 +29,7 @@ function recursiveValueTransform(value) {
 /**
  * Source configuration for data mart runs
  */
-class SourceConfig {
+class SourceConfigDto {
   /**
    * @param {Object} config - Source configuration object
    * @param {string} config.name - Name of the source
@@ -83,7 +83,7 @@ class SourceConfig {
 /**
  * Storage configuration for data mart runs
  */
-class StorageConfig {
+class StorageConfigDto {
   /**
    * @param {Object} config - Storage configuration object
    * @param {string} config.name - Name of the storage
@@ -114,9 +114,9 @@ class StorageConfig {
    * @returns {string} Storage name
    */
   _getStorageName(name) {
-    if (name === StorageType.GOOGLE_BIGQUERY) {
+    if (name === 'GOOGLE_BIGQUERY') {
       return 'GoogleBigQuery';
-    } else if (name === StorageType.AWS_ATHENA) {
+    } else if (name === 'AWS_ATHENA') {
       return 'AwsAthena';
     }
     return name;
@@ -153,7 +153,7 @@ class StorageConfig {
 /**
  * Main run configuration for data mart operations
  */
-class Config {
+class ConfigDto {
   /**
    * @param {Object} config - Run configuration object
    * @param {string} config.datamartId - Data mart identifier
@@ -180,15 +180,15 @@ class Config {
 
     this._datamartId = config.datamartId;
     this._name = config.name;
-    this._source = new SourceConfig(config.source);
-    this._storage = new StorageConfig(config.storage);
+    this._source = new SourceConfigDto(config.source);
+    this._storage = new StorageConfigDto(config.storage);
 
     this.validate();
   }
 
   /**
    * Get the source configuration
-   * @returns {SourceConfig} Source configuration instance
+   * @returns {SourceConfigDto} Source configuration instance
    */
   get source() {
     return this._source;
@@ -196,7 +196,7 @@ class Config {
 
   /**
    * Get the storage configuration
-   * @returns {StorageConfig} Storage configuration instance
+   * @returns {StorageConfigDto} Storage configuration instance
    */
   get storage() {
     return this._storage;
@@ -230,10 +230,10 @@ class Config {
     if (!this._name || typeof this._name !== 'string') {
       throw new Error('Invalid run configuration name');
     }
-    if (!this._source || !(this._source instanceof SourceConfig)) {
+    if (!this._source || !(this._source instanceof SourceConfigDto)) {
       throw new Error('Invalid source configuration');
     }
-    if (!this._storage || !(this._storage instanceof StorageConfig)) {
+    if (!this._storage || !(this._storage instanceof StorageConfigDto)) {
       throw new Error('Invalid storage configuration');
     }
     return true;
@@ -253,11 +253,11 @@ class Config {
   }
 
   /**
-   * Create Config from plain object
+   * Create ConfigDto from plain object
    * @param {Object} obj - Plain object representation
-   * @returns {Config} New Config instance
+   * @returns {ConfigDto} New ConfigDto instance
    */
   static fromObject(obj) {
-    return new Config(obj);
+    return new ConfigDto(obj);
   }
 }
