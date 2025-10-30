@@ -1,5 +1,112 @@
 # owox
 
+## 0.11.0
+
+### Minor Changes
+
+- 7617b79: # Enhanced Data Mart run history monitoring with automatic updates
+
+  Improved the overall experience when working with Data Mart by introducing automatic data refresh and better run handling:
+
+  **Automatic data updates:**
+  - Run history now automatically refreshes, keeping you informed about the latest execution status
+  - Google Sheets reports automatically update with fresh data without manual page refresh
+  - Auto-refresh can be toggled on/off in run history, with your preference saved for future sessions
+  - Updates happen silently in the background without disrupting your work
+
+  **Better connector run experience:**
+  - Clear loading indicators when manually running connectors, with the ability to cancel
+  - Improved error messages when attempting to run a connector that's already in progress
+  - No more technical error messages - you'll see friendly notifications like "Connector is already running. Please wait until it finishes"
+
+  These improvements ensure you always have up-to-date information about your Data Mart executions without needing to manually refresh the page.
+
+- 0a99a0b: # Add ability to copy connector configuration from existing Data Marts
+
+  Added a new feature that allows users to copy connector configuration settings from existing Data Marts when creating or editing connector-based Data Marts.
+  - **Copy configuration button**: New dropdown menu in the connector configuration step that shows all Data Marts with the same connector type
+  - **Multi-configuration support**: For Data Marts with multiple configurations, a nested menu allows selecting specific configuration
+  - **Configuration preview**: Tooltip on each item shows required fields with masked secrets
+  - **Secure secret copying**: Secrets are properly masked and merged from source on backend
+
+- 5cd552c: # Improve Data Mart Creation Flow and Connector Editor Experience
+
+  This update brings several enhancements to the Data Mart creation flow and connector-related components, improving UI consistency, usability, and workflow efficiency.
+
+  **Changes**
+  - **Data Mart creation flow**:
+    - Added new icons for Facebook Ads, X Ads, and LinkedIn Ads
+    - Updated Empty Data Marts state with options to create Data Marts in different modes
+    - Improved **DataMartDefinitionSettings** to handle mode-based initialization
+    - Enhanced **CreateDataMartPage** to set default titles based on selected mode
+    - Added animations on the Empty Data Marts page for a smoother user experience
+  - **UX improvements**: implemented auto-open logic for Connector Setup Sheet when selecting a definition type
+  - **UI improvements**: updated theme handling in **DataMartCodeEditor** for consistent styling
+
+- c929eb0: # Fix BigQuery data duplication with NULL in unique keys
+
+  Fixed MERGE query in BigQueryStorage to correctly handle NULL values in unique key columns using `IS NOT DISTINCT FROM` instead of `=`. This prevents duplicate records when fields like `AssetGroupId` are NULL.
+
+- ccb4fef: # Fix Boolean type in Connector Data Mart configuration
+
+  Fixed an issue with boolean field types in connector configurations when setting up data marts.
+  This fix ensures that boolean fields in connector configurations are properly handled, making them interactive and displaying appropriate UI indicators regardless of their default values.
+
+- 6059657: # Fixed connector configuration fields editing
+
+  Fixed an issue where connector configuration fields with default values were difficult to edit when setting up a data mart.
+  Fields now properly handle user input and allow modification of default values.
+
+- 7617b79: # Improved SQL validation flow in Data Marts to prevent timeout issues
+
+  Previously, users were unable to save SQL queries in Data Marts when validation took longer than 30 seconds, causing timeout errors.
+
+  This update resolves the issue by:
+  - Made SQL validation asynchronous and non-blocking for saving SQL in Input Sources
+  - SQL validation is no longer required for Publishing Data Marts
+
+  Users can now save SQL queries regardless of validation time, improving the overall experience when working with complex queries or large datasets.
+
+- 7617b79: # Fix messages for Data Mart publish button
+
+  Improved the clarity of status messages displayed on the Data Mart publish button.
+  You'll now see more accurate and informative feedback when publishing your Data Marts.
+
+- f96f9aa: # Add Google Ads connector
+
+  Added new Google Ads connector with Service Account authentication
+
+  Available data nodes:
+  - `campaigns`, `campaigns_stats` - Campaign data
+  - `ad_groups`, `ad_groups_stats` - Ad group data
+  - `ad_group_ads_stats` - Ad performance data
+  - `keywords_stats` - Keyword performance data
+  - `criterion` - Criteria data
+
+- b11b726: # Added support for oneOf fields with recursive secret masking
+
+  This release adds comprehensive support for oneOf configuration fields with nested secret handling. The connector secret service now recursively masks and merges secret fields within oneOf structures, ensuring sensitive data like API keys and tokens in nested authentication configurations are properly protected.
+
+  New UI components include ButtonGroup for value-based selection and AppWizardCollapsible for expandable sections. Fixed an issue where the wrong oneOf variant was pre-selected when editing existing configurations.
+
+  Added Advanced Fields section to the connector configuration form, allowing users to configure advanced settings for the connector.
+
+- 1b97886: # Remove MaxFetchingDays parameter and improve incremental fetching logic
+
+  Removed the `MaxFetchingDays` parameter from all data source connectors. The incremental data fetching now works as follows:
+  - **First run (no state)**: Data fetching starts from the 1st of the previous month
+  - **Subsequent runs**: Data is fetched from the `LastRequestedDate` (with `ReimportLookbackWindow` applied) up to today
+  - **Manual backfill**: Continues to work as before, fetching data for the specified date range
+
+### Patch Changes
+
+- @owox/internal-helpers@0.11.0
+- @owox/idp-protocol@0.11.0
+- @owox/idp-better-auth@0.11.0
+- @owox/idp-owox@0.11.0
+- @owox/backend@0.11.0
+- @owox/web@0.11.0
+
 ## 0.10.0
 
 ### Minor Changes 0.10.0
@@ -545,7 +652,6 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
-
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -553,7 +659,6 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
-
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
