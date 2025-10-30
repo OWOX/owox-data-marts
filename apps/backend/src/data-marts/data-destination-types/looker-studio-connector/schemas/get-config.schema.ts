@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { ConfigFieldType } from '../enums/config-field-type.enum';
 import { ConnectionConfigSchema } from './connection-config.schema';
-import { ConnectorRequestConfigV1Schema } from './connector-request-config.schema.v1';
 
 // Schema for select field options
 export const ConfigSelectOptionSchema = z.object({
@@ -24,9 +23,6 @@ export const ConfigFieldSchema = z.object({
 // Schema for getConfig request
 export const GetConfigRequestSchema = z.object({
   connectionConfig: ConnectionConfigSchema,
-  request: z.object({
-    configParams: ConnectorRequestConfigV1Schema.optional(),
-  }),
 });
 
 // Schema for getConfig response
