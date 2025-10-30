@@ -4,6 +4,8 @@
 
 ### Minor Changes 0.11.0
 
+![OWOX Data Marts - v0.11.0](https://github.com/user-attachments/assets/2365a8a6-c9a0-4b7a-8b85-30d57aae2434)
+
 - 7617b79: # Enhanced Data Mart run history monitoring with automatic updates
 
   Improved the overall experience when working with Data Mart by introducing automatic data refresh and better run handling:
