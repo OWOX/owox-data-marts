@@ -5,6 +5,7 @@ import { createLogger } from './common/logger/logger.service';
 import { setupSwagger } from './config/swagger.config';
 import { setupGlobalPipes } from './config/global-pipes.config';
 import { BaseExceptionFilter } from './common/exceptions/base-exception.filter';
+import { GlobalExceptionFilter } from './common/exceptions/global-exception.filter';
 import { ConfigService } from '@nestjs/config';
 import { runMigrationsIfNeeded } from './config/migrations.config';
 import { loadEnv } from './load-env';
@@ -40,7 +41,7 @@ export async function bootstrap(options: BootstrapOptions): Promise<NestExpressA
   );
 
   app.useLogger(createLogger());
-  app.useGlobalFilters(new BaseExceptionFilter());
+  app.useGlobalFilters(new GlobalExceptionFilter(), new BaseExceptionFilter());
   app.setGlobalPrefix(PATH_PREFIX);
 
   app.use(text({ type: 'application/jwt' }));
