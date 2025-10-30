@@ -6,7 +6,7 @@
  */
 
 /* eslint-disable no-unused-vars */
-var adAccountInsightsFieldsByLinkUrlAsset = {
+var adAccountInsightsFieldsByPublisherPlatformAndPosition = {
   'account_currency': {
     'description': 'Currency that is used by your ad account.',
     'type': 'string'
@@ -308,10 +308,6 @@ var adAccountInsightsFieldsByLinkUrlAsset = {
     'description': 'interactive_component_tap',
     'type': 'list<AdsActionStats>'
   },
-  'link_url_asset': {
-    'description': 'The ID of the URL asset involved in impression, click or action.',
-    'type': 'object'
-  },
   'marketing_messages_delivery_rate': {
     'description': 'The number of messages delivered divided by the number of messages sent. Some messages may not be delivered, such as when a customer\'s device is out of service. This metric doesn\'t include messages sent to Europe and Japan.',
     'type': 'numeric string',
@@ -336,6 +332,14 @@ var adAccountInsightsFieldsByLinkUrlAsset = {
   'outbound_clicks_ctr': {
     'description': 'The percentage of times people saw your ad and performed an outbound click.',
     'type': 'list<AdsActionStats>'
+  },
+  'platform_position': {
+    'description': 'platform_position',
+    'type': 'string'
+  },
+  'publisher_platform': {
+    'description': 'Which platform your ad was shown, for example on Facebook, Instagram, or Audience Network.',
+    'type': 'string'
   },
   'purchase_roas': {
     'description': 'The total return on ad spend (ROAS) from purchases. This is based on information received from one or more of your connected Facebook Business Tools and attributed to your ads.',
@@ -440,4 +444,3 @@ var adAccountInsightsFieldsByLinkUrlAsset = {
     'GoogleBigQueryType': 'numeric'
   }
 }
-

@@ -6,7 +6,7 @@
  */
 
 /* eslint-disable no-unused-vars */
-var adAccountInsightsFieldsByLinkUrlAsset = {
+var adAccountInsightsFieldsByAgeAndGender = {
   'account_currency': {
     'description': 'Currency that is used by your ad account.',
     'type': 'string'
@@ -52,6 +52,10 @@ var adAccountInsightsFieldsByLinkUrlAsset = {
   },
   'adset_name': {
     'description': 'The name of the ad set you\'re viewing in reporting. An ad set is a group of ads that share the same budget, schedule, delivery optimization and targeting.',
+    'type': 'string'
+  },
+  'age': {
+    'description': 'The age range of the people who saw your ad. This is based on the age people have listed in their Facebook profiles.',
     'type': 'string'
   },
   'attribution_setting': {
@@ -265,6 +269,10 @@ var adAccountInsightsFieldsByLinkUrlAsset = {
     'type': 'numeric string',
     'GoogleBigQueryType': 'numeric'
   },
+  'gender': {
+    'description': 'The gender of the people who saw your ad. This is based on the gender people have listed in their Facebook profiles.',
+    'type': 'string'
+  },
   'impressions': {
     'description': 'The number of times your ads were on screen.',
     'type': 'numeric string',
@@ -307,10 +315,6 @@ var adAccountInsightsFieldsByLinkUrlAsset = {
   'interactive_component_tap': {
     'description': 'interactive_component_tap',
     'type': 'list<AdsActionStats>'
-  },
-  'link_url_asset': {
-    'description': 'The ID of the URL asset involved in impression, click or action.',
-    'type': 'object'
   },
   'marketing_messages_delivery_rate': {
     'description': 'The number of messages delivered divided by the number of messages sent. Some messages may not be delivered, such as when a customer\'s device is out of service. This metric doesn\'t include messages sent to Europe and Japan.',
@@ -440,4 +444,3 @@ var adAccountInsightsFieldsByLinkUrlAsset = {
     'GoogleBigQueryType': 'numeric'
   }
 }
-
