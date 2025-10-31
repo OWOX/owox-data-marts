@@ -403,7 +403,6 @@
 
 ![OWOX Data Marts – v0.6.0](https://github.com/user-attachments/assets/a12287fc-397f-4071-89be-47d6aae7eb6b)
 
-
 - 2bbf7ba: # Initial release of Better Auth IDP provider with comprehensive authentication features
   - Added web-based admin dashboard for user management
   - Implemented hierarchical role-based access control (admin/editor/viewer) with invitation permissions
