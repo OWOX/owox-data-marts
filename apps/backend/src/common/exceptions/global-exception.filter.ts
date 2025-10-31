@@ -1,11 +1,4 @@
-import {
-  ExceptionFilter,
-  Catch,
-  ArgumentsHost,
-  HttpException,
-  HttpStatus,
-  Logger,
-} from '@nestjs/common';
+import { ExceptionFilter, Catch, ArgumentsHost, HttpStatus, Logger } from '@nestjs/common';
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../../idp';
 
@@ -27,6 +20,15 @@ const safe = (v: unknown, maxLength = 5000): string => {
   }
 };
 
+function isHttpError(e: unknown): e is { getStatus(): number } {
+  return (
+    typeof e === 'object' &&
+    e !== null &&
+    'getStatus' in e &&
+    typeof (e as Record<string, unknown>).getStatus === 'function'
+  );
+}
+
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
@@ -38,10 +40,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<AuthenticatedRequest>();
 
-    const isHttp = exception instanceof HttpException;
+    const isHttp = isHttpError(exception);
     const status = isHttp ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
-
-    const httpResponsePayload = isHttp ? (exception as HttpException).getResponse() : undefined;
 
     const responseBody = {
       statusCode: status,
@@ -60,9 +60,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       method: request?.method,
       url: request?.originalUrl || request?.url,
       requestId: responseBody.requestId,
+      isHttpError: isHttp,
       query: safe(request?.query),
       params: safe(request?.params),
-      httpResponse: safe(httpResponsePayload),
     };
 
     if (status >= 500) {
@@ -76,11 +76,6 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     }
 
     if (response.headersSent) {
-      try {
-        response.end();
-      } catch {
-        // ignore
-      }
       return;
     }
 
