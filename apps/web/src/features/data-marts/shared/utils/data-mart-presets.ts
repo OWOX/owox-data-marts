@@ -67,13 +67,13 @@ export const dataMartPresetsMap: Record<DataMartPresetKey, DataMartPreset> = {
     icon: Plug,
   },
   sql: {
-    title: 'Start with SQL query',
+    title: 'SQL query',
     datamartTitle: 'SQL-based Data Mart',
     definitionType: DataMartDefinitionType.SQL,
     icon: Code,
   },
   blank: {
-    title: 'Create blank Data Mart',
+    title: 'Blank Data Mart',
     datamartTitle: 'New Data Mart',
     icon: Box,
   },

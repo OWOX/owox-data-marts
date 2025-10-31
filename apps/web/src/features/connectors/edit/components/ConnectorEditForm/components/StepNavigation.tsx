@@ -26,12 +26,29 @@ export function StepNavigation({
   onFinish,
   nextLabel = 'Next',
   backLabel = 'Back',
-  finishLabel = 'Finish',
+  finishLabel = 'Save',
 }: StepNavigationProps) {
   const isLastStep = currentStep === totalSteps;
 
+  // Single-step layout
+  if (totalSteps === 1) {
+    return (
+      <div className='w-full'>
+        <Button
+          className='w-full'
+          variant='default'
+          onClick={onFinish}
+          disabled={!canGoNext || isLoading}
+        >
+          {finishLabel}
+        </Button>
+      </div>
+    );
+  }
+
+  // Multi-step layout
   return (
-    <>
+    <div className='flex w-full items-center justify-between gap-4'>
       <div className='flex-1'>
         {canGoBack && (
           <Button variant='outline' onClick={onBack} disabled={isLoading}>
@@ -57,6 +74,6 @@ export function StepNavigation({
           </Button>
         )}
       </div>
-    </>
+    </div>
   );
 }
