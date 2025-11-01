@@ -1,7 +1,10 @@
 import type { LogEntry } from './types';
 import { LogLevel } from './types';
-import type { DataMartDefinitionConfigDto } from '../../model/types/data-mart-definition-config';
+import type { DataMartDefinitionConfig } from '../../model/types/data-mart-definition-config';
 import { formatDateTime, parseDate } from '../../../../../utils/date-formatters';
+import type { DataMartRunItem } from '../../model';
+import { DataMartRunTriggerType, DataMartRunType } from '../../../shared';
+import type { ConnectorListItem } from '../../../../connectors/shared/model/types/connector';
 
 /**
  * Format timestamp string to display format
@@ -9,6 +12,10 @@ import { formatDateTime, parseDate } from '../../../../../utils/date-formatters'
  */
 const formatTimestamp = (timestamp: string): string => {
   return formatDateTime(parseDate(timestamp).toISOString());
+};
+
+const capitalize = (str: string) => {
+  return str.charAt(0).toUpperCase() + str.slice(1);
 };
 
 export const parseLogEntry = (log: string, index: number, isError = false): LogEntry => {
@@ -63,7 +70,7 @@ export const parseLogEntry = (log: string, index: number, isError = false): LogE
   const processedMessage = processJSONMessage(log);
   return {
     id: `log-${index.toString()}`,
-    timestamp: formatTimestamp(new Date().toISOString()),
+    timestamp: 'N/A',
     level: isError ? LogLevel.ERROR : LogLevel.INFO,
     message: processedMessage.message,
     metadata: processedMessage.metadata?.at
@@ -127,16 +134,32 @@ export const getDisplayType = (logEntry: LogEntry): string => {
   return logEntry.level;
 };
 
-export const getRunSummary = (run: { id: string; logs: string[]; errors: string[] }) => {
-  const logCount = run.logs.length;
-  const errorCount = run.errors.length;
-  const totalMessages = logCount + errorCount;
+export const getRunSummary = (run: DataMartRunItem, connectorInfo: ConnectorListItem | null) => {
+  const triggerType = run.triggerType === DataMartRunTriggerType.SCHEDULED ? 'scheduled' : 'manual';
 
-  const parts = [`Run #${run.id.slice(-8)}`, `${String(totalMessages)} messages`];
-
-  if (errorCount > 0) {
-    parts.push(`${String(errorCount)} errors`);
+  let title = '';
+  let runType = '';
+  switch (run.type) {
+    case DataMartRunType.CONNECTOR:
+      // TODO: Add config identity
+      title = connectorInfo?.displayName ?? '';
+      runType = 'connector';
+      break;
+    case DataMartRunType.LOOKER_STUDIO:
+      title = 'Looker Studio data fetching';
+      runType = 'report';
+      break;
+    case DataMartRunType.GOOGLE_SHEETS_EXPORT:
+      title = run.reportDefinition?.title ?? '';
+      runType = 'report';
+      break;
+    default:
+      break;
   }
+
+  const runDescription = capitalize(`${triggerType} ${runType} run`.trim());
+
+  const parts = [runDescription, title];
 
   return parts.join(' • ');
 };
@@ -145,7 +168,7 @@ export const downloadLogs = (run: {
   id: string;
   logs: string[];
   errors: string[];
-  definitionRun: DataMartDefinitionConfigDto | null;
+  definitionRun: DataMartDefinitionConfig | null;
 }) => {
   const blob = new Blob([JSON.stringify(run, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -154,4 +177,50 @@ export const downloadLogs = (run: {
   a.download = `datamart-run-${run.id.slice(0, 8)}-logs.json`;
   a.click();
   URL.revokeObjectURL(url);
+};
+
+export const getStartedAtDisplay = (run: DataMartRunItem): string => {
+  const resolvedDate = run.startedAt ?? run.createdAt;
+  return formatDateTime(resolvedDate.toISOString());
+};
+
+export const getTooltipContent = (run: DataMartRunItem) => {
+  const startedAt = formatDate(run.startedAt);
+  const finishedAt = formatDate(run.finishedAt);
+
+  let duration = '';
+  if (run.startedAt && run.finishedAt) {
+    duration = formatDuration(run.startedAt, run.finishedAt);
+  }
+
+  return {
+    startedAt,
+    finishedAt,
+    duration,
+  };
+};
+
+export const formatDate = (date: Date | null): string => {
+  return date ? formatDateTime(date.toISOString()) : 'N/A';
+};
+
+export const formatDuration = (startedAt: Date, finishedAt: Date): string => {
+  const durationMs = finishedAt.getTime() - startedAt.getTime();
+  const seconds = Math.floor(durationMs / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+
+  const remainingMinutes = minutes % 60;
+  const remainingSeconds = seconds % 60;
+
+  const parts: string[] = [];
+  if (hours > 0) {
+    parts.push(`${String(hours)} h`);
+  }
+  if (remainingMinutes > 0) {
+    parts.push(`${String(remainingMinutes)} min`);
+  }
+  parts.push(`${String(remainingSeconds)} sec`);
+
+  return parts.join(' ');
 };

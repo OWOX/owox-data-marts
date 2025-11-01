@@ -1,31 +1,18 @@
-import type {
-  DataMartDefinitionConfig,
-  DataMartDefinitionConfigDto,
-} from './data-mart-definition-config';
-import { RunStatus } from '../../components/DataMartRunHistoryView/types';
-
-export interface DataMartRunItemDto {
-  id: string;
-  status: string;
-  createdAt: string;
-  logs: string[];
-  errors: string[];
-  definitionRun: DataMartDefinitionConfigDto | null;
-}
+import type { DataMartDefinitionConfig } from './data-mart-definition-config';
+import type { DataMartRunTriggerType, DataMartRunType } from '../../../shared';
+import type { DataMartRunReportDefinition } from './data-mart-run-report-definition';
+import { DataMartRunStatus } from '../../../shared';
 
 export interface DataMartRunItem {
   id: string;
-  status: RunStatus;
+  status: DataMartRunStatus;
   createdAt: Date;
   logs: string[];
   errors: string[];
   definitionRun: DataMartDefinitionConfig | null;
-}
-
-export interface DataMartRunDto {
-  runs: DataMartRunItemDto[];
-}
-
-export interface DataMartRun {
-  runs: DataMartRunItem[];
+  type: DataMartRunType | null;
+  triggerType: DataMartRunTriggerType | null;
+  startedAt: Date | null;
+  finishedAt: Date | null;
+  reportDefinition: DataMartRunReportDefinition | null;
 }

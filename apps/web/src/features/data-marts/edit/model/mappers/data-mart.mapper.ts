@@ -4,12 +4,13 @@ import { DataMartStatusModel } from '../../../shared';
 import { mapDataStorageFromDto } from '../../../../data-storage/shared/model/mappers';
 
 import { mapDefinitionFromDto } from './definition-mappers';
+import { getConnectorInfo } from '../helpers';
 
 /**
  * Maps a data mart response DTO to a domain model
  */
-export function mapDataMartFromDto(dataMartDto: DataMartResponseDto): DataMart {
-  return {
+export async function mapDataMartFromDto(dataMartDto: DataMartResponseDto): Promise<DataMart> {
+  const dataMart: DataMart = {
     id: dataMartDto.id,
     title: dataMartDto.title,
     description: dataMartDto.description,
@@ -17,12 +18,18 @@ export function mapDataMartFromDto(dataMartDto: DataMartResponseDto): DataMart {
     storage: mapDataStorageFromDto(dataMartDto.storage),
     definitionType: dataMartDto.definitionType,
     definition: mapDefinitionFromDto(dataMartDto.definitionType, dataMartDto.definition),
+    connectorInfo: null,
     schema: dataMartDto.schema,
     createdAt: new Date(dataMartDto.createdAt),
     modifiedAt: new Date(dataMartDto.modifiedAt),
     canPublish: false,
     validationErrors: [],
   };
+
+  // Load connector info if needed
+  dataMart.connectorInfo = await getConnectorInfo(dataMart);
+
+  return dataMart;
 }
 
 /**

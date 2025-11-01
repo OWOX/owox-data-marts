@@ -13,6 +13,7 @@ import { RunReportCommand } from '../dto/domain/run-report.command';
 import { AuthorizationContext } from '../../idp';
 import { DataMartMapper } from './data-mart.mapper';
 import { DataDestinationMapper } from './data-destination.mapper';
+import { RunType } from '../../common/scheduler/shared/types';
 
 @Injectable()
 export class ReportMapper {
@@ -90,10 +91,15 @@ export class ReportMapper {
     return new ListReportsByProjectCommand(context.projectId);
   }
 
-  toRunReportCommand(id: string, context: AuthorizationContext): RunReportCommand {
+  toRunReportCommand(
+    id: string,
+    context: AuthorizationContext,
+    runType: RunType
+  ): RunReportCommand {
     return {
       reportId: id,
       userId: context.userId,
+      runType,
     };
   }
 

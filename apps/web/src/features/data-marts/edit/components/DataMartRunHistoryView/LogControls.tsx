@@ -1,10 +1,11 @@
 import { Search, Download, X } from 'lucide-react';
-import { Button } from '@owox/ui/components/button';
-import { LogViewType, RunStatus } from './types';
-import { Input } from '@owox/ui/components/input';
-import { downloadLogs } from './utils';
-import type { DataMartDefinitionConfigDto } from '../../model/types/data-mart-definition-config';
 import { toast } from 'react-hot-toast';
+import { Button } from '@owox/ui/components/button';
+import { Input } from '@owox/ui/components/input';
+import { LogViewType } from './types';
+import type { DataMartDefinitionConfig } from '../../model/types/data-mart-definition-config';
+import { DataMartRunStatus } from '../../../shared';
+import { downloadLogs } from './utils';
 
 interface LogControlsProps {
   logViewType: LogViewType;
@@ -13,10 +14,10 @@ interface LogControlsProps {
   setSearchTerm: (term: string) => void;
   run: {
     id: string;
-    status: RunStatus;
+    status: DataMartRunStatus;
     logs: string[];
     errors: string[];
-    definitionRun: DataMartDefinitionConfigDto | null;
+    definitionRun: DataMartDefinitionConfig | null;
   };
   cancelDataMartRun: (id: string, runId: string) => Promise<void>;
   dataMartId?: string;
@@ -105,7 +106,7 @@ export function LogControls({
         )}
       </div>
       <div className='flex items-center gap-2'>
-        {run.status === RunStatus.RUNNING && (
+        {run.status === DataMartRunStatus.RUNNING && (
           <Button variant='destructive' size='sm' onClick={e => void handleCancelRun(e)}>
             <X className='h-4 w-4' />
             Cancel

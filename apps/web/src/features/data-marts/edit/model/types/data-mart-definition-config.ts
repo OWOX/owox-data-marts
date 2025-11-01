@@ -4,11 +4,9 @@ import type { ViewDefinitionConfig } from './view-definition-config';
 import type { TablePatternDefinitionConfig } from './table-pattern-definition-config';
 import type { ConnectorDefinitionConfig } from './connector-definition-config';
 
-export type DataMartDefinitionConfigDto =
+export type DataMartDefinitionConfig =
   | SqlDefinitionConfig
   | TableDefinitionConfig
   | ViewDefinitionConfig
   | TablePatternDefinitionConfig
   | ConnectorDefinitionConfig;
-
-export type DataMartDefinitionConfig = DataMartDefinitionConfigDto;

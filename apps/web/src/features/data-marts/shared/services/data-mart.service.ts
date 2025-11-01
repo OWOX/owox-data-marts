@@ -10,8 +10,8 @@ import type {
   UpdateDataMartDefinitionRequestDto,
   UpdateDataMartSchemaRequestDto,
   SqlValidationResponseDto,
+  DataMartRunListResponseDto,
 } from '../types/api';
-import type { DataMartRun, DataMartRunItem } from '../../edit';
 import type { CreateSqlDryRunTaskResponseDto } from '../types/api/response/create-sql-dry-run-task.response.dto.ts';
 import type { TaskStatusResponseDto } from '../types/api/response/task-status.response.dto.ts';
 
@@ -264,9 +264,13 @@ export class DataMartService extends ApiService {
     limit = 5,
     offset = 0,
     config?: AxiosRequestConfig
-  ): Promise<DataMartRunItem[]> {
-    const response = await this.get<DataMartRun>(`/${id}/runs`, { limit, offset }, config);
-    return response.runs;
+  ): Promise<DataMartRunListResponseDto> {
+    const response = await this.get<DataMartRunListResponseDto>(
+      `/${id}/runs`,
+      { limit, offset },
+      config
+    );
+    return response;
   }
 
   /**
