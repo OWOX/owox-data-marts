@@ -22,7 +22,7 @@ import {
   RunReportSpec,
   UpdateReportSpec,
 } from './spec/report.api';
-import { RunType } from 'src/common/scheduler/shared/types';
+import { RunType } from '../../common/scheduler/shared/types';
 
 @Controller('reports')
 @ApiTags('Reports')

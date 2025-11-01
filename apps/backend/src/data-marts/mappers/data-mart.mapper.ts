@@ -37,8 +37,8 @@ import { CancelDataMartRunCommand } from '../dto/domain/cancel-data-mart-run.com
 import { ConnectorSecretService } from '../services/connector-secret.service';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { RunType } from '../../common/scheduler/shared/types';
-import { DataMartRunType } from 'src/data-marts/enums/data-mart-run-type.enum';
-import { DataMartDefinition } from 'src/data-marts/dto/schemas/data-mart-table-definitions/data-mart-definition';
+import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { DataMartDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import { ListDataMartsByConnectorNameCommand } from '../dto/domain/list-data-mart-by-connector-name';
 
 @Injectable()

@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import { DataMartRunStatus } from '../../../enums/data-mart-run-status.enum';
-import { DataMartRunType } from 'src/data-marts/enums/data-mart-run-type.enum';
-import { RunType } from 'src/common/scheduler/shared/types';
-import { DataMartRunReportDefinitionSchema } from 'src/data-marts/dto/schemas/data-mart-run/data-mart-run-report-definition.schema';
-import { DataMartDefinitionSchema } from 'src/data-marts/dto/schemas/data-mart-table-definitions/data-mart-definition.schema';
+import { DataMartRunType } from '../../../enums/data-mart-run-type.enum';
+import { RunType } from '../../../../common/scheduler/shared/types';
+import { DataMartRunReportDefinitionSchema } from './data-mart-run-report-definition.schema';
+import { DataMartDefinitionSchema } from '../data-mart-table-definitions/data-mart-definition.schema';
 
 export const DataMartRunSchema = z.object({
   id: z.string(),

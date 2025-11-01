@@ -17,13 +17,13 @@ import { ReportDataCacheService } from '../../../services/report-data-cache.serv
 import { OWOX_PRODUCER } from '../../../../common/producer/producer.module';
 import { OwoxProducer } from '@owox/internal-helpers';
 import { LookerReportRunSuccessfullyEvent } from '../../../events/looker-report-run-successfully.event';
-import { DataMartRun } from 'src/data-marts/entities/data-mart-run.entity';
-import { RunType } from 'src/common/scheduler/shared/types';
-import { DataMartRunStatus } from 'src/data-marts/enums/data-mart-run-status.enum';
+import { DataMartRun } from '../../../entities/data-mart-run.entity';
+import { RunType } from '../../../../common/scheduler/shared/types';
+import { DataMartRunStatus } from '../../../enums/data-mart-run-status.enum';
 import {
   DataMartRunService,
   ReportRunFinishContext,
-} from 'src/data-marts/services/data-mart-run.service';
+} from '../../../services/data-mart-run.service';
 
 interface ValidatedRequestData {
   connectionConfig: { destinationSecretKey: string };

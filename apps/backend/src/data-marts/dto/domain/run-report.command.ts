@@ -1,4 +1,4 @@
-import { RunType } from 'src/common/scheduler/shared/types';
+import { RunType } from '../../../common/scheduler/shared/types';
 
 export interface RunReportCommand {
   reportId: string;

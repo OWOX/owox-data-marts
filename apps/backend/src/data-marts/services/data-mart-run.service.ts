@@ -2,13 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
-import { RunType } from 'src/common/scheduler/shared/types';
-import { DataMartRun } from 'src/data-marts/entities/data-mart-run.entity';
-import { DataMartRunStatus } from 'src/data-marts/enums/data-mart-run-status.enum';
-import { DataMartRunType } from 'src/data-marts/enums/data-mart-run-type.enum';
-import { Report } from 'src/data-marts/entities/report.entity';
-import { DataDestinationType } from 'src/data-marts/data-destination-types/enums/data-destination-type.enum';
-import { SystemTimeService } from 'src/common/scheduler/services/system-time.service';
+import { RunType } from '../../common/scheduler/shared/types';
+import { DataMartRun } from '../entities/data-mart-run.entity';
+import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
+import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { Report } from '../entities/report.entity';
+import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
+import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 
 export interface ReportRunContext {
   createdById: string;

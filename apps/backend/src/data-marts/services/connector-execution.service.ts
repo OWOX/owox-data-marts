@@ -39,7 +39,7 @@ import { OWOX_PRODUCER } from '../../common/producer/producer.module';
 import { OwoxProducer } from '@owox/internal-helpers';
 import { ConnectorRunSuccessfullyEvent } from '../events/connector-run-successfully.event';
 import { RunType } from '../../common/scheduler/shared/types';
-import { DataMartRunType } from 'src/data-marts/enums/data-mart-run-type.enum';
+import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 
 interface ConfigurationExecutionResult {
   configIndex: number;

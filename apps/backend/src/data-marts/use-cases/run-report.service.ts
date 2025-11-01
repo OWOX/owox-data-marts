@@ -14,12 +14,9 @@ import { RunReportCommand } from '../dto/domain/run-report.command';
 import { Report } from '../entities/report.entity';
 import { ReportRunStatus } from '../enums/report-run-status.enum';
 import { DataMartService } from '../services/data-mart.service';
-import { DataMartRun } from 'src/data-marts/entities/data-mart-run.entity';
-import { DataMartRunStatus } from 'src/data-marts/enums/data-mart-run-status.enum';
-import {
-  DataMartRunService,
-  ReportRunFinishContext,
-} from 'src/data-marts/services/data-mart-run.service';
+import { DataMartRun } from '../entities/data-mart-run.entity';
+import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
+import { DataMartRunService, ReportRunFinishContext } from '../services/data-mart-run.service';
 
 @Injectable()
 export class RunReportService {

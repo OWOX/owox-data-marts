@@ -88,7 +88,7 @@ import { IdpModule } from '../idp/idp.module';
 import { createOperationTimeoutMiddleware } from '../common/middleware/operation-timeout.middleware';
 import { CommonModule } from '../common/common.module';
 import { ConnectorSecretService } from './services/connector-secret.service';
-import { DataMartRunService } from 'src/data-marts/services/data-mart-run.service';
+import { DataMartRunService } from './services/data-mart-run.service';
 import { SqlDryRunTrigger } from './entities/sql-dry-run-trigger.entity';
 import { SqlDryRunTriggerService } from './services/sql-dry-run-trigger.service';
 import { SqlDryRunTriggerHandlerService } from './services/sql-dry-run-trigger-handler.service';

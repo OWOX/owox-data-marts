@@ -1,8 +1,8 @@
 import { DataMartRunStatus } from '../../enums/data-mart-run-status.enum';
-import { DataMartDefinition } from 'src/data-marts/dto/schemas/data-mart-table-definitions/data-mart-definition';
-import { DataMartRunType } from 'src/data-marts/enums/data-mart-run-type.enum';
-import { RunType } from 'src/common/scheduler/shared/types';
-import { DataMartRunReportDefinition } from 'src/data-marts/dto/schemas/data-mart-run/data-mart-run-report-definition.schema';
+import { DataMartDefinition } from '../schemas/data-mart-table-definitions/data-mart-definition';
+import { DataMartRunType } from '../../enums/data-mart-run-type.enum';
+import { RunType } from '../../../common/scheduler/shared/types';
+import { DataMartRunReportDefinition } from '../schemas/data-mart-run/data-mart-run-report-definition.schema';
 
 export class DataMartRunDto {
   constructor(

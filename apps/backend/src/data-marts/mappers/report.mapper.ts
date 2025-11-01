@@ -13,7 +13,7 @@ import { RunReportCommand } from '../dto/domain/run-report.command';
 import { AuthorizationContext } from '../../idp';
 import { DataMartMapper } from './data-mart.mapper';
 import { DataDestinationMapper } from './data-destination.mapper';
-import { RunType } from 'src/common/scheduler/shared/types';
+import { RunType } from '../../common/scheduler/shared/types';
 
 @Injectable()
 export class ReportMapper {
