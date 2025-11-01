@@ -81,7 +81,7 @@ export class RunReportService {
     await this.reportRepository.save(report);
 
     // TODO: create new record in transaction with reportRepository
-    const dataMartRun = await this.dataMartRunService.createReportRun(report, {
+    const dataMartRun = await this.dataMartRunService.createAndMarkReportRunAsPending(report, {
       createdById: command.userId,
       runType: command.runType,
     });

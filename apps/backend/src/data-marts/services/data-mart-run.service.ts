@@ -29,14 +29,17 @@ export class DataMartRunService {
     private readonly systemClock: SystemTimeService
   ) {}
 
-  public async createReportRun(report: Report, context: ReportRunContext): Promise<DataMartRun> {
+  public async createAndMarkReportRunAsPending(
+    report: Report,
+    context: ReportRunContext
+  ): Promise<DataMartRun> {
     const dataMartRun = this.createReportRunFromReport(report, context);
     dataMartRun.status = DataMartRunStatus.PENDING;
 
     return this.dataMartRunRepository.save(dataMartRun);
   }
 
-  public async createAndStartReportRun(
+  public async createAndMarkReportRunAsStarted(
     report: Report,
     context: ReportRunContext
   ): Promise<DataMartRun> {

@@ -68,7 +68,7 @@ export class LookerStudioConnectorApiService {
     const dataMartRunFinishContext: ReportRunFinishContext = { status: DataMartRunStatus.SUCCESS };
     try {
       if (!isSampleExtraction) {
-        dataMartRun = await this.dataMartRunService.createAndStartReportRun(report, {
+        dataMartRun = await this.dataMartRunService.createAndMarkReportRunAsStarted(report, {
           createdById: report.createdById,
           runType: RunType.manual,
         });

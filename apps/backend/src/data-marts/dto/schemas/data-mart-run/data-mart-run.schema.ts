@@ -8,7 +8,7 @@ import { DataMartDefinitionSchema } from 'src/data-marts/dto/schemas/data-mart-t
 export const DataMartRunSchema = z.object({
   id: z.string(),
   status: z.nativeEnum(DataMartRunStatus).nullable(),
-  type: z.nativeEnum(DataMartRunType),
+  type: z.nativeEnum(DataMartRunType).nullable(),
   runType: z.nativeEnum(RunType).nullable(),
   dataMartId: z.string(),
   definitionRun: DataMartDefinitionSchema.nullable(),

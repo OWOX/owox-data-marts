@@ -239,7 +239,7 @@ export class DataMartMapper {
     return new DataMartRunDto(
       entity.id,
       entity.status || null,
-      entity.type,
+      entity.type || null,
       entity.runType || null,
       entity.dataMartId,
       entity.definitionRun || null,
@@ -247,8 +247,8 @@ export class DataMartMapper {
       entity.logs || [],
       entity.errors || [],
       entity.createdAt,
-      entity.startedAt,
-      entity.finishedAt
+      entity.startedAt || null,
+      entity.finishedAt || null
     );
   }
 
@@ -269,16 +269,16 @@ export class DataMartMapper {
         return {
           id: run.id,
           status: run.status,
-          type: run.type,
-          runType: run.runType,
+          type: run.type || null,
+          runType: run.runType || null,
           dataMartId: run.dataMartId,
           definitionRun: maskedDefinitionRun || run.definitionRun || null,
           reportDefinition: run.reportDefinition,
           logs: run.logs,
           errors: run.errors,
           createdAt: run.createdAt,
-          startedAt: run.startedAt,
-          finishedAt: run.finishedAt,
+          startedAt: run.startedAt || null,
+          finishedAt: run.finishedAt || null,
         };
       })
     );

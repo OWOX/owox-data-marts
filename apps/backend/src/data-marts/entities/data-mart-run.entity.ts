@@ -26,13 +26,13 @@ export class DataMartRun {
   dataMartId: string;
 
   @Column({ nullable: true })
-  type: DataMartRunType;
+  type?: DataMartRunType;
 
   @Column({ type: 'json', nullable: true })
   definitionRun?: DataMartDefinition;
 
   @Column({ nullable: true })
-  reportId: string;
+  reportId?: string;
 
   @Column({ type: 'json', nullable: true })
   reportDefinition?: DataMartRunReportDefinition;
@@ -56,10 +56,10 @@ export class DataMartRun {
   createdAt: Date;
 
   @Column({ type: 'datetime', nullable: true })
-  startedAt: Date;
+  startedAt?: Date;
 
   @Column({ type: 'datetime', nullable: true })
-  finishedAt: Date;
+  finishedAt?: Date;
 
   @Column({ type: 'json', nullable: true })
   additionalParams?: Record<string, unknown>;
