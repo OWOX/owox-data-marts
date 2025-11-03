@@ -160,7 +160,9 @@ export function ConfigurationStep({
     const newConfig: Record<string, unknown> = { ...configuration };
 
     Object.entries(copiedConfig.configuration).forEach(([key, value]) => {
-      newConfig[key] = value;
+      if (!['_id', '_copiedFrom'].includes(key)) {
+        newConfig[key] = value;
+      }
     });
 
     newConfig._copiedFrom = {

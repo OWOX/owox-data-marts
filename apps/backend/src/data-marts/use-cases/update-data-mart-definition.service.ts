@@ -42,10 +42,17 @@ export class UpdateDataMartDefinitionService {
           );
         }
 
-        dataMart.definition = await this.connectorSecretService.mergeDefinitionSecretsFromSource(
+        let mergedDefinition = await this.connectorSecretService.mergeDefinitionSecretsFromSource(
           command.definition as ConnectorDefinition,
           sourceDataMart.definition as ConnectorDefinition
         );
+
+        mergedDefinition = await this.connectorSecretService.mergeDefinitionSecrets(
+          mergedDefinition,
+          dataMart.definition as ConnectorDefinition | undefined
+        );
+
+        dataMart.definition = mergedDefinition;
       } else {
         dataMart.definition = await this.connectorSecretService.mergeDefinitionSecrets(
           command.definition as ConnectorDefinition,
