@@ -679,11 +679,11 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
           };
         })
       : [];
-    this.logger.log(`Creating run config`, {
+    this.logger.debug(`Creating run config`, {
       payload,
       state,
     });
-    this.logger.log(`Returning run config`, {
+    this.logger.debug(`Returning run config`, {
       type,
       data,
       state: state?.state || {},

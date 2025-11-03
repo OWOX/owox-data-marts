@@ -9,7 +9,6 @@
       "@owox/idp-better-auth",
       "@owox/idp-owox",
       "@owox/connectors",
-      "@owox/connector-runner",
       "@owox/backend",
       "@owox/web",
       "owox"
