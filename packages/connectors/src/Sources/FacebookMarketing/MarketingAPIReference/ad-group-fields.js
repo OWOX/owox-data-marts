@@ -68,22 +68,22 @@ var adGroupFields = {
   },
   'creative_id': {
     'description': 'Unique ID for the ad creative',
-    'type': 'numeric string',
+    'type': 'string',
     'apiName': 'creative.id'
   },
   'creative_effective_object_story_id': {
-    'description': 'The ID of a page post to use in an ad, regardless of whether it\'s an organic or unpublished page post',
-    'type': 'token with structure: Post ID',
+    'description': 'The ID of a page post to use in an ad, regardless of whether its an organic or unpublished page post',
+    'type': 'string',
     'apiName': 'creative.effective_object_story_id'
   },
   'creative_name': {
-    'description': 'Name of the ad creative as seen in the ad account\'s library',
+    'description': 'Name of the ad creative as seen in the ad accounts library',
     'type': 'string',
     'apiName': 'creative.name'
   },
   'creative_object_story_spec': {
     'description': 'Object story spec containing page_id and other details',
-    'type': 'AdCreativeObjectStorySpec',
+    'type': 'string',
     'apiName': 'creative.object_story_spec'
   },
   'creative_url_tags': {
