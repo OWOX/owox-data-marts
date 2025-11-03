@@ -253,8 +253,9 @@ export class ConnectorSecretService {
    * Merges secret fields from source configurations into incoming definition.
    *
    * This method is used when copying configurations from an existing Data Mart.
-   * Each incoming configuration must have a `_copiedFrom.configId` metadata field that specifies
-   * the _id of the source configuration to copy secrets from.
+   * Configuration items can be in one of two states:
+   * 1. New copied configurations with `_copiedFrom.configId` metadata - secrets will be copied from source
+   * 2. Existing configurations without `_copiedFrom` - secrets will be kept from previous version (self-copy scenario)
    *
    * Logic flow:
    * 1. Validates that both source and incoming definitions use the same connector type.
@@ -264,28 +265,23 @@ export class ConnectorSecretService {
    *    fields need to be merged.
    *
    * 3. Maps over each configuration item in the incoming definition:
-   *    - Extracts the `_copiedFrom.configId` metadata (which contains the _id of the source config)
-   *    - Finds the corresponding source configuration by matching its _id
-   *    - Recursively merges secret fields from that specific source configuration
-   *    - This ensures that masked secrets (*********) are replaced with actual values
-   *      from the correct source configuration
+   *    - If item has `_copiedFrom.configId` metadata:
+   *      - Finds the corresponding source configuration by matching its _id
+   *      - Recursively merges secret fields from that specific source configuration
+   *      - Removes the `_copiedFrom` metadata field
+   *      - Generates a new unique _id for the copied configuration
+   *    - If item does NOT have `_copiedFrom` metadata (existing configuration):
+   *      - Returns the item as is (will be handled by mergeDefinitionSecrets later)
    *
-   * 4. For each merged configuration item:
-   *    - Removes the `_copiedFrom` metadata field (added by the frontend to track copy operations)
-   *    - Generates a new unique _id for the copied configuration
-   *    - This ensures copied configurations get fresh identifiers and don't retain
-   *      temporary tracking metadata
-   *
-   * 5. Returns a new definition object with the same structure as incoming, but with
+   * 4. Returns a new definition object with the same structure as incoming, but with
    *    configuration array containing items with properly merged secrets from their
    *    respective source configurations.
    *
-   * @param incoming New definition coming from the client with _copiedFrom.configId metadata on each config
+   * @param incoming New definition coming from the client, may have mixed configurations (some with _copiedFrom, some without)
    * @param sourceDefinition Definition from the source Data Mart to copy secrets from
    * @returns Definition with correctly merged secret values from source configurations
    * @throws Error if connector types don't match
-   * @throws Error if _copiedFrom.configId metadata is missing
-   * @throws Error if source configuration with specified _id is not found
+   * @throws Error if source configuration with specified _id is not found (when _copiedFrom is present)
    */
   async mergeDefinitionSecretsFromSource(
     incoming: ConnectorDefinition,
@@ -307,10 +303,7 @@ export class ConnectorSecretService {
       };
 
       if (!itemWithMetadata._copiedFrom?.configId) {
-        throw new Error(
-          'Missing _copiedFrom.configId metadata on configuration item. ' +
-            'Each configuration must specify which source configuration to copy from.'
-        );
+        return incomingItem;
       }
 
       const sourceConfigId = itemWithMetadata._copiedFrom.configId;

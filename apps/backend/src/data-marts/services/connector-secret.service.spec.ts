@@ -462,21 +462,26 @@ describe('ConnectorSecretService', () => {
       ).rejects.toThrow('Cannot copy secrets from different connector type');
     });
 
-    it('throws error when _copiedFrom.configId metadata is missing', async () => {
+    it('returns configuration as is when _copiedFrom.configId metadata is missing (existing config)', async () => {
       const { service } = createService(['AccessToken']);
 
       const sourceDefinition = makeDefinition([{ _id: 'source-1', AccessToken: 'access1' }]);
 
       const incoming = makeDefinition([
         {
+          _id: 'existing-1',
           AccessToken: SECRET_MASK,
           AccoundIDs: '1',
         },
       ]);
 
-      await expect(
-        service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition)
-      ).rejects.toThrow('Missing _copiedFrom.configId metadata');
+      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
+
+      // Should return the item unchanged (will be merged with previous in the next step)
+      expect(cfg[0]._id).toBe('existing-1');
+      expect(cfg[0].AccessToken).toBe(SECRET_MASK);
+      expect(cfg[0].AccoundIDs).toBe('1');
     });
 
     it('throws error when source configuration with specified configId is not found', async () => {
@@ -514,6 +519,67 @@ describe('ConnectorSecretService', () => {
       expect(cfg[0]._id).not.toBe('source-1');
       expect(typeof cfg[0]._id).toBe('string');
       expect((cfg[0]._id as string).length).toBeGreaterThan(0);
+    });
+
+    it('handles self-copy scenario with mixed configurations (existing + copied)', async () => {
+      const { service } = createService(['AccessToken', 'RefreshToken']);
+
+      // Source definition has 2 configurations
+      const sourceDefinition = makeDefinition([
+        { _id: 'source-id-1', AccessToken: 'access1', RefreshToken: 'refresh1', AccoundIDs: '1' },
+        { _id: 'source-id-2', AccessToken: 'access2', RefreshToken: 'refresh2', AccoundIDs: '2' },
+      ]);
+
+      // Incoming has 3 configurations:
+      // 1. Existing config (no _copiedFrom) - should be returned as is
+      // 2. New copied config from source-id-1
+      // 3. New copied config from source-id-2
+      const incoming = makeDefinition([
+        {
+          _id: 'existing-id',
+          AccessToken: SECRET_MASK,
+          RefreshToken: SECRET_MASK,
+          AccoundIDs: '999',
+        },
+        {
+          AccessToken: SECRET_MASK,
+          RefreshToken: SECRET_MASK,
+          AccoundIDs: '1',
+          _copiedFrom: { configId: 'source-id-1' },
+        },
+        {
+          AccessToken: SECRET_MASK,
+          RefreshToken: SECRET_MASK,
+          AccoundIDs: '2',
+          _copiedFrom: { configId: 'source-id-2' },
+        },
+      ]);
+
+      const merged = await service.mergeDefinitionSecretsFromSource(incoming, sourceDefinition);
+      const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
+
+      // First config (existing) should be unchanged
+      expect(cfg[0]._id).toBe('existing-id');
+      expect(cfg[0].AccessToken).toBe(SECRET_MASK);
+      expect(cfg[0].RefreshToken).toBe(SECRET_MASK);
+      expect(cfg[0].AccoundIDs).toBe('999');
+      expect(cfg[0]._copiedFrom).toBeUndefined();
+
+      // Second config (copied from source-id-1)
+      expect(cfg[1].AccessToken).toBe('access1');
+      expect(cfg[1].RefreshToken).toBe('refresh1');
+      expect(cfg[1].AccoundIDs).toBe('1');
+      expect(cfg[1]._copiedFrom).toBeUndefined();
+      expect(typeof cfg[1]._id).toBe('string');
+      expect(cfg[1]._id).not.toBe('source-id-1');
+
+      // Third config (copied from source-id-2)
+      expect(cfg[2].AccessToken).toBe('access2');
+      expect(cfg[2].RefreshToken).toBe('refresh2');
+      expect(cfg[2].AccoundIDs).toBe('2');
+      expect(cfg[2]._copiedFrom).toBeUndefined();
+      expect(typeof cfg[2]._id).toBe('string');
+      expect(cfg[2]._id).not.toBe('source-id-2');
     });
   });
 });
