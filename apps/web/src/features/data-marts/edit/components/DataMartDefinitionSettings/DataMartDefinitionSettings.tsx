@@ -157,8 +157,8 @@ export function DataMartDefinitionSettings() {
     }
   };
 
-  const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleFormSubmit = (e?: React.FormEvent<HTMLFormElement>) => {
+    e?.preventDefault();
     void handleSubmit(onSubmit)(e);
   };
 
@@ -175,27 +175,30 @@ export function DataMartDefinitionSettings() {
           definitionType={definitionType}
           storageType={storageType}
           preset={preset?.connectorSourceTitle}
+          saveDataMartDefinition={handleFormSubmit}
         />
-        <div className='flex items-center gap-4'>
-          <Button variant={'default'} type='submit' disabled={!isValid || !isDirty}>
-            Save
-          </Button>
-          <Button type='button' variant='ghost' onClick={handleReset} disabled={!isDirty}>
-            Discard
-          </Button>
+        {definitionType !== DataMartDefinitionType.CONNECTOR && (
+          <div className='flex items-center gap-4'>
+            <Button variant={'default'} type='submit' disabled={!isValid || !isDirty}>
+              Save
+            </Button>
+            <Button type='button' variant='ghost' onClick={handleReset} disabled={!isDirty}>
+              Discard
+            </Button>
 
-          {/* SQL Validator for SQL definition type */}
-          {definitionType === DataMartDefinitionType.SQL && sqlCode && (
-            <>
-              <div className='h-6 w-px bg-gray-300'></div>
-              <SqlValidator
-                sql={sqlCode}
-                dataMartId={dataMartId}
-                onValidationStateChange={handleValidationStateChange}
-              />
-            </>
-          )}
-        </div>
+            {/* SQL Validator for SQL definition type */}
+            {definitionType === DataMartDefinitionType.SQL && sqlCode && (
+              <>
+                <div className='h-6 w-px bg-gray-300'></div>
+                <SqlValidator
+                  sql={sqlCode}
+                  dataMartId={dataMartId}
+                  onValidationStateChange={handleValidationStateChange}
+                />
+              </>
+            )}
+          </div>
+        )}
       </form>
     );
   };

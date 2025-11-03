@@ -13,12 +13,14 @@ interface DataMartDefinitionFormProps {
   definitionType: DataMartDefinitionType;
   storageType: DataStorageType;
   preset?: string;
+  saveDataMartDefinition?: (e?: React.FormEvent<HTMLFormElement>) => void;
 }
 
 export function DataMartDefinitionForm({
   definitionType,
   storageType,
   preset,
+  saveDataMartDefinition,
 }: DataMartDefinitionFormProps) {
   const { control } = useFormContext<DataMartDefinitionFormData>();
   const [shouldAutoOpenConnector, setShouldAutoOpenConnector] = useState(false);
@@ -53,6 +55,7 @@ export function DataMartDefinitionForm({
           storageType={storageType}
           preset={preset}
           autoOpen={shouldAutoOpenConnector}
+          saveDataMartDefinition={saveDataMartDefinition}
         />
       )}
     </div>

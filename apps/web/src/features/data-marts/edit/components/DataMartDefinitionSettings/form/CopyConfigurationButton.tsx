@@ -138,7 +138,7 @@ export function CopyConfigurationButton({
         <DropdownMenuTrigger asChild>
           <Button type='button' variant='ghost' size='sm' className='cursor-pointer'>
             <span className='text-muted-foreground/75 text-xs font-semibold tracking-wide uppercase'>
-              Auto-fill from&hellip;
+              Copy from&hellip;
             </span>
             <ChevronRight
               className={cn(
@@ -160,14 +160,15 @@ export function CopyConfigurationButton({
                 No matching Data&nbsp;Marts
               </span>
               <span className='text-muted-foreground text-sm'>
-                You can auto-fill settings only from connector-based Data&nbsp;Marts with
-                the&nbsp;same source.
+                You can reuse configuration settings only from connector-based Data&nbsp;Marts that
+                use the same source.
               </span>
             </div>
           ) : (
             <div className='flex flex-col gap-2'>
               <div className='text-muted-foreground border-b p-2 text-sm'>
-                Select one of your existing Data Marts to&nbsp;auto-fill settings in&nbsp;this form
+                Select one of your existing Data&nbsp;Marts to&nbsp;reuse its configuration
+                settings.
               </div>
               <div>
                 {dataMarts.map(dataMart => {

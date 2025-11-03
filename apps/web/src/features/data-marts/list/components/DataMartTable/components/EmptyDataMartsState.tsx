@@ -41,8 +41,10 @@ export function EmptyDataMartsState() {
         <EmptyStateCardHeader>
           <EmptyStateCardTitle>Let’s Build Your First Data&nbsp;Mart</EmptyStateCardTitle>
           <EmptyStateCardSubTitle>
-            Choose how you want to&nbsp;start&nbsp;&ndash; connect a&nbsp;data source, write
-            an&nbsp;SQL query, or&nbsp;begin with a&nbsp;blank setup to&nbsp;explore freely.
+            A Data&nbsp;Mart is the&nbsp;key element of&nbsp;self-service analytics&nbsp;&mdash; it
+            provides both control for&nbsp;data analyst and freedom for&nbsp;business users.
+            To&nbsp;get started, connect the source you need or&nbsp;query the&nbsp;data you already
+            have in&nbsp;storage
           </EmptyStateCardSubTitle>
         </EmptyStateCardHeader>
 
@@ -65,7 +67,7 @@ export function EmptyDataMartsState() {
         {/* SQL-based and Blank */}
         <EmptyStateCardSection>
           <EmptyStateCardSectionTitle>
-            Use your SQL skills or start from scratch
+            Use existing SQL or start from scratch
           </EmptyStateCardSectionTitle>
           <EmptyStateCardSectionContent>
             {otherPresets.map((preset, index) => (
