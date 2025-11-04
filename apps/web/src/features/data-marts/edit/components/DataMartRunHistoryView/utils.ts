@@ -1,22 +1,14 @@
 import type { LogEntry } from './types';
 import { LogLevel } from './types';
 import type { DataMartDefinitionConfig } from '../../model/types/data-mart-definition-config';
-import { formatDateTime, parseDate } from '../../../../../utils/date-formatters';
+import {
+  formatDateTime,
+  formatTimestamp,
+  formatDuration,
+} from '../../../../../utils/date-formatters';
 import type { DataMartRunItem } from '../../model';
-import { DataMartRunTriggerType, DataMartRunType } from '../../../shared';
-import type { ConnectorListItem } from '../../../../connectors/shared/model/types/connector';
-
-/**
- * Format timestamp string to display format
- * Parses the timestamp and formats it in browser's local timezone
- */
-const formatTimestamp = (timestamp: string): string => {
-  return formatDateTime(parseDate(timestamp).toISOString());
-};
-
-const capitalize = (str: string) => {
-  return str.charAt(0).toUpperCase() + str.slice(1);
-};
+import { DataMartRunType } from '../../../shared';
+import { capitalizeFirstLetter } from '../../../../../utils';
 
 export const parseLogEntry = (log: string, index: number, isError = false): LogEntry => {
   // Split log into lines for multiline format
@@ -134,15 +126,17 @@ export const getDisplayType = (logEntry: LogEntry): string => {
   return logEntry.level;
 };
 
-export const getRunSummary = (run: DataMartRunItem, connectorInfo: ConnectorListItem | null) => {
-  const triggerType = run.triggerType === DataMartRunTriggerType.SCHEDULED ? 'scheduled' : 'manual';
+export const getRunSummary = (
+  run: DataMartRunItem,
+  connectorDisplayName: string | null | undefined
+) => {
+  const triggerType = run.triggerType ?? 'manual';
 
   let title = '';
   let runType = '';
   switch (run.type) {
     case DataMartRunType.CONNECTOR:
-      // TODO: Add config identity
-      title = connectorInfo?.displayName ?? '';
+      title = connectorDisplayName ?? '';
       runType = 'connector';
       break;
     case DataMartRunType.LOOKER_STUDIO:
@@ -157,7 +151,7 @@ export const getRunSummary = (run: DataMartRunItem, connectorInfo: ConnectorList
       break;
   }
 
-  const runDescription = capitalize(`${triggerType} ${runType} run`.trim());
+  const runDescription = capitalizeFirstLetter(`${triggerType} ${runType} run`.trim());
 
   const parts = [runDescription, title];
 
@@ -185,8 +179,8 @@ export const getStartedAtDisplay = (run: DataMartRunItem): string => {
 };
 
 export const getTooltipContent = (run: DataMartRunItem) => {
-  const startedAt = formatDate(run.startedAt);
-  const finishedAt = formatDate(run.finishedAt);
+  const startedAt = formatDateForTooltipContent(run.startedAt);
+  const finishedAt = formatDateForTooltipContent(run.finishedAt);
 
   let duration = '';
   if (run.startedAt && run.finishedAt) {
@@ -200,27 +194,6 @@ export const getTooltipContent = (run: DataMartRunItem) => {
   };
 };
 
-export const formatDate = (date: Date | null): string => {
+export const formatDateForTooltipContent = (date: Date | null): string => {
   return date ? formatDateTime(date.toISOString()) : 'N/A';
-};
-
-export const formatDuration = (startedAt: Date, finishedAt: Date): string => {
-  const durationMs = finishedAt.getTime() - startedAt.getTime();
-  const seconds = Math.floor(durationMs / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-
-  const remainingMinutes = minutes % 60;
-  const remainingSeconds = seconds % 60;
-
-  const parts: string[] = [];
-  if (hours > 0) {
-    parts.push(`${String(hours)} h`);
-  }
-  if (remainingMinutes > 0) {
-    parts.push(`${String(remainingMinutes)} min`);
-  }
-  parts.push(`${String(remainingSeconds)} sec`);
-
-  return parts.join(' ');
 };

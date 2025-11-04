@@ -31,7 +31,7 @@ interface RunItemProps {
   setSearchTerm: (term: string) => void;
   cancelDataMartRun: (id: string, runId: string) => Promise<void>;
   dataMartId?: string;
-  connectorInfo: ConnectorListItem | null;
+  dataMartConnectorInfo: ConnectorListItem | null;
 }
 
 export function RunItem({
@@ -44,7 +44,7 @@ export function RunItem({
   setSearchTerm,
   cancelDataMartRun,
   dataMartId,
-  connectorInfo,
+  dataMartConnectorInfo,
 }: RunItemProps) {
   const { copiedSection, handleCopy } = useClipboard();
 
@@ -97,7 +97,7 @@ export function RunItem({
       >
         <div className='flex items-center gap-3'>
           <div>
-            <TypeIcon type={run.type} connectorInfo={connectorInfo} />
+            <TypeIcon type={run.type} base64Icon={dataMartConnectorInfo?.logoBase64} />
           </div>
 
           <Tooltip>
@@ -117,7 +117,7 @@ export function RunItem({
 
           <div className='text-muted-foreground ml-6 flex items-center gap-1 text-sm'>
             {getTriggerTypeIcon(run.triggerType)}
-            {getRunSummary(run, connectorInfo)}
+            {getRunSummary(run, dataMartConnectorInfo?.displayName)}
           </div>
         </div>
 

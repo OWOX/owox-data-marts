@@ -1,11 +1,13 @@
 import { useOutletContext } from 'react-router-dom';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '../../../../shared/components/Button';
 import { SkeletonList } from '@owox/ui/components/common/skeleton-list';
 import { RunItem } from './DataMartRunHistoryView/RunItem';
 import { LogViewType } from './DataMartRunHistoryView/types';
 import type { DataMartContextType } from '../model/context/types';
+import { DataMartDefinitionType } from '../../shared';
+import type { ConnectorListItem } from '../../../connectors/shared/model/types/connector';
 
 export function DataMartRunHistory() {
   const LIMIT = 20;
@@ -47,6 +49,17 @@ export function DataMartRunHistory() {
     }
   }, [dataMart?.id, loadRunHistory]);
 
+  const dataMartConnectorInfo = useMemo<ConnectorListItem | null>(() => {
+    if (
+      dataMart?.definitionType === DataMartDefinitionType.CONNECTOR &&
+      dataMart.definition &&
+      'connector' in dataMart.definition
+    ) {
+      return dataMart.definition.connector.info ?? null;
+    }
+    return null;
+  }, [dataMart]);
+
   const toggleRunDetails = (runId: string) => {
     setExpandedRun(expandedRun === runId ? null : runId);
   };
@@ -75,7 +88,7 @@ export function DataMartRunHistory() {
               setSearchTerm={setSearchTerm}
               cancelDataMartRun={cancelDataMartRun}
               dataMartId={dataMart?.id}
-              connectorInfo={dataMart?.connectorInfo ?? null}
+              dataMartConnectorInfo={dataMartConnectorInfo}
             />
           ))}
 

@@ -3,7 +3,6 @@ import type { DataMartStatusInfo, DataMartValidationError } from '../../../share
 import type { DataMartDefinitionConfig } from './data-mart-definition-config.ts';
 import type { DataMartDefinitionType } from '../../../shared';
 import type { DataMartSchema } from '../../../shared/types/data-mart-schema.types';
-import type { ConnectorListItem } from '../../../../connectors/shared/model/types/connector';
 
 /**
  * Data mart domain model
@@ -43,11 +42,6 @@ export interface DataMart {
    * Data mart definition
    */
   definition: DataMartDefinitionConfig | null;
-
-  /**
-   * Connector info (logo and metadata) if definition type is CONNECTOR
-   */
-  connectorInfo: ConnectorListItem | null;
 
   /**
    * Indicates if the data mart can be published

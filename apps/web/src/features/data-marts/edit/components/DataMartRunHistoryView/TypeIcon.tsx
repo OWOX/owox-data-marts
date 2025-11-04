@@ -2,23 +2,23 @@ import { Database } from 'lucide-react';
 import { DataDestinationType, DataDestinationTypeModel } from '../../../../data-destination';
 import { DataMartRunType } from '../../../shared';
 import { RawBase64Icon } from '../../../../../shared/icons';
-import type { ConnectorListItem } from '../../../../connectors/shared/model/types/connector';
 
 const iconSize = 18;
 
 interface DataMartRunTypeIconProps {
   type: DataMartRunType | null;
-  connectorInfo: ConnectorListItem | null;
+  base64Icon: string | null | undefined;
 }
 
-export function TypeIcon({ type, connectorInfo }: DataMartRunTypeIconProps) {
+export function TypeIcon({ type, base64Icon }: DataMartRunTypeIconProps) {
   switch (type) {
-    case DataMartRunType.CONNECTOR: {
-      if (connectorInfo?.logoBase64) {
-        return <RawBase64Icon base64={connectorInfo.logoBase64} size={iconSize} />;
-      }
-      return <Database size={iconSize} />;
-    }
+    case DataMartRunType.CONNECTOR:
+      return base64Icon ? (
+        <RawBase64Icon base64={base64Icon} size={iconSize} />
+      ) : (
+        <Database size={iconSize} />
+      );
+
     case DataMartRunType.GOOGLE_SHEETS_EXPORT: {
       const Icon = DataDestinationTypeModel.getInfo(DataDestinationType.GOOGLE_SHEETS).icon;
       return <Icon size={iconSize} />;

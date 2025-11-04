@@ -4,7 +4,6 @@ import { DataMartStatusModel } from '../../../shared';
 import { mapDataStorageFromDto } from '../../../../data-storage/shared/model/mappers';
 
 import { mapDefinitionFromDto } from './definition-mappers';
-import { getConnectorInfo } from '../helpers';
 
 /**
  * Maps a data mart response DTO to a domain model
@@ -17,17 +16,13 @@ export async function mapDataMartFromDto(dataMartDto: DataMartResponseDto): Prom
     status: DataMartStatusModel.getInfo(dataMartDto.status),
     storage: mapDataStorageFromDto(dataMartDto.storage),
     definitionType: dataMartDto.definitionType,
-    definition: mapDefinitionFromDto(dataMartDto.definitionType, dataMartDto.definition),
-    connectorInfo: null,
+    definition: await mapDefinitionFromDto(dataMartDto.definitionType, dataMartDto.definition),
     schema: dataMartDto.schema,
     createdAt: new Date(dataMartDto.createdAt),
     modifiedAt: new Date(dataMartDto.modifiedAt),
     canPublish: false,
     validationErrors: [],
   };
-
-  // Load connector info if needed
-  dataMart.connectorInfo = await getConnectorInfo(dataMart);
 
   return dataMart;
 }
