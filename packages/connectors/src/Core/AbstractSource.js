@@ -39,7 +39,7 @@ var AbstractSource = class AbstractSource {
      * A Data Source-specific methid is used to fetch new data and return it as an array of objects, where each property of an object corresponds to a column name.
      * @return data array
      */
-    fetchData() {
+    async fetchData() {
 
       throw new Error("Method fetchData must be implemented in Class inheritor of AbstractSource");
 
@@ -71,18 +71,18 @@ var AbstractSource = class AbstractSource {
      * @return {HTTPResponse} The response object from the fetch
      * @throws {HttpRequestException} After exhausting all retries
      */
-    urlFetchWithRetry(url, options) {
+    async urlFetchWithRetry(url, options) {
       for (let attempt = 1; attempt <= this.config.MaxFetchRetries.value; attempt++) {
         try {
-          const response = EnvironmentAdapter.fetch(url, { ...options, muteHttpExceptions: true });
-          return this._validateResponse(response);
+          const response = await EnvironmentAdapter.fetch(url, { ...options, muteHttpExceptions: true });
+          return await this._validateResponse(response);
         }
         catch (error) {
           if (!this._shouldRetry(error, attempt)) {
             throw error;
           }
-          
-          this._waitBeforeRetry(attempt);
+
+          await this._waitBeforeRetry(attempt);
         }
       }
     }
@@ -95,14 +95,14 @@ var AbstractSource = class AbstractSource {
      * @throws {HttpRequestException} If the response indicates an error
      * @private
      */
-    _validateResponse(response) {
+    async _validateResponse(response) {
       const code = response.getResponseCode();
       
       if (code >= HTTP_STATUS.SUCCESS_MIN && code <= HTTP_STATUS.SUCCESS_MAX) {
         return response;
       }
       
-      const errorInfo = this._extractErrorInfo(response);
+      const errorInfo = await this._extractErrorInfo(response);
       throw new HttpRequestException({
         message: errorInfo.message,
         statusCode: code,
@@ -117,8 +117,8 @@ var AbstractSource = class AbstractSource {
      * @return {Object} Object containing error message and JSON data if available
      * @private
      */
-    _extractErrorInfo(response) {
-      const text = response.getContentText();
+    async _extractErrorInfo(response) {
+      const text = await response.getContentText();
       let parsedJson = null;
       let message = text;
       
@@ -167,10 +167,10 @@ var AbstractSource = class AbstractSource {
      * @param {number} attempt - The current attempt number
      * @private
      */
-    _waitBeforeRetry(attempt) {
+    async _waitBeforeRetry(attempt) {
       const delay = this.calculateBackoff(attempt);
       console.log(`Retrying after ${Math.round(delay/1000)}s...`);
-      EnvironmentAdapter.sleep(delay);
+      await EnvironmentAdapter.delay(delay);
     }
     
   //---- calculateBackoff --------------------------------------------

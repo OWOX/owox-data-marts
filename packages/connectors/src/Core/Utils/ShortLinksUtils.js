@@ -10,20 +10,20 @@
 //---- processShortLinks -------------------------------------------------
 /**
  * Processes short links in data by resolving them to full URLs
- * 
+ *
  * @param {Array} data - Array of data records
  * @param {Object} config - Configuration object
  * @param {string} config.shortLinkField - Field that contains URL objects
  * @param {string} config.urlFieldName - Name of the URL field within the object
  * @return {Array} Data with processed links
  */
-function processShortLinks(data, { shortLinkField, urlFieldName }) {
+async function processShortLinks(data, { shortLinkField, urlFieldName }) {
   if (!Array.isArray(data) || data.length === 0) return data;
 
   const shortLinks = _collectUniqueShortLinks(data, shortLinkField, urlFieldName);
   if (shortLinks.length === 0) return data;
 
-  const resolvedShortLinks = _resolveShortLinks(shortLinks);
+  const resolvedShortLinks = await _resolveShortLinks(shortLinks);
   return _populateDataWithResolvedUrls(data, resolvedShortLinks, shortLinkField, urlFieldName);
 }
 
@@ -77,15 +77,15 @@ function _isPotentialShortLink(url) {
 //---- _resolveShortLinks -------------------------------------------------
 /**
  * Resolves short links to their full URLs
- * 
+ *
  * @param {Array} shortLinks - Array of short link objects
  * @return {Array} New array with resolved URLs
  * @private
  */
-function _resolveShortLinks(shortLinks) {
-  return shortLinks.map(linkObj => {
+async function _resolveShortLinks(shortLinks) {
+  const promises = shortLinks.map(async linkObj => {
     try {
-      const response = EnvironmentAdapter.fetch(linkObj.originalUrl, {
+      const response = await EnvironmentAdapter.fetch(linkObj.originalUrl, {
         method: 'GET',
         followRedirects: false,
         muteHttpExceptions: true
@@ -107,6 +107,8 @@ function _resolveShortLinks(shortLinks) {
       };
     }
   });
+
+  return await Promise.all(promises);
 }
 
 //---- _populateDataWithResolvedUrls -------------------------------------

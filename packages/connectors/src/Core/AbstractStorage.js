@@ -112,12 +112,13 @@ class AbstractStorage {
     
   //---- saveData ----------------------------------------------------
     /**
-     * Saving data to a storage. Has to be implemented in 
+     * Saving data to a storage. Has to be implemented in child class as async method.
      * @param {data} array of assoc objects with records to save
+     * @returns {Promise<void>}
      */
-    saveData(data) {
-    
-      throw new Error("Method saveDate() has to be implemented in a child class of AbstractStorage");
+    async saveData(data) {
+
+      throw new Error("Method saveData() has to be implemented in a child class of AbstractStorage");
     }
     //----------------------------------------------------------------
   

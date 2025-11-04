@@ -16,11 +16,11 @@ var BankOfCanadaConnector = class BankOfCanadaConnector extends AbstractConnecto
    * Main method - entry point for the import process
    * Processes all nodes defined in the fields configuration
    */
-  startImportProcess() {
+  async startImportProcess() {
     const fields = ConnectorUtils.parseFields(this.config.Fields.value);
 
     for (const nodeName in fields) {
-      this.processNode({
+      await this.processNode({
         nodeName,
         fields: fields[nodeName] || []
       });
@@ -33,11 +33,11 @@ var BankOfCanadaConnector = class BankOfCanadaConnector extends AbstractConnecto
    * @param {string} options.nodeName - Name of the node to process
    * @param {Array<string>} options.fields - Array of fields to fetch
    */
-  processNode({ nodeName, fields }) {
+  async processNode({ nodeName, fields }) {
     if (this.source.fieldsSchema[nodeName].isTimeSeries) {
-      this.processTimeSeriesNode({ nodeName, fields });
+      await this.processTimeSeriesNode({ nodeName, fields });
     } else {
-      this.processCatalogNode({ nodeName, fields });
+      await this.processCatalogNode({ nodeName, fields });
     }
   }
 
@@ -48,27 +48,27 @@ var BankOfCanadaConnector = class BankOfCanadaConnector extends AbstractConnecto
    * @param {Array<string>} options.fields - Array of fields to fetch
    * @param {Object} options.storage - Storage instance
    */
-  processTimeSeriesNode({ nodeName, fields }) {
+  async processTimeSeriesNode({ nodeName, fields }) {
     const dateRange = this.prepareDateRange();
-    
+
     if (!dateRange) {
       console.log('No days to fetch for time series data');
       return;
     }
 
     // Fetch data for the entire period at once
-    const data = this.source.fetchData({ 
-      nodeName, 
-      start_time: dateRange.startDate, 
-      end_time: dateRange.endDate, 
-      fields 
+    const data = await this.source.fetchData({
+      nodeName,
+      start_time: dateRange.startDate,
+      end_time: dateRange.endDate,
+      fields
     });
 
     this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched from ${dateRange.startDate} to ${dateRange.endDate}` : `No records have been fetched`);
 
     if (data.length || this.config.CreateEmptyTables?.value) {
       const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-      this.getStorageByNode(nodeName).saveData(preparedData);
+      await this.getStorageByNode(nodeName).saveData(preparedData);
     }
 
     if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
@@ -83,7 +83,7 @@ var BankOfCanadaConnector = class BankOfCanadaConnector extends AbstractConnecto
    * @param {Array<string>} options.fields - Array of fields to fetch
    * @param {Object} options.storage - Storage instance
    */
-  processCatalogNode({ nodeName, fields }) {
+  async processCatalogNode({ nodeName, fields }) {
     // Placeholder for future catalog nodes
     console.log(`Catalog node processing not implemented for ${nodeName}`);
   }

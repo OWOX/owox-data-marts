@@ -72,10 +72,10 @@ var OpenHolidaysSource = class OpenHolidaysSource extends AbstractSource {
    * @param {string} [opts.end_time]
    * @returns {Array<Object>}
    */
-  fetchData({ nodeName, fields = [], start_time, end_time }) {
+  async fetchData({ nodeName, fields = [], start_time, end_time }) {
     switch (nodeName) {
       case 'publicHolidays':
-        return this._fetchPublicHolidays({ fields, start_time, end_time });
+        return await this._fetchPublicHolidays({ fields, start_time, end_time });
       default:
         throw new Error(`Unknown node: ${nodeName}`);
     }
@@ -89,11 +89,11 @@ var OpenHolidaysSource = class OpenHolidaysSource extends AbstractSource {
    * @param {string} options.end_time - End date for data fetch (YYYY-MM-DD format)
    * @returns {Array} Array of holiday data
    */
-  _fetchPublicHolidays({ fields, start_time, end_time }) {
+  async _fetchPublicHolidays({ fields, start_time, end_time }) {
     let countryIsoCode = this.config.countryIsoCode.value;
     let languageIsoCode = this.config.languageIsoCode.value;
 
-    const holidays = this.makeRequest({
+    const holidays = await this.makeRequest({
       endpoint: `PublicHolidays?countryIsoCode=${countryIsoCode}&languageIsoCode=${languageIsoCode}&validFrom=${start_time}&validTo=${end_time}`
     });
 
@@ -121,14 +121,15 @@ var OpenHolidaysSource = class OpenHolidaysSource extends AbstractSource {
    * @param {string} options.endpoint - API endpoint path (e.g., "PublicHolidays?countryIsoCode=CH&...")
    * @returns {Object} - API response parsed from JSON
    */
-  makeRequest({ endpoint }) {
+  async makeRequest({ endpoint }) {
     const baseUrl = "https://openholidaysapi.org/";
     const url = `${baseUrl}${endpoint}`;
-    
+
     console.log(`OpenHolidays API Request URL:`, url);
-    
-    const response = EnvironmentAdapter.fetch(url, {'method': 'get', 'muteHttpExceptions': true});
-    const result = JSON.parse(response.getContentText());
+
+    const response = await EnvironmentAdapter.fetch(url, {'method': 'get', 'muteHttpExceptions': true});
+    const text = await response.getContentText();
+    const result = JSON.parse(text);
 
     return result;
   }

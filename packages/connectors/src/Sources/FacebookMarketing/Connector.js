@@ -18,7 +18,7 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
 
 
 //---- startImportProcess -------------------------------------------------
-    startImportProcess() {
+    async startImportProcess() {
 
       // Getting account IDs by splitting the configuration value by commas
       let accountsIds = String(this.config.AccoundIDs.value).split(/[,;]\s*/);
@@ -31,10 +31,10 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
       }, {});
 
       let timeSeriesNodes = {};
-      
+
       // Data must be imported differently depending on whether it is time-series or not
       for(var nodeName in fields) {
-        
+
         if( nodeName in this.source.fieldsSchema && this.source.fieldsSchema[nodeName].isTimeSeries ) {
 
             timeSeriesNodes[nodeName] = fields[nodeName];
@@ -42,12 +42,12 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
         // node's data is catalog like, it must be imported right away
         } else {
 
-          this.startImportProcessOfCatalogData(nodeName, accountsIds, fields[ nodeName ]);
-        
+          await this.startImportProcessOfCatalogData(nodeName, accountsIds, fields[ nodeName ]);
+
         }
 
       }
-    
+
       // if there are some time series nodes to import
       if( Object.keys(timeSeriesNodes).length > 0 ) {
         let startDate = null;
@@ -55,34 +55,34 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
         [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
 
         if( daysToFetch > 0 ) {
-          this.startImportProcessOfTimeSeriesData(accountsIds, timeSeriesNodes, startDate, daysToFetch);
+          await this.startImportProcessOfTimeSeriesData(accountsIds, timeSeriesNodes, startDate, daysToFetch);
         }
-        
+
       }
 
-      
+
     }
   
   //---- startImportProcessOfCatalogData -------------------------------------------------
     /*
 
-    Imports catalog (not time seriesed) data 
+    Imports catalog (not time seriesed) data
 
     @param nodeName string Node name
     @param accountsIds array list of account ids
-    @param fields array list of fields 
+    @param fields array list of fields
 
     */
-    startImportProcessOfCatalogData(nodeName, accountIds, fields) {
+    async startImportProcessOfCatalogData(nodeName, accountIds, fields) {
 
       for(var i in accountIds) {
-        
+
         let accountId = accountIds[i];
 
-        let data = this.source.fetchData(nodeName, accountId, fields);
-        
+        let data = await this.source.fetchData(nodeName, accountId, fields);
+
         if(data.length || this.config.CreateEmptyTables?.value) {
-          this.getStorageByNode(nodeName).saveData( data );
+          await this.getStorageByNode(nodeName).saveData( data );
         }
 
         data.length && this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for account ${accountId}`);
@@ -94,42 +94,42 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
   //---- startImportProcessOfTimeSeriesData -------------------------------------------------
     /*
 
-    Imports time series (not catalog) data 
+    Imports time series (not catalog) data
 
     @param accountsIds (array) list of account ids
     @param timeSeriesNodes (object) of properties, each is array of fields
-    @param startDate (Data) start date 
+    @param startDate (Data) start date
     @param daysToFetch (integer) days to import
 
     */
-    startImportProcessOfTimeSeriesData(accountsIds, timeSeriesNodes, startDate, daysToFetch = 1) {
+    async startImportProcessOfTimeSeriesData(accountsIds, timeSeriesNodes, startDate, daysToFetch = 1) {
 
       // start requesting data day by day from startDate to startDate + daysToFetch
       for(var daysShift = 0; daysShift < daysToFetch; daysShift++) {
 
       //this.config.logMessage(`Start importing data for ${EnvironmentAdapter.formatDate(startDate, "UTC", "yyyy-MM-dd")}`);
 
-        // itterating accounts  
+        // itterating accounts
         for (let accountId of accountsIds) {
 
           //this.config.logMessage(`Start importing data for ${EnvironmentAdapter.formatDate(startDate, "UTC", "yyyy-MM-dd")}: ${accountId}`);
-        
+
           // itteration nodes to fetch data
           for(var nodeName in timeSeriesNodes) {
-            
+
             this.config.logMessage(`Start importing data for ${EnvironmentAdapter.formatDate(startDate, "UTC", "yyyy-MM-dd")}: ${accountId}/${nodeName}`);
 
-            // fetching new data from a data source  
-            let data = this.source.fetchData(nodeName, accountId, timeSeriesNodes[ nodeName ], startDate);
+            // fetching new data from a data source
+            let data = await this.source.fetchData(nodeName, accountId, timeSeriesNodes[ nodeName ], startDate);
 
             if( data.length || this.config.CreateEmptyTables?.value ) {
-              this.getStorageByNode(nodeName).saveData(data);
+              await this.getStorageByNode(nodeName).saveData(data);
             }
 
             this.config.logMessage(data.length ? `${data.length} records were fetched` : `No records have been fetched`);
-            
+
           }
-        
+
         }
 
         // Only update LastRequestedDate for incremental runs
@@ -138,7 +138,7 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
         }
         startDate.setDate( startDate.getDate() + 1);  // let's move on to the next date
 
-      }    
+      }
     }
   
 //---- getStorageName -------------------------------------------------

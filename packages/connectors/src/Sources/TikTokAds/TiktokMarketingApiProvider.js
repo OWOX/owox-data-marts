@@ -33,13 +33,13 @@ class TiktokMarketingApiProvider {
     return this.API_VERSION;
   }
 
-  makeRequest(options) {
+  async makeRequest(options) {
     const { url, method, data } = options;
     const headers = {
       'Access-Token': this.accessToken,
       'Content-Type': 'application/json'
     };
-    
+
     let backoff = this.INITIAL_BACKOFF;
 
     for (let retries = 0; retries < this.MAX_RETRIES; retries++) {
@@ -52,16 +52,18 @@ class TiktokMarketingApiProvider {
         });
 
         const responseCode = response.getResponseCode();
+        const text = await response.getContentText();
+        
         if (responseCode !== this.SUCCESS_RESPONSE_CODE) {
-          throw new Error(`TikTok API error: ${response.getContentText()}`);
+          throw new Error(`TikTok API error: ${text}`);
         }
 
-        const jsonData = JSON.parse(response.getContentText());
+        const jsonData = JSON.parse(text);
 
         if (jsonData.code !== this.SUCCESS_CODE) {
           if (jsonData.code === this.RATE_LIMIT_CODE) {
             console.error("TikTok Marketing API rate limit exceeded. Retrying...");
-            EnvironmentAdapter.sleep(backoff);
+            await EnvironmentAdapter.delay(backoff);
             backoff *= 2;
             continue;
           }
@@ -71,7 +73,7 @@ class TiktokMarketingApiProvider {
         return jsonData;
       } catch (error) {
         if (retries < this.MAX_RETRIES - 1 && error.message.includes('rate limit')) {
-          EnvironmentAdapter.sleep(backoff);
+          await EnvironmentAdapter.delay(backoff);
           backoff *= 2;
         } else {
           throw error;
@@ -80,7 +82,7 @@ class TiktokMarketingApiProvider {
     }
   }
 
-  handlePagination(endpoint, params = {}) {
+  async handlePagination(endpoint, params = {}) {
     let allData = [];
     let page = 1;
     let hasMorePages = true;
@@ -89,7 +91,7 @@ class TiktokMarketingApiProvider {
     while (hasMorePages) {
       const paginatedParams = { ...params, page, page_size: pageSize };
       const url = this.buildUrl(endpoint, paginatedParams);
-      const response = this.makeRequest({ url, method: 'GET' });
+      const response = await this.makeRequest({ url, method: 'GET' });
 
       const pageData = response.data.list || [];
       allData = allData.concat(pageData);
@@ -100,7 +102,7 @@ class TiktokMarketingApiProvider {
       page++;
 
       if (hasMorePages) {
-        EnvironmentAdapter.sleep(100);
+        await EnvironmentAdapter.delay(100);
       }
     }
 

@@ -16,12 +16,12 @@ var LinkedInPagesConnector = class LinkedInPagesConnector extends AbstractConnec
    * Main method - entry point for the import process
    * Processes all nodes defined in the fields configuration
    */
-  startImportProcess() {
+  async startImportProcess() {
     const urns = FormatUtils.parseIds(this.config.OrganizationURNs.value, {prefix: 'urn:li:organization:'});
     const dataSources = FormatUtils.parseFields(this.config.Fields.value);
-    
+
     for (const nodeName in dataSources) {
-      this.processNode({
+      await this.processNode({
         nodeName,
         urns,
         fields: dataSources[nodeName] || []
@@ -36,22 +36,22 @@ var LinkedInPagesConnector = class LinkedInPagesConnector extends AbstractConnec
    * @param {Array} options.urns - URNs to process
    * @param {Array} options.fields - Fields to fetch
    */
-  processNode({ nodeName, urns, fields }) {
+  async processNode({ nodeName, urns, fields }) {
     const isTimeSeriesNode = ConnectorUtils.isTimeSeriesNode(this.source.fieldsSchema[nodeName]);
     const dateInfo = this.prepareDateRangeIfNeeded(nodeName, isTimeSeriesNode);
-    
+
     if (isTimeSeriesNode && !dateInfo) {
       return; // Skip processing if date range preparation failed
     }
-    
-    this.fetchAndSaveData({
-      nodeName, 
-      urns, 
+
+    await this.fetchAndSaveData({
+      nodeName,
+      urns,
       fields,
       isTimeSeriesNode,
       ...dateInfo
     });
-    
+
     // Update LastRequestedDate only for time series data and incremental runs
     if (isTimeSeriesNode && this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
       this.config.updateLastRequstedDate(dateInfo.actualEndDate);
@@ -68,21 +68,21 @@ var LinkedInPagesConnector = class LinkedInPagesConnector extends AbstractConnec
    * @param {string} [options.startDate] - Start date for time series data
    * @param {string} [options.endDate] - End date for time series data
    */
-  fetchAndSaveData({ nodeName, urns, fields, isTimeSeriesNode, startDate, endDate }) {
+  async fetchAndSaveData({ nodeName, urns, fields, isTimeSeriesNode, startDate, endDate }) {
     for (const urn of urns) {
       console.log(`Processing ${nodeName} for ${urn}${isTimeSeriesNode ? ` from ${startDate} to ${endDate}` : ''}`);
       if (isTimeSeriesNode) {
         console.log(`End date is +1 day due to LinkedIn Pages API requirements (to include actual end date in results)`);
       }
-      
+
       const params = { fields, ...(isTimeSeriesNode && { startDate, endDate }) };
-      const data = this.source.fetchData(nodeName, urn, params);
-      
+      const data = await this.source.fetchData(nodeName, urn, params);
+
       this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${urn}${endDate ? ` from ${startDate} to ${endDate}` : ''}` : `No records have been fetched`);
-      
+
       if (data.length || this.config.CreateEmptyTables?.value) {
         const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-        this.getStorageByNode(nodeName).saveData(preparedData);
+        await this.getStorageByNode(nodeName).saveData(preparedData);
       }
     }
   }

@@ -16,11 +16,11 @@ var OpenHolidaysConnector = class OpenHolidaysConnector extends AbstractConnecto
    * Main method - entry point for the import process
    * Processes all nodes defined in the fields configuration
    */
-  startImportProcess() {
+  async startImportProcess() {
     const fields = ConnectorUtils.parseFields(this.config.Fields.value);
 
     for (const nodeName in fields) {
-      this.processNode({
+      await this.processNode({
         nodeName,
         fields: fields[nodeName] || []
       });
@@ -33,12 +33,12 @@ var OpenHolidaysConnector = class OpenHolidaysConnector extends AbstractConnecto
    * @param {string} options.nodeName - Name of the node to process
    * @param {Array<string>} options.fields - Array of fields to fetch
    */
-  processNode({ nodeName, fields }) {
+  async processNode({ nodeName, fields }) {
     const storage = this.getStorageByNode(nodeName);
     if (ConnectorUtils.isTimeSeriesNode(this.source.fieldsSchema[nodeName])) {
-      this.processTimeSeriesNode({ nodeName, fields, storage });
+      await this.processTimeSeriesNode({ nodeName, fields, storage });
     } else {
-      this.processCatalogNode({ nodeName, fields, storage });
+      await this.processCatalogNode({ nodeName, fields, storage });
     }
   }
 
@@ -49,7 +49,7 @@ var OpenHolidaysConnector = class OpenHolidaysConnector extends AbstractConnecto
    * @param {Array<string>} options.fields - Array of fields to fetch
    * @param {Object} options.storage - Storage instance
    */
-  processTimeSeriesNode({ nodeName, fields, storage }) {
+  async processTimeSeriesNode({ nodeName, fields, storage }) {
     const dateRange = this.prepareDateRange();
     
     if (!dateRange) {
@@ -58,7 +58,7 @@ var OpenHolidaysConnector = class OpenHolidaysConnector extends AbstractConnecto
     }
 
     // Fetch data for the entire period at once
-    const data = this.source.fetchData({ 
+    const data = await this.source.fetchData({ 
       nodeName, 
       start_time: dateRange.startDate, 
       end_time: dateRange.endDate, 
@@ -69,7 +69,7 @@ var OpenHolidaysConnector = class OpenHolidaysConnector extends AbstractConnecto
 
     if (data.length || this.config.CreateEmptyTables?.value) {
       const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-      storage.saveData(preparedData);
+      await storage.saveData(preparedData);
     }
 
     if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
@@ -84,7 +84,7 @@ var OpenHolidaysConnector = class OpenHolidaysConnector extends AbstractConnecto
    * @param {Array<string>} options.fields - Array of fields to fetch
    * @param {Object} options.storage - Storage instance
    */
-  processCatalogNode({ nodeName, fields, storage }) {
+  async processCatalogNode({ nodeName, fields, storage }) {
     // Placeholder for future catalog nodes
     console.log(`Catalog node processing not implemented for ${nodeName}`);
   }

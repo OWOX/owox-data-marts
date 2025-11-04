@@ -16,11 +16,11 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
    * Main method - entry point for the import process
    * Processes all nodes defined in the fields configuration
    */
-  startImportProcess() {
+  async startImportProcess() {
     const fields = MicrosoftAdsHelper.parseFields(this.config.Fields.value);    
 
     for (const nodeName in fields) {
-      this.processNode({
+      await this.processNode({
         nodeName,
         accountId: this.config.AccountID.value,
         fields: fields[nodeName] || []
@@ -35,15 +35,15 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
    * @param {string} options.accountId - Account ID
    * @param {Array<string>} options.fields - Array of fields to fetch
    */
-  processNode({ nodeName, accountId, fields }) {
+  async processNode({ nodeName, accountId, fields }) {
     if (this.source.fieldsSchema[nodeName].isTimeSeries) {
-      this.processTimeSeriesNode({
+      await this.processTimeSeriesNode({
         nodeName,
         accountId,
         fields
       });
     } else {
-      this.processCatalogNode({
+      await this.processCatalogNode({
         nodeName,
         accountId,
         fields
@@ -59,7 +59,7 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
    * @param {Array<string>} options.fields - Array of fields to fetch
    * @param {Object} options.storage - Storage instance
    */
-  processTimeSeriesNode({ nodeName, accountId, fields }) {
+  async processTimeSeriesNode({ nodeName, accountId, fields }) {
     const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
   
     if (daysToFetch <= 0) {
@@ -76,7 +76,7 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
       
       this.config.logMessage(`Processing ${nodeName} for ${accountId} on ${formattedDate} (day ${dayOffset + 1} of ${daysToFetch})`);
 
-      const data = this.source.fetchData({ 
+      const data = await this.source.fetchData({ 
         nodeName, 
         accountId, 
         start_time: formattedDate, 
@@ -88,7 +88,7 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
 
       if (data.length || this.config.CreateEmptyTables?.value) {
         const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-        this.getStorageByNode(nodeName).saveData(preparedData);
+        await this.getStorageByNode(nodeName).saveData(preparedData);
         data.length && this.config.logMessage(`Successfully saved ${data.length} rows for ${formattedDate}`);
       }
 
@@ -107,8 +107,8 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
    * @param {Array<string>} options.fields - Array of fields to fetch
    * @param {Object} options.storage - Storage instance
    */
-  processCatalogNode({ nodeName, accountId, fields }) {
-    const data = this.source.fetchData({ 
+  async processCatalogNode({ nodeName, accountId, fields }) {
+    const data = await this.source.fetchData({ 
       nodeName, 
       accountId, 
       fields,

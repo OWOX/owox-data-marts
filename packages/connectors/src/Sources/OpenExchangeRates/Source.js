@@ -65,11 +65,11 @@ constructor(config) {
   
   /*
   @param date The requested date as a Date object
-  
+
   @return data array
-  
+
   */
-  fetchData(date)  {
+  async fetchData(date)  {
   
     let data = [];
     let base = this.config.base.value;
@@ -88,9 +88,10 @@ constructor(config) {
     const url = `${urlWithoutKey}&app_id=${app_id}`;
     
     this.config.logMessage(`Fetching rates for ${date}`);
-  
-    var response = EnvironmentAdapter.fetch(url, {'method': 'get', 'muteHttpExceptions': true} );
-    var historical = JSON.parse( response.getContentText() );
+
+    var response = await EnvironmentAdapter.fetch(url, {'method': 'get', 'muteHttpExceptions': true} );
+    var text = await response.getContentText();
+    var historical = JSON.parse(text);
   
     for (var currency in historical["rates"]) {
       data.push({

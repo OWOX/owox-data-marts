@@ -13,15 +13,15 @@ var GoogleChatNotification = class GoogleChatNotification {
    * @param {string} params.webhookUrl - Google Chat webhook URL
    * @param {string} params.message - Formatted notification message
    */
-  static send(params) {
+  static async send(params) {
     const { webhookUrl, message } = params;
-        
+
     if (!webhookUrl || !webhookUrl.trim()) {
       return;
     }
 
     try {
-      const response = EnvironmentAdapter.fetch(webhookUrl.trim(), {
+      const response = await EnvironmentAdapter.fetch(webhookUrl.trim(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json; charset=UTF-8'

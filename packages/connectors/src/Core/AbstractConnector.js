@@ -94,11 +94,11 @@ var AbstractConnector = class AbstractConnector {
     /**
      * Initiates imports new data from a data source
      */
-    run() {
+    async run() {
 
       try {
 
-        // if import is already in progress skip this run in order to avoid dublication 
+        // if import is already in progress skip this run in order to avoid dublication
         if( this.config.isInProgress() ) {
 
           this.config.logMessage("Import is already in progress");
@@ -117,20 +117,20 @@ var AbstractConnector = class AbstractConnector {
             this.config.logMessage(`Column(s) for unique key was added: ${this.storage.uniqueKeyColumns}`);
           }
 
-          this.startImportProcess();
+          await this.startImportProcess();
 
           this.config.logMessage("Import is finished");
-          this.config.handleStatusUpdate({ 
+          this.config.handleStatusUpdate({
             status: EXECUTION_STATUS.IMPORT_DONE
-          });      
+          });
         }
 
         this.config.updateLastImportDate();
 
       } catch( error ) {
 
-        this.config.handleStatusUpdate({ 
-          status: EXECUTION_STATUS.ERROR, 
+        this.config.handleStatusUpdate({
+          status: EXECUTION_STATUS.ERROR,
           error: error
         });
         this.config.logMessage(`${error.stack}`);
@@ -145,7 +145,7 @@ var AbstractConnector = class AbstractConnector {
     /**
      * A method for calling from Root script for determining parameters needed to fetch new data.
      */
-    startImportProcess() {
+    async startImportProcess() {
       
       let startDate = null;
       let endDate = new Date();
@@ -160,13 +160,13 @@ var AbstractConnector = class AbstractConnector {
       endDate.setDate(startDate.getDate() + daysToFetch);
 
       // fetching new data from a data source
-      let data = this.source.fetchData(startDate, endDate);
+      let data = await this.source.fetchData(startDate, endDate);
 
       // there are fetched records to update
       this.config.logMessage(data.length ? `${data.length} rows were fetched` : `No records have been fetched`);
 
       if( data.length || this.config.CreateEmptyTables?.value === "true" ) {
-        this.storage.saveData(data);
+        await this.storage.saveData(data);
       }
 
       // Only update LastRequestedDate for incremental runs

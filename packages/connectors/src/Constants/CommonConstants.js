@@ -7,7 +7,6 @@
 
 var ENVIRONMENT = {
   UNKNOWN: 1,
-  APPS_SCRIPT: 2,
   NODE: 3,
 };
 

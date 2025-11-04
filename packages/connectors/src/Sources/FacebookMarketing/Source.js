@@ -116,7 +116,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
     @return data array
   
     */
-    fetchData(nodeName, accountId, fields, startDate = null)  {
+    async fetchData(nodeName, accountId, fields, startDate = null)  {
   
       //console.log(`Fetching data from ${nodeName}/${accountId}/${fields} for ${startDate}`);
   
@@ -155,7 +155,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         case 'ad-account/insights-by-region':
         case 'ad-account/insights-by-product-id':
         case 'ad-account/insights-by-age-and-gender':
-          return this._fetchInsightsData({ nodeName, accountId, fields, timeRange, url });
+          return await this._fetchInsightsData({ nodeName, accountId, fields, timeRange, url });
 
         case 'ad-group':
           url += `act_${accountId}/ads?fields=${this._buildFieldsString({ nodeName, fields })}&limit=${this.fieldsSchema[nodeName].limit}`;
@@ -169,7 +169,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
 
       url += `&access_token=${this.config.AccessToken.value}`;
   
-      return this._fetchPaginatedData(url, nodeName, fields);
+      return await this._fetchPaginatedData(url, nodeName, fields);
   
     }
   
@@ -249,7 +249,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
      * @return {Array} Processed insights data
      * @private
      */
-    _fetchInsightsData({ nodeName, accountId, fields, timeRange, url }) {
+    async _fetchInsightsData({ nodeName, accountId, fields, timeRange, url }) {
       const breakdowns = this.fieldsSchema[nodeName].breakdowns || [];
       const regularFields = this._prepareFields({ nodeName, fields, breakdowns });
       
@@ -262,7 +262,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         url
       });
       
-      const allData = this._fetchPaginatedData(requestUrl, nodeName, fields);
+      const allData = await this._fetchPaginatedData(requestUrl, nodeName, fields);
       
       // Process short links if link_url_asset data is present
       if (this.config.ProcessShortLinks.value && allData.length > 0 && allData.some(record => record.link_url_asset)) {
@@ -435,14 +435,15 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
      * @return {Array} All fetched data
      * @private
      */
-    _fetchPaginatedData(initialUrl, nodeName, fields) {
+    async _fetchPaginatedData(initialUrl, nodeName, fields) {
       var allData = [];
       var nextPageURL = initialUrl;
 
       while (nextPageURL) {
         // Fetch data from the JSON URL
-        var response = this.urlFetchWithRetry(nextPageURL);
-        var jsonData = JSON.parse(response.getContentText());
+        var response = await this.urlFetchWithRetry(nextPageURL);
+        var text = await response.getContentText();
+        var jsonData = JSON.parse(text);
 
         // This node point returns a result in the data property, which might be paginated 
         if("data" in jsonData) {
