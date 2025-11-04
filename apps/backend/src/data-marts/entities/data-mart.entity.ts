@@ -3,6 +3,7 @@ import {
   Column,
   PrimaryGeneratedColumn,
   ManyToOne,
+  OneToOne,
   JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
@@ -14,6 +15,7 @@ import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum'
 import { DataMartDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import { DataMartSchema, DataMartSchemaSchema } from '../data-storage-types/data-mart-schema.type';
 import { createZodTransformer } from '../../common/zod/zod-transformer';
+import { ConnectorState } from './connector-state.entity';
 
 @Entity()
 export class DataMart {
@@ -26,6 +28,9 @@ export class DataMart {
   @ManyToOne(() => DataStorage, { eager: true, cascade: true })
   @JoinColumn()
   storage: DataStorage;
+
+  @OneToOne(() => ConnectorState, cs => cs.dataMart, { eager: true })
+  connectorState?: ConnectorState;
 
   @Column({
     type: 'json',

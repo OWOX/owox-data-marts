@@ -1,7 +1,7 @@
-import type { DataMart } from '../types';
+import { mapDataStorageFromDto } from '../../../../data-storage/shared/model/mappers';
 import type { DataMartResponseDto } from '../../../shared';
 import { DataMartStatusModel } from '../../../shared';
-import { mapDataStorageFromDto } from '../../../../data-storage/shared/model/mappers';
+import type { DataMart } from '../types';
 
 import { mapDefinitionFromDto } from './definition-mappers';
 
@@ -18,6 +18,7 @@ export function mapDataMartFromDto(dataMartDto: DataMartResponseDto): DataMart {
     definitionType: dataMartDto.definitionType,
     definition: mapDefinitionFromDto(dataMartDto.definitionType, dataMartDto.definition),
     schema: dataMartDto.schema,
+    connectorState: dataMartDto.connectorState ?? null,
     createdAt: new Date(dataMartDto.createdAt),
     modifiedAt: new Date(dataMartDto.modifiedAt),
     canPublish: false,

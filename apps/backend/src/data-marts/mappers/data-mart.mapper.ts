@@ -39,6 +39,7 @@ import { ConnectorSecretService } from '../services/connector-secret.service';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { RunType } from '../../common/scheduler/shared/types';
 import { ListDataMartsByConnectorNameCommand } from '../dto/domain/list-data-mart-by-connector-name';
+import { ConnectorState as ConnectorStateData } from '../connector-types/interfaces/connector-state';
 
 @Injectable()
 export class DataMartMapper {
@@ -72,6 +73,7 @@ export class DataMartMapper {
       entity.definition,
       entity.description,
       entity.schema,
+      entity.connectorState?.state as ConnectorStateData | undefined,
       counters?.triggersCount ?? 0,
       counters?.reportsCount ?? 0
     );
@@ -102,6 +104,7 @@ export class DataMartMapper {
       definition: maskedDefinition,
       description: dto.description,
       schema: dto.schema,
+      connectorState: dto.connectorState,
       triggersCount: dto.triggersCount,
       reportsCount: dto.reportsCount,
       createdAt: dto.createdAt,
