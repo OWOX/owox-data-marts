@@ -153,7 +153,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
           return this._fetchInsightsData({ nodeName, accountId, fields, timeRange, url });
 
         case 'ad-group':
-          url += `act_${accountId}/ads?fields=${fields.join(",")}&limit=${this.fieldsSchema[nodeName].limit}`;
+          url += `act_${accountId}/ads?fields=${this._buildFieldsString({ nodeName, fields })}&limit=${this.fieldsSchema[nodeName].limit}`;
           break;
   
         default:
@@ -164,7 +164,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
 
       url += `&access_token=${this.config.AccessToken.value}`;
   
-      return this._fetchPaginatedData(url, nodeName);
+      return this._fetchPaginatedData(url, nodeName, fields);
   
     }
   
@@ -257,7 +257,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         url
       });
       
-      const allData = this._fetchPaginatedData(requestUrl, nodeName);
+      const allData = this._fetchPaginatedData(requestUrl, nodeName, fields);
       
       // Process short links if link_url_asset data is present
       if (this.config.ProcessShortLinks.value && allData.length > 0 && allData.some(record => record.link_url_asset)) {
@@ -316,17 +316,121 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       return insightsUrl;
     }
 
+  //---- _buildFieldsString ------------------------------------------------
+    /**
+     * Build fields string for Facebook API request
+     * Filters out fields that don't exist in schema
+     * Handles nested fields using Facebook's syntax: parent{field1,field2}
+     * 
+     * @param {Object} params - Parameters object
+     * @param {string} params.nodeName - Node name
+     * @param {Array} params.fields - Fields to fetch
+     * @return {string} Fields string for API request
+     * @private
+     */
+    _buildFieldsString({ nodeName, fields }) {
+      const nestedFields = {}; // e.g. { creative: ['id', 'name', 'url_tags'] }
+      const regularFields = [];
+      const skippedFields = [];
+      
+      // First, filter fields that exist in schema
+      for (const field of fields) {
+        const fieldConfig = this.fieldsSchema[nodeName].fields[field];
+        
+        // Skip fields that don't exist in schema
+        if (!fieldConfig) {
+          skippedFields.push(field);
+          continue;
+        }
+        
+        // Check if field has nested structure (apiName with dot notation)
+        if (fieldConfig.apiName && fieldConfig.apiName.includes('.')) {
+          const [parent, ...childParts] = fieldConfig.apiName.split('.');
+          const child = childParts.join('.');
+          
+          if (!nestedFields[parent]) {
+            nestedFields[parent] = [];
+          }
+          nestedFields[parent].push(child);
+        } else {
+          regularFields.push(field);
+        }
+      }
+      
+      // Log skipped fields for debugging
+      if (skippedFields.length > 0) {
+        console.log(`Skipped fields not found in ${nodeName} schema:`, skippedFields.join(', '));
+      }
+      
+      // Build final fields array
+      const finalFields = [...regularFields];
+      
+      // Add nested fields in format: parent{field1,field2}
+      for (const [parent, children] of Object.entries(nestedFields)) {
+        finalFields.push(`${parent}{${children.join(',')}}`);
+      }
+      
+      return finalFields.join(',');
+    }
+
+  //---- _mapResultToColumns -----------------------------------------------
+    /**
+     * Map API result to requested column names
+     * Only includes fields that exist in schema and were requested
+     * Handles nested fields using apiName mapping
+     * 
+     * @param {Object} result - API response result
+     * @param {string} nodeName - Node name for schema lookup
+     * @param {Array<string>} requestedFields - Fields that were requested
+     * @return {Object} Mapped result with only requested columns
+     * @private
+     */
+    _mapResultToColumns(result, nodeName, requestedFields) {
+      const mapped = {};
+      
+      for (const fieldName of requestedFields) {
+        const fieldConfig = this.fieldsSchema[nodeName].fields[fieldName];
+        
+        if (!fieldConfig) {
+          continue;
+        }
+        
+        // Check if field has nested structure (apiName)
+        if (fieldConfig.apiName) {
+          // Get value from nested API response (e.g. creative.id)
+          mapped[fieldName] = this._getNestedValue(result, fieldConfig.apiName);
+        } else {
+          // Regular field - get directly from result
+          mapped[fieldName] = result[fieldName];
+        }
+      }
+      
+      return mapped;
+    }
+
+  //---- _getNestedValue ---------------------------------------------------
+    /**
+     * Get nested value from object using dot-notation path
+     * @param {Object} obj - Object to search in
+     * @param {string} path - Dot-notation path (e.g. 'creative.id')
+     * @return {*} Value at path or undefined
+     * @private
+     */
+    _getNestedValue(obj, path) {
+      return path.split('.').reduce((current, key) => current?.[key], obj);
+    }
+
   //---- _fetchPaginatedData -----------------------------------------------
     /**
      * Fetch paginated data from Facebook API
      * 
      * @param {string} initialUrl - Initial URL to fetch
      * @param {string} nodeName - Node name for field casting
-     * @param {string} logContext - Context for logging
+     * @param {Array} fields - Fields that were requested
      * @return {Array} All fetched data
      * @private
      */
-    _fetchPaginatedData(initialUrl, nodeName, logContext = '') {
+    _fetchPaginatedData(initialUrl, nodeName, fields) {
       var allData = [];
       var nextPageURL = initialUrl;
 
@@ -341,9 +445,12 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
           nextPageURL = jsonData.paging ? jsonData.paging.next : null;
           //nextPageURL = null;
 
-          // date fields must be converted to Date objects to meet unique key requirements 
-          jsonData.data.forEach(record => {
-            record = this.castRecordFields(nodeName, record);
+          jsonData.data.forEach((record, index) => {
+            // Map to requested columns only (excludes unwanted nested objects)
+            let mappedRecord = this._mapResultToColumns(record, nodeName, fields);
+            // Then cast fields to proper types
+            mappedRecord = this.castRecordFields(nodeName, mappedRecord);
+            jsonData.data[index] = mappedRecord;
           });
 
           allData = allData.concat(jsonData.data);
