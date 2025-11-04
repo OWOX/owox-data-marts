@@ -1,6 +1,7 @@
 import type { AuthorizationStore } from './AuthorizationStore';
 import type { MysqlConfig } from '../config';
 import type { Pool, ResultSetHeader } from 'mysql2/promise';
+import { StoreResult } from './StoreResult';
 
 /**
  * MySQL implementation (mysql2/promise, no ORM).
@@ -56,9 +57,7 @@ export class MysqlAuthorizationStore implements AuthorizationStore {
     );
   }
 
-  async get(state: string): Promise<string | null> {
-    await this.purgeExpired();
-
+  async get(state: string): Promise<StoreResult> {
     const [rows] = await this.getPool().execute(
       `SELECT code_verifier, expires_at FROM auth_states WHERE state = ? LIMIT 1`,
       [state]
@@ -68,15 +67,15 @@ export class MysqlAuthorizationStore implements AuthorizationStore {
       Array.isArray(rows) && rows.length > 0
         ? (rows as Array<{ code_verifier: string; expires_at: Date | null }>)[0]
         : null;
-    if (!row) return null;
+    if (!row) return StoreResult.notFound();
 
     const exp = row.expires_at ? new Date(row.expires_at) : null;
     if (exp && exp.getTime() <= Date.now()) {
       await this.delete(state);
-      return null;
+      return StoreResult.expired();
     }
 
-    return row.code_verifier;
+    return StoreResult.withCode(row.code_verifier);
   }
 
   async delete(state: string): Promise<void> {
