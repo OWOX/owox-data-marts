@@ -1,4 +1,4 @@
-class RunConfig {
+class RunConfigDto {
   constructor(config) {
     this._config = config;
     this._type = config.type;
@@ -30,7 +30,3 @@ class RunConfig {
     };
   }
 }
-
-module.exports = {
-  RunConfig,
-};
