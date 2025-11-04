@@ -73,10 +73,6 @@ var adAccountInsightsFields = {
     'type': 'numeric string',
     'GoogleBigQueryType': 'numeric'
   },
-  'body_asset': {
-    'description': 'body_asset',
-    'type': 'AdAssetBody'
-  },
   'buying_type': {
     'description': 'The method by which you pay for and target ads in your campaigns: through dynamic auction bidding, fixed-price bidding, or reach and frequency buying. This field is currently only visible at the campaign level.',
     'type': 'string'
@@ -254,10 +250,6 @@ var adAccountInsightsFields = {
     'description': 'dda_results',
     'type': 'list<AdsInsightsDdaResult>'
   },
-  'description_asset': {
-    'description': 'description_asset',
-    'type': 'AdAssetDescription'
-  },
   'frequency': {
     'description': 'The average number of times each person saw your ad. This metric is estimated.',
     'type': 'numeric string',
@@ -272,10 +264,6 @@ var adAccountInsightsFields = {
     'description': 'The number of people who performed a Full View on your Page\'s post as a result of your ad.',
     'type': 'numeric string',
     'GoogleBigQueryType': 'numeric'
-  },
-  'image_asset': {
-    'description': 'image_asset',
-    'type': 'AdAssetImage'
   },
   'impressions': {
     'description': 'The number of times your ads were on screen.',
@@ -374,25 +362,13 @@ var adAccountInsightsFields = {
     'GoogleSheetsFormat': '$#,##0.00',
     'GoogleBigQueryType': 'numeric'
   },
-  'title_asset': {
-    'description': 'title_asset',
-    'type': 'AdAssetTitle'
-  },
   'updated_time': {
     'description': 'updated_time',
-    'type': 'string'
-  },
-  'user_segment_key': {
-    'description': 'user_segment_key',
     'type': 'string'
   },
   'video_30_sec_watched_actions': {
     'description': 'The number of times your video played for at least 30 seconds, or for nearly its total length if it\'s shorter than 30 seconds. For each impression of a video, we\'ll count video views separately and exclude any time spent replaying the video.',
     'type': 'list<AdsActionStats>'
-  },
-  'video_asset': {
-    'description': 'video_asset',
-    'type': 'AdAssetVideo'
   },
   'video_avg_time_watched_actions': {
     'description': 'The average time a video was played, including any time spent replaying the video for a single impression.',

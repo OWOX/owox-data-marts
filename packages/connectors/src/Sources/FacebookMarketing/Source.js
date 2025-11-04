@@ -150,6 +150,11 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         case 'ad-account/insights':
         case 'ad-account/insights-by-country':
         case 'ad-account/insights-by-link-url-asset':
+        case 'ad-account/insights-by-publisher-platform-and-position':
+        case 'ad-account/insights-by-device-platform':
+        case 'ad-account/insights-by-region':
+        case 'ad-account/insights-by-product-id':
+        case 'ad-account/insights-by-age-and-gender':
           return this._fetchInsightsData({ nodeName, accountId, fields, timeRange, url });
 
         case 'ad-group':
@@ -303,9 +308,9 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
      * @return {string} Complete URL
      * @private
      */
-    _buildInsightsUrl({ accountId, fields, breakdowns, timeRange, nodeName, url }) {
+     _buildInsightsUrl({ accountId, fields, breakdowns, timeRange, nodeName, url }) {
+      console.log('Insights request fields for', nodeName, ':', fields);
       let insightsUrl = `${url}act_${accountId}/insights?level=ad&period=day&time_range=${timeRange}&fields=${fields.join(",")}&limit=${this.fieldsSchema[nodeName].limit}`;
-      
       if (breakdowns.length > 0) {
         insightsUrl += `&breakdowns=${breakdowns.join(",")}`;
       }

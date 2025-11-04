@@ -6,7 +6,7 @@
  */
 
 /* eslint-disable no-unused-vars */
-var adAccountInsightsFieldsByLinkUrlAsset = {
+var adAccountInsightsFieldsByRegion = {
   'account_currency': {
     'description': 'Currency that is used by your ad account.',
     'type': 'string'
@@ -308,10 +308,6 @@ var adAccountInsightsFieldsByLinkUrlAsset = {
     'description': 'interactive_component_tap',
     'type': 'list<AdsActionStats>'
   },
-  'link_url_asset': {
-    'description': 'The ID of the URL asset involved in impression, click or action.',
-    'type': 'object'
-  },
   'marketing_messages_delivery_rate': {
     'description': 'The number of messages delivered divided by the number of messages sent. Some messages may not be delivered, such as when a customer\'s device is out of service. This metric doesn\'t include messages sent to Europe and Japan.',
     'type': 'numeric string',
@@ -350,6 +346,10 @@ var adAccountInsightsFieldsByLinkUrlAsset = {
     'description': 'The number of people who saw your ads at least once. Reach is different from impressions, which may include multiple views of your ads by the same people. This metric is estimated.',
     'type': 'numeric string',
     'GoogleBigQueryType': 'numeric'
+  },
+  'region': {
+    'description': 'The region where your ads were shown.',
+    'type': 'string'
   },
   'shops_assisted_purchases': {
     'description': 'shops_assisted_purchases',
@@ -440,4 +440,3 @@ var adAccountInsightsFieldsByLinkUrlAsset = {
     'GoogleBigQueryType': 'numeric'
   }
 }
-
