@@ -1,9 +1,0 @@
-**/**
-!Sources/CriteoAds/*.js
-!Sources/CriteoAds/**/*.js
-!appsscript.json
-!Core/**/*.js
-!Constants/*.js
-!Views/**/*
-!Storages/**/*.js
-!Configs/AppsScript/*.js

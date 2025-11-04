@@ -44,7 +44,7 @@ class TiktokMarketingApiProvider {
 
     for (let retries = 0; retries < this.MAX_RETRIES; retries++) {
       try {
-        const response = EnvironmentAdapter.fetch(url, {
+        const response = HttpUtils.fetch(url, {
           method: method,
           headers: headers,
           body: data ? JSON.stringify(data) : null,
@@ -63,7 +63,7 @@ class TiktokMarketingApiProvider {
         if (jsonData.code !== this.SUCCESS_CODE) {
           if (jsonData.code === this.RATE_LIMIT_CODE) {
             console.error("TikTok Marketing API rate limit exceeded. Retrying...");
-            await EnvironmentAdapter.delay(backoff);
+            await AsyncUtils.delay(backoff);
             backoff *= 2;
             continue;
           }
@@ -73,7 +73,7 @@ class TiktokMarketingApiProvider {
         return jsonData;
       } catch (error) {
         if (retries < this.MAX_RETRIES - 1 && error.message.includes('rate limit')) {
-          await EnvironmentAdapter.delay(backoff);
+          await AsyncUtils.delay(backoff);
           backoff *= 2;
         } else {
           throw error;
@@ -102,7 +102,7 @@ class TiktokMarketingApiProvider {
       page++;
 
       if (hasMorePages) {
-        await EnvironmentAdapter.delay(100);
+        await AsyncUtils.delay(100);
       }
     }
 

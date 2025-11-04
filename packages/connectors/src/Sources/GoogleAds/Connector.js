@@ -6,7 +6,7 @@
  */
 
 var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
-  constructor(config, source, storageName = "GoogleSheetsStorage", runConfig = null) {
+  constructor(config, source, storageName = "GoogleBigQueryStorage", runConfig = null) {
     super(config, source, null, runConfig);
 
     this.storageName = storageName;
@@ -73,7 +73,7 @@ var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
       const currentDate = new Date(startDate);
       currentDate.setDate(currentDate.getDate() + i);
 
-      const formattedDate = EnvironmentAdapter.formatDate(currentDate, "UTC", "yyyy-MM-dd");
+      const formattedDate = DateUtils.formatDate(currentDate, "UTC", "yyyy-MM-dd");
 
       const data = await this.source.fetchData(nodeName, customerId, { fields, startDate: currentDate });
 

@@ -11,12 +11,6 @@ class AbstractConfig {
      * @param (object) with config data. Properties are parameters names, values are values
      */
     constructor(configData) {
-      this.addParameter('Environment', {
-        value: AbstractConfig.detectEnvironment(),
-        requiredType: "number",
-        attributes: [CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM, CONFIG_ATTRIBUTES.ADVANCED]
-      });
-
       for(var name in configData) {
         this.addParameter(name, configData[name]);
       };
@@ -24,24 +18,6 @@ class AbstractConfig {
       return this;
     }
     //----------------------------------------------------------------
-
-  //---- static helper -------------------------------------------------
-    /**
-     * Determines the runtime environment
-     * @returns {ENVIRONMENT} The detected environment
-     */
-    static detectEnvironment() {
-      if (typeof UrlFetchApp !== 'undefined') {
-        return ENVIRONMENT.APPS_SCRIPT;
-      }
-
-      if (typeof process !== 'undefined') {
-        return ENVIRONMENT.NODE;
-      }
-
-      return ENVIRONMENT.UNKNOWN;
-    }
-
 
   //---- mergeParameters ---------------------------------------------
     /**

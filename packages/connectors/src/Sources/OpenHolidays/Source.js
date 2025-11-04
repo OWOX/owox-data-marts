@@ -127,7 +127,7 @@ var OpenHolidaysSource = class OpenHolidaysSource extends AbstractSource {
 
     console.log(`OpenHolidays API Request URL:`, url);
 
-    const response = await EnvironmentAdapter.fetch(url, {'method': 'get', 'muteHttpExceptions': true});
+    const response = await HttpUtils.fetch(url, {'method': 'get', 'muteHttpExceptions': true});
     const text = await response.getContentText();
     const result = JSON.parse(text);
 

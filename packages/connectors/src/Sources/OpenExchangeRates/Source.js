@@ -81,15 +81,15 @@ constructor(config) {
       symbols = '&symbols=' + String(this.config.Symbols.value).replace(/[^A-Z,]/g,"");
     }
    
-    var date = EnvironmentAdapter.formatDate(date, "UTC", "yyyy-MM-dd"); // The requested date in YYYY-MM-DD format (required)
+    var date = DateUtils.formatDate(date, "UTC", "yyyy-MM-dd"); // The requested date in YYYY-MM-DD format (required)
     const urlWithoutKey = `https://openexchangerates.org/api/historical/${date}.json?base=${base}${symbols}`;
     console.log(`OpenExchangeRates API URL:`, urlWithoutKey);
-    
+
     const url = `${urlWithoutKey}&app_id=${app_id}`;
-    
+
     this.config.logMessage(`Fetching rates for ${date}`);
 
-    var response = await EnvironmentAdapter.fetch(url, {'method': 'get', 'muteHttpExceptions': true} );
+    var response = await HttpUtils.fetch(url, {'method': 'get', 'muteHttpExceptions': true} );
     var text = await response.getContentText();
     var historical = JSON.parse(text);
   

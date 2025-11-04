@@ -239,7 +239,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
     let query = `SELECT ${apiFields.join(', ')} FROM ${resourceName}`;
     
     if (startDate && this.fieldsSchema[nodeName].isTimeSeries) {
-      const formattedDate = EnvironmentAdapter.formatDate(startDate, "UTC", "yyyy-MM-dd");
+      const formattedDate = DateUtils.formatDate(startDate, "UTC", "yyyy-MM-dd");
       query += ` WHERE segments.date = '${formattedDate}'`;
     }
     

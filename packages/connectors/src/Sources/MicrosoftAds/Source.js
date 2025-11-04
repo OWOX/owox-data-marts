@@ -132,7 +132,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
             .join('&') // TODO: body is for Node.js; refactor to centralize JSON option creation
         };
 
-        const resp = await EnvironmentAdapter.fetch(tokenUrl, options);
+        const resp = await HttpUtils.fetch(tokenUrl, options);
         const text = await resp.getContentText();
         const json = JSON.parse(text);
 
@@ -282,7 +282,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
    * @private
    */
   async _downloadEntity({ submitUrl, submitOpts }) {
-    const submitResp = await EnvironmentAdapter.fetch(submitUrl, submitOpts);
+    const submitResp = await HttpUtils.fetch(submitUrl, submitOpts);
     const text = await submitResp.getContentText();
     const requestId = JSON.parse(text).DownloadRequestId;
 
@@ -490,7 +490,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
       payload: JSON.stringify({ ReportRequest: requestBody }),
       body: JSON.stringify({ ReportRequest: requestBody }) // TODO: body is for Node.js; refactor to centralize JSON option creation
     };
-    const submitResp = await EnvironmentAdapter.fetch(submitUrl, submitOpts);
+    const submitResp = await HttpUtils.fetch(submitUrl, submitOpts);
     const submitResponseText = await submitResp.getContentText();
 
     try {

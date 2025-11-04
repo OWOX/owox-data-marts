@@ -194,7 +194,7 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
 
     const authUrl = `${url}${url.includes('?') ? '&' : '?'}oauth2_access_token=${this.config.AccessToken.value}`;
 
-    const response = await EnvironmentAdapter.fetch(authUrl, { headers });
+    const response = await HttpUtils.fetch(authUrl, { headers });
     const result = await response.getContentText();
     const parsedResult = JSON.parse(result);
     if (parsedResult.status && parsedResult.status >= HTTP_STATUS.BAD_REQUEST) {

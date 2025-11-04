@@ -5,11 +5,6 @@
  * file that was distributed with this source code.
  */
 
-var ENVIRONMENT = {
-  UNKNOWN: 1,
-  NODE: 3,
-};
-
 var EXECUTION_STATUS = {
   IMPORT_IN_PROGRESS: 1,
   CLEANUP_IN_PROGRESS: 2,

@@ -8,9 +8,9 @@
 var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage {
   //---- constructor -------------------------------------------------
     /**
-     * Asbstract class making Google BigQuery updateable in Apps Script
-     * 
-     * @param config (object) instance of AbscractConfig
+     * Abstract class for Google BigQuery storage operations
+     *
+     * @param config (object) instance of AbstractConfig
      * @param uniqueKeyColumns (mixed) a name of column with unique key or array with columns names
      * @param schema (object) object with structure like {fieldName: {type: "number", description: "smth" } }
      * @param description (string) string with storage description }
@@ -212,8 +212,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
     checkIfGoogleBigQueryIsConnected() {
 
       if( typeof BigQuery == "undefined") {
-        throw new Error(`To import data into Google BigQuery you need to add BigQuery Service first:
-        Extension / Apps Script / Editor / Services / + BigQuery API`);
+        throw new Error(`BigQuery client library is not available. Ensure @google-cloud/bigquery is installed.`);
       }
 
     }
@@ -434,11 +433,11 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
           } else if( ( columnType.toUpperCase() == "DATE") && (record[ columnName ] instanceof Date) ) {
 
-            columnValue = EnvironmentAdapter.formatDate( record[ columnName ], "UTC", "yyyy-MM-dd" );
+            columnValue = DateUtils.formatDate( record[ columnName ], "UTC", "yyyy-MM-dd" );
 
           } else if( (columnType.toUpperCase() == "DATETIME") && (record[ columnName ] instanceof Date) ) {
 
-            columnValue = EnvironmentAdapter.formatDate( record[ columnName ], "UTC", "yyyy-MM-dd HH:mm:ss" );
+            columnValue = DateUtils.formatDate( record[ columnName ], "UTC", "yyyy-MM-dd HH:mm:ss" );
 
           } else {
 

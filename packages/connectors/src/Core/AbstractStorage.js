@@ -9,8 +9,8 @@ class AbstractStorage {
   
   //---- constructor -------------------------------------------------
     /**
-     * Asbstract class making Google Sheets data active in Apps Script to simplity read/write operations
-     * @param config (object) instance of Sheet
+     * Abstract class for storage operations providing common methods for data persistence
+     * @param config (object) instance of AbstractConfig
      * @param uniqueKeyColumns (mixed) a name of column with unique key or array with columns names
      * @param schema (object) object with structure like {fieldName: {type: "number", description: "smth" } }
      * @param description (string) string with storage description }

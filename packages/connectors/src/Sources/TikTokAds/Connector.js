@@ -6,7 +6,7 @@
  */
 
 var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
-  constructor(config, source, storageName = "GoogleSheetsStorage", runConfig = null) {
+  constructor(config, source, storageName = "GoogleBigQueryStorage", runConfig = null) {
     super(config, source, null, runConfig);
 
     this.storageName = storageName;
@@ -149,7 +149,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
       const currentDate = new Date(startDate);
       currentDate.setDate(currentDate.getDate() + daysShift);
 
-      const formattedDate = EnvironmentAdapter.formatDate(currentDate, "UTC", "yyyy-MM-dd");
+      const formattedDate = DateUtils.formatDate(currentDate, "UTC", "yyyy-MM-dd");
 
       this.config.logMessage(`Processing data for date: ${formattedDate}`);
 
@@ -246,7 +246,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
     // Get cutoff date
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - keepDays);
-    const formattedCutoffDate = EnvironmentAdapter.formatDate(cutoffDate, "UTC", "yyyy-MM-dd");
+    const formattedCutoffDate = DateUtils.formatDate(cutoffDate, "UTC", "yyyy-MM-dd");
     
     // Initialize storages for all time series nodes
     for (var nodeName in this.source.fieldsSchema) {
@@ -255,41 +255,8 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
           ("date_start" in this.source.fieldsSchema[nodeName]["fields"] ||
            "stat_time_day" in this.source.fieldsSchema[nodeName]["fields"])) {
         
-        try {
-          const storage = this.getStorageByNode(nodeName);
-          
-          // For Google Sheets storage, we need to manually find and delete old records
-          if (storage instanceof GoogleSheetsStorage) {
-            // Get the date field name
-            const dateField = this.source.fieldsSchema[nodeName]["fields"]["date_start"] ? 
-                             "date_start" : "stat_time_day";
-            
-            // Find records to delete
-            let keysToDelete = [];
-            for (const uniqueKey in storage.values) {
-              const record = storage.values[uniqueKey];
-              const rowDate = record[dateField];
-              
-              if (rowDate && rowDate < cutoffDate) {
-                keysToDelete.push(uniqueKey);
-              }
-            }
-            
-            // Delete the old records
-            let deletedCount = 0;
-            for (const key of keysToDelete) {
-              storage.deleteRecord(key);
-              deletedCount++;
-            }
-            
-            if (deletedCount > 0) {
-              this.config.logMessage(`Deleted ${deletedCount} rows from ${nodeName} that were older than ${formattedCutoffDate}`);
-            }
-          }
-        } catch (error) {
-          this.config.logMessage(`Error cleaning up old data from ${nodeName}: ${error.message}`);
-          console.error(`Error details: ${error.stack}`);
-        }
+        // Note: Cleanup is not supported for current storage types
+        // This functionality was previously available for GoogleSheetsStorage
       }
     }
   }

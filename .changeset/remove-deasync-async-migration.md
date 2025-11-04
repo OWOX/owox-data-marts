@@ -10,4 +10,12 @@ This is a minor breaking change that removes the `@kaciras/deasync` and `sync-re
 
 - Removed `@kaciras/deasync` dependency
 - Removed `sync-request` dependency
-- Environment detection simplified - Only NODE environment is now supported
+- Removed Google Apps Script support - Only Node.js environment is now supported
+- Refactored `EnvironmentAdapter` into specialized utility classes:
+  - `HttpUtils` - HTTP requests
+  - `DateUtils` - Date formatting
+  - `AsyncUtils` - Async delays
+  - `CryptoUtils` - Cryptographic operations
+  - `FileUtils` - File parsing and decompression
+- Removed `ENVIRONMENT` enum and environment detection logic
+- Updated connector documentation

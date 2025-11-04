@@ -110,7 +110,7 @@ async _fetchObservations({ fields, start_time, end_time }) {
 
     console.log(`Bank of Canada API Request URL:`, url);
 
-    const response = await EnvironmentAdapter.fetch(url, {'method': 'get', 'muteHttpExceptions': true});
+    const response = await HttpUtils.fetch(url, {'method': 'get', 'muteHttpExceptions': true});
     const result = await response.getContentText();
 
     return JSON.parse(result);

@@ -125,7 +125,7 @@ var GitHubSource = class GitHubSource extends AbstractSource {
       const baseUrl = "https://api.github.com/";
       const url = `${baseUrl}${endpoint}`;
 
-      const response = await EnvironmentAdapter.fetch(url, {
+      const response = await HttpUtils.fetch(url, {
         'method': 'get',
         'muteHttpExceptions': true,
         'headers': {

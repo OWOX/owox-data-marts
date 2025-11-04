@@ -36,7 +36,7 @@ var OAuthUtils = {
     };
 
     try {
-      const resp = await EnvironmentAdapter.fetch(tokenUrl, options);
+      const resp = await HttpUtils.fetch(tokenUrl, options);
       const text = await resp.getContentText();
       const json = JSON.parse(text);
 

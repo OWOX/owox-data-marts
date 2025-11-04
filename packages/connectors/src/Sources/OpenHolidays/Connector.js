@@ -6,7 +6,7 @@
  */
 
 var OpenHolidaysConnector = class OpenHolidaysConnector extends AbstractConnector {
-  constructor(config, source, storageName = "GoogleSheetsStorage", runConfig = null) {
+  constructor(config, source, storageName = "GoogleBigQueryStorage", runConfig = null) {
     super(config, source, null, runConfig);
 
     this.storageName = storageName;
@@ -135,8 +135,8 @@ var OpenHolidaysConnector = class OpenHolidaysConnector extends AbstractConnecto
     endDate.setDate(endDate.getDate() + daysToFetch - 1);
 
     return {
-      startDate: EnvironmentAdapter.formatDate(startDate, "UTC", "yyyy-MM-dd"),
-      endDate: EnvironmentAdapter.formatDate(endDate, "UTC", "yyyy-MM-dd")
+      startDate: DateUtils.formatDate(startDate, "UTC", "yyyy-MM-dd"),
+      endDate: DateUtils.formatDate(endDate, "UTC", "yyyy-MM-dd")
     };
   }
 }

@@ -8,7 +8,7 @@
 var FacebookMarketingConnector = class FacebookMarketingConnector extends AbstractConnector {
 
   // ---- constructor ------------------------------------
-      constructor(config, source, storageName = "GoogleSheetsStorage", runConfig = null) {
+      constructor(config, source, storageName = "GoogleBigQueryStorage", runConfig = null) {
     
     super(config, source, null, runConfig);
     
@@ -107,17 +107,14 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
       // start requesting data day by day from startDate to startDate + daysToFetch
       for(var daysShift = 0; daysShift < daysToFetch; daysShift++) {
 
-      //this.config.logMessage(`Start importing data for ${EnvironmentAdapter.formatDate(startDate, "UTC", "yyyy-MM-dd")}`);
 
         // itterating accounts
         for (let accountId of accountsIds) {
 
-          //this.config.logMessage(`Start importing data for ${EnvironmentAdapter.formatDate(startDate, "UTC", "yyyy-MM-dd")}: ${accountId}`);
-
           // itteration nodes to fetch data
           for(var nodeName in timeSeriesNodes) {
 
-            this.config.logMessage(`Start importing data for ${EnvironmentAdapter.formatDate(startDate, "UTC", "yyyy-MM-dd")}: ${accountId}/${nodeName}`);
+            this.config.logMessage(`Start importing data for ${DateUtils.formatDate(startDate, "UTC", "yyyy-MM-dd")}: ${accountId}/${nodeName}`);
 
             // fetching new data from a data source
             let data = await this.source.fetchData(nodeName, accountId, timeSeriesNodes[ nodeName ], startDate);

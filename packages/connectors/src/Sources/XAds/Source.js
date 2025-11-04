@@ -133,7 +133,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
    * @returns {Array<Object>}
    */
   async fetchData({ nodeName, accountId, fields = [], start_time, end_time }) {
-    await EnvironmentAdapter.delay(this.config.AdsApiDelay.value * 1000);
+    await AsyncUtils.delay(this.config.AdsApiDelay.value * 1000);
 
     switch (nodeName) {
       case 'accounts': {
@@ -344,7 +344,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
     // extend end_time by one day
     const e = new Date(end_time);
     e.setDate(e.getDate() + 1);
-    const endStr = EnvironmentAdapter.formatDate(e, 'UTC', 'yyyy-MM-dd');
+    const endStr = DateUtils.formatDate(e, 'UTC', 'yyyy-MM-dd');
 
     const result = [];
     for (let i = 0; i < ids.length; i += this.config.StatsMaxEntityIds.value) {
@@ -409,7 +409,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
 
     const oauth = this._generateOAuthHeader({ method: 'GET', url, params });
 
-    await EnvironmentAdapter.delay(1000);
+    await AsyncUtils.delay(1000);
 
     const resp = await this.urlFetchWithRetry(finalUrl, {
       method: 'GET',
@@ -495,7 +495,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
     const { ConsumerKey, ConsumerSecret, AccessToken, AccessTokenSecret } = this.config;
     const oauth = {
       oauth_consumer_key: ConsumerKey.value,
-      oauth_nonce: EnvironmentAdapter.getUuid().replace(/-/g,''),
+      oauth_nonce: CryptoUtils.getUuid().replace(/-/g,''),
       oauth_signature_method:'HMAC-SHA1',
       oauth_timestamp: Math.floor(Date.now()/1000),
       oauth_token: AccessToken.value,
@@ -512,9 +512,9 @@ var XAdsSource = class XAdsSource extends AbstractSource {
       )
     ].join('&');
     const signingKey = encodeURIComponent(ConsumerSecret.value) + '&' + encodeURIComponent(AccessTokenSecret.value);
-    oauth.oauth_signature = EnvironmentAdapter.base64Encode(
-      EnvironmentAdapter.computeHmacSignature(
-        EnvironmentAdapter.MacAlgorithm.HMAC_SHA_1,
+    oauth.oauth_signature = CryptoUtils.base64Encode(
+      CryptoUtils.computeHmacSignature(
+        CryptoUtils.MacAlgorithm.HMAC_SHA_1,
         baseString,
         signingKey
       )

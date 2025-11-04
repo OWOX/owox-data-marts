@@ -124,7 +124,7 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
     }
 
     const baseUrl = 'https://ads-api.reddit.com/api/v3/';
-    let formattedDate = startDate ? EnvironmentAdapter.formatDate(startDate, "UTC", "yyyy-MM-dd") : null;
+    let formattedDate = startDate ? DateUtils.formatDate(startDate, "UTC", "yyyy-MM-dd") : null;
 
     // Base headers for all requests
     let headers = {
@@ -219,7 +219,7 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
     const headers = {
       "Content-Type": "application/x-www-form-urlencoded",
       "User-Agent": this.config.UserAgent.value,
-      "Authorization": "Basic " + EnvironmentAdapter.base64Encode(clientId + ":" + clientSecret)
+      "Authorization": "Basic " + CryptoUtils.base64Encode(clientId + ":" + clientSecret)
     };
     const payload = {
       "grant_type": "refresh_token",
@@ -237,7 +237,7 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
     };
 
     try {
-      const response = await EnvironmentAdapter.fetch(url, options);
+      const response = await HttpUtils.fetch(url, options);
       const result = await response.getContentText();
       const json = JSON.parse(result);
 

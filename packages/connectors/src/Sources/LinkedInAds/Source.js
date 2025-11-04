@@ -378,7 +378,7 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
 
     const authUrl = `${url}${url.includes('?') ? '&' : '?'}oauth2_access_token=${this.config.AccessToken.value}`;
 
-    const response = await EnvironmentAdapter.fetch(authUrl, { headers });
+    const response = await HttpUtils.fetch(authUrl, { headers });
     const text = await response.getContentText();
     const result = JSON.parse(text);
 

@@ -74,7 +74,7 @@ var AbstractSource = class AbstractSource {
     async urlFetchWithRetry(url, options) {
       for (let attempt = 1; attempt <= this.config.MaxFetchRetries.value; attempt++) {
         try {
-          const response = await EnvironmentAdapter.fetch(url, { ...options, muteHttpExceptions: true });
+          const response = await HttpUtils.fetch(url, { ...options, muteHttpExceptions: true });
           return await this._validateResponse(response);
         }
         catch (error) {
@@ -170,7 +170,7 @@ var AbstractSource = class AbstractSource {
     async _waitBeforeRetry(attempt) {
       const delay = this.calculateBackoff(attempt);
       console.log(`Retrying after ${Math.round(delay/1000)}s...`);
-      await EnvironmentAdapter.delay(delay);
+      await AsyncUtils.delay(delay);
     }
     
   //---- calculateBackoff --------------------------------------------

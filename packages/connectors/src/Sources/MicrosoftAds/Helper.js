@@ -38,8 +38,8 @@ const MicrosoftAdsHelper = {
         if (Date.now() - startTime > timeout) {
           throw new Error('Polling timed out after 15 minutes');
         }
-        await EnvironmentAdapter.delay(interval);
-        const response = await EnvironmentAdapter.fetch(url, options);
+        await AsyncUtils.delay(interval);
+        const response = await HttpUtils.fetch(url, options);
         const text = await response.getContentText();
         statusResult = JSON.parse(text);
       } while (!isDone(statusResult));
@@ -59,13 +59,13 @@ const MicrosoftAdsHelper = {
    * @returns {Array<Array<string>>}
    */
   async downloadCsvRows(url) {
-    const response = await EnvironmentAdapter.fetch(url);
+    const response = await HttpUtils.fetch(url);
     const blob = await response.getBlob();
-    const files = EnvironmentAdapter.unzip(blob);
+    const files = FileUtils.unzip(blob);
     const allRows = [];
     files.forEach(file => {
       const csvText = file.getDataAsString();
-      const rows = EnvironmentAdapter.parseCsv(csvText);
+      const rows = FileUtils.parseCsv(csvText);
       allRows.push(...rows);
     });
     return allRows;
