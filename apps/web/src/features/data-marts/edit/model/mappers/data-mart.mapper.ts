@@ -4,7 +4,7 @@ import { DataMartStatusModel } from '../../../shared';
 import { mapDataStorageFromDto } from '../../../../data-storage/shared/model/mappers';
 
 import { mapDefinitionFromDto } from './definition-mappers';
-import { canActualizeSchema } from '../helpers/can-actualize-data-mart-schema.helper';
+import { canActualizeSchema } from '../helpers';
 
 /**
  * Maps a data mart response DTO to a domain model

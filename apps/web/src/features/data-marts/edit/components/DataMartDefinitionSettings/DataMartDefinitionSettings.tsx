@@ -147,7 +147,6 @@ export function DataMartDefinitionSettings() {
         try {
           await updateDataMartDefinition(dataMartId, data.definitionType, data.definition);
           setShouldActualizeSchema(true);
-          // await runActualize();
           reset(data);
         } catch (error) {
           console.error('Failed to update data mart definition:', error);

@@ -63,7 +63,8 @@ export function DataMartSchemaSettings() {
     resetSchema();
   }, [resetSchema]);
 
-  const isProcessing = isLoading || isSchemaActualizationLoading;
+  // Disable buttons during schema operations (save or actualization)
+  const isSchemaOperationInProgress = isLoading || isSchemaActualizationLoading;
 
   if (!dataMart) {
     return <div>Error: Data mart not found</div>;
@@ -78,14 +79,18 @@ export function DataMartSchemaSettings() {
       />
       <div className='align-items-center mt-8 flex justify-between'>
         <div className='flex space-x-4'>
-          <Button variant={'default'} onClick={handleSave} disabled={!isDirty || isProcessing}>
+          <Button
+            variant={'default'}
+            onClick={handleSave}
+            disabled={!isDirty || isSchemaOperationInProgress}
+          >
             Save
           </Button>
           <Button
             type='button'
             variant='ghost'
             onClick={handleDiscard}
-            disabled={!isDirty || isProcessing}
+            disabled={!isDirty || isSchemaOperationInProgress}
           >
             Discard
           </Button>
