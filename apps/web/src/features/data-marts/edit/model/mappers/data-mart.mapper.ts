@@ -4,12 +4,13 @@ import { DataMartStatusModel } from '../../../shared';
 import { mapDataStorageFromDto } from '../../../../data-storage/shared/model/mappers';
 
 import { mapDefinitionFromDto } from './definition-mappers';
+import { canActualizeSchema } from '../helpers/can-actualize-data-mart-schema.helper';
 
 /**
  * Maps a data mart response DTO to a domain model
  */
 export function mapDataMartFromDto(dataMartDto: DataMartResponseDto): DataMart {
-  return {
+  const dataMart = {
     id: dataMartDto.id,
     title: dataMartDto.title,
     description: dataMartDto.description,
@@ -21,8 +22,12 @@ export function mapDataMartFromDto(dataMartDto: DataMartResponseDto): DataMart {
     createdAt: new Date(dataMartDto.createdAt),
     modifiedAt: new Date(dataMartDto.modifiedAt),
     canPublish: false,
+    canActualizeSchema: false,
     validationErrors: [],
   };
+
+  dataMart.canActualizeSchema = canActualizeSchema(dataMart.definitionType, dataMart.schema);
+  return dataMart;
 }
 
 /**

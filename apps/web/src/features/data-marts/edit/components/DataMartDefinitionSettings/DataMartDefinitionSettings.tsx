@@ -15,10 +15,36 @@ import type { DataMartContextType } from '../../model/context/types.ts';
 import { getEmptyDefinition } from '../../utils/definition-helpers.ts';
 import SqlValidator from '../SqlValidator/SqlValidator.tsx';
 import type { DataMartDefinitionConfigDto, SqlDefinitionConfig } from '../../model';
-import { useSchemaActualizeTrigger } from '../../../shared/hooks/useSchemaActualizeTrigger';
+
+interface SqlValidationState {
+  isValid: boolean | null;
+  isLoading: boolean;
+  error: string | null;
+}
+
+const initialSqlValidationState: SqlValidationState = {
+  isValid: null,
+  isLoading: false,
+  error: null,
+};
+
+const getSqlQueryFromDefinition = (
+  definitionType: DataMartDefinitionType | null,
+  currentDefinition: unknown
+): string => {
+  if (definitionType !== DataMartDefinitionType.SQL) {
+    return '';
+  }
+
+  const sqlDefinition = currentDefinition as SqlDefinitionConfig | undefined;
+  return sqlDefinition?.sqlQuery ?? '';
+};
+
+const getEmptyDefinitionForUpdate = (type: DataMartDefinitionType): DataMartDefinitionConfigDto =>
+  getEmptyDefinition(type) as DataMartDefinitionConfigDto;
 
 export function DataMartDefinitionSettings() {
-  const { dataMart, updateDataMartDefinition, getDataMart } =
+  const { dataMart, updateDataMartDefinition, runSchemaActualization } =
     useOutletContext<DataMartContextType>();
   const preset = useDataMartPreset();
 
@@ -35,15 +61,9 @@ export function DataMartDefinitionSettings() {
   const [definitionType, setDefinitionType] = useState<DataMartDefinitionType | null>(
     initialDefinitionType
   );
-  const [, setSqlValidationState] = useState<{
-    isValid: boolean | null;
-    isLoading: boolean;
-    error: string | null;
-  }>({
-    isValid: null,
-    isLoading: false,
-    error: null,
-  });
+  const [, setSqlValidationState] = useState<SqlValidationState>(initialSqlValidationState);
+  const [shouldActualizeSchema, setShouldActualizeSchema] = useState(false);
+
   const getInitialFormValues = useCallback((): DataMartDefinitionFormData | undefined => {
     if (!definitionType) return undefined;
 
@@ -79,18 +99,6 @@ export function DataMartDefinitionSettings() {
     formState: { isDirty, isValid },
   } = methods;
 
-  const getSqlQueryFromDefinition = (
-    definitionType: DataMartDefinitionType | null,
-    currentDefinition: unknown
-  ): string => {
-    if (definitionType !== DataMartDefinitionType.SQL) {
-      return '';
-    }
-
-    const sqlDefinition = currentDefinition as SqlDefinitionConfig | undefined;
-    return sqlDefinition?.sqlQuery ?? '';
-  };
-
   const currentDefinition = watch('definition');
   const sqlCode = getSqlQueryFromDefinition(definitionType, currentDefinition);
 
@@ -99,9 +107,6 @@ export function DataMartDefinitionSettings() {
       reset(getInitialFormValues());
     }
   }, [definitionType, reset, getInitialFormValues]);
-
-  const getEmptyDefinitionForUpdate = (type: DataMartDefinitionType): DataMartDefinitionConfigDto =>
-    getEmptyDefinition(type) as DataMartDefinitionConfigDto;
 
   useEffect(() => {
     if (!definitionType && !initialDefinitionType && preset?.definitionType) {
@@ -132,39 +137,44 @@ export function DataMartDefinitionSettings() {
     []
   );
 
-  const handleTypeSelect = (type: DataMartDefinitionType) => {
+  const handleTypeSelect = useCallback((type: DataMartDefinitionType) => {
     setDefinitionType(type);
-  };
+  }, []);
 
-  const onActualizeSuccess = useCallback(() => {
-    if (!dataMartId) return;
-    void getDataMart(dataMartId);
-  }, [dataMartId, getDataMart]);
-
-  const { run: runActualize } = useSchemaActualizeTrigger(dataMartId, onActualizeSuccess);
-
-  const onSubmit: SubmitHandler<DataMartDefinitionFormData> = async (
-    data: DataMartDefinitionFormData
-  ) => {
-    if (definitionType && dataMartId) {
-      try {
-        await updateDataMartDefinition(dataMartId, data.definitionType, data.definition);
-        await runActualize();
-        reset(data);
-      } catch (error) {
-        console.error('Failed to update data mart definition:', error);
+  const onSubmit: SubmitHandler<DataMartDefinitionFormData> = useCallback(
+    async (data: DataMartDefinitionFormData) => {
+      if (definitionType && dataMartId) {
+        try {
+          await updateDataMartDefinition(dataMartId, data.definitionType, data.definition);
+          setShouldActualizeSchema(true);
+          // await runActualize();
+          reset(data);
+        } catch (error) {
+          console.error('Failed to update data mart definition:', error);
+        }
       }
+    },
+    [dataMartId, definitionType, updateDataMartDefinition, reset]
+  );
+
+  useEffect(() => {
+    if (shouldActualizeSchema) {
+      setShouldActualizeSchema(false);
+      void runSchemaActualization?.();
     }
-  };
+  }, [shouldActualizeSchema, runSchemaActualization]);
 
-  const handleFormSubmit = (e?: React.FormEvent<HTMLFormElement>) => {
-    e?.preventDefault();
-    void handleSubmit(onSubmit)(e);
-  };
+  const handleFormSubmit = useCallback(
+    (e?: React.FormEvent<HTMLFormElement>) => {
+      e?.preventDefault();
+      void handleSubmit(onSubmit)(e);
+    },
+    [handleSubmit, onSubmit]
+  );
 
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     reset(getInitialFormValues());
-  };
+  }, [reset, getInitialFormValues]);
 
   const renderDefinitionForm = () => {
     if (!definitionType) return null;

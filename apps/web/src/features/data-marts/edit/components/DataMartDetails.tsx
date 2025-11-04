@@ -52,14 +52,23 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
 
-  const dataMartId = dataMart?.id ?? '';
+  const { id: dataMartId = '', canActualizeSchema = false } = dataMart ?? {};
 
   const onActualizeSuccess = useCallback(() => {
     if (!dataMartId) return;
     void getDataMart(dataMartId);
   }, [dataMartId, getDataMart]);
 
-  const { run: runActualize } = useSchemaActualizeTrigger(dataMartId, onActualizeSuccess);
+  const { run: runActualizeSchemaInternal, isLoading: isSchemaActualizationLoading } =
+    useSchemaActualizeTrigger(dataMartId, onActualizeSuccess);
+
+  // Wrap with canActualizeSchema check before running schema actualization
+  const runSchemaActualization = useCallback(async () => {
+    if (!canActualizeSchema) {
+      return;
+    }
+    await runActualizeSchemaInternal();
+  }, [canActualizeSchema, runActualizeSchemaInternal]);
 
   const navigation = [
     { name: 'Overview', path: 'overview' },
@@ -69,36 +78,42 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     { name: 'Run History', path: 'run-history' },
   ];
 
-  const handleTitleUpdate = async (newTitle: string) => {
-    if (!dataMart) return;
-    await updateDataMartTitle(dataMart.id, newTitle);
-  };
+  const handleTitleUpdate = useCallback(
+    async (newTitle: string) => {
+      if (!dataMart) return;
+      await updateDataMartTitle(dataMart.id, newTitle);
+    },
+    [dataMart, updateDataMartTitle]
+  );
 
-  const handlePublish = async () => {
+  const handlePublish = useCallback(async () => {
     if (!dataMart) return;
     setIsPublishing(true);
 
     try {
       await publishDataMart(dataMart.id);
-      void runActualize();
+      void runSchemaActualization();
     } catch (error) {
       console.log(error instanceof Error ? error.message : 'Failed to publish Data Mart');
     } finally {
       setIsPublishing(false);
     }
-  };
+  }, [dataMart, publishDataMart, runSchemaActualization]);
 
-  const handleManualRun = async (payload: Record<string, unknown>) => {
-    if (!dataMart) return;
-    if (dataMart.status.code !== DataMartStatus.PUBLISHED) {
-      toast.error('Manual run is only available for published Data Marts');
-      return;
-    }
-    await runDataMart({
-      id: dataMart.id,
-      payload,
-    });
-  };
+  const handleManualRun = useCallback(
+    async (payload: Record<string, unknown>) => {
+      if (!dataMart) return;
+      if (dataMart.status.code !== DataMartStatus.PUBLISHED) {
+        toast.error('Manual run is only available for published Data Marts');
+        return;
+      }
+      await runDataMart({
+        id: dataMart.id,
+        payload,
+      });
+    },
+    [dataMart, runDataMart]
+  );
 
   if (isLoading) {
     // Loading data mart details...
@@ -280,6 +295,8 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
             loadMoreDataMartRuns,
             runs,
             getDataMart,
+            runSchemaActualization,
+            isSchemaActualizationLoading,
           }}
         />
       </div>

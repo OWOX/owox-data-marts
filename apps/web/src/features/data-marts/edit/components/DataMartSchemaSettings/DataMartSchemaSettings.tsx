@@ -8,17 +8,22 @@ import type {
 import type { DataMartContextType } from '../../model/context/types.ts';
 import { useOperationState, useSchemaState } from './hooks';
 import { SchemaContent } from './SchemaContent';
-import { useSchemaActualizeTrigger } from '../../../shared/hooks/useSchemaActualizeTrigger';
 
 /**
  * Main component for editing data mart schema settings
  * Uses custom hooks for state management and the SchemaContent component for rendering
  */
 export function DataMartSchemaSettings() {
-  const { dataMart, updateDataMartSchema, isLoading, error, getDataMart } =
-    useOutletContext<DataMartContextType>();
+  const {
+    dataMart,
+    updateDataMartSchema,
+    isLoading,
+    error,
+    runSchemaActualization,
+    isSchemaActualizationLoading,
+  } = useOutletContext<DataMartContextType>();
 
-  const initialSchema = dataMart?.schema;
+  const { id: dataMartId = '', schema: initialSchema } = dataMart ?? {};
 
   const { schema, isDirty, updateSchema, resetSchema } = useSchemaState(initialSchema);
   const { operationStatus, startSaveOperation } = useOperationState(isLoading, error);
@@ -38,70 +43,62 @@ export function DataMartSchemaSettings() {
     [updateSchema]
   );
 
-  const dataMartId = dataMart?.id ?? '';
+  // Handle save
+  const handleSave = useCallback(() => {
+    if (dataMartId && schema) {
+      startSaveOperation();
+      void updateDataMartSchema(dataMartId, schema).then(() => {
+        void runSchemaActualization?.();
+      });
+    }
+  }, [dataMartId, schema, startSaveOperation, updateDataMartSchema, runSchemaActualization]);
 
-  const onActualizeSuccess = useCallback(() => {
-    if (!dataMartId) return;
-    void getDataMart(dataMartId);
-  }, [dataMartId, getDataMart]);
+  // Handle actualize
+  const handleActualize = useCallback(() => {
+    void runSchemaActualization?.();
+  }, [runSchemaActualization]);
 
-  const { run: runActualize, isLoading: isActualizeLoading } = useSchemaActualizeTrigger(
-    dataMartId,
-    onActualizeSuccess
-  );
+  // Handle discard
+  const handleDiscard = useCallback(() => {
+    resetSchema();
+  }, [resetSchema]);
+
+  const isProcessing = isLoading || isSchemaActualizationLoading;
 
   if (!dataMart) {
     return <div>Error: Data mart not found</div>;
   }
 
-  // Handle save
-  const handleSave = () => {
-    if (dataMartId && schema) {
-      startSaveOperation();
-      void updateDataMartSchema(dataMartId, schema).then(() => {
-        void runActualize();
-      });
-    }
-  };
-
-  // Handle actualize
-  const handleActualize = () => {
-    void runActualize();
-  };
-
-  // Handle discard
-  const handleDiscard = () => {
-    resetSchema();
-  };
-
   return (
     <div className='space-y-4'>
-      <div className='space-y-4'>
-        <SchemaContent
-          schema={schema}
-          storageType={dataMart.storage.type}
-          onFieldsChange={handleSchemaFieldsChange}
-        />
-        <div className='align-items-center mt-8 flex justify-between'>
-          <div className='flex space-x-4'>
-            <Button variant={'default'} onClick={handleSave} disabled={!isDirty}>
-              Save
-            </Button>
-            <Button type='button' variant='ghost' onClick={handleDiscard} disabled={!isDirty}>
-              Discard
-            </Button>
-          </div>
-          <div>
-            <Button
-              type='button'
-              variant='outline'
-              onClick={handleActualize}
-              disabled={isActualizeLoading}
-            >
-              Refresh schema
-            </Button>
-          </div>
+      <SchemaContent
+        schema={schema}
+        storageType={dataMart.storage.type}
+        onFieldsChange={handleSchemaFieldsChange}
+      />
+      <div className='align-items-center mt-8 flex justify-between'>
+        <div className='flex space-x-4'>
+          <Button variant={'default'} onClick={handleSave} disabled={!isDirty || isProcessing}>
+            Save
+          </Button>
+          <Button
+            type='button'
+            variant='ghost'
+            onClick={handleDiscard}
+            disabled={!isDirty || isProcessing}
+          >
+            Discard
+          </Button>
         </div>
+
+        <Button
+          type='button'
+          variant='outline'
+          onClick={handleActualize}
+          disabled={isSchemaActualizationLoading}
+        >
+          Refresh schema
+        </Button>
       </div>
     </div>
   );

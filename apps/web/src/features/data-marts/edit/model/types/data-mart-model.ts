@@ -67,4 +67,9 @@ export interface DataMart {
    * Data mart schema
    */
   schema: DataMartSchema | null;
+
+  /**
+   * Indicates if the data mart schema can be actualizable
+   */
+  canActualizeSchema: boolean;
 }
