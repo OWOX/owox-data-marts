@@ -132,10 +132,8 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
                 </FormItem>
               )}
             />
-          </FormSection>
 
-          {form.watch('runType') === RunType.INCREMENTAL && (
-            <FormSection>
+            {form.watch('runType') === RunType.INCREMENTAL && (
               <AppWizardCollapsible title='State Info'>
                 {(() => {
                   const config = configuration?.connector.source.configuration ?? [];
@@ -161,7 +159,7 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
                       <FormItem>
                         <FormLabel>Connector state</FormLabel>
                         <FormControl>
-                          <div className='text-muted-foreground px-3 py-2 text-sm'>
+                          <div className='bg-muted min-h-[70px] cursor-not-allowed overflow-auto rounded-md px-3 py-2 font-mono text-sm whitespace-pre-wrap opacity-70'>
                             No state available
                           </div>
                         </FormControl>
@@ -213,8 +211,8 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
                   );
                 })()}
               </AppWizardCollapsible>
-            </FormSection>
-          )}
+            )}
+          </FormSection>
           {form.watch('runType') === RunType.MANUAL_BACKFILL && (
             <FormSection title='Run configuration'>
               {connectorSpecification
