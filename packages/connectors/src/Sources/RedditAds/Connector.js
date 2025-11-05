@@ -6,7 +6,7 @@
  */
 
 var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
-  constructor(config, source, storageName = "GoogleSheetsStorage", runConfig = null) {
+  constructor(config, source, storageName = "GoogleBigQueryStorage", runConfig = null) {
     super(config, source, null, runConfig);
 
     this.storageName = storageName;
@@ -16,13 +16,13 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
    * Main method - entry point for the import process
    * Processes all nodes defined in the fields configuration
    */
-  startImportProcess() {
-    const fields = RedditAdsHelper.parseFields(this.config.Fields.value);    
+  async startImportProcess() {
+    const fields = RedditAdsHelper.parseFields(this.config.Fields.value);
     const accountIds = RedditAdsHelper.parseAccountIds(this.config.AccountIDs.value);
 
     for (const accountId of accountIds) {
       for (const nodeName in fields) {
-        this.processNode({
+        await this.processNode({
           nodeName,
           accountId,
           fields: fields[nodeName] || []
@@ -38,15 +38,15 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
    * @param {string} options.accountId - Account ID
    * @param {Array<string>} options.fields - Array of fields to fetch
    */
-  processNode({ nodeName, accountId, fields }) {
+  async processNode({ nodeName, accountId, fields }) {
     if (this.source.fieldsSchema[nodeName].isTimeSeries) {
-      this.processTimeSeriesNode({
+      await this.processTimeSeriesNode({
         nodeName,
         accountId,
         fields
       });
     } else {
-      this.processCatalogNode({
+      await this.processCatalogNode({
         nodeName,
         accountId,
         fields
@@ -62,29 +62,30 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
    * @param {Array<string>} options.fields - Array of fields to fetch
    * @param {Object} options.storage - Storage instance
    */
-  processTimeSeriesNode({ nodeName, accountId, fields }) {
+  async processTimeSeriesNode({ nodeName, accountId, fields }) {
     const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
-  
+
     if (daysToFetch <= 0) {
       console.log('No days to fetch for time series data');
       return;
     }
-  
+
     for (let i = 0; i < daysToFetch; i++) {
       const currentDate = new Date(startDate);
       currentDate.setDate(currentDate.getDate() + i);
-      
-      const formattedDate = EnvironmentAdapter.formatDate(currentDate, "UTC", "yyyy-MM-dd");
+
+      const formattedDate = DateUtils.formatDate(currentDate);
 
       this.config.logMessage(`Start importing data for ${formattedDate}: ${accountId}/${nodeName}`);
 
-              const data = this.source.fetchData(nodeName, accountId, fields, currentDate);
-  
+              const data = await this.source.fetchData(nodeName, accountId, fields, currentDate);
+
       this.config.logMessage(data.length ? `${data.length} records were fetched` : `No records have been fetched`);
 
       if (data.length || this.config.CreateEmptyTables?.value) {
         const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-        this.getStorageByNode(nodeName).saveData(preparedData);
+        const storage = await this.getStorageByNode(nodeName);
+        await storage.saveData(preparedData);
       }
 
       if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
@@ -92,7 +93,7 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
       }
     }
   }
-  
+
   /**
    * Process a catalog node (e.g., campaigns, ads)
    * @param {Object} options - Processing options
@@ -101,14 +102,15 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
    * @param {Array<string>} options.fields - Array of fields to fetch
    * @param {Object} options.storage - Storage instance
    */
-  processCatalogNode({ nodeName, accountId, fields }) {
-    const data = this.source.fetchData(nodeName, accountId, fields);
-    
+  async processCatalogNode({ nodeName, accountId, fields }) {
+    const data = await this.source.fetchData(nodeName, accountId, fields);
+
     this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for account ${accountId}` : `No records have been fetched`);
 
     if (data.length || this.config.CreateEmptyTables?.value) {
       const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-      this.getStorageByNode(nodeName).saveData(preparedData);
+      const storage = await this.getStorageByNode(nodeName);
+      await storage.saveData(preparedData);
     }
   }
 
@@ -117,7 +119,7 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
    * @param {string} nodeName - Name of the node
    * @returns {Object} Storage instance
    */
-  getStorageByNode(nodeName) {
+  async getStorageByNode(nodeName) {
     if (!("storages" in this)) {
       this.storages = {};
     }
@@ -138,6 +140,8 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
         this.source.fieldsSchema[nodeName].fields,
         `${this.source.fieldsSchema[nodeName].description} ${this.source.fieldsSchema[nodeName].documentation}`
       );
+
+      await this.storages[nodeName].init();
     }
 
     return this.storages[nodeName];

@@ -93,7 +93,7 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
    * @param {Object} params - Additional parameters for the request
    * @returns {Array} - Array of processed data objects
    */
-  fetchData(nodeName, urn, params = {}) {
+  async fetchData(nodeName, urn, params = {}) {
     const fields = params.fields || [];
     const uniqueKeys = this.fieldsSchema[nodeName]?.uniqueKeys || [];
     const missingKeys = uniqueKeys.filter(key => !fields.includes(key));
@@ -104,7 +104,7 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
     
     switch (nodeName) {
       case "follower_statistics_time_bound":
-        return this.fetchOrganizationStats({
+        return await this.fetchOrganizationStats({
           urn, 
           nodeName,
           endpoint: "organizationalEntityFollowerStatistics",
@@ -113,7 +113,7 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
           params
         });
       case "follower_statistics":
-        return this.fetchOrganizationStats({
+        return await this.fetchOrganizationStats({
           urn, 
           nodeName,
           endpoint: "organizationalEntityFollowerStatistics",
@@ -139,7 +139,7 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
    * @param {Array} [options.params.fields] - Additional parameters including fields
    * @returns {Array} - Processed statistics data
    */
-  fetchOrganizationStats(options) {
+  async fetchOrganizationStats(options) {
     const { urn, nodeName, endpoint, entityParam, formatter, params } = options;
     const orgUrn = `urn:li:organization:${urn}`;
     const encodedUrn = encodeURIComponent(orgUrn);
@@ -154,13 +154,13 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
       url += `&timeIntervals=(timeRange:(start:${startTimestamp},end:${endTimestamp}),timeGranularityType:DAY)`;
     }
 
-    const response = this.makeRequest(url);
+    const response = await this.makeRequest(url);
     const elements = response.elements || [];
-    
+
     if (elements.length === 0) {
       return [];
     }
-    
+
     return formatter({
       elements,
       orgUrn,
@@ -174,9 +174,9 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
    * @param {Object} headers - Optional additional headers
    * @returns {Object} - API response parsed from JSON
    */
-  makeRequest(url) {
+  async makeRequest(url) {
     console.log(`LinkedIn Pages API URL:`, url);
-    OAuthUtils.getAccessToken({ 
+    await OAuthUtils.getAccessToken({
       config: this.config,
       tokenUrl: "https://www.linkedin.com/oauth/v2/accessToken",
       formData: {
@@ -186,20 +186,21 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
         client_secret: this.config.ClientSecret.value
       }
     });
-    
+
     const headers = {
       "LinkedIn-Version": "202509",
       "X-RestLi-Protocol-Version": "2.0.0",
     };
-      
+
     const authUrl = `${url}${url.includes('?') ? '&' : '?'}oauth2_access_token=${this.config.AccessToken.value}`;
-      
-    const response = EnvironmentAdapter.fetch(authUrl, { headers });
-    const result = JSON.parse(response.getContentText());
-    if (result.status && result.status >= HTTP_STATUS.BAD_REQUEST) {
-      throw new Error(`LinkedIn API Error: ${result.message || 'Unknown error'} (Status: ${result.status})`);
+
+    const response = await HttpUtils.fetch(authUrl, { headers });
+    const result = await response.getContentText();
+    const parsedResult = JSON.parse(result);
+    if (parsedResult.status && parsedResult.status >= HTTP_STATUS.BAD_REQUEST) {
+      throw new Error(`LinkedIn API Error: ${parsedResult.message || 'Unknown error'} (Status: ${parsedResult.status})`);
     }
-    return result;
+    return parsedResult;
   }
   
   /**

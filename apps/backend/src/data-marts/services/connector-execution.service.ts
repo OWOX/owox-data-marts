@@ -33,11 +33,13 @@ import { ConsumptionTrackingService } from './consumption-tracking.service';
 import { DataMartService } from './data-mart.service';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { GracefulShutdownService } from '../../common/scheduler/services/graceful-shutdown.service';
+import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 import { ConnectorExecutionError } from '../errors/connector-execution.error';
 import { OWOX_PRODUCER } from '../../common/producer/producer.module';
 import { OwoxProducer } from '@owox/internal-helpers';
 import { ConnectorRunSuccessfullyEvent } from '../events/connector-run-successfully.event';
 import { RunType } from '../../common/scheduler/shared/types';
+import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 
 interface ConfigurationExecutionResult {
   configIndex: number;
@@ -59,6 +61,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     private readonly gracefulShutdownService: GracefulShutdownService,
     private readonly consumptionTracker: ConsumptionTrackingService,
     private readonly configService: ConfigService,
+    private readonly systemTimeService: SystemTimeService,
     @Inject(OWOX_PRODUCER)
     private readonly producer: OwoxProducer
   ) {}
@@ -97,6 +100,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     if (run.status === DataMartRunStatus.RUNNING) {
       await this.dataMartRunRepository.update(runId, {
         status: DataMartRunStatus.CANCELLED,
+        finishedAt: this.systemTimeService.now(),
       });
     }
   }
@@ -191,6 +195,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
   ): Promise<DataMartRun> {
     const dataMartRun = this.dataMartRunRepository.create({
       dataMartId: dataMart.id,
+      type: DataMartRunType.CONNECTOR,
       definitionRun: dataMart.definition,
       status: DataMartRunStatus.PENDING,
       createdById: createdById,
@@ -232,7 +237,10 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
 
       await this.dataMartRunRepository.update(runId, {
         status: DataMartRunStatus.RUNNING,
+        startedAt: this.systemTimeService.now(),
+        finishedAt: undefined,
       });
+
       const configurationResults = await this.runConnectorConfigurations(
         runId,
         processId,
@@ -568,6 +576,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
 
     await this.dataMartRunRepository.update(runId, {
       status,
+      finishedAt: this.systemTimeService.now(),
       logs: capturedLogs.map(log => JSON.stringify(log)),
       errors: capturedErrors.map(error => JSON.stringify(error)),
     });

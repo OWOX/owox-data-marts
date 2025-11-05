@@ -89,10 +89,10 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
    * @param {Date} opts.date
    * @returns {Array<Object>}
    */
-  fetchData({ nodeName, accountId, fields = [], date }) {
+  async fetchData({ nodeName, accountId, fields = [], date }) {
     switch (nodeName) {
       case 'statistics':
-        return this._fetchStatistics({ accountId, fields, date });
+        return await this._fetchStatistics({ accountId, fields, date });
 
       default:
         throw new Error(`Unknown node: ${nodeName}`);
@@ -108,7 +108,7 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
    * @returns {Array<Object>} - Parsed and enriched data
    * @private
    */
-  _fetchStatistics({ accountId, fields, date }) {
+  async _fetchStatistics({ accountId, fields, date }) {
     const uniqueKeys = this.fieldsSchema.statistics.uniqueKeys || [];
     const missingKeys = uniqueKeys.filter(key => !fields.includes(key));
     
@@ -116,11 +116,12 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
       throw new Error(`Missing required unique fields for endpoint 'statistics'. Missing fields: ${missingKeys.join(', ')}`);
     }
 
-    this.getAccessToken();
+    await this.getAccessToken();
     
     const requestBody = this._buildStatisticsRequestBody({ accountId, fields, date });
-    const response = this._makeApiRequest(requestBody);
-    const jsonObject = JSON.parse(response.getContentText());
+    const response = await this._makeApiRequest(requestBody);
+    const text = await response.getContentText();
+    const jsonObject = JSON.parse(text);
     
     return this.parseApiResponse({ apiResponse: jsonObject, date, accountId, fields });
   }
@@ -163,7 +164,7 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
    * @returns {Object} - HTTP response
    * @private
    */
-  _makeApiRequest(requestBody) {
+  async _makeApiRequest(requestBody) {
     const apiVersion = "2025-07";
     const apiUrl = `https://api.criteo.com/${apiVersion}/statistics/report`;
     const options = {
@@ -177,13 +178,14 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
       body: JSON.stringify(requestBody) // TODO: body is for Node.js; refactor to centralize JSON option creation
     };
 
-    const response = this.urlFetchWithRetry(apiUrl, options);
+    const response = await this.urlFetchWithRetry(apiUrl, options);
     const responseCode = response.getResponseCode();
     
     if (responseCode === HTTP_STATUS.OK) {
       return response;
     } else {
-      throw new Error(`API Error (${responseCode}): ${response.getContentText()}`);
+      const text = await response.getContentText();
+      throw new Error(`API Error (${responseCode}): ${text}`);
     }
   }
 
@@ -191,7 +193,7 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
    * Get access token from API
    * Docs: https://developers.criteo.com/marketing-solutions/docs/authorization-code-setup
    */
-  getAccessToken() {
+  async getAccessToken() {
     if (this.config.AccessToken?.value) {
       return;
     }
@@ -216,8 +218,9 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
     };
     
     try {
-      const response = this.urlFetchWithRetry(tokenUrl, options);
-      const responseData = JSON.parse(response.getContentText());
+      const response = await this.urlFetchWithRetry(tokenUrl, options);
+      const text = await response.getContentText();
+      const responseData = JSON.parse(text);
       const accessToken = responseData["access_token"];
       
       this.config.AccessToken = {

@@ -141,7 +141,7 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
    * @param {Date} endDate - End date for time-series data (optional)
    * @return {array} - Array of data objects
    */
-  fetchData(nodeName, advertiserId, fields, startDate = null, endDate = null) {
+  async fetchData(nodeName, advertiserId, fields, startDate = null, endDate = null) {
     // Check if the node schema exists
     if (!this.fieldsSchema[nodeName]) {
       throw new Error(`Unknown node type: ${nodeName}`);
@@ -172,10 +172,10 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
     let formattedEndDate = null;
     
     if (startDate) {
-      formattedStartDate = EnvironmentAdapter.formatDate(startDate, "UTC", "yyyy-MM-dd");
+      formattedStartDate = DateUtils.formatDate(startDate);
       // If no end date is provided, use start date as end date (single day)
-      formattedEndDate = endDate 
-        ? EnvironmentAdapter.formatDate(endDate, "UTC", "yyyy-MM-dd") 
+      formattedEndDate = endDate
+        ? DateUtils.formatDate(endDate)
         : formattedStartDate;
     }
 

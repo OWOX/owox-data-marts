@@ -132,19 +132,19 @@ var XAdsSource = class XAdsSource extends AbstractSource {
    * @param {string} [opts.end_time]
    * @returns {Array<Object>}
    */
-  fetchData({ nodeName, accountId, fields = [], start_time, end_time }) {
-    EnvironmentAdapter.sleep(this.config.AdsApiDelay.value * 1000);
+  async fetchData({ nodeName, accountId, fields = [], start_time, end_time }) {
+    await AsyncUtils.delay(this.config.AdsApiDelay.value * 1000);
 
     switch (nodeName) {
       case 'accounts': {
-        const resp = this._getData(`accounts/${accountId}`, 'accounts', fields);
+        const resp = await this._getData(`accounts/${accountId}`, 'accounts', fields);
         return [resp.data];
       }
       case 'campaigns':
       case 'line_items':
       case 'promoted_tweets':
       case 'tweets':
-        return this._catalogFetch({
+        return await this._catalogFetch({
           nodeName,
           accountId,
           fields,
@@ -152,7 +152,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
         });
 
       case 'cards':
-        return this._catalogFetch({
+        return await this._catalogFetch({
           nodeName,
           accountId,
           fields,
@@ -160,10 +160,10 @@ var XAdsSource = class XAdsSource extends AbstractSource {
         });
 
       case 'cards_all':
-        return this._fetchAllCards(accountId, fields);
+        return await this._fetchAllCards(accountId, fields);
 
       case 'stats':
-        return this._timeSeriesFetch({ nodeName, accountId, fields, start_time, end_time });
+        return await this._timeSeriesFetch({ nodeName, accountId, fields, start_time, end_time });
 
       default:
         throw new ConfigurationError(`Unknown node: ${nodeName}`);
@@ -205,10 +205,10 @@ var XAdsSource = class XAdsSource extends AbstractSource {
   /**
    * Shared logic for non-time-series endpoints
    */
-  _catalogFetch({ nodeName, accountId, fields, pageSize }) {
+  async _catalogFetch({ nodeName, accountId, fields, pageSize }) {
     const uniqueKeys = this.fieldsSchema[nodeName].uniqueKeys || [];
     const missingKeys = uniqueKeys.filter(key => !fields.includes(key));
-    
+
     if (missingKeys.length > 0) {
       throw new Error(`Missing required unique fields for endpoint '${nodeName}'. Missing fields: ${missingKeys.join(', ')}`);
     }
@@ -222,7 +222,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
       console.log('deleting cached promoted_tweets');
       this._promotedTweetsCache.delete(accountId);
     }
-    
+
     if (nodeName === 'tweets') {
       const cached = this._getCachedData(this._tweetsCache, accountId, fields);
       if (cached) {
@@ -233,7 +233,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
       this._tweetsCache.delete(accountId);
     }
 
-    let all = this._fetchPages({
+    let all = await this._fetchPages({
       accountId,
       nodeName,
       fields,
@@ -263,7 +263,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
   /**
    * Shared pagination logic
    */
-  _fetchPages({ accountId, nodeName, fields, extraParams = {}, pageSize }) {
+  async _fetchPages({ accountId, nodeName, fields, extraParams = {}, pageSize }) {
     const all = [];
     let cursor = null;
     const MAX_PAGES = 100;
@@ -276,7 +276,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
         ...(cursor ? { cursor } : {})
       };
 
-      const resp = this._getData(
+      const resp = await this._getData(
         `accounts/${accountId}/${nodeName}`,
         nodeName,
         fields,
@@ -300,8 +300,8 @@ var XAdsSource = class XAdsSource extends AbstractSource {
    * Fetch all cards by first collecting URIs from tweets,
    * then calling the cards/all endpoint in chunks.
    */
-  _fetchAllCards(accountId, fields) {
-    const tweets = this.fetchData({ nodeName: 'tweets', accountId, fields: ['id', 'card_uri'] });
+  async _fetchAllCards(accountId, fields) {
+    const tweets = await this.fetchData({ nodeName: 'tweets', accountId, fields: ['id', 'card_uri'] });
     const uris   = tweets.map(t => t.card_uri).filter(Boolean);
     if (!uris.length) return [];
 
@@ -309,7 +309,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
     const chunkSize = this.config.CardsMaxCountPerRequest.value;
     for (let i = 0; i < uris.length; i += chunkSize) {
       const chunk = uris.slice(i, i + chunkSize);
-      const resp  = this._getData(
+      const resp  = await this._getData(
         `accounts/${accountId}/cards/all`,
         'cards_all',
         fields,
@@ -328,23 +328,23 @@ var XAdsSource = class XAdsSource extends AbstractSource {
   /**
    * Stats are time-series and need flattening of `metrics`
    */
-  _timeSeriesFetch({ nodeName, accountId, fields, start_time, end_time }) {
+  async _timeSeriesFetch({ nodeName, accountId, fields, start_time, end_time }) {
     const uniqueKeys = this.fieldsSchema[nodeName].uniqueKeys || [];
     const missingKeys = uniqueKeys.filter(key => !fields.includes(key));
-    
+
     if (missingKeys.length > 0) {
       throw new Error(`Missing required unique fields for endpoint '${nodeName}'. Missing fields: ${missingKeys.join(', ')}`);
     }
 
     // first get promoted tweet IDs
-    const promos = this.fetchData({ nodeName: 'promoted_tweets', accountId, fields: ['id'] });
+    const promos = await this.fetchData({ nodeName: 'promoted_tweets', accountId, fields: ['id'] });
     const ids = promos.map(r => r.id);
     if (!ids.length) return [];
 
     // extend end_time by one day
     const e = new Date(end_time);
     e.setDate(e.getDate() + 1);
-    const endStr = EnvironmentAdapter.formatDate(e, 'UTC', 'yyyy-MM-dd');
+    const endStr = DateUtils.formatDate(e);
 
     const result = [];
     for (let i = 0; i < ids.length; i += this.config.StatsMaxEntityIds.value) {
@@ -359,7 +359,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
       };
 
       for (const placement of ['ALL_ON_TWITTER','PUBLISHER_NETWORK']) {
-        const raw = this._rawFetch(`stats/accounts/${accountId}`, { ...common, placement });
+        const raw = await this._rawFetch(`stats/accounts/${accountId}`, { ...common, placement });
         const arr = Array.isArray(raw.data) ? raw.data : [raw.data];
 
         arr.forEach(h => {
@@ -398,7 +398,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
   /**
    * Pull JSON from the Ads API (raw, no field-filter).
    */
-  _rawFetch(path, params = {}) {
+  async _rawFetch(path, params = {}) {
     const url = `${this.BASE_URL}${this.config.Version.value}/${path}`;
     const qs = Object.keys(params).length
       ? '?' + Object.entries(params)
@@ -408,16 +408,17 @@ var XAdsSource = class XAdsSource extends AbstractSource {
     const finalUrl = url + qs;
 
     const oauth = this._generateOAuthHeader({ method: 'GET', url, params });
-    
-    EnvironmentAdapter.sleep(1000);
-    
-    const resp = this.urlFetchWithRetry(finalUrl, {
+
+    await AsyncUtils.delay(1000);
+
+    const resp = await this.urlFetchWithRetry(finalUrl, {
       method: 'GET',
       headers: { Authorization: oauth, 'Content-Type': 'application/json' },
       muteHttpExceptions: true
     });
 
-    return JSON.parse(resp.getContentText());
+    const text = await resp.getContentText();
+    return JSON.parse(text);
   }
 
   /**
@@ -449,8 +450,8 @@ var XAdsSource = class XAdsSource extends AbstractSource {
     return false;
   }
 
-  _getData(path, nodeName, fields, extraParams = {}) {
-    const json = this._rawFetch(path, extraParams);
+  async _getData(path, nodeName, fields, extraParams = {}) {
+    const json = await this._rawFetch(path, extraParams);
     if (!json.data) return json;
 
     const arr  = Array.isArray(json.data) ? json.data : [json.data];
@@ -494,7 +495,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
     const { ConsumerKey, ConsumerSecret, AccessToken, AccessTokenSecret } = this.config;
     const oauth = {
       oauth_consumer_key: ConsumerKey.value,
-      oauth_nonce: EnvironmentAdapter.getUuid().replace(/-/g,''),
+      oauth_nonce: CryptoUtils.getUuid().replace(/-/g,''),
       oauth_signature_method:'HMAC-SHA1',
       oauth_timestamp: Math.floor(Date.now()/1000),
       oauth_token: AccessToken.value,
@@ -511,9 +512,9 @@ var XAdsSource = class XAdsSource extends AbstractSource {
       )
     ].join('&');
     const signingKey = encodeURIComponent(ConsumerSecret.value) + '&' + encodeURIComponent(AccessTokenSecret.value);
-    oauth.oauth_signature = EnvironmentAdapter.base64Encode(
-      EnvironmentAdapter.computeHmacSignature(
-        EnvironmentAdapter.MacAlgorithm.HMAC_SHA_1,
+    oauth.oauth_signature = CryptoUtils.base64Encode(
+      CryptoUtils.computeHmacSignature(
+        CryptoUtils.MacAlgorithm.HMAC_SHA_1,
         baseString,
         signingKey
       )

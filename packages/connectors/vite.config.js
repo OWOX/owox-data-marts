@@ -35,7 +35,7 @@ class ConnectorBuilder {
       // Get all JS files for this connector
       const files = await glob('**/*.js', {
         cwd: connectorPath,
-        ignore: ['**/*.gs', '**/node_modules/**'],
+        ignore: ['**/node_modules/**'],
       });
 
       let manifest = null;
@@ -83,7 +83,7 @@ class ConnectorBuilder {
 
       const files = await glob('**/*.js', {
         cwd: storagePath,
-        ignore: ['**/*.gs', '**/node_modules/**'],
+        ignore: ['**/node_modules/**'],
       });
 
       if (files.length === 0) continue;
@@ -553,8 +553,6 @@ export default defineConfig({
     rollupOptions: {
       external: [
         '@owox/connectors',
-        '@kaciras/deasync',
-        'sync-request',
         'adm-zip',
         '@google-cloud/bigquery',
         '@aws-sdk/client-athena',

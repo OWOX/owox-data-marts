@@ -8,15 +8,15 @@ import { mapDefinitionFromDto } from './definition-mappers';
 /**
  * Maps a data mart response DTO to a domain model
  */
-export function mapDataMartFromDto(dataMartDto: DataMartResponseDto): DataMart {
-  return {
+export async function mapDataMartFromDto(dataMartDto: DataMartResponseDto): Promise<DataMart> {
+  const dataMart: DataMart = {
     id: dataMartDto.id,
     title: dataMartDto.title,
     description: dataMartDto.description,
     status: DataMartStatusModel.getInfo(dataMartDto.status),
     storage: mapDataStorageFromDto(dataMartDto.storage),
     definitionType: dataMartDto.definitionType,
-    definition: mapDefinitionFromDto(dataMartDto.definitionType, dataMartDto.definition),
+    definition: await mapDefinitionFromDto(dataMartDto.definitionType, dataMartDto.definition),
     schema: dataMartDto.schema,
     connectorState: dataMartDto.connectorState ?? null,
     createdAt: new Date(dataMartDto.createdAt),
@@ -24,6 +24,8 @@ export function mapDataMartFromDto(dataMartDto: DataMartResponseDto): DataMart {
     canPublish: false,
     validationErrors: [],
   };
+
+  return dataMart;
 }
 
 /**

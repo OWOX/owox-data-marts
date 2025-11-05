@@ -2,8 +2,6 @@
 
 // Import all required dependencies and make them global
 const OWOX = require('@owox/connectors');
-const deasync = require('@kaciras/deasync');
-const request = require('sync-request');
 const AdmZip = require('adm-zip');
 
 // Google BigQuery
@@ -29,8 +27,6 @@ const { Upload } = require('@aws-sdk/lib-storage');
 
 // Make dependencies globally available
 global.OWOX = OWOX;
-global.deasync = deasync;
-global.request = request;
 global.AdmZip = AdmZip;
 global.BigQuery = BigQuery;
 
@@ -125,7 +121,7 @@ async function main() {
   );
 
   // Run the connector
-  connector.run();
+  await connector.run();
 }
 
 // Execute main and handle errors

@@ -8,9 +8,9 @@
 var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage {
   //---- constructor -------------------------------------------------
     /**
-     * Asbstract class making Google BigQuery updateable in Apps Script
-     * 
-     * @param config (object) instance of AbscractConfig
+     * Abstract class for Google BigQuery storage operations
+     *
+     * @param config (object) instance of AbstractConfig
      * @param uniqueKeyColumns (mixed) a name of column with unique key or array with columns names
      * @param schema (object) object with structure like {fieldName: {type: "number", description: "smth" } }
      * @param description (string) string with storage description }
@@ -58,10 +58,6 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         description
       );
 
-      this.checkIfGoogleBigQueryIsConnected();
-
-      this.loadTableSchema();
-
       this.updatedRecordsBuffer = {};
       
       // Initialize counter for tracking total records processed
@@ -70,21 +66,33 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
     
     }
 
+  //---- init --------------------------------------------------------
+    /**
+     * Initializing storage
+     */
+    async init() {
+
+      this.checkIfGoogleBigQueryIsConnected();
+
+      await this.loadTableSchema();
+
+    }
+  //----------------------------------------------------------------
   //---- loads Google BigQuery Table Schema ---------------------------
-    loadTableSchema() {
+    async loadTableSchema() {
 
       this.existingColumns = this.getAListOfExistingColumns() || {};
 
       // If there are no existing fields, it means the table has not been created yet
       if( Object.keys(this.existingColumns).length == 0 ) {
-        this.createDatasetIfItDoesntExist();
-        this.existingColumns = this.createTableIfItDoesntExist();
+        await this.createDatasetIfItDoesntExist();
+        this.existingColumns = await this.createTableIfItDoesntExist();
       } else {
         // Check if there are new columns from Fields config
         let selectedFields = this.getSelectedFields();
         let newFields = selectedFields.filter( column => !Object.keys(this.existingColumns).includes(column) );
         if( newFields.length > 0 ) {
-          this.addNewColumns(newFields);
+          await this.addNewColumns(newFields);
         }
       }
 
@@ -138,7 +146,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
 
   //---- createDatasetIfItDoesntExist --------------------------------
-    createDatasetIfItDoesntExist() {
+    async createDatasetIfItDoesntExist() {
 
       let query = `---- Create Dataset if it not exists -----\n`;
       query += `CREATE SCHEMA IF NOT EXISTS \`${this.config.DestinationProjectID.value}.${this.config.DestinationDatasetName.value}\`
@@ -146,12 +154,12 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         location = '${this.config.DestinationLocation.value}'
       )`;
 
-      this.executeQuery(query);
+      await this.executeQuery(query);
 
     }
 
   //---- createTableIfItDoesntExist ----------------------------------
-    createTableIfItDoesntExist() {
+    async createTableIfItDoesntExist() {
 
       let columns = [];
       let columnPartitioned = null;
@@ -200,7 +208,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         query += `\nOPTIONS(description="${this.description}")`;
       }
 
-      this.executeQuery(query);
+      await this.executeQuery(query);
       this.config.logMessage(`Table ${this.config.DestinationDatasetID.value}.${this.config.DestinationTableName.value} was created`);
 
       return existingColumns;
@@ -212,8 +220,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
     checkIfGoogleBigQueryIsConnected() {
 
       if( typeof BigQuery == "undefined") {
-        throw new Error(`To import data into Google BigQuery you need to add BigQuery Service first:
-        Extension / Apps Script / Editor / Services / + BigQuery API`);
+        throw new Error(`BigQuery client library is not available. Ensure @google-cloud/bigquery is installed.`);
       }
 
     }
@@ -226,7 +233,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
      * @param {newColumns} array with a list of new columns
      * 
      */
-    addNewColumns(newColumns) {
+    async addNewColumns(newColumns) {
 
       let query = '';
       let columns = [];
@@ -259,7 +266,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         query += `---- Adding new columns ----- \n`;
         query += `ALTER TABLE \`${this.config.DestinationDatasetID.value}.${this.config.DestinationTableName.value}\`\n\n`;
         query += columns.join(",\n");
-        this.executeQuery(query);
+        await this.executeQuery(query);
         this.config.logMessage(`Columns '${newColumns.join(",")}' were added to ${this.config.DestinationDatasetID.value} dataset`);
       }
 
@@ -273,24 +280,24 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
      * Saving data to a storage
      * @param {data} array of assoc objects with records to save
      */
-    saveData(data) {
+    async saveData(data) {
            
-      data.map((row) => {
+      for (const row of data) {
       
         // if there are new columns in the first row it should be added first
         let newFields = Object.keys(row).filter( column => !Object.keys(this.existingColumns).includes(column) );
       
         if( newFields.length > 0 ) {
           console.log(newFields);
-          this.addNewColumns(newFields);
+          await this.addNewColumns(newFields);
         }
       
         this.addRecordToBuffer(row);
-        this.saveRecordsAddedToBuffer(this.config.MaxBufferSize.value);
+        await this.saveRecordsAddedToBuffer(this.config.MaxBufferSize.value);
 
-      })
+      }
 
-      this.saveRecordsAddedToBuffer();
+      await this.saveRecordsAddedToBuffer();
       
     }
 
@@ -314,7 +321,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
      * Add records from buffer to a sheet
      * @param (integer) {maxBufferSize} record will be added only if buffer size if larger than this parameter
      */
-    saveRecordsAddedToBuffer(maxBufferSize = 0) {
+    async saveRecordsAddedToBuffer(maxBufferSize = 0) {
 
       let bufferSize = Object.keys( this.updatedRecordsBuffer ).length;
     
@@ -324,7 +331,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         console.log(`Starting BigQuery MERGE operation for ${bufferSize} records...`);
         
         // Split buffer into smaller chunks if needed to avoid query size limits
-        this.executeQueryWithSizeLimit();
+        await this.executeQueryWithSizeLimit();
       }
     
 
@@ -334,7 +341,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
     /**
      * Executes the MERGE query with automatic size reduction if it exceeds BigQuery limits
      */
-    executeQueryWithSizeLimit() {
+    async executeQueryWithSizeLimit() {
       const bufferKeys = Object.keys(this.updatedRecordsBuffer);
       const totalRecords = bufferKeys.length;
       
@@ -343,7 +350,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       }
       
       // Try to execute with current buffer size, reduce recursively if too large
-      this.executeMergeQueryRecursively(bufferKeys, totalRecords);
+      await this.executeMergeQueryRecursively(bufferKeys, totalRecords);
       
       // Clear the buffer after processing
       this.updatedRecordsBuffer = {};
@@ -355,7 +362,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
      * @param {Array} recordKeys - Array of record keys to process
      * @param {number} batchSize - Current batch size to attempt
      */
-    executeMergeQueryRecursively(recordKeys, batchSize) {
+    async executeMergeQueryRecursively(recordKeys, batchSize) {
       // Base case: if no records to process
       if (recordKeys.length === 0) {
         return;
@@ -381,13 +388,13 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         console.log(`Query size (${Math.round(querySize/1024)}KB) exceeds BigQuery limit. Reducing batch size from ${batchSize} to ${Math.floor(batchSize/2)}`);
         
         // Recursively try with half the batch size
-        this.executeMergeQueryRecursively(recordKeys, Math.floor(batchSize / 2));
+        await this.executeMergeQueryRecursively(recordKeys, Math.floor(batchSize / 2));
         return;
       }
       
       try {
         // Execute the query
-        this.executeQuery(query);
+        await this.executeQuery(query);
         this.totalRecordsProcessed += currentBatch.length;
         console.log(`BigQuery MERGE completed successfully for ${currentBatch.length} records (Total processed: ${this.totalRecordsProcessed})`);
         
@@ -434,11 +441,13 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
           } else if( ( columnType.toUpperCase() == "DATE") && (record[ columnName ] instanceof Date) ) {
 
-            columnValue = EnvironmentAdapter.formatDate( record[ columnName ], "UTC", "yyyy-MM-dd" );
+            columnValue = DateUtils.formatDate( record[ columnName ] );
 
           } else if( (columnType.toUpperCase() == "DATETIME") && (record[ columnName ] instanceof Date) ) {
 
-            columnValue = EnvironmentAdapter.formatDate( record[ columnName ], "UTC", "yyyy-MM-dd HH:mm:ss" );
+            // Format as YYYY-MM-DD HH:MM:SS for BigQuery DATETIME
+            const isoString = record[ columnName ].toISOString();
+            columnValue = isoString.replace('T', ' ').substring(0, 19);
 
           } else {
 
@@ -464,7 +473,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         ${rows.join("\n\nUNION ALL\n\n")}
       ) AS source
       
-      ON ${this.uniqueKeyColumns.map(item => `(target.${item} IS NOT DISTINCT FROM source.${item})`).join("\n AND ")}
+      ON ${this.uniqueKeyColumns.map(item => ("target." + item + " = source." + item)).join("\n AND ")}
 
         WHEN MATCHED THEN
         UPDATE SET
@@ -484,59 +493,38 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
   //---- query -------------------------------------------------------
     /**
      * Executes Google BigQuery Query and returns a result
-     * 
-     * @param {query} string 
-     * 
-     * @return object
-     * 
+     *
+     * @param {query} string
+     *
+     * @return Promise<object>
+     *
      */
-    executeQuery(query) {
-      
-      if (this.config.Environment.value === ENVIRONMENT.APPS_SCRIPT) {
-      return BigQuery.Jobs.query(
-          {"query": query,  useLegacySql: false}, 
-          this.config.ProjectID.value
-        );
+    async executeQuery(query) {
+      let bigqueryClient = null;
+      if (this.config.ServiceAccountJson && this.config.ServiceAccountJson.value) {
+        const { JWT } = require('google-auth-library');
+        const credentials = JSON.parse(this.config.ServiceAccountJson.value);
+        const authClient = new JWT({
+          email: credentials.client_email,
+          key: credentials.private_key,
+          scopes: ['https://www.googleapis.com/auth/bigquery'],
+        });
+        bigqueryClient = new BigQuery({
+          projectId: this.config.ProjectID.value || credentials.project_id,
+          authClient
+        });
+      } else {
+        throw new Error("Service account JSON is required to connect to Google BigQuery in Node.js environment");
       }
 
-      if (this.config.Environment.value === ENVIRONMENT.NODE) {
-        let result = undefined;
-        let error = undefined;
-        let bigqueryClient = null;
-        if (this.config.ServiceAccountJson && this.config.ServiceAccountJson.value) {
-          const { JWT } = require('google-auth-library');
-          const credentials = JSON.parse(this.config.ServiceAccountJson.value);
-          const authClient = new JWT({
-            email: credentials.client_email,
-            key: credentials.private_key,
-            scopes: ['https://www.googleapis.com/auth/bigquery'],
-          });
-          bigqueryClient = new BigQuery({
-            projectId: this.config.ProjectID.value || credentials.project_id,
-            authClient
-          });
-        } else {
-          throw new Error("Service account JSON is required to connect to Google BigQuery in Node.js environment");
-        }
+      const options = {
+        query: query,
+        useLegacySql: false,
+      };
 
-        const options = {
-          query: query,
-          useLegacySql: false,
-        };
-        bigqueryClient.createQueryJob(options)
-          .then(([job]) => job.getQueryResults())
-          .then(([rows]) => rows)
-          .then(value => { result = value })
-          .catch(e => { error = e });
-
-        deasync.loopWhile(() => result === undefined && error === undefined)
-
-        if (error !== undefined) {
-          throw error;
-        }
-
-        return result;
-      }
+      const [job] = await bigqueryClient.createQueryJob(options);
+      const [rows] = await job.getQueryResults();
+      return rows;
     }
 
   //---- obfuscateSpecialCharacters ----------------------------------
