@@ -29,7 +29,7 @@ export const SchemaFieldSchema = z.object({
 export const GetSchemaRequestSchema = z.object({
   connectionConfig: ConnectionConfigSchema,
   request: z.object({
-    configParams: ConnectorRequestConfigV1Schema.optional(),
+    configParams: ConnectorRequestConfigV1Schema,
     fields: z
       .array(
         z.object({
