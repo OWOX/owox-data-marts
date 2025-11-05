@@ -16,7 +16,7 @@ var adPerformanceReportFields = {
   },
   'AccountId': {
     'description': 'The Microsoft Advertising assigned identifier of an account.',
-    'type': 'Int64'
+    'type': 'string'
   },
   'TimePeriod': {
     'description': 'The time period of each report row.',
@@ -31,7 +31,7 @@ var adPerformanceReportFields = {
   },
   'CampaignId': {
     'description': 'The Microsoft Advertising assigned identifier of a campaign.',
-    'type': 'Int64'
+    'type': 'string'
   },
   'AdGroupName': {
     'description': 'The ad group name.',
@@ -39,11 +39,11 @@ var adPerformanceReportFields = {
   },
   'AdId': {
     'description': 'The Microsoft Advertising assigned identifier of an ad.',
-    'type': 'Int64'
+    'type': 'string'
   },
   'AdGroupId': {
     'description': 'The Microsoft Advertising assigned identifier of an ad group.',
-    'type': 'Int64'
+    'type': 'string'
   },
   'AdTitle': {
     'description': 'The ad title.',
@@ -63,11 +63,11 @@ var adPerformanceReportFields = {
   },
   'CurrencyCode': {
     'description': 'The account currency type.',
-    'type': 'String'
+    'type': 'string'
   },
   'AdDistribution': {
     'description': 'The network where you want your ads to show.',
-    'type': 'String'
+    'type': 'string'
   },
   'Impressions': {
     'description': 'The number of times an ad has been displayed on search results pages.',
@@ -112,11 +112,11 @@ var adPerformanceReportFields = {
   },
   'DeviceType': {
     'description': 'The type of device which showed ads.',
-    'type': 'String'
+    'type': 'string'
   },
   'Language': {
     'description': 'The language of the publisher where the ad was shown.',
-    'type': 'String'
+    'type': 'string'
   },
   'DisplayUrl': {
     'description': 'The ad display URL.',
@@ -128,23 +128,23 @@ var adPerformanceReportFields = {
   },
   'Network': {
     'description': 'The entire Microsoft Advertising Network made up of Microsoft sites and select traffic, and only partner traffic.',
-    'type': 'String'
+    'type': 'string'
   },
   'TopVsOther': {
     'description': 'Indicates whether the ad impression appeared in a top position or elsewhere.',
-    'type': 'String'
+    'type': 'string'
   },
   'BidMatchType': {
     'description': 'The keyword bid match type.',
-    'type': 'String'
+    'type': 'string'
   },
   'DeliveredMatchType': {
     'description': 'The match type used to deliver an ad.',
-    'type': 'String'
+    'type': 'string'
   },
   'DeviceOS': {
     'description': 'The operating system of the device reported in the DeviceType column.',
-    'type': 'String'
+    'type': 'string'
   },
   'Assists': {
     'description': 'The number of conversions from other ads within the same account that were preceded by one or more clicks from this ad.',
@@ -248,7 +248,7 @@ var adPerformanceReportFields = {
   },
   'CampaignType': {
     'description': 'The campaign type.',
-    'type': 'String'
+    'type': 'string'
   },
   'BaseCampaignId': {
     'description': 'The Microsoft Advertising assigned identifier of an experiment campaign.',

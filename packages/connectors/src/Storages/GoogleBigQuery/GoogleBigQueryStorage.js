@@ -464,7 +464,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         ${rows.join("\n\nUNION ALL\n\n")}
       ) AS source
       
-      ON ${this.uniqueKeyColumns.map(item => `(target.${item} IS NOT DISTINCT FROM source.${item})`).join("\n AND ")}
+      ON ${this.uniqueKeyColumns.map(item => ("target." + item + " = source." + item)).join("\n AND ")}
 
         WHEN MATCHED THEN
         UPDATE SET
