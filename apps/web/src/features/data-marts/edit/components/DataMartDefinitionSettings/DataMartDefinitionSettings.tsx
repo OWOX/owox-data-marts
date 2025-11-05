@@ -14,7 +14,7 @@ import { useOutletContext } from 'react-router-dom';
 import type { DataMartContextType } from '../../model/context/types.ts';
 import { getEmptyDefinition } from '../../utils/definition-helpers.ts';
 import SqlValidator from '../SqlValidator/SqlValidator.tsx';
-import type { DataMartDefinitionConfigDto, SqlDefinitionConfig } from '../../model';
+import type { DataMartDefinitionConfig, SqlDefinitionConfig } from '../../model';
 
 interface SqlValidationState {
   isValid: boolean | null;
@@ -40,8 +40,8 @@ const getSqlQueryFromDefinition = (
   return sqlDefinition?.sqlQuery ?? '';
 };
 
-const getEmptyDefinitionForUpdate = (type: DataMartDefinitionType): DataMartDefinitionConfigDto =>
-  getEmptyDefinition(type) as DataMartDefinitionConfigDto;
+const getEmptyDefinitionForUpdate = (type: DataMartDefinitionType): DataMartDefinitionConfig =>
+  getEmptyDefinition(type) as DataMartDefinitionConfig;
 
 export function DataMartDefinitionSettings() {
   const { dataMart, updateDataMartDefinition, runSchemaActualization } =
