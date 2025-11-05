@@ -247,7 +247,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
     // Save main data immediately
     const filteredMainData = MicrosoftAdsHelper.filterByFields(allRecords, fields);
     if (filteredMainData.length > 0) {
-      onBatchReady(filteredMainData);
+     await onBatchReady(filteredMainData);
     }
     
     // Handle Keywords with batching to avoid 100MB limit
@@ -263,10 +263,10 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
       accountId,
       entityType: 'Keywords',
       campaignIds,
-      onBatchReady: (batchRecords) => {
+      onBatchReady: async (batchRecords) => {
         totalFetched += batchRecords.length;
         const filteredBatch = MicrosoftAdsHelper.filterByFields(batchRecords, fields);
-        onBatchReady(filteredBatch);
+        await onBatchReady(filteredBatch);
       }
     });
     this.config.logMessage(`${totalFetched} rows of Keywords were fetched for account ${accountId}`);
@@ -335,7 +335,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
         const batchRecords = await this._downloadEntityBatch({ accountId, entityType, campaignBatch });
         this.config.logMessage(`Fetched ${batchRecords.length} ${entityType.toLowerCase()} from current batch`);
 
-        onBatchReady(batchRecords);
+        await onBatchReady(batchRecords);
       } catch (error) {
         if (error.message && error.message.includes('100MB')) {
           // If still too large, reduce batch size and retry
@@ -348,7 +348,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
             try {
               const smallerBatchRecords = await this._downloadEntityBatch({ accountId, entityType, campaignBatch: smallerBatch });
               this.config.logMessage(`Fetched ${smallerBatchRecords.length} ${entityType.toLowerCase()} from smaller batch (${smallerBatch.length} campaigns)`);
-              onBatchReady(smallerBatchRecords);
+              await onBatchReady(smallerBatchRecords);
             } catch (smallerError) {
               if (smallerError.message && smallerError.message.includes('100MB')) {
                 throw new Error(`Failed to fetch ${entityType}: batch size of ${smallerBatch.length} campaigns still exceeds 100MB limit`);

@@ -175,8 +175,6 @@ The framework provides several utility classes for common operations:
 For date formatting operations:
 
 ```javascript
-const DateUtils = require('./Core/Utils/DateUtils');
-
 // Format date to ISO format (YYYY-MM-DD)
 const formatted = DateUtils.formatDate(new Date(), "UTC", "yyyy-MM-dd");
 ```
@@ -186,7 +184,6 @@ const formatted = DateUtils.formatDate(new Date(), "UTC", "yyyy-MM-dd");
 For HTTP requests (typically used within AbstractSource methods):
 
 ```javascript
-const HttpUtils = require('./Core/Utils/HttpUtils');
 
 // Make HTTP request
 const response = await HttpUtils.fetch(url, {
@@ -203,8 +200,6 @@ const data = await response.getAsJson();
 For asynchronous delays:
 
 ```javascript
-const AsyncUtils = require('./Core/Utils/AsyncUtils');
-
 // Wait 1 second
 await AsyncUtils.delay(1000);
 ```
@@ -214,7 +209,6 @@ await AsyncUtils.delay(1000);
 For cryptographic operations:
 
 ```javascript
-const CryptoUtils = require('./Core/Utils/CryptoUtils');
 
 // Generate UUID
 const id = CryptoUtils.getUuid();
@@ -235,8 +229,6 @@ const signature = CryptoUtils.computeHmacSignature(
 For file operations:
 
 ```javascript
-const FileUtils = require('./Core/Utils/FileUtils');
-
 // Parse CSV
 const data = FileUtils.parseCsv("col1,col2\nval1,val2");
 

@@ -73,7 +73,8 @@ A method for invoking importNewData() to determine the parameters required for f
 
       if (data.length || this.config.CreateEmptyTables?.value) {
         const preparedData = data.length ? data : [];
-        await this.getStorageByNode(nodeName).saveData(preparedData);
+        const storage = await this.getStorageByNode(nodeName);
+        await storage.saveData(preparedData);
       }
 
       if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
@@ -102,7 +103,7 @@ A method for invoking importNewData() to determine the parameters required for f
    * @return AbstractStorage 
    * 
    */
-  getStorageByNode(nodeName) {
+  async getStorageByNode(nodeName) {
 
     // initiate blank object for storages
     if( !("storages" in this) ) {
@@ -117,8 +118,8 @@ A method for invoking importNewData() to determine the parameters required for f
 
       let uniqueFields = this.source.fieldsSchema[ nodeName ]["uniqueKeys"];
 
-      this.storages[ nodeName ] = new globalThis[ this.storageName ]( 
-        this.config.mergeParameters({ 
+      this.storages[ nodeName ] = new globalThis[ this.storageName ](
+        this.config.mergeParameters({
           DestinationSheetName: { value: this.source.fieldsSchema[nodeName].destinationName},
           DestinationTableName: { value: this.getDestinationName(nodeName, this.config, this.source.fieldsSchema[nodeName].destinationName) },
         }),
@@ -127,6 +128,7 @@ A method for invoking importNewData() to determine the parameters required for f
         `${this.source.fieldsSchema[ nodeName ]["description"]} ${this.source.fieldsSchema[ nodeName ]["documentation"]}`
       );
 
+      await this.storages[nodeName].init();
     }
 
     return this.storages[ nodeName ];

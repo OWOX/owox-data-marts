@@ -121,7 +121,8 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
         if (data.length || this.config.CreateEmptyTables?.value) {
           try {
             const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-            await this.getStorageByNode(nodeName).saveData(preparedData);
+            const storage = await this.getStorageByNode(nodeName);
+            await storage.saveData(preparedData);
           } catch (storageError) {
             this.config.logMessage(`Error saving data to storage: ${storageError.message}`);
             console.error(`Error details: ${storageError.stack}`);
@@ -168,7 +169,8 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
             if (data.length || this.config.CreateEmptyTables?.value) {
               try {
                 const preparedData = data.length ? this.addMissingFieldsToData(data, timeSeriesNodes[nodeName]) : data;
-                await this.getStorageByNode(nodeName).saveData(preparedData);
+                const storage = await this.getStorageByNode(nodeName);
+                await storage.saveData(preparedData);
               } catch (storageError) {
                 this.config.logMessage(`Error saving data to storage: ${storageError.message}`);
                 console.error(`Error details: ${storageError.stack}`);
@@ -195,7 +197,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
    * @param {array} requestedFields - List of requested fields
    * @return {AbstractStorage} - Storage instance
    */
-  getStorageByNode(nodeName) {
+  async getStorageByNode(nodeName) {
     // Initialize blank object for storages
     if (!("storages" in this)) {
       this.storages = {};
@@ -210,10 +212,10 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
 
       // Create storage instance (Google Sheets is the default storage)
       this.storages[nodeName] = new globalThis[ this.storageName ](
-        this.config.mergeParameters({ 
+        this.config.mergeParameters({
           DestinationSheetName: { value: this.source.fieldsSchema[nodeName].destinationName },
           DestinationTableName: { value: this.getDestinationName(nodeName, this.config, this.source.fieldsSchema[nodeName].destinationName) },
-          currentValues: { 
+          currentValues: {
             // Pass any values that might be needed for default values
             advertiser_id: this.source.currentAdvertiserId
           }
@@ -222,6 +224,8 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
         this.source.fieldsSchema[nodeName]["fields"] || {},
         `${this.source.fieldsSchema[ nodeName ]["description"]} ${this.source.fieldsSchema[ nodeName ]["documentation"]}`
       );
+
+      await this.storages[nodeName].init();
     }
 
     return this.storages[nodeName];

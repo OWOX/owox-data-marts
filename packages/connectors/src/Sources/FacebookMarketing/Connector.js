@@ -82,7 +82,8 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
         let data = await this.source.fetchData(nodeName, accountId, fields);
 
         if(data.length || this.config.CreateEmptyTables?.value) {
-          await this.getStorageByNode(nodeName).saveData( data );
+          const storage = await this.getStorageByNode(nodeName);
+          await storage.saveData( data );
         }
 
         data.length && this.config.logMessage(`${data.length} rows of ${nodeName} were fetched for account ${accountId}`);
@@ -120,7 +121,8 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
             let data = await this.source.fetchData(nodeName, accountId, timeSeriesNodes[ nodeName ], startDate);
 
             if( data.length || this.config.CreateEmptyTables?.value ) {
-              await this.getStorageByNode(nodeName).saveData(data);
+              const storage = await this.getStorageByNode(nodeName);
+              await storage.saveData(data);
             }
 
             this.config.logMessage(data.length ? `${data.length} records were fetched` : `No records have been fetched`);
@@ -147,7 +149,7 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
    * @return AbstractStorage 
    * 
    */
-  getStorageByNode(nodeName) {
+  async getStorageByNode(nodeName) {
 
     // initiate blank object for storages
     if( !("storages" in this) ) {
@@ -162,8 +164,8 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
 
       let uniqueFields = this.source.fieldsSchema[ nodeName ]["uniqueKeys"];
 
-      this.storages[ nodeName ] = new globalThis[ this.storageName ]( 
-        this.config.mergeParameters({ 
+      this.storages[ nodeName ] = new globalThis[ this.storageName ](
+        this.config.mergeParameters({
           DestinationSheetName: {value: this.source.fieldsSchema[nodeName].destinationName },
           DestinationTableName: { value: this.getDestinationName(nodeName, this.config, this.source.fieldsSchema[nodeName].destinationName) },
         }),
@@ -172,6 +174,7 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
         `${this.source.fieldsSchema[ nodeName ]["description"]} ${this.source.fieldsSchema[ nodeName ]["documentation"]}`
       );
 
+      await this.storages[nodeName].init();
     }
 
     return this.storages[ nodeName ];

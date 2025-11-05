@@ -83,7 +83,8 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
 
       if (data.length || this.config.CreateEmptyTables?.value) {
         const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-        await this.getStorageByNode(nodeName).saveData(preparedData);
+        const storage = await this.getStorageByNode(nodeName);
+        await storage.saveData(preparedData);
       }
 
       if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
@@ -91,7 +92,7 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
       }
     }
   }
-  
+
   /**
    * Process a catalog node (e.g., campaigns, line items)
    * @param {Object} options - Processing options
@@ -107,7 +108,8 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
 
     if (data.length || this.config.CreateEmptyTables?.value) {
       const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-      await this.getStorageByNode(nodeName).saveData(preparedData);
+      const storage = await this.getStorageByNode(nodeName);
+      await storage.saveData(preparedData);
     }
   }
 
@@ -116,7 +118,7 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
    * @param {string} nodeName - Name of the node
    * @returns {Object} Storage instance
    */
-  getStorageByNode(nodeName) {
+  async getStorageByNode(nodeName) {
     if (!("storages" in this)) {
       this.storages = {};
     }
@@ -137,6 +139,8 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
         this.source.fieldsSchema[nodeName].fields,
         `${this.source.fieldsSchema[nodeName].description} ${this.source.fieldsSchema[nodeName].documentation}`
       );
+
+      await this.storages[nodeName].init();
     }
 
     return this.storages[nodeName];

@@ -40,6 +40,15 @@ class AbstractStorage {
     }
     //----------------------------------------------------------------
     
+
+  //---- init --------------------------------------------------------
+    /**
+     * Initializing storage
+     */
+  async init() {
+    throw new Error("Method init() has to be implemented in a child class of AbstractStorage");
+  }
+  //----------------------------------------------------------------
   //---- getUniqueKeyByRecordFields ----------------------------------
     /**
      * Calculcating unique key based on this.uniqueKeyColumns
@@ -221,17 +230,6 @@ class AbstractStorage {
       }
 
       return record;
-    }
-    //----------------------------------------------------------------
-  
-  //---- areHeadersNeeded --------------------------------------------
-    /**
-     * Checks if storage needs headers to be added
-     * By default returns false, should be overridden in child classes if needed
-     * @returns {boolean} true if headers need to be added, false otherwise
-     */
-    areHeadersNeeded() {
-      return false;
     }
     //----------------------------------------------------------------
 

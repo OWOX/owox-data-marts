@@ -553,8 +553,6 @@ export default defineConfig({
     rollupOptions: {
       external: [
         '@owox/connectors',
-        '@kaciras/deasync',
-        'sync-request',
         'adm-zip',
         '@google-cloud/bigquery',
         '@aws-sdk/client-athena',

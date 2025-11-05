@@ -86,9 +86,7 @@ async function _resolveShortLinks(shortLinks) {
   const promises = shortLinks.map(async linkObj => {
     try {
       const response = await HttpUtils.fetch(linkObj.originalUrl, {
-        method: 'GET',
-        followRedirects: false,
-        muteHttpExceptions: true
+        method: 'GET'
       });
 
       const headers = response.getHeaders();

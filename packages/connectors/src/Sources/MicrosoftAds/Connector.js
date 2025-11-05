@@ -88,7 +88,8 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
 
       if (data.length || this.config.CreateEmptyTables?.value) {
         const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-        await this.getStorageByNode(nodeName).saveData(preparedData);
+        const storage = await this.getStorageByNode(nodeName);
+        await storage.saveData(preparedData);
         data.length && this.config.logMessage(`Successfully saved ${data.length} rows for ${formattedDate}`);
       }
 
@@ -112,10 +113,11 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
       nodeName, 
       accountId, 
       fields,
-      onBatchReady: (batchData) => {
+      onBatchReady: async (batchData) => {
         this.config.logMessage(`Saving batch of ${batchData.length} records to storage`);
         const preparedData = this.addMissingFieldsToData(batchData, fields);
-        this.getStorageByNode(nodeName).saveData(preparedData);
+        const storage = await this.getStorageByNode(nodeName);
+        await storage.saveData(preparedData);
       }
     });
     
@@ -123,7 +125,8 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
 
     if (data.length || this.config.CreateEmptyTables?.value) {
       const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-      this.getStorageByNode(nodeName).saveData(preparedData);
+      const storage = await this.getStorageByNode(nodeName);
+      await storage.saveData(preparedData);
     }
   }
 
@@ -132,7 +135,7 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
    * @param {string} nodeName - Name of the node
    * @returns {Object} Storage instance
    */
-  getStorageByNode(nodeName) {
+  async getStorageByNode(nodeName) {
     if (!("storages" in this)) {
       this.storages = {};
     }
@@ -153,8 +156,10 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
         this.source.fieldsSchema[nodeName].fields,
         `${this.source.fieldsSchema[nodeName].description} ${this.source.fieldsSchema[nodeName].documentation}`
       );
-    }
 
+      await this.storages[nodeName].init();
+    }
+    
     return this.storages[nodeName];
   }
 };

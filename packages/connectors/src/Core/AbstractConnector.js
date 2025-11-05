@@ -112,11 +112,6 @@ var AbstractConnector = class AbstractConnector {
           this.config.updateLastImportDate();
           this.config.logMessage("Start importing new data");
 
-          if (this.storage !== null && this.storage.areHeadersNeeded()) {
-            this.storage.addHeader(this.storage.uniqueKeyColumns);
-            this.config.logMessage(`Column(s) for unique key was added: ${this.storage.uniqueKeyColumns}`);
-          }
-
           await this.startImportProcess();
 
           this.config.logMessage("Import is finished");

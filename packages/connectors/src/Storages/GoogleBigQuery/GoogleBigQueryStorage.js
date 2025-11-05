@@ -58,10 +58,6 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         description
       );
 
-      this.checkIfGoogleBigQueryIsConnected();
-
-      this.loadTableSchema();
-
       this.updatedRecordsBuffer = {};
       
       // Initialize counter for tracking total records processed
@@ -70,21 +66,33 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
     
     }
 
+  //---- init --------------------------------------------------------
+    /**
+     * Initializing storage
+     */
+    async init() {
+
+      this.checkIfGoogleBigQueryIsConnected();
+
+      await this.loadTableSchema();
+
+    }
+  //----------------------------------------------------------------
   //---- loads Google BigQuery Table Schema ---------------------------
-    loadTableSchema() {
+    async loadTableSchema() {
 
       this.existingColumns = this.getAListOfExistingColumns() || {};
 
       // If there are no existing fields, it means the table has not been created yet
       if( Object.keys(this.existingColumns).length == 0 ) {
-        this.createDatasetIfItDoesntExist();
-        this.existingColumns = this.createTableIfItDoesntExist();
+        await this.createDatasetIfItDoesntExist();
+        this.existingColumns = await this.createTableIfItDoesntExist();
       } else {
         // Check if there are new columns from Fields config
         let selectedFields = this.getSelectedFields();
         let newFields = selectedFields.filter( column => !Object.keys(this.existingColumns).includes(column) );
         if( newFields.length > 0 ) {
-          this.addNewColumns(newFields);
+          await this.addNewColumns(newFields);
         }
       }
 
@@ -138,7 +146,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
 
   //---- createDatasetIfItDoesntExist --------------------------------
-    createDatasetIfItDoesntExist() {
+    async createDatasetIfItDoesntExist() {
 
       let query = `---- Create Dataset if it not exists -----\n`;
       query += `CREATE SCHEMA IF NOT EXISTS \`${this.config.DestinationProjectID.value}.${this.config.DestinationDatasetName.value}\`
@@ -146,12 +154,12 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         location = '${this.config.DestinationLocation.value}'
       )`;
 
-      this.executeQuery(query);
+      await this.executeQuery(query);
 
     }
 
   //---- createTableIfItDoesntExist ----------------------------------
-    createTableIfItDoesntExist() {
+    async createTableIfItDoesntExist() {
 
       let columns = [];
       let columnPartitioned = null;
@@ -200,7 +208,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         query += `\nOPTIONS(description="${this.description}")`;
       }
 
-      this.executeQuery(query);
+      await this.executeQuery(query);
       this.config.logMessage(`Table ${this.config.DestinationDatasetID.value}.${this.config.DestinationTableName.value} was created`);
 
       return existingColumns;

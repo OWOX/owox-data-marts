@@ -79,7 +79,8 @@ var LinkedInAdsConnector = class LinkedInAdsConnector extends AbstractConnector 
 
       if (data.length || this.config.CreateEmptyTables?.value) {
         const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-        await this.getStorageByNode(nodeName).saveData(preparedData);
+        const storage = await this.getStorageByNode(nodeName);
+        await storage.saveData(preparedData);
       }
     }
   }
@@ -89,7 +90,7 @@ var LinkedInAdsConnector = class LinkedInAdsConnector extends AbstractConnector 
    * @param {string} nodeName - Name of the node
    * @returns {Object} - Storage instance
    */
-  getStorageByNode(nodeName) {
+  async getStorageByNode(nodeName) {
     // initiate blank object for storages
     if (!("storages" in this)) {
       this.storages = {};
@@ -111,6 +112,8 @@ var LinkedInAdsConnector = class LinkedInAdsConnector extends AbstractConnector 
         this.source.fieldsSchema[nodeName]["fields"],
         `${this.source.fieldsSchema[nodeName]["description"]} ${this.source.fieldsSchema[nodeName]["documentation"]}`
       );
+
+      await this.storages[nodeName].init();
     }
 
     return this.storages[nodeName];

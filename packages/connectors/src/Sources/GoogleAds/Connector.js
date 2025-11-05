@@ -81,7 +81,8 @@ var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
 
       if (data.length || this.config.CreateEmptyTables?.value) {
         const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-        await this.getStorageByNode(nodeName).saveData(preparedData);
+        const storage = await this.getStorageByNode(nodeName);
+        await storage.saveData(preparedData);
       }
 
       if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
@@ -89,7 +90,7 @@ var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
       }
     }
   }
-  
+
   /**
    * Process a catalog node (e.g., ad groups, ads, keywords)
    * @param {Object} options - Processing options
@@ -104,7 +105,8 @@ var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
 
     if (data.length || this.config.CreateEmptyTables?.value) {
       const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-      await this.getStorageByNode(nodeName).saveData(preparedData);
+      const storage = await this.getStorageByNode(nodeName);
+      await storage.saveData(preparedData);
     }
   }
 
@@ -113,7 +115,7 @@ var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
    * @param {string} nodeName - Name of the node
    * @returns {Object} - Storage instance
    */
-  getStorageByNode(nodeName) {
+  async getStorageByNode(nodeName) {
     if (!("storages" in this)) {
       this.storages = {};
     }
@@ -134,6 +136,8 @@ var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
         this.source.fieldsSchema[nodeName].fields,
         `${this.source.fieldsSchema[nodeName].description} ${this.source.fieldsSchema[nodeName].documentation}`
       );
+
+      await this.storages[nodeName].init();
     }
 
     return this.storages[nodeName];

@@ -94,7 +94,7 @@ var OpenHolidaysConnector = class OpenHolidaysConnector extends AbstractConnecto
    * @param {string} nodeName - Name of the node
    * @returns {Object} Storage instance
    */
-  getStorageByNode(nodeName) {
+  async getStorageByNode(nodeName) {
     if (!("storages" in this)) {
       this.storages = {};
     }
@@ -115,6 +115,8 @@ var OpenHolidaysConnector = class OpenHolidaysConnector extends AbstractConnecto
         this.source.fieldsSchema[nodeName].fields,
         `${this.source.fieldsSchema[nodeName].description} ${this.source.fieldsSchema[nodeName].documentation}`
       );
+
+      await this.storages[nodeName].init();
     }
 
     return this.storages[nodeName];

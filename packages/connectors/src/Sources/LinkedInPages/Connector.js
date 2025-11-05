@@ -82,7 +82,8 @@ var LinkedInPagesConnector = class LinkedInPagesConnector extends AbstractConnec
 
       if (data.length || this.config.CreateEmptyTables?.value) {
         const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-        await this.getStorageByNode(nodeName).saveData(preparedData);
+        const storage = await this.getStorageByNode(nodeName);
+        await storage.saveData(preparedData);
       }
     }
   }
@@ -92,7 +93,7 @@ var LinkedInPagesConnector = class LinkedInPagesConnector extends AbstractConnec
    * @param {string} nodeName - Name of the node
    * @returns {Object} - Storage instance
    */
-  getStorageByNode(nodeName) {
+  async getStorageByNode(nodeName) {
     // initiate blank object for storages
     if (!("storages" in this)) {
       this.storages = {};
@@ -114,6 +115,8 @@ var LinkedInPagesConnector = class LinkedInPagesConnector extends AbstractConnec
         this.source.fieldsSchema[nodeName]["fields"],
         `${this.source.fieldsSchema[nodeName]["description"]} ${this.source.fieldsSchema[nodeName]["documentation"]}`
       );
+
+      await this.storages[nodeName].init();
     }
 
     return this.storages[nodeName];

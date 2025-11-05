@@ -65,10 +65,23 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
     this.updatedRecordsBuffer = {};
     this.existingColumns = {};
     
-    this.setupAthenaDatabase();
-    
     this.uploadSid = new Date().toISOString().replace(/[-:.]/g, '') + "_" + Math.random().toString(36).substring(2, 15);
   }
+
+  //---- init --------------------------------------------------------
+  /**
+   * Initializing storage
+   */
+  async init() {
+    this.setupAthenaDatabase().then(success => {
+      if (success) {
+        console.log('Database created or already exists');
+      } else {
+        throw new Error('Failed to create database');
+      }
+    });
+  }
+  //----------------------------------------------------------------
 
   //---- initAWS ----------------------------------------------------
   /**
