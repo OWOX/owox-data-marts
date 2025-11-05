@@ -57,18 +57,19 @@ export class DataMartRunService {
 
   public async markReportRunAsFinished(
     dataMartRun: DataMartRun,
-    context: ReportRunFinishContext
+    context?: ReportRunFinishContext
   ): Promise<void> {
-    dataMartRun.status = context.status;
+    if (context) {
+      dataMartRun.status = context.status;
 
-    if (context.logs) {
-      dataMartRun.logs = dataMartRun.logs?.concat(context.logs);
+      if (context.logs) {
+        dataMartRun.logs = dataMartRun.logs?.concat(context.logs);
+      }
+
+      if (context.errors) {
+        dataMartRun.errors = dataMartRun.errors?.concat(context.errors);
+      }
     }
-
-    if (context.errors) {
-      dataMartRun.errors = dataMartRun.errors?.concat(context.errors);
-    }
-
     dataMartRun.finishedAt = this.systemClock.now();
 
     await this.dataMartRunRepository.save(dataMartRun);

@@ -12,6 +12,7 @@ import { loadEnv } from './load-env';
 import { Express, text } from 'express';
 import { AppModule } from './app.module';
 import { DEFAULT_PORT } from './config/constants';
+import { initializeTransactionalContext } from 'typeorm-transactional';
 
 const logger = createLogger('Bootstrap');
 const PATH_PREFIX = 'api';
@@ -32,6 +33,8 @@ export async function bootstrap(options: BootstrapOptions): Promise<NestExpressA
 
   // Run migrations if needed
   await runMigrationsIfNeeded();
+
+  initializeTransactionalContext();
 
   // Create NestJS app with existing Express instance using ExpressAdapter
   const app = await NestFactory.create<NestExpressApplication>(

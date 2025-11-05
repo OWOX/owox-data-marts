@@ -16,7 +16,10 @@ import { ReportRunStatus } from '../enums/report-run-status.enum';
 import { DataMartService } from '../services/data-mart.service';
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
-import { DataMartRunService, ReportRunFinishContext } from '../services/data-mart-run.service';
+import { DataMartRunService } from '../services/data-mart-run.service';
+import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
+import { Transactional } from 'typeorm-transactional';
+import { DataMart } from '../entities/data-mart.entity';
 
 @Injectable()
 export class RunReportService {
@@ -36,7 +39,8 @@ export class RunReportService {
     >,
     private readonly dataMartService: DataMartService,
     private readonly dataMartRunService: DataMartRunService,
-    private readonly gracefulShutdownService: GracefulShutdownService
+    private readonly gracefulShutdownService: GracefulShutdownService,
+    private readonly systemTimeService: SystemTimeService
   ) {}
 
   runInBackground(command: RunReportCommand): void {
@@ -53,83 +57,53 @@ export class RunReportService {
     }
 
     this.logger.log(`Staring report run ${command.reportId}`);
-    const report = await this.reportRepository.findOne({
-      where: { id: command.reportId },
-      relations: ['dataMart', 'dataDestination'],
-    });
 
-    if (!report) {
-      throw new BusinessViolationException(`Report with id ${command.reportId} not found`);
+    const result = await this.startReportRunTransaction(command);
+    if (!result) {
+      return;
     }
+    const { report, dataMartRun } = result;
 
-    if (report.lastRunStatus === ReportRunStatus.RUNNING) {
-      throw new BusinessViolationException('Report is already running');
-    }
-
-    const processId = `report-${command.reportId}-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-
-    const runAt = new Date();
-    report.lastRunStatus = ReportRunStatus.RUNNING;
-    report.lastRunAt = runAt;
-    report.runsCount += 1;
-    delete report.lastRunError;
-
-    //TODO: improve lock ?
-    await this.reportRepository.save(report);
-
-    // TODO: create new record in transaction with reportRepository
-    const dataMartRun = await this.dataMartRunService.createAndMarkReportRunAsPending(report, {
-      createdById: command.userId,
-      runType: command.runType,
-    });
-
-    const dataMartRunFinishContext: ReportRunFinishContext = { status: DataMartRunStatus.SUCCESS };
+    const processId = `report-${command.reportId}-${this.systemTimeService.now()}-${Math.random().toString(36).substring(2, 11)}`;
 
     try {
       this.gracefulShutdownService.registerActiveProcess(processId);
 
-      // actualizing schemas before run
-      await this.dataMartService.actualizeSchemaInEntity(report.dataMart);
-      await this.dataMartService.save(report.dataMart);
+      await this.actualizeSchemaInDataMart(report.dataMart);
 
       await this.dataMartRunService.markReportRunAsStarted(dataMartRun);
 
       await this.executeReport(report, signal);
 
       report.lastRunStatus = ReportRunStatus.SUCCESS;
+      dataMartRun.status = DataMartRunStatus.SUCCESS;
 
-      this.logger.log(`Report run ${report.id} finished successfully`);
+      const saved = await this.saveReportRunResultSafely(report, dataMartRun);
+      if (saved) {
+        this.logger.log(`Report run ${report.id} finished successfully`);
+      } else {
+        this.logger.warn(`Report run ${report.id} completed but failed to save results`);
+      }
     } catch (error) {
       if (error.name === 'AbortError') {
         report.lastRunStatus = ReportRunStatus.CANCELLED;
         report.lastRunError = 'Report run was cancelled by user';
-
-        dataMartRunFinishContext.status = DataMartRunStatus.CANCELLED;
+        dataMartRun.status = DataMartRunStatus.CANCELLED;
 
         this.logger.log(`Report run ${report.id} was aborted by user.`);
       } else {
         const errorString = error.toString();
         report.lastRunStatus = ReportRunStatus.ERROR;
         report.lastRunError = errorString;
-
-        dataMartRunFinishContext.status = DataMartRunStatus.FAILED;
-        dataMartRunFinishContext.errors = [errorString];
+        dataMartRun.status = DataMartRunStatus.FAILED;
+        dataMartRun.errors = [errorString];
 
         this.logger.error(`Error running report ${report.id}:`, error);
       }
+
+      await this.saveReportRunResultSafely(report, dataMartRun);
     } finally {
-      try {
-        // TODO: save results in transaction
-        await this.dataMartRunService.markReportRunAsFinished(
-          dataMartRun,
-          dataMartRunFinishContext
-        );
-        await this.reportRepository.save(report);
-      } catch (saveError) {
-        this.logger.error(`Failed to save report status for ${report.id}:`, saveError);
-      } finally {
-        this.gracefulShutdownService.unregisterActiveProcess(processId);
-      }
+      this.gracefulShutdownService.unregisterActiveProcess(processId);
     }
   }
 
@@ -159,5 +133,71 @@ export class RunReportService {
       await reportWriter.finalize(processingError);
       await reportReader.finalize();
     }
+  }
+
+  private async actualizeSchemaInDataMart(dataMart: DataMart): Promise<void> {
+    await this.dataMartService.actualizeSchemaInEntity(dataMart);
+    await this.dataMartService.save(dataMart);
+  }
+
+  private async saveReportRunResultSafely(
+    report: Report,
+    dataMartRun: DataMartRun
+  ): Promise<boolean> {
+    try {
+      await this.finishReportRunTransaction(report, dataMartRun);
+      return true;
+    } catch (saveError) {
+      this.logger.error(`Failed to save report status for ${report.id}: `, saveError);
+    }
+    return false;
+  }
+
+  @Transactional()
+  private async startReportRunTransaction(
+    command: RunReportCommand
+  ): Promise<{ report: Report; dataMartRun: DataMartRun } | null> {
+    const report = await this.reportRepository.findOne({
+      where: { id: command.reportId },
+      relations: ['dataMart', 'dataDestination'],
+    });
+
+    if (!report) {
+      throw new BusinessViolationException(`Report with id ${command.reportId} not found`);
+    }
+
+    if (report.lastRunStatus === ReportRunStatus.RUNNING) {
+      return null;
+      // throw new BusinessViolationException('Report is already running');
+    }
+
+    const runAt = this.systemTimeService.now();
+    report.lastRunStatus = ReportRunStatus.RUNNING;
+    report.lastRunAt = runAt;
+    report.runsCount += 1;
+    delete report.lastRunError;
+
+    try {
+      await this.reportRepository.save(report);
+
+      const dataMartRun = await this.dataMartRunService.createAndMarkReportRunAsPending(report, {
+        createdById: command.userId,
+        runType: command.runType,
+      });
+
+      return { report, dataMartRun };
+    } catch (error) {
+      if (error.name === 'OptimisticLockVersionMismatchError') {
+        this.logger.log(`Report ${command.reportId} already taken by another instance`);
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  @Transactional()
+  private async finishReportRunTransaction(report: Report, dataMartRun: DataMartRun) {
+    await this.reportRepository.save(report);
+    await this.dataMartRunService.markReportRunAsFinished(dataMartRun);
   }
 }
