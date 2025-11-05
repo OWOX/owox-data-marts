@@ -14,7 +14,7 @@ import { useOutletContext } from 'react-router-dom';
 import type { DataMartContextType } from '../../model/context/types.ts';
 import { getEmptyDefinition } from '../../utils/definition-helpers.ts';
 import SqlValidator from '../SqlValidator/SqlValidator.tsx';
-import type { DataMartDefinitionConfigDto, SqlDefinitionConfig } from '../../model';
+import type { DataMartDefinitionConfig, SqlDefinitionConfig } from '../../model';
 import { useSchemaActualizeTrigger } from '../../../shared/hooks/useSchemaActualizeTrigger';
 
 export function DataMartDefinitionSettings() {
@@ -100,8 +100,8 @@ export function DataMartDefinitionSettings() {
     }
   }, [definitionType, reset, getInitialFormValues]);
 
-  const getEmptyDefinitionForUpdate = (type: DataMartDefinitionType): DataMartDefinitionConfigDto =>
-    getEmptyDefinition(type) as DataMartDefinitionConfigDto;
+  const getEmptyDefinitionForUpdate = (type: DataMartDefinitionType): DataMartDefinitionConfig =>
+    getEmptyDefinition(type) as DataMartDefinitionConfig;
 
   useEffect(() => {
     if (!definitionType && !initialDefinitionType && preset?.definitionType) {

@@ -1,3 +1,5 @@
+import type { ConnectorListItem } from '../../../../connectors/shared/model/types/connector';
+
 export interface ConnectorSourceConfig {
   name: string;
   configuration: Record<string, unknown>[];
@@ -12,6 +14,7 @@ export interface ConnectorStorageConfig {
 export interface ConnectorConfig {
   source: ConnectorSourceConfig;
   storage: ConnectorStorageConfig;
+  info?: ConnectorListItem | null;
 }
 
 export interface ConnectorDefinitionConfig {

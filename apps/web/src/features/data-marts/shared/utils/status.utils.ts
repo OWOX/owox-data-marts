@@ -1,7 +1,7 @@
 import type { DataMartStatusInfo } from '../types';
 import { StatusTypeEnum } from '../../../../shared/components/StatusLabel';
 import { DataMartStatus } from '../enums';
-import { RunStatus } from '../../edit/components/DataMartRunHistoryView';
+import { DataMartRunStatus } from '../enums';
 import { ReportStatusEnum } from '../../reports/shared';
 
 /**
@@ -21,20 +21,20 @@ export const getDataMartStatusType = (status: DataMartStatusInfo['code']): Statu
 };
 
 /**
- * Maps RunStatus to StatusTypeEnum for use with StatusLabel component
+ * Maps DataMartRunStatus to StatusTypeEnum for use with StatusLabel component
  * This ensures consistent status display across the application
  * @param status The run status from DataMartRunItem
  * @returns Equivalent StatusTypeEnum value
  */
-export const mapRunStatusToStatusType = (status: RunStatus): StatusTypeEnum => {
+export const mapRunStatusToStatusType = (status: DataMartRunStatus): StatusTypeEnum => {
   switch (status) {
-    case RunStatus.SUCCESS:
+    case DataMartRunStatus.SUCCESS:
       return StatusTypeEnum.SUCCESS;
-    case RunStatus.RUNNING:
+    case DataMartRunStatus.RUNNING:
       return StatusTypeEnum.INFO;
-    case RunStatus.FAILED:
-    case RunStatus.CANCELLED:
-    case RunStatus.INTERRUPTED:
+    case DataMartRunStatus.FAILED:
+    case DataMartRunStatus.CANCELLED:
+    case DataMartRunStatus.INTERRUPTED:
       return StatusTypeEnum.ERROR;
     default:
       return StatusTypeEnum.NEUTRAL;
@@ -65,18 +65,20 @@ export const mapReportStatusToStatusType = (status: ReportStatusEnum): StatusTyp
  * @param status The run status from DataMartRunItem
  * @returns Human-readable status text
  */
-export const getRunStatusText = (status: RunStatus): string => {
+export const getRunStatusText = (status: DataMartRunStatus): string => {
   switch (status) {
-    case RunStatus.SUCCESS:
+    case DataMartRunStatus.SUCCESS:
       return 'Success';
-    case RunStatus.RUNNING:
+    case DataMartRunStatus.RUNNING:
       return 'Running';
-    case RunStatus.FAILED:
+    case DataMartRunStatus.FAILED:
       return 'Failed';
-    case RunStatus.CANCELLED:
+    case DataMartRunStatus.CANCELLED:
       return 'Cancelled';
-    case RunStatus.INTERRUPTED:
+    case DataMartRunStatus.INTERRUPTED:
       return 'Interrupted';
+    case DataMartRunStatus.PENDING:
+      return 'Pending';
     default:
       return 'Unknown';
   }

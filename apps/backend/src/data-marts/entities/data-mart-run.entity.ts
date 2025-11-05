@@ -10,6 +10,8 @@ import { DataMart } from './data-mart.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import { RunType } from '../../common/scheduler/shared/types';
+import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { DataMartRunReportDefinition } from '../dto/schemas/data-mart-run/data-mart-run-report-definition.schema';
 
 @Entity()
 export class DataMartRun {
@@ -23,8 +25,17 @@ export class DataMartRun {
   @Column()
   dataMartId: string;
 
+  @Column({ nullable: true })
+  type?: DataMartRunType;
+
   @Column({ type: 'json', nullable: true })
   definitionRun?: DataMartDefinition;
+
+  @Column({ nullable: true })
+  reportId?: string;
+
+  @Column({ type: 'json', nullable: true })
+  reportDefinition?: DataMartRunReportDefinition;
 
   @Column({ nullable: true })
   status?: DataMartRunStatus;
@@ -43,6 +54,12 @@ export class DataMartRun {
 
   @CreateDateColumn()
   createdAt: Date;
+
+  @Column({ type: 'datetime', nullable: true })
+  startedAt?: Date;
+
+  @Column({ type: 'datetime', nullable: true })
+  finishedAt?: Date;
 
   @Column({ type: 'json', nullable: true })
   additionalParams?: Record<string, unknown>;
