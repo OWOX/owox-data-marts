@@ -147,7 +147,7 @@ class TiktokMarketingApiProvider {
     ];
   }
 
-  getAdvertisers(advertiserIds) {
+  async getAdvertisers(advertiserIds) {
     if (!this.appId || !this.appSecret) {
       throw new Error("To fetch advertiser data, both AppId and AppSecret must be provided.");
     }
@@ -159,11 +159,11 @@ class TiktokMarketingApiProvider {
     };
 
     const url = this.buildUrl('oauth2/advertiser/get/', params);
-    const response = this.makeRequest({ url, method: 'GET' });
+    const response = await this.makeRequest({ url, method: 'GET' });
     return response.data.list;
   }
 
-  getCampaigns(advertiserId, fields = [], filtering = null) {
+  async getCampaigns(advertiserId, fields = [], filtering = null) {
     this.currentAdvertiserId = advertiserId;
     const params = {
       advertiser_id: advertiserId,
@@ -171,10 +171,10 @@ class TiktokMarketingApiProvider {
       filtering: filtering
     };
 
-    return this.handlePagination('campaign/get/', params);
+    return await this.handlePagination('campaign/get/', params);
   }
-  
-  getAdGroups(advertiserId, fields = [], filtering = null) {
+
+  async getAdGroups(advertiserId, fields = [], filtering = null) {
     this.currentAdvertiserId = advertiserId;
     const params = {
       advertiser_id: advertiserId,
@@ -182,10 +182,10 @@ class TiktokMarketingApiProvider {
       filtering: filtering
     };
 
-    return this.handlePagination('adgroup/get/', params);
+    return await this.handlePagination('adgroup/get/', params);
   }
-  
-  getAds(advertiserId, fields = [], filtering = null) {
+
+  async getAds(advertiserId, fields = [], filtering = null) {
     this.currentAdvertiserId = advertiserId;
     const params = {
       advertiser_id: advertiserId,
@@ -193,10 +193,10 @@ class TiktokMarketingApiProvider {
       filtering: filtering
     };
 
-    return this.handlePagination('ad/get/', params);
+    return await this.handlePagination('ad/get/', params);
   }
-  
-  getAdInsights(options) {
+
+  async getAdInsights(options) {
     const { advertiserId, dataLevel, dimensions, metrics, startDate, endDate } = options;
     this.currentAdvertiserId = advertiserId;
     const params = {
@@ -209,15 +209,15 @@ class TiktokMarketingApiProvider {
       end_date: endDate
     };
 
-    return this.handlePagination('report/integrated/get/', params);
+    return await this.handlePagination('report/integrated/get/', params);
   }
-  
-  getAudiences(advertiserId) {
+
+  async getAudiences(advertiserId) {
     this.currentAdvertiserId = advertiserId;
     const params = {
       advertiser_id: advertiserId
     };
 
-    return this.handlePagination('dmp/custom_audience/list/', params);
+    return await this.handlePagination('dmp/custom_audience/list/', params);
   }
 }
