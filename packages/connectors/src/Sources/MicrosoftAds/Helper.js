@@ -28,21 +28,22 @@ const MicrosoftAdsHelper = {
    * @param {number} [opts.interval=5000]
    * @returns {Object}
    */
-  pollUntilStatus({ url, options, isDone, interval = 5000 }) {
+  async pollUntilStatus({ url, options, isDone, interval = 5000 }) {
     const startTime = Date.now();
     const timeout = 15 * 60 * 1000; // 15 minutes in ms
     let statusResult;
-    
+
     try {
       do {
         if (Date.now() - startTime > timeout) {
           throw new Error('Polling timed out after 15 minutes');
         }
-        EnvironmentAdapter.sleep(interval);
-        const response = EnvironmentAdapter.fetch(url, options);
-        statusResult = JSON.parse(response.getContentText());
+        await AsyncUtils.delay(interval);
+        const response = await HttpUtils.fetch(url, options);
+        const text = await response.getContentText();
+        statusResult = JSON.parse(text);
       } while (!isDone(statusResult));
-      
+
       return statusResult;
     } catch (error) {
       if (statusResult) {
@@ -57,13 +58,14 @@ const MicrosoftAdsHelper = {
    * @param {string} url
    * @returns {Array<Array<string>>}
    */
-  downloadCsvRows(url) {
-    const response = EnvironmentAdapter.fetch(url);
-    const files = EnvironmentAdapter.unzip(response.getBlob());
+  async downloadCsvRows(url) {
+    const response = await HttpUtils.fetch(url);
+    const blob = await response.getBlob();
+    const files = FileUtils.unzip(blob);
     const allRows = [];
     files.forEach(file => {
       const csvText = file.getDataAsString();
-      const rows = EnvironmentAdapter.parseCsv(csvText);
+      const rows = FileUtils.parseCsv(csvText);
       allRows.push(...rows);
     });
     return allRows;

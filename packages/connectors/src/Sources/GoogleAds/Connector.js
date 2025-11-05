@@ -6,7 +6,7 @@
  */
 
 var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
-  constructor(config, source, storageName = "GoogleSheetsStorage", runConfig = null) {
+  constructor(config, source, storageName = "GoogleBigQueryStorage", runConfig = null) {
     super(config, source, null, runConfig);
 
     this.storageName = storageName;
@@ -16,12 +16,12 @@ var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
    * Main method - entry point for the import process
    * Processes all nodes defined in the fields configuration
    */
-  startImportProcess() {
+  async startImportProcess() {
     const customerIds = FormatUtils.parseIds(this.config.CustomerId.value, { stripCharacters: '-' });
     const fields = FormatUtils.parseFields(this.config.Fields.value);
-    
+
     for (const nodeName in fields) {
-      this.processNode({
+      await this.processNode({
         nodeName,
         customerIds,
         fields: fields[nodeName] || []
@@ -36,16 +36,16 @@ var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
    * @param {Array<string>} options.customerIds - Array of customer IDs to process
    * @param {Array<string>} options.fields - Array of fields to fetch
    */
-  processNode({ nodeName, customerIds, fields }) {
+  async processNode({ nodeName, customerIds, fields }) {
     for (const customerId of customerIds) {
       if (this.source.fieldsSchema[nodeName].isTimeSeries) {
-        this.processTimeSeriesNode({
+        await this.processTimeSeriesNode({
           nodeName,
           customerId,
           fields
         });
       } else {
-        this.processCatalogNode({
+        await this.processCatalogNode({
           nodeName,
           customerId,
           fields
@@ -61,27 +61,28 @@ var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
    * @param {string} options.customerId - Customer ID
    * @param {Array<string>} options.fields - Array of fields to fetch
    */
-  processTimeSeriesNode({ nodeName, customerId, fields }) {
+  async processTimeSeriesNode({ nodeName, customerId, fields }) {
     const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
-  
+
     if (daysToFetch <= 0) {
       console.log('No days to fetch for time series data');
       return;
     }
-  
+
     for (let i = 0; i < daysToFetch; i++) {
       const currentDate = new Date(startDate);
       currentDate.setDate(currentDate.getDate() + i);
-      
-      const formattedDate = EnvironmentAdapter.formatDate(currentDate, "UTC", "yyyy-MM-dd");
 
-      const data = this.source.fetchData(nodeName, customerId, { fields, startDate: currentDate });
-  
+      const formattedDate = DateUtils.formatDate(currentDate);
+
+      const data = await this.source.fetchData(nodeName, customerId, { fields, startDate: currentDate });
+
       this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for customer ${customerId} on ${formattedDate}` : `ℹ️ No records have been fetched`);
-  
+
       if (data.length || this.config.CreateEmptyTables?.value) {
         const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-        this.getStorageByNode(nodeName).saveData(preparedData);
+        const storage = await this.getStorageByNode(nodeName);
+        await storage.saveData(preparedData);
       }
 
       if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
@@ -89,7 +90,7 @@ var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
       }
     }
   }
-  
+
   /**
    * Process a catalog node (e.g., ad groups, ads, keywords)
    * @param {Object} options - Processing options
@@ -97,14 +98,15 @@ var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
    * @param {string} options.customerId - Customer ID
    * @param {Array<string>} options.fields - Array of fields to fetch
    */
-  processCatalogNode({ nodeName, customerId, fields }) {
-    const data = this.source.fetchData(nodeName, customerId, { fields });
-    
+  async processCatalogNode({ nodeName, customerId, fields }) {
+    const data = await this.source.fetchData(nodeName, customerId, { fields });
+
     this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for customer ${customerId}` : `ℹ️ No records have been fetched`);
 
     if (data.length || this.config.CreateEmptyTables?.value) {
       const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-      this.getStorageByNode(nodeName).saveData(preparedData);
+      const storage = await this.getStorageByNode(nodeName);
+      await storage.saveData(preparedData);
     }
   }
 
@@ -113,7 +115,7 @@ var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
    * @param {string} nodeName - Name of the node
    * @returns {Object} - Storage instance
    */
-  getStorageByNode(nodeName) {
+  async getStorageByNode(nodeName) {
     if (!("storages" in this)) {
       this.storages = {};
     }
@@ -134,6 +136,8 @@ var GoogleAdsConnector = class GoogleAdsConnector extends AbstractConnector {
         this.source.fieldsSchema[nodeName].fields,
         `${this.source.fieldsSchema[nodeName].description} ${this.source.fieldsSchema[nodeName].documentation}`
       );
+
+      await this.storages[nodeName].init();
     }
 
     return this.storages[nodeName];

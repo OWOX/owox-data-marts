@@ -105,13 +105,13 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
   /**
    * Retrieve and store an OAuth access token using the refresh token
    */
-  getAccessToken() {
+  async getAccessToken() {
     const tokenUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
     const scopes = [
       'https://ads.microsoft.com/msads.manage', // New scope
       'https://ads.microsoft.com/ads.manage'    // Old scope
     ];
-    
+
     for (const scope of scopes) {
       try {
         const form = {
@@ -121,7 +121,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
           grant_type: 'refresh_token',
           client_secret: this.config.ClientSecret.value
         };
-        
+
         const options = {
           method: 'post',
           contentType: 'application/x-www-form-urlencoded',
@@ -131,14 +131,15 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
             .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
             .join('&') // TODO: body is for Node.js; refactor to centralize JSON option creation
         };
-        
-        const resp = EnvironmentAdapter.fetch(tokenUrl, options);
-        const json = JSON.parse(resp.getContentText());
-        
+
+        const resp = await HttpUtils.fetch(tokenUrl, options);
+        const text = await resp.getContentText();
+        const json = JSON.parse(text);
+
         if (json.error) {
           throw new Error(`Token error: ${json.error} - ${json.error_description}`);
         }
-        
+
         this.config.AccessToken = { value: json.access_token };
         this.config.logMessage(`Successfully obtained access token with scope (${scope})`);
         return;
@@ -163,7 +164,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
    * @param {Function} [opts.onBatchReady] - Optional callback for batch processing
    * @returns {Array<Object>}
    */
-  fetchData({ nodeName, accountId, fields = [], start_time, end_time, onBatchReady }) {
+  async fetchData({ nodeName, accountId, fields = [], start_time, end_time, onBatchReady }) {
     const schema = this.fieldsSchema[nodeName];
     if (schema.uniqueKeys) {
       const missingKeys = schema.uniqueKeys.filter(key => !fields.includes(key));
@@ -173,12 +174,12 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
     }
     switch (nodeName) {
       case 'campaigns':
-        this._fetchCampaignData({ accountId, fields, onBatchReady });
+        await this._fetchCampaignData({ accountId, fields, onBatchReady });
         return [];
       case 'ad_performance_report':
-        return this._fetchReportData({ accountId, fields, start_time, end_time, nodeName });
+        return await this._fetchReportData({ accountId, fields, start_time, end_time, nodeName });
       case 'user_location_performance_report':
-        return this._fetchReportData({ accountId, fields, start_time, end_time, nodeName });
+        return await this._fetchReportData({ accountId, fields, start_time, end_time, nodeName });
       default:
         throw new Error(`Unknown node: ${nodeName}`);
     }
@@ -193,17 +194,17 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
    * @returns {void}
    * @private
    */
-  _fetchCampaignData({ accountId, fields, onBatchReady }) {
-    this.getAccessToken();
+  async _fetchCampaignData({ accountId, fields, onBatchReady }) {
+    await this.getAccessToken();
     
     this.config.logMessage(`Fetching Campaigns, AssetGroups and AdGroups for account ${accountId}...`);
     
     const entityTypes = ['Campaigns', 'AssetGroups', 'AdGroups'];
     const allRecords = [];
     let campaignRecords = [];
-    
+
     for (const entityType of entityTypes) {
-      const records = this._downloadEntity({
+      const records = await this._downloadEntity({
         submitUrl: 'https://bulk.api.bingads.microsoft.com/Bulk/v13/Campaigns/DownloadByAccountIds',
         submitOpts: {
           method: 'post',
@@ -233,10 +234,10 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
           })
         }
       });
-      
+
       this.config.logMessage(`${records.length} rows of ${entityType} were fetched for account ${accountId}`);
       allRecords.push(...records);
-      
+
       // Keep campaigns for later use
       if (entityType === 'Campaigns') {
         campaignRecords = records;
@@ -246,7 +247,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
     // Save main data immediately
     const filteredMainData = MicrosoftAdsHelper.filterByFields(allRecords, fields);
     if (filteredMainData.length > 0) {
-      onBatchReady(filteredMainData);
+     await onBatchReady(filteredMainData);
     }
     
     // Handle Keywords with batching to avoid 100MB limit
@@ -258,14 +259,14 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
     this.config.logMessage(`Campaign IDs: ${campaignIds.slice(0, 10).join(', ')}${campaignIds.length > 10 ? '...' : ''}`);
     
     let totalFetched = 0;
-    this._fetchEntityByCampaigns({ 
-      accountId, 
-      entityType: 'Keywords', 
+    await this._fetchEntityByCampaigns({
+      accountId,
+      entityType: 'Keywords',
       campaignIds,
-      onBatchReady: (batchRecords) => {
+      onBatchReady: async (batchRecords) => {
         totalFetched += batchRecords.length;
         const filteredBatch = MicrosoftAdsHelper.filterByFields(batchRecords, fields);
-        onBatchReady(filteredBatch);
+        await onBatchReady(filteredBatch);
       }
     });
     this.config.logMessage(`${totalFetched} rows of Keywords were fetched for account ${accountId}`);
@@ -280,19 +281,20 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
    * @returns {Array<Object>}
    * @private
    */
-  _downloadEntity({ submitUrl, submitOpts }) {    
-    const submitResp = EnvironmentAdapter.fetch(submitUrl, submitOpts);
-    const requestId = JSON.parse(submitResp.getContentText()).DownloadRequestId;
+  async _downloadEntity({ submitUrl, submitOpts }) {
+    const submitResp = await HttpUtils.fetch(submitUrl, submitOpts);
+    const text = await submitResp.getContentText();
+    const requestId = JSON.parse(text).DownloadRequestId;
 
     const pollUrl = 'https://bulk.api.bingads.microsoft.com/Bulk/v13/BulkDownloadStatus/Query';
-    const pollOpts = Object.assign({}, submitOpts, { 
-      payload: JSON.stringify({ RequestId: requestId }), 
-      body: JSON.stringify({ RequestId: requestId }) 
+    const pollOpts = Object.assign({}, submitOpts, {
+      payload: JSON.stringify({ RequestId: requestId }),
+      body: JSON.stringify({ RequestId: requestId })
     });
-    
-    const pollResult = MicrosoftAdsHelper.pollUntilStatus({ 
-      url: pollUrl, 
-      options: pollOpts, 
+
+    const pollResult = await MicrosoftAdsHelper.pollUntilStatus({
+      url: pollUrl,
+      options: pollOpts,
       isDone: status => {
         if (!status.RequestStatus || status.RequestStatus === 'Failed') {
           throw new Error('Bulk download failed');
@@ -300,9 +302,9 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
         return status.RequestStatus === 'Completed';
       }
     });
-    const csvRows = MicrosoftAdsHelper.downloadCsvRows(pollResult.ResultFileUrl);
+    const csvRows = await MicrosoftAdsHelper.downloadCsvRows(pollResult.ResultFileUrl);
     const result = MicrosoftAdsHelper.csvRowsToObjects(csvRows);
-        
+
     return result;
   }
 
@@ -316,7 +318,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
    * @returns {Array<Object>} - Returns empty array if onBatchReady callback is provided, otherwise returns all records
    * @private
    */
-  _fetchEntityByCampaigns({ accountId, entityType, campaignIds, onBatchReady }) {
+  async _fetchEntityByCampaigns({ accountId, entityType, campaignIds, onBatchReady }) {
     if (campaignIds.length === 0) {
       this.config.logMessage(`No active campaigns found for account ${accountId}, skipping ${entityType} fetch`);
       return [];
@@ -324,29 +326,29 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
 
     // Start with batch size of 100 campaigns per batch
     let batchSize = Math.max(1, Math.min(50, Math.floor(campaignIds.length / 10)));
-    
+
     for (let i = 0; i < campaignIds.length; i += batchSize) {
       const campaignBatch = campaignIds.slice(i, i + batchSize);
       this.config.logMessage(`Fetching ${entityType} for campaigns batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(campaignIds.length/batchSize)} (${campaignBatch.length} campaigns)`);
-      
+
       try {
-        const batchRecords = this._downloadEntityBatch({ accountId, entityType, campaignBatch });
+        const batchRecords = await this._downloadEntityBatch({ accountId, entityType, campaignBatch });
         this.config.logMessage(`Fetched ${batchRecords.length} ${entityType.toLowerCase()} from current batch`);
-        
-        onBatchReady(batchRecords);
+
+        await onBatchReady(batchRecords);
       } catch (error) {
         if (error.message && error.message.includes('100MB')) {
           // If still too large, reduce batch size and retry
           const newBatchSize = Math.max(1, Math.floor(batchSize / 2));
           this.config.logMessage(`Batch too large (${batchSize} campaigns), retrying with smaller batch size: ${newBatchSize}`);
-          
+
           // Retry current batch with smaller size
           for (let j = i; j < Math.min(i + batchSize, campaignIds.length); j += newBatchSize) {
             const smallerBatch = campaignIds.slice(j, j + newBatchSize);
             try {
-              const smallerBatchRecords = this._downloadEntityBatch({ accountId, entityType, campaignBatch: smallerBatch });
+              const smallerBatchRecords = await this._downloadEntityBatch({ accountId, entityType, campaignBatch: smallerBatch });
               this.config.logMessage(`Fetched ${smallerBatchRecords.length} ${entityType.toLowerCase()} from smaller batch (${smallerBatch.length} campaigns)`);
-              onBatchReady(smallerBatchRecords);
+              await onBatchReady(smallerBatchRecords);
             } catch (smallerError) {
               if (smallerError.message && smallerError.message.includes('100MB')) {
                 throw new Error(`Failed to fetch ${entityType}: batch size of ${smallerBatch.length} campaigns still exceeds 100MB limit`);
@@ -355,7 +357,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
               }
             }
           }
-          
+
           // Update batch size for future iterations
           batchSize = newBatchSize;
         } else {
@@ -364,7 +366,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
         }
       }
     }
-    
+
     return [];
   }
 
@@ -377,11 +379,11 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
    * @returns {Array<Object>}
    * @private
    */
-  _downloadEntityBatch({ accountId, entityType, campaignBatch }) {
+  async _downloadEntityBatch({ accountId, entityType, campaignBatch }) {
     const downloadBody = {
-      Campaigns: campaignBatch.map(id => ({ 
-        CampaignId: Number(id), 
-        ParentAccountId: Number(accountId) 
+      Campaigns: campaignBatch.map(id => ({
+        CampaignId: Number(id),
+        ParentAccountId: Number(accountId)
       })),
       CompressionType: 'Zip',
       DataScope: 'EntityData',
@@ -403,8 +405,8 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
       payload: JSON.stringify(downloadBody),
       body: JSON.stringify(downloadBody)
     };
-    
-    return this._downloadEntity({
+
+    return await this._downloadEntity({
       submitUrl: 'https://bulk.api.bingads.microsoft.com/Bulk/v13/Campaigns/DownloadByCampaignIds',
       submitOpts
     });
@@ -421,26 +423,26 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
    * @returns {Array<Object>}
    * @private
    */
-  _fetchReportData({ accountId, fields, start_time, end_time, nodeName }) {
-    this.getAccessToken();
+  async _fetchReportData({ accountId, fields, start_time, end_time, nodeName }) {
+    await this.getAccessToken();
     const schema = this.fieldsSchema[nodeName];
-    
-    const submitResponse = this._submitReportRequest({ 
-      accountId, 
-      fields, 
-      start_time, 
-      end_time, 
-      schema 
+
+    const submitResponse = await this._submitReportRequest({
+      accountId,
+      fields,
+      start_time,
+      end_time,
+      schema
     });
-    
-    const pollResult = this._pollReportStatus({ submitResponse });
-    
+
+    const pollResult = await this._pollReportStatus({ submitResponse });
+
     if (!pollResult.ReportRequestStatus.ReportDownloadUrl) {
       this.config.logMessage(`No data available for the specified time period (${start_time} to ${end_time}). Report status: ${JSON.stringify(pollResult.ReportRequestStatus)}`);
       return [];
     }
-    
-    const csvRows = MicrosoftAdsHelper.downloadCsvRows(pollResult.ReportRequestStatus.ReportDownloadUrl);
+
+    const csvRows = await MicrosoftAdsHelper.downloadCsvRows(pollResult.ReportRequestStatus.ReportDownloadUrl);
     const records = MicrosoftAdsHelper.csvRowsToObjects(csvRows);
     return MicrosoftAdsHelper.filterByFields(records, fields);
   }
@@ -456,7 +458,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
    * @returns {Object} - Submit response
    * @private
    */
-  _submitReportRequest({ accountId, fields, start_time, end_time, schema }) {
+  async _submitReportRequest({ accountId, fields, start_time, end_time, schema }) {
     const dateRange = {
       CustomDateRangeStart: { Day: new Date(start_time).getDate(), Month: new Date(start_time).getMonth() + 1, Year: new Date(start_time).getFullYear() },
       CustomDateRangeEnd: { Day: new Date(end_time).getDate(), Month: new Date(end_time).getMonth() + 1, Year: new Date(end_time).getFullYear() },
@@ -488,9 +490,9 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
       payload: JSON.stringify({ ReportRequest: requestBody }),
       body: JSON.stringify({ ReportRequest: requestBody }) // TODO: body is for Node.js; refactor to centralize JSON option creation
     };
-    const submitResp = EnvironmentAdapter.fetch(submitUrl, submitOpts);
-    const submitResponseText = submitResp.getContentText();
-    
+    const submitResp = await HttpUtils.fetch(submitUrl, submitOpts);
+    const submitResponseText = await submitResp.getContentText();
+
     try {
       const submitResponse = JSON.parse(submitResponseText);
       if (submitResponse.OperationErrors && submitResponse.OperationErrors.length > 0) {
@@ -515,7 +517,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
    * @returns {Object} - Poll result with report status
    * @private
    */
-  _pollReportStatus({ submitResponse }) {
+  async _pollReportStatus({ submitResponse }) {
     const pollUrl = 'https://reporting.api.bingads.microsoft.com/Reporting/v13/GenerateReport/Poll';
     const submitResponseText = JSON.stringify(submitResponse);
     const pollOpts = {
@@ -531,14 +533,14 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
       payload: submitResponseText,
       body: submitResponseText
     };
-    
-    return MicrosoftAdsHelper.pollUntilStatus({ 
-      url: pollUrl, 
-      options: pollOpts, 
+
+    return await MicrosoftAdsHelper.pollUntilStatus({
+      url: pollUrl,
+      options: pollOpts,
       isDone: status => {
         if (!status.ReportRequestStatus || status.ReportRequestStatus.Status === 'Error') {
           throw new Error('Report generation failed');
-        } 
+        }
         return status.ReportRequestStatus.Status === 'Success';
       }
     });

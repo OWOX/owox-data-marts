@@ -1,9 +1,0 @@
-**/**
-!Sources/BankOfCanada/*.js
-!Sources/BankOfCanada/**/*.js
-!appsscript.json
-!Core/**/*.js
-!Constants/*.js
-!Views/**/*
-!Storages/**/*.js
-!Configs/AppsScript/*.js

@@ -1,9 +1,0 @@
-**/**
-!Sources/FacebookMarketing/*.js
-!Sources/FacebookMarketing/**/*.js
-!appsscript.json
-!Core/**/*.js
-!Constants/*.js
-!Views/**/*
-!Storages/**/*.js
-!Configs/AppsScript/*.js

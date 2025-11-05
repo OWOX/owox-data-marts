@@ -11,20 +11,20 @@
 var OAuthUtils = {
   /**
    * Universal OAuth access token retrieval method
-   * 
+   *
    * @param {Object} options - All configuration options
    * @param {Object} options.config - Configuration object containing credentials
    * @param {string} options.tokenUrl - OAuth token endpoint URL
    * @param {Object} options.formData - Form data to send in request body
    * @param {Object} [options.headers] - Request headers
-   * @returns {string} - The access token
+   * @returns {Promise<string>} - The access token
    */
-  getAccessToken({ config, tokenUrl, formData, headers = {} }) {
+  async getAccessToken({ config, tokenUrl, formData, headers = {} }) {
     const requestHeaders = {
       'Content-Type': 'application/x-www-form-urlencoded',
       ...headers
     };
-    
+
     const options = {
       method: 'post',
       contentType: 'application/x-www-form-urlencoded',
@@ -34,18 +34,19 @@ var OAuthUtils = {
         .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
         .join('&')
     };
-    
+
     try {
-      const resp = EnvironmentAdapter.fetch(tokenUrl, options);
-      const json = JSON.parse(resp.getContentText());
-      
+      const resp = await HttpUtils.fetch(tokenUrl, options);
+      const text = await resp.getContentText();
+      const json = JSON.parse(text);
+
       if (json.error) {
         throw new Error(`Token error: ${json.error}`);
       }
-      
+
       config.AccessToken = { value: json.access_token };
       config.logMessage(`Successfully obtained access token`);
-      
+
       return json.access_token;
     } catch (error) {
       throw new Error(`Failed to get access token: ${error.message}`);
@@ -54,7 +55,7 @@ var OAuthUtils = {
 
   /**
    * Get access token using Service Account JWT authentication
-   * 
+   *
    * @param {Object} options - Configuration options
    * @param {Object} options.config - Configuration object
    * @param {string} options.tokenUrl - Token URL
@@ -62,10 +63,10 @@ var OAuthUtils = {
    * @param {string} options.scope - OAuth scope (e.g., "https://www.googleapis.com/auth/adwords")
    * @returns {string} - The access token
    */
-  getServiceAccountToken({ config, tokenUrl, serviceAccountKeyJson, scope }) {
+  async getServiceAccountToken({ config, tokenUrl, serviceAccountKeyJson, scope }) {
     try {
       const serviceAccountData = JSON.parse(serviceAccountKeyJson);
-      
+
       const now = Math.floor(Date.now() / 1000);
       const jwt = this.createJWT({
         payload: {
@@ -77,22 +78,22 @@ var OAuthUtils = {
         },
         privateKey: serviceAccountData.private_key
       });
-      
+
       const formData = {
         grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
         assertion: jwt
       };
-      
-      const accessToken = this.getAccessToken({
+
+      const accessToken = await this.getAccessToken({
         config,
         tokenUrl,
         formData
       });
-      
+
       config.logMessage("✅ Successfully authenticated with Service Account");
-      
+
       return accessToken;
-      
+
     } catch (error) {
       config.logMessage(`❌ Service Account authentication failed: ${error.message}`);
       throw new Error(`Service Account authentication failed: ${error.message}`);
