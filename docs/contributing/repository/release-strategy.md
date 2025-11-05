@@ -5,7 +5,7 @@ This repository follows a structured release strategy with the following princip
 - **Long-term API stability**: Avoid breaking changes in OSS and Cloud for as long as practical
 - **Major bumps = marketing**: 2.0.0, 3.0.0 used sparingly; not necessarily breaking
 - **Patch digit always 0**: All normal changes use **minor** bumps (`x.y.0`) to minimize maintenance burden (postpone patch version complexity for as long as possible)
-- **Publishable packages** (`owox`, `@owox/backend`, `@owox/connectors`, and `@owox/connector-runner`) always share **identical versions**.
+- **Publishable packages** (`owox`, `@owox/backend`, `@owox/connectors` always share **identical versions**.
 
 ## Version & Distribution Tags
 

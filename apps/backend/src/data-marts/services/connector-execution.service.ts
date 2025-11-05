@@ -4,15 +4,15 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 
-import {
-  ConnectorRunner,
-  Config,
-  StorageConfig,
-  SourceConfig,
-  RunConfig,
-} from '@owox/connector-runner';
 // @ts-expect-error - Package lacks TypeScript declarations
 import { Core } from '@owox/connectors';
+import { spawn } from 'cross-spawn';
+
+const { ConfigDto, StorageConfigDto, SourceConfigDto, RunConfigDto } = Core;
+type ConfigDto = InstanceType<typeof Core.ConfigDto>;
+type StorageConfigDto = InstanceType<typeof Core.StorageConfigDto>;
+type SourceConfigDto = InstanceType<typeof Core.SourceConfigDto>;
+type RunConfigDto = InstanceType<typeof Core.RunConfigDto>;
 
 import { ConnectorDefinition as DataMartConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMart } from '../entities/data-mart.entity';
@@ -33,11 +33,13 @@ import { ConsumptionTrackingService } from './consumption-tracking.service';
 import { DataMartService } from './data-mart.service';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { GracefulShutdownService } from '../../common/scheduler/services/graceful-shutdown.service';
+import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 import { ConnectorExecutionError } from '../errors/connector-execution.error';
 import { OWOX_PRODUCER } from '../../common/producer/producer.module';
 import { OwoxProducer } from '@owox/internal-helpers';
 import { ConnectorRunSuccessfullyEvent } from '../events/connector-run-successfully.event';
 import { RunType } from '../../common/scheduler/shared/types';
+import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 
 interface ConfigurationExecutionResult {
   configIndex: number;
@@ -59,6 +61,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     private readonly gracefulShutdownService: GracefulShutdownService,
     private readonly consumptionTracker: ConsumptionTrackingService,
     private readonly configService: ConfigService,
+    private readonly systemTimeService: SystemTimeService,
     @Inject(OWOX_PRODUCER)
     private readonly producer: OwoxProducer
   ) {}
@@ -97,6 +100,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     if (run.status === DataMartRunStatus.RUNNING) {
       await this.dataMartRunRepository.update(runId, {
         status: DataMartRunStatus.CANCELLED,
+        finishedAt: this.systemTimeService.now(),
       });
     }
   }
@@ -191,6 +195,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
   ): Promise<DataMartRun> {
     const dataMartRun = this.dataMartRunRepository.create({
       dataMartId: dataMart.id,
+      type: DataMartRunType.CONNECTOR,
       definitionRun: dataMart.definition,
       status: DataMartRunStatus.PENDING,
       createdById: createdById,
@@ -232,7 +237,10 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
 
       await this.dataMartRunRepository.update(runId, {
         status: DataMartRunStatus.RUNNING,
+        startedAt: this.systemTimeService.now(),
+        finishedAt: undefined,
       });
+
       const configurationResults = await this.runConnectorConfigurations(
         runId,
         processId,
@@ -411,7 +419,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
       );
 
       try {
-        const configuration = new Config({
+        const configuration = new ConfigDto({
           name: connector.source.name,
           datamartId: dataMart.id,
           source: await this.getSourceConfig(dataMart.id, connector, config, configId),
@@ -422,8 +430,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
         const configState = await this.connectorStateService.getState(dataMart.id, configId);
         const runConfig = this.getRunConfig(payload, configState);
 
-        const connectorRunner = new ConnectorRunner();
-        await connectorRunner.run(dataMart.id, runId, configuration, runConfig, logCaptureConfig);
+        await this.runConnector(dataMart.id, runId, configuration, runConfig, logCaptureConfig);
         if (configErrors.length === 0) {
           this.logger.log(`Configuration ${configIndex + 1} completed successfully`, {
             dataMartId: dataMart.id,
@@ -468,6 +475,95 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     return configurationResults;
   }
 
+  private async runConnector(
+    datamartId: string,
+    runId: string,
+    configuration: ConfigDto,
+    runConfig: RunConfigDto,
+    stdio: {
+      logCapture?: { onStdout?: (message: string) => void; onStderr?: (message: string) => void };
+      onSpawn?: (pid: number | undefined) => void;
+    }
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      let spawnStdio: 'inherit' | 'pipe' | Array<string | number> = 'inherit';
+      let logCapture: {
+        onStdout?: (message: string) => void;
+        onStderr?: (message: string) => void;
+      } | null = null;
+      let onSpawn: ((pid: number | undefined) => void) | null = null;
+
+      if (stdio && typeof stdio === 'object' && stdio.logCapture) {
+        logCapture = stdio.logCapture;
+        spawnStdio = 'pipe';
+        if (typeof stdio.onSpawn === 'function') {
+          onSpawn = stdio.onSpawn;
+        }
+      }
+
+      const env = {
+        ...process.env,
+        OW_DATAMART_ID: datamartId,
+        OW_RUN_ID: runId,
+        OW_CONFIG: JSON.stringify(configuration.toObject()),
+        OW_RUN_CONFIG: JSON.stringify(runConfig.toObject()),
+      };
+
+      this.logger.log(
+        `Spawning new process for connector runner execution for datamart ${datamartId} and run ${runId}`,
+        {
+          datamartId,
+          runId,
+        }
+      );
+
+      const runnerPath = require.resolve('@owox/connectors/runner');
+      const node = spawn('node', [runnerPath], {
+        stdio: spawnStdio,
+        env,
+        detached: true,
+      });
+
+      if (onSpawn) {
+        try {
+          onSpawn(node.pid);
+        } catch (error) {
+          this.logger.error(
+            `Failed to call onSpawn callback: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+      }
+
+      if (logCapture && node.stdout && node.stderr) {
+        node.stdout.on('data', data => {
+          const message = data.toString();
+          if (logCapture.onStdout) {
+            logCapture.onStdout(message);
+          }
+        });
+
+        node.stderr.on('data', data => {
+          const message = data.toString();
+          if (logCapture.onStderr) {
+            logCapture.onStderr(message);
+          }
+        });
+      }
+
+      node.on('close', code => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`Connector process exited with code ${code}`));
+        }
+      });
+
+      node.on('error', error => {
+        reject(error);
+      });
+    });
+  }
+
   private async updateRunStatus(
     runId: string,
     capturedLogs: ConnectorMessage[],
@@ -480,6 +576,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
 
     await this.dataMartRunRepository.update(runId, {
       status,
+      finishedAt: this.systemTimeService.now(),
       logs: capturedLogs.map(log => JSON.stringify(log)),
       errors: capturedErrors.map(error => JSON.stringify(error)),
     });
@@ -491,14 +588,14 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     connector: DataMartConnectorDefinition['connector'],
     config: Record<string, unknown>,
     configId: string
-  ): Promise<SourceConfig> {
+  ): Promise<SourceConfigDto> {
     const fieldsConfig = connector.source.fields
       .map(field => `${connector.source.node} ${field}`)
       .join(', ');
 
     const state = await this.connectorStateService.getState(dataMartId, configId);
 
-    return new SourceConfig({
+    return new SourceConfigDto({
       name: connector.source.name,
       config: {
         ...config,
@@ -510,7 +607,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     });
   }
 
-  private getStorageConfig(dataMart: DataMart): StorageConfig {
+  private getStorageConfig(dataMart: DataMart): StorageConfigDto {
     const definition = dataMart.definition as DataMartConnectorDefinition;
     const { connector } = definition;
 
@@ -537,12 +634,12 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
   private createBigQueryStorageConfig(
     dataMart: DataMart,
     connector: DataMartConnectorDefinition['connector']
-  ): StorageConfig {
+  ): StorageConfigDto {
     const storageConfig = dataMart.storage.config as BigQueryConfig;
     const credentials = dataMart.storage.credentials as BigQueryCredentials;
     const datasetId = connector.storage?.fullyQualifiedName.split('.')[0];
 
-    return new StorageConfig({
+    return new StorageConfigDto({
       name: DataStorageType.GOOGLE_BIGQUERY,
       config: {
         DestinationLocation: storageConfig?.location,
@@ -559,11 +656,11 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
   private createAthenaStorageConfig(
     dataMart: DataMart,
     connector: DataMartConnectorDefinition['connector']
-  ): StorageConfig {
+  ): StorageConfigDto {
     const storageConfig = dataMart.storage.config as AthenaConfig;
     const credentials = dataMart.storage.credentials as AthenaCredentials;
     const clearBucketName = storageConfig.outputBucket.replace(/^s3:\/\//, '').replace(/\/$/, '');
-    return new StorageConfig({
+    return new StorageConfigDto({
       name: DataStorageType.AWS_ATHENA,
       config: {
         AWSRegion: storageConfig.region,
@@ -578,7 +675,10 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     });
   }
 
-  private getRunConfig(payload?: Record<string, unknown>, state?: ConnectorStateItem): RunConfig {
+  private getRunConfig(
+    payload?: Record<string, unknown>,
+    state?: ConnectorStateItem
+  ): RunConfigDto {
     const type = payload?.runType || 'INCREMENTAL';
     const data = payload?.data
       ? Object.entries(payload.data).map(([key, value]) => {
@@ -588,8 +688,16 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
           };
         })
       : [];
-
-    return new RunConfig({
+    this.logger.debug(`Creating run config`, {
+      payload,
+      state,
+    });
+    this.logger.debug(`Returning run config`, {
+      type,
+      data,
+      state: state?.state || {},
+    });
+    return new RunConfigDto({
       type,
       data,
       state: state?.state || {},

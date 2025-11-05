@@ -1,15 +1,14 @@
 import type { LogEntry } from './types';
 import { LogLevel } from './types';
-import type { DataMartDefinitionConfigDto } from '../../model/types/data-mart-definition-config';
-import { formatDateTime, parseDate } from '../../../../../utils/date-formatters';
-
-/**
- * Format timestamp string to display format
- * Parses the timestamp and formats it in browser's local timezone
- */
-const formatTimestamp = (timestamp: string): string => {
-  return formatDateTime(parseDate(timestamp).toISOString());
-};
+import type { DataMartDefinitionConfig } from '../../model/types/data-mart-definition-config';
+import {
+  formatDateTime,
+  formatTimestamp,
+  formatDuration,
+} from '../../../../../utils/date-formatters';
+import type { DataMartRunItem } from '../../model';
+import { DataMartRunType } from '../../../shared';
+import { capitalizeFirstLetter } from '../../../../../utils';
 
 export const parseLogEntry = (log: string, index: number, isError = false): LogEntry => {
   // Split log into lines for multiline format
@@ -63,7 +62,7 @@ export const parseLogEntry = (log: string, index: number, isError = false): LogE
   const processedMessage = processJSONMessage(log);
   return {
     id: `log-${index.toString()}`,
-    timestamp: formatTimestamp(new Date().toISOString()),
+    timestamp: 'N/A',
     level: isError ? LogLevel.ERROR : LogLevel.INFO,
     message: processedMessage.message,
     metadata: processedMessage.metadata?.at
@@ -127,16 +126,34 @@ export const getDisplayType = (logEntry: LogEntry): string => {
   return logEntry.level;
 };
 
-export const getRunSummary = (run: { id: string; logs: string[]; errors: string[] }) => {
-  const logCount = run.logs.length;
-  const errorCount = run.errors.length;
-  const totalMessages = logCount + errorCount;
+export const getRunSummary = (
+  run: DataMartRunItem,
+  connectorDisplayName: string | null | undefined
+) => {
+  const triggerType = run.triggerType ?? 'manual';
 
-  const parts = [`Run #${run.id.slice(-8)}`, `${String(totalMessages)} messages`];
-
-  if (errorCount > 0) {
-    parts.push(`${String(errorCount)} errors`);
+  let title = '';
+  let runType = '';
+  switch (run.type) {
+    case DataMartRunType.CONNECTOR:
+      title = connectorDisplayName ?? '';
+      runType = 'connector';
+      break;
+    case DataMartRunType.LOOKER_STUDIO:
+      title = 'Looker Studio data fetching';
+      runType = 'report';
+      break;
+    case DataMartRunType.GOOGLE_SHEETS_EXPORT:
+      title = run.reportDefinition?.title ?? '';
+      runType = 'report';
+      break;
+    default:
+      break;
   }
+
+  const runDescription = capitalizeFirstLetter(`${triggerType} ${runType} run`.trim());
+
+  const parts = [runDescription, title];
 
   return parts.join(' • ');
 };
@@ -145,7 +162,7 @@ export const downloadLogs = (run: {
   id: string;
   logs: string[];
   errors: string[];
-  definitionRun: DataMartDefinitionConfigDto | null;
+  definitionRun: DataMartDefinitionConfig | null;
 }) => {
   const blob = new Blob([JSON.stringify(run, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -154,4 +171,29 @@ export const downloadLogs = (run: {
   a.download = `datamart-run-${run.id.slice(0, 8)}-logs.json`;
   a.click();
   URL.revokeObjectURL(url);
+};
+
+export const getStartedAtDisplay = (run: DataMartRunItem): string => {
+  const resolvedDate = run.startedAt ?? run.createdAt;
+  return formatDateTime(resolvedDate.toISOString());
+};
+
+export const getTooltipContent = (run: DataMartRunItem) => {
+  const startedAt = formatDateForTooltipContent(run.startedAt);
+  const finishedAt = formatDateForTooltipContent(run.finishedAt);
+
+  let duration = '';
+  if (run.startedAt && run.finishedAt) {
+    duration = formatDuration(run.startedAt, run.finishedAt);
+  }
+
+  return {
+    startedAt,
+    finishedAt,
+    duration,
+  };
+};
+
+export const formatDateForTooltipContent = (date: Date | null): string => {
+  return date ? formatDateTime(date.toISOString()) : 'N/A';
 };

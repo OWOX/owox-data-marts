@@ -155,11 +155,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               ],
               collapsed: true,
             },
-            {
-              label: 'Connector Runner',
-              autogenerate: { directory: 'packages/connector-runner' },
-              collapsed: true,
-            },
             { label: 'Licenses', autogenerate: { directory: 'licenses' }, collapsed: true },
             'docs/changelog',
           ],
