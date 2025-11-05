@@ -136,7 +136,7 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
 
           {form.watch('runType') === RunType.INCREMENTAL && (
             <FormSection>
-              <AppWizardCollapsible title='Advanced'>
+              <AppWizardCollapsible title='State Info'>
                 {(() => {
                   const config = configuration?.connector.source.configuration ?? [];
                   const configIds = config
