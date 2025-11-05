@@ -124,7 +124,7 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
     }
 
     const baseUrl = 'https://ads-api.reddit.com/api/v3/';
-    let formattedDate = startDate ? DateUtils.formatDate(startDate, "UTC", "yyyy-MM-dd") : null;
+    let formattedDate = startDate ? DateUtils.formatDate(startDate) : null;
 
     // Base headers for all requests
     let headers = {

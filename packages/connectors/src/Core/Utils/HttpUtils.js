@@ -8,11 +8,11 @@
 /**
  * @typedef {Object} FetchResponse
  * @property {function(): Object} getHeaders
- * @property {function(): any} getAsJson
- * @property {function(): string|Buffer} getContent
- * @property {function(): string} getContentText
+ * @property {function(): Promise<any>} getAsJson
+ * @property {function(): Promise<string>} getContent
+ * @property {function(): Promise<string>} getContentText
  * @property {function(): number} getResponseCode
- * @property {function(): any} getBlob
+ * @property {function(): Promise<Buffer>} getBlob
  */
 
 /**

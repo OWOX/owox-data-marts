@@ -79,7 +79,7 @@ function _isPotentialShortLink(url) {
  * Resolves short links to their full URLs
  *
  * @param {Array} shortLinks - Array of short link objects
- * @return {Array} New array with resolved URLs
+ * @return {Promise<Array<{originalUrl: string, resolvedUrl: string}>>} Promise resolving to array with resolved URLs
  * @private
  */
 async function _resolveShortLinks(shortLinks) {
@@ -106,7 +106,7 @@ async function _resolveShortLinks(shortLinks) {
     }
   });
 
-  return await Promise.all(promises);
+  return Promise.all(promises);
 }
 
 //---- _populateDataWithResolvedUrls -------------------------------------

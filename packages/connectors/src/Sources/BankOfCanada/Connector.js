@@ -138,8 +138,8 @@ var BankOfCanadaConnector = class BankOfCanadaConnector extends AbstractConnecto
     endDate.setDate(endDate.getDate() + daysToFetch - 1);
       
     return {
-      startDate: DateUtils.formatDate(startDate, "UTC", "yyyy-MM-dd"),
-      endDate: DateUtils.formatDate(endDate, "UTC", "yyyy-MM-dd")
+      startDate: DateUtils.formatDate(startDate),
+      endDate: DateUtils.formatDate(endDate)
     };
   }
 }

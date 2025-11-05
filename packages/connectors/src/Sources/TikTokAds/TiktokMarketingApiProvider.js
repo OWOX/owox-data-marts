@@ -44,11 +44,10 @@ class TiktokMarketingApiProvider {
 
     for (let retries = 0; retries < this.MAX_RETRIES; retries++) {
       try {
-        const response = HttpUtils.fetch(url, {
+        const response = await HttpUtils.fetch(url, {
           method: method,
           headers: headers,
-          body: data ? JSON.stringify(data) : null,
-          muteHttpExceptions: true
+          body: data ? JSON.stringify(data) : null
         });
 
         const responseCode = response.getResponseCode();

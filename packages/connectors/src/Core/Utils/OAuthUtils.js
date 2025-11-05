@@ -17,7 +17,7 @@ var OAuthUtils = {
    * @param {string} options.tokenUrl - OAuth token endpoint URL
    * @param {Object} options.formData - Form data to send in request body
    * @param {Object} [options.headers] - Request headers
-   * @returns {string} - The access token
+   * @returns {Promise<string>} - The access token
    */
   async getAccessToken({ config, tokenUrl, formData, headers = {} }) {
     const requestHeaders = {

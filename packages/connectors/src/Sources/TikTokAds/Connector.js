@@ -150,7 +150,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
       const currentDate = new Date(startDate);
       currentDate.setDate(currentDate.getDate() + daysShift);
 
-      const formattedDate = DateUtils.formatDate(currentDate, "UTC", "yyyy-MM-dd");
+      const formattedDate = DateUtils.formatDate(currentDate);
 
       this.config.logMessage(`Processing data for date: ${formattedDate}`);
 
@@ -250,7 +250,7 @@ var TikTokAdsConnector = class TikTokAdsConnector extends AbstractConnector {
     // Get cutoff date
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - keepDays);
-    const formattedCutoffDate = DateUtils.formatDate(cutoffDate, "UTC", "yyyy-MM-dd");
+    const formattedCutoffDate = DateUtils.formatDate(cutoffDate);
     
     // Initialize storages for all time series nodes
     for (var nodeName in this.source.fieldsSchema) {

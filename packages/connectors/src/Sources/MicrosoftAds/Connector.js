@@ -72,7 +72,7 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
       const currentDate = new Date(startDate);
       currentDate.setDate(currentDate.getDate() + dayOffset);
       
-      const formattedDate = DateUtils.formatDate(currentDate, "UTC", "yyyy-MM-dd");
+      const formattedDate = DateUtils.formatDate(currentDate);
       
       this.config.logMessage(`Processing ${nodeName} for ${accountId} on ${formattedDate} (day ${dayOffset + 1} of ${daysToFetch})`);
 

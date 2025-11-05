@@ -10,20 +10,18 @@
  *
  * @example
  * // Format a date to ISO format (YYYY-MM-DD)
- * const formattedDate = DateUtils.formatDate(new Date(), "America/New_York", "yyyy-MM-dd");
+ * const formattedDate = DateUtils.formatDate(new Date());
  * console.log(formattedDate); // "2025-01-15"
  */
 var DateUtils = class DateUtils {
 
     /**
-     * Format the given date.
+     * Format the given date to ISO format (YYYY-MM-DD).
      *
      * @param {Date} date - The date to format.
-     * @param {string} timezone - The timezone to format the date in (currently ignored in Node.js).
-     * @param {string} format - The format to format the date in (currently ignored in Node.js).
      * @returns {string} ISO formatted date (YYYY-MM-DD)
      */
-    static formatDate(date, timezone, format) {
+    static formatDate(date) {
         return date.toISOString().split("T")[0];
     }
 

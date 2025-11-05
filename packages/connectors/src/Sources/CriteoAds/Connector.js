@@ -65,7 +65,7 @@ var CriteoAdsConnector = class CriteoAdsConnector extends AbstractConnector {
       const currentDate = new Date(startDate);
       currentDate.setDate(currentDate.getDate() + i);
 
-      const formattedDate = DateUtils.formatDate(currentDate, "UTC", "yyyy-MM-dd");
+      const formattedDate = DateUtils.formatDate(currentDate);
 
       const data = await this.source.fetchData({
         nodeName,

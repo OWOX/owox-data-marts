@@ -74,7 +74,7 @@ var RedditAdsConnector = class RedditAdsConnector extends AbstractConnector {
       const currentDate = new Date(startDate);
       currentDate.setDate(currentDate.getDate() + i);
 
-      const formattedDate = DateUtils.formatDate(currentDate, "UTC", "yyyy-MM-dd");
+      const formattedDate = DateUtils.formatDate(currentDate);
 
       this.config.logMessage(`Start importing data for ${formattedDate}: ${accountId}/${nodeName}`);
 

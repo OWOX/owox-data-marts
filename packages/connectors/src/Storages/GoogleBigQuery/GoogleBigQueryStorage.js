@@ -441,11 +441,13 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
           } else if( ( columnType.toUpperCase() == "DATE") && (record[ columnName ] instanceof Date) ) {
 
-            columnValue = DateUtils.formatDate( record[ columnName ], "UTC", "yyyy-MM-dd" );
+            columnValue = DateUtils.formatDate( record[ columnName ] );
 
           } else if( (columnType.toUpperCase() == "DATETIME") && (record[ columnName ] instanceof Date) ) {
 
-            columnValue = DateUtils.formatDate( record[ columnName ], "UTC", "yyyy-MM-dd HH:mm:ss" );
+            // Format as YYYY-MM-DD HH:MM:SS for BigQuery DATETIME
+            const isoString = record[ columnName ].toISOString();
+            columnValue = isoString.replace('T', ' ').substring(0, 19);
 
           } else {
 

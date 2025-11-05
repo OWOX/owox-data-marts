@@ -115,7 +115,7 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
           // itteration nodes to fetch data
           for(var nodeName in timeSeriesNodes) {
 
-            this.config.logMessage(`Start importing data for ${DateUtils.formatDate(startDate, "UTC", "yyyy-MM-dd")}: ${accountId}/${nodeName}`);
+            this.config.logMessage(`Start importing data for ${DateUtils.formatDate(startDate)}: ${accountId}/${nodeName}`);
 
             // fetching new data from a data source
             let data = await this.source.fetchData(nodeName, accountId, timeSeriesNodes[ nodeName ], startDate);

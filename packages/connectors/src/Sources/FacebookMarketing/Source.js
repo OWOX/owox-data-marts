@@ -126,7 +126,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       let timeRange = null;
   
       if( startDate ) {
-        formattedDate = DateUtils.formatDate(startDate, "UTC", "yyyy-MM-dd");
+        formattedDate = DateUtils.formatDate(startDate);
         timeRange = encodeURIComponent(JSON.stringify({since:formattedDate, until:formattedDate}));
       }
   

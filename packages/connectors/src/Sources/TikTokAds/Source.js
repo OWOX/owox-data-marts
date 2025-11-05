@@ -172,10 +172,10 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
     let formattedEndDate = null;
     
     if (startDate) {
-      formattedStartDate = DateUtils.formatDate(startDate, "UTC", "yyyy-MM-dd");
+      formattedStartDate = DateUtils.formatDate(startDate);
       // If no end date is provided, use start date as end date (single day)
       formattedEndDate = endDate
-        ? DateUtils.formatDate(endDate, "UTC", "yyyy-MM-dd")
+        ? DateUtils.formatDate(endDate)
         : formattedStartDate;
     }
 

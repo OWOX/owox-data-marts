@@ -344,7 +344,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
     // extend end_time by one day
     const e = new Date(end_time);
     e.setDate(e.getDate() + 1);
-    const endStr = DateUtils.formatDate(e, 'UTC', 'yyyy-MM-dd');
+    const endStr = DateUtils.formatDate(e);
 
     const result = [];
     for (let i = 0; i < ids.length; i += this.config.StatsMaxEntityIds.value) {

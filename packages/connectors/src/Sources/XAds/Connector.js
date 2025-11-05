@@ -75,7 +75,7 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
       const currentDate = new Date(startDate);
       currentDate.setDate(currentDate.getDate() + i);
 
-      const formattedDate = DateUtils.formatDate(currentDate, "UTC", "yyyy-MM-dd");
+      const formattedDate = DateUtils.formatDate(currentDate);
 
       const data = await this.source.fetchData({ nodeName, accountId, start_time: formattedDate, end_time: formattedDate, fields });
 
