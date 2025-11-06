@@ -16,6 +16,8 @@ import { parseToken, ParseTokenConfig } from './token/parseToken';
 import { generatePkce, generateState } from './pkce';
 import { toPayload } from './mappers/idpOwoxPayloadToPayloadMapper';
 import ms from 'ms';
+import { AuthenticationException, IdpFailedException } from './exception';
+import { StoreReason } from './auth/StoreResult';
 
 const COOKIE_NAME = 'refreshToken';
 
@@ -163,9 +165,27 @@ export class OwoxIdp implements IdpProvider {
       this.setTokenToCookie(res, req, newRefreshToken, auth.refreshTokenExpiresIn);
       return res.json(auth);
     } catch (error: unknown) {
-      this.logger.error(this.formatError(error));
       res.clearCookie(COOKIE_NAME);
-      return res.json({ reason: 'atm4' });
+      if (error instanceof AuthenticationException) {
+        this.logger.info(this.formatError(error), {
+          context: error.name,
+          params: error.context,
+          cause: error.cause,
+        });
+        return res.json({ reason: 'atm4' });
+      }
+
+      if (error instanceof IdpFailedException) {
+        this.logger.error(
+          'Access Token middleware failed with unexpected code',
+          error.context,
+          error.cause
+        );
+        return res.json({ reason: 'atm5' });
+      }
+
+      this.logger.error(this.formatError(error));
+      return res.json({ reason: 'atm6' });
     }
   }
 
@@ -188,7 +208,21 @@ export class OwoxIdp implements IdpProvider {
         this.setTokenToCookie(res, req, response.refreshToken, response.refreshTokenExpiresIn);
         res.redirect('/');
       } catch (error: unknown) {
-        this.logger.error(this.formatError(error));
+        if (error instanceof AuthenticationException) {
+          this.logger.info(this.formatError(error), {
+            context: error.name,
+            params: error.context,
+            cause: error.cause,
+          });
+        } else if (error instanceof IdpFailedException) {
+          this.logger.error(
+            'Token Exchange callback failed with unexpected code',
+            error.context,
+            error.cause
+          );
+        } else {
+          this.logger.error(this.formatError(error));
+        }
         return res.redirect(ProtocolRoute.SIGN_IN);
       }
     });
@@ -220,15 +254,18 @@ export class OwoxIdp implements IdpProvider {
   }
 
   private async changeAuthCode(code: string, state: string): Promise<TokenResponse> {
-    const codeVerifier = await this.store.get(state);
-    if (!codeVerifier) {
-      throw Error('Code verifier is empty');
+    const res = await this.store.get(state);
+    if (!res.code) {
+      if (res.reason == StoreReason.EXPIRED) {
+        throw new AuthenticationException('Code verifier has expired');
+      }
+      throw new IdpFailedException(`Code verifier is not available: ${res.reason ?? 'unknown'}`);
     }
 
     const request: TokenRequest = {
       grantType: 'authorization_code',
       authCode: code,
-      codeVerifier: codeVerifier,
+      codeVerifier: res.code,
       clientId: this.config.idpConfig.clientId,
     };
 
