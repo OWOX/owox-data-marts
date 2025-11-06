@@ -185,7 +185,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
     const { fields, startDate } = options;
     const query = this._buildQuery({ nodeName, fields, startDate });
     const response = await this.makeRequest({ customerId, query, nodeName, fields });
-    return await response;
+    return response;
   }
 
   /**

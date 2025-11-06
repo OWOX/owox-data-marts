@@ -206,41 +206,41 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
     try {
       switch (nodeName) {
         case 'advertiser':
-          allData = provider.getAdvertisers(advertiserId);
+          allData = await provider.getAdvertisers(advertiserId);
           break;
 
         case 'campaigns':
-          allData = provider.getCampaigns(advertiserId, filteredFields, filtering);
+          allData = await provider.getCampaigns(advertiserId, filteredFields, filtering);
           break;
 
         case 'ad_groups':
-          allData = provider.getAdGroups(advertiserId, filteredFields, filtering);
+          allData = await provider.getAdGroups(advertiserId, filteredFields, filtering);
           break;
 
         case 'ads':
-          allData = provider.getAds(advertiserId, filteredFields, filtering);
+          allData = await provider.getAds(advertiserId, filteredFields, filtering);
           break;
 
         case 'ad_insights':
           // Format for ad reporting endpoint
-          let dataLevel = this.config.DataLevel && this.config.DataLevel.value ? 
+          let dataLevel = this.config.DataLevel && this.config.DataLevel.value ?
                         this.config.DataLevel.value : "AUCTION_AD";
-          
+
           // Validate the data level
           const validDataLevels = ["AUCTION_ADVERTISER", "AUCTION_CAMPAIGN", "AUCTION_ADGROUP", "AUCTION_AD"];
           if (!validDataLevels.includes(dataLevel)) {
             this.config.logMessage(`Invalid data_level: ${dataLevel}. Using default AUCTION_AD.`);
             dataLevel = "AUCTION_AD";
           }
-          
+
           // Set dimensions based on data level
           let dimensions = this.getDimensionsForDataLevel(dataLevel);
-      
+
           // Use only metrics that are in our known valid list
           const validMetricsList = provider.getValidAdInsightsMetrics();
           let metricFields = this.getFilteredMetrics(filteredFields, dimensions, validMetricsList);
 
-          allData = provider.getAdInsights({
+          allData = await provider.getAdInsights({
             advertiserId: advertiserId,
             dataLevel: dataLevel,
             dimensions: dimensions,
@@ -249,9 +249,9 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
             endDate: formattedEndDate
           });
           break;
-          
+
         case 'audiences':
-          allData = provider.getAudiences(advertiserId);
+          allData = await provider.getAudiences(advertiserId);
           break;
 
         default:
