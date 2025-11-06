@@ -16,6 +16,7 @@ This script standardizes pageview logic into a **single, reusable Data Mart**:
 - Flags whether the pageview is the **landing page** of the session
 
 Use this as the foundation for reporting in:
+
 - Google Sheets  
 - Looker Studio  
 - Tableau / Power BI  
