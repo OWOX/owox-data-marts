@@ -64,6 +64,67 @@ export class MyScheduledTrigger extends ScheduledTrigger {
 }
 ```
 
+##### 🧩 Scheduled System Triggers
+
+System triggers are a specialized kind of scheduled triggers driven by cron and handled via pluggable processors. Each processor implements a simple contract and is registered through DI. The handler (`SystemTriggerHandlerService`) manages persistence and scheduling, while processors encapsulate business logic.
+
+Creating a System Trigger Processor (Your custom task)
+
+```ts
+// 1) Add your new type
+export enum SystemTriggerType {
+  MY_CUSTOM_TASK = 'MY_CUSTOM_TASK',
+}
+
+// 2) Implement the processor
+import { Injectable, Logger } from '@nestjs/common';
+import { SystemTrigger } from './shared/entities/system-trigger.entity';
+import { SystemTaskProcessor } from './system-tasks/system-task-processor.interface';
+import { SystemTriggerType } from './system-tasks/system-trigger-type';
+
+class DomainService { doWork(): Promise<void> { return Promise.resolve(); } }
+
+@Injectable()
+export class MyCustomTaskProcessor implements SystemTaskProcessor {
+  readonly type = SystemTriggerType.MY_CUSTOM_TASK;
+  private readonly logger = new Logger(MyCustomTaskProcessor.name);
+
+  constructor(private readonly domainService: DomainService) {}
+
+  async process(_trigger: SystemTrigger, options?: { signal?: AbortSignal }): Promise<void> {
+    if (options?.signal?.aborted) return;
+    this.logger.debug('Executing MY_CUSTOM_TASK');
+    await this.domainService.doWork();
+  }
+}
+```
+
+Registering Processors
+
+Add your processors to the DI container and provide them under a common token so the handler can discover them:
+
+```ts
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { SystemTrigger } from './shared/entities/system-trigger.entity';
+import { SystemTriggerHandlerService, SYSTEM_TASK_PROCESSORS } from './system-tasks/system-trigger-handler.service';
+import { MyCustomTaskProcessor } from './system-tasks/processors/my-custom-task.processor';
+
+@Module({
+  imports: [TypeOrmModule.forFeature([SystemTrigger])],
+  providers: [
+    SystemTriggerHandlerService,
+    MyCustomTaskProcessor,
+    {
+      provide: SYSTEM_TASK_PROCESSORS,
+      useFactory: (custom: MyCustomTaskProcessor) => [custom],
+      inject: [MyCustomTaskProcessor],
+    },
+  ],
+})
+export class MyModule {}
+```
+
 ### 📦 Module Registration
 
 To use the Scheduler Module, import it into your application module:
