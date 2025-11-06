@@ -29,7 +29,7 @@ export class DataMart {
   @JoinColumn()
   storage: DataStorage;
 
-  @OneToOne(() => ConnectorState, cs => cs.dataMart, { eager: true })
+  @OneToOne(() => ConnectorState, cs => cs.dataMart)
   connectorState?: ConnectorState;
 
   @Column({

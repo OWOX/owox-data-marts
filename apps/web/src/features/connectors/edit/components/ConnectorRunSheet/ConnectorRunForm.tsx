@@ -22,11 +22,8 @@ import {
 } from '@owox/ui/components/form';
 import type { ConnectorRunFormData } from '../../../shared/model/types/connector';
 import { RequiredType } from '../../../shared/api';
-import { AppWizardCollapsible } from '@owox/ui/components/common/wizard';
-import ConnectorStateDescription from './FormDescriptions/ConnectorStateDescription';
 import { useDataMartContext } from '../../../../data-marts/edit/model';
-import { formatDateTime, parseDate } from '../../../../../utils/date-formatters';
-import { SecureJsonInput } from '../../../../../shared';
+import { ConnectorStateSection } from './ConnectorStateSection';
 
 interface ConnectorRunFormProps {
   configuration: ConnectorDefinitionConfig | null;
@@ -134,83 +131,10 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
             />
 
             {form.watch('runType') === RunType.INCREMENTAL && (
-              <AppWizardCollapsible title='State Info'>
-                {(() => {
-                  const config = configuration?.connector.source.configuration ?? [];
-                  const configIds = config
-                    .map((item, idx) => {
-                      const rec = item as { _id?: unknown };
-                      return typeof rec._id === 'string' ? { id: rec._id, index: idx } : undefined;
-                    })
-                    .filter((v): v is { id: string; index: number } => Boolean(v));
-                  const states = dataMart?.connectorState?.states ?? [];
-                  const stateById = new Map(states.map(s => [s._id, s]));
-                  const ordered = configIds
-                    .map(({ id, index }) => {
-                      const st = stateById.get(id);
-                      return st ? { state: st, index } : undefined;
-                    })
-                    .filter((v): v is { state: (typeof states)[number]; index: number } =>
-                      Boolean(v)
-                    );
-
-                  if (ordered.length === 0) {
-                    return (
-                      <FormItem>
-                        <FormLabel>Connector state</FormLabel>
-                        <FormControl>
-                          <div className='bg-muted min-h-[70px] cursor-not-allowed overflow-auto rounded-md px-3 py-2 font-mono text-sm whitespace-pre-wrap opacity-70'>
-                            No state available
-                          </div>
-                        </FormControl>
-                        <FormDescription>
-                          <ConnectorStateDescription />
-                        </FormDescription>
-                      </FormItem>
-                    );
-                  }
-
-                  return (
-                    <>
-                      {ordered.map(({ state, index }) => {
-                        const rawCreatedAt = state.at || '';
-                        const createdAt = rawCreatedAt
-                          ? formatDateTime(parseDate(rawCreatedAt).toISOString())
-                          : '—';
-
-                        const st = state.state as unknown;
-                        const jsonString = (() => {
-                          try {
-                            return JSON.stringify(st, null, 2);
-                          } catch {
-                            return typeof st === 'string' ? st : '"—"';
-                          }
-                        })();
-
-                        return (
-                          <FormItem key={state._id}>
-                            <FormLabel tooltip={`Created at ${createdAt}`}>
-                              {`Connector state of configuration #${String(index + 1)}`}
-                            </FormLabel>
-                            <FormControl>
-                              <SecureJsonInput
-                                value={jsonString}
-                                displayOnly={true}
-                                className='bg-muted overflow-auto rounded-md text-sm'
-                                minHeightClass='min-h-0'
-                                showCopyButton={true}
-                              />
-                            </FormControl>
-                            <FormDescription>
-                              <ConnectorStateDescription />
-                            </FormDescription>
-                          </FormItem>
-                        );
-                      })}
-                    </>
-                  );
-                })()}
-              </AppWizardCollapsible>
+              <ConnectorStateSection
+                configuration={configuration}
+                connectorState={dataMart?.connectorState ?? null}
+              />
             )}
           </FormSection>
           {form.watch('runType') === RunType.MANUAL_BACKFILL && (
