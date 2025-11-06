@@ -185,7 +185,7 @@ function AppWizardCollapsible({
       open={isOpen}
       onOpenChange={setIsOpen}
       data-slot='wizard-collapsible'
-      className={cn('group flex flex-col gap-2 py-3', className)}
+      className={cn('group/collapsible flex flex-col gap-2 py-3', className)}
     >
       <CollapsibleTrigger asChild>
         <button type='button' className={cn('flex cursor-pointer items-center gap-1')}>

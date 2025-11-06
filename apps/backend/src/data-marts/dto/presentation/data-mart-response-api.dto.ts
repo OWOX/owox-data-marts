@@ -4,6 +4,8 @@ import { DataMartDefinition } from '../schemas/data-mart-table-definitions/data-
 import { DataMartStatus } from '../../enums/data-mart-status.enum';
 import { DataStorageResponseApiDto } from './data-storage-response-api.dto';
 import { DataMartSchema } from '../../data-storage-types/data-mart-schema.type';
+import { ConnectorState as ConnectorStateData } from '../../connector-types/interfaces/connector-state';
+import { ConnectorStateResponseApiDto } from './connector-state-response-api.dto';
 
 export class DataMartResponseApiDto {
   @ApiProperty({ example: '9cabc24e-1234-4a5a-8b12-abcdef123456' })
@@ -29,6 +31,9 @@ export class DataMartResponseApiDto {
 
   @ApiProperty()
   schema?: DataMartSchema;
+
+  @ApiProperty({ required: false, type: ConnectorStateResponseApiDto })
+  connectorState?: ConnectorStateData;
 
   @ApiProperty({ example: 1 })
   triggersCount: number;
