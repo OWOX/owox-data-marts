@@ -124,7 +124,7 @@ export function DataMartDefinitionSettings({
 
       reset(initialValues);
     }
-  }, [preset, definitionType, initialDefinitionType, reset]);
+  }, [preset, definitionType, initialDefinitionType, reset, setDefinitionType]);
 
   // Handle validation state changes from SqlValidator
   const handleValidationStateChange = useCallback(
@@ -143,9 +143,12 @@ export function DataMartDefinitionSettings({
     []
   );
 
-  const handleTypeSelect = useCallback((type: DataMartDefinitionType) => {
-    setDefinitionType(type);
-  }, []);
+  const handleTypeSelect = useCallback(
+    (type: DataMartDefinitionType) => {
+      setDefinitionType(type);
+    },
+    [setDefinitionType]
+  );
 
   const onSubmit: SubmitHandler<DataMartDefinitionFormData> = useCallback(
     async (data: DataMartDefinitionFormData) => {
