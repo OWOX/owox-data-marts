@@ -17,7 +17,7 @@ import {
 import { useDataMartContext } from '../../../features/data-marts/edit/model';
 import { ConnectorContextProvider } from '../../../features/connectors/shared/model/context';
 
-export function DataMartTriggersContent() {
+export default function DataMartTriggersContent() {
   const { dataMart } = useDataMartContext();
   const [isFormSheetOpen, setIsFormSheetOpen] = useState(false);
 
