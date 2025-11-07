@@ -6,14 +6,29 @@ import { LookerStudioConnectorCredentialsType } from '../data-destination-types/
 import { Report } from '../entities/report.entity';
 import { ReportRunStatus } from '../enums/report-run-status.enum';
 import { ScheduledTriggerService } from './scheduled-trigger.service';
+import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 
 @Injectable()
 export class ReportService {
   constructor(
     @InjectRepository(Report)
     private readonly repository: Repository<Report>,
-    private readonly scheduledTriggerService: ScheduledTriggerService
+    private readonly scheduledTriggerService: ScheduledTriggerService,
+    private readonly systemTimeService: SystemTimeService
   ) {}
+
+  async getById(id: string): Promise<Report> {
+    const report = await this.repository.findOne({
+      where: { id },
+      relations: ['dataMart', 'dataDestination'],
+    });
+
+    if (!report) {
+      throw new NotFoundException(`Report with id ${id} not found`);
+    }
+
+    return report;
+  }
 
   async getByIdAndDataMartIdAndProjectId(
     id: string,
@@ -83,11 +98,15 @@ export class ReportService {
 
   async updateRunStatus(reportId: string, status: ReportRunStatus, error?: string): Promise<void> {
     await this.repository.update(reportId, {
-      lastRunAt: new Date(),
+      lastRunAt: this.systemTimeService.now(),
       lastRunStatus: status,
       lastRunError: error,
       runsCount: () => 'runsCount + 1',
     });
+  }
+
+  async saveReport(report: Report): Promise<void> {
+    await this.repository.save(report);
   }
 
   async deleteReport(report: Report): Promise<void> {

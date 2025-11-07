@@ -1,8 +1,7 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { BusinessViolationException } from '../../../../common/exceptions/business-violation.exception';
 import { CachedReaderData } from '../../../dto/domain/cached-reader-data.dto';
 import { Report } from '../../../entities/report.entity';
-import { ReportRunStatus } from '../../../enums/report-run-status.enum';
 import { ConsumptionTrackingService } from '../../../services/consumption-tracking.service';
 import { ReportService } from '../../../services/report.service';
 import { ConnectionConfigSchema } from '../schemas/connection-config.schema';
@@ -17,13 +16,8 @@ import { ReportDataCacheService } from '../../../services/report-data-cache.serv
 import { OWOX_PRODUCER } from '../../../../common/producer/producer.module';
 import { OwoxProducer } from '@owox/internal-helpers';
 import { LookerReportRunSuccessfullyEvent } from '../../../events/looker-report-run-successfully.event';
-import { DataMartRun } from '../../../entities/data-mart-run.entity';
-import { RunType } from '../../../../common/scheduler/shared/types';
-import { DataMartRunStatus } from '../../../enums/data-mart-run-status.enum';
-import {
-  DataMartRunService,
-  ReportRunFinishContext,
-} from '../../../services/data-mart-run.service';
+import { LookerStudioReportRunService } from '../../../services/looker-studio-report-run.service';
+import { LookerStudioReportRun } from '../../../models/looker-studio-report-run.model';
 
 interface ValidatedRequestData {
   connectionConfig: { destinationSecretKey: string };
@@ -43,7 +37,7 @@ export class LookerStudioConnectorApiService {
     private readonly consumptionTrackingService: ConsumptionTrackingService,
     @Inject(OWOX_PRODUCER)
     private readonly producer: OwoxProducer,
-    private readonly dataMartRunService: DataMartRunService
+    private readonly lookerStudioReportRunService: LookerStudioReportRunService
   ) {}
 
   public async getConfig(request: GetConfigRequest): Promise<GetConfigResponse> {
@@ -61,54 +55,11 @@ export class LookerStudioConnectorApiService {
   public async getData(request: GetDataRequest): Promise<GetDataResponse> {
     // Get report and cached reader centrally
     const { report, cachedReader } = await this.getReportAndCachedReader(request);
-    let error: Error | null = null;
     const isSampleExtraction = Boolean(request.request.scriptParams?.sampleExtraction);
 
-    let dataMartRun: DataMartRun | null = null;
-    const dataMartRunFinishContext: ReportRunFinishContext = { status: DataMartRunStatus.SUCCESS };
-    try {
-      if (!isSampleExtraction) {
-        dataMartRun = await this.dataMartRunService.createAndMarkReportRunAsStarted(report, {
-          createdById: report.createdById,
-          runType: RunType.manual,
-        });
-      }
-
-      return await this.dataService.getData(request, report, cachedReader, isSampleExtraction);
-    } catch (e) {
-      dataMartRunFinishContext.status = DataMartRunStatus.FAILED;
-      dataMartRunFinishContext.errors = [e.toString()];
-
-      this.logger.error('Failed to get data:', e);
-      error = e;
-      throw e;
-    } finally {
-      if (!isSampleExtraction) {
-        //TODO: write results in transaction
-        if (dataMartRun) {
-          await this.dataMartRunService.markReportRunAsFinished(
-            dataMartRun,
-            dataMartRunFinishContext
-          );
-        }
-
-        if (error) {
-          await this.reportService.updateRunStatus(report.id, ReportRunStatus.ERROR, error.message);
-        } else {
-          await this.reportService.updateRunStatus(report.id, ReportRunStatus.SUCCESS);
-          await this.consumptionTrackingService.registerLookerReportRunConsumption(report);
-          const dataMart = report.dataMart;
-          await this.producer.produceEvent(
-            new LookerReportRunSuccessfullyEvent(
-              dataMart.id,
-              report.id,
-              dataMart.projectId,
-              report.createdById
-            )
-          );
-        }
-      }
-    }
+    return isSampleExtraction
+      ? await this.getSampleDataExtraction(request, report, cachedReader)
+      : await this.getFullDataExtraction(request, report, cachedReader);
   }
 
   /**
@@ -174,5 +125,81 @@ export class LookerStudioConnectorApiService {
       connectionConfig: connectionConfigResult.data,
       requestConfig: { reportId: requestConfigResult.data.reportId },
     };
+  }
+
+  private async getSampleDataExtraction(
+    request: GetDataRequest,
+    report: Report,
+    cachedReader: CachedReaderData
+  ): Promise<GetDataResponse> {
+    try {
+      return await this.dataService.getData(request, report, cachedReader, true);
+    } catch (error) {
+      this.logger.error('Failed to get sample data:', error);
+      throw error;
+    }
+  }
+
+  private async getFullDataExtraction(
+    request: GetDataRequest,
+    report: Report,
+    cachedReader: CachedReaderData
+  ): Promise<GetDataResponse> {
+    this.logger.log(`Starting report run ${report.id}`);
+
+    const reportRun = await this.lookerStudioReportRunService.create(report);
+    if (!reportRun) {
+      throw new InternalServerErrorException('Failed to create report run');
+    }
+
+    try {
+      const result = await this.dataService.getData(request, report, cachedReader);
+      await this.handleSuccessfulReportRun(reportRun);
+
+      return result;
+    } catch (e) {
+      await this.handleFailedReportRun(reportRun, e);
+      throw e;
+    }
+  }
+
+  private async handleSuccessfulReportRun(reportRun: LookerStudioReportRun) {
+    reportRun.markAsSuccess();
+
+    const saved = await this.saveReportRunResultSafely(reportRun);
+    if (saved) {
+      this.logger.log(`Report ${reportRun.getReportId()} completed successfully`);
+    }
+
+    await this.consumptionTrackingService.registerLookerReportRunConsumption(reportRun.report);
+
+    const {
+      id: reportId,
+      dataMart: { id: dataMartId, projectId },
+      createdById: userId,
+    } = reportRun.report;
+
+    await this.producer.produceEvent(
+      new LookerReportRunSuccessfullyEvent(dataMartId, reportId, projectId, userId)
+    );
+  }
+
+  private async handleFailedReportRun(reportRun: LookerStudioReportRun, error: Error | string) {
+    reportRun.markAsFailed(error);
+    await this.saveReportRunResultSafely(reportRun);
+    this.logger.error(`Report ${reportRun.getReportId()} execution failed:`, error);
+  }
+
+  private async saveReportRunResultSafely(reportRun: LookerStudioReportRun): Promise<boolean> {
+    try {
+      await this.lookerStudioReportRunService.finish(reportRun);
+      return true;
+    } catch (saveError) {
+      this.logger.error(
+        `Failed to persist final status for report ${reportRun.getReportId()}:`,
+        saveError
+      );
+    }
+    return false;
   }
 }

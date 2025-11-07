@@ -29,7 +29,7 @@ export class LookerStudioConnectorApiDataService {
     request: GetDataRequest,
     report: Report,
     cachedReader: CachedReaderData,
-    isSampleExtraction: boolean
+    isSampleExtraction = false
   ): Promise<GetDataResponse> {
     this.logger.log('getData called with request:', request);
     this.logger.debug(`Using ${cachedReader.fromCache ? 'cached' : 'fresh'} reader for data`);

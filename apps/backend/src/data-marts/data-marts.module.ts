@@ -97,6 +97,8 @@ import { SchemaActualizeTrigger } from './entities/schema-actualize-trigger.enti
 import { SchemaActualizeTriggerService } from './services/schema-actualize-trigger.service';
 import { SchemaActualizeTriggerHandlerService } from './services/schema-actualize-trigger-handler.service';
 import { SchemaActualizeTriggerController } from './controllers/schema-actualize-trigger.controller';
+import { ReportRunService } from './services/report-run.service';
+import { LookerStudioReportRunService } from './services/looker-studio-report-run.service';
 
 @Module({
   imports: [
@@ -202,6 +204,8 @@ import { SchemaActualizeTriggerController } from './controllers/schema-actualize
     ConsumptionTrackingService,
     ConnectorSecretService,
     DataMartRunService,
+    ReportRunService,
+    LookerStudioReportRunService,
   ],
 })
 export class DataMartsModule {
