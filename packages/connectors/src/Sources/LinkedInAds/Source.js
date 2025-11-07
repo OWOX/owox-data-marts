@@ -95,7 +95,7 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
    * @param {Object} params - Additional parameters for the request
    * @returns {Array} - Array of fetched data objects
    */
-  fetchData(nodeName, urn, params = {}) {
+  async fetchData(nodeName, urn, params = {}) {
     const fields = params.fields || [];
     const uniqueKeys = this.fieldsSchema[nodeName]?.uniqueKeys || [];
     const missingKeys = uniqueKeys.filter(key => !fields.includes(key));
@@ -106,15 +106,15 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
     
     switch (nodeName) {
       case "adAccounts":
-        return this.fetchSingleResource({ urn, resourceType: 'adAccounts', params });
+        return await this.fetchSingleResource({ urn, resourceType: 'adAccounts', params });
       case "adCampaignGroups":
-        return this.fetchAdResource({ urn, resourceType: 'adCampaignGroups', params });
+        return await this.fetchAdResource({ urn, resourceType: 'adCampaignGroups', params });
       case "adCampaigns":
-        return this.fetchAdResource({ urn, resourceType: 'adCampaigns', params });
+        return await this.fetchAdResource({ urn, resourceType: 'adCampaigns', params });
       case "creatives":
-        return this.fetchAdResource({ urn, resourceType: 'creatives', params, queryType: 'criteria' });
+        return await this.fetchAdResource({ urn, resourceType: 'creatives', params, queryType: 'criteria' });
       case "adAnalytics":
-        return this.fetchAdAnalytics(urn, params);
+        return await this.fetchAdAnalytics(urn, params);
       default:
         throw new Error(`Unknown node: ${nodeName}`);
     }
@@ -128,11 +128,11 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
    * @param {Object} options.params - Additional parameters for the request
    * @returns {Array} - Array containing the single resource
    */
-  fetchSingleResource({ urn, resourceType, params }) {
+  async fetchSingleResource({ urn, resourceType, params }) {
     let url = `${this.BASE_URL}${resourceType}/${encodeURIComponent(urn)}`;
     url += `?fields=${this.formatFields(params.fields)}`;
-      
-    const result = this.makeRequest(url);
+
+    const result = await this.makeRequest(url);
     return [result]; // Return as array to match other endpoints
   }
 
@@ -145,11 +145,11 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
    * @param {string} [options.queryType='search'] - Query type parameter
    * @returns {Array} - Array of fetched resources
    */
-  fetchAdResource({ urn, resourceType, params, queryType = 'search' }) {
+  async fetchAdResource({ urn, resourceType, params, queryType = 'search' }) {
     let url = `${this.BASE_URL}adAccounts/${encodeURIComponent(urn)}/${resourceType}?q=${queryType}&pageSize=100`;
     url += `&fields=${this.formatFields(params.fields)}`;
-    
-    return this.fetchWithPagination(url);
+
+    return await this.fetchWithPagination(url);
   }
 
   /**
@@ -161,34 +161,34 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
    * @param {Array} params.fields - Fields to fetch
    * @returns {Array} - Combined array of analytics data
    */
-  fetchAdAnalytics(urn, params) {
+  async fetchAdAnalytics(urn, params) {
     const startDate = new Date(params.startDate);
     const endDate = new Date(params.endDate);
     const accountUrn = `urn:li:sponsoredAccount:${urn}`;
     const encodedUrn = encodeURIComponent(accountUrn);
     let allResults = [];
     const uniqueApiFields = this.convertFieldsForApi(params.fields || []);
-    
+
     // LinkedIn API has a limitation - it allows a maximum of fields per request
     // To overcome this, split fields into chunks and make multiple requests
     const fieldChunks = this.prepareAnalyticsFieldChunks(uniqueApiFields);
-    
+
     // Process each chunk of fields in separate API requests
     for (const fieldChunk of fieldChunks) {
-      const url = this.buildAdAnalyticsUrl({ 
-        startDate, 
-        endDate, 
-        encodedUrn, 
-        fields: fieldChunk 
+      const url = this.buildAdAnalyticsUrl({
+        startDate,
+        endDate,
+        encodedUrn,
+        fields: fieldChunk
       });
-      const res = this.makeRequest(url);
+      const res = await this.makeRequest(url);
       const elements = res.elements || [];
-      
+
       // Merge results from different chunks into a single dataset
       // Each chunk contains the same rows but different fields
       allResults = this.mergeAnalyticsResults(allResults, elements);
     }
-    
+
     // Transform complex dateRange objects to simple Date objects
     return this.transformAnalyticsDateRanges(allResults);
   }
@@ -358,9 +358,9 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
    * @param {Object} headers - Optional additional headers
    * @returns {Object} - API response parsed from JSON
    */
-  makeRequest(url) {
+  async makeRequest(url) {
     console.log(`LinkedIn Ads API Request URL:`, url);
-    OAuthUtils.getAccessToken({ 
+    await OAuthUtils.getAccessToken({
       config: this.config,
       tokenUrl: "https://www.linkedin.com/oauth/v2/accessToken",
       formData: {
@@ -375,11 +375,12 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
       "LinkedIn-Version": "202509",
       "X-RestLi-Protocol-Version": "2.0.0",
     };
-    
+
     const authUrl = `${url}${url.includes('?') ? '&' : '?'}oauth2_access_token=${this.config.AccessToken.value}`;
-    
-    const response = EnvironmentAdapter.fetch(authUrl, { headers });
-    const result = JSON.parse(response.getContentText());
+
+    const response = await HttpUtils.fetch(authUrl, { headers });
+    const text = await response.getContentText();
+    const result = JSON.parse(text);
 
     return result;
   }
@@ -390,24 +391,24 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
    * @param {Object} headers - Optional additional headers
    * @returns {Array} - Combined array of results from all pages
    */
-  fetchWithPagination(baseUrl) {
+  async fetchWithPagination(baseUrl) {
     let allResults = [];
     let pageToken = null;
-    
+
     do {
       let pageUrl = baseUrl;
       if (pageToken) {
         pageUrl += `${pageUrl.includes('?') ? '&' : '?'}pageToken=${encodeURIComponent(pageToken)}`;
       }
-      
-      const res = this.makeRequest(pageUrl);
+
+      const res = await this.makeRequest(pageUrl);
       const elements = res.elements || [];
       allResults = allResults.concat(elements);
-      
+
       const metadata = res.metadata || {};
       pageToken = metadata.nextPageToken || null;
     } while (pageToken !== null);
-    
+
     return allResults;
   }
 };

@@ -69,20 +69,20 @@ var GitHubSource = class GitHubSource extends AbstractSource {
    * @param {Array<string>} opts.fields
    * @returns {Array<Object>}
    */
-  fetchData({ nodeName, fields = [] }) {
+  async fetchData({ nodeName, fields = [] }) {
     switch (nodeName) {
       case 'repository':
-        const repoData = this.makeRequest({ endpoint: `repos/${this.config.RepositoryName.value}` });
+        const repoData = await this.makeRequest({ endpoint: `repos/${this.config.RepositoryName.value}` });
         return this._filterBySchema({ items: [repoData], nodeName, fields });
-        
+
       case 'contributors':
         // @TODO: limitation is 1000 contributors per page, so if there are more, we need to handle pagination
-        const contribData = this.makeRequest({ endpoint: `repos/${this.config.RepositoryName.value}/contributors?per_page=1000` });
+        const contribData = await this.makeRequest({ endpoint: `repos/${this.config.RepositoryName.value}/contributors?per_page=1000` });
         return this._filterBySchema({ items: contribData, nodeName, fields });
-        
+
       case 'repositoryStats':
-        return this._fetchRepositoryStats({ nodeName, fields });
-        
+        return await this._fetchRepositoryStats({ nodeName, fields });
+
       default:
         throw new Error(`Unknown node: ${nodeName}`);
     }
@@ -95,18 +95,18 @@ var GitHubSource = class GitHubSource extends AbstractSource {
    * @param {Array<string>} options.fields - Array of fields to fetch
    * @returns {Array} Array of repository statistics data
    */
-  _fetchRepositoryStats({ nodeName, fields }) {
+  async _fetchRepositoryStats({ nodeName, fields }) {
     // Get repository info (includes stargazers_count)
-    const repoData = this.makeRequest({ endpoint: `repos/${this.config.RepositoryName.value}` });
+    const repoData = await this.makeRequest({ endpoint: `repos/${this.config.RepositoryName.value}` });
 
     // Get contributors list
     // @TODO: limitation is 1000 contributors per page, so if there are more, we need to handle pagination
-    const contribData = this.makeRequest({ endpoint: `repos/${this.config.RepositoryName.value}/contributors?per_page=1000` });
-   
+    const contribData = await this.makeRequest({ endpoint: `repos/${this.config.RepositoryName.value}/contributors?per_page=1000` });
+
     return this._filterBySchema({
       items: [{
-        "date": new Date(new Date().setHours(0, 0, 0, 0)), 
-        "stars": repoData.stargazers_count, 
+        "date": new Date(new Date().setHours(0, 0, 0, 0)),
+        "stars": repoData.stargazers_count,
         "contributors": contribData.length
       }],
       nodeName,
@@ -120,33 +120,36 @@ var GitHubSource = class GitHubSource extends AbstractSource {
    * @param {string} options.endpoint - API endpoint path (e.g., "repos/owner/repo")
    * @returns {Object} - API response parsed from JSON
    */
-  makeRequest({ endpoint }) {
-    const baseUrl = "https://api.github.com/";
-    const url = `${baseUrl}${endpoint}`;
-    
-    const response = EnvironmentAdapter.fetch(url, {
-      'method': 'get', 
-      'muteHttpExceptions': true,
-      'headers': {
-        "Accept": "application/vnd.github+json",
-        "Authorization": `Bearer ${this.config.AccessToken.value}`,
-        "User-Agent": "owox"
+  async makeRequest({ endpoint }) {
+    try {
+      const baseUrl = "https://api.github.com/";
+      const url = `${baseUrl}${endpoint}`;
+
+      const response = await HttpUtils.fetch(url, {
+        'method': 'get',
+        'muteHttpExceptions': true,
+        'headers': {
+          "Accept": "application/vnd.github+json",
+          "Authorization": `Bearer ${this.config.AccessToken.value}`,
+          "User-Agent": "owox"
+        }
+      });
+      const text = await response.getContentText();
+      const result = JSON.parse(text);
+
+      // Check for GitHub API error response
+      if (result && result.message === 'Not Found') {
+        throw new Error(
+          "The repository was not found. The repository name should be in the format: owner/repo"
+        );
       }
-    });
-    const result = JSON.parse(response.getContentText());
 
-    // Check for GitHub API error response
-    if (result && result.message === 'Not Found') {
-      throw new Error(
-        "The repository was not found. The repository name should be in the format: owner/repo"
-      );
+      return result;
+    } catch (error) {
+      this.config.logMessage(`Error: ${error.message}`);
+      console.error(error.stack);
+      throw error;
     }
-
-    return result;
-  } catch (error) {
-    this.config.logMessage(`Error: ${error.message}`);
-    console.error(error.stack);
-    throw error;
   }
 
   /**

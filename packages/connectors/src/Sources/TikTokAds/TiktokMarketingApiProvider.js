@@ -33,35 +33,36 @@ class TiktokMarketingApiProvider {
     return this.API_VERSION;
   }
 
-  makeRequest(options) {
+  async makeRequest(options) {
     const { url, method, data } = options;
     const headers = {
       'Access-Token': this.accessToken,
       'Content-Type': 'application/json'
     };
-    
+
     let backoff = this.INITIAL_BACKOFF;
 
     for (let retries = 0; retries < this.MAX_RETRIES; retries++) {
       try {
-        const response = EnvironmentAdapter.fetch(url, {
+        const response = await HttpUtils.fetch(url, {
           method: method,
           headers: headers,
-          body: data ? JSON.stringify(data) : null,
-          muteHttpExceptions: true
+          body: data ? JSON.stringify(data) : null
         });
 
         const responseCode = response.getResponseCode();
+        const text = await response.getContentText();
+        
         if (responseCode !== this.SUCCESS_RESPONSE_CODE) {
-          throw new Error(`TikTok API error: ${response.getContentText()}`);
+          throw new Error(`TikTok API error: ${text}`);
         }
 
-        const jsonData = JSON.parse(response.getContentText());
+        const jsonData = JSON.parse(text);
 
         if (jsonData.code !== this.SUCCESS_CODE) {
           if (jsonData.code === this.RATE_LIMIT_CODE) {
             console.error("TikTok Marketing API rate limit exceeded. Retrying...");
-            EnvironmentAdapter.sleep(backoff);
+            await AsyncUtils.delay(backoff);
             backoff *= 2;
             continue;
           }
@@ -71,7 +72,7 @@ class TiktokMarketingApiProvider {
         return jsonData;
       } catch (error) {
         if (retries < this.MAX_RETRIES - 1 && error.message.includes('rate limit')) {
-          EnvironmentAdapter.sleep(backoff);
+          await AsyncUtils.delay(backoff);
           backoff *= 2;
         } else {
           throw error;
@@ -80,7 +81,7 @@ class TiktokMarketingApiProvider {
     }
   }
 
-  handlePagination(endpoint, params = {}) {
+  async handlePagination(endpoint, params = {}) {
     let allData = [];
     let page = 1;
     let hasMorePages = true;
@@ -89,7 +90,7 @@ class TiktokMarketingApiProvider {
     while (hasMorePages) {
       const paginatedParams = { ...params, page, page_size: pageSize };
       const url = this.buildUrl(endpoint, paginatedParams);
-      const response = this.makeRequest({ url, method: 'GET' });
+      const response = await this.makeRequest({ url, method: 'GET' });
 
       const pageData = response.data.list || [];
       allData = allData.concat(pageData);
@@ -100,7 +101,7 @@ class TiktokMarketingApiProvider {
       page++;
 
       if (hasMorePages) {
-        EnvironmentAdapter.sleep(100);
+        await AsyncUtils.delay(100);
       }
     }
 
@@ -146,7 +147,7 @@ class TiktokMarketingApiProvider {
     ];
   }
 
-  getAdvertisers(advertiserIds) {
+  async getAdvertisers(advertiserIds) {
     if (!this.appId || !this.appSecret) {
       throw new Error("To fetch advertiser data, both AppId and AppSecret must be provided.");
     }
@@ -158,11 +159,11 @@ class TiktokMarketingApiProvider {
     };
 
     const url = this.buildUrl('oauth2/advertiser/get/', params);
-    const response = this.makeRequest({ url, method: 'GET' });
+    const response = await this.makeRequest({ url, method: 'GET' });
     return response.data.list;
   }
 
-  getCampaigns(advertiserId, fields = [], filtering = null) {
+  async getCampaigns(advertiserId, fields = [], filtering = null) {
     this.currentAdvertiserId = advertiserId;
     const params = {
       advertiser_id: advertiserId,
@@ -170,10 +171,10 @@ class TiktokMarketingApiProvider {
       filtering: filtering
     };
 
-    return this.handlePagination('campaign/get/', params);
+    return await this.handlePagination('campaign/get/', params);
   }
-  
-  getAdGroups(advertiserId, fields = [], filtering = null) {
+
+  async getAdGroups(advertiserId, fields = [], filtering = null) {
     this.currentAdvertiserId = advertiserId;
     const params = {
       advertiser_id: advertiserId,
@@ -181,10 +182,10 @@ class TiktokMarketingApiProvider {
       filtering: filtering
     };
 
-    return this.handlePagination('adgroup/get/', params);
+    return await this.handlePagination('adgroup/get/', params);
   }
-  
-  getAds(advertiserId, fields = [], filtering = null) {
+
+  async getAds(advertiserId, fields = [], filtering = null) {
     this.currentAdvertiserId = advertiserId;
     const params = {
       advertiser_id: advertiserId,
@@ -192,10 +193,10 @@ class TiktokMarketingApiProvider {
       filtering: filtering
     };
 
-    return this.handlePagination('ad/get/', params);
+    return await this.handlePagination('ad/get/', params);
   }
-  
-  getAdInsights(options) {
+
+  async getAdInsights(options) {
     const { advertiserId, dataLevel, dimensions, metrics, startDate, endDate } = options;
     this.currentAdvertiserId = advertiserId;
     const params = {
@@ -208,15 +209,15 @@ class TiktokMarketingApiProvider {
       end_date: endDate
     };
 
-    return this.handlePagination('report/integrated/get/', params);
+    return await this.handlePagination('report/integrated/get/', params);
   }
-  
-  getAudiences(advertiserId) {
+
+  async getAudiences(advertiserId) {
     this.currentAdvertiserId = advertiserId;
     const params = {
       advertiser_id: advertiserId
     };
 
-    return this.handlePagination('dmp/custom_audience/list/', params);
+    return await this.handlePagination('dmp/custom_audience/list/', params);
   }
 }

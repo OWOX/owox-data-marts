@@ -123,7 +123,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
    * Get access token based on authentication type
    * Supports OAuth2 and Service Account authentication
    */
-  getAccessToken() {
+  async getAccessToken() {
     // Check if we have a cached token that's still valid
     if (this.accessToken && this.tokenExpiryTime && Date.now() < this.tokenExpiryTime) {
       return this.accessToken;
@@ -139,7 +139,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
 
     try {
       if (authType === "oauth2") {
-        accessToken = OAuthUtils.getAccessToken({
+        accessToken = await OAuthUtils.getAccessToken({
           config: this.config,
           tokenUrl: "https://oauth2.googleapis.com/token",
           formData: {
@@ -150,7 +150,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
           }
         });
       } else if (authType === "service_account") {
-        accessToken = OAuthUtils.getServiceAccountToken({
+        accessToken = await OAuthUtils.getServiceAccountToken({
           config: this.config,
           tokenUrl: "https://oauth2.googleapis.com/token",
           serviceAccountKeyJson: authConfig.ServiceAccountKey.value,
@@ -162,7 +162,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
 
       this.accessToken = accessToken;
       this.tokenExpiryTime = Date.now() + (3600 - 60) * 1000;
-      
+
       return this.accessToken;
     } catch (error) {
       this.config.logMessage(`❌ Authentication failed: ${error.message}`);
@@ -180,11 +180,12 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
    * @param {Date} [options.startDate] - Start date for time series data
    * @returns {Array<Object>} - Fetched data
    */
-  fetchData(nodeName, customerId, options) {
+  async fetchData(nodeName, customerId, options) {
     console.log('Fetching data from Google Ads API for customer:', customerId);
     const { fields, startDate } = options;
     const query = this._buildQuery({ nodeName, fields, startDate });
-    return this.makeRequest({ customerId, query, nodeName, fields });
+    const response = await this.makeRequest({ customerId, query, nodeName, fields });
+    return response;
   }
 
   /**
@@ -238,7 +239,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
     let query = `SELECT ${apiFields.join(', ')} FROM ${resourceName}`;
     
     if (startDate && this.fieldsSchema[nodeName].isTimeSeries) {
-      const formattedDate = EnvironmentAdapter.formatDate(startDate, "UTC", "yyyy-MM-dd");
+      const formattedDate = DateUtils.formatDate(startDate);
       query += ` WHERE segments.date = '${formattedDate}'`;
     }
     
@@ -254,8 +255,8 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
    * @param {Array<string>} options.fields - Fields that were requested
    * @returns {Array<Object>} - API response data
    */
-  makeRequest({ customerId, query, nodeName, fields }) {
-    const accessToken = this.getAccessToken();
+  async makeRequest({ customerId, query, nodeName, fields }) {
+    const accessToken = await this.getAccessToken();
     const url = `https://googleads.googleapis.com/v21/customers/${customerId}/googleAds:search`;
     
     console.log(`Google Ads API Request URL: ${url}`);
@@ -287,8 +288,9 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         muteHttpExceptions: true
       };
       
-      const response = this.urlFetchWithRetry(url, options);
-      const jsonData = JSON.parse(response.getContentText());
+      const response = await this.urlFetchWithRetry(url, options);
+      const text = await response.getContentText();
+      const jsonData = JSON.parse(text);
       
       if (jsonData.error) {
         throw new Error(`Google Ads API error: ${jsonData.error.message}`);

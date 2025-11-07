@@ -14,6 +14,7 @@ import {
 import { IdentityOwoxClientConfig } from '../config';
 import ms from 'ms';
 import { Projects, ProjectsSchema } from '@owox/idp-protocol';
+import { AuthenticationException, IdpFailedException } from '../exception';
 
 /**
  * Represents a client for interacting with the Identity OWOX API.
@@ -37,8 +38,28 @@ export class IdentityOwoxClient {
    * POST /api/idp/token
    */
   async getToken(req: TokenRequest): Promise<TokenResponse> {
-    const { data } = await this.http.post<TokenResponse>('/api/idp/token', req);
-    return TokenResponseSchema.parse(data);
+    try {
+      const { data } = await this.http.post<TokenResponse>('/api/idp/token', req);
+      return TokenResponseSchema.parse(data);
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        const status = err.response?.status;
+
+        if (status === 401) {
+          throw new AuthenticationException('Invalid or expired credentials', {
+            cause: err,
+            context: { req },
+          });
+        }
+
+        throw new IdpFailedException(`Failed to get token: ${status}`, {
+          cause: err,
+          context: { req },
+        });
+      }
+
+      throw err;
+    }
   }
 
   /**

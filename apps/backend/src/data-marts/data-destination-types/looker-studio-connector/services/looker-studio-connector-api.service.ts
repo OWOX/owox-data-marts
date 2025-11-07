@@ -143,28 +143,36 @@ export class LookerStudioConnectorApiService {
   private validateAndExtractRequestData(
     request: GetSchemaRequest | GetDataRequest
   ): ValidatedRequestData {
+    // Check connection config
+    if (!request.connectionConfig) {
+      throw new BusinessViolationException('Connection config not provided');
+    }
+
     // Validate connection config
     const connectionConfigResult = ConnectionConfigSchema.safeParse(request.connectionConfig);
     if (!connectionConfigResult.success) {
       throw new BusinessViolationException('Incompatible connection config provided');
     }
 
+    // Check request and configParams
+    if (!request.request) {
+      throw new BusinessViolationException('Request not provided');
+    }
+
+    const { configParams } = request.request;
+    if (!configParams) {
+      throw new BusinessViolationException('Request configParams not provided');
+    }
+
     // Validate request config
-    const requestConfigResult = ConnectorRequestConfigV1Schema.safeParse(
-      request.request.configParams
-    );
+    const requestConfigResult = ConnectorRequestConfigV1Schema.safeParse(configParams);
     if (!requestConfigResult.success) {
       throw new BusinessViolationException('Incompatible request config provided');
     }
 
-    const requestConfig = requestConfigResult.data;
-    if (!requestConfig.reportId) {
-      throw new BusinessViolationException('ReportId is required');
-    }
-
     return {
       connectionConfig: connectionConfigResult.data,
-      requestConfig: { reportId: requestConfig.reportId },
+      requestConfig: { reportId: requestConfigResult.data.reportId },
     };
   }
 }

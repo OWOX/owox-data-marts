@@ -60,10 +60,10 @@ constructor( configRange ) {
    * @param {string} [opts.end_time]
    * @returns {Array<Object>}
    */
-  fetchData({ nodeName, fields = [], start_time, end_time }) {
+  async fetchData({ nodeName, fields = [], start_time, end_time }) {
     switch (nodeName) {
       case 'observations/group':
-        return this._fetchObservations({ fields, start_time, end_time });
+        return await this._fetchObservations({ fields, start_time, end_time });
       default:
         throw new Error(`Unknown node: ${nodeName}`);
     }
@@ -77,8 +77,8 @@ constructor( configRange ) {
    * @param {string} opts.end_time
    * @returns {Array<Object>}
    */
-_fetchObservations({ fields, start_time, end_time }) {
-  const rates = this.makeRequest({
+async _fetchObservations({ fields, start_time, end_time }) {
+  const rates = await this.makeRequest({
     endpoint: `observations/group/FX_RATES_DAILY/json?start_date=${start_time}&end_date=${end_time}`
   });
 
@@ -104,16 +104,16 @@ _fetchObservations({ fields, start_time, end_time }) {
    * @param {string} options.endpoint - API endpoint path (e.g., "observations/group/FX_RATES_DAILY/json")
    * @returns {Object} - API response parsed from JSON
    */
-  makeRequest({ endpoint }) {
+  async makeRequest({ endpoint }) {
     const baseUrl = "https://www.bankofcanada.ca/valet/";
     const url = `${baseUrl}${endpoint}`;
-    
-    console.log(`Bank of Canada API Request URL:`, url);
-    
-    const response = EnvironmentAdapter.fetch(url, {'method': 'get', 'muteHttpExceptions': true});
-    const result = JSON.parse(response.getContentText());
 
-    return result;
+    console.log(`Bank of Canada API Request URL:`, url);
+
+    const response = await HttpUtils.fetch(url, {'method': 'get', 'muteHttpExceptions': true});
+    const result = await response.getContentText();
+
+    return JSON.parse(result);
   }
 
   /**

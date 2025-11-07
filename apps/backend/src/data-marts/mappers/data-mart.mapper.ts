@@ -37,9 +37,10 @@ import { CancelDataMartRunCommand } from '../dto/domain/cancel-data-mart-run.com
 import { ConnectorSecretService } from '../services/connector-secret.service';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { RunType } from '../../common/scheduler/shared/types';
-import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { DataMartDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import { ListDataMartsByConnectorNameCommand } from '../dto/domain/list-data-mart-by-connector-name';
+import { ConnectorState as ConnectorStateData } from '../connector-types/interfaces/connector-state';
+import { isConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 
 @Injectable()
 export class DataMartMapper {
@@ -73,6 +74,7 @@ export class DataMartMapper {
       entity.definition,
       entity.description,
       entity.schema,
+      entity.connectorState?.state as ConnectorStateData | undefined,
       counters?.triggersCount ?? 0,
       counters?.reportsCount ?? 0
     );
@@ -103,6 +105,7 @@ export class DataMartMapper {
       definition: maskedDefinition,
       description: dto.description,
       schema: dto.schema,
+      connectorState: dto.connectorState,
       triggersCount: dto.triggersCount,
       reportsCount: dto.reportsCount,
       createdAt: dto.createdAt,
@@ -260,10 +263,8 @@ export class DataMartMapper {
     const maskedRuns = await Promise.all(
       runs.map(async run => {
         let maskedDefinitionRun: DataMartDefinition | undefined;
-        if (run.type === DataMartRunType.CONNECTOR && run.definitionRun) {
-          maskedDefinitionRun = await this.connectorSecretService.mask(
-            run.definitionRun as ConnectorDefinition
-          );
+        if (run.definitionRun && isConnectorDefinition(run.definitionRun)) {
+          maskedDefinitionRun = await this.connectorSecretService.mask(run.definitionRun);
         }
 
         return {

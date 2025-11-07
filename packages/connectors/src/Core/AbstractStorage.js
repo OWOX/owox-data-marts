@@ -9,8 +9,8 @@ class AbstractStorage {
   
   //---- constructor -------------------------------------------------
     /**
-     * Asbstract class making Google Sheets data active in Apps Script to simplity read/write operations
-     * @param config (object) instance of Sheet
+     * Abstract class for storage operations providing common methods for data persistence
+     * @param config (object) instance of AbstractConfig
      * @param uniqueKeyColumns (mixed) a name of column with unique key or array with columns names
      * @param schema (object) object with structure like {fieldName: {type: "number", description: "smth" } }
      * @param description (string) string with storage description }
@@ -40,6 +40,15 @@ class AbstractStorage {
     }
     //----------------------------------------------------------------
     
+
+  //---- init --------------------------------------------------------
+    /**
+     * Initializing storage
+     */
+  async init() {
+    throw new Error("Method init() has to be implemented in a child class of AbstractStorage");
+  }
+  //----------------------------------------------------------------
   //---- getUniqueKeyByRecordFields ----------------------------------
     /**
      * Calculcating unique key based on this.uniqueKeyColumns
@@ -112,12 +121,13 @@ class AbstractStorage {
     
   //---- saveData ----------------------------------------------------
     /**
-     * Saving data to a storage. Has to be implemented in 
+     * Saving data to a storage. Has to be implemented in child class as async method.
      * @param {data} array of assoc objects with records to save
+     * @returns {Promise<void>}
      */
-    saveData(data) {
-    
-      throw new Error("Method saveDate() has to be implemented in a child class of AbstractStorage");
+    async saveData(data) {
+
+      throw new Error("Method saveData() has to be implemented in a child class of AbstractStorage");
     }
     //----------------------------------------------------------------
   
@@ -220,17 +230,6 @@ class AbstractStorage {
       }
 
       return record;
-    }
-    //----------------------------------------------------------------
-  
-  //---- areHeadersNeeded --------------------------------------------
-    /**
-     * Checks if storage needs headers to be added
-     * By default returns false, should be overridden in child classes if needed
-     * @returns {boolean} true if headers need to be added, false otherwise
-     */
-    areHeadersNeeded() {
-      return false;
     }
     //----------------------------------------------------------------
 
