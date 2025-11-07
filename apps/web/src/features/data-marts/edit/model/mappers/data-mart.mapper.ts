@@ -4,6 +4,7 @@ import { DataMartStatusModel } from '../../../shared';
 import type { DataMart } from '../types';
 
 import { mapDefinitionFromDto } from './definition-mappers';
+import { canActualizeSchema } from '../helpers';
 
 /**
  * Maps a data mart response DTO to a domain model
@@ -22,9 +23,11 @@ export async function mapDataMartFromDto(dataMartDto: DataMartResponseDto): Prom
     createdAt: new Date(dataMartDto.createdAt),
     modifiedAt: new Date(dataMartDto.modifiedAt),
     canPublish: false,
+    canActualizeSchema: false,
     validationErrors: [],
   };
 
+  dataMart.canActualizeSchema = canActualizeSchema(dataMart.definitionType, dataMart.schema);
   return dataMart;
 }
 
