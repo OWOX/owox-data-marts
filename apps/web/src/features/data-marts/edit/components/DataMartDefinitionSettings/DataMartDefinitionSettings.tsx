@@ -16,6 +16,12 @@ import { getEmptyDefinition } from '../../utils/definition-helpers.ts';
 import SqlValidator from '../SqlValidator/SqlValidator.tsx';
 import type { DataMartDefinitionConfig, SqlDefinitionConfig } from '../../model';
 
+interface DataMartDefinitionSettingsProps {
+  definitionType: DataMartDefinitionType | null;
+  initialDefinitionType: DataMartDefinitionType | null;
+  setDefinitionType: (type: DataMartDefinitionType) => void;
+}
+
 interface SqlValidationState {
   isValid: boolean | null;
   isLoading: boolean;
@@ -43,7 +49,11 @@ const getSqlQueryFromDefinition = (
 const getEmptyDefinitionForUpdate = (type: DataMartDefinitionType): DataMartDefinitionConfig =>
   getEmptyDefinition(type) as DataMartDefinitionConfig;
 
-export function DataMartDefinitionSettings() {
+export function DataMartDefinitionSettings({
+  definitionType,
+  initialDefinitionType,
+  setDefinitionType,
+}: DataMartDefinitionSettingsProps) {
   const { dataMart, updateDataMartDefinition, runSchemaActualization } =
     useOutletContext<DataMartContextType>();
   const preset = useDataMartPreset();
@@ -52,15 +62,11 @@ export function DataMartDefinitionSettings() {
     throw new Error('Data mart not found');
   }
   const {
-    definitionType: initialDefinitionType,
     definition: initialDefinition,
     id: dataMartId,
     storage: { type: storageType },
   } = dataMart;
 
-  const [definitionType, setDefinitionType] = useState<DataMartDefinitionType | null>(
-    initialDefinitionType
-  );
   const [, setSqlValidationState] = useState<SqlValidationState>(initialSqlValidationState);
   const [shouldActualizeSchema, setShouldActualizeSchema] = useState(false);
 

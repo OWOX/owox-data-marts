@@ -8,12 +8,16 @@ import type {
 import type { DataMartContextType } from '../../model/context/types.ts';
 import { useOperationState, useSchemaState } from './hooks';
 import { SchemaContent } from './SchemaContent';
+import type { DataMartDefinitionType } from '../../../shared/index.ts';
 
+interface DataMartSchemaSettingsProps {
+  definitionType: DataMartDefinitionType | null;
+}
 /**
  * Main component for editing data mart schema settings
  * Uses custom hooks for state management and the SchemaContent component for rendering
  */
-export function DataMartSchemaSettings() {
+export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSettingsProps) {
   const {
     dataMart,
     updateDataMartSchema,
@@ -100,7 +104,7 @@ export function DataMartSchemaSettings() {
           type='button'
           variant='outline'
           onClick={handleActualize}
-          disabled={isSchemaActualizationLoading}
+          disabled={!definitionType || isSchemaOperationInProgress}
         >
           Refresh schema
         </Button>
