@@ -5,7 +5,6 @@ import { ReportService } from './report.service';
 import { RunType } from '../../common/scheduler/shared/types';
 import { Report } from '../entities/report.entity';
 import { LookerStudioReportRun } from '../models/looker-studio-report-run.model';
-import { ReportRunStatus } from '../enums/report-run-status.enum';
 
 @Injectable()
 export class LookerStudioReportRunService {
@@ -32,19 +31,14 @@ export class LookerStudioReportRunService {
 
   @Transactional()
   async finish(reportRun: LookerStudioReportRun): Promise<void> {
-    await this.dataMartRunService.markReportRunAsFinished(reportRun.dataMartRun);
+    await this.dataMartRunService.markReportRunAsFinished(reportRun.getDataMartRun());
 
     if (reportRun.isSuccess()) {
-      await this.reportService.updateRunStatus(
-        reportRun.getReportId(),
-        reportRun.getReportStatus() || ReportRunStatus.SUCCESS
-      );
+      const status = reportRun.getFinalReportStatus();
+      await this.reportService.updateRunStatus(reportRun.getReportId(), status);
     } else {
-      await this.reportService.updateRunStatus(
-        reportRun.getReportId(),
-        reportRun.getReportStatus() || ReportRunStatus.ERROR,
-        reportRun.getReportError()
-      );
+      const { status, error } = reportRun.getFinalReportStatusWithError();
+      await this.reportService.updateRunStatus(reportRun.getReportId(), status, error);
     }
   }
 }

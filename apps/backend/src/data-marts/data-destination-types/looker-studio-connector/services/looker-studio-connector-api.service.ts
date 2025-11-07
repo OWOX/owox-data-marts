@@ -171,13 +171,14 @@ export class LookerStudioConnectorApiService {
       this.logger.log(`Report ${reportRun.getReportId()} completed successfully`);
     }
 
-    await this.consumptionTrackingService.registerLookerReportRunConsumption(reportRun.report);
+    const report = reportRun.getReport();
+    await this.consumptionTrackingService.registerLookerReportRunConsumption(report);
 
     const {
       id: reportId,
       dataMart: { id: dataMartId, projectId },
       createdById: userId,
-    } = reportRun.report;
+    } = report;
 
     await this.producer.produceEvent(
       new LookerReportRunSuccessfullyEvent(dataMartId, reportId, projectId, userId)

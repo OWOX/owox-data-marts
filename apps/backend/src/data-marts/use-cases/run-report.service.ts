@@ -96,10 +96,10 @@ export class RunReportService {
 
     try {
       this.gracefulShutdownService.registerActiveProcess(processId);
-      await this.actualizeSchemaInDataMart(reportRun.report.dataMart);
+      await this.actualizeSchemaInDataMart(reportRun.getDataMart());
       await this.reportRunService.markAsStarted(reportRun);
       this.logger.log(`Report ${reportRun.getReportId()} execution started`);
-      await this.executeReport(reportRun.report, signal);
+      await this.executeReport(reportRun.getReport(), signal);
       await this.handleReportRunSuccess(reportRun);
     } catch (error) {
       await this.handleReportRunError(reportRun, error);

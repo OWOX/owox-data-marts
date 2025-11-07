@@ -5,24 +5,36 @@ import { ReportRunStatus } from '../enums/report-run-status.enum';
 
 export class LookerStudioReportRun {
   private constructor(
-    public readonly report: Report,
-    public readonly dataMartRun: DataMartRun
+    private readonly report: Report,
+    private readonly dataMartRun: DataMartRun
   ) {}
 
   static create(report: Report, dataMartRun: DataMartRun): LookerStudioReportRun {
     return new LookerStudioReportRun(report, dataMartRun);
   }
 
-  getReportId() {
+  getDataMartRun(): DataMartRun {
+    return this.dataMartRun;
+  }
+
+  getReport(): Report {
+    return this.report;
+  }
+
+  getReportId(): string {
     return this.report.id;
   }
 
-  getReportStatus() {
-    return this.report.lastRunStatus;
+  getFinalReportStatus(): ReportRunStatus {
+    return this.report.lastRunStatus ?? ReportRunStatus.SUCCESS;
   }
 
-  getReportError() {
-    return this.report.lastRunError;
+  getFinalReportStatusWithError(): { status: ReportRunStatus; error?: string } {
+    const status = this.report.lastRunStatus ?? ReportRunStatus.ERROR;
+    return {
+      status,
+      error: this.report.lastRunError,
+    };
   }
 
   isSuccess(): boolean {
