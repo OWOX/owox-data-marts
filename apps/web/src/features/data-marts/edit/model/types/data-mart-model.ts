@@ -73,7 +73,7 @@ export interface DataMart {
    * Indicates if the data mart schema can be actualizable
    */
   canActualizeSchema: boolean;
-  
+
   /**
    * Connector state (if Data Mart is CONNECTOR-based)
    */
