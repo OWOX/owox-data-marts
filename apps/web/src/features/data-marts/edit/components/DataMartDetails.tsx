@@ -83,6 +83,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     { name: 'Overview', path: 'overview' },
     { name: 'Data Setup', path: 'data-setup' },
     { name: 'Destinations', path: 'reports' },
+    { name: 'Insights', path: 'insights' },
     { name: 'Triggers', path: 'triggers' },
     { name: 'Run History', path: 'run-history' },
   ];
