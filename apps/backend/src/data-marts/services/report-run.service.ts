@@ -46,12 +46,12 @@ export class ReportRunService {
   }
 
   async markAsStarted(reportRun: ReportRun): Promise<void> {
-    await this.dataMartRunService.markReportRunAsStarted(reportRun.dataMartRun);
+    await this.dataMartRunService.markReportRunAsStarted(reportRun.getDataMartRun());
   }
 
   @Transactional()
   async finish(reportRun: ReportRun): Promise<void> {
-    await this.reportService.saveReport(reportRun.report);
-    await this.dataMartRunService.markReportRunAsFinished(reportRun.dataMartRun);
+    await this.reportService.saveReport(reportRun.getReport());
+    await this.dataMartRunService.markReportRunAsFinished(reportRun.getDataMartRun());
   }
 }

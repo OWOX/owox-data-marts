@@ -25,10 +25,17 @@ import { addTransactionalDataSource } from 'typeorm-transactional';
 
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => {
+      useFactory: async (config: ConfigService) => {
         const options = createDataSourceOptions(config);
-        const dataSource = addTransactionalDataSource(new DataSource(options));
-        return dataSource.options;
+        return options;
+      },
+      async dataSourceFactory(options) {
+        if (!options) {
+          throw new Error('Invalid options passed');
+        }
+        const dataSource = new DataSource(options);
+        await dataSource.initialize();
+        return addTransactionalDataSource(dataSource);
       },
     }),
     ScheduleModule.forRoot(),
