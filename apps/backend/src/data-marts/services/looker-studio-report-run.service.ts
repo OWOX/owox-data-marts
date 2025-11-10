@@ -5,7 +5,28 @@ import { ReportService } from './report.service';
 import { RunType } from '../../common/scheduler/shared/types';
 import { Report } from '../entities/report.entity';
 import { LookerStudioReportRun } from '../models/looker-studio-report-run.model';
+import { ReportRunStatus } from '../enums/report-run-status.enum';
 
+/**
+ * Service managing the lifecycle of Looker Studio Community Connector report runs.
+ *
+ * Differences from standard ReportRunService:
+ * - No PENDING state: runs are created and immediately STARTED
+ * - No optimistic locking: Looker Studio requests are always processed
+ * - No cancellation support: connector requests run to completion
+ * - Always manual run type (triggered by Looker Studio user)
+ *
+ * Responsibilities:
+ * - Creates report runs in STARTED state within transaction
+ * - Finalizes runs with SUCCESS or ERROR status
+ * - Updates Report.runStatus based on execution result
+ *
+ * Transaction boundaries:
+ * - create(): Creates DataMartRun in STARTED state
+ * - finish(): Updates DataMartRun + Report.runStatus atomically
+ *
+ * @see LookerStudioReportRun - Domain model for Looker Studio runs
+ */
 @Injectable()
 export class LookerStudioReportRunService {
   private readonly logger = new Logger(LookerStudioReportRunService.name);
@@ -15,6 +36,17 @@ export class LookerStudioReportRunService {
     private readonly dataMartRunService: DataMartRunService
   ) {}
 
+  /**
+   * Creates and starts a new Looker Studio report run.
+   *
+   * Always creates run in STARTED state (no PENDING phase).
+   * Uses Report.createdById as run creator and manual run type.
+   *
+   * @param report - Report entity to run
+   * @returns LookerStudioReportRun instance
+   * @throws Error if DataMartRun creation fails (logged and propagated)
+   */
+  @Transactional()
   async create(report: Report): Promise<LookerStudioReportRun | null> {
     try {
       const dataMartRun = await this.dataMartRunService.createAndMarkReportRunAsStarted(report, {
@@ -25,20 +57,36 @@ export class LookerStudioReportRunService {
       return LookerStudioReportRun.create(report, dataMartRun);
     } catch (error) {
       this.logger.error(`Failed to create run for report ${report.id}`, error);
-      return null;
+      throw error;
     }
   }
 
+  /**
+   * Finalizes Looker Studio report run by persisting results.
+   *
+   * Process:
+   * 1. Marks DataMartRun as finished (with status from reportRun)
+   * 2. Updates Report.runStatus based on execution result:
+   *    - SUCCESS if reportRun.isSuccess() returns true
+   *    - ERROR with message if reportRun has error
+   *
+   * Both updates happen in single transaction.
+   *
+   * @param reportRun - Completed Looker Studio report run
+   */
   @Transactional()
   async finish(reportRun: LookerStudioReportRun): Promise<void> {
     await this.dataMartRunService.markReportRunAsFinished(reportRun.getDataMartRun());
 
     if (reportRun.isSuccess()) {
-      const status = reportRun.getFinalReportStatus();
-      await this.reportService.updateRunStatus(reportRun.getReportId(), status);
+      await this.reportService.updateRunStatus(reportRun.getReportId(), ReportRunStatus.SUCCESS);
     } else {
-      const { status, error } = reportRun.getFinalReportStatusWithError();
-      await this.reportService.updateRunStatus(reportRun.getReportId(), status, error);
+      const error = reportRun.getReportError();
+      await this.reportService.updateRunStatus(
+        reportRun.getReportId(),
+        ReportRunStatus.ERROR,
+        error
+      );
     }
   }
 }

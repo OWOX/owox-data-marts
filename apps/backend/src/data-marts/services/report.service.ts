@@ -8,6 +8,23 @@ import { ReportRunStatus } from '../enums/report-run-status.enum';
 import { ScheduledTriggerService } from './scheduled-trigger.service';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 
+/**
+ * Service managing Report entity persistence and queries.
+ *
+ * Responsibilities:
+ * - Fetches reports with relationships (dataMart, dataDestination)
+ * - Updates report run status after execution
+ * - Manages report lifecycle (deletion with cascade)
+ * - Provides Looker Studio-specific queries with secret validation
+ *
+ * Key operations:
+ * - getById(): Standard fetch with relations
+ * - updateRunStatus(): Updates lastRunAt, lastRunStatus, lastRunError, increments runsCount
+ * - saveReport(): Persists Report changes (used by optimistic locking flow)
+ * - deleteReport(): Cascades deletion to triggers
+ *
+ * @see Report - Entity managed by this service
+ */
 @Injectable()
 export class ReportService {
   constructor(
@@ -17,6 +34,13 @@ export class ReportService {
     private readonly systemTimeService: SystemTimeService
   ) {}
 
+  /**
+   * Fetches report by ID with related entities.
+   *
+   * @param id - Report identifier
+   * @returns Report with dataMart and dataDestination relations
+   * @throws NotFoundException if report not found
+   */
   async getById(id: string): Promise<Report> {
     const report = await this.repository.findOne({
       where: { id },
@@ -30,6 +54,17 @@ export class ReportService {
     return report;
   }
 
+  /**
+   * Fetches report by ID with ownership validation.
+   *
+   * Ensures report belongs to specified dataMart and project.
+   *
+   * @param id - Report identifier
+   * @param dataMartId - Expected dataMart ID
+   * @param projectId - Expected project ID
+   * @returns Report with relations
+   * @throws NotFoundException if report not found or doesn't match ownership
+   */
   async getByIdAndDataMartIdAndProjectId(
     id: string,
     dataMartId: string,
@@ -53,6 +88,13 @@ export class ReportService {
     return report;
   }
 
+  /**
+   * Fetches all Looker Studio reports for destination with secret validation.
+   *
+   * @param destinationId - Data destination ID
+   * @param secret - Destination secret key for authentication
+   * @returns Array of reports matching destination and secret
+   */
   async getAllByDestinationIdAndLookerStudioSecret(
     destinationId: string,
     secret: string
@@ -76,6 +118,13 @@ export class ReportService {
     });
   }
 
+  /**
+   * Fetches single Looker Studio report with secret validation.
+   *
+   * @param id - Report identifier
+   * @param secret - Destination secret key for authentication
+   * @returns Report if found and secret matches, null otherwise
+   */
   async getByIdAndLookerStudioSecret(id: string, secret: string): Promise<Report | null> {
     return await this.repository.findOne({
       where: {
@@ -96,6 +145,19 @@ export class ReportService {
     });
   }
 
+  /**
+   * Updates report run status after execution completes.
+   *
+   * Updates:
+   * - lastRunAt: Current timestamp
+   * - lastRunStatus: SUCCESS/ERROR/CANCELLED
+   * - lastRunError: Error message (if provided)
+   * - runsCount: Incremented by 1
+   *
+   * @param reportId - Report identifier
+   * @param status - Final run status
+   * @param error - Optional error message for failed runs
+   */
   async updateRunStatus(reportId: string, status: ReportRunStatus, error?: string): Promise<void> {
     await this.repository.update(reportId, {
       lastRunAt: this.systemTimeService.now(),
@@ -105,10 +167,24 @@ export class ReportService {
     });
   }
 
+  /**
+   * Persists Report entity changes.
+   *
+   * @param report - Report entity to save
+   */
   async saveReport(report: Report): Promise<void> {
     await this.repository.save(report);
   }
 
+  /**
+   * Deletes report with cascade to triggers.
+   *
+   * Steps:
+   * 1. Deletes all scheduled triggers for report
+   * 2. Removes report entity
+   *
+   * @param report - Report to delete (must have dataMart relation loaded)
+   */
   async deleteReport(report: Report): Promise<void> {
     // Delete all triggers related to this report
     await this.scheduledTriggerService.deleteAllByReportIdAndDataMartIdAndProjectId(
@@ -121,6 +197,14 @@ export class ReportService {
     await this.repository.remove(report);
   }
 
+  /**
+   * Deletes all reports for data mart with cascade.
+   *
+   * Used when deleting data mart to clean up dependent reports.
+   *
+   * @param dataMartId - DataMart identifier
+   * @param projectId - Project identifier for ownership validation
+   */
   async deleteAllByDataMartIdAndProjectId(dataMartId: string, projectId: string): Promise<void> {
     const reports = await this.repository.find({
       where: {
