@@ -20,6 +20,7 @@ import { type TikTokAdsIcon } from './tiktok-ads-icon';
 import { type MicrosoftAdsIcon } from './microsoft-ads-icon';
 import { type MicrosoftTeamsIcon } from './microsoft-teams-icon';
 import { type GoogleChatIcon } from './google-chat-icon';
+import { type EmailIcon } from './email-icon';
 import { type LucideIcon } from 'lucide-react';
 
 export type LocalIcon =
@@ -44,5 +45,6 @@ export type LocalIcon =
   | typeof MicrosoftAdsIcon
   | typeof MicrosoftTeamsIcon
   | typeof GoogleChatIcon
+  | typeof EmailIcon
   | typeof RawBase64Icon;
 export type AppIcon = LucideIcon | LocalIcon;

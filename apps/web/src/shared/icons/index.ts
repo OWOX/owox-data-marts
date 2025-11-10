@@ -20,4 +20,5 @@ export * from './tiktok-ads-icon';
 export * from './microsoft-ads-icon';
 export * from './microsoft-teams-icon';
 export * from './google-chat-icon';
+export * from './email-icon';
 export * from './icons.types';
