@@ -6,12 +6,12 @@ import {
   CollapsibleCardFooter,
   CollapsibleCardHeaderActions,
 } from '../../../../../../shared/components/CollapsibleCard';
-import type { DataMartStatusInfo } from '../../../../shared/types/data-mart-status.model';
-import type { DataDestination } from '../../../../../data-destination/shared/model/types';
-import { useDataDestinationVisibility } from '../../../../../data-destination/shared/model/hooks';
+import type { DataMartStatusInfo } from '../../../../shared';
+import type { DataDestination } from '../../../../../data-destination';
+import { useDataDestinationVisibility } from '../../../../../data-destination';
 import { useReportSidesheet } from '../../model/hooks';
 import { AddReportButton, ReportEditSheetRenderer, ReportListRenderer } from './index';
-import { DataDestinationType } from '../../../../../data-destination/shared/enums';
+import { DataDestinationType } from '../../../../../data-destination';
 
 interface DestinationCardProps {
   destination: DataDestination;
@@ -57,7 +57,13 @@ export function DestinationCard({ destination, dataMartStatus }: DestinationCard
 
         {/* Reports list table */}
         <CollapsibleCardContent>
-          <ReportListRenderer destination={destination} onEditReport={handleEditReport} />
+          <ReportListRenderer
+            destination={destination}
+            onEditReport={handleEditReport}
+            {...(destination.type === DataDestinationType.GOOGLE_SHEETS && {
+              autoRefreshEnabled: true,
+            })}
+          />
         </CollapsibleCardContent>
 
         <CollapsibleCardFooter />

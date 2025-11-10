@@ -16,7 +16,7 @@ var userLocationPerformanceReportFields = {
   },
   'AccountId': {
     'description': 'The Microsoft Advertising assigned identifier of an account.',
-    'type': 'Int64'
+    'type': 'string'
   },
   'TimePeriod': {
     'description': 'The time period of each report row.',
@@ -31,7 +31,7 @@ var userLocationPerformanceReportFields = {
   },
   'CampaignId': {
     'description': 'The Microsoft Advertising assigned identifier of a campaign.',
-    'type': 'Int64'
+    'type': 'string'
   },
   'AdGroupName': {
     'description': 'The ad group name.',
@@ -39,7 +39,7 @@ var userLocationPerformanceReportFields = {
   },
   'AdGroupId': {
     'description': 'The Microsoft Advertising assigned identifier of an ad group.',
-    'type': 'Int64'
+    'type': 'string'
   },
   'Country': {
     'description': 'The country where the user was located when they clicked the ad.',
@@ -55,11 +55,11 @@ var userLocationPerformanceReportFields = {
   },
   'CurrencyCode': {
     'description': 'The account currency type.',
-    'type': 'String'
+    'type': 'string'
   },
   'AdDistribution': {
     'description': 'The network where you want your ads to show.',
-    'type': 'String'
+    'type': 'string'
   },
   'Impressions': {
     'description': 'The number of times an ad has been displayed on search results pages.',
@@ -120,11 +120,11 @@ var userLocationPerformanceReportFields = {
   },
   'BidMatchType': {
     'description': 'The keyword bid match type.',
-    'type': 'String'
+    'type': 'string'
   },
   'DeliveredMatchType': {
     'description': 'The match type used to deliver an ad.',
-    'type': 'String'
+    'type': 'string'
   },
   'Network': {
     'description': 'The entire Microsoft Advertising Network made up of Microsoft sites and select traffic, and only partner traffic.',
@@ -132,15 +132,15 @@ var userLocationPerformanceReportFields = {
   },
   'TopVsOther': {
     'description': 'Indicates whether the ad impression appeared in a top position or elsewhere.',
-    'type': 'String'
+    'type': 'string'
   },
   'DeviceType': {
     'description': 'The type of device which showed ads.',
-    'type': 'String'
+    'type': 'string'
   },
   'DeviceOS': {
     'description': 'The operating system of the device reported in the DeviceType column.',
-    'type': 'String'
+    'type': 'string'
   },
   'Assists': {
     'description': 'The number of conversions from other ads within the same account that were preceded by one or more clicks from this ad.',
@@ -196,7 +196,7 @@ var userLocationPerformanceReportFields = {
   },
   'LocationId': {
     'description': 'The Microsoft Advertising identifier of the location where the user was physically located when they clicked the ad.',
-    'type': 'Int64'
+    'type': 'string'
   },
   'QueryIntentLocationId': {
     'description': 'The Microsoft Advertising identifier of the location that the user was searching for.',
@@ -276,11 +276,11 @@ var userLocationPerformanceReportFields = {
   },
   'CampaignType': {
     'description': 'The campaign type.',
-    'type': 'String'
+    'type': 'string'
   },
   'AssetGroupId': {
     'description': 'The Microsoft Advertising assigned identifier of an asset group.',
-    'type': 'Int64'
+    'type': 'string'
   },
   'AssetGroupName': {
     'description': 'The asset group name.',

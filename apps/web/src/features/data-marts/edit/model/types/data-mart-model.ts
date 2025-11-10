@@ -3,6 +3,7 @@ import type { DataMartStatusInfo, DataMartValidationError } from '../../../share
 import type { DataMartDefinitionConfig } from './data-mart-definition-config.ts';
 import type { DataMartDefinitionType } from '../../../shared';
 import type { DataMartSchema } from '../../../shared/types/data-mart-schema.types';
+import type { ConnectorStateResponseDto } from '../../../shared/types/api/response/connector-state.response.dto';
 
 /**
  * Data mart domain model
@@ -67,4 +68,14 @@ export interface DataMart {
    * Data mart schema
    */
   schema: DataMartSchema | null;
+
+  /**
+   * Indicates if the data mart schema can be actualizable
+   */
+  canActualizeSchema: boolean;
+
+  /**
+   * Connector state (if Data Mart is CONNECTOR-based)
+   */
+  connectorState?: ConnectorStateResponseDto | null;
 }

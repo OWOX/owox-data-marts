@@ -1,6 +1,6 @@
 {
   "name": "@owox/connectors",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Connectors and storages for different data sources",
   "license": "MIT",
   "publishConfig": {
@@ -27,11 +27,24 @@
     "dist/**/*.js",
     "dist/**/*.cjs"
   ],
+  "bin": {
+    "owox-connector-runner": "./dist/connector-runner.cjs"
+  },
   "exports": {
     ".": {
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./runner": {
+      "require": "./dist/connector-runner.cjs"
     }
+  },
+  "dependencies": {
+    "@google-cloud/bigquery": "^8.0.0",
+    "@aws-sdk/client-athena": "3.810.0",
+    "@aws-sdk/client-s3": "3.810.0",
+    "@aws-sdk/lib-storage": "3.810.0",
+    "adm-zip": "0.5.16"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

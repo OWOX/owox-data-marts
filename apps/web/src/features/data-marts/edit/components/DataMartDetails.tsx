@@ -52,14 +52,32 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
 
-  const dataMartId = dataMart?.id ?? '';
+  const {
+    id: dataMartId = '',
+    canPublish = false,
+    canActualizeSchema = false,
+    status: dataMartStatus = { code: null, displayName: '', description: '' },
+    title: dataMartTitle = '',
+    definition: dataMartDefinition = null,
+    definitionType: dataMartDefinitionType = null,
+    validationErrors: dataMartValidationErrors = [],
+  } = dataMart ?? {};
 
   const onActualizeSuccess = useCallback(() => {
     if (!dataMartId) return;
     void getDataMart(dataMartId);
   }, [dataMartId, getDataMart]);
 
-  const { run: runActualize } = useSchemaActualizeTrigger(dataMartId, onActualizeSuccess);
+  const { run: runActualizeSchemaInternal, isLoading: isSchemaActualizationLoading } =
+    useSchemaActualizeTrigger(dataMartId, onActualizeSuccess);
+
+  // Wrap with canActualizeSchema check before running schema actualization
+  const runSchemaActualization = useCallback(async () => {
+    if (!canActualizeSchema) {
+      return;
+    }
+    await runActualizeSchemaInternal();
+  }, [canActualizeSchema, runActualizeSchemaInternal]);
 
   const navigation = [
     { name: 'Overview', path: 'overview' },
@@ -69,36 +87,42 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     { name: 'Run History', path: 'run-history' },
   ];
 
-  const handleTitleUpdate = async (newTitle: string) => {
-    if (!dataMart) return;
-    await updateDataMartTitle(dataMart.id, newTitle);
-  };
+  const handleTitleUpdate = useCallback(
+    async (newTitle: string) => {
+      if (!dataMartId) return;
+      await updateDataMartTitle(dataMartId, newTitle);
+    },
+    [dataMartId, updateDataMartTitle]
+  );
 
-  const handlePublish = async () => {
-    if (!dataMart) return;
+  const handlePublish = useCallback(async () => {
+    if (!dataMartId) return;
     setIsPublishing(true);
 
     try {
-      await publishDataMart(dataMart.id);
-      void runActualize();
+      await publishDataMart(dataMartId);
+      void runSchemaActualization();
     } catch (error) {
       console.log(error instanceof Error ? error.message : 'Failed to publish Data Mart');
     } finally {
       setIsPublishing(false);
     }
-  };
+  }, [dataMartId, publishDataMart, runSchemaActualization]);
 
-  const handleManualRun = async (payload: Record<string, unknown>) => {
-    if (!dataMart) return;
-    if (dataMart.status.code !== DataMartStatus.PUBLISHED) {
-      toast.error('Manual run is only available for published Data Marts');
-      return;
-    }
-    await runDataMart({
-      id: dataMart.id,
-      payload,
-    });
-  };
+  const handleManualRun = useCallback(
+    async (payload: Record<string, unknown>) => {
+      if (!dataMartId) return;
+      if (dataMartStatus.code !== DataMartStatus.PUBLISHED) {
+        toast.error('Manual run is only available for published Data Marts');
+        return;
+      }
+      await runDataMart({
+        id: dataMartId,
+        payload,
+      });
+    },
+    [dataMartId, dataMartStatus, runDataMart]
+  );
 
   if (isLoading) {
     // Loading data mart details...
@@ -132,7 +156,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
             <ArrowLeft className='h-5 w-5' />
           </Button>
           <InlineEditTitle
-            title={dataMart.title}
+            title={dataMartTitle}
             onUpdate={handleTitleUpdate}
             className='text-2xl font-medium'
           />
@@ -147,23 +171,23 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                 <div>
                   <StatusLabel
                     type={
-                      dataMart.status.code === DataMartStatus.PUBLISHED
+                      dataMartStatus.code === DataMartStatus.PUBLISHED
                         ? StatusTypeEnum.SUCCESS
                         : StatusTypeEnum.NEUTRAL
                     }
                     variant='subtle'
                   >
-                    {dataMart.status.displayName}
+                    {dataMartStatus.displayName}
                   </StatusLabel>
                 </div>
               </TooltipTrigger>
               <TooltipContent>
-                {dataMart.status.code === DataMartStatus.PUBLISHED
+                {dataMartStatus.code === DataMartStatus.PUBLISHED
                   ? 'Your published Data Mart is ready for scheduled runs'
                   : 'Draft Data Mart is not available for scheduled runs. Publish it to activate scheduling.'}
               </TooltipContent>
             </Tooltip>
-            {dataMart.status.code === DataMartStatus.DRAFT && (
+            {dataMartStatus.code === DataMartStatus.DRAFT && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div>
@@ -172,7 +196,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                       onClick={() => {
                         void handlePublish();
                       }}
-                      disabled={isPublishing || !dataMart.canPublish}
+                      disabled={isPublishing || !canPublish}
                       className='ml-2 flex items-center gap-1'
                     >
                       <CircleCheck className='h-4 w-4' />
@@ -180,12 +204,12 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                     </Button>
                   </div>
                 </TooltipTrigger>
-                {!dataMart.canPublish && (
+                {!canPublish && (
                   <TooltipContent>
                     <div>Cannot publish Data Mart. Fix the issues below.</div>
-                    {dataMart.validationErrors.length > 0 && (
+                    {dataMartValidationErrors.length > 0 && (
                       <ul className='mt-1 list-disc space-y-1 pl-4'>
-                        {getValidationErrorMessages(dataMart.validationErrors).map(
+                        {getValidationErrorMessages(dataMartValidationErrors).map(
                           (message, index) => (
                             <li key={index}>{message}</li>
                           )
@@ -204,10 +228,10 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end'>
-              {dataMart.definitionType === DataMartDefinitionType.CONNECTOR && (
+              {dataMartDefinitionType === DataMartDefinitionType.CONNECTOR && (
                 <>
                   <ConnectorRunView
-                    configuration={dataMart.definition ?? null}
+                    configuration={dataMartDefinition ?? null}
                     onManualRun={data => {
                       void handleManualRun({
                         runType: data.runType,
@@ -280,6 +304,8 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
             loadMoreDataMartRuns,
             runs,
             getDataMart,
+            runSchemaActualization,
+            isSchemaActualizationLoading,
           }}
         />
       </div>
@@ -290,7 +316,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
         title='Delete Data Mart'
         description={
           <>
-            Are you sure you want to delete <strong>"{dataMart.title}"</strong>? This action cannot
+            Are you sure you want to delete <strong>"{dataMartTitle}"</strong>? This action cannot
             be undone.
           </>
         }
@@ -300,7 +326,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
         onConfirm={() => {
           void (async () => {
             try {
-              await deleteDataMart(dataMart.id);
+              await deleteDataMart(dataMartId);
               setIsDeleteDialogOpen(false);
               navigate('/data-marts');
             } catch (error) {

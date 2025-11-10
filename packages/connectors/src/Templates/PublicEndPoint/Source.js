@@ -39,13 +39,6 @@ var YOUR_DATE_SOURCE_Source = class YOUR_DATE_SOURCE_Source extends AbstractSour
         default: "Data",
         label: "Destination Sheet Name",
         description: "Name of the sheet where data will be stored"
-      },
-      MaxFetchingDays: {
-        requiredType: "number",
-        isRequired: true,
-        default: 30,
-        label: "Max Fetching Days",
-        description: "Maximum number of days to fetch data for"
       }
     }));
   
@@ -61,7 +54,7 @@ var YOUR_DATE_SOURCE_Source = class YOUR_DATE_SOURCE_Source extends AbstractSour
   @return data array
   
   */
-  fetchData(startDate, endDate)  {
+  async fetchData(startDate, endDate)  {
   
     let data = [];
    

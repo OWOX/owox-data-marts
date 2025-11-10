@@ -10,6 +10,7 @@ import { ConsumptionTrackingService } from './services/consumption-tracking.serv
 import { ReportDataCacheService } from './services/report-data-cache.service';
 import { CreateDataMartService } from './use-cases/create-data-mart.service';
 import { ListDataMartsService } from './use-cases/list-data-marts.service';
+import { ListDataMartsByConnectorNameService } from './use-cases/list-data-marts-by-connector-name.service';
 import { GetDataMartService } from './use-cases/get-data-mart.service';
 import { GetDataMartRunsService } from './use-cases/get-data-mart-runs.service';
 import { DataMartMapper } from './mappers/data-mart.mapper';
@@ -76,7 +77,6 @@ import { UpdateDataMartSchemaService } from './use-cases/update-data-mart-schema
 import { SqlDryRunService } from './use-cases/sql-dry-run.service';
 import { DataMartSchemaParserFacade } from './data-storage-types/facades/data-mart-schema-parser-facade.service';
 import { DataMartScheduledTrigger } from './entities/data-mart-scheduled-trigger.entity';
-import { SchedulerModule } from '../common/scheduler/scheduler.module';
 import { ScheduledTriggersHandlerService } from './services/scheduled-triggers-handler.service';
 import { ReportService } from './services/report.service';
 import { ConnectorOutputCaptureService } from './connector-types/connector-message/services/connector-output-capture.service';
@@ -88,6 +88,7 @@ import { IdpModule } from '../idp/idp.module';
 import { createOperationTimeoutMiddleware } from '../common/middleware/operation-timeout.middleware';
 import { CommonModule } from '../common/common.module';
 import { ConnectorSecretService } from './services/connector-secret.service';
+import { DataMartRunService } from './services/data-mart-run.service';
 import { SqlDryRunTrigger } from './entities/sql-dry-run-trigger.entity';
 import { SqlDryRunTriggerService } from './services/sql-dry-run-trigger.service';
 import { SqlDryRunTriggerHandlerService } from './services/sql-dry-run-trigger-handler.service';
@@ -111,7 +112,6 @@ import { SchemaActualizeTriggerController } from './controllers/schema-actualize
       SqlDryRunTrigger,
       SchemaActualizeTrigger,
     ]),
-    SchedulerModule,
     CommonModule,
     IdpModule,
   ],
@@ -136,6 +136,7 @@ import { SchemaActualizeTriggerController } from './controllers/schema-actualize
     DataMartService,
     CreateDataMartService,
     ListDataMartsService,
+    ListDataMartsByConnectorNameService,
     GetDataMartService,
     GetDataMartRunsService,
     UpdateDataMartDefinitionService,
@@ -200,6 +201,7 @@ import { SchemaActualizeTriggerController } from './controllers/schema-actualize
     ConnectorStateService,
     ConsumptionTrackingService,
     ConnectorSecretService,
+    DataMartRunService,
   ],
 })
 export class DataMartsModule {

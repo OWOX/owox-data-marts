@@ -45,7 +45,11 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             'docs/getting-started/core-concepts',
             {
               label: 'Editions',
-              items: ['docs/editions/all-editions', 'docs/editions/agency'],
+              items: [
+                'docs/editions/owox-cloud-editions',
+                'docs/editions/self-managed-editions',
+                'docs/editions/agency',
+              ],
             },
             {
               label: 'Deployment Guide',
@@ -123,7 +127,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               items: [
                 'packages/connectors/contributing',
                 'packages/connectors/creating-connector',
-                'packages/connectors/environment-adapter',
                 'packages/connectors/publishing',
               ],
               collapsed: true,
@@ -149,11 +152,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 'apps/backend/src/common/scheduler/readme',
                 'apps/backend/src/migrations/readme',
               ],
-              collapsed: true,
-            },
-            {
-              label: 'Connector Runner',
-              autogenerate: { directory: 'packages/connector-runner' },
               collapsed: true,
             },
             { label: 'Licenses', autogenerate: { directory: 'licenses' }, collapsed: true },

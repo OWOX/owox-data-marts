@@ -15,6 +15,7 @@ import type {
   ViewDefinitionDto,
   ConnectorDefinitionDto,
 } from '../../../shared/types/api';
+import { getConnectorInfoByName } from '../../../../connectors/shared/utils';
 
 /**
  * Maps a SQL definition from the model to the API DTO format
@@ -138,10 +139,10 @@ export function mapConnectorDefinitionFromDto(
 /**
  * Maps a definition from API DTO to the model format based on definition type
  */
-export function mapDefinitionFromDto(
+export async function mapDefinitionFromDto(
   definitionType: DataMartDefinitionType | null,
   definition: DataMartDefinitionDto | null
-): DataMartDefinitionConfig | null {
+): Promise<DataMartDefinitionConfig | null> {
   if (!definitionType || !definition) {
     return null;
   }
@@ -159,9 +160,15 @@ export function mapDefinitionFromDto(
     case DataMartDefinitionType.TABLE_PATTERN:
       return mapTablePatternDefinitionFromDto(definition as TablePatternDefinitionDto);
 
-    case DataMartDefinitionType.CONNECTOR:
-      return mapConnectorDefinitionFromDto(definition as ConnectorDefinitionDto);
-
+    case DataMartDefinitionType.CONNECTOR: {
+      const connectorDefinition = mapConnectorDefinitionFromDto(
+        definition as ConnectorDefinitionDto
+      );
+      connectorDefinition.connector.info = await getConnectorInfoByName(
+        connectorDefinition.connector.source.name
+      );
+      return connectorDefinition;
+    }
     default:
       console.warn(`Unknown definition type: ${String(definitionType)}`);
       return null;

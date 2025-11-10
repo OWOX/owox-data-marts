@@ -5,7 +5,7 @@ import { useRef } from 'react';
 import { cn } from '@owox/ui/lib/utils';
 import { Label } from '@owox/ui/components/label';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
-import { Info, ExternalLinkIcon, ChevronDown } from 'lucide-react';
+import { Info, ExternalLinkIcon, ChevronRight } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { Link } from 'react-router-dom';
 import { Skeleton } from '@owox/ui/components/skeleton';
@@ -185,22 +185,18 @@ function AppWizardCollapsible({
       open={isOpen}
       onOpenChange={setIsOpen}
       data-slot='wizard-collapsible'
-      className={cn('group flex flex-col gap-2 py-3', className)}
+      className={cn('group/collapsible flex flex-col gap-2 py-3', className)}
     >
       <CollapsibleTrigger asChild>
-        <button
-          type='button'
-          className={cn(
-            'text-foreground flex w-full items-center justify-between gap-2 px-4 py-3 text-sm font-medium',
-            !isOpen &&
-              'border-border rounded-md border-b bg-white transition-shadow duration-200 outline-none hover:shadow-sm dark:border-transparent dark:bg-white/4'
-          )}
-        >
+        <button type='button' className={cn('flex cursor-pointer items-center gap-1')}>
           <span className='text-muted-foreground/75 text-xs font-semibold tracking-wide uppercase'>
             {title}
           </span>
-          <ChevronDown
-            className={cn('h-4 w-4 transition-transform duration-200', isOpen && 'rotate-180')}
+          <ChevronRight
+            className={cn(
+              'text-foreground/75 h-3.5 w-3.5 transition-transform duration-200',
+              isOpen && 'rotate-90'
+            )}
           />
         </button>
       </CollapsibleTrigger>

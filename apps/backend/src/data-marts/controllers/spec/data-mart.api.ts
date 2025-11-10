@@ -138,3 +138,11 @@ export function CancelDataMartRunSpec() {
     ApiNoContentResponse({ description: 'DataMart run cancelled' })
   );
 }
+
+export function ListDataMartsByConnectorNameSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'List DataMarts by connector name' }),
+    ApiParam({ name: 'connectorName', description: 'Connector name' }),
+    ApiOkResponse({ type: DataMartResponseApiDto, isArray: true })
+  );
+}

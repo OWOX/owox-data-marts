@@ -39,13 +39,6 @@ constructor(config) {
         label: "Reimport Lookback Window",
         description: "Number of days to look back when reimporting data"
       },
-      MaxFetchingDays: {
-        requiredType: "number",
-        isRequired: true,
-        default: 30,
-        label: "Max Fetching Days",
-        description: "Maximum number of days to fetch data for"
-      },
       Symbols: {
         requiredType: "string",
         label: "Currency Symbols",
@@ -72,11 +65,11 @@ constructor(config) {
   
   /*
   @param date The requested date as a Date object
-  
+
   @return data array
-  
+
   */
-  fetchData(date)  {
+  async fetchData(date)  {
   
     let data = [];
     let base = this.config.base.value;
@@ -88,16 +81,17 @@ constructor(config) {
       symbols = '&symbols=' + String(this.config.Symbols.value).replace(/[^A-Z,]/g,"");
     }
    
-    var date = EnvironmentAdapter.formatDate(date, "UTC", "yyyy-MM-dd"); // The requested date in YYYY-MM-DD format (required)
+    var date = DateUtils.formatDate(date); // The requested date in YYYY-MM-DD format (required)
     const urlWithoutKey = `https://openexchangerates.org/api/historical/${date}.json?base=${base}${symbols}`;
     console.log(`OpenExchangeRates API URL:`, urlWithoutKey);
-    
+
     const url = `${urlWithoutKey}&app_id=${app_id}`;
-    
+
     this.config.logMessage(`Fetching rates for ${date}`);
-  
-    var response = EnvironmentAdapter.fetch(url, {'method': 'get', 'muteHttpExceptions': true} );
-    var historical = JSON.parse( response.getContentText() );
+
+    var response = await HttpUtils.fetch(url, {'method': 'get', 'muteHttpExceptions': true} );
+    var text = await response.getContentText();
+    var historical = JSON.parse(text);
   
     for (var currency in historical["rates"]) {
       data.push({

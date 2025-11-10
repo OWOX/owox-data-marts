@@ -65,10 +65,22 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
     this.updatedRecordsBuffer = {};
     this.existingColumns = {};
     
-    this.setupAthenaDatabase();
-    
     this.uploadSid = new Date().toISOString().replace(/[-:.]/g, '') + "_" + Math.random().toString(36).substring(2, 15);
   }
+
+  //---- init --------------------------------------------------------
+  /**
+   * Initializing storage
+   */
+  async init() {
+    const success = await this.setupAthenaDatabase();
+    if (success) {
+      console.log('Database created or already exists');
+    } else {
+      throw new Error('Failed to create database');
+    }
+  }
+  //----------------------------------------------------------------
 
   //---- initAWS ----------------------------------------------------
   /**
@@ -113,7 +125,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
   /**
    * Create Athena database if it doesn't exist
    */
-  createDatabaseIfNotExists() {
+  async createDatabaseIfNotExists() {
     const params = {
       QueryString: `CREATE SCHEMA IF NOT EXISTS \`${this.config.AthenaDatabaseName.value}\``,
       ResultConfiguration: {
@@ -121,18 +133,16 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
       }
     };
 
-    return this.executeQuery(params, 'ddl')
-      .then(() => {
-        this.config.logMessage(`Database ${this.config.AthenaDatabaseName.value} created or already exists`);
-        return true;
-      });
+    await this.executeQuery(params, 'ddl');
+    this.config.logMessage(`Database ${this.config.AthenaDatabaseName.value} created or already exists`);
+    return true;
   }
 
   //---- checkTableExists ------------------------------------------
   /**
    * Check if the target table exists in Athena
    */
-  checkTableExists() {
+  async checkTableExists() {
     const params = {
       QueryString: `SHOW TABLES IN \`${this.config.AthenaDatabaseName.value}\` LIKE '${this.config.DestinationTableName.value}'`,
       ResultConfiguration: {
@@ -140,23 +150,22 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
       }
     };
 
-    return this.executeQuery(params, 'ddl')
-      .then(results => {
-        if (results && results.length > 0) {
-          return this.getTableSchema();
-        }
-        return this.createTargetTable();
-      })
-      .catch(() => {
-        return this.createTargetTable();
-      });
+    try {
+      const results = await this.executeQuery(params, 'ddl');
+      if (results && results.length > 0) {
+        return await this.getTableSchema();
+      }
+      return await this.createTargetTable();
+    } catch {
+      return await this.createTargetTable();
+    }
   }
 
   //---- getTableSchema -------------------------------------------
   /**
    * Get the schema of the existing table
    */
-  getTableSchema() {
+  async getTableSchema() {
     const params = {
       QueryString: `SHOW COLUMNS IN \`${this.config.AthenaDatabaseName.value}\`.\`${this.config.DestinationTableName.value}\``,
       ResultConfiguration: {
@@ -164,20 +173,15 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
       }
     };
 
-    return this.executeQuery(params, 'ddl')
-      .then(results => {
-        let columns = {};
-        if (results && results.length > 0) {
-          results.forEach(row => {
-            columns[row] = this.getColumnType(row);
-          });
-        }
-        this.existingColumns = columns;
-        return columns;
-      })
-      .catch(error => {
-        return {};
+    const results = await this.executeQuery(params, 'ddl');
+    let columns = {};
+    if (results && results.length > 0) {
+      results.forEach(row => {
+        columns[row] = this.getColumnType(row);
       });
+    }
+    this.existingColumns = columns;
+    return columns;
   }
 
   //---- createTargetTable ----------------------------------------------
@@ -292,62 +296,53 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
    * @param {Array} data - Array of objects with records to save
    * @returns {Promise}
    */
-  saveData(data) {
-    let done = false;
-
+  async saveData(data) {
     // First check if target table exists, create if needed (even for empty data)
-    this.checkTableExists()
-      .then(() => {
-        // Check if we need to add new columns (even for empty data)
-        const allColumns = new Set();
-        if (data.length > 0) {
-          data.forEach(row => {
-            Object.keys(row).forEach(column => allColumns.add(column));
-          });
-        }
+    await this.checkTableExists();
 
-        if (this.config.Fields.value) {
-          this.getSelectedFields().forEach(columnName => {
-            if (columnName && !allColumns.has(columnName)) {
-              allColumns.add(columnName);
-              if (data.length > 0) {
-                data.forEach(row => {
-                  if (!row[columnName]) {
-                    row[columnName] = '';
-                  }
-                });
-              }
-            }
-          });
-        }
-        
-        const existingColumnsSet = new Set(Object.keys(this.existingColumns));
-        const newColumns = Array.from(allColumns).filter(column => !existingColumnsSet.has(column));
-        if (newColumns.length > 0) {
-          return this.addNewColumns(newColumns);
-        }
-        return Promise.resolve();
-      })
-      .then(() => {
-        if (data.length === 0) {
-          done = true;
-          return;
-        }
-
-        this.config.logMessage(`Saving ${data.length} records to Athena`);
-        
-        // Generate a unique temp folder name
-        const tempFolder = `${this.config.S3Prefix.value}_temp/${this.uploadSid}`;
-        
-        // Upload batches of data to S3
-        return this.uploadDataToS3TempFolder(data, tempFolder)
-          .then(() => this.createTempTable(tempFolder, this.uploadSid))
-          .then((tempTableName) => this.mergeDataFromTempTable(tempTableName, this.uploadSid))
-          .then((tempTableName) => this.cleanupTempResources(tempFolder, tempTableName))
-          .then(() => done = true);
+    // Check if we need to add new columns (even for empty data)
+    const allColumns = new Set();
+    if (data.length > 0) {
+      data.forEach(row => {
+        Object.keys(row).forEach(column => allColumns.add(column));
       });
+    }
 
-      deasync.loopWhile(() => !done);
+    if (this.config.Fields.value) {
+      this.getSelectedFields().forEach(columnName => {
+        if (columnName && !allColumns.has(columnName)) {
+          allColumns.add(columnName);
+          if (data.length > 0) {
+            data.forEach(row => {
+              if (!row[columnName]) {
+                row[columnName] = '';
+              }
+            });
+          }
+        }
+      });
+    }
+
+    const existingColumnsSet = new Set(Object.keys(this.existingColumns));
+    const newColumns = Array.from(allColumns).filter(column => !existingColumnsSet.has(column));
+    if (newColumns.length > 0) {
+      await this.addNewColumns(newColumns);
+    }
+
+    if (data.length === 0) {
+      return;
+    }
+
+    this.config.logMessage(`Saving ${data.length} records to Athena`);
+
+    // Generate a unique temp folder name
+    const tempFolder = `${this.config.S3Prefix.value}_temp/${this.uploadSid}`;
+
+    // Upload batches of data to S3
+    await this.uploadDataToS3TempFolder(data, tempFolder);
+    const tempTableName = await this.createTempTable(tempFolder, this.uploadSid);
+    await this.mergeDataFromTempTable(tempTableName, this.uploadSid);
+    await this.cleanupTempResources(tempFolder, tempTableName);
   }
 
   //---- uploadDataToS3TempFolder ---------------------------------
@@ -596,6 +591,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
             }, 3000);
           });
         } else if (state === 'FAILED' || state === 'CANCELLED') {
+          this.config.logMessage(`Query ${queryExecutionId} ${state}: ${data.QueryExecution.Status.StateChangeReason || ''}. Error: ${data.QueryExecution.Status.Error?.Message || ''}`);
           throw new Error(`Query ${state}: ${data.QueryExecution.Status.StateChangeReason || ''}`);
         } else {
           return new Promise(resolve => {

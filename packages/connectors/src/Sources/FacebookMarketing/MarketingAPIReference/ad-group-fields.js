@@ -66,9 +66,30 @@ var adGroupFields = {
     'description': 'Time when the ad was created.',
     'type': 'datetime'
   },
-  'creative': {
-    'description': 'This field is required for create. The ID or creative spec of the ad creative to be used by this ad. You can read more about creatives here. You may supply the ID within an object as follows:',
-    'type': 'AdCreative'
+  'creative_id': {
+    'description': 'Unique ID for the ad creative',
+    'type': 'string',
+    'apiName': 'creative.id'
+  },
+  'creative_effective_object_story_id': {
+    'description': 'The ID of a page post to use in an ad, regardless of whether its an organic or unpublished page post',
+    'type': 'string',
+    'apiName': 'creative.effective_object_story_id'
+  },
+  'creative_name': {
+    'description': 'Name of the ad creative as seen in the ad accounts library',
+    'type': 'string',
+    'apiName': 'creative.name'
+  },
+  'creative_object_story_spec': {
+    'description': 'Object story spec containing page_id and other details',
+    'type': 'string',
+    'apiName': 'creative.object_story_spec'
+  },
+  'creative_url_tags': {
+    'description': 'A set of query string parameters which will replace or be appended to urls clicked from page post ads',
+    'type': 'string',
+    'apiName': 'creative.url_tags'
   },
   'creative_asset_groups_spec': {
     'description': 'This field is used to create ads using the Flexible ad format. You can read more about that here',

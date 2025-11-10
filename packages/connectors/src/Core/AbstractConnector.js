@@ -94,11 +94,11 @@ var AbstractConnector = class AbstractConnector {
     /**
      * Initiates imports new data from a data source
      */
-    run() {
+    async run() {
 
       try {
 
-        // if import is already in progress skip this run in order to avoid dublication 
+        // if import is already in progress skip this run in order to avoid dublication
         if( this.config.isInProgress() ) {
 
           this.config.logMessage("Import is already in progress");
@@ -112,25 +112,20 @@ var AbstractConnector = class AbstractConnector {
           this.config.updateLastImportDate();
           this.config.logMessage("Start importing new data");
 
-          if (this.storage !== null && this.storage.areHeadersNeeded()) {
-            this.storage.addHeader(this.storage.uniqueKeyColumns);
-            this.config.logMessage(`Column(s) for unique key was added: ${this.storage.uniqueKeyColumns}`);
-          }
-
-          this.startImportProcess();
+          await this.startImportProcess();
 
           this.config.logMessage("Import is finished");
-          this.config.handleStatusUpdate({ 
+          this.config.handleStatusUpdate({
             status: EXECUTION_STATUS.IMPORT_DONE
-          });      
+          });
         }
 
         this.config.updateLastImportDate();
 
       } catch( error ) {
 
-        this.config.handleStatusUpdate({ 
-          status: EXECUTION_STATUS.ERROR, 
+        this.config.handleStatusUpdate({
+          status: EXECUTION_STATUS.ERROR,
           error: error
         });
         this.config.logMessage(`${error.stack}`);
@@ -145,7 +140,7 @@ var AbstractConnector = class AbstractConnector {
     /**
      * A method for calling from Root script for determining parameters needed to fetch new data.
      */
-    startImportProcess() {
+    async startImportProcess() {
       
       let startDate = null;
       let endDate = new Date();
@@ -160,13 +155,13 @@ var AbstractConnector = class AbstractConnector {
       endDate.setDate(startDate.getDate() + daysToFetch);
 
       // fetching new data from a data source
-      let data = this.source.fetchData(startDate, endDate);
+      let data = await this.source.fetchData(startDate, endDate);
 
       // there are fetched records to update
       this.config.logMessage(data.length ? `${data.length} rows were fetched` : `No records have been fetched`);
 
       if( data.length || this.config.CreateEmptyTables?.value === "true" ) {
-        this.storage.saveData(data);
+        await this.storage.saveData(data);
       }
 
       // Only update LastRequestedDate for incremental runs
@@ -254,7 +249,7 @@ var AbstractConnector = class AbstractConnector {
         endDate = today;
       }
 
-      // Calculate days between start and end date (no MaxFetchingDays limit for manual backfill)
+      // Calculate days between start and end date
       const daysToFetch = Math.max(
         0,
         Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
@@ -273,10 +268,9 @@ var AbstractConnector = class AbstractConnector {
     _getIncrementalDateRange() {
       let startDate = this._getIncrementalStartDate();
       
-      // Calculate days to fetch directly (limited by MaxFetchingDays and today)
+      // Calculate days to fetch from startDate to today
       const today = new Date();
-      const maxDaysToToday = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-      const daysToFetch = Math.max(0, Math.min(this.config.MaxFetchingDays.value, maxDaysToToday));
+      const daysToFetch = Math.max(0, Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
 
       return [startDate, daysToFetch];
     }
@@ -289,20 +283,17 @@ var AbstractConnector = class AbstractConnector {
      * @private
      */
     _getIncrementalStartDate() {
-      // If lastRequestedDate exists, always use it (ignore StartDate)
+      // If lastRequestedDate exists, always use it (apply lookback window)
       if (this.config.LastRequestedDate && this.config.LastRequestedDate.value) {
         let lastRequestedDate = this._parseLastRequestedDate();
         let lookbackDate = this._applyLookbackWindow(lastRequestedDate);
         return lookbackDate;
       }
 
-      // If StartDate exists, use it
-      if (this.config.StartDate && this.config.StartDate.value) {
-        return this.config.StartDate.value;
-      }
-
-      // If neither LastRequestedDate nor StartDate exists, use today's date
-      return new Date();
+      // First run: no state exists
+      // Start from the 1st of last month
+      const today = new Date();
+      return new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
     }
     //----------------------------------------------------------------
 

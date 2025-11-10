@@ -61,13 +61,6 @@ var YourDataSourceSource = class YourDataSourceSource extends AbstractSource {
         description: "End date for data import",
         attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
-      MaxFetchingDays: {
-        requiredType: "number",
-        isRequired: true,
-        default: 31,
-        label: "Max Fetching Days",
-        description: "Maximum number of days to fetch in one run"
-      },
       ReimportLookbackWindow: {
         requiredType: "number",
         isRequired: true,
@@ -88,8 +81,8 @@ var YourDataSourceSource = class YourDataSourceSource extends AbstractSource {
     let data = [];
 
     // Format dates for API
-    const formattedStartDate = EnvironmentAdapter.formatDate(startDate, "UTC", "yyyy-MM-dd");
-    const formattedEndDate = EnvironmentAdapter.formatDate(endDate, "UTC", "yyyy-MM-dd");
+    const formattedStartDate = DateUtils.formatDate(startDate, "UTC", "yyyy-MM-dd");
+    const formattedEndDate = DateUtils.formatDate(endDate, "UTC", "yyyy-MM-dd");
 
     // Build API URL
     const url = `https://api.example.com/data?start=${formattedStartDate}&end=${formattedEndDate}`;
@@ -170,11 +163,80 @@ Configuration parameters are defined in the Source constructor using `config.mer
 
 - `StartDate` — start date for initial import
 - `EndDate` — end date for backfill operations
-- `MaxFetchingDays` — maximum days per import run
 - `ReimportLookbackWindow` — days to reimport for data consistency
 - `CreateEmptyTables` — whether to create tables with no data
 
-## 4. Advanced Features
+## 4. Utility Classes
+
+The framework provides several utility classes for common operations:
+
+### DateUtils
+
+For date formatting operations:
+
+```javascript
+// Format date to ISO format (YYYY-MM-DD)
+const formatted = DateUtils.formatDate(new Date(), "UTC", "yyyy-MM-dd");
+```
+
+### HttpUtils
+
+For HTTP requests (typically used within AbstractSource methods):
+
+```javascript
+
+// Make HTTP request
+const response = await HttpUtils.fetch(url, {
+  method: "GET",
+  headers: { "Authorization": "Bearer token" }
+});
+
+// Parse JSON response
+const data = await response.getAsJson();
+```
+
+### AsyncUtils
+
+For asynchronous delays:
+
+```javascript
+// Wait 1 second
+await AsyncUtils.delay(1000);
+```
+
+### CryptoUtils
+
+For cryptographic operations:
+
+```javascript
+
+// Generate UUID
+const id = CryptoUtils.getUuid();
+
+// Base64 encode
+const encoded = CryptoUtils.base64Encode("data");
+
+// Compute HMAC signature
+const signature = CryptoUtils.computeHmacSignature(
+  CryptoUtils.MacAlgorithm.HMAC_SHA_256,
+  "data",
+  "secret"
+);
+```
+
+### FileUtils
+
+For file operations:
+
+```javascript
+// Parse CSV
+const data = FileUtils.parseCsv("col1,col2\nval1,val2");
+
+// Unzip data
+const files = FileUtils.unzip(zipBuffer);
+```
+
+## 5. Advanced Features
 
 ### Paginated Data Fetching
 
@@ -256,7 +318,7 @@ constructor(config) {
 }
 ```
 
-## 5. Testing Your Connector
+## 6. Testing Your Connector
 
 After creating your connector:
 
@@ -277,7 +339,7 @@ After creating your connector:
    - Create a configuration with required parameters
    - Test source with existing storage
 
-## 6. Optional Files
+## 7. Optional Files
 
 You can add additional files to your connector directory:
 
@@ -288,4 +350,4 @@ You can add additional files to your connector directory:
 - `README.md` — connector documentation
 - `logo.svg` — connector logo (referenced in manifest.json)
 
-All `.js` files (except `*.gs`) in your connector directory will be automatically bundled.
+All `.js` files in your connector directory will be automatically bundled.

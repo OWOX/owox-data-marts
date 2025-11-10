@@ -1,14 +1,16 @@
 import { type ReactNode, useCallback, useReducer } from 'react';
 import { DataMartContext } from './context.ts';
 import { initialState, reducer } from './reducer.ts';
-import { mapDataMartFromDto, mapLimitedDataMartFromDto } from '../mappers';
 import {
+  mapDataMartFromDto,
+  mapDataMartRunListResponseDtoToEntity,
+  mapLimitedDataMartFromDto,
   mapConnectorDefinitionToDto,
   mapSqlDefinitionToDto,
   mapTableDefinitionToDto,
   mapTablePatternDefinitionToDto,
   mapViewDefinitionToDto,
-} from '../mappers/definition-mappers';
+} from '../mappers';
 import { dataMartService } from '../../../shared';
 import type {
   CreateDataMartRequestDto,
@@ -50,7 +52,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     try {
       dispatch({ type: 'FETCH_DATA_MART_START' });
       const response = await dataMartService.getDataMartById(id);
-      const dataMart = mapDataMartFromDto(response);
+      const dataMart = await mapDataMartFromDto(response);
       dispatch({ type: 'FETCH_DATA_MART_SUCCESS', payload: dataMart });
     } catch (error) {
       dispatch({
@@ -61,7 +63,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
   }, []);
 
   // Create a new data mart
-  const createDataMart = async (data: CreateDataMartRequestDto) => {
+  const createDataMart = useCallback(async (data: CreateDataMartRequestDto) => {
     try {
       dispatch({ type: 'CREATE_DATA_MART_START' });
       const response = await dataMartService.createDataMart(data);
@@ -89,14 +91,14 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       });
       throw error;
     }
-  };
+  }, []);
 
   // Update an existing data mart
-  const updateDataMart = async (id: string, data: UpdateDataMartRequestDto) => {
+  const updateDataMart = useCallback(async (id: string, data: UpdateDataMartRequestDto) => {
     try {
       dispatch({ type: 'UPDATE_DATA_MART_START' });
       const response = await dataMartService.updateDataMart(id, data);
-      const dataMart = mapDataMartFromDto(response);
+      const dataMart = await mapDataMartFromDto(response);
       dispatch({ type: 'UPDATE_DATA_MART_SUCCESS', payload: dataMart });
       trackEvent({
         event: 'data_mart_updated',
@@ -117,10 +119,10 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         label: apiError.message,
       });
     }
-  };
+  }, []);
 
   // Delete a data mart
-  const deleteDataMart = async (id: string) => {
+  const deleteDataMart = useCallback(async (id: string) => {
     try {
       dispatch({ type: 'DELETE_DATA_MART_START' });
       await dataMartService.deleteDataMart(id);
@@ -145,10 +147,10 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         label: apiError.message,
       });
     }
-  };
+  }, []);
 
   // Update data mart title
-  const updateDataMartTitle = async (id: string, title: string) => {
+  const updateDataMartTitle = useCallback(async (id: string, title: string) => {
     try {
       dispatch({ type: 'UPDATE_DATA_MART_TITLE_START' });
       await dataMartService.updateDataMartTitle(id, title);
@@ -173,10 +175,10 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         label: apiError.message,
       });
     }
-  };
+  }, []);
 
   // Update data mart description
-  const updateDataMartDescription = async (id: string, description: string | null) => {
+  const updateDataMartDescription = useCallback(async (id: string, description: string | null) => {
     try {
       dispatch({ type: 'UPDATE_DATA_MART_DESCRIPTION_START' });
       await dataMartService.updateDataMartDescription(id, description);
@@ -200,7 +202,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         label: apiError.message,
       });
     }
-  };
+  }, []);
 
   // Update data mart storage
   const updateDataMartStorage = useCallback((storage: DataStorage) => {
@@ -208,92 +210,115 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
   }, []);
 
   // Update data mart definition
-  const updateDataMartDefinition = async (
-    id: string,
-    definitionType: DataMartDefinitionType,
-    definition: DataMartDefinitionConfig
-  ) => {
-    try {
-      dispatch({ type: 'UPDATE_DATA_MART_DEFINITION_START' });
+  const updateDataMartDefinition = useCallback(
+    async (
+      id: string,
+      definitionType: DataMartDefinitionType,
+      definition: DataMartDefinitionConfig
+    ) => {
+      try {
+        dispatch({ type: 'UPDATE_DATA_MART_DEFINITION_START' });
 
-      let requestData: UpdateDataMartDefinitionRequestDto;
+        let requestData: UpdateDataMartDefinitionRequestDto;
 
-      switch (definitionType) {
-        case DataMartDefinitionType.SQL:
-          requestData = {
-            definitionType,
-            definition: mapSqlDefinitionToDto(definition as SqlDefinitionConfig),
-          } as UpdateDataMartSqlDefinitionRequestDto;
-          break;
+        switch (definitionType) {
+          case DataMartDefinitionType.SQL:
+            requestData = {
+              definitionType,
+              definition: mapSqlDefinitionToDto(definition as SqlDefinitionConfig),
+            } as UpdateDataMartSqlDefinitionRequestDto;
+            break;
 
-        case DataMartDefinitionType.TABLE:
-          requestData = {
-            definitionType,
-            definition: mapTableDefinitionToDto(definition as TableDefinitionConfig),
-          } as UpdateDataMartTableDefinitionRequestDto;
-          break;
+          case DataMartDefinitionType.TABLE:
+            requestData = {
+              definitionType,
+              definition: mapTableDefinitionToDto(definition as TableDefinitionConfig),
+            } as UpdateDataMartTableDefinitionRequestDto;
+            break;
 
-        case DataMartDefinitionType.VIEW:
-          requestData = {
-            definitionType,
-            definition: mapViewDefinitionToDto(definition as ViewDefinitionConfig),
-          } as UpdateDataMartViewDefinitionRequestDto;
-          break;
+          case DataMartDefinitionType.VIEW:
+            requestData = {
+              definitionType,
+              definition: mapViewDefinitionToDto(definition as ViewDefinitionConfig),
+            } as UpdateDataMartViewDefinitionRequestDto;
+            break;
 
-        case DataMartDefinitionType.TABLE_PATTERN:
-          requestData = {
-            definitionType,
-            definition: mapTablePatternDefinitionToDto(definition as TablePatternDefinitionConfig),
-          } as UpdateDataMartTablePatternDefinitionRequestDto;
-          break;
+          case DataMartDefinitionType.TABLE_PATTERN:
+            requestData = {
+              definitionType,
+              definition: mapTablePatternDefinitionToDto(
+                definition as TablePatternDefinitionConfig
+              ),
+            } as UpdateDataMartTablePatternDefinitionRequestDto;
+            break;
 
-        case DataMartDefinitionType.CONNECTOR: {
-          requestData = {
-            definitionType: DataMartDefinitionType.CONNECTOR,
-            definition: mapConnectorDefinitionToDto(definition as ConnectorDefinitionConfig),
-          } as UpdateDataMartConnectorDefinitionRequestDto;
-          break;
+          case DataMartDefinitionType.CONNECTOR: {
+            const connectorDef = definition as ConnectorDefinitionConfig;
+
+            let sourceDataMartId: string | undefined;
+
+            for (const config of connectorDef.connector.source.configuration) {
+              const configWithMetadata = config as Record<string, unknown> & {
+                _copiedFrom?: {
+                  dataMartId: string;
+                  dataMartTitle: string;
+                  configId: string;
+                };
+              };
+              if (configWithMetadata._copiedFrom) {
+                sourceDataMartId = configWithMetadata._copiedFrom.dataMartId;
+                break;
+              }
+            }
+
+            requestData = {
+              definitionType: DataMartDefinitionType.CONNECTOR,
+              definition: mapConnectorDefinitionToDto(connectorDef),
+              sourceDataMartId,
+            } as UpdateDataMartConnectorDefinitionRequestDto;
+            break;
+          }
+
+          default:
+            throw new Error(`Unsupported definition type: ${String(definitionType)}`);
         }
 
-        default:
-          throw new Error(`Unsupported definition type: ${String(definitionType)}`);
+        const response = await dataMartService.updateDataMartDefinition(id, requestData);
+        const dataMart = await mapDataMartFromDto(response);
+        dispatch({
+          type: 'UPDATE_DATA_MART_DEFINITION_SUCCESS',
+          payload: { definitionType, definition },
+        });
+        dispatch({ type: 'UPDATE_DATA_MART_SUCCESS', payload: dataMart });
+        trackEvent({
+          event: 'data_mart_updated',
+          category: 'DataMart',
+          action: 'UpdateDefinition',
+          label: definitionType,
+        });
+      } catch (error) {
+        const apiError = extractApiError(error);
+        dispatch({
+          type: 'UPDATE_DATA_MART_DEFINITION_ERROR',
+          payload: apiError,
+        });
+        trackEvent({
+          event: 'data_mart_error',
+          category: 'DataMart',
+          action: 'UpdateDefinitionError',
+          label: apiError.message,
+        });
       }
-
-      const response = await dataMartService.updateDataMartDefinition(id, requestData);
-      const dataMart = mapDataMartFromDto(response);
-
-      dispatch({
-        type: 'UPDATE_DATA_MART_DEFINITION_SUCCESS',
-        payload: { definitionType, definition },
-      });
-      dispatch({ type: 'UPDATE_DATA_MART_SUCCESS', payload: dataMart });
-      trackEvent({
-        event: 'data_mart_updated',
-        category: 'DataMart',
-        action: 'UpdateDefinition',
-        label: definitionType,
-      });
-    } catch (error) {
-      const apiError = extractApiError(error);
-      dispatch({
-        type: 'UPDATE_DATA_MART_DEFINITION_ERROR',
-        payload: apiError,
-      });
-      trackEvent({
-        event: 'data_mart_error',
-        category: 'DataMart',
-        action: 'UpdateDefinitionError',
-        label: apiError.message,
-      });
-    }
-  };
+    },
+    []
+  );
 
   // Publish a data mart
-  const publishDataMart = async (id: string) => {
+  const publishDataMart = useCallback(async (id: string) => {
     try {
       dispatch({ type: 'PUBLISH_DATA_MART_START' });
       const response = await dataMartService.publishDataMart(id);
-      const dataMart = mapDataMartFromDto(response);
+      const dataMart = await mapDataMartFromDto(response);
       dispatch({ type: 'PUBLISH_DATA_MART_SUCCESS', payload: dataMart });
       toast.success('Data Mart published');
     } catch (error) {
@@ -310,16 +335,85 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       });
       throw error;
     }
-  };
+  }, []);
+
+  /**
+   * Retrieves a list of Data Mart runs from the server with the specified parameters.
+   * Dispatches actions to indicate the state of the asynchronous operation.
+   *
+   * @param {string} id - The identifier of the Data Mart for which runs are to be retrieved.
+   * @param {number} [limit=5] - The maximum number of runs to retrieve. Defaults to 5 if not specified.
+   * @param {number} [offset=0] - The starting index for the retrieval. Defaults to 0 if not specified.
+   * @param {Object} [options] - Optional parameters controlling the behavior of the operation.
+   * @param {boolean} [options.silent=false] - If true, suppresses the dispatch of a loading indicator. Defaults to false.
+   * @returns {Promise<Object>} A promise that resolves to the response containing the Data Mart runs.
+   * @throws {Error} Throws an error if the operation fails, with the error being dispatched for error handling.
+   */
+  const getDataMartRuns = useCallback(
+    async (id: string, limit = 5, offset = 0, options?: { silent?: boolean }) => {
+      try {
+        if (!options?.silent) {
+          dispatch({ type: 'FETCH_DATA_MART_RUNS_START' });
+        }
+        const response = await dataMartService.getDataMartRuns(
+          id,
+          limit,
+          offset,
+          options?.silent ? { skipLoadingIndicator: true } : undefined
+        );
+        const dataMartRuns = mapDataMartRunListResponseDtoToEntity(response);
+        dispatch({ type: 'FETCH_DATA_MART_RUNS_SUCCESS', payload: dataMartRuns });
+        return dataMartRuns;
+      } catch (error) {
+        dispatch({
+          type: 'FETCH_DATA_MART_RUNS_ERROR',
+          payload: extractApiError(error),
+        });
+        throw error;
+      }
+    },
+    []
+  );
+
+  /**
+   * A callback function to load more Data Mart runs from the API.
+   *
+   * This function dispatches actions to manage the state of loading data mart runs.
+   * On successful API response, it dispatches a success action with the response payload.
+   * If an error occurs, it dispatches an error action with the extracted error payload.
+   *
+   * @function
+   * @param {string} id - The unique identifier for the Data Mart.
+   * @param {number} offset - The starting point for fetching the next batch of Data Mart runs.
+   * @param {number} [limit=5] - The maximum number of Data Mart runs to fetch. Default is 5.
+   * @returns {Promise<Object>} A promise that resolves to the API response containing the Data Mart runs.
+   * @throws {Error} Throws an error if the API call fails.
+   */
+  const loadMoreDataMartRuns = useCallback(async (id: string, offset: number, limit = 5) => {
+    try {
+      dispatch({ type: 'LOAD_MORE_DATA_MART_RUNS_START' });
+      const response = await dataMartService.getDataMartRuns(id, limit, offset);
+      const dataMartRuns = mapDataMartRunListResponseDtoToEntity(response);
+      dispatch({ type: 'LOAD_MORE_DATA_MART_RUNS_SUCCESS', payload: dataMartRuns });
+      return dataMartRuns;
+    } catch (error) {
+      dispatch({
+        type: 'LOAD_MORE_DATA_MART_RUNS_ERROR',
+        payload: extractApiError(error),
+      });
+      throw error;
+    }
+  }, []);
 
   // Run a data mart
-  const runDataMart = async (request: RunDataMartRequestDto) => {
+  const runDataMart = useCallback(async (request: RunDataMartRequestDto) => {
+    const toastId = toast.loading('Manual run started');
     try {
       dispatch({ type: 'RUN_DATA_MART_START' });
-      toast.loading('Manual run started');
       await dataMartService.runDataMart(request.id, request.payload);
       dispatch({ type: 'RUN_DATA_MART_SUCCESS' });
     } catch (error) {
+      toast.dismiss(toastId);
       const apiError = extractApiError(error);
       dispatch({
         type: 'RUN_DATA_MART_ERROR',
@@ -332,34 +426,37 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         label: apiError.message,
       });
     }
-  };
+  }, []);
 
-  const cancelDataMartRun = async (id: string, runId: string): Promise<void> => {
-    try {
-      await dataMartService.cancelDataMartRun(id, runId);
-      await getDataMartRuns(id);
-      toast.success('Data Mart run canceled');
-    } catch (error) {
-      const apiError = extractApiError(error);
-      dispatch({
-        type: 'RUN_DATA_MART_ERROR',
-        payload: apiError,
-      });
-      trackEvent({
-        event: 'data_mart_error',
-        category: 'DataMart',
-        action: 'CancelRunError',
-        label: apiError.message,
-      });
-    }
-  };
+  const cancelDataMartRun = useCallback(
+    async (id: string, runId: string): Promise<void> => {
+      try {
+        await dataMartService.cancelDataMartRun(id, runId);
+        await getDataMartRuns(id);
+        toast.success('Data Mart run canceled');
+      } catch (error) {
+        const apiError = extractApiError(error);
+        dispatch({
+          type: 'RUN_DATA_MART_ERROR',
+          payload: apiError,
+        });
+        trackEvent({
+          event: 'data_mart_error',
+          category: 'DataMart',
+          action: 'CancelRunError',
+          label: apiError.message,
+        });
+      }
+    },
+    [getDataMartRuns]
+  );
 
   // Actualize data mart schema
-  const actualizeDataMartSchema = async (id: string) => {
+  const actualizeDataMartSchema = useCallback(async (id: string) => {
     try {
       dispatch({ type: 'ACTUALIZE_DATA_MART_SCHEMA_START' });
       const response = await dataMartService.actualizeDataMartSchema(id);
-      const dataMart = mapDataMartFromDto(response);
+      const dataMart = await mapDataMartFromDto(response);
       dispatch({ type: 'ACTUALIZE_DATA_MART_SCHEMA_SUCCESS', payload: dataMart });
       toast.success('Output schema actualized');
     } catch (error) {
@@ -375,14 +472,14 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         label: apiError.message,
       });
     }
-  };
+  }, []);
 
   // Update data mart schema
-  const updateDataMartSchema = async (id: string, schema: DataMartSchema) => {
+  const updateDataMartSchema = useCallback(async (id: string, schema: DataMartSchema) => {
     try {
       dispatch({ type: 'UPDATE_DATA_MART_SCHEMA_START' });
       const response = await dataMartService.updateDataMartSchema(id, { schema });
-      const dataMart = mapDataMartFromDto(response);
+      const dataMart = await mapDataMartFromDto(response);
       dispatch({ type: 'UPDATE_DATA_MART_SCHEMA_SUCCESS', payload: dataMart });
       toast.success('Output schema updated');
     } catch (error) {
@@ -397,38 +494,6 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         action: 'UpdateSchemaError',
         label: apiError.message,
       });
-    }
-  };
-
-  // Get run history for a data mart
-  const getDataMartRuns = useCallback(async (id: string, limit = 5, offset = 0) => {
-    try {
-      dispatch({ type: 'FETCH_DATA_MART_RUNS_START' });
-      const response = await dataMartService.getDataMartRuns(id, limit, offset);
-      dispatch({ type: 'FETCH_DATA_MART_RUNS_SUCCESS', payload: response });
-      return response;
-    } catch (error) {
-      dispatch({
-        type: 'FETCH_DATA_MART_RUNS_ERROR',
-        payload: extractApiError(error),
-      });
-      throw error;
-    }
-  }, []);
-
-  // Load more run history for a data mart
-  const loadMoreDataMartRuns = useCallback(async (id: string, offset: number, limit = 5) => {
-    try {
-      dispatch({ type: 'LOAD_MORE_DATA_MART_RUNS_START' });
-      const response = await dataMartService.getDataMartRuns(id, limit, offset);
-      dispatch({ type: 'LOAD_MORE_DATA_MART_RUNS_SUCCESS', payload: response });
-      return response;
-    } catch (error) {
-      dispatch({
-        type: 'LOAD_MORE_DATA_MART_RUNS_ERROR',
-        payload: extractApiError(error),
-      });
-      throw error;
     }
   }, []);
 

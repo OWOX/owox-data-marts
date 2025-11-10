@@ -1,4 +1,5 @@
-import { ChevronRight, MessageSquare } from 'lucide-react';
+import { useCallback, useMemo } from 'react';
+import { ChevronRight } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { LogControls } from './LogControls';
 import { StructuredLogsView } from './StructuredLogsView';
@@ -7,10 +8,18 @@ import { ConfigurationView } from './ConfigurationView';
 import type { DataMartRunItem } from '../../model/types/data-mart-run';
 import { CopyButton } from '@owox/ui/components/common/copy-button';
 import { LogViewType } from './types';
-import { getDisplayType, getRunSummary, parseLogEntry } from './utils';
-import { getStatusIcon } from './icons';
+import {
+  getDisplayType,
+  getRunSummary,
+  parseLogEntry,
+  getStartedAtDisplay,
+  getTooltipContent,
+} from './utils';
+import { getTriggerTypeIcon } from './icons';
 import { useClipboard } from '../../../../../hooks/useClipboard';
-import { formatDateTime } from '../../../../../utils/date-formatters';
+import { TypeIcon } from './TypeIcon';
+import type { ConnectorListItem } from '../../../../connectors/shared/model/types/connector';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 
 interface RunItemProps {
   run: DataMartRunItem;
@@ -22,6 +31,7 @@ interface RunItemProps {
   setSearchTerm: (term: string) => void;
   cancelDataMartRun: (id: string, runId: string) => Promise<void>;
   dataMartId?: string;
+  dataMartConnectorInfo: ConnectorListItem | null;
 }
 
 export function RunItem({
@@ -34,10 +44,11 @@ export function RunItem({
   setSearchTerm,
   cancelDataMartRun,
   dataMartId,
+  dataMartConnectorInfo,
 }: RunItemProps) {
   const { copiedSection, handleCopy } = useClipboard();
 
-  const getFilteredLogs = () => {
+  const filteredLogs = useMemo(() => {
     if (run.logs.length === 0 && run.errors.length === 0) return [];
 
     const parsedLogs = run.logs.map((log, index) => parseLogEntry(log, index));
@@ -56,18 +67,25 @@ export function RunItem({
 
       return matchesSearch;
     });
-  };
+  }, [run.logs, run.errors, searchTerm]);
 
-  const renderLogsContent = () => {
+  const renderLogsContent = useCallback(() => {
     if (logViewType === LogViewType.STRUCTURED) {
-      const filteredLogs = getFilteredLogs();
       return <StructuredLogsView logs={filteredLogs} />;
     } else if (logViewType === LogViewType.RAW) {
       return <RawLogsView logs={run.logs} errors={run.errors} />;
     } else {
-      return <ConfigurationView definitionRun={run.definitionRun} />;
+      return (
+        <ConfigurationView
+          definitionRun={run.definitionRun}
+          reportDefinition={run.reportDefinition}
+        />
+      );
     }
-  };
+  }, [logViewType, filteredLogs, run.logs, run.errors, run.definitionRun, run.reportDefinition]);
+
+  const startedAtValue = getStartedAtDisplay(run);
+  const tooltipContent = getTooltipContent(run);
 
   return (
     <div className='dm-card-block'>
@@ -78,17 +96,31 @@ export function RunItem({
         }}
       >
         <div className='flex items-center gap-3'>
-          {getStatusIcon(run.status)}
-          <div className='text-foreground font-mono text-sm font-medium'>
-            {formatDateTime(
-              run.createdAt instanceof Date ? run.createdAt.toISOString() : run.createdAt
-            )}
+          <div>
+            <TypeIcon type={run.type} base64Icon={dataMartConnectorInfo?.logoBase64} />
           </div>
-          <div className='text-muted-foreground flex items-center gap-1 text-xs'>
-            <MessageSquare className='h-3 w-3' />
-            {getRunSummary(run)}
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className='text-foreground align-center flex items-center font-mono text-sm font-medium'>
+                {startedAtValue}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <div className='space-y-1'>
+                <div>Started At: {tooltipContent.startedAt}</div>
+                <div>Finished At: {tooltipContent.finishedAt}</div>
+                {tooltipContent.duration && <div>Duration: {tooltipContent.duration}</div>}
+              </div>
+            </TooltipContent>
+          </Tooltip>
+
+          <div className='text-muted-foreground ml-6 flex items-center gap-1 text-sm'>
+            {getTriggerTypeIcon(run.triggerType)}
+            {getRunSummary(run, dataMartConnectorInfo?.displayName)}
           </div>
         </div>
+
         <div className='flex items-center gap-2'>
           <StatusBadge status={run.status} />
           <ChevronRight

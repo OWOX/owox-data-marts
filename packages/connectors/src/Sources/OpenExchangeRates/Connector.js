@@ -7,7 +7,7 @@
 
 var OpenExchangeRatesConnector = class OpenExchangeRatesConnector extends AbstractConnector {
 
-  constructor(config, source, storageName = "GoogleSheetsStorage", runConfig = null) {
+  constructor(config, source, storageName = "GoogleBigQueryStorage", runConfig = null) {
     super(config, source, null, runConfig);
 
     this.storageName = storageName;
@@ -22,11 +22,11 @@ A method for invoking importNewData() to determine the parameters required for f
    * Main method - entry point for the import process
    * Processes all nodes defined in the fields configuration
    */
-  startImportProcess() {
+  async startImportProcess() {
     const fields = ConnectorUtils.parseFields(this.config.Fields?.value);
 
     for (const nodeName in fields) {
-      this.processNode({
+      await this.processNode({
         nodeName,
         fields: fields[nodeName] || []
       });
@@ -39,11 +39,11 @@ A method for invoking importNewData() to determine the parameters required for f
    * @param {string} options.nodeName - Name of the node to process
    * @param {Array<string>} options.fields - Array of fields to fetch
    */
-  processNode({ nodeName, fields }) {
+  async processNode({ nodeName, fields }) {
     if (this.source.fieldsSchema[nodeName].isTimeSeries) {
-      this.processTimeSeriesNode({ nodeName, fields });
+      await this.processTimeSeriesNode({ nodeName, fields });
     } else {
-      this.processCatalogNode({ nodeName, fields });
+      await this.processCatalogNode({ nodeName, fields });
     }
   }
 
@@ -53,7 +53,7 @@ A method for invoking importNewData() to determine the parameters required for f
    * @param {string} options.nodeName - Name of the node
    * @param {Array<string>} options.fields - Array of fields to fetch
    */
-  processTimeSeriesNode({ nodeName, fields }) {
+  async processTimeSeriesNode({ nodeName, fields }) {
     const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
 
     if (daysToFetch <= 0) {
@@ -66,14 +66,15 @@ A method for invoking importNewData() to determine the parameters required for f
       const currentDate = new Date(startDate);
       currentDate.setDate(currentDate.getDate() + daysShift);
 
-      // Fetching new data from a data source  
-      let data = this.source.fetchData(currentDate);
+      // Fetching new data from a data source
+      let data = await this.source.fetchData(currentDate);
 
       this.config.logMessage(data.length ? `${data.length} rows were fetched` : `No records have been fetched`);
 
       if (data.length || this.config.CreateEmptyTables?.value) {
         const preparedData = data.length ? data : [];
-        this.getStorageByNode(nodeName).saveData(preparedData);
+        const storage = await this.getStorageByNode(nodeName);
+        await storage.saveData(preparedData);
       }
 
       if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
@@ -88,7 +89,7 @@ A method for invoking importNewData() to determine the parameters required for f
    * @param {string} options.nodeName - Name of the node
    * @param {Array<string>} options.fields - Array of fields to fetch
    */
-  processCatalogNode({ nodeName, fields }) {
+  async processCatalogNode({ nodeName, fields }) {
     // Placeholder for future catalog nodes
     console.log(`Catalog node processing not implemented for ${nodeName}`);
   }
@@ -102,7 +103,7 @@ A method for invoking importNewData() to determine the parameters required for f
    * @return AbstractStorage 
    * 
    */
-  getStorageByNode(nodeName) {
+  async getStorageByNode(nodeName) {
 
     // initiate blank object for storages
     if( !("storages" in this) ) {
@@ -117,8 +118,8 @@ A method for invoking importNewData() to determine the parameters required for f
 
       let uniqueFields = this.source.fieldsSchema[ nodeName ]["uniqueKeys"];
 
-      this.storages[ nodeName ] = new globalThis[ this.storageName ]( 
-        this.config.mergeParameters({ 
+      this.storages[ nodeName ] = new globalThis[ this.storageName ](
+        this.config.mergeParameters({
           DestinationSheetName: { value: this.source.fieldsSchema[nodeName].destinationName},
           DestinationTableName: { value: this.getDestinationName(nodeName, this.config, this.source.fieldsSchema[nodeName].destinationName) },
         }),
@@ -127,6 +128,7 @@ A method for invoking importNewData() to determine the parameters required for f
         `${this.source.fieldsSchema[ nodeName ]["description"]} ${this.source.fieldsSchema[ nodeName ]["documentation"]}`
       );
 
+      await this.storages[nodeName].init();
     }
 
     return this.storages[ nodeName ];

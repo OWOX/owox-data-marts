@@ -129,6 +129,14 @@ export const formatDateTimeWithTimezone = (
 };
 
 /**
+ * Format timestamp string to display format
+ * Parses the timestamp and formats it in browser's local timezone
+ */
+export const formatTimestamp = (timestamp: string): string => {
+  return formatDateTime(parseDate(timestamp).toISOString());
+};
+
+/**
  * Parse a date string from various formats into a Date object
  * Handles multiple input formats commonly found in logs
  * Dates without timezone info are interpreted as UTC
@@ -186,4 +194,25 @@ export const parseDate = (dateString: string): Date => {
   // Last resort: return current date
   console.warn(`Failed to parse date string: "${dateString}", using current date as fallback`);
   return new Date();
+};
+
+export const formatDuration = (startedAt: Date, finishedAt: Date): string => {
+  const durationMs = finishedAt.getTime() - startedAt.getTime();
+  const seconds = Math.floor(durationMs / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+
+  const remainingMinutes = minutes % 60;
+  const remainingSeconds = seconds % 60;
+
+  const parts: string[] = [];
+  if (hours > 0) {
+    parts.push(`${String(hours)} h`);
+  }
+  if (remainingMinutes > 0) {
+    parts.push(`${String(remainingMinutes)} min`);
+  }
+  parts.push(`${String(remainingSeconds)} sec`);
+
+  return parts.join(' ');
 };

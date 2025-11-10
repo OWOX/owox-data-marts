@@ -1,6 +1,6 @@
 {
   "name": "@owox/web",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Web interface for OWOX Data Marts - an open-source solution for Data Analysts",
   "author": "OWOX",
   "license": "ELv2",

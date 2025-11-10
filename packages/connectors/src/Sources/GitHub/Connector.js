@@ -6,7 +6,7 @@
  */
 
 var GitHubConnector = class GitHubConnector extends AbstractConnector {
-  constructor(config, source, storageName = "GoogleSheetsStorage", runConfig = null) {
+  constructor(config, source, storageName = "GoogleBigQueryStorage", runConfig = null) {
     super(config, source, null, runConfig);
 
     this.storageName = storageName;
@@ -16,11 +16,11 @@ var GitHubConnector = class GitHubConnector extends AbstractConnector {
    * Main method - entry point for the import process
    * Processes all nodes defined in the fields configuration
    */
-  startImportProcess() {
+  async startImportProcess() {
     const fields = ConnectorUtils.parseFields(this.config.Fields.value);
 
     for (const nodeName in fields) {
-      this.processNode({
+      await this.processNode({
         nodeName,
         fields: fields[nodeName] || []
       });
@@ -33,11 +33,11 @@ var GitHubConnector = class GitHubConnector extends AbstractConnector {
    * @param {string} options.nodeName - Name of the node to process
    * @param {Array<string>} options.fields - Array of fields to fetch
    */
-  processNode({ nodeName, fields }) {
+  async processNode({ nodeName, fields }) {
     if (ConnectorUtils.isTimeSeriesNode(this.source.fieldsSchema[nodeName])) {
-      this.processTimeSeriesNode({ nodeName, fields });
+      await this.processTimeSeriesNode({ nodeName, fields });
     } else {
-      this.processCatalogNode({ nodeName, fields });
+      await this.processCatalogNode({ nodeName, fields });
     }
   }
 
@@ -48,7 +48,7 @@ var GitHubConnector = class GitHubConnector extends AbstractConnector {
    * @param {Array<string>} options.fields - Array of fields to fetch
    * @param {Object} options.storage - Storage instance
    */
-  processTimeSeriesNode({ nodeName, fields }) {
+  async processTimeSeriesNode({ nodeName, fields }) {
     // Placeholder for future time series nodes
     console.log(`Time series node processing not implemented for ${nodeName}`);
   }
@@ -60,15 +60,16 @@ var GitHubConnector = class GitHubConnector extends AbstractConnector {
    * @param {Array<string>} options.fields - Array of fields to fetch
    * @param {Object} options.storage - Storage instance
    */
-  processCatalogNode({ nodeName, fields }) {
+  async processCatalogNode({ nodeName, fields }) {
     // Fetch data from GitHub API
-    const data = this.source.fetchData({ nodeName, fields });
+    const data = await this.source.fetchData({ nodeName, fields });
 
     this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched` : `No records have been fetched`);
 
     if (data.length || this.config.CreateEmptyTables?.value) {
       const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-      this.getStorageByNode(nodeName).saveData(preparedData);
+      const storage = await this.getStorageByNode(nodeName);
+      await storage.saveData(preparedData);
     }
   }
 
@@ -77,7 +78,7 @@ var GitHubConnector = class GitHubConnector extends AbstractConnector {
    * @param {string} nodeName - Name of the node
    * @returns {Object} Storage instance
    */
-  getStorageByNode(nodeName) {
+  async getStorageByNode(nodeName) {
     if (!("storages" in this)) {
       this.storages = {};
     }
@@ -98,6 +99,8 @@ var GitHubConnector = class GitHubConnector extends AbstractConnector {
         this.source.fieldsSchema[nodeName].fields,
         `${this.source.fieldsSchema[nodeName].description} ${this.source.fieldsSchema[nodeName].documentation}`
       );
+
+      await this.storages[nodeName].init();
     }
 
     return this.storages[nodeName];

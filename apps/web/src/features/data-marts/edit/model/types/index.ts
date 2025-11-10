@@ -7,3 +7,5 @@ export * from './view-definition-config';
 export * from './connector-definition-config';
 export * from './data-mart-definition-config';
 export * from './data-mart-run';
+export * from './data-mart-run-report-definition';
+export * from './copied-configuration';

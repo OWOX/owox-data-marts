@@ -27,10 +27,38 @@ export class UpdateDataMartDefinitionService {
     dataMart.definitionType = command.definitionType;
 
     if (command.definitionType === DataMartDefinitionType.CONNECTOR && command.definition) {
-      dataMart.definition = await this.connectorSecretService.mergeDefinitionSecrets(
-        command.definition as ConnectorDefinition,
-        dataMart.definition as ConnectorDefinition | undefined
-      );
+      if (command.sourceDataMartId) {
+        const sourceDataMart = await this.dataMartService.getByIdAndProjectId(
+          command.sourceDataMartId,
+          command.projectId
+        );
+
+        if (
+          !sourceDataMart.definition ||
+          sourceDataMart.definitionType !== DataMartDefinitionType.CONNECTOR
+        ) {
+          throw new BusinessViolationException(
+            'Source Data Mart does not have a connector definition'
+          );
+        }
+
+        let mergedDefinition = await this.connectorSecretService.mergeDefinitionSecretsFromSource(
+          command.definition as ConnectorDefinition,
+          sourceDataMart.definition as ConnectorDefinition
+        );
+
+        mergedDefinition = await this.connectorSecretService.mergeDefinitionSecrets(
+          mergedDefinition,
+          dataMart.definition as ConnectorDefinition | undefined
+        );
+
+        dataMart.definition = mergedDefinition;
+      } else {
+        dataMart.definition = await this.connectorSecretService.mergeDefinitionSecrets(
+          command.definition as ConnectorDefinition,
+          dataMart.definition as ConnectorDefinition | undefined
+        );
+      }
     } else {
       dataMart.definition = command.definition;
     }

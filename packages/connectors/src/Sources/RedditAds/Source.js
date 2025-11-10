@@ -80,13 +80,6 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
         label: "Clean Up To Keep Window",
         description: "Number of days to keep data before cleaning up"
       },
-      MaxFetchingDays: {
-        requiredType: "number",
-        isRequired: true,
-        default: 31,
-        label: "Max Fetching Days",
-        description: "Maximum number of days to fetch data for"
-      },
       CreateEmptyTables: {
         requiredType: "boolean",
         default: true,
@@ -107,19 +100,19 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
    * @param {Date|null} startDate - The start date for data fetching.
    * @returns {Array} An array of data records.
    */
-  fetchData(nodeName, accountId, fields, startDate = null) {
+  async fetchData(nodeName, accountId, fields, startDate = null) {
     console.log(`Fetching data from ${nodeName}/${accountId} for ${startDate}`);
-    
+
     // Validate that all required unique keys are present in requested fields
     const uniqueKeys = this.fieldsSchema[nodeName]?.uniqueKeys || [];
     const missingKeys = uniqueKeys.filter(key => !fields.includes(key));
-    
+
     if (missingKeys.length > 0) {
       throw new Error(`Missing required unique fields for endpoint '${nodeName}'. Missing fields: ${missingKeys.join(', ')}`);
     }
 
     // Refresh access token before making requests
-    const tokenResponse = this.getRedditAccessToken(
+    const tokenResponse = await this.getRedditAccessToken(
       this.config.ClientId.value,
       this.config.ClientSecret.value,
       this.config.RedirectUri.value,
@@ -131,7 +124,7 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
     }
 
     const baseUrl = 'https://ads-api.reddit.com/api/v3/';
-    let formattedDate = startDate ? EnvironmentAdapter.formatDate(startDate, "UTC", "yyyy-MM-dd") : null;
+    let formattedDate = startDate ? DateUtils.formatDate(startDate) : null;
 
     // Base headers for all requests
     let headers = {
@@ -169,8 +162,9 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
     // Loop to handle pagination
     while (nextPageURL) {
       try {
-        const response = this.urlFetchWithRetry(nextPageURL, options);
-        const jsonData = JSON.parse(response.getContentText());
+        const response = await this.urlFetchWithRetry(nextPageURL, options);
+        const text = await response.getContentText();
+        const jsonData = JSON.parse(text);
 
         if ("data" in jsonData) {
           nextPageURL = jsonData.pagination ? jsonData.pagination.next_url : null;
@@ -190,7 +184,7 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
       } catch (error) {
         // Handle token refresh for 401 errors
         if (error.statusCode === HTTP_STATUS.UNAUTHORIZED) {
-          const newTokenResponse = this.getRedditAccessToken(
+          const newTokenResponse = await this.getRedditAccessToken(
             this.config.ClientId.value,
             this.config.ClientSecret.value,
             this.config.RedirectUri.value,
@@ -220,12 +214,12 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
    * @param {string} refreshToken - The refresh token.
    * @returns {Object} An object with a success flag and either the access token or an error message.
    */
-  getRedditAccessToken(clientId, clientSecret, redirectUri, refreshToken) {
+  async getRedditAccessToken(clientId, clientSecret, redirectUri, refreshToken) {
     const url = "https://www.reddit.com/api/v1/access_token";
     const headers = {
       "Content-Type": "application/x-www-form-urlencoded",
       "User-Agent": this.config.UserAgent.value,
-      "Authorization": "Basic " + EnvironmentAdapter.base64Encode(clientId + ":" + clientSecret)
+      "Authorization": "Basic " + CryptoUtils.base64Encode(clientId + ":" + clientSecret)
     };
     const payload = {
       "grant_type": "refresh_token",
@@ -243,8 +237,8 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
     };
 
     try {
-      const response = EnvironmentAdapter.fetch(url, options);
-      const result = response.getContentText();
+      const response = await HttpUtils.fetch(url, options);
+      const result = await response.getContentText();
       const json = JSON.parse(result);
 
       if (json.error) {

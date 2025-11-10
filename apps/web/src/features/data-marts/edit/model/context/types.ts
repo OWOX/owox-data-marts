@@ -81,8 +81,15 @@ export interface DataMartContextType extends DataMartState {
   cancelDataMartRun: (id: string, runId: string) => Promise<void>;
   actualizeDataMartSchema: (id: string) => Promise<void>;
   updateDataMartSchema: (id: string, schema: DataMartSchema) => Promise<void>;
-  getDataMartRuns: (id: string, limit?: number, offset?: number) => Promise<DataMartRunItem[]>;
+  getDataMartRuns: (
+    id: string,
+    limit?: number,
+    offset?: number,
+    options?: { silent?: boolean }
+  ) => Promise<DataMartRunItem[]>;
   loadMoreDataMartRuns: (id: string, offset: number, limit?: number) => Promise<DataMartRunItem[]>;
+  runSchemaActualization?: () => Promise<void>;
+  isSchemaActualizationLoading?: boolean;
   error: ApiError | null;
   getErrorMessage: () => string | null;
   reset: () => void;

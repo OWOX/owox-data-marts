@@ -1,9 +1,9 @@
 import type { DataMartRunItem } from '../../edit';
-import { RunStatus } from '../../edit/components/DataMartRunHistoryView';
+import { DataMartRunStatus } from '../enums';
 
 export interface RunDataInfo {
   lastRunDate: Date | null;
-  lastRunStatus: RunStatus | null;
+  lastRunStatus: DataMartRunStatus | null;
   totalRuns: number;
   firstRunDate: Date | null;
 }

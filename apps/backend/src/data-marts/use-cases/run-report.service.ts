@@ -14,6 +14,9 @@ import { RunReportCommand } from '../dto/domain/run-report.command';
 import { Report } from '../entities/report.entity';
 import { ReportRunStatus } from '../enums/report-run-status.enum';
 import { DataMartService } from '../services/data-mart.service';
+import { DataMartRun } from '../entities/data-mart-run.entity';
+import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
+import { DataMartRunService, ReportRunFinishContext } from '../services/data-mart-run.service';
 
 @Injectable()
 export class RunReportService {
@@ -22,6 +25,8 @@ export class RunReportService {
   constructor(
     @InjectRepository(Report)
     private readonly reportRepository: Repository<Report>,
+    @InjectRepository(DataMartRun)
+    private readonly dataMartRunRepository: Repository<DataMartRun>,
     @Inject(DATA_STORAGE_REPORT_READER_RESOLVER)
     private readonly reportReaderResolver: TypeResolver<DataStorageType, DataStorageReportReader>,
     @Inject(DATA_DESTINATION_REPORT_WRITER_RESOLVER)
@@ -30,6 +35,7 @@ export class RunReportService {
       DataDestinationReportWriter
     >,
     private readonly dataMartService: DataMartService,
+    private readonly dataMartRunService: DataMartRunService,
     private readonly gracefulShutdownService: GracefulShutdownService
   ) {}
 
@@ -67,7 +73,17 @@ export class RunReportService {
     report.lastRunAt = runAt;
     report.runsCount += 1;
     delete report.lastRunError;
+
+    //TODO: improve lock ?
     await this.reportRepository.save(report);
+
+    // TODO: create new record in transaction with reportRepository
+    const dataMartRun = await this.dataMartRunService.createAndMarkReportRunAsPending(report, {
+      createdById: command.userId,
+      runType: command.runType,
+    });
+
+    const dataMartRunFinishContext: ReportRunFinishContext = { status: DataMartRunStatus.SUCCESS };
 
     try {
       this.gracefulShutdownService.registerActiveProcess(processId);
@@ -76,19 +92,38 @@ export class RunReportService {
       await this.dataMartService.actualizeSchemaInEntity(report.dataMart);
       await this.dataMartService.save(report.dataMart);
 
+      await this.dataMartRunService.markReportRunAsStarted(dataMartRun);
+
       await this.executeReport(report, signal);
+
+      report.lastRunStatus = ReportRunStatus.SUCCESS;
+
+      this.logger.log(`Report run ${report.id} finished successfully`);
     } catch (error) {
       if (error.name === 'AbortError') {
-        this.logger.log(`Report run ${report.id} was aborted by user.`);
         report.lastRunStatus = ReportRunStatus.CANCELLED;
         report.lastRunError = 'Report run was cancelled by user';
+
+        dataMartRunFinishContext.status = DataMartRunStatus.CANCELLED;
+
+        this.logger.log(`Report run ${report.id} was aborted by user.`);
       } else {
-        this.logger.error(`Error running report ${report.id}:`, error);
+        const errorString = error.toString();
         report.lastRunStatus = ReportRunStatus.ERROR;
-        report.lastRunError = error.toString();
+        report.lastRunError = errorString;
+
+        dataMartRunFinishContext.status = DataMartRunStatus.FAILED;
+        dataMartRunFinishContext.errors = [errorString];
+
+        this.logger.error(`Error running report ${report.id}:`, error);
       }
     } finally {
       try {
+        // TODO: save results in transaction
+        await this.dataMartRunService.markReportRunAsFinished(
+          dataMartRun,
+          dataMartRunFinishContext
+        );
         await this.reportRepository.save(report);
       } catch (saveError) {
         this.logger.error(`Failed to save report status for ${report.id}:`, saveError);
@@ -117,8 +152,6 @@ export class RunReportService {
         nextReportDataBatch = batch.nextDataBatchId;
         this.logger.debug(`${batch.dataRows.length} data rows written for report ${report.id}`);
       } while (nextReportDataBatch);
-      report.lastRunStatus = ReportRunStatus.SUCCESS;
-      this.logger.log(`Report run ${report.id} finished successfully`);
     } catch (error) {
       processingError = error;
       throw error;

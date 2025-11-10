@@ -12,6 +12,8 @@ import { OpenIssueLink } from '../components';
 import { Unplug } from 'lucide-react';
 import { SECRET_MASK } from '../../../../../../shared/constants/secrets';
 import { ConfigurationListRender } from './ConfigurationStep/ConfigurationListRender';
+import { CopyConfigurationButton } from '../../../../../data-marts/edit/components/DataMartDefinitionSettings/form/CopyConfigurationButton';
+import type { CopiedConfiguration } from '../../../../../data-marts/edit/model/types';
 
 interface ConfigurationStepProps {
   connector: ConnectorListItem;
@@ -99,12 +101,13 @@ export function ConfigurationStep({
   const validateValue = useCallback((value: unknown): boolean => {
     if (value === null || value === undefined) return false;
     if (typeof value === 'string' && value.trim() === '') return false;
+    if (typeof value === 'number' && isNaN(value)) return false;
     if (Array.isArray(value) && value.length === 0) return false;
 
     return true;
   }, []);
 
-  const validateOneOfReqursive = useCallback(
+  const validateOneOfRecursive = useCallback(
     (value: unknown, spec: ConnectorSpecificationResponseApiDto): boolean => {
       if (typeof value !== 'object' || value === null) return validateValue(value);
 
@@ -115,7 +118,7 @@ export function ConfigurationStep({
         return oneOfs.every(oneOf =>
           Object.entries(oneOf.items).every(([, item]) => {
             if (oneOf.value in value) {
-              return validateOneOfReqursive((value as Record<string, unknown>)[oneOf.value], item);
+              return validateOneOfRecursive((value as Record<string, unknown>)[oneOf.value], item);
             }
             return false;
           })
@@ -129,17 +132,19 @@ export function ConfigurationStep({
 
   const validateConfiguration = useCallback(
     (config: Record<string, unknown>, specs: ConnectorSpecificationResponseApiDto[]) => {
-      const requeredOneOfSpecs = specs.filter(spec => spec.required && spec.oneOf);
-      const isValidOneOf = requeredOneOfSpecs.some(spec =>
-        validateOneOfReqursive(config[spec.name], spec)
-      );
+      const requiredOneOfSpecs = specs.filter(spec => spec.required && spec.oneOf);
+
+      const isValidOneOf =
+        requiredOneOfSpecs.length === 0
+          ? true
+          : requiredOneOfSpecs.some(spec => validateOneOfRecursive(config[spec.name], spec));
 
       const requiredSpecs = specs.filter(spec => spec.required && spec.name !== 'Fields');
       const isValidRequired = requiredSpecs.every(spec => validateValue(config[spec.name]));
 
       return isValidOneOf && isValidRequired;
     },
-    [validateValue, validateOneOfReqursive]
+    [validateValue, validateOneOfRecursive]
   );
 
   const handleSecretEditToggle = (name: string, enable: boolean) => {
@@ -149,6 +154,23 @@ export function ConfigurationStep({
     } else {
       setConfiguration(prev => ({ ...prev, [name]: '' }));
     }
+  };
+
+  const handleCopyConfiguration = (copiedConfig: CopiedConfiguration) => {
+    const newConfig: Record<string, unknown> = { ...configuration };
+
+    Object.entries(copiedConfig.configuration).forEach(([key, value]) => {
+      if (!['_id', '_copiedFrom'].includes(key)) {
+        newConfig[key] = value;
+      }
+    });
+
+    newConfig._copiedFrom = {
+      dataMartId: copiedConfig.dataMartId,
+      dataMartTitle: copiedConfig.dataMartTitle,
+      configId: copiedConfig.configId,
+    };
+    setConfiguration(newConfig);
   };
 
   useEffect(() => {
@@ -204,7 +226,17 @@ export function ConfigurationStep({
     <>
       <AppWizardStep>
         <StepperHeroBlock connector={connector} />
-        <AppWizardStepSection title='Configure Settings'>
+        <AppWizardStepSection>
+          <div className='flex items-center justify-between'>
+            <h3 className='text-muted-foreground/75 text-xs font-semibold tracking-wide uppercase'>
+              Configure Settings
+            </h3>
+            <CopyConfigurationButton
+              currentConnectorName={connector.name}
+              onCopyConfiguration={handleCopyConfiguration}
+              connectorSpecification={connectorSpecification}
+            />
+          </div>
           {requiredFields.length > 0 && (
             <ConfigurationListRender
               items={requiredFields}
@@ -217,7 +249,7 @@ export function ConfigurationStep({
           )}
           {advancedFields.length > 0 && (
             <ConfigurationListRender
-              collapsibleTitle='Advanced Fields'
+              collapsibleTitle='Advanced Settings'
               items={advancedFields}
               configuration={configuration}
               onValueChange={handleValueChange}

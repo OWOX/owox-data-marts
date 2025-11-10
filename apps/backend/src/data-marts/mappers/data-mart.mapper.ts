@@ -33,11 +33,14 @@ import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMartRunDto } from '../dto/domain/data-mart-run.dto';
 import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-response-api.dto';
 import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
-import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { CancelDataMartRunCommand } from '../dto/domain/cancel-data-mart-run.command';
 import { ConnectorSecretService } from '../services/connector-secret.service';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { RunType } from '../../common/scheduler/shared/types';
+import { DataMartDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition';
+import { ListDataMartsByConnectorNameCommand } from '../dto/domain/list-data-mart-by-connector-name';
+import { ConnectorState as ConnectorStateData } from '../connector-types/interfaces/connector-state';
+import { isConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 
 @Injectable()
 export class DataMartMapper {
@@ -71,6 +74,7 @@ export class DataMartMapper {
       entity.definition,
       entity.description,
       entity.schema,
+      entity.connectorState?.state as ConnectorStateData | undefined,
       counters?.triggersCount ?? 0,
       counters?.reportsCount ?? 0
     );
@@ -101,6 +105,7 @@ export class DataMartMapper {
       definition: maskedDefinition,
       description: dto.description,
       schema: dto.schema,
+      connectorState: dto.connectorState,
       triggersCount: dto.triggersCount,
       reportsCount: dto.reportsCount,
       createdAt: dto.createdAt,
@@ -121,7 +126,9 @@ export class DataMartMapper {
       id,
       context.projectId,
       dto.definitionType,
-      dto.definition
+      dto.definition,
+      dto.sourceDataMartId,
+      dto.sourceConfigurationId
     );
   }
 
@@ -138,8 +145,8 @@ export class DataMartMapper {
     return new GetDataMartRunsCommand(id, context.projectId, limit, offset);
   }
 
-  toListCommand(context: AuthorizationContext): ListDataMartsCommand {
-    return new ListDataMartsCommand(context.projectId);
+  toListCommand(context: AuthorizationContext, connectorName?: string): ListDataMartsCommand {
+    return new ListDataMartsCommand(context.projectId, connectorName);
   }
 
   toUpdateTitleCommand(
@@ -234,12 +241,17 @@ export class DataMartMapper {
   toDataMartRunDto(entity: DataMartRun): DataMartRunDto {
     return new DataMartRunDto(
       entity.id,
-      entity.status! as DataMartRunStatus,
+      entity.status || null,
+      entity.type || null,
+      entity.runType || null,
       entity.dataMartId,
-      entity.definitionRun! as ConnectorDefinition,
+      entity.definitionRun || null,
+      entity.reportDefinition || null,
       entity.logs || [],
       entity.errors || [],
-      entity.createdAt
+      entity.createdAt,
+      entity.startedAt || null,
+      entity.finishedAt || null
     );
   }
 
@@ -249,17 +261,35 @@ export class DataMartMapper {
 
   async toRunsResponse(runs: DataMartRunDto[]): Promise<DataMartRunsResponseApiDto> {
     const maskedRuns = await Promise.all(
-      runs.map(async run => ({
-        id: run.id,
-        status: run.status,
-        dataMartId: run.dataMartId,
-        definitionRun:
-          (await this.connectorSecretService.mask(run.definitionRun)) ?? run.definitionRun,
-        logs: run.logs,
-        errors: run.errors,
-        createdAt: run.createdAt,
-      }))
+      runs.map(async run => {
+        let maskedDefinitionRun: DataMartDefinition | undefined;
+        if (run.definitionRun && isConnectorDefinition(run.definitionRun)) {
+          maskedDefinitionRun = await this.connectorSecretService.mask(run.definitionRun);
+        }
+
+        return {
+          id: run.id,
+          status: run.status,
+          type: run.type || null,
+          runType: run.runType || null,
+          dataMartId: run.dataMartId,
+          definitionRun: maskedDefinitionRun || run.definitionRun || null,
+          reportDefinition: run.reportDefinition,
+          logs: run.logs,
+          errors: run.errors,
+          createdAt: run.createdAt,
+          startedAt: run.startedAt || null,
+          finishedAt: run.finishedAt || null,
+        };
+      })
     );
     return { runs: maskedRuns };
+  }
+
+  toListDataMartsByConnectorNameCommand(
+    connectorName: string,
+    context: AuthorizationContext
+  ): ListDataMartsByConnectorNameCommand {
+    return new ListDataMartsByConnectorNameCommand(connectorName, context.projectId);
   }
 }

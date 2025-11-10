@@ -1,27 +1,29 @@
 import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
 import { useForm } from 'react-hook-form';
-import type { ConnectorDefinitionConfig } from '../../../../data-marts/edit/model';
+import type { ConnectorDefinitionConfig } from '../../../../data-marts/edit';
 import { useCallback, useEffect, useId, useState } from 'react';
 import { useConnector } from '../../../shared/model/hooks/useConnector';
 import { RunType } from '../../../shared/enums/run-type.enum';
 import { ConnectorSpecificationAttribute } from '../../../shared/enums/connector-specification-attribute.enum';
 import {
-  Form,
   AppForm,
+  Form,
+  FormActions,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
-  FormMessage,
   FormLayout,
-  FormActions,
-  FormSection,
-  FormDescription,
+  FormMessage,
   FormRadioGroup,
+  FormSection,
 } from '@owox/ui/components/form';
 import type { ConnectorRunFormData } from '../../../shared/model/types/connector';
-import { RequiredType } from '../../../shared/api/types/types';
+import { RequiredType } from '../../../shared/api';
+import { useDataMartContext } from '../../../../data-marts/edit/model';
+import { ConnectorStateSection } from './ConnectorStateSection';
 
 interface ConnectorRunFormProps {
   configuration: ConnectorDefinitionConfig | null;
@@ -40,6 +42,8 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
 
   const { loading, loadingSpecification, connectorSpecification, fetchConnectorSpecification } =
     useConnector();
+
+  const { dataMart } = useDataMartContext();
 
   const loadSpecificationSafely = useCallback(
     async (connectorName: string) => {
@@ -125,6 +129,13 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
                 </FormItem>
               )}
             />
+
+            {form.watch('runType') === RunType.INCREMENTAL && (
+              <ConnectorStateSection
+                configuration={configuration}
+                connectorState={dataMart?.connectorState ?? null}
+              />
+            )}
           </FormSection>
           {form.watch('runType') === RunType.MANUAL_BACKFILL && (
             <FormSection title='Run configuration'>

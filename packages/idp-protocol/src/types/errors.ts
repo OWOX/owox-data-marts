@@ -1,7 +1,11 @@
 /**
  * Base error class for the IDP protocol
  */
-export class IdpError extends Error {
+export interface HttpError {
+  getStatus(): number;
+}
+
+export class IdpError extends Error implements HttpError {
   constructor(
     message: string,
     public code: string,
@@ -9,6 +13,10 @@ export class IdpError extends Error {
   ) {
     super(message);
     this.name = 'IdpError';
+  }
+
+  getStatus(): number {
+    return this.statusCode;
   }
 }
 

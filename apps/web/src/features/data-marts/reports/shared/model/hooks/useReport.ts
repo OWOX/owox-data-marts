@@ -53,10 +53,15 @@ export function useReport() {
   }, [dispatch]);
 
   const fetchReportsByDataMartId = useCallback(
-    async (dataMartId: string) => {
-      dispatch({ type: ReportActionType.FETCH_REPORTS_START });
+    async (dataMartId: string, options?: { silent?: boolean }) => {
+      if (!options?.silent) {
+        dispatch({ type: ReportActionType.FETCH_REPORTS_START });
+      }
       try {
-        const reports = await reportService.getReportsByDataMartId(dataMartId);
+        const reports = await reportService.getReportsByDataMartId(
+          dataMartId,
+          options?.silent ? { skipLoadingIndicator: true } : undefined
+        );
         const mappedReports = reports.map(mapReportDtoToEntity);
         dispatch({ type: ReportActionType.FETCH_REPORTS_SUCCESS, payload: mappedReports });
       } catch (error) {
