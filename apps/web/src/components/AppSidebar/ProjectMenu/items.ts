@@ -1,5 +1,5 @@
 import type { ProjectMenuItem } from './types';
-import { GitHubIcon, OWOXBIIcon, SlackIcon } from '../../../shared';
+import { GitHubIcon, OWOXBIIcon, SlackIconDesaturated } from '../../../shared';
 import {
   Gem,
   BadgeAlert,
@@ -104,7 +104,7 @@ export const projectMenuItems: ProjectMenuItem[] = [
     type: 'menu-item',
     title: 'Slack Community',
     href: 'https://join.slack.com/t/owox-data-marts/shared_invite/zt-3fffrsau9-UlobJVlXzRLpXmvs0ffvoQ',
-    icon: SlackIcon,
+    icon: SlackIconDesaturated,
     visible: { flagKey: 'MENU_SLACK_COMMUNITY_VISIBLE', expectedValue: 'true' },
     group: 'feedback',
   },
