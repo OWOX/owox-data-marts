@@ -25,6 +25,11 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
             value: "oauth2",
             requiredType: "object",
             items: {
+              LoginCustomerId: {
+                requiredType: "string",
+                label: "Login Customer ID",
+                description: "Optional when authenticating as the same account. Provide the manager account ID (without dashes) when acting on behalf of other accounts."
+              },
               RefreshToken: {
                 isRequired: true,
                 requiredType: "string",
@@ -72,6 +77,12 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
                 label: "Developer Token",
                 description: "Google Ads API Developer Token",
                 attributes: [CONFIG_ATTRIBUTES.SECRET]
+              },
+              LoginCustomerId: {
+                isRequired: true,
+                requiredType: "string",
+                label: "Login Customer ID",
+                description: "ID of manager account (must be provided without dashes, e.g., '1234567890' not '123-456-7890'). Required for accessing client accounts through a manager account."
               }
             }
           }
@@ -150,6 +161,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
           }
         });
       } else if (authType === "service_account") {
+
         accessToken = await OAuthUtils.getServiceAccountToken({
           config: this.config,
           tokenUrl: "https://oauth2.googleapis.com/token",
@@ -276,13 +288,20 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         requestBody.pageToken = nextPageToken;
       }
       
+      const loginCustomerId = this.config.AuthType.items?.LoginCustomerId?.value;
+      const headers = {
+        'Authorization': `Bearer ${accessToken}`,
+        'developer-token': this.config.AuthType.items?.DeveloperToken?.value,
+        'Content-Type': 'application/json'
+      };
+
+      if (loginCustomerId) {
+      headers['login-customer-id'] = loginCustomerId;
+      }
+
       const options = {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'developer-token': this.config.AuthType.items?.DeveloperToken?.value,
-          'Content-Type': 'application/json'
-        },
+        headers,
         payload: JSON.stringify(requestBody),
         body: JSON.stringify(requestBody),
         muteHttpExceptions: true
