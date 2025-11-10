@@ -161,13 +161,11 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
           }
         });
       } else if (authType === "service_account") {
-        const loginCustomerId = authConfig.LoginCustomerId?.value || null;
 
-        accessToken = OAuthUtils.getServiceAccountToken({
+        accessToken = await OAuthUtils.getServiceAccountToken({
           config: this.config,
           tokenUrl: "https://oauth2.googleapis.com/token",
           serviceAccountKeyJson: authConfig.ServiceAccountKey.value,
-          loginCustomerId,
           scope: "https://www.googleapis.com/auth/adwords"
         });
       } else {
