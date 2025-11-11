@@ -1,6 +1,14 @@
 import { DataDestinationType } from '../enums';
 import { DataDestinationStatus } from '../enums';
-import { GoogleSheetsIcon, LookerStudioIcon, ODataIcon } from '../../../../shared';
+import {
+  GoogleSheetsIcon,
+  LookerStudioIcon,
+  ODataIcon,
+  EmailIcon,
+  MicrosoftTeamsIcon,
+  SlackIcon,
+  GoogleChatIcon,
+} from '../../../../shared';
 import type { AppIcon } from '../../../../shared';
 
 interface DataDestinationTypeInfo {
@@ -23,6 +31,30 @@ export const DataDestinationTypeModel = {
       displayName: 'Looker Studio',
       icon: LookerStudioIcon,
       status: DataDestinationStatus.ACTIVE,
+    },
+    [DataDestinationType.EMAIL]: {
+      type: DataDestinationType.EMAIL,
+      displayName: 'Email',
+      icon: EmailIcon,
+      status: DataDestinationStatus.CLOUD_ONLY,
+    },
+    [DataDestinationType.SLACK]: {
+      type: DataDestinationType.SLACK,
+      displayName: 'Slack',
+      icon: SlackIcon,
+      status: DataDestinationStatus.CLOUD_ONLY,
+    },
+    [DataDestinationType.MICROSOFTTEAMS]: {
+      type: DataDestinationType.MICROSOFTTEAMS,
+      displayName: 'Microsoft Teams',
+      icon: MicrosoftTeamsIcon,
+      status: DataDestinationStatus.CLOUD_ONLY,
+    },
+    [DataDestinationType.GOOGLECHAT]: {
+      type: DataDestinationType.GOOGLECHAT,
+      displayName: 'Google Chat',
+      icon: GoogleChatIcon,
+      status: DataDestinationStatus.CLOUD_ONLY,
     },
     [DataDestinationType.ODATA]: {
       type: DataDestinationType.ODATA,

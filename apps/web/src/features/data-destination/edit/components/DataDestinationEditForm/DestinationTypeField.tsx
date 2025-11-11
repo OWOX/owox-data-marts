@@ -19,6 +19,9 @@ import {
 import { Badge } from '@owox/ui/components/badge';
 import DestinationTypeDescription from './FormDescriptions/DestinationTypeDescription';
 import { DataDestinationTypeModel, DataDestinationStatus } from '../../../shared';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import { Link } from 'react-router-dom';
+import { ExternalLinkIcon } from 'lucide-react';
 
 interface DestinationTypeFieldProps {
   form: UseFormReturn<DataDestinationFormData>;
@@ -48,14 +51,54 @@ export function DestinationTypeField({ form, initialData }: DestinationTypeField
                 {DataDestinationTypeModel.getAllTypes().map(
                   ({ type, displayName, icon: Icon, status }) => {
                     const isComingSoon = status === DataDestinationStatus.COMING_SOON;
+                    const isCloudOnly = status === DataDestinationStatus.CLOUD_ONLY;
                     return (
-                      <SelectItem key={type} value={type} disabled={isComingSoon}>
-                        <div className='flex items-center gap-2'>
-                          <Icon size={18} />
-                          {displayName}
-                          {isComingSoon && <Badge variant='secondary'>{status}</Badge>}
-                        </div>
-                      </SelectItem>
+                      <>
+                        {isCloudOnly ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div>
+                                <SelectItem key={type} value={type} disabled>
+                                  <div className='flex items-center gap-2'>
+                                    <Icon size={18} />
+                                    {displayName}
+                                    <Badge variant='secondary'>Cloud &amp; Enterprise</Badge>
+                                  </div>
+                                </SelectItem>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side='left' align='start' className='w-[220px]'>
+                              Available only in{' '}
+                              <Link
+                                className='inline-flex items-center gap-1 underline'
+                                target='_blank'
+                                to='https://docs.owox.com/docs/editions/owox-cloud-editions/?utm_source=owox_data_marts&utm_medium=destination_entity&utm_campaign=unavailable_select_item_tooltip'
+                              >
+                                Cloud edition
+                                <ExternalLinkIcon className='h-3 w-3' />
+                              </Link>{' '}
+                              or with{' '}
+                              <Link
+                                className='inline-flex items-center gap-1 underline'
+                                target='_blank'
+                                to='https://docs.owox.com/docs/editions/self-managed-editions/?utm_source=owox_data_marts&utm_medium=destination_entity&utm_campaign=unavailable_select_item_tooltip'
+                              >
+                                an Enterprise plan
+                                <ExternalLinkIcon className='h-3 w-3' />
+                              </Link>
+                              .
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          <SelectItem key={type} value={type} disabled={isComingSoon}>
+                            <div className='flex items-center gap-2'>
+                              <Icon size={18} />
+                              {displayName}
+                              {isComingSoon && <Badge variant='outline'>{status}</Badge>}
+                            </div>
+                          </SelectItem>
+                        )}
+                      </>
                     );
                   }
                 )}
