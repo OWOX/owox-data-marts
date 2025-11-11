@@ -147,7 +147,7 @@ export default function InsightDetailsView() {
         confirmLabel='Delete'
         cancelLabel='Cancel'
         variant='destructive'
-        onConfirm={() => void handleDelete()}
+        onConfirm={() => handleDelete()}
       />
     </div>
   );
