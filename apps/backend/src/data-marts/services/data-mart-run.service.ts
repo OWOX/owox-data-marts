@@ -120,12 +120,12 @@ export class DataMartRunService {
     if (context) {
       dataMartRun.status = context.status;
 
-      if (context.logs) {
-        dataMartRun.logs = dataMartRun.logs?.concat(context.logs);
+      if (context.logs && context.logs.length) {
+        dataMartRun.logs = [...(dataMartRun.logs || []), ...context.logs];
       }
 
-      if (context.errors) {
-        dataMartRun.errors = dataMartRun.errors?.concat(context.errors);
+      if (context.errors && context.errors.length) {
+        dataMartRun.errors = [...(dataMartRun.errors || []), ...context.errors];
       }
     }
     dataMartRun.finishedAt = this.systemClock.now();
@@ -165,8 +165,6 @@ export class DataMartRunService {
       definitionRun: dataMart.definition,
       createdById: context.createdById,
       runType: context.runType,
-      logs: [],
-      errors: [],
       reportDefinition,
     };
 
