@@ -130,8 +130,6 @@ export const getRunSummary = (
   run: DataMartRunItem,
   connectorDisplayName: string | null | undefined
 ) => {
-  const triggerType = run.triggerType ?? 'manual';
-
   let title = '';
   let runType = '';
   switch (run.type) {
@@ -151,7 +149,7 @@ export const getRunSummary = (
       break;
   }
 
-  const runDescription = capitalizeFirstLetter(`${triggerType} ${runType} run`.trim());
+  const runDescription = capitalizeFirstLetter(`${run.triggerType} ${runType} run`.trim());
 
   const parts = [runDescription, title];
 
