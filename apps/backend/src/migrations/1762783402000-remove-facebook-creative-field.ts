@@ -35,6 +35,6 @@ export class RemoveFacebookCreativeField1762783402000 implements MigrationInterf
   }
 
   public async down(_queryRunner: QueryRunner): Promise<void> {
-    // No-op because we cannot determine which clients previously selected the 'creative' field
+    // No-op because previous selections of the 'creative' field cannot be determined
   }
 }
