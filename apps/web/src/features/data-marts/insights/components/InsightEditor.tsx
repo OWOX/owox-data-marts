@@ -1,5 +1,6 @@
-import { Editor } from '@monaco-editor/react';
+import { Editor, type OnMount } from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
+import { registerSlashCommandProvider } from '../utils/monaco-commands.ts';
 
 interface InsightEditorProps {
   value: string;
@@ -9,6 +10,20 @@ interface InsightEditorProps {
   className?: string;
 }
 
+const handleEditorMount: OnMount = (_editor, monaco) => {
+  registerSlashCommandProvider(monaco, 'markdown');
+};
+
+/**
+ * InsightEditor is a component for rendering a markdown editor with customizable options.
+ *
+ * @param {InsightEditorProps} props - The properties required to render the InsightEditor.
+ * @param {string} props.value - The current value of the editor content.
+ * @param {function} props.onChange - Callback function triggered when the editor content changes.
+ * @param {string} [props.height='60vh'] - Optional height of the editor.
+ * @param {string} props.className - Additional class name for styling the editor container.
+ * @return {JSX.Element} A JSX element rendering the markdown editor.
+ */
 export function InsightEditor({ value, onChange, height = '60vh', className }: InsightEditorProps) {
   const { resolvedTheme } = useTheme();
 
@@ -20,6 +35,7 @@ export function InsightEditor({ value, onChange, height = '60vh', className }: I
         theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
         value={value}
         onChange={v => onChange(v ?? '')}
+        onMount={handleEditorMount}
         options={{
           minimap: { enabled: false },
           scrollBeyondLastLine: false,
@@ -27,6 +43,7 @@ export function InsightEditor({ value, onChange, height = '60vh', className }: I
           overviewRulerBorder: false,
           automaticLayout: true,
           overviewRulerLanes: 0,
+          placeholder: "Press '/' for commands",
         }}
       />
     </div>
