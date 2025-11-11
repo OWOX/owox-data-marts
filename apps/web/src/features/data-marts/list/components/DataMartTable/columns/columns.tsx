@@ -1,19 +1,18 @@
 import { type ColumnDef } from '@tanstack/react-table';
-import { SortableHeader } from '../components/SortableHeader.tsx';
-import type { DataMartListItem } from '../../../model/types/index.ts';
-import { type DataMartStatusInfo, getDataMartStatusType } from '../../../../shared/index.ts';
-import { StatusLabel } from '../../../../../../shared/components/StatusLabel/index.ts';
-import { DataStorageType } from '../../../../../data-storage/index.ts';
+import type { DataMartListItem } from '../../../model/types';
+import { type DataMartStatusInfo, getDataMartStatusType } from '../../../../shared';
+import { StatusLabel } from '../../../../../../shared/components/StatusLabel';
+import { DataStorageType } from '../../../../../data-storage';
 import { DataStorageTypeModel } from '../../../../../data-storage/shared/types/data-storage-type.model.ts';
-import { DataMartActionsCell } from '../components/DataMartActionsCell.tsx';
-import { ToggleColumnsHeader } from '../components/ToggleColumnsHeader.tsx';
-import { DataMartDefinitionType } from '../../../../shared/index.ts';
+import { DataMartActionsCell } from '../components';
+import { DataMartDefinitionType } from '../../../../shared';
 import { DataMartDefinitionTypeModel } from '../../../../shared/types/data-mart-definition-type.model.ts';
 import { DataMartColumnKey } from './columnKeys.ts';
 import { dataMartColumnLabels } from './columnLabels.ts';
-import type { ConnectorDefinitionConfig } from '../../../../edit/model/types/connector-definition-config.ts';
+import type { ConnectorDefinitionConfig } from '../../../../edit';
 import type { ConnectorListItem } from '../../../../../connectors/shared/model/types/connector';
-import { RawBase64Icon } from '../../../../../../shared/icons';
+import { RawBase64Icon } from '../../../../../../shared';
+import { SortableHeader, ToggleColumnsHeader } from '../../../../../../shared/components/Table';
 
 interface DataMartTableColumnsProps {
   onDeleteSuccess?: () => void;

@@ -1,9 +1,8 @@
 import { type ColumnDef } from '@tanstack/react-table';
-import { SortableHeader } from './SortableHeader';
 import { type DataDestination, DataDestinationTypeModel } from '../../../shared';
 import { DataDestinationType } from '../../../shared';
 import { DataDestinationActionsCell } from './DataDestinationActionsCell';
-import { ToggleColumnsHeader } from './ToggleColumnsHeader';
+import { SortableHeader, ToggleColumnsHeader } from '../../../../../shared/components/Table';
 
 export interface DataDestinationTableItem {
   id: string;

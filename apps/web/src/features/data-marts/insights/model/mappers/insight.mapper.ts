@@ -10,8 +10,8 @@ export const mapInsightFromDto = (dto: InsightResponseDto): InsightEntity => ({
   id: dto.id,
   title: dto.title,
   template: dto.template ?? null,
-  createdAt: dto.createdAt,
-  modifiedAt: dto.modifiedAt,
+  createdAt: new Date(dto.createdAt),
+  modifiedAt: new Date(dto.modifiedAt),
 });
 
 export const mapInsightListFromDto = (dto: InsightListResponseDto): InsightEntity[] =>
