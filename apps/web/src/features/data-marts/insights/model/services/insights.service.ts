@@ -7,6 +7,9 @@ import type {
   UpdateInsightRequestDto,
   UpdateInsightResponseDto,
 } from '../types';
+import { mockInsightsListDto } from './insights.mock';
+
+const MOCK_INSIGHTS_ENABLED = Boolean(import.meta.env.VITE_MOCK_INSIGHTS);
 
 export class InsightsService extends ApiService {
   constructor() {
@@ -14,6 +17,11 @@ export class InsightsService extends ApiService {
   }
 
   async getInsights(dataMartId: string): Promise<InsightListResponseDto> {
+    console.log(MOCK_INSIGHTS_ENABLED);
+    if (MOCK_INSIGHTS_ENABLED) {
+      // Temporary mock for Insights list until backend API is available
+      return Promise.resolve(mockInsightsListDto);
+    }
     return this.get<InsightListResponseDto>(`/${dataMartId}/insights`);
   }
 

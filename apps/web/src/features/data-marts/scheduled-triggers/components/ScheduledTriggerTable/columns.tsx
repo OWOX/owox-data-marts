@@ -4,10 +4,10 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@owox/ui/components/badge';
 import RelativeTime from '@owox/ui/components/common/relative-time';
 import { ScheduleDisplay } from '../ScheduleDisplay/ScheduleDisplay';
-import { ToggleColumnsHeader } from './ToggleColumnsHeader';
 import { ScheduledTriggerActionsCell } from './ScheduledTriggerActionsCell';
 import { StatusLabel, StatusTypeEnum } from '../../../../../shared/components/StatusLabel';
 import { ScheduledTriggerRunTarget } from './ScheduledTriggerRunTarget';
+import { ToggleColumnsHeader } from '../../../../../shared/components/Table';
 
 interface ScheduledTriggerTableColumnsProps {
   onEditTrigger: (id: string) => void;

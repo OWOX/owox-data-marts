@@ -1,12 +1,12 @@
 import { type ColumnDef } from '@tanstack/react-table';
 import { GoogleSheetsActionsCell } from '../GoogleSheetsActionsCell.tsx';
 import { StatusIcon } from '../../StatusIcon';
-import { SortableHeader } from '../SortableHeader.tsx';
 import type { DataMartReport } from '../../../../shared/model/types/data-mart-report';
-import { ToggleColumnsHeader } from '../ToggleColumnsHeader.tsx';
 import { ReportColumnKey } from './columnKeys.ts';
 import { ReportColumnLabels } from './columnLabels.ts';
 import RelativeTime from '@owox/ui/components/common/relative-time';
+import { SortableHeader } from '../../../../../../../shared/components/Table';
+import { ToggleColumnsHeader } from '../../../../../../../shared/components/Table';
 
 export type Align = 'left' | 'right' | 'center';
 
