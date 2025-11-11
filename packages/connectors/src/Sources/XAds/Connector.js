@@ -28,7 +28,8 @@ var XAdsConnector = class XAdsConnector extends AbstractConnector {
           fields: fields[nodeName] || []
         });
       }
-      this.source.clearTweetsCache(accountId);
+
+      this.source.clearCache(accountId);
     }
   }
 

@@ -596,19 +596,6 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
   }
 
   /**
-   * Returns credential fields for this source
-   */
-  getCredentialFields() {
-    return {
-      ClientId: this.config.ClientId,
-      ClientSecret: this.config.ClientSecret,
-      RedirectUri: this.config.RedirectUri,
-      RefreshToken: this.config.RefreshToken,
-      UserAgent: this.config.UserAgent
-    };
-  }
-
-  /**
    * Keep only requestedFields plus any schema-required keys.
    * @param {Array<Object>|Object} items - Array of objects or single object
    * @param {string} nodeName

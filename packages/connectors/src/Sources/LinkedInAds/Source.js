@@ -77,18 +77,6 @@ var LinkedInAdsSource = class LinkedInAdsSource extends AbstractSource {
   }
 
   /**
-   * Returns credential fields for this source
-   * @returns {Object}
-   */
-  getCredentialFields() {
-    return {
-      ClientID: this.config.ClientID,
-      ClientSecret: this.config.ClientSecret,
-      RefreshToken: this.config.RefreshToken
-    };
-  }
-
-  /**
    * Main entry point for fetching data from LinkedIn Ads API
    * @param {string} nodeName - Type of resource to fetch (e.g., adAccounts, adCampaigns)
    * @param {string} urn - Resource identifier

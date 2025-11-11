@@ -105,21 +105,8 @@ var XAdsSource = class XAdsSource extends AbstractSource {
     }));
 
     this.fieldsSchema = XAdsFieldsSchema;
-    this._tweetsCache = new Map(); // Map<accountId, {data: Array, fields: Set}>
-    this._promotedTweetsCache = new Map(); // Map<accountId, {data: Array, fields: Set}>
+    this._promotedTweetsCache = new Map(); // Map<accountId, Array>
     this.BASE_URL = "https://ads-api.x.com/"; // Base URL for X Ads API
-  }
-
-  /**
-   * Returns credential fields for this source
-   */
-  getCredentialFields() {
-    return {
-      ConsumerKey: this.config.ConsumerKey,
-      ConsumerSecret: this.config.ConsumerSecret,
-      AccessToken: this.config.AccessToken,
-      AccessTokenSecret: this.config.AccessTokenSecret
-    };
   }
 
   /**
@@ -171,38 +158,6 @@ var XAdsSource = class XAdsSource extends AbstractSource {
   }
 
   /**
-   * Get cached data if all requested fields are present
-   * @param {Map} cache - Cache map to check
-   * @param {string} accountId - Account ID to look up
-   * @param {Array<string>} fields - Required fields
-   * @returns {Array|null} - Cached data or null if not found/invalid
-   * @private
-   */
-  _getCachedData(cache, accountId, fields) {
-    if (!cache.has(accountId)) return null;
-
-    const cached = cache.get(accountId);
-    const hasAllFields = fields.every(field => cached.fields.has(field));
-    
-    return hasAllFields ? cached.data : null;
-  }
-
-  /**
-   * Store data in cache with its fields
-   * @param {Map} cache - Cache map to store in
-   * @param {string} accountId - Account ID as key
-   * @param {Array} data - Data to cache
-   * @param {Array<string>} fields - Fields present in the data
-   * @private
-   */
-  _setCacheData(cache, accountId, data, fields) {
-    cache.set(accountId, {
-      data,
-      fields: new Set(fields)
-    });
-  }
-
-  /**
    * Shared logic for non-time-series endpoints
    */
   async _catalogFetch({ nodeName, accountId, fields, pageSize }) {
@@ -213,24 +168,10 @@ var XAdsSource = class XAdsSource extends AbstractSource {
       throw new Error(`Missing required unique fields for endpoint '${nodeName}'. Missing fields: ${missingKeys.join(', ')}`);
     }
 
-    if (nodeName === 'promoted_tweets') {
-      const cached = this._getCachedData(this._promotedTweetsCache, accountId, fields);
-      if (cached) {
-        console.log('returning cached promoted_tweets');
-        return cached;
-      };
-      console.log('deleting cached promoted_tweets');
-      this._promotedTweetsCache.delete(accountId);
-    }
-
-    if (nodeName === 'tweets') {
-      const cached = this._getCachedData(this._tweetsCache, accountId, fields);
-      if (cached) {
-        console.log('returning cached tweets');
-        return cached;
-      };
-      console.log('deleting cached tweets');
-      this._tweetsCache.delete(accountId);
+    // Check cache for promoted_tweets (used internally by stats for each day)
+    if (nodeName === 'promoted_tweets' && this._promotedTweetsCache.has(accountId)) {
+      console.log(`[XAdsSource] Using cached promoted_tweets for account ${accountId}`);
+      return this._promotedTweetsCache.get(accountId);
     }
 
     let all = await this._fetchPages({
@@ -251,10 +192,8 @@ var XAdsSource = class XAdsSource extends AbstractSource {
     }
 
     if (nodeName === 'promoted_tweets') {
-      this._setCacheData(this._promotedTweetsCache, accountId, all, fields);
-    }
-    if (nodeName === 'tweets') {
-      this._setCacheData(this._tweetsCache, accountId, all, fields);
+      console.log(`[XAdsSource] Fetched promoted_tweets from API for account ${accountId}`);
+      this._promotedTweetsCache.set(accountId, all);
     }
 
     return all;
@@ -525,10 +464,10 @@ var XAdsSource = class XAdsSource extends AbstractSource {
   }
 
   /**
-   * Clear tweet/promoted-tweet caches.
-   * */
-  clearTweetsCache(accountId) {
-    this._tweetsCache.delete(accountId);
+   * Clear cache for a specific account
+   * Called after processing all nodes for an account to free up memory
+   */
+  clearCache(accountId) {
     this._promotedTweetsCache.delete(accountId);
   }
 };

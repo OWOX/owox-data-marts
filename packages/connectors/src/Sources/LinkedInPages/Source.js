@@ -75,18 +75,6 @@ var LinkedInPagesSource = class LinkedInPagesSource extends AbstractSource {
   }
 
   /**
-   * Returns credential fields for this source
-   * @returns {Object}
-   */
-  getCredentialFields() {
-    return {
-      ClientID: this.config.ClientID,
-      ClientSecret: this.config.ClientSecret,
-      RefreshToken: this.config.RefreshToken
-    };
-  }
-
-  /**
    * Main entry point for fetching data from LinkedIn Pages API
    * @param {string} nodeName - Type of resource to fetch
    * @param {string|number} urn - Organization ID (numeric)
