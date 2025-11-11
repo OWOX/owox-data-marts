@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { useMemo as useReactMemo } from 'react';
-import { useInsights, useInsightsList, type InsightEntity } from '../model'; // Припускаючи, що Insight тут експортується
+import { useCallback, useMemo as useReactMemo } from 'react';
+import { useInsights, useInsightsList, type InsightEntity } from '../model';
 
 export const useInsightData = () => {
   const navigate = useNavigate();
@@ -14,11 +14,11 @@ export const useInsightData = () => {
     [insights, insightId]
   ) as InsightEntity | undefined;
 
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => {
     if (!insight) return;
     await deleteInsight(insight.id);
     navigate('..');
-  };
+  }, [insight, deleteInsight, navigate]);
 
   return {
     insight,
