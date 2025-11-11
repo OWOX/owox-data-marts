@@ -27,8 +27,8 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@owox/ui/components/empty';
-import { useInsightData } from '../../../../features/data-marts/insights/hooks/useInsightData.ts';
-import { useInsightForm } from '../../../../features/data-marts/insights/hooks/useInsightForm.ts';
+import { useInsightData } from '../hooks/useInsightData.ts';
+import { useInsightForm } from '../hooks/useInsightForm.ts';
 
 export default function InsightDetailsView() {
   const storageKey = useMemo(() => 'insight_details_split', []);

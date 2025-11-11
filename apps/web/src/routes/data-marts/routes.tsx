@@ -5,8 +5,8 @@ import DataMartDestinationsContent from '../../pages/data-marts/edit/DataMartDes
 import DataMartRunHistoryContent from '../../pages/data-marts/edit/DataMartRunHistoryContent.tsx';
 import DataMartInsightsContent from '../../pages/data-marts/edit/DataMartInsightsContent.tsx';
 import DataMartTriggersContent from '../../pages/data-marts/edit/DataMartTriggersContent.tsx';
-import InsightsListView from '../../pages/data-marts/insights/list/InsightsListView.tsx';
-import InsightDetailsView from '../../pages/data-marts/insights/details/InsightDetailsView.tsx';
+import InsightsListView from '../../features/data-marts/insights/components/InsightsListView.tsx';
+import InsightDetailsView from '../../features/data-marts/insights/components/InsightDetailsView.tsx';
 
 export const dataMartDetailsRoutes: RouteObject[] = [
   {
