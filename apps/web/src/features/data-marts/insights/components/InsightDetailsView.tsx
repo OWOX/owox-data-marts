@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
 import { Button } from '@owox/ui/components/button';
-import { MoreVertical, Trash2, ChevronLeft, BarChart3, ArrowUpRight } from 'lucide-react';
+import { MoreVertical, Trash2, BarChart3, ArrowUpRight } from 'lucide-react';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
 import {
   Empty,
@@ -49,36 +49,30 @@ export default function InsightDetailsView() {
 
   return (
     <div className='flex h-full w-full flex-col gap-2'>
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbSeparator>
-            <ChevronLeft />
-          </BreadcrumbSeparator>
-          <BreadcrumbItem>
-            <BreadcrumbLink asChild>
-              <Link to='..'>Back to Insights</Link>
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+      <div className='flex items-center justify-between gap-2'>
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link to='..'>Insights</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <span aria-current='page' className='block max-w-[480px] truncate'>
+                <InlineEditTitle
+                  title={titleValue || 'Untitled insight'}
+                  onUpdate={handleTitleUpdate}
+                  className='font-medium'
+                  errorMessage='Title cannot be empty'
+                  minWidth='200px'
+                />
+              </span>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
 
-      <div className='flex items-start justify-between gap-2'>
-        <InlineEditTitle
-          title={titleValue || 'Untitled insight'}
-          onUpdate={handleTitleUpdate}
-          className='text-xl font-semibold'
-          errorMessage='Title cannot be empty'
-          minWidth='280px'
-        />
         <div className='flex items-center gap-2'>
-          <Button
-            variant='default'
-            size='sm'
-            disabled={!isDirty || isSubmitting}
-            onClick={() => void handleSubmit(onSubmit)()}
-          >
-            Save &amp; Preview
-          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant='ghost' size='icon' aria-label='Insight actions'>
@@ -94,7 +88,6 @@ export default function InsightDetailsView() {
           </DropdownMenu>
         </div>
       </div>
-
       <div className='bg-background flex-1 rounded-md border'>
         <ResizableColumns
           storageKey={storageKey}
@@ -138,7 +131,17 @@ export default function InsightDetailsView() {
           }
         />
       </div>
-
+      <div className='flex justify-start gap-2'>
+        <Button
+          variant='default'
+          size='sm'
+          disabled={!isDirty || isSubmitting}
+          onClick={() => void handleSubmit(onSubmit)()}
+        >
+          Save &amp; Preview
+        </Button>
+      </div>
+      ,
       <ConfirmationDialog
         open={isDeleteOpen}
         onOpenChange={setIsDeleteOpen}
