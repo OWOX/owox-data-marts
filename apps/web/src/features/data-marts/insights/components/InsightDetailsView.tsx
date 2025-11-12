@@ -77,7 +77,7 @@ export default function InsightDetailsView() {
             disabled={!isDirty || isSubmitting}
             onClick={() => void handleSubmit(onSubmit)()}
           >
-            Save
+            Save &amp; Preview
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -104,7 +104,7 @@ export default function InsightDetailsView() {
               <InsightEditor
                 value={templateValue ?? ''}
                 onChange={v => setValue('template', v, { shouldDirty: true })}
-                height={'calc(100vh - 300px)'}
+                height={'calc(100vh - 260px)'}
                 placeholder='Type / to view available commands...'
               />
             </div>
