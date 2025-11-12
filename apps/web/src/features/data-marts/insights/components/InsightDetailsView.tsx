@@ -66,7 +66,7 @@ export default function InsightDetailsView() {
         <InlineEditTitle
           title={titleValue || 'Untitled insight'}
           onUpdate={handleTitleUpdate}
-          className='text-2xl font-semibold'
+          className='text-xl font-semibold'
           errorMessage='Title cannot be empty'
           minWidth='280px'
         />
