@@ -97,6 +97,12 @@ import { SchemaActualizeTrigger } from './entities/schema-actualize-trigger.enti
 import { SchemaActualizeTriggerService } from './services/schema-actualize-trigger.service';
 import { SchemaActualizeTriggerHandlerService } from './services/schema-actualize-trigger-handler.service';
 import { SchemaActualizeTriggerController } from './controllers/schema-actualize-trigger.controller';
+import { SystemTrigger } from '../common/scheduler/shared/entities/system-trigger.entity';
+import {
+  SYSTEM_TASK_PROCESSORS,
+  SystemTriggerHandlerService,
+} from '../common/scheduler/system-tasks/system-trigger-handler.service';
+import { RetryInterruptedConnectorRunsProcessor } from './system-triggers/processors/retry-interrupted-connector-runs-processor';
 
 @Module({
   imports: [
@@ -111,6 +117,7 @@ import { SchemaActualizeTriggerController } from './controllers/schema-actualize
       ReportDataCache,
       SqlDryRunTrigger,
       SchemaActualizeTrigger,
+      SystemTrigger,
     ]),
     CommonModule,
     IdpModule,
@@ -187,6 +194,15 @@ import { SchemaActualizeTriggerController } from './controllers/schema-actualize
     SqlDryRunTriggerHandlerService,
     SchemaActualizeTriggerService,
     SchemaActualizeTriggerHandlerService,
+    SystemTriggerHandlerService,
+    RetryInterruptedConnectorRunsProcessor,
+    {
+      provide: SYSTEM_TASK_PROCESSORS,
+      useFactory: (interruptedRunsCheck: RetryInterruptedConnectorRunsProcessor) => [
+        interruptedRunsCheck,
+      ],
+      inject: [RetryInterruptedConnectorRunsProcessor],
+    },
     ScheduledTriggerService,
     ScheduledTriggerMapper,
     CreateScheduledTriggerService,
