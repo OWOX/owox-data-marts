@@ -1,9 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 
 export class UpdateInsightTitleApiDto {
-  @ApiProperty({ required: true })
+  @ApiProperty({ required: true, maxLength: 255 })
   @IsString()
   @IsNotEmpty()
+  @MaxLength(255)
   title: string;
 }

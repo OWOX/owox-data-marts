@@ -15,7 +15,7 @@ export class Insight {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @Column({ length: 255 })
   title: string;
 
   @Column({ type: 'text', nullable: true })
