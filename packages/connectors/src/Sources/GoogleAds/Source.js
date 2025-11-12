@@ -12,7 +12,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         isRequired: true,
         requiredType: "string", 
         label: "Customer ID",
-        description: "Google Ads Customer ID (format: 123-456-7890)"
+        description: "Google Ads Customer ID (format: 1234567890)"
       },
       AuthType: {
         requiredType: "object",
@@ -246,7 +246,12 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
    * @private
    */
   _buildQuery({ nodeName, fields, startDate }) {
-    const apiFields = this._getAPIFields(fields, nodeName);
+    const schema = this.fieldsSchema[nodeName];
+    const fieldsForQuery = schema.isTimeSeries && !fields.includes('date')
+      ? [...fields, 'date']
+      : fields;
+
+    const apiFields = this._getAPIFields(fieldsForQuery, nodeName);
     const resourceName = this._getResourceName(nodeName);
     let query = `SELECT ${apiFields.join(', ')} FROM ${resourceName}`;
     
