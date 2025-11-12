@@ -1,15 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { AuthorizationContext } from '../../idp';
-import { Insight } from '../entities/insight.entity';
-import { InsightDto } from '../dto/domain/insight.dto';
-import { CreateInsightRequestApiDto } from '../dto/presentation/create-insight-request-api.dto';
-import { UpdateInsightRequestApiDto } from '../dto/presentation/update-insight-request-api.dto';
-import { InsightResponseApiDto } from '../dto/presentation/insight-response-api.dto';
 import { CreateInsightCommand } from '../dto/domain/create-insight.command';
-import { GetInsightCommand } from '../dto/domain/get-insight.command';
-import { ListInsightsCommand } from '../dto/domain/list-insights.command';
-import { UpdateInsightCommand } from '../dto/domain/update-insight.command';
 import { DeleteInsightCommand } from '../dto/domain/delete-insight.command';
+import { GetInsightCommand } from '../dto/domain/get-insight.command';
+import { InsightDto } from '../dto/domain/insight.dto';
+import { ListInsightsCommand } from '../dto/domain/list-insights.command';
+import { UpdateInsightTitleCommand } from '../dto/domain/update-insight-title.command';
+import { UpdateInsightCommand } from '../dto/domain/update-insight.command';
+import { CreateInsightRequestApiDto } from '../dto/presentation/create-insight-request-api.dto';
+import { InsightListItemResponseApiDto } from '../dto/presentation/insight-list-item-response-api.dto';
+import { InsightResponseApiDto } from '../dto/presentation/insight-response-api.dto';
+import { UpdateInsightRequestApiDto } from '../dto/presentation/update-insight-request-api.dto';
+import { UpdateInsightTitleApiDto } from '../dto/presentation/update-insight-title-api.dto';
+import { Insight } from '../entities/insight.entity';
 
 @Injectable()
 export class InsightMapper {
@@ -53,8 +56,18 @@ export class InsightMapper {
     };
   }
 
-  toResponseList(dtos: InsightDto[]): InsightResponseApiDto[] {
-    return dtos.map(dto => this.toResponse(dto));
+  toListItemResponse(dto: InsightDto): InsightListItemResponseApiDto {
+    return {
+      id: dto.id,
+      title: dto.title,
+      createdById: dto.createdById,
+      createdAt: dto.createdAt,
+      modifiedAt: dto.modifiedAt,
+    };
+  }
+
+  toListItemResponseList(dtos: InsightDto[]): InsightListItemResponseApiDto[] {
+    return dtos.map(dto => this.toListItemResponse(dto));
   }
 
   toGetCommand(
@@ -90,5 +103,14 @@ export class InsightMapper {
     context: AuthorizationContext
   ): DeleteInsightCommand {
     return new DeleteInsightCommand(insightId, dataMartId, context.projectId);
+  }
+
+  toUpdateTitleCommand(
+    insightId: string,
+    dataMartId: string,
+    context: AuthorizationContext,
+    dto: UpdateInsightTitleApiDto
+  ): UpdateInsightTitleCommand {
+    return new UpdateInsightTitleCommand(insightId, dataMartId, context.projectId, dto.title);
   }
 }

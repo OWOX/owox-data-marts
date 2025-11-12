@@ -10,8 +10,10 @@ import {
   getSchemaPath,
 } from '@nestjs/swagger';
 import { CreateInsightRequestApiDto } from '../../dto/presentation/create-insight-request-api.dto';
+import { InsightListItemResponseApiDto } from '../../dto/presentation/insight-list-item-response-api.dto';
 import { InsightResponseApiDto } from '../../dto/presentation/insight-response-api.dto';
 import { UpdateInsightRequestApiDto } from '../../dto/presentation/update-insight-request-api.dto';
+import { UpdateInsightTitleApiDto } from '../../dto/presentation/update-insight-title-api.dto';
 
 export function CreateInsightSpec() {
   return applyDecorators(
@@ -35,14 +37,14 @@ export function ListInsightsSpec() {
   return applyDecorators(
     ApiOperation({ summary: 'List Insights for a DataMart' }),
     ApiParam({ name: 'dataMartId', description: 'DataMart ID' }),
-    ApiExtraModels(InsightResponseApiDto),
+    ApiExtraModels(InsightListItemResponseApiDto),
     ApiOkResponse({
       schema: {
         type: 'object',
         properties: {
           data: {
             type: 'array',
-            items: { $ref: getSchemaPath(InsightResponseApiDto) },
+            items: { $ref: getSchemaPath(InsightListItemResponseApiDto) },
           },
         },
       },
@@ -66,5 +68,15 @@ export function DeleteInsightSpec() {
     ApiParam({ name: 'dataMartId', description: 'DataMart ID' }),
     ApiParam({ name: 'insightId', description: 'Insight ID' }),
     ApiNoContentResponse({ description: 'Insight deleted' })
+  );
+}
+
+export function UpdateInsightTitleSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Update Insight title' }),
+    ApiParam({ name: 'dataMartId', description: 'DataMart ID' }),
+    ApiParam({ name: 'insightId', description: 'Insight ID' }),
+    ApiBody({ type: UpdateInsightTitleApiDto }),
+    ApiOkResponse({ type: InsightResponseApiDto })
   );
 }

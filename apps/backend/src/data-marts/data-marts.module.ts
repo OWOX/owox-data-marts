@@ -105,6 +105,7 @@ import { CreateInsightService } from './use-cases/create-insight.service';
 import { GetInsightService } from './use-cases/get-insight.service';
 import { ListInsightsService } from './use-cases/list-insights.service';
 import { UpdateInsightService } from './use-cases/update-insight.service';
+import { UpdateInsightTitleService } from './use-cases/update-insight-title.service';
 import { DeleteInsightService } from './use-cases/delete-insight.service';
 
 @Module({
@@ -188,6 +189,7 @@ import { DeleteInsightService } from './use-cases/delete-insight.service';
     GetInsightService,
     ListInsightsService,
     UpdateInsightService,
+    UpdateInsightTitleService,
     DeleteInsightService,
     AvailableConnectorService,
     ConnectorService,

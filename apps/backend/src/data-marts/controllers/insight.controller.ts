@@ -4,11 +4,13 @@ import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../i
 import { CreateInsightRequestApiDto } from '../dto/presentation/create-insight-request-api.dto';
 import { InsightResponseApiDto } from '../dto/presentation/insight-response-api.dto';
 import { UpdateInsightRequestApiDto } from '../dto/presentation/update-insight-request-api.dto';
+import { UpdateInsightTitleApiDto } from '../dto/presentation/update-insight-title-api.dto';
 import { InsightMapper } from '../mappers/insight.mapper';
 import { CreateInsightService } from '../use-cases/create-insight.service';
 import { DeleteInsightService } from '../use-cases/delete-insight.service';
 import { GetInsightService } from '../use-cases/get-insight.service';
 import { ListInsightsService } from '../use-cases/list-insights.service';
+import { UpdateInsightTitleService } from '../use-cases/update-insight-title.service';
 import { UpdateInsightService } from '../use-cases/update-insight.service';
 import {
   CreateInsightSpec,
@@ -16,6 +18,7 @@ import {
   GetInsightSpec,
   ListInsightsSpec,
   UpdateInsightSpec,
+  UpdateInsightTitleSpec,
 } from './spec/insight.api';
 
 @Controller('data-marts/:dataMartId/insights')
@@ -27,6 +30,7 @@ export class InsightController {
     private readonly listInsightsService: ListInsightsService,
     private readonly updateInsightService: UpdateInsightService,
     private readonly deleteInsightService: DeleteInsightService,
+    private readonly updateInsightTitleService: UpdateInsightTitleService,
     private readonly mapper: InsightMapper
   ) {}
 
@@ -52,7 +56,7 @@ export class InsightController {
   ): Promise<{ data: InsightResponseApiDto[] }> {
     const command = this.mapper.toListCommand(dataMartId, context);
     const insights = await this.listInsightsService.run(command);
-    return { data: this.mapper.toResponseList(insights) };
+    return { data: this.mapper.toListItemResponseList(insights) };
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
@@ -79,6 +83,20 @@ export class InsightController {
   ): Promise<InsightResponseApiDto> {
     const command = this.mapper.toUpdateCommand(insightId, dataMartId, context, dto);
     const insight = await this.updateInsightService.run(command);
+    return this.mapper.toResponse(insight);
+  }
+
+  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Put(':insightId/title')
+  @UpdateInsightTitleSpec()
+  async updateTitle(
+    @AuthContext() context: AuthorizationContext,
+    @Param('dataMartId') dataMartId: string,
+    @Param('insightId') insightId: string,
+    @Body() dto: UpdateInsightTitleApiDto
+  ): Promise<InsightResponseApiDto> {
+    const command = this.mapper.toUpdateTitleCommand(insightId, dataMartId, context, dto);
+    const insight = await this.updateInsightTitleService.run(command);
     return this.mapper.toResponse(insight);
   }
 
