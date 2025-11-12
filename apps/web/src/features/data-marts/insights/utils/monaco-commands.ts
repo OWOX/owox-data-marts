@@ -14,6 +14,10 @@ const allSlashCommands: SlashCommand[] = [
   },
 ];
 
+// To avoid duplicate providers when the editor mounts multiple times, keep track of
+// which languages already have a registered provider in this module scope.
+const registeredLanguages = new Set<string>();
+
 /**
  * Registers a completion item provider for slash commands in the Monaco editor.
  * This method enables auto-completion for commands starting with a forward slash (/)
@@ -27,6 +31,9 @@ export function registerSlashCommandProvider(
   monaco: typeof import('monaco-editor'),
   languageId: string
 ) {
+  // Prevent duplicate registration for the same language
+  if (registeredLanguages.has(languageId)) return;
+
   monaco.languages.registerCompletionItemProvider(languageId, {
     triggerCharacters: ['/'],
 
@@ -89,4 +96,6 @@ export function registerSlashCommandProvider(
       return { suggestions: [] };
     },
   });
+
+  registeredLanguages.add(languageId);
 }
