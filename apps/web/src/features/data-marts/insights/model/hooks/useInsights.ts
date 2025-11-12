@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { InsightsActionType } from '../reducer/actions';
-import { insightsService } from '../services/insights.service';
+import { insightsService } from '../services';
 import {
   mapInsightFromDto,
   mapInsightListFromDto,
@@ -33,6 +33,22 @@ export function useInsights() {
       throw error;
     }
   }, [dataMart.id, dispatch]);
+
+  const getInsight = useCallback(
+    async (id: string): Promise<InsightEntity | null> => {
+      dispatch({ type: InsightsActionType.GET_INSIGHT_START });
+      try {
+        const response = await insightsService.getInsightById(dataMart.id, id);
+        const insight = mapInsightFromDto(response);
+        dispatch({ type: InsightsActionType.GET_INSIGHT_SUCCESS, payload: insight });
+        return insight;
+      } catch (error) {
+        dispatch({ type: InsightsActionType.GET_INSIGHT_ERROR, payload: extractApiError(error) });
+        throw error;
+      }
+    },
+    [dataMart.id, dispatch]
+  );
 
   const createInsight = useCallback(
     async (data: { title: string; template?: string | null }) => {
@@ -109,9 +125,12 @@ export function useInsights() {
 
   return {
     insights: state.insights,
+    currentInsight: state.currentInsight,
     loading: state.loading,
+    currentLoading: state.currentLoading,
     error: state.error,
     fetchInsights,
+    getInsight,
     createInsight,
     updateInsight,
     deleteInsight,
