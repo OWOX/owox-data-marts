@@ -30,13 +30,13 @@ const MicrosoftAdsHelper = {
    */
   async pollUntilStatus({ url, options, isDone, interval = 5000 }) {
     const startTime = Date.now();
-    const timeout = 15 * 60 * 1000; // 15 minutes in ms
+    const timeout = 30 * 60 * 1000; // 30 minutes in ms
     let statusResult;
 
     try {
       do {
         if (Date.now() - startTime > timeout) {
-          throw new Error('Polling timed out after 15 minutes');
+          throw new Error('Polling timed out after 30 minutes');
         }
         await AsyncUtils.delay(interval);
         const response = await HttpUtils.fetch(url, options);
