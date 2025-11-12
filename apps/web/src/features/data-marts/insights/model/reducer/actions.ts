@@ -6,6 +6,10 @@ export enum InsightsActionType {
   FETCH_INSIGHTS_SUCCESS = 'FETCH_INSIGHTS_SUCCESS',
   FETCH_INSIGHTS_ERROR = 'FETCH_INSIGHTS_ERROR',
 
+  GET_INSIGHT_START = 'GET_INSIGHT_START',
+  GET_INSIGHT_SUCCESS = 'GET_INSIGHT_SUCCESS',
+  GET_INSIGHT_ERROR = 'GET_INSIGHT_ERROR',
+
   CREATE_INSIGHT_START = 'CREATE_INSIGHT_START',
   CREATE_INSIGHT_SUCCESS = 'CREATE_INSIGHT_SUCCESS',
   CREATE_INSIGHT_ERROR = 'CREATE_INSIGHT_ERROR',
@@ -25,6 +29,9 @@ export type InsightsAction =
   | { type: InsightsActionType.FETCH_INSIGHTS_START }
   | { type: InsightsActionType.FETCH_INSIGHTS_SUCCESS; payload: InsightEntity[] }
   | { type: InsightsActionType.FETCH_INSIGHTS_ERROR; payload: ApiError }
+  | { type: InsightsActionType.GET_INSIGHT_START }
+  | { type: InsightsActionType.GET_INSIGHT_SUCCESS; payload: InsightEntity }
+  | { type: InsightsActionType.GET_INSIGHT_ERROR; payload: ApiError }
   | { type: InsightsActionType.CREATE_INSIGHT_START }
   | { type: InsightsActionType.CREATE_INSIGHT_SUCCESS; payload: InsightEntity }
   | { type: InsightsActionType.CREATE_INSIGHT_ERROR; payload: ApiError }

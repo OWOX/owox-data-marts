@@ -17,7 +17,6 @@ export class InsightsService extends ApiService {
   }
 
   async getInsights(dataMartId: string): Promise<InsightListResponseDto> {
-    console.log(MOCK_INSIGHTS_ENABLED);
     if (MOCK_INSIGHTS_ENABLED) {
       // Temporary mock for Insights list until backend API is available
       return Promise.resolve(mockInsightsListDto);
@@ -26,6 +25,12 @@ export class InsightsService extends ApiService {
   }
 
   async getInsightById(dataMartId: string, id: string): Promise<InsightResponseDto> {
+    if (MOCK_INSIGHTS_ENABLED) {
+      // Temporary mock for Insights list until backend API is available
+      return Promise.resolve(
+        mockInsightsListDto.data.find(insight => insight.id === id) ?? mockInsightsListDto.data[0]
+      );
+    }
     return this.get<InsightResponseDto>(`/${dataMartId}/insights/${id}`);
   }
 
