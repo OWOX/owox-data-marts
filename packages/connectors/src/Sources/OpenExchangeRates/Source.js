@@ -24,7 +24,7 @@ constructor(config) {
         requiredType: "date",
         label: "Start Date",
         description: "Start date for data import",
-        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL]
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
       EndDate: {
         requiredType: "date",
@@ -37,7 +37,8 @@ constructor(config) {
         isRequired: true,
         default: 2,
         label: "Reimport Lookback Window",
-        description: "Number of days to look back when reimporting data"
+        description: "Number of days to look back when reimporting data",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       Symbols: {
         requiredType: "string",
@@ -49,7 +50,8 @@ constructor(config) {
         isRequired: true,
         default: "USD",
         label: "Base Currency",
-        description: "Base currency for exchange rates (available for Developer+ plans)"
+        description: "Base currency for exchange rates (available for Developer+ plans)",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       CreateEmptyTables: {
         requiredType: "boolean",

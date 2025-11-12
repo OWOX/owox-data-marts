@@ -46,7 +46,7 @@ var XAdsSource = class XAdsSource extends AbstractSource {
         requiredType: "date",
         label: "Start Date",
         description: "Start date for data import",
-        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL]
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
       EndDate: {
         requiredType: "date",
@@ -59,42 +59,49 @@ var XAdsSource = class XAdsSource extends AbstractSource {
         isRequired: true,
         default: 2,
         label: "Reimport Lookback Window",
-        description: "Number of days to look back when reimporting data"
+        description: "Number of days to look back when reimporting data",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       CleanUpToKeepWindow: {
         requiredType: "number",
         label: "Clean Up To Keep Window",
-        description: "Number of days to keep data before cleaning up"
+        description: "Number of days to keep data before cleaning up",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       Version: {
         requiredType: "string",
         default: "12",
         label: "API Version",
-        description: "X Ads API version"
+        description: "X Ads API version",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       DataMaxCount: {
         requiredType: "number",
         default: 1000,
         label: "Max Data Count",
-        description: "Maximum number of records to fetch per request"
+        description: "Maximum number of records to fetch per request",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       CardsMaxCountPerRequest: {
         requiredType: "number",
         default: 20,
         label: "Max Cards Per Request",
-        description: "Maximum number of cards to fetch per request"
+        description: "Maximum number of cards to fetch per request",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       AdsApiDelay: {
         requiredType: "number",
         default: 3.65,
         label: "API Delay (seconds)",
-        description: "Delay between API requests in seconds"
+        description: "Delay between API requests in seconds",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       StatsMaxEntityIds: {
         requiredType: "number",
         default: 20,
         label: "Max Stats Entity IDs",
-        description: "Maximum number of entity_ids allowed per request for stats endpoint"
+        description: "Maximum number of entity_ids allowed per request for stats endpoint",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       CreateEmptyTables: {
         requiredType: "boolean",
