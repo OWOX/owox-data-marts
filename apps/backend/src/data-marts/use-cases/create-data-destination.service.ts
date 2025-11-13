@@ -1,3 +1,4 @@
+import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
 import { CreateDataDestinationCommand } from '../dto/domain/create-data-destination.command';
 import { Repository } from 'typeorm';
 import { DataDestination } from '../entities/data-destination.entity';
@@ -15,10 +16,13 @@ export class CreateDataDestinationService {
     private readonly repository: Repository<DataDestination>,
     private readonly mapper: DataDestinationMapper,
     private readonly credentialsValidator: DataDestinationCredentialsValidatorFacade,
-    private readonly credentialsProcessor: DataDestinationCredentialsProcessorFacade
+    private readonly credentialsProcessor: DataDestinationCredentialsProcessorFacade,
+    private readonly availableDestinationTypesService: AvailableDestinationTypesService
   ) {}
 
   async run(command: CreateDataDestinationCommand): Promise<DataDestinationDto> {
+    this.availableDestinationTypesService.verifyIsAllowed(command.type);
+
     await this.credentialsValidator.checkCredentials(command.type, command.credentials);
 
     // Process credentials before saving (generates backend-managed fields if needed)

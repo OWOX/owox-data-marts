@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { GracefulShutdownService } from '../../common/scheduler/services/graceful-shutdown.service';
 import { TypeResolver } from '../../common/resolver/type-resolver';
+import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
 import { DATA_DESTINATION_REPORT_WRITER_RESOLVER } from '../data-destination-types/data-destination-providers';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { DataDestinationReportWriter } from '../data-destination-types/interfaces/data-destination-report-writer.interface';
@@ -36,7 +37,8 @@ export class RunReportService {
     >,
     private readonly dataMartService: DataMartService,
     private readonly dataMartRunService: DataMartRunService,
-    private readonly gracefulShutdownService: GracefulShutdownService
+    private readonly gracefulShutdownService: GracefulShutdownService,
+    private readonly availableDestinationTypesService: AvailableDestinationTypesService
   ) {}
 
   runInBackground(command: RunReportCommand): void {
@@ -86,6 +88,8 @@ export class RunReportService {
     const dataMartRunFinishContext: ReportRunFinishContext = { status: DataMartRunStatus.SUCCESS };
 
     try {
+      this.availableDestinationTypesService.verifyIsAllowed(report.dataDestination.type);
+
       this.gracefulShutdownService.registerActiveProcess(processId);
 
       // actualizing schemas before run
