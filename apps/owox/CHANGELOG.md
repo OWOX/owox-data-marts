@@ -1,5 +1,128 @@
 # owox
 
+## 0.12.0
+
+### Minor Changes 0.12.0
+
+- bd09d56: # Enhanced Run History: Google Sheets Reports and Looker Studio Data Fetching
+
+  The Run History tab now displays all Data Mart runs in one place:
+  - Google Sheets Export report runs and Looker Studio report runs are now tracked in Run History alongside Connector runs
+  - Each run shows its title, connector logo or destination icon, start datetime, and trigger type (manual/scheduled)
+  - Hover over start time to see detailed start/finish datetimes and execution duration
+  - Added "Pending" status for queued operations
+  - **All historical Runs before the update are considered manual**
+
+- ba8ca14: # Improve ConnectorEditForm with Auto-Save and Smarter DataMartDefinition Handling
+
+  This update enhances the connector setup experience with automatic saving, improved validation, and better handling of connector configurations.
+  - Added **auto-saving** for connector settings in the ConnectorEditForm
+  - Introduced **safeguards for unsaved changes** to prevent data loss
+  - Enabled **auto-updates** for `DataMartDefinition` upon form submission
+  - Refactored related components for **clearer validation** and **smoother configuration flow**
+
+- 5c98ca4: # Safer and Smoother Connector Editing Experience
+
+  We’ve made it easier — and safer — to edit your connector settings.
+  Now, if you make changes and try to close the form before saving, you’ll see a confirmation dialog to prevent losing your work.
+
+  We’ve also simplified how configuration details are managed and improved tooltips for better clarity — so you can focus on setting up your data connections with confidence and less friction.
+
+- e2da6ef: # Facebook Connector: Added support for nested creative fields in ad-group endpoint
+
+  New flat fields available:
+  - `creative_id` - Unique ID for the ad creative
+  - `creative_name` - Name of the ad creative
+  - `creative_url_tags` - UTM parameters and URL tags
+  - `creative_object_story_spec` - Object story spec with page_id and other details
+  - `creative_effective_object_story_id` - Page post ID used in the ad
+
+- 66e494d: # Fixed false error notification about actualizing schema
+
+  When configuring the Connector-based Data Mart, attempts to update the table schema would cause users to receive an error message in the UI that was not actually an error. For the Connector-based Data Mart, the table and schema are created on first run, so attempting to update the schema before the first run would result in an error in the UI. Now updating schema trigger checks the Data Mart type and doesn't try for these cases
+
+- 061b00c: # Refactor connector execution architecture by removing the standalone `@owox/connector-runner` package and integrating its functionality directly into `@owox/connectors` package
+
+  **Breaking changes:**
+  - Removed `@owox/connector-runner` package entirely
+  - Moved connector execution logic to `@owox/connectors/src/connector-runner.js`
+  - Migrated DTOs to `@owox/connectors/src/Core/Dto/`
+
+  **Improvements:**
+  - Simplified dependency management by consolidating connector-related packages
+  - Updated connector execution service to use new DTOs and exports from connectors package
+  - Removed redundant GitHub workflows for connector-runner
+  - Cleaned up repository structure
+
+- 961140b: # Remove `@kaciras/deasync` and `sync-request` dependencies and migrate to async/await
+
+  This is a minor breaking change that removes the `@kaciras/deasync` and `sync-request` dependencies from connectors package and migrates all synchronous blocking code to modern async/await patterns.
+
+  **Changes:**
+  - Removed `@kaciras/deasync` dependency
+  - Removed `sync-request` dependency
+  - Removed Google Apps Script support - Only Node.js environment is now supported
+  - Refactored `EnvironmentAdapter` into specialized utility classes:
+    - `HttpUtils` - HTTP requests
+    - `DateUtils` - Date formatting
+    - `AsyncUtils` - Async delays
+    - `CryptoUtils` - Cryptographic operations
+    - `FileUtils` - File parsing and decompression
+  - Removed `ENVIRONMENT` enum and environment detection logic
+  - Updated connector documentation
+
+- 87aed3f: # Show Connector State in Manual Run
+  - In Manual Run → State Info for incremental runs, you can now view the Connector State.
+  - For connectors with multiple configurations, the state is shown for each configuration with a "Created at" tooltip.
+  - If no state is available, we show "No state available".
+  - The state is displayed as read-only JSON with a copy option.
+
+  This helps you quickly understand where incremental loading will continue from and simplifies troubleshooting.
+
+- f97c4e7: # Add new Facebook Marketing insights endpoints and improve Facebook field schema filtering
+
+  Introduced several new **Facebook Marketing API insights** endpoints with specific breakdowns:
+  - `ad-account/insights-by-age-and-gender` — provides age and gender breakdowns
+  - `ad-account/insights-by-device-platform` — provides device platform breakdown
+  - `ad-account/insights-by-product-id` — provides product ID breakdown
+  - `ad-account/insights-by-publisher-platform` and
+    `ad-account/insights-by-publisher-platform-and-position` — provide publisher platform and platform position breakdowns
+  - `ad-account/insights-by-region` — provides region-level breakdown
+
+  ⚠️ Breaking Changes
+  The legacy `ad-account/insights` endpoint **no longer supports breakdown fields**.
+
+  If your Data Mart previously used `ad-account/insights` with breakdowns (such as `age`, `gender`, `country`, `device_platform`, `link_url_asset`, `product_id`, `publisher_platform`, `platform_position`, or `region`),
+  please migrate to the appropriate new endpoint:
+
+  | Breakdown Type                | New Endpoint                                             |
+  | ----------------------------- | -------------------------------------------------------- |
+  | Age / Gender                  | `ad-account/insights-by-age-and-gender`                  |
+  | Country                       | `ad-account/insights-by-country`                         |
+  | Device Platform               | `ad-account/insights-by-device-platform`                 |
+  | Link URL Asset                | `ad-account/insights-by-link-url-asset`                  |
+  | Product ID                    | `ad-account/insights-by-product-id`                      |
+  | Publisher Platform / Position | `ad-account/insights-by-publisher-platform-and-position` |
+  | Region                        | `ad-account/insights-by-region`                          |
+
+  ***
+
+  **Recommendation:**
+  Recreate your Data Mart using the correct endpoint to ensure compatibility with the latest Facebook Marketing API structure.
+
+- cd3bcd9: # Hidden optional connector config knobs
+
+  Marked shared connector config fields as either hidden manual backfill dates or “Advanced” tuning options so the UI only surfaces essential settings by default.
+
+### Patch Changes 0.12.0
+
+- @owox/internal-helpers@0.12.0
+- @owox/idp-protocol@0.12.0
+- @owox/idp-better-auth@0.12.0
+- @owox/idp-owox@0.12.0
+- @owox/backend@0.12.0
+- @owox/web@0.12.0
+
 ## 0.11.0
 
 ### Minor Changes 0.11.0
