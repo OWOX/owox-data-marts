@@ -3,7 +3,7 @@ import { ConsumptionTrackingService } from '../../../services/consumption-tracki
 import { DataDestinationReportWriter } from '../../interfaces/data-destination-report-writer.interface';
 import { DataDestinationType } from '../../enums/data-destination-type.enum';
 import { Inject, Injectable, Logger, Scope } from '@nestjs/common';
-import { isGoogleSheetsDestination } from '../../data-destination-config.guards';
+import { isGoogleSheetsConfig } from '../../data-destination-config.guards';
 import { isGoogleSheetsCredentials } from '../../data-destination-credentials.guards';
 import { GoogleSheetsConfig } from '../schemas/google-sheets-config.schema';
 import { DateTime } from 'luxon';
@@ -150,7 +150,7 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
    */
   private async initializeService(report: Report): Promise<void> {
     return this.executeWithErrorHandling(async () => {
-      if (!isGoogleSheetsDestination(report.destinationConfig)) {
+      if (!isGoogleSheetsConfig(report.destinationConfig)) {
         throw new Error('Invalid Google Sheets destination configuration provided');
       }
       this.destination = report.destinationConfig;
