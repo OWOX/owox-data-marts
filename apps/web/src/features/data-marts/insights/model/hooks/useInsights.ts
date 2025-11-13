@@ -123,6 +123,36 @@ export function useInsights() {
     [dataMart.id, dispatch]
   );
 
+  const updateInsightTitle = useCallback(
+    async (id: string, title: string) => {
+      dispatch({ type: InsightsActionType.UPDATE_INSIGHT_START });
+      try {
+        const response = await insightsService.updateInsightTitle(dataMart.id, id, { title });
+        const insightFromDto = mapInsightFromDto(response);
+        const activeInsight = state.insights.find(i => i.id === id) || state.currentInsight;
+        const updatedInsight = activeInsight
+          ? { ...insightFromDto, template: activeInsight.template }
+          : insightFromDto;
+        dispatch({ type: InsightsActionType.UPDATE_INSIGHT_SUCCESS, payload: updatedInsight });
+        trackEvent({
+          event: 'insight_title_updated',
+          category: 'Insights',
+          action: 'Update title',
+          label: updatedInsight.id,
+        });
+        toast.success('Title updated');
+        return updatedInsight;
+      } catch (error) {
+        dispatch({
+          type: InsightsActionType.UPDATE_INSIGHT_ERROR,
+          payload: extractApiError(error),
+        });
+        return null;
+      }
+    },
+    [dataMart.id, dispatch, state.currentInsight, state.insights]
+  );
+
   return {
     insights: state.insights,
     currentInsight: state.currentInsight,
@@ -133,6 +163,7 @@ export function useInsights() {
     getInsight,
     createInsight,
     updateInsight,
+    updateInsightTitle,
     deleteInsight,
   };
 }

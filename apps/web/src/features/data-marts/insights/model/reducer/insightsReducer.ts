@@ -17,6 +17,11 @@ export function insightsReducer(state: InsightsState, action: InsightsAction): I
         error: null,
       };
     case InsightsActionType.CREATE_INSIGHT_START:
+      return {
+        ...state,
+        currentLoading: true,
+        error: null,
+      };
     case InsightsActionType.UPDATE_INSIGHT_START:
       return {
         ...state,
@@ -47,14 +52,15 @@ export function insightsReducer(state: InsightsState, action: InsightsAction): I
         ...state,
         insights: [...state.insights, action.payload],
         loading: false,
+        currentLoading: false,
         error: null,
       };
     case InsightsActionType.UPDATE_INSIGHT_SUCCESS:
       return {
         ...state,
         insights: state.insights.map(i => (i.id === action.payload.id ? action.payload : i)),
-        // also update currentInsight if it matches
-        currentInsight: state.currentInsight?.id === action.payload.id ? action.payload : state.currentInsight,
+        currentInsight:
+          state.currentInsight?.id === action.payload.id ? action.payload : state.currentInsight,
         loading: false,
         error: null,
       };
@@ -62,7 +68,6 @@ export function insightsReducer(state: InsightsState, action: InsightsAction): I
       return {
         ...state,
         insights: state.insights.filter(i => i.id !== action.payload),
-        // clear currentInsight if it was deleted
         currentInsight: state.currentInsight?.id === action.payload ? null : state.currentInsight,
         loading: false,
         error: null,
@@ -80,6 +85,12 @@ export function insightsReducer(state: InsightsState, action: InsightsAction): I
         error: action.payload,
       };
     case InsightsActionType.CREATE_INSIGHT_ERROR:
+      return {
+        ...state,
+        loading: false,
+        currentLoading: false,
+        error: action.payload,
+      };
     case InsightsActionType.UPDATE_INSIGHT_ERROR:
     case InsightsActionType.DELETE_INSIGHT_ERROR:
       return {

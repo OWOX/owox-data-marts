@@ -6,10 +6,9 @@ import type {
   InsightResponseDto,
   UpdateInsightRequestDto,
   UpdateInsightResponseDto,
+  UpdateInsightTitleRequestDto,
+  UpdateInsightTitleResponseDto,
 } from '../types';
-import { mockInsightsListDto } from './insights.mock';
-
-const MOCK_INSIGHTS_ENABLED = Boolean(import.meta.env.VITE_MOCK_INSIGHTS);
 
 export class InsightsService extends ApiService {
   constructor() {
@@ -17,20 +16,10 @@ export class InsightsService extends ApiService {
   }
 
   async getInsights(dataMartId: string): Promise<InsightListResponseDto> {
-    if (MOCK_INSIGHTS_ENABLED) {
-      // Temporary mock for Insights list until backend API is available
-      return Promise.resolve(mockInsightsListDto);
-    }
     return this.get<InsightListResponseDto>(`/${dataMartId}/insights`);
   }
 
   async getInsightById(dataMartId: string, id: string): Promise<InsightResponseDto> {
-    if (MOCK_INSIGHTS_ENABLED) {
-      // Temporary mock for Insights list until backend API is available
-      return Promise.resolve(
-        mockInsightsListDto.data.find(insight => insight.id === id) ?? mockInsightsListDto.data[0]
-      );
-    }
     return this.get<InsightResponseDto>(`/${dataMartId}/insights/${id}`);
   }
 
@@ -47,6 +36,14 @@ export class InsightsService extends ApiService {
     data: UpdateInsightRequestDto
   ): Promise<UpdateInsightResponseDto> {
     return this.put<UpdateInsightResponseDto>(`/${dataMartId}/insights/${id}`, data);
+  }
+
+  async updateInsightTitle(
+    dataMartId: string,
+    id: string,
+    data: UpdateInsightTitleRequestDto
+  ): Promise<UpdateInsightTitleResponseDto> {
+    return this.put<UpdateInsightTitleResponseDto>(`/${dataMartId}/insights/${id}/title`, data);
   }
 
   async deleteInsight(dataMartId: string, id: string): Promise<void> {

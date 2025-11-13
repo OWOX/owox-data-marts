@@ -6,7 +6,7 @@ export const useInsightData = () => {
   const navigate = useNavigate();
   const { insightId } = useParams<{ insightId: string }>();
 
-  const { updateInsight, deleteInsight, getInsight, currentInsight } = useInsights();
+  const { updateInsight, updateInsightTitle, deleteInsight, getInsight, currentInsight } = useInsights();
 
   // Fetch the insight on demand when insightId changes
   useEffect(() => {
@@ -26,6 +26,7 @@ export const useInsightData = () => {
     insight,
     insightId,
     updateInsight,
+    updateInsightTitle,
     handleDelete,
   };
 };

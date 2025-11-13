@@ -10,26 +10,22 @@ const insightFormSchema = z.object({
 });
 export type InsightForm = z.infer<typeof insightFormSchema>;
 
-// Тип для функції оновлення, яку ми передамо з useInsightData
-// type UpdateInsightFunction = (
-//   id: string,
-//   payload: { title: string; template?: string | null }
-// ) => Promise<InsightEntity | undefined>;
-
 export const useInsightForm = (
   insight: InsightEntity | undefined,
   updateInsight: (
     id: string,
     data: { title: string; template?: string | null }
-  ) => Promise<InsightEntity | null>
+  ) => Promise<InsightEntity | null>,
+  updateInsightTitle: (id: string, title: string) => Promise<InsightEntity | null>
 ) => {
   const {
     register,
     watch,
     handleSubmit,
     reset,
+    resetField,
     setValue,
-    formState: { isDirty, isSubmitting },
+    formState: { isSubmitting, dirtyFields },
   } = useForm<InsightForm>({
     resolver: zodResolver(insightFormSchema),
     defaultValues: {
@@ -38,20 +34,21 @@ export const useInsightForm = (
     },
   });
 
-  // Скидання форми при зміні обраного інсайту
   useEffect(() => {
     reset({ title: insight?.title ?? '', template: insight?.template ?? '' });
-  }, [insight?.id, insight?.title, insight?.template, reset]);
+  }, [insight?.id, insight?.template, reset]);
 
-  // Обробник оновлення заголовка (з InlineEditTitle)
   const handleTitleUpdate = useCallback(
     async (newTitle: string) => {
-      setValue('title', newTitle, { shouldDirty: true, shouldValidate: true });
+      if (!insight) return;
+      const trimmedTitle = newTitle.trim();
+      setValue('title', trimmedTitle, { shouldDirty: true, shouldValidate: true });
+      await updateInsightTitle(insight.id, trimmedTitle);
+      resetField('title', { defaultValue: trimmedTitle });
     },
-    [setValue]
+    [insight, resetField, setValue, updateInsightTitle]
   );
 
-  // Обробник відправки форми
   const onSubmit = useCallback(
     async (values: InsightForm) => {
       if (!insight) return;
@@ -61,7 +58,6 @@ export const useInsightForm = (
       } as { title: string; template?: string | null };
       const updated = await updateInsight(insight.id, payload);
       if (updated) {
-        // Оновлюємо форму після успішного збереження
         reset({ title: updated.title, template: updated.template ?? '' });
       }
     },
@@ -70,12 +66,13 @@ export const useInsightForm = (
 
   const titleValue = watch('title');
   const templateValue = watch('template');
+  const isTemplateDirty = Boolean(dirtyFields?.template);
 
   return {
     register,
     handleSubmit,
     setValue,
-    isDirty,
+    isTemplateDirty,
     isSubmitting,
     titleValue,
     templateValue,
