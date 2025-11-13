@@ -109,7 +109,8 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         requiredType: "boolean",
         default: true,
         label: "Create Empty Tables",
-        description: "Create tables with all columns even if no data is returned from API (true/false)"
+        description: "Create tables with all columns even if no data is returned from API (true/false)",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       ReimportLookbackWindow: {
         requiredType: "number",

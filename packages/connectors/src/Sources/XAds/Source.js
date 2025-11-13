@@ -107,7 +107,8 @@ var XAdsSource = class XAdsSource extends AbstractSource {
         requiredType: "boolean",
         default: true,
         label: "Create Empty Tables",
-        description: "Create tables with all columns even if no data is returned from API"
+        description: "Create tables with all columns even if no data is returned from API",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       }
     }));
 
