@@ -11,16 +11,17 @@ export const mapDataMartRunResponseDtoToEntity = (
   id: dto.id,
   status: dto.status as DataMartRunStatus,
   createdAt: new Date(dto.createdAt),
-  logs: dto.logs,
-  errors: dto.errors,
-  definitionRun: dto.definitionRun ? (dto.definitionRun as DataMartDefinitionConfig) : null,
-  type: dto.type ? (dto.type as DataMartRunType) : null,
-  triggerType: dto.runType ? (dto.runType as DataMartRunTriggerType) : null,
+  logs: dto.logs ?? [],
+  errors: dto.errors ?? [],
+  definitionRun: dto.definitionRun as DataMartDefinitionConfig,
+  type: dto.type as DataMartRunType,
+  triggerType: dto.runType as DataMartRunTriggerType,
   startedAt: dto.startedAt ? new Date(dto.startedAt) : null,
   finishedAt: dto.finishedAt ? new Date(dto.finishedAt) : null,
   reportDefinition: dto.reportDefinition
     ? (dto.reportDefinition as DataMartRunReportDefinition)
     : null,
+  reportId: dto.reportId,
 });
 
 export const mapDataMartRunListResponseDtoToEntity = (

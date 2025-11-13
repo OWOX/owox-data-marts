@@ -7,14 +7,15 @@ import { DataMartRunReportDefinition } from '../schemas/data-mart-run/data-mart-
 export class DataMartRunDto {
   constructor(
     public readonly id: string,
-    public readonly status: DataMartRunStatus | null,
-    public readonly type: DataMartRunType | null,
-    public readonly runType: RunType | null,
+    public readonly status: DataMartRunStatus,
+    public readonly type: DataMartRunType,
+    public readonly runType: RunType,
     public readonly dataMartId: string,
-    public readonly definitionRun: DataMartDefinition | null,
+    public readonly definitionRun: DataMartDefinition,
+    public readonly reportId: string | null,
     public readonly reportDefinition: DataMartRunReportDefinition | null,
-    public readonly logs: string[],
-    public readonly errors: string[],
+    public readonly logs: string[] | null,
+    public readonly errors: string[] | null,
     public readonly createdAt: Date,
     public readonly startedAt: Date | null,
     public readonly finishedAt: Date | null

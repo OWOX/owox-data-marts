@@ -211,7 +211,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
   private async executeInBackground(
     dataMart: DataMart,
     run: DataMartRun,
-    payload?: Record<string, unknown>
+    payload?: Record<string, unknown> | null
   ): Promise<void> {
     const runId = run.id;
     const processId = `connector-run-${runId}`;
@@ -238,7 +238,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
       await this.dataMartRunRepository.update(runId, {
         status: DataMartRunStatus.RUNNING,
         startedAt: this.systemTimeService.now(),
-        finishedAt: undefined,
+        finishedAt: null,
       });
 
       const configurationResults = await this.runConnectorConfigurations(
@@ -325,7 +325,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     runId: string,
     processId: string,
     dataMart: DataMart,
-    payload?: Record<string, unknown>
+    payload?: Record<string, unknown> | null
   ): Promise<ConfigurationExecutionResult[]> {
     const definition = dataMart.definition as DataMartConnectorDefinition;
     const { connector } = definition;
@@ -569,7 +569,9 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     capturedLogs: ConnectorMessage[],
     capturedErrors: ConnectorMessage[]
   ): Promise<void> {
-    let status = capturedErrors.length > 0 ? DataMartRunStatus.FAILED : DataMartRunStatus.SUCCESS;
+    const hasLogs = capturedLogs.length > 0;
+    const hasErrors = capturedErrors.length > 0;
+    let status = hasErrors ? DataMartRunStatus.FAILED : DataMartRunStatus.SUCCESS;
     if (this.gracefulShutdownService.isInShutdownMode()) {
       status = DataMartRunStatus.INTERRUPTED;
     }
@@ -577,8 +579,8 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     await this.dataMartRunRepository.update(runId, {
       status,
       finishedAt: this.systemTimeService.now(),
-      logs: capturedLogs.map(log => JSON.stringify(log)),
-      errors: capturedErrors.map(error => JSON.stringify(error)),
+      logs: hasLogs ? capturedLogs.map(log => JSON.stringify(log)) : null,
+      errors: hasErrors ? capturedErrors.map(error => JSON.stringify(error)) : null,
     });
   }
 
@@ -676,7 +678,7 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
   }
 
   private getRunConfig(
-    payload?: Record<string, unknown>,
+    payload?: Record<string, unknown> | null,
     state?: ConnectorStateItem
   ): RunConfigDto {
     const type = payload?.runType || 'INCREMENTAL';

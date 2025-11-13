@@ -5,12 +5,13 @@ export interface DataMartRunResponseDto {
   id: string;
   status: string;
   createdAt: string;
-  logs: string[];
-  errors: string[];
-  definitionRun: DataMartDefinitionDto | null;
-  type: string | null;
-  runType: string | null;
+  logs: string[] | null;
+  errors: string[] | null;
+  definitionRun: DataMartDefinitionDto;
+  type: string;
+  runType: string;
   startedAt: string | null;
   finishedAt: string | null;
   reportDefinition: DataMartRunReportDefinitionDto | null;
+  reportId: string | null;
 }
