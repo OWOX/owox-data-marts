@@ -5,8 +5,6 @@
  * file that was distributed with this source code.
  */
 
-const { HttpRequestException } = require('../../utils/HttpRequestException');
-
 var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
   constructor(config) {
     super(config.mergeParameters({
