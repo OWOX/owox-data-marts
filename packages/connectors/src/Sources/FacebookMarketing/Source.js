@@ -28,7 +28,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
           requiredType: "date",
           label: "Start Date",
           description: "Start date for data import",
-          attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL]
+          attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
         },
         EndDate: {
           requiredType: "date",
@@ -45,25 +45,29 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
           requiredType: "boolean",
           default: true,
           label: "Process Short Links",
-          description: "Enable automatic processing of short links in link_url_asset field. Only available for ad-account/insights-by-link-url-asset endpoint as it requires breakdown by link_url_asset"
+          description: "Enable automatic processing of short links in link_url_asset field. Only available for ad-account/insights-by-link-url-asset endpoint as it requires breakdown by link_url_asset",
+          attributes: [CONFIG_ATTRIBUTES.ADVANCED]
         },
         CreateEmptyTables: {
           requiredType: "boolean",
           default: true,
           label: "Create Empty Tables",
-          description: "Create tables with all columns even if no data is returned from API (true/false)"
+          description: "Create tables with all columns even if no data is returned from API (true/false)",
+          attributes: [CONFIG_ATTRIBUTES.ADVANCED]
         },
         ReimportLookbackWindow: {
           requiredType: "number",
           isRequired: true,
           default: 2,
           label: "Reimport Lookback Window",
-          description: "Number of days to look back when reimporting data"
+          description: "Number of days to look back when reimporting data",
+          attributes: [CONFIG_ATTRIBUTES.ADVANCED]
         },
         CleanUpToKeepWindow: {
           requiredType: "number",
           label: "Clean Up To Keep Window",
-          description: "Number of days to keep data before cleaning up"
+          description: "Number of days to keep data before cleaning up",
+          attributes: [CONFIG_ATTRIBUTES.ADVANCED]
         }
       }));
       
