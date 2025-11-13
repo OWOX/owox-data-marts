@@ -4,14 +4,16 @@
 
 ### Minor Changes 0.12.0
 
+![OWOX Data Marts – v0.12.0](https://github.com/user-attachments/assets/edd235e0-183b-4fde-b7bd-721c11dbe261)
+
 - bd09d56: # Enhanced Run History: Google Sheets Reports and Looker Studio Data Fetching
 
-  The Run History tab now displays all Data Mart runs in one place:
+  The **Run History tab now displays all Data Mart runs** in one place:
   - Google Sheets Export report runs and Looker Studio report runs are now tracked in Run History alongside Connector runs
   - Each run shows its title, connector logo or destination icon, start datetime, and trigger type (manual/scheduled)
   - Hover over start time to see detailed start/finish datetimes and execution duration
   - Added "Pending" status for queued operations
-  - **All historical Runs before the update are considered manual**
+  - ☝️ All historical Runs before the update are considered manual
 
 - ba8ca14: # Improve ConnectorEditForm with Auto-Save and Smarter DataMartDefinition Handling
 
@@ -24,7 +26,7 @@
 - 5c98ca4: # Safer and Smoother Connector Editing Experience
 
   We’ve made it easier — and safer — to edit your connector settings.
-  Now, if you make changes and try to close the form before saving, you’ll see a confirmation dialog to prevent losing your work.
+  Now, if you make changes and try to close the form before saving, you’ll see a **confirmation dialog to prevent losing your work**.
 
   We’ve also simplified how configuration details are managed and improved tooltips for better clarity — so you can focus on setting up your data connections with confidence and less friction.
 
@@ -37,13 +39,13 @@
   - `creative_object_story_spec` - Object story spec with page_id and other details
   - `creative_effective_object_story_id` - Page post ID used in the ad
 
-- 66e494d: # Fixed false error notification about actualizing schema
+- 66e494d: # **Fixed false error notification** about actualizing schema
 
   When configuring the Connector-based Data Mart, attempts to update the table schema would cause users to receive an error message in the UI that was not actually an error. For the Connector-based Data Mart, the table and schema are created on first run, so attempting to update the schema before the first run would result in an error in the UI. Now updating schema trigger checks the Data Mart type and doesn't try for these cases
 
 - 061b00c: # Refactor connector execution architecture by removing the standalone `@owox/connector-runner` package and integrating its functionality directly into `@owox/connectors` package
 
-  **Breaking changes:**
+  **⚠️ Breaking changes:**
   - Removed `@owox/connector-runner` package entirely
   - Moved connector execution logic to `@owox/connectors/src/connector-runner.js`
   - Migrated DTOs to `@owox/connectors/src/Core/Dto/`
@@ -71,7 +73,7 @@
   - Removed `ENVIRONMENT` enum and environment detection logic
   - Updated connector documentation
 
-- 87aed3f: # Show Connector State in Manual Run
+- 87aed3f: # **Show Connector State in Manual Run menu**
   - In Manual Run → State Info for incremental runs, you can now view the Connector State.
   - For connectors with multiple configurations, the state is shown for each configuration with a "Created at" tooltip.
   - If no state is available, we show "No state available".
@@ -89,7 +91,7 @@
     `ad-account/insights-by-publisher-platform-and-position` — provide publisher platform and platform position breakdowns
   - `ad-account/insights-by-region` — provides region-level breakdown
 
-  ⚠️ Breaking Changes
+  **⚠️ Breaking Changes**
   The legacy `ad-account/insights` endpoint **no longer supports breakdown fields**.
 
   If your Data Mart previously used `ad-account/insights` with breakdowns (such as `age`, `gender`, `country`, `device_platform`, `link_url_asset`, `product_id`, `publisher_platform`, `platform_position`, or `region`),
@@ -108,11 +110,11 @@
   ***
 
   **Recommendation:**
-  Recreate your Data Mart using the correct endpoint to ensure compatibility with the latest Facebook Marketing API structure.
+  ☝️ Recreate your Data Mart using the correct endpoint to ensure compatibility with the latest Facebook Marketing API structure.
 
 - cd3bcd9: # Hidden optional connector config knobs
 
-  Marked shared connector config fields as either hidden manual backfill dates or “Advanced” tuning options so the UI only surfaces essential settings by default.
+  Marked shared connector config fields as either **hidden manual backfill dates** or **“Advanced”** tuning options so the UI only surfaces essential settings by default.
 
 ### Patch Changes 0.12.0
 
