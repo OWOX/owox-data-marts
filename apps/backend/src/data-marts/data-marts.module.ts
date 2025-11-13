@@ -4,6 +4,7 @@ import { DataMartController } from './controllers/data-mart.controller';
 import { DataStorageController } from './controllers/data-storage.controller';
 import { DataDestinationController } from './controllers/data-destination.controller';
 import { LookerStudioConnectorController } from './controllers/external/looker-studio-connector.controller';
+import { MarkdownParserController } from './controllers/markdown-parser.controller';
 import { ReportController } from './controllers/report.controller';
 import { ScheduledTriggerController } from './controllers/scheduled-trigger.controller';
 import { ConsumptionTrackingService } from './services/consumption-tracking.service';
@@ -125,6 +126,7 @@ import { SchemaActualizeTriggerController } from './controllers/schema-actualize
     LookerStudioConnectorController,
     SqlDryRunTriggerController,
     SchemaActualizeTriggerController,
+    MarkdownParserController,
   ],
   providers: [
     ...dataStorageResolverProviders,
