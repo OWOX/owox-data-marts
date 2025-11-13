@@ -11,9 +11,10 @@ import {
 interface CopyableFieldProps {
   value: string;
   children?: React.ReactNode;
+  doNotTruncateContent?: boolean;
 }
 
-export function CopyableField({ value, children }: CopyableFieldProps) {
+export function CopyableField({ value, children, doNotTruncateContent }: CopyableFieldProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -38,7 +39,9 @@ export function CopyableField({ value, children }: CopyableFieldProps) {
               'hover:bg-accent hover:text-accent-foreground transition-colors'
             )}
           >
-            <span className='truncate'>{children || value || 'No data'}</span>
+            <span className={doNotTruncateContent ? 'w-[95%]' : 'truncate'}>
+              {children || value || 'No data'}
+            </span>
             {copied ? <Check className='h-4 w-4 text-green-500' /> : <Copy className='h-4 w-4' />}
           </div>
         </TooltipTrigger>

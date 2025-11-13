@@ -1,4 +1,5 @@
 import { Info } from 'lucide-react';
+import { DataDestinationTypeModel } from '../../../../data-destination';
 import { ScheduledTriggerType } from '../../enums';
 import type { ScheduledTrigger } from '../../model/scheduled-trigger.model';
 import { ReportHoverCard } from '../../../reports/shared/components/ReportHoverCard';
@@ -13,8 +14,10 @@ import type {
  */
 function renderReportRunTarget(trigger: ScheduledTrigger) {
   const config = trigger.triggerConfig as ScheduledReportRunConfig;
+  const Icon = DataDestinationTypeModel.getInfo(config.report.dataDestination.type).icon;
   return (
-    <div className='inline gap-1'>
+    <div className='group inline-flex items-center gap-1 whitespace-nowrap'>
+      <Icon className='h-4 w-4' size={16} />
       {config.report.title}
       <ReportHoverCard report={config.report}>
         <Info className='ml-1 inline-block h-4 w-4 align-text-bottom opacity-0 transition-opacity duration-200 group-hover:opacity-100' />

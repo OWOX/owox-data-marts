@@ -14,7 +14,7 @@ import {
   HoverCardItemValue,
   HoverCardFooter,
 } from '@owox/ui/components/hover-card';
-import { GoogleSheetsIcon } from '../../../../../../shared';
+import { DataDestinationTypeModel } from '../../../../../data-destination';
 import type { DataMartReport } from '../../model/types/data-mart-report';
 import { isGoogleSheetsDestinationConfig } from '../../model/types/data-mart-report';
 import { type ReactNode } from 'react';
@@ -75,6 +75,10 @@ export const ReportHoverCard = React.memo(
       };
     }, [report.modifiedAt, report.createdAt, detailedDateFormatter, shortDateFormatter]);
 
+    const DestinationIcon = useMemo(() => {
+      return DataDestinationTypeModel.getInfo(report.dataDestination.type).icon;
+    }, [report.dataDestination.type]);
+
     const buttonConfig = useMemo(() => {
       if (isGoogleSheetsDestinationConfig(report.destinationConfig)) {
         return {
@@ -107,7 +111,7 @@ export const ReportHoverCard = React.memo(
         <HoverCardContent>
           <HoverCardHeader>
             <HoverCardHeaderIcon>
-              <GoogleSheetsIcon size={20} />
+              <DestinationIcon size={20} />
             </HoverCardHeaderIcon>
             <HoverCardHeaderText>
               <HoverCardHeaderTitle>{report.title || 'Unnamed Report'}</HoverCardHeaderTitle>
