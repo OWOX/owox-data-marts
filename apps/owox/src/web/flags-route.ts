@@ -12,6 +12,7 @@ const DEFAULT_PUBLIC_ENV_ROUTE = '/api/flags';
  * Change this list to add new variables. Keep it minimal for security.
  */
 const DEFAULT_PUBLIC_ENV_WHITELIST = [
+  'LICENSED_APP_EDITION',
   'IDP_PROVIDER',
   'MENU_GITHUB_COMMUNITY_VISIBLE',
   'MENU_UPGRADE_OPTIONS_VISIBLE',
