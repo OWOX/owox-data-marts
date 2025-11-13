@@ -1,4 +1,5 @@
 import { DestinationTypeConfigEnum } from '../../enums';
+import type { ReportConditionEnum } from '../../enums/report-condition.enum.ts';
 
 /**
  * DTO for Google Sheets destination configuration
@@ -17,12 +18,20 @@ export interface LookerStudioDestinationConfigDto {
   cacheLifetime: number;
 }
 
+export interface EmailDestinationConfigDto {
+  type: DestinationTypeConfigEnum.EMAIL_CONFIG;
+  reportCondition: ReportConditionEnum;
+  subject: string;
+  messageTemplate: string;
+}
+
 /**
  * Union type for destination configurations
  */
 export type DestinationConfigDto =
   | GoogleSheetsDestinationConfigDto
-  | LookerStudioDestinationConfigDto;
+  | LookerStudioDestinationConfigDto
+  | EmailDestinationConfigDto;
 
 /**
  * DTO for updating an existing report
