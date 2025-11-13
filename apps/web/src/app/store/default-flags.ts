@@ -2,6 +2,8 @@
 // These defaults ensure certain features are visible by default when flags are missing
 
 export const DEFAULT_FLAGS: Record<string, unknown> = {
+  // Default app edition
+  LICENSED_APP_EDITION: 'COMMUNITY',
   // Menu visibility defaults
   MENU_GITHUB_COMMUNITY_VISIBLE: 'true',
   MENU_UPGRADE_OPTIONS_VISIBLE: 'true',
