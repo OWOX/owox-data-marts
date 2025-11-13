@@ -1,7 +1,6 @@
 import { useTheme } from 'next-themes';
 import { forwardRef, useEffect, useMemo, useState } from 'react';
 import { Input } from '@owox/ui/components/input';
-import { Editor } from '@monaco-editor/react';
 import {
   Form,
   AppForm,
@@ -38,8 +37,12 @@ import type { DataMartReport } from '../../../shared/model/types/data-mart-repor
 import { ReportFormMode } from '../../../shared';
 import { useEmailReportForm } from '../../hooks/useEmailReportForm';
 import { ReportConditionEnum } from '../../../shared/enums/report-condition.enum';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@owox/ui/components/tabs';
-import apiClient from '../../../../../../app/api/apiClient';
+import {
+  MarkdownEditor,
+  MarkdownEditorPreview,
+  MarkdownEditorTabs,
+  useMarkdownPreview,
+} from '../../../../../../shared/components/MarkdownEditor';
 import MessageTemplateDescription from './FormDescriptions/MessageTemplateDescription.tsx';
 import SendingConditionDescription from './FormDescriptions/SendingConditionDescription.tsx';
 
@@ -155,75 +158,22 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
     );
 
     const { resolvedTheme } = useTheme();
+    const markdownEditorTheme = resolvedTheme === 'dark' ? 'vs-dark' : 'light';
 
     // Tabs for Message editor/preview
     const [messageTab, setMessageTab] = useState<'markdown' | 'preview'>('markdown');
 
-    // Preview state
-    const [previewHtml, setPreviewHtml] = useState<string>('');
-    const [previewLoading, setPreviewLoading] = useState<boolean>(false);
-    const [previewError, setPreviewError] = useState<string | null>(null);
-
     // Watch markdown content from form
     const messageTemplate = form.watch('messageTemplate');
 
-    // Debounced preview generation when Preview tab is active
-    useEffect(() => {
-      if (messageTab !== 'preview') return;
-
-      const md = messageTemplate;
-
-      if (!md.trim()) {
-        setPreviewHtml('');
-        setPreviewError(null);
-        setPreviewLoading(false);
-        return;
-      }
-
-      setPreviewLoading(true);
-      setPreviewError(null);
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        void (async () => {
-          try {
-            const res = await apiClient.post<string>(
-              '/markdown/parse-to-html',
-              { markdown: md },
-              {
-                headers: { 'Content-Type': 'application/json' },
-                responseType: 'text',
-                signal: controller.signal,
-              }
-            );
-
-            const html = res.data;
-            setPreviewHtml(html);
-          } catch (e: unknown) {
-            let isAbort = false;
-            let message: string | undefined;
-            if (e && typeof e === 'object') {
-              const err = e as { name?: string; message?: string };
-              isAbort =
-                err.name === 'CanceledError' ||
-                err.message === 'canceled' ||
-                err.name === 'AbortError';
-              message = err.message;
-            }
-            if (!isAbort) {
-              setPreviewError(message ?? 'Failed to load preview');
-            }
-          } finally {
-            setPreviewLoading(false);
-          }
-        })();
-      }, 300);
-
-      return () => {
-        clearTimeout(timeoutId);
-        controller.abort();
-      };
-    }, [messageTab, messageTemplate]);
+    const {
+      html: previewHtml,
+      loading: previewLoading,
+      error: previewError,
+    } = useMarkdownPreview({
+      markdown: messageTemplate,
+      enabled: messageTab === 'preview',
+    });
 
     return (
       <Form {...form}>
@@ -373,89 +323,29 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                       <FormLabel tooltip='Write your report message in Markdown and check the final format in Preview'>
                         Message
                       </FormLabel>
-                      <Tabs
-                        value={messageTab}
-                        onValueChange={v => {
-                          setMessageTab(v as 'markdown' | 'preview');
-                        }}
-                      >
-                        <TabsList className={'h-7'}>
-                          <TabsTrigger value='markdown'>Markdown</TabsTrigger>
-                          <TabsTrigger value='preview'>Preview</TabsTrigger>
-                        </TabsList>
-                      </Tabs>
+                      <MarkdownEditorTabs value={messageTab} onChange={setMessageTab} />
                     </div>
 
                     <FormControl>
                       <div className='overflow-hidden rounded-md border'>
-                        <Tabs value={messageTab}>
-                          <TabsContent value='markdown'>
-                            <Editor
-                              language='markdown'
-                              height={240}
-                              value={field.value}
-                              onChange={val => {
-                                field.onChange(val ?? '');
-                              }}
-                              onMount={editor => {
-                                // Propagate blur to react-hook-form
-                                editor.onDidBlurEditorText(() => {
-                                  field.onBlur();
-                                });
-                              }}
-                              theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
-                              options={{
-                                wordWrap: 'on',
-                                minimap: { enabled: false },
-                                lineNumbers: 'off',
-                                folding: false,
-                                scrollBeyondLastLine: false,
-                                automaticLayout: true,
-                                placeholder: 'Write a message template.',
-                              }}
-                            />
-                          </TabsContent>
-
-                          <TabsContent value='preview'>
-                            <div className='bg-background h-[240px] overflow-auto p-4'>
-                              {previewLoading && (
-                                <div className='text-muted-foreground text-sm'>
-                                  Generating preview…
-                                </div>
-                              )}
-                              {!previewLoading && previewError && (
-                                <div className='text-destructive text-sm'>
-                                  Error: {previewError}
-                                </div>
-                              )}
-                              {!previewLoading && !previewError && !messageTemplate.trim() && (
-                                <div className='text-muted-foreground text-sm'>
-                                  Nothing to preview
-                                </div>
-                              )}
-                              {!previewLoading &&
-                                !previewError &&
-                                !!messageTemplate.trim() &&
-                                (() => {
-                                  const root = document.documentElement;
-                                  const bg = getComputedStyle(root)
-                                    .getPropertyValue('--background')
-                                    .trim();
-                                  const fg = getComputedStyle(root)
-                                    .getPropertyValue('--foreground')
-                                    .trim();
-                                  return (
-                                    <iframe
-                                      title='Markdown preview'
-                                      sandbox='allow-popups allow-popups-to-escape-sandbox'
-                                      srcDoc={`<!doctype html><html style="background: ${bg}; color: ${fg}"><head><meta charset="utf-8" /><base target="_blank"></head><body>${previewHtml}</body></html>`}
-                                      className='h-full w-full border-0'
-                                    />
-                                  );
-                                })()}
-                            </div>
-                          </TabsContent>
-                        </Tabs>
+                        {messageTab === 'markdown' ? (
+                          <MarkdownEditor
+                            value={field.value}
+                            onChange={v => {
+                              field.onChange(v);
+                            }}
+                            onBlur={field.onBlur}
+                            height={240}
+                            theme={markdownEditorTheme}
+                          />
+                        ) : (
+                          <MarkdownEditorPreview
+                            html={previewHtml}
+                            loading={previewLoading}
+                            error={previewError}
+                            height={240}
+                          />
+                        )}
                       </div>
                     </FormControl>
                     <FormDescription>
