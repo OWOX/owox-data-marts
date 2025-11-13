@@ -1,6 +1,7 @@
 name: Code Quality all
 
 on:
+  pull_request:
   push:
     branches: [main]
 
@@ -10,30 +11,9 @@ concurrency:
 
 jobs:
   quality-checks:
-    name: ${{ matrix.check.name }}
+    name: Code Quality all
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ matrix.check.timeout }}
-
-    strategy:
-      # If one check fails, the others will continue to run
-      fail-fast: false
-      matrix:
-        check:
-          - name: 'ESLint Workspaces'
-            command: 'npm run lint'
-            timeout: 10
-          - name: 'ESLint Root'
-            command: 'npm run lint:root'
-            timeout: 3
-          - name: 'Prettier Workspaces'
-            command: 'npm run format:check'
-            timeout: 5
-          - name: 'Prettier Root'
-            command: 'npm run format:root:check'
-            timeout: 3
-          - name: 'Markdownlint All'
-            command: 'npm run lint:md:all'
-            timeout: 5
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repository
@@ -51,5 +31,31 @@ jobs:
       - name: Build all internal packages
         run: npm run build -w owox
 
-      - name: Run ${{ matrix.check.name }}
-        run: ${{ matrix.check.command }}
+      - name: ESLint Workspaces
+        id: lint_ws
+        run: npm run lint
+        continue-on-error: true
+
+      - name: ESLint Root
+        id: lint_root
+        run: npm run lint:root
+        continue-on-error: true
+
+      - name: Prettier Workspaces
+        id: format_ws
+        run: npm run format:check
+        continue-on-error: true
+
+      - name: Prettier Root
+        id: format_root
+        run: npm run format:root:check
+        continue-on-error: true
+
+      - name: Markdownlint All
+        id: md
+        run: npm run lint:md:all
+        continue-on-error: true
+
+      - name: Fail if any check failed
+        if: steps.lint_ws.outcome == 'failure' || steps.lint_root.outcome == 'failure' || steps.format_ws.outcome == 'failure' || steps.format_root.outcome == 'failure' || steps.md.outcome == 'failure'
+        run: exit 1
