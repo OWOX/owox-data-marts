@@ -20,4 +20,24 @@ export type CreateDataDestinationRequestDto =
       type: DataDestinationType.LOOKER_STUDIO;
       /** Minimal credentials object for Looker Studio */
       credentials: { type: DataDestinationCredentialsType.LOOKER_STUDIO_CREDENTIALS };
+    }
+  | {
+      title: string;
+      type: DataDestinationType.EMAIL;
+      credentials: { type: DataDestinationCredentialsType.EMAIL_CREDENTIALS; to: string[] };
+    }
+  | {
+      title: string;
+      type: DataDestinationType.SLACK;
+      credentials: { type: DataDestinationCredentialsType.EMAIL_CREDENTIALS; to: string[] };
+    }
+  | {
+      title: string;
+      type: DataDestinationType.MS_TEAMS;
+      credentials: { type: DataDestinationCredentialsType.EMAIL_CREDENTIALS; to: string[] };
+    }
+  | {
+      title: string;
+      type: DataDestinationType.GOOGLE_CHAT;
+      credentials: { type: DataDestinationCredentialsType.EMAIL_CREDENTIALS; to: string[] };
     };
