@@ -21,7 +21,7 @@ var FacebookMarketingConnector = class FacebookMarketingConnector extends Abstra
     async startImportProcess() {
 
       // Getting account IDs by splitting the configuration value by commas
-      let accountsIds = String(this.config.AccoundIDs.value).split(/[,;]\s*/);
+      let accountsIds = String(this.config.AccountIDs.value).split(/[,;]\s*/);
 
       // Getting an object of nodes whose fields array needs to be fetched from
       let fields = this.config.Fields.value.split(", ").reduce( (acc, pair) => {
