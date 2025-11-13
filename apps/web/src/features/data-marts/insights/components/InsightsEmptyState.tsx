@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { Brain, ArrowUpRightIcon } from 'lucide-react';
 
 import { Button } from '@owox/ui/components/button';
@@ -9,12 +10,16 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@owox/ui/components/empty';
+import { useInsights } from '../model';
 
 /**
  * Empty state component for insights.
  * @constructor
  */
 export const InsightsEmptyState = () => {
+  const navigate = useNavigate();
+  const { createInsight, currentLoading } = useInsights();
+
   return (
     <Empty>
       <EmptyHeader>
@@ -28,7 +33,17 @@ export const InsightsEmptyState = () => {
       </EmptyHeader>
       <EmptyContent>
         <div className='flex gap-2'>
-          <Button>Create Insight</Button>
+          <Button
+            onClick={async () => {
+              const created = await createInsight({ title: 'Untitled insight' });
+              if (created) {
+                navigate(created.id);
+              }
+            }}
+            disabled={currentLoading}
+          >
+            Create Insight
+          </Button>
         </div>
       </EmptyContent>
       <Button variant='link' asChild className='text-muted-foreground' size='sm'>

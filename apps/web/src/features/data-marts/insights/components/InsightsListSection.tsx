@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Brain, Plus } from 'lucide-react';
 
 import { Button } from '@owox/ui/components/button';
@@ -18,7 +18,7 @@ import { InsightsTable } from './InsightsTable/InsightsTable';
 
 export default function InsightsListSection() {
   const navigate = useNavigate();
-  const { fetchInsights, deleteInsight } = useInsights();
+  const { fetchInsights, deleteInsight, createInsight, currentLoading } = useInsights();
   const { insights, isLoading, error, hasInsights } = useInsightsList();
 
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -38,12 +38,20 @@ export default function InsightsListSection() {
           Insights
         </CollapsibleCardHeaderTitle>
         <CollapsibleCardHeaderActions>
-          <Link to={'new'}>
-            <Button variant='outline' aria-label='Add new insight'>
-              <Plus className='h-4 w-4' aria-hidden='true' />
-              New insight
-            </Button>
-          </Link>
+          <Button
+            variant='outline'
+            aria-label='Add new insight'
+            disabled={currentLoading}
+            onClick={async () => {
+              const created = await createInsight({ title: 'Untitled insight' });
+              if (created) {
+                navigate(created.id);
+              }
+            }}
+         >
+            <Plus className='h-4 w-4' aria-hidden='true' />
+            New insight
+          </Button>
         </CollapsibleCardHeaderActions>
       </CollapsibleCardHeader>
       <CollapsibleCardContent>

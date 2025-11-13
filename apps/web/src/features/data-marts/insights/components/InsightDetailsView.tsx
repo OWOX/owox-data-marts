@@ -34,18 +34,18 @@ export default function InsightDetailsView() {
   const storageKey = useMemo(() => 'insight_details_split', []);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
-  const { insight, handleDelete, updateInsight } = useInsightData();
+  const { insight, handleDelete, updateInsight, updateInsightTitle } = useInsightData();
 
   const {
     handleSubmit,
     setValue,
-    isDirty,
+    isTemplateDirty,
     isSubmitting,
     titleValue,
     templateValue,
     handleTitleUpdate,
     onSubmit,
-  } = useInsightForm(insight, updateInsight);
+  } = useInsightForm(insight, updateInsight, updateInsightTitle);
 
   return (
     <div className='flex h-full w-full flex-col gap-2'>
@@ -135,7 +135,7 @@ export default function InsightDetailsView() {
         <Button
           variant='default'
           size='sm'
-          disabled={!isDirty || isSubmitting}
+          disabled={!isTemplateDirty || isSubmitting}
           onClick={() => void handleSubmit(onSubmit)()}
         >
           Save &amp; Preview
