@@ -63,7 +63,11 @@ const CACHE_DURATION = 3600000; // 1 hour
 /**
  * Validates JWT token from Google Service Account
  */
-async function validateJwt(token: string, expectedServiceAccount: string): Promise<unknown> {
+export async function validateJwt(
+  token: string,
+  expectedServiceAccount: string,
+  audience?: string
+): Promise<unknown> {
   try {
     await ensureCertsCache(expectedServiceAccount);
 
@@ -80,6 +84,7 @@ async function validateJwt(token: string, expectedServiceAccount: string): Promi
 
     const payload = jwt.verify(token, publicKey, {
       algorithms: ['RS256'],
+      audience: audience,
     }) as JwtPayload;
 
     if (payload.iss !== expectedServiceAccount) {
