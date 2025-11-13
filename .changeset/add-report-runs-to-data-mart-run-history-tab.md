@@ -10,4 +10,4 @@ The Run History tab now displays all Data Mart runs in one place:
 - Each run shows its title, connector logo or destination icon, start datetime, and trigger type (manual/scheduled)
 - Hover over start time to see detailed start/finish datetimes and execution duration
 - Added "Pending" status for queued operations
-- **All existing Runs are considered manual**
+- **All historical Runs before the update are considered manual**
