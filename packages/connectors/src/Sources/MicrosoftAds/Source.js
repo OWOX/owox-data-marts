@@ -90,19 +90,6 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
   }
 
   /**
-   * Returns credential fields for this source
-   * @returns {Object}
-   */
-  getCredentialFields() {
-    return {
-      DeveloperToken: this.config.DeveloperToken,
-      ClientID: this.config.ClientID,
-      ClientSecret: this.config.ClientSecret,
-      RefreshToken: this.config.RefreshToken
-    };
-  }
-
-  /**
    * Retrieve and store an OAuth access token using the refresh token
    */
   async getAccessToken() {

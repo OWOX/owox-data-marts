@@ -458,14 +458,4 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
     return processedRecord;
   }
 
-  /**
-   * Returns credential fields for this source
-   */
-  getCredentialFields() {
-    return {
-      AccessToken: this.config.AccessToken,
-      AppId: this.config.AppId,
-      AppSecret: this.config.AppSecret
-    };
-  }
 };

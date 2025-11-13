@@ -70,17 +70,6 @@ var CriteoAdsSource = class CriteoAdsSource extends AbstractSource {
   }
 
   /**
-   * Return the credential fields needed for this connector
-   * @returns {Object} Object with credential field names and their config objects
-   */
-  getCredentialFields() {
-    return {
-      ClientId: this.config.ClientId,
-      ClientSecret: this.config.ClientSecret
-    };
-  }
-
-  /**
    * Single entry point for *all* fetches.
    * @param {Object} opts
    * @param {string} opts.nodeName
