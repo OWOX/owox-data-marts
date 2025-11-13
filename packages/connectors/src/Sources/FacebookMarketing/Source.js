@@ -45,13 +45,15 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
           requiredType: "boolean",
           default: true,
           label: "Process Short Links",
-          description: "Enable automatic processing of short links in link_url_asset field. Only available for ad-account/insights-by-link-url-asset endpoint as it requires breakdown by link_url_asset"
+          description: "Enable automatic processing of short links in link_url_asset field. Only available for ad-account/insights-by-link-url-asset endpoint as it requires breakdown by link_url_asset",
+          attributes: [CONFIG_ATTRIBUTES.ADVANCED]
         },
         CreateEmptyTables: {
           requiredType: "boolean",
           default: true,
           label: "Create Empty Tables",
-          description: "Create tables with all columns even if no data is returned from API (true/false)"
+          description: "Create tables with all columns even if no data is returned from API (true/false)",
+          attributes: [CONFIG_ATTRIBUTES.ADVANCED]
         },
         ReimportLookbackWindow: {
           requiredType: "number",
