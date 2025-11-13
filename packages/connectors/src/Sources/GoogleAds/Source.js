@@ -5,6 +5,8 @@
  * file that was distributed with this source code.
  */
 
+const { HttpRequestException } = require('../../utils/HttpRequestException');
+
 var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
   constructor(config) {
     super(config.mergeParameters({
@@ -246,12 +248,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
    * @private
    */
   _buildQuery({ nodeName, fields, startDate }) {
-    const schema = this.fieldsSchema[nodeName];
-    const fieldsForQuery = schema.isTimeSeries && !fields.includes('date')
-      ? [...fields, 'date']
-      : fields;
-
-    const apiFields = this._getAPIFields(fieldsForQuery, nodeName);
+    const apiFields = this._getAPIFields(fields, nodeName);
     const resourceName = this._getResourceName(nodeName);
     let query = `SELECT ${apiFields.join(', ')} FROM ${resourceName}`;
     
@@ -294,14 +291,16 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
       }
       
       const loginCustomerId = this.config.AuthType.items?.LoginCustomerId?.value;
+      const shouldIncludeLoginCustomerIdHeader =
+        loginCustomerId && loginCustomerId !== customerId;
       const headers = {
         'Authorization': `Bearer ${accessToken}`,
         'developer-token': this.config.AuthType.items?.DeveloperToken?.value,
         'Content-Type': 'application/json'
       };
 
-      if (loginCustomerId) {
-      headers['login-customer-id'] = loginCustomerId;
+      if (shouldIncludeLoginCustomerIdHeader) {
+        headers['login-customer-id'] = loginCustomerId;
       }
 
       const options = {
@@ -312,11 +311,21 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         muteHttpExceptions: true
       };
       
-      const response = await this.urlFetchWithRetry(url, options);
+      let response;
+      try {
+        response = await this.urlFetchWithRetry(url, options);
+      } catch (error) {
+        if (error instanceof HttpRequestException && error.payload?.error) {
+          this.config.logMessage(`Google Ads API error payload: ${JSON.stringify(error.payload.error, null, 2)}`);
+        }
+        throw error;
+      }
       const text = await response.getContentText();
       const jsonData = JSON.parse(text);
-      
+      // At this point the HTTP status was successful so jsonData.error should not exist,
+      // but keep the defensive check to surface unexpected API responses.
       if (jsonData.error) {
+        this.config.logMessage(`Google Ads API error payload: ${JSON.stringify(jsonData.error, null, 2)}`);
         throw new Error(`Google Ads API error: ${jsonData.error.message}`);
       }
       
