@@ -104,7 +104,7 @@ export class CustomLoggerService implements LoggerService {
       params: unknown[];
       metadata: Record<string, unknown>;
     } = {
-      context: this.context ?? '',
+      context: this.context || '',
       trace: undefined,
       params: [],
       metadata: {},

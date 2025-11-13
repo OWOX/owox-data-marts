@@ -1,4 +1,4 @@
-# License
+## License
 
 The project uses a dual-license model:
 

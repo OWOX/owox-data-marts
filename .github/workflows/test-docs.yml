@@ -12,16 +12,9 @@ concurrency:
 jobs:
   # Build job
   build:
-    name: Build on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
-
-    strategy:
-      # If one check fails, the others will continue to run
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-latest
+    name: Build @owox/docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repository
