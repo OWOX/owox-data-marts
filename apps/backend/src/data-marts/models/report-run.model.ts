@@ -19,7 +19,7 @@ const REPORT_RUN_ERROR_MESSAGES = {
  * - Supports both scheduled and manual runs
  * - Can be cancelled by users or system shutdown
  * - Uses optimistic locking to prevent concurrent executions
- * - Creates DataMartRun in PENDING status, then moves to STARTED
+ * - Creates DataMartRun in PENDING status, then moves to RUNNING
  *
  * Concurrency control:
  * - canStart() checks if report is already running
@@ -27,12 +27,11 @@ const REPORT_RUN_ERROR_MESSAGES = {
  * - Returns null on concurrent execution attempt (normal behavior)
  *
  * Lifecycle:
- * 1. Check if can start (canStart)
- * 2. Initialize RUNNING status (initializeStarting)
- * 3. Create via ReportRunService.createPending() in transaction
- * 4. Mark as started via ReportRunService.markAsStarted()
+ * 1. Check if can start
+ * 2. Create in PENDING status in transaction
+ * 4. Mark as started (RUNNING)
  * 5. Execute report logic
- * 6. Finish via ReportRunService.finish() (success/failure/cancelled)
+ * 6. Finish (SUCCESS/ERROR/CANCELLED) in transaction
  *
  * @see ReportRunService
  * @see RunReportService

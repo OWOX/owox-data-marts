@@ -37,10 +37,7 @@ export class LookerStudioReportRunService {
   ) {}
 
   /**
-   * Creates and starts a new Looker Studio report run.
-   *
-   * Always creates run in STARTED state (no PENDING phase).
-   * Uses Report.createdById as run creator and manual run type.
+   * Creates and starts a new Looker Studio report run. Always creates run in STARTED state (no PENDING phase).
    *
    * @param report - Report entity to run
    * @returns LookerStudioReportRun instance
@@ -62,15 +59,7 @@ export class LookerStudioReportRunService {
   }
 
   /**
-   * Finalizes Looker Studio report run by persisting results.
-   *
-   * Process:
-   * 1. Marks DataMartRun as finished (with status from reportRun)
-   * 2. Updates Report.runStatus based on execution result:
-   *    - SUCCESS if reportRun.isSuccess() returns true
-   *    - ERROR with message if reportRun has error
-   *
-   * Both updates happen in single transaction.
+   * Finalizes Looker Studio report run by persisting results in transaction.
    *
    * @param reportRun - Completed Looker Studio report run
    */

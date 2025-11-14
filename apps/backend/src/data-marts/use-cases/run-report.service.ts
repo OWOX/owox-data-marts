@@ -276,7 +276,6 @@ export class RunReportService {
    * If save fails, logs the error but does not throw to prevent losing the in-memory state.
    *
    * TODO: Implement proper error handling strategy (retry mechanism, dead letter queue, etc.)
-   *       This is a known issue being discussed by the team.
    *
    * @returns true if saved successfully, false otherwise
    */

@@ -17,12 +17,6 @@ import { SystemTimeService } from '../../common/scheduler/services/system-time.s
  * - Manages report lifecycle (deletion with cascade)
  * - Provides Looker Studio-specific queries with secret validation
  *
- * Key operations:
- * - getById(): Standard fetch with relations
- * - updateRunStatus(): Updates lastRunAt, lastRunStatus, lastRunError, increments runsCount
- * - saveReport(): Persists Report changes (used by optimistic locking flow)
- * - deleteReport(): Cascades deletion to triggers
- *
  * @see Report - Entity managed by this service
  */
 @Injectable()
@@ -55,9 +49,7 @@ export class ReportService {
   }
 
   /**
-   * Fetches report by ID with ownership validation.
-   *
-   * Ensures report belongs to specified dataMart and project.
+   * Fetches report by ID with ownership validation. Ensures report belongs to specified dataMart and project.
    *
    * @param id - Report identifier
    * @param dataMartId - Expected dataMart ID
@@ -147,12 +139,6 @@ export class ReportService {
 
   /**
    * Updates report run status after execution completes.
-   *
-   * Updates:
-   * - lastRunAt: Current timestamp
-   * - lastRunStatus: SUCCESS/ERROR/CANCELLED
-   * - lastRunError: Error message (if provided)
-   * - runsCount: Incremented by 1
    *
    * @param reportId - Report identifier
    * @param status - Final run status

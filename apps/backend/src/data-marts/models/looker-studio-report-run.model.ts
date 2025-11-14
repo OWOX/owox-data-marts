@@ -15,9 +15,9 @@ import { BaseReportRun } from './base-report-run.model';
  * - Creates DataMartRun in STARTED status immediately
  *
  * Lifecycle:
- * 1. Created via LookerStudioReportRunService.create()
+ * 1. Created in RUNNING status
  * 2. Data is fetched and returned to Looker Studio
- * 3. Finished via LookerStudioReportRunService.finish() in a transaction
+ * 3. Finished (SUCCESS/ERROR) in a transaction
  *
  * @see LookerStudioReportRunService
  */
