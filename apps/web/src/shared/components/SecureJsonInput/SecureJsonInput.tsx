@@ -14,6 +14,7 @@ interface SecureJsonInputProps {
   onChange?: (value: string) => void;
   keysToMask?: string[];
   className?: string;
+  minHeightClass?: string;
   /**
    * When true, component will only display masked content without any toggle buttons
    * or ability to edit. Useful for read-only displays of sensitive information.
@@ -37,6 +38,7 @@ export function SecureJsonInput({
   onChange,
   keysToMask = [],
   className,
+  minHeightClass = 'min-h-[150px]',
   displayOnly = false,
   showCopyButton = false,
 }: SecureJsonInputProps) {
@@ -177,7 +179,7 @@ export function SecureJsonInput({
       )}
       {displayOnly ? (
         <div
-          className={`p-2 font-mono ${className ?? ''} min-h-[150px] cursor-not-allowed whitespace-pre-wrap opacity-70`}
+          className={`p-2 font-mono ${className ?? ''} ${minHeightClass} cursor-not-allowed whitespace-pre-wrap opacity-70`}
         >
           {getMaskedValue(value)}
         </div>
@@ -196,7 +198,7 @@ export function SecureJsonInput({
             }
           }}
           readOnly={Boolean(!isVisible && hasSensitiveContent)}
-          className={`font-mono ${className ?? ''} ${!isVisible && hasSensitiveContent ? 'cursor-not-allowed opacity-70' : ''} min-h-[150px]`}
+          className={`font-mono ${className ?? ''} ${!isVisible && hasSensitiveContent ? 'cursor-not-allowed opacity-70' : ''} ${minHeightClass}`}
           rows={8}
         />
       )}

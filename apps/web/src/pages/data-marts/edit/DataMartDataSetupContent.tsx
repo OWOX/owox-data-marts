@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   DataMartDataStorageView,
   DataMartDefinitionSettings,
@@ -12,9 +13,14 @@ import {
   CollapsibleCardFooter,
 } from '../../../shared/components/CollapsibleCard';
 import { DatabaseIcon, CodeIcon, Columns3 } from 'lucide-react';
+import type { DataMartDefinitionType } from '../../../features/data-marts/shared';
 
 export default function DataMartDataSetupContent() {
   const { dataMart, updateDataMartStorage } = useDataMartContext();
+  const initialDefinitionType = dataMart?.definitionType ?? null;
+  const [definitionType, setDefinitionType] = useState<DataMartDefinitionType | null>(
+    initialDefinitionType
+  );
 
   return (
     <div className={'flex flex-col gap-4'}>
@@ -48,7 +54,13 @@ export default function DataMartDataSetupContent() {
           </CollapsibleCardHeaderTitle>
         </CollapsibleCardHeader>
         <CollapsibleCardContent>
-          {dataMart && <DataMartDefinitionSettings />}
+          {dataMart && (
+            <DataMartDefinitionSettings
+              definitionType={definitionType}
+              initialDefinitionType={initialDefinitionType}
+              setDefinitionType={setDefinitionType}
+            />
+          )}
         </CollapsibleCardContent>
         <CollapsibleCardFooter></CollapsibleCardFooter>
       </CollapsibleCard>
@@ -62,7 +74,9 @@ export default function DataMartDataSetupContent() {
             Output Schema
           </CollapsibleCardHeaderTitle>
         </CollapsibleCardHeader>
-        <CollapsibleCardContent>{dataMart && <DataMartSchemaSettings />}</CollapsibleCardContent>
+        <CollapsibleCardContent>
+          {dataMart && <DataMartSchemaSettings definitionType={definitionType} />}
+        </CollapsibleCardContent>
         <CollapsibleCardFooter></CollapsibleCardFooter>
       </CollapsibleCard>
     </div>

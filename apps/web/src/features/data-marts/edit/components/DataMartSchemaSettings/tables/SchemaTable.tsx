@@ -17,12 +17,14 @@ import {
 import { Plus } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import type { ComponentType } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import type { BaseSchemaField } from '../../../../shared/types/data-mart-schema.types.ts';
 import { DataMartSchemaFieldStatus } from '../../../../shared/types/data-mart-schema.types.ts';
 import { TableToolbar } from '../components';
 import { schemaFieldFilter, useColumnVisibility, useTableFilter } from '../hooks';
 import type { DragContextProps, RowComponentProps } from './BaseSchemaTable';
 import type { Props as SortableContextProps } from '@dnd-kit/sortable/dist/components/SortableContext';
+import type { DataMartContextType } from '../../../model/context/types';
 
 // Sticky columns configuration
 interface StickyColumnConfig {
@@ -79,6 +81,9 @@ export function SchemaTable<T extends BaseSchemaField>({
   rowComponent = TableRow as ComponentType<RowComponentProps<Row<T>>>,
   getRowId,
 }: SchemaTableProps<T>) {
+  // Get schema actualization loading state from context
+  const { isSchemaActualizationLoading } = useOutletContext<DataMartContextType>();
+
   // Use the columns provided by the parent component
   const columns = initialColumns;
 
@@ -159,6 +164,7 @@ export function SchemaTable<T extends BaseSchemaField>({
           filterValue={filterValue}
           onFilterChange={handleFilterChange}
           statusCounts={statusCounts}
+          disabled={isSchemaActualizationLoading}
         />
       )}
       <div className='dm-card-table-wrap mb-0'>
@@ -230,6 +236,7 @@ export function SchemaTable<T extends BaseSchemaField>({
           variant='outline'
           className='dm-card-table-add-field-btn bg-background dark:bg-muted w-full cursor-pointer rounded-t-none border-0'
           onClick={onAddRow}
+          disabled={isSchemaActualizationLoading}
           aria-label='Add new field'
         >
           <Plus className='h-4 w-4' aria-hidden='true' />

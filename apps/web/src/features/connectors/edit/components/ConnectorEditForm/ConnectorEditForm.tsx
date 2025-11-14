@@ -1,7 +1,6 @@
 import { useConnector } from '../../../shared/model/hooks/useConnector';
 import type { ConnectorListItem } from '../../../shared/model/types/connector';
 import { useEffect, useState, useCallback } from 'react';
-
 import { DataStorageType } from '../../../../data-storage';
 import {
   ConnectorSelectionStep,
@@ -23,6 +22,7 @@ interface ConnectorEditFormProps {
   mode?: 'full' | 'configuration-only' | 'fields-only';
   initialStep?: number;
   preselectedConnector?: string | null;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 export function ConnectorEditForm({
@@ -33,7 +33,9 @@ export function ConnectorEditForm({
   mode = 'full',
   initialStep,
   preselectedConnector,
+  onDirtyChange,
 }: ConnectorEditFormProps) {
+  const [isDirty, setIsDirty] = useState(false);
   const [selectedConnector, setSelectedConnector] = useState<ConnectorListItem | null>(null);
   const [selectedNode, setSelectedNode] = useState<string>('');
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
@@ -54,6 +56,10 @@ export function ConnectorEditForm({
     fetchConnectorSpecification,
     fetchConnectorFields,
   } = useConnector();
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
 
   const [target, setTarget] = useState<{ fullyQualifiedName: string; isValid: boolean } | null>(
     null
@@ -174,6 +180,7 @@ export function ConnectorEditForm({
     setSelectedConnector(connector);
     setConnectorConfiguration({});
     setConfigurationIsValid(false);
+    setIsDirty(true);
     setLoadedSpecifications(prev => {
       const newSet = new Set(prev);
       newSet.delete(connector.name);
@@ -186,6 +193,7 @@ export function ConnectorEditForm({
   const handleFieldSelect = (fieldName: string) => {
     setSelectedNode(fieldName);
     setSelectedFields([]);
+    setIsDirty(true);
   };
 
   const handleFieldToggle = (fieldName: string, isChecked: boolean) => {
@@ -194,6 +202,7 @@ export function ConnectorEditForm({
     } else {
       setSelectedFields(prev => prev.filter(f => f !== fieldName));
     }
+    setIsDirty(true);
   };
 
   const handleSelectAllFields = (fieldNames: string[], isSelected: boolean) => {
@@ -205,16 +214,19 @@ export function ConnectorEditForm({
     } else {
       setSelectedFields(prev => prev.filter(fieldName => !fieldNames.includes(fieldName)));
     }
+    setIsDirty(true);
   };
 
   const handleTargetChange = (
     newTarget: { fullyQualifiedName: string; isValid: boolean } | null
   ) => {
     setTarget(newTarget);
+    setIsDirty(true);
   };
 
   const handleConfigurationChange = useCallback((configuration: Record<string, unknown>) => {
     setConnectorConfiguration(configuration);
+    setIsDirty(true);
   }, []);
 
   const handleConfigurationValidationChange = useCallback((isValid: boolean) => {
@@ -431,6 +443,7 @@ export function ConnectorEditForm({
                 },
               });
             }
+            setIsDirty(false);
           }}
         />
       </AppWizardActions>

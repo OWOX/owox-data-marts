@@ -2,6 +2,8 @@
  * Storage for mapping state -> code_verifier (PKCE).
  * No ORM usage.
  */
+import type { StoreResult } from './StoreResult';
+
 export interface AuthorizationStore {
   /**
    * Initialize connections/resources and create schema if needed.
@@ -24,9 +26,9 @@ export interface AuthorizationStore {
 
   /**
    * Get code_verifier by state.
-   * Must return null if record is missing or expired.
+   * Returns StoreResult with either code (reason=null) or reason when code is not available.
    */
-  get(state: string): Promise<string | null>;
+  get(state: string): Promise<StoreResult>;
 
   /**
    * Delete a record by state.

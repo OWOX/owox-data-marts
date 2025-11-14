@@ -38,13 +38,14 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
         requiredType: "string", 
         default: "AUCTION_AD",
         label: "Data Level",
-        description: "Data level for ad_insights reports (AUCTION_ADVERTISER, AUCTION_CAMPAIGN, AUCTION_ADGROUP, AUCTION_AD)"
+        description: "Data level for ad_insights reports (AUCTION_ADVERTISER, AUCTION_CAMPAIGN, AUCTION_ADGROUP, AUCTION_AD)",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       StartDate: {
         requiredType: "date",
         label: "Start Date",
         description: "Start date for data import",
-        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL]
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
       EndDate: {
         requiredType: "date",
@@ -57,30 +58,35 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
         isRequired: true,
         default: 2,
         label: "Reimport Lookback Window",
-        description: "Number of days to look back when reimporting data"
+        description: "Number of days to look back when reimporting data",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       CleanUpToKeepWindow: {
         requiredType: "number",
         label: "Clean Up To Keep Window",
-        description: "Number of days to keep data before cleaning up"
+        description: "Number of days to keep data before cleaning up",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       IncludeDeleted: {
         requiredType: "boolean",
         default: false,
         label: "Include Deleted",
-        description: "Include deleted entities in results"
+        description: "Include deleted entities in results",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       SandboxMode: {
         requiredType: "boolean",
         default: false,
         label: "Sandbox Mode",
-        description: "Use sandbox environment for testing"
+        description: "Use sandbox environment for testing",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       CreateEmptyTables: {
         requiredType: "boolean",
         default: true,
         label: "Create Empty Tables",
-        description: "Create tables with all columns even if no data is returned from API"
+        description: "Create tables with all columns even if no data is returned from API",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       }
     }));
 
@@ -206,41 +212,41 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
     try {
       switch (nodeName) {
         case 'advertiser':
-          allData = provider.getAdvertisers(advertiserId);
+          allData = await provider.getAdvertisers(advertiserId);
           break;
 
         case 'campaigns':
-          allData = provider.getCampaigns(advertiserId, filteredFields, filtering);
+          allData = await provider.getCampaigns(advertiserId, filteredFields, filtering);
           break;
 
         case 'ad_groups':
-          allData = provider.getAdGroups(advertiserId, filteredFields, filtering);
+          allData = await provider.getAdGroups(advertiserId, filteredFields, filtering);
           break;
 
         case 'ads':
-          allData = provider.getAds(advertiserId, filteredFields, filtering);
+          allData = await provider.getAds(advertiserId, filteredFields, filtering);
           break;
 
         case 'ad_insights':
           // Format for ad reporting endpoint
-          let dataLevel = this.config.DataLevel && this.config.DataLevel.value ? 
+          let dataLevel = this.config.DataLevel && this.config.DataLevel.value ?
                         this.config.DataLevel.value : "AUCTION_AD";
-          
+
           // Validate the data level
           const validDataLevels = ["AUCTION_ADVERTISER", "AUCTION_CAMPAIGN", "AUCTION_ADGROUP", "AUCTION_AD"];
           if (!validDataLevels.includes(dataLevel)) {
             this.config.logMessage(`Invalid data_level: ${dataLevel}. Using default AUCTION_AD.`);
             dataLevel = "AUCTION_AD";
           }
-          
+
           // Set dimensions based on data level
           let dimensions = this.getDimensionsForDataLevel(dataLevel);
-      
+
           // Use only metrics that are in our known valid list
           const validMetricsList = provider.getValidAdInsightsMetrics();
           let metricFields = this.getFilteredMetrics(filteredFields, dimensions, validMetricsList);
 
-          allData = provider.getAdInsights({
+          allData = await provider.getAdInsights({
             advertiserId: advertiserId,
             dataLevel: dataLevel,
             dimensions: dimensions,
@@ -249,9 +255,9 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
             endDate: formattedEndDate
           });
           break;
-          
+
         case 'audiences':
-          allData = provider.getAudiences(advertiserId);
+          allData = await provider.getAudiences(advertiserId);
           break;
 
         default:
@@ -458,14 +464,4 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
     return processedRecord;
   }
 
-  /**
-   * Returns credential fields for this source
-   */
-  getCredentialFields() {
-    return {
-      AccessToken: this.config.AccessToken,
-      AppId: this.config.AppId,
-      AppSecret: this.config.AppSecret
-    };
-  }
 };

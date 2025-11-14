@@ -81,7 +81,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
   //---- loads Google BigQuery Table Schema ---------------------------
     async loadTableSchema() {
 
-      this.existingColumns = this.getAListOfExistingColumns() || {};
+      this.existingColumns = await this.getAListOfExistingColumns() || {};
 
       // If there are no existing fields, it means the table has not been created yet
       if( Object.keys(this.existingColumns).length == 0 ) {
@@ -106,7 +106,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
      * @return columns (object)
      * 
      */
-    getAListOfExistingColumns() {
+    async getAListOfExistingColumns() {
 
         let query = "----- Getting a list of existing columns ------\n";
         
@@ -126,7 +126,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         FROM \`${this.config.DestinationDatasetID.value}.INFORMATION_SCHEMA.COLUMNS\`
         WHERE table_name = '${this.config.DestinationTableName.value}'`;*/
 
-        let queryResults = this.executeQuery(query);
+        let queryResults = await this.executeQuery(query);
 
         let columns = {};
 
@@ -400,14 +400,14 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
         
         // Process remaining records if any
         if (remainingRecords.length > 0) {
-          this.executeMergeQueryRecursively(remainingRecords, batchSize);
+          await this.executeMergeQueryRecursively(remainingRecords, batchSize);
         }
         
       } catch (error) {
         // If query fails due to size (even though we checked), reduce batch size
         if (error.message && error.message.includes('query is too large')) {
           console.log(`Query execution failed due to size. Reducing batch size from ${batchSize} to ${Math.floor(batchSize/2)}`);
-          this.executeMergeQueryRecursively(recordKeys, Math.floor(batchSize / 2));
+          await this.executeMergeQueryRecursively(recordKeys, Math.floor(batchSize / 2));
         } else {
           // Re-throw other errors
           throw error;

@@ -5,6 +5,7 @@ import { DataStorageController } from './controllers/data-storage.controller';
 import { DataDestinationController } from './controllers/data-destination.controller';
 import { LookerStudioConnectorController } from './controllers/external/looker-studio-connector.controller';
 import { ReportController } from './controllers/report.controller';
+import { InsightController } from './controllers/insight.controller';
 import { ScheduledTriggerController } from './controllers/scheduled-trigger.controller';
 import { ConsumptionTrackingService } from './services/consumption-tracking.service';
 import { ReportDataCacheService } from './services/report-data-cache.service';
@@ -62,6 +63,7 @@ import { RotateSecretKeyService } from './use-cases/rotate-secret-key.service';
 import { DeleteDataMartService } from './use-cases/delete-data-mart.service';
 import { DataDestination } from './entities/data-destination.entity';
 import { Report } from './entities/report.entity';
+import { Insight } from './entities/insight.entity';
 import { ConnectorController } from './controllers/connector.controller';
 import { AvailableConnectorService } from './use-cases/connector/available-connector.service';
 import { ConnectorService } from './services/connector.service';
@@ -79,6 +81,7 @@ import { DataMartSchemaParserFacade } from './data-storage-types/facades/data-ma
 import { DataMartScheduledTrigger } from './entities/data-mart-scheduled-trigger.entity';
 import { ScheduledTriggersHandlerService } from './services/scheduled-triggers-handler.service';
 import { ReportService } from './services/report.service';
+import { InsightService } from './services/insight.service';
 import { ConnectorOutputCaptureService } from './connector-types/connector-message/services/connector-output-capture.service';
 import { ConnectorMessageParserService } from './connector-types/connector-message/services/connector-message-parser.service';
 import { ConnectorStateService } from './connector-types/connector-message/services/connector-state.service';
@@ -99,6 +102,13 @@ import { SchemaActualizeTriggerHandlerService } from './services/schema-actualiz
 import { SchemaActualizeTriggerController } from './controllers/schema-actualize-trigger.controller';
 import { ReportRunService } from './services/report-run.service';
 import { LookerStudioReportRunService } from './services/looker-studio-report-run.service';
+import { InsightMapper } from './mappers/insight.mapper';
+import { CreateInsightService } from './use-cases/create-insight.service';
+import { GetInsightService } from './use-cases/get-insight.service';
+import { ListInsightsService } from './use-cases/list-insights.service';
+import { UpdateInsightService } from './use-cases/update-insight.service';
+import { UpdateInsightTitleService } from './use-cases/update-insight-title.service';
+import { DeleteInsightService } from './use-cases/delete-insight.service';
 
 @Module({
   imports: [
@@ -107,6 +117,7 @@ import { LookerStudioReportRunService } from './services/looker-studio-report-ru
       DataStorage,
       DataDestination,
       Report,
+      Insight,
       DataMartRun,
       DataMartScheduledTrigger,
       ConnectorState,
@@ -122,6 +133,7 @@ import { LookerStudioReportRunService } from './services/looker-studio-report-ru
     DataStorageController,
     DataDestinationController,
     ReportController,
+    InsightController,
     ConnectorController,
     ScheduledTriggerController,
     LookerStudioConnectorController,
@@ -173,6 +185,14 @@ import { LookerStudioReportRunService } from './services/looker-studio-report-ru
     DeleteReportService,
     RunReportService,
     UpdateReportService,
+    InsightMapper,
+    InsightService,
+    CreateInsightService,
+    GetInsightService,
+    ListInsightsService,
+    UpdateInsightService,
+    UpdateInsightTitleService,
+    DeleteInsightService,
     AvailableConnectorService,
     ConnectorService,
     ConnectorExecutionService,

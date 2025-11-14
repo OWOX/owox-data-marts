@@ -1,6 +1,7 @@
 import type { AuthorizationStore } from './AuthorizationStore';
 import type { SqliteConfig } from '../config';
 import type { Database } from 'better-sqlite3';
+import { StoreResult } from './StoreResult';
 
 /**
  * SQLite implementation (better-sqlite3, no ORM).
@@ -47,23 +48,21 @@ export class SqliteAuthorizationStore implements AuthorizationStore {
     stmt.run(state, codeVerifier, exp);
   }
 
-  async get(state: string): Promise<string | null> {
+  async get(state: string): Promise<StoreResult> {
     this.getDb();
     const now = this.getTime();
-
-    await this.purgeExpired();
 
     const row = this.getDb()
       .prepare(`SELECT code_verifier, expires_at FROM auth_states WHERE state = ?`)
       .get(state) as { code_verifier: string; expires_at: number | null } | undefined;
 
-    if (!row) return null;
+    if (!row) return StoreResult.notFound();
 
     if (row.expires_at != null && row.expires_at <= now) {
       await this.delete(state);
-      return null;
+      return StoreResult.expired();
     }
-    return row.code_verifier;
+    return StoreResult.withCode(row.code_verifier);
   }
 
   async delete(state: string): Promise<void> {

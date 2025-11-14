@@ -41,6 +41,7 @@ describe('data-mart-validation', () => {
     definitionType: DataMartDefinitionType.SQL,
     definition: { sqlQuery: 'SELECT * FROM table' },
     canPublish: true,
+    canActualizeSchema: true,
     validationErrors: [],
     createdAt: new Date(),
     modifiedAt: new Date(),

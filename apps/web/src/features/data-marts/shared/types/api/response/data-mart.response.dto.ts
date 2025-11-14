@@ -1,8 +1,9 @@
 import { type DataStorageResponseDto } from '../../../../../data-storage/shared/api/types';
-import { DataMartStatus } from '../../../enums/data-mart-status.enum';
-import { DataMartDefinitionType } from '../../../enums/data-mart-definition-type.enum';
+import { DataMartStatus } from '../../../enums';
+import { DataMartDefinitionType } from '../../../enums';
 import type { DataMartDefinitionDto } from './data-mart-definition.dto';
 import type { DataMartSchema } from '../../data-mart-schema.types';
+import type { ConnectorStateResponseDto } from './connector-state.response.dto';
 
 /**
  * Data mart response data transfer object
@@ -67,4 +68,9 @@ export interface DataMartResponseDto {
    * Schema of the data mart
    */
   schema: DataMartSchema | null;
+
+  /**
+   * Connector state information
+   */
+  connectorState?: ConnectorStateResponseDto | null;
 }

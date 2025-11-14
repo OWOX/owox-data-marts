@@ -25,6 +25,11 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
             value: "oauth2",
             requiredType: "object",
             items: {
+              LoginCustomerId: {
+                requiredType: "string",
+                label: "Login Customer ID",
+                description: "Optional when authenticating as the same account. Provide the manager account ID (without dashes) when acting on behalf of other accounts."
+              },
               RefreshToken: {
                 isRequired: true,
                 requiredType: "string",
@@ -72,6 +77,12 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
                 label: "Developer Token",
                 description: "Google Ads API Developer Token",
                 attributes: [CONFIG_ATTRIBUTES.SECRET]
+              },
+              LoginCustomerId: {
+                isRequired: true,
+                requiredType: "string",
+                label: "Login Customer ID",
+                description: "ID of manager account (must be provided without dashes, e.g., '1234567890' not '123-456-7890'). Required for accessing client accounts through a manager account."
               }
             }
           }
@@ -81,7 +92,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         requiredType: "date",
         label: "Start Date",
         description: "Start date for data import",
-        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL]
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
       EndDate: {
         requiredType: "date",
@@ -98,19 +109,22 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         requiredType: "boolean",
         default: true,
         label: "Create Empty Tables",
-        description: "Create tables with all columns even if no data is returned from API (true/false)"
+        description: "Create tables with all columns even if no data is returned from API (true/false)",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       ReimportLookbackWindow: {
         requiredType: "number",
         isRequired: true,
         default: 2,
         label: "Reimport Lookback Window",
-        description: "Number of days to look back when reimporting data"
+        description: "Number of days to look back when reimporting data",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       CleanUpToKeepWindow: {
         requiredType: "number",
         label: "Clean Up To Keep Window",
-        description: "Number of days to keep data before cleaning up"
+        description: "Number of days to keep data before cleaning up",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       }
     }));
     
@@ -150,6 +164,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
           }
         });
       } else if (authType === "service_account") {
+
         accessToken = await OAuthUtils.getServiceAccountToken({
           config: this.config,
           tokenUrl: "https://oauth2.googleapis.com/token",
@@ -185,7 +200,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
     const { fields, startDate } = options;
     const query = this._buildQuery({ nodeName, fields, startDate });
     const response = await this.makeRequest({ customerId, query, nodeName, fields });
-    return await response;
+    return response;
   }
 
   /**
@@ -276,13 +291,20 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         requestBody.pageToken = nextPageToken;
       }
       
+      const loginCustomerId = this.config.AuthType.items?.LoginCustomerId?.value;
+      const headers = {
+        'Authorization': `Bearer ${accessToken}`,
+        'developer-token': this.config.AuthType.items?.DeveloperToken?.value,
+        'Content-Type': 'application/json'
+      };
+
+      if (loginCustomerId) {
+      headers['login-customer-id'] = loginCustomerId;
+      }
+
       const options = {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'developer-token': this.config.AuthType.items?.DeveloperToken?.value,
-          'Content-Type': 'application/json'
-        },
+        headers,
         payload: JSON.stringify(requestBody),
         body: JSON.stringify(requestBody),
         muteHttpExceptions: true
