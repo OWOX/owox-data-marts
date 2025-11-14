@@ -1,6 +1,7 @@
 import { Repository } from 'typeorm';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
 import { Report } from '../entities/report.entity';
 import { ReportMapper } from '../mappers/report.mapper';
 import { CreateReportCommand } from '../dto/domain/create-report.command';
@@ -19,7 +20,8 @@ export class CreateReportService {
     private readonly dataMartService: DataMartService,
     private readonly dataDestinationService: DataDestinationService,
     private readonly dataDestinationAccessValidationFacade: DataDestinationAccessValidatorFacade,
-    private readonly mapper: ReportMapper
+    private readonly mapper: ReportMapper,
+    private readonly availableDestinationTypesService: AvailableDestinationTypesService
   ) {}
 
   async run(command: CreateReportCommand): Promise<ReportDto> {
@@ -40,6 +42,7 @@ export class CreateReportService {
       command.projectId
     );
 
+    this.availableDestinationTypesService.verifyIsAllowed(dataDestination.type);
     await this.dataDestinationAccessValidationFacade.checkAccess(
       dataDestination.type,
       command.destinationConfig,

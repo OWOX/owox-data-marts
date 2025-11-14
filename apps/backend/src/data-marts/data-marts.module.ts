@@ -4,6 +4,7 @@ import { DataMartController } from './controllers/data-mart.controller';
 import { DataStorageController } from './controllers/data-storage.controller';
 import { DataDestinationController } from './controllers/data-destination.controller';
 import { LookerStudioConnectorController } from './controllers/external/looker-studio-connector.controller';
+import { MarkdownParserController } from './controllers/markdown-parser.controller';
 import { ReportController } from './controllers/report.controller';
 import { InsightController } from './controllers/insight.controller';
 import { ScheduledTriggerController } from './controllers/scheduled-trigger.controller';
@@ -137,6 +138,7 @@ import { DeleteInsightService } from './use-cases/delete-insight.service';
     LookerStudioConnectorController,
     SqlDryRunTriggerController,
     SchemaActualizeTriggerController,
+    MarkdownParserController,
   ],
   providers: [
     ...dataStorageResolverProviders,

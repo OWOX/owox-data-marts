@@ -1,5 +1,6 @@
 import { DestinationTypeConfigEnum } from '../../enums';
 import type { DestinationConfigMapperInterface } from './destination-config-mapper.interface';
+import { EmailConfigMapper } from './email-config.mapper.ts';
 import { GoogleSheetsConfigMapper } from './google-sheets-config.mapper';
 import { LookerStudioConfigMapper } from './looker-studio-config.mapper';
 
@@ -10,6 +11,8 @@ export const DestinationConfigMapperFactory = {
         return new GoogleSheetsConfigMapper();
       case DestinationTypeConfigEnum.LOOKER_STUDIO_CONFIG:
         return new LookerStudioConfigMapper();
+      case DestinationTypeConfigEnum.EMAIL_CONFIG:
+        return new EmailConfigMapper();
       default:
         throw new Error(`Unknown destination config type: ${String(type)}`);
     }

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
 import { DataDestination } from '../entities/data-destination.entity';
 import { Repository } from 'typeorm';
 import { DataDestinationMapper } from '../mappers/data-destination.mapper';
@@ -18,7 +19,8 @@ export class UpdateDataDestinationService {
     private readonly dataDestinationService: DataDestinationService,
     private readonly dataDestinationMapper: DataDestinationMapper,
     private readonly credentialsValidator: DataDestinationCredentialsValidatorFacade,
-    private readonly credentialsProcessor: DataDestinationCredentialsProcessorFacade
+    private readonly credentialsProcessor: DataDestinationCredentialsProcessorFacade,
+    private readonly availableDestinationTypesService: AvailableDestinationTypesService
   ) {}
 
   async run(command: UpdateDataDestinationCommand): Promise<DataDestinationDto> {
@@ -26,6 +28,8 @@ export class UpdateDataDestinationService {
       command.id,
       command.projectId
     );
+
+    this.availableDestinationTypesService.verifyIsAllowed(entity.type);
 
     const credentialsToCheck = command.hasCredentials() ? command.credentials : entity.credentials;
 

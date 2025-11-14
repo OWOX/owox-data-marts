@@ -27,6 +27,22 @@ export function TypeIcon({ type, base64Icon }: DataMartRunTypeIconProps) {
       const Icon = DataDestinationTypeModel.getInfo(DataDestinationType.LOOKER_STUDIO).icon;
       return <Icon size={iconSize} />;
     }
+    case DataMartRunType.EMAIL: {
+      const Icon = DataDestinationTypeModel.getInfo(DataDestinationType.EMAIL).icon;
+      return <Icon size={iconSize} />;
+    }
+    case DataMartRunType.SLACK: {
+      const Icon = DataDestinationTypeModel.getInfo(DataDestinationType.SLACK).icon;
+      return <Icon size={iconSize} />;
+    }
+    case DataMartRunType.MS_TEAMS: {
+      const Icon = DataDestinationTypeModel.getInfo(DataDestinationType.MS_TEAMS).icon;
+      return <Icon size={iconSize} />;
+    }
+    case DataMartRunType.GOOGLE_CHAT: {
+      const Icon = DataDestinationTypeModel.getInfo(DataDestinationType.GOOGLE_CHAT).icon;
+      return <Icon size={iconSize} />;
+    }
     default:
       return <Database size={iconSize} />;
   }

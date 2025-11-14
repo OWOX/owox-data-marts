@@ -19,6 +19,11 @@ export interface LookerStudioCredentialsResponse {
   type: DataDestinationCredentialsType.LOOKER_STUDIO_CREDENTIALS;
 }
 
+export interface EmailCredentialsResponse {
+  to: string[];
+  type: DataDestinationCredentialsType.EMAIL_CREDENTIALS;
+}
+
 /**
  * Data destination response data transfer object
  */
@@ -46,7 +51,10 @@ export interface DataDestinationResponseDto {
   /**
    * Credentials for the destination
    */
-  credentials: GoogleSheetsCredentialsResponse | LookerStudioCredentialsResponse;
+  credentials:
+    | GoogleSheetsCredentialsResponse
+    | LookerStudioCredentialsResponse
+    | EmailCredentialsResponse;
 
   /**
    * Creation timestamp
