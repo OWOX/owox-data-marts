@@ -5,6 +5,8 @@ on:
     paths-ignore:
       - 'apps/**'
       - 'packages/**'
+  push:
+    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
