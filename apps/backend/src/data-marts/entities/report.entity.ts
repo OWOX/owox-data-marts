@@ -7,6 +7,7 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  VersionColumn,
 } from 'typeorm';
 import { v5 as uuidv5 } from 'uuid';
 import { createZodTransformer } from '../../common/zod/zod-transformer';
@@ -63,6 +64,12 @@ export class Report {
 
   @UpdateDateColumn()
   modifiedAt: Date;
+
+  /**
+   * Version number for optimistic locking. This helps prevent concurrent modifications to the same report.
+   */
+  @VersionColumn()
+  version: number;
 
   /**
    * Generates the report ID before inserting into the database.
