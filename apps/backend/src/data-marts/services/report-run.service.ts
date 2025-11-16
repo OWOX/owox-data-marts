@@ -55,7 +55,7 @@ export class ReportRunService {
     ReportRun.initializeStarting(report, this.systemTimeService.now());
 
     try {
-      await this.reportService.saveReport(report);
+      await this.reportService.updateReportWithVersionControl(report);
 
       const dataMartRun = await this.dataMartRunService.createAndMarkReportRunAsPending(report, {
         createdById: command.userId,

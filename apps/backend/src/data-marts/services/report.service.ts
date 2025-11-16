@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Raw, Repository } from 'typeorm';
+import { Raw, Repository, OptimisticLockVersionMismatchError } from 'typeorm';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { LookerStudioConnectorCredentialsType } from '../data-destination-types/looker-studio-connector/schemas/looker-studio-connector-credentials.schema';
 import { Report } from '../entities/report.entity';
@@ -160,6 +160,40 @@ export class ReportService {
    */
   async saveReport(report: Report): Promise<void> {
     await this.repository.save(report);
+  }
+
+  /**
+   * Updates report fields with optimistic locking (version control).
+   *
+   * Atomically updates lastRunAt, lastRunError, lastRunStatus, runsCount, and increments version.
+   * Throws OptimisticLockVersionMismatchError if the report was concurrently modified.
+   *
+   * @param report - Report entity with updated fields and current version
+   * @throws OptimisticLockVersionMismatchError if version in DB does not match entity version
+   */
+  async updateReportWithVersionControl(report: Report): Promise<void> {
+    const { id, lastRunAt, lastRunError, lastRunStatus, runsCount, version } = report;
+
+    const nextVersion = version + 1;
+    const result = await this.repository
+      .createQueryBuilder()
+      .update(Report)
+      .set({
+        lastRunAt,
+        lastRunError,
+        lastRunStatus,
+        runsCount,
+        version: () => 'version + 1',
+      })
+      .where('id = :id AND version = :version', { id, version })
+      .execute();
+
+    if (result.affected === 0) {
+      throw new OptimisticLockVersionMismatchError('Report', version, nextVersion);
+    }
+
+    // Update local entity version to match database
+    report.version = nextVersion;
   }
 
   /**
