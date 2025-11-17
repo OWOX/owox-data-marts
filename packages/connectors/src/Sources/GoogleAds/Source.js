@@ -308,12 +308,11 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         body: JSON.stringify(requestBody),
         muteHttpExceptions: true
       };
-      
-      let response;
-      try {
+      let response
+      try { 
         response = await this.urlFetchWithRetry(url, options);
       } catch (error) {
-        if (error instanceof HttpRequestException && error.payload?.error) {
+        if (error.payload?.error) {
           this.config.logMessage(`Google Ads API error payload: ${JSON.stringify(error.payload.error, null, 2)}`);
         }
         throw error;
