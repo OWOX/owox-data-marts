@@ -8,6 +8,8 @@ import { IdpModule } from './idp/idp.module';
 import { createDataSourceOptions } from './config/data-source-options.config';
 import { validateConfig } from './config/env-validation.config';
 import { ClsModule } from 'nestjs-cls';
+import { DataSource } from 'typeorm';
+import { addTransactionalDataSource } from 'typeorm-transactional';
 
 @Module({
   imports: [
@@ -23,7 +25,18 @@ import { ClsModule } from 'nestjs-cls';
 
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => createDataSourceOptions(config),
+      useFactory: async (config: ConfigService) => {
+        const options = createDataSourceOptions(config);
+        return options;
+      },
+      async dataSourceFactory(options) {
+        if (!options) {
+          throw new Error('Invalid options passed');
+        }
+        const dataSource = new DataSource(options);
+        await dataSource.initialize();
+        return addTransactionalDataSource(dataSource);
+      },
     }),
     ScheduleModule.forRoot(),
 

@@ -19,17 +19,45 @@ interface HeadersAndMapping {
   fieldIndexMap: number[];
 }
 
+/**
+ * Service for handling data extraction requests from Looker Studio connector.
+ *
+ * Responsible for:
+ * - Processing getData requests from Looker Studio
+ * - Mapping data storage columns to Looker Studio fields
+ * - Filtering and transforming data according to requested fields
+ * - Handling sample vs full data extraction
+ *
+ * Data flow:
+ * 1. Receives request with desired fields from Looker Studio
+ * 2. Maps requested fields to report data headers
+ * 3. Reads data from cached/fresh reader
+ * 4. Transforms data values to Looker Studio format
+ * 5. Returns formatted response
+ *
+ * @see LookerStudioConnectorApiService - Main coordinator for Looker Studio API
+ * @see LookerStudioTypeMapperService - Type conversion utilities
+ */
 @Injectable()
 export class LookerStudioConnectorApiDataService {
   private readonly logger = new Logger(LookerStudioConnectorApiDataService.name);
 
   constructor(private readonly typeMapperService: LookerStudioTypeMapperService) {}
 
+  /**
+   * Processes getData request from Looker Studio.
+   *
+   * @param request - Looker Studio getData request with field selection
+   * @param report - Report entity with data source configuration
+   * @param cachedReader - Cached or fresh data reader with headers
+   * @param isSampleExtraction - If true, limits response to 100 rows for preview
+   * @returns Formatted data response for Looker Studio
+   */
   public async getData(
     request: GetDataRequest,
     report: Report,
     cachedReader: CachedReaderData,
-    isSampleExtraction: boolean
+    isSampleExtraction = false
   ): Promise<GetDataResponse> {
     this.logger.log('getData called with request:', request);
     this.logger.debug(`Using ${cachedReader.fromCache ? 'cached' : 'fresh'} reader for data`);

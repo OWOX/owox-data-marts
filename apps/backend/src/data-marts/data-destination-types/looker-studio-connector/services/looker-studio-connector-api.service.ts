@@ -1,8 +1,7 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { BusinessViolationException } from '../../../../common/exceptions/business-violation.exception';
 import { CachedReaderData } from '../../../dto/domain/cached-reader-data.dto';
 import { Report } from '../../../entities/report.entity';
-import { ReportRunStatus } from '../../../enums/report-run-status.enum';
 import { ConsumptionTrackingService } from '../../../services/consumption-tracking.service';
 import { ReportService } from '../../../services/report.service';
 import { ConnectionConfigSchema } from '../schemas/connection-config.schema';
@@ -17,19 +16,44 @@ import { ReportDataCacheService } from '../../../services/report-data-cache.serv
 import { OWOX_PRODUCER } from '../../../../common/producer/producer.module';
 import { OwoxProducer } from '@owox/internal-helpers';
 import { LookerReportRunSuccessfullyEvent } from '../../../events/looker-report-run-successfully.event';
-import { DataMartRun } from '../../../entities/data-mart-run.entity';
-import { RunType } from '../../../../common/scheduler/shared/types';
-import { DataMartRunStatus } from '../../../enums/data-mart-run-status.enum';
-import {
-  DataMartRunService,
-  ReportRunFinishContext,
-} from '../../../services/data-mart-run.service';
+import { LookerStudioReportRunService } from '../../../services/looker-studio-report-run.service';
+import { LookerStudioReportRun } from '../../../models/looker-studio-report-run.model';
 
 interface ValidatedRequestData {
   connectionConfig: { destinationSecretKey: string };
   requestConfig: { reportId: string };
 }
 
+/**
+ * Main service for handling Looker Studio Community Connector API requests.
+ *
+ * Implements the Looker Studio Community Connector protocol, handling three main requests:
+ * - getConfig: Returns connector configuration UI
+ * - getSchema: Returns available fields/dimensions/metrics
+ * - getData: Returns actual report data
+ *
+ * Responsibilities:
+ * - Request validation and authentication via secret key
+ * - Report run lifecycle management (create, execute, finish)
+ * - Distinguishing between sample (preview) and full data requests
+ * - Consumption tracking and event publishing
+ * - Coordinating between config/schema/data sub-services
+ *
+ * Data flow for getData (full extraction):
+ * 1. Validate request and authenticate via secret
+ * 2. Create LookerStudioReportRun in transaction
+ * 3. Fetch data via LookerStudioConnectorApiDataService
+ * 4. Mark run as success/failure
+ * 5. Track consumption and publish success event
+ * 6. Persist results in transaction
+ *
+ * Note: Sample extractions skip run tracking for performance.
+ *
+ * @see LookerStudioConnectorApiConfigService - Handles getConfig
+ * @see LookerStudioConnectorApiSchemaService - Handles getSchema
+ * @see LookerStudioConnectorApiDataService - Handles getData
+ * @see LookerStudioReportRunService - Manages report run lifecycle
+ */
 @Injectable()
 export class LookerStudioConnectorApiService {
   private readonly logger = new Logger(LookerStudioConnectorApiService.name);
@@ -43,13 +67,27 @@ export class LookerStudioConnectorApiService {
     private readonly consumptionTrackingService: ConsumptionTrackingService,
     @Inject(OWOX_PRODUCER)
     private readonly producer: OwoxProducer,
-    private readonly dataMartRunService: DataMartRunService
+    private readonly lookerStudioReportRunService: LookerStudioReportRunService
   ) {}
 
+  /**
+   * Handles getConfig request from Looker Studio.
+   * Returns connector configuration UI definition.
+   *
+   * @param request - Looker Studio getConfig request
+   * @returns Configuration response with UI elements
+   */
   public async getConfig(request: GetConfigRequest): Promise<GetConfigResponse> {
     return this.configService.getConfig(request);
   }
 
+  /**
+   * Handles getSchema request from Looker Studio.
+   * Returns available fields (dimensions and metrics) for the report.
+   *
+   * @param request - Looker Studio getSchema request with authentication
+   * @returns Schema response with field definitions
+   */
   public async getSchema(request: GetSchemaRequest): Promise<GetSchemaResponse> {
     // Get report and cached reader centrally
     const { report, cachedReader } = await this.getReportAndCachedReader(request);
@@ -58,61 +96,43 @@ export class LookerStudioConnectorApiService {
     return this.schemaService.getSchema(request, report, cachedReader);
   }
 
+  /**
+   * Handles getData request from Looker Studio.
+   * Returns actual report data, either as sample preview or full extraction.
+   *
+   * Sample extraction (sampleExtraction=true):
+   * - Returns up to 100 rows for preview
+   * - Does not create report run or track consumption
+   *
+   * Full extraction (sampleExtraction=false):
+   * - Creates LookerStudioReportRun and tracks execution
+   * - Publishes success event on completion
+   * - Tracks consumption for billing
+   *
+   * @param request - Looker Studio getData request with field selection
+   * @returns Data response with rows and schema
+   */
   public async getData(request: GetDataRequest): Promise<GetDataResponse> {
     // Get report and cached reader centrally
     const { report, cachedReader } = await this.getReportAndCachedReader(request);
-    let error: Error | null = null;
     const isSampleExtraction = Boolean(request.request.scriptParams?.sampleExtraction);
 
-    let dataMartRun: DataMartRun | null = null;
-    const dataMartRunFinishContext: ReportRunFinishContext = { status: DataMartRunStatus.SUCCESS };
-    try {
-      if (!isSampleExtraction) {
-        dataMartRun = await this.dataMartRunService.createAndMarkReportRunAsStarted(report, {
-          createdById: report.createdById,
-          runType: RunType.manual,
-        });
-      }
-
-      return await this.dataService.getData(request, report, cachedReader, isSampleExtraction);
-    } catch (e) {
-      dataMartRunFinishContext.status = DataMartRunStatus.FAILED;
-      dataMartRunFinishContext.errors = [e.toString()];
-
-      this.logger.error('Failed to get data:', e);
-      error = e;
-      throw e;
-    } finally {
-      if (!isSampleExtraction) {
-        //TODO: write results in transaction
-        if (dataMartRun) {
-          await this.dataMartRunService.markReportRunAsFinished(
-            dataMartRun,
-            dataMartRunFinishContext
-          );
-        }
-
-        if (error) {
-          await this.reportService.updateRunStatus(report.id, ReportRunStatus.ERROR, error.message);
-        } else {
-          await this.reportService.updateRunStatus(report.id, ReportRunStatus.SUCCESS);
-          await this.consumptionTrackingService.registerLookerReportRunConsumption(report);
-          const dataMart = report.dataMart;
-          await this.producer.produceEvent(
-            new LookerReportRunSuccessfullyEvent(
-              dataMart.id,
-              report.id,
-              dataMart.projectId,
-              report.createdById
-            )
-          );
-        }
-      }
-    }
+    return isSampleExtraction
+      ? await this.getSampleDataExtraction(request, report, cachedReader)
+      : await this.getFullDataExtraction(request, report, cachedReader);
   }
 
   /**
-   * Common method to get report and cached reader for both schema and data requests
+   * Retrieves and validates report with cached data reader.
+   *
+   * Steps:
+   * 1. Validates request structure and authentication secret
+   * 2. Fetches report by ID and secret key
+   * 3. Gets or creates cached reader for the report
+   *
+   * @param request - getSchema or getData request with authentication
+   * @returns Report entity and cached reader data
+   * @throws BusinessViolationException if validation fails or report not found
    */
   private async getReportAndCachedReader(request: GetSchemaRequest | GetDataRequest): Promise<{
     report: Report;
@@ -138,7 +158,16 @@ export class LookerStudioConnectorApiService {
   }
 
   /**
-   * Validates and extracts common request data
+   * Validates and extracts authentication and configuration from request.
+   *
+   * Validates:
+   * - Connection config structure and secret key
+   * - Request structure and config params
+   * - Report ID format
+   *
+   * @param request - getSchema or getData request
+   * @returns Validated connection config and report ID
+   * @throws BusinessViolationException if validation fails
    */
   private validateAndExtractRequestData(
     request: GetSchemaRequest | GetDataRequest
@@ -174,5 +203,129 @@ export class LookerStudioConnectorApiService {
       connectionConfig: connectionConfigResult.data,
       requestConfig: { reportId: requestConfigResult.data.reportId },
     };
+  }
+
+  /**
+   * Processes sample data extraction request.
+   * Returns up to 100 rows for preview without creating report run.
+   *
+   * @param request - getData request
+   * @param report - Report entity
+   * @param cachedReader - Cached data reader
+   * @returns Sample data response (max 100 rows)
+   */
+  private async getSampleDataExtraction(
+    request: GetDataRequest,
+    report: Report,
+    cachedReader: CachedReaderData
+  ): Promise<GetDataResponse> {
+    try {
+      return await this.dataService.getData(request, report, cachedReader, true);
+    } catch (error) {
+      this.logger.error('Failed to get sample data:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Processes full data extraction request with run tracking.
+   *
+   * Creates LookerStudioReportRun, executes data extraction,
+   * tracks consumption and publishes success event.
+   *
+   * @param request - getData request
+   * @param report - Report entity
+   * @param cachedReader - Cached data reader
+   * @returns Full data response
+   * @throws InternalServerErrorException if run creation fails
+   */
+  private async getFullDataExtraction(
+    request: GetDataRequest,
+    report: Report,
+    cachedReader: CachedReaderData
+  ): Promise<GetDataResponse> {
+    this.logger.log(`Starting report run ${report.id}`);
+
+    const reportRun = await this.lookerStudioReportRunService.create(report);
+    if (!reportRun) {
+      throw new InternalServerErrorException('Failed to create report run');
+    }
+
+    try {
+      const result = await this.dataService.getData(request, report, cachedReader);
+      await this.handleSuccessfulReportRun(reportRun);
+
+      return result;
+    } catch (e) {
+      await this.handleFailedReportRun(reportRun, e);
+      throw e;
+    }
+  }
+
+  /**
+   * Handles successful report run completion.
+   *
+   * Steps:
+   * 1. Marks run as successful
+   * 2. Persists run results in transaction
+   * 3. Tracks consumption for billing
+   * 4. Publishes LookerReportRunSuccessfullyEvent
+   *
+   * @param reportRun - Completed report run
+   */
+  private async handleSuccessfulReportRun(reportRun: LookerStudioReportRun) {
+    reportRun.markAsSuccess();
+
+    const saved = await this.saveReportRunResultSafely(reportRun);
+    if (saved) {
+      this.logger.log(`Report ${reportRun.getReportId()} completed successfully`);
+    }
+
+    const report = reportRun.getReport();
+    await this.consumptionTrackingService.registerLookerReportRunConsumption(report);
+
+    const {
+      id: reportId,
+      dataMart: { id: dataMartId, projectId },
+      createdById: userId,
+    } = report;
+
+    await this.producer.produceEvent(
+      new LookerReportRunSuccessfullyEvent(dataMartId, reportId, projectId, userId)
+    );
+  }
+
+  /**
+   * Handles failed report run.
+   * Marks run as failed and attempts to persist the error state.
+   *
+   * @param reportRun - Failed report run
+   * @param error - Error that caused the failure
+   */
+  private async handleFailedReportRun(reportRun: LookerStudioReportRun, error: Error | string) {
+    reportRun.markAsFailed(error);
+    await this.saveReportRunResultSafely(reportRun);
+    this.logger.error(`Report ${reportRun.getReportId()} execution failed:`, error);
+  }
+
+  /**
+   * Attempts to save report run results to the database.
+   * If save fails, logs the error but does not throw to prevent losing the in-memory state.
+   *
+   * TODO: Implement proper error handling strategy (retry mechanism, dead letter queue, etc.)
+   *
+   * @returns true if saved successfully, false otherwise
+   */
+  private async saveReportRunResultSafely(reportRun: LookerStudioReportRun): Promise<boolean> {
+    try {
+      await this.lookerStudioReportRunService.finish(reportRun);
+      return true;
+    } catch (saveError) {
+      this.logger.error(
+        `Failed to persist final status for report ${reportRun.getReportId()}:`,
+        saveError
+      );
+    }
+    return false;
   }
 }

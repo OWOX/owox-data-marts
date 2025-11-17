@@ -100,6 +100,8 @@ import { SchemaActualizeTrigger } from './entities/schema-actualize-trigger.enti
 import { SchemaActualizeTriggerService } from './services/schema-actualize-trigger.service';
 import { SchemaActualizeTriggerHandlerService } from './services/schema-actualize-trigger-handler.service';
 import { SchemaActualizeTriggerController } from './controllers/schema-actualize-trigger.controller';
+import { ReportRunService } from './services/report-run.service';
+import { LookerStudioReportRunService } from './services/looker-studio-report-run.service';
 import { InsightMapper } from './mappers/insight.mapper';
 import { CreateInsightService } from './use-cases/create-insight.service';
 import { GetInsightService } from './use-cases/get-insight.service';
@@ -222,6 +224,8 @@ import { DeleteInsightService } from './use-cases/delete-insight.service';
     ConsumptionTrackingService,
     ConnectorSecretService,
     DataMartRunService,
+    ReportRunService,
+    LookerStudioReportRunService,
   ],
 })
 export class DataMartsModule {
