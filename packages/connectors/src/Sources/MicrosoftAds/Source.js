@@ -52,7 +52,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
         requiredType: "date",
         label: "Start Date",
         description: "Start date for data import",
-        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL]
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
       EndDate: {
         requiredType: "date",
@@ -65,41 +65,32 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
         isRequired: true,
         default: 2,
         label: "Reimport Lookback Window",
-        description: "Number of days to look back when reimporting data"
+        description: "Number of days to look back when reimporting data",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       ReportTimezone: {
         requiredType: "string",
         default: "GreenwichMeanTimeDublinEdinburghLisbonLondon",
         label: "Report Timezone",
-        description: "Timezone for the report data"
+        description: "Timezone for the report data",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       Aggregation: {
         requiredType: "string",
         default: "Daily",
         label: "Aggregation",
-        description: "Aggregation for reports (e.g. Daily, Weekly, Monthly)"
+        description: "Aggregation for reports (e.g. Daily, Weekly, Monthly)",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       CreateEmptyTables: {
         requiredType: "boolean",
         default: true,
         label: "Create Empty Tables",
-        description: "Create tables with all columns even if no data is returned from API"
+        description: "Create tables with all columns even if no data is returned from API",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       }
     }));
     this.fieldsSchema = MicrosoftAdsFieldsSchema;
-  }
-
-  /**
-   * Returns credential fields for this source
-   * @returns {Object}
-   */
-  getCredentialFields() {
-    return {
-      DeveloperToken: this.config.DeveloperToken,
-      ClientID: this.config.ClientID,
-      ClientSecret: this.config.ClientSecret,
-      RefreshToken: this.config.RefreshToken
-    };
   }
 
   /**

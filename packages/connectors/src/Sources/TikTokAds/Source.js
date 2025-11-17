@@ -38,13 +38,14 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
         requiredType: "string", 
         default: "AUCTION_AD",
         label: "Data Level",
-        description: "Data level for ad_insights reports (AUCTION_ADVERTISER, AUCTION_CAMPAIGN, AUCTION_ADGROUP, AUCTION_AD)"
+        description: "Data level for ad_insights reports (AUCTION_ADVERTISER, AUCTION_CAMPAIGN, AUCTION_ADGROUP, AUCTION_AD)",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       StartDate: {
         requiredType: "date",
         label: "Start Date",
         description: "Start date for data import",
-        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL]
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
       EndDate: {
         requiredType: "date",
@@ -57,30 +58,35 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
         isRequired: true,
         default: 2,
         label: "Reimport Lookback Window",
-        description: "Number of days to look back when reimporting data"
+        description: "Number of days to look back when reimporting data",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       CleanUpToKeepWindow: {
         requiredType: "number",
         label: "Clean Up To Keep Window",
-        description: "Number of days to keep data before cleaning up"
+        description: "Number of days to keep data before cleaning up",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       IncludeDeleted: {
         requiredType: "boolean",
         default: false,
         label: "Include Deleted",
-        description: "Include deleted entities in results"
+        description: "Include deleted entities in results",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       SandboxMode: {
         requiredType: "boolean",
         default: false,
         label: "Sandbox Mode",
-        description: "Use sandbox environment for testing"
+        description: "Use sandbox environment for testing",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       },
       CreateEmptyTables: {
         requiredType: "boolean",
         default: true,
         label: "Create Empty Tables",
-        description: "Create tables with all columns even if no data is returned from API"
+        description: "Create tables with all columns even if no data is returned from API",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       }
     }));
 
@@ -458,14 +464,4 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
     return processedRecord;
   }
 
-  /**
-   * Returns credential fields for this source
-   */
-  getCredentialFields() {
-    return {
-      AccessToken: this.config.AccessToken,
-      AppId: this.config.AppId,
-      AppSecret: this.config.AppSecret
-    };
-  }
 };

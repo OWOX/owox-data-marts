@@ -14,7 +14,7 @@ constructor( configRange ) {
       requiredType: "date",
       label: "Start Date",
       description: "Start date for data import",
-      attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL]
+      attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
     },
     EndDate: {
       requiredType: "date",
@@ -44,7 +44,8 @@ constructor( configRange ) {
       requiredType: "boolean",
       default: true,
       label: "Create Empty Tables",
-      description: "Create tables with all columns even if no data is returned from API"
+      description: "Create tables with all columns even if no data is returned from API",
+      attributes: [CONFIG_ATTRIBUTES.ADVANCED]
     }
   }));
 

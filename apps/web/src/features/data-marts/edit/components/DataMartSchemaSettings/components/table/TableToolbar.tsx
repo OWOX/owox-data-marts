@@ -22,6 +22,8 @@ interface TableToolbarProps<TData extends BaseSchemaField> {
   onFilterChange: (value: string) => void;
   /** Optional counts of fields by status */
   statusCounts?: Record<DataMartSchemaFieldStatus, number>;
+  /** Whether the add field button should be disabled */
+  disabled?: boolean;
 }
 
 /**
@@ -34,6 +36,7 @@ export function TableToolbar<TData extends BaseSchemaField>({
   filterValue,
   onFilterChange,
   statusCounts,
+  disabled = false,
 }: TableToolbarProps<TData>) {
   return (
     <div className='dm-card-toolbar'>
@@ -65,6 +68,7 @@ export function TableToolbar<TData extends BaseSchemaField>({
           variant='outline'
           className='dm-card-table-add-field-btn cursor-pointer'
           onClick={onAddField}
+          disabled={disabled}
           aria-label='Add new field'
         >
           <Plus className='h-4 w-4' aria-hidden='true' />

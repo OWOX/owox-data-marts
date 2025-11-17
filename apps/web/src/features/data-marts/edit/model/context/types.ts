@@ -88,6 +88,8 @@ export interface DataMartContextType extends DataMartState {
     options?: { silent?: boolean }
   ) => Promise<DataMartRunItem[]>;
   loadMoreDataMartRuns: (id: string, offset: number, limit?: number) => Promise<DataMartRunItem[]>;
+  runSchemaActualization?: () => Promise<void>;
+  isSchemaActualizationLoading?: boolean;
   error: ApiError | null;
   getErrorMessage: () => string | null;
   reset: () => void;
