@@ -64,6 +64,56 @@ export class MyScheduledTrigger extends ScheduledTrigger {
 }
 ```
 
+##### 🧩 Scheduled System Triggers
+
+System triggers are periodic system tasks based on cron and executed by a shared handler.
+
+Basic approach
+
+- Extend the base class `BaseSystemTaskProcessor` and implement three methods:
+  - `getType(): SystemTriggerType` — a unique task type
+  - `getDefaultCron(): string` — the default schedule
+  - `process(trigger: SystemTrigger, options?: { signal?: AbortSignal })` — task execution
+- Add your class to your module’s `providers`.
+- `SystemTriggerHandlerService` in `common/scheduler` will automatically discover such processors (via `DiscoveryModule`), create/update records in `system_triggers` (based on `getDefaultCron()`), and execute them on schedule.
+
+Example: creating your own processor
+
+```ts
+import { Injectable, Logger } from '@nestjs/common';
+import { BaseSystemTaskProcessor } from './system-tasks/base-system-task.processor';
+import { SystemTriggerType } from './system-tasks/system-trigger-type';
+import { SystemTrigger } from './shared/entities/system-trigger.entity';
+
+@Injectable()
+export class MyCustomTaskProcessor extends BaseSystemTaskProcessor {
+  private readonly logger = new Logger(MyCustomTaskProcessor.name);
+
+  getType() { return SystemTriggerType.MY_CUSTOM_TASK; }
+
+  // for example, every 5 minutes at second 0
+  getDefaultCron() { return '0 */5 * * * *'; }
+
+  async process(_trigger: SystemTrigger, options?: { signal?: AbortSignal }): Promise<void> {
+    if (options?.signal?.aborted) return;
+    this.logger.debug('Executing MY_CUSTOM_TASK');
+    // Your business logic here
+  }
+}
+```
+
+Module wiring
+
+```ts
+import { Module } from '@nestjs/common';
+import { MyCustomTaskProcessor } from './system-tasks/processors/my-custom-task.processor';
+
+@Module({
+  providers: [MyCustomTaskProcessor],
+})
+export class MyFeatureModule {}
+```
+
 ### 📦 Module Registration
 
 To use the Scheduler Module, import it into your application module:

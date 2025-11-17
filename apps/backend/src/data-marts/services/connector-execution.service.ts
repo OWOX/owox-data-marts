@@ -1,8 +1,7 @@
-import { Inject, Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ConfigService } from '@nestjs/config';
 
 // @ts-expect-error - Package lacks TypeScript declarations
 import { Core } from '@owox/connectors';
@@ -49,7 +48,7 @@ interface ConfigurationExecutionResult {
 }
 
 @Injectable()
-export class ConnectorExecutionService implements OnApplicationBootstrap {
+export class ConnectorExecutionService {
   private readonly logger = new Logger(ConnectorExecutionService.name);
 
   constructor(
@@ -60,7 +59,6 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
     private readonly dataMartService: DataMartService,
     private readonly gracefulShutdownService: GracefulShutdownService,
     private readonly consumptionTracker: ConsumptionTrackingService,
-    private readonly configService: ConfigService,
     private readonly systemTimeService: SystemTimeService,
     @Inject(OWOX_PRODUCER)
     private readonly producer: OwoxProducer
@@ -707,13 +705,15 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
   }
 
   /**
-   * Get all runs by status
+   * Get all connector runs by status
    */
-  async getDataMartRunsByStatus(status: DataMartRunStatus): Promise<DataMartRun[]> {
-    return this.dataMartRunRepository.find({
+  async getDataMartConnectorRunsByStatus(status: DataMartRunStatus): Promise<DataMartRun[]> {
+    const runs = await this.dataMartRunRepository.find({
       where: { status },
       relations: ['dataMart'],
     });
+
+    return runs.filter(run => run.type === DataMartRunType.CONNECTOR);
   }
 
   /**
@@ -725,8 +725,10 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
    * @return {Promise<void>} A promise that resolves when all interrupted runs have been processed,
    *                         with execution statistics logged (started, skipped, failed counts).
    */
-  private async executeInterruptedRuns(): Promise<void> {
-    const interruptedRuns = await this.getDataMartRunsByStatus(DataMartRunStatus.INTERRUPTED);
+  public async executeInterruptedRuns(): Promise<void> {
+    const interruptedRuns = await this.getDataMartConnectorRunsByStatus(
+      DataMartRunStatus.INTERRUPTED
+    );
     if (interruptedRuns.length === 0) {
       this.logger.log('No interrupted runs found to resume');
       return;
@@ -763,28 +765,5 @@ export class ConnectorExecutionService implements OnApplicationBootstrap {
         );
       });
     }
-  }
-
-  /**
-   * Executes tasks or operations needed upon application bootstrap.
-   * This method is invoked automatically when the application starts to ensure
-   * any interrupted runs or pending processes are resumed and properly handled.
-   *
-   * Execution is controlled by the SCHEDULER_EXECUTION_ENABLED environment variable.
-   * If disabled, the method will skip interrupted runs execution and log the reason.
-   *
-   * @return {Promise<void>} A promise that resolves when the bootstrap operations are completed.
-   */
-  async onApplicationBootstrap(): Promise<void> {
-    const isExecutionEnabled = this.configService.get<boolean>('SCHEDULER_EXECUTION_ENABLED');
-
-    if (!isExecutionEnabled) {
-      this.logger.log('Skipping interrupted runs execution - scheduler execution disabled');
-      return;
-    }
-
-    this.executeInterruptedRuns().catch(err =>
-      this.logger.error('Failed to execute interrupted runs', err)
-    );
   }
 }

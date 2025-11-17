@@ -109,6 +109,7 @@ import { ListInsightsService } from './use-cases/list-insights.service';
 import { UpdateInsightService } from './use-cases/update-insight.service';
 import { UpdateInsightTitleService } from './use-cases/update-insight-title.service';
 import { DeleteInsightService } from './use-cases/delete-insight.service';
+import { RetryInterruptedConnectorRunsProcessor } from './system-triggers/processors/retry-interrupted-connector-runs-processor';
 
 @Module({
   imports: [
@@ -209,6 +210,7 @@ import { DeleteInsightService } from './use-cases/delete-insight.service';
     SqlDryRunTriggerHandlerService,
     SchemaActualizeTriggerService,
     SchemaActualizeTriggerHandlerService,
+    RetryInterruptedConnectorRunsProcessor,
     ScheduledTriggerService,
     ScheduledTriggerMapper,
     CreateScheduledTriggerService,
