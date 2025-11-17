@@ -1,10 +1,14 @@
 import { Module } from '@nestjs/common';
+import { DiscoveryModule } from '@nestjs/core';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { SchedulerFacadeImpl } from './facades/scheduler-facade.impl';
 import { SCHEDULER_FACADE } from './shared/scheduler.facade';
 import { TriggerRunnerFactory } from './services/runners/trigger-runner.factory';
 import { SystemTimeService } from './services/system-time.service';
 import { TriggerFetcherFactory } from './services/fetchers/trigger-fetcher-factory.service';
 import { GracefulShutdownService } from './services/graceful-shutdown.service';
+import { SystemTriggerHandlerService } from './system-tasks/system-trigger-handler.service';
+import { SystemTrigger } from './shared/entities/system-trigger.entity';
 
 /**
  * The SchedulerModule provides functionality for scheduling and executing time-based triggers.
@@ -21,11 +25,13 @@ import { GracefulShutdownService } from './services/graceful-shutdown.service';
  * where you need to register trigger handlers.
  */
 @Module({
+  imports: [TypeOrmModule.forFeature([SystemTrigger]), DiscoveryModule],
   providers: [
     SystemTimeService,
     GracefulShutdownService,
     TriggerFetcherFactory,
     TriggerRunnerFactory,
+    SystemTriggerHandlerService,
     {
       provide: SCHEDULER_FACADE,
       useClass: SchedulerFacadeImpl,

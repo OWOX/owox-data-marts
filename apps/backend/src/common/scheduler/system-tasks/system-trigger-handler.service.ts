@@ -1,19 +1,18 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { DiscoveryService } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { FindOptionsWhere, Repository } from 'typeorm';
 import { SystemTrigger } from '../shared/entities/system-trigger.entity';
 import { SCHEDULER_FACADE, SchedulerFacade } from '../shared/scheduler.facade';
 import { TriggerHandler } from '../shared/trigger-handler.interface';
-import { SystemTaskProcessor } from './system-task-processor.interface';
+import { BaseSystemTaskProcessor } from './base-system-task.processor';
 import { SystemTriggerType } from './system-trigger-type';
-
-export const SYSTEM_TASK_PROCESSORS = 'SYSTEM_TASK_PROCESSORS';
 
 @Injectable()
 export class SystemTriggerHandlerService implements TriggerHandler<SystemTrigger>, OnModuleInit {
   private readonly logger = new Logger(SystemTriggerHandlerService.name);
-  private readonly processorByType: Map<SystemTriggerType, SystemTaskProcessor> = new Map();
+  private readonly processorByType: Map<SystemTriggerType, BaseSystemTaskProcessor> = new Map();
 
   constructor(
     @InjectRepository(SystemTrigger)
@@ -21,11 +20,8 @@ export class SystemTriggerHandlerService implements TriggerHandler<SystemTrigger
     @Inject(SCHEDULER_FACADE)
     private readonly schedulerFacade: SchedulerFacade,
     private readonly configService: ConfigService,
-    @Inject(SYSTEM_TASK_PROCESSORS)
-    processors: SystemTaskProcessor[]
-  ) {
-    processors.forEach(p => this.processorByType.set(p.type, p));
-  }
+    private readonly discovery: DiscoveryService
+  ) {}
 
   async handleTrigger(trigger: SystemTrigger, options?: { signal?: AbortSignal }): Promise<void> {
     const now = new Date();
@@ -57,35 +53,54 @@ export class SystemTriggerHandlerService implements TriggerHandler<SystemTrigger
   }
 
   async onModuleInit(): Promise<void> {
-    await this.ensureDefaultSystemTriggers();
+    await this.discoverProcessors();
+    await this.ensureTriggersFromProcessors();
     await this.schedulerFacade.registerTriggerHandler(this);
   }
 
-  private async ensureDefaultSystemTriggers(): Promise<void> {
+  private async discoverProcessors(): Promise<void> {
+    this.processorByType.clear();
+    const providers = this.discovery.getProviders();
+    for (const wrapper of providers) {
+      const instance = wrapper.instance as unknown;
+      const mtUnknown = wrapper.metatype as unknown;
+      if (typeof mtUnknown !== 'function' || !instance) continue;
+      const isProcessor =
+        (mtUnknown as { prototype?: unknown }).prototype instanceof BaseSystemTaskProcessor;
+      if (!isProcessor) continue;
+      try {
+        const processor = instance as BaseSystemTaskProcessor;
+        const type = processor.getType();
+        this.processorByType.set(type as SystemTriggerType, processor);
+        this.logger.log(`Discovered system task processor for type ${String(type)}`);
+      } catch {
+        continue;
+      }
+    }
+  }
+
+  private async ensureTriggersFromProcessors(): Promise<void> {
     const timezone = this.configService.get<string>('SCHEDULER_TIMEZONE') ?? 'UTC';
-
-    const defaults: Array<{ type: SystemTriggerType; cron: string }> = [
-      { type: SystemTriggerType.RETRY_INTERRUPTED_CONNECTOR_RUNS, cron: '0 */15 * * * *' },
-    ];
-
-    for (const def of defaults) {
-      let trigger = await this.repository.findOne({ where: { type: def.type } });
+    for (const [type, processor] of this.processorByType.entries()) {
+      const cron = processor.getDefaultCron();
+      const where: FindOptionsWhere<SystemTrigger> = { type: type as unknown as string };
+      let trigger = await this.repository.findOne({ where });
       if (!trigger) {
         trigger = this.repository.create({
-          type: def.type,
-          cronExpression: def.cron,
+          type,
+          cronExpression: cron,
           timeZone: timezone,
           isActive: true,
         } as SystemTrigger);
         trigger.scheduleNextRun(new Date());
         await this.repository.save(trigger);
-        this.logger.log(`Created system trigger '${def.type}' with cron '${def.cron}'`);
+        this.logger.log(`Created system trigger '${type}' with cron '${cron}'`);
         continue;
       }
 
       let changed = false;
-      if (trigger.cronExpression !== def.cron) {
-        trigger.cronExpression = def.cron;
+      if (trigger.cronExpression !== cron) {
+        trigger.cronExpression = cron;
         changed = true;
       }
       if (trigger.timeZone !== timezone) {
@@ -99,7 +114,7 @@ export class SystemTriggerHandlerService implements TriggerHandler<SystemTrigger
       if (changed) {
         trigger.scheduleNextRun(new Date());
         await this.repository.save(trigger);
-        this.logger.log(`Updated system trigger '${def.type}' to cron '${def.cron}'`);
+        this.logger.log(`Updated system trigger '${type}' to cron '${cron}'`);
       }
     }
   }

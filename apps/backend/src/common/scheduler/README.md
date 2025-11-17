@@ -66,63 +66,52 @@ export class MyScheduledTrigger extends ScheduledTrigger {
 
 ##### 🧩 Scheduled System Triggers
 
-System triggers are a specialized kind of scheduled triggers driven by cron and handled via pluggable processors. Each processor implements a simple contract and is registered through DI. The handler (`SystemTriggerHandlerService`) manages persistence and scheduling, while processors encapsulate business logic.
+System triggers are periodic system tasks based on cron and executed by a shared handler.
 
-Creating a System Trigger Processor (Your custom task)
+Basic approach
+
+- Extend the base class `BaseSystemTaskProcessor` and implement three methods:
+  - `getType(): SystemTriggerType` — a unique task type
+  - `getDefaultCron(): string` — the default schedule
+  - `process(trigger: SystemTrigger, options?: { signal?: AbortSignal })` — task execution
+- Add your class to your module’s `providers`.
+- `SystemTriggerHandlerService` in `common/scheduler` will automatically discover such processors (via `DiscoveryModule`), create/update records in `system_triggers` (based on `getDefaultCron()`), and execute them on schedule.
+
+Example: creating your own processor
 
 ```ts
-// 1) Add your new type
-export enum SystemTriggerType {
-  MY_CUSTOM_TASK = 'MY_CUSTOM_TASK',
-}
-
-// 2) Implement the processor
 import { Injectable, Logger } from '@nestjs/common';
-import { SystemTrigger } from './shared/entities/system-trigger.entity';
-import { SystemTaskProcessor } from './system-tasks/system-task-processor.interface';
+import { BaseSystemTaskProcessor } from './system-tasks/base-system-task.processor';
 import { SystemTriggerType } from './system-tasks/system-trigger-type';
-
-class DomainService { doWork(): Promise<void> { return Promise.resolve(); } }
+import { SystemTrigger } from './shared/entities/system-trigger.entity';
 
 @Injectable()
-export class MyCustomTaskProcessor implements SystemTaskProcessor {
-  readonly type = SystemTriggerType.MY_CUSTOM_TASK;
+export class MyCustomTaskProcessor extends BaseSystemTaskProcessor {
   private readonly logger = new Logger(MyCustomTaskProcessor.name);
 
-  constructor(private readonly domainService: DomainService) {}
+  getType() { return SystemTriggerType.MY_CUSTOM_TASK; }
+
+  // for example, every 5 minutes at second 0
+  getDefaultCron() { return '0 */5 * * * *'; }
 
   async process(_trigger: SystemTrigger, options?: { signal?: AbortSignal }): Promise<void> {
     if (options?.signal?.aborted) return;
     this.logger.debug('Executing MY_CUSTOM_TASK');
-    await this.domainService.doWork();
+    // Your business logic here
   }
 }
 ```
 
-Registering Processors
-
-Add your processors to the DI container and provide them under a common token so the handler can discover them:
+Module wiring
 
 ```ts
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { SystemTrigger } from './shared/entities/system-trigger.entity';
-import { SystemTriggerHandlerService, SYSTEM_TASK_PROCESSORS } from './system-tasks/system-trigger-handler.service';
 import { MyCustomTaskProcessor } from './system-tasks/processors/my-custom-task.processor';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([SystemTrigger])],
-  providers: [
-    SystemTriggerHandlerService,
-    MyCustomTaskProcessor,
-    {
-      provide: SYSTEM_TASK_PROCESSORS,
-      useFactory: (custom: MyCustomTaskProcessor) => [custom],
-      inject: [MyCustomTaskProcessor],
-    },
-  ],
+  providers: [MyCustomTaskProcessor],
 })
-export class MyModule {}
+export class MyFeatureModule {}
 ```
 
 ### 📦 Module Registration

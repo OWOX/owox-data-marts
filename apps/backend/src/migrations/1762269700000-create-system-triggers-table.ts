@@ -22,9 +22,9 @@ export class CreateSystemTriggersTable1762269700000 implements MigrationInterfac
           { name: 'modifiedAt', type: 'datetime', default: 'CURRENT_TIMESTAMP' },
         ],
         indices: [
-          { name: 'UQ_system_trigger_type', columnNames: ['type'], isUnique: true },
+          { name: 'uq_system_trigger_type', columnNames: ['type'], isUnique: true },
           {
-            name: 'IDX_system_trigger_ready',
+            name: 'idx_system_trigger_ready',
             columnNames: ['isActive', 'status', 'nextRunTimestamp'],
           },
         ],
