@@ -25,42 +25,42 @@ export class DataMartRun {
   @Column()
   dataMartId: string;
 
-  @Column({ nullable: true })
-  type?: DataMartRunType;
+  @Column()
+  type: DataMartRunType;
+
+  @Column({ type: 'json' })
+  definitionRun: DataMartDefinition;
+
+  @Column({ type: 'varchar', nullable: true })
+  reportId?: string | null;
 
   @Column({ type: 'json', nullable: true })
-  definitionRun?: DataMartDefinition;
+  reportDefinition?: DataMartRunReportDefinition | null;
 
-  @Column({ nullable: true })
-  reportId?: string;
-
-  @Column({ type: 'json', nullable: true })
-  reportDefinition?: DataMartRunReportDefinition;
-
-  @Column({ nullable: true })
-  status?: DataMartRunStatus;
+  @Column()
+  status: DataMartRunStatus;
 
   @Column({ nullable: true })
   createdById?: string;
 
-  @Column({ nullable: true })
-  runType?: RunType;
+  @Column()
+  runType: RunType;
 
   @Column({ type: 'json', nullable: true })
-  logs?: string[];
+  logs?: string[] | null;
 
   @Column({ type: 'json', nullable: true })
-  errors?: string[];
+  errors?: string[] | null;
 
   @CreateDateColumn()
   createdAt: Date;
 
   @Column({ type: 'datetime', nullable: true })
-  startedAt?: Date;
+  startedAt?: Date | null;
 
   @Column({ type: 'datetime', nullable: true })
-  finishedAt?: Date;
+  finishedAt?: Date | null;
 
   @Column({ type: 'json', nullable: true })
-  additionalParams?: Record<string, unknown>;
+  additionalParams?: Record<string, unknown> | null;
 }

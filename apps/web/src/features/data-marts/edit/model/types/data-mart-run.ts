@@ -9,10 +9,11 @@ export interface DataMartRunItem {
   createdAt: Date;
   logs: string[];
   errors: string[];
-  definitionRun: DataMartDefinitionConfig | null;
-  type: DataMartRunType | null;
-  triggerType: DataMartRunTriggerType | null;
+  definitionRun: DataMartDefinitionConfig;
+  type: DataMartRunType;
+  triggerType: DataMartRunTriggerType;
   startedAt: Date | null;
   finishedAt: Date | null;
   reportDefinition: DataMartRunReportDefinition | null;
+  reportId: string | null;
 }
