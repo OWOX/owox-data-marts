@@ -13,6 +13,7 @@
  * @property {function(): Promise<string>} getContentText
  * @property {function(): number} getResponseCode
  * @property {function(): Promise<Buffer>} getBlob
+ * @property {function(): string} getUrl
  */
 
 /**
@@ -46,8 +47,12 @@ var HttpUtils = class HttpUtils {
             fetchOptions.body = options.body;
         }
 
+        if (options.redirect !== undefined) {
+            fetchOptions.redirect = options.redirect;
+        }
+
         const response = await fetch(url, fetchOptions);
-        return this._wrapNodeResponse(response);
+        return this._wrapNodeResponse(response, url);
     }
 
     /**
@@ -55,9 +60,10 @@ var HttpUtils = class HttpUtils {
      * Not use directly, only for internal purposes.
      *
      * @param {Response} response - Native fetch Response object
+     * @param {string} originalUrl - Original URL that was requested
      * @returns {FetchResponse}
      */
-    static _wrapNodeResponse(response) {
+    static _wrapNodeResponse(response, originalUrl) {
         let textCache = null;
         let blobCache = null;
 
@@ -90,7 +96,8 @@ var HttpUtils = class HttpUtils {
             getContent: () => getText(),
             getContentText: () => getText(),
             getBlob: () => getBlob(),
-            getResponseCode: () => response.status
+            getResponseCode: () => response.status,
+            getUrl: () => response.url || originalUrl
         };
     }
 
