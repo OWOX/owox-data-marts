@@ -12,7 +12,7 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         isRequired: true,
         requiredType: "string", 
         label: "Customer ID",
-        description: "Google Ads Customer ID (format: 123-456-7890)"
+        description: "Google Ads Customer ID (format: 1234567890)"
       },
       AuthType: {
         requiredType: "object",
@@ -292,14 +292,16 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
       }
       
       const loginCustomerId = this.config.AuthType.items?.LoginCustomerId?.value;
+      const shouldIncludeLoginCustomerIdHeader =
+        loginCustomerId && loginCustomerId !== customerId;
       const headers = {
         'Authorization': `Bearer ${accessToken}`,
         'developer-token': this.config.AuthType.items?.DeveloperToken?.value,
         'Content-Type': 'application/json'
       };
 
-      if (loginCustomerId) {
-      headers['login-customer-id'] = loginCustomerId;
+      if (shouldIncludeLoginCustomerIdHeader) {
+        headers['login-customer-id'] = loginCustomerId;
       }
 
       const options = {
@@ -309,12 +311,21 @@ var GoogleAdsSource = class GoogleAdsSource extends AbstractSource {
         body: JSON.stringify(requestBody),
         muteHttpExceptions: true
       };
-      
-      const response = await this.urlFetchWithRetry(url, options);
+      let response
+      try { 
+        response = await this.urlFetchWithRetry(url, options);
+      } catch (error) {
+        if (error.payload?.error) {
+          this.config.logMessage(`Google Ads API error payload: ${JSON.stringify(error.payload.error, null, 2)}`);
+        }
+        throw error;
+      }
       const text = await response.getContentText();
       const jsonData = JSON.parse(text);
-      
+      // At this point the HTTP status was successful so jsonData.error should not exist,
+      // but keep the defensive check to surface unexpected API responses.
       if (jsonData.error) {
+        this.config.logMessage(`Google Ads API error payload: ${JSON.stringify(jsonData.error, null, 2)}`);
         throw new Error(`Google Ads API error: ${jsonData.error.message}`);
       }
       
