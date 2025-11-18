@@ -89,12 +89,9 @@ async function _resolveShortLinks(shortLinks) {
         method: 'GET'
       });
 
-      const headers = response.getHeaders();
-      const resolvedUrl = headers.Location || headers.location || linkObj.originalUrl;
-
       return {
         originalUrl: linkObj.originalUrl,
-        resolvedUrl: resolvedUrl
+        resolvedUrl: response.getUrl()
       };
 
     } catch (error) {
