@@ -65,13 +65,7 @@ export function DestinationCard({ destination, dataMartStatus }: DestinationCard
 
         {/* Reports list table */}
         <CollapsibleCardContent>
-          <ReportListRenderer
-            destination={destination}
-            onEditReport={handleEditReport}
-            {...(reportDestinationTypes.includes(destination.type) && {
-              autoRefreshEnabled: true,
-            })}
-          />
+          <ReportListRenderer destination={destination} onEditReport={handleEditReport} />
         </CollapsibleCardContent>
 
         <CollapsibleCardFooter />

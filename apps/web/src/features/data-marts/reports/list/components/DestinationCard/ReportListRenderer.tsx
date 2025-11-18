@@ -8,23 +8,12 @@ import type { DataMartReport } from '../../../shared/model/types/data-mart-repor
 interface ReportListRendererProps {
   destination: DataDestination;
   onEditReport: (report: DataMartReport) => void;
-  autoRefreshEnabled?: boolean;
 }
 
-export function ReportListRenderer({
-  destination,
-  onEditReport,
-  autoRefreshEnabled,
-}: ReportListRendererProps) {
+export function ReportListRenderer({ destination, onEditReport }: ReportListRendererProps) {
   switch (destination.type) {
     case DataDestinationType.GOOGLE_SHEETS:
-      return (
-        <GoogleSheetsReportsTable
-          destination={destination}
-          onEditReport={onEditReport}
-          autoRefreshEnabled={autoRefreshEnabled}
-        />
-      );
+      return <GoogleSheetsReportsTable destination={destination} onEditReport={onEditReport} />;
 
     case DataDestinationType.EMAIL:
     case DataDestinationType.SLACK:
@@ -35,7 +24,6 @@ export function ReportListRenderer({
           destinationType={destination.type}
           destination={destination}
           onEditReport={onEditReport}
-          autoRefreshEnabled={autoRefreshEnabled}
         />
       );
 

@@ -16,21 +16,15 @@ import {
 } from '@tanstack/react-table';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import { useReport } from '../../../shared';
-import { useOutletContext } from 'react-router-dom';
-import type { DataMartContextType } from '../../../../edit/model/context/types';
 import { DataDestinationType } from '../../../../../data-destination';
 import { useTableStorage } from '../../../../../../hooks/useTableStorage';
 import type { DataDestination } from '../../../../../data-destination';
-import { useAutoRefresh } from '../../../../../../hooks/useAutoRefresh';
 
 interface EmailReportsTableProps {
   destinationType: DataDestinationType;
   destination: DataDestination;
   onEditReport: (report: DataMartReport) => void;
-  autoRefreshEnabled?: boolean;
 }
-
-const REFRESH_INTERVAL_MS = 5000;
 
 /**
  * EmailReportsTable
@@ -42,10 +36,8 @@ export function EmailReportsTable({
   destinationType,
   destination,
   onEditReport,
-  autoRefreshEnabled = false,
 }: EmailReportsTableProps) {
-  const { dataMart } = useOutletContext<DataMartContextType>();
-  const { fetchReportsByDataMartId, reports, stopAllPolling, setPollingConfig } = useReport();
+  const { reports, setPollingConfig } = useReport();
 
   // Filter only Email reports for this destination
   const emailReports = useMemo(() => {
@@ -64,36 +56,6 @@ export function EmailReportsTable({
       regularPollingIntervalMs: 5000, // 5 seconds
     });
   }, [setPollingConfig]);
-
-  // Fetch reports when dataMart changes
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        if (!dataMart) return;
-        await fetchReportsByDataMartId(dataMart.id);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-
-    void fetchData();
-  }, [fetchReportsByDataMartId, dataMart]);
-
-  useAutoRefresh({
-    enabled: !!dataMart && autoRefreshEnabled,
-    intervalMs: REFRESH_INTERVAL_MS,
-    onTick: () => {
-      if (dataMart) {
-        void fetchReportsByDataMartId(dataMart.id, { silent: true });
-      }
-    },
-  });
-
-  useEffect(() => {
-    return () => {
-      stopAllPolling();
-    };
-  }, [dataMart?.id, stopAllPolling]);
 
   // Define table columns
   const columns = useMemo(
