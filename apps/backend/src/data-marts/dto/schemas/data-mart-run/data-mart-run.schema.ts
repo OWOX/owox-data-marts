@@ -14,6 +14,7 @@ export const DataMartRunSchema = z.object({
   definitionRun: DataMartDefinitionSchema.nullable(),
   reportId: z.string().nullable(),
   reportDefinition: DataMartRunReportDefinitionSchema.nullable(),
+  insightId: z.string().nullable(),
   logs: z.array(z.string()).nullable(),
   errors: z.array(z.string()).nullable(),
   createdAt: z.date(),

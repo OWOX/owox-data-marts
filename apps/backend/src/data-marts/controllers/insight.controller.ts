@@ -1,15 +1,20 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { RunType } from '../../common/scheduler/shared/types';
 import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
 import { CreateInsightRequestApiDto } from '../dto/presentation/create-insight-request-api.dto';
 import { InsightResponseApiDto } from '../dto/presentation/insight-response-api.dto';
+import { RunInsightResponseApiDto } from '../dto/presentation/run-insight-response-api.dto';
 import { UpdateInsightRequestApiDto } from '../dto/presentation/update-insight-request-api.dto';
 import { UpdateInsightTitleApiDto } from '../dto/presentation/update-insight-title-api.dto';
+import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { InsightMapper } from '../mappers/insight.mapper';
+import { DataMartRunService } from '../services/data-mart-run.service';
 import { CreateInsightService } from '../use-cases/create-insight.service';
 import { DeleteInsightService } from '../use-cases/delete-insight.service';
 import { GetInsightService } from '../use-cases/get-insight.service';
 import { ListInsightsService } from '../use-cases/list-insights.service';
+import { RunInsightCommand, RunInsightService } from '../use-cases/run-insight.service';
 import { UpdateInsightTitleService } from '../use-cases/update-insight-title.service';
 import { UpdateInsightService } from '../use-cases/update-insight.service';
 import {
@@ -17,6 +22,7 @@ import {
   DeleteInsightSpec,
   GetInsightSpec,
   ListInsightsSpec,
+  RunInsightSpec,
   UpdateInsightSpec,
   UpdateInsightTitleSpec,
 } from './spec/insight.api';
@@ -31,7 +37,10 @@ export class InsightController {
     private readonly updateInsightService: UpdateInsightService,
     private readonly deleteInsightService: DeleteInsightService,
     private readonly updateInsightTitleService: UpdateInsightTitleService,
-    private readonly mapper: InsightMapper
+    private readonly runInsightService: RunInsightService,
+    private readonly mapper: InsightMapper,
+    private readonly dataMartRunService: DataMartRunService,
+    private readonly dataMartMapper: DataMartMapper
   ) {}
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -69,7 +78,21 @@ export class InsightController {
   ): Promise<InsightResponseApiDto> {
     const command = this.mapper.toGetCommand(insightId, dataMartId, context);
     const insight = await this.getInsightService.run(command);
-    return this.mapper.toResponse(insight);
+
+    const response = this.mapper.toResponse(insight);
+
+    const lastRunEntity = await this.dataMartRunService.getLatestInsightManualRun(
+      dataMartId,
+      insightId
+    );
+    if (lastRunEntity) {
+      const runDto = this.dataMartMapper.toDataMartRunDto(lastRunEntity);
+      response.lastDataMartRun = await this.dataMartMapper.toRunResponse(runDto);
+    } else {
+      response.lastDataMartRun = null;
+    }
+
+    return response;
   }
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -111,5 +134,24 @@ export class InsightController {
   ): Promise<void> {
     const command = this.mapper.toDeleteCommand(insightId, dataMartId, context);
     await this.deleteInsightService.run(command);
+  }
+
+  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Post(':insightId/run')
+  @RunInsightSpec()
+  async run(
+    @AuthContext() context: AuthorizationContext,
+    @Param('dataMartId') dataMartId: string,
+    @Param('insightId') insightId: string
+  ): Promise<RunInsightResponseApiDto> {
+    const command = new RunInsightCommand(
+      dataMartId,
+      context.projectId,
+      insightId,
+      context.userId,
+      RunType.manual
+    );
+    const runId = await this.runInsightService.run(command);
+    return { runId };
   }
 }

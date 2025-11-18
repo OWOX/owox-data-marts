@@ -25,6 +25,12 @@ export class Insight {
   @JoinColumn()
   dataMart: DataMart;
 
+  @Column({ nullable: true })
+  output?: string;
+
+  @Column({ nullable: true })
+  outputUpdatedAt?: Date;
+
   @Column()
   createdById: string;
 

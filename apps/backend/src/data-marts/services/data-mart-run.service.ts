@@ -56,6 +56,52 @@ export class DataMartRunService {
   ) {}
 
   /**
+   * Lists runs by Data Mart id with pagination.
+   */
+  public async listByDataMartId(
+    dataMartId: string,
+    limit: number = 20,
+    offset: number = 0
+  ): Promise<DataMartRun[]> {
+    return this.dataMartRunRepository.find({
+      where: { dataMartId },
+      order: { createdAt: 'DESC' },
+      take: limit,
+      skip: offset,
+    });
+  }
+
+  /**
+   * Returns a run by id that belongs to specified Data Mart.
+   */
+  public async getByIdAndDataMartId(
+    runId: string,
+    dataMartId: string
+  ): Promise<DataMartRun | null> {
+    return this.dataMartRunRepository.findOne({
+      where: { id: runId, dataMartId },
+    });
+  }
+
+  /**
+   * Returns the latest manual INSIGHT run for given Data Mart and Insight ids.
+   */
+  public async getLatestInsightManualRun(
+    dataMartId: string,
+    insightId: string
+  ): Promise<DataMartRun | null> {
+    return this.dataMartRunRepository.findOne({
+      where: {
+        dataMartId,
+        insightId,
+        runType: RunType.manual,
+        type: DataMartRunType.INSIGHT,
+      },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  /**
    * Creates a new report run in PENDING state.
    *
    * @param report - Report entity with configuration

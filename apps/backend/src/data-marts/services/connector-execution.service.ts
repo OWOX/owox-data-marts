@@ -135,32 +135,6 @@ export class ConnectorExecutionService {
     return dataMartRun.id;
   }
 
-  /**
-   * Get run status by ID
-   */
-  async getRunStatus(runId: string): Promise<DataMartRun | null> {
-    return this.dataMartRunRepository.findOne({
-      where: { id: runId },
-      relations: ['dataMart'],
-    });
-  }
-
-  /**
-   * Get all runs for a specific DataMart
-   */
-  async getDataMartRuns(
-    dataMartId: string,
-    limit: number = 20,
-    offset: number = 0
-  ): Promise<DataMartRun[]> {
-    return this.dataMartRunRepository.find({
-      where: { dataMartId },
-      order: { createdAt: 'DESC' },
-      take: limit,
-      skip: offset,
-    });
-  }
-
   private validateDataMartForConnector(dataMart: DataMart): void {
     if (dataMart.definitionType !== DataMartDefinitionType.CONNECTOR) {
       throw new ConnectorExecutionError('DataMart is not a connector type', undefined, {

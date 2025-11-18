@@ -16,4 +16,5 @@ export interface DataMartRunItem {
   finishedAt: Date | null;
   reportDefinition: DataMartRunReportDefinition | null;
   reportId: string | null;
+  insightId: string | null;
 }

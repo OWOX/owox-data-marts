@@ -35,6 +35,8 @@ export class InsightMapper {
       entity.id,
       entity.title,
       entity.template ?? null,
+      entity.output ?? null,
+      entity.outputUpdatedAt ?? null,
       entity.createdById,
       entity.createdAt,
       entity.modifiedAt
@@ -50,6 +52,8 @@ export class InsightMapper {
       id: dto.id,
       title: dto.title,
       template: dto.template,
+      output: dto.output,
+      outputUpdatedAt: dto.outputUpdatedAt,
       createdById: dto.createdById,
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,
@@ -60,6 +64,7 @@ export class InsightMapper {
     return {
       id: dto.id,
       title: dto.title,
+      outputUpdatedAt: dto.outputUpdatedAt,
       createdById: dto.createdById,
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,

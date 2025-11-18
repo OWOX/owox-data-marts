@@ -41,6 +41,8 @@ import { DataMartDefinition } from '../dto/schemas/data-mart-table-definitions/d
 import { ListDataMartsByConnectorNameCommand } from '../dto/domain/list-data-mart-by-connector-name';
 import { ConnectorState as ConnectorStateData } from '../connector-types/interfaces/connector-state';
 import { isConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
+import { GetDataMartRunCommand } from '../dto/domain/get-data-mart-run.command';
+import { DataMartRunResponseApiDto } from '../dto/presentation/data-mart-run-response-api.dto';
 
 @Injectable()
 export class DataMartMapper {
@@ -248,6 +250,7 @@ export class DataMartMapper {
       entity.definitionRun,
       entity.reportId || null,
       entity.reportDefinition || null,
+      entity.insightId || null,
       entity.logs || null,
       entity.errors || null,
       entity.createdAt,
@@ -263,11 +266,7 @@ export class DataMartMapper {
   async toRunsResponse(runs: DataMartRunDto[]): Promise<DataMartRunsResponseApiDto> {
     const maskedRuns = await Promise.all(
       runs.map(async run => {
-        let maskedDefinitionRun: DataMartDefinition | undefined;
-        if (run.definitionRun && isConnectorDefinition(run.definitionRun)) {
-          maskedDefinitionRun = await this.connectorSecretService.mask(run.definitionRun);
-        }
-
+        const maskedDefinitionRun = await this.maskDefinitionRun(run.definitionRun);
         return {
           id: run.id,
           status: run.status,
@@ -277,6 +276,7 @@ export class DataMartMapper {
           definitionRun: maskedDefinitionRun || run.definitionRun,
           reportId: run.reportId,
           reportDefinition: run.reportDefinition,
+          insightId: run.insightId,
           logs: run.logs,
           errors: run.errors,
           createdAt: run.createdAt,
@@ -293,5 +293,43 @@ export class DataMartMapper {
     context: AuthorizationContext
   ): ListDataMartsByConnectorNameCommand {
     return new ListDataMartsByConnectorNameCommand(connectorName, context.projectId);
+  }
+
+  toGetDataMartRunCommand(
+    dataMartId: string,
+    runId: string,
+    context: AuthorizationContext
+  ): GetDataMartRunCommand {
+    return new GetDataMartRunCommand(dataMartId, context.projectId, runId);
+  }
+
+  async toRunResponse(run: DataMartRunDto): Promise<DataMartRunResponseApiDto> {
+    const maskedDefinitionRun = await this.maskDefinitionRun(run.definitionRun);
+    return {
+      id: run.id,
+      status: run.status,
+      type: run.type,
+      runType: run.runType,
+      dataMartId: run.dataMartId,
+      definitionRun: maskedDefinitionRun || run.definitionRun,
+      reportId: run.reportId,
+      reportDefinition: run.reportDefinition,
+      insightId: run.insightId,
+      logs: run.logs,
+      errors: run.errors,
+      createdAt: run.createdAt,
+      startedAt: run.startedAt,
+      finishedAt: run.finishedAt,
+    };
+  }
+
+  private async maskDefinitionRun(
+    definitionRun?: DataMartDefinition
+  ): Promise<DataMartDefinition | undefined> {
+    if (definitionRun && isConnectorDefinition(definitionRun)) {
+      return this.connectorSecretService.mask(definitionRun);
+    }
+
+    return undefined;
   }
 }
