@@ -12,9 +12,13 @@ import {
 } from '../../../features/data-destination/shared';
 import { ReportsProvider } from '../../../features/data-marts/reports/shared/model/context';
 
+import { useDataMartReportsAutoRefresh } from '../../../features/data-marts/reports/shared/model/hooks/useDataMartReportsAutoRefresh';
+
 function DataMartDestinationsContentInner() {
   const { dataMart } = useOutletContext<DataMartContextType>();
   const { dataDestinations, isLoading } = useDataDestinationsWithReports();
+  // Centralized reports polling for this Data Mart
+  useDataMartReportsAutoRefresh({ enabled: true, intervalMs: 5000 });
 
   if (!dataMart) return null;
 

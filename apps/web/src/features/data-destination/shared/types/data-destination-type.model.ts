@@ -16,7 +16,6 @@ interface DataDestinationTypeInfo {
   displayName: string;
   icon: AppIcon;
   status: DataDestinationStatus;
-  availableInCommunityEdition?: boolean;
 }
 
 export const DataDestinationTypeModel = {

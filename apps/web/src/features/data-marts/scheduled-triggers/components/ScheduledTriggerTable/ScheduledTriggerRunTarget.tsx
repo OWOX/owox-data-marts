@@ -1,9 +1,10 @@
-import { Info } from 'lucide-react';
+import { Database, Info } from 'lucide-react';
+import { RawBase64Icon } from '../../../../../shared';
+import { ConnectorHoverCard, ConnectorNameDisplay } from '../../../../connectors/shared/components';
 import { DataDestinationTypeModel } from '../../../../data-destination';
+import { ReportHoverCard } from '../../../reports/shared/components/ReportHoverCard';
 import { ScheduledTriggerType } from '../../enums';
 import type { ScheduledTrigger } from '../../model/scheduled-trigger.model';
-import { ReportHoverCard } from '../../../reports/shared/components/ReportHoverCard';
-import { ConnectorHoverCard, ConnectorNameDisplay } from '../../../../connectors/shared/components';
 import type {
   ScheduledConnectorRunConfig,
   ScheduledReportRunConfig,
@@ -16,11 +17,11 @@ function renderReportRunTarget(trigger: ScheduledTrigger) {
   const config = trigger.triggerConfig as ScheduledReportRunConfig;
   const Icon = DataDestinationTypeModel.getInfo(config.report.dataDestination.type).icon;
   return (
-    <div className='group inline-flex items-center gap-1 whitespace-nowrap'>
+    <div className='group inline-flex items-center gap-2 whitespace-nowrap'>
       <Icon className='h-4 w-4' size={16} />
       {config.report.title}
       <ReportHoverCard report={config.report}>
-        <Info className='ml-1 inline-block h-4 w-4 align-text-bottom opacity-0 transition-opacity duration-200 group-hover:opacity-100' />
+        <Info className='inline-block h-4 w-4 align-text-bottom opacity-0 transition-opacity duration-200 group-hover:opacity-100' />
       </ReportHoverCard>
     </div>
   );
@@ -32,11 +33,17 @@ function renderReportRunTarget(trigger: ScheduledTrigger) {
 function renderConnectorRunTarget(trigger: ScheduledTrigger) {
   const triggerConfig = trigger.triggerConfig as ScheduledConnectorRunConfig;
   const { connector } = triggerConfig.connector;
+  const connectorIcon = connector.info?.logoBase64 ? (
+    <RawBase64Icon base64={connector.info.logoBase64} className='h-4 w-4' size={16} />
+  ) : (
+    <Database className='h-4 w-4' size={16} />
+  );
   return (
-    <div className='inline gap-1'>
+    <div className='group inline-flex items-center gap-2 whitespace-nowrap'>
+      {connectorIcon}
       <ConnectorNameDisplay connector={connector} />
       <ConnectorHoverCard connector={connector}>
-        <Info className='ml-1 inline-block h-4 w-4 align-text-bottom opacity-0 transition-opacity duration-200 group-hover:opacity-100' />
+        <Info className='inline-block h-4 w-4 align-text-bottom opacity-0 transition-opacity duration-200 group-hover:opacity-100' />
       </ConnectorHoverCard>
     </div>
   );

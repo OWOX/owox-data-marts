@@ -27,11 +27,10 @@ import type { DataMartContextType } from '../../../../edit/model/context/types';
 import {
   type DataDestination,
   DataDestinationType,
-  DataDestinationTypeModel,
   useDataDestination,
 } from '../../../../../data-destination';
-import { CopyableField } from '@owox/ui/components/common/copyable-field';
-import { isEmailCredentials } from '../../../../../data-destination/shared/model/types/email-credentials';
+import { DestinationOptionContent } from './DestinationOptionContent.tsx';
+import { RecipientsDisplay } from './RecipientsDisplay.tsx';
 import { TimeTriggerAnnouncement } from '../../../../scheduled-triggers';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import { ReportFormMode } from '../../../shared';
@@ -175,6 +174,16 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
       enabled: messageTab === 'preview',
     });
 
+    // Track currently selected destination id via form
+    const selectedDestinationId = form.watch('dataDestinationId');
+
+    // Memoize the selected destination to avoid repeated searches and IIFEs in JSX
+    const selectedDestination = useMemo(() => {
+      return selectedDestinationId && filteredDestinations.length > 0
+        ? (filteredDestinations.find(d => d.id === selectedDestinationId) ?? null)
+        : null;
+    }, [selectedDestinationId, filteredDestinations]);
+
     return (
       <Form {...form}>
         <AppForm
@@ -219,78 +228,21 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                       <FormControl>
                         <SelectTrigger className='w-full max-w-full overflow-hidden'>
                           <SelectValue className='truncate' placeholder='Select a destination'>
-                            {field.value &&
-                              filteredDestinations.length > 0 &&
-                              (() => {
-                                const selectedDestination = filteredDestinations.find(
-                                  d => d.id === field.value
-                                );
-                                if (selectedDestination) {
-                                  const typeInfo = DataDestinationTypeModel.getInfo(
-                                    selectedDestination.type
-                                  );
-                                  const IconComponent = typeInfo.icon;
-                                  return (
-                                    <div className='flex w-full min-w-0 items-center gap-2'>
-                                      <IconComponent className='flex-shrink-0' size={18} />
-                                      <div className='flex min-w-0 flex-col'>
-                                        <span className='truncate'>
-                                          {selectedDestination.title}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  );
-                                }
-                                return null;
-                              })()}
+                            {selectedDestination && (
+                              <DestinationOptionContent destination={selectedDestination} />
+                            )}
                           </SelectValue>
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {filteredDestinations.map(destination => {
-                          const typeInfo = DataDestinationTypeModel.getInfo(destination.type);
-                          const IconComponent = typeInfo.icon;
-                          return (
-                            <SelectItem key={destination.id} value={destination.id}>
-                              <div className='flex w-full min-w-0 items-center gap-2'>
-                                <IconComponent className='flex-shrink-0' size={18} />
-                                <div className='flex min-w-0 flex-col'>
-                                  <span className='truncate'>{destination.title}</span>
-                                </div>
-                              </div>
-                            </SelectItem>
-                          );
-                        })}
+                        {filteredDestinations.map(destination => (
+                          <SelectItem key={destination.id} value={destination.id}>
+                            <DestinationOptionContent destination={destination} />
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
-                    {field.value &&
-                      filteredDestinations.length > 0 &&
-                      (() => {
-                        const selectedDestination = filteredDestinations.find(
-                          d => d.id === field.value
-                        );
-                        if (selectedDestination) {
-                          const creds = selectedDestination.credentials;
-                          return (
-                            <div className='mt-2 flex flex-col gap-1'>
-                              <FormLabel>Recipients of this report</FormLabel>
-                              <CopyableField
-                                doNotTruncateContent={true}
-                                value={
-                                  isEmailCredentials(creds) && creds.to.length
-                                    ? creds.to.join(', ')
-                                    : ''
-                                }
-                              >
-                                {isEmailCredentials(creds) && creds.to.length
-                                  ? creds.to.join(', ')
-                                  : 'No recipients found'}
-                              </CopyableField>
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()}
+                    <RecipientsDisplay destination={selectedDestination} />
                     <FormMessage />
                   </FormItem>
                 )}
