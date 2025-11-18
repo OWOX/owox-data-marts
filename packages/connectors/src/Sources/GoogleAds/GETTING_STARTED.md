@@ -21,13 +21,13 @@ Before proceeding, please make sure that:
 2. Click **Set up connector** and choose **Google Ads**.  
 
 3. Enter your **Customer ID** in the format `12345678` (without dashes).  
-   > ⚠️ Use the **ad account** Customer ID, not the MCC (manager) account ID.  
-   This is the ID of the account from which you want to retrieve data.
+   > ⚠️ This is the ID of the account from which you want to retrieve data.
 
 4. Fill in the required fields depending on your chosen authentication type:
 
 For **OAuth2 Authentication** (without service account)
 
+- **Login Customer ID** – enter your **MCC (manager)** account ID in the format `12345678` (without dashes).  
 - **Refresh Token** – paste the refresh token you obtained in the [CREDENTIALS](CREDENTIALS.md) guide.  
 - **Client ID** – enter the Client ID from your Google Ads app.  
 - **Client Secret** – enter the corresponding Client Secret.  
