@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'apps/docs/**'
+  push:
+    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
