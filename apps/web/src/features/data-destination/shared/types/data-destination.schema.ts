@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { DataDestinationType } from '../enums';
 import { googleServiceAccountSchema } from '../../../../shared';
 import { lookerStudioCredentialsSchema } from './looker-studio-credentials.schema.ts';
+import { emailCredentialsSchema } from './email-credentials.schema.ts';
 
 // Base schema for all data destinations
 const baseDataDestinationSchema = z.object({
@@ -21,10 +22,35 @@ const lookerStudioDestinationSchema = baseDataDestinationSchema.extend({
   credentials: lookerStudioCredentialsSchema.optional(),
 });
 
+// schema for email based destinations
+const emailLikeBase = baseDataDestinationSchema.extend({
+  credentials: emailCredentialsSchema.optional(),
+});
+
+const emailDestinationSchema = emailLikeBase.extend({
+  type: z.literal(DataDestinationType.EMAIL),
+});
+
+const slackDestinationSchema = emailLikeBase.extend({
+  type: z.literal(DataDestinationType.SLACK),
+});
+
+const msTeamsDestinationSchema = emailLikeBase.extend({
+  type: z.literal(DataDestinationType.MS_TEAMS),
+});
+
+const googleChatDestinationSchema = emailLikeBase.extend({
+  type: z.literal(DataDestinationType.GOOGLE_CHAT),
+});
+
 // Combined schema with conditional validation based on type
 export const dataDestinationSchema = z.discriminatedUnion('type', [
   googleSheetsDestinationSchema,
   lookerStudioDestinationSchema,
+  emailDestinationSchema,
+  slackDestinationSchema,
+  msTeamsDestinationSchema,
+  googleChatDestinationSchema,
 ]);
 
 // Type for the form data

@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { GracefulShutdownService } from '../../common/scheduler/services/graceful-shutdown.service';
 import { TypeResolver } from '../../common/resolver/type-resolver';
+import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
 import { DATA_DESTINATION_REPORT_WRITER_RESOLVER } from '../data-destination-types/data-destination-providers';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { DataDestinationReportWriter } from '../data-destination-types/interfaces/data-destination-report-writer.interface';
@@ -72,7 +73,8 @@ export class RunReportService {
     private readonly dataMartService: DataMartService,
     private readonly gracefulShutdownService: GracefulShutdownService,
     private readonly systemTimeService: SystemTimeService,
-    private readonly reportRunService: ReportRunService
+    private readonly reportRunService: ReportRunService,
+    private readonly availableDestinationTypesService: AvailableDestinationTypesService
   ) {}
 
   /**
@@ -187,6 +189,9 @@ export class RunReportService {
 
     try {
       this.gracefulShutdownService.registerActiveProcess(processId);
+      this.availableDestinationTypesService.verifyIsAllowed(
+        reportRun.getReport().dataDestination.type
+      );
       await this.actualizeSchemaInDataMart(reportRun.getDataMart());
       await this.reportRunService.markAsStarted(reportRun);
       this.logger.log(`Report ${reportRun.getReportId()} execution started`);

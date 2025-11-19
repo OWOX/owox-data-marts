@@ -1,6 +1,7 @@
 import { Repository } from 'typeorm';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
 import { Report } from '../entities/report.entity';
 import { DataDestination } from '../entities/data-destination.entity';
 import { ReportMapper } from '../mappers/report.mapper';
@@ -16,7 +17,8 @@ export class UpdateReportService {
     private readonly reportRepository: Repository<Report>,
     private readonly dataDestinationService: DataDestinationService,
     private readonly dataDestinationAccessValidationFacade: DataDestinationAccessValidatorFacade,
-    private readonly mapper: ReportMapper
+    private readonly mapper: ReportMapper,
+    private readonly availableDestinationTypesService: AvailableDestinationTypesService
   ) {}
 
   async run(command: UpdateReportCommand): Promise<ReportDto> {
@@ -43,6 +45,8 @@ export class UpdateReportService {
         command.projectId
       );
     }
+
+    this.availableDestinationTypesService.verifyIsAllowed(dataDestination.type);
 
     // Validate access to the data destination
     await this.dataDestinationAccessValidationFacade.checkAccess(
