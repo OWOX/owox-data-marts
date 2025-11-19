@@ -146,8 +146,8 @@ not for resale in a competing product. The project uses a dual-license model:
 - **Platform** (all other files and directories) is distributed under the [ELv2 License](licenses/Elasticv2.md)
 
 **Enterprise features** are licensed under the [Enterprise License](licenses/ee.md) and are located
-in the apps/backend/src/data-marts/data-destination-types/ee directory
-or source code files that contain .ee in their file name.
+in the `apps/backend/src/data-marts/data-destination-types/ee` directory
+or source code files that contain `.ee.` in their file name.
 Pricing for Enterprise features is available on [our pricing page](https://www.owox.com/pricing).
 
 ---
