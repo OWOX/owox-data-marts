@@ -10,6 +10,9 @@ If you don’t have one yet, follow Google’s instructions to create it:
 
 ## Step 1. Register in the API Center
 
+_(Optional — only required if you do not already have a Developer Token)_  
+If you already have a **Developer Token** with Basic Access in your Manager (MCC) account, you may skip this step and go to the [choosing authentication method](#next-step-choose-your-authentication-method).
+
 1. In your **Manager (MCC)** account, open **Admin → API Center**.  
 2. Fill out the registration form with the following details:  
    - **API Contact Email**  
@@ -51,9 +54,108 @@ If approved, you’ll see your access level updated in the API Center:
 
 ![Google Ads Basic Access](res/googleads_basicaccess.png)
 
-## Service Account Authentication
+## Next Step: Choose Your Authentication Method
 
-### Step 1: Create a Service Account in Google Cloud Platform (GCP)
+Now that your Developer Token is approved (or if you already have one), you can proceed with authentication.  
+OWOX Data Marts supports two ways to connect to the Google Ads API:
+
+- **[OAuth2 Authentication](#option-1-oauth2-authentication)**  
+- **[Service Account Authentication](#option-2-service-account-authentication)**
+
+Choose your preferred method below.
+
+## Option 1. OAuth2 Authentication
+
+To use OAuth2 authentication for the Google Ads connector, you will need the following credentials:
+
+- **Customer ID** — the ID of the **Google Ads ad account** you want to retrieve data from (found in the top-right corner of the Google Ads UI).  
+- **Login Customer ID** — the ID of your **Google Ads Manager (MCC)** account.  
+- **Developer Token** — available in the **API Center** of your **Google Ads Manager (MCC)** account. If you don’t have a Developer Token yet, please see **[Step 1: Register in the API Center](#step-1-register-in-the-api-center)** at the beginning of this tutorial.
+
+In addition, OAuth2 requires the following:  
+
+- **Client ID**  
+- **Client Secret**  
+- **Refresh Token**
+
+Follow the steps below to generate the OAuth2 credentials.
+
+### Step 1: Create OAuth2 Client Credentials in Google Cloud Console
+
+1. Open **Google Cloud Console** and search for **Google Auth Platform → Clients**.  
+2. Click **Create Client**.  
+3. Select **Web application** as the application type.  
+4. Enter any name (e.g., "OWOX Google Ads OAuth Client").  
+5. Fill in the following fields:
+
+   **Authorized JavaScript origins:** `http://localhost:8080`  
+   **Authorized redirect URIs:** `https://developers.google.com/oauthplayground`
+
+6. Click **Create**.
+
+![Google Ads Google Auth](res/googleads_clients.png)
+
+![Google Ads Client Create](res/googleads_createclients.png)
+
+A window will appear containing your **Client ID** and **Client Secret**.  
+Copy them and store them securely (for example, in a password manager or encrypted storage), or download the JSON file for future use.
+
+![Google Ads Copy Secret](res/googleads_copysecret.png)
+
+### Step 2: Generate a Refresh Token Using OAuth Playground
+
+Open the OAuth Playground: [https://developers.google.com/oauthplayground/](https://developers.google.com/oauthplayground/)
+
+ _(Optional but recommended)_  
+If the Google account you are using **does not** have access to the GCP project where the OAuth Client was created (for example, if the Client ID and Client Secret were provided by your IT team), configure custom credentials as follows:
+
+1. Click the **gear icon** in the top-right corner.  
+2. Enable **“Use your own OAuth credentials”**.  
+3. Paste your **Client ID** and **Client Secret** into the corresponding fields.  
+4. Click **Close**.
+
+![Google Ads OAuth](res/googleads_fillsecret.png)
+
+On the left panel, scroll and select **Google Ads API**.  
+Click **Authorize APIs**.  
+When prompted, sign in with your Google account and grant access. After authorization, click **“Exchange authorization code for tokens”**.
+
+![Google Ads Authorize API](res/googleads_authorize.png)
+
+![Google Ads Exchange Code](res/googleads_exchangecode.png)
+
+Your **Refresh Token** will appear on the right side of the screen.  
+
+Copy and store it securely — for example, in your company’s password manager or a secure encrypted storage, not in plain text or shared documents — you will need it to authenticate API requests via OAuth2.
+
+![Google Ads Refresh Token](res/googleads_refresh.png)
+
+At this point, you should have the following credentials:
+
+| Credential | Where to get it |
+|-----------|------------------|
+| **Developer Token** | In the **API Center** of your Google Ads **Manager (MCC)** account |
+| **Customer ID** | At the top-right corner of the **ad account** you want to retrieve data from |
+| **Login Customer ID** | At the top-right corner of your **Manager (MCC)** account |
+| **Client ID** | In Google Cloud Console → **Google Auth Platform → Clients**, displayed when creating an OAuth client or in the downloaded JSON |
+| **Client Secret** | In Google Cloud Console → **Google Auth Platform → Clients**, displayed when creating an OAuth client or in the downloaded JSON |
+| **Refresh Token** | Generated via **OAuth Playground** after authorizing the Google Ads API with your Client ID and Client Secret |
+
+You can continue with the setup described in the [GETTING_STARTED](GETTING_STARTED) guide.
+If you prefer to use Service Account authentication instead of OAuth2, follow the steps below.
+
+## Option 2. Service Account Authentication
+
+### Step 1: Save Your Developer Token and Customer ID
+
+- **Developer Token** — copy it from the **API Center** in your **Manager (MCC)** account.
+If you don’t have a Developer Token yet, please see **[Step 1: Register in the API Center](#step-1-register-in-the-api-center)** at the beginning of this tutorial.  
+- **Customer ID** — copy it from the top-right corner of your **ad account** (the account from which you want to retrieve data).  
+- **Login Customer ID** — copy the ID of your **Manager (MCC)** account.  
+
+![Google Ads Developer Token](res/googleads_devtoken.png)
+
+### Step 2: Create a Service Account in Google Cloud Platform (GCP)
 
 1. Open your GCP project and navigate to  
    **IAM & Admin → Service Accounts → Create Service Account**.  
@@ -64,11 +166,13 @@ If approved, you’ll see your access level updated in the API Center:
 4. Click **Continue**, then **Done**.  
 5. Locate the newly created service account, click the **three dots** (⋮) on the right-hand side, and select **Manage Keys**.  
 6. In the **Keys** tab, click **Add Key → Create New Key → JSON**.  
-7. The JSON key file will be downloaded automatically — please **store it securely**, as you will need it later.  
+7. The JSON key file will be downloaded automatically — please **store it securely**, as you will need it later.
+
+![Google Ads Roles](res/googleads_permissions.png)
 
 ![Google Ads Add service account keys](res/googleads_service.png)
 
-### Step 2: Set Up Access in Google Ads
+### Step 3: Set Up Access in Google Ads
 
 **Add the Service Account to Google Ads**:
 
@@ -81,34 +185,14 @@ If approved, you’ll see your access level updated in the API Center:
 
 ![Google Ads Add service account email](res/googleads_addservice.png)
 
-## Step 4: Save Your Developer Token and Customer ID
-
-After completing, make sure to collect and securely store the following information:
-
-- **Developer Token** — copy it from the **API Center** in your **Manager (MCC)** account.  
-- **Customer ID** — copy it from the top-right corner of your **ad account** (the account from which you want to retrieve data).  
-- **Login Customer ID** — copy the ID of your **Manager (MCC)** account.  
-
-![Google Ads Developer Token](res/googleads_devtoken.png)
-
 At this point, you should have the following credentials:
 
-| Credential | Description |
-|-------------|-------------|
-| **Service Account Key (JSON)** | Used for authentication from your GCP project |
-| **Developer Token** | Authorizes access to the Google Ads API |
-| **Customer ID** | Identifies the ad account you’re retrieving data from |
-| **Login Customer ID** | Identifies your Manager (MCC) account used for authentication |
-
-## Step 5: Use the Credentials to Obtain the Access Token
-
-Use the credentials you gathered above to retrieve the access token and connect to Google Ads, as described in the  
-👉 [GETTING_STARTED](GETTING_STARTED.md) guide.
-
-## OAuth2 Authentication
-
-> This section is currently under development.  
-> OAuth2 authentication will allow connection using individual user consent instead of a service account.
+| Credential | Where to get it |
+|-----------|------------------|
+| **Service Account Key (JSON)** | In Google Cloud Console → **IAM & Admin → Service Accounts → Manage Keys → Add Key → JSON** |
+| **Developer Token** | In the **API Center** of your Google Ads **Manager (MCC)** account |
+| **Customer ID** | At the top-right corner of the **ad account** you want to retrieve data from |
+| **Login Customer ID** | At the top-right corner of your **Manager (MCC)** account |
 
 ✅ **You’re all set!**  
-You can now use your service account, developer token, and customer ID to access and import data from Google Ads via OWOX Data Marts.
+You can now use your credentials to access and import data from Google Ads via OWOX Data Marts.
