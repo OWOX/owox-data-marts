@@ -53,8 +53,8 @@ describe('ConnectorSecretService', () => {
     it('masks secret fields using SECRET_MASK', async () => {
       const { service } = createService(['AccessToken']);
       const def = makeDefinition([
-        { _id: 'a', AccessToken: 'token-a', AccoundIDs: '33' },
-        { _id: 'b', AccessToken: 'token-b', AccoundIDs: '22' },
+        { _id: 'a', AccessToken: 'token-a', AccountIDs: '33' },
+        { _id: 'b', AccessToken: 'token-b', AccountIDs: '22' },
       ]);
 
       const masked = await service.mask(def);
@@ -62,13 +62,13 @@ describe('ConnectorSecretService', () => {
       const cfg = masked!.connector.source.configuration as Array<Record<string, unknown>>;
       expect(cfg[0].AccessToken).toBe(SECRET_MASK);
       expect(cfg[1].AccessToken).toBe(SECRET_MASK);
-      expect(cfg[0].AccoundIDs).toBe('33');
-      expect(cfg[1].AccoundIDs).toBe('22');
+      expect(cfg[0].AccountIDs).toBe('33');
+      expect(cfg[1].AccountIDs).toBe('22');
     });
 
     it('returns original definition if no secret fields in spec', async () => {
       const { service } = createService([]);
-      const def = makeDefinition([{ _id: 'a', AccoundIDs: '33' }]);
+      const def = makeDefinition([{ _id: 'a', AccountIDs: '33' }]);
       const masked = await service.mask(def);
       expect(masked).toBe(def);
     });
@@ -78,12 +78,12 @@ describe('ConnectorSecretService', () => {
     it('keeps previous secret when incoming has SECRET_MASK', async () => {
       const { service } = createService(['AccessToken']);
       const previous = makeDefinition([
-        { _id: 'a', AccessToken: 'prev-a', AccoundIDs: '33' },
-        { _id: 'b', AccessToken: 'prev-b', AccoundIDs: '22' },
+        { _id: 'a', AccessToken: 'prev-a', AccountIDs: '33' },
+        { _id: 'b', AccessToken: 'prev-b', AccountIDs: '22' },
       ]);
       const incoming = makeDefinition([
-        { _id: 'a', AccessToken: SECRET_MASK, AccoundIDs: '33' },
-        { _id: 'b', AccessToken: SECRET_MASK, AccoundIDs: '22' },
+        { _id: 'a', AccessToken: SECRET_MASK, AccountIDs: '33' },
+        { _id: 'b', AccessToken: SECRET_MASK, AccountIDs: '22' },
       ]);
 
       const merged = await service.mergeDefinitionSecrets(incoming, previous);
@@ -94,13 +94,13 @@ describe('ConnectorSecretService', () => {
 
     it('keeps previous secret when incoming omits secret field (omit-key)', async () => {
       const { service } = createService(['AccessToken']);
-      const previous = makeDefinition([{ _id: 'a', AccessToken: 'prev-a', AccoundIDs: '33' }]);
-      const incoming = makeDefinition([{ _id: 'a', AccoundIDs: '33' }]);
+      const previous = makeDefinition([{ _id: 'a', AccessToken: 'prev-a', AccountIDs: '33' }]);
+      const incoming = makeDefinition([{ _id: 'a', AccountIDs: '33' }]);
 
       const merged = await service.mergeDefinitionSecrets(incoming, previous);
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
       expect(cfg[0].AccessToken).toBe('prev-a');
-      expect(cfg[0].AccoundIDs).toBe('33');
+      expect(cfg[0].AccountIDs).toBe('33');
     });
 
     it('updates secret when incoming provides new string', async () => {
@@ -116,13 +116,13 @@ describe('ConnectorSecretService', () => {
     it('does not merge when _id is missing (new item) and assigns an _id', async () => {
       const { service } = createService(['AccessToken']);
       const previous = makeDefinition([{ _id: 'a', AccessToken: 'prev-a' }]);
-      const incoming = makeDefinition([{ AccoundIDs: '33' }]);
+      const incoming = makeDefinition([{ AccountIDs: '33' }]);
 
       const merged = await service.mergeDefinitionSecrets(incoming, previous);
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
       expect(typeof cfg[0]._id).toBe('string');
       expect((cfg[0]._id as string).length).toBeGreaterThan(0);
-      expect(cfg[0].AccoundIDs).toBe('33');
+      expect(cfg[0].AccountIDs).toBe('33');
     });
 
     it('keeps current when previous item with same _id not found', async () => {
@@ -401,20 +401,20 @@ describe('ConnectorSecretService', () => {
       const { service } = createService(['AccessToken']);
 
       const sourceDefinition = makeDefinition([
-        { _id: 'source-id-1', AccessToken: 'access1', AccoundIDs: '1' },
-        { _id: 'source-id-2', AccessToken: 'access2', AccoundIDs: '2' },
-        { _id: 'source-id-3', AccessToken: 'access3', AccoundIDs: '3' },
+        { _id: 'source-id-1', AccessToken: 'access1', AccountIDs: '1' },
+        { _id: 'source-id-2', AccessToken: 'access2', AccountIDs: '2' },
+        { _id: 'source-id-3', AccessToken: 'access3', AccountIDs: '3' },
       ]);
 
       const incoming = makeDefinition([
         {
           AccessToken: SECRET_MASK,
-          AccoundIDs: '1',
+          AccountIDs: '1',
           _copiedFrom: { configId: 'source-id-1' },
         },
         {
           AccessToken: SECRET_MASK,
-          AccoundIDs: '3',
+          AccountIDs: '3',
           _copiedFrom: { configId: 'source-id-3' },
         },
       ]);
@@ -423,13 +423,13 @@ describe('ConnectorSecretService', () => {
       const cfg = merged.connector.source.configuration as Array<Record<string, unknown>>;
 
       expect(cfg[0].AccessToken).toBe('access1');
-      expect(cfg[0].AccoundIDs).toBe('1');
+      expect(cfg[0].AccountIDs).toBe('1');
       expect(cfg[0]._copiedFrom).toBeUndefined();
       expect(typeof cfg[0]._id).toBe('string');
       expect(cfg[0]._id).not.toBe('source-id-1');
 
       expect(cfg[1].AccessToken).toBe('access3');
-      expect(cfg[1].AccoundIDs).toBe('3');
+      expect(cfg[1].AccountIDs).toBe('3');
       expect(cfg[1]._copiedFrom).toBeUndefined();
       expect(typeof cfg[1]._id).toBe('string');
       expect(cfg[1]._id).not.toBe('source-id-3');
@@ -471,7 +471,7 @@ describe('ConnectorSecretService', () => {
         {
           _id: 'existing-1',
           AccessToken: SECRET_MASK,
-          AccoundIDs: '1',
+          AccountIDs: '1',
         },
       ]);
 
@@ -481,7 +481,7 @@ describe('ConnectorSecretService', () => {
       // Should return the item unchanged (will be merged with previous in the next step)
       expect(cfg[0]._id).toBe('existing-1');
       expect(cfg[0].AccessToken).toBe(SECRET_MASK);
-      expect(cfg[0].AccoundIDs).toBe('1');
+      expect(cfg[0].AccountIDs).toBe('1');
     });
 
     it('throws error when source configuration with specified configId is not found', async () => {
@@ -526,8 +526,8 @@ describe('ConnectorSecretService', () => {
 
       // Source definition has 2 configurations
       const sourceDefinition = makeDefinition([
-        { _id: 'source-id-1', AccessToken: 'access1', RefreshToken: 'refresh1', AccoundIDs: '1' },
-        { _id: 'source-id-2', AccessToken: 'access2', RefreshToken: 'refresh2', AccoundIDs: '2' },
+        { _id: 'source-id-1', AccessToken: 'access1', RefreshToken: 'refresh1', AccountIDs: '1' },
+        { _id: 'source-id-2', AccessToken: 'access2', RefreshToken: 'refresh2', AccountIDs: '2' },
       ]);
 
       // Incoming has 3 configurations:
@@ -539,18 +539,18 @@ describe('ConnectorSecretService', () => {
           _id: 'existing-id',
           AccessToken: SECRET_MASK,
           RefreshToken: SECRET_MASK,
-          AccoundIDs: '999',
+          AccountIDs: '999',
         },
         {
           AccessToken: SECRET_MASK,
           RefreshToken: SECRET_MASK,
-          AccoundIDs: '1',
+          AccountIDs: '1',
           _copiedFrom: { configId: 'source-id-1' },
         },
         {
           AccessToken: SECRET_MASK,
           RefreshToken: SECRET_MASK,
-          AccoundIDs: '2',
+          AccountIDs: '2',
           _copiedFrom: { configId: 'source-id-2' },
         },
       ]);
@@ -562,13 +562,13 @@ describe('ConnectorSecretService', () => {
       expect(cfg[0]._id).toBe('existing-id');
       expect(cfg[0].AccessToken).toBe(SECRET_MASK);
       expect(cfg[0].RefreshToken).toBe(SECRET_MASK);
-      expect(cfg[0].AccoundIDs).toBe('999');
+      expect(cfg[0].AccountIDs).toBe('999');
       expect(cfg[0]._copiedFrom).toBeUndefined();
 
       // Second config (copied from source-id-1)
       expect(cfg[1].AccessToken).toBe('access1');
       expect(cfg[1].RefreshToken).toBe('refresh1');
-      expect(cfg[1].AccoundIDs).toBe('1');
+      expect(cfg[1].AccountIDs).toBe('1');
       expect(cfg[1]._copiedFrom).toBeUndefined();
       expect(typeof cfg[1]._id).toBe('string');
       expect(cfg[1]._id).not.toBe('source-id-1');
@@ -576,7 +576,7 @@ describe('ConnectorSecretService', () => {
       // Third config (copied from source-id-2)
       expect(cfg[2].AccessToken).toBe('access2');
       expect(cfg[2].RefreshToken).toBe('refresh2');
-      expect(cfg[2].AccoundIDs).toBe('2');
+      expect(cfg[2].AccountIDs).toBe('2');
       expect(cfg[2]._copiedFrom).toBeUndefined();
       expect(typeof cfg[2]._id).toBe('string');
       expect(cfg[2]._id).not.toBe('source-id-2');
