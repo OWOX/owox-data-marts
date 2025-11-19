@@ -11,7 +11,7 @@ If you don’t have one yet, follow Google’s instructions to create it:
 ## Step 1. Register in the API Center
 
 _(Optional — only required if you do not already have a Developer Token)_  
-If you already have a **Developer Token** in your Manager (MCC) account, you may skip this step.
+If you already have a **Developer Token** with Basic Access in your Manager (MCC) account, you may skip this step and go to the [choosing authentication method](#next-step-choose-your-authentication-method).
 
 1. In your **Manager (MCC)** account, open **Admin → API Center**.  
 2. Fill out the registration form with the following details:  
