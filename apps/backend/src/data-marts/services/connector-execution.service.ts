@@ -39,6 +39,8 @@ import { OwoxProducer } from '@owox/internal-helpers';
 import { ConnectorRunSuccessfullyEvent } from '../events/connector-run-successfully.event';
 import { RunType } from '../../common/scheduler/shared/types';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
+import { ConnectorService } from './connector.service';
 
 interface ConfigurationExecutionResult {
   configIndex: number;
@@ -61,7 +63,9 @@ export class ConnectorExecutionService {
     private readonly consumptionTracker: ConsumptionTrackingService,
     private readonly systemTimeService: SystemTimeService,
     @Inject(OWOX_PRODUCER)
-    private readonly producer: OwoxProducer
+    private readonly producer: OwoxProducer,
+    private readonly connectorSourceCredentialsService: ConnectorSourceCredentialsService,
+    private readonly connectorService: ConnectorService
   ) {}
 
   async cancelRun(dataMartId: string, runId: string): Promise<void> {
@@ -395,10 +399,17 @@ export class ConnectorExecutionService {
       );
 
       try {
+        // Refresh credentials before running the connector
+        const refreshedConfig = await this.refreshCredentialsForConfig(
+          dataMart.projectId,
+          connector.source.name,
+          config
+        );
+
         const configuration = new ConfigDto({
           name: connector.source.name,
           datamartId: dataMart.id,
-          source: await this.getSourceConfig(dataMart.id, connector, config, configId),
+          source: await this.getSourceConfig(dataMart.id, connector, refreshedConfig, configId),
           storage: this.getStorageConfig(dataMart),
         });
 
@@ -573,10 +584,11 @@ export class ConnectorExecutionService {
 
     const state = await this.connectorStateService.getState(dataMartId, configId);
 
+    const configWithCredentials = await this.injectOAuthCredentials(config, connector.source.name);
     return new SourceConfigDto({
       name: connector.source.name,
       config: {
-        ...config,
+        ...configWithCredentials,
         Fields: fieldsConfig,
         ...(state?.state?.date
           ? { LastRequestedDate: new Date(state.state.date as string).toISOString().split('T')[0] }
@@ -743,5 +755,193 @@ export class ConnectorExecutionService {
         );
       });
     }
+  }
+
+  /**
+   * Inject OAuth credentials into configuration if _source_credential_id is present
+   * @param config - Configuration object that may contain _source_credential_id
+   * @param connectorName - Name of the connector (e.g., "FacebookMarketing")
+   * @returns Configuration with OAuth credentials injected
+   */
+  private async injectOAuthCredentials(
+    config: Record<string, unknown>,
+    connectorName: string
+  ): Promise<Record<string, unknown>> {
+    return (await this.injectOAuthCredentialsRecursive(config, '', connectorName)) as Record<
+      string,
+      unknown
+    >;
+  }
+
+  /**
+   * Recursively inject OAuth credentials into nested configuration structures
+   */
+  private async injectOAuthCredentialsRecursive(
+    value: unknown,
+    currentPath: string,
+    connectorName: string
+  ): Promise<unknown> {
+    // Handle non-object values
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return value;
+    }
+
+    const obj = value as Record<string, unknown>;
+    const credentialId = obj._source_credential_id as string | undefined;
+
+    if (credentialId) {
+      try {
+        const credentialsEntity =
+          await this.connectorSourceCredentialsService.getCredentialsById(credentialId);
+
+        if (!credentialsEntity) {
+          this.logger.warn(
+            `OAuth credentials not found for ID: ${credentialId}. Using config without OAuth tokens.`
+          );
+          return obj;
+        }
+
+        const isExpired = await this.connectorSourceCredentialsService.isExpired(credentialId);
+
+        if (isExpired) {
+          this.logger.warn(
+            `OAuth tokens expired for credential ID: ${credentialId}. Connector may fail. Please re-authorize.`
+          );
+        }
+
+        const spec = await this.connectorService.getItemByFieldPath(
+          credentialsEntity.connectorName,
+          currentPath
+        );
+
+        const mapping = spec.oauthParams?.mapping as Record<string, string> | undefined;
+
+        if (!mapping) {
+          this.logger.warn(
+            `No mapping found for OAuth field ${currentPath}. Using credentials directly.`
+          );
+          return {
+            ...obj,
+            ...credentialsEntity.credentials,
+          };
+        }
+
+        const resolvedConfig: Record<string, unknown> = {};
+        for (const [key, mappingConfig] of Object.entries(mapping)) {
+          const resolved = this.resolveMapping(mappingConfig, credentialsEntity.credentials);
+          resolvedConfig[key] = resolved;
+        }
+
+        return resolvedConfig;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger.error(
+          `Failed to inject OAuth credentials for ID: ${credentialId}: ${errorMessage}`,
+          error instanceof Error ? error.stack : undefined
+        );
+        return obj;
+      }
+    }
+
+    const result: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(obj)) {
+      const newPath = currentPath ? `${currentPath}.${key}` : key;
+      result[key] = await this.injectOAuthCredentialsRecursive(val, newPath, connectorName);
+    }
+
+    return result;
+  }
+
+  /**
+   * Resolve mapping config to get actual credential value
+   * Mapping config format: { type: 'string', store: 'secret', key: 'accessToken' }
+   * where 'key' is the field name in credentials
+   */
+  private resolveMapping(mappingConfig: unknown, credentials: Record<string, unknown>): unknown {
+    if (!mappingConfig || typeof mappingConfig !== 'object') {
+      return mappingConfig;
+    }
+
+    const config = mappingConfig as Record<string, unknown>;
+
+    // If mapping has 'key' field, use it to get value from credentials
+    if (config.key && typeof config.key === 'string') {
+      return credentials[config.key] ?? '';
+    }
+
+    // Fallback: return the config as-is
+    return mappingConfig;
+  }
+
+  /**
+   * Refresh credentials for a configuration before running the connector
+   * Recursively looks for _source_credential_id and refreshes if needed
+   */
+  private async refreshCredentialsForConfig(
+    projectId: string,
+    connectorName: string,
+    config: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    return (await this.refreshCredentialsRecursive(
+      projectId,
+      connectorName,
+      config,
+      config
+    )) as Record<string, unknown>;
+  }
+
+  /**
+   * Recursively refresh credentials in nested configuration structures
+   */
+  private async refreshCredentialsRecursive(
+    projectId: string,
+    connectorName: string,
+    value: unknown,
+    rootConfig: Record<string, unknown>
+  ): Promise<unknown> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return value;
+    }
+
+    const obj = value as Record<string, unknown>;
+    const credentialId = obj._source_credential_id as string | undefined;
+
+    if (credentialId) {
+      try {
+        const newCredentialId = await this.connectorService.refreshCredentials(
+          projectId,
+          connectorName,
+          rootConfig,
+          credentialId
+        );
+
+        if (newCredentialId !== credentialId) {
+          return {
+            ...obj,
+            _source_credential_id: newCredentialId,
+          };
+        }
+
+        return obj;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger.warn(
+          `Failed to refresh credentials for ${credentialId}: ${errorMessage}. Using existing credentials.`
+        );
+        return obj;
+      }
+    }
+
+    const result: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(obj)) {
+      result[key] = await this.refreshCredentialsRecursive(
+        projectId,
+        connectorName,
+        val,
+        rootConfig
+      );
+    }
+
+    return result;
   }
 }

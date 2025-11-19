@@ -10,14 +10,79 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
 
   //---- constructor -------------------------------------------------
     constructor(config) {
-  
       super(config.mergeParameters({
-        AccessToken:{
+        AuthType: {
+          requiredType: "object",
+          label: "Auth Type",
+          description: "Authentication type",
           isRequired: true,
+          oneOf: [
+            {
+              label: "OAuth2",
+              value: "oauth2",
+              requiredType: "object",
+              attributes: [CONFIG_ATTRIBUTES.OAUTH_FLOW],
+              oauthParams: {
+                vars: {
+                  AppId: {
+                    type: 'string',
+                    required: true,
+                    store: 'env',
+                    key: 'OAUTH_FACEBOOK_MARKETING_APP_ID',
+                    attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
+                  },
+                  AppSecret: {
+                    type: 'string',
+                    required: true,
+                    store: 'env',
+                    key: 'OAUTH_FACEBOOK_MARKETING_APP_SECRET',
+                    attributes: [OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
+                  },
+                  Scopes: {
+                    type: 'string',
+                    store: 'env',
+                    key: 'OAUTH_FACEBOOK_MARKETING_SCOPE',
+                    default: 'ads_read,business_management',
+                    attributes: [OAUTH_CONSTANTS.UI]
+                  }
+                },
+                mapping: {
+                  AccessToken: {
+                    type: 'string',
+                    required: true,
+                    store: 'secret',
+                    key: 'accessToken'
+                  }
+                }
+              },
+              items: {
+                AccessToken: {
+                  isRequired: true,
+                  requiredType: "string",
+                  label: "Access Token",
+                  description: "Facebook API Access Token for authentication",
+                  attributes: [CONFIG_ATTRIBUTES.SECRET]
+                },
+                AppId: {
+                  requiredType: "string",
+                  label: "App ID",
+                  description: "Facebook API App ID for exchange token",
+                },
+                AppSecret: {
+                  requiredType: "string",
+                  label: "App Secret",
+                  description: "Facebook API App Secret for exchange token",
+                  attributes: [CONFIG_ATTRIBUTES.SECRET]
+                },
+              }
+            }
+          ]
+        },
+        AccessToken: {
           requiredType: "string",
           label: "Access Token",
           description: "Facebook API Access Token for authentication",
-          attributes: [CONFIG_ATTRIBUTES.SECRET]
+          attributes: [CONFIG_ATTRIBUTES.SECRET, CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
         },
         AccoundIDs: {
           isRequired: true,
@@ -74,7 +139,92 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       this.fieldsSchema = FacebookMarketingFieldsSchema;
   
     }
-    
+
+  async exchangeOauthCredentials(credentials, variables) {
+    try {
+      const debugResponse = await HttpUtils.fetch(
+        `https://graph.facebook.com/debug_token?input_token=${credentials.accessToken}&access_token=${variables.AppId}|${variables.AppSecret}`
+      );
+      const debugData = await debugResponse.getAsJson();
+  
+      if (!debugData.data?.is_valid) {
+        throw new OauthFlowException({ message: 'Invalid token', payload: debugData.data?.error?.message });
+      }
+      const longLivedResponse = await HttpUtils.fetch(
+        `https://graph.facebook.com/v23.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${variables.AppId}&client_secret=${variables.AppSecret}&fb_exchange_token=${credentials.accessToken}`
+      );
+      const longLivedData = await longLivedResponse.getAsJson();
+
+
+      const userInfo = await HttpUtils.fetch(
+        `https://graph.facebook.com/v23.0/me?fields=id,name&access_token=${longLivedData.access_token}`
+      );
+      const userInfoData = await userInfo.getAsJson();
+
+      const oauthCredentials = OauthCredentialsDto.builder()
+        .withUser({ id: userInfoData.id, name: userInfoData.name })
+        .withSecret({ accessToken: longLivedData.access_token })
+        .withExpiresIn(60 * 60 * 24 * 60); // 60 days in seconds
+        
+
+      const adAccountsResponse = await HttpUtils.fetch(
+        `https://graph.facebook.com/v23.0/me/adaccounts?fields=id,name,account_status&access_token=${longLivedData.access_token}`
+      );
+      const adAccountsData = await adAccountsResponse.getAsJson();
+
+      if (adAccountsData.error) {
+        oauthCredentials.withWarnings([adAccountsData.error.message]);
+      } else {
+        oauthCredentials.withAdditional({ adAccounts: adAccountsData });
+      }
+      return oauthCredentials.build().toObject();
+    } catch (error) {
+      throw new OauthFlowException({ message: 'Failed to exchange Facebook tokens', payload: error.message });
+    }
+  }
+
+  async refreshCredentials(configuration, credentials, variables) {
+    // Configuration from data mart has structure: { AuthType: { oauth2: { ... } } }
+    // We need to check if oauth2 key exists
+    const authTypeConfig = configuration.AuthType || {};
+    const isOAuth2 = 'oauth2' in authTypeConfig;
+
+    if (!isOAuth2) {
+      // Not OAuth2 auth type, no refresh needed
+      return null;
+    }
+
+    const oauthConfig = authTypeConfig.oauth2 || {};
+    const hasStoredCredential = OAUTH_SOURCE_CREDENTIALS_KEY in oauthConfig && oauthConfig[OAUTH_SOURCE_CREDENTIALS_KEY];
+
+    if (hasStoredCredential) {
+      // OAuth flow with stored credentials - refresh if expires within 5 days
+      const fiveDaysFromNow = Date.now() + 5 * 24 * 60 * 60 * 1000;
+      if (credentials.expiresAt && credentials.expiresAt < fiveDaysFromNow) {
+        // credentials from DB has secret.accessToken structure
+        const storedCredentials = { accessToken: credentials.secret?.accessToken };
+        return this.exchangeOauthCredentials(storedCredentials, variables);
+      } else {
+        // No refresh needed
+        return null;
+      }
+    } else {
+      // Manual mode - extract tokens from configuration
+      const accessToken = oauthConfig.AccessToken;
+      const appId = oauthConfig.AppId;
+      const appSecret = oauthConfig.AppSecret;
+
+      if (!accessToken || !appId || !appSecret) {
+        // Cannot refresh without all required fields
+        return null;
+      }
+
+      const manualCredentials = { accessToken };
+      const manualVariables = { AppId: appId, AppSecret: appSecret };
+      return this.exchangeOauthCredentials(manualCredentials, manualVariables);
+    }
+  }
+
   //---- isValidToRetry ----------------------------------------------
     /**
      * Determines if a Facebook API error is valid for retry
@@ -171,7 +321,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       
       console.log(`Facebook API URL:`, url);
 
-      url += `&access_token=${this.config.AccessToken.value}`;
+      url += `&access_token=${this._getAccessToken()}`;
   
       return await this._fetchPaginatedData(url, nodeName, fields);
   
@@ -279,6 +429,14 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       return allData;
     }
 
+    _getAccessToken() {
+      // if oauth2, use the entered access token
+      if (this.config.AuthType.value && this.config.AuthType.value === 'oauth2') {
+        return this.config.AuthType.items?.AccessToken?.value;
+      }
+      return this.config.AccessToken.value;
+    }
+
   //---- _prepareFields --------------------------------------
     /**
      * Filter and prepare fields for API request
@@ -321,7 +479,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       
       console.log(`Facebook API URL:`, insightsUrl);
       
-      insightsUrl += `&access_token=${this.config.AccessToken.value}`;
+      insightsUrl += `&access_token=${this._getAccessToken()}`;
       return insightsUrl;
     }
 

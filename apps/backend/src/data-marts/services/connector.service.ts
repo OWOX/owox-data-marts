@@ -4,13 +4,21 @@ import { Injectable, Logger } from '@nestjs/common';
 import { AvailableConnectors, Connectors, Core } from '@owox/connectors';
 
 import { ConnectorDefinition } from '../connector-types/connector-definition';
-import { ConnectorSpecification } from '../connector-types/connector-specification';
+import {
+  ConnectorSpecification,
+  ConnectorSpecificationItem,
+} from '../connector-types/connector-specification';
 import { ConnectorFieldsSchema } from '../connector-types/connector-fields-schema';
+import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
+import { ConnectorOauthCredentials } from '../connector-types/interfaces/connector-oauth-credentials';
+import { OAuthVar, OAuthAttribute } from '../connector-types/connector-oauth-schema';
 
 interface ConnectorSpecificationOneOf {
   label: string;
   value: string;
   requiredType: string;
+  attributes?: Core.CONFIG_ATTRIBUTES[];
+  oauthParams?: Record<string, unknown>;
   items: Record<string, ConnectorConfigField>;
 }
 
@@ -52,6 +60,9 @@ interface SourceFieldsSchema {
 export class ConnectorService {
   private readonly logger = new Logger(ConnectorService.name);
 
+  constructor(
+    private readonly connectorSourceCredentialsService: ConnectorSourceCredentialsService
+  ) {}
   /**
    * Get all available connectors
    */
@@ -101,6 +112,281 @@ export class ConnectorService {
     return ConnectorFieldsSchema.parse(fieldsSchema);
   }
 
+  async getOAuthUiVariables(
+    connectorName: string,
+    fieldPath: string
+  ): Promise<Record<string, unknown>> {
+    const specification = await this.getConnectorSpecification(connectorName);
+    const paths = fieldPath.split('.');
+    const item = this.getItemFromSpecRecursively(specification, paths);
+    if (item.attributes?.includes(Core.CONFIG_ATTRIBUTES.OAUTH_FLOW)) {
+      return item.oauthParams?.ui_variables as Record<string, unknown>;
+    }
+    return {};
+  }
+
+  async getOAuthUiVariablesExpanded(
+    connectorName: string,
+    fieldPath: string
+  ): Promise<Record<string, unknown>> {
+    const specification = await this.getConnectorSpecification(connectorName);
+    const paths = fieldPath.split('.');
+    const item = this.getItemFromSpecRecursively(specification, paths);
+    if (item.attributes?.includes(Core.CONFIG_ATTRIBUTES.OAUTH_FLOW)) {
+      const oauthParams = item.oauthParams as Record<string, unknown>;
+
+      if (oauthParams?.vars) {
+        return this.parseOAuthVars(oauthParams.vars as Record<string, unknown>, ['UI']);
+      }
+
+      throw new Error(`UI variables not found for field path ${fieldPath}`);
+    }
+    return {};
+  }
+
+  async exchangeCredential(
+    projectId: string,
+    userId: string,
+    connectorName: string,
+    fieldPath: string,
+    payload: unknown
+  ): Promise<{
+    credentialId: string;
+    user?: { id?: string; name?: string; email?: string; picture?: string };
+    additional?: Record<string, unknown>;
+    warnings?: string[];
+  }> {
+    const connector = this.createConnectorSource(connectorName);
+    const oauthVariables = await this.getSourceOauthVariables(connectorName, fieldPath);
+    const exchanged = (await connector.exchangeOauthCredentials(
+      payload,
+      oauthVariables
+    )) as ConnectorOauthCredentials;
+    const credential = await this.connectorSourceCredentialsService.createCredentials(
+      projectId,
+      userId,
+      connectorName,
+      exchanged.secret,
+      new Date(Date.now() + exchanged.expiresIn * 1000),
+      exchanged.user
+    );
+    return {
+      credentialId: credential.id,
+      user: exchanged.user,
+      additional: exchanged.additional,
+      warnings: exchanged.warnings,
+    };
+  }
+
+  /**
+   * Refresh credentials for a connector configuration
+   * @param projectId - Project ID
+   * @param connectorName - Connector name (e.g., "FacebookMarketing")
+   * @param configuration - The configuration object from data mart
+   * @param credentialId - The credential ID to refresh
+   * @returns Updated credential ID (may be same or new if refreshed)
+   */
+  async refreshCredentials(
+    projectId: string,
+    connectorName: string,
+    configuration: Record<string, unknown>,
+    credentialId: string
+  ): Promise<string> {
+    const credential =
+      await this.connectorSourceCredentialsService.getCredentialsById(credentialId);
+
+    if (!credential) {
+      throw new Error(`Credential with ID ${credentialId} not found`);
+    }
+
+    const connector = this.createConnectorSource(connectorName);
+
+    // Get OAuth variables from environment for the connector
+    const oauthVariables = await this.getOAuthVariablesForRefresh(connectorName, configuration);
+
+    // Include expiresAt in credentials for refresh logic
+    const credentialsWithExpiry = {
+      ...credential.credentials,
+      expiresAt: credential.expiresAt?.getTime() ?? null,
+    };
+
+    const refreshedCredentials = await connector.refreshCredentials(
+      configuration,
+      credentialsWithExpiry,
+      oauthVariables
+    );
+
+    if (!refreshedCredentials) {
+      // No refresh needed, return existing credential
+      return credentialId;
+    }
+
+    // If credentials were refreshed, save them
+    const newCredential = await this.connectorSourceCredentialsService.createCredentials(
+      projectId,
+      credential.userId ?? '',
+      connectorName,
+      refreshedCredentials.secret,
+      new Date(Date.now() + refreshedCredentials.expiresIn * 1000),
+      refreshedCredentials.user
+    );
+
+    return newCredential.id;
+  }
+
+  /**
+   * Get OAuth variables needed for credential refresh
+   */
+  private async getOAuthVariablesForRefresh(
+    connectorName: string,
+    configuration: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    // Find the OAuth field path from configuration
+    // Configuration from data mart has structure: { AuthType: { oauth2: { ... } } }
+    // We need to extract the auth type key (e.g., "oauth2")
+    const authType = configuration.AuthType as Record<string, unknown> | undefined;
+    if (!authType) {
+      return {};
+    }
+
+    // Get the first key from AuthType object (e.g., "oauth2" or "accessToken")
+    const authTypeKey = Object.keys(authType)[0];
+    if (!authTypeKey) {
+      return {};
+    }
+
+    const fieldPath = `AuthType.${authTypeKey}`;
+
+    try {
+      return await this.getSourceOauthVariables(connectorName, fieldPath);
+    } catch {
+      return {};
+    }
+  }
+
+  private getItemFromSpecRecursively(
+    specification: ConnectorSpecification | Record<string, ConnectorSpecificationItem>,
+    paths: string[]
+  ): ConnectorSpecificationItem {
+    if (paths.length === 0) {
+      throw new Error('Path cannot be empty');
+    }
+
+    const [currentPath, ...remainingPaths] = paths;
+
+    let currentItem: ConnectorSpecificationItem | undefined;
+
+    if (Array.isArray(specification)) {
+      currentItem = specification.find(spec => spec.name === currentPath);
+    } else {
+      currentItem = specification[currentPath];
+    }
+
+    if (!currentItem) {
+      throw new Error(`Field "${currentPath}" not found in specification`);
+    }
+
+    if (remainingPaths.length === 0) {
+      return currentItem;
+    }
+
+    if ('oneOf' in currentItem && currentItem.oneOf && Array.isArray(currentItem.oneOf)) {
+      const nextPath = remainingPaths[0];
+
+      const oneOfVariant = currentItem.oneOf.find(variant => variant.value === nextPath);
+
+      if (oneOfVariant) {
+        if (remainingPaths.length === 1) {
+          return {
+            name: nextPath,
+            ...oneOfVariant,
+          } as ConnectorSpecificationItem;
+        }
+
+        if (oneOfVariant.items) {
+          return this.getItemFromSpecRecursively(oneOfVariant.items, remainingPaths.slice(1));
+        }
+      }
+    }
+
+    throw new Error(`Path "${paths.join('.')}" not found in specification`);
+  }
+
+  private parseOAuthVars(
+    vars: Record<string, unknown>,
+    filterAttributes?: OAuthAttribute[]
+  ): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+
+    for (const [key, varConfig] of Object.entries(vars)) {
+      const config = varConfig as OAuthVar;
+
+      if (filterAttributes && filterAttributes.length > 0) {
+        const hasRequiredAttribute = filterAttributes.some(attr =>
+          config.attributes?.includes(attr)
+        );
+        if (!hasRequiredAttribute) {
+          continue;
+        }
+      }
+
+      let value: unknown;
+      if (config.store === 'env' && config.key) {
+        const envValue = process.env[config.key];
+        if (!envValue) {
+          if (config.default) {
+            value = config.default;
+          } else if (config.required) {
+            value = null;
+          }
+        } else {
+          value = envValue;
+        }
+      } else if (config.default !== undefined) {
+        value = config.default;
+      } else {
+        value = null;
+      }
+
+      result[key] = value;
+    }
+
+    return result;
+  }
+
+  async getSourceOauthVariables(
+    connectorName: string,
+    fieldPath: string
+  ): Promise<Record<string, unknown>> {
+    const specification = await this.getConnectorSpecification(connectorName);
+    const paths = fieldPath.split('.');
+    const item = this.getItemFromSpecRecursively(specification, paths);
+
+    if (!item.attributes?.includes(Core.CONFIG_ATTRIBUTES.OAUTH_FLOW)) {
+      throw new Error(`Field "${fieldPath}" is not an OAuth flow field`);
+    }
+
+    const oauthParams = item.oauthParams as Record<string, unknown>;
+
+    if (!oauthParams?.vars) {
+      throw new Error(`Variables not found for field path ${fieldPath}`);
+    }
+
+    return this.parseOAuthVars(oauthParams.vars as Record<string, unknown>);
+  }
+
+  /**
+   * Get specification item by field path (e.g., "AuthType.oauth2")
+   */
+  async getItemByFieldPath(
+    connectorName: string,
+    fieldPath: string
+  ): Promise<ConnectorSpecificationItem> {
+    const specification = await this.getConnectorSpecification(connectorName);
+    const paths = fieldPath.split('.');
+    return this.getItemFromSpecRecursively(specification, paths);
+  }
+
   private validateConnectorExists(connectorName: string): void {
     if (Object.keys(Connectors).length === 0) {
       throw new Error('No connectors found');
@@ -122,39 +408,47 @@ export class ConnectorService {
   }
 
   private mapConfigToSchema(config: ConnectorConfig) {
-    return Object.keys(config).map(key => ({
-      name: key,
-      title: config[key].label,
-      description: config[key].description,
-      default: config[key].default,
-      requiredType: config[key].requiredType,
-      required: config[key].isRequired,
-      options: config[key].options,
-      placeholder: config[key].placeholder,
-      attributes: config[key].attributes,
-      oneOf: config[key].oneOf?.map(oneOf => ({
-        label: oneOf.label,
-        value: oneOf.value,
-        requiredType: oneOf.requiredType,
-        items: Object.entries(oneOf.items).reduce(
-          (acc, [itemKey, itemValue]) => {
-            acc[itemKey] = {
-              name: itemKey,
-              title: itemValue.label,
-              description: itemValue.description,
-              default: itemValue.default,
-              requiredType: itemValue.requiredType,
-              required: itemValue.isRequired,
-              options: itemValue.options,
-              placeholder: itemValue.placeholder,
-              attributes: itemValue.attributes,
-            };
-            return acc;
-          },
-          {} as Record<string, unknown>
-        ),
-      })),
-    }));
+    const result = Object.keys(config).map(key => {
+      const item = {
+        name: key,
+        title: config[key].label,
+        description: config[key].description,
+        default: config[key].default,
+        requiredType: config[key].requiredType,
+        required: config[key].isRequired,
+        options: config[key].options,
+        placeholder: config[key].placeholder,
+        attributes: config[key].attributes,
+        oneOf: config[key].oneOf?.map(oneOf => {
+          return {
+            label: oneOf.label,
+            value: oneOf.value,
+            requiredType: oneOf.requiredType,
+            attributes: oneOf.attributes,
+            oauthParams: oneOf.oauthParams,
+            items: Object.entries(oneOf.items).reduce(
+              (acc, [itemKey, itemValue]) => {
+                acc[itemKey] = {
+                  name: itemKey,
+                  title: itemValue.label,
+                  description: itemValue.description,
+                  default: itemValue.default,
+                  requiredType: itemValue.requiredType,
+                  required: itemValue.isRequired,
+                  options: itemValue.options,
+                  placeholder: itemValue.placeholder,
+                  attributes: itemValue.attributes,
+                };
+                return acc;
+              },
+              {} as Record<string, unknown>
+            ),
+          };
+        }),
+      };
+      return item;
+    });
+    return result;
   }
 
   private mapFieldsSchemaToDto(sourceFieldsSchema: SourceFieldsSchema) {

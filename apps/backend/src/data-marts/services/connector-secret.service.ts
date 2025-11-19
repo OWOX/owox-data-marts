@@ -87,9 +87,28 @@ export class ConnectorSecretService {
 
     const maskedItem = { ...(item as Record<string, unknown>) };
 
+    // If this item has _source_credential_id, don't mask OAuth-related fields
+    // because the actual secrets are stored separately in ConnectorSourceSecrets
+    const hasOAuthSecrets = maskedItem._source_credential_id !== undefined;
+
     for (const [key, value] of Object.entries(maskedItem)) {
+      // Skip masking if:
+      // 1. This is the _source_credential_id field itself (always keep it)
+      // 2. This config uses OAuth and this is a secret field (OAuth fields are stored separately)
+      if (key === '_source_credential_id') {
+        // Keep _source_credential_id as is
+        continue;
+      }
+
       if (secretFieldNames.has(key)) {
-        maskedItem[key] = SECRET_MASK;
+        if (hasOAuthSecrets) {
+          // Don't mask OAuth-managed secrets - they're stored separately
+          // Set to undefined to indicate they're managed by OAuth
+          maskedItem[key] = undefined;
+        } else {
+          // Mask regular secrets
+          maskedItem[key] = SECRET_MASK;
+        }
       } else if (value && typeof value === 'object') {
         maskedItem[key] = this.maskRecursively(value, secretFieldNames);
       }

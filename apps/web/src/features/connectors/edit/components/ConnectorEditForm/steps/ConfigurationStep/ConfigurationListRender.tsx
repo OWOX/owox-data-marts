@@ -14,6 +14,7 @@ interface ConfigurationListRenderProps {
   secretEditing: Record<string, boolean>;
   isEditingExisting: boolean;
   collapsibleTitle?: string;
+  connectorName: string;
 }
 
 function renderItems(
@@ -22,7 +23,8 @@ function renderItems(
   onValueChange: (name: string, value: unknown) => void,
   onSecretEditToggle: (name: string, enable: boolean) => void,
   secretEditing: Record<string, boolean>,
-  isEditingExisting: boolean
+  isEditingExisting: boolean,
+  connectorName: string
 ) {
   return items.map(specification => {
     const isSecret = Array.isArray(specification.attributes)
@@ -41,6 +43,7 @@ function renderItems(
           isEditingExisting={isEditingExisting}
           isSecretEditing={isSecretEditing}
           onSecretEditToggle={onSecretEditToggle}
+          connectorName={connectorName}
         />
       );
     }
@@ -55,6 +58,7 @@ function renderItems(
         isSecretEditing={isSecretEditing}
         onValueChange={onValueChange}
         onSecretEditToggle={onSecretEditToggle}
+        connectorName={connectorName}
       />
     );
   });
@@ -68,6 +72,7 @@ export function ConfigurationListRender({
   onSecretEditToggle,
   secretEditing,
   isEditingExisting,
+  connectorName,
 }: ConfigurationListRenderProps) {
   return collapsibleTitle ? (
     <AppWizardCollapsible title={collapsibleTitle}>
@@ -77,7 +82,8 @@ export function ConfigurationListRender({
         onValueChange,
         onSecretEditToggle,
         secretEditing,
-        isEditingExisting
+        isEditingExisting,
+        connectorName
       )}
     </AppWizardCollapsible>
   ) : (
@@ -87,7 +93,8 @@ export function ConfigurationListRender({
       onValueChange,
       onSecretEditToggle,
       secretEditing,
-      isEditingExisting
+      isEditingExisting,
+      connectorName
     )
   );
 }
