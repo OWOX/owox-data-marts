@@ -9,7 +9,7 @@ import type { DataDestination } from '../types';
  */
 export function useDataDestinationVisibility(destination: DataDestination) {
   const destinationInfo = DataDestinationTypeModel.getInfo(destination.type);
-  const isVisible = destinationInfo.status === DataDestinationStatus.ACTIVE;
+  const isVisible = destinationInfo.status !== DataDestinationStatus.COMING_SOON;
 
   return {
     destinationInfo,

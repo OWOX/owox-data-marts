@@ -142,6 +142,10 @@ export const getRunSummary = (
       runType = 'report';
       break;
     case DataMartRunType.GOOGLE_SHEETS_EXPORT:
+    case DataMartRunType.EMAIL:
+    case DataMartRunType.SLACK:
+    case DataMartRunType.MS_TEAMS:
+    case DataMartRunType.GOOGLE_CHAT:
       title = run.reportDefinition?.title ?? '';
       runType = 'report';
       break;

@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { DataDestinationType } from '../../../shared';
 import { GoogleSheetsFields } from './GoogleSheetsFields';
 import { LookerStudioFields } from './LookerStudioFields';
+import { EmailFields } from './EmailFields';
 import { DestinationTypeField } from './DestinationTypeField';
 import {
   Form,
@@ -92,6 +93,25 @@ export function DataDestinationForm({
 
           {destinationType === DataDestinationType.LOOKER_STUDIO && (
             <LookerStudioFields form={form} />
+          )}
+
+          {destinationType === DataDestinationType.EMAIL && (
+            <EmailFields form={form} emailsFieldTitle={'Enter user emails list'} />
+          )}
+
+          {destinationType === DataDestinationType.SLACK && (
+            <EmailFields form={form} emailsFieldTitle={'Enter Slack channel emails list'} />
+          )}
+
+          {destinationType === DataDestinationType.MS_TEAMS && (
+            <EmailFields
+              form={form}
+              emailsFieldTitle={'Enter Microsoft Teams channel emails list'}
+            />
+          )}
+
+          {destinationType === DataDestinationType.GOOGLE_CHAT && (
+            <EmailFields form={form} emailsFieldTitle={'Enter Google Chat channel emails list'} />
           )}
         </FormLayout>
         <FormActions>

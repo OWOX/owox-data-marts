@@ -18,6 +18,14 @@ interface DestinationCardProps {
   dataMartStatus?: DataMartStatusInfo;
 }
 
+const reportDestinationTypes = [
+  DataDestinationType.GOOGLE_SHEETS,
+  DataDestinationType.EMAIL,
+  DataDestinationType.SLACK,
+  DataDestinationType.MS_TEAMS,
+  DataDestinationType.GOOGLE_CHAT,
+];
+
 /**
  * DestinationCard component
  * - Displays a collapsible card for each Data Destination
@@ -49,7 +57,7 @@ export function DestinationCard({ destination, dataMartStatus }: DestinationCard
           {/* Actions */}
           <CollapsibleCardHeaderActions>
             {/* Render AddReportButton only for Google Sheets*/}
-            {destination.type === DataDestinationType.GOOGLE_SHEETS && (
+            {reportDestinationTypes.includes(destination.type) && (
               <AddReportButton dataMartStatus={dataMartStatus} onAddReport={handleAddReport} />
             )}
           </CollapsibleCardHeaderActions>
@@ -57,13 +65,7 @@ export function DestinationCard({ destination, dataMartStatus }: DestinationCard
 
         {/* Reports list table */}
         <CollapsibleCardContent>
-          <ReportListRenderer
-            destination={destination}
-            onEditReport={handleEditReport}
-            {...(destination.type === DataDestinationType.GOOGLE_SHEETS && {
-              autoRefreshEnabled: true,
-            })}
-          />
+          <ReportListRenderer destination={destination} onEditReport={handleEditReport} />
         </CollapsibleCardContent>
 
         <CollapsibleCardFooter />

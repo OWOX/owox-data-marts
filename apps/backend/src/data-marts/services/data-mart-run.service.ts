@@ -1,14 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 
 import { RunType } from '../../common/scheduler/shared/types';
+import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { DataMartRun } from '../entities/data-mart-run.entity';
+import { Report } from '../entities/report.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
-import { Report } from '../entities/report.entity';
-import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
-import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 
 /**
  * Context for creating a new report run.
@@ -234,6 +234,14 @@ export class DataMartRunService {
         return DataMartRunType.GOOGLE_SHEETS_EXPORT;
       case DataDestinationType.LOOKER_STUDIO:
         return DataMartRunType.LOOKER_STUDIO;
+      case DataDestinationType.EMAIL:
+        return DataMartRunType.EMAIL;
+      case DataDestinationType.SLACK:
+        return DataMartRunType.SLACK;
+      case DataDestinationType.GOOGLE_CHAT:
+        return DataMartRunType.GOOGLE_CHAT;
+      case DataDestinationType.MS_TEAMS:
+        return DataMartRunType.MS_TEAMS;
       default:
         throw Error(`Unexpected Data Destination Type - ${dataDestinationType}`);
     }

@@ -1,4 +1,5 @@
 import { type GoogleServiceAccountCredentialsDto } from '../../../../../shared/types';
+import type { EmailCredentials } from '../../model/types/email-credentials.ts';
 
 /**
  * Data transfer object for updating a data destination
@@ -12,5 +13,5 @@ export interface UpdateDataDestinationRequestDto {
   /**
    * Credentials for the selected destination type
    */
-  credentials?: GoogleServiceAccountCredentialsDto;
+  credentials?: GoogleServiceAccountCredentialsDto | EmailCredentials;
 }

@@ -1,4 +1,5 @@
 import { DataDestinationConfig, DataDestinationConfigSchema } from './data-destination-config.type';
+import { EmailConfig, EmailConfigType } from './ee/email/schemas/email-config.schema';
 import {
   GoogleSheetsConfig,
   GoogleSheetsConfigType,
@@ -14,7 +15,11 @@ export function isValidDataDestinationConfig(
   return DataDestinationConfigSchema.safeParse(destination).success;
 }
 
-export function isGoogleSheetsDestination(
+export function isEmailConfig(definition: DataDestinationConfig): definition is EmailConfig {
+  return definition.type === EmailConfigType;
+}
+
+export function isGoogleSheetsConfig(
   definition: DataDestinationConfig
 ): definition is GoogleSheetsConfig {
   return definition.type === GoogleSheetsConfigType;

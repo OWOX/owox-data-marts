@@ -139,10 +139,16 @@ We're building this **with the community**, not just for it.
 
 ## 📌 License
 
-OWOX Data Marts is free for internal or client use, not for resale in a competing product. The project uses a dual-license model:
+Except for Enterprise-grade features, OWOX Data Marts is free for internal or client use,
+not for resale in a competing product. The project uses a dual-license model:
 
 - **Connectors** (`packages/connectors`) are distributed under the [MIT License](licenses/MIT.md)
 - **Platform** (all other files and directories) is distributed under the [ELv2 License](licenses/Elasticv2.md)
+
+**Enterprise features** are licensed under the [Enterprise License](licenses/ee.md) and are located
+in the `apps/backend/src/data-marts/data-destination-types/ee` directory
+or source code files that contain `.ee.` in their file name.
+Pricing for Enterprise features is available on [our pricing page](https://www.owox.com/pricing).
 
 ---
 

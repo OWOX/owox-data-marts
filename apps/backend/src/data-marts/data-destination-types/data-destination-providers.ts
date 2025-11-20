@@ -1,5 +1,12 @@
 import { ModuleRef } from '@nestjs/core';
 import { TypeResolver } from '../../common/resolver/type-resolver';
+import { AvailableDestinationTypesService } from './available-destination-types.service';
+import {
+  EmailReportWriter,
+  GoogleChatReportWriter,
+  MsTeamsReportWriter,
+  SlackReportWriter,
+} from './ee/email/services/email-report-writer';
 import { DataDestinationType } from './enums/data-destination-type.enum';
 import { GoogleSheetsApiAdapterFactory } from './google-sheets/adapters/google-sheets-api-adapter.factory';
 import { GoogleSheetsAccessValidator } from './google-sheets/services/google-sheets-access-validator';
@@ -24,6 +31,18 @@ import { LookerStudioConnectorCredentialsValidator } from './looker-studio-conne
 import { LookerStudioConnectorCredentialsProcessor } from './looker-studio-connector/services/looker-studio-connector-credentials-processor';
 import { LookerStudioConnectorSecretKeyRotator } from './looker-studio-connector/services/looker-studio-connector-secret-key-rotator';
 import { LookerStudioTypeMapperService } from './looker-studio-connector/services/looker-studio-type-mapper.service';
+import {
+  EmailAccessValidator,
+  GoogleChatAccessValidator,
+  MsTeamsAccessValidator,
+  SlackAccessValidator,
+} from './ee/email/services/email-access-validator';
+import {
+  EmailCredentialsValidator,
+  GoogleChatCredentialsValidator,
+  MsTeamsCredentialsValidator,
+  SlackCredentialsValidator,
+} from './ee/email/services/email-credentials-validator';
 
 export const DATA_DESTINATION_ACCESS_VALIDATOR_RESOLVER = Symbol(
   'DATA_DESTINATION_ACCESS_VALIDATOR_RESOLVER'
@@ -44,14 +63,28 @@ export const DATA_DESTINATION_SECRET_KEY_ROTATOR_RESOLVER = Symbol(
 const accessValidatorProviders = [
   GoogleSheetsAccessValidator,
   LookerStudioConnectorAccessValidator,
+  EmailAccessValidator,
+  SlackAccessValidator,
+  MsTeamsAccessValidator,
+  GoogleChatAccessValidator,
 ];
 const credentialsValidatorProviders = [
   GoogleSheetsCredentialsValidator,
   LookerStudioConnectorCredentialsValidator,
+  EmailCredentialsValidator,
+  SlackCredentialsValidator,
+  MsTeamsCredentialsValidator,
+  GoogleChatCredentialsValidator,
 ];
 const credentialsProcessorProviders = [LookerStudioConnectorCredentialsProcessor];
 const secretKeyRotatorProviders = [LookerStudioConnectorSecretKeyRotator];
-const reportWriterProviders = [GoogleSheetsReportWriter];
+const reportWriterProviders = [
+  GoogleSheetsReportWriter,
+  EmailReportWriter,
+  SlackReportWriter,
+  MsTeamsReportWriter,
+  GoogleChatReportWriter,
+];
 const googleSheetsUtilityProviders = [
   SheetHeaderFormatter,
   SheetMetadataFormatter,
@@ -63,6 +96,7 @@ const publicCredentialsProviders = [
 ];
 
 export const dataDestinationResolverProviders = [
+  AvailableDestinationTypesService,
   ...accessValidatorProviders,
   ...credentialsValidatorProviders,
   ...credentialsProcessorProviders,
@@ -78,32 +112,58 @@ export const dataDestinationResolverProviders = [
   LookerStudioTypeMapperService,
   {
     provide: DATA_DESTINATION_ACCESS_VALIDATOR_RESOLVER,
-    useFactory: (...validators: DataDestinationAccessValidator[]) =>
-      new TypeResolver<DataDestinationType, DataDestinationAccessValidator>(validators),
-    inject: accessValidatorProviders,
+    useFactory: (
+      available: AvailableDestinationTypesService,
+      ...validators: DataDestinationAccessValidator[]
+    ) => {
+      const allowed = validators.filter(v => available.isAllowed(v.type));
+      return new TypeResolver<DataDestinationType, DataDestinationAccessValidator>(allowed);
+    },
+    inject: [AvailableDestinationTypesService, ...accessValidatorProviders],
   },
   {
     provide: DATA_DESTINATION_CREDENTIALS_VALIDATOR_RESOLVER,
-    useFactory: (...validators: DataDestinationCredentialsValidator[]) =>
-      new TypeResolver<DataDestinationType, DataDestinationCredentialsValidator>(validators),
-    inject: credentialsValidatorProviders,
+    useFactory: (
+      available: AvailableDestinationTypesService,
+      ...validators: DataDestinationCredentialsValidator[]
+    ) => {
+      const allowed = validators.filter(v => available.isAllowed(v.type));
+      return new TypeResolver<DataDestinationType, DataDestinationCredentialsValidator>(allowed);
+    },
+    inject: [AvailableDestinationTypesService, ...credentialsValidatorProviders],
   },
   {
     provide: DATA_DESTINATION_CREDENTIALS_PROCESSOR_RESOLVER,
-    useFactory: (...processors: DataDestinationCredentialsProcessor[]) =>
-      new TypeResolver<DataDestinationType, DataDestinationCredentialsProcessor>(processors),
-    inject: credentialsProcessorProviders,
+    useFactory: (
+      available: AvailableDestinationTypesService,
+      ...processors: DataDestinationCredentialsProcessor[]
+    ) => {
+      const allowed = processors.filter(p => available.isAllowed(p.type));
+      return new TypeResolver<DataDestinationType, DataDestinationCredentialsProcessor>(allowed);
+    },
+    inject: [AvailableDestinationTypesService, ...credentialsProcessorProviders],
   },
   {
     provide: DATA_DESTINATION_REPORT_WRITER_RESOLVER,
-    useFactory: (moduleRef: ModuleRef, ...writers: DataDestinationReportWriter[]) =>
-      new TypeResolver<DataDestinationType, DataDestinationReportWriter>(writers, moduleRef),
-    inject: [ModuleRef, ...reportWriterProviders],
+    useFactory: (
+      moduleRef: ModuleRef,
+      available: AvailableDestinationTypesService,
+      ...writers: DataDestinationReportWriter[]
+    ) => {
+      const allowed = writers.filter(w => available.isAllowed(w.type));
+      return new TypeResolver<DataDestinationType, DataDestinationReportWriter>(allowed, moduleRef);
+    },
+    inject: [ModuleRef, AvailableDestinationTypesService, ...reportWriterProviders],
   },
   {
     provide: DATA_DESTINATION_SECRET_KEY_ROTATOR_RESOLVER,
-    useFactory: (...rotators: DataDestinationSecretKeyRotator[]) =>
-      new TypeResolver<DataDestinationType, DataDestinationSecretKeyRotator>(rotators),
-    inject: secretKeyRotatorProviders,
+    useFactory: (
+      available: AvailableDestinationTypesService,
+      ...rotators: DataDestinationSecretKeyRotator[]
+    ) => {
+      const allowed = rotators.filter(r => available.isAllowed(r.type));
+      return new TypeResolver<DataDestinationType, DataDestinationSecretKeyRotator>(allowed);
+    },
+    inject: [AvailableDestinationTypesService, ...secretKeyRotatorProviders],
   },
 ];
