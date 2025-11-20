@@ -8,6 +8,7 @@ import { IdpModule } from './idp/idp.module';
 import { createDataSourceOptions } from './config/data-source-options.config';
 import { validateConfig } from './config/env-validation.config';
 import { ClsModule } from 'nestjs-cls';
+import { AiInsightsModule } from './common/ai-insights/ai-insights.module';
 import { DataSource } from 'typeorm';
 import { addTransactionalDataSource } from 'typeorm-transactional';
 
@@ -43,6 +44,7 @@ import { addTransactionalDataSource } from 'typeorm-transactional';
     DataMartsModule,
     CommonModule,
     IdpModule,
+    AiInsightsModule,
   ],
 })
 export class AppModule {}

@@ -111,6 +111,16 @@ import { UpdateInsightService } from './use-cases/update-insight.service';
 import { UpdateInsightTitleService } from './use-cases/update-insight-title.service';
 import { DeleteInsightService } from './use-cases/delete-insight.service';
 import { RetryInterruptedConnectorRunsProcessor } from './system-triggers/processors/retry-interrupted-connector-runs-processor';
+import { DataMartsAiInsightsToolsRegistrar } from './ai-insights/tools/data-marts-ai-insights-tools.registrar';
+import { TableNameRetrieverTool } from './ai-insights/tools/table-name-retriever.tool';
+import { SqlRunService } from './use-cases/sql-run.service';
+import { CreateViewService } from './use-cases/create-view.service';
+import { DataMartMarkdownTemplateFacadeImpl } from './ai-insights/data-mart-markdown-template.facade';
+import { PromptTagHandler } from './ai-insights/template/handlers/prompt-tag.handler';
+import { AiInsightsFacadeImpl } from './ai-insights/facades/ai-insights.facade.impl';
+import { AiInsightsAgentService } from './ai-insights/agent.service';
+import { AI_INSIGHTS_TOOLS_REGISTRARS } from '../common/ai-insights/services/ai-insights-tools-registrar';
+import { AI_INSIGHTS_FACADE } from './ai-insights/ai-insights-types';
 
 @Module({
   imports: [
@@ -151,6 +161,21 @@ import { RetryInterruptedConnectorRunsProcessor } from './system-triggers/proces
     ...scheduledTriggerProviders,
     ...scheduledTriggerFacadesProviders,
     DataMartService,
+    AiInsightsFacadeImpl,
+    AiInsightsAgentService,
+    PromptTagHandler,
+    DataMartMarkdownTemplateFacadeImpl,
+    TableNameRetrieverTool,
+    DataMartsAiInsightsToolsRegistrar,
+    {
+      provide: AI_INSIGHTS_TOOLS_REGISTRARS,
+      useFactory: (dataMarts: DataMartsAiInsightsToolsRegistrar) => [dataMarts],
+      inject: [DataMartsAiInsightsToolsRegistrar],
+    },
+    {
+      provide: AI_INSIGHTS_FACADE,
+      useClass: AiInsightsFacadeImpl,
+    },
     CreateDataMartService,
     ListDataMartsService,
     ListDataMartsByConnectorNameService,
@@ -205,6 +230,8 @@ import { RetryInterruptedConnectorRunsProcessor } from './system-triggers/proces
     RunDataMartService,
     CancelDataMartRunService,
     SqlDryRunService,
+    SqlRunService,
+    CreateViewService,
     ActualizeDataMartSchemaService,
     UpdateDataMartSchemaService,
     ScheduledTriggersHandlerService,
