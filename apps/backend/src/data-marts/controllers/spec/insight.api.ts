@@ -12,7 +12,6 @@ import {
 import { CreateInsightRequestApiDto } from '../../dto/presentation/create-insight-request-api.dto';
 import { InsightListItemResponseApiDto } from '../../dto/presentation/insight-list-item-response-api.dto';
 import { InsightResponseApiDto } from '../../dto/presentation/insight-response-api.dto';
-import { RunInsightResponseApiDto } from '../../dto/presentation/run-insight-response-api.dto';
 import { UpdateInsightRequestApiDto } from '../../dto/presentation/update-insight-request-api.dto';
 import { UpdateInsightTitleApiDto } from '../../dto/presentation/update-insight-title-api.dto';
 
@@ -79,14 +78,5 @@ export function UpdateInsightTitleSpec() {
     ApiParam({ name: 'insightId', description: 'Insight ID' }),
     ApiBody({ type: UpdateInsightTitleApiDto }),
     ApiOkResponse({ type: InsightResponseApiDto })
-  );
-}
-
-export function RunInsightSpec() {
-  return applyDecorators(
-    ApiOperation({ summary: 'Run Insight (manual)' }),
-    ApiParam({ name: 'dataMartId', description: 'DataMart ID' }),
-    ApiParam({ name: 'insightId', description: 'Insight ID' }),
-    ApiOkResponse({ type: RunInsightResponseApiDto })
   );
 }

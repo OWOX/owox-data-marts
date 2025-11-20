@@ -5,9 +5,11 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { DataMartRun } from './data-mart-run.entity';
 import { DataMart } from './data-mart.entity';
 
 @Entity()
@@ -24,6 +26,13 @@ export class Insight {
   @ManyToOne(() => DataMart)
   @JoinColumn()
   dataMart: DataMart;
+
+  @Column({ nullable: true })
+  lastDataMartRunId?: string;
+
+  @OneToOne(() => DataMartRun)
+  @JoinColumn({ name: 'lastDataMartRunId' })
+  lastDataMartRun?: DataMartRun | null;
 
   @Column({ nullable: true })
   output?: string;

@@ -113,6 +113,10 @@ import { InsightExecutionService } from './services/insight-execution.service';
 import { RunInsightService } from './use-cases/run-insight.service';
 import { GetDataMartRunService } from './use-cases/get-data-mart-run.service';
 import { ListDataMartRunsService } from './use-cases/list-data-mart-runs.service';
+import { InsightRunTrigger } from './entities/insight-run-trigger.entity';
+import { InsightRunTriggerController } from './controllers/insight-run-trigger.controller';
+import { InsightRunTriggerService } from './services/insight-run-trigger.service';
+import { InsightRunTriggerHandlerService } from './services/insight-run-trigger-handler.service';
 
 @Module({
   imports: [
@@ -128,6 +132,7 @@ import { ListDataMartRunsService } from './use-cases/list-data-mart-runs.service
       ReportDataCache,
       SqlDryRunTrigger,
       SchemaActualizeTrigger,
+      InsightRunTrigger,
     ]),
     CommonModule,
     IdpModule,
@@ -143,6 +148,7 @@ import { ListDataMartRunsService } from './use-cases/list-data-mart-runs.service
     LookerStudioConnectorController,
     SqlDryRunTriggerController,
     SchemaActualizeTriggerController,
+    InsightRunTriggerController,
   ],
   providers: [
     ...dataStorageResolverProviders,
@@ -234,6 +240,8 @@ import { ListDataMartRunsService } from './use-cases/list-data-mart-runs.service
     DataMartRunService,
     ReportRunService,
     LookerStudioReportRunService,
+    InsightRunTriggerService,
+    InsightRunTriggerHandlerService,
   ],
 })
 export class DataMartsModule {

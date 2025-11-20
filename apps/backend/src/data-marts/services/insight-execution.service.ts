@@ -34,9 +34,9 @@ export class InsightExecutionService {
   ): Promise<string> {
     const dataMartRun = await this.createRun(dataMart, insight, createdById, runType);
 
-    this.executeInBackground(dataMart, insight, dataMartRun).catch(error => {
+    await this.execute(dataMart, insight, dataMartRun).catch(error => {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Background insight execution failed: ${errorMessage}`, error?.stack, {
+      this.logger.error(`Insight execution failed: ${errorMessage}`, error?.stack, {
         dataMartId: dataMart.id,
         projectId: dataMart.projectId,
         runId: dataMartRun.id,
@@ -68,10 +68,11 @@ export class InsightExecutionService {
       logs: [],
       errors: [],
     });
+
     return this.dataMartRunRepository.save(run);
   }
 
-  private async executeInBackground(dataMart: DataMart, insight: Insight, run: DataMartRun) {
+  private async execute(dataMart: DataMart, insight: Insight, run: DataMartRun) {
     const runId = run.id;
     const now = this.systemTimeService.now();
     await this.dataMartRunRepository.update(runId, {
@@ -91,7 +92,9 @@ export class InsightExecutionService {
       logs.push(JSON.stringify(enriched));
     };
 
+    //TODO: Replace with actual insight AI layer execution
     const runMain = async (): Promise<string> => {
+      await new Promise(resolve => setTimeout(resolve, 10000));
       pushLog({ type: 'log', message: `Job started for ${insight.title}` });
       pushLog({
         type: 'log',
@@ -105,12 +108,9 @@ export class InsightExecutionService {
       pushLog({ type: 'log', message: 'Computed metrics and benchmarks (stubbed)' });
       pushLog({ type: 'log', message: 'Compiled executive summary and recommendations (stubbed)' });
 
-      const output =
-        'Executive summary: This is a stubbed output for the Insight execution. Replace with AI Layer output when available.\n\n' +
-        `Title: ${insight.title}\n` +
-        (insight.template ? `Template: ${insight.template}\n` : '');
+      const output = insight.template ?? null;
 
-      return output;
+      return output ?? '';
     };
 
     try {
@@ -119,6 +119,7 @@ export class InsightExecutionService {
       await this.insightRepository.update(insight.id, {
         output,
         outputUpdatedAt: this.systemTimeService.now(),
+        lastDataMartRunId: run.id,
       });
 
       await this.dataMartRunRepository.update(runId, {

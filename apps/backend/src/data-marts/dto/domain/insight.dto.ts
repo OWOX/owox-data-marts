@@ -1,3 +1,5 @@
+import { DataMartRunDto } from './data-mart-run.dto';
+
 export class InsightDto {
   constructor(
     public readonly id: string,
@@ -7,6 +9,7 @@ export class InsightDto {
     public readonly outputUpdatedAt: Date | null,
     public readonly createdById: string,
     public readonly createdAt: Date,
-    public readonly modifiedAt: Date
+    public readonly modifiedAt: Date,
+    public readonly lastDataMartRun?: DataMartRunDto | null
   ) {}
 }
