@@ -21,6 +21,10 @@ import { BigQueryReportReader } from './bigquery/services/bigquery-report-reader
 import { BigQueryReportHeadersGenerator } from './bigquery/services/bigquery-report-headers-generator.service';
 import { BigQuerySchemaMerger } from './bigquery/services/bigquery-schema-merger';
 import { BigquerySqlDryRunExecutor } from './bigquery/services/bigquery-sql-dry-run.executor';
+import { BigQuerySqlRunExecutor } from './bigquery/services/bigquery-sql-run.executor';
+import { AthenaSqlRunExecutor } from './athena/services/athena-sql-run.executor';
+import { BigQueryCreateViewExecutor } from './bigquery/services/bigquery-create-view.executor';
+import { AthenaCreateViewExecutor } from './athena/services/athena-create-view.executor';
 import { DataStorageType } from './enums/data-storage-type.enum';
 import { DataMartSchemaMerger } from './interfaces/data-mart-schema-merger.interface';
 import { DataMartSchemaParser } from './interfaces/data-mart-schema-parser.interface';
@@ -30,6 +34,8 @@ import { DataStorageAccessValidator } from './interfaces/data-storage-access-val
 import { DataStorageReportReader } from './interfaces/data-storage-report-reader.interface';
 import { ReportHeadersGenerator } from './interfaces/report-headers-generator.interface';
 import { SqlDryRunExecutor } from './interfaces/sql-dry-run-executor.interface';
+import { SqlRunExecutor } from './interfaces/sql-run-executor.interface';
+import { CreateViewExecutor } from './interfaces/create-view-executor.interface';
 import { DataStoragePublicCredentialsFactory } from './factories/data-storage-public-credentials.factory';
 import { DataStorageCredentialsUtils } from './data-mart-schema.utils';
 
@@ -43,6 +49,8 @@ export const DATA_MART_SCHEMA_MERGER_RESOLVER = Symbol('DATA_MART_SCHEMA_MERGER_
 export const DATA_MART_SCHEMA_PARSER_RESOLVER = Symbol('DATA_MART_SCHEMA_PARSER_RESOLVER');
 export const REPORT_HEADERS_GENERATOR_RESOLVER = Symbol('REPORT_HEADERS_GENERATOR_RESOLVER');
 export const SQL_DRY_RUN_EXECUTOR_RESOLVER = Symbol('SQL_DRY_RUN_EXECUTOR_RESOLVER');
+export const SQL_RUN_EXECUTOR_RESOLVER = Symbol('SQL_RUN_EXECUTOR_RESOLVER');
+export const CREATE_VIEW_EXECUTOR_RESOLVER = Symbol('CREATE_VIEW_EXECUTOR_RESOLVER');
 
 const accessValidatorProviders = [BigQueryAccessValidator, AthenaAccessValidator];
 const storageDataProviders = [BigQueryReportReader, AthenaReportReader];
@@ -57,6 +65,8 @@ const reportHeadersGeneratorProviders = [
   AthenaReportHeadersGenerator,
 ];
 const sqlDryRunExecutorProviders = [BigquerySqlDryRunExecutor, AthenaSqlDryRunExecutor];
+const sqlRunExecutorProviders = [BigQuerySqlRunExecutor, AthenaSqlRunExecutor];
+const createViewExecutorProviders = [BigQueryCreateViewExecutor, AthenaCreateViewExecutor];
 const publicCredentialsProviders = [
   DataStoragePublicCredentialsFactory,
   DataStorageCredentialsUtils,
@@ -73,6 +83,8 @@ export const dataStorageResolverProviders = [
   ...schemaParserProviders,
   ...reportHeadersGeneratorProviders,
   ...sqlDryRunExecutorProviders,
+  ...sqlRunExecutorProviders,
+  ...createViewExecutorProviders,
   ...publicCredentialsProviders,
   {
     provide: DATA_STORAGE_ACCESS_VALIDATOR_RESOLVER,
@@ -121,5 +133,17 @@ export const dataStorageResolverProviders = [
     useFactory: (...executors: SqlDryRunExecutor[]) =>
       new TypeResolver<DataStorageType, SqlDryRunExecutor>(executors),
     inject: sqlDryRunExecutorProviders,
+  },
+  {
+    provide: SQL_RUN_EXECUTOR_RESOLVER,
+    useFactory: (...executors: SqlRunExecutor[]) =>
+      new TypeResolver<DataStorageType, SqlRunExecutor>(executors),
+    inject: sqlRunExecutorProviders,
+  },
+  {
+    provide: CREATE_VIEW_EXECUTOR_RESOLVER,
+    useFactory: (...executors: CreateViewExecutor[]) =>
+      new TypeResolver<DataStorageType, CreateViewExecutor>(executors),
+    inject: createViewExecutorProviders,
   },
 ];
