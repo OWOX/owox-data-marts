@@ -35,7 +35,7 @@ Before proceeding, please make sure that:
 1. Choose one of the available endpoints.
 2. Select the required **fields**. If you want to import spend, clicks and impressions from ad account, please, choose [`ad-account/insights`](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights/) endpoint.
 3. Specify the **dataset** where the data will be stored, or leave it as default.
-4. Click **Finish**, then **Save and Publish Data Mart**.
+4. Click **Finish**, then **Publish Data Mart**.
 
 ![Facebook Endpoint](res/facebook_endpoint.png)
 
