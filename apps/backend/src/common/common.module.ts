@@ -33,7 +33,7 @@ import { AiInsightsModule } from './ai-insights/ai-insights.module';
     PublicOriginService,
     AppEditionConfig,
     MarkdownParser,
-    AiInsightsModule
+    AiInsightsModule,
   ],
 })
 export class CommonModule {}
