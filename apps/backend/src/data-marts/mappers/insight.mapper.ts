@@ -13,9 +13,12 @@ import { InsightResponseApiDto } from '../dto/presentation/insight-response-api.
 import { UpdateInsightRequestApiDto } from '../dto/presentation/update-insight-request-api.dto';
 import { UpdateInsightTitleApiDto } from '../dto/presentation/update-insight-title-api.dto';
 import { Insight } from '../entities/insight.entity';
+import { DataMartMapper } from './data-mart.mapper';
 
 @Injectable()
 export class InsightMapper {
+  constructor(private readonly dataMartMapper: DataMartMapper) {}
+
   toCreateDomainCommand(
     dataMartId: string,
     context: AuthorizationContext,
@@ -31,13 +34,19 @@ export class InsightMapper {
   }
 
   toDomainDto(entity: Insight): InsightDto {
+    const lastRunDto = entity.lastDataMartRun
+      ? this.dataMartMapper.toDataMartRunDto(entity.lastDataMartRun)
+      : null;
     return new InsightDto(
       entity.id,
       entity.title,
       entity.template ?? null,
+      entity.output ?? null,
+      entity.outputUpdatedAt ?? null,
       entity.createdById,
       entity.createdAt,
-      entity.modifiedAt
+      entity.modifiedAt,
+      lastRunDto
     );
   }
 
@@ -45,14 +54,19 @@ export class InsightMapper {
     return entities.map(entity => this.toDomainDto(entity));
   }
 
-  toResponse(dto: InsightDto): InsightResponseApiDto {
+  async toResponse(dto: InsightDto): Promise<InsightResponseApiDto> {
     return {
       id: dto.id,
       title: dto.title,
       template: dto.template,
+      output: dto.output,
+      outputUpdatedAt: dto.outputUpdatedAt,
       createdById: dto.createdById,
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,
+      lastDataMartRun: dto.lastDataMartRun
+        ? await this.dataMartMapper.toRunResponse(dto.lastDataMartRun)
+        : null,
     };
   }
 
@@ -60,6 +74,7 @@ export class InsightMapper {
     return {
       id: dto.id,
       title: dto.title,
+      outputUpdatedAt: dto.outputUpdatedAt,
       createdById: dto.createdById,
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,

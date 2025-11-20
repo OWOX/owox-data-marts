@@ -31,6 +31,9 @@ export class DataMartRun {
   @Column({ type: 'json' })
   definitionRun: DataMartDefinition;
 
+  @Column({ nullable: true })
+  insightId?: string;
+
   @Column({ type: 'varchar', nullable: true })
   reportId?: string | null;
 

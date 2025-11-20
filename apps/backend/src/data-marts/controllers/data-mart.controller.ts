@@ -15,7 +15,6 @@ import { UpdateDataMartTitleService } from '../use-cases/update-data-mart-title.
 import { UpdateDataMartDescriptionService } from '../use-cases/update-data-mart-description.service';
 import { PublishDataMartService } from '../use-cases/publish-data-mart.service';
 import { DeleteDataMartService } from '../use-cases/delete-data-mart.service';
-import { GetDataMartRunsService } from '../use-cases/get-data-mart-runs.service';
 import { CancelDataMartRunService } from '../use-cases/cancel-data-mart-run.service';
 import { ApiTags } from '@nestjs/swagger';
 import {
@@ -43,6 +42,10 @@ import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-r
 import { UpdateDataMartSchemaApiDto } from '../dto/presentation/update-data-mart-schema-api.dto';
 import { RunDataMartRequestApiDto } from '../dto/presentation/run-data-mart-request-api.dto';
 import { ListDataMartsByConnectorNameService } from '../use-cases/list-data-marts-by-connector-name.service';
+import { ListDataMartRunsService } from '../use-cases/list-data-mart-runs.service';
+import { GetDataMartRunService } from '../use-cases/get-data-mart-run.service';
+import { DataMartRunResponseApiDto } from '../dto/presentation/data-mart-run-response-api.dto';
+import { GetDataMartRunByIdSpec } from './spec/data-mart.api';
 
 @Controller('data-marts')
 @ApiTags('DataMarts')
@@ -60,7 +63,8 @@ export class DataMartController {
     private readonly runDataMartService: RunDataMartService,
     private readonly validateDefinitionService: ValidateDataMartDefinitionService,
     private readonly updateSchemaService: UpdateDataMartSchemaService,
-    private readonly getDataMartRunsService: GetDataMartRunsService,
+    private readonly getDataMartRunsService: ListDataMartRunsService,
+    private readonly getDataMartRunService: GetDataMartRunService,
     private readonly cancelDataMartRunService: CancelDataMartRunService,
     private readonly listDataMartsByConnectorNameService: ListDataMartsByConnectorNameService
   ) {}
@@ -238,5 +242,18 @@ export class DataMartController {
     const command = this.mapper.toGetDataMartRunsCommand(id, context, limit, offset);
     const runs = await this.getDataMartRunsService.run(command);
     return this.mapper.toRunsResponse(runs);
+  }
+
+  @Auth(Role.viewer(Strategy.PARSE))
+  @Get(':id/runs/:runId')
+  @GetDataMartRunByIdSpec()
+  async getRunById(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string,
+    @Param('runId') runId: string
+  ): Promise<DataMartRunResponseApiDto> {
+    const command = this.mapper.toGetDataMartRunCommand(id, runId, context);
+    const runDto = await this.getDataMartRunService.run(command);
+    return this.mapper.toRunResponse(runDto);
   }
 }

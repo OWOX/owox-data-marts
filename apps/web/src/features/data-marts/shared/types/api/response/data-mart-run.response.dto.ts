@@ -14,4 +14,5 @@ export interface DataMartRunResponseDto {
   finishedAt: string | null;
   reportDefinition: DataMartRunReportDefinitionDto | null;
   reportId: string | null;
+  insightId: string | null;
 }

@@ -22,6 +22,7 @@ export const mapDataMartRunResponseDtoToEntity = (
     ? (dto.reportDefinition as DataMartRunReportDefinition)
     : null,
   reportId: dto.reportId,
+  insightId: dto.insightId,
 });
 
 export const mapDataMartRunListResponseDtoToEntity = (

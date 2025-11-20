@@ -7,6 +7,14 @@ export class InsightListItemResponseApiDto {
   @ApiProperty({ example: 'Analysis Q4 2025' })
   title: string;
 
+  @ApiProperty({
+    example: '2025-10-09T15:13:06.930Z',
+    required: false,
+    nullable: true,
+    description: 'Timestamp when the output field was last updated',
+  })
+  outputUpdatedAt?: string | Date | null;
+
   @ApiProperty({ example: '540734f6-8eb1-48a9-bf86-22010d3bddfd' })
   createdById: string;
 

@@ -14,7 +14,6 @@ import { CreateDataMartService } from './use-cases/create-data-mart.service';
 import { ListDataMartsService } from './use-cases/list-data-marts.service';
 import { ListDataMartsByConnectorNameService } from './use-cases/list-data-marts-by-connector-name.service';
 import { GetDataMartService } from './use-cases/get-data-mart.service';
-import { GetDataMartRunsService } from './use-cases/get-data-mart-runs.service';
 import { DataMartMapper } from './mappers/data-mart.mapper';
 import { ScheduledTriggerMapper } from './mappers/scheduled-trigger.mapper';
 import { DataStorageService } from './services/data-storage.service';
@@ -111,6 +110,14 @@ import { UpdateInsightService } from './use-cases/update-insight.service';
 import { UpdateInsightTitleService } from './use-cases/update-insight-title.service';
 import { DeleteInsightService } from './use-cases/delete-insight.service';
 import { RetryInterruptedConnectorRunsProcessor } from './system-triggers/processors/retry-interrupted-connector-runs-processor';
+import { InsightExecutionService } from './services/insight-execution.service';
+import { RunInsightService } from './use-cases/run-insight.service';
+import { GetDataMartRunService } from './use-cases/get-data-mart-run.service';
+import { ListDataMartRunsService } from './use-cases/list-data-mart-runs.service';
+import { InsightRunTrigger } from './entities/insight-run-trigger.entity';
+import { InsightRunTriggerController } from './controllers/insight-run-trigger.controller';
+import { InsightRunTriggerService } from './services/insight-run-trigger.service';
+import { InsightRunTriggerHandlerService } from './services/insight-run-trigger-handler.service';
 
 @Module({
   imports: [
@@ -126,6 +133,7 @@ import { RetryInterruptedConnectorRunsProcessor } from './system-triggers/proces
       ReportDataCache,
       SqlDryRunTrigger,
       SchemaActualizeTrigger,
+      InsightRunTrigger,
     ]),
     CommonModule,
     IdpModule,
@@ -141,6 +149,7 @@ import { RetryInterruptedConnectorRunsProcessor } from './system-triggers/proces
     LookerStudioConnectorController,
     SqlDryRunTriggerController,
     SchemaActualizeTriggerController,
+    InsightRunTriggerController,
     MarkdownParserController,
   ],
   providers: [
@@ -155,7 +164,7 @@ import { RetryInterruptedConnectorRunsProcessor } from './system-triggers/proces
     ListDataMartsService,
     ListDataMartsByConnectorNameService,
     GetDataMartService,
-    GetDataMartRunsService,
+    ListDataMartRunsService,
     UpdateDataMartDefinitionService,
     PublishDataMartService,
     UpdateDataMartDescriptionService,
@@ -196,6 +205,9 @@ import { RetryInterruptedConnectorRunsProcessor } from './system-triggers/proces
     UpdateInsightService,
     UpdateInsightTitleService,
     DeleteInsightService,
+    InsightExecutionService,
+    RunInsightService,
+    GetDataMartRunService,
     AvailableConnectorService,
     ConnectorService,
     ConnectorExecutionService,
@@ -230,6 +242,8 @@ import { RetryInterruptedConnectorRunsProcessor } from './system-triggers/proces
     DataMartRunService,
     ReportRunService,
     LookerStudioReportRunService,
+    InsightRunTriggerService,
+    InsightRunTriggerHandlerService,
   ],
 })
 export class DataMartsModule {

@@ -69,6 +69,7 @@ export class InsightController {
   ): Promise<InsightResponseApiDto> {
     const command = this.mapper.toGetCommand(insightId, dataMartId, context);
     const insight = await this.getInsightService.run(command);
+
     return this.mapper.toResponse(insight);
   }
 
