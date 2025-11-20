@@ -18,7 +18,7 @@ Before proceeding, please make sure that:
 ## Set Up the Connector
 
 1. Select **Connector** as the input source type.
-2. Click **Set up connector** and choose **Criteo Ads**.  
+2. Choose **Criteo Ads**.  
 3. Fill in the required fields:
     - **Advertiser ID** – you can find it on the homepage of your [Criteo Ads account](https://marketing.criteo.com/)
     - **Client ID** – paste the ID you saved earlier.
@@ -36,7 +36,7 @@ Before proceeding, please make sure that:
 1. Choose one of the available **endpoints**.  
 2. Select the required **fields**.  
 3. Specify the **dataset** where the data will be stored (or leave the default).  
-4. Click **Finish**, then **Save** and **Publish Data Mart**.
+4. Click **Finish**, then **Publish Data Mart**.
 
 ![Criteo Ads Publish Data Mart](res/criteo_publish.png)
 
