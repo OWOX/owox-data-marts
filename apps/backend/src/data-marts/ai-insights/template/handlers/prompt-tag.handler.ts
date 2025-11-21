@@ -1,16 +1,16 @@
 import { HelperOptions } from 'handlebars';
 import { Inject, Injectable } from '@nestjs/common';
-import { TagHandler } from '../../../../common/markdown/handlers/tag-handler.interface';
+import { TagHandler } from '../../../../common/template/handlers/tag-handler.interface';
 import {
   ADDITIONAL_PARAMS_SYMBOL,
   RootWithAdditional,
   TagRenderedResult,
-} from '../../../../common/markdown/types/markdown-template.types';
+} from '../../../../common/template/types/render-template.types';
 import {
   DataMartAdditionalParams,
   PromptTagMeta,
   PromptTagPayload,
-} from '../../markdown-data-mart.types';
+} from '../../data-mart-insights.types';
 import { AiInsightsFacade } from '../../facades/ai-insights.facade';
 import { AI_INSIGHTS_FACADE, AnswerPromptResponse } from '../../ai-insights-types';
 

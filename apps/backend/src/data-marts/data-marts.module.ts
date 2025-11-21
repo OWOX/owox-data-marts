@@ -115,12 +115,14 @@ import { DataMartsAiInsightsToolsRegistrar } from './ai-insights/tools/data-mart
 import { TableNameRetrieverTool } from './ai-insights/tools/table-name-retriever.tool';
 import { SqlRunService } from './use-cases/sql-run.service';
 import { CreateViewService } from './use-cases/create-view.service';
-import { DataMartMarkdownTemplateFacadeImpl } from './ai-insights/data-mart-markdown-template.facade';
+import { DataMartInsightTemplateFacadeImpl } from './ai-insights/data-mart-insight-template.facade';
 import { PromptTagHandler } from './ai-insights/template/handlers/prompt-tag.handler';
 import { AiInsightsFacadeImpl } from './ai-insights/facades/ai-insights.facade.impl';
 import { AiInsightsAgentService } from './ai-insights/agent.service';
 import { AI_INSIGHTS_TOOLS_REGISTRARS } from '../common/ai-insights/services/ai-insights-tools-registrar';
 import { AI_INSIGHTS_FACADE } from './ai-insights/ai-insights-types';
+import { TemplateRenderFacadeImpl } from '../common/template/facades/template-render-facade-impl.service';
+import { TEMPLATE_RENDER_FACADE } from '../common/template/types/render-template.types';
 
 @Module({
   imports: [
@@ -164,7 +166,11 @@ import { AI_INSIGHTS_FACADE } from './ai-insights/ai-insights-types';
     AiInsightsFacadeImpl,
     AiInsightsAgentService,
     PromptTagHandler,
-    DataMartMarkdownTemplateFacadeImpl,
+    DataMartInsightTemplateFacadeImpl,
+    {
+      provide: TEMPLATE_RENDER_FACADE,
+      useClass: TemplateRenderFacadeImpl,
+    },
     TableNameRetrieverTool,
     DataMartsAiInsightsToolsRegistrar,
     {

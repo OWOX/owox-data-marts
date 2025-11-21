@@ -1,4 +1,4 @@
-import { TagMetaEntry } from '../../common/markdown/types/markdown-template.types';
+import { TagMetaEntry } from '../../common/template/types/render-template.types';
 import { Options } from './ai-insights-types';
 
 export type DataMartAdditionalParams = {
@@ -8,7 +8,7 @@ export type DataMartAdditionalParams = {
   options?: Options;
 };
 
-export interface DataMartMarkdownTemplateInput {
+export interface DataMartInsightTemplateInput {
   template: string;
   params: DataMartAdditionalParams;
   context?: Record<string, unknown>;
@@ -19,13 +19,13 @@ export interface DataMartPromptMetaEntry {
   meta?: PromptTagMeta;
 }
 
-export interface DataMartMarkdownTemplateOutput {
-  markdown: string;
+export interface DataMartInsightTemplateOutput {
+  rendered: string;
   prompts: DataMartPromptMetaEntry[];
 }
 
-export interface DataMartMarkdownTemplateFacade {
-  render(input: DataMartMarkdownTemplateInput): Promise<DataMartMarkdownTemplateOutput>;
+export interface DataMartInsightTemplateFacade {
+  render(input: DataMartInsightTemplateInput): Promise<DataMartInsightTemplateOutput>;
 }
 
 export interface PromptTagPayload {

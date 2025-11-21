@@ -1,45 +1,50 @@
 import { Injectable } from '@nestjs/common';
 import Handlebars, { HelperOptions } from 'handlebars';
-import {
-  MarkdownTemplateToMarkdownFacade,
-  MarkdownTemplateToMarkdownInput,
-  MarkdownTemplateToMarkdownOutput,
-} from './markdown-template-to-markdown.facade';
+import { TemplateRenderFacade } from './template-render.facade';
 import { TagHandler } from '../handlers/tag-handler.interface';
 import {
   COLLECTOR_SYMBOL,
   ADDITIONAL_PARAMS_SYMBOL,
-  MarkdownTagsMeta,
+  TemplateTagsMeta,
   TagCollector,
   TagMetaEntry,
   TagRenderedResult,
   RootWithAdditional,
-} from '../types/markdown-template.types';
+  TemplateRenderInput,
+  TemplateRenderOutput,
+} from '../types/render-template.types';
 
-const REGISTERED = new WeakSet<typeof Handlebars>();
+const TAG_TOKEN_PREFIX = '__TAG_TOKEN_';
+const TAG_TOKEN_SUFFIX = '__';
+
+const TagTokenUtil = {
+  create(idx: number): string {
+    return `${TAG_TOKEN_PREFIX}${idx}${TAG_TOKEN_SUFFIX}`;
+  },
+
+  regex: new RegExp(`${TAG_TOKEN_PREFIX}(\\d+)${TAG_TOKEN_SUFFIX}`, 'g'),
+};
 
 /**
- * Implementation of the MarkdownTemplateToMarkdownFacade.
- * This class uses Handlebars to process markdown templates with custom tags.
+ * Implementation of the TemplateRenderFacade using Handlebars for template rendering.
  */
 @Injectable()
-export class MarkdownTemplateToMarkdownFacadeImpl<
+export class TemplateRenderFacadeImpl<
   TTagMeta extends TagMetaEntry = TagMetaEntry,
   TAdditional = unknown,
-> implements MarkdownTemplateToMarkdownFacade<MarkdownTagsMeta<TTagMeta>, TAdditional>
+> implements TemplateRenderFacade<TTagMeta, TAdditional>
 {
-  constructor(
-    private readonly handlers: ReadonlyArray<
+  async render(
+    input: TemplateRenderInput<TAdditional>,
+    handlers: ReadonlyArray<
       TagHandler<TTagMeta['payload'], TagRenderedResult<TTagMeta['resultMeta']>>
     >
-  ) {
-    this.ensureHelpersRegistered(this.handlers);
-  }
+  ): Promise<TemplateRenderOutput<TemplateTagsMeta<TTagMeta>>> {
+    const handlebars = Handlebars.create();
 
-  async render(
-    input: MarkdownTemplateToMarkdownInput<TAdditional>
-  ): Promise<MarkdownTemplateToMarkdownOutput<MarkdownTagsMeta<TTagMeta>>> {
-    const template = Handlebars.compile(input.template);
+    this.registerHelpers(handlebars, handlers);
+
+    const template = handlebars.compile(input.template);
 
     const root: RootWithAdditional<TAdditional> = {
       ...(input.context ?? {}),
@@ -54,17 +59,17 @@ export class MarkdownTemplateToMarkdownFacadeImpl<
     const tagCollector = root[COLLECTOR_SYMBOL] as TagCollector<TTagMeta> | undefined;
 
     if (!tagCollector || tagCollector.calls.length === 0) {
-      return { markdown: withTokens, meta: { tags: [] } };
+      return { rendered: withTokens, meta: { tags: [] } };
     }
 
     const results = await Promise.all(
       tagCollector.calls.map(({ handler, payload }) => handler.handle(payload))
     );
 
-    const markdown = withTokens.replace(/__TAG_TOKEN_(\d+)__/g, (whole, sIdx: string) => {
+    const rendered = withTokens.replace(TagTokenUtil.regex, (_whole, sIdx: string) => {
       const idx = Number(sIdx);
       const res = results[idx];
-      return res?.rendered ?? whole;
+      return res?.rendered ?? _whole;
     });
 
     const tags: TTagMeta[] = tagCollector.calls.map(
@@ -77,18 +82,17 @@ export class MarkdownTemplateToMarkdownFacadeImpl<
     );
 
     return {
-      markdown,
+      rendered: rendered,
       meta: { tags },
     };
   }
 
-  private ensureHelpersRegistered<T extends TagMetaEntry>(
+  private registerHelpers<T extends TagMetaEntry>(
+    handlebars: typeof Handlebars,
     handlers: ReadonlyArray<TagHandler<T['payload'], TagRenderedResult<T['resultMeta']>>>
   ): void {
-    if (REGISTERED.has(Handlebars)) return;
-
     for (const handler of handlers) {
-      Handlebars.registerHelper(handler.tag, function (...rawArgs: unknown[]) {
+      handlebars.registerHelper(handler.tag, function (...rawArgs: unknown[]) {
         const options = rawArgs.pop() as HelperOptions;
         const args = rawArgs;
         const context = this as unknown;
@@ -99,9 +103,7 @@ export class MarkdownTemplateToMarkdownFacadeImpl<
           [COLLECTOR_SYMBOL]?: TagCollector<T>;
         };
 
-        const collector =
-          (root[COLLECTOR_SYMBOL] as TagCollector<T> | undefined) ??
-          ({ calls: [] } as TagCollector<T>);
+        const collector = root[COLLECTOR_SYMBOL] ?? ({ calls: [] } as TagCollector<T>);
 
         root[COLLECTOR_SYMBOL] = collector;
 
@@ -111,10 +113,8 @@ export class MarkdownTemplateToMarkdownFacadeImpl<
             payload,
           }) - 1;
 
-        return `__TAG_TOKEN_${idx}__`;
+        return TagTokenUtil.create(idx);
       });
     }
-
-    REGISTERED.add(Handlebars);
   }
 }
