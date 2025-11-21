@@ -18,7 +18,7 @@ Before proceeding, please make sure that:
 ## Set Up the Connector
 
 1. Select **Connector** as the input source type.
-2. Click Set up connector and choose Facebook Ads.
+2. Сhoose Facebook Ads.
 3. Fill in the required fields:
     - **Access token** – paste the token you generated earlier.
     - **Account ID** – you can find it in **[Meta Ads Manager](https://adsmanager.facebook.com/adsmanager/manage/accounts) → Account Overview**.
