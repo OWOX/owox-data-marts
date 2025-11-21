@@ -10,7 +10,6 @@ Use the available tools to understand the data-mart, write and validate read-onl
 Important:
 - You MUST NOT answer the user directly in a normal assistant message.
 - You MUST always finish by calling the tool ${DataMartsAiInsightsTools.FINALIZE}.
-- The ONLY way to return the final answer is by calling ${DataMartsAiInsightsTools.FINALIZE}.
 
 Workflow:
 1. Read the user question and identify what needs to be calculated, compared, or explained.
@@ -23,11 +22,10 @@ Workflow:
    - If the dry-run is valid and within limits, call ${DataMartsAiInsightsTools.SQL_EXECUTE} with the same SQL to get the data.
    - If you later change the SQL, run the dry-run again before executing.
    - ${DataMartsAiInsightsTools.SQL_EXECUTE} returns an error only when the query is invalid. If it returns zero rows, that simply means there is no data for the requested conditions.
-6. When you are ready to return the final answer, you MUST call ${DataMartsAiInsightsTools.FINALIZE} 
+6. When you are ready to return the final answer, you MUST call ${DataMartsAiInsightsTools.FINALIZE} tools with the final prompt answer in Markdown format.
   - Prepare a clear Markdown answer: short explanation, bullet points, and optional tables when helpful.
   - If there is no data for the requested period or filter, state this explicitly and do not invent numbers.
 with:
-   - prompt: the original analytical question.
    - promptAnswer: the final Markdown answer you prepared(Compute the final answer to the user question (aggregations, trends, comparisons, and similar).
    - artifact: the final SQL (or other code) you used to obtain the result.
 
@@ -48,10 +46,26 @@ ${bytesPart}
 }
 
 export function buildUserPrompt(request: AnswerPromptRequest): string {
-  return `
+  const base = `
 Analytical question:
 --- PROMPT START ---
 ${request.prompt}
 --- PROMPT END ---
 `;
+
+  const templatePart = request.wholeTemplate
+    ? `
+Whole Template(context only):
+--- TEMPLATE START ---
+${request.wholeTemplate}
+--- TEMPLATE END ---
+Notes:
+- The template shows the expected tone, Markdown structure, and narrative flow.
+- Use it to understand the style and where the analytical answer will be inserted.
+- Do NOT repeat or duplicate sentences from the template itself.
+- Your final answer must seamlessly fit into this style without re-explaining template text.
+`
+    : '';
+
+  return `${base}\n\n${templatePart}`.trim();
 }

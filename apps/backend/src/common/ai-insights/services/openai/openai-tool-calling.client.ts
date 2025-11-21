@@ -35,7 +35,7 @@ export class OpenAiToolCallingClient {
       model: this.model,
       messages,
       temperature: opts?.temperature ?? 0.1,
-      max_tokens: opts?.maxTokens ?? 1000,
+      max_tokens: opts?.maxTokens ?? 5000,
       tools: opts?.tools?.map(t => ({
         type: 'function' as const,
         function: {
@@ -44,7 +44,7 @@ export class OpenAiToolCallingClient {
           parameters: t.input_schema,
         },
       })),
-      tool_choice: opts?.tool_choice ?? 'auto',
+      tool_choice: opts?.toolChoice ?? 'auto',
     };
 
     const res = await fetchWithBackoff(`${this.baseUrl}/chat/completions`, {
@@ -81,7 +81,7 @@ export class OpenAiToolCallingClient {
     return {
       role: 'assistant',
       content,
-      tool_calls: toolCalls,
+      toolCalls: toolCalls,
       reasoning,
       usage,
       model: this.model,

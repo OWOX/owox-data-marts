@@ -42,10 +42,11 @@ export class PromptTagHandler
     }
 
     return {
+      prompt,
       projectId: extra.projectId,
       dataMartId: extra.dataMartId,
+      wholeTemplate: extra.wholeTemplate,
       options: extra.options,
-      prompt,
     };
   }
 
@@ -54,6 +55,7 @@ export class PromptTagHandler
       projectId: input.projectId,
       dataMartId: input.dataMartId,
       prompt: input.prompt,
+      wholeTemplate: input.wholeTemplate,
       options: input.options,
     });
 

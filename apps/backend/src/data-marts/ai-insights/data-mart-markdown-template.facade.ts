@@ -33,7 +33,7 @@ export class DataMartMarkdownTemplateFacadeImpl implements DataMartMarkdownTempl
     const baseInput: MarkdownTemplateToMarkdownInput<DataMartAdditionalParams> = {
       template: input.template,
       context: input.context,
-      additionalParams: input.params,
+      additionalParams: { ...input.params, wholeTemplate: input.template },
     };
 
     const { markdown, meta } = await this.base.render(baseInput);

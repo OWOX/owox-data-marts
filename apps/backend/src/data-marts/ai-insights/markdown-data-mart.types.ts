@@ -4,6 +4,7 @@ import { Options } from './ai-insights-types';
 export type DataMartAdditionalParams = {
   projectId: string;
   dataMartId: string;
+  wholeTemplate?: string;
   options?: Options;
 };
 
@@ -31,6 +32,7 @@ export interface PromptTagPayload {
   projectId: string;
   dataMartId: string;
   prompt: string;
+  wholeTemplate?: string;
   options?: Options;
 }
 

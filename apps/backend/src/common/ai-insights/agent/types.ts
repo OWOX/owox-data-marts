@@ -15,17 +15,18 @@ export type ChatMessage =
   | { role: 'assistant'; content?: string; tool_calls?: NormalizedToolCall[] }
   | { role: 'tool'; tool_call_id: string; content: string };
 
+export type ToolChoice = 'auto' | 'required' | 'none' | { type: 'function'; name: string };
 export interface CreateChatCompletionOptions {
   temperature?: number;
   maxTokens?: number;
   tools?: ToolSchema[];
-  tool_choice?: 'auto' | { type: 'function'; function: { name: string } };
+  toolChoice?: ToolChoice;
 }
 
 export interface AssistantMessage {
   role: 'assistant';
   content?: string;
-  tool_calls?: NormalizedToolCall[];
+  toolCalls?: NormalizedToolCall[];
   reasoning?: string;
   usage?: UsageInfo;
   model?: string;
@@ -99,6 +100,7 @@ export interface ToolCallTelemetry {
 export interface AgentTelemetry {
   llmCalls: LlmCallTelemetry[];
   toolCalls: ToolCallTelemetry[];
+  messageHistory: ChatMessage[];
 }
 
 export interface AiContext {

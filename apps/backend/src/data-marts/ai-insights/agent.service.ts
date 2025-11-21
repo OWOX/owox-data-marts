@@ -38,11 +38,13 @@ export class AiInsightsAgentService {
     const telemetry: AgentTelemetry = {
       llmCalls: [],
       toolCalls: [],
+      messageHistory: [],
     };
 
     const context: DataMartInsightsContext = {
       projectId: request.projectId,
       dataMartId: request.dataMartId,
+      prompt: request.prompt,
       telemetry,
       budgets,
     };
@@ -71,9 +73,7 @@ export class AiInsightsAgentService {
     for (let turn = 0; turn < maxTurns; turn++) {
       const assistant = await this.client.createChatCompletion(messages, {
         tools,
-        tool_choice: 'auto',
-        temperature: 0.1,
-        maxTokens: 2000,
+        toolChoice: 'auto',
       });
 
       telemetry.llmCalls.push({
@@ -84,25 +84,24 @@ export class AiInsightsAgentService {
         reasoningPreview: assistant.content,
       });
 
-      messages.push({
+      const assistantMessage: ChatMessage = {
         role: 'assistant',
         content: assistant.content,
-        tool_calls: assistant.tool_calls,
-      });
+        tool_calls: assistant.toolCalls,
+      };
+      messages.push(assistantMessage);
+      telemetry.messageHistory.push(assistantMessage);
 
-      const toolCalls = assistant.tool_calls;
+      const toolCalls = assistant.toolCalls;
       if (!toolCalls || toolCalls.length === 0) {
-        // Encourage the model to call finalize tool explicitly if it tries to respond with plain text
-        if (assistant.content && assistant.content.trim().length > 0) {
-          messages.push({
-            role: 'system',
-            content:
-              'Please use the finalize tool to return the final markdown and metadata instead of plain text.',
-          });
-          continue;
-        }
-        // No tool calls and no content — try again with a gentle nudge
-        messages.push({ role: 'system', content: 'Use tools to progress towards the goal.' });
+        this.logger.debug('No tool calls from assistant', { assistant: assistant });
+        // No tool calls means the model is done.
+        const noToolCallMessage: ChatMessage = {
+          role: 'system',
+          content: `important: use finalize tool to return prompt answer`,
+        };
+        messages.push(noToolCallMessage);
+        telemetry.messageHistory.push(noToolCallMessage);
         continue;
       }
 

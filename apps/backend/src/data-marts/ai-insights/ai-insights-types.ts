@@ -7,6 +7,7 @@ export const AI_INSIGHTS_FACADE = Symbol('AI_INSIGHTS_FACADE');
 export interface DataMartInsightsContext extends AiContext {
   projectId: string;
   dataMartId: string;
+  prompt: string;
   // Optional telemetry object to record LLM and tool calls.
   telemetry?: AgentTelemetry;
   // Optional runtime budgets that tools may respect during execution.
@@ -24,6 +25,7 @@ export const AnswerPromptRequestSchema = z.object({
   projectId: z.string().min(1, 'projectId is required'),
   dataMartId: z.string().min(1, 'dataMartId is required'),
   prompt: z.string().min(1, 'prompt is required'),
+  wholeTemplate: z.string().optional(),
   options: OptionsSchema.optional(),
 });
 export type AnswerPromptRequest = z.infer<typeof AnswerPromptRequestSchema>;
@@ -42,7 +44,6 @@ export const QueryRowSchema = z.record(z.string(), z.unknown());
 export type QueryRow = z.infer<typeof QueryRowSchema>;
 
 export const FinalizeInsightInputSchema = z.object({
-  prompt: z.string().min(1),
   promptAnswer: z.string().min(1),
   artifact: z.string().min(1),
 });

@@ -54,38 +54,6 @@ export class DataMartsAiInsightsToolsRegistrar implements AiInsightsToolsRegistr
 
   registerTools(registry: ToolRegistryService): void {
     registry.register({
-      name: DataMartsAiInsightsTools.FINALIZE,
-      description:
-        'Finalize the insight. Use this tool exactly once when you are ready with the final answer. ' +
-        'You MUST provide: the original prompt, the final Markdown answer, and the SQL or code (artifact) used to get the result.',
-      inputJsonSchema: {
-        type: 'object',
-        properties: {
-          prompt: { type: 'string', minLength: 1 },
-          promptAnswer: { type: 'string', minLength: 1 },
-          artifact: { type: 'string', minLength: 1 },
-        },
-        required: ['prompt', 'promptAnswer', 'artifact'],
-        additionalProperties: false,
-      },
-      inputZod: FinalizeInsightInputSchema,
-      execute: async (
-        args: FinalizeInsightInput,
-        context: DataMartInsightsContext
-      ): Promise<FinalizeInsightOutput> => {
-        return {
-          promptAnswer: args.promptAnswer,
-          meta: {
-            prompt: args.prompt,
-            artifact: args.artifact,
-            telemetry: context.telemetry,
-          },
-        };
-      },
-      isFinal: true,
-    });
-
-    registry.register({
       name: DataMartsAiInsightsTools.GET_DATAMART_METADATA,
       description:
         'Get data mart metadata including title, description, storage type, and schema(structure).',
@@ -199,6 +167,45 @@ export class DataMartsAiInsightsToolsRegistrar implements AiInsightsToolsRegistr
         return { fullyQualifiedName: tableNamae };
       },
       isFinal: false,
+    });
+
+    registry.register({
+      name: DataMartsAiInsightsTools.FINALIZE,
+      description:
+        'Return the prompt answer. Use this tool exactly once when you are ready with the final answer.',
+      inputJsonSchema: {
+        type: 'object',
+        properties: {
+          promptAnswer: {
+            type: 'string',
+            minLength: 1,
+            description: 'Artifact which you used to compute prompt answer.',
+          },
+          artifact: {
+            type: 'string',
+            minLength: 1,
+            description:
+              'The final SQL query (or other computation code) used to produce the answer.',
+          },
+        },
+        required: ['promptAnswer', 'artifact'],
+        additionalProperties: false,
+      },
+      inputZod: FinalizeInsightInputSchema,
+      execute: async (
+        args: FinalizeInsightInput,
+        context: DataMartInsightsContext
+      ): Promise<FinalizeInsightOutput> => {
+        return {
+          promptAnswer: args.promptAnswer,
+          meta: {
+            prompt: context.prompt,
+            artifact: args.artifact,
+            telemetry: context.telemetry,
+          },
+        };
+      },
+      isFinal: true,
     });
   }
 }
