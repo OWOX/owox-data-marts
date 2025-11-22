@@ -25,15 +25,7 @@ import { SqlRunService } from '../../use-cases/sql-run.service';
 import { TableNameRetrieverTool } from './table-name-retriever.tool';
 import { DataMartInsightsContext } from '../ai-insights-types';
 import { ToolRegistry } from '../../../common/ai-insights/agent/tool-registry';
-
-function isSelectOnly(sql: string): boolean {
-  const cleaned = sql
-    .trim()
-    .replace(/^--.*$/gm, '')
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .trim();
-  return /^(WITH|SELECT)\b/i.test(cleaned);
-}
+import { isReadonlyQuery } from '@owox/internal-helpers';
 
 export enum DataMartsAiInsightsTools {
   GET_DATAMART_METADATA = 'schema_get_metadata',
@@ -98,7 +90,7 @@ export class DataMartsAiInsightsToolsRegistrar implements AiInsightsToolsRegistr
         args: SqlDryRunInput,
         context: DataMartInsightsContext
       ): Promise<SqlDryRunOutput> => {
-        if (!isSelectOnly(args.sql)) {
+        if (!isReadonlyQuery(args.sql)) {
           return { isValid: false, error: 'Only SELECT/WITH queries are allowed in dry-run' };
         }
         const res = await this.sqlDryRunService.run(
@@ -127,7 +119,7 @@ export class DataMartsAiInsightsToolsRegistrar implements AiInsightsToolsRegistr
         args: SqlExecuteInput,
         context: DataMartInsightsContext
       ): Promise<SqlExecuteOutput> => {
-        if (!isSelectOnly(args.sql)) {
+        if (!isReadonlyQuery(args.sql)) {
           throw new Error('Only SELECT/WITH queries are allowed for execution');
         }
 
