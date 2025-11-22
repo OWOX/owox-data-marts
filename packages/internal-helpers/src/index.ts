@@ -6,4 +6,5 @@ export * from './utils/promiseWithTimeout.js';
 export * from './utils/fetchWithBackoff.js';
 export * from './utils/castError.js';
 export * from './utils/isReadonlyQuery.js';
+export * from './utils/runWithConcurrency.js';
 export * from './integrations/event-bus/index.js';

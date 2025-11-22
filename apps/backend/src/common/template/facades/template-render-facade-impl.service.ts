@@ -13,6 +13,7 @@ import {
   TemplateRenderInput,
   TemplateRenderOutput,
 } from '../types/render-template.types';
+import { runWithConcurrency } from '@owox/internal-helpers';
 
 const TAG_TOKEN_PREFIX = '__TAG_TOKEN_';
 const TAG_TOKEN_SUFFIX = '__';
@@ -62,8 +63,8 @@ export class TemplateRenderFacadeImpl<
       return { rendered: withTokens, meta: { tags: [] } };
     }
 
-    const results = await Promise.all(
-      tagCollector.calls.map(({ handler, payload }) => handler.handle(payload))
+    const results = await runWithConcurrency(tagCollector.calls, 3, async ({ handler, payload }) =>
+      handler.handle(payload)
     );
 
     const rendered = withTokens.replace(TagTokenUtil.regex, (_whole, sIdx: string) => {
