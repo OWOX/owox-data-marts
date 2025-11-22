@@ -7,10 +7,9 @@ import { MarkdownParser } from './markdown/markdown-parser.service';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { ProducerModule } from './producer/producer.module.js';
 import { AppEditionLicenseRefresherService } from './config/app-edition-license-refresher.service';
-import { AiInsightsModule } from './ai-insights/ai-insights.module';
 
 @Module({
-  imports: [SchedulerModule, ProducerModule, EmailModule, AiInsightsModule],
+  imports: [SchedulerModule, ProducerModule, EmailModule],
   providers: [
     PublicOriginService,
     {
@@ -33,7 +32,6 @@ import { AiInsightsModule } from './ai-insights/ai-insights.module';
     PublicOriginService,
     AppEditionConfig,
     MarkdownParser,
-    AiInsightsModule,
   ],
 })
 export class CommonModule {}

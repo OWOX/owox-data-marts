@@ -1,3 +1,18 @@
+import { z } from 'zod';
+
+export type ToolDefinition = {
+  name: string;
+  description?: string;
+  inputJsonSchema: Record<string, unknown>;
+  inputZod: z.ZodType<unknown>;
+  execute: (args: unknown, context: AiContext) => Promise<unknown>;
+  isFinal: boolean;
+};
+
+export type ToolRunResult<TFinal> =
+  | { isFinal: true; content: TFinal }
+  | { isFinal: false; content: unknown };
+
 export type ToolSchema = {
   name: string;
   description?: string;

@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { AiInsightsToolsRegistrar } from '../../../common/ai-insights/services/ai-insights-tools-registrar';
-import { ToolRegistryService } from '../../../common/ai-insights/agent/tool-registry.service';
 import {
   GetMetadataInput,
   GetMetadataInputSchema,
@@ -25,6 +24,7 @@ import { SqlDryRunCommand } from '../../dto/domain/sql-dry-run.command';
 import { SqlRunService } from '../../use-cases/sql-run.service';
 import { TableNameRetrieverTool } from './table-name-retriever.tool';
 import { DataMartInsightsContext } from '../ai-insights-types';
+import { ToolRegistry } from '../../../common/ai-insights/agent/tool-registry';
 
 function isSelectOnly(sql: string): boolean {
   const cleaned = sql
@@ -52,7 +52,7 @@ export class DataMartsAiInsightsToolsRegistrar implements AiInsightsToolsRegistr
     private readonly tableNameRetrieverTool: TableNameRetrieverTool
   ) {}
 
-  registerTools(registry: ToolRegistryService): void {
+  registerTools(registry: ToolRegistry): void {
     registry.register({
       name: DataMartsAiInsightsTools.GET_DATAMART_METADATA,
       description:

@@ -1,10 +1,5 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { OpenAiToolCallingClient } from '../../common/ai-insights/services/openai/openai-tool-calling.client';
-import { ToolRegistryService } from '../../common/ai-insights/agent/tool-registry.service';
-import {
-  AI_INSIGHTS_TOOLS_REGISTRARS,
-  AiInsightsToolsRegistrar,
-} from '../../common/ai-insights/services/ai-insights-tools-registrar';
 import { castError } from '@owox/internal-helpers';
 import { buildSystemPrompt, buildUserPrompt } from './prompts/llm-prompt';
 import {
@@ -13,6 +8,7 @@ import {
   DataMartInsightsContext,
 } from './ai-insights-types';
 import { AgentBudgets, AgentTelemetry, ChatMessage } from '../../common/ai-insights/agent/types';
+import { ToolRegistry } from '../../common/ai-insights/agent/tool-registry';
 
 /**
  * LLM-native tool-calling agent that lets the model decide which tools to call
@@ -24,9 +20,7 @@ export class AiInsightsAgentService {
 
   constructor(
     private readonly client: OpenAiToolCallingClient,
-    private readonly registry: ToolRegistryService,
-    @Inject(AI_INSIGHTS_TOOLS_REGISTRARS)
-    private readonly registrars: AiInsightsToolsRegistrar[]
+    private readonly toolRegistry: ToolRegistry
   ) {}
 
   async answerPrompt(request: AnswerPromptRequest): Promise<AnswerPromptResponse> {
@@ -49,17 +43,7 @@ export class AiInsightsAgentService {
       budgets,
     };
 
-    // Build toolset for this run via registrars (no onModuleInit side effects)
-    this.registry.clear();
-    for (const registrar of this.registrars ?? []) {
-      try {
-        registrar.registerTools(this.registry);
-      } catch (e) {
-        this.logger.warn(`Registrar failed`, { stack: castError(e).stack });
-      }
-    }
-
-    const tools = this.registry.getOpenAiTools();
+    const tools = this.toolRegistry.getOpenAiTools();
 
     const system = buildSystemPrompt(budgets);
     const user = buildUserPrompt(request);
@@ -98,7 +82,7 @@ export class AiInsightsAgentService {
         // No tool calls means the model is done.
         const noToolCallMessage: ChatMessage = {
           role: 'system',
-          content: `important: use finalize tool to return prompt answer`,
+          content: `important: use finalize tool ${this.toolRegistry.findFinalTool()?.name ?? ''} to return prompt answer`,
         };
         messages.push(noToolCallMessage);
         telemetry.messageHistory.push(noToolCallMessage);
@@ -108,7 +92,7 @@ export class AiInsightsAgentService {
       for (const tc of toolCalls) {
         const argsJson = tc.function.arguments || '{}';
         try {
-          const toolResult = await this.registry.executeToToolMessage(
+          const toolResult = await this.toolRegistry.executeToToolMessage(
             tc.function.name,
             argsJson,
             context
