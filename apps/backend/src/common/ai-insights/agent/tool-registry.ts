@@ -1,4 +1,5 @@
-import { AiContext, ToolDefinition, ToolRunResult, ToolSchema } from './types';
+import { AiContext, ToolDefinition, ToolRunResult } from './types';
+import { AiToolDefinition } from './ai-core';
 import { castError } from '@owox/internal-helpers';
 
 export class ToolRegistry {
@@ -11,11 +12,11 @@ export class ToolRegistry {
     this.tools.set(def.name, def);
   }
 
-  getOpenAiTools(): ToolSchema[] {
+  getAiTools(): AiToolDefinition[] {
     return Array.from(this.tools.values()).map(t => ({
       name: t.name,
       description: t.description,
-      input_schema: t.inputJsonSchema,
+      inputJsonSchema: t.inputJsonSchema,
     }));
   }
 
@@ -40,12 +41,12 @@ export class ToolRegistry {
     return { isFinal: tool.isFinal, content: result } as ToolRunResult<TFinal>;
   }
 
-  findFinalTool(): ToolDefinition | undefined {
+  findFinalTool(): ToolDefinition {
     for (const tool of this.tools.values()) {
       if (tool.isFinal) {
         return tool;
       }
     }
-    return undefined;
+    throw new Error('No final tool registered');
   }
 }

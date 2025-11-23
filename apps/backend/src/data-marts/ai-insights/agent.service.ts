@@ -1,5 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { OpenAiToolCallingClient } from '../../common/ai-insights/services/openai/openai-tool-calling.client';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { OpenAiChatProvider } from '../../common/ai-insights/services/openai/openai-chat-provider';
 import { castError } from '@owox/internal-helpers';
 import { buildSystemPrompt, buildUserPrompt } from './prompts/llm-prompt';
 import {
@@ -7,8 +7,14 @@ import {
   AnswerPromptResponse,
   DataMartInsightsContext,
 } from './ai-insights-types';
-import { AgentBudgets, AgentTelemetry, ChatMessage } from '../../common/ai-insights/agent/types';
+import { AgentBudgets, AgentTelemetry } from '../../common/ai-insights/agent/types';
 import { ToolRegistry } from '../../common/ai-insights/agent/tool-registry';
+import {
+  AiChatProvider,
+  AiChatRequest,
+  AiMessage,
+  AiRole,
+} from '../../common/ai-insights/agent/ai-core';
 
 /**
  * LLM-native tool-calling agent that lets the model decide which tools to call
@@ -19,7 +25,7 @@ export class AiInsightsAgentService {
   private readonly logger = new Logger(AiInsightsAgentService.name);
 
   constructor(
-    private readonly client: OpenAiToolCallingClient,
+    @Inject(OpenAiChatProvider) private readonly aiProvider: AiChatProvider,
     private readonly toolRegistry: ToolRegistry
   ) {}
 
@@ -43,93 +49,92 @@ export class AiInsightsAgentService {
       budgets,
     };
 
-    const tools = this.toolRegistry.getOpenAiTools();
+    const tools = this.toolRegistry.getAiTools();
 
     const system = buildSystemPrompt(budgets);
     const user = buildUserPrompt(request);
 
-    const messages: ChatMessage[] = [
-      { role: 'system', content: system },
-      { role: 'user', content: user },
+    const messages: AiMessage[] = [
+      { role: AiRole.SYSTEM, content: system },
+      { role: AiRole.USER, content: user },
     ];
 
     const maxTurns = 16;
     for (let turn = 0; turn < maxTurns; turn++) {
-      const assistant = await this.client.createChatCompletion(messages, {
+      const aiChatRequest: AiChatRequest = {
+        messages,
         tools,
-        toolChoice: 'auto',
-      });
+        toolMode: 'auto',
+      };
+
+      const aiChatResponse = await this.aiProvider.chat(aiChatRequest);
 
       telemetry.llmCalls.push({
         turn,
-        model: assistant.model,
-        finishReason: assistant.reasoning,
-        usage: assistant.usage,
-        reasoningPreview: assistant.content,
+        model: aiChatResponse.model,
+        finishReason: aiChatResponse.finishReason,
+        usage: aiChatResponse.usage,
+        reasoningPreview: aiChatResponse.message.content,
       });
 
-      const assistantMessage: ChatMessage = {
-        role: 'assistant',
-        content: assistant.content,
-        tool_calls: assistant.toolCalls,
-      };
+      const assistantMessage: AiMessage = aiChatResponse.message;
       messages.push(assistantMessage);
       telemetry.messageHistory.push(assistantMessage);
 
-      const toolCalls = assistant.toolCalls;
+      const toolCalls = aiChatResponse.message.toolCalls;
       if (!toolCalls || toolCalls.length === 0) {
-        this.logger.debug('No tool calls from assistant', { assistant: assistant });
-        // No tool calls means the model is done.
-        const noToolCallMessage: ChatMessage = {
-          role: 'system',
-          content: `important: use finalize tool ${this.toolRegistry.findFinalTool()?.name ?? ''} to return prompt answer`,
+        this.logger.debug('No tool calls from assistant', { aiChatResponse });
+        const noToolCallMessage: AiMessage = {
+          role: AiRole.SYSTEM,
+          content: `important: use finalize tool ${this.toolRegistry.findFinalTool().name} to return prompt answer`,
         };
         messages.push(noToolCallMessage);
         telemetry.messageHistory.push(noToolCallMessage);
         continue;
       }
 
-      for (const tc of toolCalls) {
-        const argsJson = tc.function.arguments || '{}';
+      for (const toolCall of toolCalls) {
+        const argsJson = toolCall.argumentsJson || '{}';
         try {
           const toolResult = await this.toolRegistry.executeToToolMessage(
-            tc.function.name,
+            toolCall.name,
             argsJson,
             context
           );
           telemetry.toolCalls.push({
             turn,
-            name: tc.function.name,
+            name: toolCall.name,
             argsJson,
             success: true,
           });
-          this.logger.log(`Executed tool: ${tc.function.name}`, {
-            name: tc.function.name,
-            arguments: tc.function.arguments || '{}',
+          this.logger.log(`Executed tool: ${toolCall.name}`, {
+            name: toolCall.name,
+            arguments: argsJson || '{}',
             toolResult: toolResult,
           });
           if (toolResult.isFinal) {
             return toolResult.content;
           }
           messages.push({
-            role: 'tool',
-            tool_call_id: tc.id,
+            role: AiRole.TOOL,
+            toolName: toolCall.name,
+            callId: toolCall.id,
             content: JSON.stringify(toolResult.content),
           });
         } catch (e) {
           telemetry.toolCalls.push({
             turn,
-            name: tc.function.name,
+            name: toolCall.name,
             argsJson,
             success: false,
             errorMessage: castError(e).message,
           });
-          this.logger.warn(`Tool execution failed for ${tc.function.name}`, {
+          this.logger.warn(`Tool execution failed for ${toolCall.name}`, {
             stack: castError(e).stack,
           });
           messages.push({
-            role: 'system',
-            content: `Tool ${tc.function.name} failed with error: ${castError(e).message}. Please adjust and try again.`,
+            role: AiRole.SYSTEM,
+            content: `Tool ${toolCall.name} failed with error: ${castError(e).message}. Please adjust and try again.`,
           });
         }
       }

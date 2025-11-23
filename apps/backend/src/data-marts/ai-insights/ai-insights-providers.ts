@@ -1,4 +1,4 @@
-import { OpenAiToolCallingClient } from '../../common/ai-insights/services/openai/openai-tool-calling.client';
+import { OpenAiChatProvider } from '../../common/ai-insights/services/openai/openai-chat-provider';
 import { AiInsightsFacadeImpl } from './facades/ai-insights.facade.impl';
 import { AiInsightsAgentService } from './agent.service';
 import { PromptTagHandler } from './template/handlers/prompt-tag.handler';
@@ -15,7 +15,7 @@ import { ToolRegistry } from '../../common/ai-insights/agent/tool-registry';
 import { AI_INSIGHTS_FACADE } from './ai-insights-types';
 
 export const aiInsightsProviders = [
-  OpenAiToolCallingClient,
+  OpenAiChatProvider,
   AiInsightsFacadeImpl,
   AiInsightsAgentService,
   PromptTagHandler,
