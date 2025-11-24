@@ -26,8 +26,7 @@ import { addTransactionalDataSource } from 'typeorm-transactional';
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: async (config: ConfigService) => {
-        const options = createDataSourceOptions(config);
-        return options;
+        return createDataSourceOptions(config);
       },
       async dataSourceFactory(options) {
         if (!options) {

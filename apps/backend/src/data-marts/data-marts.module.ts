@@ -110,6 +110,9 @@ import { UpdateInsightService } from './use-cases/update-insight.service';
 import { UpdateInsightTitleService } from './use-cases/update-insight-title.service';
 import { DeleteInsightService } from './use-cases/delete-insight.service';
 import { RetryInterruptedConnectorRunsProcessor } from './system-triggers/processors/retry-interrupted-connector-runs-processor';
+import { SqlRunService } from './use-cases/sql-run.service';
+import { CreateViewService } from './use-cases/create-view.service';
+import { aiInsightsProviders } from './ai-insights/ai-insights-providers';
 import { InsightExecutionService } from './services/insight-execution.service';
 import { RunInsightService } from './use-cases/run-insight.service';
 import { GetDataMartRunService } from './use-cases/get-data-mart-run.service';
@@ -159,6 +162,7 @@ import { InsightRunTriggerHandlerService } from './services/insight-run-trigger-
     ...dataDestinationFacadesProviders,
     ...scheduledTriggerProviders,
     ...scheduledTriggerFacadesProviders,
+    ...aiInsightsProviders,
     DataMartService,
     CreateDataMartService,
     ListDataMartsService,
@@ -217,6 +221,8 @@ import { InsightRunTriggerHandlerService } from './services/insight-run-trigger-
     RunDataMartService,
     CancelDataMartRunService,
     SqlDryRunService,
+    SqlRunService,
+    CreateViewService,
     ActualizeDataMartSchemaService,
     UpdateDataMartSchemaService,
     ScheduledTriggersHandlerService,
