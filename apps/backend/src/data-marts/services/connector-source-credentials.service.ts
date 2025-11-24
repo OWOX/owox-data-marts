@@ -106,23 +106,23 @@ export class ConnectorSourceCredentialsService {
    * @param connectorName - Connector name
    */
   async deleteCredentialsByConnectorName(connectorName: string): Promise<void> {
-    const credentials = await this.getCredentialsByConnectorName(connectorName);
-
-    for (const credential of credentials) {
-      await this.deleteCredentials(credential.id);
-    }
+    await this.connectorSourceCredentialsRepository.softDelete({ connectorName });
   }
 
   /**
    * Check if OAuth credentials are expired
    * @param id - ConnectorSourceCredentials ID
-   * @returns true if expired, false otherwise
+   * @returns true if expired, false otherwise. Returns false if expiresAt is null (never expires)
    */
   async isExpired(id: string): Promise<boolean> {
     const credentials = await this.getCredentialsById(id);
 
-    if (!credentials || !credentials.expiresAt) {
+    if (!credentials) {
       return true;
+    }
+
+    if (!credentials.expiresAt) {
+      return false;
     }
 
     return new Date() > credentials.expiresAt;

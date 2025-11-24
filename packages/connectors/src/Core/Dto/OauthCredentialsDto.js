@@ -178,6 +178,7 @@ class OauthCredentialsDtoBuilder {
       secret: this._secret,
       expiresIn: this._expiresIn,
       additional: this._additional,
+      warnings: this._warnings,
     });
   }
 }

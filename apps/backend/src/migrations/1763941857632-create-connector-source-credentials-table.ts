@@ -1,4 +1,4 @@
-import { MigrationInterface, QueryRunner, Table } from 'typeorm';
+import { MigrationInterface, QueryRunner, Table, TableIndex } from 'typeorm';
 import { softDropTable } from './migration-utils';
 
 export class CreateConnectorSourceCredentialsTable1763941857632 implements MigrationInterface {
@@ -22,6 +22,38 @@ export class CreateConnectorSourceCredentialsTable1763941857632 implements Migra
         ],
       }),
       true
+    );
+
+    await queryRunner.createIndex(
+      'connector_source_credentials',
+      new TableIndex({
+        name: 'IDX_connector_source_credentials_projectId',
+        columnNames: ['projectId'],
+      })
+    );
+
+    await queryRunner.createIndex(
+      'connector_source_credentials',
+      new TableIndex({
+        name: 'IDX_connector_source_credentials_connectorName',
+        columnNames: ['connectorName'],
+      })
+    );
+
+    await queryRunner.createIndex(
+      'connector_source_credentials',
+      new TableIndex({
+        name: 'IDX_connector_source_credentials_expiresAt',
+        columnNames: ['expiresAt'],
+      })
+    );
+
+    await queryRunner.createIndex(
+      'connector_source_credentials',
+      new TableIndex({
+        name: 'IDX_connector_source_credentials_projectId_connectorName',
+        columnNames: ['projectId', 'connectorName'],
+      })
     );
   }
 

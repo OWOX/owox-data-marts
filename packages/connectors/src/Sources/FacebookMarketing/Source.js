@@ -142,34 +142,53 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
 
   async exchangeOauthCredentials(credentials, variables) {
     try {
-      const debugResponse = await HttpUtils.fetch(
-        `https://graph.facebook.com/debug_token?input_token=${credentials.accessToken}&access_token=${variables.AppId}|${variables.AppSecret}`
-      );
+      const debugUrl = new URL('https://graph.facebook.com/debug_token');
+      debugUrl.searchParams.set('input_token', credentials.accessToken);
+      debugUrl.searchParams.set('access_token', `${variables.AppId}|${variables.AppSecret}`);
+      const debugResponse = await HttpUtils.fetch(debugUrl.toString());
       const debugData = await debugResponse.getAsJson();
-  
+
       if (!debugData.data?.is_valid) {
         throw new OauthFlowException({ message: 'Invalid token', payload: debugData.data?.error?.message });
       }
-      const longLivedResponse = await HttpUtils.fetch(
-        `https://graph.facebook.com/v23.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${variables.AppId}&client_secret=${variables.AppSecret}&fb_exchange_token=${credentials.accessToken}`
-      );
+
+      const exchangeUrl = new URL('https://graph.facebook.com/v23.0/oauth/access_token');
+      exchangeUrl.searchParams.set('grant_type', 'fb_exchange_token');
+      exchangeUrl.searchParams.set('client_id', variables.AppId);
+      exchangeUrl.searchParams.set('client_secret', variables.AppSecret);
+      exchangeUrl.searchParams.set('fb_exchange_token', credentials.accessToken);
+      const longLivedResponse = await HttpUtils.fetch(exchangeUrl.toString());
       const longLivedData = await longLivedResponse.getAsJson();
 
+      if (longLivedData.error) {
+        throw new OauthFlowException({
+          message: 'Failed to exchange token',
+          payload: longLivedData.error.message
+        });
+      }
 
-      const userInfo = await HttpUtils.fetch(
-        `https://graph.facebook.com/v23.0/me?fields=id,name&access_token=${longLivedData.access_token}`
-      );
+      if (!longLivedData.access_token) {
+        throw new OauthFlowException({
+          message: 'Missing access_token in exchange response'
+        });
+      }
+
+      const userInfoUrl = new URL('https://graph.facebook.com/v23.0/me');
+      userInfoUrl.searchParams.set('fields', 'id,name');
+      userInfoUrl.searchParams.set('access_token', longLivedData.access_token);
+      const userInfo = await HttpUtils.fetch(userInfoUrl.toString());
       const userInfoData = await userInfo.getAsJson();
 
+      const expiresIn = longLivedData.expires_in ?? (60 * 60 * 24 * 60);
       const oauthCredentials = OauthCredentialsDto.builder()
         .withUser({ id: userInfoData.id, name: userInfoData.name })
         .withSecret({ accessToken: longLivedData.access_token })
-        .withExpiresIn(60 * 60 * 24 * 60); // 60 days in seconds
-        
+        .withExpiresIn(expiresIn);
 
-      const adAccountsResponse = await HttpUtils.fetch(
-        `https://graph.facebook.com/v23.0/me/adaccounts?fields=id,name,account_status&access_token=${longLivedData.access_token}`
-      );
+      const adAccountsUrl = new URL('https://graph.facebook.com/v23.0/me/adaccounts');
+      adAccountsUrl.searchParams.set('fields', 'id,name,account_status');
+      adAccountsUrl.searchParams.set('access_token', longLivedData.access_token);
+      const adAccountsResponse = await HttpUtils.fetch(adAccountsUrl.toString());
       const adAccountsData = await adAccountsResponse.getAsJson();
 
       if (adAccountsData.error) {
@@ -179,18 +198,18 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       }
       return oauthCredentials.build().toObject();
     } catch (error) {
+      if (error instanceof OauthFlowException) {
+        throw error;
+      }
       throw new OauthFlowException({ message: 'Failed to exchange Facebook tokens', payload: error.message });
     }
   }
 
   async refreshCredentials(configuration, credentials, variables) {
-    // Configuration from data mart has structure: { AuthType: { oauth2: { ... } } }
-    // We need to check if oauth2 key exists
     const authTypeConfig = configuration.AuthType || {};
     const isOAuth2 = 'oauth2' in authTypeConfig;
 
     if (!isOAuth2) {
-      // Not OAuth2 auth type, no refresh needed
       return null;
     }
 
@@ -198,24 +217,19 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
     const hasStoredCredential = OAUTH_SOURCE_CREDENTIALS_KEY in oauthConfig && oauthConfig[OAUTH_SOURCE_CREDENTIALS_KEY];
 
     if (hasStoredCredential) {
-      // OAuth flow with stored credentials - refresh if expires within 5 days
       const fiveDaysFromNow = Date.now() + 5 * 24 * 60 * 60 * 1000;
       if (credentials.expiresAt && credentials.expiresAt < fiveDaysFromNow) {
-        // credentials from DB has secret.accessToken structure
         const storedCredentials = { accessToken: credentials.secret?.accessToken };
         return this.exchangeOauthCredentials(storedCredentials, variables);
       } else {
-        // No refresh needed
         return null;
       }
     } else {
-      // Manual mode - extract tokens from configuration
       const accessToken = oauthConfig.AccessToken;
       const appId = oauthConfig.AppId;
       const appSecret = oauthConfig.AppSecret;
 
       if (!accessToken || !appId || !appSecret) {
-        // Cannot refresh without all required fields
         return null;
       }
 

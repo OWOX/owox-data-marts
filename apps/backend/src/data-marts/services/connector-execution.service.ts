@@ -399,7 +399,6 @@ export class ConnectorExecutionService {
       );
 
       try {
-        // Refresh credentials before running the connector
         const refreshedConfig = await this.refreshCredentialsForConfig(
           dataMart.projectId,
           connector.source.name,
@@ -409,7 +408,13 @@ export class ConnectorExecutionService {
         const configuration = new ConfigDto({
           name: connector.source.name,
           datamartId: dataMart.id,
-          source: await this.getSourceConfig(dataMart.id, connector, refreshedConfig, configId),
+          source: await this.getSourceConfig(
+            dataMart.id,
+            dataMart.projectId,
+            connector,
+            refreshedConfig,
+            configId
+          ),
           storage: this.getStorageConfig(dataMart),
         });
 
@@ -574,6 +579,7 @@ export class ConnectorExecutionService {
   //TODO
   private async getSourceConfig(
     dataMartId: string,
+    projectId: string,
     connector: DataMartConnectorDefinition['connector'],
     config: Record<string, unknown>,
     configId: string
@@ -584,7 +590,11 @@ export class ConnectorExecutionService {
 
     const state = await this.connectorStateService.getState(dataMartId, configId);
 
-    const configWithCredentials = await this.injectOAuthCredentials(config, connector.source.name);
+    const configWithCredentials = await this.injectOAuthCredentials(
+      config,
+      connector.source.name,
+      projectId
+    );
     return new SourceConfigDto({
       name: connector.source.name,
       config: {
@@ -761,16 +771,20 @@ export class ConnectorExecutionService {
    * Inject OAuth credentials into configuration if _source_credential_id is present
    * @param config - Configuration object that may contain _source_credential_id
    * @param connectorName - Name of the connector (e.g., "FacebookMarketing")
+   * @param projectId - Project ID for credential validation
    * @returns Configuration with OAuth credentials injected
    */
   private async injectOAuthCredentials(
     config: Record<string, unknown>,
-    connectorName: string
+    connectorName: string,
+    projectId: string
   ): Promise<Record<string, unknown>> {
-    return (await this.injectOAuthCredentialsRecursive(config, '', connectorName)) as Record<
-      string,
-      unknown
-    >;
+    return (await this.injectOAuthCredentialsRecursive(
+      config,
+      '',
+      connectorName,
+      projectId
+    )) as Record<string, unknown>;
   }
 
   /**
@@ -779,9 +793,9 @@ export class ConnectorExecutionService {
   private async injectOAuthCredentialsRecursive(
     value: unknown,
     currentPath: string,
-    connectorName: string
+    connectorName: string,
+    projectId: string
   ): Promise<unknown> {
-    // Handle non-object values
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       return value;
     }
@@ -801,6 +815,13 @@ export class ConnectorExecutionService {
           return obj;
         }
 
+        if (credentialsEntity.projectId !== projectId) {
+          this.logger.warn(
+            `OAuth credentials ${credentialId} belong to project ${credentialsEntity.projectId}, not ${projectId}. Skipping injection.`
+          );
+          return obj;
+        }
+
         const isExpired = await this.connectorSourceCredentialsService.isExpired(credentialId);
 
         if (isExpired) {
@@ -816,12 +837,14 @@ export class ConnectorExecutionService {
 
         const mapping = spec.oauthParams?.mapping as Record<string, string> | undefined;
 
+        const { _source_credential_id: _, ...restObj } = obj;
+
         if (!mapping) {
           this.logger.warn(
             `No mapping found for OAuth field ${currentPath}. Using credentials directly.`
           );
           return {
-            ...obj,
+            ...restObj,
             ...credentialsEntity.credentials,
           };
         }
@@ -832,7 +855,10 @@ export class ConnectorExecutionService {
           resolvedConfig[key] = resolved;
         }
 
-        return resolvedConfig;
+        return {
+          ...restObj,
+          ...resolvedConfig,
+        };
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         this.logger.error(
@@ -846,7 +872,12 @@ export class ConnectorExecutionService {
     const result: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(obj)) {
       const newPath = currentPath ? `${currentPath}.${key}` : key;
-      result[key] = await this.injectOAuthCredentialsRecursive(val, newPath, connectorName);
+      result[key] = await this.injectOAuthCredentialsRecursive(
+        val,
+        newPath,
+        connectorName,
+        projectId
+      );
     }
 
     return result;
@@ -864,12 +895,10 @@ export class ConnectorExecutionService {
 
     const config = mappingConfig as Record<string, unknown>;
 
-    // If mapping has 'key' field, use it to get value from credentials
     if (config.key && typeof config.key === 'string') {
       return credentials[config.key] ?? '';
     }
 
-    // Fallback: return the config as-is
     return mappingConfig;
   }
 

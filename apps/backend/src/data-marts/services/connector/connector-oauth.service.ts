@@ -37,7 +37,10 @@ export class ConnectorOauthService {
         reasons: result.warnings,
       };
     } catch (error) {
-      throw new Error(error.message);
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error(String(error));
     }
   }
 

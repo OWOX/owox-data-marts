@@ -201,10 +201,8 @@ export class ConnectorService {
 
     const connector = this.createConnectorSource(connectorName);
 
-    // Get OAuth variables from environment for the connector
     const oauthVariables = await this.getOAuthVariablesForRefresh(connectorName, configuration);
 
-    // Include expiresAt in credentials for refresh logic
     const credentialsWithExpiry = {
       ...credential.credentials,
       expiresAt: credential.expiresAt?.getTime() ?? null,
@@ -217,11 +215,9 @@ export class ConnectorService {
     );
 
     if (!refreshedCredentials) {
-      // No refresh needed, return existing credential
       return credentialId;
     }
 
-    // If credentials were refreshed, save them
     const newCredential = await this.connectorSourceCredentialsService.createCredentials(
       projectId,
       credential.userId ?? '',

@@ -33,7 +33,7 @@ export const OAuthParamsSchema = z.object({
 
 export type OAuthParams = z.infer<typeof OAuthParamsSchema>;
 
-export const CounectorOAuthUser = z.object({
+export const ConnectorOAuthUser = z.object({
   id: z.string().optional(),
   name: z.string().optional(),
   email: z.string().optional(),
@@ -43,7 +43,7 @@ export const CounectorOAuthUser = z.object({
 export const ConnectorOAuthStatusSchema = z.object({
   isValid: z.boolean(),
   expiresAt: z.date().optional(),
-  user: CounectorOAuthUser.optional(),
+  user: ConnectorOAuthUser.optional(),
   additional: z.record(z.unknown()).optional(),
 });
 
@@ -58,7 +58,7 @@ export type ConnectorOAuthSettingsSchema = z.infer<typeof ConnectorOAuthSettings
 export const ConnectorOAuthExchangeResultSchema = z.object({
   success: z.boolean(),
   credentialId: z.string(),
-  user: CounectorOAuthUser.optional(),
+  user: ConnectorOAuthUser.optional(),
   additional: z.record(z.unknown()).optional(),
   reasons: z.array(z.string()).optional(),
 });

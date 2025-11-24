@@ -49,6 +49,7 @@ export function OauthRenderFactory({
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<OAuthStatusResponseDto | null>(null);
   const [settings, setSettings] = useState<OAuthSettingsResponseDto | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const credentialId = useMemo(() => {
     const savedConfig = configuration[specification.name] as Record<string, unknown> | undefined;
@@ -67,7 +68,6 @@ export function OauthRenderFactory({
     const savedConfig = configuration[specification.name] as Record<string, unknown> | undefined;
     if (option?.value && savedConfig) {
       const nestedValue = savedConfig[option.value];
-      // Ensure we return an object, not a primitive value
       if (nestedValue && typeof nestedValue === 'object' && !Array.isArray(nestedValue)) {
         return nestedValue as Record<string, unknown>;
       }
@@ -145,6 +145,7 @@ export function OauthRenderFactory({
   const handleOAuthSuccess = async (credentials: Record<string, unknown>) => {
     try {
       setIsLoading(true);
+      setError(null);
       const exchanged = await exchangeCredentials(connectorName, credentials, fieldPath);
       const currentConfig = configuration[specification.name] as
         | Record<string, unknown>
@@ -162,8 +163,10 @@ export function OauthRenderFactory({
           _source_credential_id: exchanged.credentialId,
         });
       }
-    } catch (error) {
-      console.error('Failed to exchange OAuth credentials:', error);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to exchange OAuth credentials';
+      console.error('Failed to exchange OAuth credentials:', err);
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -176,19 +179,31 @@ export function OauthRenderFactory({
       return;
     }
 
+    let cancelled = false;
+
     const validateCredentials = async () => {
       try {
         setIsLoading(true);
         const fetchedStatus = await checkStatus(connectorName, credentialId);
-        setStatus(fetchedStatus);
+        if (!cancelled) {
+          setStatus(fetchedStatus);
+        }
       } catch (error) {
-        console.error('Failed to validate credentials:', error);
-        setStatus({ valid: false });
+        if (!cancelled) {
+          console.error('Failed to validate credentials:', error);
+          setStatus({ valid: false });
+        }
       } finally {
-        setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       }
     };
     void validateCredentials();
+
+    return () => {
+      cancelled = true;
+    };
   }, [credentialId, connectorName, checkStatus]);
 
   useEffect(() => {
@@ -258,7 +273,6 @@ export function OauthRenderFactory({
           size='sm'
           type='button'
           onClick={() => {
-            // Clear all manual fields when switching back to OAuth
             onValueChange(specification.name, {
               [option.value]: {},
             });
@@ -273,7 +287,6 @@ export function OauthRenderFactory({
     );
   }
 
-  // Render OAuth component based on connector
   const oauthComponent = (() => {
     switch (connectorName) {
       case 'FacebookMarketing':
@@ -293,13 +306,13 @@ export function OauthRenderFactory({
   return (
     <div className='space-y-3'>
       {oauthComponent}
+      {error && <div className='text-destructive text-sm'>{error}</div>}
       {option?.items && Object.keys(option.items).length > 0 && (
         <Button
           variant='link'
           size='sm'
           type='button'
           onClick={() => {
-            // Clear OAuth credential when switching to manual
             onValueChange(specification.name, {
               [option.value]: {},
             });
