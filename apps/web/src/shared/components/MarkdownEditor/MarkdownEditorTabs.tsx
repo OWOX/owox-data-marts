@@ -3,10 +3,9 @@ import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 export interface MarkdownEditorTabsProps {
   value: 'markdown' | 'preview';
   onChange: (v: 'markdown' | 'preview') => void;
-  className?: string;
 }
 
-export function MarkdownEditorTabs({ value, onChange, className }: MarkdownEditorTabsProps) {
+export function MarkdownEditorTabs({ value, onChange }: MarkdownEditorTabsProps) {
   return (
     <Tabs
       value={value}
@@ -14,7 +13,7 @@ export function MarkdownEditorTabs({ value, onChange, className }: MarkdownEdito
         onChange(v as 'markdown' | 'preview');
       }}
     >
-      <TabsList className={className ?? 'h-7'}>
+      <TabsList>
         <TabsTrigger value='markdown'>Markdown</TabsTrigger>
         <TabsTrigger value='preview'>Preview</TabsTrigger>
       </TabsList>
