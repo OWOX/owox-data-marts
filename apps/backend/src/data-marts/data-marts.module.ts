@@ -111,6 +111,9 @@ import { UpdateInsightService } from './use-cases/update-insight.service';
 import { UpdateInsightTitleService } from './use-cases/update-insight-title.service';
 import { DeleteInsightService } from './use-cases/delete-insight.service';
 import { RetryInterruptedConnectorRunsProcessor } from './system-triggers/processors/retry-interrupted-connector-runs-processor';
+import { SqlRunService } from './use-cases/sql-run.service';
+import { CreateViewService } from './use-cases/create-view.service';
+import { aiInsightsProviders } from './ai-insights/ai-insights-providers';
 
 @Module({
   imports: [
@@ -150,6 +153,7 @@ import { RetryInterruptedConnectorRunsProcessor } from './system-triggers/proces
     ...dataDestinationFacadesProviders,
     ...scheduledTriggerProviders,
     ...scheduledTriggerFacadesProviders,
+    ...aiInsightsProviders,
     DataMartService,
     CreateDataMartService,
     ListDataMartsService,
@@ -205,6 +209,8 @@ import { RetryInterruptedConnectorRunsProcessor } from './system-triggers/proces
     RunDataMartService,
     CancelDataMartRunService,
     SqlDryRunService,
+    SqlRunService,
+    CreateViewService,
     ActualizeDataMartSchemaService,
     UpdateDataMartSchemaService,
     ScheduledTriggersHandlerService,
