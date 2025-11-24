@@ -16,20 +16,21 @@ interface Options {
 export function useDataMartReportsAutoRefresh({ enabled = true, intervalMs = 5000 }: Options = {}) {
   const { dataMart } = useOutletContext<DataMartContextType>();
   const { fetchReportsByDataMartId } = useReport();
+  const dataMartId = dataMart?.id;
 
   // Initial fetch on dataMart change
   useEffect(() => {
-    if (!dataMart) return;
-    void fetchReportsByDataMartId(dataMart.id);
-  }, [dataMart?.id, fetchReportsByDataMartId]);
+    if (!dataMartId) return;
+    void fetchReportsByDataMartId(dataMartId);
+  }, [dataMartId, fetchReportsByDataMartId]);
 
   // Unified polling for the current dataMart
   useAutoRefresh({
-    enabled: !!dataMart && enabled,
+    enabled: !!dataMartId && enabled,
     intervalMs,
     onTick: () => {
-      if (!dataMart) return;
-      void fetchReportsByDataMartId(dataMart.id, { silent: true });
+      if (!dataMartId) return;
+      void fetchReportsByDataMartId(dataMartId, { silent: true });
     },
   });
 }
