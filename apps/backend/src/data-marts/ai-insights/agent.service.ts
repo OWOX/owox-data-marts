@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { OpenAiChatProvider } from '../../common/ai-insights/services/openai/openai-chat-provider';
+import { AI_CHAT_PROVIDER } from '../../common/ai-insights/services/ai-chat-provider.token';
 import { castError } from '@owox/internal-helpers';
 import { buildSystemPrompt, buildUserPrompt } from './prompts/llm-prompt';
 import {
@@ -25,7 +25,7 @@ export class AiInsightsAgentService {
   private readonly logger = new Logger(AiInsightsAgentService.name);
 
   constructor(
-    @Inject(OpenAiChatProvider) private readonly aiProvider: AiChatProvider,
+    @Inject(AI_CHAT_PROVIDER) private readonly aiProvider: AiChatProvider,
     private readonly toolRegistry: ToolRegistry
   ) {}
 

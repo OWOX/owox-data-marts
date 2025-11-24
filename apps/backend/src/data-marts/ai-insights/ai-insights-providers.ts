@@ -13,6 +13,13 @@ import {
 } from '../../common/ai-insights/services/ai-insights-tools-registrar';
 import { ToolRegistry } from '../../common/ai-insights/agent/tool-registry';
 import { AI_INSIGHTS_FACADE } from './ai-insights-types';
+import { ConfigService } from '@nestjs/config';
+import {
+  AI_CHAT_PROVIDER,
+  AI_PROVIDER_ENV,
+  AiProviderName,
+  normalizeAiProviderName,
+} from '../../common/ai-insights/services/ai-chat-provider.token';
 
 export const aiInsightsProviders = [
   OpenAiChatProvider,
@@ -20,6 +27,19 @@ export const aiInsightsProviders = [
   AiInsightsAgentService,
   PromptTagHandler,
   DataMartInsightTemplateFacadeImpl,
+  {
+    provide: AI_CHAT_PROVIDER,
+    useFactory: (config: ConfigService, openai: OpenAiChatProvider) => {
+      const raw = (config.get<string>(AI_PROVIDER_ENV) || '').toLowerCase();
+      const provider = normalizeAiProviderName(raw);
+      switch (provider) {
+        case AiProviderName.OPENAI:
+        default:
+          return openai;
+      }
+    },
+    inject: [ConfigService, OpenAiChatProvider],
+  },
   {
     provide: TEMPLATE_RENDER_FACADE,
     useClass: TemplateRenderFacadeImpl,
