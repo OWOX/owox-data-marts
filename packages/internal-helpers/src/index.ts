@@ -3,4 +3,8 @@ export * from './environment/parse-mysql-ssl.js';
 export * from './logging/logger-factory.js';
 export * from './logging/types.js';
 export * from './utils/promiseWithTimeout.js';
+export * from './utils/fetchWithBackoff.js';
+export * from './utils/castError.js';
+export * from './utils/isReadonlyQuery.js';
+export * from './utils/runWithConcurrency.js';
 export * from './integrations/event-bus/index.js';
