@@ -79,10 +79,19 @@ export function RunItem({
         <ConfigurationView
           definitionRun={run.definitionRun}
           reportDefinition={run.reportDefinition}
+          insightDefinition={run.insightDefinition}
         />
       );
     }
-  }, [logViewType, filteredLogs, run.logs, run.errors, run.definitionRun, run.reportDefinition]);
+  }, [
+    logViewType,
+    filteredLogs,
+    run.logs,
+    run.errors,
+    run.definitionRun,
+    run.reportDefinition,
+    run.insightDefinition,
+  ]);
 
   const startedAtValue = getStartedAtDisplay(run);
   const tooltipContent = getTooltipContent(run);

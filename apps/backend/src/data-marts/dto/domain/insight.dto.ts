@@ -10,6 +10,6 @@ export class InsightDto {
     public readonly createdById: string,
     public readonly createdAt: Date,
     public readonly modifiedAt: Date,
-    public readonly lastDataMartRun?: DataMartRunDto | null
+    public readonly lastManualDataMartRun: DataMartRunDto | null
   ) {}
 }

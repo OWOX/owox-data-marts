@@ -6,6 +6,8 @@ import { SystemTimeService } from '../../common/scheduler/services/system-time.s
 import { RunType } from '../../common/scheduler/shared/types';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { DataMartRun } from '../entities/data-mart-run.entity';
+import { DataMart } from '../entities/data-mart.entity';
+import { Insight } from '../entities/insight.entity';
 import { Report } from '../entities/report.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
@@ -22,6 +24,15 @@ export interface ReportRunContext {
  * Context for finalizing a report run.
  */
 export interface ReportRunFinishContext {
+  status: DataMartRunStatus.SUCCESS | DataMartRunStatus.FAILED | DataMartRunStatus.CANCELLED;
+  logs?: string[];
+  errors?: string[];
+}
+
+/**
+ * Context for finalizing an insight run.
+ */
+export interface InsightRunFinishContext {
   status: DataMartRunStatus.SUCCESS | DataMartRunStatus.FAILED | DataMartRunStatus.CANCELLED;
   logs?: string[];
   errors?: string[];
@@ -80,24 +91,6 @@ export class DataMartRunService {
   ): Promise<DataMartRun | null> {
     return this.dataMartRunRepository.findOne({
       where: { id: runId, dataMartId },
-    });
-  }
-
-  /**
-   * Returns the latest manual INSIGHT run for given Data Mart and Insight ids.
-   */
-  public async getLatestInsightManualRun(
-    dataMartId: string,
-    insightId: string
-  ): Promise<DataMartRun | null> {
-    return this.dataMartRunRepository.findOne({
-      where: {
-        dataMartId,
-        insightId,
-        runType: RunType.manual,
-        type: DataMartRunType.INSIGHT,
-      },
-      order: { createdAt: 'DESC' },
     });
   }
 
@@ -177,6 +170,89 @@ export class DataMartRunService {
     dataMartRun.finishedAt = this.systemClock.now();
 
     await this.dataMartRunRepository.save(dataMartRun);
+  }
+
+  /**
+   * Marks existing INSIGHT run as RUNNING and sets start timestamp.
+   *
+   * @param dataMartRun - DataMartRun to mark as started
+   * @returns Updated DataMartRun with RUNNING status
+   */
+  public async markInsightRunAsStarted(dataMartRun: DataMartRun): Promise<DataMartRun> {
+    dataMartRun.status = DataMartRunStatus.RUNNING;
+    dataMartRun.startedAt = this.systemClock.now();
+
+    return await this.dataMartRunRepository.save(dataMartRun);
+  }
+
+  /**
+   * Finalizes INSIGHT run by setting finish timestamp and optional logs/errors.
+   *
+   * Sets finishedAt regardless of context.
+   * If context provided, also updates status, logs, and errors.
+   *
+   * @param dataMartRun - DataMartRun to finalize
+   * @param context - Optional finish context with status, logs, errors to append
+   */
+  public async markInsightRunAsFinished(
+    dataMartRun: DataMartRun,
+    context?: InsightRunFinishContext
+  ): Promise<void> {
+    if (context) {
+      dataMartRun.status = context.status;
+
+      if (context.logs && context.logs.length) {
+        dataMartRun.logs = [...(dataMartRun.logs || []), ...context.logs];
+      }
+
+      if (context.errors && context.errors.length) {
+        dataMartRun.errors = [...(dataMartRun.errors || []), ...context.errors];
+      }
+    }
+    dataMartRun.finishedAt = this.systemClock.now();
+
+    await this.dataMartRunRepository.save(dataMartRun);
+  }
+
+  /**
+   * Creates a new INSIGHT run in PENDING state.
+   */
+  public async createAndMarkInsightRunAsPending(
+    dataMart: DataMart,
+    insight: Insight,
+    context: ReportRunContext
+  ): Promise<DataMartRun> {
+    const run = this.dataMartRunRepository.create({
+      dataMartId: dataMart.id,
+      type: DataMartRunType.INSIGHT,
+      status: DataMartRunStatus.PENDING,
+      createdById: context.createdById,
+      runType: context.runType,
+      insightId: insight.id,
+      definitionRun: dataMart.definition,
+      insightDefinition: {
+        title: insight.title,
+        template: insight.template ?? null,
+      },
+      logs: [],
+      errors: [],
+    });
+
+    return this.dataMartRunRepository.save(run);
+  }
+
+  /**
+   * Checks whether a given INSIGHT has a RUNNING data mart run.
+   */
+  public async isInsightRunning(insightId: string): Promise<boolean> {
+    const running = await this.dataMartRunRepository.findOne({
+      where: {
+        insightId,
+        status: DataMartRunStatus.RUNNING,
+        type: DataMartRunType.INSIGHT,
+      },
+    });
+    return !!running;
   }
 
   /**

@@ -3,6 +3,7 @@ import { DataMartDefinition } from '../schemas/data-mart-table-definitions/data-
 import { DataMartRunType } from '../../enums/data-mart-run-type.enum';
 import { RunType } from '../../../common/scheduler/shared/types';
 import { DataMartRunReportDefinition } from '../schemas/data-mart-run/data-mart-run-report-definition.schema';
+import { DataMartRunInsightDefinition } from '../schemas/data-mart-run/data-mart-run-insight-definition.schema';
 
 export class DataMartRunDto {
   constructor(
@@ -15,6 +16,7 @@ export class DataMartRunDto {
     public readonly reportId: string | null,
     public readonly reportDefinition: DataMartRunReportDefinition | null,
     public readonly insightId: string | null,
+    public readonly insightDefinition: DataMartRunInsightDefinition | null,
     public readonly logs: string[] | null,
     public readonly errors: string[] | null,
     public readonly createdAt: Date,

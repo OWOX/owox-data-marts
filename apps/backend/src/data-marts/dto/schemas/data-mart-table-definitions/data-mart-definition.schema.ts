@@ -4,7 +4,6 @@ import { SqlDefinitionSchema } from './sql-definition.schema';
 import { TableDefinitionSchema } from './table-definition.schema';
 import { TablePatternDefinitionSchema } from './table-pattern-definition.schema';
 import { ViewDefinitionSchema } from './view-definition.schema';
-import { InsightRunDefinitionSchema } from './insight-run-definition.schema';
 
 export const DataMartDefinitionSchema = z.union([
   SqlDefinitionSchema,
@@ -12,5 +11,4 @@ export const DataMartDefinitionSchema = z.union([
   TablePatternDefinitionSchema,
   ViewDefinitionSchema,
   ConnectorDefinitionSchema,
-  InsightRunDefinitionSchema,
 ]);

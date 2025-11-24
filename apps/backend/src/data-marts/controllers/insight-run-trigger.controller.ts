@@ -14,7 +14,7 @@ export class InsightRunTriggerController extends UiTriggerController<InsightRunR
   }
 
   @CreateInsightRunTriggerSpec()
-  @Auth(Role.viewer(Strategy.PARSE))
+  @Auth(Role.editor(Strategy.PARSE))
   @Post()
   async createTrigger(
     @AuthContext() context: AuthorizationContext,

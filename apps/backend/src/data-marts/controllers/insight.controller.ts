@@ -5,6 +5,7 @@ import { CreateInsightRequestApiDto } from '../dto/presentation/create-insight-r
 import { InsightResponseApiDto } from '../dto/presentation/insight-response-api.dto';
 import { UpdateInsightRequestApiDto } from '../dto/presentation/update-insight-request-api.dto';
 import { UpdateInsightTitleApiDto } from '../dto/presentation/update-insight-title-api.dto';
+import { InsightListItemResponseApiDto } from '../dto/presentation/insight-list-item-response-api.dto';
 import { InsightMapper } from '../mappers/insight.mapper';
 import { CreateInsightService } from '../use-cases/create-insight.service';
 import { DeleteInsightService } from '../use-cases/delete-insight.service';
@@ -53,7 +54,7 @@ export class InsightController {
   async list(
     @AuthContext() context: AuthorizationContext,
     @Param('dataMartId') dataMartId: string
-  ): Promise<{ data: InsightResponseApiDto[] }> {
+  ): Promise<{ data: InsightListItemResponseApiDto[] }> {
     const command = this.mapper.toListCommand(dataMartId, context);
     const insights = await this.listInsightsService.run(command);
     return { data: this.mapper.toListItemResponseList(insights) };

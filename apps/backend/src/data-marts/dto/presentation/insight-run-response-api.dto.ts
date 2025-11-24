@@ -1,4 +1,1 @@
-export class InsightRunResponseApiDto {
-  runId?: string;
-  error?: string;
-}
+export type InsightRunResponseApiDto = { runId: string } | { error: string };

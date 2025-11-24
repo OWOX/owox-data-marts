@@ -12,6 +12,7 @@ import { DataMartDefinition } from '../dto/schemas/data-mart-table-definitions/d
 import { RunType } from '../../common/scheduler/shared/types';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { DataMartRunReportDefinition } from '../dto/schemas/data-mart-run/data-mart-run-report-definition.schema';
+import { DataMartRunInsightDefinition } from '../dto/schemas/data-mart-run/data-mart-run-insight-definition.schema';
 
 @Entity()
 export class DataMartRun {
@@ -31,8 +32,11 @@ export class DataMartRun {
   @Column({ type: 'json' })
   definitionRun: DataMartDefinition;
 
-  @Column({ nullable: true })
-  insightId?: string;
+  @Column({ type: 'varchar', nullable: true })
+  insightId?: string | null;
+
+  @Column({ type: 'json', nullable: true })
+  insightDefinition?: DataMartRunInsightDefinition | null;
 
   @Column({ type: 'varchar', nullable: true })
   reportId?: string | null;

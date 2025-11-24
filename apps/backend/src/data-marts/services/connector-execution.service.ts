@@ -153,7 +153,11 @@ export class ConnectorExecutionService {
 
   private async checkDataMartIsRunning(dataMart: DataMart): Promise<boolean> {
     const dataMartRun = await this.dataMartRunRepository.findOne({
-      where: { dataMartId: dataMart.id, status: DataMartRunStatus.RUNNING },
+      where: {
+        dataMartId: dataMart.id,
+        status: DataMartRunStatus.RUNNING,
+        type: DataMartRunType.CONNECTOR,
+      },
     });
 
     return !!dataMartRun;

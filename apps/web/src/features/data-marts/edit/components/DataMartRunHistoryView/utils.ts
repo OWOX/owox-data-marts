@@ -150,11 +150,7 @@ export const getRunSummary = (
       runType = 'report';
       break;
     case DataMartRunType.INSIGHT:
-      if ('insight' in run.definitionRun && typeof run.definitionRun.insight.title === 'string') {
-        title = run.definitionRun.insight.title;
-      } else {
-        title = '';
-      }
+      title = run.insightDefinition?.title ?? '';
       runType = 'insight';
       break;
     default:

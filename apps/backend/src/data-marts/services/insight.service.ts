@@ -23,7 +23,7 @@ export class InsightService {
           projectId,
         },
       },
-      relations: ['dataMart', 'lastDataMartRun'],
+      relations: ['dataMart'],
     });
 
     if (!insight) {
@@ -41,7 +41,7 @@ export class InsightService {
           projectId,
         },
       },
-      relations: ['dataMart', 'lastDataMartRun'],
+      relations: ['dataMart'],
       order: { createdAt: 'DESC' },
     });
   }

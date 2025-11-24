@@ -34,8 +34,8 @@ export class InsightMapper {
   }
 
   toDomainDto(entity: Insight): InsightDto {
-    const lastRunDto = entity.lastDataMartRun
-      ? this.dataMartMapper.toDataMartRunDto(entity.lastDataMartRun)
+    const lastManualDataMartRunDto = entity.lastManualDataMartRun
+      ? this.dataMartMapper.toDataMartRunDto(entity.lastManualDataMartRun)
       : null;
     return new InsightDto(
       entity.id,
@@ -46,7 +46,7 @@ export class InsightMapper {
       entity.createdById,
       entity.createdAt,
       entity.modifiedAt,
-      lastRunDto
+      lastManualDataMartRunDto
     );
   }
 
@@ -64,8 +64,8 @@ export class InsightMapper {
       createdById: dto.createdById,
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,
-      lastDataMartRun: dto.lastDataMartRun
-        ? await this.dataMartMapper.toRunResponse(dto.lastDataMartRun)
+      lastManualDataMartRun: dto.lastManualDataMartRun
+        ? await this.dataMartMapper.toRunResponse(dto.lastManualDataMartRun)
         : null,
     };
   }

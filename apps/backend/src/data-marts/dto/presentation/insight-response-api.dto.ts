@@ -9,14 +9,14 @@ export class InsightResponseApiDto {
   title: string;
 
   @ApiProperty({ example: 'Template text with prompts', required: false, nullable: true })
-  template?: string | null;
+  template: string | null;
 
   @ApiProperty({
     example: 'Executive summary: ...',
     required: false,
     nullable: true,
   })
-  output?: string | null;
+  output: string | null;
 
   @ApiProperty({
     example: '2025-10-09T15:13:06.930Z',
@@ -24,7 +24,7 @@ export class InsightResponseApiDto {
     nullable: true,
     description: 'Timestamp when the output field was last updated',
   })
-  outputUpdatedAt?: string | Date | null;
+  outputUpdatedAt: string | Date | null;
 
   @ApiProperty({ example: '540734f6-8eb1-48a9-bf86-22010d3bddfd' })
   createdById: string;
@@ -39,7 +39,7 @@ export class InsightResponseApiDto {
     required: false,
     nullable: true,
     type: () => DataMartRunResponseApiDto,
-    description: 'Latest manual DataMart run for this Insight, ordered by createdAt DESC',
+    description: 'Latest manual DataMart run for this Insight',
   })
-  lastDataMartRun?: DataMartRunResponseApiDto | null;
+  lastManualDataMartRun: DataMartRunResponseApiDto | null;
 }

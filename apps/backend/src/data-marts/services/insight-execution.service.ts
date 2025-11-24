@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { OwoxProducer } from '@owox/internal-helpers';
 import { Repository } from 'typeorm';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { OWOX_PRODUCER } from '../../common/producer/producer.module';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 import { RunType } from '../../common/scheduler/shared/types';
@@ -9,16 +10,16 @@ import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMart } from '../entities/data-mart.entity';
 import { Insight } from '../entities/insight.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
-import { DataMartRunType } from '../enums/data-mart-run-type.enum';
+import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { InsightRunSuccessfullyEvent } from '../events/insight-run-successfully.event';
+import { DataMartRunService } from './data-mart-run.service';
 
 @Injectable()
 export class InsightExecutionService {
   private readonly logger = new Logger(InsightExecutionService.name);
 
   constructor(
-    @InjectRepository(DataMartRun)
-    private readonly dataMartRunRepository: Repository<DataMartRun>,
+    private readonly dataMartRunService: DataMartRunService,
     @InjectRepository(Insight)
     private readonly insightRepository: Repository<Insight>,
     private readonly systemTimeService: SystemTimeService,
@@ -32,6 +33,14 @@ export class InsightExecutionService {
     createdById: string,
     runType: RunType
   ): Promise<string> {
+    this.validateDataMartForInsight(dataMart);
+    const isRunning = await this.dataMartRunService.isInsightRunning(insight.id);
+    if (isRunning) {
+      throw new BusinessViolationException(
+        'Insight is already running. Please wait until it finishes'
+      );
+    }
+
     const dataMartRun = await this.createRun(dataMart, insight, createdById, runType);
 
     await this.execute(dataMart, insight, dataMartRun).catch(error => {
@@ -46,43 +55,31 @@ export class InsightExecutionService {
     return dataMartRun.id;
   }
 
+  private validateDataMartForInsight(dataMart: DataMart): void {
+    if (dataMart.status !== DataMartStatus.PUBLISHED) {
+      throw new BusinessViolationException('DataMart is not published');
+    }
+  }
+
   private async createRun(
     dataMart: DataMart,
     insight: Insight,
     createdById: string,
     runType: RunType
   ): Promise<DataMartRun> {
-    const run = this.dataMartRunRepository.create({
-      dataMartId: dataMart.id,
-      type: DataMartRunType.INSIGHT,
-      status: DataMartRunStatus.PENDING,
+    return this.dataMartRunService.createAndMarkInsightRunAsPending(dataMart, insight, {
       createdById,
       runType,
-      insightId: insight.id,
-      definitionRun: {
-        insight: {
-          title: insight.title,
-          template: insight.template ?? null,
-        },
-      },
-      logs: [],
-      errors: [],
     });
-
-    return this.dataMartRunRepository.save(run);
   }
 
   private async execute(dataMart: DataMart, insight: Insight, run: DataMartRun) {
     const runId = run.id;
-    const now = this.systemTimeService.now();
-    await this.dataMartRunRepository.update(runId, {
-      status: DataMartRunStatus.RUNNING,
-      startedAt: now,
-      finishedAt: undefined,
-    });
+    await this.dataMartRunService.markInsightRunAsStarted(run);
 
     const logs: string[] = [];
     const errors: string[] = [];
+    let generatedOutput: string | null = null;
 
     const pushLog = (message: Record<string, unknown>) => {
       const enriched = {
@@ -94,6 +91,7 @@ export class InsightExecutionService {
 
     //TODO: Replace with actual insight AI layer execution
     const runMain = async (): Promise<string> => {
+      // TODO: delete this after implementation
       await new Promise(resolve => setTimeout(resolve, 10000));
       pushLog({ type: 'log', message: `Job started for ${insight.title}` });
       pushLog({
@@ -114,17 +112,10 @@ export class InsightExecutionService {
     };
 
     try {
-      const output = await runMain();
+      generatedOutput = await runMain();
 
-      await this.insightRepository.update(insight.id, {
-        output,
-        outputUpdatedAt: this.systemTimeService.now(),
-        lastDataMartRunId: run.id,
-      });
-
-      await this.dataMartRunRepository.update(runId, {
+      await this.dataMartRunService.markInsightRunAsFinished(run, {
         status: DataMartRunStatus.SUCCESS,
-        finishedAt: this.systemTimeService.now(),
         logs,
         errors,
       });
@@ -147,9 +138,8 @@ export class InsightExecutionService {
           error: message,
         })
       );
-      await this.dataMartRunRepository.update(runId, {
+      await this.dataMartRunService.markInsightRunAsFinished(run, {
         status: DataMartRunStatus.FAILED,
-        finishedAt: this.systemTimeService.now(),
         logs,
         errors,
       });
@@ -158,6 +148,15 @@ export class InsightExecutionService {
         projectId: dataMart.projectId,
         runId,
       });
+    } finally {
+      const updatePayload: Record<string, unknown> = {
+        lastManualDataMartRunId: run.id,
+      };
+      if (generatedOutput !== null) {
+        updatePayload.output = generatedOutput;
+        updatePayload.outputUpdatedAt = this.systemTimeService.now();
+      }
+      await this.insightRepository.update(insight.id, updatePayload);
     }
   }
 }

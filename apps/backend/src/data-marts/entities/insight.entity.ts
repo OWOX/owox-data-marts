@@ -5,7 +5,6 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
-  OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -28,11 +27,9 @@ export class Insight {
   dataMart: DataMart;
 
   @Column({ nullable: true })
-  lastDataMartRunId?: string;
+  lastManualDataMartRunId?: string;
 
-  @OneToOne(() => DataMartRun)
-  @JoinColumn({ name: 'lastDataMartRunId' })
-  lastDataMartRun?: DataMartRun | null;
+  lastManualDataMartRun?: DataMartRun | null;
 
   @Column({ nullable: true })
   output?: string;
