@@ -279,14 +279,9 @@ export function OauthRenderFactory({
       case 'FacebookMarketing':
         return (
           <FacebookOauthRender
-            specification={specification}
-            configuration={configuration}
-            onValueChange={onValueChange}
             isLoading={isLoading}
             status={status}
             settings={settings}
-            option={option}
-            connectorName={connectorName}
             onOAuthSuccess={handleOAuthSuccess}
           />
         );
