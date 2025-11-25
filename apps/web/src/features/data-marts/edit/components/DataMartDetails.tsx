@@ -82,6 +82,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   const navigation = [
     { name: 'Overview', path: 'overview' },
     { name: 'Data Setup', path: 'data-setup' },
+    { name: 'Insights', path: 'insights' },
     { name: 'Destinations', path: 'reports' },
     { name: 'Triggers', path: 'triggers' },
     { name: 'Run History', path: 'run-history' },

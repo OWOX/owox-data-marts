@@ -11,7 +11,7 @@ import {
   mapTablePatternDefinitionToDto,
   mapViewDefinitionToDto,
 } from '../mappers';
-import { dataMartService } from '../../../shared';
+import { DataMartDefinitionType, dataMartService } from '../../../shared';
 import type {
   CreateDataMartRequestDto,
   RunDataMartRequestDto,
@@ -24,7 +24,6 @@ import type {
   UpdateDataMartViewDefinitionRequestDto,
 } from '../../../shared/types/api';
 import type { DataStorage } from '../../../../data-storage/shared/model/types/data-storage';
-import { DataMartDefinitionType } from '../../../shared';
 import type {
   ConnectorDefinitionConfig,
   DataMartDefinitionConfig,
@@ -36,7 +35,7 @@ import type {
 import { extractApiError } from '../../../../../app/api';
 import type { DataMartSchema } from '../../../shared/types/data-mart-schema.types';
 import toast from 'react-hot-toast';
-import { trackEvent } from '../../../../../utils/data-layer';
+import { trackEvent } from '../../../../../utils';
 
 // Props interface
 interface DataMartProviderProps {
@@ -451,6 +450,22 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     [getDataMartRuns]
   );
 
+  // Get a data mart run by ID
+  const getDataMartRunById = useCallback(async (dataMartId: string, runId: string) => {
+    try {
+      return await dataMartService.getDataMartRunById(dataMartId, runId);
+    } catch (error) {
+      const apiError = extractApiError(error);
+      trackEvent({
+        event: 'data_mart_error',
+        category: 'DataMart',
+        action: 'FetchRunDetailsError',
+        label: apiError.message,
+      });
+      throw error;
+    }
+  }, []);
+
   // Actualize data mart schema
   const actualizeDataMartSchema = useCallback(async (id: string) => {
     try {
@@ -526,6 +541,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     actualizeDataMartSchema,
     updateDataMartSchema,
     getDataMartRuns,
+    getDataMartRunById,
     loadMoreDataMartRuns,
     getErrorMessage,
     reset,
