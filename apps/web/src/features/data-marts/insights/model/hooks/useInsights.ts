@@ -130,7 +130,7 @@ export function useInsights() {
       try {
         const response = await insightsService.updateInsightTitle(dataMart.id, id, { title });
         const insight = mapInsightFromDto(response);
-        const activeInsight = state.list.find(i => i.id === id) || state.activeInsight;
+        const activeInsight = state.list.find(i => i.id === id) ?? state.activeInsight;
         const updatedInsight = activeInsight
           ? { ...insight, template: activeInsight.template }
           : insight;
@@ -170,7 +170,7 @@ export function useInsights() {
         });
       }
     },
-    [dispatch, insightsService, dataMart.id]
+    [dispatch, dataMart.id]
   );
 
   const resetTriggerId = useCallback(() => {

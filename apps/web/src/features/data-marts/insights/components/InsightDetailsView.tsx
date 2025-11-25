@@ -70,14 +70,14 @@ export default function InsightDetailsView() {
 
   const preview = useMarkdownPreview({
     markdown: insight?.template ?? '',
-    enabled: Boolean(insight?.output && insight?.lastRun?.status === DataMartRunStatus.SUCCESS),
+    enabled: Boolean(insight?.output && insight.lastRun?.status === DataMartRunStatus.SUCCESS),
     debounceMs: 0,
   });
 
   const handleDelete = useCallback(async () => {
     if (!insight) return;
     await deleteInsight(insight.id);
-    navigate('..');
+    void navigate('..');
   }, [insight, deleteInsight, navigate]);
 
   const isOutputEmpty = !insightLoading && !insight?.output;
@@ -91,7 +91,7 @@ export default function InsightDetailsView() {
     if (insight?.lastRun?.status === DataMartRunStatus.RUNNING && insight.lastRun.id) {
       setTriggerId(insight.lastRun.id);
     }
-  }, [insight?.lastRun?.id, insight?.lastRun?.status]);
+  }, [insight?.lastRun?.id, insight?.lastRun?.status, setTriggerId]);
 
   useInsightExecutionPolling({
     triggerId,
@@ -115,8 +115,9 @@ export default function InsightDetailsView() {
     }
     try {
       await runInsight(insight.id);
-    } catch (_) {
+    } catch (error) {
       console.error('Failed to run insight');
+      throw error;
     }
   }, [insight?.id, runInsight]);
 
@@ -130,8 +131,9 @@ export default function InsightDetailsView() {
         }
         try {
           await runInsight(insight.id);
-        } catch (_) {
+        } catch (error) {
           console.error('Failed to run insight');
+          throw error;
         }
       })(),
     [handleSubmit, insight?.id, onSubmit, runInsight]
@@ -191,7 +193,12 @@ export default function InsightDetailsView() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end'>
-              <DropdownMenuItem onClick={() => setIsDeleteOpen(true)} className='text-destructive'>
+              <DropdownMenuItem
+                onClick={() => {
+                  setIsDeleteOpen(true);
+                }}
+                className='text-destructive'
+              >
                 <Trash2 className='mr-2 h-4 w-4 text-red-600' />{' '}
                 <span className='text-red-600'>Delete insight</span>
               </DropdownMenuItem>
@@ -208,7 +215,9 @@ export default function InsightDetailsView() {
             <div className='h-full p-2'>
               <InsightEditor
                 value={templateValue ?? ''}
-                onChange={v => setValue('template', v, { shouldDirty: true })}
+                onChange={v => {
+                  setValue('template', v, { shouldDirty: true });
+                }}
                 height={'calc(100vh - 275px)'}
                 placeholder='Type / to view available commands...'
                 readOnly={isRunning}
@@ -250,8 +259,8 @@ export default function InsightDetailsView() {
                   )}
                   <div className='text-muted-foreground border-border flex items-center justify-between border-t pt-2 text-sm'>
                     <div>
-                      Updated at:{' '}
-                      {insight?.outputUpdatedAt
+                      Last updated:{' '}
+                      {insight.outputUpdatedAt
                         ? new Date(insight.outputUpdatedAt).toLocaleString()
                         : '—'}
                     </div>
@@ -267,7 +276,7 @@ export default function InsightDetailsView() {
           variant='default'
           size='default'
           disabled={isSubmitting || isRunning}
-          onClick={isTemplateDirty ? handleSaveAndRun : handleRun}
+          onClick={() => void (isTemplateDirty ? handleSaveAndRun() : handleRun())}
         >
           {isRunning ? (
             <span className='inline-flex items-center gap-1'>
@@ -288,7 +297,9 @@ export default function InsightDetailsView() {
         confirmLabel='Delete'
         cancelLabel='Cancel'
         variant='destructive'
-        onConfirm={() => handleDelete()}
+        onConfirm={() => {
+          void handleDelete();
+        }}
       />
     </div>
   );

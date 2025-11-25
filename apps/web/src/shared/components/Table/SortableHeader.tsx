@@ -34,7 +34,7 @@ export function SortableHeader<TData>({ column, children, label }: SortableHeade
     return 'none' as const;
   };
 
-  const ariaLabel = label ?? (typeof children === 'string' ? (children as string) : 'Column');
+  const ariaLabel = label ?? (typeof children === 'string' ? children : 'Column');
 
   return (
     <Button

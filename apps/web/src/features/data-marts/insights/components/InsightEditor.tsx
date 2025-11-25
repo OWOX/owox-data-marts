@@ -40,7 +40,9 @@ export function InsightEditor({
         language='markdown'
         theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
         value={value}
-        onChange={v => onChange(v ?? '')}
+        onChange={v => {
+          onChange(v ?? '');
+        }}
         onMount={handleEditorMount}
         options={{
           minimap: { enabled: false },

@@ -36,11 +36,11 @@ export const useInsightForm = (
 
   const titleValue = watch('title');
   const templateValue = watch('template');
-  const isTemplateDirty = Boolean(dirtyFields?.template);
+  const isTemplateDirty = Boolean(dirtyFields.template);
 
   useEffect(() => {
     reset({ title: insight?.title ?? '', template: insight?.template ?? '' });
-  }, [insight?.id, insight?.template, reset]);
+  }, [insight?.id, insight?.title, insight?.template, reset]);
 
   const handleTitleUpdate = useCallback(
     async (newTitle: string) => {

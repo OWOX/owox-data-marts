@@ -90,7 +90,9 @@ export function InsightsTable({ items, onRowClick, onDelete }: InsightsTableProp
               table.getRowModel().rows.map((row, rowIndex) => (
                 <TableRow
                   key={row.id}
-                  onClick={() => onRowClick(row.original.id)}
+                  onClick={() => {
+                    onRowClick(row.original.id);
+                  }}
                   className='dm-card-table-body-row group cursor-pointer'
                   role='row'
                   aria-rowindex={rowIndex + 1}

@@ -39,7 +39,7 @@ export function useInsightExecutionPolling({
         onError(error as Error);
       }
     },
-    [dataMartId, triggerId, onRunFinished, onError]
+    [dataMartId, triggerId, insightId, onRunFinished, onError]
   );
   useAutoRefresh({
     enabled: Boolean(dataMartId && triggerId),

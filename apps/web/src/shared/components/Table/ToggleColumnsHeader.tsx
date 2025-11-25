@@ -45,8 +45,9 @@ export function ToggleColumnsHeader<TData>({
             .filter(column => column.getCanHide() && column.id !== 'actions')
             .map(column => {
               const label =
-                getColumnLabel?.(column.id, column) ||
-                ((column.columnDef.meta as ExtendedColumnMeta<TData>)?.title ?? column.id);
+                getColumnLabel?.(column.id, column) ??
+                (column.columnDef.meta as ExtendedColumnMeta<TData> | undefined)?.title ??
+                column.id;
 
               return (
                 <DropdownMenuItem key={column.id} className='capitalize'>

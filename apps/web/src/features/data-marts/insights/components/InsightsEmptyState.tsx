@@ -20,6 +20,15 @@ export const InsightsEmptyState = () => {
   const navigate = useNavigate();
   const { createInsight, insightLoading } = useInsights();
 
+  const handleCreateInsight = () => {
+    void (async () => {
+      const created = await createInsight({ title: 'Untitled insight' });
+      if (created) {
+        void navigate(created.id);
+      }
+    })();
+  };
+
   return (
     <Empty>
       <EmptyHeader>
@@ -33,15 +42,7 @@ export const InsightsEmptyState = () => {
       </EmptyHeader>
       <EmptyContent>
         <div className='flex gap-2'>
-          <Button
-            onClick={async () => {
-              const created = await createInsight({ title: 'Untitled insight' });
-              if (created) {
-                navigate(created.id);
-              }
-            }}
-            disabled={insightLoading}
-          >
+          <Button onClick={handleCreateInsight} disabled={insightLoading}>
             Create Insight
           </Button>
         </div>

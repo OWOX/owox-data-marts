@@ -1,16 +1,14 @@
-import type { DataMartRunItem } from '../types/data-mart-run';
-import type { DataMartRunResponseDto } from '../../../shared/types/api/response/data-mart-run.response.dto';
+import type { DataMartRunItem } from '../types';
+import type { DataMartRunResponseDto } from '../../../shared/types/api';
 import type { DataMartDefinitionConfig, DataMartRunReportDefinition } from '../types';
 import type { DataMartRunTriggerType, DataMartRunType } from '../../../shared';
 import type { DataMartRunListResponseDto } from '../../../shared/types/api';
-import { DataMartRunStatus } from '../../../shared';
-import type { DataMartRunInsightDefinition } from '../types/data-mart-run-insight-definition';
 
 export const mapDataMartRunResponseDtoToEntity = (
   dto: DataMartRunResponseDto
 ): DataMartRunItem => ({
   id: dto.id,
-  status: dto.status as DataMartRunStatus,
+  status: dto.status,
   createdAt: new Date(dto.createdAt),
   logs: dto.logs ?? [],
   errors: dto.errors ?? [],
@@ -23,9 +21,7 @@ export const mapDataMartRunResponseDtoToEntity = (
     ? (dto.reportDefinition as DataMartRunReportDefinition)
     : null,
   reportId: dto.reportId,
-  insightDefinition: dto.insightDefinition
-    ? (dto.insightDefinition as DataMartRunInsightDefinition)
-    : null,
+  insightDefinition: dto.insightDefinition ?? null,
   insightId: dto.insightId,
 });
 

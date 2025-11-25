@@ -42,11 +42,9 @@ export function ResizableColumns({
   const minPercent = Math.min(45, Math.max(5, Math.round((minWidth / approxContainer) * 100)));
 
   function handleLayoutChange(sizes: number[]) {
-    const leftSize = sizes?.[0];
-    if (typeof leftSize === 'number') {
-      const newRatio = clamp(leftSize / 100, 0.1, 0.9);
-      storageService.set(storageKey, newRatio);
-    }
+    const leftSize = sizes[0];
+    const newRatio = clamp(leftSize / 100, 0.1, 0.9);
+    storageService.set(storageKey, newRatio);
   }
 
   return (

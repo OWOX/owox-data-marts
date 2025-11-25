@@ -28,7 +28,28 @@ export default function InsightsListSection() {
   }, [fetchInsights]);
 
   const handleRowClick = (id: string) => {
-    navigate(id);
+    void navigate(id);
+  };
+
+  const handleCreateClick = () => {
+    void (async () => {
+      const created = await createInsight({ title: 'Untitled insight' });
+      if (created) {
+        void navigate(created.id);
+      }
+    })();
+  };
+
+  const handleConfirmDelete = () => {
+    void (async () => {
+      if (deleteId) {
+        try {
+          await deleteInsight(deleteId);
+        } finally {
+          setDeleteId(null);
+        }
+      }
+    })();
   };
 
   return (
@@ -42,12 +63,7 @@ export default function InsightsListSection() {
             variant='outline'
             aria-label='Add new insight'
             disabled={insightLoading}
-            onClick={async () => {
-              const created = await createInsight({ title: 'Untitled insight' });
-              if (created) {
-                navigate(created.id);
-              }
-            }}
+            onClick={handleCreateClick}
           >
             <Plus className='h-4 w-4' aria-hidden='true' />
             New insight
@@ -67,7 +83,9 @@ export default function InsightsListSection() {
               lastUpdated: r.modifiedAt,
             }))}
             onRowClick={handleRowClick}
-            onDelete={id => setDeleteId(id)}
+            onDelete={id => {
+              setDeleteId(id);
+            }}
           />
         ) : (
           <InsightsEmptyState />
@@ -83,15 +101,7 @@ export default function InsightsListSection() {
           confirmLabel='Delete'
           cancelLabel='Cancel'
           variant='destructive'
-          onConfirm={async () => {
-            if (deleteId) {
-              try {
-                await deleteInsight(deleteId);
-              } finally {
-                setDeleteId(null);
-              }
-            }
-          }}
+          onConfirm={handleConfirmDelete}
         />
       </CollapsibleCardContent>
       <CollapsibleCardFooter></CollapsibleCardFooter>
