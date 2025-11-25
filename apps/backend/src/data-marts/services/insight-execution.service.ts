@@ -43,10 +43,7 @@ export class InsightExecutionService {
     const toolCalls = telemetry.toolCalls ?? [];
     const failedToolCalls = toolCalls.filter(call => call.success === false).length;
     const lastLlm = llmCalls.length ? llmCalls[llmCalls.length - 1] : undefined;
-    const toolsUsed = toolCalls
-      .map(t => t.name)
-      .filter(Boolean)
-      .slice(0, 5);
+    const toolsUsed = toolCalls.map(t => t.name).filter(Boolean);
     return {
       llmCalls: llmCalls.length,
       toolCalls: toolCalls.length,
