@@ -23,7 +23,7 @@ export default function EmailDescription() {
           For more details, read the{' '}
           <ExternalAnchor
             className='underline'
-            href='https://docs.owox.com/docs/destinations/supported-destinations/email/?utm_source=owox_data_marts&utm_medium=destination_entity&utm_campaign=tooltip'
+            href='https://docs.owox.com/docs/destinations/manage-destinations/?utm_source=owox_data_marts&utm_medium=destination_entity&utm_campaign=tooltip-email'
           >
             OWOX documentation
           </ExternalAnchor>

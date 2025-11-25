@@ -22,7 +22,7 @@ export function StructuredLogsView({ logs }: StructuredLogsViewProps) {
   if (logs.length === 0) {
     return (
       <div className='bg-background border-border rounded-lg border'>
-        <div className='text-muted-foreground p-8 text-center'>No logs found</div>
+        <div className='text-muted-foreground p-8 text-center text-sm'>No logs found</div>
       </div>
     );
   }
@@ -33,7 +33,7 @@ export function StructuredLogsView({ logs }: StructuredLogsViewProps) {
         {logs.map((logEntry, index) => (
           <div
             key={logEntry.id}
-            className={`border-border hover:bg-accent/30 flex items-start gap-3 border-b p-3 text-sm text-xs ${
+            className={`border-border hover:bg-accent/30 flex items-start gap-3 border-b p-3 text-xs ${
               index === logs.length - 1 ? 'border-b-0' : ''
             }`}
             onClick={handleStopPropagation}

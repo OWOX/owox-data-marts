@@ -23,7 +23,7 @@ export default function MicrosoftTeamsDescription() {
           For more details, read the{' '}
           <ExternalAnchor
             className='underline'
-            href='https://docs.owox.com/docs/destinations/supported-destinations/microsoft-teams/?utm_source=owox_data_marts&utm_medium=destination_entity&utm_campaign=tooltip'
+            href='https://docs.owox.com/docs/destinations/manage-destinations/?utm_source=owox_data_marts&utm_medium=destination_entity&utm_campaign=tooltip-microsoft-teams'
           >
             OWOX documentation
           </ExternalAnchor>

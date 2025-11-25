@@ -104,14 +104,14 @@ export function RunItem({
           onToggle(run.id);
         }}
       >
-        <div className='flex items-center gap-3'>
+        <div className='flex items-center gap-2'>
           <div>
             <TypeIcon type={run.type} base64Icon={dataMartConnectorInfo?.logoBase64} />
           </div>
 
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className='text-foreground align-center flex items-center font-mono text-sm font-medium'>
+              <div className='text-foreground align-center mr-12 flex items-center font-mono text-sm font-medium'>
                 {startedAtValue}
               </div>
             </TooltipTrigger>
@@ -124,7 +124,7 @@ export function RunItem({
             </TooltipContent>
           </Tooltip>
 
-          <div className='text-muted-foreground ml-6 flex items-center gap-1 text-sm'>
+          <div className='text-muted-foreground flex items-center gap-2 text-sm'>
             {getTriggerTypeIcon(run.triggerType)}
             {getRunSummary(run, dataMartConnectorInfo?.displayName)}
           </div>
