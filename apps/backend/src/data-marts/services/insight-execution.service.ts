@@ -2,10 +2,12 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { OwoxProducer } from '@owox/internal-helpers';
 import { Repository } from 'typeorm';
+import { AgentTelemetry } from '../../common/ai-insights/agent/types';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { OWOX_PRODUCER } from '../../common/producer/producer.module';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 import { RunType } from '../../common/scheduler/shared/types';
+import { DataMartInsightTemplateFacadeImpl } from '../ai-insights/data-mart-insight-template.facade';
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMart } from '../entities/data-mart.entity';
 import { Insight } from '../entities/insight.entity';
@@ -18,13 +20,51 @@ import { DataMartRunService } from './data-mart-run.service';
 export class InsightExecutionService {
   private readonly logger = new Logger(InsightExecutionService.name);
 
+  /**
+   * Summarize agent telemetry for logging purposes (without model names).
+   * Returns compact, privacy-aware metrics suitable for persistence in run logs.
+   *
+   * @param telemetry Agent telemetry collected during the AI Insight run.
+   * @returns A summary containing counts, failure stats, last usage and tools used.
+   */
+  private summarizeAgentTelemetry(telemetry: AgentTelemetry): {
+    llmCalls: number;
+    toolCalls: number;
+    failedToolCalls: number;
+    lastFinishReason?: string;
+    lastUsage?: {
+      promptTokens?: number;
+      completionTokens?: number;
+      totalTokens?: number;
+    };
+    toolsUsed: string[];
+  } {
+    const llmCalls = telemetry.llmCalls ?? [];
+    const toolCalls = telemetry.toolCalls ?? [];
+    const failedToolCalls = toolCalls.filter(call => call.success === false).length;
+    const lastLlm = llmCalls.length ? llmCalls[llmCalls.length - 1] : undefined;
+    const toolsUsed = toolCalls
+      .map(t => t.name)
+      .filter(Boolean)
+      .slice(0, 5);
+    return {
+      llmCalls: llmCalls.length,
+      toolCalls: toolCalls.length,
+      failedToolCalls,
+      lastFinishReason: lastLlm?.finishReason,
+      lastUsage: lastLlm?.usage,
+      toolsUsed,
+    };
+  }
+
   constructor(
     private readonly dataMartRunService: DataMartRunService,
     @InjectRepository(Insight)
     private readonly insightRepository: Repository<Insight>,
     private readonly systemTimeService: SystemTimeService,
     @Inject(OWOX_PRODUCER)
-    private readonly producer: OwoxProducer
+    private readonly producer: OwoxProducer,
+    private readonly insightTemplateFacade: DataMartInsightTemplateFacadeImpl
   ) {}
 
   async run(
@@ -73,6 +113,12 @@ export class InsightExecutionService {
     });
   }
 
+  /**
+   * Execute the AI Insight:
+   * - Render template via AI Insights layer (with {{prompt}} tag handler)
+   * - Log prompt meta and compact telemetry
+   * - Persist final output and run status
+   */
   private async execute(dataMart: DataMart, insight: Insight, run: DataMartRun) {
     const runId = run.id;
     await this.dataMartRunService.markInsightRunAsStarted(run);
@@ -89,26 +135,51 @@ export class InsightExecutionService {
       logs.push(JSON.stringify(enriched));
     };
 
-    //TODO: Replace with actual insight AI layer execution
     const runMain = async (): Promise<string> => {
-      // TODO: delete this after implementation
-      await new Promise(resolve => setTimeout(resolve, 10000));
-      pushLog({ type: 'log', message: `Job started for ${insight.title}` });
-      pushLog({
-        type: 'log',
-        message: 'Collected data for requested Insight (stubbed)',
+      pushLog({ type: 'log', message: 'AI Insight started' });
+      const template = insight.template ?? '';
+      const { rendered, prompts } = await this.insightTemplateFacade.render({
+        template,
+        params: {
+          projectId: dataMart.projectId,
+          dataMartId: dataMart.id,
+        },
       });
-      pushLog({ type: 'isInProgress', status: 'in_progress' });
-      pushLog({
-        type: 'log',
-        message: 'Validated data integrity; handled missing values (stubbed)',
-      });
-      pushLog({ type: 'log', message: 'Computed metrics and benchmarks (stubbed)' });
-      pushLog({ type: 'log', message: 'Compiled executive summary and recommendations (stubbed)' });
+      for (const p of prompts ?? []) {
+        // Basic meta about prompt/artifact
+        pushLog({
+          type: 'ai_insight_meta',
+          prompt: p.payload?.prompt,
+          artifact: p.meta?.artifact,
+        });
 
-      const output = insight.template ?? null;
+        // Agent telemetry (LLM/Tool calls), if available
+        const telemetry = (p.meta as { telemetry?: AgentTelemetry } | undefined)?.telemetry;
+        if (telemetry) {
+          const summary = this.summarizeAgentTelemetry(telemetry);
+          pushLog({ type: 'ai_insight_telemetry', ...summary });
+          const lastLlm = telemetry.llmCalls.length
+            ? telemetry.llmCalls[telemetry.llmCalls.length - 1]
+            : undefined;
+          const preview = lastLlm?.reasoningPreview;
+          if (typeof preview === 'string' && preview.length > 0) {
+            pushLog({
+              type: 'ai_insight_reasoning_preview',
+              preview: preview.slice(0, 500),
+            });
+          }
+        }
+      }
 
-      return output ?? '';
+      // Overall rendered insight output
+      if (rendered.length > 0) {
+        pushLog({
+          type: 'ai_insight_output',
+          output: rendered,
+        });
+      }
+      pushLog({ type: 'log', message: 'AI Insight completed' });
+      return rendered ?? '';
     };
 
     try {
