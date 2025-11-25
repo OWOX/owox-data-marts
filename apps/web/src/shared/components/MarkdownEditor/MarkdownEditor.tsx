@@ -20,7 +20,7 @@ export function MarkdownEditor({
   theme = 'light',
   options,
   className,
-  placeholder = 'Write a message template.',
+  placeholder = 'Start writing your message…',
 }: MarkdownEditorProps) {
   const handleMount: OnMount = editor => {
     if (onBlur) editor.onDidBlurEditorText(onBlur);

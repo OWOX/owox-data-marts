@@ -68,7 +68,9 @@ export function EmailReportEditSheet({
           <SheetHeader>
             <SheetTitle>{preSelectedDestination?.title ?? 'Report'}</SheetTitle>
             <SheetDescription>
-              {mode === ReportFormMode.CREATE ? 'Create new report' : 'Edit report'}
+              {mode === ReportFormMode.CREATE
+                ? 'Fill in the details to create a new report'
+                : 'Update details of an existing report'}
             </SheetDescription>
           </SheetHeader>
 

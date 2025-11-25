@@ -259,7 +259,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                       Subject
                     </FormLabel>
                     <FormControl>
-                      <Input placeholder='Email subject' {...field} />
+                      <Input placeholder='Enter a message title' {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -344,16 +344,15 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
             <FormSection title='Automate Report Runs'>
               <TimeTriggerAnnouncement />
             </FormSection>
-
-            <FormActions>
-              <Button type='button' variant='outline' onClick={onCancel} disabled={isSubmitting}>
-                Cancel
-              </Button>
-              <Button type='submit' disabled={isSubmitting}>
-                {mode === ReportFormMode.CREATE ? 'Create' : 'Save changes'}
-              </Button>
-            </FormActions>
           </FormLayout>
+          <FormActions>
+            <Button variant='default' type='submit' disabled={isSubmitting}>
+              {mode === ReportFormMode.CREATE ? 'Create new report' : 'Save changes to report'}
+            </Button>
+            <Button variant='outline' type='button' onClick={onCancel} disabled={isSubmitting}>
+              Cancel
+            </Button>
+          </FormActions>
         </AppForm>
       </Form>
     );

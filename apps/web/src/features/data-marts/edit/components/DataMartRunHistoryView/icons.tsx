@@ -8,8 +8,8 @@ import {
   Loader2,
   Ban,
   CircleStop,
-  Timer,
-  Hand,
+  CalendarClock,
+  SquarePlay,
 } from 'lucide-react';
 import { LogLevel } from './types';
 import { DataMartRunStatus, DataMartRunTriggerType } from '../../../shared';
@@ -71,8 +71,8 @@ export function getTriggerTypeIcon(triggerType: DataMartRunTriggerType | null) {
   const iconSize = 18;
 
   return triggerType === DataMartRunTriggerType.SCHEDULED ? (
-    <Timer size={iconSize} />
+    <CalendarClock size={iconSize} />
   ) : (
-    <Hand size={iconSize} />
+    <SquarePlay size={iconSize} />
   );
 }

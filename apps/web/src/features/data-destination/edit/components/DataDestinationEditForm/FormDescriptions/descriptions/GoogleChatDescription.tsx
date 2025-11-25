@@ -20,7 +20,7 @@ export default function GoogleChatDescription() {
           For more details, read the{' '}
           <ExternalAnchor
             className='underline'
-            href='https://docs.owox.com/docs/destinations/supported-destinations/google-chat/?utm_source=owox_data_marts&utm_medium=destination_entity&utm_campaign=tooltip'
+            href='https://docs.owox.com/docs/destinations/manage-destinations/?utm_source=owox_data_marts&utm_medium=destination_entity&utm_campaign=tooltip-google-chat'
           >
             OWOX documentation
           </ExternalAnchor>
