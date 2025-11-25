@@ -12,6 +12,7 @@ import { InsightListItemResponseApiDto } from '../dto/presentation/insight-list-
 import { InsightResponseApiDto } from '../dto/presentation/insight-response-api.dto';
 import { UpdateInsightRequestApiDto } from '../dto/presentation/update-insight-request-api.dto';
 import { UpdateInsightTitleApiDto } from '../dto/presentation/update-insight-title-api.dto';
+import { DataMartRun } from '../entities/data-mart-run.entity';
 import { Insight } from '../entities/insight.entity';
 import { DataMartMapper } from './data-mart.mapper';
 
@@ -33,9 +34,9 @@ export class InsightMapper {
     );
   }
 
-  toDomainDto(entity: Insight): InsightDto {
-    const lastManualDataMartRunDto = entity.lastManualDataMartRun
-      ? this.dataMartMapper.toDataMartRunDto(entity.lastManualDataMartRun)
+  toDomainDto(entity: Insight, lastManualDataMartRun?: DataMartRun | null): InsightDto {
+    const lastManualDataMartRunDto = lastManualDataMartRun
+      ? this.dataMartMapper.toDataMartRunDto(lastManualDataMartRun)
       : null;
     return new InsightDto(
       entity.id,
@@ -51,7 +52,7 @@ export class InsightMapper {
   }
 
   toDomainDtoList(entities: Insight[]): InsightDto[] {
-    return entities.map(entity => this.toDomainDto(entity));
+    return entities.map(entity => this.toDomainDto(entity, null));
   }
 
   async toResponse(dto: InsightDto): Promise<InsightResponseApiDto> {

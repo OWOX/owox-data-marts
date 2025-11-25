@@ -8,7 +8,6 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { DataMartRun } from './data-mart-run.entity';
 import { DataMart } from './data-mart.entity';
 
 @Entity()
@@ -28,8 +27,6 @@ export class Insight {
 
   @Column({ nullable: true })
   lastManualDataMartRunId?: string;
-
-  lastManualDataMartRun?: DataMartRun | null;
 
   @Column({ nullable: true })
   output?: string;
