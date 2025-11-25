@@ -69,7 +69,7 @@ export default function InsightDetailsView() {
   } = useInsightForm(insight, updateInsight, updateInsightTitle);
 
   const preview = useMarkdownPreview({
-    markdown: insight?.template ?? '',
+    markdown: insight?.output ?? '',
     enabled: Boolean(insight?.output && insight.lastRun?.status === DataMartRunStatus.SUCCESS),
     debounceMs: 0,
   });
