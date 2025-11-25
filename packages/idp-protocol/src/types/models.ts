@@ -13,7 +13,7 @@ export const PayloadSchema = z
   .object({
     userId: z.string(),
     projectId: z.string(),
-    email: z.string().email().optional(),
+    email: z.string().optional(),
     fullName: z.string().optional(),
     avatar: z.string().url().optional(),
     roles: z.array(RoleEnum).nonempty().optional(),
