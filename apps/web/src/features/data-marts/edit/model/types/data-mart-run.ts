@@ -1,6 +1,7 @@
 import type { DataMartDefinitionConfig } from './data-mart-definition-config';
 import type { DataMartRunTriggerType, DataMartRunType } from '../../../shared';
 import type { DataMartRunReportDefinition } from './data-mart-run-report-definition';
+import type { DataMartRunInsightDefinition } from './data-mart-run-insight-definition';
 import { DataMartRunStatus } from '../../../shared';
 
 export interface DataMartRunItem {
@@ -16,4 +17,6 @@ export interface DataMartRunItem {
   finishedAt: Date | null;
   reportDefinition: DataMartRunReportDefinition | null;
   reportId: string | null;
+  insightDefinition: DataMartRunInsightDefinition | null;
+  insightId: string | null;
 }

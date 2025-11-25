@@ -1,48 +1,51 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, Query, HttpCode } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query } from '@nestjs/common';
 import { CreateDataMartRequestApiDto } from '../dto/presentation/create-data-mart-request-api.dto';
 import { CreateDataMartResponseApiDto } from '../dto/presentation/create-data-mart-response-api.dto';
 import { DataMartResponseApiDto } from '../dto/presentation/data-mart-response-api.dto';
 import { UpdateDataMartDefinitionApiDto } from '../dto/presentation/update-data-mart-definition-api.dto';
-import { UpdateDataMartTitleApiDto } from '../dto/presentation/update-data-mart-title-api.dto';
 import { UpdateDataMartDescriptionApiDto } from '../dto/presentation/update-data-mart-description-api.dto';
+import { UpdateDataMartTitleApiDto } from '../dto/presentation/update-data-mart-title-api.dto';
 
-import { DataMartMapper } from '../mappers/data-mart.mapper';
-import { ListDataMartsService } from '../use-cases/list-data-marts.service';
-import { GetDataMartService } from '../use-cases/get-data-mart.service';
-import { CreateDataMartService } from '../use-cases/create-data-mart.service';
-import { UpdateDataMartDefinitionService } from '../use-cases/update-data-mart-definition.service';
-import { UpdateDataMartTitleService } from '../use-cases/update-data-mart-title.service';
-import { UpdateDataMartDescriptionService } from '../use-cases/update-data-mart-description.service';
-import { PublishDataMartService } from '../use-cases/publish-data-mart.service';
-import { DeleteDataMartService } from '../use-cases/delete-data-mart.service';
-import { GetDataMartRunsService } from '../use-cases/get-data-mart-runs.service';
-import { CancelDataMartRunService } from '../use-cases/cancel-data-mart-run.service';
 import { ApiTags } from '@nestjs/swagger';
+import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
+import { DataMartRunResponseApiDto } from '../dto/presentation/data-mart-run-response-api.dto';
+import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-response-api.dto';
+import { DataMartValidationResponseApiDto } from '../dto/presentation/data-mart-validation-response-api.dto';
+import { RunDataMartRequestApiDto } from '../dto/presentation/run-data-mart-request-api.dto';
+import { UpdateDataMartSchemaApiDto } from '../dto/presentation/update-data-mart-schema-api.dto';
+import { DataMartMapper } from '../mappers/data-mart.mapper';
+import { CancelDataMartRunService } from '../use-cases/cancel-data-mart-run.service';
+import { CreateDataMartService } from '../use-cases/create-data-mart.service';
+import { DeleteDataMartService } from '../use-cases/delete-data-mart.service';
+import { GetDataMartRunService } from '../use-cases/get-data-mart-run.service';
+import { GetDataMartService } from '../use-cases/get-data-mart.service';
+import { ListDataMartRunsService } from '../use-cases/list-data-mart-runs.service';
+import { ListDataMartsByConnectorNameService } from '../use-cases/list-data-marts-by-connector-name.service';
+import { ListDataMartsService } from '../use-cases/list-data-marts.service';
+import { PublishDataMartService } from '../use-cases/publish-data-mart.service';
+import { RunDataMartService } from '../use-cases/run-data-mart.service';
+import { UpdateDataMartDefinitionService } from '../use-cases/update-data-mart-definition.service';
+import { UpdateDataMartDescriptionService } from '../use-cases/update-data-mart-description.service';
+import { UpdateDataMartSchemaService } from '../use-cases/update-data-mart-schema.service';
+import { UpdateDataMartTitleService } from '../use-cases/update-data-mart-title.service';
+import { ValidateDataMartDefinitionService } from '../use-cases/validate-data-mart-definition.service';
 import {
+  CancelDataMartRunSpec,
   CreateDataMartSpec,
+  DeleteDataMartSpec,
+  GetDataMartRunByIdSpec,
+  GetDataMartRunsSpec,
   GetDataMartSpec,
+  ListDataMartsByConnectorNameSpec,
   ListDataMartsSpec,
   PublishDataMartSpec,
+  RunDataMartSpec,
   UpdateDataMartDefinitionSpec,
   UpdateDataMartDescriptionSpec,
-  UpdateDataMartTitleSpec,
-  DeleteDataMartSpec,
-  RunDataMartSpec,
-  ValidateDataMartDefinitionSpec,
   UpdateDataMartSchemaSpec,
-  GetDataMartRunsSpec,
-  CancelDataMartRunSpec,
-  ListDataMartsByConnectorNameSpec,
+  UpdateDataMartTitleSpec,
+  ValidateDataMartDefinitionSpec,
 } from './spec/data-mart.api';
-import { AuthContext, AuthorizationContext, Auth, Role, Strategy } from '../../idp';
-import { RunDataMartService } from '../use-cases/run-data-mart.service';
-import { ValidateDataMartDefinitionService } from '../use-cases/validate-data-mart-definition.service';
-import { UpdateDataMartSchemaService } from '../use-cases/update-data-mart-schema.service';
-import { DataMartValidationResponseApiDto } from '../dto/presentation/data-mart-validation-response-api.dto';
-import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-response-api.dto';
-import { UpdateDataMartSchemaApiDto } from '../dto/presentation/update-data-mart-schema-api.dto';
-import { RunDataMartRequestApiDto } from '../dto/presentation/run-data-mart-request-api.dto';
-import { ListDataMartsByConnectorNameService } from '../use-cases/list-data-marts-by-connector-name.service';
 
 @Controller('data-marts')
 @ApiTags('DataMarts')
@@ -60,7 +63,8 @@ export class DataMartController {
     private readonly runDataMartService: RunDataMartService,
     private readonly validateDefinitionService: ValidateDataMartDefinitionService,
     private readonly updateSchemaService: UpdateDataMartSchemaService,
-    private readonly getDataMartRunsService: GetDataMartRunsService,
+    private readonly getDataMartRunsService: ListDataMartRunsService,
+    private readonly getDataMartRunService: GetDataMartRunService,
     private readonly cancelDataMartRunService: CancelDataMartRunService,
     private readonly listDataMartsByConnectorNameService: ListDataMartsByConnectorNameService
   ) {}
@@ -238,5 +242,18 @@ export class DataMartController {
     const command = this.mapper.toGetDataMartRunsCommand(id, context, limit, offset);
     const runs = await this.getDataMartRunsService.run(command);
     return this.mapper.toRunsResponse(runs);
+  }
+
+  @Auth(Role.viewer(Strategy.PARSE))
+  @Get(':id/runs/:runId')
+  @GetDataMartRunByIdSpec()
+  async getRunById(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string,
+    @Param('runId') runId: string
+  ): Promise<DataMartRunResponseApiDto> {
+    const command = this.mapper.toGetDataMartRunCommand(id, runId, context);
+    const runDto = await this.getDataMartRunService.run(command);
+    return this.mapper.toRunResponse(runDto);
   }
 }

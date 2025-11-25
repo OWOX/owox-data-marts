@@ -1,4 +1,4 @@
-import type { DataMartRunReportDefinitionDto } from '../shared';
+import type { DataMartRunInsightDefinitionDto, DataMartRunReportDefinitionDto } from '../shared';
 import type { DataMartDefinitionDto } from './data-mart-definition.dto';
 
 export interface DataMartRunResponseDto {
@@ -14,4 +14,6 @@ export interface DataMartRunResponseDto {
   finishedAt: string | null;
   reportDefinition: DataMartRunReportDefinitionDto | null;
   reportId: string | null;
+  insightDefinition: DataMartRunInsightDefinitionDto | null;
+  insightId: string | null;
 }
