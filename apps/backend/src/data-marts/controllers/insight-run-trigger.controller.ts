@@ -7,7 +7,7 @@ import { InsightRunTriggerService } from '../services/insight-run-trigger.servic
 import { CreateInsightRunTriggerSpec } from './spec/insight-run-trigger.api';
 
 @Controller('data-marts/:dataMartId/insights/:insightId/run-triggers')
-@ApiTags('DataMarts')
+@ApiTags('Insights')
 export class InsightRunTriggerController extends UiTriggerController<InsightRunResponseApiDto> {
   constructor(triggerService: InsightRunTriggerService) {
     super(triggerService);
