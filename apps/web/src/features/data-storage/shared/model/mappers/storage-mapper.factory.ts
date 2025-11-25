@@ -2,6 +2,7 @@ import { DataStorageType } from '../types';
 import type { StorageMapper } from './storage-mapper.interface.ts';
 import { GoogleBigQueryMapper } from './google-bigquery.mapper.ts';
 import { AwsAthenaMapper } from './aws-athena.mapper.ts';
+import { SnowflakeMapper } from './snowflake.mapper.ts';
 
 export const StorageMapperFactory = {
   getMapper(type: DataStorageType): StorageMapper {
@@ -10,6 +11,8 @@ export const StorageMapperFactory = {
         return new GoogleBigQueryMapper();
       case DataStorageType.AWS_ATHENA:
         return new AwsAthenaMapper();
+      case DataStorageType.SNOWFLAKE:
+        return new SnowflakeMapper();
       default:
         throw new Error(`Unknown storage type: ${type}`);
     }

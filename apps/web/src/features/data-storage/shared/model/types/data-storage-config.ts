@@ -6,8 +6,12 @@ export interface AwsAthenaDataStorageConfig {
   region: string;
   outputBucket: string;
 }
+export interface SnowflakeDataStorageConfig {
+  account: string;
+  warehouse: string;
+}
 
-export type DataStorageConfig = GoogleBigQueryDataStorageConfig | AwsAthenaDataStorageConfig;
+export type DataStorageConfig = GoogleBigQueryDataStorageConfig | AwsAthenaDataStorageConfig | SnowflakeDataStorageConfig;
 
 export function isGoogleBigQueryDataStorageConfig(
   config: DataStorageConfig
@@ -19,4 +23,10 @@ export function isAwsAthenaDataStorageConfig(
   config: DataStorageConfig
 ): config is AwsAthenaDataStorageConfig {
   return 'outputBucket' in config;
+}
+
+export function isSnowflakeDataStorageConfig(
+  config: DataStorageConfig
+): config is SnowflakeDataStorageConfig {
+  return 'account' in config && 'warehouse' in config;
 }

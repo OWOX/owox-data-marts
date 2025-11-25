@@ -88,6 +88,18 @@ export const DataMartDataStorageView = ({
           </div>
         );
       }
+      case DataStorageType.SNOWFLAKE: {
+        const account = dataStorage.config.account;
+        const warehouse = dataStorage.config.warehouse;
+        const snowflakeConsoleLink = `https://app.snowflake.com/`;
+        return (
+          <div className='flex flex-wrap gap-2'>
+            {formatLinkParam('Account', account, snowflakeConsoleLink)}
+            <span className='text-muted-foreground'>•</span>
+            {formatParam('Warehouse', warehouse)}
+          </div>
+        );
+      }
       default:
         return 'Unknown storage type configuration';
     }

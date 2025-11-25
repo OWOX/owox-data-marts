@@ -4,6 +4,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { DataStorageStatus, DataStorageType } from '../../../shared';
 import { GoogleBigQueryFields } from './GoogleBigQueryFields';
 import { AwsAthenaFields } from './AwsAthenaFields';
+import { SnowflakeFields } from './SnowflakeFields';
+import StorageTypeSnowflakeDescription from './FormDescriptions/StorageTypeSnowflakeDescription.tsx';
 import {
   Select,
   SelectContent,
@@ -140,6 +142,9 @@ export function DataStorageForm({
                     {selectedType === DataStorageType.AWS_ATHENA && (
                       <StorageTypeAthenaDescription />
                     )}
+                    {selectedType === DataStorageType.SNOWFLAKE && (
+                      <StorageTypeSnowflakeDescription />
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -148,6 +153,7 @@ export function DataStorageForm({
           </FormSection>
           {selectedType === DataStorageType.GOOGLE_BIGQUERY && <GoogleBigQueryFields form={form} />}
           {selectedType === DataStorageType.AWS_ATHENA && <AwsAthenaFields form={form} />}
+          {selectedType === DataStorageType.SNOWFLAKE && <SnowflakeFields form={form} />}
         </FormLayout>
         <FormActions>
           <Button

@@ -94,6 +94,60 @@ export enum AthenaFieldType {
 }
 
 /**
+ * Snowflake field type enum
+ */
+export enum SnowflakeFieldType {
+  // Numeric types
+  NUMBER = 'NUMBER',
+  DECIMAL = 'DECIMAL',
+  NUMERIC = 'NUMERIC',
+  INT = 'INT',
+  INTEGER = 'INTEGER',
+  BIGINT = 'BIGINT',
+  SMALLINT = 'SMALLINT',
+  TINYINT = 'TINYINT',
+  BYTEINT = 'BYTEINT',
+  FLOAT = 'FLOAT',
+  FLOAT4 = 'FLOAT4',
+  FLOAT8 = 'FLOAT8',
+  DOUBLE = 'DOUBLE',
+  DOUBLE_PRECISION = 'DOUBLE PRECISION',
+  REAL = 'REAL',
+
+  // String types
+  VARCHAR = 'VARCHAR',
+  CHAR = 'CHAR',
+  CHARACTER = 'CHARACTER',
+  STRING = 'STRING',
+  TEXT = 'TEXT',
+
+  // Binary types
+  BINARY = 'BINARY',
+  VARBINARY = 'VARBINARY',
+
+  // Boolean type
+  BOOLEAN = 'BOOLEAN',
+
+  // Date/Time types
+  DATE = 'DATE',
+  DATETIME = 'DATETIME',
+  TIME = 'TIME',
+  TIMESTAMP = 'TIMESTAMP',
+  TIMESTAMP_LTZ = 'TIMESTAMP_LTZ',
+  TIMESTAMP_NTZ = 'TIMESTAMP_NTZ',
+  TIMESTAMP_TZ = 'TIMESTAMP_TZ',
+
+  // Semi-structured types
+  VARIANT = 'VARIANT',
+  OBJECT = 'OBJECT',
+  ARRAY = 'ARRAY',
+
+  // Geospatial types
+  GEOGRAPHY = 'GEOGRAPHY',
+  GEOMETRY = 'GEOMETRY',
+}
+
+/**
  * Base schema field interface
  */
 export interface BaseSchemaField {
@@ -122,6 +176,13 @@ export interface AthenaSchemaField extends BaseSchemaField {
 }
 
 /**
+ * Snowflake schema field interface
+ */
+export interface SnowflakeSchemaField extends BaseSchemaField {
+  type: SnowflakeFieldType;
+}
+
+/**
  * BigQuery data mart schema
  */
 export interface BigQueryDataMartSchema {
@@ -138,6 +199,14 @@ export interface AthenaDataMartSchema {
 }
 
 /**
+ * Snowflake data mart schema
+ */
+export interface SnowflakeDataMartSchema {
+  type: 'snowflake-data-mart-schema';
+  fields: SnowflakeSchemaField[];
+}
+
+/**
  * Data mart schema type
  */
-export type DataMartSchema = BigQueryDataMartSchema | AthenaDataMartSchema;
+export type DataMartSchema = BigQueryDataMartSchema | AthenaDataMartSchema | SnowflakeDataMartSchema;
