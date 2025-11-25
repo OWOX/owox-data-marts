@@ -1,14 +1,14 @@
-import type { LogEntry } from './types';
-import { LogLevel } from './types';
-import type { DataMartDefinitionConfig } from '../../model/types/data-mart-definition-config';
+import { capitalizeFirstLetter } from '../../../../../utils';
 import {
   formatDateTime,
-  formatTimestamp,
   formatDuration,
+  formatTimestamp,
 } from '../../../../../utils/date-formatters';
-import type { DataMartRunItem } from '../../model';
 import { DataMartRunType } from '../../../shared';
-import { capitalizeFirstLetter } from '../../../../../utils';
+import type { DataMartRunItem } from '../../model';
+import type { DataMartDefinitionConfig } from '../../model/types/data-mart-definition-config';
+import type { LogEntry } from './types';
+import { LogLevel } from './types';
 
 export const parseLogEntry = (log: string, index: number, isError = false): LogEntry => {
   // Split log into lines for multiline format
@@ -148,6 +148,10 @@ export const getRunSummary = (
     case DataMartRunType.GOOGLE_CHAT:
       title = run.reportDefinition?.title ?? '';
       runType = 'report';
+      break;
+    case DataMartRunType.INSIGHT:
+      title = run.insightDefinition?.title ?? '';
+      runType = 'insight';
       break;
     default:
       break;

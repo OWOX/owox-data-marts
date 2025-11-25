@@ -20,3 +20,8 @@ export interface DataMartRunReportDefinitionDto {
   };
   destinationConfig: DataMartRunReportDestinationConfigDto;
 }
+
+export interface DataMartRunInsightDefinitionDto {
+  title: string;
+  template: string | null;
+}

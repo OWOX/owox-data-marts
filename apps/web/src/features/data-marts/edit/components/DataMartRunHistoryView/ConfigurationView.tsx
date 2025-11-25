@@ -2,14 +2,19 @@ import React from 'react';
 import { CopyButton, CopyButtonVariant } from '@owox/ui/components/common/copy-button';
 import type { DataMartDefinitionConfig } from '../../model/types/data-mart-definition-config';
 import { useClipboard } from '../../../../../hooks/useClipboard';
-import type { DataMartRunReportDefinition } from '../../model';
+import type { DataMartRunReportDefinition, DataMartRunInsightDefinition } from '../../model';
 
 interface ConfigurationViewProps {
   definitionRun: DataMartDefinitionConfig | null;
   reportDefinition: DataMartRunReportDefinition | null;
+  insightDefinition: DataMartRunInsightDefinition | null;
 }
 
-export function ConfigurationView({ definitionRun, reportDefinition }: ConfigurationViewProps) {
+export function ConfigurationView({
+  definitionRun,
+  reportDefinition,
+  insightDefinition,
+}: ConfigurationViewProps) {
   const { copiedSection, handleCopy } = useClipboard();
 
   const handleStopPropagation = (e: React.MouseEvent) => {
@@ -38,6 +43,14 @@ export function ConfigurationView({ definitionRun, reportDefinition }: Configura
               <h4 className='text-foreground mt-3 mb-3 text-sm font-medium'>Report definition:</h4>
               <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
                 {JSON.stringify(reportDefinition, null, 2)}
+              </pre>
+            </>
+          )}
+          {insightDefinition && (
+            <>
+              <h4 className='text-foreground mt-3 mb-3 text-sm font-medium'>Insight definition:</h4>
+              <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
+                {JSON.stringify(insightDefinition, null, 2)}
               </pre>
             </>
           )}

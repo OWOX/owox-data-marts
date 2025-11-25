@@ -19,6 +19,7 @@ import { DataMartValidationResponseApiDto } from '../../dto/presentation/data-ma
 import { SqlDryRunRequestApiDto } from '../../dto/presentation/sql-dry-run-request-api.dto';
 import { SqlDryRunResponseApiDto } from '../../dto/presentation/sql-dry-run-response-api.dto';
 import { DataMartRunsResponseApiDto } from '../../dto/presentation/data-mart-runs-response-api.dto';
+import { DataMartRunResponseApiDto } from '../../dto/presentation/data-mart-run-response-api.dto';
 
 export function CreateDataMartSpec() {
   return applyDecorators(
@@ -144,5 +145,14 @@ export function ListDataMartsByConnectorNameSpec() {
     ApiOperation({ summary: 'List DataMarts by connector name' }),
     ApiParam({ name: 'connectorName', description: 'Connector name' }),
     ApiOkResponse({ type: DataMartResponseApiDto, isArray: true })
+  );
+}
+
+export function GetDataMartRunByIdSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Get DataMart run by ID' }),
+    ApiParam({ name: 'id', description: 'DataMart ID' }),
+    ApiParam({ name: 'runId', description: 'Run ID' }),
+    ApiOkResponse({ type: DataMartRunResponseApiDto })
   );
 }

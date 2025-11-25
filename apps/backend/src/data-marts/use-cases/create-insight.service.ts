@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Insight } from '../entities/insight.entity';
@@ -9,6 +9,7 @@ import { InsightMapper } from '../mappers/insight.mapper';
 
 @Injectable()
 export class CreateInsightService {
+  private readonly logger = new Logger(CreateInsightService.name);
   constructor(
     @InjectRepository(Insight)
     private readonly repository: Repository<Insight>,
@@ -17,6 +18,7 @@ export class CreateInsightService {
   ) {}
 
   async run(command: CreateInsightCommand): Promise<InsightDto> {
+    this.logger.log(`Creating insight for data mart ${command.dataMartId}`);
     const dataMart = await this.dataMartService.getByIdAndProjectId(
       command.dataMartId,
       command.projectId

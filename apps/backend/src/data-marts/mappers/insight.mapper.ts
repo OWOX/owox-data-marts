@@ -12,10 +12,14 @@ import { InsightListItemResponseApiDto } from '../dto/presentation/insight-list-
 import { InsightResponseApiDto } from '../dto/presentation/insight-response-api.dto';
 import { UpdateInsightRequestApiDto } from '../dto/presentation/update-insight-request-api.dto';
 import { UpdateInsightTitleApiDto } from '../dto/presentation/update-insight-title-api.dto';
+import { DataMartRun } from '../entities/data-mart-run.entity';
 import { Insight } from '../entities/insight.entity';
+import { DataMartMapper } from './data-mart.mapper';
 
 @Injectable()
 export class InsightMapper {
+  constructor(private readonly dataMartMapper: DataMartMapper) {}
+
   toCreateDomainCommand(
     dataMartId: string,
     context: AuthorizationContext,
@@ -30,29 +34,40 @@ export class InsightMapper {
     );
   }
 
-  toDomainDto(entity: Insight): InsightDto {
+  toDomainDto(entity: Insight, lastManualDataMartRun?: DataMartRun | null): InsightDto {
+    const lastManualDataMartRunDto = lastManualDataMartRun
+      ? this.dataMartMapper.toDataMartRunDto(lastManualDataMartRun)
+      : null;
     return new InsightDto(
       entity.id,
       entity.title,
       entity.template ?? null,
+      entity.output ?? null,
+      entity.outputUpdatedAt ?? null,
       entity.createdById,
       entity.createdAt,
-      entity.modifiedAt
+      entity.modifiedAt,
+      lastManualDataMartRunDto
     );
   }
 
   toDomainDtoList(entities: Insight[]): InsightDto[] {
-    return entities.map(entity => this.toDomainDto(entity));
+    return entities.map(entity => this.toDomainDto(entity, null));
   }
 
-  toResponse(dto: InsightDto): InsightResponseApiDto {
+  async toResponse(dto: InsightDto): Promise<InsightResponseApiDto> {
     return {
       id: dto.id,
       title: dto.title,
       template: dto.template,
+      output: dto.output,
+      outputUpdatedAt: dto.outputUpdatedAt,
       createdById: dto.createdById,
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,
+      lastManualDataMartRun: dto.lastManualDataMartRun
+        ? await this.dataMartMapper.toRunResponse(dto.lastManualDataMartRun)
+        : null,
     };
   }
 
@@ -60,6 +75,7 @@ export class InsightMapper {
     return {
       id: dto.id,
       title: dto.title,
+      outputUpdatedAt: dto.outputUpdatedAt,
       createdById: dto.createdById,
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,
