@@ -50,4 +50,5 @@ export interface OAuthStatusResponseDto {
  */
 export interface OAuthSettingsResponseDto {
   vars: Record<string, unknown>;
+  isEnabled: boolean;
 }

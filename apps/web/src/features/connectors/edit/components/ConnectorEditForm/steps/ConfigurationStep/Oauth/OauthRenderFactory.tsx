@@ -219,7 +219,9 @@ export function OauthRenderFactory({
     void fetchSettings();
   }, [connectorName, fieldPath, getSettings]);
 
-  if (isManualMode && option?.items) {
+  const isOAuthEnabled = Boolean(settings?.isEnabled);
+
+  if ((isManualMode || !isOAuthEnabled) && option?.items) {
     return (
       <div className='space-y-4'>
         {Object.entries(option.items).map(([itemName, itemSpec]) => {
@@ -268,21 +270,23 @@ export function OauthRenderFactory({
             </div>
           );
         })}
-        <Button
-          variant='link'
-          size='sm'
-          type='button'
-          onClick={() => {
-            onValueChange(specification.name, {
-              [option.value]: {},
-            });
-            setIsManualMode(false);
-            setIsLoading(false);
-          }}
-          className='px-0'
-        >
-          Back to OAuth
-        </Button>
+        {isOAuthEnabled && (
+          <Button
+            variant='link'
+            size='sm'
+            type='button'
+            onClick={() => {
+              onValueChange(specification.name, {
+                [option.value]: {},
+              });
+              setIsManualMode(false);
+              setIsLoading(false);
+            }}
+            className='px-0'
+          >
+            Back to OAuth
+          </Button>
+        )}
       </div>
     );
   }

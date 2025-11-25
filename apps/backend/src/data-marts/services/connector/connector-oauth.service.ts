@@ -53,8 +53,11 @@ export class ConnectorOauthService {
       path
     );
 
+    const isEnabled = await this.connectorService.isOAuthEnabled(connectorName, path);
+
     return {
       vars: uiVariables,
+      isEnabled,
     };
   }
 

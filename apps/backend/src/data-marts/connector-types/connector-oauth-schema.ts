@@ -51,6 +51,7 @@ export type ConnectorOAuthStatusSchema = z.infer<typeof ConnectorOAuthStatusSche
 
 export const ConnectorOAuthSettingsSchema = z.object({
   vars: z.record(z.unknown()),
+  isEnabled: z.boolean(),
 });
 
 export type ConnectorOAuthSettingsSchema = z.infer<typeof ConnectorOAuthSettingsSchema>;

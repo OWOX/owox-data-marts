@@ -42,7 +42,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
                     type: 'string',
                     store: 'env',
                     key: 'OAUTH_FACEBOOK_MARKETING_SCOPE',
-                    default: 'ads_read,business_management',
+                    default: 'ads_read,ads_management',
                     attributes: [OAUTH_CONSTANTS.UI]
                   }
                 },

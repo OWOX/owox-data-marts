@@ -42,7 +42,7 @@ export function GetConnectorOAuthStatusSpec() {
   );
 }
 
-export function PostConnectorOAuthSettingsSpec() {
+export function GetConnectorOAuthSettingsSpec() {
   return applyDecorators(
     ApiOperation({ summary: 'Get OAuth settings (UI variables) for a connector' }),
     ApiResponse({ status: 200, type: ConnectorOAuthSettingsResponseApiDto })

@@ -42,6 +42,8 @@ export class ConnectorApiService extends ApiService {
   }
 
   async getOAuthSettings(connectorName: string, path: string): Promise<OAuthSettingsResponseDto> {
-    return this.post<OAuthSettingsResponseDto>(`/${connectorName}/oauth/settings`, { path });
+    return this.get<OAuthSettingsResponseDto>(
+      `/${connectorName}/oauth/settings?path=${encodeURIComponent(path)}`
+    );
   }
 }

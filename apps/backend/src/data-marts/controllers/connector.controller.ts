@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AvailableConnectorService } from '../use-cases/connector/available-connector.service';
 import {
@@ -7,7 +7,7 @@ import {
   GetConnectorFieldsSpec,
   ExchangeOAuthCredentialsSpec,
   GetConnectorOAuthStatusSpec,
-  PostConnectorOAuthSettingsSpec,
+  GetConnectorOAuthSettingsSpec,
 } from './spec/connector.api';
 import { ConnectorDefinitionResponseApiDto } from '../dto/presentation/connector-definition-response-api.dto';
 import { ConnectorSpecificationResponseApiDto } from '../dto/presentation/connector-specification-response-api.dto';
@@ -21,7 +21,6 @@ import { ExchangeOAuthCredentialsDto } from '../dto/presentation/exchange-oauth-
 import { ConnectorOAuthCredentialsResponseApiDto } from '../dto/presentation/connector-oauth-credentials-response-api.dto';
 import { ConnectorOauthService } from '../services/connector/connector-oauth.service';
 import { ConnectorOAuthStatusResponseApiDto } from '../dto/presentation/connector-oauth-credentials-status-response-api.dto';
-import { PostConnectorOAuthSettingsDto } from '../dto/presentation/post-connector-oauth-settings.dto';
 import { ConnectorOAuthSettingsResponseApiDto } from '../dto/presentation/connector-oauth-settings-response-api.dto';
 
 @Controller('connectors')
@@ -64,13 +63,13 @@ export class ConnectorController {
   }
 
   @Auth(Role.viewer())
-  @Post(':connectorName/oauth/settings')
-  @PostConnectorOAuthSettingsSpec()
-  async postConnectorOAuthSettings(
+  @Get(':connectorName/oauth/settings')
+  @GetConnectorOAuthSettingsSpec()
+  async getConnectorOAuthSettings(
     @Param('connectorName') connectorName: string,
-    @Body() body: PostConnectorOAuthSettingsDto
+    @Query('path') path: string
   ): Promise<ConnectorOAuthSettingsResponseApiDto> {
-    const settings = await this.connectorOauthService.getOAuthSettings(connectorName, body.path);
+    const settings = await this.connectorOauthService.getOAuthSettings(connectorName, path);
     return this.mapper.toSettingsResponse(settings);
   }
 

@@ -1,4 +1,3 @@
-import { AppWizardStepLabel } from '@owox/ui/components/common/wizard';
 import { FacebookLoginButton } from '../../../../../../../shared/components/FacebookLoginButton';
 import type { FacebookLoginResponse } from '../../../../../../../shared/components/FacebookLoginButton';
 import type { OauthRenderComponentProps } from '../OauthRenderFactory';
@@ -16,10 +15,7 @@ export function FacebookOauthRender({
   };
 
   return (
-    <div className='mb-4'>
-      <AppWizardStepLabel className='mb-2 justify-start'>
-        Facebook Authentication
-      </AppWizardStepLabel>
+    <div className='mt-2 mb-2'>
       <FacebookLoginButton
         appId={settings?.vars.AppId as string}
         scope={settings?.vars.Scopes as string}

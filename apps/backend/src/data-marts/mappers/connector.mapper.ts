@@ -128,6 +128,7 @@ export class ConnectorMapper {
   toSettingsResponse(settings: ConnectorOAuthSettingsSchema): ConnectorOAuthSettingsResponseApiDto {
     return {
       vars: settings.vars,
+      isEnabled: settings.isEnabled,
     };
   }
 

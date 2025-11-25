@@ -151,13 +151,15 @@ function AppWizardStepItemOneOf({
           <AppWizardStepLabel required={required} tooltip={tooltip} className='w-full'>
             {label}
           </AppWizardStepLabel>
-          <TabsList>
-            {options.map((option: { value: string; label: string }) => (
-              <TabsTrigger key={option.value} value={option.value}>
-                {option.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          {options.length > 1 && (
+            <TabsList>
+              {options.map((option: { value: string; label: string }) => (
+                <TabsTrigger key={option.value} value={option.value}>
+                  {option.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          )}
         </div>
         {children}
       </Tabs>

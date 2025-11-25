@@ -144,6 +144,39 @@ export class ConnectorService {
     return {};
   }
 
+  async isOAuthEnabled(connectorName: string, fieldPath: string): Promise<boolean> {
+    const specification = await this.getConnectorSpecification(connectorName);
+    const paths = fieldPath.split('.');
+    const item = this.getItemFromSpecRecursively(specification, paths);
+
+    if (!item.attributes?.includes(Core.CONFIG_ATTRIBUTES.OAUTH_FLOW)) {
+      return false;
+    }
+
+    const oauthParams = item.oauthParams as Record<string, unknown>;
+    if (!oauthParams?.vars) {
+      return false;
+    }
+
+    const vars = oauthParams.vars as Record<string, unknown>;
+
+    for (const [, varConfig] of Object.entries(vars)) {
+      const config = varConfig as OAuthVar;
+
+      const isRequired = config.required === true;
+      const isSecret = config.attributes?.includes('SECRET');
+
+      if (isRequired && isSecret && config.store === 'env') {
+        const envValue = process.env[config.key];
+        if (!envValue) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
   async exchangeCredential(
     projectId: string,
     userId: string,
