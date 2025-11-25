@@ -9,7 +9,7 @@ import {
 } from '../../../shared/components/CollapsibleCard';
 import { Button } from '@owox/ui/components/button';
 import { Timer, Plus } from 'lucide-react';
-import { ScheduledTriggerFormSheet } from '../../../features/data-marts/scheduled-triggers/components/ScheduledTriggerFormSheet/ScheduledTriggerFormSheet';
+import { ScheduledTriggerFormSheet } from '../../../features/data-marts/scheduled-triggers';
 import {
   ScheduledTriggerList,
   ScheduledTriggerProvider,
@@ -17,7 +17,7 @@ import {
 import { useDataMartContext } from '../../../features/data-marts/edit/model';
 import { ConnectorContextProvider } from '../../../features/connectors/shared/model/context';
 
-export function DataMartTriggersContent() {
+export default function DataMartTriggersContent() {
   const { dataMart } = useDataMartContext();
   const [isFormSheetOpen, setIsFormSheetOpen] = useState(false);
 
