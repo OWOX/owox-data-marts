@@ -73,6 +73,23 @@ export default function InsightDetailsView() {
     debounceMs: 0,
   });
 
+  // TODO:: Remove this toggle to show raw markdown output in read-only editor instead of HTML preview
+  const [showRawOutput, setShowRawOutput] = useState(false);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const isCmdOrCtrl = e.metaKey || e.ctrlKey;
+      if (isCmdOrCtrl && e.shiftKey && (e.key === 'M' || e.key === 'm')) {
+        e.preventDefault();
+        setShowRawOutput(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, []);
+
   const handleDelete = useCallback(async () => {
     if (!insight) return;
     await deleteInsight(insight.id);
@@ -232,6 +249,18 @@ export default function InsightDetailsView() {
                     Insight is running. Preview will appear once it finishes…
                   </div>
                 </div>
+              ) : insight.lastRun?.status === DataMartRunStatus.FAILED ? (
+                <Empty>
+                  <EmptyHeader>
+                    <EmptyMedia variant='icon'>
+                      <BarChart3 />
+                    </EmptyMedia>
+                    <EmptyTitle>Error executing insight</EmptyTitle>
+                    <EmptyDescription>
+                      Last run failed. Check the template and try again.
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
               ) : isOutputEmpty ? (
                 <Empty>
                   <EmptyHeader>
@@ -245,19 +274,31 @@ export default function InsightDetailsView() {
                   </EmptyHeader>
                 </Empty>
               ) : (
-                <div className='flex h-full flex-col gap-2'>
-                  {preview.error ? (
-                    <div className='text-destructive'>{preview.error}</div>
-                  ) : (
-                    <MarkdownEditorPreview
-                      html={preview.html}
-                      loading={preview.loading}
-                      error={preview.error}
-                      height='100%'
-                    />
-                  )}
+                <div className='flex h-full min-h-0 flex-col gap-2'>
+                  <div className='min-h-0 flex-1 overflow-hidden'>
+                    {showRawOutput ? (
+                      <InsightEditor
+                        value={insight.output ?? ''}
+                        onChange={() => {
+                          // TODO:: Dont allow editing output in read-only mode. After rollout Insights feature should be removed
+                        }}
+                        height={'100%'}
+                        className='h-full'
+                        readOnly
+                      />
+                    ) : preview.error ? (
+                      <div className='text-destructive'>{preview.error}</div>
+                    ) : (
+                      <MarkdownEditorPreview
+                        html={preview.html}
+                        loading={preview.loading}
+                        error={preview.error}
+                        height='100%'
+                      />
+                    )}
+                  </div>
                   <div className='text-muted-foreground border-border flex items-center justify-between border-t pt-2 text-sm'>
-                    <div>
+                    <div className='opacity-80'>
                       Last updated:{' '}
                       {insight.outputUpdatedAt
                         ? new Date(insight.outputUpdatedAt).toLocaleString()
