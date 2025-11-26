@@ -56,11 +56,11 @@ export abstract class UiTriggerController<UiResponseType> {
    * @param mapper Maps an entity to an output item
    * @returns Object with projected items in the data field
    */
-  protected async listTriggers<Out>(
+  protected async listTriggers<Item>(
     context: AuthorizationContext,
     where: unknown,
-    mapper: (t: UiTrigger<UiResponseType>) => Out
-  ): Promise<{ data: Out[] }> {
+    mapper: (t: UiTrigger<UiResponseType>) => Item
+  ): Promise<{ data: Item[] }> {
     const triggers = await this.triggerService.listByUser(
       context.userId,
       where as unknown as FindOptionsWhere<UiTrigger<UiResponseType>>
