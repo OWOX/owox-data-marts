@@ -50,9 +50,6 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      - name: Install specific npm version
-        run: npm install -g npm@11.6.4
-
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
 
