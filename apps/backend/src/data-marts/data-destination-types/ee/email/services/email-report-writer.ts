@@ -4,7 +4,10 @@ import {
   EMAIL_PROVIDER_FACADE,
   EmailProviderFacade,
 } from '../../../../../common/email/shared/email-provider.facade';
-import { MarkdownParser } from '../../../../../common/markdown/markdown-parser.service';
+import {
+  COLOR_THEME,
+  MarkdownParser,
+} from '../../../../../common/markdown/markdown-parser.service';
 import { ReportDataBatch } from '../../../../dto/domain/report-data-batch.dto';
 import { ReportDataDescription } from '../../../../dto/domain/report-data-description.dto';
 import { Report } from '../../../../entities/report.entity';
@@ -78,7 +81,11 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
     }
 
     // TODO: integrate with AI Insights
-    const reportHtml = await this.markdownParser.parseToHtml(this.emailConfig.messageTemplate);
+    const reportHtml = await this.markdownParser.parseToHtml(
+      this.emailConfig.messageTemplate,
+      COLOR_THEME.LIGHT
+    );
+
     const emailHtml = renderEmailReportTemplate({
       dataMartId: this.report.dataMart.id,
       dataMartTitle: this.report.dataMart.title,
