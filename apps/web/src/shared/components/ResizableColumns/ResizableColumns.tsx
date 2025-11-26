@@ -30,8 +30,15 @@ export function ResizableColumns({
 }: ResizableColumnsProps) {
   const ratio = useMemo(() => {
     const saved = storageService.get(storageKey);
-    const parsed = Number(saved);
-    if (!Number.isNaN(parsed)) return clamp(parsed, 0.1, 0.9);
+
+    if (saved !== null) {
+      const parsed = Number(saved);
+      if (!Number.isNaN(parsed)) {
+        return clamp(parsed, 0.1, 0.9);
+      }
+    }
+
+    // Use initialRatio if nothing is saved
     return clamp(initialRatio, 0.1, 0.9);
   }, [storageKey, initialRatio]);
 
