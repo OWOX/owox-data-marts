@@ -80,6 +80,12 @@ export class InsightExecutionService {
 
     const dataMartRun = await this.createRun(dataMart, insight, createdById, runType);
 
+    await this.insightRepository.update(insight.id, {
+      lastManualDataMartRunId: dataMartRun.id,
+      output: '',
+      outputUpdatedAt: this.systemTimeService.now(),
+    });
+
     await this.execute(dataMart, insight, dataMartRun).catch(error => {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error(`Insight execution failed: ${errorMessage}`, error?.stack, {

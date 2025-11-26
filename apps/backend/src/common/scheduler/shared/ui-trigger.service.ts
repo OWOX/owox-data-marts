@@ -5,7 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Repository } from 'typeorm';
+import { FindOptionsWhere, Repository } from 'typeorm';
 import { TriggerStatus } from './entities/trigger-status';
 import { UiTrigger } from './entities/ui-trigger.entity';
 
@@ -25,6 +25,22 @@ export abstract class UiTriggerService<UiResponseType> {
     protected readonly triggerRepository: Repository<UiTrigger<UiResponseType>>
   ) {
     this.logger = new Logger(this.constructor.name);
+  }
+
+  /**
+   * List triggers for a user with optional additional filters.
+   */
+  async listByUser(
+    userId: string,
+    where?: FindOptionsWhere<UiTrigger<UiResponseType>>
+  ): Promise<UiTrigger<UiResponseType>[]> {
+    const combinedWhere = { userId, ...(where ?? {}) } as unknown as FindOptionsWhere<
+      UiTrigger<UiResponseType>
+    >;
+    return this.triggerRepository.find({
+      where: combinedWhere,
+      order: { createdAt: 'DESC' },
+    });
   }
 
   /**
