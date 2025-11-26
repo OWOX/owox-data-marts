@@ -226,7 +226,7 @@ export function OauthRenderFactory({
       <div className='space-y-4'>
         {Object.entries(option.items).map(([itemName, itemSpec]) => {
           const isSecret = Array.isArray(itemSpec.attributes)
-            ? itemSpec.attributes.includes('SECRET')
+            ? itemSpec.attributes.includes('SECRET') && nestedConfiguration[itemName] !== undefined
             : false;
           const isSecretEditing = secretEditing[specification.name] ?? false;
 
