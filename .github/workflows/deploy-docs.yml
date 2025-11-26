@@ -16,6 +16,9 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Install specific npm version
+        run: npm install -g npm@11.6.4
+
       # can't set --ignore-scripts because Astro uses postinstall
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit --no-fund --loglevel error
