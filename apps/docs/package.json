@@ -24,7 +24,7 @@
     "starlight-auto-sidebar": "^0.1.2"
   },
   "devDependencies": {
-    "glob": "^11.0.3",
+    "glob": "^13.0.0",
     "gray-matter": "^4.0.3",
     "papaparse": "^5.5.3",
     "rehype-external-links": "^3.0.0"
