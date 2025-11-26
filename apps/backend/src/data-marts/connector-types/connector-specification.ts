@@ -14,6 +14,7 @@ export const ConnectorSpecificationItem = z.object({
   options: z.array(z.string()).optional(),
   placeholder: z.string().optional(),
   attributes: z.array(z.string()).optional(),
+  oauthParams: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const ConnectorSpecificationSchema = ConnectorSpecificationItem.extend({
@@ -25,6 +26,8 @@ export const ConnectorSpecificationSchema = ConnectorSpecificationItem.extend({
         requiredType: z
           .enum(['string', 'number', 'boolean', 'bool', 'object', 'array', 'date'])
           .optional(),
+        attributes: z.array(z.string()).optional(),
+        oauthParams: z.record(z.string(), z.unknown()).optional(),
         items: z.record(z.string(), ConnectorSpecificationItem),
       })
     )

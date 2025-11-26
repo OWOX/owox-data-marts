@@ -43,6 +43,18 @@ class HttpRequestException extends AbstractException {
 }
 
 /**
- * Exception thrown when running in an unsupported environment.
+ * Exception thrown when an OAuth flow fails.
  */
-class UnsupportedEnvironmentException extends AbstractException {}
+class OauthFlowException extends AbstractException {
+  /**
+   * @param {Object} params
+   * @param {string} params.message     - Error message.
+   * @param {number=} params.statusCode - Optional HTTP status code.
+   * @param {Object=} params.payload    - Optional error payload.
+   */
+  constructor({ message, statusCode, payload }) {
+    super(message);
+    if (statusCode != null) this.statusCode = statusCode;
+    if (payload != null) this.payload = payload;
+  }
+}

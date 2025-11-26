@@ -10,14 +10,79 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
 
   //---- constructor -------------------------------------------------
     constructor(config) {
-  
       super(config.mergeParameters({
-        AccessToken:{
+        AuthType: {
+          requiredType: "object",
+          label: "Auth Type",
+          description: "Authentication type",
           isRequired: true,
+          oneOf: [
+            {
+              label: "OAuth2",
+              value: "oauth2",
+              requiredType: "object",
+              attributes: [CONFIG_ATTRIBUTES.OAUTH_FLOW],
+              oauthParams: {
+                vars: {
+                  AppId: {
+                    type: 'string',
+                    required: true,
+                    store: 'env',
+                    key: 'OAUTH_FACEBOOK_MARKETING_APP_ID',
+                    attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
+                  },
+                  AppSecret: {
+                    type: 'string',
+                    required: true,
+                    store: 'env',
+                    key: 'OAUTH_FACEBOOK_MARKETING_APP_SECRET',
+                    attributes: [OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
+                  },
+                  Scopes: {
+                    type: 'string',
+                    store: 'env',
+                    key: 'OAUTH_FACEBOOK_MARKETING_SCOPE',
+                    default: 'ads_read,ads_management',
+                    attributes: [OAUTH_CONSTANTS.UI]
+                  }
+                },
+                mapping: {
+                  AccessToken: {
+                    type: 'string',
+                    required: true,
+                    store: 'secret',
+                    key: 'accessToken'
+                  }
+                }
+              },
+              items: {
+                AccessToken: {
+                  isRequired: true,
+                  requiredType: "string",
+                  label: "Access Token",
+                  description: "Facebook API Access Token for authentication",
+                  attributes: [CONFIG_ATTRIBUTES.SECRET]
+                },
+                AppId: {
+                  requiredType: "string",
+                  label: "App ID",
+                  description: "Facebook API App ID for exchange token",
+                },
+                AppSecret: {
+                  requiredType: "string",
+                  label: "App Secret",
+                  description: "Facebook API App Secret for exchange token",
+                  attributes: [CONFIG_ATTRIBUTES.SECRET]
+                },
+              }
+            }
+          ]
+        },
+        AccessToken: {
           requiredType: "string",
           label: "Access Token",
           description: "Facebook API Access Token for authentication",
-          attributes: [CONFIG_ATTRIBUTES.SECRET]
+          attributes: [CONFIG_ATTRIBUTES.SECRET, CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
         },
         AccoundIDs: {
           isRequired: true,
@@ -74,7 +139,106 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       this.fieldsSchema = FacebookMarketingFieldsSchema;
   
     }
-    
+
+  async exchangeOauthCredentials(credentials, variables) {
+    try {
+      const debugUrl = new URL('https://graph.facebook.com/debug_token');
+      debugUrl.searchParams.set('input_token', credentials.accessToken);
+      debugUrl.searchParams.set('access_token', `${variables.AppId}|${variables.AppSecret}`);
+      const debugResponse = await HttpUtils.fetch(debugUrl.toString());
+      const debugData = await debugResponse.getAsJson();
+
+      if (!debugData.data?.is_valid) {
+        throw new OauthFlowException({ message: 'Invalid token', payload: debugData.data?.error?.message });
+      }
+
+      const exchangeUrl = new URL('https://graph.facebook.com/v23.0/oauth/access_token');
+      exchangeUrl.searchParams.set('grant_type', 'fb_exchange_token');
+      exchangeUrl.searchParams.set('client_id', variables.AppId);
+      exchangeUrl.searchParams.set('client_secret', variables.AppSecret);
+      exchangeUrl.searchParams.set('fb_exchange_token', credentials.accessToken);
+      const longLivedResponse = await HttpUtils.fetch(exchangeUrl.toString());
+      const longLivedData = await longLivedResponse.getAsJson();
+
+      if (longLivedData.error) {
+        throw new OauthFlowException({
+          message: 'Failed to exchange token',
+          payload: longLivedData.error.message
+        });
+      }
+
+      if (!longLivedData.access_token) {
+        throw new OauthFlowException({
+          message: 'Missing access_token in exchange response'
+        });
+      }
+
+      const userInfoUrl = new URL('https://graph.facebook.com/v23.0/me');
+      userInfoUrl.searchParams.set('fields', 'id,name');
+      userInfoUrl.searchParams.set('access_token', longLivedData.access_token);
+      const userInfo = await HttpUtils.fetch(userInfoUrl.toString());
+      const userInfoData = await userInfo.getAsJson();
+
+      const expiresIn = longLivedData.expires_in ?? (60 * 60 * 24 * 60);
+      const oauthCredentials = OauthCredentialsDto.builder()
+        .withUser({ id: userInfoData.id, name: userInfoData.name })
+        .withSecret({ accessToken: longLivedData.access_token })
+        .withExpiresIn(expiresIn);
+
+      const adAccountsUrl = new URL('https://graph.facebook.com/v23.0/me/adaccounts');
+      adAccountsUrl.searchParams.set('fields', 'id,name,account_status');
+      adAccountsUrl.searchParams.set('access_token', longLivedData.access_token);
+      const adAccountsResponse = await HttpUtils.fetch(adAccountsUrl.toString());
+      const adAccountsData = await adAccountsResponse.getAsJson();
+
+      if (adAccountsData.error) {
+        oauthCredentials.withWarnings([adAccountsData.error.message]);
+      } else {
+        oauthCredentials.withAdditional({ adAccounts: adAccountsData });
+      }
+      return oauthCredentials.build().toObject();
+    } catch (error) {
+      if (error instanceof OauthFlowException) {
+        throw error;
+      }
+      throw new OauthFlowException({ message: 'Failed to exchange Facebook tokens', payload: error.message });
+    }
+  }
+
+  async refreshCredentials(configuration, credentials, variables) {
+    const authTypeConfig = configuration.AuthType || {};
+    const isOAuth2 = 'oauth2' in authTypeConfig;
+
+    if (!isOAuth2) {
+      return null;
+    }
+
+    const oauthConfig = authTypeConfig.oauth2 || {};
+    const hasStoredCredential = OAUTH_SOURCE_CREDENTIALS_KEY in oauthConfig && oauthConfig[OAUTH_SOURCE_CREDENTIALS_KEY];
+
+    if (hasStoredCredential) {
+      const fiveDaysFromNow = Date.now() + 5 * 24 * 60 * 60 * 1000;
+      if (credentials.expiresAt && credentials.expiresAt < fiveDaysFromNow) {
+        const storedCredentials = { accessToken: credentials.secret?.accessToken };
+        return this.exchangeOauthCredentials(storedCredentials, variables);
+      } else {
+        return null;
+      }
+    } else {
+      const accessToken = oauthConfig.AccessToken;
+      const appId = oauthConfig.AppId;
+      const appSecret = oauthConfig.AppSecret;
+
+      if (!accessToken || !appId || !appSecret) {
+        return null;
+      }
+
+      const manualCredentials = { accessToken };
+      const manualVariables = { AppId: appId, AppSecret: appSecret };
+      return this.exchangeOauthCredentials(manualCredentials, manualVariables);
+    }
+  }
+
   //---- isValidToRetry ----------------------------------------------
     /**
      * Determines if a Facebook API error is valid for retry
@@ -171,7 +335,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       
       console.log(`Facebook API URL:`, url);
 
-      url += `&access_token=${this.config.AccessToken.value}`;
+      url += `&access_token=${this._getAccessToken()}`;
   
       return await this._fetchPaginatedData(url, nodeName, fields);
   
@@ -279,6 +443,14 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       return allData;
     }
 
+    _getAccessToken() {
+      // if oauth2, use the entered access token
+      if (this.config.AuthType.value && this.config.AuthType.value === 'oauth2') {
+        return this.config.AuthType.items?.AccessToken?.value;
+      }
+      return this.config.AccessToken.value;
+    }
+
   //---- _prepareFields --------------------------------------
     /**
      * Filter and prepare fields for API request
@@ -321,7 +493,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       
       console.log(`Facebook API URL:`, insightsUrl);
       
-      insightsUrl += `&access_token=${this.config.AccessToken.value}`;
+      insightsUrl += `&access_token=${this._getAccessToken()}`;
       return insightsUrl;
     }
 

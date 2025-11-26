@@ -20,16 +20,20 @@ export interface ConnectorSpecificationItemResponseApiDto {
   attributes?: string[];
 }
 
-export interface ConnectorSpecificationOneOfResponeApiDto {
+export interface ConnectorSpecificationOneOfResponseApiDto {
   label: string;
   value: string;
   requiredType?: RequiredType;
   items: Record<string, ConnectorSpecificationItemResponseApiDto>;
+  attributes?: string[];
+  oauthParams?: {
+    ui_variables?: string[];
+  };
 }
 
 export interface ConnectorSpecificationResponseApiDto
   extends ConnectorSpecificationItemResponseApiDto {
-  oneOf?: ConnectorSpecificationOneOfResponeApiDto[];
+  oneOf?: ConnectorSpecificationOneOfResponseApiDto[];
 }
 
 export interface ConnectorFieldResponseApiDto {

@@ -121,6 +121,9 @@ import { InsightRunTrigger } from './entities/insight-run-trigger.entity';
 import { InsightRunTriggerController } from './controllers/insight-run-trigger.controller';
 import { InsightRunTriggerService } from './services/insight-run-trigger.service';
 import { InsightRunTriggerHandlerService } from './services/insight-run-trigger-handler.service';
+import { ConnectorSourceCredentials } from './entities/connector-source-credentials.entity';
+import { ConnectorSourceCredentialsService } from './services/connector-source-credentials.service';
+import { ConnectorOauthService } from './services/connector/connector-oauth.service';
 
 @Module({
   imports: [
@@ -137,6 +140,7 @@ import { InsightRunTriggerHandlerService } from './services/insight-run-trigger-
       SqlDryRunTrigger,
       SchemaActualizeTrigger,
       InsightRunTrigger,
+      ConnectorSourceCredentials,
     ]),
     CommonModule,
     IdpModule,
@@ -250,6 +254,8 @@ import { InsightRunTriggerHandlerService } from './services/insight-run-trigger-
     LookerStudioReportRunService,
     InsightRunTriggerService,
     InsightRunTriggerHandlerService,
+    ConnectorSourceCredentialsService,
+    ConnectorOauthService,
   ],
 })
 export class DataMartsModule {

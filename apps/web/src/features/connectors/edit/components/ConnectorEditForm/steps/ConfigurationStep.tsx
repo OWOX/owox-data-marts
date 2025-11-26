@@ -111,18 +111,39 @@ export function ConfigurationStep({
     (value: unknown, spec: ConnectorSpecificationResponseApiDto): boolean => {
       if (typeof value !== 'object' || value === null) return validateValue(value);
 
+      if (spec.attributes?.includes('OAUTH_FLOW') && '_source_credential_id' in value) {
+        return true;
+      }
+
       const oneOfs = spec.oneOf?.filter(
         oneOf => oneOf.value === Object.keys(value as Record<string, unknown>)[0]
       );
       if (oneOfs) {
-        return oneOfs.every(oneOf =>
-          Object.entries(oneOf.items).every(([, item]) => {
+        return oneOfs.every(oneOf => {
+          if (oneOf.attributes?.includes('OAUTH_FLOW')) {
+            const oneOfValue = (value as Record<string, unknown>)[oneOf.value];
+            if (typeof oneOfValue === 'object' && oneOfValue !== null) {
+              if ('_source_credential_id' in oneOfValue) {
+                return true;
+              }
+              const requiredItems = Object.entries(oneOf.items).filter(([, item]) => item.required);
+              if (requiredItems.length > 0) {
+                return requiredItems.every(([itemName]) => {
+                  const itemValue = (oneOfValue as Record<string, unknown>)[itemName];
+                  return validateValue(itemValue);
+                });
+              }
+            }
+            return false;
+          }
+
+          return Object.entries(oneOf.items).every(([, item]) => {
             if (oneOf.value in value) {
               return validateOneOfRecursive((value as Record<string, unknown>)[oneOf.value], item);
             }
             return false;
-          })
-        );
+          });
+        });
       }
 
       return validateValue((value as Record<string, unknown>)[spec.name]);
@@ -245,6 +266,7 @@ export function ConfigurationStep({
               onSecretEditToggle={handleSecretEditToggle}
               secretEditing={secretEditing}
               isEditingExisting={isEditingExisting}
+              connectorName={connector.name}
             />
           )}
           {advancedFields.length > 0 && (
@@ -256,6 +278,7 @@ export function ConfigurationStep({
               onSecretEditToggle={handleSecretEditToggle}
               secretEditing={secretEditing}
               isEditingExisting={isEditingExisting}
+              connectorName={connector.name}
             />
           )}
         </AppWizardStepSection>
