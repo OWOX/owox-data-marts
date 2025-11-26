@@ -86,7 +86,7 @@
     "typescript-eslint": "^8.30.1"
   },
   "overrides": {
-    "glob": "^11.1.0",
-    "npm": "^11.6.3"
+    "glob": "^13.0.0",
+    "npm": "^11.6.4"
   }
 }
