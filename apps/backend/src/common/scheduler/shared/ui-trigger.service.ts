@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   HttpException,
   Injectable,
   Logger,
@@ -28,20 +29,20 @@ export abstract class UiTriggerService<UiResponseType> {
   }
 
   /**
-   * Get trigger status by ID and user ID
+   * Get trigger status by ID
    */
-  async getTriggerStatus(triggerId: string, userId: string): Promise<TriggerStatus> {
+  async getTriggerStatus(triggerId: string): Promise<TriggerStatus> {
     this.logger.debug(`Checking trigger status for trigger ${triggerId}`);
-    const trigger = await this.getTriggerByIdAndUserId(triggerId, userId);
+    const trigger = await this.getTriggerById(triggerId);
     return trigger.status;
   }
 
   /**
    * Get trigger response and handle different status cases
    */
-  async getTriggerResponse(triggerId: string, userId: string): Promise<UiResponseType> {
+  async getTriggerResponse(triggerId: string): Promise<UiResponseType> {
     this.logger.debug(`Getting trigger response for trigger ${triggerId}`);
-    const trigger = await this.getTriggerByIdAndUserId(triggerId, userId);
+    const trigger = await this.getTriggerById(triggerId);
 
     if (trigger.status === TriggerStatus.SUCCESS) {
       const response = trigger.uiResponse;
@@ -68,7 +69,11 @@ export abstract class UiTriggerService<UiResponseType> {
    */
   async abortTriggerRun(triggerId: string, userId: string): Promise<void> {
     this.logger.debug(`Aborting trigger run for trigger ${triggerId}`);
-    const trigger = await this.getTriggerByIdAndUserId(triggerId, userId);
+    const trigger = await this.getTriggerById(triggerId);
+
+    if (trigger.userId !== userId) {
+      throw new ForbiddenException('You are not allowed to cancel this trigger');
+    }
 
     if (trigger.status === TriggerStatus.IDLE) {
       await this.triggerRepository.remove(trigger);
@@ -93,20 +98,15 @@ export abstract class UiTriggerService<UiResponseType> {
   }
 
   /**
-   * Get trigger by ID and user ID with validation
+   * Get trigger by ID
    */
-  protected async getTriggerByIdAndUserId(
-    id: string,
-    userId: string
-  ): Promise<UiTrigger<UiResponseType>> {
+  protected async getTriggerById(id: string): Promise<UiTrigger<UiResponseType>> {
     const trigger = await this.triggerRepository.findOne({
-      where: { id, userId },
+      where: { id },
     });
-
     if (!trigger) {
       throw new NotFoundException(`Trigger with id ${id} not found`);
     }
-
     return trigger;
   }
 }

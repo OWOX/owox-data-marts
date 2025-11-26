@@ -21,20 +21,16 @@ export abstract class UiTriggerController<UiResponseType> {
   @Auth(Role.viewer(Strategy.PARSE))
   @Get('/:triggerId/status')
   public async getTriggerStatus(
-    @Param('triggerId') triggerId: string,
-    @AuthContext() context: AuthorizationContext
+    @Param('triggerId') triggerId: string
   ): Promise<{ status: TriggerStatus }> {
-    const status = await this.triggerService.getTriggerStatus(triggerId, context.userId);
+    const status = await this.triggerService.getTriggerStatus(triggerId);
     return { status };
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
   @Get('/:triggerId')
-  public async getTriggerResponse(
-    @Param('triggerId') triggerId: string,
-    @AuthContext() context: AuthorizationContext
-  ): Promise<UiResponseType> {
-    return this.triggerService.getTriggerResponse(triggerId, context.userId);
+  public async getTriggerResponse(@Param('triggerId') triggerId: string): Promise<UiResponseType> {
+    return this.triggerService.getTriggerResponse(triggerId);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))
