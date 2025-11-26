@@ -56,9 +56,7 @@ export class SnowflakeCreateViewExecutor implements CreateViewExecutor {
   private normalizeViewName(viewName: string): string {
     const parts = viewName.split('.');
     if (parts.length !== 3) {
-      throw new Error(
-        `View name must be fully qualified (database.schema.view). Got: ${viewName}`
-      );
+      throw new Error(`View name must be fully qualified (database.schema.view). Got: ${viewName}`);
     }
     return viewName;
   }

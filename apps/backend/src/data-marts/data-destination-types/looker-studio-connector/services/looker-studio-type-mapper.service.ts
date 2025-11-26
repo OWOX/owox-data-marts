@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AthenaFieldType } from '../../../data-storage-types/athena/enums/athena-field-type.enum';
 import { BigQueryFieldType } from '../../../data-storage-types/bigquery/enums/bigquery-field-type.enum';
+import { SnowflakeFieldType } from '../../../data-storage-types/snowflake/enums/snowflake-field-type.enum';
 import { DataStorageType } from '../../../data-storage-types/enums/data-storage-type.enum';
 import { FieldDataType } from '../enums/field-data-type.enum';
 
@@ -10,13 +11,15 @@ export class LookerStudioTypeMapperService {
    * Maps data types from storage types to Looker Studio types
    */
   mapToLookerStudioDataType(
-    fieldType: BigQueryFieldType | AthenaFieldType,
+    fieldType: BigQueryFieldType | AthenaFieldType | SnowflakeFieldType,
     storageType: DataStorageType
   ): FieldDataType {
     if (storageType === DataStorageType.GOOGLE_BIGQUERY) {
       return this.mapBigQueryTypeToLookerStudio(fieldType as BigQueryFieldType);
     } else if (storageType === DataStorageType.AWS_ATHENA) {
       return this.mapAthenaTypeToLookerStudio(fieldType as AthenaFieldType);
+    } else if (storageType === DataStorageType.SNOWFLAKE) {
+      return this.mapSnowflakeTypeToLookerStudio(fieldType as SnowflakeFieldType);
     }
     // Fallback for unknown storage types
     return FieldDataType.STRING;
@@ -84,6 +87,29 @@ export class LookerStudioTypeMapperService {
       case AthenaFieldType.STRUCT:
       case AthenaFieldType.ROW:
       case AthenaFieldType.JSON:
+      default:
+        return FieldDataType.STRING;
+    }
+  }
+
+  /**
+   * Maps Snowflake types to Looker Studio types
+   */
+  private mapSnowflakeTypeToLookerStudio(type: SnowflakeFieldType): FieldDataType {
+    switch (type) {
+      case SnowflakeFieldType.NUMERIC:
+      case SnowflakeFieldType.INTEGER:
+      case SnowflakeFieldType.FLOAT:
+        return FieldDataType.NUMBER;
+      case SnowflakeFieldType.BOOLEAN:
+        return FieldDataType.BOOLEAN;
+      case SnowflakeFieldType.STRING:
+      case SnowflakeFieldType.BYTES:
+      case SnowflakeFieldType.DATE:
+      case SnowflakeFieldType.TIME:
+      case SnowflakeFieldType.TIMESTAMP:
+      case SnowflakeFieldType.VARIANT:
+      case SnowflakeFieldType.GEOGRAPHY:
       default:
         return FieldDataType.STRING;
     }

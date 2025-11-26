@@ -2,9 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { DateTime } from 'luxon';
 import { AthenaFieldType } from '../../../../data-storage-types/athena/enums/athena-field-type.enum';
 import { BigQueryFieldType } from '../../../../data-storage-types/bigquery/enums/bigquery-field-type.enum';
+import { SnowflakeFieldType } from '../../../../data-storage-types/snowflake/enums/snowflake-field-type.enum';
 import { ReportDataHeader } from '../../../../dto/domain/report-data-header.dto';
 
-type FieldType = BigQueryFieldType | AthenaFieldType;
+type FieldType = BigQueryFieldType | AthenaFieldType | SnowflakeFieldType;
 type FormatterFunction = (value: unknown, sheetTimeZone: string) => unknown;
 
 /**
@@ -17,6 +18,7 @@ export class SheetValuesFormatter {
     [BigQueryFieldType.TIMESTAMP, this.formatTimestamp],
     [AthenaFieldType.TIMESTAMP, this.formatTimestamp],
     [AthenaFieldType.TIMESTAMP_WITH_TIME_ZONE, this.formatTimestamp],
+    [SnowflakeFieldType.TIMESTAMP, this.formatTimestamp],
   ]);
 
   /**

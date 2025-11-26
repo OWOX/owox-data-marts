@@ -111,7 +111,7 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
    */
   public async finalize(processingError?: Error): Promise<void> {
     await this.executeWithErrorHandling(async () => {
-      if (this.writtenRowsCount > 0) {
+      if (this.writtenRowsCount > 0 && this.reportDataHeaders?.[0]) {
         const dateNow = DateTime.now().setZone(this.spreadsheetTimeZone);
         const dateNowFormatted = `${dateNow.toFormat('yyyy LLL d, HH:mm:ss')} ${dateNow.zoneName}`;
         const firstColumnDescription = this.reportDataHeaders[0].description;

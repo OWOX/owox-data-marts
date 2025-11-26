@@ -27,4 +27,7 @@ export interface SnowflakeCredentialsDto {
 /**
  * Combined type for data storage credentials
  */
-export type DataStorageCredentialsDto = GoogleBigQueryCredentialsDto | AwsAthenaCredentialsDto | SnowflakeCredentialsDto;
+export type DataStorageCredentialsDto =
+  | GoogleBigQueryCredentialsDto
+  | AwsAthenaCredentialsDto
+  | SnowflakeCredentialsDto;

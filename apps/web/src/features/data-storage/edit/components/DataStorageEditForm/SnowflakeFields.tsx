@@ -1,6 +1,6 @@
 import { Input } from '@owox/ui/components/input';
 import { Textarea } from '@owox/ui/components/textarea';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@owox/ui/components/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
 import { DataStorageType, SnowflakeAuthMethod } from '../../../shared';
 import type { DataStorageFormData } from '../../../shared/types/data-storage.schema.ts';
 import {
@@ -86,9 +86,7 @@ export const SnowflakeFields = ({ form }: SnowflakeFieldsProps) => {
                     <TabsTrigger value={SnowflakeAuthMethod.PASSWORD}>
                       Username & Password
                     </TabsTrigger>
-                    <TabsTrigger value={SnowflakeAuthMethod.KEY_PAIR}>
-                      Key Pair
-                    </TabsTrigger>
+                    <TabsTrigger value={SnowflakeAuthMethod.KEY_PAIR}>Key Pair</TabsTrigger>
                   </TabsList>
                 </Tabs>
               </div>
@@ -143,9 +141,7 @@ export const SnowflakeFields = ({ form }: SnowflakeFieldsProps) => {
               name='credentials.privateKey'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel tooltip='Paste your private key in PEM format'>
-                    Private Key
-                  </FormLabel>
+                  <FormLabel tooltip='Paste your private key in PEM format'>Private Key</FormLabel>
                   <FormControl>
                     <Textarea
                       {...field}
@@ -172,7 +168,7 @@ export const SnowflakeFields = ({ form }: SnowflakeFieldsProps) => {
                     <Input
                       {...field}
                       type='password'
-                      value={field.value || ''}
+                      value={field.value ?? ''}
                       placeholder='Enter passphrase if key is encrypted'
                     />
                   </FormControl>

@@ -19,17 +19,17 @@ export default function SnowflakeUsernameDescription() {
           </p>
           <p className='mb-2'>Here's what you need to know:</p>
           <ul className='list-inside list-disc space-y-2 text-sm'>
-            <li>
-              Use the same username you use to log in to the Snowflake web interface.
-            </li>
+            <li>Use the same username you use to log in to the Snowflake web interface.</li>
             <li>
               Snowflake usernames are case-insensitive and are typically in uppercase by default.
             </li>
             <li>
-              If you're using SSO (Single Sign-On) for the web interface, you may need to create a separate user account with password authentication for programmatic access.
+              If you're using SSO (Single Sign-On) for the web interface, you may need to create a
+              separate user account with password authentication for programmatic access.
             </li>
             <li>
-              You can view all users in your account by running: SHOW USERS; (requires appropriate privileges)
+              You can view all users in your account by running: SHOW USERS; (requires appropriate
+              privileges)
             </li>
           </ul>
         </AccordionContent>

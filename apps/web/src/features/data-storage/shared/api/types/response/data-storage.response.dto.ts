@@ -16,7 +16,10 @@ export interface SnowflakeConfigDto {
   warehouse: string;
 }
 
-export type DataStorageConfigDto = GoogleBigQueryConfigDto | AwsAthenaConfigDto | SnowflakeConfigDto;
+export type DataStorageConfigDto =
+  | GoogleBigQueryConfigDto
+  | AwsAthenaConfigDto
+  | SnowflakeConfigDto;
 
 export interface DataStorageResponseDto {
   id: string;

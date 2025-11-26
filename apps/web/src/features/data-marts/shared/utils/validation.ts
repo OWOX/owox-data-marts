@@ -14,6 +14,12 @@ import {
   getAthenaFullyQualifiedNameError,
   getAthenaTablePatternError,
 } from './athena-validation';
+import {
+  isValidSnowflakeFullyQualifiedName,
+  isValidSnowflakeTablePattern,
+  getSnowflakeFullyQualifiedNameError,
+  getSnowflakeTablePatternError,
+} from './snowflake-validation';
 
 /**
  * Validates if a string matches the fully qualified name pattern for the given storage type
@@ -29,6 +35,8 @@ export const isValidFullyQualifiedName = (value: string, storageType: DataStorag
       return isValidBigQueryFullyQualifiedName(value);
     case DataStorageType.AWS_ATHENA:
       return isValidAthenaFullyQualifiedName(value);
+    case DataStorageType.SNOWFLAKE:
+      return isValidSnowflakeFullyQualifiedName(value);
     default:
       return false;
   }
@@ -48,6 +56,8 @@ export const isValidTablePattern = (value: string, storageType: DataStorageType)
       return isValidBigQueryTablePattern(value);
     case DataStorageType.AWS_ATHENA:
       return isValidAthenaTablePattern(value);
+    case DataStorageType.SNOWFLAKE:
+      return isValidSnowflakeTablePattern(value);
     default:
       return false;
   }
@@ -67,6 +77,8 @@ export const getFullyQualifiedNameError = (value: string, storageType: DataStora
       return getBigQueryFullyQualifiedNameError(value);
     case DataStorageType.AWS_ATHENA:
       return getAthenaFullyQualifiedNameError(value);
+    case DataStorageType.SNOWFLAKE:
+      return getSnowflakeFullyQualifiedNameError(value);
     default:
       return 'Unsupported storage type';
   }
@@ -86,6 +98,8 @@ export const getTablePatternError = (value: string, storageType: DataStorageType
       return getBigQueryTablePatternError(value);
     case DataStorageType.AWS_ATHENA:
       return getAthenaTablePatternError(value);
+    case DataStorageType.SNOWFLAKE:
+      return getSnowflakeTablePatternError(value);
     default:
       return 'Unsupported storage type';
   }
@@ -102,6 +116,8 @@ export const getFullyQualifiedNamePlaceholder = (storageType: DataStorageType): 
       return 'project.dataset.table';
     case DataStorageType.AWS_ATHENA:
       return 'database.table or catalog.database.table';
+    case DataStorageType.SNOWFLAKE:
+      return 'database.schema.table';
     default:
       return '';
   }
@@ -118,6 +134,8 @@ export const getTablePatternPlaceholder = (storageType: DataStorageType): string
       return 'project.dataset.table_*';
     case DataStorageType.AWS_ATHENA:
       return 'database.table_* or catalog.database.table_*';
+    case DataStorageType.SNOWFLAKE:
+      return 'database.schema.table_*';
     default:
       return '';
   }
@@ -134,6 +152,8 @@ export const getFullyQualifiedNameHelpText = (storageType: DataStorageType): str
       return 'Enter the fully qualified name of the table (e.g., project.dataset.table)';
     case DataStorageType.AWS_ATHENA:
       return 'Enter the fully qualified name of the table (e.g., database.table or catalog.database.table)';
+    case DataStorageType.SNOWFLAKE:
+      return 'Enter the fully qualified name of the table (e.g., database.schema.table)';
     default:
       return '';
   }
@@ -150,6 +170,8 @@ export const getTablePatternHelpText = (storageType: DataStorageType): string =>
       return 'Enter a pattern to match multiple tables (e.g., project.dataset.table_* will match all tables starting with "table_")';
     case DataStorageType.AWS_ATHENA:
       return 'Enter a pattern to match multiple tables (e.g., database.table_* will match all tables starting with "table_")';
+    case DataStorageType.SNOWFLAKE:
+      return 'Enter a pattern to match multiple tables (e.g., database.schema.table_* will match all tables starting with "table_")';
     default:
       return '';
   }

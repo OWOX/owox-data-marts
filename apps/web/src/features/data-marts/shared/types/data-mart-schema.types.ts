@@ -209,4 +209,7 @@ export interface SnowflakeDataMartSchema {
 /**
  * Data mart schema type
  */
-export type DataMartSchema = BigQueryDataMartSchema | AthenaDataMartSchema | SnowflakeDataMartSchema;
+export type DataMartSchema =
+  | BigQueryDataMartSchema
+  | AthenaDataMartSchema
+  | SnowflakeDataMartSchema;

@@ -16,7 +16,8 @@ export default function SnowflakeKeyPairDescription() {
         <AccordionTrigger>How do I set up key pair authentication?</AccordionTrigger>
         <AccordionContent>
           <p className='mb-2'>
-            To use key pair authentication, you need to generate an RSA key pair and configure your Snowflake user.
+            To use key pair authentication, you need to generate an RSA key pair and configure your
+            Snowflake user.
           </p>
           <p className='mb-2'>Here's how to set it up:</p>
           <ol className='list-inside list-decimal space-y-2 text-sm'>
@@ -39,7 +40,8 @@ export default function SnowflakeKeyPairDescription() {
               </pre>
             </li>
             <li>
-              Copy the private key content from rsa_key.p8 and paste it in the Private Key field above.
+              Copy the private key content from rsa_key.p8 and paste it in the Private Key field
+              above.
             </li>
           </ol>
           <p className='mt-2 text-xs'>

@@ -1,32 +1,35 @@
-import { isGoogleBigQueryStorage, isAwsAthenaStorage } from '../model/types/data-storage.ts';
+import {
+  isGoogleBigQueryStorage,
+  isAwsAthenaStorage,
+  isSnowflakeStorage,
+} from '../model/types/data-storage.ts';
 import type { DataStorage } from '../model/types/data-storage.ts';
 
-/**
- * Interface for parsed fully qualified name components
- */
 export interface ParsedFullyQualifiedName {
-  dataset: string; // dataset for BigQuery, database for Athena
+  dataset: string;
+  schema?: string;
   table: string;
 }
 
-/**
- * Parses the fullyQualifiedName into dataset/database and table components
- * @param fullyQualifiedName The fully qualified name to parse (e.g., "dataset.table")
- * @returns An object with dataset and table properties, or null if invalid
- */
 export function parseFullyQualifiedName(
   fullyQualifiedName: string
 ): ParsedFullyQualifiedName | null {
   const parts = fullyQualifiedName.split('.');
-  if (parts.length !== 2) {
-    console.error('Invalid fully qualified name format:', fullyQualifiedName);
-    return null;
+  if (parts.length === 2) {
+    return {
+      dataset: parts[0],
+      table: parts[1],
+    };
+  } else if (parts.length === 3) {
+    return {
+      dataset: parts[0],
+      schema: parts[1],
+      table: parts[2],
+    };
   }
 
-  return {
-    dataset: parts[0], // dataset for BigQuery, database for Athena
-    table: parts[1],
-  };
+  console.error('Invalid fully qualified name format:', fullyQualifiedName);
+  return null;
 }
 
 /**
@@ -54,6 +57,15 @@ export function getAthenaRegionUrl(region: string): string {
 }
 
 /**
+ * Generates a Snowflake console URL
+ * @param account The Snowflake account identifier
+ * @returns The Snowflake console URL
+ */
+export function getSnowflakeConsoleUrl(account: string): string {
+  return `https://${account}.snowflakecomputing.com/`;
+}
+
+/**
  * Generates the appropriate storage URL based on storage type and configuration
  * @param storage The data storage configuration
  * @param fullyQualifiedName The fully qualified name of the table/dataset
@@ -73,6 +85,10 @@ export function getStorageUrl(storage: DataStorage, fullyQualifiedName: string):
 
   if (isAwsAthenaStorage(storage)) {
     return getAthenaRegionUrl(storage.config.region);
+  }
+
+  if (isSnowflakeStorage(storage)) {
+    return getSnowflakeConsoleUrl(storage.config.account);
   }
 
   return null;
@@ -106,6 +122,10 @@ export function getStorageButtonText(storage: DataStorage): string {
 
   if (isAwsAthenaStorage(storage)) {
     return 'Open region in AWS Athena';
+  }
+
+  if (isSnowflakeStorage(storage)) {
+    return 'Open console in Snowflake';
   }
 
   return 'Open data in storage';

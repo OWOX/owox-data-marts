@@ -15,7 +15,10 @@ import {
 /**
  * Define storage types
  */
-type StorageType = DataStorageType.GOOGLE_BIGQUERY | DataStorageType.AWS_ATHENA | DataStorageType.SNOWFLAKE;
+type StorageType =
+  | DataStorageType.GOOGLE_BIGQUERY
+  | DataStorageType.AWS_ATHENA
+  | DataStorageType.SNOWFLAKE;
 type FieldType = BigQueryFieldType | AthenaFieldType | SnowflakeFieldType;
 
 /**

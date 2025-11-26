@@ -1,5 +1,6 @@
 import { BigQueryFieldType } from '../../data-storage-types/bigquery/enums/bigquery-field-type.enum';
 import { AthenaFieldType } from '../../data-storage-types/athena/enums/athena-field-type.enum';
+import { SnowflakeFieldType } from '../../data-storage-types/snowflake/enums/snowflake-field-type.enum';
 
 /**
  * Represents a single report data header with metadata
@@ -22,8 +23,8 @@ export class ReportDataHeader {
     public readonly description?: string,
 
     /**
-     * The storage field type (BigQuery or Athena)
+     * The storage field type (BigQuery, Athena, or Snowflake)
      */
-    public readonly storageFieldType?: BigQueryFieldType | AthenaFieldType
+    public readonly storageFieldType?: BigQueryFieldType | AthenaFieldType | SnowflakeFieldType
   ) {}
 }

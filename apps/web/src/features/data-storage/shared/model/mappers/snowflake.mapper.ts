@@ -4,27 +4,28 @@ import type {
   SnowflakeConfigDto,
   SnowflakeCredentialsDto,
 } from '../../api/types';
-import type { DataStorage } from '../types/data-storage.ts';
 import { DataStorageType, type SnowflakeCredentials, SnowflakeAuthMethod } from '../types';
 import type { DataStorageFormData } from '../../types/data-storage.schema.ts';
+import type { SnowflakeDataStorage } from '../types/data-storage.ts';
 
 export class SnowflakeMapper implements StorageMapper {
-  mapFromDto(dto: DataStorageResponseDto): DataStorage {
-    const config = dto.config as SnowflakeConfigDto | null;
-    const credentials = dto.credentials as SnowflakeCredentialsDto | null;
+  mapFromDto(dto: DataStorageResponseDto): SnowflakeDataStorage {
+    const config = dto.config as SnowflakeConfigDto;
+    const credentials = dto.credentials as SnowflakeCredentialsDto;
 
-    const mappedCredentials: SnowflakeCredentials = credentials?.authMethod === 'KEY_PAIR'
-      ? {
-          authMethod: SnowflakeAuthMethod.KEY_PAIR,
-          username: credentials?.username ?? '',
-          privateKey: credentials?.privateKey ?? '',
-          privateKeyPassphrase: credentials?.privateKeyPassphrase,
-        }
-      : {
-          authMethod: SnowflakeAuthMethod.PASSWORD,
-          username: credentials?.username ?? '',
-          password: credentials?.password ?? '',
-        };
+    const mappedCredentials: SnowflakeCredentials =
+      credentials.authMethod === 'KEY_PAIR'
+        ? {
+            authMethod: SnowflakeAuthMethod.KEY_PAIR,
+            username: credentials.username ?? '',
+            privateKey: credentials.privateKey ?? '',
+            privateKeyPassphrase: credentials.privateKeyPassphrase,
+          }
+        : {
+            authMethod: SnowflakeAuthMethod.PASSWORD,
+            username: credentials.username ?? '',
+            password: credentials.password ?? '',
+          };
 
     return {
       id: dto.id,
@@ -34,8 +35,8 @@ export class SnowflakeMapper implements StorageMapper {
       modifiedAt: new Date(dto.modifiedAt),
       credentials: mappedCredentials,
       config: {
-        account: config?.account ?? '',
-        warehouse: config?.warehouse ?? '',
+        account: config.account,
+        warehouse: config.warehouse,
       },
     };
   }

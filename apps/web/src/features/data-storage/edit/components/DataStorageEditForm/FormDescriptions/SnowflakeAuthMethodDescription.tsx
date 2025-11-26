@@ -22,14 +22,16 @@ export default function SnowflakeAuthMethodDescription() {
             <div>
               <strong className='font-medium'>Username & Password:</strong>
               <p className='mt-1'>
-                The simplest method using your Snowflake username and password. Suitable for development and testing environments.
+                The simplest method using your Snowflake username and password. Suitable for
+                development and testing environments.
               </p>
             </div>
             <div>
               <strong className='font-medium'>Key Pair Authentication:</strong>
               <p className='mt-1'>
-                More secure method using public/private key cryptography. Recommended for production environments.
-                You'll need to generate an RSA key pair and assign the public key to your Snowflake user.
+                More secure method using public/private key cryptography. Recommended for production
+                environments. You'll need to generate an RSA key pair and assign the public key to
+                your Snowflake user.
               </p>
               <p className='mt-1'>
                 Learn more about{' '}

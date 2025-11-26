@@ -25,27 +25,27 @@ export default function SnowflakeAccountDescription() {
           <ol className='list-inside list-decimal space-y-3 text-sm'>
             <li>
               <strong>app.snowflake.com format:</strong> If your URL looks like{' '}
-              <code className='rounded bg-muted px-1 py-0.5'>
+              <code className='bg-muted rounded px-1 py-0.5'>
                 https://app.snowflake.com/europe-west3.gcp/xy12345/
               </code>
               , then your account identifier is{' '}
-              <code className='rounded bg-muted px-1 py-0.5'>xy12345.europe-west3.gcp</code>
+              <code className='bg-muted rounded px-1 py-0.5'>xy12345.europe-west3.gcp</code>
             </li>
             <li>
               <strong>snowflakecomputing.com format:</strong> If your URL looks like{' '}
-              <code className='rounded bg-muted px-1 py-0.5'>
+              <code className='bg-muted rounded px-1 py-0.5'>
                 https://xy12345.us-east-1.snowflakecomputing.com
               </code>
               , then your account identifier is{' '}
-              <code className='rounded bg-muted px-1 py-0.5'>xy12345.us-east-1</code>
+              <code className='bg-muted rounded px-1 py-0.5'>xy12345.us-east-1</code>
             </li>
             <li>
               <strong>Organization format:</strong> If your URL looks like{' '}
-              <code className='rounded bg-muted px-1 py-0.5'>
+              <code className='bg-muted rounded px-1 py-0.5'>
                 https://myorg-account123.snowflakecomputing.com
               </code>
               , then your account identifier is{' '}
-              <code className='rounded bg-muted px-1 py-0.5'>myorg-account123</code>
+              <code className='bg-muted rounded px-1 py-0.5'>myorg-account123</code>
             </li>
           </ol>
         </AccordionContent>

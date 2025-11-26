@@ -21,10 +21,12 @@ export default function SnowflakePasswordDescription() {
           <p className='mb-2'>Important security considerations:</p>
           <ul className='list-inside list-disc space-y-2 text-sm'>
             <li>
-              Your password must meet Snowflake's security requirements (minimum length, complexity, etc.).
+              Your password must meet Snowflake's security requirements (minimum length, complexity,
+              etc.).
             </li>
             <li>
-              If you've forgotten your password, a Snowflake administrator can reset it using: ALTER USER username SET PASSWORD = 'new_password';
+              If you've forgotten your password, a Snowflake administrator can reset it using: ALTER
+              USER username SET PASSWORD = 'new_password';
             </li>
             <li>
               For production environments, consider using{' '}
@@ -37,7 +39,8 @@ export default function SnowflakePasswordDescription() {
               instead of passwords for enhanced security.
             </li>
             <li>
-              Your password is encrypted and securely stored. It will never be displayed in plain text after saving.
+              Your password is encrypted and securely stored. It will never be displayed in plain
+              text after saving.
             </li>
           </ul>
         </AccordionContent>

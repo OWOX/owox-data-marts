@@ -18,7 +18,9 @@ interface SchemaContentProps {
   /** The storage type of the data mart */
   storageType: DataStorageType;
   /** Callback function to call when the fields change */
-  onFieldsChange: (fields: BigQuerySchemaField[] | AthenaSchemaField[] | SnowflakeSchemaField[]) => void;
+  onFieldsChange: (
+    fields: BigQuerySchemaField[] | AthenaSchemaField[] | SnowflakeSchemaField[]
+  ) => void;
 }
 
 /**

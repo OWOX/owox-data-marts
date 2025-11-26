@@ -11,7 +11,10 @@ export interface SnowflakeDataStorageConfig {
   warehouse: string;
 }
 
-export type DataStorageConfig = GoogleBigQueryDataStorageConfig | AwsAthenaDataStorageConfig | SnowflakeDataStorageConfig;
+export type DataStorageConfig =
+  | GoogleBigQueryDataStorageConfig
+  | AwsAthenaDataStorageConfig
+  | SnowflakeDataStorageConfig;
 
 export function isGoogleBigQueryDataStorageConfig(
   config: DataStorageConfig

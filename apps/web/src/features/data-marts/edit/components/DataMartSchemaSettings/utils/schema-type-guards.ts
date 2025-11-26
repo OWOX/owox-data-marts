@@ -55,5 +55,7 @@ export function isAthenaField(field: unknown): field is AthenaSchemaField {
  * Uses structural typing similar to Athena (both have isPrimaryKey).
  */
 export function isSnowflakeField(field: unknown): field is SnowflakeSchemaField {
-  return field !== null && typeof field === 'object' && 'isPrimaryKey' in field && !('mode' in field);
+  return (
+    field !== null && typeof field === 'object' && 'isPrimaryKey' in field && !('mode' in field)
+  );
 }

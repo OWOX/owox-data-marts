@@ -23,7 +23,7 @@ export class SnowflakeApiAdapter {
    */
   constructor(credentials: SnowflakeCredentials, config: SnowflakeConfig) {
     snowflake.configure({
-      logLevel: 'OFF'
+      logLevel: 'OFF',
     });
     const connectionOptions: snowflake.ConnectionOptions = {
       account: config.account,
@@ -50,7 +50,7 @@ export class SnowflakeApiAdapter {
    */
   private async connect(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.connection.connect((err) => {
+      this.connection.connect(err => {
         if (err) {
           reject(new Error(`Failed to connect to Snowflake: ${err.message}`));
         } else {
@@ -65,7 +65,7 @@ export class SnowflakeApiAdapter {
    */
   public async destroy(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.connection.destroy((err) => {
+      this.connection.destroy(err => {
         if (err) {
           reject(new Error(`Failed to destroy connection: ${err.message}`));
         } else {
@@ -78,7 +78,14 @@ export class SnowflakeApiAdapter {
   /**
    * Executes a SQL query
    */
-  public async executeQuery(query: string, dryRun: boolean = false): Promise<{ queryId: string; rows?: any[]; metadata?: SnowflakeQueryMetadata }> {
+  public async executeQuery(
+    query: string,
+    dryRun: boolean = false
+  ): Promise<{
+    queryId: string;
+    rows?: Record<string, unknown>[];
+    metadata?: SnowflakeQueryMetadata;
+  }> {
     if (!this.connection.isUp()) {
       await this.connect();
     }
@@ -91,19 +98,20 @@ export class SnowflakeApiAdapter {
           if (err) {
             reject(new Error(`${SnowflakeApiAdapter.SNOWFLAKE_QUERY_ERROR_PREFIX} ${err.message}`));
           } else {
-            this.logger.log(`Query executed: ${query}`);
-            this.logger.log(`Query rows: ${JSON.stringify(rows)}`);
+            this.logger.debug(`Query executed: ${query}`);
+            this.logger.debug(`Query rows: ${JSON.stringify(rows)}`);
             const columns = stmt.getColumns();
             const metadata: SnowflakeQueryMetadata = {
-              columns: columns?.map(col => ({
-                name: col.getName(),
-                type: col.getType(),
-                nullable: col.isNullable(),
-                precision: col.getPrecision(),
-                scale: col.getScale(),
-              })) || [],
+              columns:
+                columns?.map(col => ({
+                  name: col.getName(),
+                  type: col.getType(),
+                  nullable: col.isNullable(),
+                  precision: col.getPrecision(),
+                  scale: col.getScale(),
+                })) || [],
             };
-            this.logger.log(`Query metadata: ${JSON.stringify(metadata)}`);
+            this.logger.debug(`Query metadata: ${JSON.stringify(metadata)}`);
             const queryId = stmt.getQueryId();
             resolve({ queryId, rows, metadata });
           }
@@ -115,7 +123,7 @@ export class SnowflakeApiAdapter {
   /**
    * Executes a query and returns all rows
    */
-  public async executeQueryAndFetchAll(query: string): Promise<any[]> {
+  public async executeQueryAndFetchAll(query: string): Promise<Record<string, unknown>[]> {
     const { rows } = await this.executeQuery(query);
     return rows || [];
   }
@@ -127,12 +135,18 @@ export class SnowflakeApiAdapter {
   public async executeDryRunQuery(query: string): Promise<SnowflakeQueryExplainJsonResponse> {
     const explainQuery = `EXPLAIN USING JSON (${query})`;
     const { rows } = await this.executeQuery(explainQuery, false);
-    
+
     if (!rows || rows.length === 0) {
       throw new Error('Failed to get explain result');
     }
-    this.logger.log(`Explain rows: ${JSON.stringify(rows[0].content)}`);
-    return JSON.parse(rows[0].content) as SnowflakeQueryExplainJsonResponse;
+
+    const content = rows[0].content;
+    if (typeof content !== 'string') {
+      throw new Error('Invalid explain result format');
+    }
+
+    this.logger.debug(`Explain rows: ${JSON.stringify(content)}`);
+    return JSON.parse(content) as SnowflakeQueryExplainJsonResponse;
   }
 
   /**
@@ -165,6 +179,10 @@ export class SnowflakeApiAdapter {
     }
 
     const status = rows[0].EXECUTION_STATUS;
+    if (status !== 'RUNNING' && status !== 'SUCCEEDED' && status !== 'FAILED') {
+      throw new Error(`Unknown query status: ${status}`);
+    }
+
     return status;
   }
 
@@ -175,7 +193,7 @@ export class SnowflakeApiAdapter {
     databaseName: string,
     schemaName: string,
     tableName: string
-  ): Promise<any[]> {
+  ): Promise<Record<string, unknown>[]> {
     const query = `DESCRIBE TABLE ${databaseName}.${schemaName}.${tableName}`;
     return this.executeQueryAndFetchAll(query);
   }

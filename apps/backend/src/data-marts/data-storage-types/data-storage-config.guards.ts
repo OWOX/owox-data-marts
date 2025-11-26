@@ -1,6 +1,9 @@
 import { BigQueryConfig, BigQueryConfigSchema } from './bigquery/schemas/bigquery-config.schema';
 import { AthenaConfig, AthenaConfigSchema } from './athena/schemas/athena-config.schema';
-import { SnowflakeConfig, SnowflakeConfigSchema } from './snowflake/schemas/snowflake-config.schema';
+import {
+  SnowflakeConfig,
+  SnowflakeConfigSchema,
+} from './snowflake/schemas/snowflake-config.schema';
 
 export function isBigQueryConfig(config: unknown): config is BigQueryConfig {
   return BigQueryConfigSchema.safeParse(config).success;

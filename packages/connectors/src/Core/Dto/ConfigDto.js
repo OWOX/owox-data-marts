@@ -118,6 +118,8 @@ class StorageConfigDto {
       return 'GoogleBigQuery';
     } else if (name === 'AWS_ATHENA') {
       return 'AwsAthena';
+    } else if (name === 'SNOWFLAKE') {
+      return 'Snowflake';
     }
     return name;
   }

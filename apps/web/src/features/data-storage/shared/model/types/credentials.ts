@@ -27,7 +27,10 @@ export interface SnowflakeKeyPairCredentials {
 
 export type SnowflakeCredentials = SnowflakePasswordCredentials | SnowflakeKeyPairCredentials;
 
-export type DataStorageCredentials = GoogleBigQueryCredentials | AwsAthenaCredentials | SnowflakeCredentials;
+export type DataStorageCredentials =
+  | GoogleBigQueryCredentials
+  | AwsAthenaCredentials
+  | SnowflakeCredentials;
 
 export function isGoogleBigQueryCredentials(
   credentials: DataStorageCredentials

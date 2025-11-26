@@ -64,22 +64,59 @@ export const SQL_DRY_RUN_EXECUTOR_RESOLVER = Symbol('SQL_DRY_RUN_EXECUTOR_RESOLV
 export const SQL_RUN_EXECUTOR_RESOLVER = Symbol('SQL_RUN_EXECUTOR_RESOLVER');
 export const CREATE_VIEW_EXECUTOR_RESOLVER = Symbol('CREATE_VIEW_EXECUTOR_RESOLVER');
 
-const accessValidatorProviders = [BigQueryAccessValidator, AthenaAccessValidator, SnowflakeAccessValidator];
+const accessValidatorProviders = [
+  BigQueryAccessValidator,
+  AthenaAccessValidator,
+  SnowflakeAccessValidator,
+];
 const storageDataProviders = [BigQueryReportReader, AthenaReportReader, SnowflakeReportReader];
-const adapterFactories = [BigQueryApiAdapterFactory, AthenaApiAdapterFactory, S3ApiAdapterFactory, SnowflakeApiAdapterFactory];
+const adapterFactories = [
+  BigQueryApiAdapterFactory,
+  AthenaApiAdapterFactory,
+  S3ApiAdapterFactory,
+  SnowflakeApiAdapterFactory,
+];
 const queryBuilderProviders = [AthenaQueryBuilder, BigQueryQueryBuilder, SnowflakeQueryBuilder];
-const validatorProviders = [BigQueryDataMartValidator, AthenaDataMartValidator, SnowflakeDataMartValidator];
-const dataMartSchemaProviders = [BigQueryDataMartSchemaProvider, AthenaDataMartSchemaProvider, SnowflakeDataMartSchemaProvider];
-const dataMartSchemaMergerProviders = [BigQuerySchemaMerger, AthenaSchemaMerger, SnowflakeSchemaMerger];
-const schemaParserProviders = [BigQueryDataMartSchemaParser, AthenaDataMartSchemaParser, SnowflakeDataMartSchemaParser];
+const validatorProviders = [
+  BigQueryDataMartValidator,
+  AthenaDataMartValidator,
+  SnowflakeDataMartValidator,
+];
+const dataMartSchemaProviders = [
+  BigQueryDataMartSchemaProvider,
+  AthenaDataMartSchemaProvider,
+  SnowflakeDataMartSchemaProvider,
+];
+const dataMartSchemaMergerProviders = [
+  BigQuerySchemaMerger,
+  AthenaSchemaMerger,
+  SnowflakeSchemaMerger,
+];
+const schemaParserProviders = [
+  BigQueryDataMartSchemaParser,
+  AthenaDataMartSchemaParser,
+  SnowflakeDataMartSchemaParser,
+];
 const reportHeadersGeneratorProviders = [
   BigQueryReportHeadersGenerator,
   AthenaReportHeadersGenerator,
   SnowflakeReportHeadersGenerator,
 ];
-const sqlDryRunExecutorProviders = [BigquerySqlDryRunExecutor, AthenaSqlDryRunExecutor, SnowflakeSqlDryRunExecutor];
-const sqlRunExecutorProviders = [BigQuerySqlRunExecutor, AthenaSqlRunExecutor, SnowflakeSqlRunExecutor];
-const createViewExecutorProviders = [BigQueryCreateViewExecutor, AthenaCreateViewExecutor, SnowflakeCreateViewExecutor];
+const sqlDryRunExecutorProviders = [
+  BigquerySqlDryRunExecutor,
+  AthenaSqlDryRunExecutor,
+  SnowflakeSqlDryRunExecutor,
+];
+const sqlRunExecutorProviders = [
+  BigQuerySqlRunExecutor,
+  AthenaSqlRunExecutor,
+  SnowflakeSqlRunExecutor,
+];
+const createViewExecutorProviders = [
+  BigQueryCreateViewExecutor,
+  AthenaCreateViewExecutor,
+  SnowflakeCreateViewExecutor,
+];
 const publicCredentialsProviders = [
   DataStoragePublicCredentialsFactory,
   DataStorageCredentialsUtils,

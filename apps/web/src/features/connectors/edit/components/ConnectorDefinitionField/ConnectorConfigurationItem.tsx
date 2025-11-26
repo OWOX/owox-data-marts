@@ -131,6 +131,34 @@ export function ConnectorConfigurationItem({
           </div>
         );
       }
+      case DataStorageType.SNOWFLAKE: {
+        const account = dataStorage.config.account;
+        const fullyQualifiedName = connectorDef.connector.storage.fullyQualifiedName;
+        const parts = fullyQualifiedName.split('.');
+        const database = parts[0];
+        const schema = parts[1];
+        const table = parts[2];
+        const snowflakeConsoleLink = `https://${account}.snowflakecomputing.com/`;
+        return (
+          <div className='flex flex-wrap items-center gap-2'>
+            {formatLinkParam('Database', database, snowflakeConsoleLink)}
+            <span className='text-muted-foreground'>•</span>
+            <span className='text-muted-foreground/75'>Schema:</span>{' '}
+            <span className='text-muted-foreground font-medium'>{schema}</span>
+            <span className='text-muted-foreground'>•</span>
+            {formatLinkParam('Table', table, snowflakeConsoleLink)}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className='h-4 w-4' />
+              </TooltipTrigger>
+              <TooltipContent>
+                The database, schema and table are automatically created during the first run of the
+                data mart, if they don't already exist
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        );
+      }
       default:
         return 'Unknown storage type configuration';
     }
