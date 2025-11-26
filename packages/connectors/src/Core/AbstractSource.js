@@ -34,6 +34,14 @@ var AbstractSource = class AbstractSource {
     }
     //----------------------------------------------------------------
 
+  async exchangeOauthCredentials(credentials, variables) {
+    throw new Error("Method exchangeOauthCredentials must be implemented in Class inheritor of AbstractSource");
+  }
+
+  async refreshCredentials(configuration, credentials, variables) {
+    return null;
+  }
+
   //---- fetchData ---------------------------------------------------
     /**
      * A Data Source-specific methid is used to fetch new data and return it as an array of objects, where each property of an object corresponds to a column name.

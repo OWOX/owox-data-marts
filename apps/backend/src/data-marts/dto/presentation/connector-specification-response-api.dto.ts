@@ -57,6 +57,13 @@ export class ConnectorSpecificationOneOfOptionResponseApiDto {
   requiredType?: 'string' | 'number' | 'boolean' | 'bool' | 'object' | 'array' | 'date';
 
   @ApiProperty({
+    type: [String],
+    example: ['SECRET', 'OAUTH_FLOW'],
+    required: false,
+  })
+  attributes?: string[];
+
+  @ApiProperty({
     type: [ConnectorSpecificationItemResponseApiDto],
     example: [
       {

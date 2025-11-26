@@ -13,6 +13,14 @@ import {
   ConnectorSpecificationOneOfOptionResponseApiDto,
 } from '../dto/presentation/connector-specification-response-api.dto';
 import { ConnectorFieldsResponseApiDto } from '../dto/presentation/connector-fields-response-api.dto';
+import { ConnectorOAuthStatusResponseApiDto } from '../dto/presentation/connector-oauth-credentials-status-response-api.dto';
+import { ConnectorOAuthCredentialsResponseApiDto } from '../dto/presentation/connector-oauth-credentials-response-api.dto';
+import {
+  ConnectorOAuthStatusSchema,
+  ConnectorOAuthSettingsSchema,
+  ConnectorOAuthExchangeResultSchema,
+} from '../connector-types/connector-oauth-schema';
+import { ConnectorOAuthSettingsResponseApiDto } from '../dto/presentation/connector-oauth-settings-response-api.dto';
 
 @Injectable()
 export class ConnectorMapper {
@@ -88,6 +96,7 @@ export class ConnectorMapper {
           label: oneOf.label,
           value: oneOf.value,
           requiredType: oneOf.requiredType,
+          attributes: oneOf.attributes,
           items: Object.entries(oneOf.items).reduce(
             (acc, [key, value]) => {
               acc[key] = this.mapSpecificationItem(value);
@@ -97,6 +106,48 @@ export class ConnectorMapper {
           ),
         })
       ),
+    };
+  }
+
+  toStatusResponse(status: ConnectorOAuthStatusSchema): ConnectorOAuthStatusResponseApiDto {
+    return {
+      valid: status.isValid,
+      user: status.user
+        ? {
+            id: status.user.id,
+            name: status.user.name,
+            email: status.user.email,
+            picture: status.user.picture,
+          }
+        : undefined,
+      additional: status.additional,
+      expiresAt: status.expiresAt,
+    };
+  }
+
+  toSettingsResponse(settings: ConnectorOAuthSettingsSchema): ConnectorOAuthSettingsResponseApiDto {
+    return {
+      vars: settings.vars,
+      isEnabled: settings.isEnabled,
+    };
+  }
+
+  toCredentialsResponse(
+    result: ConnectorOAuthExchangeResultSchema
+  ): ConnectorOAuthCredentialsResponseApiDto {
+    return {
+      success: result.success,
+      credentialId: result.credentialId,
+      user: result.user
+        ? {
+            id: result.user.id,
+            name: result.user.name,
+            email: result.user.email,
+            picture: result.user.picture,
+          }
+        : undefined,
+      additional: result.additional,
+      reasons: result.reasons,
     };
   }
 }

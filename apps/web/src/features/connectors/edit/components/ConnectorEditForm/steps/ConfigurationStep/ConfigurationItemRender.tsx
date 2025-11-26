@@ -1,6 +1,6 @@
 import { AppWizardStepLabel, AppWizardStepItem } from '@owox/ui/components/common/wizard';
 import { RequiredType, type ConnectorSpecificationResponseApiDto } from '../../../../../shared/api';
-import { configurationFieldRender } from './ConigurationFieldRender';
+import { configurationFieldRender } from './ConfigurationFieldRender';
 import { Button } from '@owox/ui/components/button';
 
 interface ConfigurationItemRenderProps {
@@ -11,6 +11,7 @@ interface ConfigurationItemRenderProps {
   isSecretEditing: boolean;
   onValueChange: (name: string, value: unknown) => void;
   onSecretEditToggle: (name: string, enable: boolean) => void;
+  connectorName: string;
 }
 
 export function ConfigurationItemRender({
@@ -21,6 +22,7 @@ export function ConfigurationItemRender({
   isSecret,
   onValueChange,
   onSecretEditToggle,
+  connectorName,
 }: ConfigurationItemRenderProps) {
   return (
     <AppWizardStepItem key={specification.name}>
@@ -57,6 +59,7 @@ export function ConfigurationItemRender({
           isEditingExisting,
           isSecretEditing,
         },
+        connectorName: connectorName,
       })}
     </AppWizardStepItem>
   );
