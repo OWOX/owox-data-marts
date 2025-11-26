@@ -15,6 +15,18 @@ export class InsightRunTriggerService extends UiTriggerService<InsightRunRespons
     super(triggerRepository);
   }
 
+  async listByInsight(params: {
+    projectId: string;
+    dataMartId: string;
+    insightId: string;
+  }): Promise<InsightRunTrigger[]> {
+    const { projectId, dataMartId, insightId } = params;
+    return (this.triggerRepository as Repository<InsightRunTrigger>).find({
+      where: { projectId, dataMartId, insightId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
   async createTrigger(
     userId: string,
     projectId: string,

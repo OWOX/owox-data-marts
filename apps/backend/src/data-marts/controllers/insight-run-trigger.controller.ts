@@ -42,18 +42,20 @@ export class InsightRunTriggerController extends UiTriggerController<InsightRunR
     @Param('dataMartId') dataMartId: string,
     @Param('insightId') insightId: string
   ): Promise<{ data: InsightRunTriggerListItemResponseApiDto[] }> {
-    return this.listTriggers(
-      context,
-      { projectId: context.projectId, dataMartId, insightId },
-      t => ({
+    const triggers = await (this.triggerService as InsightRunTriggerService).listByInsight({
+      projectId: context.projectId,
+      dataMartId,
+      insightId,
+    });
+    return {
+      data: triggers.map(t => ({
         id: t.id,
-        userId: t.userId,
-        insightId: (t as unknown as { insightId: string }).insightId,
+        insightId: t.insightId,
         status: t.status,
         uiResponse: t.uiResponse ?? null,
         createdAt: t.createdAt,
         modifiedAt: t.modifiedAt,
-      })
-    );
+      })),
+    };
   }
 }

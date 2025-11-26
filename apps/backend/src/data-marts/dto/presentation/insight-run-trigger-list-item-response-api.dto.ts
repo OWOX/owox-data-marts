@@ -6,9 +6,6 @@ export class InsightRunTriggerListItemResponseApiDto {
   @ApiProperty({ example: '550e8400-e29b-41d4-a716-446655440000' })
   id: string;
 
-  @ApiProperty({ example: 'b3f4a1c2-d5e6-47a8-90b1-c2d3e4f5a6b7' })
-  userId: string;
-
   @ApiProperty({ example: '8a0d9a7c-4a1d-4a5d-8f2a-9b6f3d1c2e4b' })
   insightId: string;
 
