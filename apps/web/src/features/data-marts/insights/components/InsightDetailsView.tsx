@@ -40,7 +40,6 @@ export default function InsightDetailsView() {
   const { insightId } = useParams<{ insightId: string }>();
   const storageKey = useMemo(() => 'insight_details_split', []);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-
   const { dataMart } = useDataMartContext();
 
   const {
@@ -53,8 +52,8 @@ export default function InsightDetailsView() {
     getInsight,
     runInsight,
     deleteInsight,
-    setTriggerId,
     resetTriggerId,
+    ensureActiveRunPolling,
   } = useInsights();
 
   const {
@@ -88,10 +87,10 @@ export default function InsightDetailsView() {
   }, [insightId, getInsight]);
 
   useEffect(() => {
-    if (insight?.lastRun?.status === DataMartRunStatus.RUNNING && insight.lastRun.id) {
-      setTriggerId(insight.lastRun.id);
+    if (insight?.id) {
+      void ensureActiveRunPolling();
     }
-  }, [insight?.lastRun?.id, insight?.lastRun?.status, setTriggerId]);
+  }, [insight?.id, ensureActiveRunPolling]);
 
   useInsightExecutionPolling({
     triggerId,

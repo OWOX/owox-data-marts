@@ -14,6 +14,7 @@ import toast from 'react-hot-toast';
 import type { InsightEntity } from '../types';
 import { useInsightsContext } from '../context/useInsightsContext.ts';
 import { RequestStatus } from '../../../../../shared/types/request-status.ts';
+import { isDataMartRunFinalStatus, isTaskFinalStatus } from '../../../shared';
 
 export function useInsights() {
   const { state, dispatch } = useInsightsContext();
@@ -184,6 +185,33 @@ export function useInsights() {
     [dispatch]
   );
 
+  const ensureActiveRunPolling = useCallback(async () => {
+    const insight = state.activeInsight;
+    if (!insight || !dataMart.id) return;
+
+    if (state.executionTriggerId) return;
+
+    if (!insight.lastRun || isDataMartRunFinalStatus(insight.lastRun.status)) return;
+
+    try {
+      const res = await insightsService.getInsightRunTriggers(dataMart.id, insight.id, {
+        skipLoadingIndicator: true,
+      });
+      const active = res.data
+        .sort((a, b) => new Date(b.modifiedAt).getTime() - new Date(a.modifiedAt).getTime())
+        .find(t => !isTaskFinalStatus(t.status));
+      if (active?.id) {
+        dispatch({ type: InsightsActionType.RUN_INSIGHT_START });
+        dispatch({
+          type: InsightsActionType.RUN_INSIGHT_STARTED,
+          payload: { triggerId: active.id },
+        });
+      }
+    } catch (error) {
+      dispatch({ type: InsightsActionType.RUN_INSIGHT_ERROR, payload: extractApiError(error) });
+    }
+  }, [state.activeInsight, state.executionTriggerId, dataMart.id, dispatch]);
+
   return {
     insights: state.list,
     activeInsight: state.activeInsight,
@@ -201,5 +229,6 @@ export function useInsights() {
     runInsight,
     setTriggerId,
     resetTriggerId,
+    ensureActiveRunPolling,
   };
 }

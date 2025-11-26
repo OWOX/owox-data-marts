@@ -40,3 +40,16 @@ export interface InsightExecutionStatusResponseDto {
 }
 
 export type UpdateInsightTitleResponseDto = InsightResponseDto;
+
+export interface InsightRunTriggerItemDto {
+  id: string;
+  insightId: string;
+  status: TaskStatus;
+  uiResponse?: Record<string, unknown> | null;
+  createdAt: string;
+  modifiedAt: string;
+}
+
+export interface InsightRunTriggersListResponseDto {
+  data: InsightRunTriggerItemDto[];
+}

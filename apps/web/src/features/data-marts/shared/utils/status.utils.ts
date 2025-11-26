@@ -3,6 +3,7 @@ import { StatusTypeEnum } from '../../../../shared/components/StatusLabel';
 import { DataMartStatus } from '../enums';
 import { DataMartRunStatus } from '../enums';
 import { ReportStatusEnum } from '../../reports/shared';
+import { TaskStatus } from '../../../../shared/types/task-status.enum.ts';
 
 /**
  * Maps DataMart status to StatusTypeEnum for use with StatusLabel component
@@ -100,4 +101,33 @@ export const getReportStatusText = (status: ReportStatusEnum): string => {
     default:
       return 'Unknown';
   }
+};
+
+/**
+ * Checks if the DataMart run status is in a final state (completed, failed, or cancelled).
+ * @param status The DataMart run status
+ * @returns True if the status indicates the run has finished
+ */
+export const isDataMartRunFinalStatus = (status?: DataMartRunStatus): boolean => {
+  if (!status) return true;
+
+  const finalStatuses = [
+    DataMartRunStatus.SUCCESS,
+    DataMartRunStatus.FAILED,
+    DataMartRunStatus.CANCELLED,
+    DataMartRunStatus.INTERRUPTED,
+  ];
+
+  return finalStatuses.includes(status);
+};
+
+/**
+ * Checks if the Task status is in a final state.
+ * @param status The Task status
+ * @returns True if the status indicates the task has finished
+ */
+export const isTaskFinalStatus = (status?: TaskStatus): boolean => {
+  if (!status) return true;
+  const finalStatuses = [TaskStatus.SUCCESS, TaskStatus.ERROR, TaskStatus.CANCELLED];
+  return finalStatuses.includes(status);
 };

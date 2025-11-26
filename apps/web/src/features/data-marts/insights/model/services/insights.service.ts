@@ -3,6 +3,7 @@ import type {
   CreateInsightRequestDto,
   CreateInsightResponseDto,
   InsightExecutionStatusResponseDto,
+  InsightRunTriggersListResponseDto,
   InsightListResponseDto,
   InsightResponseDto,
   UpdateInsightRequestDto,
@@ -69,6 +70,18 @@ export class InsightsService extends ApiService {
   ): Promise<InsightExecutionStatusResponseDto> {
     return this.get<InsightExecutionStatusResponseDto>(
       `/${dataMartId}/insights/${insightId}/run-triggers/${triggerId}/status`,
+      null,
+      options
+    );
+  }
+
+  async getInsightRunTriggers(
+    dataMartId: string,
+    insightId: string,
+    options?: { skipLoadingIndicator?: boolean; signal?: AbortSignal }
+  ): Promise<InsightRunTriggersListResponseDto> {
+    return this.get<InsightRunTriggersListResponseDto>(
+      `/${dataMartId}/insights/${insightId}/run-triggers/`,
       null,
       options
     );
