@@ -1,6 +1,7 @@
 import { Editor, type OnMount } from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
 import { registerSlashCommandProvider } from '../utils/monaco-commands.util.ts';
+import type * as monacoEditor from 'monaco-editor';
 
 interface InsightEditorProps {
   value: string;
@@ -12,7 +13,7 @@ interface InsightEditorProps {
 }
 
 const handleEditorMount: OnMount = (_editor, monaco) => {
-  registerSlashCommandProvider(monaco, 'markdown');
+  registerSlashCommandProvider(monaco as typeof monacoEditor, 'markdown');
 };
 
 /**
