@@ -63,6 +63,7 @@ export function DataMartTable<TData, TValue>({
     defaultColumnVisibility: {
       triggersCount: false,
       reportsCount: false,
+      // createdBy: false,
     },
   });
 

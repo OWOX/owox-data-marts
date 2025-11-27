@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { ChevronRight } from 'lucide-react';
+import { UserReference } from '../../../../../shared/components/UserReference/UserReference.tsx';
 import { StatusBadge } from './StatusBadge';
 import { LogControls } from './LogControls';
 import { StructuredLogsView } from './StructuredLogsView';
@@ -10,7 +11,7 @@ import { CopyButton } from '@owox/ui/components/common/copy-button';
 import { LogViewType } from './types';
 import {
   getDisplayType,
-  getRunSummary,
+  getRunSummaryParts,
   parseLogEntry,
   getStartedAtDisplay,
   getTooltipContent,
@@ -95,6 +96,7 @@ export function RunItem({
 
   const startedAtValue = getStartedAtDisplay(run);
   const tooltipContent = getTooltipContent(run);
+  const [runDescription, reportTitle] = getRunSummaryParts(run, dataMartConnectorInfo?.displayName);
 
   return (
     <div className='dm-card-block'>
@@ -126,7 +128,21 @@ export function RunItem({
 
           <div className='text-muted-foreground flex items-center gap-2 text-sm'>
             {getTriggerTypeIcon(run.triggerType)}
-            {getRunSummary(run, dataMartConnectorInfo?.displayName)}
+            <span className='inline-flex items-center'>
+              {runDescription}
+              {run.createdByUser && (
+                <>
+                  {' by '}
+                  <UserReference userProjection={run.createdByUser} />
+                </>
+              )}
+              {reportTitle && (
+                <>
+                  {' • '}
+                  {reportTitle}
+                </>
+              )}
+            </span>
           </div>
         </div>
 

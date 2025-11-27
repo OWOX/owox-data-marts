@@ -1,4 +1,5 @@
 import { type ColumnDef } from '@tanstack/react-table';
+import { UserReference } from '../../../../../../shared/components/UserReference/UserReference.tsx';
 import type { DataMartListItem } from '../../../model/types';
 import { type DataMartStatusInfo, getDataMartStatusType } from '../../../../shared';
 import { StatusLabel } from '../../../../../../shared/components/StatusLabel';
@@ -117,6 +118,26 @@ export const getDataMartColumns = ({
       }).format(date);
 
       return <div className='text-muted-foreground'>{formatted}</div>;
+    },
+  },
+  {
+    id: DataMartColumnKey.CREATED_BY_USER,
+    size: 15, // responsive width in %
+    accessorFn: row => {
+      const u = row.createdByUser;
+      return u?.fullName ?? u?.email;
+    },
+    header: ({ column }) => (
+      <SortableHeader column={column}>
+        {dataMartColumnLabels[DataMartColumnKey.CREATED_BY_USER]}
+      </SortableHeader>
+    ),
+    cell: ({ row }) => {
+      const userProjection = row.original.createdByUser;
+      if (userProjection) {
+        return <UserReference userProjection={userProjection} />;
+      }
+      return <div className='text-muted-foreground'>—</div>;
     },
   },
   {

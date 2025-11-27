@@ -12,6 +12,7 @@ export function mapDataMartListFromDto(datamartsDto: DataMartListResponseDto): D
     definitionType: dmart.definitionType,
     triggersCount: dmart.triggersCount,
     reportsCount: dmart.reportsCount,
+    createdByUser: dmart.createdByUser,
     createdAt: new Date(dmart.createdAt),
     modifiedAt: new Date(dmart.modifiedAt),
     definition: dmart.definition,
