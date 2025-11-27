@@ -34,6 +34,7 @@ import {
   MarkdownEditorPreview,
 } from '../../../../shared/components/MarkdownEditor';
 import { useInsights } from '../model';
+import { InsightLoader } from './InsightMinerLoader.tsx';
 
 export default function InsightDetailsView() {
   const navigate = useNavigate();
@@ -244,10 +245,7 @@ export default function InsightDetailsView() {
             <div className='h-full p-2'>
               {isRunning ? (
                 <div className='text-muted-foreground flex h-full flex-col items-center justify-center gap-2'>
-                  <Loader2 className='h-5 w-5 animate-spin' />
-                  <div className='text-sm'>
-                    Insight is running. Preview will appear once it finishes…
-                  </div>
+                  <InsightLoader />
                 </div>
               ) : insight.lastRun?.status === DataMartRunStatus.FAILED ? (
                 <Empty>
