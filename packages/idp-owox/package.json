@@ -1,6 +1,6 @@
 {
   "name": "@owox/idp-owox",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "Identity Provider implementation from OWOX",
   "author": "OWOX",
   "license": "ELv2",
