@@ -5,6 +5,7 @@ import { SnowflakeCredentials } from '../schemas/snowflake-credentials.schema';
 import { SnowflakeAuthMethod } from '../enums/snowflake-auth-method.enum';
 import { SnowflakeQueryMetadata } from '../interfaces/snowflake-query-metadata';
 import { SnowflakeQueryExplainJsonResponse } from '../interfaces/snowflake-query-explain-json-response';
+import { escapeSnowflakeIdentifier } from '../utils/snowflake-identifier.utils';
 
 /**
  * Adapter for Snowflake API operations
@@ -96,7 +97,11 @@ export class SnowflakeApiAdapter {
         describeOnly: dryRun,
         complete: (err, stmt, rows) => {
           if (err) {
-            reject(new Error(`${SnowflakeApiAdapter.SNOWFLAKE_QUERY_ERROR_PREFIX} ${err.message}`));
+            reject(
+              new Error(
+                `${SnowflakeApiAdapter.SNOWFLAKE_QUERY_ERROR_PREFIX} ${err.message}, ${query}`
+              )
+            );
           } else {
             this.logger.debug(`Query executed: ${query}`);
             this.logger.debug(`Query rows: ${JSON.stringify(rows)}`);
@@ -194,7 +199,8 @@ export class SnowflakeApiAdapter {
     schemaName: string,
     tableName: string
   ): Promise<Record<string, unknown>[]> {
-    const query = `DESCRIBE TABLE ${databaseName}.${schemaName}.${tableName}`;
+    const fullyQualifiedName = `${databaseName}.${schemaName}.${tableName}`;
+    const query = `DESCRIBE TABLE ${escapeSnowflakeIdentifier(fullyQualifiedName)}`;
     return this.executeQueryAndFetchAll(query);
   }
 
@@ -202,7 +208,24 @@ export class SnowflakeApiAdapter {
    * Creates a view
    */
   public async createView(viewName: string, query: string): Promise<void> {
-    const createViewQuery = `CREATE OR REPLACE VIEW ${viewName} AS ${query}`;
+    const createViewQuery = `CREATE OR REPLACE VIEW ${escapeSnowflakeIdentifier(viewName)} AS ${query}`;
     await this.executeQuery(createViewQuery);
+  }
+
+  /**
+   * Fetches results from a previous query by queryId using RESULT_SCAN
+   */
+  public async fetchResultsByQueryId(
+    queryId: string,
+    offset: number = 0,
+    limit: number = 1000
+  ): Promise<Record<string, unknown>[]> {
+    if (!this.connection.isUp()) {
+      await this.connect();
+    }
+
+    const resultScanQuery = `SELECT * FROM TABLE(RESULT_SCAN('${queryId}')) LIMIT ${limit} OFFSET ${offset}`;
+    const { rows } = await this.executeQuery(resultScanQuery);
+    return rows || [];
   }
 }

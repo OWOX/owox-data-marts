@@ -44,7 +44,8 @@
     "@aws-sdk/client-athena": "3.810.0",
     "@aws-sdk/client-s3": "3.810.0",
     "@aws-sdk/lib-storage": "3.810.0",
-    "adm-zip": "0.5.16"
+    "adm-zip": "0.5.16",
+    "snowflake-sdk": "2.3.1"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

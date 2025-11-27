@@ -37,7 +37,7 @@ export class SnowflakeDataMartValidator implements DataMartValidator {
       const adapter = this.adapterFactory.create(credentials, config);
       const query = this.snowflakeQueryBuilder.buildQuery(definition);
       const explain = await adapter.executeDryRunQuery(query);
-      this.logger.log(`Explain: ${JSON.stringify(explain)}`);
+      this.logger.debug(`Explain: ${JSON.stringify(explain)}`);
       await adapter.destroy();
       return ValidationResult.success();
     } catch (error) {

@@ -34,7 +34,7 @@ export class SnowflakeSqlDryRunExecutor implements SqlDryRunExecutor {
     try {
       const adapter = this.adapterFactory.create(dataStorageCredentials, dataStorageConfig);
       const explain = await adapter.executeDryRunQuery(sql ?? '');
-      this.logger.log(`Explain: ${JSON.stringify(explain)}`);
+      this.logger.debug(`Explain: ${JSON.stringify(explain)}`);
       await adapter.destroy();
       return SqlDryRunResult.success(explain.GlobalStats.bytesAssigned); // Snowflake doesn't provide bytes processed estimate
     } catch (error) {

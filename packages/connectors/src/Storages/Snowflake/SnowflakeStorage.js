@@ -243,8 +243,8 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
       let createDbQuery = `CREATE DATABASE IF NOT EXISTS ${this.config.SnowflakeDatabase.value}`;
       await this.executeQuery(createDbQuery);
 
-      // Create schema if not exists
-      let createSchemaQuery = `CREATE SCHEMA IF NOT EXISTS ${this.config.SnowflakeDatabase.value}.${this.config.SnowflakeSchema.value}`;
+      // Create schema if not exists (quote schema name to preserve case)
+      let createSchemaQuery = `CREATE SCHEMA IF NOT EXISTS ${this.config.SnowflakeDatabase.value}."${this.config.SnowflakeSchema.value}"`;
       await this.executeQuery(createSchemaQuery);
 
       this.config.logMessage(`Database and schema ensured: ${this.config.SnowflakeDatabase.value}.${this.config.SnowflakeSchema.value}`);
@@ -286,7 +286,7 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
 
       let columnsStr = columns.join(",\n  ");
 
-      let query = `CREATE TABLE IF NOT EXISTS ${this.config.SnowflakeDatabase.value}.${this.config.SnowflakeSchema.value}."${this.config.DestinationTableName.value}" (\n  ${columnsStr}\n)`;
+      let query = `CREATE TABLE IF NOT EXISTS ${this.config.SnowflakeDatabase.value}."${this.config.SnowflakeSchema.value}"."${this.config.DestinationTableName.value}" (\n  ${columnsStr}\n)`;
 
       if( this.description ) {
         query += `\nCOMMENT = '${this.description}'`;
@@ -335,7 +335,7 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
 
       // there are columns to add to table
       if( columns.length > 0 ) {
-        let query = `ALTER TABLE ${this.config.SnowflakeDatabase.value}.${this.config.SnowflakeSchema.value}."${this.config.DestinationTableName.value}"\n`;
+        let query = `ALTER TABLE ${this.config.SnowflakeDatabase.value}."${this.config.SnowflakeSchema.value}"."${this.config.DestinationTableName.value}"\n`;
         query += columns.join(",\n");
         await this.executeQuery(query);
         this.config.logMessage(`Columns '${newColumns.join(",")}' were added to ${this.config.SnowflakeDatabase.value}.${this.config.SnowflakeSchema.value}.${this.config.DestinationTableName.value}`);
@@ -357,7 +357,6 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
         let newFields = Object.keys(row).filter( column => !Object.keys(this.existingColumns).includes(column) );
 
         if( newFields.length > 0 ) {
-          console.log(newFields);
           await this.addNewColumns(newFields);
         }
 
@@ -395,9 +394,6 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
 
       // buffer must be saved only in case if it is larger than maxBufferSize
       if( bufferSize && bufferSize >= maxBufferSize ) {
-
-        console.log(`Starting Snowflake MERGE operation for ${bufferSize} records...`);
-
         await this.executeQueryWithSizeLimit();
       }
 
@@ -452,7 +448,6 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
         // Execute the query
         await this.executeQuery(query);
         this.totalRecordsProcessed += currentBatch.length;
-        console.log(`Snowflake MERGE completed successfully for ${currentBatch.length} records (Total processed: ${this.totalRecordsProcessed})`);
 
         // Process remaining records if any
         if (remainingRecords.length > 0) {
@@ -462,7 +457,6 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
       } catch (error) {
         // If query fails, try with smaller batch
         if (batchSize > 1) {
-          console.log(`Query execution failed. Reducing batch size from ${batchSize} to ${Math.floor(batchSize/2)}`);
           await this.executeMergeQueryRecursively(recordKeys, Math.floor(batchSize / 2));
         } else {
           // Re-throw error if already at minimum batch size
@@ -530,7 +524,7 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
 
       let existingColumnsNames = Object.keys(this.existingColumns);
 
-      let fullTableName = `${this.config.SnowflakeDatabase.value}.${this.config.SnowflakeSchema.value}."${this.config.DestinationTableName.value}"`;
+      let fullTableName = `${this.config.SnowflakeDatabase.value}."${this.config.SnowflakeSchema.value}"."${this.config.DestinationTableName.value}"`;
 
       let query = `MERGE INTO ${fullTableName} AS target
 USING (

@@ -15,6 +15,10 @@ import { isSnowflakeConfig } from '../../data-storage-config.guards';
 import { SnowflakeQueryBuilder } from './snowflake-query.builder';
 import { SnowflakeReportHeadersGenerator } from './snowflake-report-headers-generator.service';
 import { isSnowflakeDataMartSchema } from '../../data-mart-schema.guards';
+import {
+  SnowflakeReaderState,
+  isSnowflakeReaderState,
+} from '../interfaces/snowflake-reader-state.interface';
 
 @Injectable({ scope: Scope.TRANSIENT })
 export class SnowflakeReportReader implements DataStorageReportReader {
@@ -24,8 +28,8 @@ export class SnowflakeReportReader implements DataStorageReportReader {
   private adapter: SnowflakeApiAdapter;
   private reportDataHeaders: ReportDataHeader[];
   private reportConfig: { storage: DataStorage; definition: DataMartDefinition };
-  private allRows: unknown[][] = [];
-  private currentBatchIndex = 0;
+  private queryId?: string;
+  private currentRowIndex = 0;
 
   constructor(
     private readonly adapterFactory: SnowflakeApiAdapterFactory,
@@ -52,43 +56,40 @@ export class SnowflakeReportReader implements DataStorageReportReader {
 
     await this.prepareApiAdapter(this.reportConfig.storage);
 
-    // Execute query and fetch all data
     const query = this.queryBuilder.buildQuery(definition);
     this.logger.debug(`Executing query: ${query}`);
 
     const result = await this.adapter.executeQuery(query);
+    this.queryId = result.queryId;
+    this.currentRowIndex = 0;
 
-    if (!result.rows) {
-      this.allRows = [];
-    } else {
-      // Map rows to match header order
-      this.allRows = this.mapRowsToHeaders(result.rows);
-    }
-
-    this.logger.debug(`Query returned ${this.allRows.length} rows`);
+    this.logger.debug(`Query executed, queryId: ${this.queryId}`);
 
     return new ReportDataDescription(this.reportDataHeaders);
   }
 
   async readReportDataBatch(_batchId?: string, maxDataRows = 1000): Promise<ReportDataBatch> {
-    if (!this.reportDataHeaders) {
+    if (!this.reportDataHeaders || !this.queryId) {
       throw new Error('Report data must be prepared before read');
     }
 
-    const startIndex = this.currentBatchIndex;
-    const endIndex = Math.min(startIndex + maxDataRows, this.allRows.length);
-
-    const batchRows = this.allRows.slice(startIndex, endIndex);
-    this.currentBatchIndex = endIndex;
-
-    const hasMoreData = endIndex < this.allRows.length;
-    const nextBatchId = hasMoreData ? endIndex.toString() : null;
-
-    this.logger.debug(
-      `Returning batch with ${batchRows.length} rows (${startIndex}-${endIndex} of ${this.allRows.length})`
+    const rows = await this.adapter.fetchResultsByQueryId(
+      this.queryId,
+      this.currentRowIndex,
+      maxDataRows
     );
 
-    return new ReportDataBatch(batchRows, nextBatchId);
+    const mappedRows = this.mapRowsToHeaders(rows);
+
+    this.currentRowIndex += rows.length;
+    const hasMoreData = rows.length === maxDataRows;
+    const nextBatchId = hasMoreData ? this.currentRowIndex.toString() : null;
+
+    this.logger.debug(
+      `Returning batch with ${rows.length} rows (from index ${this.currentRowIndex - rows.length})`
+    );
+
+    return new ReportDataBatch(mappedRows, nextBatchId);
   }
 
   async finalize(): Promise<void> {
@@ -197,16 +198,32 @@ export class SnowflakeReportReader implements DataStorageReportReader {
     return value;
   }
 
-  getState(): DataStorageReportReaderState | null {
-    // Snowflake doesn't need state management as we fetch all data at once
-    return null;
+  getState(): SnowflakeReaderState | null {
+    if (!this.queryId) {
+      return null;
+    }
+
+    return {
+      type: DataStorageType.SNOWFLAKE,
+      queryId: this.queryId,
+      currentRowIndex: this.currentRowIndex,
+    };
   }
 
   async initFromState(
-    _state: DataStorageReportReaderState,
-    _reportDataHeaders: ReportDataHeader[]
+    state: DataStorageReportReaderState,
+    reportDataHeaders: ReportDataHeader[]
   ): Promise<void> {
-    // Not implemented for Snowflake
-    throw new Error('State management is not supported for Snowflake reader');
+    if (!isSnowflakeReaderState(state)) {
+      throw new Error('Invalid state type for Snowflake reader');
+    }
+
+    this.queryId = state.queryId;
+    this.currentRowIndex = state.currentRowIndex;
+    this.reportDataHeaders = reportDataHeaders;
+
+    this.logger.debug(
+      `Restored from state: queryId=${this.queryId}, currentRow=${this.currentRowIndex}`
+    );
   }
 }

@@ -18,7 +18,7 @@ To configure a new **Storage**:
 2. Then select the **data warehouse** you want to add and follow the instructions for your platform:
     - [Google BigQuery](supported-storages/google-bigquery.md)
     - [AWS Athena](supported-storages/aws-athena.md)
-    - Snowflake (Coming soon)
+    - [Snowflake](supported-storages/snowflake.md)
     - Databricks (Coming soon)
     - AWS Redshift (Coming soon)
     - Azure Synapse (Coming soon)

@@ -9,6 +9,7 @@ import { DataStorageConfig } from '../../data-storage-config.type';
 import { isSnowflakeCredentials } from '../../data-storage-credentials.guards';
 import { isSnowflakeConfig } from '../../data-storage-config.guards';
 import { SnowflakeApiAdapterFactory } from '../adapters/snowflake-api-adapter.factory';
+import { escapeSnowflakeSchema } from '../utils/snowflake-identifier.utils';
 
 @Injectable()
 export class SnowflakeCreateViewExecutor implements CreateViewExecutor {
@@ -38,7 +39,8 @@ export class SnowflakeCreateViewExecutor implements CreateViewExecutor {
       const parts = fullyQualifiedName.split('.');
       if (parts.length === 3) {
         const [database, schema] = parts;
-        const ddlSchema = `CREATE SCHEMA IF NOT EXISTS ${database}.${schema}`;
+        const schemaIdentifier = escapeSnowflakeSchema(database, schema);
+        const ddlSchema = `CREATE SCHEMA IF NOT EXISTS ${schemaIdentifier}`;
         await adapter.executeQuery(ddlSchema);
       }
 
