@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { DropdownMenu } from '@owox/ui/components/dropdown-menu';
 import { useTheme } from 'next-themes';
 import { useAuth } from '../../../features/idp/hooks';
+import { generateInitials } from '../../../shared/utils';
 import { UserMenuItems } from './items';
 import { UserMenuTrigger } from './UserMenuTrigger';
 import { UserMenuContent } from './UserMenuContent';
-import { generateInitials } from './utils';
 
 export function UserMenu() {
   const { user, signOut } = useAuth();
