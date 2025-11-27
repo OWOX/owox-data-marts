@@ -8,9 +8,7 @@ import {
 import { LookerStudioConnectorCredentialsSchema } from '../schemas/looker-studio-connector-credentials.schema';
 
 @Injectable()
-export class LookerStudioConnectorCredentialsValidator
-  implements DataDestinationCredentialsValidator
-{
+export class LookerStudioConnectorCredentialsValidator implements DataDestinationCredentialsValidator {
   private readonly logger = new Logger(LookerStudioConnectorCredentialsValidator.name);
   readonly type = DataDestinationType.LOOKER_STUDIO;
 

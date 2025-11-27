@@ -33,8 +33,7 @@ const TagTokenUtil = {
 export class TemplateRenderFacadeImpl<
   TTagMeta extends TagMetaEntry = TagMetaEntry,
   TAdditional = unknown,
-> implements TemplateRenderFacade<TTagMeta, TAdditional>
-{
+> implements TemplateRenderFacade<TTagMeta, TAdditional> {
   async render(
     input: TemplateRenderInput<TAdditional>,
     handlers: ReadonlyArray<

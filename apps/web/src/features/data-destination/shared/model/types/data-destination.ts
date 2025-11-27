@@ -18,8 +18,7 @@ export interface GoogleSheetsCredentials {
   serviceAccountKey: string;
 }
 
-export interface GoogleSheetsDataDestination
-  extends BaseDataDestination<GoogleServiceAccountCredentials> {
+export interface GoogleSheetsDataDestination extends BaseDataDestination<GoogleServiceAccountCredentials> {
   type: DataDestinationType.GOOGLE_SHEETS;
   credentials: GoogleServiceAccountCredentials;
 }
