@@ -30,7 +30,7 @@ export class LocalStorageService {
    */
   get(key: string, type?: 'boolean'): boolean | null;
   get(key: string, type?: 'json'): Record<string, unknown> | null;
-  get(key: string, type?: 'boolean' | 'json'): StorageValueType | null {
+  get(key: string, type?: 'boolean' | 'json'): StorageValueType {
     try {
       const value = localStorage.getItem(key);
 

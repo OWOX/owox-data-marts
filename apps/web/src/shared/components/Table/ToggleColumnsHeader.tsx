@@ -1,4 +1,4 @@
-import { type Table } from '@tanstack/react-table';
+import { type Table, type Column, type ColumnMeta } from '@tanstack/react-table';
 import { MoreHorizontal, Check } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import {
@@ -8,13 +8,27 @@ import {
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
 
-interface ToggleColumnsHeaderProps<TData> {
-  table: Table<TData>;
+interface ExtendedColumnMeta<TData> extends ColumnMeta<TData, unknown> {
+  title?: string;
 }
 
-export function ToggleColumnsHeader<TData>({ table }: ToggleColumnsHeaderProps<TData>) {
+export interface ToggleColumnsHeaderProps<TData> {
+  table: Table<TData>;
+  /** Optional column label resolver. If not provided, falls back to meta.title or id */
+  getColumnLabel?: (columnId: string, column: Column<TData>) => string;
+}
+
+/**
+ * Shared header with dropdown to toggle column visibility for TanStack Table.
+ * - Hides non-hideable columns and the special "actions" column
+ * - Supports custom labels via `getColumnLabel` and meta.title fallback
+ */
+export function ToggleColumnsHeader<TData>({
+  table,
+  getColumnLabel,
+}: ToggleColumnsHeaderProps<TData>) {
   return (
-    <div className='px-4 text-right'>
+    <div className='text-right'>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
@@ -30,6 +44,11 @@ export function ToggleColumnsHeader<TData>({ table }: ToggleColumnsHeaderProps<T
             .getAllColumns()
             .filter(column => column.getCanHide() && column.id !== 'actions')
             .map(column => {
+              const label =
+                getColumnLabel?.(column.id, column) ??
+                (column.columnDef.meta as ExtendedColumnMeta<TData> | undefined)?.title ??
+                column.id;
+
               return (
                 <DropdownMenuItem key={column.id} className='capitalize'>
                   <label className='flex items-center space-x-2'>
@@ -38,7 +57,7 @@ export function ToggleColumnsHeader<TData>({ table }: ToggleColumnsHeaderProps<T
                       role='checkbox'
                       aria-checked={column.getIsVisible()}
                       data-state={column.getIsVisible() ? 'checked' : 'unchecked'}
-                      aria-label={`Toggle column ${column.id}`}
+                      aria-label={`Toggle column ${label}`}
                       className='peer border-input data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground dark:data-[state=checked]:bg-primary data-[state=checked]:border-primary focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive size-4 shrink-0 rounded-[4px] border bg-white shadow-xs transition-shadow outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/8'
                       onClick={() => {
                         column.toggleVisibility(!column.getIsVisible());
@@ -54,7 +73,7 @@ export function ToggleColumnsHeader<TData>({ table }: ToggleColumnsHeaderProps<T
                         </span>
                       )}
                     </button>
-                    <span>{column.id}</span>
+                    <span>{label}</span>
                   </label>
                 </DropdownMenuItem>
               );

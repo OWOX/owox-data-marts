@@ -1,9 +1,8 @@
 import { type ColumnDef } from '@tanstack/react-table';
-import { SortableHeader } from './SortableHeader';
 import { DataStorageTypeModel } from '../../../shared/types/data-storage-type.model';
 import { DataStorageType } from '../../../shared';
 import { DataStorageActionsCell } from './DataStorageActionsCell';
-import { ToggleColumnsHeader } from './ToggleColumnsHeader';
+import { SortableHeader, ToggleColumnsHeader } from '../../../../../shared/components/Table';
 
 export interface DataStorageTableItem {
   id: string;

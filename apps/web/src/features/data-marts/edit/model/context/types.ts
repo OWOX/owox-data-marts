@@ -8,7 +8,7 @@ import type { DataMartDefinitionType } from '../../../shared';
 import type { DataMartDefinitionConfig } from '../types';
 import type { ApiError } from '../../../../../app/api';
 import type { DataMartSchema } from '../../../shared/types/data-mart-schema.types';
-import type { DataMartRunItem } from '../types/data-mart-run';
+import type { DataMartRunItem } from '../types';
 
 export interface DataMartState {
   dataMart: DataMart | null;
@@ -87,6 +87,7 @@ export interface DataMartContextType extends DataMartState {
     offset?: number,
     options?: { silent?: boolean }
   ) => Promise<DataMartRunItem[]>;
+  getDataMartRunById: (dataMartId: string, runId: string) => Promise<DataMartRunItem>;
   loadMoreDataMartRuns: (id: string, offset: number, limit?: number) => Promise<DataMartRunItem[]>;
   runSchemaActualization?: () => Promise<void>;
   isSchemaActualizationLoading?: boolean;

@@ -6,14 +6,15 @@ import type {
   CreateDataMartResponseDto,
   DataMartListResponseDto,
   DataMartResponseDto,
-  UpdateDataMartRequestDto,
-  UpdateDataMartDefinitionRequestDto,
-  UpdateDataMartSchemaRequestDto,
-  SqlValidationResponseDto,
   DataMartRunListResponseDto,
+  SqlValidationResponseDto,
+  UpdateDataMartDefinitionRequestDto,
+  UpdateDataMartRequestDto,
+  UpdateDataMartSchemaRequestDto,
 } from '../types/api';
 import type { CreateSqlDryRunTaskResponseDto } from '../types/api/response/create-sql-dry-run-task.response.dto.ts';
 import type { TaskStatusResponseDto } from '../types/api/response/task-status.response.dto.ts';
+import type { DataMartRunItem } from '../../edit';
 
 /**
  * Data Mart Service
@@ -265,12 +266,18 @@ export class DataMartService extends ApiService {
     offset = 0,
     config?: AxiosRequestConfig
   ): Promise<DataMartRunListResponseDto> {
-    const response = await this.get<DataMartRunListResponseDto>(
-      `/${id}/runs`,
-      { limit, offset },
-      config
-    );
-    return response;
+    return await this.get<DataMartRunListResponseDto>(`/${id}/runs`, { limit, offset }, config);
+  }
+
+  /**
+   * Get a specific data mart run details by IDs
+   */
+  async getDataMartRunById(
+    dataMartId: string,
+    runId: string,
+    config?: AxiosRequestConfig
+  ): Promise<DataMartRunItem> {
+    return this.get<DataMartRunItem>(`/${dataMartId}/runs/${runId}`, undefined, config);
   }
 
   /**
