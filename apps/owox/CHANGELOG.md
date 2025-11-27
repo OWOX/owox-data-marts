@@ -1,5 +1,45 @@
 # owox
 
+## 0.13.0
+
+### Minor Changes
+
+- 5adbb9f: # New: Email-based destinations
+
+  New: Email as a data destination
+  - You can now add Email as a destination and deliver reports directly to inboxes.
+
+  New: Email report editor
+  - Create and configure email-based report deliveries with a dedicated editor.
+  - Compose messages using Markdown for clear, readable emails.
+  - Inline descriptions help you set up destination type, message template, and sending conditions.
+  - Preview and save your email delivery configuration.
+
+  New: Slack, Microsoft Teams and Google Chat integrations added via the email channel.
+
+  Edition-aware visibility
+  - Features are shown or hidden based on your app edition to keep the UI clear and relevant.
+
+  No breaking changes
+  - This release adds new capabilities; existing flows remain unchanged.
+
+- fc1dca7: # The creative field in the Facebook Marketing connector is no longer supported; use creative_id instead
+- dc9b5ab: # Implement OAuth2 flow for Facebook Marketing connector
+  - Add OAuth2 base oauth flow implementation
+  - Add OAuth2 authentication option for Facebook Marketing connector
+  - Implement token exchange and refresh logic
+  - Store OAuth credentials securely in database
+  - Add "Set up manually" option for manual token configuration
+
+### Patch Changes
+
+- @owox/internal-helpers@0.13.0
+- @owox/idp-protocol@0.13.0
+- @owox/idp-better-auth@0.13.0
+- @owox/idp-owox@0.13.0
+- @owox/backend@0.13.0
+- @owox/web@0.13.0
+
 ## 0.12.0
 
 ### Minor Changes 0.12.0
@@ -781,7 +821,6 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
-
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -789,7 +828,6 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
-
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
