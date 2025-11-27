@@ -20,14 +20,18 @@ export interface BaseDataStorage<T extends DataStorageCredentials, C extends Dat
   modifiedAt: Date;
 }
 
-export interface GoogleBigQueryDataStorage
-  extends BaseDataStorage<GoogleBigQueryCredentials, GoogleBigQueryDataStorageConfig> {
+export interface GoogleBigQueryDataStorage extends BaseDataStorage<
+  GoogleBigQueryCredentials,
+  GoogleBigQueryDataStorageConfig
+> {
   type: DataStorageType.GOOGLE_BIGQUERY;
   config: GoogleBigQueryDataStorageConfig;
 }
 
-export interface AwsAthenaDataStorage
-  extends BaseDataStorage<AwsAthenaCredentials, AwsAthenaDataStorageConfig> {
+export interface AwsAthenaDataStorage extends BaseDataStorage<
+  AwsAthenaCredentials,
+  AwsAthenaDataStorageConfig
+> {
   type: DataStorageType.AWS_ATHENA;
   config: AwsAthenaDataStorageConfig;
 }

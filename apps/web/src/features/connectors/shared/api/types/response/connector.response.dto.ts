@@ -31,8 +31,7 @@ export interface ConnectorSpecificationOneOfResponseApiDto {
   };
 }
 
-export interface ConnectorSpecificationResponseApiDto
-  extends ConnectorSpecificationItemResponseApiDto {
+export interface ConnectorSpecificationResponseApiDto extends ConnectorSpecificationItemResponseApiDto {
   oneOf?: ConnectorSpecificationOneOfResponseApiDto[];
 }
 

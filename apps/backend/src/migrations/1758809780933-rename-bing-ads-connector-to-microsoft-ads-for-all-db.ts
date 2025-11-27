@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class RenameBingAdsConnectorToMicrosoftAdsForAllDb1758809780933
-  implements MigrationInterface
-{
+export class RenameBingAdsConnectorToMicrosoftAdsForAllDb1758809780933 implements MigrationInterface {
   public readonly name = 'RenameBingAdsConnectorToMicrosoftAdsForAllDb1758809780933';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
