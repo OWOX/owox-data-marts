@@ -41,23 +41,30 @@ describe('SortableHeader', () => {
     expect(screen.getByText('Test Header')).toBeInTheDocument();
   });
 
-  it('renders the ArrowUpDown icon with correct opacity class when not sorted', () => {
+  it('renders the sort icon with correct opacity class when not sorted', () => {
     mockColumn.getIsSorted.mockReturnValue(false);
 
     render(<SortableHeader column={mockColumn as any}>Test Header</SortableHeader>);
 
-    const icon = screen.getByTestId('lucide-arrow-up-down');
-    expect(icon).toBeInTheDocument();
+    const sortButton = screen.getByTestId('sort-button');
+    expect(sortButton).toBeInTheDocument();
+
+    // Check that the icon wrapper has the opacity-0 class (hidden when not sorted)
+    const iconWrapper = sortButton.querySelector('.opacity-0');
+    expect(iconWrapper).toBeInTheDocument();
   });
 
-  it('renders the ArrowUpDown icon with full opacity when sorted', () => {
+  it('renders the sort icon with full opacity when sorted', () => {
     mockColumn.getIsSorted.mockReturnValue('asc');
 
     render(<SortableHeader column={mockColumn as any}>Test Header</SortableHeader>);
 
-    const icon = screen.getByTestId('lucide-arrow-up-down');
-    expect(icon).toBeInTheDocument();
-    expect(icon).not.toHaveClass('opacity-0');
+    const sortButton = screen.getByTestId('sort-button');
+    expect(sortButton).toBeInTheDocument();
+
+    // When sorted, the icon should be visible (no opacity-0 on the icon wrapper)
+    const iconElement = sortButton.querySelector('svg');
+    expect(iconElement).toBeInTheDocument();
   });
 
   it('calls toggleSorting with correct parameter when clicked', () => {

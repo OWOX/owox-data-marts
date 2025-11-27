@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react';
+import { SkeletonText } from '@owox/ui/components/common/skeleton-text';
 
 export interface MarkdownEditorPreviewProps {
   html: string;
@@ -18,6 +19,7 @@ export function MarkdownEditorPreview({
   emptyState = <div className='text-muted-foreground text-sm'>Nothing to preview</div>,
 }: MarkdownEditorPreviewProps) {
   // Read theme CSS variables on every render so colors update immediately on theme switch
+  // TODO:: After theme switch background not updating only after reload
   let bg = '#fff';
   let fg = '#000';
   if (typeof window !== 'undefined') {
@@ -30,14 +32,14 @@ export function MarkdownEditorPreview({
 
   return (
     <div className={`bg-background overflow-auto p-4 ${className ?? ''}`} style={{ height }}>
-      {loading && <div className='text-muted-foreground text-sm'>Generating preview…</div>}
+      {loading && <SkeletonText />}
       {!loading && error && <div className='text-destructive text-sm'>Error: {error}</div>}
       {!loading && !error && !html && emptyState}
       {!loading && !error && !!html && (
         <iframe
           title='Markdown preview'
           sandbox='allow-popups allow-popups-to-escape-sandbox'
-          srcDoc={`<!doctype html><html style="background:${bg};color:${fg}"><head><meta charset='utf-8'/><base target='_blank'></head><body>${html}</body></html>`}
+          srcDoc={`<!doctype html><html lang='en' style="background:${bg};color:${fg}"><head><meta charset='utf-8'/><base target='_blank'></head><body>${html}</body></html>`}
           className='h-full w-full border-0'
         />
       )}

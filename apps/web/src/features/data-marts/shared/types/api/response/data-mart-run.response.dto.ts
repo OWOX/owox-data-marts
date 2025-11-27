@@ -1,9 +1,11 @@
 import type { DataMartRunInsightDefinitionDto, DataMartRunReportDefinitionDto } from '../shared';
 import type { DataMartDefinitionDto } from './data-mart-definition.dto';
+import { DataMartRunStatus } from '../../../enums';
 
 export interface DataMartRunResponseDto {
   id: string;
-  status: string;
+  dataMartId: string;
+  status: DataMartRunStatus;
   createdAt: string;
   logs: string[] | null;
   errors: string[] | null;

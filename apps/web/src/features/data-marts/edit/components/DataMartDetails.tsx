@@ -21,6 +21,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/too
 import { ConnectorRunView } from '../../../connectors/edit/components/ConnectorRunSheet/ConnectorRunView.tsx';
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { useSchemaActualizeTrigger } from '../../shared/hooks/useSchemaActualizeTrigger';
+import { useFlags } from '../../../../app/store/hooks';
+import { parseEnvList } from '../../../../utils';
+import { useAuth } from '../../../idp';
 
 interface DataMartDetailsProps {
   id: string;
@@ -28,6 +31,8 @@ interface DataMartDetailsProps {
 
 export function DataMartDetails({ id }: DataMartDetailsProps) {
   const { navigate } = useProjectRoute();
+  const { user } = useAuth();
+  const { flags } = useFlags();
 
   const {
     dataMart,
@@ -79,9 +84,17 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     await runActualizeSchemaInternal();
   }, [canActualizeSchema, runActualizeSchemaInternal]);
 
+  // TODO: Remove after implementing feature flags or global Insight rollout
+  const enabledProjectsRaw = flags?.INSIGHTS_ENABLED_PROJECT_IDS as string | undefined;
+  const currentProjectId = user?.projectId ?? '';
+  const shouldShowInsights =
+    currentProjectId.length > 0 &&
+    parseEnvList(enabledProjectsRaw ?? '').includes(currentProjectId);
+
   const navigation = [
     { name: 'Overview', path: 'overview' },
     { name: 'Data Setup', path: 'data-setup' },
+    ...(shouldShowInsights ? [{ name: 'Insights', path: 'insights' }] : []),
     { name: 'Destinations', path: 'reports' },
     { name: 'Triggers', path: 'triggers' },
     { name: 'Run History', path: 'run-history' },

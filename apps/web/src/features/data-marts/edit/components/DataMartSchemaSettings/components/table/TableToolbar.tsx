@@ -57,7 +57,7 @@ export function TableToolbar<TData extends BaseSchemaField>({
               if (count === 0) return null;
               return (
                 <div key={status} className='flex items-center gap-1'>
-                  <SchemaFieldStatusIcon status={status} />
+                  <SchemaFieldStatusIcon status={status as DataMartSchemaFieldStatus} />
                   <span className='text-sm font-medium text-gray-500'>{count}</span>
                 </div>
               );

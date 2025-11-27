@@ -1,37 +1,39 @@
 import { type Column } from '@tanstack/react-table';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
-import { useCallback } from 'react';
+import { useCallback, type PropsWithChildren } from 'react';
 
-interface SortableHeaderProps<TData> {
+export interface SortableHeaderProps<TData> extends PropsWithChildren {
   column: Column<TData>;
-  children: React.ReactNode;
+  /** Optional accessible label for screen readers */
   label?: string;
 }
 
+/**
+ * Shared sortable table header button for TanStack Table columns.
+ * - Click toggles sorting between asc/desc
+ * - Shows current sort state icon
+ * - Provides accessible aria attributes
+ */
 export function SortableHeader<TData>({ column, children, label }: SortableHeaderProps<TData>) {
   const isSorted = column.getIsSorted();
 
-  // Memoize sort handler to avoid unnecessary re-renders
   const handleSort = useCallback(() => {
     column.toggleSorting(column.getIsSorted() === 'asc');
   }, [column]);
 
-  // Generate accessible sort description
   const getSortDescription = () => {
     if (isSorted === 'asc') return 'sorted ascending';
     if (isSorted === 'desc') return 'sorted descending';
     return 'not sorted';
   };
 
-  // Get proper aria-sort value
   const getAriaSort = () => {
-    if (isSorted === 'asc') return 'ascending';
-    if (isSorted === 'desc') return 'descending';
-    return 'none';
+    if (isSorted === 'asc') return 'ascending' as const;
+    if (isSorted === 'desc') return 'descending' as const;
+    return 'none' as const;
   };
 
-  // Use the label prop for aria-label, fallback to string 'Column'
   const ariaLabel = label ?? (typeof children === 'string' ? children : 'Column');
 
   return (

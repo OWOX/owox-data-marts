@@ -13,7 +13,7 @@ import { DataMartSchemaFieldStatus } from '../../../../../shared/types/data-mart
  */
 interface SchemaFieldStatusIconProps {
   /** The status of the field */
-  status: DataMartSchemaFieldStatus | string;
+  status: DataMartSchemaFieldStatus;
 }
 
 /**
@@ -45,11 +45,11 @@ const statusConfig = {
  */
 export function SchemaFieldStatusIcon({ status }: SchemaFieldStatusIconProps) {
   // Handle case when status is not a valid enum value
-  if (!status || !(status in statusConfig)) {
+  if (!(status in statusConfig)) {
     return null;
   }
 
-  const config = statusConfig[status as DataMartSchemaFieldStatus];
+  const config = statusConfig[status];
   const { icon: Icon, color, label, description } = config;
 
   // Generate unique ID for tooltip

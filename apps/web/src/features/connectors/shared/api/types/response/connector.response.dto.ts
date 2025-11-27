@@ -12,7 +12,7 @@ export interface ConnectorSpecificationItemResponseApiDto {
   name: string;
   title?: string;
   description?: string;
-  default?: string | number | boolean | object | string[];
+  default?: string | number | boolean | string[] | Record<string, unknown>;
   requiredType?: RequiredType;
   required?: boolean;
   options?: string[];
