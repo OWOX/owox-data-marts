@@ -4,6 +4,8 @@
 
 ### Minor Changes 0.13.0
 
+![OWOX Data Marts – v0.13.0](https://github.com/user-attachments/assets/d25bc921-4d17-4373-921f-7045544ad2ec)
+
 - 5adbb9f: # New: Email-based destinations
 
   New: Email as a data destination
