@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class UpdateDataMartRunTableCreatedByIdAndRunType1760604480000
-  implements MigrationInterface
-{
+export class UpdateDataMartRunTableCreatedByIdAndRunType1760604480000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Add nullable createdById column (string). Works for MySQL and SQLite.
     await queryRunner.query(

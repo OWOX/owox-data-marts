@@ -14,9 +14,7 @@ import * as crypto from 'crypto';
  * while allowing user control over deploymentUrl
  */
 @Injectable()
-export class LookerStudioConnectorCredentialsProcessor
-  implements DataDestinationCredentialsProcessor
-{
+export class LookerStudioConnectorCredentialsProcessor implements DataDestinationCredentialsProcessor {
   readonly type = DataDestinationType.LOOKER_STUDIO;
 
   /**

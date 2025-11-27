@@ -16,9 +16,9 @@ import { GracefulShutdownService } from '../graceful-shutdown.service';
  *
  * @typeParam T - The type of trigger this service processes, must extend TimeBasedTrigger
  */
-export abstract class AbstractTriggerRunnerService<T extends Trigger>
-  implements TriggerRunnerService<T>
-{
+export abstract class AbstractTriggerRunnerService<
+  T extends Trigger,
+> implements TriggerRunnerService<T> {
   protected readonly logger = new Logger(this.constructor.name);
   protected readonly abortControllersByTriggerId: Map<string, AbortController> = new Map();
   protected readonly handlerName: string;
