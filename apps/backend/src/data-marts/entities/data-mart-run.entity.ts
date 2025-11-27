@@ -6,6 +6,7 @@ import {
   JoinColumn,
   CreateDateColumn,
 } from 'typeorm';
+import { CreatorAwareEntity } from './creator-aware-entity.interface';
 import { DataMart } from './data-mart.entity';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition';
@@ -15,7 +16,7 @@ import { DataMartRunReportDefinition } from '../dto/schemas/data-mart-run/data-m
 import { DataMartRunInsightDefinition } from '../dto/schemas/data-mart-run/data-mart-run-insight-definition.schema';
 
 @Entity()
-export class DataMartRun {
+export class DataMartRun implements CreatorAwareEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 

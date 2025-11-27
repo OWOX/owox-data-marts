@@ -1,3 +1,4 @@
+import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 import { DataMartDefinition } from '../schemas/data-mart-table-definitions/data-mart-definition';
 import { DataMartDefinitionType } from '../../enums/data-mart-definition-type.enum';
 import { DataStorageDto } from './data-storage.dto';
@@ -19,6 +20,7 @@ export class DataMartDto {
     public readonly schema?: DataMartSchema,
     public readonly connectorState?: ConnectorStateData,
     public readonly triggersCount: number = 0,
-    public readonly reportsCount: number = 0
+    public readonly reportsCount: number = 0,
+    public readonly createdByUser: UserProjectionDto | null = null
   ) {}
 }

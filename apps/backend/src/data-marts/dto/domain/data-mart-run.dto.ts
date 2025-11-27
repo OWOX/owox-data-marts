@@ -1,9 +1,10 @@
-import { DataMartRunStatus } from '../../enums/data-mart-run-status.enum';
-import { DataMartDefinition } from '../schemas/data-mart-table-definitions/data-mart-definition';
-import { DataMartRunType } from '../../enums/data-mart-run-type.enum';
 import { RunType } from '../../../common/scheduler/shared/types';
-import { DataMartRunReportDefinition } from '../schemas/data-mart-run/data-mart-run-report-definition.schema';
+import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
+import { DataMartRunStatus } from '../../enums/data-mart-run-status.enum';
+import { DataMartRunType } from '../../enums/data-mart-run-type.enum';
 import { DataMartRunInsightDefinition } from '../schemas/data-mart-run/data-mart-run-insight-definition.schema';
+import { DataMartRunReportDefinition } from '../schemas/data-mart-run/data-mart-run-report-definition.schema';
+import { DataMartDefinition } from '../schemas/data-mart-table-definitions/data-mart-definition';
 
 export class DataMartRunDto {
   constructor(
@@ -21,6 +22,7 @@ export class DataMartRunDto {
     public readonly errors: string[] | null,
     public readonly createdAt: Date,
     public readonly startedAt: Date | null,
-    public readonly finishedAt: Date | null
+    public readonly finishedAt: Date | null,
+    public readonly createdByUser: UserProjectionDto | null
   ) {}
 }

@@ -8,10 +8,11 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { CreatorAwareEntity } from './creator-aware-entity.interface';
 import { DataMart } from './data-mart.entity';
 
 @Entity()
-export class Insight {
+export class Insight implements CreatorAwareEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 

@@ -17,13 +17,14 @@ import {
 } from '../data-destination-types/data-destination-config.type';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { ReportRunStatus } from '../enums/report-run-status.enum';
+import { CreatorAwareEntity } from './creator-aware-entity.interface';
 import { DataDestination } from './data-destination.entity';
 import { DataMart } from './data-mart.entity';
 
 const REPORT_ID_NAMESPACE = '550e8400-e29b-41d4-a716-446655440000';
 
 @Entity()
-export class Report {
+export class Report implements CreatorAwareEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 

@@ -9,6 +9,7 @@ import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigge
 import { Report } from '../entities/report.entity';
 import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
+import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 
 @Injectable()
 export class ListDataMartsService {
@@ -19,7 +20,8 @@ export class ListDataMartsService {
     @InjectRepository(DataMartScheduledTrigger)
     private readonly triggerRepo: Repository<DataMartScheduledTrigger>,
     @InjectRepository(Report)
-    private readonly reportRepo: Repository<Report>
+    private readonly reportRepo: Repository<Report>,
+    private readonly userProjectionsFetcherService: UserProjectionsFetcherService
   ) {}
 
   async run(command: ListDataMartsCommand): Promise<DataMartDto[]> {
@@ -73,11 +75,18 @@ export class ListDataMartsService {
       rawReportCounts.map(r => [r.dataMartId, Number(r.count)])
     );
 
+    const userProjections =
+      await this.userProjectionsFetcherService.fetchRelevantUserProjections(dataMarts);
+
     return dataMarts.map(dm =>
-      this.mapper.toDomainDto(dm, {
-        triggersCount: triggerCountMap.get(dm.id) ?? 0,
-        reportsCount: reportCountMap.get(dm.id) ?? 0,
-      })
+      this.mapper.toDomainDto(
+        dm,
+        {
+          triggersCount: triggerCountMap.get(dm.id) ?? 0,
+          reportsCount: reportCountMap.get(dm.id) ?? 0,
+        },
+        userProjections.getByUserId(dm.createdById)
+      )
     );
   }
 }
