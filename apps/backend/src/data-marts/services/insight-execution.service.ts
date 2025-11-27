@@ -37,20 +37,17 @@ export class InsightExecutionService {
       completionTokens?: number;
       totalTokens?: number;
     };
-    toolsUsed: string[];
   } {
     const llmCalls = telemetry.llmCalls ?? [];
     const toolCalls = telemetry.toolCalls ?? [];
     const failedToolCalls = toolCalls.filter(call => call.success === false).length;
     const lastLlm = llmCalls.length ? llmCalls[llmCalls.length - 1] : undefined;
-    const toolsUsed = toolCalls.map(t => t.name).filter(Boolean);
     return {
       llmCalls: llmCalls.length,
       toolCalls: toolCalls.length,
       failedToolCalls,
       lastFinishReason: lastLlm?.finishReason,
       lastUsage: lastLlm?.usage,
-      toolsUsed,
     };
   }
 
