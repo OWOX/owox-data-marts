@@ -72,6 +72,12 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
 
       this.reportDataHeaders = reportDataDescription.dataHeaders;
 
+      if (this.reportDataHeaders.length === 0) {
+        throw new Error(
+          'Cannot prepare report: Data mart has no connected fields. Please ensure at least one field is connected.'
+        );
+      }
+
       await this.clearSheet();
       await this.writeHeaders();
     }, 'Preparing Google Sheets document for report');

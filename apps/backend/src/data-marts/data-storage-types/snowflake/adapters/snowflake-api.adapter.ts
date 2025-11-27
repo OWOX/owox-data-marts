@@ -9,6 +9,16 @@ import { escapeSnowflakeIdentifier } from '../utils/snowflake-identifier.utils';
 
 /**
  * Adapter for Snowflake API operations
+ *
+ * Connection Management:
+ * - Each adapter instance creates a dedicated Snowflake connection
+ * - Connection is lazy-loaded on first use via isUp() checks
+ * - Connection must be explicitly destroyed via destroy() method
+ * - Suitable for current transient-scoped usage pattern
+ *
+ * Note: Unlike BigQuery/Athena SDKs which provide internal connection pooling,
+ * Snowflake SDK requires manual connection management. For high-concurrency
+ * scenarios, consider implementing a connection pool at the factory level.
  */
 export class SnowflakeApiAdapter {
   public static readonly SNOWFLAKE_QUERY_ERROR_PREFIX = 'Query execution failed:';
@@ -104,7 +114,7 @@ export class SnowflakeApiAdapter {
             );
           } else {
             this.logger.debug(`Query executed: ${query}`);
-            this.logger.debug(`Query rows: ${JSON.stringify(rows)}`);
+            this.logger.debug(`Query returned ${rows?.length || 0} rows`);
             const columns = stmt.getColumns();
             const metadata: SnowflakeQueryMetadata = {
               columns:
@@ -150,7 +160,7 @@ export class SnowflakeApiAdapter {
       throw new Error('Invalid explain result format');
     }
 
-    this.logger.debug(`Explain rows: ${JSON.stringify(content)}`);
+    this.logger.debug(`Explain result received (${content.length} bytes)`);
     return JSON.parse(content) as SnowflakeQueryExplainJsonResponse;
   }
 
@@ -176,19 +186,32 @@ export class SnowflakeApiAdapter {
       await this.connect();
     }
 
-    const statusQuery = `SELECT * FROM TABLE(INFORMATION_SCHEMA.QUERY_HISTORY_BY_SESSION()) WHERE QUERY_ID = '${queryId}'`;
-    const { rows } = await this.executeQuery(statusQuery);
+    return new Promise((resolve, reject) => {
+      this.connection.execute({
+        sqlText:
+          'SELECT * FROM TABLE(INFORMATION_SCHEMA.QUERY_HISTORY_BY_SESSION()) WHERE QUERY_ID = ?',
+        binds: [queryId],
+        complete: (err, stmt, rows) => {
+          if (err) {
+            reject(new Error(`Failed to get query status: ${err.message}`));
+            return;
+          }
 
-    if (!rows || rows.length === 0) {
-      throw new Error(`Query ${queryId} not found`);
-    }
+          if (!rows || rows.length === 0) {
+            reject(new Error(`Query ${queryId} not found`));
+            return;
+          }
 
-    const status = rows[0].EXECUTION_STATUS;
-    if (status !== 'RUNNING' && status !== 'SUCCEEDED' && status !== 'FAILED') {
-      throw new Error(`Unknown query status: ${status}`);
-    }
+          const status = rows[0].EXECUTION_STATUS;
+          if (status !== 'RUNNING' && status !== 'SUCCEEDED' && status !== 'FAILED') {
+            reject(new Error(`Unknown query status: ${status}`));
+            return;
+          }
 
-    return status;
+          resolve(status);
+        },
+      });
+    });
   }
 
   /**
@@ -224,8 +247,18 @@ export class SnowflakeApiAdapter {
       await this.connect();
     }
 
-    const resultScanQuery = `SELECT * FROM TABLE(RESULT_SCAN('${queryId}')) LIMIT ${limit} OFFSET ${offset}`;
-    const { rows } = await this.executeQuery(resultScanQuery);
-    return rows || [];
+    return new Promise((resolve, reject) => {
+      this.connection.execute({
+        sqlText: 'SELECT * FROM TABLE(RESULT_SCAN(?)) LIMIT ? OFFSET ?',
+        binds: [queryId, limit, offset],
+        complete: (err, stmt, rows) => {
+          if (err) {
+            reject(new Error(`Failed to fetch results: ${err.message}`));
+            return;
+          }
+          resolve(rows || []);
+        },
+      });
+    });
   }
 }
