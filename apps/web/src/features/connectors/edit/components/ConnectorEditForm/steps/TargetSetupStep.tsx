@@ -10,6 +10,7 @@ import {
   AppWizardStepHero,
 } from '@owox/ui/components/common/wizard';
 import { GoogleBigQueryIcon, AwsAthenaIcon, SnowflakeIcon } from '../../../../../../shared';
+import { quoteIdentifier, unquoteIdentifier } from '../../../utils/snowflake-identifier.utils';
 
 interface TargetSetupStepProps {
   dataStorageType: DataStorageType;
@@ -36,11 +37,25 @@ export function TargetSetupStep({
   const [schemaError, setSchemaError] = useState<string | null>(null);
   const [tableError, setTableError] = useState<string | null>(null);
 
-  const validate = (name: string): string | null => {
+  const validate = (name: string, allowQuoted = false): string | null => {
     if (!name.trim()) return 'This field is required';
+
+    // For Snowflake, allow quoted identifiers (e.g., "SCHEMA_NAME")
+    // But also allow unquoted identifiers - quotes will be added automatically when saving
+    if (allowQuoted && name.startsWith('"') && name.endsWith('"')) {
+      const unquoted = name.slice(1, -1);
+      if (!unquoted) return 'Quoted identifier cannot be empty';
+      // Validate the content inside quotes - can be anything except empty
+      return null;
+    }
+
+    // Validate unquoted identifiers
     const allowed = /^[A-Za-z][A-Za-z0-9_]*$/;
     if (!allowed.test(name)) {
-      return 'Use letters, numbers, and underscores; start with a letter';
+      const message = allowQuoted
+        ? 'Use letters, numbers, and underscores; start with a letter'
+        : 'Use letters, numbers, and underscores; start with a letter';
+      return message;
     }
     return null;
   };
@@ -54,10 +69,16 @@ export function TargetSetupStep({
       newSchemaName?: string,
       newSchemaError?: string | null
     ) => {
-      const fullyQualifiedName =
-        dataStorageType === DataStorageType.SNOWFLAKE && newSchemaName
-          ? `${newDatasetName}.${newSchemaName}.${newTableName}`
-          : `${newDatasetName}.${newTableName}`;
+      let fullyQualifiedName: string;
+
+      if (dataStorageType === DataStorageType.SNOWFLAKE && newSchemaName) {
+        // For Snowflake: quote schema and table, but not database
+        const quotedSchema = quoteIdentifier(newSchemaName);
+        const quotedTable = quoteIdentifier(newTableName);
+        fullyQualifiedName = `${newDatasetName}.${quotedSchema}.${quotedTable}`;
+      } else {
+        fullyQualifiedName = `${newDatasetName}.${newTableName}`;
+      }
 
       const isValid =
         dataStorageType === DataStorageType.SNOWFLAKE
@@ -90,14 +111,24 @@ export function TargetSetupStep({
     let newTableName = '';
 
     if (target?.fullyQualifiedName) {
-      const parts = target.fullyQualifiedName.split('.');
+      // Split by dots, but preserve quoted identifiers
+      const parts = target.fullyQualifiedName.match(/(?:[^."]+|"[^"]*")+/g) ?? [];
       if (dataStorageType === DataStorageType.SNOWFLAKE && parts.length === 3) {
-        newDatasetName = parts[0] ?? '';
-        newSchemaName = parts[1] ?? '';
-        newTableName = parts[2] ?? '';
-      } else {
-        newDatasetName = parts[0] ?? '';
-        newTableName = parts[1] ?? '';
+        const dataset = parts[0];
+        const schema = parts[1];
+        const table = parts[2];
+        if (dataset && schema && table) {
+          newDatasetName = dataset;
+          newSchemaName = unquoteIdentifier(schema);
+          newTableName = unquoteIdentifier(table);
+        }
+      } else if (parts.length >= 2) {
+        const dataset = parts[0];
+        const table = parts[1];
+        if (dataset && table) {
+          newDatasetName = dataset;
+          newTableName = table;
+        }
       }
     } else {
       newDatasetName = `${sanitizedConnectorName}_owox`;
@@ -109,8 +140,8 @@ export function TargetSetupStep({
 
     const newDatasetError = validate(newDatasetName);
     const newSchemaError =
-      dataStorageType === DataStorageType.SNOWFLAKE ? validate(newSchemaName) : null;
-    const newTableError = validate(newTableName);
+      dataStorageType === DataStorageType.SNOWFLAKE ? validate(newSchemaName, true) : null;
+    const newTableError = validate(newTableName, dataStorageType === DataStorageType.SNOWFLAKE);
 
     setDatasetName(newDatasetName);
     setSchemaName(newSchemaName);
@@ -121,7 +152,7 @@ export function TargetSetupStep({
 
     const newFullyQualifiedName =
       dataStorageType === DataStorageType.SNOWFLAKE && newSchemaName
-        ? `${newDatasetName}.${newSchemaName}.${newTableName}`
+        ? `${newDatasetName}.${quoteIdentifier(newSchemaName)}.${quoteIdentifier(newTableName)}`
         : `${newDatasetName}.${newTableName}`;
 
     const newIsValid =
@@ -157,14 +188,14 @@ export function TargetSetupStep({
 
   const handleSchemaNameChange = (name: string) => {
     setSchemaName(name);
-    const validationError = validate(name);
+    const validationError = validate(name, true); // Snowflake allows quoted identifiers
     setSchemaError(validationError);
     updateTarget(datasetName, tableName, datasetError, tableError, name, validationError);
   };
 
   const handleTableNameChange = (name: string) => {
     setTableName(name);
-    const validationError = validate(name);
+    const validationError = validate(name, dataStorageType === DataStorageType.SNOWFLAKE);
     setTableError(validationError);
     updateTarget(datasetName, name, datasetError, validationError, schemaName, schemaError);
   };
@@ -366,14 +397,14 @@ export function TargetSetupStep({
               <AppWizardStepLabel
                 required={true}
                 htmlFor='snowflake-schema-name'
-                tooltip='Enter schema name for Snowflake where the connector data will be stored.'
+                tooltip='Enter schema name for Snowflake where the connector data will be stored. Identifiers will be quoted automatically to preserve case sensitivity.'
               >
                 Schema name
               </AppWizardStepLabel>
               <Input
                 type='text'
                 id='snowflake-schema-name'
-                placeholder='Enter schema name'
+                placeholder='PUBLIC'
                 autoComplete='off'
                 className='box-border w-full'
                 value={schemaName}
@@ -398,14 +429,14 @@ export function TargetSetupStep({
               <AppWizardStepLabel
                 required={true}
                 htmlFor='snowflake-table-name'
-                tooltip='Enter table name where the connector data will be stored.'
+                tooltip='Enter table name where the connector data will be stored. Identifiers will be quoted automatically to preserve case sensitivity.'
               >
                 Table name
               </AppWizardStepLabel>
               <Input
                 type='text'
                 id='snowflake-table-name'
-                placeholder='Enter table name'
+                placeholder='my_table'
                 autoComplete='off'
                 className='box-border w-full'
                 value={tableName}

@@ -5,6 +5,21 @@
  * file that was distributed with this source code.
  */
 
+/**
+ * Helper function to quote identifier if not already quoted
+ * @param {string} identifier - The identifier to quote
+ * @returns {string} - Quoted identifier
+ */
+function quoteIdentifier(identifier) {
+  if (!identifier) return identifier;
+  // If already quoted, return as-is
+  if (identifier.startsWith('"') && identifier.endsWith('"')) {
+    return identifier;
+  }
+  // Otherwise, add quotes
+  return `"${identifier}"`;
+}
+
 var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
   //---- constructor -------------------------------------------------
     /**
@@ -244,10 +259,11 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
       await this.executeQuery(createDbQuery);
 
       // Create schema if not exists (quote schema name to preserve case)
-      let createSchemaQuery = `CREATE SCHEMA IF NOT EXISTS ${this.config.SnowflakeDatabase.value}."${this.config.SnowflakeSchema.value}"`;
+      const quotedSchema = quoteIdentifier(this.config.SnowflakeSchema.value);
+      let createSchemaQuery = `CREATE SCHEMA IF NOT EXISTS ${this.config.SnowflakeDatabase.value}.${quotedSchema}`;
       await this.executeQuery(createSchemaQuery);
 
-      this.config.logMessage(`Database and schema ensured: ${this.config.SnowflakeDatabase.value}.${this.config.SnowflakeSchema.value}`);
+      this.config.logMessage(`Database and schema ensured: ${this.config.SnowflakeDatabase.value}.${quotedSchema}`);
 
     }
   //----------------------------------------------------------------
@@ -286,14 +302,16 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
 
       let columnsStr = columns.join(",\n  ");
 
-      let query = `CREATE TABLE IF NOT EXISTS ${this.config.SnowflakeDatabase.value}."${this.config.SnowflakeSchema.value}"."${this.config.DestinationTableName.value}" (\n  ${columnsStr}\n)`;
+      const quotedSchema = quoteIdentifier(this.config.SnowflakeSchema.value);
+      const quotedTable = quoteIdentifier(this.config.DestinationTableName.value);
+      let query = `CREATE TABLE IF NOT EXISTS ${this.config.SnowflakeDatabase.value}.${quotedSchema}.${quotedTable} (\n  ${columnsStr}\n)`;
 
       if( this.description ) {
         query += `\nCOMMENT = '${this.description}'`;
       }
 
       await this.executeQuery(query);
-      this.config.logMessage(`Table ${this.config.SnowflakeDatabase.value}.${this.config.SnowflakeSchema.value}.${this.config.DestinationTableName.value} was created`);
+      this.config.logMessage(`Table ${this.config.SnowflakeDatabase.value}.${quotedSchema}.${quotedTable} was created`);
 
       return existingColumns;
 
@@ -335,10 +353,12 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
 
       // there are columns to add to table
       if( columns.length > 0 ) {
-        let query = `ALTER TABLE ${this.config.SnowflakeDatabase.value}."${this.config.SnowflakeSchema.value}"."${this.config.DestinationTableName.value}"\n`;
+        const quotedSchema = quoteIdentifier(this.config.SnowflakeSchema.value);
+        const quotedTable = quoteIdentifier(this.config.DestinationTableName.value);
+        let query = `ALTER TABLE ${this.config.SnowflakeDatabase.value}.${quotedSchema}.${quotedTable}\n`;
         query += columns.join(",\n");
         await this.executeQuery(query);
-        this.config.logMessage(`Columns '${newColumns.join(",")}' were added to ${this.config.SnowflakeDatabase.value}.${this.config.SnowflakeSchema.value}.${this.config.DestinationTableName.value}`);
+        this.config.logMessage(`Columns '${newColumns.join(",")}' were added to ${this.config.SnowflakeDatabase.value}.${quotedSchema}.${quotedTable}`);
       }
 
     }
@@ -524,7 +544,9 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
 
       let existingColumnsNames = Object.keys(this.existingColumns);
 
-      let fullTableName = `${this.config.SnowflakeDatabase.value}."${this.config.SnowflakeSchema.value}"."${this.config.DestinationTableName.value}"`;
+      const quotedSchema = quoteIdentifier(this.config.SnowflakeSchema.value);
+      const quotedTable = quoteIdentifier(this.config.DestinationTableName.value);
+      let fullTableName = `${this.config.SnowflakeDatabase.value}.${quotedSchema}.${quotedTable}`;
 
       let query = `MERGE INTO ${fullTableName} AS target
 USING (

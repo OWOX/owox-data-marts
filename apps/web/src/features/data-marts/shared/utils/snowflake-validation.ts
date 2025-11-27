@@ -5,29 +5,33 @@
 /**
  * Validates if a string matches the Snowflake fully qualified name pattern
  * Format: database.schema.object
+ * Supports both unquoted and quoted identifiers (e.g., database."SCHEMA"."OBJECT")
  * @param value - The string to validate
  * @returns Boolean indicating if the string is valid
  */
 export const isValidSnowflakeFullyQualifiedName = (value: string): boolean => {
   if (!value) return false;
 
-  // Basic format validation: database.schema.object
-  // Snowflake identifiers can contain letters, numbers, underscores, and dollar signs
-  const snowflakePattern = /^[a-zA-Z0-9_$]+\.[a-zA-Z0-9_$]+\.[a-zA-Z0-9_$]+$/;
+  const identifier = '(?:[a-zA-Z0-9_$]+|"[^"]+")';
+  const snowflakePattern = new RegExp(`^[a-zA-Z0-9_$]+\\.${identifier}\\.${identifier}$`);
   return snowflakePattern.test(value);
 };
 
 /**
  * Validates if a string matches the Snowflake table pattern format
  * Format: database.schema.table_* (with wildcard)
+ * Supports both unquoted and quoted identifiers (e.g., database."SCHEMA".table_*)
  * @param value - The string to validate
  * @returns Boolean indicating if the string is valid
  */
 export const isValidSnowflakeTablePattern = (value: string): boolean => {
   if (!value) return false;
 
+  const schemaIdentifier = '(?:[a-zA-Z0-9_$]+|"[^"]+")';
+  const tablePattern = '(?:[a-zA-Z0-9_$*]+|"[^"]+")';
+
   // Database and schema must be specified explicitly, but table name can have wildcards
-  const patternRegex = /^[a-zA-Z0-9_$]+\.[a-zA-Z0-9_$]+\.[a-zA-Z0-9_$*]+$/;
+  const patternRegex = new RegExp(`^[a-zA-Z0-9_$]+\\.${schemaIdentifier}\\.${tablePattern}$`);
   return patternRegex.test(value);
 };
 

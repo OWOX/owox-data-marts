@@ -13,6 +13,7 @@ import type { DataStorage } from '../../../../data-storage/shared/model/types/da
 import { useConnector } from '../../../shared/model/hooks/useConnector';
 import { useEffect } from 'react';
 import { RawBase64Icon } from '../../../../../shared/icons';
+import { unquoteIdentifier } from '../../utils/snowflake-identifier.utils';
 
 interface ConnectorConfigurationItemProps {
   configIndex: number;
@@ -138,15 +139,17 @@ export function ConnectorConfigurationItem({
         const database = parts[0];
         const schema = parts[1];
         const table = parts[2];
-        const snowflakeConsoleLink = `https://${account}.snowflakecomputing.com/`;
+        const snowflakeConsoleLink = `https://${account}.snowflakecomputing.com`;
+        const databaseLink = `${snowflakeConsoleLink}/#/data/databases/${database}`;
+        const schemaLink = `${snowflakeConsoleLink}/#/data/databases/${database}/schemas/${schema}`;
+        const tableLink = `${snowflakeConsoleLink}/#/data/databases/${database}/schemas/${schema}/table/${table}`;
         return (
           <div className='flex flex-wrap items-center gap-2'>
-            {formatLinkParam('Database', database, snowflakeConsoleLink)}
+            {formatLinkParam('Database', database, databaseLink)}
             <span className='text-muted-foreground'>•</span>
-            <span className='text-muted-foreground/75'>Schema:</span>{' '}
-            <span className='text-muted-foreground font-medium'>{schema}</span>
+            {formatLinkParam('Schema', unquoteIdentifier(schema), schemaLink)}
             <span className='text-muted-foreground'>•</span>
-            {formatLinkParam('Table', table, snowflakeConsoleLink)}
+            {formatLinkParam('Table', unquoteIdentifier(table), tableLink)}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Info className='h-4 w-4' />
