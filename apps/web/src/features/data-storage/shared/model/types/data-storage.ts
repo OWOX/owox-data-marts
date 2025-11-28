@@ -38,8 +38,10 @@ export interface AwsAthenaDataStorage extends BaseDataStorage<
   config: AwsAthenaDataStorageConfig;
 }
 
-export interface SnowflakeDataStorage
-  extends BaseDataStorage<SnowflakeCredentials, SnowflakeDataStorageConfig> {
+export interface SnowflakeDataStorage extends BaseDataStorage<
+  SnowflakeCredentials,
+  SnowflakeDataStorageConfig
+> {
   type: DataStorageType.SNOWFLAKE;
   config: SnowflakeDataStorageConfig;
 }
