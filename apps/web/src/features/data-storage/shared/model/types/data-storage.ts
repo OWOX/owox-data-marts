@@ -2,12 +2,14 @@ import type {
   AwsAthenaCredentials,
   DataStorageCredentials,
   GoogleBigQueryCredentials,
+  SnowflakeCredentials,
 } from './credentials.ts';
 import { DataStorageType } from './data-storage-type.enum.ts';
 import type {
   AwsAthenaDataStorageConfig,
   DataStorageConfig,
   GoogleBigQueryDataStorageConfig,
+  SnowflakeDataStorageConfig,
 } from './data-storage-config.ts';
 
 export interface BaseDataStorage<T extends DataStorageCredentials, C extends DataStorageConfig> {
@@ -36,7 +38,15 @@ export interface AwsAthenaDataStorage extends BaseDataStorage<
   config: AwsAthenaDataStorageConfig;
 }
 
-export type DataStorage = GoogleBigQueryDataStorage | AwsAthenaDataStorage;
+export interface SnowflakeDataStorage extends BaseDataStorage<
+  SnowflakeCredentials,
+  SnowflakeDataStorageConfig
+> {
+  type: DataStorageType.SNOWFLAKE;
+  config: SnowflakeDataStorageConfig;
+}
+
+export type DataStorage = GoogleBigQueryDataStorage | AwsAthenaDataStorage | SnowflakeDataStorage;
 
 export function isGoogleBigQueryStorage(
   storage: DataStorage
@@ -46,4 +56,8 @@ export function isGoogleBigQueryStorage(
 
 export function isAwsAthenaStorage(storage: DataStorage): storage is AwsAthenaDataStorage {
   return storage.type === DataStorageType.AWS_ATHENA;
+}
+
+export function isSnowflakeStorage(storage: DataStorage): storage is SnowflakeDataStorage {
+  return storage.type === DataStorageType.SNOWFLAKE;
 }

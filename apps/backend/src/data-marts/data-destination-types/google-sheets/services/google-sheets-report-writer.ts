@@ -72,6 +72,12 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
 
       this.reportDataHeaders = reportDataDescription.dataHeaders;
 
+      if (this.reportDataHeaders.length === 0) {
+        throw new Error(
+          'Cannot prepare report: Data mart has no connected fields. Please ensure at least one field is connected.'
+        );
+      }
+
       await this.clearSheet();
       await this.writeHeaders();
     }, 'Preparing Google Sheets document for report');
@@ -111,7 +117,7 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
    */
   public async finalize(processingError?: Error): Promise<void> {
     await this.executeWithErrorHandling(async () => {
-      if (this.writtenRowsCount > 0) {
+      if (this.writtenRowsCount > 0 && this.reportDataHeaders?.[0]) {
         const dateNow = DateTime.now().setZone(this.spreadsheetTimeZone);
         const dateNowFormatted = `${dateNow.toFormat('yyyy LLL d, HH:mm:ss')} ${dateNow.zoneName}`;
         const firstColumnDescription = this.reportDataHeaders[0].description;

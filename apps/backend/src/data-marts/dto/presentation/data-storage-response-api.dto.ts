@@ -13,6 +13,11 @@ export type DataStorageCredentialsPublic =
   | {
       // Athena credentials
       accessKeyId: string;
+    }
+  | {
+      // Snowflake credentials
+      authMethod: string;
+      username: string;
     };
 
 export class DataStorageResponseApiDto {

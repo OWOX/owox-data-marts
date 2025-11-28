@@ -9,7 +9,8 @@ import {
   AppWizardStep,
   AppWizardStepHero,
 } from '@owox/ui/components/common/wizard';
-import { GoogleBigQueryIcon, AwsAthenaIcon } from '../../../../../../shared';
+import { GoogleBigQueryIcon, AwsAthenaIcon, SnowflakeIcon } from '../../../../../../shared';
+import { quoteIdentifier, unquoteIdentifier } from '../../../utils/snowflake-identifier.utils';
 
 interface TargetSetupStepProps {
   dataStorageType: DataStorageType;
@@ -30,15 +31,31 @@ export function TargetSetupStep({
   const sanitizedConnectorName = connectorName.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
 
   const [datasetName, setDatasetName] = useState<string>('');
+  const [schemaName, setSchemaName] = useState<string>('');
   const [tableName, setTableName] = useState<string>('');
   const [datasetError, setDatasetError] = useState<string | null>(null);
+  const [schemaError, setSchemaError] = useState<string | null>(null);
   const [tableError, setTableError] = useState<string | null>(null);
 
-  const validate = (name: string): string | null => {
+  const validate = (name: string, allowQuoted = false): string | null => {
     if (!name.trim()) return 'This field is required';
+
+    // For Snowflake, allow quoted identifiers (e.g., "SCHEMA_NAME")
+    // But also allow unquoted identifiers - quotes will be added automatically when saving
+    if (allowQuoted && name.startsWith('"') && name.endsWith('"')) {
+      const unquoted = name.slice(1, -1);
+      if (!unquoted) return 'Quoted identifier cannot be empty';
+      // Validate the content inside quotes - can be anything except empty
+      return null;
+    }
+
+    // Validate unquoted identifiers
     const allowed = /^[A-Za-z][A-Za-z0-9_]*$/;
     if (!allowed.test(name)) {
-      return 'Use letters, numbers, and underscores; start with a letter';
+      const message = allowQuoted
+        ? 'Use letters, numbers, and underscores; start with a letter'
+        : 'Use letters, numbers, and underscores; start with a letter';
+      return message;
     }
     return null;
   };
@@ -48,67 +65,139 @@ export function TargetSetupStep({
       newDatasetName: string,
       newTableName: string,
       newDatasetError: string | null,
-      newTableError: string | null
+      newTableError: string | null,
+      newSchemaName?: string,
+      newSchemaError?: string | null
     ) => {
+      let fullyQualifiedName: string;
+
+      if (dataStorageType === DataStorageType.SNOWFLAKE && newSchemaName) {
+        // For Snowflake: quote schema and table, but not database
+        const quotedSchema = quoteIdentifier(newSchemaName);
+        const quotedTable = quoteIdentifier(newTableName);
+        fullyQualifiedName = `${newDatasetName}.${quotedSchema}.${quotedTable}`;
+      } else {
+        fullyQualifiedName = `${newDatasetName}.${newTableName}`;
+      }
+
+      const isValid =
+        dataStorageType === DataStorageType.SNOWFLAKE
+          ? !!(
+              newDatasetName &&
+              newSchemaName &&
+              newTableName &&
+              newDatasetError === null &&
+              newSchemaError === null &&
+              newTableError === null
+            )
+          : !!(
+              newDatasetName &&
+              newTableName &&
+              newDatasetError === null &&
+              newTableError === null
+            );
+
       onTargetChange({
-        fullyQualifiedName: `${newDatasetName}.${newTableName}`,
-        isValid: !!(
-          newDatasetName &&
-          newTableName &&
-          newDatasetError === null &&
-          newTableError === null
-        ),
+        fullyQualifiedName,
+        isValid,
       });
     },
-    [onTargetChange]
+    [onTargetChange, dataStorageType]
   );
 
   useEffect(() => {
     let newDatasetName = '';
+    let newSchemaName = '';
     let newTableName = '';
 
     if (target?.fullyQualifiedName) {
-      const parts = target.fullyQualifiedName.split('.');
-      newDatasetName = parts[0] ?? '';
-      newTableName = parts[1] ?? '';
+      // Split by dots, but preserve quoted identifiers
+      const parts = target.fullyQualifiedName.match(/(?:[^."]+|"[^"]*")+/g) ?? [];
+      if (dataStorageType === DataStorageType.SNOWFLAKE && parts.length === 3) {
+        const dataset = parts[0];
+        const schema = parts[1];
+        const table = parts[2];
+        if (dataset && schema && table) {
+          newDatasetName = dataset;
+          newSchemaName = unquoteIdentifier(schema);
+          newTableName = unquoteIdentifier(table);
+        }
+      } else if (parts.length >= 2) {
+        const dataset = parts[0];
+        const table = parts[1];
+        if (dataset && table) {
+          newDatasetName = dataset;
+          newTableName = table;
+        }
+      }
     } else {
       newDatasetName = `${sanitizedConnectorName}_owox`;
+      if (dataStorageType === DataStorageType.SNOWFLAKE) {
+        newSchemaName = 'PUBLIC';
+      }
       newTableName = sanitizedDestinationName;
     }
 
     const newDatasetError = validate(newDatasetName);
-    const newTableError = validate(newTableName);
+    const newSchemaError =
+      dataStorageType === DataStorageType.SNOWFLAKE ? validate(newSchemaName, true) : null;
+    const newTableError = validate(newTableName, dataStorageType === DataStorageType.SNOWFLAKE);
 
     setDatasetName(newDatasetName);
+    setSchemaName(newSchemaName);
     setTableName(newTableName);
     setDatasetError(newDatasetError);
+    setSchemaError(newSchemaError);
     setTableError(newTableError);
 
-    const newFullyQualifiedName = `${newDatasetName}.${newTableName}`;
-    const newIsValid = !!(
-      newDatasetName &&
-      newTableName &&
-      newDatasetError === null &&
-      newTableError === null
-    );
+    const newFullyQualifiedName =
+      dataStorageType === DataStorageType.SNOWFLAKE && newSchemaName
+        ? `${newDatasetName}.${quoteIdentifier(newSchemaName)}.${quoteIdentifier(newTableName)}`
+        : `${newDatasetName}.${newTableName}`;
+
+    const newIsValid =
+      dataStorageType === DataStorageType.SNOWFLAKE
+        ? !!(
+            newDatasetName &&
+            newSchemaName &&
+            newTableName &&
+            newDatasetError === null &&
+            newSchemaError === null &&
+            newTableError === null
+          )
+        : !!(newDatasetName && newTableName && newDatasetError === null && newTableError === null);
 
     if (target?.fullyQualifiedName !== newFullyQualifiedName || target.isValid !== newIsValid) {
-      updateTarget(newDatasetName, newTableName, newDatasetError, newTableError);
+      updateTarget(
+        newDatasetName,
+        newTableName,
+        newDatasetError,
+        newTableError,
+        newSchemaName,
+        newSchemaError
+      );
     }
-  }, [target, sanitizedDestinationName, sanitizedConnectorName, updateTarget]);
+  }, [target, sanitizedDestinationName, sanitizedConnectorName, dataStorageType, updateTarget]);
 
   const handleDatasetNameChange = (name: string) => {
     setDatasetName(name);
     const validationError = validate(name);
     setDatasetError(validationError);
-    updateTarget(name, tableName, validationError, tableError);
+    updateTarget(name, tableName, validationError, tableError, schemaName, schemaError);
+  };
+
+  const handleSchemaNameChange = (name: string) => {
+    setSchemaName(name);
+    const validationError = validate(name, true); // Snowflake allows quoted identifiers
+    setSchemaError(validationError);
+    updateTarget(datasetName, tableName, datasetError, tableError, name, validationError);
   };
 
   const handleTableNameChange = (name: string) => {
     setTableName(name);
-    const validationError = validate(name);
+    const validationError = validate(name, dataStorageType === DataStorageType.SNOWFLAKE);
     setTableError(validationError);
-    updateTarget(datasetName, name, datasetError, validationError);
+    updateTarget(datasetName, name, datasetError, validationError, schemaName, schemaError);
   };
 
   return (
@@ -256,6 +345,113 @@ export function TargetSetupStep({
               </p>
               {tableError && (
                 <p id='athena-table-name-error' className='text-destructive text-sm'>
+                  {tableError}
+                </p>
+              )}
+            </AppWizardStepItem>
+          </AppWizardStepSection>
+        </>
+      )}
+      {dataStorageType === DataStorageType.SNOWFLAKE && (
+        <>
+          <AppWizardStepHero
+            icon={<SnowflakeIcon />}
+            title='Snowflake'
+            docUrl='https://docs.owox.com/docs/storages/supported-storages/snowflake/'
+            variant='compact'
+          />
+          <AppWizardStepSection title='Choose where to store your data'>
+            <AppWizardStepItem>
+              <AppWizardStepLabel
+                required={true}
+                htmlFor='snowflake-database-name'
+                tooltip='Enter database name for Snowflake where the connector data will be stored.'
+              >
+                Database name
+              </AppWizardStepLabel>
+              <Input
+                type='text'
+                id='snowflake-database-name'
+                placeholder='Enter database name'
+                autoComplete='off'
+                className='box-border w-full'
+                value={datasetName}
+                aria-invalid={Boolean(datasetError)}
+                aria-describedby={datasetError ? 'snowflake-database-name-error' : undefined}
+                onChange={e => {
+                  handleDatasetNameChange(e.target.value);
+                }}
+                required
+              />
+              <p className='text-muted-foreground text-sm'>
+                Database is auto-created on first run if it doesn't exist
+              </p>
+              {datasetError && (
+                <p id='snowflake-database-name-error' className='text-destructive text-sm'>
+                  {datasetError}
+                </p>
+              )}
+            </AppWizardStepItem>
+
+            <AppWizardStepItem>
+              <AppWizardStepLabel
+                required={true}
+                htmlFor='snowflake-schema-name'
+                tooltip='Enter schema name for Snowflake where the connector data will be stored. Identifiers will be quoted automatically to preserve case sensitivity.'
+              >
+                Schema name
+              </AppWizardStepLabel>
+              <Input
+                type='text'
+                id='snowflake-schema-name'
+                placeholder='PUBLIC'
+                autoComplete='off'
+                className='box-border w-full'
+                value={schemaName}
+                aria-invalid={Boolean(schemaError)}
+                aria-describedby={schemaError ? 'snowflake-schema-name-error' : undefined}
+                onChange={e => {
+                  handleSchemaNameChange(e.target.value);
+                }}
+                required
+              />
+              <p className='text-muted-foreground text-sm'>
+                Schema is auto-created on first run if it doesn't exist
+              </p>
+              {schemaError && (
+                <p id='snowflake-schema-name-error' className='text-destructive text-sm'>
+                  {schemaError}
+                </p>
+              )}
+            </AppWizardStepItem>
+
+            <AppWizardStepItem>
+              <AppWizardStepLabel
+                required={true}
+                htmlFor='snowflake-table-name'
+                tooltip='Enter table name where the connector data will be stored. Identifiers will be quoted automatically to preserve case sensitivity.'
+              >
+                Table name
+              </AppWizardStepLabel>
+              <Input
+                type='text'
+                id='snowflake-table-name'
+                placeholder='my_table'
+                autoComplete='off'
+                className='box-border w-full'
+                value={tableName}
+                aria-invalid={Boolean(tableError)}
+                aria-describedby={tableError ? 'snowflake-table-name-error' : undefined}
+                onChange={e => {
+                  handleTableNameChange(e.target.value);
+                }}
+                required
+              />
+              <p className='text-muted-foreground text-sm'>
+                Table is auto-created on first run if it doesn't exist
+              </p>
+              {tableError && (
+                <p id='snowflake-table-name-error' className='text-destructive text-sm'>
                   {tableError}
                 </p>
               )}

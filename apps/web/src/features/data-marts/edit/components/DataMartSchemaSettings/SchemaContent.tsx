@@ -4,9 +4,10 @@ import type {
   AthenaSchemaField,
   BigQuerySchemaField,
   DataMartSchema,
+  SnowflakeSchemaField,
 } from '../../../shared/types/data-mart-schema.types';
-import { AthenaSchemaTable, BigQuerySchemaTable } from './tables';
-import { createInitialSchema, isAthenaSchema, isBigQuerySchema } from './utils';
+import { AthenaSchemaTable, BigQuerySchemaTable, SnowflakeSchemaTable } from './tables';
+import { createInitialSchema, isAthenaSchema, isBigQuerySchema, isSnowflakeSchema } from './utils';
 
 /**
  * Props for the SchemaContent component
@@ -17,7 +18,9 @@ interface SchemaContentProps {
   /** The storage type of the data mart */
   storageType: DataStorageType;
   /** Callback function to call when the fields change */
-  onFieldsChange: (fields: BigQuerySchemaField[] | AthenaSchemaField[]) => void;
+  onFieldsChange: (
+    fields: BigQuerySchemaField[] | AthenaSchemaField[] | SnowflakeSchemaField[]
+  ) => void;
 }
 
 /**
@@ -41,6 +44,8 @@ export function SchemaContent({ schema, storageType, onFieldsChange }: SchemaCon
     return <BigQuerySchemaTable fields={initialSchema.fields} onFieldsChange={onFieldsChange} />;
   } else if (isAthenaSchema(initialSchema)) {
     return <AthenaSchemaTable fields={initialSchema.fields} onFieldsChange={onFieldsChange} />;
+  } else if (isSnowflakeSchema(initialSchema)) {
+    return <SnowflakeSchemaTable fields={initialSchema.fields} onFieldsChange={onFieldsChange} />;
   }
 
   // Fallback for unsupported schema types

@@ -7,6 +7,9 @@ const AdmZip = require('adm-zip');
 // Google BigQuery
 const { BigQuery } = require('@google-cloud/bigquery');
 
+// Snowflake
+const snowflake = require('snowflake-sdk');
+
 // AWS SDK
 const {
   AthenaClient,
@@ -29,6 +32,7 @@ const { Upload } = require('@aws-sdk/lib-storage');
 global.OWOX = OWOX;
 global.AdmZip = AdmZip;
 global.BigQuery = BigQuery;
+global.snowflake = snowflake;
 
 // AWS Athena
 global.AthenaClient = AthenaClient;

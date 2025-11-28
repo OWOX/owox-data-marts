@@ -558,6 +558,7 @@ export default defineConfig({
         '@aws-sdk/client-athena',
         '@aws-sdk/client-s3',
         '@aws-sdk/lib-storage',
+        'snowflake-sdk',
       ],
       output: {
         preserveModules: false,

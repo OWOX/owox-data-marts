@@ -13,6 +13,8 @@ export function isDataStorageConfigValid(storage: DataStorage): boolean {
       return Boolean(storage.config.projectId && storage.config.location);
     case DataStorageType.AWS_ATHENA:
       return Boolean(storage.config.region && storage.config.outputBucket);
+    case DataStorageType.SNOWFLAKE:
+      return Boolean(storage.config.account && storage.config.warehouse);
     default:
       return false;
   }

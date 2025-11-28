@@ -34,7 +34,7 @@ export const DataStorageTypeModel = {
       type: DataStorageType.SNOWFLAKE,
       displayName: 'Snowflake',
       icon: SnowflakeIcon,
-      status: DataStorageStatus.COMING_SOON,
+      status: DataStorageStatus.ACTIVE,
     },
     [DataStorageType.DATABRICKS]: {
       type: DataStorageType.DATABRICKS,

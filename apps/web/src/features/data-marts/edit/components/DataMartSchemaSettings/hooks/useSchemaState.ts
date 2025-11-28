@@ -3,8 +3,16 @@ import type {
   AthenaSchemaField,
   BigQuerySchemaField,
   DataMartSchema,
+  SnowflakeSchemaField,
 } from '../../../../shared/types/data-mart-schema.types';
-import { isAthenaField, isAthenaSchema, isBigQueryField, isBigQuerySchema } from '../utils';
+import {
+  isAthenaField,
+  isAthenaSchema,
+  isBigQueryField,
+  isBigQuerySchema,
+  isSnowflakeField,
+  isSnowflakeSchema,
+} from '../utils';
 
 /**
  * Helper function to safely deep clone a schema object
@@ -43,7 +51,7 @@ export function useSchemaState(initialSchema: DataMartSchema | null | undefined)
    * If schema is null or undefined, creates a new schema based on field types.
    */
   const updateSchema = useCallback(
-    (newFields: BigQuerySchemaField[] | AthenaSchemaField[]) => {
+    (newFields: BigQuerySchemaField[] | AthenaSchemaField[] | SnowflakeSchemaField[]) => {
       if (schema) {
         if (isBigQuerySchema(schema) && newFields.every(isBigQueryField)) {
           setSchema({
@@ -52,6 +60,12 @@ export function useSchemaState(initialSchema: DataMartSchema | null | undefined)
           });
           setIsDirty(true);
         } else if (isAthenaSchema(schema) && newFields.every(isAthenaField)) {
+          setSchema({
+            ...schema,
+            fields: newFields,
+          });
+          setIsDirty(true);
+        } else if (isSnowflakeSchema(schema) && newFields.every(isSnowflakeField)) {
           setSchema({
             ...schema,
             fields: newFields,
@@ -71,6 +85,12 @@ export function useSchemaState(initialSchema: DataMartSchema | null | undefined)
             setSchema({
               type: 'athena-data-mart-schema',
               fields: newFields as AthenaSchemaField[],
+            });
+            setIsDirty(true);
+          } else if (isSnowflakeField(newFields[0])) {
+            setSchema({
+              type: 'snowflake-data-mart-schema',
+              fields: newFields as SnowflakeSchemaField[],
             });
             setIsDirty(true);
           }
