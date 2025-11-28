@@ -23,6 +23,8 @@ import { BigQueryConfig } from '../data-storage-types/bigquery/schemas/bigquery-
 import { AthenaConfig } from '../data-storage-types/athena/schemas/athena-config.schema';
 import { AthenaCredentials } from '../data-storage-types/athena/schemas/athena-credentials.schema';
 import { BigQueryCredentials } from '../data-storage-types/bigquery/schemas/bigquery-credentials.schema';
+import { SnowflakeConfig } from '../data-storage-types/snowflake/schemas/snowflake-config.schema';
+import { SnowflakeCredentials } from '../data-storage-types/snowflake/schemas/snowflake-credentials.schema';
 import { ConnectorMessage } from '../connector-types/connector-message/schemas/connector-message.schema';
 import { ConnectorOutputCaptureService } from '../connector-types/connector-message/services/connector-output-capture.service';
 import { ConnectorMessageType } from '../connector-types/enums/connector-message-type-enum';
@@ -618,6 +620,9 @@ export class ConnectorExecutionService {
       case DataStorageType.AWS_ATHENA:
         return this.createAthenaStorageConfig(dataMart, connector);
 
+      case DataStorageType.SNOWFLAKE:
+        return this.createSnowflakeStorageConfig(dataMart, connector);
+
       default:
         throw new ConnectorExecutionError(
           `Unsupported storage type: ${dataMart.storage.type}`,
@@ -671,6 +676,52 @@ export class ConnectorExecutionService {
         AthenaDatabaseName: connector.storage?.fullyQualifiedName.split('.')[0],
         DestinationTableNameOverride: `${connector.source.node} ${connector.storage?.fullyQualifiedName.split('.')[1]}`,
         AthenaOutputLocation: `s3://${clearBucketName}/owox-data-marts/${dataMart.id}`,
+      },
+    });
+  }
+
+  private createSnowflakeStorageConfig(
+    dataMart: DataMart,
+    connector: DataMartConnectorDefinition['connector']
+  ): StorageConfigDto {
+    const storageConfig = dataMart.storage.config as SnowflakeConfig;
+    const credentials = dataMart.storage.credentials as SnowflakeCredentials;
+
+    const fqnParts = connector.storage?.fullyQualifiedName.split('.') || [];
+    const database = fqnParts[0];
+    const schema = fqnParts[1];
+    const tableName = fqnParts[2];
+
+    const baseConfig = {
+      SnowflakeAccount: storageConfig.account,
+      SnowflakeWarehouse: storageConfig.warehouse,
+      SnowflakeDatabase: database,
+      SnowflakeSchema: schema,
+      SnowflakeRole: storageConfig.role || '',
+      DestinationTableNameOverride: `${connector.source.node} ${tableName}`,
+      SnowflakeUsername: credentials.username,
+    };
+
+    const authConfig =
+      credentials.authMethod === 'PASSWORD'
+        ? {
+            SnowflakePassword: credentials.password,
+            SnowflakeAuthenticator: 'SNOWFLAKE',
+            SnowflakePrivateKey: '',
+            SnowflakePrivateKeyPassphrase: '',
+          }
+        : {
+            SnowflakePassword: '',
+            SnowflakeAuthenticator: 'SNOWFLAKE_JWT',
+            SnowflakePrivateKey: credentials.privateKey,
+            SnowflakePrivateKeyPassphrase: credentials.privateKeyPassphrase || '',
+          };
+
+    return new StorageConfigDto({
+      name: DataStorageType.SNOWFLAKE,
+      config: {
+        ...baseConfig,
+        ...authConfig,
       },
     });
   }

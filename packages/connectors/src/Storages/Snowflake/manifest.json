@@ -1,0 +1,20 @@
+{
+  "name": "SnowflakeStorage",
+  "description": "Storage for Snowflake Data Warehouse",
+  "title": "Snowflake",
+  "version": "0.0.0",
+  "author": "OWOX, Inc.",
+  "license": "MIT",
+  "environment": {
+    "node": {
+      "enabled": true,
+      "dependencies": [
+        {
+          "name": "snowflake-sdk",
+          "version": "^1.6.20",
+          "global": ["snowflake"]
+        }
+      ]
+    }
+  }
+}

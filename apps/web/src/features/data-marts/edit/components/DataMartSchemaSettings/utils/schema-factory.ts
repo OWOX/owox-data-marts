@@ -12,6 +12,8 @@ export function createInitialSchema(storageType: DataStorageType): DataMartSchem
       return { type: 'bigquery-data-mart-schema', fields: [] };
     case DataStorageType.AWS_ATHENA:
       return { type: 'athena-data-mart-schema', fields: [] };
+    case DataStorageType.SNOWFLAKE:
+      return { type: 'snowflake-data-mart-schema', fields: [] };
     default:
       throw new Error(`Unsupported storage type: ${storageType}`);
   }

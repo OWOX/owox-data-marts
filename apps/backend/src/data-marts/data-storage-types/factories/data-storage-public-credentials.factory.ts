@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AthenaCredentialsSchema } from '../athena/schemas/athena-credentials.schema';
 import { BigQueryCredentialsSchema } from '../bigquery/schemas/bigquery-credentials.schema';
+import { SnowflakeCredentialsSchema } from '../snowflake/schemas/snowflake-credentials.schema';
 import { DataStorageType } from '../enums/data-storage-type.enum';
 import { DataStorageCredentialsPublic } from '../../dto/presentation/data-storage-response-api.dto';
 
@@ -26,6 +27,14 @@ export class DataStoragePublicCredentialsFactory {
         const validatedCredentials = AthenaCredentialsSchema.parse(credentials);
         return {
           accessKeyId: validatedCredentials.accessKeyId,
+        };
+      }
+
+      case DataStorageType.SNOWFLAKE: {
+        const validatedCredentials = SnowflakeCredentialsSchema.parse(credentials);
+        return {
+          authMethod: validatedCredentials.authMethod,
+          username: validatedCredentials.username,
         };
       }
 

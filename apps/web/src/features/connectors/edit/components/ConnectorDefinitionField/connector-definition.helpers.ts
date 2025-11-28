@@ -7,6 +7,8 @@ export const getStorageDisplayName = (type: DataStorageType) => {
       return 'Google BigQuery';
     case DataStorageType.AWS_ATHENA:
       return 'AWS Athena';
+    case DataStorageType.SNOWFLAKE:
+      return 'Snowflake';
     default:
       return type;
   }
@@ -31,8 +33,8 @@ export const isConnectorConfigured = (value: ConnectorDefinitionConfig): boolean
     Boolean(source.fields) &&
     source.fields.length > 0;
 
-  const hasValidStorage =
-    Boolean(storage.fullyQualifiedName) && storage.fullyQualifiedName.split('.').length === 2;
+  const parts = storage.fullyQualifiedName.split('.');
+  const hasValidStorage = parts.length === 2 || parts.length === 3;
 
   return hasValidSource && hasValidStorage;
 };
