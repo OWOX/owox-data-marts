@@ -10,11 +10,11 @@ import type { SnowflakeDataStorage } from '../types/data-storage.ts';
 
 export class SnowflakeMapper implements StorageMapper {
   mapFromDto(dto: DataStorageResponseDto): SnowflakeDataStorage {
-    const config = dto.config as SnowflakeConfigDto;
-    const credentials = dto.credentials as SnowflakeCredentialsDto;
+    const config = dto.config as SnowflakeConfigDto | undefined;
+    const credentials = dto.credentials as SnowflakeCredentialsDto | undefined;
 
-    const mappedCredentials: SnowflakeCredentials =
-      credentials.authMethod === 'KEY_PAIR'
+    const mappedCredentials: SnowflakeCredentials | undefined = credentials
+      ? credentials.authMethod === 'KEY_PAIR'
         ? {
             authMethod: SnowflakeAuthMethod.KEY_PAIR,
             username: credentials.username ?? '',
@@ -25,7 +25,8 @@ export class SnowflakeMapper implements StorageMapper {
             authMethod: SnowflakeAuthMethod.PASSWORD,
             username: credentials.username ?? '',
             password: credentials.password ?? '',
-          };
+          }
+      : undefined;
 
     return {
       id: dto.id,
@@ -33,11 +34,20 @@ export class SnowflakeMapper implements StorageMapper {
       type: DataStorageType.SNOWFLAKE,
       createdAt: new Date(dto.createdAt),
       modifiedAt: new Date(dto.modifiedAt),
-      credentials: mappedCredentials,
-      config: {
-        account: config.account,
-        warehouse: config.warehouse,
+      credentials: mappedCredentials ?? {
+        authMethod: SnowflakeAuthMethod.PASSWORD,
+        username: '',
+        password: '',
       },
+      config: config
+        ? {
+            account: config.account,
+            warehouse: config.warehouse,
+          }
+        : {
+            account: '',
+            warehouse: '',
+          },
     };
   }
 
