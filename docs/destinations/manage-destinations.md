@@ -1,14 +1,16 @@
 # Destination Management
 
-**Destination** is an interface or application used by business users to access the data.  
-Supported destinations include **Google Sheets**, **Looker Studio**, **Email**, **Slack**, **Microsoft Teams**, and **Google Chat**. In the near future, we will add support for OData-compatible tools like Excel, Tableau, and Power BI. 
+**Destination** is an interface or application used by business users to access the data.
 
-### List of Destinations
+Supported destinations include **Google Sheets**, **Looker Studio**, **Email**, **Slack**, **Microsoft Teams**, and **Google Chat**. In the near future, we will add support for OData-compatible tools like Excel, Tableau, and Power BI.
+
+## List of Destinations
+
 ![Destinations](../res/screens/destinations-table.png)
 
 > ☝️ **Email**, **Slack**, **Microsoft Teams**, and **Google Chat** Destinations available in the **Team plan** for [OWOX Cloud Editions](../editions/owox-cloud-editions.md), and in the **Enterprise plan** for the [Self-Managed Editions](../editions/self-managed-editions.md).
 
-### Created Destinations on the Data Mart page
+## Created Destinations on the Data Mart page
 
 Each **Data Mart** can be linked to multiple **Destinations**, allowing the data to be used in different ways.
 ![Destinations](../res/screens/destinations-tab-in-data-mart-page.png)

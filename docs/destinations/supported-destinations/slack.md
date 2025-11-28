@@ -4,7 +4,6 @@ Configure **Slack** as a Destination in OWOX Data Marts to allow business users 
 
 For example, you may want to notify a stakeholder in a Slack channel every time a scheduled run produces updated data (such as new results from the Facebook Ads connector). You can also choose to receive a message only when the run result is empty.
 
-
 ---
 
 ## Configuration Steps
