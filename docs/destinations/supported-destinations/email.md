@@ -79,17 +79,4 @@ Select this report and specify the schedule for automatic execution.
 
 ---
 
-## Self-service Email Provider Configuration
-
-If you are using a Self-Managed edition of OWOX Data Marts, you can configure the Email provider in the environment file. For example:
-
-```env
-EMAIL_PROVIDER=sendgrid
-SENDGRID_API_KEY=******
-SENDGRID_VERIFIED_SENDER_EMAIL=your_address@company.com
-SENDGRID_VERIFIED_SENDER_NAME=Your Name
-```
-
----
-
 Have questions? Join the [OWOX Community](https://github.com/OWOX/owox-data-marts/discussions).
