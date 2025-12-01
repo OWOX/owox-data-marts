@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { DataMartRunStatus } from '../../../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../../../enums/data-mart-run-type.enum';
 import { RunType } from '../../../../common/scheduler/shared/types';
+import { UserProjectionSchema } from '../user-projection.schema';
 import { DataMartRunReportDefinitionSchema } from './data-mart-run-report-definition.schema';
 import { DataMartDefinitionSchema } from '../data-mart-table-definitions/data-mart-definition.schema';
 import { DataMartRunInsightDefinitionSchema } from './data-mart-run-insight-definition.schema';
@@ -22,6 +23,7 @@ export const DataMartRunSchema = z.object({
   createdAt: z.date(),
   startedAt: z.date().nullable(),
   finishedAt: z.date().nullable(),
+  createdByUser: UserProjectionSchema.nullable(),
 });
 
 export type DataMartRun = z.infer<typeof DataMartRunSchema>;

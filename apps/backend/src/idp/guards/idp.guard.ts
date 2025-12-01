@@ -6,6 +6,7 @@ import {
   Payload,
   Role as RoleType,
 } from '@owox/idp-protocol';
+import { IdpProjectionsService } from '../services/idp-projections.service';
 import { Strategy } from '../types';
 import type { RoleConfig } from '../types';
 import { Reflector } from '@nestjs/core';
@@ -29,12 +30,15 @@ export interface AuthenticatedRequest extends Request {
 
 export const AUTH_CONTEXT = 'AuthContext';
 
+const STATE_CHANGING_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
+
 @Injectable()
 export class IdpGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
     private idpProviderService: IdpProviderService,
-    private readonly cls: ClsService
+    private readonly cls: ClsService,
+    private readonly idpProjectionsService: IdpProjectionsService
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -71,6 +75,11 @@ export class IdpGuard implements CanActivate {
         projectId: tokenPayload.projectId,
         roles: tokenPayload.roles,
       });
+
+      if (request && STATE_CHANGING_METHODS.includes(request.method)) {
+        // Update IDP projections in the background
+        void this.idpProjectionsService.updateProjectionsFromIdpPayload(tokenPayload);
+      }
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error;

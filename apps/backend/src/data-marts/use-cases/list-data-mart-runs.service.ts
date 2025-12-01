@@ -4,12 +4,14 @@ import { GetDataMartRunsCommand } from '../dto/domain/get-data-mart-runs.command
 import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { DataMartRunService } from '../services/data-mart-run.service';
 import { DataMartService } from '../services/data-mart.service';
+import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
 
 @Injectable()
 export class ListDataMartRunsService {
   constructor(
     private readonly dataMartService: DataMartService,
     private readonly dataMartRunService: DataMartRunService,
+    private readonly userProjectionsFetcherService: UserProjectionsFetcherService,
     private readonly mapper: DataMartMapper
   ) {}
 
@@ -22,6 +24,9 @@ export class ListDataMartRunsService {
       command.offset
     );
 
-    return this.mapper.toDataMartRunDtoList(runs);
+    const userProjections =
+      await this.userProjectionsFetcherService.fetchRelevantUserProjections(runs);
+
+    return this.mapper.toDataMartRunDtoList(runs, userProjections);
   }
 }

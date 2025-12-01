@@ -9,6 +9,7 @@ import {
   UpdateDateColumn,
   DeleteDateColumn,
 } from 'typeorm';
+import { CreatorAwareEntity } from './creator-aware-entity.interface';
 import { DataStorage } from './data-storage.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
@@ -18,7 +19,7 @@ import { createZodTransformer } from '../../common/zod/zod-transformer';
 import { ConnectorState } from './connector-state.entity';
 
 @Entity()
-export class DataMart {
+export class DataMart implements CreatorAwareEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 

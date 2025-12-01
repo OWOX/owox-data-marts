@@ -3,6 +3,7 @@ import type { DataMartRunTriggerType, DataMartRunType } from '../../../shared';
 import type { DataMartRunReportDefinition } from './data-mart-run-report-definition';
 import type { DataMartRunInsightDefinition } from './data-mart-run-insight-definition';
 import { DataMartRunStatus } from '../../../shared';
+import type { UserProjection } from '../../../../../shared/types';
 
 export interface DataMartRunItem {
   id: string;
@@ -19,4 +20,5 @@ export interface DataMartRunItem {
   reportId: string | null;
   insightDefinition: DataMartRunInsightDefinition | null;
   insightId: string | null;
+  createdByUser: UserProjection | null;
 }

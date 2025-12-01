@@ -6,4 +6,5 @@ export enum DataMartColumnKey {
   TRIGGERS_COUNT = 'triggersCount',
   REPORTS_COUNT = 'reportsCount',
   CREATED_AT = 'createdAt',
+  CREATED_BY_USER = 'createdByUser',
 }

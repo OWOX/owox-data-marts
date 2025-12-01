@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { DataMartDefinitionType } from '../../enums/data-mart-definition-type.enum';
 import { DataMartDefinition } from '../schemas/data-mart-table-definitions/data-mart-definition';
 import { DataMartStatus } from '../../enums/data-mart-status.enum';
+import { UserProjection } from '../schemas/user-projection.schema';
 import { DataStorageResponseApiDto } from './data-storage-response-api.dto';
 import { DataMartSchema } from '../../data-storage-types/data-mart-schema.type';
 import { ConnectorState as ConnectorStateData } from '../../connector-types/interfaces/connector-state';
@@ -40,6 +41,9 @@ export class DataMartResponseApiDto {
 
   @ApiProperty({ example: 2 })
   reportsCount: number;
+
+  @ApiProperty()
+  createdByUser: UserProjection | null;
 
   @ApiProperty({ example: '2024-01-01T12:00:00.000Z' })
   createdAt: Date;

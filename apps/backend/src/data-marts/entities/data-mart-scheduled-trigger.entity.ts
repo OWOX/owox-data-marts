@@ -1,6 +1,7 @@
 import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
 import { ScheduledTrigger } from '../../common/scheduler/shared/entities/scheduled-trigger.entity';
 import { createZodTransformer } from '../../common/zod/zod-transformer';
+import { CreatorAwareEntity } from './creator-aware-entity.interface';
 import { DataMart } from './data-mart.entity';
 import { ScheduledTriggerType } from '../scheduled-trigger-types/enums/scheduled-trigger-type.enum';
 import {
@@ -12,7 +13,7 @@ import {
  * Entity representing a scheduled trigger for a data mart
  */
 @Entity()
-export class DataMartScheduledTrigger extends ScheduledTrigger {
+export class DataMartScheduledTrigger extends ScheduledTrigger implements CreatorAwareEntity {
   @Column()
   type: ScheduledTriggerType;
 
