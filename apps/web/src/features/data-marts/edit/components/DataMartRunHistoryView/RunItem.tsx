@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { ChevronRight } from 'lucide-react';
-import { UserReference } from '../../../../../shared/components/UserReference/UserReference.tsx';
+import { UserReference } from '../../../../../shared/components/UserReference';
 import { StatusBadge } from './StatusBadge';
 import { LogControls } from './LogControls';
 import { StructuredLogsView } from './StructuredLogsView';

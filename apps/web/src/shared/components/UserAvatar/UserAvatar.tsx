@@ -1,8 +1,4 @@
-export enum UserAvatarSize {
-  LARGE = 'LARGE',
-  NORMAL = 'NORMAL',
-  SMALL = 'SMALL',
-}
+import { UserAvatarSize } from './UserAvatar.types.ts';
 
 export function UserAvatar({
   avatar,

@@ -28,6 +28,9 @@ export class IdpProjectionsService {
   }
 
   public async getUserProjectionList(userIds: string[]): Promise<UserProjection[]> {
+    if (!userIds || userIds.length === 0) {
+      return [];
+    }
     return await this.usersRepository.find({ where: { userId: In(userIds) } });
   }
 

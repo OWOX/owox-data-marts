@@ -1,5 +1,5 @@
 import { type ColumnDef } from '@tanstack/react-table';
-import { UserReference } from '../../../../../../shared/components/UserReference/UserReference.tsx';
+import { UserReference } from '../../../../../../shared/components/UserReference';
 import type { DataMartListItem } from '../../../model/types';
 import { type DataMartStatusInfo, getDataMartStatusType } from '../../../../shared';
 import { StatusLabel } from '../../../../../../shared/components/StatusLabel';
