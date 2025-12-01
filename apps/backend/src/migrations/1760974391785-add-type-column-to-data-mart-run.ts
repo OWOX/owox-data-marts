@@ -1,13 +1,16 @@
 import { MigrationInterface, QueryRunner, TableColumn, TableIndex } from 'typeorm';
+import { getTable } from './migration-utils';
 
 export class AddTypeColumnToDataMartRun1760974391785 implements MigrationInterface {
   private readonly TABLE_NAME = 'data_mart_run';
   public readonly name = 'AddTypeColumnToDataMartRun1760974391785';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    const table = await getTable(queryRunner, this.TABLE_NAME);
+
     // Add Type Column
     await queryRunner.addColumn(
-      this.TABLE_NAME,
+      table,
       new TableColumn({
         name: 'type',
         type: 'varchar',
@@ -21,7 +24,7 @@ export class AddTypeColumnToDataMartRun1760974391785 implements MigrationInterfa
 
     // Add Index for Type Column
     await queryRunner.createIndex(
-      this.TABLE_NAME,
+      table,
       new TableIndex({
         name: 'idx_dmr_type',
         columnNames: ['type'],
@@ -30,7 +33,9 @@ export class AddTypeColumnToDataMartRun1760974391785 implements MigrationInterfa
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.dropIndex(this.TABLE_NAME, 'idx_dmr_type');
-    await queryRunner.dropColumn(this.TABLE_NAME, 'type');
+    const table = await getTable(queryRunner, this.TABLE_NAME);
+
+    await queryRunner.dropIndex(table, 'idx_dmr_type');
+    await queryRunner.dropColumn(table, 'type');
   }
 }

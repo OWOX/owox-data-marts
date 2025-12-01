@@ -1,4 +1,4 @@
-import { DataSource, QueryRunner } from 'typeorm';
+import { DataSource, QueryRunner, Table } from 'typeorm';
 
 import { createLogger } from '../common/logger/logger.service';
 
@@ -7,6 +7,24 @@ const WAIT_DELAY_SECONDS = 5; // Wait 5 seconds between retries
 const MAX_WAIT_SECONDS = 5 * 60; // Max 5 minutes total
 
 const logger = createLogger('MigrationService');
+
+/**
+ * Retrieves table from database and ensures it exists.
+ * This is critical for SQLite migrations to refresh cache and prevent column loss.
+ * @param queryRunner - TypeORM query runner instance
+ * @param tableName - Name of the table to retrieve
+ * @returns Table instance
+ * @throws {Error} When table doesn't exist
+ */
+export async function getTable(queryRunner: QueryRunner, tableName: string): Promise<Table> {
+  const table = await queryRunner.getTable(tableName);
+
+  if (!table) {
+    throw new Error(`Table ${tableName} not found!`);
+  }
+
+  return table;
+}
 
 /**
  * Instead of dropping tables, rename them to preserve data.
