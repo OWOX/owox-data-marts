@@ -89,6 +89,7 @@ export class InsightExecutionService {
         dataMartId: dataMart.id,
         projectId: dataMart.projectId,
         runId: dataMartRun.id,
+        userId: createdById,
       });
     });
 
@@ -218,6 +219,7 @@ export class InsightExecutionService {
         dataMartId: dataMart.id,
         projectId: dataMart.projectId,
         runId,
+        userId: run.createdById,
       });
     } finally {
       const updatePayload: Record<string, unknown> = {
