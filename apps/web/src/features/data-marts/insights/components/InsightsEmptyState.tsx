@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, ArrowUpRightIcon } from 'lucide-react';
+import { Plus, Sparkles } from 'lucide-react';
 
 import { Button } from '@owox/ui/components/button';
 import {
@@ -35,23 +35,17 @@ export const InsightsEmptyState = () => {
         <EmptyMedia variant='icon'>
           <Sparkles />
         </EmptyMedia>
-        <EmptyTitle>No Insights Yet</EmptyTitle>
+        <EmptyTitle>Create your first Insight</EmptyTitle>
         <EmptyDescription>
-          You haven't created any insights yet. Get started by creating your first insight.
+          Create an Insight to prompt your Data Mart and discover the story behind your data.
         </EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
-        <div className='flex gap-2'>
-          <Button onClick={handleCreateInsight} disabled={insightLoading}>
-            Create Insight
-          </Button>
-        </div>
+        <Button variant='outline' onClick={handleCreateInsight} disabled={insightLoading}>
+          <Plus className='h-4 w-4' />
+          New Insight
+        </Button>
       </EmptyContent>
-      <Button variant='link' asChild className='text-muted-foreground' size='sm'>
-        <a href='#'>
-          Learn More <ArrowUpRightIcon />
-        </a>
-      </Button>
     </Empty>
   );
 };

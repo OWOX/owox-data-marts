@@ -1,18 +1,11 @@
 import type { ColumnDef } from '@tanstack/react-table';
-import { Button } from '@owox/ui/components/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@owox/ui/components/dropdown-menu';
-import { MoreHorizontal, Trash2 } from 'lucide-react';
+import { InsightActionsCell } from '../InsightsTable/InsightActionsCell';
 import { SortableHeader, ToggleColumnsHeader } from '../../../../../shared/components/Table';
 
 export interface InsightTableItem {
   id: string;
   title: string;
-  lastUpdated: Date;
+  lastRun: Date;
 }
 
 interface InsightColumnsProps {
@@ -35,12 +28,12 @@ export const getInsightColumns = ({
     meta: { title: 'Title' },
   },
   {
-    accessorKey: 'lastUpdated',
+    accessorKey: 'lastRun',
     size: 50, // responsive width in %
     sortDescFirst: true,
-    header: ({ column }) => <SortableHeader column={column}>Last updated</SortableHeader>,
+    header: ({ column }) => <SortableHeader column={column}>Last run</SortableHeader>,
     cell: ({ row }) => {
-      const date = row.getValue<Date>('lastUpdated');
+      const date = row.getValue<Date>('lastRun');
       const formatted = new Intl.DateTimeFormat('en-US', {
         year: 'numeric',
         month: 'short',
@@ -50,41 +43,13 @@ export const getInsightColumns = ({
       }).format(date);
       return <div className='text-muted-foreground'>{formatted}</div>;
     },
-    meta: { title: 'Last updated' },
+    meta: { title: 'Last run' },
   },
   {
     id: 'actions',
-    size: 80, // fixed width in pixels
+    size: 80,
     header: ({ table }) => <ToggleColumnsHeader table={table} />,
-    cell: ({ row }) => (
-      <div
-        className='actions-cell text-right'
-        onClick={e => {
-          e.stopPropagation();
-        }}
-      >
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant='ghost'
-              className='dm-card-table-body-row-actionbtn opacity-0 transition-opacity group-hover:opacity-100'
-              aria-label='Open menu'
-            >
-              <MoreHorizontal className='dm-card-table-body-row-actionbtn-icon' />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='end'>
-            <DropdownMenuItem
-              className='text-destructive'
-              onClick={() => onDelete?.(row.original.id)}
-            >
-              <Trash2 className='mr-2 h-4 w-4 text-red-600' />
-              <span className='text-red-600'>Delete insight</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    ),
+    cell: ({ row }) => <InsightActionsCell id={row.original.id} onDelete={onDelete} />,
     meta: { title: 'Actions' },
   },
 ];

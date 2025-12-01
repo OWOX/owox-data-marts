@@ -58,17 +58,19 @@ export default function InsightsListSection() {
         <CollapsibleCardHeaderTitle tooltip='Manage and review your insights' icon={Sparkles}>
           Insights
         </CollapsibleCardHeaderTitle>
-        <CollapsibleCardHeaderActions>
-          <Button
-            variant='outline'
-            aria-label='Add new insight'
-            disabled={insightLoading}
-            onClick={handleCreateClick}
-          >
-            <Plus className='h-4 w-4' aria-hidden='true' />
-            New insight
-          </Button>
-        </CollapsibleCardHeaderActions>
+        {hasInsights && (
+          <CollapsibleCardHeaderActions>
+            <Button
+              variant='outline'
+              aria-label='Add new insight'
+              disabled={insightLoading}
+              onClick={handleCreateClick}
+            >
+              <Plus className='h-4 w-4' aria-hidden='true' />
+              New insight
+            </Button>
+          </CollapsibleCardHeaderActions>
+        )}
       </CollapsibleCardHeader>
       <CollapsibleCardContent>
         {isLoading && !hasInsights ? (
@@ -80,7 +82,7 @@ export default function InsightsListSection() {
             items={insights.map(r => ({
               id: r.id,
               title: r.title,
-              lastUpdated: r.modifiedAt,
+              lastRun: r.modifiedAt,
             }))}
             onRowClick={handleRowClick}
             onDelete={id => {

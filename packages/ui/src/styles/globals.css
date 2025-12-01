@@ -280,6 +280,9 @@
 .dm-card-table-body-row {
   @apply cursor-pointer transition-colors duration-200 hover:bg-black/4 dark:border-white/4 dark:bg-transparent dark:hover:bg-white/4;
 }
+.dm-card-table-body-row .actions-cell {
+  @apply pr-2;
+}
 .dm-card-table-body-row-actionbtn {
   @apply h-8 transition-colors transition-shadow duration-200 hover:bg-white hover:shadow-xs dark:hover:bg-white/4;
 }

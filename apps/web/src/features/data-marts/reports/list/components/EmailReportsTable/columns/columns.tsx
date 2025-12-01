@@ -8,19 +8,6 @@ import { ReportColumnKey } from './columnKeys.ts';
 import { ReportColumnLabels } from './columnLabels.ts';
 import RelativeTime from '@owox/ui/components/common/relative-time';
 
-export type Align = 'left' | 'right' | 'center';
-
-export const getAlignClass = (align?: Align): string => {
-  switch (align) {
-    case 'right':
-      return 'text-right';
-    case 'center':
-      return 'text-center';
-    default:
-      return 'text-left';
-  }
-};
-
 export const getEmailColumns = ({
   onDeleteSuccess,
   onEditReport,

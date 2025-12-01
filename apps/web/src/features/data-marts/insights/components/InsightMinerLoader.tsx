@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Brain, Database, Network } from 'lucide-react';
+import { Sparkles, Database, Network } from 'lucide-react';
 
 const ACTIVE_TITLES = [
   'Connecting to data sources...',
@@ -44,7 +44,7 @@ export const InsightLoader = () => {
         <div className='absolute inset-0 animate-[spin_12s_linear_infinite] rounded-full border-2 border-dashed border-slate-200 dark:border-slate-700' />
         <div className='absolute inset-3 animate-[spin_8s_linear_infinite_reverse] rounded-full border-2 border-dotted border-slate-300 dark:border-slate-600' />
         <div className='relative z-10 animate-pulse text-slate-400 dark:text-slate-500'>
-          <Brain className='h-8 w-8' strokeWidth={1.5} />
+          <Sparkles className='h-8 w-8' strokeWidth={1.5} />
         </div>
         <div className='absolute top-0 -left-4 animate-bounce text-slate-200 delay-75 duration-[3000ms] dark:text-slate-800'>
           <Database className='h-4 w-4' />
