@@ -24,7 +24,7 @@ export default function MessageTemplateDescription() {
             <br />
             **bold text** → <b>bold text</b>
             <br />
-            __italic text__ → <i>italic text</i>
+            *italic text* → <i>italic text</i>
             <br />- list item → • list item
           </p>
           <p>
