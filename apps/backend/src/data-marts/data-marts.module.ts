@@ -10,6 +10,7 @@ import { InsightController } from './controllers/insight.controller';
 import { ScheduledTriggerController } from './controllers/scheduled-trigger.controller';
 import { ConsumptionTrackingService } from './services/consumption-tracking.service';
 import { ReportDataCacheService } from './services/report-data-cache.service';
+import { UserProjectionsFetcherService } from './services/user-projections-fetcher.service';
 import { CreateDataMartService } from './use-cases/create-data-mart.service';
 import { ListDataMartsService } from './use-cases/list-data-marts.service';
 import { ListDataMartsByConnectorNameService } from './use-cases/list-data-marts-by-connector-name.service';
@@ -256,6 +257,7 @@ import { ConnectorOauthService } from './services/connector/connector-oauth.serv
     InsightRunTriggerHandlerService,
     ConnectorSourceCredentialsService,
     ConnectorOauthService,
+    UserProjectionsFetcherService,
   ],
 })
 export class DataMartsModule {

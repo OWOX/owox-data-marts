@@ -1,5 +1,6 @@
 import { ChevronDown } from 'lucide-react';
 import { DropdownMenuTrigger } from '@owox/ui/components/dropdown-menu';
+import { UserAvatar } from '../../../shared/components/UserAvatar';
 
 interface UserMenuTriggerProps {
   isOpen: boolean;
@@ -7,26 +8,6 @@ interface UserMenuTriggerProps {
   email?: string | null;
   avatar?: string | null;
   initials: string;
-}
-
-function UserAvatar({
-  avatar,
-  initials,
-  displayName,
-}: {
-  avatar?: string | null;
-  initials: string;
-  displayName: string;
-}) {
-  return (
-    <div className='text-muted-foreground flex aspect-square size-8 items-center justify-center rounded-full border bg-white text-sm font-medium dark:bg-white/10'>
-      {avatar ? (
-        <img src={avatar} alt={displayName} className='size-full rounded-full object-cover' />
-      ) : (
-        <span>{initials}</span>
-      )}
-    </div>
-  );
 }
 
 export function UserMenuTrigger({

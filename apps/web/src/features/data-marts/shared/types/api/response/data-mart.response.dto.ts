@@ -1,3 +1,4 @@
+import type { UserProjectionDto } from '../../../../../../shared/types/api';
 import { type DataStorageResponseDto } from '../../../../../data-storage/shared/api/types';
 import { DataMartStatus } from '../../../enums';
 import { DataMartDefinitionType } from '../../../enums';
@@ -18,6 +19,7 @@ export interface DataMartResponseDto {
   description: string | null;
   triggersCount: number;
   reportsCount: number;
+  createdByUser: UserProjectionDto | null;
   createdAt: Date;
   modifiedAt: Date;
   schema: DataMartSchema | null;

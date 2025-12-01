@@ -126,7 +126,7 @@ export const getDisplayType = (logEntry: LogEntry): string => {
   return logEntry.level;
 };
 
-export const getRunSummary = (
+export const getRunSummaryParts = (
   run: DataMartRunItem,
   connectorDisplayName: string | null | undefined
 ) => {
@@ -159,9 +159,7 @@ export const getRunSummary = (
 
   const runDescription = capitalizeFirstLetter(`${run.triggerType} ${runType} run`.trim());
 
-  const parts = [runDescription, title];
-
-  return parts.join(' • ');
+  return [runDescription, title];
 };
 
 export const downloadLogs = (run: {

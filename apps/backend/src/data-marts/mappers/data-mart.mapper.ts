@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
+import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
 import { CreateDataMartCommand } from '../dto/domain/create-data-mart.command';
 import { CreateDataMartRequestApiDto } from '../dto/presentation/create-data-mart-request-api.dto';
 import { CreateDataMartResponseApiDto } from '../dto/presentation/create-data-mart-response-api.dto';
@@ -63,7 +65,8 @@ export class DataMartMapper {
     counters?: {
       triggersCount?: number;
       reportsCount?: number;
-    }
+    },
+    createdByUser?: UserProjectionDto
   ): DataMartDto {
     return new DataMartDto(
       entity.id,
@@ -78,7 +81,8 @@ export class DataMartMapper {
       entity.schema,
       entity.connectorState?.state as ConnectorStateData | undefined,
       counters?.triggersCount ?? 0,
-      counters?.reportsCount ?? 0
+      counters?.reportsCount ?? 0,
+      createdByUser ?? null
     );
   }
 
@@ -110,6 +114,7 @@ export class DataMartMapper {
       connectorState: dto.connectorState,
       triggersCount: dto.triggersCount,
       reportsCount: dto.reportsCount,
+      createdByUser: dto.createdByUser,
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,
     };
@@ -240,7 +245,10 @@ export class DataMartMapper {
     };
   }
 
-  toDataMartRunDto(entity: DataMartRun): DataMartRunDto {
+  toDataMartRunDto(
+    entity: DataMartRun,
+    userProjection?: UserProjectionDto | undefined
+  ): DataMartRunDto {
     return new DataMartRunDto(
       entity.id,
       entity.status,
@@ -256,12 +264,21 @@ export class DataMartMapper {
       entity.errors || null,
       entity.createdAt,
       entity.startedAt || null,
-      entity.finishedAt || null
+      entity.finishedAt || null,
+      userProjection || null
     );
   }
 
-  toDataMartRunDtoList(entities: DataMartRun[]): DataMartRunDto[] {
-    return entities.map(entity => this.toDataMartRunDto(entity));
+  toDataMartRunDtoList(
+    entities: DataMartRun[],
+    userProjections: UserProjectionsListDto
+  ): DataMartRunDto[] {
+    return entities.map(entity => {
+      const projection = entity.createdById
+        ? userProjections.getByUserId(entity.createdById)
+        : undefined;
+      return this.toDataMartRunDto(entity, projection);
+    });
   }
 
   async toRunsResponse(runs: DataMartRunDto[]): Promise<DataMartRunsResponseApiDto> {
@@ -284,6 +301,7 @@ export class DataMartMapper {
           createdAt: run.createdAt,
           startedAt: run.startedAt,
           finishedAt: run.finishedAt,
+          createdByUser: run.createdByUser,
         };
       })
     );
