@@ -8,19 +8,6 @@ import RelativeTime from '@owox/ui/components/common/relative-time';
 import { SortableHeader } from '../../../../../../../shared/components/Table';
 import { ToggleColumnsHeader } from '../../../../../../../shared/components/Table';
 
-export type Align = 'left' | 'right' | 'center';
-
-export const getAlignClass = (align?: Align): string => {
-  switch (align) {
-    case 'right':
-      return 'text-right';
-    case 'center':
-      return 'text-center';
-    default:
-      return 'text-left';
-  }
-};
-
 export const getGoogleSheetsColumns = ({
   onDeleteSuccess,
   onEditReport,

@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
 import { Button } from '@owox/ui/components/button';
-import { MoreVertical, Trash2, BarChart3, Loader2 } from 'lucide-react';
+import { MoreVertical, Trash2, Sparkles, Loader2, BadgeAlert } from 'lucide-react';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
 import {
   Empty,
@@ -35,6 +35,14 @@ import {
 } from '../../../../shared/components/MarkdownEditor';
 import { useInsights } from '../model';
 import { InsightLoader } from './InsightMinerLoader.tsx';
+import RelativeTime from '@owox/ui/components/common/relative-time';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@owox/ui/components/tooltip';
+import { formatDateShort } from '../../../../utils/date-formatters';
 
 export default function InsightDetailsView() {
   const navigate = useNavigate();
@@ -166,7 +174,7 @@ export default function InsightDetailsView() {
       <Empty>
         <EmptyHeader>
           <EmptyMedia variant='icon'>
-            <BarChart3 />
+            <Sparkles />
           </EmptyMedia>
         </EmptyHeader>
         <EmptyTitle>Insight not found</EmptyTitle>
@@ -216,7 +224,7 @@ export default function InsightDetailsView() {
                 }}
                 className='text-destructive'
               >
-                <Trash2 className='mr-2 h-4 w-4 text-red-600' />{' '}
+                <Trash2 className='h-4 w-4 text-red-600' />{' '}
                 <span className='text-red-600'>Delete insight</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -229,29 +237,65 @@ export default function InsightDetailsView() {
           storageKey={storageKey}
           initialRatio={0.5}
           left={
-            <div className='h-full p-2'>
-              <InsightEditor
-                value={templateValue ?? ''}
-                onChange={v => {
-                  setValue('template', v, { shouldDirty: true });
-                }}
-                height={'calc(100vh - 275px)'}
-                placeholder='Type / to view available commands...'
-                readOnly={isRunning}
-              />
+            <div className='flex h-full min-h-0 flex-col'>
+              <div className='min-h-0 flex-1 overflow-hidden'>
+                <InsightEditor
+                  value={templateValue ?? ''}
+                  onChange={v => {
+                    setValue('template', v, { shouldDirty: true });
+                  }}
+                  height={'calc(100vh - 275px)'}
+                  placeholder='Type / to view available commands...'
+                  readOnly={isRunning}
+                />
+              </div>
+              <div className='flex items-center justify-between gap-4 border-t px-4 py-2'>
+                <Button
+                  variant='default'
+                  size='default'
+                  disabled={isSubmitting || isRunning}
+                  onClick={() => void (isTemplateDirty ? handleSaveAndRun() : handleRun())}
+                >
+                  {isRunning ? (
+                    <span className='inline-flex items-center gap-2'>
+                      <Loader2 className='h-3 w-3 animate-spin' /> Running…
+                    </span>
+                  ) : isTemplateDirty ? (
+                    <span className='inline-flex items-center gap-2'>
+                      <Sparkles /> Save & Run Insight
+                    </span>
+                  ) : (
+                    <span className='inline-flex items-center gap-2'>
+                      <Sparkles /> Run Insight
+                    </span>
+                  )}
+                </Button>
+                {insight.outputUpdatedAt && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className='text-muted-foreground/75 text-sm'>
+                          <RelativeTime date={insight.outputUpdatedAt} />
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side='top'>
+                        <p>Last run: {formatDateShort(insight.outputUpdatedAt)}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
             </div>
           }
           right={
-            <div className='h-full p-2'>
+            <div className='h-full'>
               {isRunning ? (
-                <div className='text-muted-foreground flex h-full flex-col items-center justify-center gap-2'>
-                  <InsightLoader />
-                </div>
+                <InsightLoader />
               ) : insight.lastRun?.status === DataMartRunStatus.FAILED ? (
-                <Empty>
+                <Empty className='h-full'>
                   <EmptyHeader>
                     <EmptyMedia variant='icon'>
-                      <BarChart3 />
+                      <BadgeAlert />
                     </EmptyMedia>
                     <EmptyTitle>Error executing insight</EmptyTitle>
                     <EmptyDescription>
@@ -260,14 +304,14 @@ export default function InsightDetailsView() {
                   </EmptyHeader>
                 </Empty>
               ) : isOutputEmpty ? (
-                <Empty>
+                <Empty className='h-full'>
                   <EmptyHeader>
                     <EmptyMedia variant='icon'>
-                      <BarChart3 />
+                      <Sparkles />
                     </EmptyMedia>
-                    <EmptyTitle>No result yet</EmptyTitle>
+                    <EmptyTitle>Even data needs a little spark</EmptyTitle>
                     <EmptyDescription>
-                      The preview of your insight will appear here once it is executed
+                      Write prompt to&nbsp;uncover the story behind your data!
                     </EmptyDescription>
                   </EmptyHeader>
                 </Empty>
@@ -295,38 +339,13 @@ export default function InsightDetailsView() {
                       />
                     )}
                   </div>
-                  <div className='text-muted-foreground border-border flex items-center justify-between border-t pt-2 text-sm'>
-                    <div className='opacity-80'>
-                      Last updated:{' '}
-                      {insight.outputUpdatedAt
-                        ? new Date(insight.outputUpdatedAt).toLocaleString()
-                        : '—'}
-                    </div>
-                  </div>
                 </div>
               )}
             </div>
           }
         />
       </div>
-      <div className='flex justify-start gap-2'>
-        <Button
-          variant='default'
-          size='default'
-          disabled={isSubmitting || isRunning}
-          onClick={() => void (isTemplateDirty ? handleSaveAndRun() : handleRun())}
-        >
-          {isRunning ? (
-            <span className='inline-flex items-center gap-1'>
-              <Loader2 className='h-3 w-3 animate-spin' /> Running…
-            </span>
-          ) : isTemplateDirty ? (
-            'Save & Run'
-          ) : (
-            'Run'
-          )}
-        </Button>
-      </div>
+
       <ConfirmationDialog
         open={isDeleteOpen}
         onOpenChange={setIsDeleteOpen}

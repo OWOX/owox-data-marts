@@ -30,7 +30,7 @@ export function InsightsTable({ items, onRowClick, onDelete }: InsightsTableProp
   const { sorting, setSorting, columnVisibility, setColumnVisibility } = useTableStorage({
     columns,
     storageKeyPrefix: 'data-mart-insights',
-    defaultSortingColumn: 'lastUpdated',
+    defaultSortingColumn: 'lastRun',
   });
 
   const table = useReactTable<InsightTableItem>({
@@ -67,7 +67,6 @@ export function InsightsTable({ items, onRowClick, onDelete }: InsightsTableProp
                 {headerGroup.headers.map(header => (
                   <TableHead
                     key={header.id}
-                    className='[&:has([role=checkbox])]:pl-6 [&>[role=checkbox]]:translate-y-[2px]'
                     scope='col'
                     style={
                       header.column.id === 'actions'
@@ -93,14 +92,14 @@ export function InsightsTable({ items, onRowClick, onDelete }: InsightsTableProp
                   onClick={() => {
                     onRowClick(row.original.id);
                   }}
-                  className='dm-card-table-body-row group cursor-pointer'
+                  className='dm-card-table-body-row group'
                   role='row'
                   aria-rowindex={rowIndex + 1}
                 >
                   {row.getVisibleCells().map((cell, cellIndex) => (
                     <TableCell
                       key={cell.id}
-                      className={`whitespace-normal ${cell.column.id === 'actions' ? 'actions-cell' : ''}`}
+                      className={`px-6 whitespace-normal ${cell.column.id === 'actions' ? 'actions-cell' : ''}`}
                       role='cell'
                       aria-colindex={cellIndex + 1}
                       style={
