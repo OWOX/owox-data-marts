@@ -28,7 +28,7 @@ Use this as the foundation for reporting in:
 
 ## SQL
 
-WITH
+```WITH
   raw_data AS --extracting raw data from GA4 Export and extracting dimensions that we will need in future from event_params
     (
       SELECT
