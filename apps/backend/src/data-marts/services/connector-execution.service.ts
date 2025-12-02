@@ -197,6 +197,7 @@ export class ConnectorExecutionService {
   ): Promise<void> {
     const runId = run.id;
     const processId = `connector-run-${runId}`;
+    const mergeWithExisting = run.status === DataMartRunStatus.INTERRUPTED;
 
     this.gracefulShutdownService.registerActiveProcess(processId);
 
@@ -263,7 +264,7 @@ export class ConnectorExecutionService {
         error: errorMessage,
       });
     } finally {
-      await this.updateRunStatus(runId, capturedLogs, capturedErrors);
+      await this.updateRunStatus(runId, capturedLogs, capturedErrors, mergeWithExisting);
 
       if (hasSuccessfulRun) {
         // Register connector run consumption only if at least one configuration succeeded
@@ -544,12 +545,23 @@ export class ConnectorExecutionService {
         });
       }
 
-      node.on('close', code => {
+      node.on('close', (code, signal) => {
         if (code === 0) {
           resolve();
-        } else {
-          reject(new Error(`Connector process exited with code ${code}`));
+          return;
         }
+
+        if (this.gracefulShutdownService.isInShutdownMode()) {
+          this.logger.log(
+            `Connector process terminated during graceful shutdown: code=${String(code)}, signal=${String(
+              signal
+            )}`
+          );
+          resolve();
+          return;
+        }
+
+        reject(new Error(`Connector process exited with code ${code}`));
       });
 
       node.on('error', error => {
@@ -561,7 +573,8 @@ export class ConnectorExecutionService {
   private async updateRunStatus(
     runId: string,
     capturedLogs: ConnectorMessage[],
-    capturedErrors: ConnectorMessage[]
+    capturedErrors: ConnectorMessage[],
+    mergeWithExisting: boolean = false
   ): Promise<void> {
     const hasLogs = capturedLogs.length > 0;
     const hasErrors = capturedErrors.length > 0;
@@ -570,11 +583,29 @@ export class ConnectorExecutionService {
       status = DataMartRunStatus.INTERRUPTED;
     }
 
+    const newLogStrings = hasLogs ? capturedLogs.map(log => JSON.stringify(log)) : [];
+    const newErrorStrings = hasErrors ? capturedErrors.map(error => JSON.stringify(error)) : [];
+
+    let logsToSave: string[] | null = newLogStrings.length > 0 ? newLogStrings : null;
+    let errorsToSave: string[] | null = newErrorStrings.length > 0 ? newErrorStrings : null;
+
+    if (mergeWithExisting) {
+      const existing = await this.dataMartRunRepository.findOne({ where: { id: runId } });
+      const existingLogs = (existing?.logs as string[] | null) ?? [];
+      const existingErrors = (existing?.errors as string[] | null) ?? [];
+
+      const mergedLogs = [...existingLogs, ...newLogStrings];
+      const mergedErrors = [...existingErrors, ...newErrorStrings];
+
+      logsToSave = mergedLogs.length > 0 ? mergedLogs : null;
+      errorsToSave = mergedErrors.length > 0 ? mergedErrors : null;
+    }
+
     await this.dataMartRunRepository.update(runId, {
       status,
       finishedAt: this.systemTimeService.now(),
-      logs: hasLogs ? capturedLogs.map(log => JSON.stringify(log)) : null,
-      errors: hasErrors ? capturedErrors.map(error => JSON.stringify(error)) : null,
+      logs: logsToSave,
+      errors: errorsToSave,
     });
   }
 
