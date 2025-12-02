@@ -26,7 +26,7 @@ jobs:
           cache: 'npm'
           registry-url: https://registry.npmjs.org
 
-      - name: Update npm to the 11 version
+      - name: Update npm to version 11
         run: npm install -g npm@11
 
       - name: Install dependencies
