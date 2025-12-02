@@ -1,12 +1,15 @@
 import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
+import { getTable } from './migration-utils';
 
 export class AddStartEndColumnsToDataMartRun1761048640819 implements MigrationInterface {
   private readonly TABLE_NAME = 'data_mart_run';
   public readonly name = 'AddStartEndColumnsToDataMartRun1761048640819';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    const table = await getTable(queryRunner, this.TABLE_NAME);
+
     await queryRunner.addColumn(
-      this.TABLE_NAME,
+      table,
       new TableColumn({
         name: 'startedAt',
         type: 'datetime',
@@ -16,7 +19,7 @@ export class AddStartEndColumnsToDataMartRun1761048640819 implements MigrationIn
     );
 
     await queryRunner.addColumn(
-      this.TABLE_NAME,
+      table,
       new TableColumn({
         name: 'finishedAt',
         type: 'datetime',
@@ -27,7 +30,9 @@ export class AddStartEndColumnsToDataMartRun1761048640819 implements MigrationIn
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.dropColumn(this.TABLE_NAME, 'finishedAt');
-    await queryRunner.dropColumn(this.TABLE_NAME, 'startedAt');
+    const table = await getTable(queryRunner, this.TABLE_NAME);
+
+    await queryRunner.dropColumn(table, 'finishedAt');
+    await queryRunner.dropColumn(table, 'startedAt');
   }
 }

@@ -1,12 +1,15 @@
 import { MigrationInterface, QueryRunner, TableColumn, TableForeignKey } from 'typeorm';
+import { getTable } from './migration-utils';
 
 export class AddReportRunColumnsToDataMartRun1761055697377 implements MigrationInterface {
   private readonly TABLE_NAME = 'data_mart_run';
   public readonly name = 'AddReportRunColumnsToDataMartRun1761055697377';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    const table = await getTable(queryRunner, this.TABLE_NAME);
+
     await queryRunner.addColumn(
-      this.TABLE_NAME,
+      table,
       new TableColumn({
         name: 'reportId',
         type: 'varchar',
@@ -16,7 +19,7 @@ export class AddReportRunColumnsToDataMartRun1761055697377 implements MigrationI
     );
 
     await queryRunner.createForeignKey(
-      this.TABLE_NAME,
+      table,
       new TableForeignKey({
         columnNames: ['reportId'],
         referencedTableName: 'report',
@@ -27,7 +30,7 @@ export class AddReportRunColumnsToDataMartRun1761055697377 implements MigrationI
     );
 
     await queryRunner.addColumn(
-      this.TABLE_NAME,
+      table,
       new TableColumn({
         name: 'reportDefinition',
         type: 'json',
@@ -38,14 +41,15 @@ export class AddReportRunColumnsToDataMartRun1761055697377 implements MigrationI
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.dropColumn(this.TABLE_NAME, 'reportDefinition');
+    const table = await getTable(queryRunner, this.TABLE_NAME);
 
-    const table = await queryRunner.getTable(this.TABLE_NAME);
-    const foreignKey = table?.foreignKeys.find(fk => fk.columnNames.indexOf('reportId') !== -1);
+    await queryRunner.dropColumn(table, 'reportDefinition');
+
+    const foreignKey = table.foreignKeys.find(fk => fk.columnNames.indexOf('reportId') !== -1);
     if (foreignKey) {
-      await queryRunner.dropForeignKey(this.TABLE_NAME, foreignKey);
+      await queryRunner.dropForeignKey(table, foreignKey);
     }
 
-    await queryRunner.dropColumn(this.TABLE_NAME, 'reportId');
+    await queryRunner.dropColumn(table, 'reportId');
   }
 }

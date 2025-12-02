@@ -1,12 +1,15 @@
 import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
+import { getTable } from './migration-utils';
 
 export class AddVersionColumnToReport1762534573842 implements MigrationInterface {
   private readonly TABLE_NAME = 'report';
   public readonly name = 'AddVersionColumnToReport1762534573842';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    const table = await getTable(queryRunner, this.TABLE_NAME);
+
     await queryRunner.addColumn(
-      this.TABLE_NAME,
+      table,
       new TableColumn({
         name: 'version',
         type: 'int',
@@ -17,6 +20,8 @@ export class AddVersionColumnToReport1762534573842 implements MigrationInterface
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.dropColumn(this.TABLE_NAME, 'version');
+    const table = await getTable(queryRunner, this.TABLE_NAME);
+
+    await queryRunner.dropColumn(table, 'version');
   }
 }
