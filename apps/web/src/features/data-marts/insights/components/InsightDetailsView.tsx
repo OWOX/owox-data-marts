@@ -42,6 +42,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@owox/ui/components/tooltip';
+import { formatDateShort } from '../../../../utils/date-formatters';
 
 export default function InsightDetailsView() {
   const navigate = useNavigate();
@@ -274,20 +275,11 @@ export default function InsightDetailsView() {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <div className='text-muted-foreground/75 text-sm'>
-                          <RelativeTime date={new Date(insight.outputUpdatedAt)} />
+                          <RelativeTime date={insight.outputUpdatedAt} />
                         </div>
                       </TooltipTrigger>
                       <TooltipContent side='top'>
-                        <p>
-                          Last run:{' '}
-                          {new Intl.DateTimeFormat('en-US', {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          }).format(new Date(insight.outputUpdatedAt))}
-                        </p>
+                        <p>Last run: {formatDateShort(insight.outputUpdatedAt)}</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
