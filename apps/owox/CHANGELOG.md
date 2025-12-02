@@ -1,5 +1,50 @@
 # owox
 
+## 0.14.0
+
+### Minor Changes
+
+- 30d95a8: # Fix migration error on application start with SQLite database
+
+  Fixed an issue where users running OWOX with SQLite database could encounter errors like "SQLITE_ERROR: no such column: runType" during database migrations.
+
+- 1c03024: # Added additional information about users in UI
+  - Added display of the Data Mart creator in the Data Marts list.
+  - Added display of the run initiator on the Run History tab.
+
+- 2c636b8: # Add Snowflake support for Data Marts and Connectors
+
+  You can now use Snowflake as a data storage destination for both Data Marts and Connectors, giving you more flexibility in how you store and manage your data.
+
+  Snowflake Data Storage
+  - Create and manage Data Marts with Snowflake as the destination
+  - Configure Snowflake connections with username/password or key-pair authentication
+  - Automatic schema detection and validation for Snowflake tables
+  - Run SQL queries directly on your Snowflake data warehouse
+
+  Connector Support
+  - Load data from any connector directly into Snowflake tables
+  - Automatic table creation and schema management
+  - Support for merging and upserting data based on unique keys
+  - Proper handling of Snowflake data types including VARIANT for JSON data
+
+  Data Mart Features
+  - Read data from Snowflake tables for reports and exports
+  - Support for custom SQL queries as Data Mart sources
+  - Schema customization with Snowflake-specific field types
+  - Case-sensitive table and schema name support
+  - Support Data Studio features
+  - Support for AI Insights features
+
+### Patch Changes
+
+- @owox/internal-helpers@0.14.0
+- @owox/idp-protocol@0.14.0
+- @owox/idp-better-auth@0.14.0
+- @owox/idp-owox@0.14.0
+- @owox/backend@0.14.0
+- @owox/web@0.14.0
+
 ## 0.13.0
 
 ### Minor Changes 0.13.0
@@ -823,7 +868,6 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
-
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -831,7 +875,6 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
-
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
