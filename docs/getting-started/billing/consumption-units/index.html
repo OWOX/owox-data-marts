@@ -177,31 +177,31 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
 
 
-<table><thead><tr><th><strong>Consumption Unit</strong></th><th><strong>Sub-consumption Unit</strong></th><th><strong>Description</strong></th></tr></thead><tbody><tr><td>Process Run</td><td>Connector Process Run</td><td>Represents Process Runs executed in the Cloud edition on <a href="https://app.owox.com" rel="noopener noreferrer" target="_blank">app.owox.com</a>. Data was delivered from a Source (e.g., Facebook Ads) to Storage (e.g., Google BigQuery). See the <a href="/#data-sources">list of available connectors</a>.</td></tr><tr><td>Process Run</td><td>AI Process Run</td><td>Represents Process Runs executed in the Cloud edition on <a href="https://app.owox.com" rel="noopener noreferrer" target="_blank">app.owox.com</a>. A {{prompt}} from an insight/message template was processed in the AI Layer.</td></tr><tr><td>Process Run</td><td>Platform Process Run</td><td>Represents Process Runs executed in <a href="https://support.owox.com/hc/en-us/articles/33759051895060#OWOXBITransformation:TermsofUsage" rel="noopener noreferrer" target="_blank">OWOX BI Transformation</a> on <a href="https://bi.owox.com" rel="noopener noreferrer" target="_blank">bi.owox.com</a>. Counts each successful execution of an individual Operation within a Transformation.</td></tr></tbody></table>
+<table><thead><tr><th><strong>Consumption Unit</strong></th><th><strong>Sub-consumption Unit</strong></th><th><strong>Description</strong></th></tr></thead><tbody><tr><td>Process Run</td><td>Connector Process Run</td><td>Represents Process Runs executed in the Cloud edition on <a href="https://app.owox.com" rel="noopener noreferrer" target="_blank">app.owox.com</a>. Data was delivered from a Source (e.g., Facebook Ads) to Storage (e.g., Google BigQuery). See the <a href="/#data-sources">list of available connectors</a>.</td></tr><tr><td>Process Run</td><td>AI Process Run</td><td>Represents a successful execution of a <code dir="auto">{{prompt}}</code> in the AI Layer on <a href="https://app.owox.com" rel="noopener noreferrer" target="_blank">app.owox.com</a>.  Includes up to 50k tokens (input + output). Usage beyond 50k counts as an additional AI Process Run per 50k increment.</td></tr><tr><td>Process Run</td><td>Platform Process Run</td><td>Represents Process Runs executed in <a href="https://support.owox.com/hc/en-us/articles/33759051895060#OWOXBITransformation:TermsofUsage" rel="noopener noreferrer" target="_blank">OWOX BI Transformation</a> on <a href="https://bi.owox.com" rel="noopener noreferrer" target="_blank">bi.owox.com</a>. Counts each successful execution of an individual Operation within a Transformation.</td></tr></tbody></table>
 <div class="sl-heading-wrapper level-h2"><h2 id="faq"><strong>FAQ</strong></h2><a class="sl-anchor-link" href="#faq"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only">Section titled “FAQ”</span></a></div>
 <ul>
 <li>
-<p>Q: How can I monitor the number of Runs per month?**</p>
+<p><strong>Q:</strong> How can I monitor the number of Runs per month?</p>
 <ul>
-<li>A: In the app.owox.com, open the <strong>Credits consumption</strong> page to see detailed usage.</li>
+<li><strong>A:</strong> In the app.owox.com, open the <strong>Credits consumption</strong> page to see detailed usage.</li>
 </ul>
 </li>
 <li>
-<p>Q: Will my reports be updated if I exceed the limit on my subscription?**</p>
+<p><strong>Q:</strong> Will my reports be updated if I exceed the limit on my subscription?</p>
 <ul>
-<li>A: Yes! Reports will continue to be updated on schedule, and manual runs will work as usual — even if you exceed the limit. No interruptions.</li>
+<li><strong>A:</strong> Yes! Reports will continue to be updated on schedule, and manual runs will work as usual — even if you exceed the limit. No interruptions.</li>
 </ul>
 </li>
 <li>
-<p>Q: How are monthly limits calculated if I pay for a year upfront?**</p>
+<p><strong>Q:</strong> How are monthly limits calculated if I pay for a year upfront?</p>
 <ul>
-<li>A: Example: if you need up to 2,000 data refreshes per month, select <em>2000 Report Runs monthly</em> on the payment page. This equals <strong>100 credits per month</strong> (1200 credits per year). Once your card is charged, you’ll get <strong>100 credits every month</strong> to run 2000 Report Runs. Simple and consistent.</li>
+<li><strong>A:</strong> Example: if you need up to 2,000 data refreshes per month, select <em>2000 Report Runs monthly</em> on the payment page. This equals <strong>100 credits per month</strong> (1200 credits per year). Once your card is charged, you’ll get <strong>100 credits every month</strong> to run 2000 Report Runs. Simple and consistent.</li>
 </ul>
 </li>
 <li>
-<p>Q: What happens if I exceed the set limit?**</p>
+<p><strong>Q:</strong> What happens if I exceed the set limit?</p>
 <ul>
-<li>A: Excess usage is billed on a Pay As You Go basis according to the rates on our <a href="https://www.owox.com/pricing-details/" rel="noopener noreferrer" target="_blank">Pricing page</a>. For example: if you receive 100 credits (2000 Report Runs) per month but use 3000 Report Runs (150 credits), then the extra 50 credits will be charged to your card the following month. If this happens regularly, consider adjusting your plan — our Support Team will help you choose the best option.</li>
+<li><strong>A:</strong> Excess usage is billed on a Pay As You Go basis according to the rates on our <a href="https://www.owox.com/pricing-details/" rel="noopener noreferrer" target="_blank">Pricing page</a>. For example: if you receive 100 credits (2000 Report Runs) per month but use 3000 Report Runs (150 credits), then the extra 50 credits will be charged to your card the following month. If this happens regularly, consider adjusting your plan — our Support Team will help you choose the best option.</li>
 </ul>
 </li>
 </ul> </div> <footer class="sl-flex astro-umjoovsl"> <div class="meta sl-flex astro-umjoovsl">   </div> <div class="pagination-links print:hidden astro-tsjwhn6j" dir="ltr"> <a href="/docs/editions/agency/" rel="prev" class="astro-tsjwhn6j"> <svg aria-hidden="true" class="astro-tsjwhn6j astro-u5r6xs7a" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17 11H9.41l3.3-3.29a1.004 1.004 0 1 0-1.42-1.42l-5 5a1 1 0 0 0-.21.33 1 1 0 0 0 0 .76 1 1 0 0 0 .21.33l5 5a1.002 1.002 0 0 0 1.639-.325 1 1 0 0 0-.219-1.095L9.41 13H17a1 1 0 0 0 0-2Z"/></svg> <span class="astro-tsjwhn6j"> Previous <br class="astro-tsjwhn6j"> <span class="link-title astro-tsjwhn6j">Agency</span> </span> </a> <a href="/docs/getting-started/deployment-guide/digitalocean/" rel="next" class="astro-tsjwhn6j"> <svg aria-hidden="true" class="astro-tsjwhn6j astro-u5r6xs7a" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg> <span class="astro-tsjwhn6j"> Next <br class="astro-tsjwhn6j"> <span class="link-title astro-tsjwhn6j">DigitalOcean</span> </span> </a> </div>   </footer>  </div> </div>   </main> </div> </div>  </div> </div>  </body></html>
