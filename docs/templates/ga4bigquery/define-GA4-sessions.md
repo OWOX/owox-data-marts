@@ -28,7 +28,7 @@ Use this as the foundation for reporting in:
 
 ## SQL
 
-WITH 
+WITH
   raw_data AS --extracting raw data from GA4 Export and extracting dimensions that we will need in future from event_params
     (
       SELECT
@@ -70,10 +70,10 @@ WITH
           collected_traffic_source.manual_campaign_name,
           collected_traffic_source.manual_term,
           collected_traffic_source.manual_content
-        ) AS trafficSource,        
+        ) AS trafficSource,  
       FROM
         raw_data
-      WHERE 
+      WHERE
         event_name LIKE 'session_start'
         AND
         user_pseudo_id IS NOT null
