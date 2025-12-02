@@ -4,6 +4,8 @@
 
 ### Minor Changes 0.14.0
 
+![OWOX Data Marts – v0.12.0](https://github.com/user-attachments/assets/f56e992c-d00e-46fe-b988-ad0bc4c8a9cf)
+
 - 30d95a8: # Fix migration error on application start with SQLite database
 
   Fixed an issue where users running OWOX with SQLite database could encounter errors like "SQLITE_ERROR: no such column: runType" during database migrations.
