@@ -84,7 +84,7 @@ export const GoogleBigQueryFields = ({ form }: GoogleBigQueryFieldsProps) => {
               <FormControl>
                 <Combobox
                   options={googleBigQueryLocationOptions}
-                  value={field.value}
+                  value={field.value ?? ''}
                   onValueChange={field.onChange}
                   placeholder='Select a location'
                   emptyMessage='No locations found'
