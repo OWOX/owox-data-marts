@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
 import { Button } from '@owox/ui/components/button';
-import { MoreVertical, Trash2, Sparkles, Loader2 } from 'lucide-react';
+import { MoreVertical, Trash2, Sparkles, Loader2, BadgeAlert } from 'lucide-react';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
 import {
   Empty,
@@ -298,14 +298,12 @@ export default function InsightDetailsView() {
           right={
             <div className='h-full'>
               {isRunning ? (
-                <div className='text-muted-foreground flex h-full flex-col items-center justify-center gap-2'>
-                  <InsightLoader />
-                </div>
+                <InsightLoader />
               ) : insight.lastRun?.status === DataMartRunStatus.FAILED ? (
-                <Empty>
+                <Empty className='h-full'>
                   <EmptyHeader>
                     <EmptyMedia variant='icon'>
-                      <Sparkles />
+                      <BadgeAlert />
                     </EmptyMedia>
                     <EmptyTitle>Error executing insight</EmptyTitle>
                     <EmptyDescription>

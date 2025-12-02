@@ -442,3 +442,23 @@
     glow-burst 1.6s ease-out forwards,
     glow-pulse 6s 1.6s ease-in-out infinite;
 }
+
+/* --- Insights Loader Steps Animations --- */
+
+@keyframes fade-slide-in-out {
+  0%,
+  100% {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  10%,
+  90% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-slide-in-out {
+  animation: fade-slide-in-out 5s ease-in-out forwards;
+  will-change: transform, opacity;
+}

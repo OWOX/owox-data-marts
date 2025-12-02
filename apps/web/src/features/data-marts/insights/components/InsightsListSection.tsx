@@ -82,7 +82,7 @@ export default function InsightsListSection() {
             items={insights.map(r => ({
               id: r.id,
               title: r.title,
-              lastRun: r.modifiedAt,
+              lastRun: r.outputUpdatedAt,
             }))}
             onRowClick={handleRowClick}
             onDelete={id => {

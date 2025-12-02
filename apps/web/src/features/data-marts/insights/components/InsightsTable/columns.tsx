@@ -1,11 +1,12 @@
 import type { ColumnDef } from '@tanstack/react-table';
 import { InsightActionsCell } from '../InsightsTable/InsightActionsCell';
 import { SortableHeader, ToggleColumnsHeader } from '../../../../../shared/components/Table';
+import { formatDateShort } from '../../../../../utils/date-formatters';
 
 export interface InsightTableItem {
   id: string;
   title: string;
-  lastRun: Date;
+  lastRun: Date | null;
 }
 
 interface InsightColumnsProps {
@@ -34,14 +35,7 @@ export const getInsightColumns = ({
     header: ({ column }) => <SortableHeader column={column}>Last run</SortableHeader>,
     cell: ({ row }) => {
       const date = row.getValue<Date>('lastRun');
-      const formatted = new Intl.DateTimeFormat('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      }).format(date);
-      return <div className='text-muted-foreground'>{formatted}</div>;
+      return <div className='text-muted-foreground'>{formatDateShort(date)}</div>;
     },
     meta: { title: 'Last run' },
   },
