@@ -52,6 +52,10 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               ],
             },
             {
+              label: 'Billing',
+              autogenerate: { directory: 'docs/getting-started/billing' },
+            },
+            {
               label: 'Deployment Guide',
               autogenerate: { directory: 'docs/getting-started/deployment-guide' },
             },
