@@ -40,6 +40,7 @@ export function InsightEditor({
         height={height}
         language='markdown'
         theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
+        className='overflow-hidden rounded-tl-md'
         value={value}
         onChange={v => {
           onChange(v ?? '');

@@ -8,7 +8,7 @@ import {
   CollapsibleCardFooter,
 } from '../../../shared/components/CollapsibleCard';
 import { Button } from '@owox/ui/components/button';
-import { Timer, Plus } from 'lucide-react';
+import { CalendarClock, Plus } from 'lucide-react';
 import { ScheduledTriggerFormSheet } from '../../../features/data-marts/scheduled-triggers';
 import {
   ScheduledTriggerList,
@@ -33,7 +33,7 @@ export default function DataMartTriggersContent() {
     <CollapsibleCard>
       <CollapsibleCardHeader>
         <CollapsibleCardHeaderTitle
-          icon={Timer}
+          icon={CalendarClock}
           tooltip='Time triggers allow you to schedule Data Mart runs at specific times'
         >
           Time triggers

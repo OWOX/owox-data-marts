@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { getGoogleSheetsColumns, getAlignClass, type Align } from './columns';
+import { getGoogleSheetsColumns } from './columns';
 import {
   Table,
   TableBody,
@@ -102,9 +102,6 @@ export function GoogleSheetsReportsTable({
                 {headerGroup.headers.map(header => (
                   <TableHead
                     key={header.id}
-                    className={getAlignClass(
-                      (header.column.columnDef as { _align?: Align })._align
-                    )}
                     style={
                       header.column.id === 'actions'
                         ? { width: 80, minWidth: 80, maxWidth: 80 }
@@ -140,7 +137,7 @@ export function GoogleSheetsReportsTable({
                   {row.getVisibleCells().map((cell, cellIndex) => (
                     <TableCell
                       key={cell.id}
-                      className={`px-6 whitespace-normal ${getAlignClass((cell.column.columnDef as { _align?: Align })._align)}`}
+                      className={`px-6 whitespace-normal ${cell.column.id === 'actions' ? 'actions-cell' : ''}`}
                       style={
                         cell.column.id === 'actions'
                           ? { width: 80, minWidth: 80, maxWidth: 80 }

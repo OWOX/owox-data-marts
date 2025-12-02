@@ -1,4 +1,4 @@
-import { Database } from 'lucide-react';
+import { Database, Sparkles } from 'lucide-react';
 import { DataDestinationType, DataDestinationTypeModel } from '../../../../data-destination';
 import { DataMartRunType } from '../../../shared';
 import { RawBase64Icon } from '../../../../../shared/icons';
@@ -16,7 +16,7 @@ export function TypeIcon({ type, base64Icon }: DataMartRunTypeIconProps) {
       return base64Icon ? (
         <RawBase64Icon base64={base64Icon} size={iconSize} />
       ) : (
-        <Database size={iconSize} />
+        <Database className='text-muted-foreground' size={iconSize} />
       );
 
     case DataMartRunType.GOOGLE_SHEETS_EXPORT: {
@@ -43,7 +43,10 @@ export function TypeIcon({ type, base64Icon }: DataMartRunTypeIconProps) {
       const Icon = DataDestinationTypeModel.getInfo(DataDestinationType.GOOGLE_CHAT).icon;
       return <Icon size={iconSize} />;
     }
+    case DataMartRunType.INSIGHT: {
+      return <Sparkles className='text-brand-blue-500' size={iconSize} />;
+    }
     default:
-      return <Database size={iconSize} />;
+      return <Database className='text-muted-foreground' size={iconSize} />;
   }
 }
