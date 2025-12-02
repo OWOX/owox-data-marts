@@ -119,6 +119,7 @@ For more details on the types of deployment in your infrastructure, check out ou
 | --------------- | --------- | ------------------------------------------------------------------- |
 | Google BigQuery | 🟢 Public | [Readme](packages/connectors/src/Storages/GoogleBigQuery/README.md) |
 | AWS Athena      | 🟢 Public | [Readme](packages/connectors/src/Storages/AwsAthena/README.md)      |
+| Snowflake      | 🟢 Public | [Readme](packages/connectors/src/Storages/Snowflake/README.md)      |
 
 If you find an integration missing, you can share your use case and request it in the [discussions](https://github.com/OWOX/owox-data-marts/discussions)
 
