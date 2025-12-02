@@ -331,7 +331,7 @@ interface FormRadioGroupProps {
     label: string;
     disabled?: boolean;
   }[];
-  value: string;
+  value?: string;
   onChange: (value: string) => void;
   orientation?: 'horizontal' | 'vertical';
   className?: string;
