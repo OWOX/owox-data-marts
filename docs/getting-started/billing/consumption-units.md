@@ -54,19 +54,19 @@ For better transparency and flexibility, Process Runs are broken down into follo
 | **Consumption Unit** | **Sub-consumption Unit** | **Description**                                                                                                                                                                                                                                                                       |
 | -------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Process Run          | Connector Process Run    | Represents Process Runs executed in the Cloud edition on [app.owox.com](https://app.owox.com). Data was delivered from a Source (e.g., Facebook Ads) to Storage (e.g., Google BigQuery). See the [list of available connectors](../../../README.md/#data-sources).                    |
-| Process Run          | AI Process Run           | Represents Process Runs executed in the Cloud edition on [app.owox.com](https://app.owox.com). A {{prompt}} from an insight/message template was processed in the AI Layer.                                                                                                           |
+| Process Run          | AI Process Run           | Represents a successful execution of a `{{prompt}}` in the AI Layer on [app.owox.com](https://app.owox.com).  Includes up to 50k tokens (input + output). Usage beyond 50k counts as an additional AI Process Run per 50k increment.                                                                                                           |
 | Process Run          | Platform Process Run     | Represents Process Runs executed in [OWOX BI Transformation](https://support.owox.com/hc/en-us/articles/33759051895060#OWOXBITransformation:TermsofUsage) on [bi.owox.com](https://bi.owox.com). Counts each successful execution of an individual Operation within a Transformation. |
 
 ## **FAQ**
 
-- Q: How can I monitor the number of Runs per month?\*\*
-  - A: In the app.owox.com, open the **Credits consumption** page to see detailed usage.
+- **Q:** How can I monitor the number of Runs per month?
+  - **A:** In the app.owox.com, open the **Credits consumption** page to see detailed usage.
 
-- Q: Will my reports be updated if I exceed the limit on my subscription?\*\*
-  - A: Yes! Reports will continue to be updated on schedule, and manual runs will work as usual — even if you exceed the limit. No interruptions.
+- **Q:** Will my reports be updated if I exceed the limit on my subscription?
+  - **A:** Yes! Reports will continue to be updated on schedule, and manual runs will work as usual — even if you exceed the limit. No interruptions.
 
-- Q: How are monthly limits calculated if I pay for a year upfront?\*\*
-  - A: Example: if you need up to 2,000 data refreshes per month, select _2000 Report Runs monthly_ on the payment page. This equals **100 credits per month** (1200 credits per year). Once your card is charged, you’ll get **100 credits every month** to run 2000 Report Runs. Simple and consistent.
+- **Q:** How are monthly limits calculated if I pay for a year upfront?
+  - **A:** Example: if you need up to 2,000 data refreshes per month, select _2000 Report Runs monthly_ on the payment page. This equals **100 credits per month** (1200 credits per year). Once your card is charged, you’ll get **100 credits every month** to run 2000 Report Runs. Simple and consistent.
 
-- Q: What happens if I exceed the set limit?\*\*
-  - A: Excess usage is billed on a Pay As You Go basis according to the rates on our [Pricing page](https://www.owox.com/pricing-details/). For example: if you receive 100 credits (2000 Report Runs) per month but use 3000 Report Runs (150 credits), then the extra 50 credits will be charged to your card the following month. If this happens regularly, consider adjusting your plan — our Support Team will help you choose the best option.
+- **Q:** What happens if I exceed the set limit?
+  - **A:** Excess usage is billed on a Pay As You Go basis according to the rates on our [Pricing page](https://www.owox.com/pricing-details/). For example: if you receive 100 credits (2000 Report Runs) per month but use 3000 Report Runs (150 credits), then the extra 50 credits will be charged to your card the following month. If this happens regularly, consider adjusting your plan — our Support Team will help you choose the best option.
