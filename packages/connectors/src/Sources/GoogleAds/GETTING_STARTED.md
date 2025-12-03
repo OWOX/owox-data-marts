@@ -21,23 +21,33 @@ Before proceeding, please make sure that:
 2. Choose **Google Ads**.  
 
 3. Enter your **Customer ID** in the format `12345678` (without dashes).  
-   > ⚠️ Use the **ad account** Customer ID, not the MCC (manager) account ID.  
-   This is the ID of the account from which you want to retrieve data.
+   > ⚠️ This is the ID of the account from which you want to retrieve data.
 
-4. Fill in the required fields depending on your chosen authentication type:
+4. Fill in the required fields depending on your chosen authentication type.  
+(If you need help obtaining any of these values, please refer to the detailed instructions in the [CREDENTIALS](CREDENTIALS.md) guide.)
 
-For **OAuth2 Authentication** (without service account)
+### For **OAuth2 Authentication** (without service account)
 
-- **Refresh Token** – paste the refresh token you obtained in the [CREDENTIALS](CREDENTIALS.md) guide.  
-- **Client ID** – enter the Client ID from your Google Ads app.  
-- **Client Secret** – enter the corresponding Client Secret.  
-- **Developer Token** – paste the Developer Token from the [CREDENTIALS](CREDENTIALS.md) guide.  
+- **Customer ID** – enter the ID of the **ad account** you want to retrieve data from.  
+  You can find it in the top-right corner when viewing the specific ad account in Google Ads.  
+  *(Format: `12345678` without dashes.)*
+- **Login Customer ID** – enter the ID of your **Manager (MCC)** account.  
+  You can find it in the top-right corner when you are logged into your MCC account.
+   *(Format: `12345678` without dashes.)*
+- **Refresh Token** – paste the refresh token you generated using **OAuth Playground** in the Credentials guide.
+- **Client ID** – enter the Client ID from the OAuth client you created in **Google Cloud Console → Google Auth Platform → Clients**.
+- **Client Secret** – enter the Client Secret shown when creating your OAuth client, or use the value stored in the downloaded JSON.
+- **Developer Token** – paste the Developer Token from your **Google Ads API Center** in your MCC account.
 
-For **Service Account Authentication**
+### For **Service Account Authentication**
 
-- **Service Account Key** – paste the contents of the JSON key you generated in the [CREDENTIALS](CREDENTIALS.md) guide.  
-- **Developer Token** – paste the Developer Token from the [CREDENTIALS](CREDENTIALS.md) guide.  
-- **Login Customer ID** – enter your **MCC (manager)** account ID in the format `12345678` (without dashes).  
+- **Customer ID** – enter the ID of the **ad account** you want to retrieve data from.  
+  You can find it in the top-right corner when viewing the specific ad account in Google Ads.  
+  *(Format: `12345678` without dashes.)*
+- **Service Account Key** – paste the full JSON key file content you created in **Google Cloud Console → IAM & Admin → Service Accounts → Manage Keys**.
+- **Developer Token** – paste the Developer Token from your **Google Ads API Center** in your MCC account.
+- **Login Customer ID** – enter the ID of your **Manager (MCC)** account, found in the top-right corner of your MCC dashboard.
+ *(Format: `12345678` without dashes.)*
 
 Leave all other fields as default, then click **Next** to continue.  
 
@@ -45,7 +55,11 @@ Leave all other fields as default, then click **Next** to continue.
 
 ![Google Ads Create Connector](res/googleads_createconnector.png)
 
+<<<<<<< HEAD
 ![Google Ads Create Connector ](res/googleads_createconnector_oauth2.png)
+=======
+![Google Ads Create Connector](res/googleads_oauthfields.png)
+>>>>>>> 84c2f7dd (docs(GoogleAds): clarify and enhance authentication instructions in credentials guide (#741))
 
 ## Configure Data Import
 
@@ -53,6 +67,14 @@ Leave all other fields as default, then click **Next** to continue.
 2. Select the required **fields**.
 3. Specify the **dataset** where the data will be stored, or leave it as default.
 4. Click **Finish**, then **Publish Data Mart**.
+<<<<<<< HEAD
+=======
+
+> ⚠️ **Important Notice:**  
+> If you select any **stats endpoint** (e.g., *Campaign Stats*, *Ad Group Stats*, *Keyword Stats*, etc.), the **Customer ID** and **Login Customer ID** must be **different**.  
+> Stats data **cannot be retrieved from an MCC (manager) account** — you must specify an **ad account’s Customer ID** as the data source.  
+> All **non-stats endpoints** allow data retrieval using an MCC Customer ID.
+>>>>>>> 84c2f7dd (docs(GoogleAds): clarify and enhance authentication instructions in credentials guide (#741))
 
 ![Google Ads Publish Data Mart](res/googleads_publish.png)
 
