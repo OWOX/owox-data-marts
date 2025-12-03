@@ -288,7 +288,8 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
         let columnType = this.getColumnType(columnName);
 
         if( "description" in this.schema[ columnName ] ) {
-          columnDescription = ` COMMENT '${this.schema[ columnName ]["description"]}'`;
+          const escapedDescription = this.obfuscateSpecialCharacters(this.schema[ columnName ]["description"]);
+          columnDescription = ` COMMENT '${escapedDescription}'`;
         }
 
         columns.push(`"${columnName}" ${columnType}${columnDescription}`);
@@ -307,7 +308,8 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
       let query = `CREATE TABLE IF NOT EXISTS ${this.config.SnowflakeDatabase.value}.${quotedSchema}.${quotedTable} (\n  ${columnsStr}\n)`;
 
       if( this.description ) {
-        query += `\nCOMMENT = '${this.description}'`;
+        const escapedTableDescription = this.obfuscateSpecialCharacters(this.description);
+        query += `\nCOMMENT = '${escapedTableDescription}'`;
       }
 
       await this.executeQuery(query);
@@ -341,7 +343,8 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
           let columnType = this.getColumnType(columnName);
 
           if( "description" in this.schema[ columnName ] ) {
-            columnDescription = ` COMMENT '${this.schema[ columnName ]["description"]}'`;
+            const escapedDescription = this.obfuscateSpecialCharacters(this.schema[ columnName ]["description"]);
+            columnDescription = ` COMMENT '${escapedDescription}'`;
           }
 
           columns.push(`ADD COLUMN IF NOT EXISTS "${columnName}" ${columnType}${columnDescription}`);
@@ -588,7 +591,7 @@ ON ${this.uniqueKeyColumns.map(item => (`target."${item}" = source."${item}"`)).
           sqlText: query,
           complete: (err, stmt, rows) => {
             if (err) {
-              reject(new Error(`Snowflake query failed: ${err.message}`));
+              reject(new Error(`Snowflake query failed: ${err.message} in query: ${query}`));
             } else {
               resolve(rows || []);
             }
@@ -608,6 +611,9 @@ ON ${this.uniqueKeyColumns.map(item => (`target."${item}" = source."${item}"`)).
 
       return String(inputString)
         .replace(/\\/g, '\\\\')          // Escape backslashes
+        .replace(/\r\n/g, ' ')           // Replace Windows line breaks with space
+        .replace(/\n/g, ' ')             // Replace Unix line breaks with space
+        .replace(/\r/g, ' ')             // Replace Mac line breaks with space
         .replace(/'/g, "''")             // Escape single quotes (Snowflake style)
         .replace(/"/g, '\\"')            // Escape double quotes
         .replace(/[\x00-\x1F]/g, ' ');   // Replace control chars with space
