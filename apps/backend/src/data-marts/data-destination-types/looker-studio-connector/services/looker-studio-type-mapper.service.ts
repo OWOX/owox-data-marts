@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AthenaFieldType } from '../../../data-storage-types/athena/enums/athena-field-type.enum';
 import { BigQueryFieldType } from '../../../data-storage-types/bigquery/enums/bigquery-field-type.enum';
 import { SnowflakeFieldType } from '../../../data-storage-types/snowflake/enums/snowflake-field-type.enum';
+import { RedshiftFieldType } from '../../../data-storage-types/redshift/enums/redshift-field-type.enum';
 import { DataStorageType } from '../../../data-storage-types/enums/data-storage-type.enum';
 import { FieldDataType } from '../enums/field-data-type.enum';
 
@@ -11,7 +12,7 @@ export class LookerStudioTypeMapperService {
    * Maps data types from storage types to Looker Studio types
    */
   mapToLookerStudioDataType(
-    fieldType: BigQueryFieldType | AthenaFieldType | SnowflakeFieldType,
+    fieldType: BigQueryFieldType | AthenaFieldType | SnowflakeFieldType | RedshiftFieldType,
     storageType: DataStorageType
   ): FieldDataType {
     if (storageType === DataStorageType.GOOGLE_BIGQUERY) {
@@ -20,6 +21,8 @@ export class LookerStudioTypeMapperService {
       return this.mapAthenaTypeToLookerStudio(fieldType as AthenaFieldType);
     } else if (storageType === DataStorageType.SNOWFLAKE) {
       return this.mapSnowflakeTypeToLookerStudio(fieldType as SnowflakeFieldType);
+    } else if (storageType === DataStorageType.AWS_REDSHIFT) {
+      return this.mapRedshiftTypeToLookerStudio(fieldType as RedshiftFieldType);
     }
     // Fallback for unknown storage types
     return FieldDataType.STRING;
@@ -110,6 +113,39 @@ export class LookerStudioTypeMapperService {
       case SnowflakeFieldType.TIMESTAMP:
       case SnowflakeFieldType.VARIANT:
       case SnowflakeFieldType.GEOGRAPHY:
+      default:
+        return FieldDataType.STRING;
+    }
+  }
+
+  /**
+   * Maps Redshift types to Looker Studio types
+   */
+  private mapRedshiftTypeToLookerStudio(type: RedshiftFieldType): FieldDataType {
+    switch (type) {
+      case RedshiftFieldType.SMALLINT:
+      case RedshiftFieldType.INTEGER:
+      case RedshiftFieldType.BIGINT:
+      case RedshiftFieldType.DECIMAL:
+      case RedshiftFieldType.NUMERIC:
+      case RedshiftFieldType.REAL:
+      case RedshiftFieldType.DOUBLE_PRECISION:
+        return FieldDataType.NUMBER;
+      case RedshiftFieldType.BOOLEAN:
+      case RedshiftFieldType.BOOL:
+        return FieldDataType.BOOLEAN;
+      case RedshiftFieldType.VARCHAR:
+      case RedshiftFieldType.CHAR:
+      case RedshiftFieldType.TEXT:
+      case RedshiftFieldType.BPCHAR:
+      case RedshiftFieldType.DATE:
+      case RedshiftFieldType.TIMESTAMP:
+      case RedshiftFieldType.TIMESTAMPTZ:
+      case RedshiftFieldType.TIME:
+      case RedshiftFieldType.TIMETZ:
+      case RedshiftFieldType.SUPER:
+      case RedshiftFieldType.GEOMETRY:
+      case RedshiftFieldType.GEOGRAPHY:
       default:
         return FieldDataType.STRING;
     }

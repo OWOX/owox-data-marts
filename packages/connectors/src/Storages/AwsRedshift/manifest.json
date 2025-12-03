@@ -1,0 +1,25 @@
+{
+  "name": "AwsRedshiftStorage",
+  "description": "Storage for AWS Redshift using Data API with support for Serverless and Provisioned clusters",
+  "title": "AWS Redshift",
+  "version": "1.0.0",
+  "author": "OWOX, Inc.",
+  "license": "MIT",
+  "environment": {
+    "node": {
+      "enabled": true,
+      "dependencies": [
+        {
+          "name": "@aws-sdk/client-redshift-data",
+          "version": "3.940.0",
+          "global": [
+            "RedshiftDataClient",
+            "ExecuteStatementCommand",
+            "DescribeStatementCommand",
+            "GetStatementResultCommand"
+          ]
+        }
+      ]
+    }
+  }
+}

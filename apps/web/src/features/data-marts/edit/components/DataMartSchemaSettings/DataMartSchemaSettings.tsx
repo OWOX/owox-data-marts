@@ -4,6 +4,7 @@ import { useOutletContext } from 'react-router-dom';
 import type {
   AthenaSchemaField,
   BigQuerySchemaField,
+  RedshiftSchemaField,
   SnowflakeSchemaField,
 } from '../../../shared/types/data-mart-schema.types';
 import type { DataMartContextType } from '../../model/context/types.ts';
@@ -42,7 +43,13 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
 
   // Handle schema fields change
   const handleSchemaFieldsChange = useCallback(
-    (newFields: BigQuerySchemaField[] | AthenaSchemaField[] | SnowflakeSchemaField[]) => {
+    (
+      newFields:
+        | BigQuerySchemaField[]
+        | AthenaSchemaField[]
+        | SnowflakeSchemaField[]
+        | RedshiftSchemaField[]
+    ) => {
       updateSchema(newFields);
     },
     [updateSchema]

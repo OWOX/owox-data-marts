@@ -5,6 +5,7 @@ import { DataStorageStatus, DataStorageType } from '../../../shared';
 import { GoogleBigQueryFields } from './GoogleBigQueryFields';
 import { AwsAthenaFields } from './AwsAthenaFields';
 import { SnowflakeFields } from './SnowflakeFields';
+import { RedshiftFields } from './RedshiftFields';
 import StorageTypeSnowflakeDescription from './FormDescriptions/StorageTypeSnowflakeDescription.tsx';
 import {
   Select,
@@ -32,6 +33,7 @@ import {
 } from '@owox/ui/components/form';
 import StorageTypeBigQueryDescription from './FormDescriptions/StorageTypeBigQueryDescription.tsx';
 import StorageTypeAthenaDescription from './FormDescriptions/StorageTypeAthenaDescription.tsx';
+import StorageTypeRedshiftDescription from './FormDescriptions/StorageTypeRedshiftDescription.tsx';
 import { Button } from '@owox/ui/components/button';
 import { createFormPayload } from '../../../../../utils/form-utils';
 
@@ -145,6 +147,9 @@ export function DataStorageForm({
                     {selectedType === DataStorageType.SNOWFLAKE && (
                       <StorageTypeSnowflakeDescription />
                     )}
+                    {selectedType === DataStorageType.AWS_REDSHIFT && (
+                      <StorageTypeRedshiftDescription />
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -154,6 +159,7 @@ export function DataStorageForm({
           {selectedType === DataStorageType.GOOGLE_BIGQUERY && <GoogleBigQueryFields form={form} />}
           {selectedType === DataStorageType.AWS_ATHENA && <AwsAthenaFields form={form} />}
           {selectedType === DataStorageType.SNOWFLAKE && <SnowflakeFields form={form} />}
+          {selectedType === DataStorageType.AWS_REDSHIFT && <RedshiftFields form={form} />}
         </FormLayout>
         <FormActions>
           <Button

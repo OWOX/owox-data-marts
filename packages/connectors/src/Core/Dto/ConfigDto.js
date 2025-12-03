@@ -120,6 +120,8 @@ class StorageConfigDto {
       return 'AwsAthena';
     } else if (name === 'SNOWFLAKE') {
       return 'Snowflake';
+    } else if (name === 'AWS_REDSHIFT') {
+      return 'AwsRedshift';
     }
     return name;
   }

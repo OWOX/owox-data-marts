@@ -50,7 +50,7 @@ export class TriggerFetcherService<T extends Trigger> {
    * @returns A promise that resolves to an array of triggers ready for processing
    */
   async fetchTriggersReadyForProcessing(): Promise<T[]> {
-    this.logger.debug(`[${this.entityName}] Fetching triggers ready for processing.`);
+    // this.logger.debug(`[${this.entityName}] Fetching triggers ready for processing.`);
 
     const startTime = this.systemClock.now();
 

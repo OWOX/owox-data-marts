@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import type { DataStorage } from '../../../data-storage/shared/model/types/data-storage.ts';
-import { DataStorageType, isDataStorageConfigValid } from '../../../data-storage';
+import {
+  DataStorageType,
+  isDataStorageConfigValid,
+  RedshiftConnectionType,
+} from '../../../data-storage';
 import { ListItemCard } from '../../../../shared/components/ListItemCard';
 import { DataStorageTypeModel } from '../../../data-storage/shared/types/data-storage-type.model.ts';
 import { DataStorageConfigSheet } from '../../../data-storage/edit';
@@ -97,6 +101,31 @@ export const DataMartDataStorageView = ({
             {formatLinkParam('Account', account, snowflakeConsoleLink)}
             <span className='text-muted-foreground'>•</span>
             {formatParam('Warehouse', warehouse)}
+          </div>
+        );
+      }
+      case DataStorageType.AWS_REDSHIFT: {
+        const config = dataStorage.config;
+        const region = config.region;
+        const database = config.database;
+        let identifier: string;
+        let identifierType: string;
+
+        if (config.connectionType === RedshiftConnectionType.SERVERLESS) {
+          identifier = config.workgroupName;
+          identifierType = 'Workgroup';
+        } else {
+          identifier = config.clusterIdentifier;
+          identifierType = 'Cluster';
+        }
+        const redshiftConsoleLink = `https://${region}.console.aws.amazon.com/redshiftv2/home?region=${region}`;
+        return (
+          <div className='flex flex-wrap gap-2'>
+            {formatParam('Region', region)}
+            <span className='text-muted-foreground'>•</span>
+            {formatParam('Database', database)}
+            <span className='text-muted-foreground'>•</span>
+            {formatLinkParam(identifierType, identifier, redshiftConsoleLink)}
           </div>
         );
       }

@@ -14,6 +14,7 @@ import { useConnector } from '../../../shared/model/hooks/useConnector';
 import { useEffect } from 'react';
 import { RawBase64Icon } from '../../../../../shared/icons';
 import { unquoteIdentifier } from '../../utils/snowflake-identifier.utils';
+import { RedshiftConnectionType } from '../../../../data-storage/shared/model/types/credentials';
 
 interface ConnectorConfigurationItemProps {
   configIndex: number;
@@ -157,6 +158,63 @@ export function ConnectorConfigurationItem({
               <TooltipContent>
                 The database, schema and table are automatically created during the first run of the
                 data mart, if they don't already exist
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        );
+      }
+      case DataStorageType.AWS_REDSHIFT: {
+        const redshiftConfig = dataStorage.config;
+        const fullyQualifiedName = connectorDef.connector.storage.fullyQualifiedName;
+        const fqnParts = fullyQualifiedName.split('.');
+
+        let schema: string;
+        let table: string;
+
+        if (fqnParts.length === 3) {
+          schema = unquoteIdentifier(fqnParts[1]);
+          table = unquoteIdentifier(fqnParts[2]);
+        } else {
+          schema = unquoteIdentifier(fqnParts[0]);
+          table = unquoteIdentifier(fqnParts[1]);
+        }
+
+        const connectionInfo =
+          redshiftConfig.connectionType === RedshiftConnectionType.SERVERLESS
+            ? `Workgroup: ${redshiftConfig.workgroupName}`
+            : `Cluster: ${redshiftConfig.clusterIdentifier}`;
+
+        const redshiftConsoleLink = `https://console.aws.amazon.com/redshiftv2/home?region=${redshiftConfig.region}#query-editor`;
+
+        return (
+          <div className='flex flex-wrap items-center gap-2'>
+            <span>
+              <span className='text-muted-foreground/75'>Region:</span>{' '}
+              <span className='text-muted-foreground font-medium'>{redshiftConfig.region}</span>
+            </span>
+            <span className='text-muted-foreground'>•</span>
+            <span>
+              <span className='text-muted-foreground/75'>Database:</span>{' '}
+              <span className='text-muted-foreground font-medium'>{redshiftConfig.database}</span>
+            </span>
+            <span className='text-muted-foreground'>•</span>
+            <span>
+              <span className='text-muted-foreground/75'>{connectionInfo.split(':')[0]}:</span>{' '}
+              <span className='text-muted-foreground font-medium'>
+                {connectionInfo.split(':')[1].trim()}
+              </span>
+            </span>
+            <span className='text-muted-foreground'>•</span>
+            {formatLinkParam('Schema', schema, redshiftConsoleLink)}
+            <span className='text-muted-foreground'>•</span>
+            {formatLinkParam('Table', table, redshiftConsoleLink)}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className='h-4 w-4' />
+              </TooltipTrigger>
+              <TooltipContent>
+                The schema and table are automatically created during the first run of the data
+                mart, if they don't already exist
               </TooltipContent>
             </Tooltip>
           </div>

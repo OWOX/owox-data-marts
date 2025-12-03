@@ -1,7 +1,7 @@
 import { DataStorageType } from '../../../../../data-storage';
 import { Input } from '@owox/ui/components/input';
 import { TimeTriggerAnnouncement } from '../../../../../data-marts/scheduled-triggers';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AppWizardStepItem,
   AppWizardStepLabel,
@@ -9,7 +9,12 @@ import {
   AppWizardStep,
   AppWizardStepHero,
 } from '@owox/ui/components/common/wizard';
-import { GoogleBigQueryIcon, AwsAthenaIcon, SnowflakeIcon } from '../../../../../../shared';
+import {
+  GoogleBigQueryIcon,
+  AwsAthenaIcon,
+  SnowflakeIcon,
+  AwsRedshiftIcon,
+} from '../../../../../../shared';
 import { quoteIdentifier, unquoteIdentifier } from '../../../utils/snowflake-identifier.utils';
 
 interface TargetSetupStepProps {
@@ -36,6 +41,10 @@ export function TargetSetupStep({
   const [datasetError, setDatasetError] = useState<string | null>(null);
   const [schemaError, setSchemaError] = useState<string | null>(null);
   const [tableError, setTableError] = useState<string | null>(null);
+
+  // Track if user has manually edited the schema and table fields
+  const schemaEditedByUser = useRef(false);
+  const tableEditedByUser = useRef(false);
 
   const validate = (name: string, allowQuoted = false): string | null => {
     if (!name.trim()) return 'This field is required';
@@ -76,6 +85,14 @@ export function TargetSetupStep({
         const quotedSchema = quoteIdentifier(newSchemaName);
         const quotedTable = quoteIdentifier(newTableName);
         fullyQualifiedName = `${newDatasetName}.${quotedSchema}.${quotedTable}`;
+      } else if (dataStorageType === DataStorageType.AWS_REDSHIFT) {
+        if (!newSchemaName || !newTableName) {
+          fullyQualifiedName = '';
+        } else {
+          const quotedSchema = quoteIdentifier(newSchemaName);
+          const quotedTable = quoteIdentifier(newTableName);
+          fullyQualifiedName = `${quotedSchema}.${quotedTable}`;
+        }
       } else {
         fullyQualifiedName = `${newDatasetName}.${newTableName}`;
       }
@@ -90,12 +107,14 @@ export function TargetSetupStep({
               newSchemaError === null &&
               newTableError === null
             )
-          : !!(
-              newDatasetName &&
-              newTableName &&
-              newDatasetError === null &&
-              newTableError === null
-            );
+          : dataStorageType === DataStorageType.AWS_REDSHIFT
+            ? !!(newSchemaName && newTableName && newSchemaError === null && newTableError === null)
+            : !!(
+                newDatasetName &&
+                newTableName &&
+                newDatasetError === null &&
+                newTableError === null
+              );
 
       onTargetChange({
         fullyQualifiedName,
@@ -122,6 +141,22 @@ export function TargetSetupStep({
           newSchemaName = unquoteIdentifier(schema);
           newTableName = unquoteIdentifier(table);
         }
+      } else if (dataStorageType === DataStorageType.AWS_REDSHIFT) {
+        if (parts.length === 2) {
+          const schema = parts[0];
+          const table = parts[1];
+          if (schema && table) {
+            newSchemaName = unquoteIdentifier(schema);
+            newTableName = unquoteIdentifier(table);
+          }
+        } else if (parts.length === 3) {
+          const schema = parts[1];
+          const table = parts[2];
+          if (schema && table) {
+            newSchemaName = unquoteIdentifier(schema);
+            newTableName = unquoteIdentifier(table);
+          }
+        }
       } else if (parts.length >= 2) {
         const dataset = parts[0];
         const table = parts[1];
@@ -134,26 +169,49 @@ export function TargetSetupStep({
       newDatasetName = `${sanitizedConnectorName}_owox`;
       if (dataStorageType === DataStorageType.SNOWFLAKE) {
         newSchemaName = 'PUBLIC';
+      } else if (dataStorageType === DataStorageType.AWS_REDSHIFT) {
+        newSchemaName = `${sanitizedConnectorName}_owox`;
       }
       newTableName = sanitizedDestinationName;
     }
 
-    const newDatasetError = validate(newDatasetName);
+    const newDatasetError =
+      dataStorageType === DataStorageType.AWS_REDSHIFT ? null : validate(newDatasetName);
     const newSchemaError =
-      dataStorageType === DataStorageType.SNOWFLAKE ? validate(newSchemaName, true) : null;
-    const newTableError = validate(newTableName, dataStorageType === DataStorageType.SNOWFLAKE);
+      dataStorageType === DataStorageType.SNOWFLAKE
+        ? validate(newSchemaName, true)
+        : dataStorageType === DataStorageType.AWS_REDSHIFT
+          ? newSchemaName
+            ? validate(newSchemaName, true)
+            : null
+          : null;
+    const newTableError = validate(
+      newTableName,
+      dataStorageType === DataStorageType.SNOWFLAKE ||
+        dataStorageType === DataStorageType.AWS_REDSHIFT
+    );
 
     setDatasetName(newDatasetName);
-    setSchemaName(newSchemaName);
-    setTableName(newTableName);
+    // Only update schema if user hasn't manually edited it
+    if (!schemaEditedByUser.current) {
+      setSchemaName(newSchemaName);
+      setSchemaError(newSchemaError);
+    }
+    // Only update table if user hasn't manually edited it
+    if (!tableEditedByUser.current) {
+      setTableName(newTableName);
+      setTableError(newTableError);
+    }
     setDatasetError(newDatasetError);
-    setSchemaError(newSchemaError);
-    setTableError(newTableError);
 
     const newFullyQualifiedName =
       dataStorageType === DataStorageType.SNOWFLAKE && newSchemaName
         ? `${newDatasetName}.${quoteIdentifier(newSchemaName)}.${quoteIdentifier(newTableName)}`
-        : `${newDatasetName}.${newTableName}`;
+        : dataStorageType === DataStorageType.AWS_REDSHIFT
+          ? newSchemaName && newTableName
+            ? `${quoteIdentifier(newSchemaName)}.${quoteIdentifier(newTableName)}`
+            : ''
+          : `${newDatasetName}.${newTableName}`;
 
     const newIsValid =
       dataStorageType === DataStorageType.SNOWFLAKE
@@ -165,9 +223,23 @@ export function TargetSetupStep({
             newSchemaError === null &&
             newTableError === null
           )
-        : !!(newDatasetName && newTableName && newDatasetError === null && newTableError === null);
+        : dataStorageType === DataStorageType.AWS_REDSHIFT
+          ? !!(newSchemaName && newTableName && newSchemaError === null && newTableError === null)
+          : !!(
+              newDatasetName &&
+              newTableName &&
+              newDatasetError === null &&
+              newTableError === null
+            );
 
-    if (target?.fullyQualifiedName !== newFullyQualifiedName || target.isValid !== newIsValid) {
+    // Only update target from useEffect if user hasn't manually edited fields
+    // When user edits, handleSchemaNameChange/handleTableNameChange will call updateTarget
+    const shouldUpdate =
+      !schemaEditedByUser.current &&
+      !tableEditedByUser.current &&
+      (target?.fullyQualifiedName !== newFullyQualifiedName || target.isValid !== newIsValid);
+
+    if (shouldUpdate) {
       updateTarget(
         newDatasetName,
         newTableName,
@@ -187,15 +259,22 @@ export function TargetSetupStep({
   };
 
   const handleSchemaNameChange = (name: string) => {
+    schemaEditedByUser.current = true;
     setSchemaName(name);
-    const validationError = validate(name, true); // Snowflake allows quoted identifiers
+    // Schema is required for both Snowflake and Redshift
+    const validationError = validate(name, true); // Allow quoted identifiers
     setSchemaError(validationError);
     updateTarget(datasetName, tableName, datasetError, tableError, name, validationError);
   };
 
   const handleTableNameChange = (name: string) => {
+    tableEditedByUser.current = true;
     setTableName(name);
-    const validationError = validate(name, dataStorageType === DataStorageType.SNOWFLAKE);
+    const validationError = validate(
+      name,
+      dataStorageType === DataStorageType.SNOWFLAKE ||
+        dataStorageType === DataStorageType.AWS_REDSHIFT
+    );
     setTableError(validationError);
     updateTarget(datasetName, name, datasetError, validationError, schemaName, schemaError);
   };
@@ -452,6 +531,83 @@ export function TargetSetupStep({
               </p>
               {tableError && (
                 <p id='snowflake-table-name-error' className='text-destructive text-sm'>
+                  {tableError}
+                </p>
+              )}
+            </AppWizardStepItem>
+          </AppWizardStepSection>
+        </>
+      )}
+      {dataStorageType === DataStorageType.AWS_REDSHIFT && (
+        <>
+          <AppWizardStepHero
+            icon={<AwsRedshiftIcon />}
+            title='AWS Redshift'
+            docUrl='https://docs.owox.com/docs/storages/supported-storages/aws-redshift/'
+            variant='compact'
+          />
+          <AppWizardStepSection title='Choose where to store your data'>
+            <AppWizardStepItem>
+              <AppWizardStepLabel
+                required={true}
+                htmlFor='redshift-schema-name'
+                tooltip='Enter schema name for Redshift where the connector data will be stored. Identifiers will be quoted automatically to preserve case sensitivity.'
+              >
+                Schema name
+              </AppWizardStepLabel>
+              <Input
+                type='text'
+                id='redshift-schema-name'
+                placeholder='public'
+                autoComplete='off'
+                className='box-border w-full'
+                value={schemaName}
+                aria-invalid={Boolean(schemaError)}
+                aria-describedby={schemaError ? 'redshift-schema-name-error' : undefined}
+                onChange={e => {
+                  handleSchemaNameChange(e.target.value);
+                }}
+                required
+              />
+              <p className='text-muted-foreground text-sm'>
+                Schema is auto-created on first run if it doesn't exist. Identifiers will be quoted
+                automatically to preserve case sensitivity.
+              </p>
+              {schemaError && (
+                <p id='redshift-schema-name-error' className='text-destructive text-sm'>
+                  {schemaError}
+                </p>
+              )}
+            </AppWizardStepItem>
+
+            <AppWizardStepItem>
+              <AppWizardStepLabel
+                required={true}
+                htmlFor='redshift-table-name'
+                tooltip='Enter table name where the connector data will be stored. Identifiers will be quoted automatically to preserve case sensitivity.'
+              >
+                Table name
+              </AppWizardStepLabel>
+              <Input
+                type='text'
+                id='redshift-table-name'
+                placeholder='my_table'
+                autoComplete='off'
+                className='box-border w-full'
+                value={tableName}
+                aria-invalid={Boolean(tableError)}
+                aria-describedby={tableError ? 'redshift-table-name-error' : undefined}
+                onChange={e => {
+                  handleTableNameChange(e.target.value);
+                }}
+                required
+              />
+              <p className='text-muted-foreground text-sm'>
+                Table is auto-created on first run if it doesn't exist. Identifiers will be quoted
+                automatically to preserve case sensitivity.
+              </p>
+              {tableError && (
+                <p id='redshift-table-name-error' className='text-destructive text-sm'>
                   {tableError}
                 </p>
               )}
