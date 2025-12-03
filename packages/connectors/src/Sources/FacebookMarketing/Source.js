@@ -84,7 +84,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
           description: "Facebook API Access Token for authentication",
           attributes: [CONFIG_ATTRIBUTES.SECRET, CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
         },
-        AccoundIDs: {
+        AccountIDs: {
           isRequired: true,
           label: "Account IDs",
           description: "Facebook Ad Account IDs to fetch data from"
