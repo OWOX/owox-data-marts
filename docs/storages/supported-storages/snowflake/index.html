@@ -87,6 +87,37 @@ Note that <strong>Data Mart</strong> cannot be validated or published until the 
 <p>Give the storage configuration a clear <strong>title</strong>, eg <code dir="auto">OWOX Data Marts – Snowflake Production</code>.</p>
 <div class="sl-heading-wrapper level-h2"><h2 id="4-set-general-settings-and-connection-details">4. Set General Settings and Connection Details</h2><a class="sl-anchor-link" href="#4-set-general-settings-and-connection-details"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only">Section titled “4. Set General Settings and Connection Details”</span></a></div>
 <div class="sl-heading-wrapper level-h3"><h3 id="enter-account-identifier">Enter Account Identifier</h3><a class="sl-anchor-link" href="#enter-account-identifier"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only">Section titled “Enter Account Identifier”</span></a></div>
+<p>To find the region and locator for your account, see <a href="https://docs.snowflake.com/en/user-guide/admin-account-identifier#finding-the-region-and-locator-for-an-account" rel="noopener noreferrer" target="_blank">Snowflake documentation</a>.</p>
+<ol>
+<li>
+<p>Open the account selector and review the list of accounts that you previously signed in to.</p>
+<p><img src="https://docs.snowflake.com/en/_images/snowsight-gs-account-details.png" alt="Account selector"></p>
+</li>
+<li>
+<p>Select <strong>View account details</strong>.</p>
+</li>
+<li>
+<p>The <strong>Account Details</strong> dialog displays information about the account, including the account identifier and the account URL.</p>
+</li>
+<li>
+<p>Copy part of your account identifier from the <strong>Account locator</strong> field.</p>
+</li>
+<li>
+<p>Find the region in the account selector (e.g. Europe West4 (Netherlands)).</p>
+</li>
+<li>
+<p>Compare the found region with the <strong>Account Identifier Region</strong> in <a href="https://docs.snowflake.com/en/user-guide/admin-account-identifier#non-vps-account-locator-formats-by-cloud-platform-and-region" rel="noopener noreferrer" target="_blank">Snowflake documentation</a> for locator formats by cloud platform and region.</p>
+</li>
+<li>
+<p>Create the account identifier by combining the locator and the region like this: <code dir="auto">locator.region</code></p>
+<p>Examples:</p>
+<ul>
+<li><code dir="auto">xy12345.ap-northeast-3.aws</code></li>
+<li><code dir="auto">xy12345.north-europe.azure</code></li>
+</ul>
+</li>
+</ol>
+<p><strong>Alternative methods:</strong></p>
 <ul>
 <li>Log in to your <a href="https://app.snowflake.com/" rel="noopener noreferrer" target="_blank">Snowflake account</a></li>
 <li>Your account identifier is in the URL format: <code dir="auto">https://&#x3C;account_identifier>.snowflakecomputing.com</code></li>
