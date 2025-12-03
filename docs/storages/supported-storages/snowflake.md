@@ -19,6 +19,25 @@ Give the storage configuration a clear **title**, eg `OWOX Data Marts – Snowfl
 
 ### Enter Account Identifier
 
+To find the region and locator for your account, see [Snowflake documentation](https://docs.snowflake.com/en/user-guide/admin-account-identifier#finding-the-region-and-locator-for-an-account).
+
+1. Open the account selector and review the list of accounts that you previously signed in to.
+
+   ![Account selector](https://docs.snowflake.com/en/_images/snowsight-gs-account-details.png)
+
+2. Select **View account details**.
+3. The **Account Details** dialog displays information about the account, including the account identifier and the account URL.
+4. Copy part of your account identifier from the **Account locator** field.
+5. Find the region in the account selector (e.g. Europe West4 (Netherlands)).
+6. Compare the found region with the **Account Identifier Region** in [Snowflake documentation](https://docs.snowflake.com/en/user-guide/admin-account-identifier#non-vps-account-locator-formats-by-cloud-platform-and-region) for locator formats by cloud platform and region.
+7. Create the account identifier by combining the locator and the region like this: `locator.region`
+
+   Examples:
+   - `xy12345.ap-northeast-3.aws`
+   - `xy12345.north-europe.azure`
+
+**Alternative methods:**
+
 - Log in to your [Snowflake account](https://app.snowflake.com/)
 - Your account identifier is in the URL format: `https://<account_identifier>.snowflakecomputing.com`
 - Example: If your URL is `https://xy12345.us-east-1.snowflakecomputing.com`, enter `xy12345.us-east-1`
