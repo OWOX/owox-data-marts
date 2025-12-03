@@ -33,7 +33,8 @@ const TagTokenUtil = {
 export class TemplateRenderFacadeImpl<
   TTagMeta extends TagMetaEntry = TagMetaEntry,
   TAdditional = unknown,
-> implements TemplateRenderFacade<TTagMeta, TAdditional> {
+> implements TemplateRenderFacade<TTagMeta, TAdditional>
+{
   async render(
     input: TemplateRenderInput<TAdditional>,
     handlers: ReadonlyArray<
@@ -62,8 +63,10 @@ export class TemplateRenderFacadeImpl<
       return { rendered: withTokens, meta: { tags: [] } };
     }
 
-    const results = await runWithConcurrency(tagCollector.calls, 3, async ({ handler, payload }) =>
-      handler.handle(payload)
+    const results: TagRenderedResult<TTagMeta['resultMeta']>[] = await runWithConcurrency(
+      tagCollector.calls,
+      3,
+      async ({ handler, payload }) => handler.handle(payload)
     );
 
     const rendered = withTokens.replace(TagTokenUtil.regex, (_whole, sIdx: string) => {
@@ -77,6 +80,7 @@ export class TemplateRenderFacadeImpl<
         ({
           tag: call.handler.tag,
           payload: call.payload,
+          result: results[idx]?.rendered,
           resultMeta: results[idx]?.meta,
         }) as TTagMeta
     );

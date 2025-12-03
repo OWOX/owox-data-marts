@@ -102,6 +102,7 @@
     "typeorm": "^0.3.24",
     "typeorm-transactional": "^0.5.0",
     "zod": "^3.25.64",
+    "zod-to-json-schema": "^3.25.0",
     "snowflake-sdk": "^2.3.1"
   },
   "devDependencies": {

@@ -9,23 +9,25 @@ export type TemplateRenderInput<TAdditional = unknown> = {
 };
 
 export type TemplateRenderOutput<TMeta = Record<string, unknown>> = {
-  rendered: string;
-  meta?: TMeta;
+  rendered?: string;
+  meta: TMeta;
 };
 
 export interface TagRenderedResult<TMeta = unknown> {
-  rendered: string;
-  meta?: TMeta;
+  rendered?: string;
+  meta: TMeta;
 }
 
 export interface TagMetaEntry<
   TTag extends string = string,
   TPayload = unknown,
   TResultMeta = unknown,
+  TResult = unknown,
 > {
   tag: TTag;
   payload: TPayload;
-  resultMeta?: TResultMeta;
+  resultMeta: TResultMeta;
+  result: TResult;
 }
 
 export interface TemplateTagsMeta<TTagMeta extends TagMetaEntry = TagMetaEntry> {

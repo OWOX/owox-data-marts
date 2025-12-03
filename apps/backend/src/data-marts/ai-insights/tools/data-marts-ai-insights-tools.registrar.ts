@@ -13,9 +13,6 @@ import {
   GetFullyQualifiedTableNameInput,
   GetFullyQualifiedTableNameInputSchema,
   FullyQualifiedTableNameOutput,
-  FinalizeInsightInputSchema,
-  FinalizeInsightInput,
-  FinalizeInsightOutput,
   QueryRow,
 } from '../ai-insights-types';
 import { DataMartService } from '../../services/data-mart.service';
@@ -32,7 +29,6 @@ export enum DataMartsAiInsightsTools {
   SQL_DRY_RUN = 'sql_dry_run',
   SQL_EXECUTE = 'sql_execute',
   GET_TABLE_FULLY_QUALIFIED_NAME = 'table_get_fqn',
-  FINALIZE = 'insight_finalize',
 }
 
 @Injectable()
@@ -68,7 +64,7 @@ export class DataMartsAiInsightsToolsRegistrar implements AiInsightsToolsRegistr
           title: dataMart.title,
           description: dataMart.description,
           storageType: dataMart.storage.type,
-          schema: dataMart.schema,
+          schema: dataMart.schema!,
         };
       },
       isFinal: false,
@@ -159,45 +155,6 @@ export class DataMartsAiInsightsToolsRegistrar implements AiInsightsToolsRegistr
         return { fullyQualifiedName: tableNamae };
       },
       isFinal: false,
-    });
-
-    registry.register({
-      name: DataMartsAiInsightsTools.FINALIZE,
-      description:
-        'Return the prompt answer. Use this tool exactly once when you are ready with the final answer.',
-      inputJsonSchema: {
-        type: 'object',
-        properties: {
-          promptAnswer: {
-            type: 'string',
-            minLength: 1,
-            description: 'Artifact which you used to compute prompt answer.',
-          },
-          artifact: {
-            type: 'string',
-            minLength: 1,
-            description:
-              'The final SQL query (or other computation code) used to produce the answer.',
-          },
-        },
-        required: ['promptAnswer', 'artifact'],
-        additionalProperties: false,
-      },
-      inputZod: FinalizeInsightInputSchema,
-      execute: async (
-        args: FinalizeInsightInput,
-        context: DataMartInsightsContext
-      ): Promise<FinalizeInsightOutput> => {
-        return {
-          promptAnswer: args.promptAnswer,
-          meta: {
-            prompt: context.prompt,
-            artifact: args.artifact,
-            telemetry: context.telemetry,
-          },
-        };
-      },
-      isFinal: true,
     });
   }
 }

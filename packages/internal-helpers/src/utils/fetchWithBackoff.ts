@@ -5,12 +5,13 @@ export async function fetchWithBackoff(
   url: string,
   options: RequestInit,
   maxRetries = 3,
-  initialDelay = 300
+  initialDelay = 300,
+  timeoutMs = 25_000
 ): Promise<Response> {
   const logger = LoggerFactory.createNamedLogger('fetchWithBackoff');
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const res = await fetch(url, options);
+      const res = await fetchWithTimeout(url, options, timeoutMs);
 
       // Retry on 5xx or 429
       if (res.status >= 500 || res.status === 429) {
@@ -33,6 +34,7 @@ export async function fetchWithBackoff(
         msg.includes('ECONNRESET') ||
         msg.includes('fetch failed') ||
         msg.includes('timed out') ||
+        msg.includes('Fetch timeout') ||
         msg.includes('socket hang up');
 
       if (!isTransient || attempt === maxRetries) throw err;
@@ -46,4 +48,24 @@ export async function fetchWithBackoff(
   }
 
   throw new Error('fetchWithBackoff: exceeded max retries');
+}
+
+export async function fetchWithTimeout(
+  url: string,
+  options: RequestInit = {},
+  timeoutMs = 25_000
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err: unknown) {
+    if (castError(err).name === 'AbortError') {
+      throw new Error(`Fetch timeout: request did not complete within ${timeoutMs}ms`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }

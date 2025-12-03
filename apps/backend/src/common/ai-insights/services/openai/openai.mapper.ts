@@ -100,6 +100,37 @@ export function normalizeToolCallsFromCommentary(
   ];
 }
 
+export function normalizeToolCallsFromBracketSyntax(
+  content?: string
+): NormalizedToolCall[] | undefined {
+  if (!content) return undefined;
+
+  // Matches things like:
+  // [schema_get_metadata()]
+  // [schema_get_metadata({"foo": 1})]
+  // [schema.get-metadata({"foo": "bar"})]
+  const regex = /\[([a-zA-Z0-9_.-]+)\(([\s\S]*?)\)]/g;
+
+  const calls: NormalizedToolCall[] = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(content)) !== null) {
+    const fnName = match[1]?.trim();
+    if (!fnName) continue;
+
+    const rawArgs = match[2]?.trim();
+    const args = rawArgs && rawArgs.length > 0 ? rawArgs : '{}';
+
+    calls.push({
+      id: '',
+      type: 'function',
+      function: { name: fnName, arguments: args },
+    });
+  }
+
+  return calls.length > 0 ? calls : undefined;
+}
+
 export function extractReasoning(data: RawResponse, message: RawMessage): string | undefined {
   return message.reasoning_content || message.reasoning || data.reasoning || data.output?.reasoning;
 }

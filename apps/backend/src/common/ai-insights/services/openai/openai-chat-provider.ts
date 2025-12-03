@@ -14,6 +14,7 @@ import {
   mapDomainMessageToOpenAi,
   mapNormalizedToolCallsToAiToolCalls,
   mapUsageToDomain,
+  normalizeToolCallsFromBracketSyntax,
   normalizeToolCallsFromCommentary,
   normalizeToolCallsFromFunctionCall,
   normalizeToolCallsFromToolCalls,
@@ -54,6 +55,7 @@ export class OpenAiChatProvider implements AiChatProvider {
         },
       })),
       tool_choice: request.toolMode ?? 'auto',
+      response_format: request.responseFormat,
     };
 
     const res = await fetchWithBackoff(`${this.baseUrl}/chat/completions`, {
@@ -82,7 +84,8 @@ export class OpenAiChatProvider implements AiChatProvider {
     const normalizedToolCalls =
       normalizeToolCallsFromToolCalls(msg) ??
       normalizeToolCallsFromFunctionCall(msg) ??
-      normalizeToolCallsFromCommentary(content);
+      normalizeToolCallsFromCommentary(content) ??
+      normalizeToolCallsFromBracketSyntax(content);
 
     const toolCalls = mapNormalizedToolCallsToAiToolCalls(normalizedToolCalls);
 
