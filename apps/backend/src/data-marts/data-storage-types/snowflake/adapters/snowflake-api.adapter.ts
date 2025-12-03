@@ -39,6 +39,8 @@ export class SnowflakeApiAdapter {
     const connectionOptions: snowflake.ConnectionOptions = {
       account: config.account,
       warehouse: config.warehouse,
+      retryTimeout: 10000,
+      sfRetryMaxLoginRetries: 1,
     };
 
     if (credentials.authMethod === SnowflakeAuthMethod.PASSWORD) {
@@ -75,6 +77,10 @@ export class SnowflakeApiAdapter {
    * Destroys the Snowflake connection
    */
   public async destroy(): Promise<void> {
+    if (!this.connection || !this.connection.isUp()) {
+      return Promise.resolve();
+    }
+
     return new Promise((resolve, reject) => {
       this.connection.destroy(err => {
         if (err) {

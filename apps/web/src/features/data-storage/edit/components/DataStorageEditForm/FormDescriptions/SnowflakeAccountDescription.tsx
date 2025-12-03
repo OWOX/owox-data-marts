@@ -16,38 +16,67 @@ export default function SnowflakeAccountDescription() {
         <AccordionTrigger>How do I find my Snowflake account identifier?</AccordionTrigger>
         <AccordionContent>
           <p className='mb-2'>
-            Your Snowflake account identifier is in the URL when you{' '}
-            <ExternalAnchor className='underline' href='https://app.snowflake.com/'>
-              log into Snowflake
+            To find the region and locator for your account, see{' '}
+            <ExternalAnchor
+              className='underline'
+              href='https://docs.snowflake.com/en/user-guide/admin-account-identifier#finding-the-region-and-locator-for-an-account'
+            >
+              Snowflake documentation
             </ExternalAnchor>
-            . The format depends on your Snowflake URL type:
+            .
           </p>
           <ol className='list-inside list-decimal space-y-3 text-sm'>
             <li>
-              <strong>app.snowflake.com format:</strong> If your URL looks like{' '}
-              <code className='bg-muted rounded px-1 py-0.5'>
-                https://app.snowflake.com/europe-west3.gcp/xy12345/
-              </code>
-              , then your account identifier is{' '}
-              <code className='bg-muted rounded px-1 py-0.5'>xy12345.europe-west3.gcp</code>
+              Open the account selector and review the list of accounts that you previously signed
+              in to.
             </li>
             <li>
-              <strong>snowflakecomputing.com format:</strong> If your URL looks like{' '}
-              <code className='bg-muted rounded px-1 py-0.5'>
-                https://xy12345.us-east-1.snowflakecomputing.com
-              </code>
-              , then your account identifier is{' '}
-              <code className='bg-muted rounded px-1 py-0.5'>xy12345.us-east-1</code>
+              Select <strong>View account details</strong>.
             </li>
             <li>
-              <strong>Organization format:</strong> If your URL looks like{' '}
-              <code className='bg-muted rounded px-1 py-0.5'>
-                https://myorg-account123.snowflakecomputing.com
-              </code>
-              , then your account identifier is{' '}
-              <code className='bg-muted rounded px-1 py-0.5'>myorg-account123</code>
+              The <strong>Account Details</strong> dialog displays information about the account,
+              including the account identifier and the account URL.
+            </li>
+            <li>
+              Copy part of your account identifier from the <strong>Account locator</strong> field.
+            </li>
+            <li>Find the region in the account selector (e.g. Europe West4 (Netherlands)).</li>
+            <li>
+              Compare the found region with the <strong>Account Identifier Region</strong> in{' '}
+              <ExternalAnchor
+                className='underline'
+                href='https://docs.snowflake.com/en/user-guide/admin-account-identifier#non-vps-account-locator-formats-by-cloud-platform-and-region'
+              >
+                Snowflake documentation
+              </ExternalAnchor>{' '}
+              for locator formats by cloud platform and region.
+            </li>
+            <li>
+              Create the account identifier by combining the locator and the region like this:{' '}
+              <code className='bg-muted rounded px-1 py-0.5'>locator.region</code>
+              <div className='mt-2'>
+                Examples:
+                <ul className='mt-1 ml-4 space-y-1'>
+                  <li>
+                    <code className='bg-muted rounded px-1 py-0.5'>xy12345.ap-northeast-3.aws</code>
+                  </li>
+                  <li>
+                    <code className='bg-muted rounded px-1 py-0.5'>xy12345.north-europe.azure</code>
+                  </li>
+                </ul>
+              </div>
             </li>
           </ol>
+          <div className='mt-4 text-sm'>
+            More details in{' '}
+            <ExternalAnchor
+              className='underline'
+              href='https://docs.owox.com/docs/storages/supported-storages/snowflake/'
+            >
+              OWOX Snowflake documentation
+            </ExternalAnchor>
+            .
+          </div>
         </AccordionContent>
       </AccordionItem>
     </Accordion>

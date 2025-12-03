@@ -21,13 +21,13 @@ export class SnowflakeAccessValidator implements DataStorageAccessValidator {
   ): Promise<ValidationResult> {
     const configOpt = SnowflakeConfigSchema.safeParse(config);
     if (!configOpt.success) {
-      this.logger.warn('Invalid config', configOpt.error);
+      this.logger.log('Invalid config', configOpt.error);
       return new ValidationResult(false, 'Invalid config', { errors: configOpt.error.errors });
     }
 
     const credentialsOpt = SnowflakeCredentialsSchema.safeParse(credentials);
     if (!credentialsOpt.success) {
-      this.logger.warn('Invalid credentials', credentialsOpt.error);
+      this.logger.log('Invalid credentials', credentialsOpt.error);
       return new ValidationResult(false, 'Invalid credentials', {
         errors: credentialsOpt.error.errors,
       });
@@ -40,7 +40,7 @@ export class SnowflakeAccessValidator implements DataStorageAccessValidator {
       await apiAdapter.destroy();
       return new ValidationResult(true);
     } catch (error) {
-      this.logger.warn('Access validation failed', error);
+      this.logger.log('Access validation failed', error);
       try {
         await apiAdapter.destroy();
       } catch {
