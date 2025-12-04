@@ -48,6 +48,10 @@ export type AiChatRequest = {
   toolMode?: AiToolMode;
   temperature?: number;
   maxTokens?: number;
+  responseFormat?: {
+    type: 'json_object';
+    schema?: unknown;
+  };
 };
 
 export type AiChatResponse = {

@@ -15,17 +15,33 @@ export interface DataMartInsightTemplateInput {
 }
 
 export interface DataMartPromptMetaEntry {
+  promptAnswer?: string;
   payload: PromptTagPayload;
-  meta?: PromptTagMeta;
+  meta: PromptTagMeta;
+}
+
+export enum DataMartInsightTemplateStatus {
+  OK = 'ok',
+  ERROR = 'error',
 }
 
 export interface DataMartInsightTemplateOutput {
-  rendered: string;
+  rendered?: string;
+  status: DataMartInsightTemplateStatus;
   prompts: DataMartPromptMetaEntry[];
 }
 
 export interface DataMartInsightTemplateFacade {
   render(input: DataMartInsightTemplateInput): Promise<DataMartInsightTemplateOutput>;
+}
+
+export enum PromptAnswer {
+  OK = 'ok',
+  NO_DATA = 'no_data',
+  NOT_RELEVANT = 'not_relevant',
+  CANNOT_ANSWER = 'cannot_answer',
+  HIGH_AMBIGUITY = 'high_ambiguity',
+  ERROR = 'error',
 }
 
 export interface PromptTagPayload {
@@ -38,8 +54,10 @@ export interface PromptTagPayload {
 
 export interface PromptTagMeta {
   prompt: string;
-  artifact: string;
-  telemetry?: unknown;
+  status: PromptAnswer;
+  reasonDescription?: string;
+  artifact?: string;
+  telemetry: unknown;
   [key: string]: unknown;
 }
 

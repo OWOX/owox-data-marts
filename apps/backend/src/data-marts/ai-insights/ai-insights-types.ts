@@ -1,6 +1,9 @@
 import { AgentBudgets, AgentTelemetry, AiContext } from '../../common/ai-insights/agent/types';
 import { z } from 'zod';
 import { DataMartSchemaSchema } from '../data-storage-types/data-mart-schema.type';
+import { AiChatProvider } from '../../common/ai-insights/agent/ai-core';
+import { ToolRegistry } from '../../common/ai-insights/agent/tool-registry';
+import { PromptAnswer } from './data-mart-insights.types';
 
 export const AI_INSIGHTS_FACADE = Symbol('AI_INSIGHTS_FACADE');
 
@@ -8,16 +11,19 @@ export interface DataMartInsightsContext extends AiContext {
   projectId: string;
   dataMartId: string;
   prompt: string;
-  // Optional telemetry object to record LLM and tool calls.
   telemetry?: AgentTelemetry;
-  // Optional runtime budgets that tools may respect during execution.
   budgets?: AgentBudgets;
 }
 
+export const modelOptionsSchema = z.object({
+  temperature: z.number().min(0).max(1).optional(),
+  maxTokens: z.number().int().positive().optional(),
+});
+
 export const OptionsSchema = z.object({
-  dryRun: z.boolean().default(false),
-  maxRows: z.number().int().positive().max(1000).default(30),
+  maxRows: z.number().int().positive().max(1000).optional(),
   maxBytesProcessed: z.number().int().positive().optional(),
+  modelOptions: modelOptionsSchema.optional(),
 });
 export type Options = z.infer<typeof OptionsSchema>;
 
@@ -31,11 +37,13 @@ export const AnswerPromptRequestSchema = z.object({
 export type AnswerPromptRequest = z.infer<typeof AnswerPromptRequestSchema>;
 
 export const AnswerPromptResponseSchema = z.object({
-  promptAnswer: z.string().min(1),
+  promptAnswer: z.string().min(1).optional(),
+  status: z.nativeEnum(PromptAnswer),
   meta: z.object({
     prompt: z.string().min(1),
-    artifact: z.string().min(1),
-    telemetry: z.unknown().optional(),
+    artifact: z.string().optional(),
+    reasonDescription: z.string().optional(),
+    telemetry: z.unknown(),
   }),
 });
 export type AnswerPromptResponse = z.infer<typeof AnswerPromptResponseSchema>;
@@ -43,30 +51,14 @@ export type AnswerPromptResponse = z.infer<typeof AnswerPromptResponseSchema>;
 export const QueryRowSchema = z.record(z.string(), z.unknown());
 export type QueryRow = z.infer<typeof QueryRowSchema>;
 
-export const FinalizeInsightInputSchema = z.object({
-  promptAnswer: z.string().min(1),
-  artifact: z.string().min(1),
-});
-export type FinalizeInsightInput = z.infer<typeof FinalizeInsightInputSchema>;
-export const FinalizeInsightOutputSchema = z.object({
-  promptAnswer: z.string().min(1),
-  meta: z.object({
-    prompt: z.string().min(1),
-    artifact: z.string().min(1),
-    telemetry: z.unknown().optional(),
-  }),
-});
-
-export type FinalizeInsightOutput = z.infer<typeof FinalizeInsightOutputSchema>;
-
 export const GetMetadataInputSchema = z.object({});
 export type GetMetadataInput = z.infer<typeof GetMetadataInputSchema>;
 
 export const GetMetadataOutputSchema = z.object({
-  title: z.string(),
-  description: z.string().optional(),
-  storageType: z.string().optional(),
-  schema: DataMartSchemaSchema.optional(),
+  title: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  storageType: z.string(),
+  schema: DataMartSchemaSchema,
 });
 export type GetMetadataOutput = z.infer<typeof GetMetadataOutputSchema>;
 
@@ -101,3 +93,17 @@ export const FullyQualifiedTableNameOutputSchema = z.object({
   fullyQualifiedName: z.string().min(1),
 });
 export type FullyQualifiedTableNameOutput = z.infer<typeof FullyQualifiedTableNameOutputSchema>;
+
+export interface Agent<Input, Output> {
+  readonly name: string;
+  run(input: Input, shared: SharedAgentContext): Promise<Output>;
+}
+
+export interface SharedAgentContext {
+  aiProvider: AiChatProvider;
+  toolRegistry: ToolRegistry;
+  budgets: AgentBudgets;
+  telemetry: AgentTelemetry;
+  projectId: string;
+  dataMartId: string;
+}

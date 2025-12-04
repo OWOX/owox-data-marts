@@ -40,7 +40,7 @@ export class InsightExecutionService {
   } {
     const llmCalls = telemetry.llmCalls ?? [];
     const toolCalls = telemetry.toolCalls ?? [];
-    const failedToolCalls = toolCalls.filter(call => call.success === false).length;
+    const failedToolCalls = toolCalls.filter(call => !call.success).length;
     const lastLlm = llmCalls.length ? llmCalls[llmCalls.length - 1] : undefined;
     return {
       llmCalls: llmCalls.length,
@@ -173,7 +173,7 @@ export class InsightExecutionService {
       }
 
       // Overall rendered insight output
-      if (rendered.length > 0) {
+      if (rendered && rendered.length > 0) {
         pushLog({
           type: 'ai_insight_output',
           output: rendered,
