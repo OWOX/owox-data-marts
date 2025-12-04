@@ -100,12 +100,12 @@ var shopFields = {
   },
   'createdAt': {
     'description': 'The date and time when the shop was created.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'createdAt'
   },
   'updatedAt': {
     'description': 'The date and time when the shop was last updated.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'updatedAt'
   }
 };
