@@ -148,11 +148,11 @@ export class DataMartsAiInsightsToolsRegistrar implements AiInsightsToolsRegistr
         _args: GetFullyQualifiedTableNameInput,
         context: DataMartInsightsContext
       ): Promise<FullyQualifiedTableNameOutput> => {
-        const tableNamae = await this.tableNameRetrieverTool.retrieveTableName(
+        const tableName = await this.tableNameRetrieverTool.retrieveTableName(
           context.dataMartId,
           context.projectId
         );
-        return { fullyQualifiedName: tableNamae };
+        return { fullyQualifiedName: tableName };
       },
       isFinal: false,
     });
