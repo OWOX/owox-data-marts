@@ -15,9 +15,10 @@ import { AiInsightsFacade } from '../../facades/ai-insights.facade';
 import { AI_INSIGHTS_FACADE, AnswerPromptResponse } from '../../ai-insights-types';
 
 @Injectable()
-export class PromptTagHandler
-  implements TagHandler<PromptTagPayload, TagRenderedResult<PromptTagMeta>>
-{
+export class PromptTagHandler implements TagHandler<
+  PromptTagPayload,
+  TagRenderedResult<PromptTagMeta>
+> {
   readonly tag = 'prompt' as const;
 
   constructor(
