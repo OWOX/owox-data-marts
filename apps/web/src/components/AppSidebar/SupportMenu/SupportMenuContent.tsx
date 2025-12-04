@@ -6,14 +6,13 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
 } from '@owox/ui/components/dropdown-menu';
-import type { UserMenuItem } from './types';
-import { CheckIcon } from 'lucide-react';
+import type { SupportMenuItem } from './types';
 
-interface UserMenuContentProps {
-  items: UserMenuItem[];
+interface SupportMenuContentProps {
+  items: SupportMenuItem[];
 }
 
-export function UserMenuContent({ items }: UserMenuContentProps) {
+export function SupportMenuContent({ items }: SupportMenuContentProps) {
   return (
     <DropdownMenuContent align='start' side='right' className='w-56'>
       {items.map((item, index) => {
@@ -27,21 +26,16 @@ export function UserMenuContent({ items }: UserMenuContentProps) {
           return (
             <DropdownMenuSub key={item.title}>
               <DropdownMenuSubTrigger className='flex items-center gap-2 px-2 py-1.5'>
-                <item.icon className='size-4' />
+                <item.icon className='text-muted-foreground size-4' />
                 {item.title}
+                {item.mark && <div className='bg-brand-blue-500 mr-2 h-2 w-2 rounded-full' />}
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
                 {submenu.options.map(option => (
-                  <DropdownMenuItem
-                    key={option.value}
-                    className='flex items-center gap-2 px-2 py-1.5'
-                    onClick={() => {
-                      submenu.onChange(option.value);
-                    }}
-                  >
+                  <DropdownMenuItem className='flex items-center gap-2 px-2 py-1.5'>
                     {option.icon && <option.icon className='size-4' />}
                     {option.label}
-                    {submenu.value === option.value && <CheckIcon className='ml-auto size-4' />}
+                    {option.mark && <div className='bg-brand-blue-500 mr-2 h-2 w-2 rounded-full' />}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuSubContent>
@@ -57,6 +51,7 @@ export function UserMenuContent({ items }: UserMenuContentProps) {
           >
             <item.icon className={`size-4 ${item.className ?? ''}`} />
             {item.title}
+            {item.mark && <div className='bg-brand-blue-500 mr-2 h-2 w-2 rounded-full' />}
           </DropdownMenuItem>
         );
       })}
