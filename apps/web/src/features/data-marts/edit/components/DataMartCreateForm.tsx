@@ -47,6 +47,7 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
     getDataStorageById,
   } = useDataStorage();
   const [isDataStorageTypeDialogOpen, setIsDataStorageTypeDialogOpen] = useState(false);
+  const [isCreatingDataStorage, setIsCreatingDataStorage] = useState(false);
 
   useEffect(() => {
     void fetchDataStorages();
@@ -73,6 +74,7 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
   };
 
   const createNewDataStorage = async (type: DataStorageType) => {
+    setIsCreatingDataStorage(true);
     try {
       const newStorage = await createDataStorage(type);
       if (newStorage?.id) {
@@ -83,6 +85,7 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
       console.error('Failed to create storage:', error);
     }
     setIsDataStorageTypeDialogOpen(false);
+    setIsCreatingDataStorage(false);
   };
 
   return (
@@ -196,6 +199,7 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
           setIsDataStorageTypeDialogOpen(false);
         }}
         onSelect={type => createNewDataStorage(type)}
+        isCreatingDataStorage={isCreatingDataStorage}
       />
     </>
   );

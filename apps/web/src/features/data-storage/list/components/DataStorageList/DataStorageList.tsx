@@ -19,6 +19,7 @@ export const DataStorageList = ({
   onTypeDialogClose,
 }: DataStorageListProps) => {
   const [isTypeDialogOpen, setIsTypeDialogOpen] = useState(initialTypeDialogOpen);
+  const [isCreatingDataStorage, setIsCreatingDataStorage] = useState(false);
 
   const {
     dataStorages,
@@ -50,13 +51,14 @@ export const DataStorageList = ({
   const [selectedStorageId, setSelectedStorageId] = useState<string | null>(null);
 
   const handleCreateNewStorage = async (type: DataStorageType) => {
+    setIsCreatingDataStorage(true);
     try {
       const newStorage = await createDataStorage(type);
       handleTypeDialogClose();
-
       if (newStorage?.id) {
         await getDataStorageById(newStorage.id);
         setIsEditDrawerOpen(true);
+        setIsCreatingDataStorage(false);
       }
     } catch (error) {
       console.error('Failed to create storage:', error);
@@ -146,6 +148,7 @@ export const DataStorageList = ({
         isOpen={isTypeDialogOpen}
         onClose={handleTypeDialogClose}
         onSelect={handleCreateNewStorage}
+        isCreatingDataStorage={isCreatingDataStorage}
       />
 
       <DataStorageConfigSheet
