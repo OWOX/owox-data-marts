@@ -9,18 +9,23 @@ import { Button } from '@owox/ui/components/button';
 import { DataStorageTypeModel } from '../types/data-storage-type.model';
 import { DataStorageStatus, DataStorageType } from '../model/types';
 import { Badge } from '@owox/ui/components/badge';
+import { useActionLock } from '../../../../shared/hooks';
 
 interface DataStorageTypeDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (type: DataStorageType) => Promise<void>;
+  isCreatingDataStorage: boolean;
 }
 
 export const DataStorageTypeDialog = ({
   isOpen,
   onClose,
   onSelect,
+  isCreatingDataStorage,
 }: DataStorageTypeDialogProps) => {
+  const { trigger, isLocked } = useActionLock(onSelect, 1000);
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className='sm:max-w-sm'>
@@ -36,9 +41,14 @@ export const DataStorageTypeDialog = ({
               <Button
                 key={typeInfo.type}
                 variant='outline'
-                className='flex px-4 py-6'
-                onClick={() => void onSelect(typeInfo.type)}
-                disabled={!isActive}
+                className='flex px-4 py-6 select-none'
+                onClick={() => {
+                  void trigger(typeInfo.type);
+                }}
+                disabled={!isActive || isCreatingDataStorage || isLocked}
+                onDoubleClick={e => {
+                  e.preventDefault();
+                }}
               >
                 <span className='flex flex-grow items-center gap-2'>
                   <Icon size={24} />
