@@ -19,15 +19,75 @@ var ShopifyAdsConnector = class ShopifyAdsConnector extends AbstractConnector {
     const fields = ConnectorUtils.parseFields(this.config.Fields.value);
 
     for (const nodeName in fields) {
-      await this._processCatalogNode({
-        nodeName,
-        fields: fields[nodeName] || []
-      });
+      const schema = this.source.fieldsSchema[nodeName];
+      const isTimeSeries = schema?.isTimeSeries || false;
+
+      if (isTimeSeries) {
+        await this._processTimeSeriesNode({
+          nodeName,
+          fields: fields[nodeName] || []
+        });
+      } else {
+        await this._processCatalogNode({
+          nodeName,
+          fields: fields[nodeName] || []
+        });
+      }
     }
   }
 
   /**
-   * Process catalog node (marketing events).
+   * Process time series node (orders, customers, products, etc.).
+   * Fetches data incrementally based on date range.
+   * @param {Object} options
+   * @param {string} options.nodeName
+   * @param {Array<string>} options.fields
+   * @returns {Promise<void>}
+   * @private
+   */
+  async _processTimeSeriesNode({ nodeName, fields }) {
+    const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
+
+    if (daysToFetch <= 0) {
+      this.config.logMessage(`No days to fetch for ${nodeName}`);
+      return;
+    }
+
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + daysToFetch - 1);
+
+    const startDateStr = DateUtils.formatDate(startDate);
+    const endDateStr = DateUtils.formatDate(endDate);
+
+    this.config.logMessage(`Fetching ${nodeName} from ${startDateStr} to ${endDateStr}`);
+
+    const data = await this.source.fetchData({
+      nodeName,
+      fields,
+      startDate: startDateStr,
+      endDate: endDateStr
+    });
+
+    const storage = await this.getStorageByNode(nodeName);
+
+    if (data.length || this.config.CreateEmptyTables?.value) {
+      const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
+      await storage.saveData(preparedData);
+    }
+
+    this.config.logMessage(
+      data.length ?
+        `${data.length} rows of ${nodeName} were fetched` :
+        `No records have been fetched`
+    );
+
+    if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+      this.config.updateLastRequstedDate(endDate);
+    }
+  }
+
+  /**
+   * Process catalog node (static data like shop, blogs, etc.).
    * @param {Object} options
    * @param {string} options.nodeName
    * @param {Array<string>} options.fields
