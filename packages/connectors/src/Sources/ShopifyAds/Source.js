@@ -27,448 +27,314 @@ var ShopifyAdsSource = class ShopifyAdsSource extends AbstractSource {
         label: "Fields",
         description: "Comma separated list in format 'node field'. Example: orders id, orders totalPrice"
       },
+      ReimportLookbackWindow: {
+        requiredType: "number",
+        isRequired: true,
+        default: 2,
+        label: "Reimport Lookback Window",
+        description: "Number of days to look back when reimporting data",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+      },
       CreateEmptyTables: {
         requiredType: "boolean",
         default: true,
         label: "Create Empty Tables",
         description: "Create tables with all schema columns even when API returned zero rows",
         attributes: [CONFIG_ATTRIBUTES.ADVANCED]
-      }
+      },
+      StartDate: {
+        requiredType: "date",
+        label: "Start Date",
+        description: "Start date for data import",
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+      },
+      EndDate: {
+        requiredType: "date",
+        label: "End Date",
+        description: "End date for data import",
+        attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
+      },
     }));
 
     this.fieldsSchema = ShopifyAdsFieldsSchema;
   }
 
   /**
-   * Entry point used by connectors to fetch Shopify data.
+   * Entry point to fetch Shopify data.
    */
-  async fetchData({ nodeName, fields = [] }) {
-    if (!nodeName) {
-      throw new Error("nodeName is required to fetch Shopify data");
-    }
-
+  async fetchData({ nodeName, fields = [], startDate = null, endDate = null }) {
     const schema = this.fieldsSchema[nodeName];
-    if (!schema) {
-      throw new Error(`Unknown node '${nodeName}' for Shopify source`);
-    }
 
-    // Metafield nodes
     if (nodeName.startsWith("metafield-")) {
-      return await this._fetchMetafieldsForNode({ nodeName, schema, requestedFields: fields });
+      return this._fetchMetafields({ nodeName, schema, fields });
     }
 
-    // Discount codes (special handling for union type)
-    if (nodeName === "discount-codes") {
-      return await this._fetchDiscountCodes({ nodeName, schema, requestedFields: fields });
-    }
-
-    // Singleton (shop)
     if (schema.isSingleton) {
-      return await this._fetchSingleton({ nodeName, schema, requestedFields: fields });
+      return this._fetchSingleton({ nodeName, schema, fields });
     }
 
-    // Nested field nodes (transactions, refunds inside orders)
     if (schema.nestedField) {
-      return await this._fetchNestedField({ nodeName, schema, requestedFields: fields });
+      return this._fetchPaginated({
+        nodeName,
+        schema,
+        fields,
+        startDate,
+        endDate,
+        buildQuery: (afterClause, filterClause, graphqlFields) => 
+          `query { ${schema.queryName}(first: 50${afterClause}${filterClause}) { nodes { id ${schema.nestedField}(first: 100) { nodes { ${graphqlFields} } } } pageInfo { hasNextPage endCursor } } }`,
+        extractNodes: (connection) => {
+          const results = [];
+          for (const parent of (connection.nodes || [])) {
+            results.push(...(parent[schema.nestedField]?.nodes || []));
+          }
+          return results;
+        }
+      });
     }
 
-    // Nested query nodes (disputes, balance-transactions inside shopifyPaymentsAccount)
-    if (schema.nestedQuery) {
-      return await this._fetchNestedQuery({ nodeName, schema, requestedFields: fields });
-    }
-
-    // Standard GraphQL nodes
-    return await this._fetchGenericGraphQL({ nodeName, schema, requestedFields: fields });
+    return this._fetchPaginated({
+      nodeName,
+      schema,
+      fields,
+      startDate,
+      endDate,
+      buildQuery: (afterClause, filterClause, graphqlFields) =>
+        `query { ${schema.queryName}(first: 250${afterClause}${filterClause}) { nodes { ${graphqlFields} } pageInfo { hasNextPage endCursor } } }`,
+      extractNodes: (connection) => connection.nodes || []
+    });
   }
 
   /**
-   * Generic GraphQL fetch that builds query dynamically based on requested fields.
+   * Generic paginated fetch with customizable query and node extraction.
    */
-  async _fetchGenericGraphQL({ nodeName, schema, requestedFields }) {
-    const keepFields = this._resolveFieldsSet({ nodeName, requestedFields });
-    const graphqlFields = this._buildGraphQLFieldsFromSchema({ schema, keepFields });
-    
-    const collected = [];
-    let hasNextPage = true;
+  async _fetchPaginated({ nodeName, schema, fields, startDate, endDate, buildQuery, extractNodes }) {
+    const queryFields = this._buildQueryFields(schema, fields);
+    const dateFilter = this._buildDateFilter(schema, startDate, endDate);
+    const normalizer = schema.normalizer 
+      ? (node) => this._filterFields(schema.normalizer(node), fields)
+      : (node) => this._normalizeFromSchema({ node, schema, fields });
+
+    const results = [];
     let cursor = null;
+    let hasNextPage = true;
 
     while (hasNextPage) {
       const afterClause = cursor ? `, after: "${cursor}"` : "";
-      const filterClause = schema.queryFilter ? `, ${schema.queryFilter}` : "";
-      const query = `query { ${schema.queryName}(first: 250${afterClause}${filterClause}) { nodes { ${graphqlFields} } pageInfo { hasNextPage endCursor } } }`;
-      
-      const payload = await this._graphqlRequest(query);
-      const connection = this._getNestedValue(payload?.data, schema.connectionPath);
-      if (!connection) break;
+      const query = buildQuery(afterClause, dateFilter, queryFields);
 
-      const nodes = connection.nodes || connection.edges?.map(e => e.node) || [];
-      for (const node of nodes) {
-        const normalized = this._normalizeFromSchema({ node, schema, keepFields });
-        collected.push(normalized);
+      const payload = await this._graphqlRequest(query);
+      const connection = payload?.data?.[schema.connectionPath];
+      if (!connection) {
+        break;
+      }
+
+      for (const node of extractNodes(connection)) {
+        results.push(normalizer(node));
       }
 
       hasNextPage = connection.pageInfo?.hasNextPage || false;
       cursor = connection.pageInfo?.endCursor || null;
     }
 
-    console.log(`[Shopify] Fetched ${collected.length} records for ${nodeName}`);
-    return collected;
+    console.log(`[Shopify] Fetched ${results.length} records for ${nodeName}`);
+    return results;
   }
 
   /**
-   * Fetch singleton resources like shop.
+   * Fetch singleton (shop).
    */
-  async _fetchSingleton({ nodeName, schema, requestedFields }) {
-    const keepFields = this._resolveFieldsSet({ nodeName, requestedFields });
-    const graphqlFields = this._buildGraphQLFieldsFromSchema({ schema, keepFields });
-    
-    const query = `query { ${schema.queryName} { ${graphqlFields} } }`;
+  async _fetchSingleton({ nodeName, schema, fields }) {
+    const queryFields = this._buildQueryFields(schema, fields);
+    const query = `query { ${schema.queryName} { ${queryFields} } }`;
+
     const payload = await this._graphqlRequest(query);
     const node = payload?.data?.[schema.queryName];
-    if (!node) {
-      console.log(`[Shopify] Fetched 0 records for ${nodeName}`);
-      return [];
-    }
 
-    console.log(`[Shopify] Fetched 1 record for ${nodeName}`);
-    return [this._normalizeFromSchema({ node, schema, keepFields })];
+    console.log(`[Shopify] Fetched ${node ? 1 : 0} records for ${nodeName}`);
+    return node ? [this._normalizeFromSchema({ node, schema, fields })] : [];
   }
 
   /**
-   * Fetch nested fields (e.g., transactions inside orders).
+   * Fetch metafields for various owner types.
+   * Shop metafields: single query (shop is singleton)
+   * Other metafields: paginate through parent entities (products, orders, etc.)
    */
-  async _fetchNestedField({ nodeName, schema, requestedFields }) {
-    const keepFields = this._resolveFieldsSet({ nodeName, requestedFields });
-    const graphqlFields = this._buildGraphQLFieldsFromSchema({ schema, keepFields });
-    
-    const collected = [];
-    let hasNextPage = true;
+  async _fetchMetafields({ nodeName, schema, fields }) {
+    const queryFields = this._buildQueryFields(schema, fields);
+    const isShopMetafields = schema.parentQuery === null;
+    const includeOwnerId = fields.includes("ownerId");
+
+    if (isShopMetafields) {
+      // TODO: Add pagination for metafields if shop has > 250 metafields
+      const query = `query { shop { id metafields(first: 250) { nodes { ${queryFields} } } } }`;
+      const payload = await this._graphqlRequest(query);
+      const shopId = payload?.data?.shop?.id || null;
+      const metafields = payload?.data?.shop?.metafields?.nodes || [];
+
+      console.log(`[Shopify] Fetched ${metafields.length} records for ${nodeName}`);
+
+      return metafields.map(mf => {
+        const normalized = this._normalizeFromSchema({ node: mf, schema, fields });
+        if (includeOwnerId) {
+          normalized.ownerId = shopId;
+        }
+        return normalized;
+      });
+    }
+
+    const metafields = [];
     let cursor = null;
 
-    while (hasNextPage) {
+    do {
       const afterClause = cursor ? `, after: "${cursor}"` : "";
-      const query = `query { ${schema.queryName}(first: 50${afterClause}) { nodes { id ${schema.nestedField}(first: 100) { nodes { ${graphqlFields} } } } pageInfo { hasNextPage endCursor } } }`;
-      
-      const payload = await this._graphqlRequest(query);
-      const connection = this._getNestedValue(payload?.data, schema.connectionPath);
-      if (!connection) break;
+      // TODO: Add pagination for metafields if owner has > 250 metafields (currently only first 250 are fetched)
+      const query = `query { ${schema.parentQuery}(first: 250${afterClause}) { nodes { id metafields(first: 250) { nodes { ${queryFields} } } } pageInfo { hasNextPage endCursor } } }`;
 
-      for (const parent of (connection.nodes || [])) {
-        const nested = parent[schema.nestedField]?.nodes || [];
-        for (const node of nested) {
-          const normalized = this._normalizeFromSchema({ node, schema, keepFields });
-          collected.push(normalized);
+      const payload = await this._graphqlRequest(query);
+      const connection = payload?.data?.[schema.parentQuery];
+      if (!connection) {
+        break;
+      }
+
+      for (const owner of (connection.nodes || [])) {
+        for (const metafield of (owner.metafields?.nodes || [])) {
+          const normalized = this._normalizeFromSchema({ node: metafield, schema, fields });
+          if (includeOwnerId) {
+            normalized.ownerId = owner.id;
+          }
+          metafields.push(normalized);
         }
       }
 
-      hasNextPage = connection.pageInfo?.hasNextPage || false;
-      cursor = connection.pageInfo?.endCursor || null;
-    }
+      cursor = connection.pageInfo?.hasNextPage ? connection.pageInfo.endCursor : null;
+    } while (cursor);
 
-    console.log(`[Shopify] Fetched ${collected.length} records for ${nodeName}`);
-    return collected;
+    console.log(`[Shopify] Fetched ${metafields.length} records for ${nodeName}`);
+    return metafields;
   }
 
-  /**
-   * Fetch nested query nodes (e.g., disputes inside shopifyPaymentsAccount).
-   */
-  async _fetchNestedQuery({ nodeName, schema, requestedFields }) {
-    const keepFields = this._resolveFieldsSet({ nodeName, requestedFields });
-    const graphqlFields = this._buildGraphQLFieldsFromSchema({ schema, keepFields });
-    
-    const collected = [];
-    let hasNextPage = true;
-    let cursor = null;
+  // ========== Data Processing ==========
 
-    while (hasNextPage) {
-      const afterClause = cursor ? `, after: "${cursor}"` : "";
-      const query = `query { ${schema.queryName} { ${schema.nestedQuery}(first: 250${afterClause}) { nodes { ${graphqlFields} } pageInfo { hasNextPage endCursor } } } }`;
-      
-      const payload = await this._graphqlRequest(query);
-      const connection = this._getNestedValue(payload?.data, schema.connectionPath);
-      if (!connection) break;
-
-      const nodes = connection.nodes || [];
-      for (const node of nodes) {
-        const normalized = this._normalizeFromSchema({ node, schema, keepFields });
-        collected.push(normalized);
-      }
-
-      hasNextPage = connection.pageInfo?.hasNextPage || false;
-      cursor = connection.pageInfo?.endCursor || null;
+  _normalizeFromSchema({ node, schema, fields }) {
+    if (!node) {
+      return {};
     }
 
-    console.log(`[Shopify] Fetched ${collected.length} records for ${nodeName}`);
-    return collected;
-  }
-
-  /**
-   * Build GraphQL fields string from schema based on requested fields.
-   */
-  _buildGraphQLFieldsFromSchema({ schema, keepFields }) {
-    const graphqlParts = new Set();
-    
-    for (const field of keepFields) {
-      const fieldDef = schema.fields[field];
-      if (fieldDef?.graphqlPath) {
-        graphqlParts.add(fieldDef.graphqlPath);
-      }
-    }
-
-    // Always include id
-    graphqlParts.add("id");
-
-    return this._mergeNestedFields([...graphqlParts]);
-  }
-
-  /**
-   * Merge nested GraphQL fields to avoid duplication.
-   */
-  _mergeNestedFields(fields) {
-    const nested = {};
-    const simple = [];
-
-    for (const field of fields) {
-      // Handle deeply nested paths like "customer { id }" or "totalPriceSet { shopMoney { amount } }"
-      const match = field.match(/^(\w+)\s*\{\s*(.+)\s*\}$/);
-      if (match) {
-        const [, parent, inner] = match;
-        if (!nested[parent]) nested[parent] = [];
-        nested[parent].push(inner.trim());
-      } else {
-        simple.push(field);
-      }
-    }
-
-    const result = [...simple];
-    for (const [parent, innerParts] of Object.entries(nested)) {
-      // Recursively merge inner parts
-      const merged = this._mergeNestedFields(innerParts);
-      result.push(`${parent} { ${merged} }`);
-    }
-
-    return result.join(" ");
-  }
-
-  /**
-   * Normalize node data based on schema graphqlPath.
-   */
-  _normalizeFromSchema({ node, schema, keepFields }) {
-    if (!node) return {};
-    
     const result = {};
-    
-    for (const field of keepFields) {
-      const fieldDef = schema.fields[field];
-      if (!fieldDef?.graphqlPath) {
+    for (const field of fields) {
+      const fieldDefinition = schema.fields[field];
+      if (!fieldDefinition?.graphqlPath) {
         result[field] = null;
         continue;
       }
-
-      const value = this._extractValueFromPath(node, fieldDef.graphqlPath);
-      result[field] = this._castValue(value);
+      const rawValue = this._extractValue(node, fieldDefinition.graphqlPath);
+      result[field] = this._formatValue(rawValue);
     }
-
     return result;
   }
 
-  /**
-   * Extract value from node using GraphQL path.
-   */
-  _extractValueFromPath(node, graphqlPath) {
-    // Handle nested paths like "customer { email }" or "totalPriceSet { shopMoney { amount } }"
+  _extractValue(node, graphqlPath) {
     const match = graphqlPath.match(/^(\w+)\s*\{\s*(.+)\s*\}$/);
     if (match) {
       const [, parent, inner] = match;
-      const parentValue = node[parent];
-      if (!parentValue) return null;
-      
-      // Recursively extract from inner path
-      return this._extractValueFromPath(parentValue, inner.trim());
+      return node[parent] ? this._extractValue(node[parent], inner.trim()) : null;
     }
-    
-    // Handle multiple fields in same level (e.g., "amount currencyCode")
-    const parts = graphqlPath.split(/\s+/);
-    if (parts.length > 1) {
-      // Return first field value
-      return node[parts[0]];
-    }
-    
-    return node[graphqlPath];
+    return node[graphqlPath.split(/\s+/)[0]];
   }
 
   /**
-   * Cast value for storage compatibility.
+   * Converts arrays and objects to strings for storage compatibility.
    */
-  _castValue(value) {
-    if (value == null) return null;
-    if (Array.isArray(value)) return value.join(", ");
-    if (typeof value === "object") return JSON.stringify(value);
+  _formatValue(value) {
+    if (value == null) {
+      return null;
+    }
+    if (Array.isArray(value)) {
+      return value.join(", ");
+    }
+    if (typeof value === "object") {
+      return JSON.stringify(value);
+    }
     return value;
   }
 
-  // ========== Discount Codes (union type) ==========
-
-  async _fetchDiscountCodes({ nodeName, schema, requestedFields }) {
-    const keepFields = this._resolveFieldsSet({ nodeName, requestedFields });
-    const collected = [];
-    let hasNextPage = true;
-    let cursor = null;
-
-    // Build inline fragments for union type
-    const discountFields = `
-      __typename
-      ... on DiscountCodeBasic {
-        title status startsAt endsAt usageLimit appliesOncePerCustomer asyncUsageCount createdAt updatedAt
-        codes(first: 1) { nodes { code } }
-      }
-      ... on DiscountCodeBxgy {
-        title status startsAt endsAt usageLimit appliesOncePerCustomer asyncUsageCount createdAt updatedAt
-        codes(first: 1) { nodes { code } }
-      }
-      ... on DiscountCodeFreeShipping {
-        title status startsAt endsAt usageLimit appliesOncePerCustomer asyncUsageCount createdAt updatedAt
-        codes(first: 1) { nodes { code } }
-      }
-    `;
-
-    while (hasNextPage) {
-      const afterClause = cursor ? `, after: "${cursor}"` : "";
-      const query = `query { codeDiscountNodes(first: 250${afterClause}) { nodes { id codeDiscount { ${discountFields} } } pageInfo { hasNextPage endCursor } } }`;
-      
-      const payload = await this._graphqlRequest(query);
-      const connection = payload?.data?.codeDiscountNodes;
-      if (!connection) break;
-
-      for (const node of (connection.nodes || [])) {
-        collected.push(this._normalizeDiscountCode(node, keepFields));
-      }
-
-      hasNextPage = connection.pageInfo?.hasNextPage || false;
-      cursor = connection.pageInfo?.endCursor || null;
-    }
-
-    console.log(`[Shopify] Fetched ${collected.length} records for ${nodeName}`);
-    return collected;
-  }
-
-  _normalizeDiscountCode(node, keepFields) {
-    const discount = node.codeDiscount || {};
-    const code = discount.codes?.nodes?.[0]?.code || null;
-    const all = {
-      id: node.id || null,
-      code: code,
-      discountType: discount.__typename || null,
-      title: discount.title || null,
-      status: discount.status || null,
-      startsAt: discount.startsAt || null,
-      endsAt: discount.endsAt || null,
-      usageLimit: discount.usageLimit || null,
-      appliesOncePerCustomer: discount.appliesOncePerCustomer || null,
-      asyncUsageCount: discount.asyncUsageCount || null,
-      createdAt: discount.createdAt || null,
-      updatedAt: discount.updatedAt || null
-    };
-
+  _filterFields(all, fields) {
     const result = {};
-    for (const field of keepFields) {
+    for (const field of fields) {
       result[field] = all[field] ?? null;
     }
     return result;
   }
 
-  // ========== Metafields ==========
+  // ========== Query Builders ==========
 
-  async _fetchMetafieldsForNode({ nodeName, schema, requestedFields }) {
-    if (schema.parentQuery === null) {
-      return await this._fetchShopMetafields({ nodeName, requestedFields });
-    }
+  /**
+   * Builds GraphQL fields string from requested fields.
+   * Handles union types (like discount-codes) with inline fragments.
+   */
+  _buildQueryFields(schema, fields) {
+    const regularFields = [];
+    const unionTypeFields = [];
 
-    const keepFields = this._resolveFieldsSet({ nodeName, requestedFields });
-    const collected = [];
-    let hasNextPage = true;
-    let cursor = null;
-
-    while (hasNextPage) {
-      const afterClause = cursor ? `, after: "${cursor}"` : "";
-      const query = `query { ${schema.parentQuery}(first: 50${afterClause}) { nodes { id metafields(first: 250) { nodes { id namespace key value type description createdAt updatedAt } } } pageInfo { hasNextPage endCursor } } }`;
-      const payload = await this._graphqlRequest(query);
-      const connection = payload?.data?.[schema.parentQuery];
-      if (!connection) break;
-
-      for (const owner of (connection.nodes || [])) {
-        for (const mf of (owner.metafields?.nodes || [])) {
-          collected.push(this._normalizeMetafield(mf, owner.id, schema.ownerType, keepFields));
-        }
+    // Separate regular fields from union type fields
+    for (const field of fields) {
+      const fieldDefinition = schema.fields[field];
+      if (!fieldDefinition?.graphqlPath) {
+        continue;
       }
 
-      hasNextPage = connection.pageInfo?.hasNextPage || false;
-      cursor = connection.pageInfo?.endCursor || null;
+      if (fieldDefinition.isUnionField) {
+        unionTypeFields.push(fieldDefinition.graphqlPath);
+      } else {
+        regularFields.push(fieldDefinition.graphqlPath);
+      }
     }
 
-    console.log(`[Shopify] Fetched ${collected.length} records for ${nodeName}`);
-    return collected;
-  }
+    let queryFields = regularFields.join(" ");
 
-  async _fetchShopMetafields({ nodeName, requestedFields }) {
-    const keepFields = this._resolveFieldsSet({ nodeName, requestedFields });
-    const query = `query { shop { id metafields(first: 250) { nodes { id namespace key value type description createdAt updatedAt } } } }`;
-    const payload = await this._graphqlRequest(query);
-    const shop = payload?.data?.shop;
-    if (!shop) {
-      console.log(`[Shopify] Fetched 0 records for ${nodeName}`);
-      return [];
+    // Add inline fragments for union types (e.g., discount-codes)
+    // Before: "id"
+    // After:  "id codeDiscount { __typename ... on DiscountCodeBasic { title status } ... on DiscountCodeBxgy { title status } }"
+    if (schema.unionField && unionTypeFields.length) {
+      const unionFieldsString = unionTypeFields.join(" ");
+      const inlineFragments = schema.unionTypes
+        .map(typeName => `... on ${typeName} { ${unionFieldsString} }`)
+        .join(" ");
+      queryFields += ` ${schema.unionField} { __typename ${inlineFragments} }`;
     }
 
-    const result = (shop.metafields?.nodes || []).map(mf => this._normalizeMetafield(mf, shop.id, "SHOP", keepFields));
-    console.log(`[Shopify] Fetched ${result.length} records for ${nodeName}`);
-    return result;
+    return queryFields;
   }
 
-  _normalizeMetafield(mf, ownerId, ownerType, keepFields) {
-    const all = {
-      id: mf.id || null,
-      namespace: mf.namespace || null,
-      key: mf.key || null,
-      value: mf.value || null,
-      type: mf.type || null,
-      description: mf.description || null,
-      ownerId: ownerId || null,
-      ownerType: ownerType || null,
-      createdAt: mf.createdAt ? new Date(mf.createdAt) : null,
-      updatedAt: mf.updatedAt ? new Date(mf.updatedAt) : null
-    };
-
-    const result = {};
-    for (const field of keepFields) {
-      result[field] = all[field] ?? null;
+  _buildDateFilter(schema, startDate, endDate) {
+    if (schema.queryFilter && !schema.queryFilterTemplate) {
+      return `, ${schema.queryFilter}`;
     }
-    return result;
+    if (schema.queryFilterTemplate && startDate && endDate) {
+      return `, ${schema.queryFilterTemplate.replace("{{startDate}}", startDate).replace("{{endDate}}", endDate)}`;
+    }
+    return "";
   }
 
-  // ========== Utility Methods ==========
+  // ========== HTTP ==========
 
   async _graphqlRequest(query) {
     const url = this._buildGraphqlUrl();
-    const headers = this._buildHeaders();
-
     console.log(`[Shopify] Query: ${query}`);
 
     const response = await this.urlFetchWithRetry(url, {
       method: "post",
-      headers,
+      headers: this._buildHeaders(),
       body: JSON.stringify({ query }),
       payload: JSON.stringify({ query }),
       muteHttpExceptions: true
     });
 
     const result = JSON.parse(await response.getContentText());
-    
-    // Log errors if any
-    if (result.errors) {
-      console.log(`[Shopify] GraphQL errors: ${JSON.stringify(result.errors)}`);
+    if (result.errors?.length) {
+      const errorMessages = result.errors.map(e => e.message).join("; ");
+      throw new Error(`[Shopify] GraphQL errors: ${errorMessages}`);
     }
-
     return result;
   }
 
@@ -485,20 +351,9 @@ var ShopifyAdsSource = class ShopifyAdsSource extends AbstractSource {
     };
   }
 
-  _getNestedValue(obj, path) {
-    return path.split('.').reduce((acc, part) => acc?.[part], obj);
-  }
-
-  _resolveFieldsSet({ nodeName, requestedFields = [] }) {
-    const schema = this.fieldsSchema[nodeName];
-    if (!schema) throw new Error(`Schema for node '${nodeName}' is not defined`);
-    return new Set([...(schema.uniqueKeys || []), ...requestedFields]);
-  }
-
   isValidToRetry(error) {
-    if (!error?.statusCode) return true;
-    if (error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN) return true;
-    if ([HTTP_STATUS.TOO_MANY_REQUESTS, HTTP_STATUS.SERVICE_UNAVAILABLE, HTTP_STATUS.GATEWAY_TIMEOUT].includes(error.statusCode)) return true;
-    return false;
+    return !error?.statusCode
+      || error.statusCode >= HTTP_STATUS.SERVER_ERROR_MIN
+      || [HTTP_STATUS.TOO_MANY_REQUESTS, HTTP_STATUS.SERVICE_UNAVAILABLE, HTTP_STATUS.GATEWAY_TIMEOUT].includes(error.statusCode);
   }
 };

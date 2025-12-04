@@ -6,7 +6,7 @@
  */
 
 // API reference: https://shopify.dev/docs/api/admin-graphql/2025-01/objects/DiscountCodeNode
-// Note: DiscountCodeNode.codeDiscount is a union type, fields are extracted from the resolved type
+// Note: codeDiscount is a union type (DiscountCodeBasic | DiscountCodeBxgy | DiscountCodeFreeShipping)
 
 var discountCodesFields = {
   'id': {
@@ -17,56 +17,67 @@ var discountCodesFields = {
   'code': {
     'description': 'The discount code string.',
     'type': 'string',
-    'graphqlPath': 'codeDiscount { codes }'
+    'graphqlPath': 'codes(first: 1) { nodes { code } }',
+    'isUnionField': true
   },
   'discountType': {
     'description': 'The type of discount (DiscountCodeBasic, DiscountCodeBxgy, DiscountCodeFreeShipping).',
     'type': 'string',
-    'graphqlPath': 'codeDiscount { __typename }'
+    'graphqlPath': '__typename',
+    'isUnionField': true
   },
   'title': {
     'description': 'The title of the discount.',
     'type': 'string',
-    'graphqlPath': 'codeDiscount { title }'
+    'graphqlPath': 'title',
+    'isUnionField': true
   },
   'status': {
     'description': 'The status of the discount.',
     'type': 'string',
-    'graphqlPath': 'codeDiscount { status }'
+    'graphqlPath': 'status',
+    'isUnionField': true
   },
   'startsAt': {
     'description': 'The date and time when the discount becomes active.',
     'type': 'datetime',
-    'graphqlPath': 'codeDiscount { startsAt }'
+    'graphqlPath': 'startsAt',
+    'isUnionField': true
   },
   'endsAt': {
     'description': 'The date and time when the discount expires.',
     'type': 'datetime',
-    'graphqlPath': 'codeDiscount { endsAt }'
+    'graphqlPath': 'endsAt',
+    'isUnionField': true
   },
   'usageLimit': {
     'description': 'The maximum number of times the discount can be used.',
     'type': 'int32',
-    'graphqlPath': 'codeDiscount { usageLimit }'
+    'graphqlPath': 'usageLimit',
+    'isUnionField': true
   },
   'appliesOncePerCustomer': {
     'description': 'Whether the discount can only be used once per customer.',
     'type': 'bool',
-    'graphqlPath': 'codeDiscount { appliesOncePerCustomer }'
+    'graphqlPath': 'appliesOncePerCustomer',
+    'isUnionField': true
   },
   'asyncUsageCount': {
     'description': 'The number of times the discount has been used.',
     'type': 'int32',
-    'graphqlPath': 'codeDiscount { asyncUsageCount }'
+    'graphqlPath': 'asyncUsageCount',
+    'isUnionField': true
   },
   'createdAt': {
     'description': 'The date and time when the discount was created.',
     'type': 'datetime',
-    'graphqlPath': 'codeDiscount { createdAt }'
+    'graphqlPath': 'createdAt',
+    'isUnionField': true
   },
   'updatedAt': {
     'description': 'The date and time when the discount was last updated.',
     'type': 'datetime',
-    'graphqlPath': 'codeDiscount { updatedAt }'
+    'graphqlPath': 'updatedAt',
+    'isUnionField': true
   }
 };

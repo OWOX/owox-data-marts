@@ -14,7 +14,9 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_abandoned_checkouts",
     "queryName": "abandonedCheckouts",
-    "connectionPath": "abandonedCheckouts"
+    "connectionPath": "abandonedCheckouts",
+    "isTimeSeries": true,
+    "queryFilterTemplate": "query: \"updated_at:>='{{startDate}}' AND updated_at:<='{{endDate}}'\""
   },
   "articles": {
     "overview": "Articles",
@@ -24,7 +26,8 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_articles",
     "queryName": "articles",
-    "connectionPath": "articles"
+    "connectionPath": "articles",
+    "isTimeSeries": false
   },
   "blogs": {
     "overview": "Blogs",
@@ -34,7 +37,8 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_blogs",
     "queryName": "blogs",
-    "connectionPath": "blogs"
+    "connectionPath": "blogs",
+    "isTimeSeries": false
   },
   "collections": {
     "overview": "Collections",
@@ -44,7 +48,8 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_collections",
     "queryName": "collections",
-    "connectionPath": "collections"
+    "connectionPath": "collections",
+    "isTimeSeries": false
   },
   "customers": {
     "overview": "Customers",
@@ -54,7 +59,9 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_customers",
     "queryName": "customers",
-    "connectionPath": "customers"
+    "connectionPath": "customers",
+    "isTimeSeries": true,
+    "queryFilterTemplate": "query: \"updated_at:>='{{startDate}}' AND updated_at:<='{{endDate}}'\""
   },
   "draft-orders": {
     "overview": "Draft Orders",
@@ -64,7 +71,9 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_draft_orders",
     "queryName": "draftOrders",
-    "connectionPath": "draftOrders"
+    "connectionPath": "draftOrders",
+    "isTimeSeries": true,
+    "queryFilterTemplate": "query: \"updated_at:>='{{startDate}}' AND updated_at:<='{{endDate}}'\""
   },
   "discount-codes": {
     "overview": "Discount Codes",
@@ -74,7 +83,27 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_discount_codes",
     "queryName": "codeDiscountNodes",
-    "connectionPath": "codeDiscountNodes"
+    "connectionPath": "codeDiscountNodes",
+    "isTimeSeries": false,
+    "unionField": "codeDiscount",
+    "unionTypes": ["DiscountCodeBasic", "DiscountCodeBxgy", "DiscountCodeFreeShipping"],
+    "normalizer": (node) => {
+      const d = node.codeDiscount || {};
+      return {
+        id: node.id,
+        code: d.codes?.nodes?.[0]?.code || null,
+        discountType: d.__typename || null,
+        title: d.title || null,
+        status: d.status || null,
+        startsAt: d.startsAt || null,
+        endsAt: d.endsAt || null,
+        usageLimit: d.usageLimit || null,
+        appliesOncePerCustomer: d.appliesOncePerCustomer || null,
+        asyncUsageCount: d.asyncUsageCount || null,
+        createdAt: d.createdAt || null,
+        updatedAt: d.updatedAt || null
+      };
+    }
   },
   "fulfillment-orders": {
     "overview": "Fulfillment Orders",
@@ -84,7 +113,8 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_fulfillment_orders",
     "queryName": "fulfillmentOrders",
-    "connectionPath": "fulfillmentOrders"
+    "connectionPath": "fulfillmentOrders",
+    "isTimeSeries": false
   },
   "fulfillments": {
     "overview": "Fulfillments",
@@ -94,7 +124,8 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_fulfillments",
     "queryName": "fulfillments",
-    "connectionPath": "fulfillments"
+    "connectionPath": "fulfillments",
+    "isTimeSeries": false
   },
   "inventory-items": {
     "overview": "Inventory Items",
@@ -104,7 +135,8 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_inventory_items",
     "queryName": "inventoryItems",
-    "connectionPath": "inventoryItems"
+    "connectionPath": "inventoryItems",
+    "isTimeSeries": false
   },
   "inventory-levels": {
     "overview": "Inventory Levels",
@@ -114,7 +146,8 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_inventory_levels",
     "queryName": "inventoryLevels",
-    "connectionPath": "inventoryLevels"
+    "connectionPath": "inventoryLevels",
+    "isTimeSeries": false
   },
   "locations": {
     "overview": "Locations",
@@ -124,7 +157,8 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_locations",
     "queryName": "locations",
-    "connectionPath": "locations"
+    "connectionPath": "locations",
+    "isTimeSeries": false
   },
   "orders": {
     "overview": "Orders",
@@ -134,7 +168,9 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_orders",
     "queryName": "orders",
-    "connectionPath": "orders"
+    "connectionPath": "orders",
+    "isTimeSeries": true,
+    "queryFilterTemplate": "query: \"updated_at:>='{{startDate}}' AND updated_at:<='{{endDate}}'\""
   },
   "order-risks": {
     "overview": "Order Risk Assessments",
@@ -145,7 +181,8 @@ var ShopifyAdsFieldsSchema = {
     "destinationName": "shopify_order_risks",
     "queryName": "orders",
     "connectionPath": "orders",
-    "nestedField": "risks"
+    "nestedField": "risks",
+    "isTimeSeries": false
   },
   "products": {
     "overview": "Products",
@@ -155,7 +192,9 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_products",
     "queryName": "products",
-    "connectionPath": "products"
+    "connectionPath": "products",
+    "isTimeSeries": true,
+    "queryFilterTemplate": "query: \"updated_at:>='{{startDate}}' AND updated_at:<='{{endDate}}'\""
   },
   "product-variants": {
     "overview": "Product Variants",
@@ -165,7 +204,8 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_product_variants",
     "queryName": "productVariants",
-    "connectionPath": "productVariants"
+    "connectionPath": "productVariants",
+    "isTimeSeries": false
   },
   "product-images": {
     "overview": "Product Images",
@@ -177,7 +217,8 @@ var ShopifyAdsFieldsSchema = {
     "queryName": "products",
     "connectionPath": "products",
     "nestedField": "media",
-    "nestedFilter": "mediaContentType: IMAGE"
+    "nestedFilter": "mediaContentType: IMAGE",
+    "isTimeSeries": false
   },
   "pages": {
     "overview": "Pages",
@@ -187,7 +228,8 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_pages",
     "queryName": "pages",
-    "connectionPath": "pages"
+    "connectionPath": "pages",
+    "isTimeSeries": false
   },
   "shop": {
     "overview": "Shop",
@@ -198,7 +240,8 @@ var ShopifyAdsFieldsSchema = {
     "destinationName": "shopify_shop",
     "queryName": "shop",
     "connectionPath": "shop",
-    "isSingleton": true
+    "isSingleton": true,
+    "isTimeSeries": false
   },
   "transactions": {
     "overview": "Transactions",
@@ -209,7 +252,8 @@ var ShopifyAdsFieldsSchema = {
     "destinationName": "shopify_transactions",
     "queryName": "orders",
     "connectionPath": "orders",
-    "nestedField": "transactions"
+    "nestedField": "transactions",
+    "isTimeSeries": false
   },
   "refunds": {
     "overview": "Refunds",
@@ -220,7 +264,8 @@ var ShopifyAdsFieldsSchema = {
     "destinationName": "shopify_refunds",
     "queryName": "orders",
     "connectionPath": "orders",
-    "nestedField": "refunds"
+    "nestedField": "refunds",
+    "isTimeSeries": false
   },
   "tender-transactions": {
     "overview": "Tender Transactions",
@@ -230,7 +275,8 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_tender_transactions",
     "queryName": "tenderTransactions",
-    "connectionPath": "tenderTransactions"
+    "connectionPath": "tenderTransactions",
+    "isTimeSeries": false
   },
   "metafield-articles": {
     "overview": "Article Metafields",
@@ -240,7 +286,8 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_metafield_articles",
     "ownerType": "ARTICLE",
-    "parentQuery": "articles"
+    "parentQuery": "articles",
+    "isTimeSeries": false
   },
   "metafield-blogs": {
     "overview": "Blog Metafields",
@@ -250,7 +297,8 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_metafield_blogs",
     "ownerType": "BLOG",
-    "parentQuery": "blogs"
+    "parentQuery": "blogs",
+    "isTimeSeries": false
   },
   "metafield-collections": {
     "overview": "Collection Metafields",
@@ -260,7 +308,8 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_metafield_collections",
     "ownerType": "COLLECTION",
-    "parentQuery": "collections"
+    "parentQuery": "collections",
+    "isTimeSeries": false
   },
   "metafield-customers": {
     "overview": "Customer Metafields",
@@ -270,7 +319,8 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_metafield_customers",
     "ownerType": "CUSTOMER",
-    "parentQuery": "customers"
+    "parentQuery": "customers",
+    "isTimeSeries": false
   },
   "metafield-draft-orders": {
     "overview": "Draft Order Metafields",
@@ -280,7 +330,8 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_metafield_draft_orders",
     "ownerType": "DRAFTORDER",
-    "parentQuery": "draftOrders"
+    "parentQuery": "draftOrders",
+    "isTimeSeries": false
   },
   "metafield-locations": {
     "overview": "Location Metafields",
@@ -290,7 +341,8 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_metafield_locations",
     "ownerType": "LOCATION",
-    "parentQuery": "locations"
+    "parentQuery": "locations",
+    "isTimeSeries": false
   },
   "metafield-orders": {
     "overview": "Order Metafields",
@@ -300,7 +352,8 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_metafield_orders",
     "ownerType": "ORDER",
-    "parentQuery": "orders"
+    "parentQuery": "orders",
+    "isTimeSeries": false
   },
   "metafield-pages": {
     "overview": "Page Metafields",
@@ -310,7 +363,8 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_metafield_pages",
     "ownerType": "PAGE",
-    "parentQuery": "pages"
+    "parentQuery": "pages",
+    "isTimeSeries": false
   },
   "metafield-product-variants": {
     "overview": "Product Variant Metafields",
@@ -320,7 +374,8 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_metafield_product_variants",
     "ownerType": "PRODUCTVARIANT",
-    "parentQuery": "productVariants"
+    "parentQuery": "productVariants",
+    "isTimeSeries": false
   },
   "metafield-products": {
     "overview": "Product Metafields",
@@ -330,7 +385,8 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_metafield_products",
     "ownerType": "PRODUCT",
-    "parentQuery": "products"
+    "parentQuery": "products",
+    "isTimeSeries": false
   },
   "metafield-shops": {
     "overview": "Shop Metafields",
@@ -340,6 +396,7 @@ var ShopifyAdsFieldsSchema = {
     "uniqueKeys": ["id"],
     "destinationName": "shopify_metafield_shops",
     "ownerType": "SHOP",
-    "parentQuery": null
+    "parentQuery": null,
+    "isTimeSeries": false
   }
 };

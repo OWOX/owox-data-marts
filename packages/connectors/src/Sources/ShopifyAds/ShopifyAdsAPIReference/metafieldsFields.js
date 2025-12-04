@@ -34,27 +34,23 @@ var metafieldsFields = {
     'type': 'string',
     'graphqlPath': 'type'
   },
-  'description': {
-    'description': 'The description of the metafield.',
-    'type': 'string',
-    'graphqlPath': 'description'
-  },
   'ownerId': {
     'description': 'The ID of the owner resource.',
     'type': 'string'
   },
   'ownerType': {
     'description': 'The type of the owner resource.',
-    'type': 'string'
+    'type': 'string',
+    'graphqlPath': 'ownerType'
   },
   'createdAt': {
     'description': 'The date and time when the metafield was created.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'createdAt'
   },
   'updatedAt': {
     'description': 'The date and time when the metafield was last updated.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'updatedAt'
   }
 };
