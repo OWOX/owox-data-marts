@@ -62,7 +62,13 @@ export class PromptTagHandler implements TagHandler<
 
     return {
       rendered: response.promptAnswer,
-      meta: response.meta,
+      meta: {
+        prompt: response.meta.prompt,
+        status: response.status,
+        reasonDescription: response.meta.reasonDescription,
+        artifact: response.meta.artifact,
+        telemetry: response.meta.telemetry,
+      },
     };
   }
 }

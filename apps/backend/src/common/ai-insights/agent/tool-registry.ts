@@ -1,4 +1,4 @@
-import { AiContext, ToolDefinition, ToolRunResult } from './types';
+import { AiContext, ToolDefinition, ToolNameBase, ToolRunResult } from './types';
 import { AiToolDefinition } from './ai-core';
 import { castError } from '@owox/internal-helpers';
 
@@ -20,11 +20,11 @@ export class ToolRegistry {
     }));
   }
 
-  async executeToToolMessage<TFinal = never>(
-    name: string,
+  async executeToToolMessage(
+    name: ToolNameBase,
     argsJson: string,
     context: AiContext
-  ): Promise<ToolRunResult<TFinal>> {
+  ): Promise<ToolRunResult> {
     const tool = this.tools.get(name);
     if (!tool) throw new Error(`Unknown tool: ${name}`);
 
@@ -38,15 +38,20 @@ export class ToolRegistry {
     const validated = tool.inputZod.parse(parsed);
     const result = await tool.execute(validated, context);
 
-    return { isFinal: tool.isFinal, content: result } as ToolRunResult<TFinal>;
+    return { name: name, content: result };
   }
 
-  findFinalTool(): ToolDefinition {
-    for (const tool of this.tools.values()) {
-      if (tool.isFinal) {
-        return tool;
+  findToolByNames(toolNames: ToolNameBase[]): ToolDefinition[] {
+    const result: ToolDefinition[] = [];
+
+    for (const name of toolNames) {
+      const tool = this.tools.get(name);
+      if (!tool) {
+        throw new Error(`No tool found: ${name}`);
       }
+      result.push(tool);
     }
-    throw new Error('No final tool registered');
+
+    return result;
   }
 }
