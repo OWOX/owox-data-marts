@@ -254,35 +254,37 @@ export default function InsightDetailsView() {
                 />
               </div>
               <div className='flex items-center justify-between gap-4 border-t px-4 py-2'>
-                <Button
-                  variant='default'
-                  size='default'
-                  disabled={isSubmitting || isRunning}
-                  onClick={() => void (isTemplateDirty ? handleSaveAndRun() : handleRun())}
-                >
-                  {isRunning ? (
-                    <span className='inline-flex items-center gap-2'>
-                      <Loader2 className='h-3 w-3 animate-spin' /> Running…
-                    </span>
-                  ) : isTemplateDirty ? (
-                    <span className='inline-flex items-center gap-2'>
-                      <Sparkles /> Save & Run Insight
-                    </span>
-                  ) : (
-                    <span className='inline-flex items-center gap-2'>
-                      <Sparkles /> Run Insight
-                    </span>
-                  )}
-                </Button>
-                <Button
-                  variant='outline'
-                  size='default'
-                  onClick={() => setIsReportSheetOpen(true)}
-                  className='gap-2'
-                >
-                  <Send className='text-muted-foreground h-4 w-4' />
-                  Send / Schedule
-                </Button>
+                <div className='flex items-center gap-2'>
+                  <Button
+                    variant='default'
+                    size='default'
+                    disabled={isSubmitting || isRunning}
+                    onClick={() => void (isTemplateDirty ? handleSaveAndRun() : handleRun())}
+                  >
+                    {isRunning ? (
+                      <span className='inline-flex items-center gap-2'>
+                        <Loader2 className='h-3 w-3 animate-spin' /> Running…
+                      </span>
+                    ) : isTemplateDirty ? (
+                      <span className='inline-flex items-center gap-2'>
+                        <Sparkles /> Save & Run Insight
+                      </span>
+                    ) : (
+                      <span className='inline-flex items-center gap-2'>
+                        <Sparkles /> Run Insight
+                      </span>
+                    )}
+                  </Button>
+                  <Button
+                    variant='outline'
+                    size='default'
+                    onClick={() => setIsReportSheetOpen(true)}
+                    className='gap-2'
+                  >
+                    <Send className='text-muted-foreground h-4 w-4' />
+                    Send / Schedule
+                  </Button>
+                </div>
                 {insight.outputUpdatedAt && (
                   <TooltipProvider>
                     <Tooltip>

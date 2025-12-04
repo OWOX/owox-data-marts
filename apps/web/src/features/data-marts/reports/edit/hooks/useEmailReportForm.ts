@@ -5,7 +5,7 @@ import { z } from 'zod';
 import type { DataMartReport } from '../../shared/model/types/data-mart-report';
 import { isEmailDestinationConfig } from '../../shared/model/types/data-mart-report';
 import { DestinationTypeConfigEnum, ReportFormMode, useReport } from '../../shared';
-import type { DataDestination } from '../../../../data-destination/shared/model/types';
+import type { DataDestination } from '../../../../data-destination';
 import { ReportConditionEnum } from '../../shared/enums/report-condition.enum';
 
 export const EmailReportEditFormSchema = z.object({
@@ -22,6 +22,7 @@ interface UseEmailReportFormOptions {
   initialReport?: DataMartReport;
   mode: ReportFormMode;
   dataMartId: string;
+  onAfterSubmit?: (report: DataMartReport) => Promise<void> | void;
   onSuccess?: () => void;
   preSelectedDestination?: DataDestination | null;
 }
@@ -30,6 +31,7 @@ export function useEmailReportForm({
   initialReport,
   mode,
   dataMartId,
+  onAfterSubmit,
   onSuccess,
   preSelectedDestination,
 }: UseEmailReportFormOptions) {
@@ -110,6 +112,12 @@ export function useEmailReportForm({
           return;
         }
 
+        try {
+          await onAfterSubmit?.(result);
+        } catch (e) {
+          console.error('onAfterSubmit failed', e);
+        }
+
         onSuccess?.();
       } catch (error) {
         console.error('Error submitting form:', error);
@@ -122,6 +130,7 @@ export function useEmailReportForm({
       dataMartId,
       createReport,
       updateReport,
+      onAfterSubmit,
       onSuccess,
       clearError,
       reportError,

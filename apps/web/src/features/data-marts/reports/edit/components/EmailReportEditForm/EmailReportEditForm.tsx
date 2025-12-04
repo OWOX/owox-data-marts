@@ -1,5 +1,5 @@
 import { useTheme } from 'next-themes';
-import { forwardRef, useEffect, useMemo, useState } from 'react';
+import { forwardRef, useEffect, useMemo, useState, useRef } from 'react';
 import { Input } from '@owox/ui/components/input';
 import {
   Form,
@@ -31,6 +31,10 @@ import {
 import { DestinationOptionContent } from './DestinationOptionContent.tsx';
 import { RecipientsDisplay } from './RecipientsDisplay.tsx';
 import { TimeTriggerAnnouncement } from '../../../../scheduled-triggers';
+import {
+  ReportSchedulesInlineList,
+  type ReportSchedulesInlineListHandle,
+} from '../../../../scheduled-triggers/components/ReportSchedulesInlineList/ReportSchedulesInlineList';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import { ReportFormMode } from '../../../shared';
 import { useEmailReportForm } from '../../hooks/useEmailReportForm';
@@ -88,6 +92,8 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
   ) => {
     const formId = 'email-report-edit-form';
     const { dataMart } = useDataMartContext();
+    const scheduleRef = useRef<ReportSchedulesInlineListHandle | null>(null);
+    const [triggersDirty, setTriggersDirty] = useState(false);
 
     const {
       dataDestinations,
@@ -127,6 +133,14 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
       initialReport,
       mode,
       dataMartId: dataMart?.id ?? '',
+      onAfterSubmit: async report => {
+        try {
+          await scheduleRef.current?.persist(report.id);
+        } catch (e) {
+          // ignore UI errors here; hook will handle formError
+          console.error('Failed to persist schedule for report', e);
+        }
+      },
       onSuccess: () => {
         onSubmit?.();
       },
@@ -161,8 +175,8 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
     ]);
 
     useEffect(() => {
-      onDirtyChange?.(isDirty);
-    }, [isDirty, onDirtyChange]);
+      onDirtyChange?.(isDirty || triggersDirty);
+    }, [isDirty, triggersDirty, onDirtyChange]);
 
     const reportConditionOptions = useMemo(
       () => [
@@ -375,11 +389,24 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
               </FormSection>
 
               <FormSection title='Automate Report Runs'>
-                <TimeTriggerAnnouncement />
+                {dataMart?.id ? (
+                  <ReportSchedulesInlineList
+                    ref={scheduleRef as any}
+                    dataMartId={dataMart.id}
+                    reportId={mode === ReportFormMode.EDIT ? (initialReport?.id ?? null) : null}
+                    onDirtyChange={setTriggersDirty}
+                  />
+                ) : (
+                  <TimeTriggerAnnouncement />
+                )}
               </FormSection>
             </FormLayout>
             <FormActions>
-              <Button variant='default' type='submit' disabled={isSubmitting}>
+              <Button
+                variant='default'
+                type='submit'
+                disabled={isSubmitting || !(isDirty || triggersDirty)}
+              >
                 {mode === ReportFormMode.CREATE ? 'Create new report' : 'Save changes to report'}
               </Button>
               <Button variant='outline' type='button' onClick={onCancel} disabled={isSubmitting}>
