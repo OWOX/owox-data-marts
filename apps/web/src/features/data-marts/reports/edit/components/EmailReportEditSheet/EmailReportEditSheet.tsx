@@ -12,6 +12,8 @@ import type { DataDestination } from '../../../../../data-destination';
 import { ReportFormMode } from '../../../shared';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import { EmailReportEditForm } from '../EmailReportEditForm';
+import type { DataDestinationType } from '../../../../../data-destination';
+import { ReportsProvider } from '../../../shared';
 
 interface EmailReportEditSheetProps {
   isOpen: boolean;
@@ -19,6 +21,12 @@ interface EmailReportEditSheetProps {
   initialReport?: DataMartReport;
   mode: ReportFormMode;
   preSelectedDestination?: DataDestination | null;
+  prefill?: {
+    title?: string;
+    subject?: string;
+    messageTemplate?: string;
+  };
+  allowedDestinationTypes?: DataDestinationType[];
 }
 
 export function EmailReportEditSheet({
@@ -27,7 +35,11 @@ export function EmailReportEditSheet({
   initialReport,
   mode,
   preSelectedDestination,
+  prefill,
+  allowedDestinationTypes,
 }: EmailReportEditSheetProps) {
+  // TODO:: Refactor duplicated code fragment
+  // GoogleSheetsReportEditSheet, LookerStudioReportEditSheet, ScheduledTriggerFormSheet ...
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
 
@@ -74,16 +86,20 @@ export function EmailReportEditSheet({
             </SheetDescription>
           </SheetHeader>
 
-          <DataDestinationProvider>
-            <EmailReportEditForm
-              initialReport={initialReport}
-              mode={mode}
-              onDirtyChange={handleFormDirtyChange}
-              onSubmit={handleFormSubmitSuccess}
-              onCancel={handleClose}
-              preSelectedDestination={preSelectedDestination}
-            />
-          </DataDestinationProvider>
+          <ReportsProvider>
+            <DataDestinationProvider>
+              <EmailReportEditForm
+                initialReport={initialReport}
+                mode={mode}
+                onDirtyChange={handleFormDirtyChange}
+                onSubmit={handleFormSubmitSuccess}
+                onCancel={handleClose}
+                preSelectedDestination={preSelectedDestination}
+                prefill={prefill}
+                allowedDestinationTypes={allowedDestinationTypes}
+              />
+            </DataDestinationProvider>
+          </ReportsProvider>
         </SheetContent>
       </Sheet>
 

@@ -1,33 +1,41 @@
-import { useForm } from 'react-hook-form';
+import { useEffect } from 'react';
+
 import { zodResolver } from '@hookform/resolvers/zod';
-import { DataDestinationType } from '../../../shared';
-import { GoogleSheetsFields } from './GoogleSheetsFields';
-import { LookerStudioFields } from './LookerStudioFields';
-import { EmailFields } from './EmailFields';
-import { DestinationTypeField } from './DestinationTypeField';
+import { Loader2 } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+
+import { Button } from '@owox/ui/components/button';
 import {
-  Form,
   AppForm,
+  Form,
+  FormActions,
   FormControl,
   FormField,
   FormItem,
   FormLabel,
-  FormMessage,
   FormLayout,
-  FormActions,
+  FormMessage,
 } from '@owox/ui/components/form';
-import { type DataDestinationFormData, dataDestinationSchema } from '../../../shared';
 import { Input } from '@owox/ui/components/input';
-import { Button } from '@owox/ui/components/button';
-import { Loader2 } from 'lucide-react';
-import { useEffect } from 'react';
-import { createFormPayload } from '../../../../../utils/form-utils';
+
+import { createFormPayload } from '../../../../../utils';
+import {
+  DataDestinationType,
+  dataDestinationSchema,
+  type DataDestinationFormData,
+} from '../../../shared';
+import { DestinationTypeField } from './DestinationTypeField';
+import { EmailFields } from './EmailFields';
+import { GoogleSheetsFields } from './GoogleSheetsFields';
+import { LookerStudioFields } from './LookerStudioFields';
 
 interface DataDestinationFormProps {
-  initialData?: DataDestinationFormData;
+  initialData: DataDestinationFormData | null;
   onSubmit: (data: DataDestinationFormData) => Promise<void>;
   onCancel: () => void;
   onDirtyChange?: (isDirty: boolean) => void;
+  isEditMode?: boolean;
+  allowedDestinationTypes?: DataDestinationType[];
 }
 
 export function DataDestinationForm({
@@ -35,6 +43,8 @@ export function DataDestinationForm({
   onSubmit,
   onCancel,
   onDirtyChange,
+  isEditMode,
+  allowedDestinationTypes,
 }: DataDestinationFormProps) {
   const form = useForm<DataDestinationFormData>({
     resolver: zodResolver(dataDestinationSchema),
@@ -85,7 +95,11 @@ export function DataDestinationForm({
             )}
           />
 
-          <DestinationTypeField form={form} initialData={initialData} />
+          <DestinationTypeField
+            form={form}
+            isEditMode={isEditMode}
+            allowedDestinationTypes={allowedDestinationTypes}
+          />
 
           {destinationType === DataDestinationType.GOOGLE_SHEETS && (
             <GoogleSheetsFields form={form} />

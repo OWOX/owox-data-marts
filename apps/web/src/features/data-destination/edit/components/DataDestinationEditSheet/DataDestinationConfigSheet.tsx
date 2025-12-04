@@ -1,4 +1,4 @@
-import type { DataDestination } from '../../../shared';
+import { type DataDestination, DataDestinationType } from '../../../shared';
 import { DataDestinationForm } from '../DataDestinationEditForm';
 import type { DataDestinationFormData } from '../../../shared';
 import { useState, useCallback, useEffect, useRef } from 'react';
@@ -12,13 +12,15 @@ import {
 } from '@owox/ui/components/sheet';
 import { useDataDestination } from '../../../shared';
 import { DestinationMapperFactory } from '../../../shared/model/mappers/destination-mapper.factory.ts';
-import { trackEvent } from '../../../../../utils/data-layer';
+import { trackEvent } from '../../../../../utils';
 
 interface DataDestinationEditSheetProps {
   isOpen: boolean;
   onClose: () => void;
   dataDestination: DataDestination | null;
   onSaveSuccess: (dataDestination: DataDestination) => void;
+  initialFormData?: DataDestinationFormData;
+  allowedDestinationTypes?: DataDestinationType[];
 }
 
 export function DataDestinationConfigSheet({
@@ -26,6 +28,8 @@ export function DataDestinationConfigSheet({
   onClose,
   dataDestination,
   onSaveSuccess,
+  initialFormData,
+  allowedDestinationTypes,
 }: DataDestinationEditSheetProps) {
   const { updateDataDestination, createDataDestination } = useDataDestination();
 
@@ -107,10 +111,12 @@ export function DataDestinationConfigSheet({
             <SheetDescription>Customize settings for your destination</SheetDescription>
           </SheetHeader>
           <DataDestinationForm
-            initialData={dataDestination ?? undefined}
+            initialData={dataDestination ?? initialFormData ?? null}
             onSubmit={onSave}
             onCancel={handleClose}
             onDirtyChange={handleFormDirtyChange}
+            isEditMode={!!dataDestination}
+            allowedDestinationTypes={allowedDestinationTypes}
           />
         </SheetContent>
       </Sheet>

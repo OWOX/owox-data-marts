@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
 import { Button } from '@owox/ui/components/button';
-import { MoreVertical, Trash2, Sparkles, Loader2, BadgeAlert } from 'lucide-react';
+import { MoreVertical, Trash2, Sparkles, Loader2, BadgeAlert, Send } from 'lucide-react';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
 import {
   Empty,
@@ -34,6 +34,9 @@ import {
   MarkdownEditorPreview,
 } from '../../../../shared/components/MarkdownEditor';
 import { useInsights } from '../model';
+import { EmailReportEditSheet } from '../../reports/edit';
+import { ReportFormMode } from '../../reports/shared';
+import { DataDestinationType } from '../../../data-destination';
 import { InsightLoader } from './InsightMinerLoader.tsx';
 import RelativeTime from '@owox/ui/components/common/relative-time';
 import {
@@ -42,7 +45,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@owox/ui/components/tooltip';
-import { formatDateShort } from '../../../../utils/date-formatters';
+import { formatDateShort } from '../../../../utils';
 
 export default function InsightDetailsView() {
   const navigate = useNavigate();
@@ -84,6 +87,7 @@ export default function InsightDetailsView() {
 
   // TODO:: Remove this toggle to show raw markdown output in read-only editor instead of HTML preview
   const [showRawOutput, setShowRawOutput] = useState(false);
+  const [isReportSheetOpen, setIsReportSheetOpen] = useState(false);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -270,6 +274,15 @@ export default function InsightDetailsView() {
                     </span>
                   )}
                 </Button>
+                <Button
+                  variant='outline'
+                  size='default'
+                  onClick={() => setIsReportSheetOpen(true)}
+                  className='gap-2'
+                >
+                  <Send className='text-muted-foreground h-4 w-4' />
+                  Send / Schedule
+                </Button>
                 {insight.outputUpdatedAt && (
                   <TooltipProvider>
                     <Tooltip>
@@ -357,6 +370,26 @@ export default function InsightDetailsView() {
         onConfirm={() => {
           void handleDelete();
         }}
+      />
+
+      <EmailReportEditSheet
+        isOpen={isReportSheetOpen}
+        onClose={() => {
+          setIsReportSheetOpen(false);
+        }}
+        mode={ReportFormMode.CREATE}
+        preSelectedDestination={null}
+        prefill={{
+          title: insight.title || titleValue || 'New report',
+          subject: `Insight: ${insight.title || titleValue || ''}`.trim(),
+          messageTemplate: templateValue ?? '',
+        }}
+        allowedDestinationTypes={[
+          DataDestinationType.EMAIL,
+          DataDestinationType.SLACK,
+          DataDestinationType.MS_TEAMS,
+          DataDestinationType.GOOGLE_CHAT,
+        ]}
       />
     </div>
   );
