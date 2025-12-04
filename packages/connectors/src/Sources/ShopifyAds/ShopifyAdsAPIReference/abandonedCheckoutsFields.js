@@ -5,116 +5,107 @@
  * file that was distributed with this source code.
  */
 
-// API reference: https://shopify.dev/docs/api/admin-rest/2024-10/resources/abandoned-checkout
+// API reference: https://shopify.dev/docs/api/admin-graphql/2025-01/objects/AbandonedCheckout
 
 var abandonedCheckoutsFields = {
   'id': {
-    'description': 'Checkout numeric identifier.',
-    'type': 'numeric string'
+    'description': 'A globally-unique ID for the abandoned checkout.',
+    'type': 'string',
+    'graphqlPath': 'id'
   },
-  'token': {
-    'description': 'Unique token that identifies the checkout.',
-    'type': 'string'
+  'abandonedCheckoutUrl': {
+    'description': 'The URL for the buyer to recover their checkout.',
+    'type': 'string',
+    'graphqlPath': 'abandonedCheckoutUrl'
   },
-  'abandoned_checkout_url': {
-    'description': 'Recovery URL for the abandoned checkout.',
-    'type': 'string'
+  'completedAt': {
+    'description': 'The date and time when the checkout was completed.',
+    'type': 'datetime',
+    'graphqlPath': 'completedAt'
   },
-  'cart_token': {
-    'description': 'Token for the cart associated with this checkout.',
-    'type': 'string'
+  'createdAt': {
+    'description': 'The date and time when the checkout was created.',
+    'type': 'datetime',
+    'graphqlPath': 'createdAt'
   },
-  'completed_at': {
-    'description': 'Timestamp when checkout converted into an order.',
-    'type': 'datetime'
+  'updatedAt': {
+    'description': 'The date and time when the checkout was last updated.',
+    'type': 'datetime',
+    'graphqlPath': 'updatedAt'
   },
-  'created_at': {
-    'description': 'Timestamp when checkout was created.',
-    'type': 'datetime'
+  'defaultCursor': {
+    'description': 'A default cursor that returns the single next record, sorted ascending by ID.',
+    'type': 'string',
+    'graphqlPath': 'defaultCursor'
   },
-  'updated_at': {
-    'description': 'Timestamp of the latest checkout update.',
-    'type': 'datetime'
+  'lineItemsQuantity': {
+    'description': 'The total number of line items in the checkout.',
+    'type': 'int32',
+    'graphqlPath': 'lineItemsQuantity'
   },
-  'currency': {
-    'description': 'Currency used on checkout.',
-    'type': 'string'
+  'totalPriceSet': {
+    'description': 'The total price of the checkout including taxes, discounts, and shipping (MoneyBag as JSON string).',
+    'type': 'string',
+    'graphqlPath': 'totalPriceSet { shopMoney { amount currencyCode } }'
   },
-  'presentment_currency': {
-    'description': 'Currency presented to the buyer.',
-    'type': 'string'
+  'billingAddressCity': {
+    'description': 'City from the billing address.',
+    'type': 'string',
+    'graphqlPath': 'billingAddress { city }'
   },
-  'email': {
-    'description': 'Email address associated with the checkout.',
-    'type': 'string'
+  'billingAddressCountry': {
+    'description': 'Country from the billing address.',
+    'type': 'string',
+    'graphqlPath': 'billingAddress { country }'
   },
-  'phone': {
-    'description': 'Phone number captured during checkout.',
-    'type': 'string'
+  'billingAddressProvince': {
+    'description': 'Province or state from the billing address.',
+    'type': 'string',
+    'graphqlPath': 'billingAddress { province }'
   },
-  'order_id': {
-    'description': 'Order ID if the checkout completed.',
-    'type': 'numeric string'
+  'billingAddressZip': {
+    'description': 'Postal/ZIP code from the billing address.',
+    'type': 'string',
+    'graphqlPath': 'billingAddress { zip }'
   },
-  'subtotal_price': {
-    'description': 'Subtotal price of items before discounts and shipping.',
-    'type': 'float'
-  },
-  'total_price': {
-    'description': 'Total checkout price including taxes, discounts, shipping.',
-    'type': 'float'
-  },
-  'total_tax': {
-    'description': 'Total amount of tax charged.',
-    'type': 'float'
-  },
-  'total_discounts': {
-    'description': 'Total amount discounted at checkout.',
-    'type': 'float'
-  },
-  'total_weight': {
-    'description': 'Total weight in grams.',
-    'type': 'float'
-  },
-  'line_items_count': {
-    'description': 'Number of line items in the checkout.',
-    'type': 'int32'
-  },
-  'shipping_city': {
+  'shippingAddressCity': {
     'description': 'City from the shipping address.',
-    'type': 'string'
+    'type': 'string',
+    'graphqlPath': 'shippingAddress { city }'
   },
-  'shipping_country': {
+  'shippingAddressCountry': {
     'description': 'Country from the shipping address.',
-    'type': 'string'
+    'type': 'string',
+    'graphqlPath': 'shippingAddress { country }'
   },
-  'shipping_province': {
+  'shippingAddressProvince': {
     'description': 'Province or state from the shipping address.',
-    'type': 'string'
+    'type': 'string',
+    'graphqlPath': 'shippingAddress { province }'
   },
-  'shipping_postal_code': {
+  'shippingAddressZip': {
     'description': 'Postal/ZIP code from the shipping address.',
-    'type': 'string'
+    'type': 'string',
+    'graphqlPath': 'shippingAddress { zip }'
   },
-  'customer_id': {
-    'description': 'Customer identifier tied to checkout.',
-    'type': 'numeric string'
+  'customerId': {
+    'description': 'Customer globally-unique ID.',
+    'type': 'string',
+    'graphqlPath': 'customer { id }'
   },
-  'customer_first_name': {
+  'customerFirstName': {
     'description': 'Customer first name.',
-    'type': 'string'
+    'type': 'string',
+    'graphqlPath': 'customer { firstName }'
   },
-  'customer_last_name': {
+  'customerLastName': {
     'description': 'Customer last name.',
-    'type': 'string'
+    'type': 'string',
+    'graphqlPath': 'customer { lastName }'
   },
-  'customer_email': {
-    'description': 'Customer email recorded for the checkout.',
-    'type': 'string'
-  },
-  'customer_phone': {
-    'description': 'Customer phone recorded for the checkout.',
-    'type': 'string'
+  'customerEmail': {
+    'description': 'Customer email address.',
+    'type': 'string',
+    'graphqlPath': 'customer { email }'
   }
 };
-
