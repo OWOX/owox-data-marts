@@ -1,6 +1,6 @@
 import { useConnector } from '../../../shared/model/hooks/useConnector';
 import type { ConnectorListItem } from '../../../shared/model/types/connector';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { DataStorageType } from '../../../../data-storage';
 import {
   ConnectorSelectionStep,
@@ -13,6 +13,7 @@ import { StepNavigation } from './components';
 import type { ConnectorConfig } from '../../../../data-marts/edit';
 import type { ConnectorFieldsResponseApiDto } from '../../../shared/api';
 import { AppWizard, AppWizardLayout, AppWizardActions } from '@owox/ui/components/common/wizard';
+import { trackEvent } from '../../../../../utils';
 
 interface ConnectorEditFormProps {
   onSubmit: (connector: ConnectorConfig) => void;
@@ -65,17 +66,21 @@ export function ConnectorEditForm({
     null
   );
 
-  const steps = configurationOnly
-    ? [{ id: 1, title: 'Configuration', description: 'Set up connector parameters' }]
-    : mode === 'fields-only'
-      ? [{ id: 1, title: 'Select Fields', description: 'Pick specific fields' }]
-      : [
-          { id: 1, title: 'Select Connector', description: 'Choose a data source' },
-          { id: 2, title: 'Configuration', description: 'Set up connector parameters' },
-          { id: 3, title: 'Select Nodes', description: 'Choose data nodes' },
-          { id: 4, title: 'Select Fields', description: 'Pick specific fields' },
-          { id: 5, title: 'Target Setup', description: 'Configure destination' },
-        ];
+  const steps = useMemo(
+    () =>
+      configurationOnly
+        ? [{ id: 1, title: 'Configuration', description: 'Set up connector parameters' }]
+        : mode === 'fields-only'
+          ? [{ id: 1, title: 'Select Fields', description: 'Pick specific fields' }]
+          : [
+              { id: 1, title: 'Select Connector', description: 'Choose a data source' },
+              { id: 2, title: 'Configuration', description: 'Set up connector parameters' },
+              { id: 3, title: 'Select Nodes', description: 'Choose data nodes' },
+              { id: 4, title: 'Select Fields', description: 'Pick specific fields' },
+              { id: 5, title: 'Target Setup', description: 'Configure destination' },
+            ],
+    [configurationOnly, mode]
+  );
 
   const totalSteps = steps.length;
 
@@ -188,6 +193,12 @@ export function ConnectorEditForm({
     });
     void loadSpecificationSafely(connector.name);
     void loadFieldsSafely(connector.name);
+    trackEvent({
+      event: 'connector_setup',
+      category: connector.name,
+      action: 'connector_selected',
+      label: connector.displayName,
+    });
   };
 
   const handleFieldSelect = (fieldName: string) => {
@@ -244,6 +255,16 @@ export function ConnectorEditForm({
     }
   }, [connectorSpecification]);
 
+  useEffect(() => {
+    const stepTitle = steps[currentStep - 1]?.title ?? `Step ${String(currentStep)}`;
+    trackEvent({
+      event: 'connector_setup',
+      category: selectedConnector?.name ?? 'unknown',
+      action: `step`,
+      label: stepTitle,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep, selectedConnector]);
   const handleNext = () => {
     if (currentStep < totalSteps) {
       setCurrentStep(currentStep + 1);
@@ -422,6 +443,12 @@ export function ConnectorEditForm({
                   fullyQualifiedName: existingConnector?.storage.fullyQualifiedName ?? '',
                 },
               });
+              trackEvent({
+                event: 'connector_setup',
+                category: selectedConnector.name,
+                action: 'created',
+                label: 'configuration-only',
+              });
             } else if (mode === 'fields-only' && existingConnector) {
               onSubmit({
                 source: {
@@ -429,6 +456,12 @@ export function ConnectorEditForm({
                   fields: selectedFields,
                 },
                 storage: existingConnector.storage,
+              });
+              trackEvent({
+                event: 'connector_setup',
+                category: existingConnector.source.name,
+                action: 'created',
+                label: 'fields-only',
               });
             } else if (selectedConnector && target) {
               onSubmit({
@@ -441,6 +474,12 @@ export function ConnectorEditForm({
                 storage: {
                   fullyQualifiedName: target.fullyQualifiedName,
                 },
+              });
+              trackEvent({
+                event: 'connector_setup',
+                category: selectedConnector.name,
+                action: 'created',
+                label: 'full',
               });
             }
             setIsDirty(false);
