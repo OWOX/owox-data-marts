@@ -128,7 +128,7 @@ export class ConnectorExecutionService {
 
     const dataMartRun = await this.createDataMartRun(dataMart, createdById, runType, payload);
 
-    this.executeInBackground(dataMart, dataMartRun, payload).catch(error => {
+    this.executeInBackground(dataMart, dataMartRun, dataMartRun.additionalParams).catch(error => {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error(`Background execution failed: ${errorMessage}`, error?.stack, {
         dataMartId: dataMart.id,
@@ -761,14 +761,16 @@ export class ConnectorExecutionService {
     payload?: Record<string, unknown> | null,
     state?: ConnectorStateItem
   ): RunConfigDto {
-    const type = payload?.runType || 'INCREMENTAL';
-    const data = payload?.data
-      ? Object.entries(payload.data).map(([key, value]) => {
-          return {
-            configField: key,
-            value: value,
-          };
-        })
+    // Connector payload format: { payload: { runType: string, data: Record<string, unknown> } }
+    const bodyRaw = (payload as { payload?: unknown } | null)?.payload;
+    const body =
+      bodyRaw !== null && typeof bodyRaw === 'object'
+        ? (bodyRaw as { runType?: string; data?: Record<string, unknown> })
+        : undefined;
+
+    const type = body?.runType ?? 'INCREMENTAL';
+    const data = body?.data
+      ? Object.entries(body.data).map(([configField, value]) => ({ configField, value }))
       : [];
     this.logger.debug(`Creating run config`, {
       payload,
