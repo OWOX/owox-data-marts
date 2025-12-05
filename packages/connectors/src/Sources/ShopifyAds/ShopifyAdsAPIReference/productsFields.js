@@ -68,11 +68,6 @@ var productsFields = {
     'type': 'int32',
     'graphqlPath': 'variantsCount { count }'
   },
-  'imagesCount': {
-    'description': 'The number of images.',
-    'type': 'int32',
-    'graphqlPath': 'imagesCount { count }'
-  },
   'featuredImageUrl': {
     'description': 'The URL of the featured image.',
     'type': 'string',
@@ -105,17 +100,17 @@ var productsFields = {
   },
   'publishedAt': {
     'description': 'The date and time when the product was published.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'publishedAt'
   },
   'createdAt': {
     'description': 'The date and time when the product was created.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'createdAt'
   },
   'updatedAt': {
     'description': 'The date and time when the product was last updated.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'updatedAt'
   }
 };

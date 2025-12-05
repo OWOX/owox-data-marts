@@ -95,12 +95,12 @@ var locationsFields = {
   },
   'createdAt': {
     'description': 'The date and time when the location was created.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'createdAt'
   },
   'updatedAt': {
     'description': 'The date and time when the location was last updated.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'updatedAt'
   }
 };

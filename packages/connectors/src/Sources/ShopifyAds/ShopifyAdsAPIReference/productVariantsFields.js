@@ -73,21 +73,6 @@ var productVariantsFields = {
     'type': 'string',
     'graphqlPath': 'product { title }'
   },
-  'weight': {
-    'description': 'The weight of the variant.',
-    'type': 'float',
-    'graphqlPath': 'weight'
-  },
-  'weightUnit': {
-    'description': 'The unit of weight.',
-    'type': 'string',
-    'graphqlPath': 'weightUnit'
-  },
-  'requiresShipping': {
-    'description': 'Whether the variant requires shipping.',
-    'type': 'bool',
-    'graphqlPath': 'requiresShipping'
-  },
   'taxable': {
     'description': 'Whether the variant is taxable.',
     'type': 'bool',
@@ -103,19 +88,14 @@ var productVariantsFields = {
     'type': 'bool',
     'graphqlPath': 'availableForSale'
   },
-  'imageUrl': {
-    'description': 'The URL of the variant image.',
-    'type': 'string',
-    'graphqlPath': 'image { url }'
-  },
   'createdAt': {
     'description': 'The date and time when the variant was created.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'createdAt'
   },
   'updatedAt': {
     'description': 'The date and time when the variant was last updated.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'updatedAt'
   }
 };

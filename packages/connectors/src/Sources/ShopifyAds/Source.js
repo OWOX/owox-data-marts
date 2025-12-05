@@ -110,9 +110,6 @@ var ShopifyAdsSource = class ShopifyAdsSource extends AbstractSource {
   async _fetchPaginated({ nodeName, schema, fields, startDate, endDate, buildQuery, extractNodes }) {
     const queryFields = this._buildQueryFields(schema, fields);
     const dateFilter = this._buildDateFilter(schema, startDate, endDate);
-    const normalizer = schema.normalizer 
-      ? (node) => this._filterFields(schema.normalizer(node), fields)
-      : (node) => this._normalizeFromSchema({ node, schema, fields });
 
     const results = [];
     let cursor = null;
@@ -129,7 +126,10 @@ var ShopifyAdsSource = class ShopifyAdsSource extends AbstractSource {
       }
 
       for (const node of extractNodes(connection)) {
-        results.push(normalizer(node));
+        const normalized = nodeName === "discount-codes"
+          ? this._normalizeDiscountCode(node, fields)
+          : this._normalizeFromSchema({ node, schema, fields });
+        results.push(normalized);
       }
 
       hasNextPage = connection.pageInfo?.hasNextPage || false;
@@ -233,6 +233,29 @@ var ShopifyAdsSource = class ShopifyAdsSource extends AbstractSource {
     return result;
   }
 
+  _normalizeDiscountCode(node, fields) {
+    const d = node.codeDiscount || {};
+    const all = {
+      id: node.id,
+      code: d.codes?.nodes?.[0]?.code || null,
+      discountType: d.__typename || null,
+      title: d.title || null,
+      status: d.status || null,
+      startsAt: d.startsAt || null,
+      endsAt: d.endsAt || null,
+      usageLimit: d.usageLimit || null,
+      appliesOncePerCustomer: d.appliesOncePerCustomer || null,
+      asyncUsageCount: d.asyncUsageCount || null,
+      createdAt: d.createdAt || null,
+      updatedAt: d.updatedAt || null
+    };
+    const result = {};
+    for (const field of fields) {
+      result[field] = all[field] ?? null;
+    }
+    return result;
+  }
+
   _extractValue(node, graphqlPath) {
     const match = graphqlPath.match(/^(\w+)\s*\{\s*(.+)\s*\}$/);
     if (match) {
@@ -256,14 +279,6 @@ var ShopifyAdsSource = class ShopifyAdsSource extends AbstractSource {
       return JSON.stringify(value);
     }
     return value;
-  }
-
-  _filterFields(all, fields) {
-    const result = {};
-    for (const field of fields) {
-      result[field] = all[field] ?? null;
-    }
-    return result;
   }
 
   // ========== Query Builders ==========
@@ -307,9 +322,6 @@ var ShopifyAdsSource = class ShopifyAdsSource extends AbstractSource {
   }
 
   _buildDateFilter(schema, startDate, endDate) {
-    if (schema.queryFilter && !schema.queryFilterTemplate) {
-      return `, ${schema.queryFilter}`;
-    }
     if (schema.queryFilterTemplate && startDate && endDate) {
       return `, ${schema.queryFilterTemplate.replace("{{startDate}}", startDate).replace("{{endDate}}", endDate)}`;
     }

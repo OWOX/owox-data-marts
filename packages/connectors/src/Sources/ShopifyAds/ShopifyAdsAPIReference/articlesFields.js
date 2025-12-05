@@ -55,7 +55,7 @@ var articlesFields = {
   },
   'publishedAt': {
     'description': 'The date and time when the article became or will become visible.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'publishedAt'
   },
   'tags': {
@@ -75,12 +75,12 @@ var articlesFields = {
   },
   'createdAt': {
     'description': 'The date and time when the article was created.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'createdAt'
   },
   'updatedAt': {
     'description': 'The date and time when the article was last updated.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'updatedAt'
   }
 };

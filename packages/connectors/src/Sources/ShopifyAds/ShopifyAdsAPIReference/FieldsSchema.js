@@ -63,18 +63,6 @@ var ShopifyAdsFieldsSchema = {
     "isTimeSeries": true,
     "queryFilterTemplate": "query: \"updated_at:>='{{startDate}}' AND updated_at:<='{{endDate}}'\""
   },
-  "draft-orders": {
-    "overview": "Draft Orders",
-    "description": "Draft orders that can be converted to orders.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-01/objects/DraftOrder",
-    "fields": draftOrdersFields,
-    "uniqueKeys": ["id"],
-    "destinationName": "shopify_draft_orders",
-    "queryName": "draftOrders",
-    "connectionPath": "draftOrders",
-    "isTimeSeries": true,
-    "queryFilterTemplate": "query: \"updated_at:>='{{startDate}}' AND updated_at:<='{{endDate}}'\""
-  },
   "discount-codes": {
     "overview": "Discount Codes",
     "description": "Discount codes and their usage.",
@@ -86,24 +74,7 @@ var ShopifyAdsFieldsSchema = {
     "connectionPath": "codeDiscountNodes",
     "isTimeSeries": false,
     "unionField": "codeDiscount",
-    "unionTypes": ["DiscountCodeBasic", "DiscountCodeBxgy", "DiscountCodeFreeShipping"],
-    "normalizer": (node) => {
-      const d = node.codeDiscount || {};
-      return {
-        id: node.id,
-        code: d.codes?.nodes?.[0]?.code || null,
-        discountType: d.__typename || null,
-        title: d.title || null,
-        status: d.status || null,
-        startsAt: d.startsAt || null,
-        endsAt: d.endsAt || null,
-        usageLimit: d.usageLimit || null,
-        appliesOncePerCustomer: d.appliesOncePerCustomer || null,
-        asyncUsageCount: d.asyncUsageCount || null,
-        createdAt: d.createdAt || null,
-        updatedAt: d.updatedAt || null
-      };
-    }
+    "unionTypes": ["DiscountCodeBasic", "DiscountCodeBxgy", "DiscountCodeFreeShipping"]
   },
   "fulfillment-orders": {
     "overview": "Fulfillment Orders",
@@ -116,17 +87,6 @@ var ShopifyAdsFieldsSchema = {
     "connectionPath": "fulfillmentOrders",
     "isTimeSeries": false
   },
-  "fulfillments": {
-    "overview": "Fulfillments",
-    "description": "Fulfillments representing shipped items.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-01/objects/Fulfillment",
-    "fields": fulfillmentsFields,
-    "uniqueKeys": ["id"],
-    "destinationName": "shopify_fulfillments",
-    "queryName": "fulfillments",
-    "connectionPath": "fulfillments",
-    "isTimeSeries": false
-  },
   "inventory-items": {
     "overview": "Inventory Items",
     "description": "Inventory items representing SKUs.",
@@ -136,17 +96,6 @@ var ShopifyAdsFieldsSchema = {
     "destinationName": "shopify_inventory_items",
     "queryName": "inventoryItems",
     "connectionPath": "inventoryItems",
-    "isTimeSeries": false
-  },
-  "inventory-levels": {
-    "overview": "Inventory Levels",
-    "description": "Inventory quantities at locations.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-01/objects/InventoryLevel",
-    "fields": inventoryLevelsFields,
-    "uniqueKeys": ["id"],
-    "destinationName": "shopify_inventory_levels",
-    "queryName": "inventoryLevels",
-    "connectionPath": "inventoryLevels",
     "isTimeSeries": false
   },
   "locations": {
@@ -205,19 +154,6 @@ var ShopifyAdsFieldsSchema = {
     "destinationName": "shopify_product_variants",
     "queryName": "productVariants",
     "connectionPath": "productVariants",
-    "isTimeSeries": false
-  },
-  "product-images": {
-    "overview": "Product Images",
-    "description": "Media images for products.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-01/objects/MediaImage",
-    "fields": productImagesFields,
-    "uniqueKeys": ["id"],
-    "destinationName": "shopify_product_images",
-    "queryName": "products",
-    "connectionPath": "products",
-    "nestedField": "media",
-    "nestedFilter": "mediaContentType: IMAGE",
     "isTimeSeries": false
   },
   "pages": {
@@ -320,17 +256,6 @@ var ShopifyAdsFieldsSchema = {
     "destinationName": "shopify_metafield_customers",
     "ownerType": "CUSTOMER",
     "parentQuery": "customers",
-    "isTimeSeries": false
-  },
-  "metafield-draft-orders": {
-    "overview": "Draft Order Metafields",
-    "description": "Custom metafields for draft orders.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-01/objects/Metafield",
-    "fields": metafieldsFields,
-    "uniqueKeys": ["id"],
-    "destinationName": "shopify_metafield_draft_orders",
-    "ownerType": "DRAFTORDER",
-    "parentQuery": "draftOrders",
     "isTimeSeries": false
   },
   "metafield-locations": {
