@@ -23,11 +23,6 @@ var blogsFields = {
     'type': 'string',
     'graphqlPath': 'handle'
   },
-  'commentable': {
-    'description': 'Indicates whether readers can post comments to the blog.',
-    'type': 'string',
-    'graphqlPath': 'commentable'
-  },
   'templateSuffix': {
     'description': 'The name of the template the blog is using.',
     'type': 'string',
@@ -35,12 +30,12 @@ var blogsFields = {
   },
   'createdAt': {
     'description': 'The date and time when the blog was created.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'createdAt'
   },
   'updatedAt': {
     'description': 'The date and time when the blog was last updated.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'updatedAt'
   }
 };

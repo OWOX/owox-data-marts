@@ -38,21 +38,6 @@ var inventoryItemsFields = {
     'type': 'string',
     'graphqlPath': 'countryCodeOfOrigin'
   },
-  'provinceCodeOfOrigin': {
-    'description': 'The province code of where the item originated from.',
-    'type': 'string',
-    'graphqlPath': 'provinceCodeOfOrigin'
-  },
-  'unitCostAmount': {
-    'description': 'The unit cost of the inventory item.',
-    'type': 'float',
-    'graphqlPath': 'unitCost { amount }'
-  },
-  'unitCostCurrencyCode': {
-    'description': 'The currency code of the unit cost.',
-    'type': 'string',
-    'graphqlPath': 'unitCost { currencyCode }'
-  },
   'variantId': {
     'description': 'The ID of the variant associated with this inventory item.',
     'type': 'string',
@@ -60,12 +45,12 @@ var inventoryItemsFields = {
   },
   'createdAt': {
     'description': 'The date and time when the inventory item was created.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'createdAt'
   },
   'updatedAt': {
     'description': 'The date and time when the inventory item was last updated.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'updatedAt'
   }
 };

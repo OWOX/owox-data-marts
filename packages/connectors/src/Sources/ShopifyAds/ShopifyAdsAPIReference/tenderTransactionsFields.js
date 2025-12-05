@@ -23,11 +23,6 @@ var tenderTransactionsFields = {
     'type': 'string',
     'graphqlPath': 'amount { currencyCode }'
   },
-  'paymentMethod': {
-    'description': 'The payment method.',
-    'type': 'string',
-    'graphqlPath': 'paymentMethod'
-  },
   'remoteReference': {
     'description': 'The remote gateway reference.',
     'type': 'string',
@@ -45,7 +40,7 @@ var tenderTransactionsFields = {
   },
   'processedAt': {
     'description': 'The date and time when the transaction was processed.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'processedAt'
   }
 };

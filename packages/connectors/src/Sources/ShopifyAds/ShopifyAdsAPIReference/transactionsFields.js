@@ -70,17 +70,17 @@ var transactionsFields = {
   },
   'authorizationExpiresAt': {
     'description': 'The date and time when the authorization expires.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'authorizationExpiresAt'
   },
   'processedAt': {
     'description': 'The date and time when the transaction was processed.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'processedAt'
   },
   'createdAt': {
     'description': 'The date and time when the transaction was created.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'createdAt'
   }
 };

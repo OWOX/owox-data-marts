@@ -20,17 +20,17 @@ var abandonedCheckoutsFields = {
   },
   'completedAt': {
     'description': 'The date and time when the checkout was completed.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'completedAt'
   },
   'createdAt': {
     'description': 'The date and time when the checkout was created.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'createdAt'
   },
   'updatedAt': {
     'description': 'The date and time when the checkout was last updated.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'updatedAt'
   },
   'defaultCursor': {

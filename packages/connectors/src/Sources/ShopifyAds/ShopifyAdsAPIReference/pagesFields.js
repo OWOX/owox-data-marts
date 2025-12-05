@@ -45,17 +45,17 @@ var pagesFields = {
   },
   'publishedAt': {
     'description': 'The date and time when the page was published.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'publishedAt'
   },
   'createdAt': {
     'description': 'The date and time when the page was created.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'createdAt'
   },
   'updatedAt': {
     'description': 'The date and time when the page was last updated.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'updatedAt'
   }
 };

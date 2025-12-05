@@ -45,18 +45,8 @@ var fulfillmentOrdersFields = {
   },
   'fulfillAt': {
     'description': 'The date and time at which the fulfillment order will be ready to be fulfilled.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'fulfillAt'
-  },
-  'fulfillBy': {
-    'description': 'The latest date and time by which the fulfillment order is expected to arrive.',
-    'type': 'datetime',
-    'graphqlPath': 'fulfillBy'
-  },
-  'supportedActions': {
-    'description': 'The actions that can be performed on this fulfillment order.',
-    'type': 'string',
-    'graphqlPath': 'supportedActions { action }'
   },
   'deliveryMethod': {
     'description': 'The delivery method of the fulfillment order.',
@@ -65,12 +55,12 @@ var fulfillmentOrdersFields = {
   },
   'createdAt': {
     'description': 'The date and time when the fulfillment order was created.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'createdAt'
   },
   'updatedAt': {
     'description': 'The date and time when the fulfillment order was last updated.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'updatedAt'
   }
 };

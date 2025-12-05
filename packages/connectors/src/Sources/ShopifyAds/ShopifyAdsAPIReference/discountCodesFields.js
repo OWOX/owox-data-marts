@@ -40,13 +40,13 @@ var discountCodesFields = {
   },
   'startsAt': {
     'description': 'The date and time when the discount becomes active.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'startsAt',
     'isUnionField': true
   },
   'endsAt': {
     'description': 'The date and time when the discount expires.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'endsAt',
     'isUnionField': true
   },
@@ -70,13 +70,13 @@ var discountCodesFields = {
   },
   'createdAt': {
     'description': 'The date and time when the discount was created.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'createdAt',
     'isUnionField': true
   },
   'updatedAt': {
     'description': 'The date and time when the discount was last updated.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'updatedAt',
     'isUnionField': true
   }

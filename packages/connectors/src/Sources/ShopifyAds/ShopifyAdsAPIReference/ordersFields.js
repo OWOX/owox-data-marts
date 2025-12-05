@@ -50,7 +50,7 @@ var ordersFields = {
   },
   'cancelledAt': {
     'description': 'The date and time when the order was cancelled.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'cancelledAt'
   },
   'cancelReason': {
@@ -185,22 +185,22 @@ var ordersFields = {
   },
   'processedAt': {
     'description': 'The date and time when the order was processed.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'processedAt'
   },
   'closedAt': {
     'description': 'The date and time when the order was closed.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'closedAt'
   },
   'createdAt': {
     'description': 'The date and time when the order was created.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'createdAt'
   },
   'updatedAt': {
     'description': 'The date and time when the order was last updated.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'updatedAt'
   }
 };

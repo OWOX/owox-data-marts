@@ -53,14 +53,9 @@ var collectionsFields = {
     'type': 'string',
     'graphqlPath': 'image { url }'
   },
-  'publishedAt': {
-    'description': 'The date and time when the collection was published.',
-    'type': 'datetime',
-    'graphqlPath': 'publishedAt'
-  },
   'updatedAt': {
     'description': 'The date and time when the collection was last updated.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'updatedAt'
   }
 };

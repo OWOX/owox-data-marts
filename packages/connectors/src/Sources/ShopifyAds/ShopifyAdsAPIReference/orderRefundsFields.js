@@ -35,12 +35,12 @@ var orderRefundsFields = {
   },
   'createdAt': {
     'description': 'The date and time when the refund was created.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'createdAt'
   },
   'updatedAt': {
     'description': 'The date and time when the refund was last updated.',
-    'type': 'datetime',
+    'type': 'timestamp',
     'graphqlPath': 'updatedAt'
   }
 };
