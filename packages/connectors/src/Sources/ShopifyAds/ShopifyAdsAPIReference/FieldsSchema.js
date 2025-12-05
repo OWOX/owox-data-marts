@@ -121,18 +121,6 @@ var ShopifyAdsFieldsSchema = {
     "isTimeSeries": true,
     "queryFilterTemplate": "query: \"updated_at:>='{{startDate}}' AND updated_at:<='{{endDate}}'\""
   },
-  "order-risks": {
-    "overview": "Order Risk Assessments",
-    "description": "Risk assessments for orders.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-01/objects/OrderRiskAssessment",
-    "fields": orderRisksFields,
-    "uniqueKeys": ["orderId"],
-    "destinationName": "shopify_order_risks",
-    "queryName": "orders",
-    "connectionPath": "orders",
-    "nestedField": "risks",
-    "isTimeSeries": false
-  },
   "products": {
     "overview": "Products",
     "description": "Products in the store catalog.",
@@ -177,30 +165,6 @@ var ShopifyAdsFieldsSchema = {
     "queryName": "shop",
     "connectionPath": "shop",
     "isSingleton": true,
-    "isTimeSeries": false
-  },
-  "transactions": {
-    "overview": "Transactions",
-    "description": "Order transactions (payments, refunds, etc.).",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-01/objects/OrderTransaction",
-    "fields": transactionsFields,
-    "uniqueKeys": ["id"],
-    "destinationName": "shopify_transactions",
-    "queryName": "orders",
-    "connectionPath": "orders",
-    "nestedField": "transactions",
-    "isTimeSeries": false
-  },
-  "refunds": {
-    "overview": "Refunds",
-    "description": "Refunds issued for orders.",
-    "documentation": "https://shopify.dev/docs/api/admin-graphql/2025-01/objects/Refund",
-    "fields": orderRefundsFields,
-    "uniqueKeys": ["id"],
-    "destinationName": "shopify_refunds",
-    "queryName": "orders",
-    "connectionPath": "orders",
-    "nestedField": "refunds",
     "isTimeSeries": false
   },
   "tender-transactions": {

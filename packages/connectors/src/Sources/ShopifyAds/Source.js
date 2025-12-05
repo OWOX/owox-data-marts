@@ -73,25 +73,6 @@ var ShopifyAdsSource = class ShopifyAdsSource extends AbstractSource {
       return this._fetchSingleton({ nodeName, schema, fields });
     }
 
-    if (schema.nestedField) {
-      return this._fetchPaginated({
-        nodeName,
-        schema,
-        fields,
-        startDate,
-        endDate,
-        buildQuery: (afterClause, filterClause, graphqlFields) => 
-          `query { ${schema.queryName}(first: 50${afterClause}${filterClause}) { nodes { id ${schema.nestedField}(first: 100) { nodes { ${graphqlFields} } } } pageInfo { hasNextPage endCursor } } }`,
-        extractNodes: (connection) => {
-          const results = [];
-          for (const parent of (connection.nodes || [])) {
-            results.push(...(parent[schema.nestedField]?.nodes || []));
-          }
-          return results;
-        }
-      });
-    }
-
     return this._fetchPaginated({
       nodeName,
       schema,

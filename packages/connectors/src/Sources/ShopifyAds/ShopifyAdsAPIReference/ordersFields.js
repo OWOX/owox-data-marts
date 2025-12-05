@@ -98,11 +98,6 @@ var ordersFields = {
     'type': 'float',
     'graphqlPath': 'totalWeight'
   },
-  'lineItemsCount': {
-    'description': 'The number of line items.',
-    'type': 'int32',
-    'graphqlPath': 'lineItems { nodes { id } }'
-  },
   'fullyPaid': {
     'description': 'Whether the order is fully paid.',
     'type': 'bool',
