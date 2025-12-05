@@ -8,6 +8,11 @@ import { OWOX_PRODUCER } from '../../common/producer/producer.module';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 import { RunType } from '../../common/scheduler/shared/types';
 import { DataMartInsightTemplateFacadeImpl } from '../ai-insights/data-mart-insight-template.facade';
+import {
+  DataMartInsightTemplateOutput,
+  DataMartInsightTemplateStatus,
+  PromptAnswer,
+} from '../ai-insights/data-mart-insights.types';
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMart } from '../entities/data-mart.entity';
 import { Insight } from '../entities/insight.entity';
@@ -136,71 +141,79 @@ export class InsightExecutionService {
       logs.push(JSON.stringify(enriched));
     };
 
-    const runMain = async (): Promise<string> => {
+    const runMain = async (): Promise<DataMartInsightTemplateOutput> => {
       pushLog({ type: 'log', message: 'AI Insight started' });
       const template = insight.template ?? '';
-      const { rendered, prompts } = await this.insightTemplateFacade.render({
+      const result = await this.insightTemplateFacade.render({
         template,
         params: {
           projectId: dataMart.projectId,
           dataMartId: dataMart.id,
         },
       });
+      const { rendered, prompts } = result;
+
       for (const p of prompts ?? []) {
-        // Basic meta about prompt/artifact
+        const telemetry = (p.meta as { telemetry?: AgentTelemetry } | undefined)?.telemetry;
+        const telemetrySummary = telemetry ? this.summarizeAgentTelemetry(telemetry) : undefined;
+
         pushLog({
-          type: 'ai_insight_meta',
+          type: 'prompt',
           prompt: p.payload?.prompt,
           artifact: p.meta?.artifact,
+          status: p.meta?.status,
+          reasonDescription: p.meta?.reasonDescription,
+          promptAnswer: p.promptAnswer,
+          ...(telemetrySummary ? { telemetry: telemetrySummary } : {}),
         });
 
-        // Agent telemetry (LLM/Tool calls), if available
-        const telemetry = (p.meta as { telemetry?: AgentTelemetry } | undefined)?.telemetry;
-        if (telemetry) {
-          const summary = this.summarizeAgentTelemetry(telemetry);
-          pushLog({ type: 'ai_insight_telemetry', ...summary });
-          const lastLlm = telemetry.llmCalls.length
-            ? telemetry.llmCalls[telemetry.llmCalls.length - 1]
-            : undefined;
-          const preview = lastLlm?.reasoningPreview;
-          if (typeof preview === 'string' && preview.length > 0) {
-            pushLog({
-              type: 'ai_insight_reasoning_preview',
-              preview: preview.slice(0, 500),
-            });
-          }
+        if (p.meta?.status && p.meta.status !== PromptAnswer.OK) {
+          errors.push(
+            JSON.stringify({
+              type: 'prompt_error',
+              at: this.systemTimeService.now(),
+              prompt: p.payload?.prompt,
+              status: p.meta.status,
+              reasonDescription: p.meta.reasonDescription,
+              artifact: p.meta.artifact,
+            })
+          );
         }
       }
 
-      // Overall rendered insight output
       if (rendered && rendered.length > 0) {
         pushLog({
-          type: 'ai_insight_output',
+          type: 'output',
           output: rendered,
         });
       }
       pushLog({ type: 'log', message: 'AI Insight completed' });
-      return rendered ?? '';
+      return result;
     };
 
     try {
-      generatedOutput = await runMain();
+      const result = await runMain();
+      generatedOutput = result.rendered ?? null;
+
+      const isOk = result.status === DataMartInsightTemplateStatus.OK;
 
       await this.dataMartRunService.markInsightRunAsFinished(run, {
-        status: DataMartRunStatus.SUCCESS,
+        status: isOk ? DataMartRunStatus.SUCCESS : DataMartRunStatus.FAILED,
         logs,
         errors,
       });
 
-      await this.producer.produceEvent(
-        new InsightRunSuccessfullyEvent(
-          dataMart.id,
-          runId,
-          dataMart.projectId,
-          run.createdById!,
-          run.runType!
-        )
-      );
+      if (isOk) {
+        await this.producer.produceEvent(
+          new InsightRunSuccessfullyEvent(
+            dataMart.id,
+            runId,
+            dataMart.projectId,
+            run.createdById!,
+            run.runType!
+          )
+        );
+      }
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       errors.push(
