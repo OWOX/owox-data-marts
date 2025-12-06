@@ -26,13 +26,17 @@ export enum DataMartInsightTemplateStatus {
 }
 
 export interface DataMartInsightTemplateOutput {
-  rendered?: string;
+  rendered: string;
   status: DataMartInsightTemplateStatus;
   prompts: DataMartPromptMetaEntry[];
 }
 
 export interface DataMartInsightTemplateFacade {
   render(input: DataMartInsightTemplateInput): Promise<DataMartInsightTemplateOutput>;
+}
+
+export function isPromptAnswerOk(value: PromptAnswer): boolean {
+  return value === PromptAnswer.OK;
 }
 
 export enum PromptAnswer {

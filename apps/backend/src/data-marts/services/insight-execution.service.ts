@@ -173,7 +173,7 @@ export class InsightExecutionService {
       }
 
       // Overall rendered insight output
-      if (rendered && rendered.length > 0) {
+      if (rendered.length > 0) {
         pushLog({
           type: 'ai_insight_output',
           output: rendered,

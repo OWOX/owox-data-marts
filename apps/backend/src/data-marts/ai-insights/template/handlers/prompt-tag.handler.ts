@@ -8,11 +8,17 @@ import {
 } from '../../../../common/template/types/render-template.types';
 import {
   DataMartAdditionalParams,
+  isPromptAnswerOk,
   PromptTagMeta,
   PromptTagPayload,
 } from '../../data-mart-insights.types';
 import { AiInsightsFacade } from '../../facades/ai-insights.facade';
 import { AI_INSIGHTS_FACADE, AnswerPromptResponse } from '../../ai-insights-types';
+import {
+  wrapCodeBlock,
+  wrapWarningBlock,
+} from '../../../../common/markdown/helpers/blockquote-alert-wrapper';
+import { trimString } from '@owox/internal-helpers';
 
 @Injectable()
 export class PromptTagHandler implements TagHandler<
@@ -61,7 +67,7 @@ export class PromptTagHandler implements TagHandler<
     });
 
     return {
-      rendered: response.promptAnswer,
+      rendered: this.computeRendered(response),
       meta: {
         prompt: response.meta.prompt,
         status: response.status,
@@ -70,5 +76,14 @@ export class PromptTagHandler implements TagHandler<
         telemetry: response.meta.telemetry,
       },
     };
+  }
+
+  private computeRendered(response: AnswerPromptResponse) {
+    if (isPromptAnswerOk(response.status)) {
+      return response.promptAnswer!;
+    }
+
+    const prompt = `_Prompt:_ ${wrapCodeBlock(trimString(response.meta.prompt, 55))}`;
+    return wrapWarningBlock(`${prompt}  \n${response.meta.reasonDescription!}`);
   }
 }
