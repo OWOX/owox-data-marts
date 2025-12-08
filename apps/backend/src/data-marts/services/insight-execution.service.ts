@@ -22,7 +22,7 @@ import {
 } from '../ai-insights/utils/compute-model-usage';
 import {
   DataMartInsightTemplateStatus,
-  PromptAnswer,
+  isPromptAnswerOk,
 } from '../ai-insights/data-mart-insights.types';
 
 @Injectable()
@@ -180,7 +180,7 @@ export class InsightExecutionService {
           });
         }
 
-        if (p.meta?.status && p.meta.status !== PromptAnswer.OK) {
+        if (!isPromptAnswerOk(p.meta.status)) {
           errors.push(
             JSON.stringify({
               type: 'prompt_error',
