@@ -31,7 +31,7 @@ Before you begin, please ensure that:
    - To import spend, clicks, and impressions from an ad account, select the `Microsoft Ads Campaigns` endpoint.  
 2. Select the required **fields**.  
 3. Specify the **dataset** where the data will be stored (or leave the default).  
-4. Click **Finish**, then **Save** and **Publish Data Mart**.  
+4. Click **Finish**, then **Publish Data Mart**.  
 
 ![Microsoft Publish Data Mart](res/microsoft_publishdatamart.png)
 

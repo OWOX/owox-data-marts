@@ -30,7 +30,7 @@ Before proceeding, please make sure that you have [set up **OWOX Data Marts**](h
 1. Choose available **endpoint**.  
 2. Select the required **fields**.  
 3. Specify the **dataset** where the data will be stored (or leave the default).  
-4. Click **Finish**, then **Save** and **Publish Data Mart**.
+4. Click **Finish**, then **Publish Data Mart**.
 
 ![Open Holidays Publish Data Mart](res/holidays_publish.png)
 
