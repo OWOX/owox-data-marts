@@ -15,6 +15,11 @@ import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { InsightRunSuccessfullyEvent } from '../events/insight-run-successfully.event';
 import { DataMartRunService } from './data-mart-run.service';
+import {
+  getPromptTotalUsage,
+  getTemplateTotalUsage,
+  ModelUsageTotals,
+} from '../ai-insights/utils/compute-model-usage';
 
 @Injectable()
 export class InsightExecutionService {
@@ -25,21 +30,18 @@ export class InsightExecutionService {
    * Returns compact, privacy-aware metrics suitable for persistence in run logs.
    *
    * @param telemetry Agent telemetry collected during the AI Insight run.
-   * @returns A summary containing counts, failure stats, last usage and tools used.
+   * @returns A summary containing counts, failure stats, total usage and tools used.
    */
   private summarizeAgentTelemetry(telemetry: AgentTelemetry): {
     llmCalls: number;
     toolCalls: number;
     failedToolCalls: number;
     lastFinishReason?: string;
-    lastUsage?: {
-      promptTokens?: number;
-      completionTokens?: number;
-      totalTokens?: number;
-    };
+    totalUsage: ModelUsageTotals;
   } {
     const llmCalls = telemetry.llmCalls ?? [];
     const toolCalls = telemetry.toolCalls ?? [];
+
     const failedToolCalls = toolCalls.filter(call => !call.success).length;
     const lastLlm = llmCalls.length ? llmCalls[llmCalls.length - 1] : undefined;
     return {
@@ -47,7 +49,7 @@ export class InsightExecutionService {
       toolCalls: toolCalls.length,
       failedToolCalls,
       lastFinishReason: lastLlm?.finishReason,
-      lastUsage: lastLlm?.usage,
+      totalUsage: getPromptTotalUsage(telemetry.llmCalls),
     };
   }
 
@@ -155,20 +157,18 @@ export class InsightExecutionService {
         });
 
         // Agent telemetry (LLM/Tool calls), if available
-        const telemetry = (p.meta as { telemetry?: AgentTelemetry } | undefined)?.telemetry;
-        if (telemetry) {
-          const summary = this.summarizeAgentTelemetry(telemetry);
-          pushLog({ type: 'ai_insight_telemetry', ...summary });
-          const lastLlm = telemetry.llmCalls.length
-            ? telemetry.llmCalls[telemetry.llmCalls.length - 1]
-            : undefined;
-          const preview = lastLlm?.reasoningPreview;
-          if (typeof preview === 'string' && preview.length > 0) {
-            pushLog({
-              type: 'ai_insight_reasoning_preview',
-              preview: preview.slice(0, 500),
-            });
-          }
+        const telemetry = p.meta.telemetry;
+        const summary = this.summarizeAgentTelemetry(telemetry);
+        pushLog({ type: 'ai_insight_prompt_telemetry', ...summary });
+        const lastLlm = telemetry.llmCalls.length
+          ? telemetry.llmCalls[telemetry.llmCalls.length - 1]
+          : undefined;
+        const preview = lastLlm?.reasoningPreview;
+        if (typeof preview === 'string' && preview.length > 0) {
+          pushLog({
+            type: 'ai_insight_reasoning_preview',
+            preview: preview.slice(0, 500),
+          });
         }
       }
 
@@ -179,6 +179,8 @@ export class InsightExecutionService {
           output: rendered,
         });
       }
+
+      pushLog({ type: 'ai_insight_template_telemetry', ...getTemplateTotalUsage(prompts) });
       pushLog({ type: 'log', message: 'AI Insight completed' });
       return rendered ?? '';
     };

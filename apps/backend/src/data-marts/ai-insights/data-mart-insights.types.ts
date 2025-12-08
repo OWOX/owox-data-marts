@@ -1,5 +1,6 @@
 import { TagMetaEntry } from '../../common/template/types/render-template.types';
 import { Options } from './ai-insights-types';
+import { AgentTelemetry } from '../../common/ai-insights/agent/types';
 
 export type DataMartAdditionalParams = {
   projectId: string;
@@ -61,7 +62,7 @@ export interface PromptTagMeta {
   status: PromptAnswer;
   reasonDescription?: string;
   artifact?: string;
-  telemetry: unknown;
+  telemetry: AgentTelemetry;
   [key: string]: unknown;
 }
 

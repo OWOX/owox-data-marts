@@ -19,6 +19,7 @@ import {
   wrapWarningBlock,
 } from '../../../../common/markdown/helpers/blockquote-alert-wrapper';
 import { trimString } from '@owox/internal-helpers';
+import { AgentTelemetry } from '../../../../common/ai-insights/agent/types';
 
 @Injectable()
 export class PromptTagHandler implements TagHandler<
@@ -73,7 +74,7 @@ export class PromptTagHandler implements TagHandler<
         status: response.status,
         reasonDescription: response.meta.reasonDescription,
         artifact: response.meta.artifact,
-        telemetry: response.meta.telemetry,
+        telemetry: response.meta.telemetry as AgentTelemetry,
       },
     };
   }

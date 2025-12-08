@@ -1,49 +1,59 @@
-import { DataMartInsightTemplateOutput } from '../data-mart-insights.types';
-import { AgentTelemetry } from '../../../common/ai-insights/agent/types';
+import { LlmCallTelemetry } from '../../../common/ai-insights/agent/types';
+import { DataMartPromptMetaEntry } from '../data-mart-insights.types';
 
 export interface ModelUsageTotals {
-  model: string;
+  executionTime: number;
   calls: number;
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
 }
 
-export function getTotalUsageFromResult(
-  result: DataMartInsightTemplateOutput
-): Record<string, ModelUsageTotals> {
-  const totals: Record<string, ModelUsageTotals> = {};
+export function getTemplateTotalUsage(promptsEntry: DataMartPromptMetaEntry[]): ModelUsageTotals {
+  const templateTotalUsage: ModelUsageTotals = {
+    executionTime: 0,
+    calls: 0,
+    promptTokens: 0,
+    completionTokens: 0,
+    totalTokens: 0,
+  };
+  for (const promptEntry of promptsEntry) {
+    const promptTotalUsage = getPromptTotalUsage(promptEntry.meta.telemetry.llmCalls);
 
-  for (const p of result.prompts) {
-    const telemetry = p.meta?.telemetry as AgentTelemetry | undefined;
-    if (!telemetry?.llmCalls?.length) continue;
+    templateTotalUsage.executionTime += promptTotalUsage.executionTime;
+    templateTotalUsage.calls += promptTotalUsage.calls;
+    templateTotalUsage.promptTokens += promptTotalUsage.promptTokens;
+    templateTotalUsage.completionTokens += promptTotalUsage.completionTokens;
+    templateTotalUsage.totalTokens += promptTotalUsage.totalTokens;
+  }
 
-    for (const call of telemetry.llmCalls) {
-      const model = call.model;
-      const usage = call.usage;
+  return templateTotalUsage;
+}
 
-      if (!model || !usage) continue;
+export function getPromptTotalUsage(llmCallTelemetry: LlmCallTelemetry[]): ModelUsageTotals {
+  const totals: ModelUsageTotals = {
+    executionTime: 0,
+    calls: 0,
+    promptTokens: 0,
+    completionTokens: 0,
+    totalTokens: 0,
+  };
 
-      const promptTokens = usage.promptTokens ?? 0;
-      const completionTokens = usage.completionTokens ?? 0;
-      const totalTokens = usage.totalTokens ?? 0;
+  for (const call of llmCallTelemetry) {
+    const usage = call.usage;
 
-      if (!totals[model]) {
-        totals[model] = {
-          model,
-          calls: 1,
-          promptTokens,
-          completionTokens,
-          totalTokens,
-        };
-      } else {
-        const entry = totals[model];
-        entry.calls += 1;
-        entry.promptTokens += promptTokens;
-        entry.completionTokens += completionTokens;
-        entry.totalTokens += totalTokens;
-      }
-    }
+    if (!usage) continue;
+
+    const executionTime = usage.executionTime ?? 0;
+    const promptTokens = usage.promptTokens ?? 0;
+    const completionTokens = usage.completionTokens ?? 0;
+    const totalTokens = usage.totalTokens ?? 0;
+
+    totals.executionTime += executionTime;
+    totals.calls += 1;
+    totals.promptTokens += promptTokens;
+    totals.completionTokens += completionTokens;
+    totals.totalTokens += totalTokens;
   }
 
   return totals;

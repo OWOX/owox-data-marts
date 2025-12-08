@@ -58,6 +58,7 @@ export class OpenAiChatProvider implements AiChatProvider {
       response_format: request.responseFormat,
     };
 
+    const start = performance.now();
     const res = await fetchWithBackoff(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -66,6 +67,8 @@ export class OpenAiChatProvider implements AiChatProvider {
       },
       body: JSON.stringify(body),
     });
+    const end = performance.now();
+    const executionMs = end - start;
 
     if (!res.ok) {
       const text = await res.text();
@@ -96,7 +99,7 @@ export class OpenAiChatProvider implements AiChatProvider {
 
     return {
       message: assistant,
-      usage: mapUsageToDomain(usage),
+      usage: mapUsageToDomain(executionMs, usage),
       finishReason: reasoning,
       model: this.model,
     };
