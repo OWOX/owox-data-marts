@@ -20,6 +20,10 @@ import {
   getTemplateTotalUsage,
   ModelUsageTotals,
 } from '../ai-insights/utils/compute-model-usage';
+import {
+  DataMartInsightTemplateStatus,
+  PromptAnswer,
+} from '../ai-insights/data-mart-insights.types';
 
 @Injectable()
 export class InsightExecutionService {
@@ -138,71 +142,92 @@ export class InsightExecutionService {
       logs.push(JSON.stringify(enriched));
     };
 
-    const runMain = async (): Promise<string> => {
+    const runMain = async (): Promise<{
+      rendered: string;
+      status: DataMartInsightTemplateStatus;
+    }> => {
       pushLog({ type: 'log', message: 'AI Insight started' });
       const template = insight.template ?? '';
-      const { rendered, prompts } = await this.insightTemplateFacade.render({
+      const { rendered, prompts, status } = await this.insightTemplateFacade.render({
         template,
         params: {
           projectId: dataMart.projectId,
           dataMartId: dataMart.id,
         },
       });
+
       for (const p of prompts ?? []) {
         // Basic meta about prompt/artifact
         pushLog({
-          type: 'ai_insight_meta',
+          type: 'prompt_meta',
           prompt: p.payload?.prompt,
           artifact: p.meta?.artifact,
+          status: p.meta?.status,
         });
 
         // Agent telemetry (LLM/Tool calls), if available
         const telemetry = p.meta.telemetry;
         const summary = this.summarizeAgentTelemetry(telemetry);
-        pushLog({ type: 'ai_insight_prompt_telemetry', ...summary });
+        pushLog({ type: 'prompt_telemetry', ...summary });
         const lastLlm = telemetry.llmCalls.length
           ? telemetry.llmCalls[telemetry.llmCalls.length - 1]
           : undefined;
         const preview = lastLlm?.reasoningPreview;
         if (typeof preview === 'string' && preview.length > 0) {
           pushLog({
-            type: 'ai_insight_reasoning_preview',
-            preview: preview.slice(0, 500),
+            type: 'prompt_reasoning_preview',
+            preview,
           });
+        }
+
+        if (p.meta?.status && p.meta.status !== PromptAnswer.OK) {
+          errors.push(
+            JSON.stringify({
+              type: 'prompt_error',
+              at: this.systemTimeService.now(),
+              prompt: p.payload?.prompt,
+              status: p.meta.status,
+              reasonDescription: p.meta.reasonDescription,
+            })
+          );
         }
       }
 
       // Overall rendered insight output
       if (rendered.length > 0) {
         pushLog({
-          type: 'ai_insight_output',
+          type: 'output',
           output: rendered,
         });
       }
 
-      pushLog({ type: 'ai_insight_template_telemetry', ...getTemplateTotalUsage(prompts) });
+      pushLog({ type: 'template_telemetry', ...getTemplateTotalUsage(prompts) });
       pushLog({ type: 'log', message: 'AI Insight completed' });
-      return rendered ?? '';
+      return { rendered: rendered ?? '', status };
     };
 
     try {
-      generatedOutput = await runMain();
+      const result = await runMain();
+      generatedOutput = result.rendered;
+      const isOk = result.status === DataMartInsightTemplateStatus.OK;
 
       await this.dataMartRunService.markInsightRunAsFinished(run, {
-        status: DataMartRunStatus.SUCCESS,
+        status: isOk ? DataMartRunStatus.SUCCESS : DataMartRunStatus.FAILED,
         logs,
         errors,
       });
 
-      await this.producer.produceEvent(
-        new InsightRunSuccessfullyEvent(
-          dataMart.id,
-          runId,
-          dataMart.projectId,
-          run.createdById!,
-          run.runType!
-        )
-      );
+      if (isOk) {
+        await this.producer.produceEvent(
+          new InsightRunSuccessfullyEvent(
+            dataMart.id,
+            runId,
+            dataMart.projectId,
+            run.createdById!,
+            run.runType!
+          )
+        );
+      }
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       errors.push(
