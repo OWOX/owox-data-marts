@@ -35,7 +35,13 @@ ${schemaSummary ?? '(not provided)'}
 Raw table schema (columns):
 ${rawSchema ? JSON.stringify(rawSchema) : '(omitted)'}
 
-- if user question ambiguous, use the same language(detected language: ${input.promptLanguage}) for ambiguityExplanation.
+- If the user question is ambiguous, provide an ambiguityExplanation.
+- The ambiguityExplanation MUST be written in the same language as the user question (detected language: ${input.promptLanguage}).
+- The explanation MUST clearly tell the user what exactly is unclear.
+- The explanation MUST give concrete guidance on what additional details or clarifications the user should add so the question can be answered correctly.
+- The explanation MUST NOT describe or paraphrase the user’s question itself.
+- Do NOT start with phrases like “The user is asking…”.
+- No meta-commentary, no analysis of intent — only a clear description of what information is missing or ambiguous.
 
 Instructions:
 - Use the schema summary as the main source of truth for available tables, dimensions, and metrics.

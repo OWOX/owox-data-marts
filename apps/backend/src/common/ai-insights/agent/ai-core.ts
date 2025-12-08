@@ -34,10 +34,11 @@ export type AiToolDefinition = {
 export type AiToolMode = 'auto' | 'required' | 'none' | { type: 'function'; names: string[] };
 
 export type AiUsage = {
-  promptTokens?: number;
-  completionTokens?: number;
-  reasoningTokens?: number;
-  totalTokens?: number;
+  executionTime: number;
+  promptTokens: number;
+  completionTokens: number;
+  reasoningTokens: number;
+  totalTokens: number;
 };
 
 export type AiFinishReason = string | undefined;
@@ -56,7 +57,7 @@ export type AiChatRequest = {
 
 export type AiChatResponse = {
   message: AiAssistantMessage;
-  usage?: AiUsage;
+  usage: AiUsage;
   finishReason?: AiFinishReason;
   model?: string;
 };

@@ -1,5 +1,5 @@
 import { z, ZodTypeAny } from 'zod';
-import { AiChatProvider, AiMessage } from './ai-core';
+import { AiChatProvider, AiMessage, AiUsage } from './ai-core';
 import { Logger } from '@nestjs/common';
 import { ToolRegistry } from './tool-registry';
 
@@ -23,11 +23,7 @@ export interface LlmCallTelemetry {
   turn: number;
   model?: string;
   finishReason?: string;
-  usage?: {
-    promptTokens?: number;
-    completionTokens?: number;
-    totalTokens?: number;
-  };
+  usage: AiUsage;
   reasoningPreview?: string;
 }
 

@@ -8,11 +8,6 @@ import { OWOX_PRODUCER } from '../../common/producer/producer.module';
 import { SystemTimeService } from '../../common/scheduler/services/system-time.service';
 import { RunType } from '../../common/scheduler/shared/types';
 import { DataMartInsightTemplateFacadeImpl } from '../ai-insights/data-mart-insight-template.facade';
-import {
-  DataMartInsightTemplateOutput,
-  DataMartInsightTemplateStatus,
-  PromptAnswer,
-} from '../ai-insights/data-mart-insights.types';
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMart } from '../entities/data-mart.entity';
 import { Insight } from '../entities/insight.entity';
@@ -20,6 +15,11 @@ import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { InsightRunSuccessfullyEvent } from '../events/insight-run-successfully.event';
 import { DataMartRunService } from './data-mart-run.service';
+import {
+  getPromptTotalUsage,
+  getTemplateTotalUsage,
+  ModelUsageTotals,
+} from '../ai-insights/utils/compute-model-usage';
 
 @Injectable()
 export class InsightExecutionService {
@@ -30,21 +30,18 @@ export class InsightExecutionService {
    * Returns compact, privacy-aware metrics suitable for persistence in run logs.
    *
    * @param telemetry Agent telemetry collected during the AI Insight run.
-   * @returns A summary containing counts, failure stats, last usage and tools used.
+   * @returns A summary containing counts, failure stats, total usage and tools used.
    */
   private summarizeAgentTelemetry(telemetry: AgentTelemetry): {
     llmCalls: number;
     toolCalls: number;
     failedToolCalls: number;
     lastFinishReason?: string;
-    lastUsage?: {
-      promptTokens?: number;
-      completionTokens?: number;
-      totalTokens?: number;
-    };
+    totalUsage: ModelUsageTotals;
   } {
     const llmCalls = telemetry.llmCalls ?? [];
     const toolCalls = telemetry.toolCalls ?? [];
+
     const failedToolCalls = toolCalls.filter(call => !call.success).length;
     const lastLlm = llmCalls.length ? llmCalls[llmCalls.length - 1] : undefined;
     return {
@@ -52,7 +49,7 @@ export class InsightExecutionService {
       toolCalls: toolCalls.length,
       failedToolCalls,
       lastFinishReason: lastLlm?.finishReason,
-      lastUsage: lastLlm?.usage,
+      totalUsage: getPromptTotalUsage(telemetry.llmCalls),
     };
   }
 
@@ -141,79 +138,71 @@ export class InsightExecutionService {
       logs.push(JSON.stringify(enriched));
     };
 
-    const runMain = async (): Promise<DataMartInsightTemplateOutput> => {
+    const runMain = async (): Promise<string> => {
       pushLog({ type: 'log', message: 'AI Insight started' });
       const template = insight.template ?? '';
-      const result = await this.insightTemplateFacade.render({
+      const { rendered, prompts } = await this.insightTemplateFacade.render({
         template,
         params: {
           projectId: dataMart.projectId,
           dataMartId: dataMart.id,
         },
       });
-      const { rendered, prompts } = result;
-
       for (const p of prompts ?? []) {
-        const telemetry = (p.meta as { telemetry?: AgentTelemetry } | undefined)?.telemetry;
-        const telemetrySummary = telemetry ? this.summarizeAgentTelemetry(telemetry) : undefined;
-
+        // Basic meta about prompt/artifact
         pushLog({
-          type: 'prompt',
+          type: 'ai_insight_meta',
           prompt: p.payload?.prompt,
           artifact: p.meta?.artifact,
-          status: p.meta?.status,
-          reasonDescription: p.meta?.reasonDescription,
-          promptAnswer: p.promptAnswer,
-          ...(telemetrySummary ? { telemetry: telemetrySummary } : {}),
         });
 
-        if (p.meta?.status && p.meta.status !== PromptAnswer.OK) {
-          errors.push(
-            JSON.stringify({
-              type: 'prompt_error',
-              at: this.systemTimeService.now(),
-              prompt: p.payload?.prompt,
-              status: p.meta.status,
-              reasonDescription: p.meta.reasonDescription,
-              artifact: p.meta.artifact,
-            })
-          );
+        // Agent telemetry (LLM/Tool calls), if available
+        const telemetry = p.meta.telemetry;
+        const summary = this.summarizeAgentTelemetry(telemetry);
+        pushLog({ type: 'ai_insight_prompt_telemetry', ...summary });
+        const lastLlm = telemetry.llmCalls.length
+          ? telemetry.llmCalls[telemetry.llmCalls.length - 1]
+          : undefined;
+        const preview = lastLlm?.reasoningPreview;
+        if (typeof preview === 'string' && preview.length > 0) {
+          pushLog({
+            type: 'ai_insight_reasoning_preview',
+            preview: preview.slice(0, 500),
+          });
         }
       }
 
-      if (rendered && rendered.length > 0) {
+      // Overall rendered insight output
+      if (rendered.length > 0) {
         pushLog({
-          type: 'output',
+          type: 'ai_insight_output',
           output: rendered,
         });
       }
+
+      pushLog({ type: 'ai_insight_template_telemetry', ...getTemplateTotalUsage(prompts) });
       pushLog({ type: 'log', message: 'AI Insight completed' });
-      return result;
+      return rendered ?? '';
     };
 
     try {
-      const result = await runMain();
-      generatedOutput = result.rendered ?? null;
-
-      const isOk = result.status === DataMartInsightTemplateStatus.OK;
+      generatedOutput = await runMain();
 
       await this.dataMartRunService.markInsightRunAsFinished(run, {
-        status: isOk ? DataMartRunStatus.SUCCESS : DataMartRunStatus.FAILED,
+        status: DataMartRunStatus.SUCCESS,
         logs,
         errors,
       });
 
-      if (isOk) {
-        await this.producer.produceEvent(
-          new InsightRunSuccessfullyEvent(
-            dataMart.id,
-            runId,
-            dataMart.projectId,
-            run.createdById!,
-            run.runType!
-          )
-        );
-      }
+      await this.producer.produceEvent(
+        new InsightRunSuccessfullyEvent(
+          dataMart.id,
+          runId,
+          dataMart.projectId,
+          run.createdById!,
+          run.runType!
+        )
+      );
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       errors.push(

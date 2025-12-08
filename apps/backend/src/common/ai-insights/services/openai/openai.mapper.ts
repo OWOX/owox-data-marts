@@ -22,13 +22,13 @@ export function mapDomainMessageToOpenAi(m: AiMessage): Record<string, unknown> 
   return { role: AiRole.SYSTEM, content: '' };
 }
 
-export function mapUsageToDomain(usage?: UsageInfo): AiUsage | undefined {
-  if (!usage) return undefined;
+export function mapUsageToDomain(executionTime: number, usage?: UsageInfo): AiUsage {
   return {
-    promptTokens: usage.promptTokens,
-    completionTokens: usage.completionTokens,
-    reasoningTokens: usage.reasoningTokens,
-    totalTokens: usage.totalTokens,
+    executionTime: executionTime / 1000,
+    promptTokens: usage?.promptTokens ?? 0,
+    completionTokens: usage?.completionTokens ?? 0,
+    reasoningTokens: usage?.reasoningTokens ?? 0,
+    totalTokens: usage?.totalTokens ?? 0,
   };
 }
 
