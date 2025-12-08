@@ -9,12 +9,12 @@ export type TemplateRenderInput<TAdditional = unknown> = {
 };
 
 export type TemplateRenderOutput<TMeta = Record<string, unknown>> = {
-  rendered?: string;
+  rendered: string;
   meta: TMeta;
 };
 
 export interface TagRenderedResult<TMeta = unknown> {
-  rendered?: string;
+  rendered: string;
   meta: TMeta;
 }
 

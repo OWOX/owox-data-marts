@@ -12,15 +12,28 @@ import {
   GITHUB_LIGHT_THEME_VARIABLES_CSS,
   GITHUB_MARKDOWN_CSS,
 } from './github-markdown-css';
+import remarkAlert from 'remark-github-blockquote-alert';
 
 const EXTENDED_SCHEMA_FOR_SANITIZE = {
   ...defaultSchema,
-  tagNames: [...(defaultSchema.tagNames || []), 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
+  tagNames: [
+    ...(defaultSchema.tagNames || []),
+    'table',
+    'thead',
+    'tbody',
+    'tr',
+    'th',
+    'td',
+    'blockquote',
+  ],
   attributes: {
     ...(defaultSchema.attributes || {}),
     th: [...(defaultSchema.attributes?.th || []), 'align', 'rowspan', 'colspan'],
     td: [...(defaultSchema.attributes?.td || []), 'align', 'rowspan', 'colspan'],
     table: [...(defaultSchema.attributes?.table || []), 'border', 'cellpadding', 'cellspacing'],
+    blockquote: [...(defaultSchema.attributes?.blockquote || []), 'className'],
+    div: [...(defaultSchema.attributes?.div || []), 'className'],
+    p: [...(defaultSchema.attributes?.p || []), 'className'],
   },
 };
 
@@ -46,6 +59,7 @@ export class MarkdownParser {
     const html = await remark()
       .use(remarkParse)
       .use(remarkGfm)
+      .use(remarkAlert, { tagName: 'blockquote' })
       .use(remarkRehype)
       .use(rehypeSanitize, EXTENDED_SCHEMA_FOR_SANITIZE) // filter out potentially dangerous HTML
       .use(rehypeStringify)
