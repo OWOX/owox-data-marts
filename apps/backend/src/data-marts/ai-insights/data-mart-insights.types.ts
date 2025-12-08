@@ -1,5 +1,6 @@
 import { TagMetaEntry } from '../../common/template/types/render-template.types';
 import { Options } from './ai-insights-types';
+import { AgentTelemetry } from '../../common/ai-insights/agent/types';
 
 export type DataMartAdditionalParams = {
   projectId: string;
@@ -26,13 +27,17 @@ export enum DataMartInsightTemplateStatus {
 }
 
 export interface DataMartInsightTemplateOutput {
-  rendered?: string;
+  rendered: string;
   status: DataMartInsightTemplateStatus;
   prompts: DataMartPromptMetaEntry[];
 }
 
 export interface DataMartInsightTemplateFacade {
   render(input: DataMartInsightTemplateInput): Promise<DataMartInsightTemplateOutput>;
+}
+
+export function isPromptAnswerOk(value: PromptAnswer): boolean {
+  return value === PromptAnswer.OK;
 }
 
 export enum PromptAnswer {
@@ -57,7 +62,7 @@ export interface PromptTagMeta {
   status: PromptAnswer;
   reasonDescription?: string;
   artifact?: string;
-  telemetry: unknown;
+  telemetry: AgentTelemetry;
   [key: string]: unknown;
 }
 

@@ -6,7 +6,7 @@ import {
   DataMartInsightTemplateOutput,
   DataMartInsightTemplateStatus,
   DataMartPromptMetaEntry,
-  PromptAnswer,
+  isPromptAnswerOk,
   PromptTagMetaEntry,
 } from './data-mart-insights.types';
 import {
@@ -44,10 +44,10 @@ export class DataMartInsightTemplateFacadeImpl implements DataMartInsightTemplat
       promptAnswer: tag.result as string,
     }));
 
-    const hasAtLeastOneWithAnswer = prompts.some(p => p.meta.status !== PromptAnswer.OK);
+    const hasAtLeastOneWithAnswer = prompts.some(p => !isPromptAnswerOk(p.meta.status));
 
     return {
-      rendered: hasAtLeastOneWithAnswer ? undefined : rendered,
+      rendered: rendered,
       status: hasAtLeastOneWithAnswer
         ? DataMartInsightTemplateStatus.ERROR
         : DataMartInsightTemplateStatus.OK,

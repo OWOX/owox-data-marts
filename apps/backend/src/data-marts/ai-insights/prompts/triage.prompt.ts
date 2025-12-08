@@ -34,6 +34,12 @@ What you must do:
 - If the question can be answered with the available data — produce schemaSummary (short, English, 1–3 paragraphs).
 - If the dataset does not support the question — reflect that in the response based on the schema definitions.
 
+Output rules:
+The reason text:
+- MUST NOT describe or restate the user’s question.
+- Do NOT start with phrases like “The user is asking…”.
+- For cannot answer reason give concrete guidance on what additional details or clarifications the user should add so the question can be answered correctly.
+
 ${buildOutputRules()}
 `.trim();
 }
