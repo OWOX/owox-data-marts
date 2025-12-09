@@ -23,6 +23,7 @@ export interface DataMartPromptMetaEntry {
 
 export enum DataMartInsightTemplateStatus {
   OK = 'ok',
+  WARNING = 'warning',
   ERROR = 'error',
 }
 
@@ -38,6 +39,14 @@ export interface DataMartInsightTemplateFacade {
 
 export function isPromptAnswerOk(value: PromptAnswer): boolean {
   return value === PromptAnswer.OK;
+}
+
+export function isPromptAnswerError(value: PromptAnswer): boolean {
+  return value === PromptAnswer.ERROR;
+}
+
+export function isPromptAnswerWarning(value: PromptAnswer): boolean {
+  return !isPromptAnswerOk(value) && !isPromptAnswerError(value);
 }
 
 export enum PromptAnswer {

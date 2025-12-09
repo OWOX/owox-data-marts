@@ -6,7 +6,8 @@ import {
   DataMartInsightTemplateOutput,
   DataMartInsightTemplateStatus,
   DataMartPromptMetaEntry,
-  isPromptAnswerOk,
+  isPromptAnswerError,
+  isPromptAnswerWarning,
   PromptTagMetaEntry,
 } from './data-mart-insights.types';
 import {
@@ -44,14 +45,21 @@ export class DataMartInsightTemplateFacadeImpl implements DataMartInsightTemplat
       promptAnswer: tag.result as string,
     }));
 
-    const hasAtLeastOneWithAnswer = prompts.some(p => !isPromptAnswerOk(p.meta.status));
-
     return {
       rendered: rendered,
-      status: hasAtLeastOneWithAnswer
-        ? DataMartInsightTemplateStatus.ERROR
-        : DataMartInsightTemplateStatus.OK,
+      status: this.computeStatus(prompts),
       prompts,
     };
+  }
+
+  private computeStatus(prompts: DataMartPromptMetaEntry[]) {
+    const hasAtLeastOneWithError = prompts.some(p => isPromptAnswerError(p.meta.status));
+    const hasAtLeastOneWithWarning = prompts.some(p => isPromptAnswerWarning(p.meta.status));
+
+    return hasAtLeastOneWithError
+      ? DataMartInsightTemplateStatus.ERROR
+      : hasAtLeastOneWithWarning
+        ? DataMartInsightTemplateStatus.WARNING
+        : DataMartInsightTemplateStatus.OK;
   }
 }

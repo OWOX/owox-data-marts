@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
 import { Button } from '@owox/ui/components/button';
-import { MoreVertical, Trash2, Sparkles, Loader2, BadgeAlert } from 'lucide-react';
+import { MoreVertical, Trash2, Sparkles, Loader2 } from 'lucide-react';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
 import {
   Empty,
@@ -28,7 +28,6 @@ import {
 } from '@owox/ui/components/empty';
 import { useInsightForm, useInsightExecutionPolling } from '../hooks';
 import { useDataMartContext } from '../../edit/model';
-import { DataMartRunStatus } from '../../shared';
 import {
   useMarkdownPreview,
   MarkdownEditorPreview,
@@ -78,7 +77,7 @@ export default function InsightDetailsView() {
 
   const preview = useMarkdownPreview({
     markdown: insight?.output ?? '',
-    enabled: Boolean(insight?.output && insight.lastRun?.status === DataMartRunStatus.SUCCESS),
+    enabled: !!insight?.output,
     debounceMs: 0,
   });
 
@@ -291,18 +290,6 @@ export default function InsightDetailsView() {
             <div className='h-full'>
               {isRunning ? (
                 <InsightLoader />
-              ) : insight.lastRun?.status === DataMartRunStatus.FAILED ? (
-                <Empty className='h-full'>
-                  <EmptyHeader>
-                    <EmptyMedia variant='icon'>
-                      <BadgeAlert />
-                    </EmptyMedia>
-                    <EmptyTitle>Error executing insight</EmptyTitle>
-                    <EmptyDescription>
-                      Last run failed. Check the template and try again.
-                    </EmptyDescription>
-                  </EmptyHeader>
-                </Empty>
               ) : isOutputEmpty ? (
                 <Empty className='h-full'>
                   <EmptyHeader>
