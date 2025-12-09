@@ -18,7 +18,7 @@ Before proceeding, please make sure that:
 ## Set Up the Connector
 
 1. Select **Connector** as the input source type.  
-2. Click **Set up connector** and choose **Google Ads**.  
+2. Choose **Google Ads**.  
 
 3. Enter your **Customer ID** in the format `12345678` (without dashes).  
    > ⚠️ Use the **ad account** Customer ID, not the MCC (manager) account ID.  
@@ -45,12 +45,14 @@ Leave all other fields as default, then click **Next** to continue.
 
 ![Google Ads Create Connector](res/googleads_createconnector.png)
 
+![Google Ads Create Connector ](res/googleads_createconnector_oauth2.png)
+
 ## Configure Data Import
 
 1. Choose one of the available endpoints.
 2. Select the required **fields**.
 3. Specify the **dataset** where the data will be stored, or leave it as default.
-4. Click **Finish**, then **Save** and **Publish Data Mart**.
+4. Click **Finish**, then **Publish Data Mart**.
 
 ![Google Ads Publish Data Mart](res/googleads_publish.png)
 
