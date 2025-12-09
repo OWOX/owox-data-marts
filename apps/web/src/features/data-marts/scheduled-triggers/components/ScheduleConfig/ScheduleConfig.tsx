@@ -41,6 +41,7 @@ interface ScheduleConfigProps {
   className?: string;
   showPreview?: boolean;
   showSaveButton?: boolean;
+  hideEnableSwitch?: boolean;
 }
 
 const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => ({
@@ -274,6 +275,7 @@ export function ScheduleConfig({
   className,
   showPreview = true,
   showSaveButton = false,
+  hideEnableSwitch = false,
 }: ScheduleConfigProps) {
   const [isEnabled, setIsEnabled] = useState(enabled);
   const [currentTimezone, setCurrentTimezone] = useState(propTimezone ?? getBrowserTimezone());
@@ -412,23 +414,22 @@ export function ScheduleConfig({
 
   return (
     <div className={className}>
-      <div className='mb-4 space-y-4 pt-0'>
-        <div className='flex items-center justify-between'>
-          <h3 className={'text-foreground flex items-center gap-1.5 font-medium'}>
-            Schedule Settings
-          </h3>
-          <div className='flex items-center gap-2'>
-            <Label htmlFor='schedule-enabled' className='text-sm font-normal'>
-              {isEnabled ? 'Enabled' : 'Disabled'}
-            </Label>
-            <Switch
-              id='schedule-enabled'
-              checked={isEnabled}
-              onCheckedChange={handleEnabledChange}
-            />
+      {!hideEnableSwitch && (
+        <div className='mb-4 space-y-4 pt-0'>
+          <div className='flex items-center justify-end'>
+            <div className='flex items-center gap-2'>
+              <Label htmlFor='schedule-enabled' className='text-sm font-normal'>
+                {isEnabled ? 'Enabled' : 'Disabled'}
+              </Label>
+              <Switch
+                id='schedule-enabled'
+                checked={isEnabled}
+                onCheckedChange={handleEnabledChange}
+              />
+            </div>
           </div>
         </div>
-      </div>
+      )}
       <div className='space-y-4 pt-0'>
         <div className={`space-y-4 ${!isEnabled ? 'opacity-50' : ''}`}>
           {/* Schedule Type */}
