@@ -1,7 +1,7 @@
 import { type DataDestination, DataDestinationType } from '../../../shared';
 import { DataDestinationForm } from '../DataDestinationEditForm';
 import type { DataDestinationFormData } from '../../../shared';
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
 import {
   Sheet,
@@ -13,6 +13,7 @@ import {
 import { useDataDestination } from '../../../shared';
 import { DestinationMapperFactory } from '../../../shared/model/mappers/destination-mapper.factory.ts';
 import { trackEvent } from '../../../../../utils';
+import { useUnsavedGuard } from '../../../../../hooks/useUnsavedGuard';
 
 interface DataDestinationEditSheetProps {
   isOpen: boolean;
@@ -33,26 +34,14 @@ export function DataDestinationConfigSheet({
 }: DataDestinationEditSheetProps) {
   const { updateDataDestination, createDataDestination } = useDataDestination();
 
-  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
-  const [isDirty, setIsDirty] = useState(false);
-
-  const handleClose = useCallback(() => {
-    if (isDirty) {
-      setShowUnsavedDialog(true);
-    } else {
-      onClose();
-    }
-  }, [isDirty, onClose]);
-
-  const confirmClose = useCallback(() => {
-    setShowUnsavedDialog(false);
-    setIsDirty(false);
-    onClose();
-  }, [onClose]);
-
-  const handleFormDirtyChange = useCallback((dirty: boolean) => {
-    setIsDirty(dirty);
-  }, []);
+  const {
+    showUnsavedDialog,
+    setShowUnsavedDialog,
+    handleClose,
+    confirmClose,
+    handleFormDirtyChange,
+    handleFormSubmitSuccess,
+  } = useUnsavedGuard(onClose);
 
   const onSave = async (data: DataDestinationFormData) => {
     const mapper = DestinationMapperFactory.getMapper(data.type);
@@ -70,7 +59,7 @@ export function DataDestinationConfigSheet({
         onSaveSuccess(updatedDestination);
       }
     }
-    onClose();
+    handleFormSubmitSuccess();
   };
 
   const wasOpenRef = useRef<boolean>(false);

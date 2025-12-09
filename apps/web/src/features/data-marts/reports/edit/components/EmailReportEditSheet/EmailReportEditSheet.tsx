@@ -5,7 +5,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@owox/ui/components/sheet';
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog';
 import { DataDestinationProvider } from '../../../../../data-destination';
 import type { DataDestination } from '../../../../../data-destination';
@@ -16,6 +16,7 @@ import type { DataDestinationType } from '../../../../../data-destination';
 import { ReportsProvider } from '../../../shared';
 import { toast } from 'sonner';
 import { Link, useLocation, useParams } from 'react-router-dom';
+import { useUnsavedGuard } from '../../../../../../hooks/useUnsavedGuard';
 
 interface EmailReportEditSheetProps {
   isOpen: boolean;
@@ -40,33 +41,18 @@ export function EmailReportEditSheet({
   prefill,
   allowedDestinationTypes,
 }: EmailReportEditSheetProps) {
-  // TODO:: Refactor duplicated code fragment
-  // GoogleSheetsReportEditSheet, LookerStudioReportEditSheet, ScheduledTriggerFormSheet ...
-  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
-  const [isDirty, setIsDirty] = useState(false);
   const { projectId, id: dataMartId } = useParams<{ projectId: string; id: string }>();
   const { pathname } = useLocation();
-
-  const handleClose = useCallback(() => {
-    if (isDirty) {
-      setShowUnsavedDialog(true);
-    } else {
-      onClose();
-    }
-  }, [isDirty, onClose]);
-
-  const confirmClose = useCallback(() => {
-    setShowUnsavedDialog(false);
-    setIsDirty(false);
-    onClose();
-  }, [onClose]);
-
-  const handleFormDirtyChange = useCallback((dirty: boolean) => {
-    setIsDirty(dirty);
-  }, []);
+  const {
+    showUnsavedDialog,
+    setShowUnsavedDialog,
+    handleClose,
+    confirmClose,
+    handleFormDirtyChange,
+    handleFormSubmitSuccess: baseHandleFormSubmitSuccess,
+  } = useUnsavedGuard(onClose);
 
   const handleFormSubmitSuccess = useCallback(() => {
-    setIsDirty(false);
     const to = projectId && dataMartId ? `/ui/${projectId}/data-marts/${dataMartId}/reports` : '/';
     const isOnDestinationsPage = pathname.includes('/reports');
     if (!isOnDestinationsPage) {
@@ -84,8 +70,8 @@ export function EmailReportEditSheet({
         duration: Infinity,
       });
     }
-    onClose();
-  }, [onClose, projectId, dataMartId, pathname]);
+    baseHandleFormSubmitSuccess();
+  }, [baseHandleFormSubmitSuccess, projectId, dataMartId, pathname]);
 
   return (
     <>
