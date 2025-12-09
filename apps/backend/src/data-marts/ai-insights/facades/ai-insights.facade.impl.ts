@@ -14,7 +14,11 @@ export class AiInsightsFacadeImpl implements AiInsightsFacade {
     try {
       return await this.aiInsightsAgentService.answerPrompt(request);
     } catch (e: unknown) {
-      this.logger.error('Unhandled error when processing prompt', e);
+      this.logger.error(`Unhandled error when processing prompt`, e, {
+        projectId: request.projectId,
+        dataMartId: request.dataMartId,
+        prompt: request.prompt,
+      });
 
       return {
         status: PromptAnswer.ERROR,
@@ -22,6 +26,11 @@ export class AiInsightsFacadeImpl implements AiInsightsFacade {
           prompt: request.prompt,
           reasonDescription:
             'Something went wrong while processing the prompt. Try again later or contact us.',
+          telemetry: {
+            llmCalls: [],
+            toolCalls: [],
+            messageHistory: [],
+          },
         },
       };
     }

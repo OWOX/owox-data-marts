@@ -22,6 +22,7 @@ import {
 } from '../ai-insights/utils/compute-model-usage';
 import {
   DataMartInsightTemplateStatus,
+  isPromptAnswerError,
   isPromptAnswerOk,
 } from '../ai-insights/data-mart-insights.types';
 
@@ -183,7 +184,7 @@ export class InsightExecutionService {
         if (!isPromptAnswerOk(p.meta.status)) {
           errors.push(
             JSON.stringify({
-              type: 'prompt_error',
+              type: isPromptAnswerError(p.meta.status) ? 'prompt_error' : 'prompt_warning',
               at: this.systemTimeService.now(),
               prompt: p.payload?.prompt,
               status: p.meta.status,
@@ -209,15 +210,15 @@ export class InsightExecutionService {
     try {
       const result = await runMain();
       generatedOutput = result.rendered;
-      const isOk = result.status === DataMartInsightTemplateStatus.OK;
+      const isNotError = result.status !== DataMartInsightTemplateStatus.ERROR;
 
       await this.dataMartRunService.markInsightRunAsFinished(run, {
-        status: isOk ? DataMartRunStatus.SUCCESS : DataMartRunStatus.FAILED,
+        status: isNotError ? DataMartRunStatus.SUCCESS : DataMartRunStatus.FAILED,
         logs,
         errors,
       });
 
-      if (isOk) {
+      if (isNotError) {
         await this.producer.produceEvent(
           new InsightRunSuccessfullyEvent(
             dataMart.id,

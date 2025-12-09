@@ -8,6 +8,7 @@ import {
 } from '../../../../common/template/types/render-template.types';
 import {
   DataMartAdditionalParams,
+  isPromptAnswerError,
   isPromptAnswerOk,
   PromptTagMeta,
   PromptTagPayload,
@@ -15,6 +16,7 @@ import {
 import { AiInsightsFacade } from '../../facades/ai-insights.facade';
 import { AI_INSIGHTS_FACADE, AnswerPromptResponse } from '../../ai-insights-types';
 import {
+  wrapCautionBlock,
   wrapCodeBlock,
   wrapWarningBlock,
 } from '../../../../common/markdown/helpers/blockquote-alert-wrapper';
@@ -85,6 +87,10 @@ export class PromptTagHandler implements TagHandler<
     }
 
     const prompt = `_Prompt:_ ${wrapCodeBlock(trimString(response.meta.prompt, 55))}`;
-    return wrapWarningBlock(`${prompt}  \n${response.meta.reasonDescription!}`);
+    const promptAnswer = `${prompt}  \n${response.meta.reasonDescription!}`;
+
+    return isPromptAnswerError(response.status)
+      ? wrapCautionBlock(promptAnswer)
+      : wrapWarningBlock(promptAnswer);
   }
 }
