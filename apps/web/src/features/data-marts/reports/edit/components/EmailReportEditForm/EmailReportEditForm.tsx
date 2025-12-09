@@ -10,11 +10,10 @@ import {
   FormLabel,
   FormMessage,
   FormLayout,
-  FormActions,
   FormSection,
   FormDescription,
 } from '@owox/ui/components/form';
-import { ButtonGroup } from '@owox/ui/components/button-group';
+// removed ButtonGroup in favor of shared ReportFormActions
 import {
   Select,
   SelectContent,
@@ -50,15 +49,9 @@ import MessageTemplateDescription from './FormDescriptions/MessageTemplateDescri
 import SendingConditionDescription from './FormDescriptions/SendingConditionDescription.tsx';
 import { DataDestinationConfigSheet } from '../../../../../data-destination/edit';
 import type { DataDestinationFormData } from '../../../../../data-destination';
-import { Button } from '@owox/ui/components/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@owox/ui/components/dropdown-menu';
+// removed button and dropdown imports in favor of shared ReportFormActions
 import { useReport } from '../../../shared';
-import { ChevronDown } from 'lucide-react';
+import { ReportFormActions } from '../shared/ReportFormActions';
 
 export interface EmailReportEditFormProps {
   initialReport?: DataMartReport;
@@ -422,50 +415,17 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                 )}
               </FormSection>
             </FormLayout>
-            <FormActions>
-              <ButtonGroup className='w-full'>
-                <Button
-                  variant='default'
-                  type='submit'
-                  disabled={isSubmitting || !(isDirty || triggersDirty)}
-                  className='flex-1'
-                >
-                  {mode === ReportFormMode.CREATE ? 'Create new report' : 'Save changes to report'}
-                </Button>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant='default'
-                      type='button'
-                      disabled={isSubmitting || !(isDirty || triggersDirty)}
-                      aria-label='More actions'
-                    >
-                      <ChevronDown className='size-4' aria-hidden='true' />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align='start'>
-                    <DropdownMenuItem
-                      onClick={() => {
-                        runAfterSaveRef.current = true;
-                        void form.handleSubmit(handleFormSubmit)();
-                      }}
-                      disabled={isSubmitting}
-                    >
-                      {mode === ReportFormMode.CREATE
-                        ? 'Create & Run report'
-                        : isDirty || triggersDirty
-                          ? 'Save & Run report'
-                          : 'Run report'}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </ButtonGroup>
-
-              <Button variant='outline' type='button' onClick={onCancel} disabled={isSubmitting}>
-                Cancel
-              </Button>
-            </FormActions>
+            <ReportFormActions
+              mode={mode}
+              isSubmitting={isSubmitting}
+              isDirty={isDirty}
+              triggersDirty={triggersDirty}
+              onRunAndSave={() => {
+                runAfterSaveRef.current = true;
+                void form.handleSubmit(handleFormSubmit)();
+              }}
+              onCancel={onCancel}
+            />
           </AppForm>
         </Form>
 

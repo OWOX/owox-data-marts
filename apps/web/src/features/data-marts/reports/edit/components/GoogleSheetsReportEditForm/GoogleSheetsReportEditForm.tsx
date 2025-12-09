@@ -15,7 +15,6 @@ import {
   FormLabel,
   FormMessage,
   FormLayout,
-  FormActions,
   FormSection,
   FormDescription,
 } from '@owox/ui/components/form';
@@ -50,9 +49,10 @@ import {
   type ReportSchedulesInlineListHandle,
 } from '../../../../scheduled-triggers/components/ReportSchedulesInlineList/ReportSchedulesInlineList';
 import DocumentLinkDescription from './FormDescriptions/DocumentLinkDescription.tsx';
-import { Button } from '@owox/ui/components/button';
 import { isGoogleServiceAccountCredentials } from '../../../../../../shared/types';
 import { CopyableField } from '@owox/ui/components/common/copyable-field';
+import { useReport } from '../../../shared';
+import { ReportFormActions } from '../shared/ReportFormActions';
 
 interface GoogleSheetsReportEditFormProps {
   initialReport?: DataMartReport;
@@ -113,7 +113,9 @@ export const GoogleSheetsReportEditForm = forwardRef<
     useAutoFocus({ elementId: titleInputId, isOpen: true, delay: 150 });
 
     const scheduleRef = useRef<ReportSchedulesInlineListHandle | null>(null);
+    const runAfterSaveRef = useRef(false);
     const [triggersDirty, setTriggersDirty] = useState(false);
+    const { runReport } = useReport();
 
     const {
       isDirty,
@@ -132,6 +134,16 @@ export const GoogleSheetsReportEditForm = forwardRef<
         } catch (e) {
           // ignore UI errors here; hook will handle formError
           console.error('Failed to persist schedule for report', e);
+        }
+        if (runAfterSaveRef.current) {
+          try {
+            await runReport(report.id);
+          } catch (e) {
+            console.error('Failed to run report', e);
+            throw e;
+          } finally {
+            runAfterSaveRef.current = false;
+          }
         }
       },
       onSuccess: () => {
@@ -388,36 +400,17 @@ export const GoogleSheetsReportEditForm = forwardRef<
               )}
             </FormSection>
           </FormLayout>
-          <FormActions>
-            <Button
-              variant='default'
-              type='submit'
-              className='w-full'
-              aria-label={
-                mode === ReportFormMode.CREATE ? 'Create new report' : 'Save changes to report'
-              }
-              disabled={!(isDirty || triggersDirty) || isSubmitting}
-            >
-              {isSubmitting
-                ? mode === ReportFormMode.CREATE
-                  ? 'Creating...'
-                  : 'Saving...'
-                : mode === ReportFormMode.CREATE
-                  ? 'Create new report'
-                  : 'Save changes to report'}
-            </Button>
-            {onCancel && (
-              <Button
-                variant='outline'
-                type='button'
-                onClick={onCancel}
-                className='w-full'
-                aria-label='Cancel'
-              >
-                Cancel
-              </Button>
-            )}
-          </FormActions>
+          <ReportFormActions
+            mode={mode}
+            isSubmitting={isSubmitting}
+            isDirty={isDirty}
+            triggersDirty={triggersDirty}
+            onRunAndSave={() => {
+              runAfterSaveRef.current = true;
+              void form.handleSubmit(handleFormSubmit)();
+            }}
+            onCancel={onCancel}
+          />
         </AppForm>
       </Form>
     );
