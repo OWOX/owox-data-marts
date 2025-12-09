@@ -17,7 +17,9 @@ import {
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
 import { Button } from '@owox/ui/components/button';
-import { MoreVertical, Trash2, Sparkles, Loader2, Send } from 'lucide-react';
+import { MoreVertical, Trash2, Sparkles, Loader2, Send, Copy } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { useClipboard } from '../../../../hooks/useClipboard';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
 import {
   Empty,
@@ -87,6 +89,19 @@ export default function InsightDetailsView() {
   // TODO:: Remove this toggle to show raw markdown output in read-only editor instead of HTML preview
   const [showRawOutput, setShowRawOutput] = useState(false);
   const [isReportSheetOpen, setIsReportSheetOpen] = useState(false);
+
+  const { copyToClipboard } = useClipboard();
+
+  const handleCopyOutput = useCallback(async () => {
+    const text = insight?.output ?? '';
+    if (!text) return;
+    const ok = await copyToClipboard(text, 'insight-output');
+    if (ok) {
+      toast.success('Markdown copied to clipboard');
+    } else {
+      toast.error('Failed to copy to clipboard');
+    }
+  }, [insight?.output, copyToClipboard]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -331,7 +346,7 @@ export default function InsightDetailsView() {
                 </Empty>
               ) : (
                 <div className='flex h-full min-h-0 flex-col gap-2'>
-                  <div className='min-h-0 flex-1 overflow-hidden'>
+                  <div className='relative min-h-0 flex-1 overflow-hidden'>
                     {showRawOutput ? (
                       <InsightEditor
                         value={insight.output ?? ''}
@@ -345,12 +360,36 @@ export default function InsightDetailsView() {
                     ) : preview.error ? (
                       <div className='text-destructive'>{preview.error}</div>
                     ) : (
-                      <MarkdownEditorPreview
-                        html={preview.html}
-                        loading={preview.loading}
-                        error={preview.error}
-                        height='100%'
-                      />
+                      <>
+                        <MarkdownEditorPreview
+                          html={preview.html}
+                          loading={preview.loading}
+                          error={preview.error}
+                          height='100%'
+                        />
+                        {!!insight.output && !preview.loading && !preview.error && (
+                          <div className='absolute top-2 right-2 z-10'>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant='outline'
+                                    size='icon'
+                                    className='h-8 w-8'
+                                    aria-label='Copy markdown to clipboard'
+                                    onClick={() => void handleCopyOutput()}
+                                  >
+                                    <Copy className='h-4 w-4' />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side='left'>
+                                  <p>Copy markdown to clipboard</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
