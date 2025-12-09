@@ -99,10 +99,15 @@ export abstract class BaseReportRun {
    */
   markAsFailed(error: Error | string): void {
     const errorString = error instanceof Error ? error.message : error;
+    const errorEntry = JSON.stringify({
+      type: 'error',
+      at: new Date().toISOString(),
+      error: errorString,
+    });
 
     this.report.lastRunStatus = ReportRunStatus.ERROR;
     this.report.lastRunError = errorString;
     this.dataMartRun.status = DataMartRunStatus.FAILED;
-    this.dataMartRun.errors = [...(this.dataMartRun.errors || []), errorString];
+    this.dataMartRun.errors = [...(this.dataMartRun.errors || []), errorEntry];
   }
 }

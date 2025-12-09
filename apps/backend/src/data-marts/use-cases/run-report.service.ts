@@ -16,6 +16,7 @@ import { SystemTimeService } from '../../common/scheduler/services/system-time.s
 import { DataMart } from '../entities/data-mart.entity';
 import { ReportRun } from '../models/report-run.model';
 import { ReportRunService } from '../services/report-run.service';
+import { createReportRunLogger, ReportRunLogger } from '../report-run-logging/report-run-logger';
 
 const ERROR_NAMES = {
   ABORT: 'AbortError',
@@ -134,9 +135,14 @@ export class RunReportService {
    *
    * @param report - Report entity with storage and destination config
    * @param signal - Optional AbortSignal for cancellation
+   * @param reportRunLogger - Optional run-scoped structured logger.
    * @throws Error if read/write fails, propagated to caller
    */
-  private async executeReport(report: Report, signal?: AbortSignal): Promise<void> {
+  private async executeReport(
+    report: Report,
+    signal?: AbortSignal,
+    reportRunLogger?: ReportRunLogger
+  ): Promise<void> {
     signal?.throwIfAborted();
     const { dataMart, dataDestination } = report;
     const reportReader = await this.reportReaderResolver.resolve(dataMart.storage.type);
@@ -146,6 +152,10 @@ export class RunReportService {
       signal?.throwIfAborted();
       const reportDataDescription = await reportReader.prepareReportData(report);
       this.logger.debug(`Report data prepared for ${report.id}:`, reportDataDescription);
+      reportWriter.setExecutionContext?.({
+        runId: report.id,
+        logger: reportRunLogger!,
+      });
       await reportWriter.prepareToWriteReport(report, reportDataDescription);
       let nextReportDataBatch: string | undefined | null = undefined;
       do {
@@ -186,6 +196,7 @@ export class RunReportService {
     signal?: AbortSignal
   ): Promise<void> {
     const processId = this.generateProcessId(reportRun.getReportId());
+    const reportRunLogger = createReportRunLogger(this.systemTimeService);
 
     try {
       this.gracefulShutdownService.registerActiveProcess(processId);
@@ -195,10 +206,13 @@ export class RunReportService {
       await this.actualizeSchemaInDataMart(reportRun.getDataMart());
       await this.reportRunService.markAsStarted(reportRun);
       this.logger.log(`Report ${reportRun.getReportId()} execution started`);
-      await this.executeReport(reportRun.getReport(), signal);
-      await this.handleReportRunSuccess(reportRun);
+      await this.executeReport(reportRun.getReport(), signal, reportRunLogger);
+      const { logs, errors } = reportRunLogger.asArrays();
+      await this.handleReportRunSuccess(reportRun, logs, errors);
     } catch (error) {
-      await this.handleReportRunError(reportRun, error);
+      reportRunLogger.error(error);
+      const { logs, errors } = reportRunLogger.asArrays();
+      await this.handleReportRunError(reportRun, error as Error, logs, errors);
     } finally {
       this.gracefulShutdownService.unregisterActiveProcess(processId);
     }
@@ -245,11 +259,17 @@ export class RunReportService {
    * Marks as success and persists results.
    *
    * @param reportRun - Completed report run
+   * @param logs - Structured logs collected during the run
+   * @param errors - Structured errors collected during the run
    */
-  private async handleReportRunSuccess(reportRun: ReportRun): Promise<void> {
+  private async handleReportRunSuccess(
+    reportRun: ReportRun,
+    logs: string[] = [],
+    errors: string[] = []
+  ): Promise<void> {
     reportRun.markAsSuccess();
 
-    const saved = await this.saveReportRunResultSafely(reportRun);
+    const saved = await this.saveReportRunResultSafely(reportRun, logs, errors);
     if (saved) {
       this.logger.log(`Report ${reportRun.getReportId()} completed successfully`);
     }
@@ -264,8 +284,15 @@ export class RunReportService {
    *
    * @param reportRun - Failed or cancelled report run
    * @param error - Error that occurred
+   * @param logs - Structured logs collected before failure
+   * @param errors - Structured errors including the failure reason
    */
-  private async handleReportRunError(reportRun: ReportRun, error: Error): Promise<void> {
+  private async handleReportRunError(
+    reportRun: ReportRun,
+    error: Error,
+    logs: string[] = [],
+    errors: string[] = []
+  ): Promise<void> {
     if (error.name === ERROR_NAMES.ABORT) {
       reportRun.markAsCancelled();
       this.logger.warn(`Report ${reportRun.getReportId()} was cancelled by user`);
@@ -273,7 +300,7 @@ export class RunReportService {
       reportRun.markAsFailed(error);
       this.logger.error(`Report ${reportRun.getReportId()} execution failed:`, error);
     }
-    await this.saveReportRunResultSafely(reportRun);
+    await this.saveReportRunResultSafely(reportRun, logs, errors);
   }
 
   /**
@@ -284,9 +311,13 @@ export class RunReportService {
    *
    * @returns true if saved successfully, false otherwise
    */
-  private async saveReportRunResultSafely(reportRun: ReportRun): Promise<boolean> {
+  private async saveReportRunResultSafely(
+    reportRun: ReportRun,
+    logs: string[] = [],
+    errors: string[] = []
+  ): Promise<boolean> {
     try {
-      await this.reportRunService.finish(reportRun);
+      await this.reportRunService.finish(reportRun, { logs, errors });
       return true;
     } catch (saveError) {
       this.logger.error(

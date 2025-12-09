@@ -88,10 +88,24 @@ export class ReportRunService {
    * Report contains runStatus and lastRunAt, DataMartRun contains full execution details.
    *
    * @param reportRun - Completed report run (SUCCESS/FAILED/CANCELLED)
+   * @param context - Optional context to append execution artifacts:
+   *                  - logs: array of log entries to append to DataMartRun.logs
+   *                  - errors: array of error entries to append to DataMartRun.errors
    */
   @Transactional()
-  async finish(reportRun: ReportRun): Promise<void> {
+  async finish(
+    reportRun: ReportRun,
+    context?: { logs?: string[]; errors?: string[] }
+  ): Promise<void> {
     await this.reportService.saveReport(reportRun.getReport());
+    if (context?.logs?.length) {
+      const dmRun = reportRun.getDataMartRun();
+      dmRun.logs = [...(dmRun.logs || []), ...context.logs];
+    }
+    if (context?.errors?.length) {
+      const dmRun = reportRun.getDataMartRun();
+      dmRun.errors = [...(dmRun.errors || []), ...context.errors];
+    }
     await this.dataMartRunService.markReportRunAsFinished(reportRun.getDataMartRun());
   }
 }

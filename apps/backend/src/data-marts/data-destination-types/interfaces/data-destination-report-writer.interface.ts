@@ -3,12 +3,18 @@ import { DataDestinationType } from '../enums/data-destination-type.enum';
 import { ReportDataDescription } from '../../dto/domain/report-data-description.dto';
 import { ReportDataBatch } from '../../dto/domain/report-data-batch.dto';
 import { Report } from '../../entities/report.entity';
+import { ReportRunExecutionContext } from '../../report-run-logging/report-run-logger';
 
 /**
  * Interface for writing reports to data destinations
  * Implementations handle the specifics of writing data to different destination types
  */
 export interface DataDestinationReportWriter extends TypedComponent<DataDestinationType> {
+  /**
+   * Optional execution context to enable structured run-time logging.
+   */
+  setExecutionContext?(ctx: ReportRunExecutionContext): void;
+
   /**
    * Prepares the destination for writing a report
    *
