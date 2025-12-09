@@ -25,6 +25,7 @@ interface UseGoogleSheetsReportFormOptions {
   initialReport?: DataMartReport;
   mode: ReportFormMode;
   dataMartId: string;
+  onAfterSubmit?: (report: DataMartReport) => Promise<void> | void;
   onSuccess?: () => void;
   preSelectedDestination?: DataDestination | null;
 }
@@ -33,6 +34,7 @@ export function useGoogleSheetsReportForm({
   initialReport,
   mode,
   dataMartId,
+  onAfterSubmit,
   onSuccess,
   preSelectedDestination,
 }: UseGoogleSheetsReportFormOptions) {
@@ -113,6 +115,14 @@ export function useGoogleSheetsReportForm({
           return;
         }
 
+        // allow parent to persist schedule (create/update/delete trigger)
+        try {
+          await onAfterSubmit?.(result);
+        } catch (e) {
+          // ignore here; parent may handle toast/UI, but don't block form
+          console.error('onAfterSubmit failed', e);
+        }
+
         onSuccess?.();
       } catch (error) {
         console.error('Error submitting form:', error);
@@ -126,6 +136,7 @@ export function useGoogleSheetsReportForm({
       dataMartId,
       createReport,
       updateReport,
+      onAfterSubmit,
       onSuccess,
       clearError,
       reportError,

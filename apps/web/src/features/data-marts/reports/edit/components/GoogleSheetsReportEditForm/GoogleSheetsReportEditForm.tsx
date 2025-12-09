@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useState } from 'react';
+import { forwardRef, useEffect, useState, useRef } from 'react';
 import { Input } from '@owox/ui/components/input';
 import { useAutoFocus } from '../../../../../../hooks/useAutoFocus.ts';
 import {
@@ -45,6 +45,10 @@ import {
   ReportFormMode,
 } from '../../../shared';
 import { TimeTriggerAnnouncement } from '../../../../scheduled-triggers';
+import {
+  ReportSchedulesInlineList,
+  type ReportSchedulesInlineListHandle,
+} from '../../../../scheduled-triggers/components/ReportSchedulesInlineList/ReportSchedulesInlineList';
 import DocumentLinkDescription from './FormDescriptions/DocumentLinkDescription.tsx';
 import { Button } from '@owox/ui/components/button';
 import { isGoogleServiceAccountCredentials } from '../../../../../../shared/types';
@@ -108,6 +112,9 @@ export const GoogleSheetsReportEditForm = forwardRef<
 
     useAutoFocus({ elementId: titleInputId, isOpen: true, delay: 150 });
 
+    const scheduleRef = useRef<ReportSchedulesInlineListHandle | null>(null);
+    const [triggersDirty, setTriggersDirty] = useState(false);
+
     const {
       isDirty,
       reset,
@@ -119,6 +126,14 @@ export const GoogleSheetsReportEditForm = forwardRef<
       initialReport,
       mode,
       dataMartId: dataMart?.id ?? '',
+      onAfterSubmit: async report => {
+        try {
+          await scheduleRef.current?.persist(report.id);
+        } catch (e) {
+          // ignore UI errors here; hook will handle formError
+          console.error('Failed to persist schedule for report', e);
+        }
+      },
       onSuccess: () => {
         onSubmit?.();
       },
@@ -153,8 +168,8 @@ export const GoogleSheetsReportEditForm = forwardRef<
     }, [initialReport, mode, reset, preSelectedDestination]);
 
     useEffect(() => {
-      onDirtyChange?.(isDirty);
-    }, [isDirty, onDirtyChange]);
+      onDirtyChange?.(isDirty || triggersDirty);
+    }, [isDirty, triggersDirty, onDirtyChange]);
 
     const documentUrl = form.watch('documentUrl');
     const isValidDocumentUrl = documentUrl && isValidGoogleSheetsUrl(documentUrl.trim());
@@ -361,7 +376,16 @@ export const GoogleSheetsReportEditForm = forwardRef<
               />
             </FormSection>
             <FormSection title='Automate Report Runs'>
-              <TimeTriggerAnnouncement />
+              {dataMart?.id ? (
+                <ReportSchedulesInlineList
+                  ref={scheduleRef}
+                  dataMartId={dataMart.id}
+                  reportId={mode === ReportFormMode.EDIT ? (initialReport?.id ?? null) : null}
+                  onDirtyChange={setTriggersDirty}
+                />
+              ) : (
+                <TimeTriggerAnnouncement />
+              )}
             </FormSection>
           </FormLayout>
           <FormActions>
@@ -372,7 +396,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
               aria-label={
                 mode === ReportFormMode.CREATE ? 'Create new report' : 'Save changes to report'
               }
-              disabled={!isDirty || isSubmitting}
+              disabled={!(isDirty || triggersDirty) || isSubmitting}
             >
               {isSubmitting
                 ? mode === ReportFormMode.CREATE

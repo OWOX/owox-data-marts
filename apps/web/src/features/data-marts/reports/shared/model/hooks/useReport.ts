@@ -6,7 +6,7 @@ import type { ReportStatusPollingConfig } from '../../services';
 import { useReportContext, ReportActionType } from '../context';
 import { mapReportDtoToEntity } from '../mappers';
 import toast from 'react-hot-toast';
-import { trackEvent } from '../../../../../../utils/data-layer';
+import { trackEvent } from '../../../../../../utils';
 
 export function useReport() {
   const { state, dispatch } = useReportContext();
