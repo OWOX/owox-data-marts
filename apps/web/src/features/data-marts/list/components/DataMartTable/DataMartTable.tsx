@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useProjectRoute } from '../../../../../shared/hooks';
 import {
@@ -39,6 +39,8 @@ import { toast } from 'react-hot-toast';
 import { EmptyDataMartsState } from './components/EmptyDataMartsState';
 import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
 import { useTableStorage } from '../../../../../hooks/useTableStorage';
+import { useFloatingPopover } from '../../../../../shared/components/FloatingPopover/useFloatingPopover';
+import { storageService } from '../../../../../services/localstorage.service';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -71,6 +73,21 @@ export function DataMartTable<TData, TValue>({
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const ONBOARDING_VIDEO_KEY = 'data-mart-empty-state-onboarding-video-shown';
+  const { openPopover } = useFloatingPopover();
+
+  useEffect(() => {
+    if (!isLoading && data.length === 0) {
+      const wasShown = storageService.get(ONBOARDING_VIDEO_KEY, 'boolean');
+
+      if (!wasShown) {
+        openPopover('video-1-google-sheets');
+
+        storageService.set(ONBOARDING_VIDEO_KEY, true);
+      }
+    }
+  }, [isLoading, data.length, openPopover]);
 
   const handleBatchDelete = async () => {
     try {
