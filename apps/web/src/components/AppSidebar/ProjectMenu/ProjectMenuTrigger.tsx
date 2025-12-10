@@ -32,7 +32,7 @@ export function ProjectMenuTrigger({ isOpen }: ProjectMenuTriggerProps) {
         </div>
 
         <ChevronDown
-          className={`ml-auto size-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+          className={`ml-auto size-4 transition-transform duration-200 ${isOpen ? '-rotate-90' : ''}`}
         />
       </button>
     </DropdownMenuTrigger>

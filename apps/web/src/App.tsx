@@ -5,6 +5,7 @@ import { AuthProvider } from './features/idp';
 import { GoogleTagManager as GTM } from '../src/app/gtm/GoogleTagManager.tsx';
 import { IntercomChat } from './app/intercom/IntercomChat';
 import { AppStoreProvider, AppBootstrap } from './app/store';
+import { FloatingPopoverProvider } from './shared/components/FloatingPopover/FloatingPopoverProvider';
 
 function App() {
   const router = createBrowserRouter(routes);
@@ -13,9 +14,11 @@ function App() {
     <AuthProvider>
       <AppStoreProvider>
         <AppBootstrap>
-          <GTM />
-          <IntercomChat />
-          <RouterProvider router={router} />
+          <FloatingPopoverProvider>
+            <GTM />
+            <IntercomChat />
+            <RouterProvider router={router} />
+          </FloatingPopoverProvider>
         </AppBootstrap>
       </AppStoreProvider>
     </AuthProvider>
