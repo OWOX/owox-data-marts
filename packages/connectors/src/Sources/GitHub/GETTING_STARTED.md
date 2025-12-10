@@ -15,7 +15,7 @@ Before proceeding, please make sure that you have [set up **OWOX Data Marts**](h
 ## Set Up the Connector
 
 1. Select **Connector** as the input source type.
-2. Click **Set up connector** and choose **GitHub**.  
+2. Сhoose **GitHub**.  
 3. Fill in the required fields:
     - **Access token** – paste the token you generated on [GitHub personal access tokens page](https://github.com/settings/personal-access-tokens).
     - **Repository Name** – enter the full repository path in the format `owner/repo`.  

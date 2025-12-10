@@ -15,7 +15,7 @@ Before proceeding, please make sure that you have [set up **OWOX Data Marts**](h
 ## Set Up the Connector
 
 1. Select **Connector** as the input source type.
-2. Click **Set up connector** and choose **Bank of Canada**.  
+2. Choose **Bank of Canada**.  
 3. Leave the fields as default and proceed to the next step.
 
 ![Bank of Canada Input Source](res/bank_connector.png)
@@ -27,7 +27,7 @@ Before proceeding, please make sure that you have [set up **OWOX Data Marts**](h
 1. Choose available **endpoint**.  
 2. Select the required **fields**.  
 3. Specify the **dataset** where the data will be stored (or leave the default).  
-4. Click **Finish**, then **Save** and **Publish Data Mart**.
+4. Click **Finish**, then **Publish Data Mart**.
 
 ![Bank of Canada Publish Data Mart](res/bank_publish.png)
 
