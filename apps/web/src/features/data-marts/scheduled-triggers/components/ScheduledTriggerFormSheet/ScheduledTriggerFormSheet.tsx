@@ -33,6 +33,17 @@ export function ScheduledTriggerFormSheet({
   preSelectedReportId,
   preSelectedType,
 }: ScheduledTriggerFormSheetProps) {
+  useEffect(() => {
+    if (isOpen) {
+      raiseIntercomLauncher(0, 600);
+    } else {
+      resetIntercomLauncher();
+    }
+    return () => {
+      resetIntercomLauncher();
+    };
+  }, [isOpen]);
+
   const { createScheduledTrigger, updateScheduledTrigger, selectedTrigger } =
     useScheduledTriggerContext();
 

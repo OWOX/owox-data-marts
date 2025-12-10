@@ -1,6 +1,7 @@
 declare global {
   interface Window {
     Intercom?: (...args: unknown[]) => void;
+    __intercom_open_on_ready?: boolean;
   }
 }
 
@@ -51,4 +52,28 @@ export function resetIntercomLauncher(): void {
     vertical: INTERCOM_LAUNCHER_VERTICAL_PADDING,
     horizontal: INTERCOM_LAUNCHER_HORIZONTAL_PADDING,
   });
+
+  setIntercomLauncherVisible(false);
+
+  if (window.__intercom_open_on_ready && window.Intercom) {
+    try {
+      window.Intercom('show');
+    } catch (e) {
+      console.warn('Failed to show Intercom after boot', e);
+    }
+    window.__intercom_open_on_ready = false;
+  }
+}
+
+export function openIntercom(): void {
+  if (window.Intercom) {
+    try {
+      window.Intercom('show');
+    } catch (e) {
+      console.warn('Intercom show failed', e);
+    }
+  } else {
+    // Intercom boot not finished yet → defer
+    window.__intercom_open_on_ready = true;
+  }
 }

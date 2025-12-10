@@ -18,6 +18,7 @@ interface IntercomPayload {
   name?: string;
   Name_project?: string;
   intercom_user_jwt?: string;
+  hide_default_launcher?: boolean;
 }
 
 const INTERCOM_APP_ID_FLAG = 'INTERCOM_APP_ID';
@@ -56,6 +57,7 @@ function buildIntercomPayload(appId: string, user: User): IntercomPayload {
   const payload: IntercomPayload = {
     app_id: appId,
     user_id: user.id,
+    hide_default_launcher: true,
   };
 
   if (user.email) {
