@@ -11,6 +11,8 @@ import { SidebarProjectMenu } from './ProjectMenu';
 import { UserMenu } from './UserMenu';
 import { ActionButton } from './ActionButton';
 import { MainMenu } from './MainMenu';
+import { HelpMenu } from './HelpMenu';
+import { Separator } from '@owox/ui/components/separator';
 
 interface AppSidebarProps {
   variant?: 'sidebar' | 'floating' | 'inset';
@@ -38,6 +40,8 @@ export function AppSidebar({ variant = 'inset', collapsible = 'icon' }: AppSideb
       </SidebarContent>
 
       <SidebarFooter>
+        <HelpMenu />
+        <Separator />
         <UserMenu />
       </SidebarFooter>
       <SidebarRail />

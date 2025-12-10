@@ -39,7 +39,7 @@ export function UserMenuTrigger({
 
         <ChevronDown
           className={`ml-auto size-4 transition-transform duration-200 group-data-[collapsible=icon]:hidden ${
-            isOpen ? 'rotate-180' : ''
+            isOpen ? '-rotate-90' : ''
           }`}
         />
       </button>
