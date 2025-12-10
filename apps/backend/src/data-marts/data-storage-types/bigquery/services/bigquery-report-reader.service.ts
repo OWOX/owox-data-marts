@@ -10,18 +10,19 @@ import {
   isTableDefinition,
 } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { Report } from '../../../entities/report.entity';
+import { DataMartDefinitionType } from '../../../enums/data-mart-definition-type.enum';
 import { isBigQueryDataMartSchema } from '../../data-mart-schema.guards';
 import { isBigQueryConfig } from '../../data-storage-config.guards';
 import { isBigQueryCredentials } from '../../data-storage-credentials.guards';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
-import { DataStorageReportReader } from '../../interfaces/data-storage-report-reader.interface';
 import { DataStorageReportReaderState } from '../../interfaces/data-storage-report-reader-state.interface';
+import { DataStorageReportReader } from '../../interfaces/data-storage-report-reader.interface';
+import { BigQueryApiAdapterFactory } from '../adapters/bigquery-api-adapter.factory';
+import { BigQueryApiAdapter } from '../adapters/bigquery-api.adapter';
 import {
   BigQueryReaderState,
   isBigQueryReaderState,
 } from '../interfaces/bigquery-reader-state.interface';
-import { BigQueryApiAdapterFactory } from '../adapters/bigquery-api-adapter.factory';
-import { BigQueryApiAdapter } from '../adapters/bigquery-api.adapter';
 import { BigQueryConfig } from '../schemas/bigquery-config.schema';
 import { BigQueryCredentials } from '../schemas/bigquery-credentials.schema';
 import { BigQueryQueryBuilder } from './bigquery-query.builder';
@@ -41,6 +42,7 @@ export class BigQueryReportReader implements DataStorageReportReader {
     storageCredentials: BigQueryCredentials;
     storageConfig: BigQueryConfig;
     definition: DataMartDefinition;
+    definitionType: DataMartDefinitionType;
   };
 
   constructor(
@@ -50,8 +52,8 @@ export class BigQueryReportReader implements DataStorageReportReader {
   ) {}
 
   public async prepareReportData(report: Report): Promise<ReportDataDescription> {
-    const { storage, definition, schema } = report.dataMart;
-    if (!storage || !definition) {
+    const { storage, definitionType, definition, schema } = report.dataMart;
+    if (!storage || !definition || !definitionType) {
       throw new Error('Data Mart is not properly configured');
     }
 
@@ -74,6 +76,7 @@ export class BigQueryReportReader implements DataStorageReportReader {
     this.reportConfig = {
       storageCredentials: storage.credentials,
       storageConfig: storage.config,
+      definitionType,
       definition,
     };
 
@@ -118,16 +121,28 @@ export class BigQueryReportReader implements DataStorageReportReader {
       throw new Error('Report data must be prepared before read');
     }
 
-    await this.prepareReportResultTable(this.reportConfig.definition);
+    await this.prepareReportResultTable(
+      this.reportConfig.definitionType,
+      this.reportConfig.definition
+    );
   }
 
-  private async prepareReportResultTable(dataMartDefinition: DataMartDefinition): Promise<void> {
+  private async prepareReportResultTable(
+    definitionType: DataMartDefinitionType,
+    dataMartDefinition: DataMartDefinition
+  ): Promise<void> {
     this.logger.debug('Preparing report result table', dataMartDefinition);
     try {
-      if (isTableDefinition(dataMartDefinition)) {
+      if (
+        definitionType === DataMartDefinitionType.TABLE &&
+        isTableDefinition(dataMartDefinition)
+      ) {
         const [projectId, datasetId, tableId] = dataMartDefinition.fullyQualifiedName.split('.');
         this.defineReportResultTable(projectId, datasetId, tableId);
-      } else if (isConnectorDefinition(dataMartDefinition)) {
+      } else if (
+        definitionType === DataMartDefinitionType.CONNECTOR &&
+        isConnectorDefinition(dataMartDefinition)
+      ) {
         const tablePath = dataMartDefinition.connector.storage.fullyQualifiedName.split('.');
         const [projectId, datasetId, tableId] =
           tablePath.length === 2 ? [this.contextGcpProject, ...tablePath] : tablePath;
