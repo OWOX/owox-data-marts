@@ -41,7 +41,7 @@ export function ConnectorEditSheet({
 }: ConnectorEditSheetProps) {
   useEffect(() => {
     if (isOpen) {
-      raiseIntercomLauncher(55);
+      raiseIntercomLauncher(0, 600);
     } else {
       resetIntercomLauncher();
     }
