@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+import { useFloatingPopover } from '../../../../../../shared/components/FloatingPopover/useFloatingPopover';
 import { useProjectRoute } from '../../../../../../shared/hooks';
 import { DataMartPlusIcon } from '../../../../../../shared';
 import { GraduationCap, SquarePlay } from 'lucide-react';
@@ -17,6 +19,16 @@ import {
 } from '../../../../../../shared/components/EmptyStateCard';
 
 export function EmptyDataMartsState() {
+  const { openPopover } = useFloatingPopover();
+  const [attempted, setAttempted] = useState(false);
+
+  useEffect(() => {
+    if (!attempted) {
+      openPopover('video-1-google-sheets');
+      setAttempted(true);
+    }
+  }, [attempted, openPopover]);
+
   const { scope } = useProjectRoute();
 
   // Split presets for visual grouping
