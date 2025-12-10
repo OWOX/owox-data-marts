@@ -40,7 +40,7 @@ You MUST NOT:
 
 SQL construction rules:
 - Use ONLY SELECT or WITH queries (no INSERT, UPDATE, DELETE, or DDL).
-- Use the fullyQualifiedName values from plan.tables directly in FROM/JOIN clauses.
+- Use the fullyQualifiedName (byte-to-byte, no changes when you create SQL) from plan.tables directly in FROM/JOIN clauses.
 - Use dimensions as GROUP BY keys where appropriate.
 - Use metrics as aggregated expressions (e.g. SUM, COUNT, AVG) as required by the question.
 - Use the chosen dateField and dateFilterDescription from the plan to build the WHERE clause for date constraints.

@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { OwoxProducer } from '@owox/internal-helpers';
+import { formatDuration, OwoxProducer } from '@owox/internal-helpers';
 import { Repository } from 'typeorm';
 import { AgentTelemetry } from '../../common/ai-insights/agent/types';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
@@ -169,7 +169,16 @@ export class InsightExecutionService {
         // Agent telemetry (LLM/Tool calls), if available
         const telemetry = p.meta.telemetry;
         const summary = this.summarizeAgentTelemetry(telemetry);
-        pushLog({ type: 'prompt_telemetry', ...summary });
+        const { executionTime, ...usage } = summary.totalUsage;
+
+        pushLog({
+          type: 'prompt_telemetry',
+          ...summary,
+          totalUsage: {
+            ...usage,
+            executionTime: formatDuration(executionTime),
+          },
+        });
         const lastLlm = telemetry.llmCalls.length
           ? telemetry.llmCalls[telemetry.llmCalls.length - 1]
           : undefined;
@@ -202,7 +211,12 @@ export class InsightExecutionService {
         });
       }
 
-      pushLog({ type: 'template_telemetry', ...getTemplateTotalUsage(prompts) });
+      const { executionTime, ...rest } = getTemplateTotalUsage(prompts);
+      pushLog({
+        type: 'template_telemetry',
+        ...rest,
+        executionTime: formatDuration(executionTime),
+      });
       pushLog({ type: 'log', message: 'AI Insight completed' });
       return { rendered: rendered ?? '', status };
     };

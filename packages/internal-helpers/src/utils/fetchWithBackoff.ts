@@ -1,5 +1,6 @@
 import { LoggerFactory } from '../logging/logger-factory.js';
 import { castError } from './castError.js';
+import { formatDuration } from './formatDuration.js';
 
 export async function fetchWithBackoff(
   url: string,
@@ -18,7 +19,7 @@ export async function fetchWithBackoff(
         const retryAfter = parseInt(res.headers.get('retry-after') ?? '0', 10);
         const backoff =
           retryAfter > 0 ? retryAfter * 1000 : initialDelay * Math.pow(2, attempt - 1);
-        logger.debug(`[fetchWithBackoff] ${res.status} retrying in ${backoff}ms`);
+        logger.debug(`[fetchWithBackoff] ${res.status} retrying in ${formatDuration(backoff)}`);
         await new Promise(r => setTimeout(r, backoff));
         continue;
       }
@@ -55,17 +56,14 @@ export async function fetchWithTimeout(
   options: RequestInit = {},
   timeoutMs = 25_000
 ): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-
   try {
-    return await fetch(url, { ...options, signal: controller.signal });
+    return await fetch(url, { ...options, signal: AbortSignal.timeout(timeoutMs) });
   } catch (err: unknown) {
-    if (castError(err).name === 'AbortError') {
-      throw new Error(`Fetch timeout: request did not complete within ${timeoutMs}ms`);
+    if (castError(err).name === 'TimeoutError') {
+      throw new Error(
+        `Fetch timeout: request did not complete within ${formatDuration(timeoutMs)}`
+      );
     }
     throw err;
-  } finally {
-    clearTimeout(timer);
   }
 }
