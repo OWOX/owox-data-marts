@@ -8,9 +8,22 @@ import {
   COLOR_THEME,
   MarkdownParser,
 } from '../../../../../common/markdown/markdown-parser.service';
+import { DataMartInsightTemplateFacadeImpl } from '../../../../ai-insights/data-mart-insight-template.facade';
+import {
+  DataMartInsightTemplateStatus,
+  DataMartPromptMetaEntry,
+} from '../../../../ai-insights/data-mart-insights.types';
+import {
+  getPromptTotalUsage,
+  getTemplateTotalUsage,
+} from '../../../../ai-insights/utils/compute-model-usage';
 import { ReportDataBatch } from '../../../../dto/domain/report-data-batch.dto';
 import { ReportDataDescription } from '../../../../dto/domain/report-data-description.dto';
 import { Report } from '../../../../entities/report.entity';
+import {
+  ReportRunExecutionContext,
+  ReportRunLogger,
+} from '../../../../report-run-logging/report-run-logger';
 import { isEmailConfig } from '../../../data-destination-config.guards';
 import { isEmailCredentials } from '../../../data-destination-credentials.guards';
 import { DataDestinationType } from '../../../enums/data-destination-type.enum';
@@ -36,12 +49,18 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
   private reportDataDescription: ReportDataDescription;
   private report: Report;
   private reportDataRows: unknown[][] = [];
+  private executionLogger?: ReportRunLogger;
 
   protected constructor(
     private readonly emailProvider: EmailProviderFacade,
     private readonly markdownParser: MarkdownParser,
-    private readonly publicOriginService: PublicOriginService
+    private readonly publicOriginService: PublicOriginService,
+    private readonly insightTemplateFacade: DataMartInsightTemplateFacadeImpl
   ) {}
+
+  public setExecutionContext(ctx: ReportRunExecutionContext): void {
+    this.executionLogger = ctx.logger;
+  }
 
   public async prepareToWriteReport(
     report: Report,
@@ -67,6 +86,7 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
 
   public async finalize(processingError?: Error): Promise<void> {
     if (processingError) {
+      this.executionLogger?.error(processingError);
       this.logger.warn('Error sending report data', processingError);
       return;
     }
@@ -80,11 +100,66 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
       return;
     }
 
-    // TODO: integrate with AI Insights
-    const reportHtml = await this.markdownParser.parseToHtml(
-      this.emailConfig.messageTemplate,
-      COLOR_THEME.LIGHT
-    );
+    this.executionLogger?.log({ type: 'log', message: 'AI Insight started' });
+    const {
+      rendered = '',
+      status,
+      prompts = [],
+    } = await this.insightTemplateFacade.render({
+      template: this.emailConfig.messageTemplate,
+      params: {
+        projectId: this.report.dataMart.projectId,
+        dataMartId: this.report.dataMart.id,
+      },
+    });
+
+    for (const p of (prompts ?? []) as DataMartPromptMetaEntry[]) {
+      this.executionLogger?.log({
+        type: 'prompt_meta',
+        prompt: p.payload?.prompt,
+        artifact: p.meta?.artifact,
+        status: p.meta?.status,
+      });
+      const telemetry = p.meta?.telemetry;
+      const llmCalls = telemetry?.llmCalls ?? [];
+      const toolCalls = telemetry?.toolCalls ?? [];
+      const failedToolCalls = toolCalls.filter(call => !call.success).length;
+      const lastLlm = llmCalls.length ? llmCalls[llmCalls.length - 1] : undefined;
+      const summary = {
+        llmCalls: llmCalls.length,
+        toolCalls: toolCalls.length,
+        failedToolCalls,
+        lastFinishReason: lastLlm?.finishReason,
+        totalUsage: getPromptTotalUsage(llmCalls),
+      };
+      this.executionLogger?.log({ type: 'prompt_telemetry', ...summary });
+      const preview = lastLlm?.reasoningPreview;
+      if (typeof preview === 'string' && preview.length > 0) {
+        this.executionLogger?.log({
+          type: 'prompt_reasoning_preview',
+          preview,
+        });
+      }
+    }
+
+    if (rendered && rendered.length > 0) {
+      this.executionLogger?.log({
+        type: 'output',
+        output: rendered,
+      });
+    }
+    this.executionLogger?.log({
+      type: 'template_telemetry',
+      ...getTemplateTotalUsage(prompts ?? []),
+    });
+
+    if (status !== DataMartInsightTemplateStatus.OK) {
+      throw new Error('AI Insight template rendering failed');
+    }
+
+    this.executionLogger?.log({ type: 'log', message: 'AI Insight completed' });
+
+    const reportHtml = await this.markdownParser.parseToHtml(rendered ?? '', COLOR_THEME.LIGHT);
 
     const emailHtml = renderEmailReportTemplate({
       dataMartId: this.report.dataMart.id,
@@ -99,6 +174,7 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
       this.emailConfig.subject,
       emailHtml
     );
+    this.executionLogger?.log({ type: 'email_sent', to: this.emailCredentials.to });
   }
 }
 
@@ -110,9 +186,10 @@ export class EmailReportWriter extends BaseEmailReportWriter {
   constructor(
     @Inject(EMAIL_PROVIDER_FACADE) emailProvider: EmailProviderFacade,
     markdownParser: MarkdownParser,
-    publicOriginService: PublicOriginService
+    publicOriginService: PublicOriginService,
+    insightTemplateFacade: DataMartInsightTemplateFacadeImpl
   ) {
-    super(emailProvider, markdownParser, publicOriginService);
+    super(emailProvider, markdownParser, publicOriginService, insightTemplateFacade);
   }
 }
 
@@ -124,9 +201,10 @@ export class SlackReportWriter extends BaseEmailReportWriter {
   constructor(
     @Inject(EMAIL_PROVIDER_FACADE) emailProvider: EmailProviderFacade,
     markdownParser: MarkdownParser,
-    publicOriginService: PublicOriginService
+    publicOriginService: PublicOriginService,
+    insightTemplateFacade: DataMartInsightTemplateFacadeImpl
   ) {
-    super(emailProvider, markdownParser, publicOriginService);
+    super(emailProvider, markdownParser, publicOriginService, insightTemplateFacade);
   }
 }
 
@@ -138,9 +216,10 @@ export class MsTeamsReportWriter extends BaseEmailReportWriter {
   constructor(
     @Inject(EMAIL_PROVIDER_FACADE) emailProvider: EmailProviderFacade,
     markdownParser: MarkdownParser,
-    publicOriginService: PublicOriginService
+    publicOriginService: PublicOriginService,
+    insightTemplateFacade: DataMartInsightTemplateFacadeImpl
   ) {
-    super(emailProvider, markdownParser, publicOriginService);
+    super(emailProvider, markdownParser, publicOriginService, insightTemplateFacade);
   }
 }
 
@@ -152,8 +231,9 @@ export class GoogleChatReportWriter extends BaseEmailReportWriter {
   constructor(
     @Inject(EMAIL_PROVIDER_FACADE) emailProvider: EmailProviderFacade,
     markdownParser: MarkdownParser,
-    publicOriginService: PublicOriginService
+    publicOriginService: PublicOriginService,
+    insightTemplateFacade: DataMartInsightTemplateFacadeImpl
   ) {
-    super(emailProvider, markdownParser, publicOriginService);
+    super(emailProvider, markdownParser, publicOriginService, insightTemplateFacade);
   }
 }
