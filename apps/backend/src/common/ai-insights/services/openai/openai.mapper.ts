@@ -24,7 +24,7 @@ export function mapDomainMessageToOpenAi(m: AiMessage): Record<string, unknown> 
 
 export function mapUsageToDomain(executionTime: number, usage?: UsageInfo): AiUsage {
   return {
-    executionTime: executionTime / 1000,
+    executionTime: executionTime,
     promptTokens: usage?.promptTokens ?? 0,
     completionTokens: usage?.completionTokens ?? 0,
     reasoningTokens: usage?.reasoningTokens ?? 0,

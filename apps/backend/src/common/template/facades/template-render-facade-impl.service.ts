@@ -116,7 +116,7 @@ export class TemplateRenderFacadeImpl<
             payload,
           }) - 1;
 
-        return TagTokenUtil.create(idx);
+        return TagTokenUtil.create(idx) + '\n';
       });
     }
   }
