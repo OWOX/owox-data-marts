@@ -1,5 +1,34 @@
 # owox
 
+## 0.15.0
+
+### Minor Changes
+
+- 8298a39: # Improve Storage Creation UX and Interaction Safety
+
+  The Storage creation flow is now smoother and more predictable.
+  - Added click-lock protection to prevent accidental double-clicks when selecting a Storage type.
+    This prevents duplicate creation requests and ensures users trigger the action only once.
+  - Buttons now automatically switch to a disabled state while a new Storage is being created.
+    This provides clear visual feedback and blocks unwanted interactions during processing.
+
+  These updates improve safety, reduce friction, and help users stay in control while the system handles their request.
+
+- 81aedad: # Fix Report Reader for View-Defined Data Marts in BigQuery Storage
+
+  Fixed report reader functionality for data marts defined by views in BigQuery Storage.
+  - Enhanced definition type checking in BigQuery Storage report reader to properly distinguish between definition types.
+  - Added explicit `definitionType` parameter validation to ensure correct handling of view-based data mart definitions in BigQuery Storage.
+
+### Patch Changes
+
+- @owox/internal-helpers@0.15.0
+- @owox/idp-protocol@0.15.0
+- @owox/idp-better-auth@0.15.0
+- @owox/idp-owox@0.15.0
+- @owox/backend@0.15.0
+- @owox/web@0.15.0
+
 ## 0.14.0
 
 ### Minor Changes 0.14.0
@@ -870,7 +899,6 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
-
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -878,7 +906,6 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
-
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month

@@ -1,6 +1,6 @@
 {
   "name": "@owox/web",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "Web interface for OWOX Data Marts - an open-source solution for Data Analysts",
   "author": "OWOX",
   "license": "ELv2",
@@ -11,7 +11,14 @@
   "engines": {
     "node": ">=22.16.0"
   },
-  "keywords": ["owox", "data-marts", "web-app", "react", "typescript", "tailwind"],
+  "keywords": [
+    "owox",
+    "data-marts",
+    "web-app",
+    "react",
+    "typescript",
+    "tailwind"
+  ],
   "homepage": "https://github.com/OWOX/owox-data-marts",
   "repository": {
     "type": "git",
@@ -22,7 +29,9 @@
     "url": "https://github.com/OWOX/owox-data-marts/issues"
   },
   "main": "./dist/index.html",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -b && vite build",
     "dev": "vite --config vite.config.ts",
