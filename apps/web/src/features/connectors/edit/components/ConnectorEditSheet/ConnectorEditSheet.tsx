@@ -8,12 +8,13 @@ import {
 import type { DataStorageType } from '../../../../data-storage';
 import { ConnectorEditForm } from '../ConnectorEditForm/ConnectorEditForm';
 import type { ConnectorConfig } from '../../../../data-marts/edit';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import {
   raiseIntercomLauncher,
   resetIntercomLauncher,
 } from '../../../../../app/intercom/intercomUtils';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
+import { useUnsavedGuard } from '../../../../../hooks/useUnsavedGuard';
 
 interface ConnectorEditSheetProps {
   isOpen: boolean;
@@ -49,30 +50,25 @@ export function ConnectorEditSheet({
     };
   }, [isOpen]);
 
-  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
-  const [isDirty, setIsDirty] = useState(false);
-
-  const handleClose = useCallback(() => {
-    if (isDirty) {
-      setShowUnsavedDialog(true);
-    } else {
-      onClose();
-    }
-  }, [isDirty, onClose]);
-
-  const confirmClose = useCallback(() => {
-    setShowUnsavedDialog(false);
-    setIsDirty(false);
-    onClose();
-  }, [onClose]);
-
-  const handleFormDirtyChange = useCallback((dirty: boolean) => {
-    setIsDirty(dirty);
-  }, []);
+  const {
+    showUnsavedDialog,
+    setShowUnsavedDialog,
+    handleClose,
+    confirmClose,
+    handleFormDirtyChange,
+    handleFormSubmitSuccess,
+  } = useUnsavedGuard(onClose);
 
   return (
     <>
-      <Sheet open={isOpen} onOpenChange={handleClose}>
+      <Sheet
+        open={isOpen}
+        onOpenChange={open => {
+          if (!open) {
+            handleClose();
+          }
+        }}
+      >
         <SheetContent>
           <SheetHeader>
             <SheetTitle>
@@ -93,7 +89,7 @@ export function ConnectorEditSheet({
           <ConnectorEditForm
             onSubmit={configuredConnector => {
               onSubmit(configuredConnector);
-              onClose();
+              handleFormSubmitSuccess();
             }}
             dataStorageType={dataStorageType}
             configurationOnly={configurationOnly || mode === 'configuration-only'}

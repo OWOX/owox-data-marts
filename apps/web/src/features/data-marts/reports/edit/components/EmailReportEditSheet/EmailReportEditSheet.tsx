@@ -5,13 +5,21 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@owox/ui/components/sheet';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog';
 import { DataDestinationProvider } from '../../../../../data-destination';
 import type { DataDestination } from '../../../../../data-destination';
 import { ReportFormMode } from '../../../shared';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import { EmailReportEditForm } from '../EmailReportEditForm';
+import type { DataDestinationType } from '../../../../../data-destination';
+import { toast } from 'sonner';
+import { Link, useLocation, useParams } from 'react-router-dom';
+import { useUnsavedGuard } from '../../../../../../hooks/useUnsavedGuard';
+import {
+  raiseIntercomLauncher,
+  resetIntercomLauncher,
+} from '../../../../../../app/intercom/intercomUtils.ts';
 
 interface EmailReportEditSheetProps {
   isOpen: boolean;
@@ -19,6 +27,12 @@ interface EmailReportEditSheetProps {
   initialReport?: DataMartReport;
   mode: ReportFormMode;
   preSelectedDestination?: DataDestination | null;
+  prefill?: {
+    title?: string;
+    subject?: string;
+    messageTemplate?: string;
+  };
+  allowedDestinationTypes?: DataDestinationType[];
 }
 
 export function EmailReportEditSheet({
@@ -27,32 +41,51 @@ export function EmailReportEditSheet({
   initialReport,
   mode,
   preSelectedDestination,
+  prefill,
+  allowedDestinationTypes,
 }: EmailReportEditSheetProps) {
-  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
-  const [isDirty, setIsDirty] = useState(false);
-
-  const handleClose = useCallback(() => {
-    if (isDirty) {
-      setShowUnsavedDialog(true);
-    } else {
-      onClose();
-    }
-  }, [isDirty, onClose]);
-
-  const confirmClose = useCallback(() => {
-    setShowUnsavedDialog(false);
-    setIsDirty(false);
-    onClose();
-  }, [onClose]);
-
-  const handleFormDirtyChange = useCallback((dirty: boolean) => {
-    setIsDirty(dirty);
-  }, []);
+  const { projectId, id: dataMartId } = useParams<{ projectId: string; id: string }>();
+  const { pathname } = useLocation();
+  const {
+    showUnsavedDialog,
+    setShowUnsavedDialog,
+    handleClose,
+    confirmClose,
+    handleFormDirtyChange,
+    handleFormSubmitSuccess: baseHandleFormSubmitSuccess,
+  } = useUnsavedGuard(onClose);
 
   const handleFormSubmitSuccess = useCallback(() => {
-    setIsDirty(false);
-    onClose();
-  }, [onClose]);
+    const to = projectId && dataMartId ? `/ui/${projectId}/data-marts/${dataMartId}/reports` : '/';
+    const isOnDestinationsPage = pathname.includes('/reports');
+    if (!isOnDestinationsPage) {
+      toast('Report has been created', {
+        closeButton: true,
+        description: (
+          <>
+            You can view it in{' '}
+            <Link to={to} className='underline underline-offset-4' onClick={() => toast.dismiss()}>
+              Destinations
+            </Link>{' '}
+            page
+          </>
+        ),
+        duration: Infinity,
+      });
+    }
+    baseHandleFormSubmitSuccess();
+  }, [baseHandleFormSubmitSuccess, projectId, dataMartId, pathname]);
+
+  useEffect(() => {
+    if (isOpen) {
+      raiseIntercomLauncher(90);
+    } else {
+      resetIntercomLauncher();
+    }
+    return () => {
+      resetIntercomLauncher();
+    };
+  }, [isOpen]);
 
   return (
     <>
@@ -82,6 +115,8 @@ export function EmailReportEditSheet({
               onSubmit={handleFormSubmitSuccess}
               onCancel={handleClose}
               preSelectedDestination={preSelectedDestination}
+              prefill={prefill}
+              allowedDestinationTypes={allowedDestinationTypes}
             />
           </DataDestinationProvider>
         </SheetContent>

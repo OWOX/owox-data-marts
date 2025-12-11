@@ -1,4 +1,3 @@
-import { useState, useCallback } from 'react';
 import {
   Sheet,
   SheetContent,
@@ -11,7 +10,8 @@ import type { DataMartReport } from '../../../shared/model/types/data-mart-repor
 import { LookerStudioReportEditForm } from '../LookerStudioReportEditForm';
 import { DataDestinationProvider } from '../../../../../data-destination';
 import { ReportFormMode } from '../../../shared';
-import type { DataDestination } from '../../../../../data-destination/shared/model/types';
+import type { DataDestination } from '../../../../../data-destination';
+import { useUnsavedGuard } from '../../../../../../hooks/useUnsavedGuard';
 
 interface LookerStudioReportEditSheetProps {
   isOpen: boolean;
@@ -28,31 +28,14 @@ export function LookerStudioReportEditSheet({
   mode,
   preSelectedDestination,
 }: LookerStudioReportEditSheetProps) {
-  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
-  const [isDirty, setIsDirty] = useState(false);
-
-  const handleClose = useCallback(() => {
-    if (isDirty) {
-      setShowUnsavedDialog(true);
-    } else {
-      onClose();
-    }
-  }, [isDirty, onClose]);
-
-  const confirmClose = useCallback(() => {
-    setShowUnsavedDialog(false);
-    setIsDirty(false);
-    onClose();
-  }, [onClose]);
-
-  const handleFormDirtyChange = useCallback((dirty: boolean) => {
-    setIsDirty(dirty);
-  }, []);
-
-  const handleFormSubmitSuccess = useCallback(() => {
-    setIsDirty(false);
-    onClose();
-  }, [onClose]);
+  const {
+    showUnsavedDialog,
+    setShowUnsavedDialog,
+    handleClose,
+    confirmClose,
+    handleFormDirtyChange,
+    handleFormSubmitSuccess,
+  } = useUnsavedGuard(onClose);
 
   return (
     <>

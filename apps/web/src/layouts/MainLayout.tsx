@@ -10,7 +10,8 @@ import { AppSidebar } from '../components/AppSidebar';
 import { ThemeProvider } from '../app/providers/theme-provider.tsx';
 import { storageService } from '../services';
 import { GlobalLoader, LoadingProvider, useLoading } from '../shared/components/GlobalLoader';
-import { Toaster } from '../shared/components/Toaster';
+import { Toaster as SonnerToaster } from '@owox/ui/components/sonner';
+import { Toaster as HotToaster } from '../shared/components/Toaster';
 import { AuthGuard } from '../features/idp';
 import { ProjectIdGuard } from '../features/idp/components/ProjectIdGuard';
 
@@ -25,7 +26,10 @@ function MainLayoutContent() {
 
   return (
     <>
-      <Toaster />
+      {/* New Sonner toaster for shared UI toasts */}
+      <SonnerToaster position='bottom-right' closeButton />
+      {/* Legacy react-hot-toast Toaster to keep previously configured toasts working */}
+      <HotToaster />
       <GlobalLoader isLoading={isLoading} />
       <AuthGuard redirectTo='/auth/sign-in'>
         <AppSidebar variant='inset' collapsible='icon' />

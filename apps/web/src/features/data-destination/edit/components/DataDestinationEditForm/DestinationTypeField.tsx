@@ -4,7 +4,7 @@ import { type UseFormReturn } from 'react-hook-form';
 import { Link } from 'react-router-dom';
 import { useFlags } from '../../../../../app/store/hooks';
 import { checkIsCommunityEdition } from '../../../../../utils';
-import { type DataDestinationFormData } from '../../../shared';
+import { type DataDestinationFormData, DataDestinationType } from '../../../shared';
 import {
   Select,
   SelectContent,
@@ -27,10 +27,15 @@ import { DataDestinationTypeModel, DataDestinationStatus } from '../../../shared
 
 interface DestinationTypeFieldProps {
   form: UseFormReturn<DataDestinationFormData>;
-  initialData?: DataDestinationFormData;
+  isEditMode?: boolean;
+  allowedDestinationTypes?: DataDestinationType[];
 }
 
-export function DestinationTypeField({ form, initialData }: DestinationTypeFieldProps) {
+export function DestinationTypeField({
+  form,
+  isEditMode,
+  allowedDestinationTypes,
+}: DestinationTypeFieldProps) {
   const { flags } = useFlags();
   return (
     <FormField
@@ -39,11 +44,7 @@ export function DestinationTypeField({ form, initialData }: DestinationTypeField
       render={({ field }) => (
         <FormItem>
           <FormLabel tooltip='Select the destination to send your data'>Destination Type</FormLabel>
-          <Select
-            onValueChange={field.onChange}
-            defaultValue={field.value}
-            disabled={!!initialData}
-          >
+          <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!isEditMode}>
             <FormControl>
               <SelectTrigger className='w-full'>
                 <SelectValue placeholder='Select a destination type' />
@@ -51,8 +52,13 @@ export function DestinationTypeField({ form, initialData }: DestinationTypeField
             </FormControl>
             <SelectContent>
               <SelectGroup>
-                {DataDestinationTypeModel.getAllTypes().map(
-                  ({ type, displayName, icon: Icon, status }) => {
+                {DataDestinationTypeModel.getAllTypes()
+                  .filter(({ type }) =>
+                    allowedDestinationTypes && allowedDestinationTypes.length > 0
+                      ? allowedDestinationTypes.includes(type)
+                      : true
+                  )
+                  .map(({ type, displayName, icon: Icon, status }) => {
                     const isComingSoon = status === DataDestinationStatus.COMING_SOON;
                     const isCloudOnly =
                       status === DataDestinationStatus.CLOUD_ONLY && checkIsCommunityEdition(flags);
@@ -104,8 +110,7 @@ export function DestinationTypeField({ form, initialData }: DestinationTypeField
                         )}
                       </>
                     );
-                  }
-                )}
+                  })}
               </SelectGroup>
             </SelectContent>
           </Select>

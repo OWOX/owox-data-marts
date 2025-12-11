@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
 import {
   Sheet,
@@ -11,7 +11,8 @@ import type { DataStorage } from '../../../shared/model/types/data-storage.ts';
 import { DataStorageForm } from '../DataStorageEditForm';
 import type { DataStorageFormData } from '../../../shared';
 import { useDataStorage } from '../../../shared/model/hooks/useDataStorage.ts';
-import { trackEvent } from '../../../../../utils/data-layer';
+import { trackEvent } from '../../../../../utils';
+import { useUnsavedGuard } from '../../../../../hooks/useUnsavedGuard';
 
 interface DataStorageEditSheetProps {
   isOpen: boolean;
@@ -28,33 +29,21 @@ export function DataStorageConfigSheet({
 }: DataStorageEditSheetProps) {
   const { updateDataStorage } = useDataStorage();
 
-  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
-  const [isDirty, setIsDirty] = useState(false);
-
-  const handleClose = useCallback(() => {
-    if (isDirty) {
-      setShowUnsavedDialog(true);
-    } else {
-      onClose();
-    }
-  }, [isDirty, onClose]);
-
-  const confirmClose = useCallback(() => {
-    setShowUnsavedDialog(false);
-    setIsDirty(false);
-    onClose();
-  }, [onClose]);
-
-  const handleFormDirtyChange = useCallback((dirty: boolean) => {
-    setIsDirty(dirty);
-  }, []);
+  const {
+    showUnsavedDialog,
+    setShowUnsavedDialog,
+    handleClose,
+    confirmClose,
+    handleFormDirtyChange,
+    handleFormSubmitSuccess,
+  } = useUnsavedGuard(onClose);
 
   const onSave = async (data: DataStorageFormData) => {
     if (dataStorage) {
       const updatedStorage = await updateDataStorage(dataStorage.id, data);
       if (updatedStorage) {
         onSaveSuccess(updatedStorage);
-        onClose();
+        handleFormSubmitSuccess();
       }
     }
   };

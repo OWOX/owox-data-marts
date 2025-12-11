@@ -17,7 +17,9 @@ import {
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
 import { Button } from '@owox/ui/components/button';
-import { MoreVertical, Trash2, Sparkles, Loader2 } from 'lucide-react';
+import { MoreVertical, Trash2, Sparkles, Loader2, Send, Copy } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { useClipboard } from '../../../../hooks/useClipboard';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
 import {
   Empty,
@@ -33,6 +35,9 @@ import {
   MarkdownEditorPreview,
 } from '../../../../shared/components/MarkdownEditor';
 import { useInsights } from '../model';
+import { EmailReportEditSheet } from '../../reports/edit';
+import { ReportFormMode, ReportsProvider } from '../../reports/shared';
+import { DataDestinationType } from '../../../data-destination';
 import { InsightLoader } from './InsightMinerLoader.tsx';
 import RelativeTime from '@owox/ui/components/common/relative-time';
 import {
@@ -41,7 +46,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@owox/ui/components/tooltip';
-import { formatDateShort } from '../../../../utils/date-formatters';
+import { formatDateShort } from '../../../../utils';
 
 export default function InsightDetailsView() {
   const navigate = useNavigate();
@@ -83,6 +88,20 @@ export default function InsightDetailsView() {
 
   // TODO:: Remove this toggle to show raw markdown output in read-only editor instead of HTML preview
   const [showRawOutput, setShowRawOutput] = useState(false);
+  const [isReportSheetOpen, setIsReportSheetOpen] = useState(false);
+
+  const { copyToClipboard } = useClipboard();
+
+  const handleCopyOutput = useCallback(async () => {
+    const text = insight?.output ?? '';
+    if (!text) return;
+    const ok = await copyToClipboard(text, 'insight-output');
+    if (ok) {
+      toast.success('Markdown copied to clipboard');
+    } else {
+      toast.error('Failed to copy to clipboard');
+    }
+  }, [insight?.output, copyToClipboard]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -249,26 +268,49 @@ export default function InsightDetailsView() {
                 />
               </div>
               <div className='flex items-center justify-between gap-4 border-t px-4 py-2'>
-                <Button
-                  variant='default'
-                  size='default'
-                  disabled={isSubmitting || isRunning}
-                  onClick={() => void (isTemplateDirty ? handleSaveAndRun() : handleRun())}
-                >
-                  {isRunning ? (
-                    <span className='inline-flex items-center gap-2'>
-                      <Loader2 className='h-3 w-3 animate-spin' /> Running…
-                    </span>
-                  ) : isTemplateDirty ? (
-                    <span className='inline-flex items-center gap-2'>
-                      <Sparkles /> Save & Run Insight
-                    </span>
-                  ) : (
-                    <span className='inline-flex items-center gap-2'>
-                      <Sparkles /> Run Insight
-                    </span>
-                  )}
-                </Button>
+                <div className='flex items-center gap-2'>
+                  <Button
+                    variant='default'
+                    size='default'
+                    disabled={isSubmitting || isRunning}
+                    onClick={() => void (isTemplateDirty ? handleSaveAndRun() : handleRun())}
+                  >
+                    {isRunning ? (
+                      <span className='inline-flex items-center gap-2'>
+                        <Loader2 className='h-3 w-3 animate-spin' /> Running…
+                      </span>
+                    ) : isTemplateDirty ? (
+                      <span className='inline-flex items-center gap-2'>
+                        <Sparkles /> Save & Run Insight
+                      </span>
+                    ) : (
+                      <span className='inline-flex items-center gap-2'>
+                        <Sparkles /> Run Insight
+                      </span>
+                    )}
+                  </Button>
+                  <Tooltip delayDuration={1500}>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant='outline'
+                        size='default'
+                        onClick={() => {
+                          setIsReportSheetOpen(true);
+                        }}
+                        className='gap-2'
+                      >
+                        <Send className='text-muted-foreground h-4 w-4' />
+                        Send & Schedule ...
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side='top'>
+                      <p>
+                        You can schedule this insight to run at a specific time or send it to a
+                        recipient
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
                 {insight.outputUpdatedAt && (
                   <TooltipProvider>
                     <Tooltip>
@@ -304,7 +346,7 @@ export default function InsightDetailsView() {
                 </Empty>
               ) : (
                 <div className='flex h-full min-h-0 flex-col gap-2'>
-                  <div className='min-h-0 flex-1 overflow-hidden'>
+                  <div className='relative min-h-0 flex-1 overflow-hidden'>
                     {showRawOutput ? (
                       <InsightEditor
                         value={insight.output ?? ''}
@@ -318,12 +360,36 @@ export default function InsightDetailsView() {
                     ) : preview.error ? (
                       <div className='text-destructive'>{preview.error}</div>
                     ) : (
-                      <MarkdownEditorPreview
-                        html={preview.html}
-                        loading={preview.loading}
-                        error={preview.error}
-                        height='100%'
-                      />
+                      <>
+                        <MarkdownEditorPreview
+                          html={preview.html}
+                          loading={preview.loading}
+                          error={preview.error}
+                          height='100%'
+                        />
+                        {!!insight.output && !preview.loading && !preview.error && (
+                          <div className='absolute top-2 right-2 z-10'>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant='outline'
+                                    size='icon'
+                                    className='h-8 w-8'
+                                    aria-label='Copy markdown to clipboard'
+                                    onClick={() => void handleCopyOutput()}
+                                  >
+                                    <Copy className='h-4 w-4' />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side='left'>
+                                  <p>Copy markdown to clipboard</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
@@ -345,6 +411,28 @@ export default function InsightDetailsView() {
           void handleDelete();
         }}
       />
+
+      <ReportsProvider>
+        <EmailReportEditSheet
+          isOpen={isReportSheetOpen}
+          onClose={() => {
+            setIsReportSheetOpen(false);
+          }}
+          mode={ReportFormMode.CREATE}
+          preSelectedDestination={null}
+          prefill={{
+            title: insight.title || titleValue || 'New report',
+            subject: `Insight: ${insight.title || titleValue || ''}`.trim(),
+            messageTemplate: templateValue ?? '',
+          }}
+          allowedDestinationTypes={[
+            DataDestinationType.EMAIL,
+            DataDestinationType.SLACK,
+            DataDestinationType.MS_TEAMS,
+            DataDestinationType.GOOGLE_CHAT,
+          ]}
+        />
+      </ReportsProvider>
     </div>
   );
 }

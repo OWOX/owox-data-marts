@@ -1,7 +1,7 @@
-import type { DataDestination } from '../../../shared';
+import { type DataDestination, DataDestinationType } from '../../../shared';
 import { DataDestinationForm } from '../DataDestinationEditForm';
 import type { DataDestinationFormData } from '../../../shared';
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
 import {
   Sheet,
@@ -12,13 +12,16 @@ import {
 } from '@owox/ui/components/sheet';
 import { useDataDestination } from '../../../shared';
 import { DestinationMapperFactory } from '../../../shared/model/mappers/destination-mapper.factory.ts';
-import { trackEvent } from '../../../../../utils/data-layer';
+import { trackEvent } from '../../../../../utils';
+import { useUnsavedGuard } from '../../../../../hooks/useUnsavedGuard';
 
 interface DataDestinationEditSheetProps {
   isOpen: boolean;
   onClose: () => void;
   dataDestination: DataDestination | null;
   onSaveSuccess: (dataDestination: DataDestination) => void;
+  initialFormData?: DataDestinationFormData;
+  allowedDestinationTypes?: DataDestinationType[];
 }
 
 export function DataDestinationConfigSheet({
@@ -26,29 +29,19 @@ export function DataDestinationConfigSheet({
   onClose,
   dataDestination,
   onSaveSuccess,
+  initialFormData,
+  allowedDestinationTypes,
 }: DataDestinationEditSheetProps) {
   const { updateDataDestination, createDataDestination } = useDataDestination();
 
-  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
-  const [isDirty, setIsDirty] = useState(false);
-
-  const handleClose = useCallback(() => {
-    if (isDirty) {
-      setShowUnsavedDialog(true);
-    } else {
-      onClose();
-    }
-  }, [isDirty, onClose]);
-
-  const confirmClose = useCallback(() => {
-    setShowUnsavedDialog(false);
-    setIsDirty(false);
-    onClose();
-  }, [onClose]);
-
-  const handleFormDirtyChange = useCallback((dirty: boolean) => {
-    setIsDirty(dirty);
-  }, []);
+  const {
+    showUnsavedDialog,
+    setShowUnsavedDialog,
+    handleClose,
+    confirmClose,
+    handleFormDirtyChange,
+    handleFormSubmitSuccess,
+  } = useUnsavedGuard(onClose);
 
   const onSave = async (data: DataDestinationFormData) => {
     const mapper = DestinationMapperFactory.getMapper(data.type);
@@ -66,7 +59,7 @@ export function DataDestinationConfigSheet({
         onSaveSuccess(updatedDestination);
       }
     }
-    onClose();
+    handleFormSubmitSuccess();
   };
 
   const wasOpenRef = useRef<boolean>(false);
@@ -107,10 +100,12 @@ export function DataDestinationConfigSheet({
             <SheetDescription>Customize settings for your destination</SheetDescription>
           </SheetHeader>
           <DataDestinationForm
-            initialData={dataDestination ?? undefined}
+            initialData={dataDestination ?? initialFormData ?? null}
             onSubmit={onSave}
             onCancel={handleClose}
             onDirtyChange={handleFormDirtyChange}
+            isEditMode={!!dataDestination}
+            allowedDestinationTypes={allowedDestinationTypes}
           />
         </SheetContent>
       </Sheet>

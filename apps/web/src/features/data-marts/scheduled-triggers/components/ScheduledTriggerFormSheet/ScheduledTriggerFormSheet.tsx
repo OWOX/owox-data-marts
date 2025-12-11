@@ -13,9 +13,10 @@ import type {
   ScheduledReportRunConfig,
   ScheduledTriggerConfig,
 } from '../../model/trigger-config.types';
-import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { useMemo, useEffect, useRef } from 'react';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
-import { trackEvent } from '../../../../../utils/data-layer';
+import { trackEvent } from '../../../../../utils';
+import { useUnsavedGuard } from '../../../../../hooks/useUnsavedGuard';
 
 interface ScheduledTriggerFormSheetProps {
   isOpen: boolean;
@@ -35,34 +36,14 @@ export function ScheduledTriggerFormSheet({
   const { createScheduledTrigger, updateScheduledTrigger, selectedTrigger } =
     useScheduledTriggerContext();
 
-  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
-  const [isDirty, setIsDirty] = useState(false);
-
-  const handleClose = useCallback(() => {
-    if (isDirty) {
-      setShowUnsavedDialog(true);
-    } else {
-      onClose();
-    }
-  }, [isDirty, onClose]);
-
-  // Memoize confirm close handler
-  const confirmClose = useCallback(() => {
-    setShowUnsavedDialog(false);
-    setIsDirty(false);
-    onClose();
-  }, [onClose]);
-
-  // Handle form dirty state change
-  const handleFormDirtyChange = useCallback((dirty: boolean) => {
-    setIsDirty(dirty);
-  }, []);
-
-  // Handle form submission success
-  const handleFormSubmitSuccess = useCallback(() => {
-    setIsDirty(false);
-    onClose();
-  }, [onClose]);
+  const {
+    showUnsavedDialog,
+    setShowUnsavedDialog,
+    handleClose,
+    confirmClose,
+    handleFormDirtyChange,
+    handleFormSubmitSuccess,
+  } = useUnsavedGuard(onClose);
 
   const isEditMode = !!selectedTrigger;
 
