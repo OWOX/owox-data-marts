@@ -39,8 +39,8 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
       AccountID: {
         isRequired: true,
         requiredType: "string",
-        label: "Account ID",
-        description: "Your Microsoft Ads Account ID"
+        label: "Account ID(s)",
+        description: "Your Microsoft Ads Account IDs (comma separated)"
       },
       CustomerID: {
         isRequired: true,
@@ -56,7 +56,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
       },
       EndDate: {
         requiredType: "date",
-        label: "End Date", 
+        label: "End Date",
         description: "End date for data import",
         attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
@@ -187,9 +187,9 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
    */
   async _fetchCampaignData({ accountId, fields, onBatchReady }) {
     await this.getAccessToken();
-    
+
     this.config.logMessage(`Fetching Campaigns, AssetGroups and AdGroups for account ${accountId}...`);
-    
+
     const entityTypes = ['Campaigns', 'AssetGroups', 'AdGroups'];
     const allRecords = [];
     let campaignRecords = [];
@@ -204,11 +204,11 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
             Authorization: `Bearer ${this.config.AccessToken.value}`,
             DeveloperToken: this.config.DeveloperToken.value,
             CustomerId: this.config.CustomerID.value,
-            CustomerAccountId: accountId,
+            CustomerAccountId: accountId.split(',')[0].trim(),
             'Content-Type': 'application/json'
           },
           payload: JSON.stringify({
-            AccountIds: [Number(accountId)],
+            AccountIds: accountId.split(',').map(id => Number(id.trim())),
             CompressionType: 'Zip',
             DataScope: 'EntityData',
             DownloadEntities: [entityType],
@@ -216,7 +216,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
             FormatVersion: '6.0'
           }),
           body: JSON.stringify({
-            AccountIds: [Number(accountId)],
+            AccountIds: accountId.split(',').map(id => Number(id.trim())),
             CompressionType: 'Zip',
             DataScope: 'EntityData',
             DownloadEntities: [entityType],
@@ -234,21 +234,21 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
         campaignRecords = records;
       }
     }
-    
+
     // Save main data immediately
     const filteredMainData = MicrosoftAdsHelper.filterByFields(allRecords, fields);
     if (filteredMainData.length > 0) {
-     await onBatchReady(filteredMainData);
+      await onBatchReady(filteredMainData);
     }
-    
+
     // Handle Keywords with batching to avoid 100MB limit
     this.config.logMessage(`Fetching Keywords for account ${accountId} (processing by campaigns to avoid size limits)...`);
-    
+
     // Extract campaign IDs from campaigns
     const campaignIds = MicrosoftAdsHelper.extractCampaignIds(campaignRecords);
     this.config.logMessage(`Found ${campaignIds.length} campaigns, fetching Keywords in batches`);
     this.config.logMessage(`Campaign IDs: ${campaignIds.slice(0, 10).join(', ')}${campaignIds.length > 10 ? '...' : ''}`);
-    
+
     let totalFetched = 0;
     await this._fetchEntityByCampaigns({
       accountId,
@@ -320,7 +320,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
 
     for (let i = 0; i < campaignIds.length; i += batchSize) {
       const campaignBatch = campaignIds.slice(i, i + batchSize);
-      this.config.logMessage(`Fetching ${entityType} for campaigns batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(campaignIds.length/batchSize)} (${campaignBatch.length} campaigns)`);
+      this.config.logMessage(`Fetching ${entityType} for campaigns batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(campaignIds.length / batchSize)} (${campaignBatch.length} campaigns)`);
 
       try {
         const batchRecords = await this._downloadEntityBatch({ accountId, entityType, campaignBatch });
@@ -465,7 +465,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
       Type: schema.reportType,
       Aggregation: this.config.Aggregation.value,
       Columns: fields,
-      Scope: { AccountIds: [Number(accountId)] },
+      Scope: { AccountIds: accountId.split(',').map(id => Number(id.trim())) },
       Time: dateRange
     };
     const submitOpts = {
@@ -473,7 +473,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
       contentType: 'application/json',
       headers: {
         Authorization: `Bearer ${this.config.AccessToken.value}`,
-        CustomerAccountId: `${this.config.CustomerID.value}|${accountId}`,
+        CustomerAccountId: `${this.config.CustomerID.value}|${accountId.split(',')[0].trim()}`,
         CustomerId: this.config.CustomerID.value,
         DeveloperToken: this.config.DeveloperToken.value,
         'Content-Type': 'application/json'

@@ -27,7 +27,10 @@ var MicrosoftAdsFieldsSchema = {
       "BidMatchType",
       "DeliveredMatchType",
       "Language",
-      "CampaignType"
+      "CampaignType",
+      "Impressions",
+      "Clicks",
+      "Spend"
     ],
     destinationName: "microsoft_ads_ad_performance_report",
     isTimeSeries: true
@@ -52,7 +55,10 @@ var MicrosoftAdsFieldsSchema = {
       "AdDistribution",
       "DeviceType",
       "DeviceOS",
-      "TopVsOther"
+      "TopVsOther",
+      "Impressions",
+      "Clicks",
+      "Spend"
     ],
     destinationName: "microsoft_ads_user_location_performance_report",
     isTimeSeries: true
