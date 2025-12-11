@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PubSubService } from '../../common/pubsub/pubsub.service';
+import { ConsumptionContext } from '../ai-insights/data-mart-insights.types';
+import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { GoogleSheetsConfig } from '../data-destination-types/google-sheets/schemas/google-sheets-config.schema';
 import { ConnectorDefinition as DataMartConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMart } from '../entities/data-mart.entity';
@@ -14,8 +16,13 @@ export class ConsumptionTrackingService {
   private readonly pubSubService?: PubSubService;
 
   private readonly connectorRunConsumptionTopic?: string;
+  private readonly aiProcessRunConsumptionTopic?: string;
   private readonly sheetsReportRunConsumptionTopic?: string;
   private readonly lookerReportRunConsumptionTopic?: string;
+  private readonly emailReportRunConsumptionTopic?: string;
+  private readonly slackReportRunConsumptionTopic?: string;
+  private readonly googleChatReportRunConsumptionTopic?: string;
+  private readonly msTeamsReportRunConsumptionTopic?: string;
 
   constructor(
     private readonly connectorService: ConnectorService,
@@ -49,6 +56,49 @@ export class ConsumptionTrackingService {
         this.logger.log(
           `Consumption Looker Report Run topic: ${this.lookerReportRunConsumptionTopic}`
         );
+      }
+
+      this.emailReportRunConsumptionTopic = configService.get<string>(
+        'CONSUMPTION_EMAIL_REPORT_RUN_TOPIC'
+      );
+      if (this.emailReportRunConsumptionTopic) {
+        this.logger.log(
+          `Consumption Email Report Run topic: ${this.emailReportRunConsumptionTopic}`
+        );
+      }
+
+      this.slackReportRunConsumptionTopic = configService.get<string>(
+        'CONSUMPTION_SLACK_REPORT_RUN_TOPIC'
+      );
+      if (this.slackReportRunConsumptionTopic) {
+        this.logger.log(
+          `Consumption Slack Report Run topic: ${this.slackReportRunConsumptionTopic}`
+        );
+      }
+
+      this.googleChatReportRunConsumptionTopic = configService.get<string>(
+        'CONSUMPTION_GOOGLE_CHAT_REPORT_RUN_TOPIC'
+      );
+      if (this.googleChatReportRunConsumptionTopic) {
+        this.logger.log(
+          `Consumption Google Chat Report Run topic: ${this.googleChatReportRunConsumptionTopic}`
+        );
+      }
+
+      this.msTeamsReportRunConsumptionTopic = configService.get<string>(
+        'CONSUMPTION_MS_TEAMS_REPORT_RUN_TOPIC'
+      );
+      if (this.msTeamsReportRunConsumptionTopic) {
+        this.logger.log(
+          `Consumption MS Teams Report Run topic: ${this.msTeamsReportRunConsumptionTopic}`
+        );
+      }
+
+      this.aiProcessRunConsumptionTopic = configService.get<string>(
+        'CONSUMPTION_AI_PROCESS_RUN_TOPIC'
+      );
+      if (this.aiProcessRunConsumptionTopic) {
+        this.logger.log(`Consumption AI Process Run topic: ${this.aiProcessRunConsumptionTopic}`);
       }
     }
   }
@@ -106,6 +156,53 @@ export class ConsumptionTrackingService {
     );
   }
 
+  public async registerEmailBasedReportRunConsumption(report: Report): Promise<void> {
+    const destinationType = report.dataDestination.type;
+    let consumptionTopic: string | undefined;
+    switch (destinationType) {
+      case DataDestinationType.EMAIL:
+        consumptionTopic = this.emailReportRunConsumptionTopic;
+        break;
+      case DataDestinationType.SLACK:
+        consumptionTopic = this.slackReportRunConsumptionTopic;
+        break;
+      case DataDestinationType.GOOGLE_CHAT:
+        consumptionTopic = this.googleChatReportRunConsumptionTopic;
+        break;
+      case DataDestinationType.MS_TEAMS:
+        consumptionTopic = this.msTeamsReportRunConsumptionTopic;
+        break;
+      default:
+        throw new Error(`Unsupported report destination type: ${report.destinationConfig.type}`);
+    }
+
+    if (!this.pubSubService || !consumptionTopic) {
+      this.logger.debug(
+        `${destinationType} report consumption tracking is not configured, skipping...`
+      );
+      return;
+    }
+    await this.sendConsumptionCommand(consumptionTopic, this.baseReportConsumptionPayload(report));
+  }
+
+  public async registerAiProcessRunConsumption(
+    tokensProcessed: number,
+    context: ConsumptionContext
+  ): Promise<void> {
+    if (!this.pubSubService || !this.aiProcessRunConsumptionTopic) {
+      this.logger.debug('AI process run consumption tracking is not configured, skipping...');
+      return;
+    }
+    await this.sendConsumptionCommand(this.aiProcessRunConsumptionTopic, {
+      ...this.baseDataMartConsumptionPayload(context.dataMart),
+      tokensProcessed,
+      contextType: context.contextType,
+      contextId: context.contextId,
+      contextTitle: context.contextTitle,
+      processRunId: `${context.contextId}-${Date.now()}`,
+    });
+  }
+
   private async sendConsumptionCommand(topic: string, cmd: unknown): Promise<void> {
     try {
       const messageId = await this.pubSubService?.publishMessageWithDefaultWrap(topic, cmd);
@@ -138,6 +235,8 @@ export class ConsumptionTrackingService {
       dataDestinationId: report.dataDestination.id,
       dataDestinationTitle: report.dataDestination.title,
       dataDestinationType: report.dataDestination.type,
+      reportId: report.id,
+      reportTitle: report.title,
       reportRunId: `${report.id}-${Date.now()}`,
     };
   }

@@ -155,6 +155,12 @@ export class InsightExecutionService {
           projectId: dataMart.projectId,
           dataMartId: dataMart.id,
         },
+        consumptionContext: {
+          contextType: 'INSIGHT',
+          contextId: insight.id,
+          contextTitle: insight.title,
+          dataMart,
+        },
       });
 
       for (const p of prompts ?? []) {
