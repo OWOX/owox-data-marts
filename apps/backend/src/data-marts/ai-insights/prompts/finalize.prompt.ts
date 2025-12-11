@@ -43,7 +43,7 @@ ${buildJsonFormatSection(FinalizeAgentResponseSchema)}
 }
 
 export function buildFinalizeUserPrompt(input: FinalizeAgentInput): string {
-  const { prompt, wholeTemplate, sql } = input;
+  const { prompt, wholeTemplate, sqlAgentResult } = input;
 
   const templateBlock = wholeTemplate
     ? `
@@ -62,12 +62,12 @@ No template provided:
 - Use a short intro sentence, bullet points, and an optional small table if helpful.
 `.trim();
 
-  const resultBlock = sql
+  const resultBlock = sqlAgentResult
     ? `
 Result data:
-status: ${sql.status}
+status: ${sqlAgentResult.status}
 rows:
-${JSON.stringify(sql.rows ?? [], null, 2)}
+${JSON.stringify(sqlAgentResult.rows ?? [], null, 2)}
 
 How to use the result:
 - Treat "rows" as the ONLY factual numeric data source.

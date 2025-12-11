@@ -1,7 +1,13 @@
 import { Agent, DataMartInsightsContext, SharedAgentContext } from '../ai-insights-types';
 import { Injectable, Logger } from '@nestjs/common';
 import { AiMessage, AiRole } from '../../../common/ai-insights/agent/ai-core';
-import { FinalizeAgentInput, FinalizeAgentResponseSchema, FinalizeResult } from './types';
+import {
+  FinalizeAgentInput,
+  FinalizeAgentResponse,
+  FinalizeAgentResponseSchema,
+  FinalizeResult,
+  isFinalReasonAnswer,
+} from './types';
 import { buildFinalizeSystemPrompt, buildFinalizeUserPrompt } from '../prompts/finalize.prompt';
 import { runAgentLoop } from '../../../common/ai-insights/llm-tool-runner';
 import { ToolRegistry } from '../../../common/ai-insights/agent/tool-registry';
@@ -46,10 +52,20 @@ export class FinalizeAgent implements Agent<FinalizeAgentInput, FinalizeResult> 
       logger: this.logger,
     });
 
-    return {
-      status: finalizeAgentResponse.reason,
-      promptAnswer: finalizeAgentResponse.promptAnswer,
-      artifact: input.sql.sql,
-    };
+    return this.buildResponse(finalizeAgentResponse, input);
+  }
+
+  private buildResponse(finalizeAgentResponse: FinalizeAgentResponse, input: FinalizeAgentInput) {
+    return isFinalReasonAnswer(finalizeAgentResponse.reason)
+      ? {
+          status: finalizeAgentResponse.reason,
+          promptAnswer: finalizeAgentResponse.promptAnswer,
+          artifact: input.sqlAgentResult.sql,
+        }
+      : {
+          status: finalizeAgentResponse.reason,
+          reasonDescription: finalizeAgentResponse.promptAnswer,
+          artifact: input.sqlAgentResult.sql,
+        };
   }
 }
