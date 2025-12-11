@@ -130,7 +130,7 @@ export function ScheduledTriggerForm({
                   <FormControl>
                     <ReportsProvider>
                       <ReportSelector
-                        value={field.value ?? ''}
+                        value={field.value}
                         onChange={field.onChange}
                         disabled={!!preSelectedReportId || !!initialData}
                       />

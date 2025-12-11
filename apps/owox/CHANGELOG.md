@@ -1,10 +1,49 @@
 # owox
 
+## 0.15.0
+
+### Minor Changes 0.15.0
+
+![OWOX Data Marts – v0.15.0](https://github.com/user-attachments/assets/9c9fcaa3-9a36-403c-b57d-410aa8819277)
+
+- 8298a39: # Improve Storage Creation UX and Interaction Safety
+
+  The Storage creation flow is now smoother and more predictable.
+  - Added click-lock protection to prevent accidental double-clicks when selecting a Storage type.
+    This prevents duplicate creation requests and ensures users trigger the action only once.
+  - Buttons now automatically switch to a disabled state while a new Storage is being created.
+    This provides clear visual feedback and blocks unwanted interactions during processing.
+
+  These updates improve safety, reduce friction, and help users stay in control while the system handles their request.
+
+- Enhance Report Creation Workflow and Scheduling
+
+  The Report creation experience has been upgraded to support immediate execution and seamless scheduling.
+  - Integrated schedule triggers directly into the creation screen. This allows users to configure data delivery rules upfront, maintaining consistency with the Data Mart Triggers tab.
+  - Implemented a split-action button for the creation step. Users can now choose to not only save but also immediately run the report, eliminating the need to navigate back to the list to trigger a manual run.
+
+  These updates reduce navigation friction and unify the definition and automation steps.
+
+- 81aedad: # Fix Report Reader for View-Defined Data Marts in BigQuery Storage
+
+  Fixed report reader functionality for data marts defined by views in BigQuery Storage.
+  - Enhanced definition type checking in BigQuery Storage report reader to properly distinguish between definition types.
+  - Added explicit `definitionType` parameter validation to ensure correct handling of view-based data mart definitions in BigQuery Storage.
+
+### Patch Changes 0.15.0
+
+- @owox/internal-helpers@0.15.0
+- @owox/idp-protocol@0.15.0
+- @owox/idp-better-auth@0.15.0
+- @owox/idp-owox@0.15.0
+- @owox/backend@0.15.0
+- @owox/web@0.15.0
+
 ## 0.14.0
 
 ### Minor Changes 0.14.0
 
-![OWOX Data Marts – v0.12.0](https://github.com/user-attachments/assets/f56e992c-d00e-46fe-b988-ad0bc4c8a9cf)
+![OWOX Data Marts – v0.14.0](https://github.com/user-attachments/assets/f56e992c-d00e-46fe-b988-ad0bc4c8a9cf)
 
 - 30d95a8: # Fix migration error on application start with SQLite database
 

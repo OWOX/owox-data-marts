@@ -143,7 +143,7 @@ export const LookerStudioReportEditForm = forwardRef<
                       onValueChange={value => {
                         field.onChange(parseInt(value, 10));
                       }}
-                      value={field.value?.toString() ?? '300'}
+                      value={field.value.toString()}
                       defaultValue='300'
                     >
                       <FormControl>

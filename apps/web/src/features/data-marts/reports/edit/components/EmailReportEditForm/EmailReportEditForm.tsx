@@ -343,7 +343,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                         <div className='overflow-hidden rounded-md border'>
                           {messageTab === 'markdown' ? (
                             <MarkdownEditor
-                              value={field.value ?? ''}
+                              value={field.value}
                               onChange={v => {
                                 field.onChange(v);
                               }}

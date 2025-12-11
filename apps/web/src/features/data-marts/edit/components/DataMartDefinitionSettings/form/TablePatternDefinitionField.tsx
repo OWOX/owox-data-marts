@@ -34,7 +34,7 @@ export function TablePatternDefinitionField({
           <FormControl>
             <Input
               placeholder={placeholder}
-              value={field.value ?? ''}
+              value={field.value}
               onChange={field.onChange}
               className='dm-card-formcontrol'
             />

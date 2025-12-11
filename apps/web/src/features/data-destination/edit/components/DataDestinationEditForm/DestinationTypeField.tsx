@@ -114,11 +114,9 @@ export function DestinationTypeField({
               </SelectGroup>
             </SelectContent>
           </Select>
-          {field.value && (
-            <FormDescription>
-              <DestinationTypeDescription destinationType={field.value} />
-            </FormDescription>
-          )}
+          <FormDescription>
+            <DestinationTypeDescription destinationType={field.value} />
+          </FormDescription>
           <FormMessage />
         </FormItem>
       )}
