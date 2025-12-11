@@ -19,13 +19,10 @@
 - Enhance Report Creation Workflow and Scheduling
 
   The Report creation experience has been upgraded to support immediate execution and seamless scheduling.
-  - Integrated schedule triggers directly into the creation screen.
-  This allows users to configure data delivery rules upfront, maintaining consistency with the Data Mart Triggers tab.
-  - Implemented a split-action button for the creation step.
-  Users can now choose to not only save but also immediately run the report, eliminating the need to navigate back to the list to trigger a manual run.
+  - Integrated schedule triggers directly into the creation screen. This allows users to configure data delivery rules upfront, maintaining consistency with the Data Mart Triggers tab.
+  - Implemented a split-action button for the creation step. Users can now choose to not only save but also immediately run the report, eliminating the need to navigate back to the list to trigger a manual run.
 
   These updates reduce navigation friction and unify the definition and automation steps.
-
 
 - 81aedad: # Fix Report Reader for View-Defined Data Marts in BigQuery Storage
 
