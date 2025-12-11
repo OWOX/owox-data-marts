@@ -36,7 +36,7 @@ import {
 } from '../../../../shared/components/MarkdownEditor';
 import { useInsights } from '../model';
 import { EmailReportEditSheet } from '../../reports/edit';
-import { ReportFormMode } from '../../reports/shared';
+import { ReportFormMode, ReportsProvider } from '../../reports/shared';
 import { DataDestinationType } from '../../../data-destination';
 import { InsightLoader } from './InsightMinerLoader.tsx';
 import RelativeTime from '@owox/ui/components/common/relative-time';
@@ -412,25 +412,27 @@ export default function InsightDetailsView() {
         }}
       />
 
-      <EmailReportEditSheet
-        isOpen={isReportSheetOpen}
-        onClose={() => {
-          setIsReportSheetOpen(false);
-        }}
-        mode={ReportFormMode.CREATE}
-        preSelectedDestination={null}
-        prefill={{
-          title: insight.title || titleValue || 'New report',
-          subject: `Insight: ${insight.title || titleValue || ''}`.trim(),
-          messageTemplate: templateValue ?? '',
-        }}
-        allowedDestinationTypes={[
-          DataDestinationType.EMAIL,
-          DataDestinationType.SLACK,
-          DataDestinationType.MS_TEAMS,
-          DataDestinationType.GOOGLE_CHAT,
-        ]}
-      />
+      <ReportsProvider>
+        <EmailReportEditSheet
+          isOpen={isReportSheetOpen}
+          onClose={() => {
+            setIsReportSheetOpen(false);
+          }}
+          mode={ReportFormMode.CREATE}
+          preSelectedDestination={null}
+          prefill={{
+            title: insight.title || titleValue || 'New report',
+            subject: `Insight: ${insight.title || titleValue || ''}`.trim(),
+            messageTemplate: templateValue ?? '',
+          }}
+          allowedDestinationTypes={[
+            DataDestinationType.EMAIL,
+            DataDestinationType.SLACK,
+            DataDestinationType.MS_TEAMS,
+            DataDestinationType.GOOGLE_CHAT,
+          ]}
+        />
+      </ReportsProvider>
     </div>
   );
 }

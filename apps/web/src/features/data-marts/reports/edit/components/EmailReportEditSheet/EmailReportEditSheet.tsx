@@ -13,7 +13,6 @@ import { ReportFormMode } from '../../../shared';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import { EmailReportEditForm } from '../EmailReportEditForm';
 import type { DataDestinationType } from '../../../../../data-destination';
-import { ReportsProvider } from '../../../shared';
 import { toast } from 'sonner';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { useUnsavedGuard } from '../../../../../../hooks/useUnsavedGuard';
@@ -93,20 +92,18 @@ export function EmailReportEditSheet({
             </SheetDescription>
           </SheetHeader>
 
-          <ReportsProvider>
-            <DataDestinationProvider>
-              <EmailReportEditForm
-                initialReport={initialReport}
-                mode={mode}
-                onDirtyChange={handleFormDirtyChange}
-                onSubmit={handleFormSubmitSuccess}
-                onCancel={handleClose}
-                preSelectedDestination={preSelectedDestination}
-                prefill={prefill}
-                allowedDestinationTypes={allowedDestinationTypes}
-              />
-            </DataDestinationProvider>
-          </ReportsProvider>
+          <DataDestinationProvider>
+            <EmailReportEditForm
+              initialReport={initialReport}
+              mode={mode}
+              onDirtyChange={handleFormDirtyChange}
+              onSubmit={handleFormSubmitSuccess}
+              onCancel={handleClose}
+              preSelectedDestination={preSelectedDestination}
+              prefill={prefill}
+              allowedDestinationTypes={allowedDestinationTypes}
+            />
+          </DataDestinationProvider>
         </SheetContent>
       </Sheet>
 
