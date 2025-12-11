@@ -5,7 +5,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@owox/ui/components/sheet';
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog';
 import { DataDestinationProvider } from '../../../../../data-destination';
 import type { DataDestination } from '../../../../../data-destination';
@@ -16,6 +16,10 @@ import type { DataDestinationType } from '../../../../../data-destination';
 import { toast } from 'sonner';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { useUnsavedGuard } from '../../../../../../hooks/useUnsavedGuard';
+import {
+  raiseIntercomLauncher,
+  resetIntercomLauncher,
+} from '../../../../../../app/intercom/intercomUtils.ts';
 
 interface EmailReportEditSheetProps {
   isOpen: boolean;
@@ -71,6 +75,17 @@ export function EmailReportEditSheet({
     }
     baseHandleFormSubmitSuccess();
   }, [baseHandleFormSubmitSuccess, projectId, dataMartId, pathname]);
+
+  useEffect(() => {
+    if (isOpen) {
+      raiseIntercomLauncher(90);
+    } else {
+      resetIntercomLauncher();
+    }
+    return () => {
+      resetIntercomLauncher();
+    };
+  }, [isOpen]);
 
   return (
     <>
