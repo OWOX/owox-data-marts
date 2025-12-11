@@ -1,4 +1,5 @@
 import { TagMetaEntry } from '../../common/template/types/render-template.types';
+import { DataMart } from '../entities/data-mart.entity';
 import { Options } from './ai-insights-types';
 import { AgentTelemetry } from '../../common/ai-insights/agent/types';
 
@@ -9,10 +10,18 @@ export type DataMartAdditionalParams = {
   options?: Options;
 };
 
+export interface ConsumptionContext {
+  contextType: 'INSIGHT' | 'REPORT';
+  contextId: string;
+  contextTitle: string;
+  dataMart: DataMart;
+}
+
 export interface DataMartInsightTemplateInput {
   template: string;
   params: DataMartAdditionalParams;
   context?: Record<string, unknown>;
+  consumptionContext?: ConsumptionContext;
 }
 
 export interface DataMartPromptMetaEntry {

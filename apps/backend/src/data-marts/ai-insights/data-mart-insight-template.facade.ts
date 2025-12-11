@@ -1,4 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { TemplateRenderFacade } from '../../common/template/facades/template-render.facade';
+import {
+  TEMPLATE_RENDER_FACADE,
+  TemplateRenderInput,
+} from '../../common/template/types/render-template.types';
+import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
 import {
   DataMartAdditionalParams,
   DataMartInsightTemplateFacade,
@@ -7,15 +13,12 @@ import {
   DataMartInsightTemplateStatus,
   DataMartPromptMetaEntry,
   isPromptAnswerError,
+  isPromptAnswerOk,
   isPromptAnswerWarning,
   PromptTagMetaEntry,
 } from './data-mart-insights.types';
-import {
-  TEMPLATE_RENDER_FACADE,
-  TemplateRenderInput,
-} from '../../common/template/types/render-template.types';
 import { PromptTagHandler } from './template/handlers/prompt-tag.handler';
-import { TemplateRenderFacade } from '../../common/template/facades/template-render.facade';
+import { getPromptTotalUsage } from './utils/compute-model-usage';
 
 @Injectable()
 export class DataMartInsightTemplateFacadeImpl implements DataMartInsightTemplateFacade {
@@ -25,7 +28,8 @@ export class DataMartInsightTemplateFacadeImpl implements DataMartInsightTemplat
       PromptTagMetaEntry,
       DataMartAdditionalParams
     >,
-    private readonly promptHandler: PromptTagHandler
+    private readonly promptHandler: PromptTagHandler,
+    private readonly consumptionTracker: ConsumptionTrackingService
   ) {}
 
   async render(input: DataMartInsightTemplateInput): Promise<DataMartInsightTemplateOutput> {
@@ -44,6 +48,18 @@ export class DataMartInsightTemplateFacadeImpl implements DataMartInsightTemplat
       meta: tag.resultMeta,
       promptAnswer: tag.result as string,
     }));
+
+    const consumptionContext = input.consumptionContext;
+    if (consumptionContext) {
+      prompts
+        .filter(p => isPromptAnswerOk(p.meta.status))
+        .forEach(p =>
+          this.consumptionTracker.registerAiProcessRunConsumption(
+            getPromptTotalUsage(p.meta.telemetry.llmCalls).totalTokens,
+            consumptionContext
+          )
+        );
+    }
 
     return {
       rendered: rendered,
