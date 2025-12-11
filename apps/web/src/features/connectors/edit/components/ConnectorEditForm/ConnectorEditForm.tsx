@@ -257,12 +257,14 @@ export function ConnectorEditForm({
 
   useEffect(() => {
     const stepTitle = steps[currentStep - 1]?.title ?? `Step ${String(currentStep)}`;
-    trackEvent({
-      event: 'connector_setup',
-      category: selectedConnector?.name ?? 'unknown',
-      action: `step`,
-      label: stepTitle,
-    });
+    if (selectedConnector) {
+      trackEvent({
+        event: 'connector_setup',
+        category: selectedConnector.name,
+        action: `step`,
+        label: stepTitle,
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep, selectedConnector]);
   const handleNext = () => {
