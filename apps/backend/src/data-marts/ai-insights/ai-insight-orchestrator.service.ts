@@ -93,7 +93,7 @@ export class AiInsightsOrchestratorService {
       {
         prompt: request.prompt,
         wholeTemplate: request.wholeTemplate,
-        sql: sqlResult,
+        sqlAgentResult: sqlResult,
       },
       shared
     );

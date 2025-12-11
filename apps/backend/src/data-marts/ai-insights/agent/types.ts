@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { GetMetadataOutput } from '../ai-insights-types';
 
+export function isFinalReasonAnswer(value: FinalReason) {
+  return value === FinalReason.ANSWER;
+}
+
 export enum FinalReason {
   ANSWER = 'answer',
   NO_DATA = 'no_data',
@@ -281,7 +285,7 @@ export const SqlAgentResponseSchema = z.object({
 export interface FinalizeAgentInput {
   prompt: string;
   wholeTemplate?: string;
-  sql: SqlAgentResult;
+  sqlAgentResult: SqlAgentResult;
 }
 
 export const FinalizeAgentResponseSchema = z.object({
@@ -311,3 +315,5 @@ export const FinalizeAgentResponseSchema = z.object({
       ].join('\n')
     ),
 });
+
+export type FinalizeAgentResponse = z.infer<typeof FinalizeAgentResponseSchema>;
