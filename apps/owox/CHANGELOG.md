@@ -2,7 +2,7 @@
 
 ## 0.15.0
 
-### Minor Changes
+### Minor Changes 0.15.0
 
 - 8298a39: # Improve Storage Creation UX and Interaction Safety
 
@@ -20,7 +20,7 @@
   - Enhanced definition type checking in BigQuery Storage report reader to properly distinguish between definition types.
   - Added explicit `definitionType` parameter validation to ensure correct handling of view-based data mart definitions in BigQuery Storage.
 
-### Patch Changes
+### Patch Changes 0.15.0
 
 - @owox/internal-helpers@0.15.0
 - @owox/idp-protocol@0.15.0
@@ -899,6 +899,7 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
+
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -906,6 +907,7 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
+
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
