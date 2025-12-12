@@ -52,6 +52,19 @@ export function useInsights() {
     [dataMart.id, dispatch]
   );
 
+  /**
+   * Fetch a single insight without mutating the global insights state.
+   * Useful for read-only flows (e.g., copying template into editor)
+   * where we must not touch or overwrite the output field in the store.
+   */
+  const getInsightSilently = useCallback(
+    async (id: string): Promise<InsightEntity | null> => {
+      const response = await insightsService.getInsightById(dataMart.id, id);
+      return mapInsightFromDto(response);
+    },
+    [dataMart.id]
+  );
+
   const createInsight = useCallback(
     async (data: { title: string; template?: string | null }) => {
       dispatch({ type: InsightsActionType.CREATE_INSIGHT_START });
@@ -222,6 +235,7 @@ export function useInsights() {
     error: state.error,
     fetchInsights,
     getInsight,
+    getInsightSilently,
     createInsight,
     updateInsight,
     updateInsightTitle,
