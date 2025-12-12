@@ -259,7 +259,7 @@ export function InsightEditor({
                     .map(i => (
                       <CommandItem
                         key={i.id}
-                        value={i.id}
+                        value={`${i.id}:${i.title}`}
                         onSelect={() => {
                           void handleSelectCopyInsight(i);
                         }}
