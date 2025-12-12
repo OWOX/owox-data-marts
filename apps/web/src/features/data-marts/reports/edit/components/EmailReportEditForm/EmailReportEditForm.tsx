@@ -1,4 +1,3 @@
-import { useTheme } from 'next-themes';
 import { forwardRef, useEffect, useMemo, useState, useRef } from 'react';
 import { Input } from '@owox/ui/components/input';
 import {
@@ -13,7 +12,6 @@ import {
   FormSection,
   FormDescription,
 } from '@owox/ui/components/form';
-// removed ButtonGroup in favor of shared ReportFormActions
 import {
   Select,
   SelectContent,
@@ -40,16 +38,16 @@ import { ReportFormMode } from '../../../shared';
 import { useEmailReportForm } from '../../hooks/useEmailReportForm';
 import { ReportConditionEnum } from '../../../shared/enums/report-condition.enum';
 import {
-  MarkdownEditor,
   MarkdownEditorPreview,
   MarkdownEditorTabs,
   useMarkdownPreview,
 } from '../../../../../../shared/components/MarkdownEditor';
+import { InsightEditor } from '../../../../insights/components/InsightEditor';
+import { InsightsProvider } from '../../../../insights/model';
 import MessageTemplateDescription from './FormDescriptions/MessageTemplateDescription.tsx';
 import SendingConditionDescription from './FormDescriptions/SendingConditionDescription.tsx';
 import { DataDestinationConfigSheet } from '../../../../../data-destination/edit';
 import type { DataDestinationFormData } from '../../../../../data-destination';
-// removed button and dropdown imports in favor of shared ReportFormActions
 import { useReport } from '../../../shared';
 import { ReportFormActions } from '../shared/ReportFormActions';
 
@@ -204,9 +202,6 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
       []
     );
 
-    const { resolvedTheme } = useTheme();
-    const markdownEditorTheme = resolvedTheme === 'dark' ? 'vs-dark' : 'light';
-
     // Tabs for Message editor/preview
     const [messageTab, setMessageTab] = useState<'markdown' | 'preview'>('markdown');
 
@@ -342,15 +337,16 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                       <FormControl>
                         <div className='overflow-hidden rounded-md border'>
                           {messageTab === 'markdown' ? (
-                            <MarkdownEditor
-                              value={field.value}
-                              onChange={v => {
-                                field.onChange(v);
-                              }}
-                              onBlur={field.onBlur}
-                              height={240}
-                              theme={markdownEditorTheme}
-                            />
+                            <InsightsProvider>
+                              <InsightEditor
+                                value={field.value}
+                                onChange={v => {
+                                  field.onChange(v);
+                                }}
+                                height={240}
+                                showLineNumbers={false}
+                              />
+                            </InsightsProvider>
                           ) : (
                             <MarkdownEditorPreview
                               html={previewHtml}
