@@ -12,6 +12,7 @@ import { DataDestinationProvider } from '../../../../../data-destination';
 import { ReportFormMode } from '../../../shared';
 import type { DataDestination } from '../../../../../data-destination';
 import { useUnsavedGuard } from '../../../../../../hooks/useUnsavedGuard';
+import { useIntercomLauncher } from '../../../../../../shared/hooks/useIntercomLauncher';
 
 interface GoogleSheetsReportEditSheetProps {
   isOpen: boolean;
@@ -36,6 +37,8 @@ export function GoogleSheetsReportEditSheet({
     handleFormDirtyChange,
     handleFormSubmitSuccess,
   } = useUnsavedGuard(onClose);
+
+  useIntercomLauncher(isOpen);
 
   return (
     <>

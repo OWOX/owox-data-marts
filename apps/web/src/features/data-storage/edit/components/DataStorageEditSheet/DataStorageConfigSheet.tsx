@@ -13,6 +13,7 @@ import type { DataStorageFormData } from '../../../shared';
 import { useDataStorage } from '../../../shared/model/hooks/useDataStorage.ts';
 import { trackEvent } from '../../../../../utils';
 import { useUnsavedGuard } from '../../../../../hooks/useUnsavedGuard';
+import { useIntercomLauncher } from '../../../../../shared/hooks/useIntercomLauncher';
 
 interface DataStorageEditSheetProps {
   isOpen: boolean;
@@ -28,6 +29,8 @@ export function DataStorageConfigSheet({
   onSaveSuccess,
 }: DataStorageEditSheetProps) {
   const { updateDataStorage } = useDataStorage();
+
+  useIntercomLauncher(isOpen);
 
   const {
     showUnsavedDialog,
