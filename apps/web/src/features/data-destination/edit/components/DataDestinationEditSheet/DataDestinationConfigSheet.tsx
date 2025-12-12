@@ -14,6 +14,7 @@ import { useDataDestination } from '../../../shared';
 import { DestinationMapperFactory } from '../../../shared/model/mappers/destination-mapper.factory.ts';
 import { trackEvent } from '../../../../../utils';
 import { useUnsavedGuard } from '../../../../../hooks/useUnsavedGuard';
+import { useIntercomLauncher } from '../../../../../shared/hooks/useIntercomLauncher';
 
 interface DataDestinationEditSheetProps {
   isOpen: boolean;
@@ -42,6 +43,8 @@ export function DataDestinationConfigSheet({
     handleFormDirtyChange,
     handleFormSubmitSuccess,
   } = useUnsavedGuard(onClose);
+
+  useIntercomLauncher(isOpen);
 
   const onSave = async (data: DataDestinationFormData) => {
     const mapper = DestinationMapperFactory.getMapper(data.type);

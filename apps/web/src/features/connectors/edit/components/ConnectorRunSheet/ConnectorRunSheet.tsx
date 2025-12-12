@@ -2,11 +2,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@owox/ui/component
 import type { ConnectorDefinitionConfig } from '../../../../data-marts/edit/model';
 import { ConnectorRunForm } from './ConnectorRunForm';
 import type { ConnectorRunFormData } from '../../../shared/model/types/connector';
-import { useEffect } from 'react';
-import {
-  raiseIntercomLauncher,
-  resetIntercomLauncher,
-} from '../../../../../app/intercom/intercomUtils';
+import { useIntercomLauncher } from '../../../../../shared/hooks/useIntercomLauncher';
 
 interface ConnectorRunSheetProps {
   isOpen: boolean;
@@ -21,16 +17,7 @@ export function ConnectorRunSheet({
   configuration,
   onSubmit,
 }: ConnectorRunSheetProps) {
-  useEffect(() => {
-    if (isOpen) {
-      raiseIntercomLauncher(0, 600);
-    } else {
-      resetIntercomLauncher();
-    }
-    return () => {
-      resetIntercomLauncher();
-    };
-  }, [isOpen]);
+  useIntercomLauncher(isOpen);
 
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
