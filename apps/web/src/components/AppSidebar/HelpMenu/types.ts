@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 
-export type VisibilityConfig =
+export type Visibility =
   | {
       flagKey: string;
       expectedValue?: boolean | string;
@@ -14,7 +14,7 @@ export type HelpMenuItem =
       icon: React.ComponentType<{ className?: string }>;
       href?: string;
       onClick?: () => void;
-      visible: VisibilityConfig;
+      visible: Visibility;
     }
   | {
       type: 'separator';
@@ -23,7 +23,7 @@ export type HelpMenuItem =
       type: 'submenu';
       title: string;
       icon: LucideIcon;
-      visible: VisibilityConfig;
+      visible: Visibility;
       submenu: {
         options: {
           label: string;

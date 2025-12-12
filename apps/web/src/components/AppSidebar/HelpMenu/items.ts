@@ -2,9 +2,8 @@ import type { HelpMenuItem } from './types';
 import { Info, Clapperboard, MessagesSquare, Rocket, Airplay } from 'lucide-react';
 import { SlackIconDesaturated } from '../../../shared';
 import { openIntercom } from '../../../app/intercom/intercomUtils';
-import type { PopoverId } from '../../../shared/components/FloatingPopover/FloatingPopoverContext';
 
-export function helpMenuItems(openPopover: (id: PopoverId) => void): HelpMenuItem[] {
+export function helpMenuItems(openPopover: (id: string) => void): HelpMenuItem[] {
   return [
     {
       type: 'menu-item',
@@ -36,15 +35,14 @@ export function helpMenuItems(openPopover: (id: PopoverId) => void): HelpMenuIte
       submenu: {
         options: [
           {
-            label: 'SQL to Google Sheets in Minutes: Data Mart Setup',
+            label: 'SQL to Google Sheets in Minutes',
             icon: Airplay,
             onClick: () => {
               openPopover('video-1-google-sheets');
             },
           },
-
           {
-            label: 'Looker Studio Setup: Connect Your Data in Minutes',
+            label: 'Looker Studio Setup',
             icon: Airplay,
             onClick: () => {
               openPopover('video-2-looker');

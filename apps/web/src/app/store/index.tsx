@@ -8,10 +8,16 @@ import { useAuth } from '../../features/idp';
 import { AuthStatus } from '../../features/idp';
 import { LoadingSpinner } from '@owox/ui/components/common/loading-spinner';
 import { RequestStatus } from '../../shared/types/request-status.ts';
+import {
+  contentPopoversReducer,
+  contentPopoversInitialState,
+  type ContentPopoversState,
+} from './reducers/content-popovers.reducer';
 
 export interface RootState {
   project: ProjectState;
   flags: FlagsState;
+  contentPopovers: ContentPopoversState;
   app: {
     ready: boolean;
   };
@@ -30,6 +36,7 @@ function appReducer(state = { ready: false }, action: { type: string; payload?: 
 const rootReducer = combineReducers<RootState>({
   project: projectReducer,
   flags: flagsReducer,
+  contentPopovers: contentPopoversReducer,
   app: appReducer,
 });
 
@@ -40,6 +47,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       initialState={{
         project: { id: null, title: null },
         flags: { data: null, callState: RequestStatus.IDLE },
+        contentPopovers: contentPopoversInitialState,
         app: { ready: false },
       }}
     >
