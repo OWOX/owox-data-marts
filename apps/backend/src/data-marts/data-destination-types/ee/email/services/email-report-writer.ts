@@ -24,6 +24,7 @@ import {
   ReportRunExecutionContext,
   ReportRunLogger,
 } from '../../../../report-run-logging/report-run-logger';
+import { ConsumptionTrackingService } from '../../../../services/consumption-tracking.service';
 import { isEmailConfig } from '../../../data-destination-config.guards';
 import { isEmailCredentials } from '../../../data-destination-credentials.guards';
 import { DataDestinationType } from '../../../enums/data-destination-type.enum';
@@ -44,6 +45,14 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
   abstract readonly type: DataDestinationType;
   protected abstract readonly logger: Logger;
 
+  private static readonly MESSAGES = {
+    REPORT_STARTED: 'Report started',
+    REPORT_COMPLETED: 'Report completed',
+    REPORT_FAILED: 'Report template rendering failed',
+    REPORT_SKIPPED_BY_CONDITION: 'Report processing is ignored due to sending condition',
+    ERROR_SENDING: 'Error sending Report data',
+  } as const;
+
   private emailConfig: EmailConfig;
   private emailCredentials: EmailCredentials;
   private reportDataDescription: ReportDataDescription;
@@ -55,7 +64,8 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
     private readonly emailProvider: EmailProviderFacade,
     private readonly markdownParser: MarkdownParser,
     private readonly publicOriginService: PublicOriginService,
-    private readonly insightTemplateFacade: DataMartInsightTemplateFacadeImpl
+    private readonly insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
+    private readonly consumptionTrackingService: ConsumptionTrackingService
   ) {}
 
   public setExecutionContext(ctx: ReportRunExecutionContext): void {
@@ -72,7 +82,7 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
     this.emailConfig = report.destinationConfig;
 
     if (!isEmailCredentials(report.dataDestination.credentials)) {
-      throw new Error('Invalid Google Sheets credentials provided');
+      throw new Error('Invalid Email credentials provided');
     }
     this.emailCredentials = report.dataDestination.credentials;
 
@@ -86,94 +96,167 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
 
   public async finalize(processingError?: Error): Promise<void> {
     if (processingError) {
-      this.executionLogger?.error(processingError);
-      this.logger.warn('Error sending report data', processingError);
+      this.handleProcessingError(processingError);
       return;
     }
 
+    if (this.shouldSkipEmailDueToCondition()) {
+      this.logger.debug(BaseEmailReportWriter.MESSAGES.REPORT_SKIPPED_BY_CONDITION);
+      this.executionLogger?.log({
+        type: 'log',
+        message: BaseEmailReportWriter.MESSAGES.REPORT_SKIPPED_BY_CONDITION,
+      });
+    } else {
+      const rendered = await this.renderMessageTemplate();
+      const emailHtml = await this.prepareEmailHtml(rendered);
+      await this.sendEmail(emailHtml);
+    }
+
+    await this.consumptionTrackingService.registerEmailBasedReportRunConsumption(this.report);
+  }
+
+  private handleProcessingError(error: Error): void {
+    this.executionLogger?.error(error);
+    this.logger.warn(BaseEmailReportWriter.MESSAGES.ERROR_SENDING, error);
+  }
+
+  private shouldSkipEmailDueToCondition(): boolean {
     const condition = this.emailConfig.reportCondition;
-    if (
-      (condition === ReportCondition.RESULT_IS_EMPTY && this.reportDataRows.length !== 0) ||
-      (condition === ReportCondition.RESULT_IS_NOT_EMPTY && this.reportDataRows.length === 0)
-    ) {
-      this.logger.debug('Email is ignored due to sending condition');
-      return;
-    }
+    const hasData = this.reportDataRows.length > 0;
 
-    this.executionLogger?.log({ type: 'log', message: 'AI Insight started' });
+    return (
+      (condition === ReportCondition.RESULT_IS_EMPTY && hasData) ||
+      (condition === ReportCondition.RESULT_IS_NOT_EMPTY && !hasData)
+    );
+  }
+
+  private async renderMessageTemplate(): Promise<string> {
+    this.executionLogger?.log({
+      type: 'log',
+      message: BaseEmailReportWriter.MESSAGES.REPORT_STARTED,
+    });
+
     const {
       rendered = '',
       status,
-      prompts = [],
+      prompts = [] as DataMartPromptMetaEntry[],
     } = await this.insightTemplateFacade.render({
       template: this.emailConfig.messageTemplate,
       params: {
         projectId: this.report.dataMart.projectId,
         dataMartId: this.report.dataMart.id,
       },
+      consumptionContext: {
+        contextType: 'REPORT',
+        contextId: this.report.id,
+        contextTitle: this.report.title,
+        dataMart: this.report.dataMart,
+      },
     });
 
-    for (const p of (prompts ?? []) as DataMartPromptMetaEntry[]) {
-      this.executionLogger?.log({
-        type: 'prompt_meta',
-        prompt: p.payload?.prompt,
-        artifact: p.meta?.artifact,
-        status: p.meta?.status,
-      });
-      const telemetry = p.meta?.telemetry;
-      const llmCalls = telemetry?.llmCalls ?? [];
-      const toolCalls = telemetry?.toolCalls ?? [];
-      const failedToolCalls = toolCalls.filter(call => !call.success).length;
-      const lastLlm = llmCalls.length ? llmCalls[llmCalls.length - 1] : undefined;
-      const summary = {
-        llmCalls: llmCalls.length,
-        toolCalls: toolCalls.length,
-        failedToolCalls,
-        lastFinishReason: lastLlm?.finishReason,
-        totalUsage: getPromptTotalUsage(llmCalls),
-      };
-      this.executionLogger?.log({ type: 'prompt_telemetry', ...summary });
-      const preview = lastLlm?.reasoningPreview;
-      if (typeof preview === 'string' && preview.length > 0) {
-        this.executionLogger?.log({
-          type: 'prompt_reasoning_preview',
-          preview,
-        });
-      }
+    if (prompts.length > 0) {
+      this.logPromptsMeta(prompts);
+      this.logTemplateTelemetry(prompts);
     }
 
+    this.logRenderedOutput(rendered);
+
+    if (status !== DataMartInsightTemplateStatus.OK) {
+      throw new Error(BaseEmailReportWriter.MESSAGES.REPORT_FAILED);
+    }
+
+    this.executionLogger?.log({
+      type: 'log',
+      message: BaseEmailReportWriter.MESSAGES.REPORT_COMPLETED,
+    });
+
+    return rendered;
+  }
+
+  private logPromptsMeta(prompts: DataMartPromptMetaEntry[]): void {
+    for (const p of prompts) {
+      this.logPromptMetaEntry(p);
+      this.logPromptTelemetry(p);
+      this.logReasoningPreview(p);
+    }
+  }
+
+  private logPromptMetaEntry(prompt: DataMartPromptMetaEntry): void {
+    this.executionLogger?.log({
+      type: 'prompt_meta',
+      prompt: prompt.payload?.prompt,
+      artifact: prompt.meta?.artifact,
+      status: prompt.meta?.status,
+    });
+  }
+
+  private logPromptTelemetry(prompt: DataMartPromptMetaEntry): void {
+    const telemetry = prompt.meta?.telemetry;
+    const llmCalls = telemetry?.llmCalls ?? [];
+    const toolCalls = telemetry?.toolCalls ?? [];
+    const failedToolCalls = toolCalls.filter(call => !call.success).length;
+    const lastLlm = llmCalls.length ? llmCalls[llmCalls.length - 1] : undefined;
+
+    const summary = {
+      llmCalls: llmCalls.length,
+      toolCalls: toolCalls.length,
+      failedToolCalls,
+      lastFinishReason: lastLlm?.finishReason,
+      totalUsage: getPromptTotalUsage(llmCalls),
+    };
+
+    this.executionLogger?.log({ type: 'prompt_telemetry', ...summary });
+  }
+
+  private logReasoningPreview(prompt: DataMartPromptMetaEntry): void {
+    const telemetry = prompt.meta?.telemetry;
+    const llmCalls = telemetry?.llmCalls ?? [];
+    const lastLlm = llmCalls.length ? llmCalls[llmCalls.length - 1] : undefined;
+    const preview = lastLlm?.reasoningPreview;
+
+    if (typeof preview === 'string' && preview.length > 0) {
+      this.executionLogger?.log({
+        type: 'prompt_reasoning_preview',
+        preview,
+      });
+    }
+  }
+
+  private logTemplateTelemetry(prompts: DataMartPromptMetaEntry[]): void {
+    this.executionLogger?.log({
+      type: 'template_telemetry',
+      ...getTemplateTotalUsage(prompts ?? []),
+    });
+  }
+
+  private logRenderedOutput(rendered: string): void {
     if (rendered && rendered.length > 0) {
       this.executionLogger?.log({
         type: 'output',
         output: rendered,
       });
     }
-    this.executionLogger?.log({
-      type: 'template_telemetry',
-      ...getTemplateTotalUsage(prompts ?? []),
-    });
+  }
 
-    if (status !== DataMartInsightTemplateStatus.OK) {
-      throw new Error('AI Insight template rendering failed');
-    }
+  private async prepareEmailHtml(markdownContent: string): Promise<string> {
+    const reportHtml = await this.markdownParser.parseToHtml(markdownContent, COLOR_THEME.LIGHT);
 
-    this.executionLogger?.log({ type: 'log', message: 'AI Insight completed' });
-
-    const reportHtml = await this.markdownParser.parseToHtml(rendered ?? '', COLOR_THEME.LIGHT);
-
-    const emailHtml = renderEmailReportTemplate({
+    return renderEmailReportTemplate({
       dataMartId: this.report.dataMart.id,
       dataMartTitle: this.report.dataMart.title,
       projectId: this.report.dataMart.projectId,
       reportBody: reportHtml,
       publicOrigin: this.publicOriginService.getPublicOrigin(),
     });
+  }
 
+  private async sendEmail(emailHtml: string): Promise<void> {
     await this.emailProvider.sendEmail(
       this.emailCredentials.to,
       this.emailConfig.subject,
       emailHtml
     );
+
     this.executionLogger?.log({ type: 'email_sent', to: this.emailCredentials.to });
   }
 }
@@ -187,9 +270,16 @@ export class EmailReportWriter extends BaseEmailReportWriter {
     @Inject(EMAIL_PROVIDER_FACADE) emailProvider: EmailProviderFacade,
     markdownParser: MarkdownParser,
     publicOriginService: PublicOriginService,
-    insightTemplateFacade: DataMartInsightTemplateFacadeImpl
+    insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
+    consumptionTrackingService: ConsumptionTrackingService
   ) {
-    super(emailProvider, markdownParser, publicOriginService, insightTemplateFacade);
+    super(
+      emailProvider,
+      markdownParser,
+      publicOriginService,
+      insightTemplateFacade,
+      consumptionTrackingService
+    );
   }
 }
 
@@ -202,9 +292,16 @@ export class SlackReportWriter extends BaseEmailReportWriter {
     @Inject(EMAIL_PROVIDER_FACADE) emailProvider: EmailProviderFacade,
     markdownParser: MarkdownParser,
     publicOriginService: PublicOriginService,
-    insightTemplateFacade: DataMartInsightTemplateFacadeImpl
+    insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
+    consumptionTrackingService: ConsumptionTrackingService
   ) {
-    super(emailProvider, markdownParser, publicOriginService, insightTemplateFacade);
+    super(
+      emailProvider,
+      markdownParser,
+      publicOriginService,
+      insightTemplateFacade,
+      consumptionTrackingService
+    );
   }
 }
 
@@ -217,9 +314,16 @@ export class MsTeamsReportWriter extends BaseEmailReportWriter {
     @Inject(EMAIL_PROVIDER_FACADE) emailProvider: EmailProviderFacade,
     markdownParser: MarkdownParser,
     publicOriginService: PublicOriginService,
-    insightTemplateFacade: DataMartInsightTemplateFacadeImpl
+    insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
+    consumptionTrackingService: ConsumptionTrackingService
   ) {
-    super(emailProvider, markdownParser, publicOriginService, insightTemplateFacade);
+    super(
+      emailProvider,
+      markdownParser,
+      publicOriginService,
+      insightTemplateFacade,
+      consumptionTrackingService
+    );
   }
 }
 
@@ -232,8 +336,15 @@ export class GoogleChatReportWriter extends BaseEmailReportWriter {
     @Inject(EMAIL_PROVIDER_FACADE) emailProvider: EmailProviderFacade,
     markdownParser: MarkdownParser,
     publicOriginService: PublicOriginService,
-    insightTemplateFacade: DataMartInsightTemplateFacadeImpl
+    insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
+    consumptionTrackingService: ConsumptionTrackingService
   ) {
-    super(emailProvider, markdownParser, publicOriginService, insightTemplateFacade);
+    super(
+      emailProvider,
+      markdownParser,
+      publicOriginService,
+      insightTemplateFacade,
+      consumptionTrackingService
+    );
   }
 }
