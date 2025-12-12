@@ -5,9 +5,9 @@ import { formatDuration } from './formatDuration.js';
 export async function fetchWithBackoff(
   url: string,
   options: RequestInit,
+  timeoutMs = 25_000,
   maxRetries = 3,
-  initialDelay = 300,
-  timeoutMs = 25_000
+  initialDelay = 300
 ): Promise<Response> {
   const logger = LoggerFactory.createNamedLogger('fetchWithBackoff');
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -34,8 +34,6 @@ export async function fetchWithBackoff(
         msg.includes('EPIPE') ||
         msg.includes('ECONNRESET') ||
         msg.includes('fetch failed') ||
-        msg.includes('timed out') ||
-        msg.includes('Fetch timeout') ||
         msg.includes('socket hang up');
 
       if (!isTransient || attempt === maxRetries) throw err;

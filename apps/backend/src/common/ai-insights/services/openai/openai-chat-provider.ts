@@ -26,6 +26,8 @@ import { RawResponse } from './types';
  */
 @Injectable()
 export class OpenAiChatProvider implements AiChatProvider {
+  private readonly requestTimeout = 60 * 10 * 1000; // 10 minutes
+
   private readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly model: string;
@@ -59,14 +61,18 @@ export class OpenAiChatProvider implements AiChatProvider {
     };
 
     const start = performance.now();
-    const res = await fetchWithBackoff(`${this.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${this.apiKey}`,
+    const res = await fetchWithBackoff(
+      `${this.baseUrl}/chat/completions`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify(body),
       },
-      body: JSON.stringify(body),
-    });
+      this.requestTimeout
+    );
     const end = performance.now();
     const executionMs = end - start;
 
