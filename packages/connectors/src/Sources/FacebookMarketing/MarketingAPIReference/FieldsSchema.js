@@ -24,7 +24,7 @@ var FacebookMarketingFieldsSchema = {
         'uniqueKeys': ["id", "account_id"],
         "isTimeSeries": false,
         "destinationName": "facebook_ads_ad_account"
-    },  
+    },
     "ad-account/adcreatives": {
         "description": "Defines your ad's appearance and content.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/adcreatives",
@@ -71,7 +71,7 @@ var FacebookMarketingFieldsSchema = {
     "ad-account/insights": {
         "description": "Interface for insights. De-dupes results across child objects, provides sorting, and async reports.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
-        "fields" : adAccountInsightsFields,
+        "fields": adAccountInsightsFields,
         'uniqueKeys': ["ad_id", "date_start", "date_stop"],
         "isTimeSeries": true,
         "destinationName": "facebook_ads_ad_account_insights",
@@ -80,7 +80,7 @@ var FacebookMarketingFieldsSchema = {
     "ad-account/insights-by-age-and-gender": {
         "description": "Interface for insights with breakdown by age and gender.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
-        "fields" : adAccountInsightsFieldsByAgeAndGender,
+        "fields": adAccountInsightsFieldsByAgeAndGender,
         "breakdowns": ["age", "gender"],
         'uniqueKeys': ["ad_id", "date_start", "date_stop", "age", "gender"],
         "isTimeSeries": true,
@@ -90,7 +90,7 @@ var FacebookMarketingFieldsSchema = {
     "ad-account/insights-by-country": {
         "description": "Interface for insights with breakdown by country.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
-        "fields" : adAccountInsightsFieldsByCountry,
+        "fields": adAccountInsightsFieldsByCountry,
         "breakdowns": ["country"],
         'uniqueKeys': ["ad_id", "date_start", "date_stop", "country"],
         "isTimeSeries": true,
@@ -100,7 +100,7 @@ var FacebookMarketingFieldsSchema = {
     "ad-account/insights-by-device-platform": {
         "description": "Interface for insights with breakdown by device platform.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
-        "fields" : adAccountInsightsFieldsByDevicePlatform,
+        "fields": adAccountInsightsFieldsByDevicePlatform,
         "breakdowns": ["device_platform"],
         'uniqueKeys': ["ad_id", "date_start", "date_stop", "device_platform"],
         "isTimeSeries": true,
@@ -110,7 +110,7 @@ var FacebookMarketingFieldsSchema = {
     "ad-account/insights-by-link-url-asset": {
         "description": "Interface for insights with breakdown by link URL asset.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
-        "fields" : adAccountInsightsFieldsByLinkUrlAsset,
+        "fields": adAccountInsightsFieldsByLinkUrlAsset,
         "breakdowns": ["link_url_asset"],
         'uniqueKeys': ["ad_id", "date_start", "date_stop"],
         "isTimeSeries": true,
@@ -120,7 +120,7 @@ var FacebookMarketingFieldsSchema = {
     "ad-account/insights-by-product-id": {
         "description": "Interface for insights with breakdown by product ID.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
-        "fields" : adAccountInsightsFieldsByProductId,
+        "fields": adAccountInsightsFieldsByProductId,
         "breakdowns": ["product_id"],
         'uniqueKeys': ["ad_id", "date_start", "date_stop", "product_id"],
         "isTimeSeries": true,
@@ -130,7 +130,7 @@ var FacebookMarketingFieldsSchema = {
     "ad-account/insights-by-publisher-platform-and-position": {
         "description": "Interface for insights with breakdown by publisher platform and position.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
-        "fields" : adAccountInsightsFieldsByPublisherPlatformAndPosition,
+        "fields": adAccountInsightsFieldsByPublisherPlatformAndPosition,
         "breakdowns": ["publisher_platform", "platform_position"],
         'uniqueKeys': ["ad_id", "date_start", "date_stop", "publisher_platform", "platform_position"],
         "isTimeSeries": true,
@@ -140,7 +140,7 @@ var FacebookMarketingFieldsSchema = {
     "ad-account/insights-by-region": {
         "description": "Interface for insights with breakdown by region.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights",
-        "fields" : adAccountInsightsFieldsByRegion,
+        "fields": adAccountInsightsFieldsByRegion,
         "breakdowns": ["region"],
         'uniqueKeys': ["ad_id", "date_start", "date_stop", "region"],
         "isTimeSeries": true,
@@ -148,8 +148,8 @@ var FacebookMarketingFieldsSchema = {
         "limit": 500
     },
     "ad-group": {
-        "overview": "Ad",
-        "description": "Contains information for an ad, such as creative elements and measurement information.",
+        "overview": "Ad Object (formerly Ad Group)",
+        "description": "Represents an Ad object (historically called 'Ad Group'). This is the entity for individual ads in Facebook's API.",
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/adgroup/",
         "fields": adGroupFields,
         'uniqueKeys': ["id"],
