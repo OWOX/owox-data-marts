@@ -8,13 +8,9 @@ import {
 import type { DataStorageType } from '../../../../data-storage';
 import { ConnectorEditForm } from '../ConnectorEditForm/ConnectorEditForm';
 import type { ConnectorConfig } from '../../../../data-marts/edit';
-import { useEffect } from 'react';
-import {
-  raiseIntercomLauncher,
-  resetIntercomLauncher,
-} from '../../../../../app/intercom/intercomUtils';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
 import { useUnsavedGuard } from '../../../../../hooks/useUnsavedGuard';
+import { useIntercomLauncher } from '../../../../../shared/hooks/useIntercomLauncher';
 
 interface ConnectorEditSheetProps {
   isOpen: boolean;
@@ -39,17 +35,6 @@ export function ConnectorEditSheet({
   initialStep,
   preselectedConnector,
 }: ConnectorEditSheetProps) {
-  useEffect(() => {
-    if (isOpen) {
-      raiseIntercomLauncher(55);
-    } else {
-      resetIntercomLauncher();
-    }
-    return () => {
-      resetIntercomLauncher();
-    };
-  }, [isOpen]);
-
   const {
     showUnsavedDialog,
     setShowUnsavedDialog,
@@ -58,6 +43,8 @@ export function ConnectorEditSheet({
     handleFormDirtyChange,
     handleFormSubmitSuccess,
   } = useUnsavedGuard(onClose);
+
+  useIntercomLauncher(isOpen);
 
   return (
     <>

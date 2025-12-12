@@ -10,7 +10,7 @@ export function ProjectMenuContent() {
   const { visibleMenuItems, canSwitchProject } = useProjectMenu();
 
   return (
-    <DropdownMenuContent align='start' sideOffset={8} className='w-56'>
+    <DropdownMenuContent align='start' side='right' className='w-56'>
       {visibleMenuItems.map((item, index) => {
         if (item.type === 'separator') {
           return <DropdownMenuSeparator key={`separator-${String(index)}`} />;
