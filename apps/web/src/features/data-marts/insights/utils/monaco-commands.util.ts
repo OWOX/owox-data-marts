@@ -8,15 +8,22 @@ interface SlashCommand {
 
 const allSlashCommands: SlashCommand[] = [
   {
-    label: 'prompt',
+    label: 'New prompt',
     insertText: '{{#prompt}}\n$0\n{{/prompt}}',
     documentation: 'Insert a {{#prompt}} template for generative queries',
   },
 ];
 
-// To avoid duplicate providers when the editor mounts multiple times, keep track of
-// which languages already have a registered provider in this module scope.
-const registeredLanguages = new Set<string>();
+const registeredLanguagesByMonaco = new WeakMap<typeof monaco, Set<string>>();
+const providerDisposableByKey = new WeakMap<typeof monaco, Map<string, monaco.IDisposable>>();
+
+const COPY_TEMPLATE_COMMAND_ID = 'insight.copyTemplate';
+
+let activeCopyTemplateHandler: (() => void) | null = null;
+
+export function setActiveCopyTemplateHandler(handler: (() => void) | null) {
+  activeCopyTemplateHandler = handler;
+}
 
 /**
  * Registers a completion item provider for slash commands in the Monaco editor.
@@ -30,11 +37,20 @@ const registeredLanguages = new Set<string>();
 export function registerSlashCommandProvider(
   monaco: typeof import('monaco-editor'),
   languageId: string
-) {
-  // Prevent duplicate registration for the same language
-  if (registeredLanguages.has(languageId)) return;
+): void {
+  const registered = registeredLanguagesByMonaco.get(monaco) ?? new Set<string>();
 
-  monaco.languages.registerCompletionItemProvider(languageId, {
+  if (!registeredLanguagesByMonaco.has(monaco)) {
+    registeredLanguagesByMonaco.set(monaco, registered);
+  }
+
+  if (registered.has(languageId)) return;
+
+  monaco.editor.registerCommand(COPY_TEMPLATE_COMMAND_ID, () => {
+    activeCopyTemplateHandler?.();
+  });
+
+  const disposable = monaco.languages.registerCompletionItemProvider(languageId, {
     triggerCharacters: ['/'],
 
     provideCompletionItems: (model, position) => {
@@ -60,9 +76,19 @@ export function registerSlashCommandProvider(
           endColumn: column,
         };
 
+        const removeSlashEdit = {
+          range: {
+            startLineNumber: line,
+            endLineNumber: line,
+            startColumn: slashIndex + 1,
+            endColumn: slashIndex + 2,
+          },
+          text: '',
+        };
+
         const suggestions: monaco.languages.CompletionItem[] = [];
 
-        allSlashCommands.forEach(command => {
+        allSlashCommands.forEach((command, index) => {
           if (command.label.startsWith(commandText)) {
             suggestions.push({
               label: command.label,
@@ -75,19 +101,21 @@ export function registerSlashCommandProvider(
               kind: monaco.languages.CompletionItemKind.Field,
               insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
               range: range,
-              additionalTextEdits: [
-                {
-                  range: {
-                    startLineNumber: line,
-                    endLineNumber: line,
-                    startColumn: slashIndex + 1,
-                    endColumn: slashIndex + 2,
-                  },
-                  text: '',
-                },
-              ],
+              additionalTextEdits: [removeSlashEdit],
+              sortText: `${String(index)}_${command.label}`,
             });
           }
+        });
+
+        suggestions.push({
+          label: 'Copy template…',
+          kind: monaco.languages.CompletionItemKind.Reference,
+          detail: 'Copy template from an existing Insight',
+          insertText: '',
+          range: range,
+          additionalTextEdits: [removeSlashEdit],
+          command: { id: COPY_TEMPLATE_COMMAND_ID, title: 'Copy template…' },
+          sortText: '999_copy_template',
         });
 
         return { suggestions };
@@ -97,5 +125,13 @@ export function registerSlashCommandProvider(
     },
   });
 
-  registeredLanguages.add(languageId);
+  const map = providerDisposableByKey.get(monaco) ?? new Map<string, monaco.IDisposable>();
+
+  if (!providerDisposableByKey.has(monaco)) {
+    providerDisposableByKey.set(monaco, map);
+  }
+
+  map.set(languageId, disposable);
+
+  registered.add(languageId);
 }
