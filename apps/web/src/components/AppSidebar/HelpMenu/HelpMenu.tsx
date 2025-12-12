@@ -4,13 +4,13 @@ import { helpMenuItems } from './items';
 import { HelpMenuTrigger } from './HelpMenuTrigger';
 import { HelpMenuContent } from './HelpMenuContent';
 import { useHelpMenu } from './useHelpMenu';
-import { useFloatingPopover } from '../../../shared/components/FloatingPopover/useFloatingPopover';
+import { useContentPopovers } from '../../../app/store/hooks/useContentPopovers';
 
 export function HelpMenu() {
   const [isOpen, setIsOpen] = useState(false);
-  const { openPopover } = useFloatingPopover();
+  const { open } = useContentPopovers();
 
-  const rawItems = helpMenuItems(openPopover);
+  const rawItems = helpMenuItems(open);
   const { visibleItems } = useHelpMenu(rawItems);
 
   return (

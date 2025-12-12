@@ -39,7 +39,7 @@ import { toast } from 'react-hot-toast';
 import { EmptyDataMartsState } from './components/EmptyDataMartsState';
 import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
 import { useTableStorage } from '../../../../../hooks/useTableStorage';
-import { useFloatingPopover } from '../../../../../shared/components/FloatingPopover/useFloatingPopover';
+import { useContentPopovers } from '../../../../../app/store/hooks/useContentPopovers';
 import { storageService } from '../../../../../services/localstorage.service';
 
 interface DataTableProps<TData, TValue> {
@@ -75,19 +75,18 @@ export function DataMartTable<TData, TValue>({
   const [isDeleting, setIsDeleting] = useState(false);
 
   const ONBOARDING_VIDEO_KEY = 'data-mart-empty-state-onboarding-video-shown';
-  const { openPopover } = useFloatingPopover();
+  const { open } = useContentPopovers();
 
   useEffect(() => {
     if (!isLoading && data.length === 0) {
       const wasShown = storageService.get(ONBOARDING_VIDEO_KEY, 'boolean');
 
       if (!wasShown) {
-        openPopover('video-1-google-sheets');
-
+        open('video-1-google-sheets');
         storageService.set(ONBOARDING_VIDEO_KEY, true);
       }
     }
-  }, [isLoading, data.length, openPopover]);
+  }, [isLoading, data.length, open]);
 
   const handleBatchDelete = async () => {
     try {
