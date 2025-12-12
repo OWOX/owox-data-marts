@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger, Scope } from '@nestjs/common';
+import { OwoxProducer } from '@owox/internal-helpers';
 import { PublicOriginService } from '../../../../../common/config/public-origin.service';
 import {
   EMAIL_PROVIDER_FACADE,
@@ -8,6 +9,7 @@ import {
   COLOR_THEME,
   MarkdownParser,
 } from '../../../../../common/markdown/markdown-parser.service';
+import { OWOX_PRODUCER } from '../../../../../common/producer/producer.module';
 import { DataMartInsightTemplateFacadeImpl } from '../../../../ai-insights/data-mart-insight-template.facade';
 import {
   DataMartInsightTemplateStatus,
@@ -20,6 +22,10 @@ import {
 import { ReportDataBatch } from '../../../../dto/domain/report-data-batch.dto';
 import { ReportDataDescription } from '../../../../dto/domain/report-data-description.dto';
 import { Report } from '../../../../entities/report.entity';
+import { EmailReportRunSuccessfullyEvent } from '../../../../events/email-report-run-successfully.event';
+import { GoogleChatReportRunSuccessfullyEvent } from '../../../../events/google-chat-report-run-successfully.event';
+import { MsTeamsReportRunSuccessfullyEvent } from '../../../../events/ms-teams-report-run-successfully.event';
+import { SlackReportRunSuccessfullyEvent } from '../../../../events/slack-report-run-successfully.event';
 import {
   ReportRunExecutionContext,
   ReportRunLogger,
@@ -55,7 +61,8 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
     private readonly emailProvider: EmailProviderFacade,
     private readonly markdownParser: MarkdownParser,
     private readonly publicOriginService: PublicOriginService,
-    private readonly insightTemplateFacade: DataMartInsightTemplateFacadeImpl
+    private readonly insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
+    private readonly producer: OwoxProducer
   ) {}
 
   public setExecutionContext(ctx: ReportRunExecutionContext): void {
@@ -175,6 +182,37 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
       emailHtml
     );
     this.executionLogger?.log({ type: 'email_sent', to: this.emailCredentials.to });
+
+    await this.produceSuccessEvent();
+  }
+
+  private async produceSuccessEvent(): Promise<void> {
+    const dataMart = this.report.dataMart;
+    const runId = this.report.id;
+    const userId = this.report.createdById;
+
+    switch (this.type) {
+      case DataDestinationType.EMAIL:
+        await this.producer.produceEvent(
+          new EmailReportRunSuccessfullyEvent(dataMart.id, runId, dataMart.projectId, userId)
+        );
+        break;
+      case DataDestinationType.SLACK:
+        await this.producer.produceEvent(
+          new SlackReportRunSuccessfullyEvent(dataMart.id, runId, dataMart.projectId, userId)
+        );
+        break;
+      case DataDestinationType.MS_TEAMS:
+        await this.producer.produceEvent(
+          new MsTeamsReportRunSuccessfullyEvent(dataMart.id, runId, dataMart.projectId, userId)
+        );
+        break;
+      case DataDestinationType.GOOGLE_CHAT:
+        await this.producer.produceEvent(
+          new GoogleChatReportRunSuccessfullyEvent(dataMart.id, runId, dataMart.projectId, userId)
+        );
+        break;
+    }
   }
 }
 
@@ -187,9 +225,11 @@ export class EmailReportWriter extends BaseEmailReportWriter {
     @Inject(EMAIL_PROVIDER_FACADE) emailProvider: EmailProviderFacade,
     markdownParser: MarkdownParser,
     publicOriginService: PublicOriginService,
-    insightTemplateFacade: DataMartInsightTemplateFacadeImpl
+    insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
+    @Inject(OWOX_PRODUCER)
+    producer: OwoxProducer
   ) {
-    super(emailProvider, markdownParser, publicOriginService, insightTemplateFacade);
+    super(emailProvider, markdownParser, publicOriginService, insightTemplateFacade, producer);
   }
 }
 
@@ -202,9 +242,11 @@ export class SlackReportWriter extends BaseEmailReportWriter {
     @Inject(EMAIL_PROVIDER_FACADE) emailProvider: EmailProviderFacade,
     markdownParser: MarkdownParser,
     publicOriginService: PublicOriginService,
-    insightTemplateFacade: DataMartInsightTemplateFacadeImpl
+    insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
+    @Inject(OWOX_PRODUCER)
+    producer: OwoxProducer
   ) {
-    super(emailProvider, markdownParser, publicOriginService, insightTemplateFacade);
+    super(emailProvider, markdownParser, publicOriginService, insightTemplateFacade, producer);
   }
 }
 
@@ -217,9 +259,11 @@ export class MsTeamsReportWriter extends BaseEmailReportWriter {
     @Inject(EMAIL_PROVIDER_FACADE) emailProvider: EmailProviderFacade,
     markdownParser: MarkdownParser,
     publicOriginService: PublicOriginService,
-    insightTemplateFacade: DataMartInsightTemplateFacadeImpl
+    insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
+    @Inject(OWOX_PRODUCER)
+    producer: OwoxProducer
   ) {
-    super(emailProvider, markdownParser, publicOriginService, insightTemplateFacade);
+    super(emailProvider, markdownParser, publicOriginService, insightTemplateFacade, producer);
   }
 }
 
@@ -232,8 +276,10 @@ export class GoogleChatReportWriter extends BaseEmailReportWriter {
     @Inject(EMAIL_PROVIDER_FACADE) emailProvider: EmailProviderFacade,
     markdownParser: MarkdownParser,
     publicOriginService: PublicOriginService,
-    insightTemplateFacade: DataMartInsightTemplateFacadeImpl
+    insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
+    @Inject(OWOX_PRODUCER)
+    producer: OwoxProducer
   ) {
-    super(emailProvider, markdownParser, publicOriginService, insightTemplateFacade);
+    super(emailProvider, markdownParser, publicOriginService, insightTemplateFacade, producer);
   }
 }
