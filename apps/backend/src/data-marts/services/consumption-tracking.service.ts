@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomBytes } from 'crypto';
 import { PubSubService } from '../../common/pubsub/pubsub.service';
 import { ConsumptionContext } from '../ai-insights/data-mart-insights.types';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
@@ -199,7 +200,7 @@ export class ConsumptionTrackingService {
       contextType: context.contextType,
       contextId: context.contextId,
       contextTitle: context.contextTitle,
-      processRunId: `${context.contextId}-${Date.now()}`,
+      processRunId: `${context.contextId}-${Date.now()}-${randomBytes(3).toString('hex')}`,
     });
   }
 

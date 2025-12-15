@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { TemplateRenderFacade } from '../../common/template/facades/template-render.facade';
 import {
   TEMPLATE_RENDER_FACADE,
@@ -13,7 +13,6 @@ import {
   DataMartInsightTemplateStatus,
   DataMartPromptMetaEntry,
   isPromptAnswerError,
-  isPromptAnswerOk,
   isPromptAnswerWarning,
   PromptTagMetaEntry,
 } from './data-mart-insights.types';
@@ -22,6 +21,8 @@ import { getPromptTotalUsage } from './utils/compute-model-usage';
 
 @Injectable()
 export class DataMartInsightTemplateFacadeImpl implements DataMartInsightTemplateFacade {
+  private readonly logger = new Logger(DataMartInsightTemplateFacadeImpl.name);
+
   constructor(
     @Inject(TEMPLATE_RENDER_FACADE)
     private readonly templateRenderer: TemplateRenderFacade<
@@ -52,13 +53,18 @@ export class DataMartInsightTemplateFacadeImpl implements DataMartInsightTemplat
     const consumptionContext = input.consumptionContext;
     if (consumptionContext) {
       prompts
-        .filter(p => isPromptAnswerOk(p.meta.status))
-        .forEach(p =>
-          this.consumptionTracker.registerAiProcessRunConsumption(
-            getPromptTotalUsage(p.meta.telemetry.llmCalls).totalTokens,
-            consumptionContext
-          )
-        );
+        .filter(p => !isPromptAnswerError(p.meta.status))
+        .forEach(p => {
+          try {
+            const llmCalls = p.meta.telemetry?.llmCalls ?? [];
+            void this.consumptionTracker.registerAiProcessRunConsumption(
+              getPromptTotalUsage(llmCalls).totalTokens,
+              consumptionContext
+            );
+          } catch (error) {
+            this.logger.error('Failed to register consumption:', error);
+          }
+        });
     }
 
     return {
