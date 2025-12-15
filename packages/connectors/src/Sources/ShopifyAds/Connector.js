@@ -53,36 +53,34 @@ var ShopifyAdsConnector = class ShopifyAdsConnector extends AbstractConnector {
       return;
     }
 
-    const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + daysToFetch - 1);
+    for (let i = 0; i < daysToFetch; i++) {
+      const currentDate = new Date(startDate);
+      currentDate.setDate(currentDate.getDate() + i);
 
-    const startDateStr = DateUtils.formatDate(startDate);
-    const endDateStr = DateUtils.formatDate(endDate);
+      const formattedDate = DateUtils.formatDate(currentDate);
 
-    this.config.logMessage(`Fetching ${nodeName} from ${startDateStr} to ${endDateStr}`);
+      const data = await this.source.fetchData({
+        nodeName,
+        fields,
+        startDate: formattedDate,
+        endDate: formattedDate
+      });
 
-    const data = await this.source.fetchData({
-      nodeName,
-      fields,
-      startDate: startDateStr,
-      endDate: endDateStr
-    });
+      this.config.logMessage(
+        data.length ?
+          `${data.length} rows of ${nodeName} were fetched on ${formattedDate}` :
+          `ℹ️ No records have been fetched`
+      );
 
-    const storage = await this.getStorageByNode(nodeName);
+      if (data.length || this.config.CreateEmptyTables?.value) {
+        const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
+        const storage = await this.getStorageByNode(nodeName);
+        await storage.saveData(preparedData);
+      }
 
-    if (data.length || this.config.CreateEmptyTables?.value) {
-      const preparedData = data.length ? this.addMissingFieldsToData(data, fields) : data;
-      await storage.saveData(preparedData);
-    }
-
-    this.config.logMessage(
-      data.length ?
-        `${data.length} rows of ${nodeName} were fetched` :
-        `No records have been fetched`
-    );
-
-    if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
-      this.config.updateLastRequstedDate(endDate);
+      if (this.runConfig.type === RUN_CONFIG_TYPE.INCREMENTAL) {
+        this.config.updateLastRequstedDate(currentDate);
+      }
     }
   }
 
