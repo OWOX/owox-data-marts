@@ -296,6 +296,9 @@ export class RunReportService {
     if (error.name === ERROR_NAMES.ABORT) {
       reportRun.markAsCancelled();
       this.logger.warn(`Report ${reportRun.getReportId()} was cancelled by user`);
+    } else if (error instanceof BusinessViolationException) {
+      reportRun.markAsFailed(error);
+      this.logger.warn(`Report ${reportRun.getReportId()} execution failed: ${error.message}`);
     } else {
       reportRun.markAsFailed(error);
       this.logger.error(`Report ${reportRun.getReportId()} execution failed:`, error);
