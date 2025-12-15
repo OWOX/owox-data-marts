@@ -57,18 +57,21 @@ var ShopifyAdsConnector = class ShopifyAdsConnector extends AbstractConnector {
       const currentDate = new Date(startDate);
       currentDate.setDate(currentDate.getDate() + i);
 
-      const formattedDate = DateUtils.formatDate(currentDate);
+      const dateStr = DateUtils.formatDate(currentDate);
+
+      const formattedStartDate = `${dateStr}T00:00:00Z`;
+      const formattedEndDate = `${dateStr}T23:59:59Z`;
 
       const data = await this.source.fetchData({
         nodeName,
         fields,
-        startDate: formattedDate,
-        endDate: formattedDate
+        startDate: formattedStartDate,
+        endDate: formattedEndDate
       });
 
       this.config.logMessage(
         data.length ?
-          `${data.length} rows of ${nodeName} were fetched on ${formattedDate}` :
+          `${data.length} rows of ${nodeName} were fetched on ${dateStr}` :
           `ℹ️ No records have been fetched`
       );
 
