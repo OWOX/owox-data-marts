@@ -1,5 +1,5 @@
 import type { ProjectMenuItem } from './types';
-import { GitHubIcon, OWOXBIIcon, SlackIconDesaturated } from '../../../shared';
+import { GitHubIcon, OWOXBIIcon } from '../../../shared';
 import {
   Gem,
   BadgeAlert,
@@ -8,7 +8,6 @@ import {
   Settings,
   BriefcaseBusiness,
   Users,
-  Info,
 } from 'lucide-react';
 
 export const projectMenuItems: ProjectMenuItem[] = [
@@ -70,22 +69,6 @@ export const projectMenuItems: ProjectMenuItem[] = [
   },
   {
     type: 'menu-item',
-    title: 'Documentation',
-    href: 'https://docs.owox.com/?utm_source=community_edition&utm_medium=organic&utm_campaign=documentation&utm_content=header_dropdown',
-    icon: Info,
-    visible: { flagKey: 'MENU_DOCUMENTATION_COMMUNITY_EDITION_VISIBLE', expectedValue: 'true' },
-    group: 'feedback',
-  },
-  {
-    type: 'menu-item',
-    title: 'Documentation',
-    href: 'https://docs.owox.com/?utm_source=app_owox_com&utm_medium=organic&utm_campaign=documentation&utm_content=header_dropdown',
-    icon: Info,
-    visible: { flagKey: 'MENU_DOCUMENTATION_OWOX_CLOUD_VISIBLE', expectedValue: 'true' },
-    group: 'feedback',
-  },
-  {
-    type: 'menu-item',
     title: 'Leave Feedback',
     href: 'https://github.com/OWOX/owox-data-marts/discussions',
     icon: MessageCircle,
@@ -98,14 +81,6 @@ export const projectMenuItems: ProjectMenuItem[] = [
     href: 'https://github.com/OWOX/owox-data-marts/issues',
     icon: BadgeAlert,
     visible: { flagKey: 'MENU_ISSUES_VISIBLE', expectedValue: 'true' },
-    group: 'feedback',
-  },
-  {
-    type: 'menu-item',
-    title: 'Slack Community',
-    href: 'https://join.slack.com/t/owox-data-marts/shared_invite/zt-3fffrsau9-UlobJVlXzRLpXmvs0ffvoQ',
-    icon: SlackIconDesaturated,
-    visible: { flagKey: 'MENU_SLACK_COMMUNITY_VISIBLE', expectedValue: 'true' },
     group: 'feedback',
   },
   {

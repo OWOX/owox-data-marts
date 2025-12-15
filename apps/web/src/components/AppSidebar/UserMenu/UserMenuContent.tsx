@@ -15,7 +15,7 @@ interface UserMenuContentProps {
 
 export function UserMenuContent({ items }: UserMenuContentProps) {
   return (
-    <DropdownMenuContent align='start' side='top' sideOffset={8} className='w-56'>
+    <DropdownMenuContent align='end' side='right' className='w-56'>
       {items.map((item, index) => {
         if (item.type === 'separator') {
           return <DropdownMenuSeparator key={`sep-${String(index)}`} />;

@@ -2,6 +2,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@owox/ui/component
 import type { ConnectorDefinitionConfig } from '../../../../data-marts/edit/model';
 import { ConnectorRunForm } from './ConnectorRunForm';
 import type { ConnectorRunFormData } from '../../../shared/model/types/connector';
+import { useIntercomLauncher } from '../../../../../shared/hooks/useIntercomLauncher';
 
 interface ConnectorRunSheetProps {
   isOpen: boolean;
@@ -16,6 +17,8 @@ export function ConnectorRunSheet({
   configuration,
   onSubmit,
 }: ConnectorRunSheetProps) {
+  useIntercomLauncher(isOpen);
+
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
       <SheetContent>

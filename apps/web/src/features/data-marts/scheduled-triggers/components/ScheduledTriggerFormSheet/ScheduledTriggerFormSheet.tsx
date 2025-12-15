@@ -17,6 +17,7 @@ import { useMemo, useEffect, useRef } from 'react';
 import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
 import { trackEvent } from '../../../../../utils';
 import { useUnsavedGuard } from '../../../../../hooks/useUnsavedGuard';
+import { useIntercomLauncher } from '../../../../../shared/hooks/useIntercomLauncher';
 
 interface ScheduledTriggerFormSheetProps {
   isOpen: boolean;
@@ -33,6 +34,8 @@ export function ScheduledTriggerFormSheet({
   preSelectedReportId,
   preSelectedType,
 }: ScheduledTriggerFormSheetProps) {
+  useIntercomLauncher(isOpen);
+
   const { createScheduledTrigger, updateScheduledTrigger, selectedTrigger } =
     useScheduledTriggerContext();
 
