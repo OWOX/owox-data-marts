@@ -5,6 +5,7 @@ import {
   EMAIL_PROVIDER_FACADE,
   EmailProviderFacade,
 } from '../../../../../common/email/shared/email-provider.facade';
+import { BusinessViolationException } from '../../../../../common/exceptions/business-violation.exception';
 import {
   COLOR_THEME,
   MarkdownParser,
@@ -169,7 +170,11 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
 
     this.logRenderedOutput(rendered);
 
-    if (status !== DataMartInsightTemplateStatus.OK) {
+    if (status === DataMartInsightTemplateStatus.WARNING) {
+      throw new BusinessViolationException(BaseEmailReportWriter.MESSAGES.REPORT_FAILED);
+    }
+
+    if (status === DataMartInsightTemplateStatus.ERROR) {
       throw new Error(BaseEmailReportWriter.MESSAGES.REPORT_FAILED);
     }
 
