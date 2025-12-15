@@ -5,6 +5,7 @@ import {
   AppWizardStepSection,
   AppWizardStep,
   AppWizardStepCardItem,
+  AppWizardStepCards,
   AppWizardStepHero,
 } from '@owox/ui/components/common/wizard';
 import {
@@ -239,53 +240,55 @@ export function FieldsSelectionStep({
         <AppWizardStepSection
           title={`Selected ${String(selectedTotalCount)} of ${String(availableFieldNames.length)} fields for "${selectedField}" data`}
         >
-          {filteredFields.map(field => {
-            const isUniqueKey = uniqueKeys.includes(field.name);
-            return (
-              <AppWizardStepCardItem
-                key={field.name}
-                type='checkbox'
-                id={`field-${field.name}`}
-                name='selectedFields'
-                value={field.name}
-                checked={selectedFields.includes(field.name)}
-                selected={selectedFields.includes(field.name) || isUniqueKey}
-                disabled={isUniqueKey}
-                onChange={checked => {
-                  onFieldToggle(field.name, checked as boolean);
-                }}
-                label={field.name}
-                tooltip={
-                  <div className='flex flex-col gap-2 py-1'>
-                    {isUniqueKey && (
-                      <p className='flex items-center gap-2'>
-                        <span className='font-semibold'>Unique key</span>{' '}
-                        <KeyRound className='text-secondary h-3 w-3' />
-                      </p>
-                    )}
-                    <p>
-                      <span className='font-semibold'>Type:</span> {field.type}
-                    </p>
-                    {field.description && (
+          <AppWizardStepCards>
+            {filteredFields.map(field => {
+              const isUniqueKey = uniqueKeys.includes(field.name);
+              return (
+                <AppWizardStepCardItem
+                  key={field.name}
+                  type='checkbox'
+                  id={`field-${field.name}`}
+                  name='selectedFields'
+                  value={field.name}
+                  checked={selectedFields.includes(field.name)}
+                  selected={selectedFields.includes(field.name) || isUniqueKey}
+                  disabled={isUniqueKey}
+                  onChange={checked => {
+                    onFieldToggle(field.name, checked as boolean);
+                  }}
+                  label={field.name}
+                  tooltip={
+                    <div className='flex flex-col gap-2 py-1'>
+                      {isUniqueKey && (
+                        <p className='flex items-center gap-2'>
+                          <span className='font-semibold'>Unique key</span>{' '}
+                          <KeyRound className='text-secondary h-3 w-3' />
+                        </p>
+                      )}
                       <p>
-                        <span className='font-semibold'>Description:</span> {field.description}
+                        <span className='font-semibold'>Type:</span> {field.type}
                       </p>
-                    )}
-                  </div>
-                }
-                rightIcon={
-                  isUniqueKey ? (
-                    <KeyRound className='text-muted-foreground/75 h-4 w-4' />
-                  ) : undefined
-                }
-              />
-            );
-          })}
-          {filteredFields.length === 0 && filterText && (
-            <div className='text-muted-foreground pt-8 pb-4 text-center text-sm'>
-              No fields match "{filterText}"
-            </div>
-          )}
+                      {field.description && (
+                        <p>
+                          <span className='font-semibold'>Description:</span> {field.description}
+                        </p>
+                      )}
+                    </div>
+                  }
+                  rightIcon={
+                    isUniqueKey ? (
+                      <KeyRound className='text-muted-foreground/75 h-4 w-4' />
+                    ) : undefined
+                  }
+                />
+              );
+            })}
+            {filteredFields.length === 0 && filterText && (
+              <div className='text-muted-foreground p-8 text-center text-sm'>
+                No fields match "{filterText}"
+              </div>
+            )}
+          </AppWizardStepCards>
 
           <OpenIssueLink label='Need another field?' />
         </AppWizardStepSection>

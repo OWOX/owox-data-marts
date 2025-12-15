@@ -49,11 +49,15 @@ export const ReportFormActions = ({
               type='button'
               disabled={disabledPrimary}
               aria-label='More actions'
+              className='group'
             >
-              <ChevronDown className='size-4' aria-hidden='true' />
+              <ChevronDown
+                className='size-4 transition-transform duration-200 group-data-[state=open]:rotate-180'
+                aria-hidden='true'
+              />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align='start'>
+          <DropdownMenuContent align='end' side='top'>
             <DropdownMenuItem onClick={onRunAndSave} disabled={isSubmitting}>
               {dropdownItemLabel}
             </DropdownMenuItem>

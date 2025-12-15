@@ -464,6 +464,29 @@ function AppWizardGridItem({
 }
 
 /**
+ * AppWizardStepCards — a container for a group of cards inside a step.
+ */
+
+interface AppWizardStepCardsProps extends React.HTMLAttributes<HTMLDivElement> {
+  children: React.ReactNode;
+  className?: string;
+}
+
+function AppWizardStepCards({ children, className = '', ...props }: AppWizardStepCardsProps) {
+  return (
+    <div
+      className={cn(
+        'flex flex-col gap-0.5 rounded-md border-b bg-white p-2 transition-shadow duration-200 select-none hover:shadow-sm dark:bg-white/4',
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
  * AppWizardStepCardItem — standardized "card-style" field component.
  *
  * Supports radio, checkbox, and text inputs with consistent wizard styling.
@@ -541,9 +564,9 @@ function AppWizardStepCardItem({
         }
       }}
       className={cn(
-        'group border-border flex items-center gap-2 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 select-none hover:shadow-sm dark:border-transparent dark:bg-white/4',
-        disabled ? 'cursor-not-allowed' : 'cursor-pointer hover:shadow-sm dark:hover:bg-white/8',
-        selected ? 'ring-primary border-transparent ring-2 dark:bg-white/8' : '',
+        'group flex items-center gap-2 rounded-sm px-4 py-3 transition-shadow duration-200 select-none',
+        disabled ? 'cursor-not-allowed' : 'hover:bg-accent cursor-pointer dark:hover:bg-white/4',
+        selected ? 'bg-primary/8 hover:bg-primary/8 dark:bg-white/8 dark:hover:bg-white/8' : '',
         className
       )}
     >
@@ -560,7 +583,9 @@ function AppWizardStepCardItem({
         className={cn(
           'text-primary focus:ring-primary border-border cursor-pointer',
           // Radios/checkboxes are compact, text inputs expand
-          type === 'radio' || type === 'checkbox' ? 'h-4 w-4' : 'h-8 w-full rounded-md border px-2'
+          type === 'radio' || type === 'checkbox'
+            ? 'accent-primary dark:accent-primary h-4 w-4'
+            : 'h-8 w-full rounded-md border px-2'
         )}
         {...props}
       />
@@ -647,4 +672,5 @@ export {
   AppWizardStepLoading,
   AppWizardStepItemOneOf,
   AppWizardCollapsible,
+  AppWizardStepCards,
 };
