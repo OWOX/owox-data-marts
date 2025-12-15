@@ -19,6 +19,7 @@ interface InsightEditorProps {
   className?: string;
   readOnly?: boolean;
   showLineNumbers?: boolean;
+  excludeInsightId?: string;
 }
 type Monaco = typeof monacoEditor;
 
@@ -38,6 +39,7 @@ export function InsightEditor({
   className,
   readOnly,
   showLineNumbers = true,
+  excludeInsightId,
 }: InsightEditorProps) {
   const { resolvedTheme } = useTheme();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -404,6 +406,7 @@ export function InsightEditor({
                 {insightsLoading && <div className='p-2 text-sm opacity-60'>Loading…</div>}
                 {!insightsLoading &&
                   insights
+                    .filter(i => (excludeInsightId ? i.id !== excludeInsightId : true))
                     .filter(i =>
                       (query || '').length
                         ? i.title.toLowerCase().includes(query.toLowerCase())
@@ -420,15 +423,17 @@ export function InsightEditor({
                         <span className='block w-full truncate whitespace-nowrap'>{i.title}</span>
                       </CommandItem>
                     ))}
-                {!insightsLoading && insights.length === 0 && (
-                  <div className='flex items-start gap-2 p-2 text-sm opacity-60'>
-                    <Lightbulb className='mt-0.5 h-4 w-4 shrink-0' aria-hidden='true' />
-                    <span>
-                      No insights yet. Create them on the Insights tab, then you can copy their
-                      templates into the email report.
-                    </span>
-                  </div>
-                )}
+                {!insightsLoading &&
+                  insights.filter(i => (excludeInsightId ? i.id !== excludeInsightId : true))
+                    .length === 0 && (
+                    <div className='flex items-start gap-2 p-2 text-sm opacity-60'>
+                      <Lightbulb className='mt-0.5 h-4 w-4 shrink-0' aria-hidden='true' />
+                      <span>
+                        No insights yet. Create them on the Insights tab, then you can copy their
+                        templates into the email report.
+                      </span>
+                    </div>
+                  )}
               </CommandList>
             </Command>
           </div>
