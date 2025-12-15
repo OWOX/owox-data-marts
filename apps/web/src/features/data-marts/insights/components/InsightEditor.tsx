@@ -52,6 +52,13 @@ export function InsightEditor({
     scroll?: monacoEditor.IDisposable;
     mouse?: monacoEditor.IDisposable;
     layout?: monacoEditor.IDisposable;
+    cursor?: monacoEditor.IDisposable;
+    content?: monacoEditor.IDisposable;
+    model?: monacoEditor.IDisposable;
+    blur?: monacoEditor.IDisposable;
+    focusText?: monacoEditor.IDisposable;
+    config?: monacoEditor.IDisposable;
+    placeholderWidget?: { dispose: () => void };
   } | null>(null);
 
   const { insights, isLoading: insightsLoading, isLoaded } = useInsightsList();
@@ -159,12 +166,158 @@ export function InsightEditor({
     const mouse = editor.onMouseDown(() => {
       setIsOpen(false);
     });
-    disposablesRef.current = { scroll, mouse, layout: focus };
+
+    // Inline placeholder content widget that appears on empty line under the caret
+    const widgetId = 'insight-editor-inline-placeholder';
+    const node = document.createElement('div');
+    node.textContent = "Press '/' for commands";
+
+    const applyPlaceholderStyles = () => {
+      try {
+        const fontInfo = editor.getOption(monaco.editor.EditorOption.fontInfo);
+        const fontSize = `${String(fontInfo.fontSize)}px`;
+        const lineHeight = `${String(fontInfo.lineHeight)}px`;
+        const fontFamily = fontInfo.fontFamily;
+
+        Object.assign(node.style, {
+          color: 'inherit',
+          opacity: '0.55',
+          fontStyle: 'italic',
+          fontSize,
+          lineHeight,
+          fontFamily,
+          pointerEvents: 'none',
+          whiteSpace: 'pre',
+          userSelect: 'none',
+        });
+      } catch {
+        Object.assign(node.style, {
+          color: 'inherit',
+          opacity: '0.55',
+          fontStyle: 'italic',
+          pointerEvents: 'none',
+          whiteSpace: 'pre',
+          userSelect: 'none',
+        });
+      }
+    };
+
+    applyPlaceholderStyles();
+
+    let currentPosition: monacoEditor.editor.IContentWidgetPosition | null = null;
+
+    let lastKnownPosition: monacoEditor.IPosition | null = null;
+
+    const widget: monacoEditor.editor.IContentWidget = {
+      getId: () => widgetId,
+      getDomNode: () => node,
+      getPosition: () => currentPosition,
+    };
+
+    editor.addContentWidget(widget);
+
+    const showAt = (lineNumber: number) => {
+      currentPosition = {
+        position: { lineNumber, column: 1 },
+        preference: [monaco.editor.ContentWidgetPositionPreference.EXACT],
+      };
+      node.style.display = '';
+      editor.layoutContentWidget(widget);
+    };
+    const hide = () => {
+      currentPosition = null;
+      node.style.display = 'none';
+      editor.layoutContentWidget(widget);
+    };
+
+    const updatePlaceholder = () => {
+      const model = editor.getModel();
+      const pos = editor.getPosition() ?? lastKnownPosition;
+      if (!model || !pos) {
+        hide();
+        return;
+      }
+      const maxLine = model.getLineCount();
+      const safeLine = Math.min(Math.max(1, pos.lineNumber), Math.max(1, maxLine));
+      const line = model.getLineContent(safeLine);
+      if (line.trim().length === 0) {
+        showAt(safeLine);
+      } else {
+        hide();
+      }
+    };
+
+    // Initial update
+    updatePlaceholder();
+
+    const cursor = editor.onDidChangeCursorPosition(() => {
+      const pos = editor.getPosition();
+      if (pos) lastKnownPosition = pos;
+      updatePlaceholder();
+    });
+    const content = editor.onDidChangeModelContent(() => {
+      updatePlaceholder();
+    });
+    const model = editor.onDidChangeModel(() => {
+      updatePlaceholder();
+    });
+    const blur = editor.onDidBlurEditorText(() => {
+      updatePlaceholder();
+    });
+    const focusText = editor.onDidFocusEditorText(() => {
+      const pos = editor.getPosition();
+      if (pos) lastKnownPosition = pos;
+      updatePlaceholder();
+    });
+
+    const config = editor.onDidChangeConfiguration(() => {
+      applyPlaceholderStyles();
+      updatePlaceholder();
+    });
+
+    disposablesRef.current = {
+      scroll,
+      mouse,
+      layout: focus,
+      cursor,
+      content,
+      model,
+      blur,
+      focusText,
+      config,
+      placeholderWidget: {
+        dispose: () => {
+          try {
+            editor.removeContentWidget(widget);
+          } catch {
+            // ignore removeContentWidget errors
+          }
+        },
+      },
+    };
   };
 
   useEffect(() => {
     return () => {
       setActiveCopyTemplateHandler(null);
+      const disposables = disposablesRef.current;
+      if (disposables) {
+        try {
+          disposables.scroll?.dispose();
+          disposables.mouse?.dispose();
+          disposables.layout?.dispose();
+          disposables.cursor?.dispose();
+          disposables.content?.dispose();
+          disposables.model?.dispose();
+          disposables.blur?.dispose();
+          disposables.focusText?.dispose();
+          disposables.config?.dispose();
+          disposables.placeholderWidget?.dispose();
+        } catch {
+          // ignore
+        }
+        disposablesRef.current = null;
+      }
     };
   }, []);
 
@@ -218,7 +371,6 @@ export function InsightEditor({
           overviewRulerBorder: false,
           automaticLayout: true,
           overviewRulerLanes: 0,
-          placeholder: "Press '/' for commands",
           readOnly: Boolean(readOnly),
           lineNumbers: showLineNumbers ? 'on' : 'off',
         }}
