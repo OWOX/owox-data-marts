@@ -48,6 +48,23 @@ SQL construction rules:
 - Use grouping as the final set of GROUP BY expressions.
 - Always limit the number of result rows to ${maxRows} using LIMIT (or equivalent).
 
+Plan metadata contract (MUST follow):
+- The plan.requiredColumnsMeta is an executable contract for column handling.
+- For every referenced column:
+  - If requiredColumnsMeta[column].resolvedIdentifier is present, you MUST use it as the column reference
+    exactly as provided (do NOT add/remove quoting, do NOT change casing).
+  - If requiredColumnsMeta[column].transform.kind is:
+    - "cast": you MUST cast the column to an appropriate numeric/boolean/date type before using it.
+    - "parse_date": you MUST parse/cast the column to a DATE before using it in date filters/comparisons.
+    - "parse_timestamp": you MUST parse/cast the column to a TIMESTAMP before using it in time filters/comparisons.
+- You MUST apply transforms in the actual query expressions (especially in WHERE and metric aggregations),
+  not just mention them in notes.
+- If rawSchema type conflicts with requiredColumnsMeta, treat requiredColumnsMeta as the preferred intent
+  and reconcile using a safe explicit conversion.
+- When transform.kind is "parse_date" or "parse_timestamp" and rawType is a string-like type,
+  you MUST use an explicit parsing function (not a plain CAST) appropriate for the target storageType,
+  using requiredColumnsMeta[column].transform.format if provided.
+
 Dry-run workflow:
 - Call ${DataMartsAiInsightsTools.SQL_DRY_RUN} with the constructed SQL to:
   - validate the query,

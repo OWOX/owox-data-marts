@@ -95,9 +95,9 @@ ${templateBlock}
 ${resultBlock}
 
 Your task:
-- Detect the language of the user question and write the Markdown answer in that same language.
 - Produce ONLY the analytical Markdown body (the missing part for the template).
 - Use numeric facts from rows and optionally compute totals, comparisons, or trends based on them.
+- [Important] Your answer should be on the ${input.promptLanguage} language.
 
 ${buildOutputRules()}
 `.trim();

@@ -17,7 +17,7 @@ export class PlanAgent implements Agent<PlanAgentInput, PlanAgentResult> {
   async run(input: PlanAgentInput, shared: SharedAgentContext): Promise<PlanAgentResult> {
     const { aiProvider, telemetry, budgets, projectId, dataMartId } = shared;
 
-    const system = buildPlanSystemPrompt();
+    const system = buildPlanSystemPrompt(input);
     const user = buildPlanUserPrompt(input);
 
     const tools = this.toolRegistry.findToolByNames([
