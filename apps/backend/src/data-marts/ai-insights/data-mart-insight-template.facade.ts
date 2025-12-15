@@ -1,4 +1,10 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { TemplateRenderFacade } from '../../common/template/facades/template-render.facade';
+import {
+  TEMPLATE_RENDER_FACADE,
+  TemplateRenderInput,
+} from '../../common/template/types/render-template.types';
+import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
 import {
   DataMartAdditionalParams,
   DataMartInsightTemplateFacade,
@@ -10,22 +16,21 @@ import {
   isPromptAnswerWarning,
   PromptTagMetaEntry,
 } from './data-mart-insights.types';
-import {
-  TEMPLATE_RENDER_FACADE,
-  TemplateRenderInput,
-} from '../../common/template/types/render-template.types';
 import { PromptTagHandler } from './template/handlers/prompt-tag.handler';
-import { TemplateRenderFacade } from '../../common/template/facades/template-render.facade';
+import { getPromptTotalUsage } from './utils/compute-model-usage';
 
 @Injectable()
 export class DataMartInsightTemplateFacadeImpl implements DataMartInsightTemplateFacade {
+  private readonly logger = new Logger(DataMartInsightTemplateFacadeImpl.name);
+
   constructor(
     @Inject(TEMPLATE_RENDER_FACADE)
     private readonly templateRenderer: TemplateRenderFacade<
       PromptTagMetaEntry,
       DataMartAdditionalParams
     >,
-    private readonly promptHandler: PromptTagHandler
+    private readonly promptHandler: PromptTagHandler,
+    private readonly consumptionTracker: ConsumptionTrackingService
   ) {}
 
   async render(input: DataMartInsightTemplateInput): Promise<DataMartInsightTemplateOutput> {
@@ -44,6 +49,23 @@ export class DataMartInsightTemplateFacadeImpl implements DataMartInsightTemplat
       meta: tag.resultMeta,
       promptAnswer: tag.result as string,
     }));
+
+    const consumptionContext = input.consumptionContext;
+    if (consumptionContext) {
+      prompts
+        .filter(p => !isPromptAnswerError(p.meta.status))
+        .forEach(p => {
+          try {
+            const llmCalls = p.meta.telemetry?.llmCalls ?? [];
+            void this.consumptionTracker.registerAiProcessRunConsumption(
+              getPromptTotalUsage(llmCalls).totalTokens,
+              consumptionContext
+            );
+          } catch (error) {
+            this.logger.error('Failed to register consumption:', error);
+          }
+        });
+    }
 
     return {
       rendered: rendered,
