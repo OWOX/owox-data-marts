@@ -9,6 +9,7 @@ import {
   setActiveCopyTemplateHandler,
 } from '../utils/monaco-commands.util.ts';
 import { toast } from 'react-hot-toast';
+import { Lightbulb } from 'lucide-react';
 
 interface InsightEditorProps {
   value: string;
@@ -420,7 +421,13 @@ export function InsightEditor({
                       </CommandItem>
                     ))}
                 {!insightsLoading && insights.length === 0 && (
-                  <div className='p-2 text-sm opacity-60'>No insights</div>
+                  <div className='flex items-start gap-2 p-2 text-sm opacity-60'>
+                    <Lightbulb className='mt-0.5 h-4 w-4 shrink-0' aria-hidden='true' />
+                    <span>
+                      No insights yet. Create them on the Insights tab, then you can copy their
+                      templates into the email report.
+                    </span>
+                  </div>
                 )}
               </CommandList>
             </Command>
