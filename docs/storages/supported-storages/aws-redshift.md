@@ -13,7 +13,7 @@ Click **AWS Redshift** to create a new **Storage** configuration.
 
 ## 3. Add title
 
-Give the storage configuration a clear **title**, eg `OWOX Data Marts – Redshift Production`.
+Give the storage configuration a clear **title**, eg `Redshift – dev database`.
 
 ## 4. Set General Settings and Connection Details
 
@@ -21,6 +21,7 @@ Give the storage configuration a clear **title**, eg `OWOX Data Marts – Redshi
 
 - Choose the AWS region where your Redshift cluster or workgroup is located
 - Examples: `us-east-1`, `eu-west-1`, `ap-southeast-1`
+- You can find your region in the [AWS Redshift Console](https://console.aws.amazon.com/redshiftv2/home) in the top right corner or url.
 
 > **Note:** The region must match where your Redshift cluster or Serverless workgroup is deployed.
 
@@ -32,9 +33,9 @@ Give the storage configuration a clear **title**, eg `OWOX Data Marts – Redshi
 
 ### Choose Connection Type
 
-AWS Redshift supports two deployment types:
+AWS Redshift supports two deployment types (one is required). It's based on your use case and pricing model.
 
-#### Option 1: Serverless (Recommended for variable workloads)
+#### Option 1: Serverless
 
 **Workgroup Name:**
 
@@ -42,25 +43,13 @@ AWS Redshift supports two deployment types:
 - Navigate to **Workgroup configuration**
 - Copy the workgroup name (e.g., `default` or `my-workgroup`)
 
-Serverless is ideal for:
-
-- Unpredictable or intermittent workloads
-- Development and testing environments
-- Pay-per-use pricing model
-
-#### Option 2: Provisioned (Recommended for consistent workloads)
+#### Option 2: Provisioned
 
 **Cluster Identifier:**
 
 - Go to [AWS Redshift Provisioned Clusters](https://console.aws.amazon.com/redshiftv2/home#clusters)
 - Find your cluster in the list
 - Copy the **Cluster identifier** (e.g., `redshift-cluster-1`)
-
-Provisioned is ideal for:
-
-- Predictable, continuous workloads
-- Production environments with steady usage
-- Reserved instance pricing for cost optimization
 
 ### Authentication
 
@@ -135,6 +124,7 @@ Your IAM user or role needs the following permissions:
 ```
 
 > **Tip:** You can attach the AWS managed policy `AmazonRedshiftDataFullAccess` for quick setup, but consider using a custom policy with minimal permissions for production.
+> You can set permissions to certain database and tables for more security. Example: `"Resource": "arn:aws:redshift:us-east-1:123456789012"`
 
 ## 5. Finalize Setup
 
@@ -142,15 +132,24 @@ Review your entries and click **Save** to add the **Storage configuration**, or 
 
 Once saved, OWOX Data Marts will validate the connection to ensure all credentials are correct.
 
+## Grand Permissions to create schemas in database
+
+If you want to create schemas in database (upload data from connector based data mart), you need to grant permissions to the user who will be used to upload data.
+
+```sql
+GRANT CREATE ON DATABASE dev TO "IAM:<USERNAME_IN_IAM>";
+```
+
+> **Tip:** You can find your username in IAM in the [AWS IAM Console](https://console.aws.amazon.com/iam/) in the **Users** tab.
+
 ## Next Steps
 
 After configuring your AWS Redshift storage:
 
 1. **Create a Data Mart** that uses this storage
-2. **Configure schema and table** in the Connector setup (Step 5)
-3. **Define your data structure** with Redshift-specific field types
-4. **Configure a Connector** to load data into Redshift
-5. **Run reports** and export data from your Redshift tables
+2. **Define your data structure** with Redshift-specific field types
+3. **Configure a Connector** to load data into Redshift
+4. **Run reports** and export data from your Redshift tables
 
 ## Understanding Schema Configuration
 
@@ -204,13 +203,13 @@ Ensure your Redshift database allows access from the IAM credentials:
 **For Serverless:**
 
 ```sql
-GRANT ALL ON DATABASE dev TO IAM:"arn:aws:iam::ACCOUNT_ID:user/USERNAME";
+GRANT ALL ON DATABASE dev TO "IAM:<USERNAME_IN_IAM>";
 ```
 
 **For Provisioned:**
 
 ```sql
-GRANT ALL ON DATABASE dev TO "IAMR:USERNAME";
+GRANT ALL ON DATABASE dev TO "IAM:<USERNAME_IN_IAM>";
 ```
 
 ## Additional Resources

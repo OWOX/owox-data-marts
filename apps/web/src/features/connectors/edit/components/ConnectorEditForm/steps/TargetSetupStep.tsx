@@ -16,6 +16,7 @@ import {
   AwsRedshiftIcon,
 } from '../../../../../../shared';
 import { quoteIdentifier, unquoteIdentifier } from '../../../utils/snowflake-identifier.utils';
+import RedshiftSchemaPermissionsDescription from '../../../../shared/components/FormDescriptions/RedshiftSchemaPermissionsDescription.tsx';
 
 interface TargetSetupStepProps {
   dataStorageType: DataStorageType;
@@ -570,9 +571,9 @@ export function TargetSetupStep({
                 required
               />
               <p className='text-muted-foreground text-sm'>
-                Schema is auto-created on first run if it doesn't exist. Identifiers will be quoted
-                automatically to preserve case sensitivity.
+                Schema is auto-created on first run if it doesn't exist.
               </p>
+              <RedshiftSchemaPermissionsDescription />
               {schemaError && (
                 <p id='redshift-schema-name-error' className='text-destructive text-sm'>
                   {schemaError}

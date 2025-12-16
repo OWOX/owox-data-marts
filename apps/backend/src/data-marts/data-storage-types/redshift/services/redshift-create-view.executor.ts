@@ -34,9 +34,12 @@ export class RedshiftCreateViewExecutor implements CreateViewExecutor {
 
     const fullyQualifiedName = this.escapeIdentifier(viewName);
 
-    const parts = viewName.split('.');
+    const parts = viewName.split('.').filter(p => p.trim().length > 0);
     if (parts.length >= 2) {
       const schemaName = parts.length === 3 ? parts[1] : parts[0];
+      if (!schemaName || !schemaName.trim()) {
+        throw new Error(`Invalid view name format: ${viewName}. Schema name cannot be empty.`);
+      }
       const createSchemaQuery = `CREATE SCHEMA IF NOT EXISTS "${schemaName}"`;
 
       const { statementId: schemaStatementId } = await adapter.executeQuery(createSchemaQuery);

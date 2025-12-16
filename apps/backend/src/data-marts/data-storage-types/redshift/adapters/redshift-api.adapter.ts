@@ -82,9 +82,9 @@ export class RedshiftApiAdapter {
         this.logger.debug(`Query ${statementId} completed successfully`);
         return;
       } else if (status === 'FAILED' || status === 'ABORTED') {
-        const error = response.Error || 'Unknown error';
-        this.logger.error(`Query ${statementId} ${status}: ${error}`);
-        throw new Error(`Query ${status}: ${error}`);
+        const errorMessage = response.Error || response.QueryString || 'Unknown error';
+        this.logger.error(`Query ${statementId} ${status}: ${errorMessage}`);
+        throw new Error(`Query ${status}: ${errorMessage}`);
       }
 
       attempts++;

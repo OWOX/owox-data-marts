@@ -45,7 +45,10 @@ export class RedshiftSqlRunExecutor implements SqlRunExecutor {
     do {
       const results = await adapter.getQueryResults(statementId, nextToken);
 
-      if (!results.Records) {
+      if (!results.Records || results.Records.length === 0) {
+        if (nextToken === undefined) {
+          yield new SqlRunBatch([], null);
+        }
         break;
       }
 
