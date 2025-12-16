@@ -272,7 +272,8 @@ export class DataMartsModule {
       .apply(createOperationTimeoutMiddleware(30000))
       .exclude(
         { path: 'data-marts/:id/definition', method: RequestMethod.PUT },
-        { path: 'data-marts/:id/publish', method: RequestMethod.PUT }
+        { path: 'data-marts/:id/publish', method: RequestMethod.PUT },
+        { path: 'external/*', method: RequestMethod.ALL }
       )
       .forRoutes({ path: '*', method: RequestMethod.ALL });
   }
