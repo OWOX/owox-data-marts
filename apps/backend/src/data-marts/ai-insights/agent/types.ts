@@ -101,6 +101,29 @@ export const QueryPlanTableSchema = z.object({
     ),
 });
 
+export const ColumnTransformSchema = z.object({
+  kind: z.enum(['none', 'cast', 'parse_date', 'parse_timestamp']),
+  format: z.string().optional(),
+});
+
+export const RequiredColumnMetaSchema = z.object({
+  rawType: z
+    .string()
+    .optional()
+    .describe('Column type from rawSchema (e.g. string/varchar/date/timestamp/number).'),
+  semanticType: z
+    .enum(['string', 'number', 'boolean', 'date', 'timestamp'])
+    .optional()
+    .describe('How the column is used logically in the plan.'),
+  resolvedIdentifier: z
+    .string()
+    .optional()
+    .describe(
+      'Exact column identifier to use in SQL for this storageType (already quoted if required).'
+    ),
+  transform: ColumnTransformSchema.optional().describe('Abstract transformation hint (NO SQL).'),
+});
+
 export const QueryPlanSchema = z.object({
   tables: z
     .array(QueryPlanTableSchema)
@@ -191,6 +214,15 @@ export const QueryPlanSchema = z.object({
       'Optional free-form notes about the plan: join logic hints, caveats, ' +
         'assumptions, or any additional guidance for the SQL agent.'
     ),
+
+  requiredColumnsMeta: z
+    .record(z.string(), RequiredColumnMetaSchema)
+    .optional()
+    .describe(
+      'Optional column-level hints derived from rawSchema and storageType. ' +
+        'Used by the SQL agent to apply correct column quoting and explicit type conversions. ' +
+        'Must not contain SQL.'
+    ),
 });
 
 export const PlanModelJsonSchema = z.object({
@@ -222,7 +254,7 @@ export interface PlanAgentInput {
   prompt: string;
   promptLanguage: string;
   schemaSummary?: string;
-  rawSchema?: unknown;
+  rawSchema?: GetMetadataOutput;
 }
 
 export interface PlanAgentResult {
@@ -284,6 +316,7 @@ export const SqlAgentResponseSchema = z.object({
 
 export interface FinalizeAgentInput {
   prompt: string;
+  promptLanguage: string;
   wholeTemplate?: string;
   sqlAgentResult: SqlAgentResult;
 }

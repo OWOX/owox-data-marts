@@ -92,6 +92,7 @@ export class AiInsightsOrchestratorService {
     const finalize: FinalizeResult = await this.finalizeAgent.run(
       {
         prompt: request.prompt,
+        promptLanguage: triage.promptLanguage,
         wholeTemplate: request.wholeTemplate,
         sqlAgentResult: sqlResult,
       },

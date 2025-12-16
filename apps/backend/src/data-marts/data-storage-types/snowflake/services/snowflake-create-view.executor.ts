@@ -9,11 +9,18 @@ import { DataStorageConfig } from '../../data-storage-config.type';
 import { isSnowflakeCredentials } from '../../data-storage-credentials.guards';
 import { isSnowflakeConfig } from '../../data-storage-config.guards';
 import { SnowflakeApiAdapterFactory } from '../adapters/snowflake-api-adapter.factory';
-import { escapeSnowflakeSchema } from '../utils/snowflake-identifier.utils';
+import {
+  escapeSnowflakeIdentifier,
+  escapeSnowflakeSchema,
+} from '../utils/snowflake-identifier.utils';
+import { SnowflakeApiAdapter } from '../adapters/snowflake-api.adapter';
 
 @Injectable()
 export class SnowflakeCreateViewExecutor implements CreateViewExecutor {
   readonly type = DataStorageType.SNOWFLAKE;
+
+  private static readonly DEFAULT_DATABASE = 'OWOX_INTERNAL';
+  private static readonly DEFAULT_SCHEMA = 'PUBLIC';
 
   constructor(private readonly adapterFactory: SnowflakeApiAdapterFactory) {}
 
@@ -33,18 +40,9 @@ export class SnowflakeCreateViewExecutor implements CreateViewExecutor {
     const adapter = this.adapterFactory.create(credentials, config);
 
     try {
-      const fullyQualifiedName = this.normalizeViewName(viewName);
-
-      // Extract database and schema from fully qualified name to ensure they exist
-      const parts = fullyQualifiedName.split('.');
-      if (parts.length === 3) {
-        const [database, schema] = parts;
-        const schemaIdentifier = escapeSnowflakeSchema(database, schema);
-        const ddlSchema = `CREATE SCHEMA IF NOT EXISTS ${schemaIdentifier}`;
-        await adapter.executeQuery(ddlSchema);
-      }
-
+      const fullyQualifiedName = await this.normalizeAndEnsureObjects(adapter, viewName);
       await adapter.createView(fullyQualifiedName, sql);
+
       return { fullyQualifiedName };
     } finally {
       await adapter.destroy();
@@ -55,11 +53,38 @@ export class SnowflakeCreateViewExecutor implements CreateViewExecutor {
    * Normalize view name to a fully qualified Snowflake identifier.
    * The viewName must be in format: database.schema.view
    */
-  private normalizeViewName(viewName: string): string {
-    const parts = viewName.split('.');
-    if (parts.length !== 3) {
-      throw new Error(`View name must be fully qualified (database.schema.view). Got: ${viewName}`);
+  private async normalizeAndEnsureObjects(
+    adapter: SnowflakeApiAdapter,
+    viewName: string
+  ): Promise<string> {
+    const parts = viewName.split('.').filter(Boolean);
+
+    let database: string;
+    let schema: string;
+    let view: string;
+
+    if (parts.length === 3) {
+      // DB.SCHEMA.VIEW
+      [database, schema, view] = parts;
+    } else if (parts.length === 2) {
+      // SCHEMA.VIEW → DB = DEFAULT_DATABASE
+      database = SnowflakeCreateViewExecutor.DEFAULT_DATABASE;
+      [schema, view] = parts;
+    } else if (parts.length === 1) {
+      // VIEW → DB = DEFAULT_DATABASE, SCHEMA = DEFAULT_SCHEMA
+      database = SnowflakeCreateViewExecutor.DEFAULT_DATABASE;
+      schema = SnowflakeCreateViewExecutor.DEFAULT_SCHEMA;
+      [view] = parts;
+    } else {
+      throw new Error(
+        `Invalid Snowflake view name. Expected "database.schema.view", "schema.view" or "view". Got: ${viewName}`
+      );
     }
-    return viewName;
+
+    await adapter.executeQuery(`CREATE DATABASE IF NOT EXISTS ${database}`);
+    const schemaIdentifier = escapeSnowflakeSchema(database, schema);
+    await adapter.executeQuery(`CREATE SCHEMA IF NOT EXISTS ${schemaIdentifier}`);
+
+    return escapeSnowflakeIdentifier(`${database}.${schema}.${view}`);
   }
 }

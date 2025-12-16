@@ -2,7 +2,7 @@ import { PlanAgentInput, PlanModelJsonSchema } from '../agent/types';
 import { DataMartsAiInsightsTools } from '../tools/data-marts-ai-insights-tools.registrar';
 import { buildJsonFormatSection, buildOutputRules } from './json-format.prompt';
 
-export function buildPlanSystemPrompt(): string {
+export function buildPlanSystemPrompt(input: PlanAgentInput): string {
   return `
 You are the PLAN agent in a multi-step analytics pipeline.
 
@@ -15,6 +15,18 @@ Tool usage:
 - To resolve physical table names, you MAY call ${DataMartsAiInsightsTools.GET_TABLE_FULLY_QUALIFIED_NAME}.
 - Use this tool only to obtain correct fullyQualifiedName values for tables.
 - Do NOT generate or output SQL yourself.
+
+StorageType-aware planning:
+- Target storageType (authoritative): ${input.rawSchema?.storageType ?? 'unknown'}
+- You MUST take this storageType into account when producing requiredColumnsMeta.
+- Provide requiredColumnsMeta for every column in requiredColumns using rawSchema:
+  - rawType
+  - semanticType
+  - resolvedIdentifier (exact column identifier for this storageType; already quoted if required)
+  - transform ("none" | "cast" | "parse_date" | "parse_timestamp"), optionally "format"
+- If a required column is used for date/timestamp filtering and rawType is a string-like type,
+  transform MUST be "parse_date" or "parse_timestamp" (not "none").
+- requiredColumnsMeta must be abstract and MUST NOT contain SQL expressions.
 
 ${buildJsonFormatSection(PlanModelJsonSchema)}
 `.trim();
