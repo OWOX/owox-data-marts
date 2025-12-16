@@ -64,7 +64,7 @@ export function InsightEditor({
     placeholderWidget?: { dispose: () => void };
   } | null>(null);
 
-  const { insights, isLoading: insightsLoading, isLoaded } = useInsightsList();
+  const { insights, isLoading: insightsLoading } = useInsightsList();
   const { fetchInsights, getInsightSilently } = useInsights();
 
   const openMenu = () => {
@@ -151,7 +151,7 @@ export function InsightEditor({
 
     const activateThisEditorForCopyTemplate = () => {
       setActiveCopyTemplateHandler(() => {
-        if (!isLoaded && !insightsLoading) {
+        if (!insightsLoading) {
           void fetchInsights();
         }
         setQuery('');
