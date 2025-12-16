@@ -47,6 +47,7 @@ import {
   TooltipTrigger,
 } from '@owox/ui/components/tooltip';
 import { formatDateShort } from '../../../../utils';
+import { DataMartStatus } from '../../shared';
 
 export default function InsightDetailsView() {
   const navigate = useNavigate();
@@ -54,6 +55,7 @@ export default function InsightDetailsView() {
   const storageKey = useMemo(() => 'insight_details_split', []);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const { dataMart } = useDataMartContext();
+  const isDraft = dataMart?.status.code === DataMartStatus.DRAFT;
 
   const {
     activeInsight: insight,
@@ -265,49 +267,104 @@ export default function InsightDetailsView() {
                   height={'calc(100vh - 275px)'}
                   placeholder='Type / to view available commands...'
                   readOnly={isRunning}
+                  excludeInsightId={insightId}
                 />
               </div>
               <div className='flex items-center justify-between gap-4 border-t px-4 py-2'>
                 <div className='flex items-center gap-2'>
-                  <Button
-                    variant='default'
-                    size='default'
-                    disabled={isSubmitting || isRunning}
-                    onClick={() => void (isTemplateDirty ? handleSaveAndRun() : handleRun())}
-                  >
-                    {isRunning ? (
-                      <span className='inline-flex items-center gap-2'>
-                        <Loader2 className='h-3 w-3 animate-spin' /> Running…
-                      </span>
-                    ) : isTemplateDirty ? (
-                      <span className='inline-flex items-center gap-2'>
-                        <Sparkles /> Save & Run Insight
-                      </span>
-                    ) : (
-                      <span className='inline-flex items-center gap-2'>
-                        <Sparkles /> Run Insight
-                      </span>
-                    )}
-                  </Button>
+                  {(() => {
+                    if (isDraft) {
+                      return (
+                        <Tooltip delayDuration={150}>
+                          <TooltipTrigger asChild>
+                            <span className='inline-flex' tabIndex={0}>
+                              <Button
+                                variant='default'
+                                size='default'
+                                disabled={isSubmitting || isRunning || !isTemplateDirty}
+                                onClick={() => {
+                                  if (isTemplateDirty) {
+                                    void handleSubmit(async values => {
+                                      await onSubmit(values);
+                                    })();
+                                  }
+                                }}
+                              >
+                                {isTemplateDirty ? (
+                                  <span className='inline-flex items-center gap-2'>
+                                    <Sparkles /> Save Insight
+                                  </span>
+                                ) : (
+                                  <span className='inline-flex items-center gap-2'>
+                                    <Sparkles /> Run Insight
+                                  </span>
+                                )}
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side='top'>
+                            <p>To run an insight, publish the Data Mart first</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    }
+                    return (
+                      <Button
+                        variant='default'
+                        size='default'
+                        disabled={isSubmitting || isRunning}
+                        onClick={() => void (isTemplateDirty ? handleSaveAndRun() : handleRun())}
+                      >
+                        {isRunning ? (
+                          <span className='inline-flex items-center gap-2'>
+                            <Loader2 className='h-3 w-3 animate-spin' /> Running…
+                          </span>
+                        ) : isTemplateDirty ? (
+                          <span className='inline-flex items-center gap-2'>
+                            <Sparkles /> Save & Run Insight
+                          </span>
+                        ) : (
+                          <span className='inline-flex items-center gap-2'>
+                            <Sparkles /> Run Insight
+                          </span>
+                        )}
+                      </Button>
+                    );
+                  })()}
                   <Tooltip delayDuration={1500}>
                     <TooltipTrigger asChild>
-                      <Button
-                        variant='outline'
-                        size='default'
-                        onClick={() => {
-                          setIsReportSheetOpen(true);
-                        }}
-                        className='gap-2'
-                      >
-                        <Send className='text-muted-foreground h-4 w-4' />
-                        Send & Schedule ...
-                      </Button>
+                      {(() => {
+                        return (
+                          <span className='inline-flex' tabIndex={0}>
+                            <Button
+                              variant='outline'
+                              size='default'
+                              onClick={() => {
+                                if (!isDraft) setIsReportSheetOpen(true);
+                              }}
+                              disabled={isDraft}
+                              className='gap-2'
+                            >
+                              <Send className='text-muted-foreground h-4 w-4' />
+                              Send & Schedule ...
+                            </Button>
+                          </span>
+                        );
+                      })()}
                     </TooltipTrigger>
                     <TooltipContent side='top'>
-                      <p>
-                        You can schedule this insight to run at a specific time or send it to a
-                        recipient
-                      </p>
+                      {(() => {
+                        return isDraft ? (
+                          <p>
+                            You can schedule and send reports only after publishing the Data Mart
+                          </p>
+                        ) : (
+                          <p>
+                            You can schedule this insight to run at a specific time or send it to a
+                            recipient
+                          </p>
+                        );
+                      })()}
                     </TooltipContent>
                   </Tooltip>
                 </div>
@@ -356,6 +413,7 @@ export default function InsightDetailsView() {
                         height={'100%'}
                         className='h-full'
                         readOnly
+                        excludeInsightId={insightId}
                       />
                     ) : preview.error ? (
                       <div className='text-destructive'>{preview.error}</div>
