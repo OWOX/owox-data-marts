@@ -36,55 +36,46 @@ export class RedshiftSqlRunExecutor implements SqlRunExecutor {
 
     const adapter = this.adapterFactory.create(credentials, config);
 
-    try {
-      // Execute query
-      const { statementId } = await adapter.executeQuery(sql);
+    const { statementId } = await adapter.executeQuery(sql);
 
-      // Wait for completion
-      await adapter.waitForQueryToComplete(statementId);
+    await adapter.waitForQueryToComplete(statementId);
 
-      // Fetch results with pagination
-      let nextToken: string | undefined = undefined;
+    let nextToken: string | undefined = undefined;
 
-      do {
-        const results = await adapter.getQueryResults(statementId, nextToken);
+    do {
+      const results = await adapter.getQueryResults(statementId, nextToken);
 
-        if (!results.Records) {
-          break;
-        }
+      if (!results.Records) {
+        break;
+      }
 
-        // Map Redshift Field values to row objects
-        const rows = results.Records.map(record => {
-          const row: Record<string, unknown> = {};
+      const rows = results.Records.map(record => {
+        const row: Record<string, unknown> = {};
 
-          record.forEach((field, index) => {
-            const columnName = results.ColumnMetadata?.[index]?.name || `column_${index}`;
+        record.forEach((field, index) => {
+          const columnName = results.ColumnMetadata?.[index]?.name || `column_${index}`;
 
-            // Extract value from Field union type
-            if (field.stringValue !== undefined) {
-              row[columnName] = field.stringValue;
-            } else if (field.longValue !== undefined) {
-              row[columnName] = field.longValue;
-            } else if (field.doubleValue !== undefined) {
-              row[columnName] = field.doubleValue;
-            } else if (field.booleanValue !== undefined) {
-              row[columnName] = field.booleanValue;
-            } else if (field.isNull) {
-              row[columnName] = null;
-            } else {
-              row[columnName] = null;
-            }
-          });
-
-          return row as Row;
+          if (field.stringValue !== undefined) {
+            row[columnName] = field.stringValue;
+          } else if (field.longValue !== undefined) {
+            row[columnName] = field.longValue;
+          } else if (field.doubleValue !== undefined) {
+            row[columnName] = field.doubleValue;
+          } else if (field.booleanValue !== undefined) {
+            row[columnName] = field.booleanValue;
+          } else if (field.isNull) {
+            row[columnName] = null;
+          } else {
+            row[columnName] = null;
+          }
         });
 
-        yield new SqlRunBatch(rows, results.NextToken);
+        return row as Row;
+      });
 
-        nextToken = results.NextToken;
-      } while (nextToken);
-    } finally {
-      // No cleanup needed for Redshift Data API
-    }
+      yield new SqlRunBatch(rows, results.NextToken);
+
+      nextToken = results.NextToken;
+    } while (nextToken);
   }
 }

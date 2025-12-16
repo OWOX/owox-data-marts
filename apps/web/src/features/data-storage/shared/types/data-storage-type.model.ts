@@ -36,17 +36,17 @@ export const DataStorageTypeModel = {
       icon: SnowflakeIcon,
       status: DataStorageStatus.ACTIVE,
     },
-    [DataStorageType.DATABRICKS]: {
-      type: DataStorageType.DATABRICKS,
-      displayName: 'Databricks',
-      icon: DatabricksIcon,
-      status: DataStorageStatus.COMING_SOON,
-    },
     [DataStorageType.AWS_REDSHIFT]: {
       type: DataStorageType.AWS_REDSHIFT,
       displayName: 'AWS Redshift',
       icon: AwsRedshiftIcon,
       status: DataStorageStatus.ACTIVE,
+    },
+    [DataStorageType.DATABRICKS]: {
+      type: DataStorageType.DATABRICKS,
+      displayName: 'Databricks',
+      icon: DatabricksIcon,
+      status: DataStorageStatus.COMING_SOON,
     },
     [DataStorageType.AZURE_SYNAPSE]: {
       type: DataStorageType.AZURE_SYNAPSE,

@@ -42,7 +42,6 @@ export class RedshiftDataMartSchemaProvider implements DataMartSchemaProvider {
 
     const adapter = this.adapterFactory.create(credentials, config);
 
-    // Build query with LIMIT 0 to get schema without data
     const query = this.queryBuilder.buildQuery(dataMartDefinition, {
       limit: 0,
     });

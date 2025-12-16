@@ -16,13 +16,11 @@ export class RedshiftMapper implements StorageMapper {
     const config = dto.config as RedshiftConfigDto | null;
     const credentials = dto.credentials as RedshiftCredentialsDto | null;
 
-    // Infer connectionType from existing data for backward compatibility
     let inferredConnectionType = RedshiftConnectionType.SERVERLESS;
     if (config?.clusterIdentifier) {
       inferredConnectionType = RedshiftConnectionType.PROVISIONED;
     }
 
-    // Get explicit connectionType from DTO if present, otherwise use inferred
     const connectionType =
       (config?.connectionType as RedshiftConnectionType | undefined) ?? inferredConnectionType;
 
@@ -48,21 +46,18 @@ export class RedshiftMapper implements StorageMapper {
               region: config.region,
               database: config.database,
               workgroupName: config.workgroupName ?? '',
-              schema: config.schema,
             }
           : {
               connectionType: RedshiftConnectionType.PROVISIONED,
               region: config.region,
               database: config.database,
               clusterIdentifier: config.clusterIdentifier ?? '',
-              schema: config.schema,
             }
         : {
             connectionType: RedshiftConnectionType.SERVERLESS,
             region: '',
             database: '',
             workgroupName: '',
-            schema: undefined,
           },
     };
   }
@@ -78,8 +73,6 @@ export class RedshiftMapper implements StorageMapper {
         connectionType: config.connectionType,
         region: config.region,
         database: config.database,
-        // schema removed - now managed in connector setup
-        // Conditionally include based on connection type
         ...(config.connectionType === RedshiftConnectionType.SERVERLESS
           ? { workgroupName: config.workgroupName }
           : { clusterIdentifier: config.clusterIdentifier }),

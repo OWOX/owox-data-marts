@@ -37,12 +37,10 @@ export class RedshiftDataMartValidator implements DataMartValidator {
     const adapter = this.adapterFactory.create(credentials, config);
 
     try {
-      // Build query with LIMIT 0 to validate without retrieving data
       const query = this.queryBuilder.buildQuery(dataMartDefinition, {
         limit: 0,
       });
 
-      // Try to execute the query (dry-run using EXPLAIN)
       await adapter.executeDryRunQuery(query);
 
       return ValidationResult.success();

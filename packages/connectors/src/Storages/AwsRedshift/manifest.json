@@ -11,7 +11,7 @@
       "dependencies": [
         {
           "name": "@aws-sdk/client-redshift-data",
-          "version": "3.940.0",
+          "version": "3.952.0",
           "global": [
             "RedshiftDataClient",
             "ExecuteStatementCommand",

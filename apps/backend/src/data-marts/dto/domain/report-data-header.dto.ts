@@ -24,7 +24,7 @@ export class ReportDataHeader {
     public readonly description?: string,
 
     /**
-     * The storage field type (BigQuery, Athena, Snowflake, or Redshift)
+     * The storage field type
      */
     public readonly storageFieldType?:
       | BigQueryFieldType

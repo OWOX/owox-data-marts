@@ -43,12 +43,10 @@ export enum RedshiftFieldType {
 export function parseRedshiftFieldType(redshiftNativeType: string): RedshiftFieldType | null {
   const normalized = redshiftNativeType.toUpperCase().trim();
 
-  // Direct matches
   if (Object.values(RedshiftFieldType).includes(normalized as RedshiftFieldType)) {
     return normalized as RedshiftFieldType;
   }
 
-  // Handle aliases and variations
   if (normalized.startsWith('DOUBLE PRECISION') || normalized === 'FLOAT8') {
     return RedshiftFieldType.DOUBLE_PRECISION;
   }

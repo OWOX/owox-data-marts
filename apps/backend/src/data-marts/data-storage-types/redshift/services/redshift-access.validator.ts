@@ -20,7 +20,6 @@ export class RedshiftAccessValidator implements DataStorageAccessValidator {
     config: DataStorageConfig,
     credentials: DataStorageCredentials
   ): Promise<ValidationResult> {
-    // 1. Validate config schema
     const configResult = RedshiftConfigSchema.safeParse(config);
     if (!configResult.success) {
       return new ValidationResult(false, 'Invalid config', {
@@ -28,7 +27,6 @@ export class RedshiftAccessValidator implements DataStorageAccessValidator {
       });
     }
 
-    // 2. Validate credentials schema
     const credentialsResult = RedshiftCredentialsSchema.safeParse(credentials);
     if (!credentialsResult.success) {
       return new ValidationResult(false, 'Invalid credentials', {
@@ -36,7 +34,6 @@ export class RedshiftAccessValidator implements DataStorageAccessValidator {
       });
     }
 
-    // 3. Test actual connection
     const adapter = this.adapterFactory.create(credentialsResult.data, configResult.data);
 
     try {

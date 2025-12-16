@@ -64,7 +64,6 @@ export class RedshiftReportReader implements DataStorageReportReader {
   }
 
   async readReportDataBatch(batchId?: string, _maxDataRows = 1000): Promise<ReportDataBatch> {
-    // Initialize query on first request
     if (!this.statementId) {
       await this.initializeReportData();
     }
@@ -79,10 +78,8 @@ export class RedshiftReportReader implements DataStorageReportReader {
       throw new Error('Failed to get query results');
     }
 
-    // Map Redshift Field values to row arrays
     const rows = results.Records.map(record => {
       return record.map(field => {
-        // Extract value from Field union type
         if (field.stringValue !== undefined) return field.stringValue;
         if (field.longValue !== undefined) return field.longValue;
         if (field.doubleValue !== undefined) return field.doubleValue;
@@ -96,7 +93,6 @@ export class RedshiftReportReader implements DataStorageReportReader {
   }
 
   async finalize(): Promise<void> {
-    // No cleanup needed for Redshift Data API
     this.logger.debug('Finalizing report read (no cleanup required)');
   }
 

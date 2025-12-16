@@ -32,7 +32,6 @@ export class RedshiftQueryBuilder implements DataMartQueryBuilder {
       throw new Error('Invalid data mart definition');
     }
 
-    // Apply limit if provided
     if (queryOptions?.limit !== undefined) {
       const cleanQuery = query.endsWith(';') ? query.slice(0, -1) : query;
       query = `SELECT * FROM (${cleanQuery}) LIMIT ${queryOptions.limit}`;
@@ -42,7 +41,6 @@ export class RedshiftQueryBuilder implements DataMartQueryBuilder {
   }
 
   private escapeTablePath(tablePath: string): string {
-    // Redshift uses double quotes for identifiers (PostgreSQL syntax)
     return tablePath
       .split('.')
       .map(identifier =>

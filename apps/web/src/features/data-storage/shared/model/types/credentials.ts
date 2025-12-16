@@ -64,9 +64,5 @@ export function isSnowflakeCredentials(
 export function isRedshiftCredentials(
   credentials: DataStorageCredentials
 ): credentials is RedshiftCredentials {
-  return (
-    'accessKeyId' in credentials &&
-    'secretAccessKey' in credentials &&
-    !('serviceAccount' in credentials)
-  );
+  return 'accessKeyId' in credentials && 'secretAccessKey' in credentials;
 }

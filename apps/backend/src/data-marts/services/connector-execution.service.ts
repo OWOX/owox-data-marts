@@ -772,7 +772,6 @@ export class ConnectorExecutionService {
 
     const fqnParts = connector.storage?.fullyQualifiedName.split('.') || [];
 
-    // Helper to unquote identifier (remove surrounding quotes)
     const unquoteIdentifier = (identifier: string): string => {
       if (!identifier) {
         return '';
@@ -787,11 +786,9 @@ export class ConnectorExecutionService {
     let tableName: string;
 
     if (fqnParts.length === 3) {
-      // Legacy format: database.schema.table
       schema = unquoteIdentifier(fqnParts[1]);
       tableName = unquoteIdentifier(fqnParts[2]);
     } else {
-      // New format: schema.table
       schema = unquoteIdentifier(fqnParts[0]);
       tableName = unquoteIdentifier(fqnParts[1]);
     }
@@ -810,8 +807,8 @@ export class ConnectorExecutionService {
         AWSRegion: storageConfig.region,
         AWSAccessKeyId: credentials.accessKeyId,
         AWSSecretAccessKey: credentials.secretAccessKey,
-        Database: storageConfig.database, // Database from storage config
-        Schema: schema, // Schema from connector FQN only
+        Database: storageConfig.database,
+        Schema: schema,
         WorkgroupName:
           storageConfig.connectionType === RedshiftConnectionType.SERVERLESS
             ? storageConfig.workgroupName

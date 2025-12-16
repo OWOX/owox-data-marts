@@ -32,14 +32,10 @@ export class RedshiftCreateViewExecutor implements CreateViewExecutor {
 
     const adapter = this.adapterFactory.create(credentials, config);
 
-    // Escape view name (support schema.view format)
     const fullyQualifiedName = this.escapeIdentifier(viewName);
 
-    // Extract schema name and create schema if it doesn't exist
     const parts = viewName.split('.');
     if (parts.length >= 2) {
-      // For 2-level: schema.view - create schema
-      // For 3-level: database.schema.view - create schema (parts[1])
       const schemaName = parts.length === 3 ? parts[1] : parts[0];
       const createSchemaQuery = `CREATE SCHEMA IF NOT EXISTS "${schemaName}"`;
 
@@ -47,20 +43,14 @@ export class RedshiftCreateViewExecutor implements CreateViewExecutor {
       await adapter.waitForQueryToComplete(schemaStatementId);
     }
 
-    // Create view query
     const createViewQuery = `CREATE OR REPLACE VIEW ${fullyQualifiedName} AS ${sql}`;
-
-    // Execute query
     const { statementId } = await adapter.executeQuery(createViewQuery);
 
-    // Wait for completion
     await adapter.waitForQueryToComplete(statementId);
-
     return { fullyQualifiedName };
   }
 
   private escapeIdentifier(identifier: string): string {
-    // Handle schema.view format
     return identifier
       .split('.')
       .map(part => (part.startsWith('"') && part.endsWith('"') ? part : `"${part}"`))

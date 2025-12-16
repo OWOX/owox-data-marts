@@ -18,7 +18,6 @@ export interface RedshiftServerlessConfig {
   region: string;
   database: string;
   workgroupName: string;
-  schema?: string;
 }
 
 export interface RedshiftProvisionedConfig {
@@ -26,7 +25,6 @@ export interface RedshiftProvisionedConfig {
   region: string;
   database: string;
   clusterIdentifier: string;
-  schema?: string;
 }
 
 export type RedshiftDataStorageConfig = RedshiftServerlessConfig | RedshiftProvisionedConfig;
