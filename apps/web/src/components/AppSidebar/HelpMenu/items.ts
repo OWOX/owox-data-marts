@@ -35,6 +35,13 @@ export function helpMenuItems(openPopover: (id: string) => void): HelpMenuItem[]
       submenu: {
         options: [
           {
+            label: 'Getting Started with Data Marts',
+            icon: Airplay,
+            onClick: () => {
+              openPopover('video-3-getting-started-with-data-marts');
+            },
+          },
+          {
             label: 'SQL to Google Sheets in Minutes',
             icon: Airplay,
             onClick: () => {

@@ -1,5 +1,8 @@
-import { Video1GoogleSheetsReport } from './popovers/Video1GoogleSheetsReport';
-import { Video2LookerAsDestination } from './popovers/Video2LookerAsDestination';
+import {
+  Video1GoogleSheetsReport,
+  Video2LookerAsDestination,
+  Video3GettingStartedDataMarts,
+} from './popovers';
 import type { PopoverConfig, PopoverId } from './types';
 
 export const popoverItems: Record<PopoverId, PopoverConfig> = {
@@ -16,5 +19,12 @@ export const popoverItems: Record<PopoverId, PopoverConfig> = {
     position: 'bottom-left',
     title: 'Looker Studio Setup',
     content: Video2LookerAsDestination,
+  },
+  'video-3-getting-started-with-data-marts': {
+    width: 500,
+    height: 355,
+    position: 'bottom-left',
+    title: 'Getting Started with Data Marts',
+    content: Video3GettingStartedDataMarts,
   },
 };

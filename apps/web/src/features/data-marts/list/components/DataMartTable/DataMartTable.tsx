@@ -82,7 +82,7 @@ export function DataMartTable<TData, TValue>({
       const wasShown = storageService.get(ONBOARDING_VIDEO_KEY, 'boolean');
 
       if (!wasShown) {
-        open('video-1-google-sheets');
+        open('video-3-getting-started-with-data-marts');
         storageService.set(ONBOARDING_VIDEO_KEY, true);
       }
     }
