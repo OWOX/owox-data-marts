@@ -68,6 +68,7 @@ export function useDataStorage() {
           category: 'DataStorage',
           action: 'Create',
           label: newStorage.type,
+          details: newStorage.title,
         });
 
         toast.success('Storage created');
@@ -99,6 +100,7 @@ export function useDataStorage() {
           category: 'DataStorage',
           action: 'Update',
           label: updatedStorage.type,
+          context: updatedStorage.id,
         });
         toast.success('Storage updated');
         return updatedStorage;

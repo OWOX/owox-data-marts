@@ -10,6 +10,7 @@ import {
 } from '../utils/monaco-commands.util.ts';
 import { toast } from 'react-hot-toast';
 import { Lightbulb } from 'lucide-react';
+import { trackEvent } from '../../../../utils';
 
 interface InsightEditorProps {
   value: string;
@@ -89,6 +90,11 @@ export function InsightEditor({
     const maxH = Math.max(120, editorHeight - MAX_OFFSET);
     setMenuMaxHeight(maxH);
     setIsOpen(true);
+    trackEvent({
+      event: 'insight_editor_open_copy_template_menu',
+      category: 'InsightEditor',
+      action: 'OpenMenu',
+    });
   };
 
   const handleSelectCopyInsight = async (insight: {
@@ -138,6 +144,14 @@ export function InsightEditor({
         forceMoveMarkers: true,
       },
     ]);
+
+    trackEvent({
+      event: 'insight_editor_copy_template',
+      category: 'InsightEditor',
+      action: 'CopyTemplate',
+      label: insight.title,
+      details: insight.id,
+    });
 
     editor.focus();
     setIsOpen(false);

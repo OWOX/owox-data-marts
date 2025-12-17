@@ -35,7 +35,7 @@ import type {
 import { extractApiError } from '../../../../../app/api';
 import type { DataMartSchema } from '../../../shared/types/data-mart-schema.types';
 import toast from 'react-hot-toast';
-import { trackEvent } from '../../../../../utils';
+import { pushToDataLayer, trackEvent } from '../../../../../utils';
 
 // Props interface
 interface DataMartProviderProps {
@@ -53,6 +53,10 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       const response = await dataMartService.getDataMartById(id);
       const dataMart = await mapDataMartFromDto(response);
       dispatch({ type: 'FETCH_DATA_MART_SUCCESS', payload: dataMart });
+      pushToDataLayer({
+        context: dataMart.id,
+        value: dataMart.title,
+      });
     } catch (error) {
       dispatch({
         type: 'FETCH_DATA_MART_ERROR',
@@ -73,6 +77,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         category: 'DataMart',
         action: 'Create',
         label: dataMart.id,
+        value: dataMart.title,
       });
       toast.success('Data Mart created');
       return dataMart;
@@ -86,7 +91,8 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         event: 'data_mart_error',
         category: 'DataMart',
         action: 'CreateError',
-        label: apiError.message,
+        value: data.title,
+        error: apiError.message,
       });
       throw error;
     }
@@ -104,6 +110,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         category: 'DataMart',
         action: 'Update',
         label: dataMart.id,
+        value: dataMart.title,
       });
     } catch (error) {
       const apiError = extractApiError(error);
@@ -115,7 +122,8 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         event: 'data_mart_error',
         category: 'DataMart',
         action: 'UpdateError',
-        label: apiError.message,
+        label: id,
+        value: data.title,
       });
     }
   }, []);
@@ -143,7 +151,8 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         event: 'data_mart_error',
         category: 'DataMart',
         action: 'DeleteError',
-        label: apiError.message,
+        label: id,
+        error: apiError.message,
       });
     }
   }, []);
@@ -158,7 +167,8 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         event: 'data_mart_updated',
         category: 'DataMart',
         action: 'UpdateTitle',
-        label: title,
+        label: id,
+        value: title,
       });
       toast.success('Title updated');
     } catch (error) {
@@ -171,7 +181,8 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         event: 'data_mart_error',
         category: 'DataMart',
         action: 'UpdateTitleError',
-        label: apiError.message,
+        label: id,
+        error: apiError.message,
       });
     }
   }, []);
@@ -186,6 +197,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         event: 'data_mart_updated',
         category: 'DataMart',
         action: 'UpdateDescription',
+        label: id,
       });
       toast.success('Description updated');
     } catch (error) {
@@ -198,7 +210,8 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         event: 'data_mart_error',
         category: 'DataMart',
         action: 'UpdateDescriptionError',
-        label: apiError.message,
+        label: id,
+        error: apiError.message,
       });
     }
   }, []);
@@ -294,6 +307,8 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
           category: 'DataMart',
           action: 'UpdateDefinition',
           label: definitionType,
+          context: dataMart.id,
+          value: dataMart.title,
         });
       } catch (error) {
         const apiError = extractApiError(error);
@@ -305,7 +320,9 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
           event: 'data_mart_error',
           category: 'DataMart',
           action: 'UpdateDefinitionError',
-          label: apiError.message,
+          label: definitionType,
+          context: id,
+          error: apiError.message,
         });
       }
     },
@@ -320,6 +337,15 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       const dataMart = await mapDataMartFromDto(response);
       dispatch({ type: 'PUBLISH_DATA_MART_SUCCESS', payload: dataMart });
       toast.success('Data Mart published');
+      trackEvent({
+        event: 'data_mart_published',
+        category: 'DataMart',
+        action: 'Publish',
+        label: dataMart.storage.type,
+        context: dataMart.id,
+        value: dataMart.title,
+        details: dataMart.definitionType ?? 'No definition',
+      });
     } catch (error) {
       const apiError = extractApiError(error);
       dispatch({
@@ -330,7 +356,8 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         event: 'data_mart_error',
         category: 'DataMart',
         action: 'PublishError',
-        label: apiError.message,
+        label: id,
+        error: apiError.message,
       });
       throw error;
     }
@@ -394,6 +421,12 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       const response = await dataMartService.getDataMartRuns(id, limit, offset);
       const dataMartRuns = mapDataMartRunListResponseDtoToEntity(response);
       dispatch({ type: 'LOAD_MORE_DATA_MART_RUNS_SUCCESS', payload: dataMartRuns });
+      trackEvent({
+        event: 'data_mart_runs_loaded',
+        category: 'DataMart',
+        action: 'LoadMore',
+        context: id,
+      });
       return dataMartRuns;
     } catch (error) {
       dispatch({
@@ -409,6 +442,14 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     const toastId = toast.loading('Manual run started');
     try {
       dispatch({ type: 'RUN_DATA_MART_START' });
+      trackEvent({
+        event: 'data_mart_run_started',
+        category: 'DataMart',
+        action: 'Run',
+        label: 'Manual',
+        context: request.id,
+      });
+
       await dataMartService.runDataMart(request.id, request.payload);
       dispatch({ type: 'RUN_DATA_MART_SUCCESS' });
     } catch (error) {
@@ -422,7 +463,9 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         event: 'data_mart_error',
         category: 'DataMart',
         action: 'RunError',
-        label: apiError.message,
+        label: 'Manual',
+        context: request.id,
+        error: apiError.message,
       });
     }
   }, []);
@@ -433,6 +476,12 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         await dataMartService.cancelDataMartRun(id, runId);
         await getDataMartRuns(id);
         toast.success('Data Mart run canceled');
+        trackEvent({
+          event: 'data_mart_run_canceled',
+          category: 'DataMart',
+          action: 'CancelRun',
+          label: 'Manual',
+        });
       } catch (error) {
         const apiError = extractApiError(error);
         dispatch({
@@ -443,7 +492,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
           event: 'data_mart_error',
           category: 'DataMart',
           action: 'CancelRunError',
-          label: apiError.message,
+          error: apiError.message,
         });
       }
     },
@@ -460,7 +509,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         event: 'data_mart_error',
         category: 'DataMart',
         action: 'FetchRunDetailsError',
-        label: apiError.message,
+        error: apiError.message,
       });
       throw error;
     }
@@ -474,6 +523,12 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       const dataMart = await mapDataMartFromDto(response);
       dispatch({ type: 'ACTUALIZE_DATA_MART_SCHEMA_SUCCESS', payload: dataMart });
       toast.success('Output schema actualized');
+      trackEvent({
+        event: 'data_mart_schema_actualized',
+        category: 'DataMart',
+        action: 'ActualizeSchema',
+        label: 'Automatic',
+      });
     } catch (error) {
       const apiError = extractApiError(error);
       dispatch({
@@ -484,7 +539,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         event: 'data_mart_error',
         category: 'DataMart',
         action: 'ActualizeSchemaError',
-        label: apiError.message,
+        error: apiError.message,
       });
     }
   }, []);
@@ -497,6 +552,12 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
       const dataMart = await mapDataMartFromDto(response);
       dispatch({ type: 'UPDATE_DATA_MART_SCHEMA_SUCCESS', payload: dataMart });
       toast.success('Output schema updated');
+      trackEvent({
+        event: 'data_mart_schema_updated',
+        category: 'DataMart',
+        action: 'UpdateSchema',
+        label: 'Manual',
+      });
     } catch (error) {
       const apiError = extractApiError(error);
       dispatch({
@@ -507,7 +568,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
         event: 'data_mart_error',
         category: 'DataMart',
         action: 'UpdateSchemaError',
-        label: apiError.message,
+        error: apiError.message,
       });
     }
   }, []);

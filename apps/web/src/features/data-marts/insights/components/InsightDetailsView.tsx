@@ -46,7 +46,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@owox/ui/components/tooltip';
-import { formatDateShort } from '../../../../utils';
+import { formatDateShort, trackEvent } from '../../../../utils';
 import { DataMartStatus } from '../../shared';
 
 export default function InsightDetailsView() {
@@ -103,6 +103,11 @@ export default function InsightDetailsView() {
     } else {
       toast.error('Failed to copy to clipboard');
     }
+    trackEvent({
+      event: 'insight_output_copied',
+      category: 'Insights',
+      action: 'Copy',
+    });
   }, [insight?.output, copyToClipboard]);
 
   useEffect(() => {
@@ -111,6 +116,11 @@ export default function InsightDetailsView() {
       if (isCmdOrCtrl && e.shiftKey && (e.key === 'M' || e.key === 'm')) {
         e.preventDefault();
         setShowRawOutput(prev => !prev);
+        trackEvent({
+          event: 'insight_raw_output_toggle',
+          category: 'Insights',
+          action: 'ToggleRawOutput',
+        });
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -340,6 +350,12 @@ export default function InsightDetailsView() {
                               variant='outline'
                               size='default'
                               onClick={() => {
+                                trackEvent({
+                                  event: 'insight_send_schedule',
+                                  category: 'Insights',
+                                  action: 'SendSchedule',
+                                  label: insightId,
+                                });
                                 if (!isDraft) setIsReportSheetOpen(true);
                               }}
                               disabled={isDraft}

@@ -7,6 +7,7 @@ import { DataStorageConfigSheet } from '../../../data-storage/edit';
 import { DataStorageProvider } from '../../../data-storage/shared/model/context';
 import { AlertTriangle } from 'lucide-react';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
+import { trackEvent } from '../../../../utils';
 
 interface DataMartDataStorageViewProps {
   dataStorage: DataStorage;
@@ -28,6 +29,13 @@ export const DataMartDataStorageView = ({
 
   const getSubtitle = () => {
     const storageIsValid = isDataStorageConfigValid(dataStorage);
+
+    trackEvent({
+      event: 'data_storage_configuration_loaded',
+      category: 'DataMart',
+      action: storageIsValid ? 'ValidStorage' : 'InvalidStorage',
+      label: dataStorage.type,
+    });
 
     if (!storageIsValid) {
       return (
