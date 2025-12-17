@@ -5,7 +5,7 @@ import { type DataMartStatusInfo, getDataMartStatusType } from '../../../../shar
 import { StatusLabel } from '../../../../../../shared/components/StatusLabel';
 import { DataStorageType } from '../../../../../data-storage';
 import { DataStorageTypeModel } from '../../../../../data-storage/shared/types/data-storage-type.model.ts';
-import { DataMartActionsCell } from '../components';
+import { DataMartActionsCell, DataMartRunStatusIndicatorCell } from '../components';
 import { DataMartDefinitionType } from '../../../../shared';
 import { DataMartDefinitionTypeModel } from '../../../../shared/types/data-mart-definition-type.model.ts';
 import { DataMartColumnKey } from './columnKeys.ts';
@@ -24,6 +24,12 @@ export const getDataMartColumns = ({
   onDeleteSuccess,
   connectors = [],
 }: DataMartTableColumnsProps = {}): ColumnDef<DataMartListItem>[] => [
+  {
+    id: 'run_status_indicator',
+    size: 80, // fixed width in pixels
+    header: '',
+    cell: ({ row }) => <DataMartRunStatusIndicatorCell row={row} />,
+  },
   {
     accessorKey: DataMartColumnKey.TITLE,
     size: 40, // responsive width in %

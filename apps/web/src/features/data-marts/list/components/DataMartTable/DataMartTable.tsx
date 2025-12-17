@@ -280,9 +280,11 @@ export function DataMartTable<TData, TValue>({
                       style={
                         header.column.id === 'select'
                           ? { width: 40, minWidth: 40, maxWidth: 40 }
-                          : header.column.id === 'actions'
-                            ? { width: 80, minWidth: 80, maxWidth: 80 }
-                            : { width: `${String(header.getSize())}%` }
+                          : header.column.id === 'run_status_indicator'
+                            ? { width: 80, minWidth: 40, maxWidth: 40 }
+                            : header.column.id === 'actions'
+                              ? { width: 80, minWidth: 80, maxWidth: 80 }
+                              : { width: `${String(header.getSize())}%` }
                       }
                     >
                       {header.isPlaceholder
@@ -322,9 +324,11 @@ export function DataMartTable<TData, TValue>({
                       style={
                         cell.column.id === 'select'
                           ? { width: 40, minWidth: 40, maxWidth: 40 }
-                          : cell.column.id === 'actions'
-                            ? { width: 80, minWidth: 80, maxWidth: 80 }
-                            : { width: `${String(cell.column.getSize())}%` }
+                          : cell.column.id === 'run_status_indicator'
+                            ? { width: 80, minWidth: 40, maxWidth: 40 }
+                            : cell.column.id === 'actions'
+                              ? { width: 80, minWidth: 80, maxWidth: 80 }
+                              : { width: `${String(cell.column.getSize())}%` }
                       }
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
