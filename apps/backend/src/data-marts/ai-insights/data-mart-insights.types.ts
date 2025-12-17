@@ -17,11 +17,21 @@ export interface ConsumptionContext {
   dataMart: DataMart;
 }
 
+export type PromptProcessedEntityName = 'INSIGHT' | 'REPORT';
+
+export interface PromptProcessedContext {
+  entityName: PromptProcessedEntityName;
+  entityId: string;
+  userId: string;
+  projectId: string;
+}
+
 export interface DataMartInsightTemplateInput {
   template: string;
   params: DataMartAdditionalParams;
   context?: Record<string, unknown>;
   consumptionContext?: ConsumptionContext;
+  promptProcessedContext?: PromptProcessedContext;
 }
 
 export interface DataMartPromptMetaEntry {

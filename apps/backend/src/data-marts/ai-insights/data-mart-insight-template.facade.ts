@@ -1,9 +1,12 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { type OwoxProducer } from '@owox/internal-helpers';
+import { OWOX_PRODUCER } from '../../common/producer/producer.module';
 import { TemplateRenderFacade } from '../../common/template/facades/template-render.facade';
 import {
   TEMPLATE_RENDER_FACADE,
   TemplateRenderInput,
 } from '../../common/template/types/render-template.types';
+import { PromptProcessedEvent } from '../events/prompt-processed.event';
 import { ConsumptionTrackingService } from '../services/consumption-tracking.service';
 import {
   DataMartAdditionalParams,
@@ -17,7 +20,7 @@ import {
   PromptTagMetaEntry,
 } from './data-mart-insights.types';
 import { PromptTagHandler } from './template/handlers/prompt-tag.handler';
-import { getPromptTotalUsage } from './utils/compute-model-usage';
+import { getPromptTotalUsage, getPromptTotalUsageByModels } from './utils/compute-model-usage';
 
 @Injectable()
 export class DataMartInsightTemplateFacadeImpl implements DataMartInsightTemplateFacade {
@@ -30,7 +33,9 @@ export class DataMartInsightTemplateFacadeImpl implements DataMartInsightTemplat
       DataMartAdditionalParams
     >,
     private readonly promptHandler: PromptTagHandler,
-    private readonly consumptionTracker: ConsumptionTrackingService
+    private readonly consumptionTracker: ConsumptionTrackingService,
+    @Inject(OWOX_PRODUCER)
+    private readonly producer: OwoxProducer
   ) {}
 
   async render(input: DataMartInsightTemplateInput): Promise<DataMartInsightTemplateOutput> {
@@ -67,11 +72,52 @@ export class DataMartInsightTemplateFacadeImpl implements DataMartInsightTemplat
         });
     }
 
+    this.producePromptProcessedEvents(prompts, input.promptProcessedContext);
+
     return {
       rendered: rendered,
       status: this.computeStatus(prompts),
       prompts,
     };
+  }
+
+  private producePromptProcessedEvents(
+    prompts: DataMartPromptMetaEntry[],
+    promptProcessedContext?: DataMartInsightTemplateInput['promptProcessedContext']
+  ): void {
+    if (!promptProcessedContext) return;
+
+    for (const p of prompts) {
+      try {
+        const llmCalls = p.meta.telemetry.llmCalls ?? [];
+        const telemetryJson = JSON.stringify(p.meta.telemetry);
+
+        void this.producer
+          .produceEvent(
+            new PromptProcessedEvent({
+              prompt: p.payload.prompt,
+              promptAnswer: p.promptAnswer,
+              promptStatus: p.meta.status,
+              entityName: promptProcessedContext.entityName,
+              entityId: promptProcessedContext.entityId,
+              userId: promptProcessedContext.userId,
+              biProjectId: promptProcessedContext.projectId,
+              meta: {
+                reasonDescription: p.meta.reasonDescription,
+                artifact: p.meta.artifact,
+                telemetry: telemetryJson,
+                totalUsage: getPromptTotalUsage(llmCalls),
+                totalUsageByModel: getPromptTotalUsageByModels(llmCalls),
+              },
+            })
+          )
+          .catch(error => {
+            this.logger.error('Failed to produce PromptProcessedEvent:', error);
+          });
+      } catch (error) {
+        this.logger.error('Failed to build PromptProcessedEvent:', error);
+      }
+    }
   }
 
   private computeStatus(prompts: DataMartPromptMetaEntry[]) {
