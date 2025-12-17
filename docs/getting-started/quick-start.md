@@ -1,6 +1,12 @@
 # Quick Start 🚀
 
-**OWOX Data Marts** is an open-source self-service analytics platform. It gives you full control over data connectivity and data enablement — entirely on your terms, with free community edition available.
+**OWOX Data Marts** is an open-source self-service analytics platform. It gives you full control over data connectivity and data enablement — entirely on your terms, with a free community edition available.
+
+---
+
+<https://github.com/user-attachments/assets/dcb60ce1-dd7b-4783-b19c-f2fd85079e1f>
+
+---
 
 ## 🔌 Data Connectivity
 
