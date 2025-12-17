@@ -78,18 +78,31 @@ export function useInsights() {
           category: 'Insights',
           action: 'Create',
           label: created.id,
+          details: created.title,
+          context: dataMart.id,
+          value: dataMart.title,
         });
         toast.success('Insight created');
         return created;
       } catch (error) {
+        const e = extractApiError(error);
+
         dispatch({
           type: InsightsActionType.CREATE_INSIGHT_ERROR,
-          payload: extractApiError(error),
+          payload: e,
+        });
+        trackEvent({
+          event: 'insight_error',
+          category: 'Insights',
+          action: 'CreateError',
+          label: data.title,
+          context: dataMart.id,
+          error: e.message,
         });
         return null;
       }
     },
-    [dataMart.id, dispatch]
+    [dataMart.id, dataMart.title, dispatch]
   );
 
   const updateInsight = useCallback(
@@ -105,6 +118,8 @@ export function useInsights() {
           category: 'Insights',
           action: 'Update',
           label: updated.id,
+          context: dataMart.id,
+          details: updated.title,
         });
         toast.success('Insight updated');
         return updated;
@@ -154,6 +169,8 @@ export function useInsights() {
           category: 'Insights',
           action: 'Update title',
           label: updatedInsight.id,
+          context: dataMart.id,
+          details: updatedInsight.title,
         });
         toast.success('Title updated');
         return updatedInsight;
@@ -176,6 +193,12 @@ export function useInsights() {
         dispatch({
           type: InsightsActionType.RUN_INSIGHT_STARTED,
           payload: { triggerId: response.triggerId },
+        });
+        trackEvent({
+          event: 'insight_run',
+          category: 'Insights',
+          action: 'Run',
+          label: insightId,
         });
       } catch (error) {
         dispatch({

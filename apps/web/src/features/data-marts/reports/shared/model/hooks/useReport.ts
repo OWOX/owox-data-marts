@@ -47,7 +47,7 @@ export function useReport() {
         event: 'report_error',
         category: 'Report',
         action: 'ListError',
-        label: message,
+        error: message,
       });
     }
   }, [dispatch]);
@@ -74,7 +74,7 @@ export function useReport() {
           event: 'report_error',
           category: 'Report',
           action: 'ListError',
-          label: message,
+          error: message,
         });
       }
     },
@@ -98,7 +98,7 @@ export function useReport() {
           event: 'report_error',
           category: 'Report',
           action: 'GetError',
-          label: message,
+          error: message,
         });
       }
     },
@@ -117,6 +117,8 @@ export function useReport() {
           category: 'Report',
           action: 'Create',
           label: mappedReport.dataDestination.type,
+          details: mappedReport.title,
+          context: mappedReport.dataMart.id,
         });
         toast.success('Report created');
         return mappedReport;
@@ -131,6 +133,7 @@ export function useReport() {
           category: 'Report',
           action: 'CreateError',
           label: data.destinationConfig.type,
+          error: message,
         });
         return null;
       }
@@ -150,6 +153,9 @@ export function useReport() {
           category: 'Report',
           action: 'Update',
           label: mappedReport.dataDestination.type,
+          value: mappedReport.title,
+          context: mappedReport.dataMart.id,
+          details: mappedReport.id,
         });
         toast.success('Report updated');
         return mappedReport;
@@ -163,7 +169,7 @@ export function useReport() {
           event: 'report_error',
           category: 'Report',
           action: 'UpdateError',
-          label: message,
+          error: message,
         });
         return null;
       }
@@ -181,6 +187,7 @@ export function useReport() {
           event: 'report_deleted',
           category: 'Report',
           action: 'Delete',
+          label: id,
         });
         toast.success('Report deleted');
       } catch (error) {
@@ -193,7 +200,8 @@ export function useReport() {
           event: 'report_error',
           category: 'Report',
           action: 'DeleteError',
-          label: message,
+          label: id,
+          error: message,
         });
       }
     },
@@ -272,7 +280,7 @@ export function useReport() {
           event: 'report_error',
           category: 'Report',
           action: 'RunError',
-          label: message,
+          error: message,
         });
         console.error('Failed to run report:', error);
       }

@@ -4,6 +4,10 @@ export interface DataLayerEvent {
   category?: string;
   action?: string;
   label?: string;
+  context?: string;
+  value?: string;
+  details?: string;
+  error?: string;
   timestamp?: number;
   [key: string]: unknown;
 }

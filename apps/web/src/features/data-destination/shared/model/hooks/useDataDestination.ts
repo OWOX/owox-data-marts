@@ -32,7 +32,7 @@ export function useDataDestination() {
         event: 'data_destination_error',
         category: 'DataDestination',
         action: 'ListError',
-        label: message,
+        error: message,
       });
     }
   }, [dispatch]);
@@ -56,7 +56,7 @@ export function useDataDestination() {
           event: 'data_destination_error',
           category: 'DataDestination',
           action: 'GetError',
-          label: message,
+          error: message,
         });
       }
     },
@@ -92,6 +92,7 @@ export function useDataDestination() {
           category: 'DataDestination',
           action: 'CreateError',
           label: requestData.type,
+          error: message,
         });
         return null;
       }
@@ -127,7 +128,7 @@ export function useDataDestination() {
           event: 'data_destination_error',
           category: 'DataDestination',
           action: 'UpdateError',
-          label: message,
+          error: message,
         });
         return null;
       }
@@ -157,7 +158,7 @@ export function useDataDestination() {
           event: 'data_destination_error',
           category: 'DataDestination',
           action: 'DeleteError',
-          label: message,
+          error: message,
         });
         throw error;
       }
@@ -186,7 +187,7 @@ export function useDataDestination() {
         event: 'data_destination_error',
         category: 'DataDestination',
         action: 'RotateSecretKeyError',
-        label: message,
+        error: message,
       });
       console.error('Failed to rotate secret key:', error);
       throw error;
