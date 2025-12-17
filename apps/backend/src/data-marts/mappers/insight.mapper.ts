@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AuthorizationContext } from '../../idp';
 import { CreateInsightCommand } from '../dto/domain/create-insight.command';
+import { CreateInsightWithAiCommand } from '../dto/domain/create-insight-with-ai.command';
 import { DeleteInsightCommand } from '../dto/domain/delete-insight.command';
 import { GetInsightCommand } from '../dto/domain/get-insight.command';
 import { InsightDto } from '../dto/domain/insight.dto';
@@ -32,6 +33,13 @@ export class InsightMapper {
       dto.title,
       dto.template
     );
+  }
+
+  toCreateWithAiDomainCommand(
+    dataMartId: string,
+    context: AuthorizationContext
+  ): CreateInsightWithAiCommand {
+    return new CreateInsightWithAiCommand(dataMartId, context.projectId, context.userId);
   }
 
   toDomainDto(entity: Insight, lastManualDataMartRun?: DataMartRun | null): InsightDto {

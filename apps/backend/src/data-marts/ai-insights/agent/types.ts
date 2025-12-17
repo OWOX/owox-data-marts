@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DataMartSchema } from '../../data-storage-types/data-mart-schema.type';
 import { GetMetadataOutput } from '../ai-insights-types';
 
 export function isFinalReasonAnswer(value: FinalReason) {
@@ -317,3 +318,37 @@ export const FinalizeAgentResponseSchema = z.object({
 });
 
 export type FinalizeAgentResponse = z.infer<typeof FinalizeAgentResponseSchema>;
+
+// Insight Generation Agent Types
+export interface InsightGenerationAgentInput {
+  dataMartTitle: string | null;
+  dataMartDescription: string | null;
+  schema: DataMartSchema;
+}
+
+export const InsightGenerationAgentResponseSchema = z.object({
+  title: z
+    .string()
+    .min(1, 'title is required')
+    .describe(
+      'A concise, engaging title for the insight that describes what kind of analysis or questions it can answer. ' +
+        'The title should be clear and actionable, typically 3-8 words.'
+    ),
+  template: z
+    .string()
+    .min(1, 'template is required')
+    .describe(
+      [
+        'A beautiful Markdown template for the insight.',
+        'Requirements:',
+        '- Must include 2-3 {{#prompt}}...{{/prompt}} blocks with interesting AI queries about the data mart.',
+        '- Each prompt block should contain a specific, valuable question that users would want to ask about their data.',
+        '- The prompts should be diverse and cover different aspects of the data (trends, comparisons, insights, anomalies, etc.).',
+        '- Use proper Markdown formatting: headers, lists, emphasis where appropriate.',
+        '- Make it visually appealing and easy to read.',
+        '- The template should provide structure for exploring the data mart in meaningful ways.',
+      ].join('\n')
+    ),
+});
+
+export type InsightGenerationAgentResponse = z.infer<typeof InsightGenerationAgentResponseSchema>;

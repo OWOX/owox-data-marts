@@ -8,6 +8,7 @@ import { UpdateInsightTitleApiDto } from '../dto/presentation/update-insight-tit
 import { InsightListItemResponseApiDto } from '../dto/presentation/insight-list-item-response-api.dto';
 import { InsightMapper } from '../mappers/insight.mapper';
 import { CreateInsightService } from '../use-cases/create-insight.service';
+import { CreateInsightWithAiService } from '../use-cases/create-insight-with-ai.service';
 import { DeleteInsightService } from '../use-cases/delete-insight.service';
 import { GetInsightService } from '../use-cases/get-insight.service';
 import { ListInsightsService } from '../use-cases/list-insights.service';
@@ -15,6 +16,7 @@ import { UpdateInsightTitleService } from '../use-cases/update-insight-title.ser
 import { UpdateInsightService } from '../use-cases/update-insight.service';
 import {
   CreateInsightSpec,
+  CreateInsightWithAiSpec,
   DeleteInsightSpec,
   GetInsightSpec,
   ListInsightsSpec,
@@ -27,6 +29,7 @@ import {
 export class InsightController {
   constructor(
     private readonly createInsightService: CreateInsightService,
+    private readonly createInsightWithAiService: CreateInsightWithAiService,
     private readonly getInsightService: GetInsightService,
     private readonly listInsightsService: ListInsightsService,
     private readonly updateInsightService: UpdateInsightService,
@@ -45,6 +48,18 @@ export class InsightController {
   ): Promise<InsightResponseApiDto> {
     const command = this.mapper.toCreateDomainCommand(dataMartId, context, dto);
     const insight = await this.createInsightService.run(command);
+    return this.mapper.toResponse(insight);
+  }
+
+  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Post('ai-generate')
+  @CreateInsightWithAiSpec()
+  async createWithAi(
+    @AuthContext() context: AuthorizationContext,
+    @Param('dataMartId') dataMartId: string
+  ): Promise<InsightResponseApiDto> {
+    const command = this.mapper.toCreateWithAiDomainCommand(dataMartId, context);
+    const insight = await this.createInsightWithAiService.run(command);
     return this.mapper.toResponse(insight);
   }
 
