@@ -1,14 +1,31 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AiInsightsFacade } from './ai-insights.facade';
 
-import { AnswerPromptRequest, AnswerPromptResponse } from '../ai-insights-types';
+import {
+  AnswerPromptRequest,
+  AnswerPromptResponse,
+  GenerateInsightRequest,
+  GenerateInsightResponse,
+  SharedAgentContext,
+} from '../ai-insights-types';
 import { AiInsightsOrchestratorService } from '../ai-insight-orchestrator.service';
 import { PromptAnswer } from '../data-mart-insights.types';
+import { GenerateInsightAgent } from '../agent/generate-insight.agent';
+import { AI_CHAT_PROVIDER } from '../../../common/ai-insights/services/ai-chat-provider.token';
+import { AiChatProvider } from '../../../common/ai-insights/agent/ai-core';
+import { ToolRegistry } from '../../../common/ai-insights/agent/tool-registry';
 
 @Injectable()
 export class AiInsightsFacadeImpl implements AiInsightsFacade {
   private readonly logger = new Logger(AiInsightsFacadeImpl.name);
-  constructor(private readonly aiInsightsAgentService: AiInsightsOrchestratorService) {}
+
+  constructor(
+    private readonly aiInsightsAgentService: AiInsightsOrchestratorService,
+    private readonly generateInsightAgent: GenerateInsightAgent,
+    @Inject(AI_CHAT_PROVIDER)
+    private readonly aiProvider: AiChatProvider,
+    private readonly toolRegistry: ToolRegistry
+  ) {}
 
   async answerPrompt(request: AnswerPromptRequest): Promise<AnswerPromptResponse> {
     try {
@@ -33,6 +50,46 @@ export class AiInsightsFacadeImpl implements AiInsightsFacade {
           },
         },
       };
+    }
+  }
+
+  async generateInsight(request: GenerateInsightRequest): Promise<GenerateInsightResponse> {
+    this.logger.log(`Generating insight for data mart ${request.dataMartId}`);
+
+    try {
+      // Build shared context for the agent
+      const sharedContext: SharedAgentContext = {
+        aiProvider: this.aiProvider,
+        toolRegistry: this.toolRegistry,
+        budgets: {},
+        telemetry: {
+          llmCalls: [],
+          toolCalls: [],
+          messageHistory: [],
+        },
+        projectId: request.projectId,
+        dataMartId: request.dataMartId,
+      };
+
+      // Call the AI agent to generate insight title and template
+      const aiResult = await this.generateInsightAgent.run(
+        {
+          dataMartTitle: request.dataMartTitle,
+          dataMartDescription: request.dataMartDescription,
+          schema: request.schema,
+        },
+        sharedContext
+      );
+
+      this.logger.log(`AI generated insight title: "${aiResult.title}"`);
+
+      return {
+        title: aiResult.title,
+        template: aiResult.template,
+      };
+    } catch (e: unknown) {
+      this.logger.error(`Error generating insight for data mart ${request.dataMartId}`, e);
+      throw e;
     }
   }
 }

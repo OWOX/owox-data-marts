@@ -105,6 +105,7 @@ import { ReportRunService } from './services/report-run.service';
 import { LookerStudioReportRunService } from './services/looker-studio-report-run.service';
 import { InsightMapper } from './mappers/insight.mapper';
 import { CreateInsightService } from './use-cases/create-insight.service';
+import { CreateInsightWithAiService } from './use-cases/create-insight-with-ai.service';
 import { GetInsightService } from './use-cases/get-insight.service';
 import { ListInsightsService } from './use-cases/list-insights.service';
 import { UpdateInsightService } from './use-cases/update-insight.service';
@@ -209,6 +210,7 @@ import { ConnectorOauthService } from './services/connector/connector-oauth.serv
     InsightMapper,
     InsightService,
     CreateInsightService,
+    CreateInsightWithAiService,
     GetInsightService,
     ListInsightsService,
     UpdateInsightService,

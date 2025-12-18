@@ -24,6 +24,7 @@ import { FinalizeAgent } from './agent/finalize.agent';
 import { PlanAgent } from './agent/plan.agent';
 import { SqlAgent } from './agent/sql.agent';
 import { TriageAgent } from './agent/triage.agent';
+import { GenerateInsightAgent } from './agent/generate-insight.agent';
 
 export const aiInsightsProviders = [
   OpenAiChatProvider,
@@ -33,6 +34,7 @@ export const aiInsightsProviders = [
   PlanAgent,
   SqlAgent,
   FinalizeAgent,
+  GenerateInsightAgent,
   PromptTagHandler,
   DataMartInsightTemplateFacadeImpl,
   {
