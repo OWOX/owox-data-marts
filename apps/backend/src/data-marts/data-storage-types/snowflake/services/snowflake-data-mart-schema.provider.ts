@@ -112,14 +112,35 @@ export class SnowflakeDataMartSchemaProvider implements DataMartSchemaProvider {
       return null;
     }
 
-    const [database, schema, table] = parts;
+    const [rawDatabase, rawSchema, rawTable] = parts;
+
+    const databaseForQuery = rawDatabase.replace(/^"|"$/g, '').toUpperCase();
+    const schemaForQuery = rawSchema.replace(/^"|"$/g, '').toUpperCase();
+    const tableForQuery = rawTable.replace(/^"|"$/g, '').toUpperCase();
+
+    const primaryKeyColumns: Set<string> = new Set();
+    try {
+      const pkQuery = `SHOW PRIMARY KEYS IN TABLE ${fullyQualifiedName}`;
+      const pkResult = await adapter.executeQuery(pkQuery);
+
+      if (pkResult.rows && pkResult.rows.length > 0) {
+        pkResult.rows.forEach((row: Record<string, unknown>) => {
+          const columnName = (row.column_name || row.COLUMN_NAME) as string;
+          if (columnName) {
+            primaryKeyColumns.add(columnName);
+          }
+        });
+      }
+    } catch (error) {
+      this.logger.debug('Failed to query primary keys, table may not have a primary key', error);
+    }
 
     const query = `
-      SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
-      FROM ${database}.INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_CATALOG = '${database}'
-        AND TABLE_SCHEMA = UPPER('${schema}')
-        AND TABLE_NAME = UPPER('${table}')
+      SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COMMENT
+      FROM ${databaseForQuery}.INFORMATION_SCHEMA.COLUMNS
+      WHERE UPPER(TABLE_CATALOG) = '${databaseForQuery}'
+        AND UPPER(TABLE_SCHEMA) = '${schemaForQuery}'
+        AND UPPER(TABLE_NAME) = '${tableForQuery}'
       ORDER BY ORDINAL_POSITION
     `;
 
@@ -131,12 +152,17 @@ export class SnowflakeDataMartSchemaProvider implements DataMartSchemaProvider {
         return null;
       }
 
-      return result.rows.map((row: Record<string, unknown>) =>
-        this.createFieldFromResult(
-          (row.COLUMN_NAME || row.column_name) as string,
-          (row.DATA_TYPE || row.data_type) as string
-        )
-      );
+      return result.rows.map((row: Record<string, unknown>) => {
+        const columnName = (row.COLUMN_NAME || row.column_name) as string;
+        const comment = (row.COMMENT || row.comment) as string | undefined;
+
+        return this.createFieldFromResult(
+          columnName,
+          (row.DATA_TYPE || row.data_type) as string,
+          comment,
+          primaryKeyColumns.has(columnName)
+        );
+      });
     } catch (error) {
       this.logger.debug('Failed to query INFORMATION_SCHEMA, table likely does not exist', error);
       return null;
@@ -145,7 +171,9 @@ export class SnowflakeDataMartSchemaProvider implements DataMartSchemaProvider {
 
   private createFieldFromResult(
     columnName: string,
-    type: string
+    type: string,
+    description?: string,
+    isPrimaryKey: boolean = false
   ): SnowflakeDataMartSchema['fields'][0] {
     if (!columnName) {
       throw new Error(`Failed to get field name`);
@@ -154,7 +182,8 @@ export class SnowflakeDataMartSchemaProvider implements DataMartSchemaProvider {
     return {
       name: columnName,
       type: parseSnowflakeFieldType(type) || SnowflakeFieldType.STRING,
-      isPrimaryKey: false,
+      description: description || undefined,
+      isPrimaryKey,
       status: DataMartSchemaFieldStatus.CONNECTED,
     };
   }
