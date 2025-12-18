@@ -14,6 +14,13 @@ import {
 } from '../schemas/get-data.schema';
 import { LookerStudioTypeMapperService } from './looker-studio-type-mapper.service';
 
+/**
+ * Maximum number of rows that can be returned in a single getData request.
+ * Looker Studio has a hard limit of 1 million rows per request.
+ * @see https://developers.google.com/looker-studio/connector/reference#getdata
+ */
+const MAX_ROWS_LIMIT = 1_000_000;
+
 interface HeadersAndMapping {
   filteredHeaders: ReportDataHeader[];
   fieldIndexMap: number[];
@@ -68,8 +75,8 @@ export class LookerStudioConnectorApiDataService {
       request.request.fields
     );
 
-    // Determine effective row limit: 100 if sample extraction, otherwise no limits
-    const effectiveRowLimit = isSampleExtraction ? 100 : undefined;
+    // Determine effective row limit: 100 for sample extraction, MAX_ROWS_LIMIT for full extraction
+    const effectiveRowLimit = isSampleExtraction ? 100 : MAX_ROWS_LIMIT;
 
     // Process data and build response using cached reader
     return this.processDataAndBuildResponse(
@@ -167,6 +174,7 @@ export class LookerStudioConnectorApiDataService {
 
       // Check row limit if specified
       if (rowLimit && allRows.length >= rowLimit) {
+        this.logger.warn(`Row limit reached: returning ${rowLimit} rows (more data available)`);
         return allRows.slice(0, rowLimit);
       }
     } while (nextBatchId);
