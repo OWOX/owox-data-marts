@@ -1,4 +1,5 @@
 import { Inject, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Response } from 'express';
 import { BusinessViolationException } from '../../../../common/exceptions/business-violation.exception';
 import { CachedReaderData } from '../../../dto/domain/cached-reader-data.dto';
 import { Report } from '../../../entities/report.entity';
@@ -120,6 +121,86 @@ export class LookerStudioConnectorApiService {
     return isSampleExtraction
       ? await this.getSampleDataExtraction(request, report, cachedReader)
       : await this.getFullDataExtraction(request, report, cachedReader);
+  }
+
+  /**
+   * Checks if streaming is enabled via environment variable.
+   * Default is false (non-streaming) for backward compatibility.
+   */
+  private isStreamingEnabled(): boolean {
+    return process.env.LOOKER_STREAMING_ENABLED === 'true';
+  }
+
+  /**
+   * Handles getData request with optional streaming response.
+   * Uses streaming when LOOKER_STREAMING_ENABLED=true environment variable is set.
+   *
+   * Streaming benefits:
+   * - Peak memory: ~1000 rows vs up to 1M rows
+   * - Faster time-to-first-byte for large datasets
+   * - Better handling of memory-constrained environments
+   *
+   * @param request - Looker Studio getData request
+   * @param res - Express response object for streaming
+   */
+  public async getDataStreaming(request: GetDataRequest, res: Response): Promise<void> {
+    const { report, cachedReader } = await this.getReportAndCachedReader(request);
+    const isSampleExtraction = Boolean(request.request.scriptParams?.sampleExtraction);
+
+    // Sample extraction always uses non-streaming (only 100 rows)
+    if (isSampleExtraction) {
+      const result = await this.getSampleDataExtraction(request, report, cachedReader);
+      res.json(result);
+      return;
+    }
+
+    // Check feature flag for full extraction
+    if (this.isStreamingEnabled()) {
+      this.logger.log('Using streaming mode for getData (LOOKER_STREAMING_ENABLED=true)');
+      await this.getFullDataExtractionStreaming(request, report, cachedReader, res);
+    } else {
+      // Non-streaming mode (default)
+      const result = await this.getFullDataExtraction(request, report, cachedReader);
+      res.json(result);
+    }
+  }
+
+  /**
+   * Processes full data extraction with streaming response.
+   */
+  private async getFullDataExtractionStreaming(
+    request: GetDataRequest,
+    report: Report,
+    cachedReader: CachedReaderData,
+    res: Response
+  ): Promise<void> {
+    this.logger.log(`Starting streaming report run ${report.id}`);
+
+    const reportRun = await this.lookerStudioReportRunService.create(report);
+    if (!reportRun) {
+      throw new InternalServerErrorException('Failed to create report run');
+    }
+
+    try {
+      const context = await this.dataService.prepareStreamingContext(
+        request,
+        report,
+        cachedReader,
+        false
+      );
+
+      await this.dataService.streamData(res, context);
+      await this.handleSuccessfulReportRun(reportRun);
+    } catch (e) {
+      await this.handleFailedReportRun(reportRun, e);
+      // If headers haven't been sent yet, throw to let error handler respond
+      if (!res.headersSent) {
+        throw e;
+      }
+      // If streaming already started, we can't send error response
+      // Error is already logged in handleFailedReportRun
+      this.logger.error('Error occurred after streaming started, response may be incomplete');
+    }
   }
 
   /**

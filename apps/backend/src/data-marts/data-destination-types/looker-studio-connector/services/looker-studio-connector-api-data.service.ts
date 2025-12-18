@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Response } from 'express';
 import { BusinessViolationException } from '../../../../common/exceptions/business-violation.exception';
 import { DataStorageType } from '../../../data-storage-types/enums/data-storage-type.enum';
 import { DataStorageReportReader } from '../../../data-storage-types/interfaces/data-storage-report-reader.interface';
@@ -7,6 +8,7 @@ import { ReportDataHeader } from '../../../dto/domain/report-data-header.dto';
 import { Report } from '../../../entities/report.entity';
 import { FieldDataType } from '../enums/field-data-type.enum';
 import {
+  DataRow,
   FieldValue,
   GetDataRequest,
   GetDataResponse,
@@ -25,6 +27,23 @@ interface HeadersAndMapping {
   filteredHeaders: ReportDataHeader[];
   fieldIndexMap: number[];
 }
+
+/**
+ * Context for streaming data responses.
+ * Contains pre-computed schema and field mapping for efficient row streaming.
+ */
+export interface StreamingContext {
+  schema: Array<{ name: string; dataType: FieldDataType }>;
+  reader: DataStorageReportReader;
+  fieldIndexMap: number[];
+  rowLimit: number;
+}
+
+/**
+ * Batch size for streaming responses.
+ * Smaller batches reduce peak memory during streaming.
+ */
+const STREAMING_BATCH_SIZE = 1000;
 
 /**
  * Service for handling data extraction requests from Looker Studio connector.
@@ -174,7 +193,10 @@ export class LookerStudioConnectorApiDataService {
 
       // Check row limit if specified
       if (rowLimit && allRows.length >= rowLimit) {
-        this.logger.warn(`Row limit reached: returning ${rowLimit} rows (more data available)`);
+        const limitType = rowLimit < MAX_ROWS_LIMIT ? 'sample extraction' : 'full extraction';
+        this.logger.warn(
+          `Row limit reached (${limitType}): returning ${rowLimit} rows (more data available)`
+        );
         return allRows.slice(0, rowLimit);
       }
     } while (nextBatchId);
@@ -219,5 +241,110 @@ export class LookerStudioConnectorApiDataService {
     }
     // Convert all other types to string
     return String(value);
+  }
+
+  /**
+   * Prepares context for streaming data response.
+   * Pre-computes schema and field mapping before streaming begins.
+   *
+   * @param request - Looker Studio getData request
+   * @param report - Report entity
+   * @param cachedReader - Cached reader data
+   * @param isSampleExtraction - Whether this is a sample extraction
+   * @returns Streaming context with schema and field mapping
+   */
+  public async prepareStreamingContext(
+    request: GetDataRequest,
+    report: Report,
+    cachedReader: CachedReaderData,
+    isSampleExtraction = false
+  ): Promise<StreamingContext> {
+    this.logger.log('Preparing streaming context');
+    this.logger.debug(`Using ${cachedReader.fromCache ? 'cached' : 'fresh'} reader for streaming`);
+
+    const { filteredHeaders, fieldIndexMap } = await this.prepareHeadersAndMapping(
+      cachedReader.dataDescription.dataHeaders,
+      request.request.fields
+    );
+
+    const schema = this.buildResponseSchema(filteredHeaders, report.dataMart.storage.type);
+    const rowLimit = isSampleExtraction ? 100 : MAX_ROWS_LIMIT;
+
+    return {
+      schema,
+      reader: cachedReader.reader,
+      fieldIndexMap,
+      rowLimit,
+    };
+  }
+
+  /**
+   * Streams data response directly to HTTP response.
+   * Writes JSON incrementally to avoid loading all rows into memory.
+   *
+   * Memory optimization: Only one batch (~1000 rows) is held in memory at a time,
+   * compared to accumulating all rows (up to 1M) before sending.
+   *
+   * @param res - Express response object
+   * @param context - Pre-computed streaming context
+   * @returns Total number of rows streamed
+   */
+  public async streamData(res: Response, context: StreamingContext): Promise<number> {
+    const { schema, reader, fieldIndexMap, rowLimit } = context;
+
+    // Set headers for JSON streaming
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Transfer-Encoding', 'chunked');
+
+    // Write opening JSON structure with schema
+    res.write(`{"schema":${JSON.stringify(schema)},"rows":[`);
+
+    let totalRows = 0;
+    let isFirstRow = true;
+    let nextBatchId: string | undefined | null = undefined;
+
+    do {
+      const remainingRows = rowLimit - totalRows;
+      const batchSize = Math.min(STREAMING_BATCH_SIZE, remainingRows);
+
+      const batch = await reader.readReportDataBatch(nextBatchId, batchSize);
+
+      // Stream each row
+      for (const row of batch.dataRows) {
+        if (totalRows >= rowLimit) break;
+
+        const formattedRow: DataRow = {
+          values: fieldIndexMap.map(index => this.convertToFieldValue(row[index])),
+        };
+
+        // Write comma separator (except for first row)
+        if (!isFirstRow) {
+          res.write(',');
+        }
+        isFirstRow = false;
+
+        res.write(JSON.stringify(formattedRow));
+        totalRows++;
+      }
+
+      nextBatchId = batch.nextDataBatchId;
+
+      // Check if we've reached the row limit
+      if (totalRows >= rowLimit) {
+        if (nextBatchId) {
+          this.logger.warn(
+            `Row limit reached during streaming: returned ${totalRows} rows (more data available)`
+          );
+        }
+        break;
+      }
+    } while (nextBatchId);
+
+    // Write closing JSON structure
+    res.write(`],"filtersApplied":[]}`);
+    res.end();
+
+    this.logger.log(`Streaming completed: ${totalRows} rows sent`);
+    return totalRows;
   }
 }
