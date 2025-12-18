@@ -19,11 +19,6 @@ const logger = createLogger('Bootstrap');
 const PATH_PREFIX = 'api';
 const SWAGGER_PATH = 'swagger-ui';
 
-// HTTP server timeout configuration (in milliseconds)
-const SERVER_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes - overall request timeout
-const KEEP_ALIVE_TIMEOUT_MS = 3 * 60 * 1000; // 3 minutes - keep-alive connection timeout
-const HEADERS_TIMEOUT_MS = 3 * 60 * 1000 + 5 * 1000; // 3 minutes 5 seconds - headers timeout (slightly higher than keep-alive)
-
 export interface BootstrapOptions {
   express: Express;
 }
@@ -60,9 +55,9 @@ export async function bootstrap(options: BootstrapOptions): Promise<NestExpressA
   const port = appConfigService.get<number>('PORT') || DEFAULT_PORT;
 
   const server = await app.listen(port);
-  server.setTimeout(SERVER_TIMEOUT_MS);
-  server.keepAliveTimeout = KEEP_ALIVE_TIMEOUT_MS;
-  server.headersTimeout = HEADERS_TIMEOUT_MS;
+  server.setTimeout(appConfigService.getOrThrow<number>('SERVER_TIMEOUT_MS'));
+  server.keepAliveTimeout = appConfigService.getOrThrow<number>('KEEP_ALIVE_TIMEOUT_MS');
+  server.headersTimeout = appConfigService.getOrThrow<number>('HEADERS_TIMEOUT_MS');
 
   const appUrl = await app.getUrl();
   const normalizedUrl = appUrl.replace('[::1]', 'localhost');

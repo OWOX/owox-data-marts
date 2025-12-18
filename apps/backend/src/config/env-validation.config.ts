@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import {
+  DEFAULT_HEADERS_TIMEOUT_MS,
+  DEFAULT_KEEP_ALIVE_TIMEOUT_MS,
+  DEFAULT_SERVER_TIMEOUT_MS,
+} from './constants';
 
 /**
  * Configuration schema for environment variables validation.
@@ -15,6 +20,10 @@ const configSchema = z
       .transform(val => val !== 'false'),
 
     SCHEDULER_TIMEZONE: z.string().trim().default('UTC'),
+
+    SERVER_TIMEOUT_MS: z.coerce.number().default(DEFAULT_SERVER_TIMEOUT_MS),
+    KEEP_ALIVE_TIMEOUT_MS: z.coerce.number().default(DEFAULT_KEEP_ALIVE_TIMEOUT_MS),
+    HEADERS_TIMEOUT_MS: z.coerce.number().default(DEFAULT_HEADERS_TIMEOUT_MS),
   })
   .passthrough(); // Pass through all other fields as-is
 
