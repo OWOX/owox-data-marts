@@ -68,7 +68,7 @@ You can also view and copy the list of report recipients.
 Add a **Subject** and write the **Message** using Markdown.  
 Switch to **Preview** to check how the email will appear to recipients.
 
-![OWOX Data Marts interface showing a report creation dialog for Marketing Team with a TEMPLATE section containing two fields: Subject field displays The Awesome Data Mart report has been updated, and below is a Message field with Markdown and Preview tabs in the top right corner outlined in red. The message text reads: Dear Marketing Team, We're happy to let you know that the Awesome Data Mart report has been updated. Please feel free to use the updated data for your upcoming analytics. Best regards, The Analytics Team](res/email_message.png)
+![OWOX Data Marts interface showing a report creation dialog for Marketing Team with a TEMPLATE section containing two fields: Subject field displays The Awesome Data Mart report has been updated, and below is a Message field with Markdown and Preview tabs in the top right corner outlined in red. The message text reads: Dear Marketing Team, We're happy to let you know that the Awesome Data Mart report has been updated. If you have questions, contact the Analytics team or mention us in Slack using analytics-support. Best regards, The Analytics Team](res/email_message.png)
 
 #### 2.5. Set sending conditions
 
@@ -82,13 +82,7 @@ OWOX automatically runs the Data Mart before sending the report and checks the r
 
 ![OWOX Data Marts dialog showing the SENDING CONDITIONS section with Data Mart Run results displayed at the top in a red-bordered box. Below, a dropdown menu labeled Send always is expanded, revealing three options: Send always (selected with a checkmark), Send only when result is empty, and Send only when result is not empty. A red arrow points from the label to the dropdown](res/email_sendingconditions.png)
 
-#### 2.6. Save the report
-
-Click **Create New Report** to apply the report settings. If you want to run the report immediately, click **Create & Run report** instead.
-
-![OWOX Data Marts dialog showing the Marketing Team report creation interface. Below are sending conditions with Data Mart Run results and a Send always dropdown. At the bottom, a blue Create new report button is outlined in red with an upward arrow icon, and to its right is a Create & Run report option with a red arrow pointing to it. A Cancel button appears at the bottom](res/email_createandrun.png)
-
-#### 2.7. (Optional) Scheduling
+#### 2.6. (Optional) Scheduling
 
 To run this report automatically on a schedule (for example, every 5 minutes or every Monday and Wednesday at 3:00 PM), create a new trigger in the **Automate Report Runs** section.  
 
@@ -97,6 +91,12 @@ To run this report automatically on a schedule (for example, every 5 minutes or 
 You can also add the trigger later in the **Triggers** tab of your Data Mart.
 
 ![OWOX Data Marts interface showing the Triggers tab selected with a red border at the top navigation. The page displays a Time triggers section with a calendar icon and a red arrow pointing to the Add Trigger button with a plus icon on the right. Below is a table with columns for Trigger Type, Run Target, Schedule, Next Run, and Last Run. One row shows Report Run type linked to Notification for Marketing Team, scheduled Daily at 09:00 America/New_York timezone, with Next Run in 22 hours and Last Run showing Never run. Navigation buttons Previous and Next appear at the bottom](res/email_triggers.png)
+
+#### 2.7. Create the report
+
+Click **Create New Report** to apply the report settings. If you want to run the report immediately, click **Create & Run report** instead.
+
+![OWOX Data Marts dialog showing the Marketing Team report creation interface. Below are sending conditions with Data Mart Run results and a Send always dropdown. At the bottom, a blue Create new report button is outlined in red with an upward arrow icon, and to its right is a Create & Run report option with a red arrow pointing to it. A Cancel button appears at the bottom](res/email_createandrun.png)
 
 ---
 
