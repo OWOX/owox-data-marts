@@ -148,6 +148,47 @@ export enum SnowflakeFieldType {
 }
 
 /**
+ * Redshift field type enum
+ */
+export enum RedshiftFieldType {
+  // Numeric types
+  SMALLINT = 'SMALLINT',
+  INTEGER = 'INTEGER',
+  BIGINT = 'BIGINT',
+  DECIMAL = 'DECIMAL',
+  NUMERIC = 'NUMERIC',
+  REAL = 'REAL',
+  DOUBLE_PRECISION = 'DOUBLE PRECISION',
+
+  // String types
+  VARCHAR = 'VARCHAR',
+  CHAR = 'CHAR',
+  TEXT = 'TEXT',
+  BPCHAR = 'BPCHAR',
+
+  // Boolean
+  BOOLEAN = 'BOOLEAN',
+  BOOL = 'BOOL',
+
+  // Date/Time types
+  DATE = 'DATE',
+  TIMESTAMP = 'TIMESTAMP',
+  TIMESTAMPTZ = 'TIMESTAMPTZ',
+  TIME = 'TIME',
+  TIMETZ = 'TIMETZ',
+
+  // Binary
+  BYTEA = 'BYTEA',
+
+  // Complex types
+  SUPER = 'SUPER',
+
+  // Geometric
+  GEOMETRY = 'GEOMETRY',
+  GEOGRAPHY = 'GEOGRAPHY',
+}
+
+/**
  * Base schema field interface
  */
 export interface BaseSchemaField {
@@ -183,6 +224,13 @@ export interface SnowflakeSchemaField extends BaseSchemaField {
 }
 
 /**
+ * Redshift schema field interface
+ */
+export interface RedshiftSchemaField extends BaseSchemaField {
+  type: RedshiftFieldType;
+}
+
+/**
  * BigQuery data mart schema
  */
 export interface BigQueryDataMartSchema {
@@ -207,9 +255,18 @@ export interface SnowflakeDataMartSchema {
 }
 
 /**
+ * Redshift data mart schema
+ */
+export interface RedshiftDataMartSchema {
+  type: 'redshift-data-mart-schema';
+  fields: RedshiftSchemaField[];
+}
+
+/**
  * Data mart schema type
  */
 export type DataMartSchema =
   | BigQueryDataMartSchema
   | AthenaDataMartSchema
-  | SnowflakeDataMartSchema;
+  | SnowflakeDataMartSchema
+  | RedshiftDataMartSchema;

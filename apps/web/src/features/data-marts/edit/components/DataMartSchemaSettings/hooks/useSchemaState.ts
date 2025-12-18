@@ -3,6 +3,7 @@ import type {
   AthenaSchemaField,
   BigQuerySchemaField,
   DataMartSchema,
+  RedshiftSchemaField,
   SnowflakeSchemaField,
 } from '../../../../shared/types/data-mart-schema.types';
 import {
@@ -10,6 +11,8 @@ import {
   isAthenaSchema,
   isBigQueryField,
   isBigQuerySchema,
+  isRedshiftField,
+  isRedshiftSchema,
   isSnowflakeField,
   isSnowflakeSchema,
 } from '../utils';
@@ -51,7 +54,13 @@ export function useSchemaState(initialSchema: DataMartSchema | null | undefined)
    * If schema is null or undefined, creates a new schema based on field types.
    */
   const updateSchema = useCallback(
-    (newFields: BigQuerySchemaField[] | AthenaSchemaField[] | SnowflakeSchemaField[]) => {
+    (
+      newFields:
+        | BigQuerySchemaField[]
+        | AthenaSchemaField[]
+        | SnowflakeSchemaField[]
+        | RedshiftSchemaField[]
+    ) => {
       if (schema) {
         if (isBigQuerySchema(schema) && newFields.every(isBigQueryField)) {
           setSchema({
@@ -66,6 +75,12 @@ export function useSchemaState(initialSchema: DataMartSchema | null | undefined)
           });
           setIsDirty(true);
         } else if (isSnowflakeSchema(schema) && newFields.every(isSnowflakeField)) {
+          setSchema({
+            ...schema,
+            fields: newFields,
+          });
+          setIsDirty(true);
+        } else if (isRedshiftSchema(schema) && newFields.every(isRedshiftField)) {
           setSchema({
             ...schema,
             fields: newFields,
@@ -91,6 +106,12 @@ export function useSchemaState(initialSchema: DataMartSchema | null | undefined)
             setSchema({
               type: 'snowflake-data-mart-schema',
               fields: newFields as SnowflakeSchemaField[],
+            });
+            setIsDirty(true);
+          } else if (isRedshiftField(newFields[0])) {
+            setSchema({
+              type: 'redshift-data-mart-schema',
+              fields: newFields as RedshiftSchemaField[],
             });
             setIsDirty(true);
           }

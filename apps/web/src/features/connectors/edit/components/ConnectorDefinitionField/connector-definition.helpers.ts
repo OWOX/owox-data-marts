@@ -9,6 +9,8 @@ export const getStorageDisplayName = (type: DataStorageType) => {
       return 'AWS Athena';
     case DataStorageType.SNOWFLAKE:
       return 'Snowflake';
+    case DataStorageType.AWS_REDSHIFT:
+      return 'AWS Redshift';
     default:
       return type;
   }

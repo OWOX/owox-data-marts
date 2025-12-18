@@ -25,6 +25,9 @@ import { AthenaCredentials } from '../data-storage-types/athena/schemas/athena-c
 import { BigQueryCredentials } from '../data-storage-types/bigquery/schemas/bigquery-credentials.schema';
 import { SnowflakeConfig } from '../data-storage-types/snowflake/schemas/snowflake-config.schema';
 import { SnowflakeCredentials } from '../data-storage-types/snowflake/schemas/snowflake-credentials.schema';
+import { RedshiftConfig } from '../data-storage-types/redshift/schemas/redshift-config.schema';
+import { RedshiftCredentials } from '../data-storage-types/redshift/schemas/redshift-credentials.schema';
+import { RedshiftConnectionType } from '../data-storage-types/redshift/enums/redshift-connection-type.enum';
 import { ConnectorMessage } from '../connector-types/connector-message/schemas/connector-message.schema';
 import { ConnectorOutputCaptureService } from '../connector-types/connector-message/services/connector-output-capture.service';
 import { ConnectorMessageType } from '../connector-types/enums/connector-message-type-enum';
@@ -654,6 +657,9 @@ export class ConnectorExecutionService {
       case DataStorageType.SNOWFLAKE:
         return this.createSnowflakeStorageConfig(dataMart, connector);
 
+      case DataStorageType.AWS_REDSHIFT:
+        return this.createRedshiftStorageConfig(dataMart, connector);
+
       default:
         throw new ConnectorExecutionError(
           `Unsupported storage type: ${dataMart.storage.type}`,
@@ -753,6 +759,65 @@ export class ConnectorExecutionService {
       config: {
         ...baseConfig,
         ...authConfig,
+      },
+    });
+  }
+
+  private createRedshiftStorageConfig(
+    dataMart: DataMart,
+    connector: DataMartConnectorDefinition['connector']
+  ): StorageConfigDto {
+    const storageConfig = dataMart.storage.config as RedshiftConfig;
+    const credentials = dataMart.storage.credentials as RedshiftCredentials;
+
+    const fqnParts = connector.storage?.fullyQualifiedName.split('.') || [];
+
+    const unquoteIdentifier = (identifier: string): string => {
+      if (!identifier) {
+        return '';
+      }
+      if (identifier.startsWith('"') && identifier.endsWith('"')) {
+        return identifier.slice(1, -1);
+      }
+      return identifier;
+    };
+
+    let schema: string;
+    let tableName: string;
+
+    if (fqnParts.length === 3) {
+      schema = unquoteIdentifier(fqnParts[1]);
+      tableName = unquoteIdentifier(fqnParts[2]);
+    } else {
+      schema = unquoteIdentifier(fqnParts[0]);
+      tableName = unquoteIdentifier(fqnParts[1]);
+    }
+
+    if (!schema || !schema.trim()) {
+      throw new Error('Schema name is required in connector configuration');
+    }
+
+    if (!tableName || !tableName.trim()) {
+      throw new Error('Table name is required in connector configuration');
+    }
+
+    return new StorageConfigDto({
+      name: DataStorageType.AWS_REDSHIFT,
+      config: {
+        AWSRegion: storageConfig.region,
+        AWSAccessKeyId: credentials.accessKeyId,
+        AWSSecretAccessKey: credentials.secretAccessKey,
+        Database: storageConfig.database,
+        Schema: schema,
+        WorkgroupName:
+          storageConfig.connectionType === RedshiftConnectionType.SERVERLESS
+            ? storageConfig.workgroupName
+            : '',
+        ClusterIdentifier:
+          storageConfig.connectionType === RedshiftConnectionType.PROVISIONED
+            ? storageConfig.clusterIdentifier
+            : '',
+        DestinationTableNameOverride: `${connector.source.node} ${tableName}`,
       },
     });
   }

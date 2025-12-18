@@ -10,6 +10,10 @@ import {
   SnowflakeDataMartSchema,
   SnowflakeDataMartSchemaSchema,
 } from './snowflake/schemas/snowflake-data-mart-schema.schema';
+import {
+  RedshiftDataMartSchema,
+  RedshiftDataMartSchemaSchema,
+} from './redshift/schemas/redshift-data-mart-schema.schema';
 
 export function isBigQueryDataMartSchema(schema: unknown): schema is BigqueryDataMartSchema {
   return BigQueryDataMartSchemaSchema.safeParse(schema).success;
@@ -21,4 +25,8 @@ export function isAthenaDataMartSchema(schema: unknown): schema is AthenaDataMar
 
 export function isSnowflakeDataMartSchema(schema: unknown): schema is SnowflakeDataMartSchema {
   return SnowflakeDataMartSchemaSchema.safeParse(schema).success;
+}
+
+export function isRedshiftDataMartSchema(schema: unknown): schema is RedshiftDataMartSchema {
+  return RedshiftDataMartSchemaSchema.safeParse(schema).success;
 }

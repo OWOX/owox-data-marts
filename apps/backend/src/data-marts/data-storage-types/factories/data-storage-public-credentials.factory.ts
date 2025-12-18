@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AthenaCredentialsSchema } from '../athena/schemas/athena-credentials.schema';
 import { BigQueryCredentialsSchema } from '../bigquery/schemas/bigquery-credentials.schema';
 import { SnowflakeCredentialsSchema } from '../snowflake/schemas/snowflake-credentials.schema';
+import { RedshiftCredentialsSchema } from '../redshift/schemas/redshift-credentials.schema';
 import { DataStorageType } from '../enums/data-storage-type.enum';
 import { DataStorageCredentialsPublic } from '../../dto/presentation/data-storage-response-api.dto';
 
@@ -35,6 +36,13 @@ export class DataStoragePublicCredentialsFactory {
         return {
           authMethod: validatedCredentials.authMethod,
           username: validatedCredentials.username,
+        };
+      }
+
+      case DataStorageType.AWS_REDSHIFT: {
+        const validatedCredentials = RedshiftCredentialsSchema.parse(credentials);
+        return {
+          accessKeyId: validatedCredentials.accessKeyId,
         };
       }
 

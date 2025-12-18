@@ -25,9 +25,18 @@ export interface SnowflakeCredentialsDto {
 }
 
 /**
+ * AWS Redshift credentials DTO interface
+ */
+export interface RedshiftCredentialsDto {
+  accessKeyId?: string;
+  secretAccessKey?: string;
+}
+
+/**
  * Combined type for data storage credentials
  */
 export type DataStorageCredentialsDto =
   | GoogleBigQueryCredentialsDto
   | AwsAthenaCredentialsDto
-  | SnowflakeCredentialsDto;
+  | SnowflakeCredentialsDto
+  | RedshiftCredentialsDto;

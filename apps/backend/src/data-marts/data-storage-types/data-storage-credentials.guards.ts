@@ -10,6 +10,10 @@ import {
   SnowflakeCredentials,
   SnowflakeCredentialsSchema,
 } from './snowflake/schemas/snowflake-credentials.schema';
+import {
+  RedshiftCredentials,
+  RedshiftCredentialsSchema,
+} from './redshift/schemas/redshift-credentials.schema';
 
 export function isBigQueryCredentials(credentials: unknown): credentials is BigQueryCredentials {
   return BigQueryCredentialsSchema.safeParse(credentials).success;
@@ -21,4 +25,8 @@ export function isAthenaCredentials(credentials: unknown): credentials is Athena
 
 export function isSnowflakeCredentials(credentials: unknown): credentials is SnowflakeCredentials {
   return SnowflakeCredentialsSchema.safeParse(credentials).success;
+}
+
+export function isRedshiftCredentials(credentials: unknown): credentials is RedshiftCredentials {
+  return RedshiftCredentialsSchema.safeParse(credentials).success;
 }
