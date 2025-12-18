@@ -556,14 +556,14 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
       // TODO: Move types to constants and refactor schemas
       
       switch (genericType.toLowerCase()) {
-        // Integer types
-        case 'integer':
+        // Integer types (size-aware)
         case 'int32':
-        case 'int64':
+        case 'integer':
         case 'unsigned int32':
+        case 'int64':
         case 'long':
-          return 'INTEGER';
-        
+          return 'INT64';
+
         // Float types
         case 'float':
         case 'number':
@@ -571,12 +571,12 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
           return 'FLOAT64';
         case 'decimal':
           return 'NUMERIC';
-        
+
         // Boolean types
         case 'bool':
         case 'boolean':
           return 'BOOL';
-        
+
         // Date/time types
         case 'datetime':
           return 'DATETIME';
@@ -584,7 +584,12 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
           return 'DATE';
         case 'timestamp':
           return 'TIMESTAMP';
-        
+
+        // String types (explicit mapping for common API types)
+        case 'numeric string':
+        case 'list':
+          return 'STRING';
+
         // Default to STRING for unknown types
         default:
           return 'STRING';

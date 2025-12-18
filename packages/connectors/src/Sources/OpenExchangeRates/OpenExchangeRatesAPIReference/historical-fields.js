@@ -24,24 +24,20 @@
 
 var historicalFields = {
   date: {
-    type: "DATE",
+    type: "date",
     description: "Date of exchange rate",
-    GoogleBigQueryType: "DATE",
     GoogleBigQueryPartitioned: true
   },
   base: {
-    type: "STRING",
-    description: "Base currency",
-    GoogleBigQueryType: "STRING"
+    type: "string",
+    description: "Base currency"
   },
   currency: {
-    type: "STRING",
-    description: "Target currency",
-    GoogleBigQueryType: "STRING"
+    type: "string",
+    description: "Target currency"
   },
   rate: {
-    type: "FLOAT",
-    description: "Exchange rate",
-    GoogleBigQueryType: "FLOAT64"
+    type: "number",
+    description: "Exchange rate"
   }
 };

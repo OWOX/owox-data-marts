@@ -20,10 +20,8 @@ var userLocationPerformanceReportFields = {
   },
   'TimePeriod': {
     'description': 'The time period of each report row.',
-    'type': 'Date',
-    'GoogleBigQueryType': 'date',
-    'GoogleBigQueryPartitioned': true,
-    'GoogleSheetsFormat': '@'
+    'type': 'date',
+    'GoogleBigQueryPartitioned': true
   },
   'CampaignName': {
     'description': 'The campaign name.',

@@ -8,39 +8,32 @@
 var adInsightsFields = {
   'ad_id': {
     'description': 'Ad ID',
-    'type': 'string',
-    'GoogleSheetsFormat': '@'
+    'type': 'string'
   },
   'advertiser_id': {
     'description': 'Advertiser ID',
-    'type': 'string',
-    'GoogleSheetsFormat': '@'
+    'type': 'string'
   },
   'campaign_id': {
     'description': 'Campaign ID',
-    'type': 'string',
-    'GoogleSheetsFormat': '@'
+    'type': 'string'
   },
   'adgroup_id': {
     'description': 'Ad Group ID',
-    'type': 'string',
-    'GoogleSheetsFormat': '@'
+    'type': 'string'
   },
   'stat_time_day': {
     'description': 'Statistics Date',
-    'type': 'datetime',
-    'GoogleBigQueryType': 'date',
+    'type': 'date',
     'GoogleBigQueryPartitioned': true
   },
   'date_start': {
     'description': 'Start Date',
-    'type': 'datetime',
-    'GoogleBigQueryType': 'date'
+    'type': 'date'
   },
   'date_end': {
     'description': 'End Date',
-    'type': 'datetime',
-    'GoogleBigQueryType': 'date'
+    'type': 'date'
   },
   'impressions': {
     'description': 'Impressions',

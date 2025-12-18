@@ -719,7 +719,12 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
         return 'timestamp';
       case 'date':
         return 'date';
-      
+
+      // String types (explicit mapping for common API types)
+      case 'numeric string':
+      case 'list':
+        return 'string';
+
       // Default to string for unknown types
       default:
         return 'string';

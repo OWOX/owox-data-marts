@@ -20,8 +20,7 @@ var creativesFields = {
   },
   'createdAt': {
     'description': 'Creation time',
-    'type': 'long',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'createdBy': {
     'description': 'Entity (e.g., a person URN) that developed the creative',

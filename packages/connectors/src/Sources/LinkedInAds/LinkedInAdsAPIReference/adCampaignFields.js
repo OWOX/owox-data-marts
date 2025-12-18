@@ -8,8 +8,7 @@
 var adCampaignFields = {
   'id': {
     'description': 'Unique internal ID representing the campaign',
-    'type': 'long',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'account': {
     'description': 'URN identifying the advertising account associated with the campaign. This value is immutable once set. For example, urn:li:sponsoredAccount:{id}',
@@ -73,13 +72,11 @@ var adCampaignFields = {
   },
   'runSchedule': {
     'description': 'Scheduled date range to run associated creatives. The start date must be non-null. Represents the inclusive (greater than or equal to) value in which to start the range.',
-    'type': 'long',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'runSchedule': {
     'description': 'Scheduled date range to run associated creatives. The start date must be non-null. Represents the exclusive (strictly less than) value in which to end the range. This field is optional. An unset field indicates an open range; for example, if start is 1455309628000 (Fri, 12 Feb 2016 20:40:28 GMT), and end is not set, it means everything at, or after 1455309628000.',
-    'type': 'long',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'targetingCriteria': {
     'description': 'Specifies targeting criteria that the member should match. This is a more advanced boolean expression than the previous targeting field. It provides a generic AND/OR construct to include and exclude different targeting facets when defining audiences for campaigns.',

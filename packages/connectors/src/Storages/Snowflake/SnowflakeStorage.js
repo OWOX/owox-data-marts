@@ -645,10 +645,9 @@ ON ${this.uniqueKeyColumns.map(item => (`target."${item}" = source."${item}"`)).
         // Integer types
         case 'integer':
         case 'int32':
-          return 'INTEGER';
         case 'int64':
         case 'long':
-          return 'BIGINT';
+          return 'INTEGER';
 
         // Float types
         case 'float':
@@ -675,7 +674,12 @@ ON ${this.uniqueKeyColumns.map(item => (`target."${item}" = source."${item}"`)).
         case 'json':
         case 'object':
         case 'array':
-          return 'VARIANT';
+          return 'VARCHAR';
+
+        // String types
+        case 'numeric string':
+        case 'list':
+          return 'VARCHAR';
 
         // Default to VARCHAR for unknown types
         default:

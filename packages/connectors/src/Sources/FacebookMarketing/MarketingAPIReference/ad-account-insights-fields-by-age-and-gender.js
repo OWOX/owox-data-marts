@@ -64,18 +64,15 @@ var adAccountInsightsFieldsByAgeAndGender = {
   },
   'auction_bid': {
     'description': 'auction_bid',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'auction_competitiveness': {
     'description': 'auction_competitiveness',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'auction_max_competitor_bid': {
     'description': 'auction_max_competitor_bid',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'buying_type': {
     'description': 'The method by which you pay for and target ads in your campaigns: through dynamic auction bidding, fixed-price bidding, or reach and frequency buying. This field is currently only visible at the campaign level.',
@@ -92,13 +89,11 @@ var adAccountInsightsFieldsByAgeAndGender = {
   },
   'canvas_avg_view_percent': {
     'description': 'The average percentage of the Instant Experience that people saw. An Instant Experience is a screen that opens after someone interacts with your ad on a mobile device. It may include a series of interactive or multimedia components, including video, images product catalog and more.',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'canvas_avg_view_time': {
     'description': 'The average total time, in seconds, that people spent viewing an Instant Experience. An Instant Experience is a screen that opens after someone interacts with your ad on a mobile device. It may include a series of interactive or multimedia components, including video, images product catalog and more.',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'catalog_segment_actions': {
     'description': 'The number of actions performed attributed to your ads promoting your catalog segment, broken down by action type.',
@@ -122,8 +117,7 @@ var adAccountInsightsFieldsByAgeAndGender = {
   },
   'clicks': {
     'description': 'The number of clicks on your ads.',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'conversion_values': {
     'description': 'conversion_values',
@@ -163,18 +157,15 @@ var adAccountInsightsFieldsByAgeAndGender = {
   },
   'cost_per_dda_countby_convs': {
     'description': 'cost_per_dda_countby_convs',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'cost_per_inline_link_click': {
     'description': 'The average cost of each inline link click.',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'cost_per_inline_post_engagement': {
     'description': 'The average cost of each inline post engagement.',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'cost_per_one_thousand_ad_impression': {
     'description': 'cost_per_one_thousand_ad_impression',
@@ -194,8 +185,7 @@ var adAccountInsightsFieldsByAgeAndGender = {
   },
   'cost_per_unique_click': {
     'description': 'The average cost for each unique click (all). This metric is estimated.',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'cost_per_unique_conversion': {
     'description': 'cost_per_unique_conversion',
@@ -203,8 +193,7 @@ var adAccountInsightsFieldsByAgeAndGender = {
   },
   'cost_per_unique_inline_link_click': {
     'description': 'The average cost of each unique inline link click. This metric is estimated.',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'cost_per_unique_outbound_click': {
     'description': 'The average cost for each unique outbound click. This metric is estimated.',
@@ -212,18 +201,15 @@ var adAccountInsightsFieldsByAgeAndGender = {
   },
   'cpc': {
     'description': 'The average cost for each click (all).',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'cpm': {
     'description': 'The average cost for 1,000 impressions.',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'cpp': {
     'description': 'The average cost to reach 1,000 people. This metric is estimated.',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'created_time': {
     'description': 'created_time',
@@ -231,24 +217,20 @@ var adAccountInsightsFieldsByAgeAndGender = {
   },
   'ctr': {
     'description': 'The percentage of times people saw your ad and performed a click (all).',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'date_start': {
     'description': 'The start date for your data. This is controlled by the date range you\'ve selected for your reporting view.',
-    'type': 'string',
-    'GoogleBigQueryType': 'date',
+    'type': 'date',
     'GoogleBigQueryPartitioned': true
   },
   'date_stop': {
     'description': 'The end date for your data. This is controlled by the date range you\'ve selected for your reporting view.',
-    'type': 'string',
-    'GoogleBigQueryType': 'date'
+    'type': 'date'
   },
   'dda_countby_convs': {
     'description': 'dda_countby_convs',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'dda_results': {
     'description': 'dda_results',
@@ -256,18 +238,15 @@ var adAccountInsightsFieldsByAgeAndGender = {
   },
   'frequency': {
     'description': 'The average number of times each person saw your ad. This metric is estimated.',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'full_view_impressions': {
     'description': 'The number of Full Views on your Page\'s posts as a result of your ad.',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'full_view_reach': {
     'description': 'The number of people who performed a Full View on your Page\'s post as a result of your ad.',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'gender': {
     'description': 'The gender of the people who saw your ad. This is based on the gender people have listed in their Facebook profiles.',
@@ -275,38 +254,31 @@ var adAccountInsightsFieldsByAgeAndGender = {
   },
   'impressions': {
     'description': 'The number of times your ads were on screen.',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'inline_link_click_ctr': {
     'description': 'The percentage of time people saw your ads and performed an inline link click.',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'inline_link_clicks': {
     'description': 'The number of clicks on links to select destinations or experiences, on or off Facebook-owned properties. Inline link clicks use a fixed 1-day-click attribution window.',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'inline_post_engagement': {
     'description': 'The total number of actions that people take involving your ads. Inline post engagements use a fixed 1-day-click attribution window.',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'instagram_upcoming_event_reminders_set': {
     'description': 'instagram_upcoming_event_reminders_set',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'instant_experience_clicks_to_open': {
     'description': 'instant_experience_clicks_to_open',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'instant_experience_clicks_to_start': {
     'description': 'instant_experience_clicks_to_start',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'instant_experience_outbound_clicks': {
     'description': 'instant_experience_outbound_clicks',
@@ -318,8 +290,7 @@ var adAccountInsightsFieldsByAgeAndGender = {
   },
   'marketing_messages_delivery_rate': {
     'description': 'The number of messages delivered divided by the number of messages sent. Some messages may not be delivered, such as when a customer\'s device is out of service. This metric doesn\'t include messages sent to Europe and Japan.',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'mobile_app_purchase_roas': {
     'description': 'The total return on ad spend (ROAS) from mobile app purchases. This is based on the value that you assigned when you set up the app event.',
@@ -347,13 +318,11 @@ var adAccountInsightsFieldsByAgeAndGender = {
   },
   'qualifying_question_qualify_answer_rate': {
     'description': 'qualifying_question_qualify_answer_rate',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'reach': {
     'description': 'The number of people who saw your ads at least once. Reach is different from impressions, which may include multiple views of your ads by the same people. This metric is estimated.',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'shops_assisted_purchases': {
     'description': 'shops_assisted_purchases',
@@ -361,8 +330,7 @@ var adAccountInsightsFieldsByAgeAndGender = {
   },
   'social_spend': {
     'description': 'The total amount you\'ve spent so far for your ads showed with social information. (ex: Jane Doe likes this).',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   },
   'spend': {
     'description': 'The estimated total amount of money you\'ve spent on your campaign, ad set or ad during its schedule. This metric is estimated.',
@@ -440,7 +408,6 @@ var adAccountInsightsFieldsByAgeAndGender = {
   },
   'wish_bid': {
     'description': 'wish_bid',
-    'type': 'numeric string',
-    'GoogleBigQueryType': 'numeric'
+    'type': 'number'
   }
 }

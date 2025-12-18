@@ -218,22 +218,43 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
     const type = field.type ? field.type.toLowerCase() : 'string';
 
     switch (type) {
+      // Integer types (size-aware)
+      case 'int32':
+      case 'unsigned int32':
+        return 'INTEGER';
+        
       case 'integer':
+      case 'int64':
+      case 'long':
       case 'int':
         return 'BIGINT';
+
+      // Float types
       case 'float':
       case 'number':
         return 'DOUBLE PRECISION';
+
+      // Boolean types
       case 'boolean':
       case 'bool':
         return 'BOOLEAN';
+
+      // Date/time types
       case 'date':
         return 'DATE';
       case 'datetime':
       case 'timestamp':
         return 'TIMESTAMP';
+
+      // Complex types
       case 'json':
         return 'SUPER';
+
+      // String types (explicit mapping for common API types)
+      case 'numeric string':
+      case 'list':
+        return 'VARCHAR(65535)';
+
       default:
         return 'VARCHAR(65535)';
     }

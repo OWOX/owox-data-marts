@@ -12,8 +12,7 @@ var reportKeywordFields = {
   },
   'date': {
     'description': 'The date for this metric.',
-    'type': 'datetime',
-    'GoogleBigQueryType': 'date', 
+    'type': 'date', 
     'GoogleBigQueryPartitioned': true
   },
   'clicks': {
