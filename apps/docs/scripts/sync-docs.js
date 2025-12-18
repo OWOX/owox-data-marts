@@ -376,6 +376,8 @@ function processFrontmatterSidebar(frontmatter, filePaths) {
     destFileName === 'readme' || destFileName === 'index'
       ? { order: 0 }
       : { order: destFileName === 'getting-started' ? 1 : 2 };
+
+  // frontmatter.tableOfContents = false;
 }
 
 /**
