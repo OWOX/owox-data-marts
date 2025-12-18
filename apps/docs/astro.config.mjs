@@ -21,6 +21,7 @@ export default defineConfig({
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/OWOX/owox-data-marts' },
       ],
+      customCss: ['./src/styles/custom.css'],
       components: {
         PageFrame: './src/components/starlight/PageFrame.astro',
         // PageSidebar: './src/components/starlight/PageSidebar.astro',
