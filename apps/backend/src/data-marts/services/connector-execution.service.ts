@@ -267,7 +267,13 @@ export class ConnectorExecutionService {
         error: errorMessage,
       });
     } finally {
-      await this.updateRunStatus(runId, capturedLogs, capturedErrors, mergeWithExisting);
+      await this.updateRunStatus(
+        runId,
+        hasSuccessfulRun,
+        capturedLogs,
+        capturedErrors,
+        mergeWithExisting
+      );
 
       if (hasSuccessfulRun) {
         // Register connector run consumption only if at least one configuration succeeded
@@ -336,7 +342,7 @@ export class ConnectorExecutionService {
 
       const configLogs: ConnectorMessage[] = [];
       const configErrors: ConnectorMessage[] = [];
-      let success = true;
+      let success = false;
 
       const logCaptureConfig = this.connectorOutputCaptureService.createCapture(
         (message: ConnectorMessage) => {
@@ -349,7 +355,6 @@ export class ConnectorExecutionService {
                 runId,
                 configId,
               });
-              success = false;
               break;
             case ConnectorMessageType.REQUESTED_DATE:
               this.connectorStateService
@@ -379,6 +384,7 @@ export class ConnectorExecutionService {
                   configId,
                 });
               } else {
+                success = true;
                 configLogs.push(message);
                 this.logger.log(`${message.status}`, {
                   dataMartId: dataMart.id,
@@ -429,7 +435,8 @@ export class ConnectorExecutionService {
         const runConfig = this.getRunConfig(payload, configState);
 
         await this.runConnector(dataMart.id, runId, configuration, runConfig, logCaptureConfig);
-        if (configErrors.length === 0) {
+
+        if (success) {
           this.logger.log(`Configuration ${configIndex + 1} completed successfully`, {
             dataMartId: dataMart.id,
             projectId: dataMart.projectId,
@@ -575,13 +582,14 @@ export class ConnectorExecutionService {
 
   private async updateRunStatus(
     runId: string,
+    hasSuccessfulRun: boolean,
     capturedLogs: ConnectorMessage[],
     capturedErrors: ConnectorMessage[],
     mergeWithExisting: boolean = false
   ): Promise<void> {
     const hasLogs = capturedLogs.length > 0;
     const hasErrors = capturedErrors.length > 0;
-    let status = hasErrors ? DataMartRunStatus.FAILED : DataMartRunStatus.SUCCESS;
+    let status = hasSuccessfulRun ? DataMartRunStatus.SUCCESS : DataMartRunStatus.FAILED;
     if (this.gracefulShutdownService.isInShutdownMode()) {
       status = DataMartRunStatus.INTERRUPTED;
     }
