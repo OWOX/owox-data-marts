@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export enum AiProviderName {
   OPENAI = 'openai',
+  OPENROUTER = 'openrouter',
 }
 
 export const AI_CHAT_PROVIDER = Symbol('AI_CHAT_PROVIDER');

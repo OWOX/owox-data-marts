@@ -1,4 +1,5 @@
 import { OpenAiChatProvider } from '../../common/ai-insights/services/openai/openai-chat-provider';
+import { OpenRouterChatProvider } from '../../common/ai-insights/services/openrouter/openrouter-chat-provider';
 import { AiInsightsFacadeImpl } from './facades/ai-insights.facade.impl';
 import { PromptTagHandler } from './template/handlers/prompt-tag.handler';
 import { DataMartInsightTemplateFacadeImpl } from './data-mart-insight-template.facade';
@@ -28,6 +29,7 @@ import { GenerateInsightAgent } from './agent/generate-insight.agent';
 
 export const aiInsightsProviders = [
   OpenAiChatProvider,
+  OpenRouterChatProvider,
   AiInsightsFacadeImpl,
   AiInsightsOrchestratorService,
   TriageAgent,
@@ -39,16 +41,23 @@ export const aiInsightsProviders = [
   DataMartInsightTemplateFacadeImpl,
   {
     provide: AI_CHAT_PROVIDER,
-    useFactory: (config: ConfigService, openai: OpenAiChatProvider) => {
+    useFactory: (
+      config: ConfigService,
+      openai: OpenAiChatProvider,
+      openrouter: OpenRouterChatProvider
+    ) => {
       const raw = (config.get<string>(AI_PROVIDER_ENV) || '').toLowerCase();
       const provider = normalizeAiProviderName(raw);
       switch (provider) {
         case AiProviderName.OPENAI:
+          return openai;
+        case AiProviderName.OPENROUTER:
+          return openrouter;
         default:
           return openai;
       }
     },
-    inject: [ConfigService, OpenAiChatProvider],
+    inject: [ConfigService, OpenAiChatProvider, OpenRouterChatProvider],
   },
   {
     provide: TEMPLATE_RENDER_FACADE,
