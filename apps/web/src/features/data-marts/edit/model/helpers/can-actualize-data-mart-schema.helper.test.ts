@@ -42,11 +42,11 @@ describe('canActualizeSchema', () => {
   });
 
   describe('CONNECTOR definition type', () => {
-    it('should return true when schema is null (new connector, needs initial actualization)', () => {
-      expect(canActualizeSchema(DataMartDefinitionType.CONNECTOR, null)).toBe(true);
-    });
+    it('should return false when schema is null or empty', () => {
+      // Null schema
+      expect(canActualizeSchema(DataMartDefinitionType.CONNECTOR, null)).toBe(false);
 
-    it('should return false when schema exists but is empty or has no connected fields', () => {
+      // Empty schema
       const emptySchema: BigQueryDataMartSchema = {
         type: 'bigquery-data-mart-schema',
         fields: [],
