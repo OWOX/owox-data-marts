@@ -130,7 +130,7 @@ export const ColumnPreNormalizeSchema = z.object({
 });
 
 export const ColumnTransformSchema = z.object({
-  kind: z.enum(['none', 'cast', 'parse_date', 'parse_timestamp']),
+  kind: z.enum(['none', 'cast', 'parse_date', 'parse_timestamp']).optional(),
   format: z
     .string()
     .optional()

@@ -64,6 +64,7 @@ Pre-normalization rule (MUST follow):
 Correctness rule:
 - It is better to return an explicit error than to return a silently incorrect or empty result.
 - Do NOT produce queries that may succeed syntactically but violate the intended time semantics.
+- [important] Do not use safe casting functions (e.g., TRY_CAST, TRY_TO_DATE, SAFE_CAST, SAFE_PARSE etc.) to hide errors.
 
 ${buildJsonFormatSection(SqlBuilderResponseSchema)}
 `.trim();
