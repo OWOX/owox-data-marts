@@ -2,6 +2,11 @@ import { DataMartSchemaFieldStatus } from '../../data-storage-types/enums/data-m
 import { QueryPlan } from '../agent/types';
 import { GetMetadataOutput } from '../ai-insights-types';
 
+type FieldWithStatusAndNested<F> = {
+  status?: DataMartSchemaFieldStatus;
+  fields?: F[];
+};
+
 type NarrowableSchemaFieldBase = {
   name: string;
   status?: DataMartSchemaFieldStatus;
@@ -15,10 +20,6 @@ function narrowFieldsRec<T extends NarrowableSchemaFieldBase>(
   const result: T[] = [];
 
   for (const field of fields) {
-    if (field.status !== undefined && field.status !== DataMartSchemaFieldStatus.CONNECTED) {
-      continue;
-    }
-
     const nested = field.fields as T[] | undefined;
     const narrowedNested = Array.isArray(nested) ? narrowFieldsRec(nested, required) : undefined;
 
@@ -27,12 +28,7 @@ function narrowFieldsRec<T extends NarrowableSchemaFieldBase>(
 
     if (!match) continue;
 
-    const { status: _omit, ...cleaned } = field as T & { status?: DataMartSchemaFieldStatus };
-
-    result.push({
-      ...cleaned,
-      ...(narrowedNested ? { fields: narrowedNested } : {}),
-    } as T);
+    result.push(narrowedNested ? ({ ...field, fields: narrowedNested } as T) : field);
   }
 
   return result;
@@ -48,10 +44,8 @@ function narrowSchema<S extends { fields: T[] }, T extends NarrowableSchemaField
 
 export function buildNarrowMetadata(
   plan: QueryPlan,
-  metadata: GetMetadataOutput | undefined
-): GetMetadataOutput | undefined {
-  if (!metadata?.schema) return metadata;
-
+  metadata: GetMetadataOutput
+): GetMetadataOutput {
   const required = new Set(
     plan.requiredColumns?.length
       ? plan.requiredColumns
@@ -61,4 +55,29 @@ export function buildNarrowMetadata(
   const narrowed = narrowSchema(metadata.schema, required);
 
   return narrowed ? { ...metadata, schema: narrowed } : metadata;
+}
+
+function filterConnectedFieldsRec<F extends FieldWithStatusAndNested<F>>(fields: F[]): F[] {
+  const result: F[] = [];
+
+  for (const field of fields) {
+    if (field.status !== undefined && field.status !== DataMartSchemaFieldStatus.CONNECTED) {
+      continue;
+    }
+
+    const nested = field.fields;
+    const filteredNested = Array.isArray(nested) ? filterConnectedFieldsRec(nested) : undefined;
+
+    result.push(filteredNested ? ({ ...field, fields: filteredNested } as F) : field);
+  }
+
+  return result;
+}
+
+export function filterConnectedSchema<
+  S extends { fields: F[] },
+  F extends { status?: DataMartSchemaFieldStatus; fields?: F[] },
+>(schema: S): S {
+  const filteredFields = filterConnectedFieldsRec(schema.fields);
+  return { ...schema, fields: filteredFields } as S;
 }

@@ -108,6 +108,23 @@ export interface SharedAgentContext {
   dataMartId: string;
 }
 
+export enum SqlErrorKind {
+  DRY_RUN_ERROR = 'dry_run_error',
+  OVER_BUDGET = 'over_budget',
+  EXECUTE_ERROR = 'execute_error',
+}
+
+export type SqlStepError = {
+  kind: SqlErrorKind;
+  message: string;
+  bytes?: number;
+};
+
+export type ErrorPolicy = {
+  maxErrorsTotal: number; // total failures allowed
+  stopOnRepeatedSameError: boolean; // stop if the same canonical error repeats
+};
+
 export interface GenerateInsightRequest {
   projectId: string;
   dataMartId: string;
