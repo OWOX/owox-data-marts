@@ -24,7 +24,7 @@ import { SqlDryRunCommand } from '../../dto/domain/sql-dry-run.command';
 import { ErrorTracker } from '../error.tracker';
 import { SqlErrorAdvisorAgent } from './sql-error-advisor.agent';
 import { QueryRepairAgent } from './query-repair.agent';
-import { castError } from '@owox/internal-helpers';
+import { castError, isReadonlyQuery } from '@owox/internal-helpers';
 
 @Injectable()
 export class SqlAgent implements Agent<SqlAgentInput, SqlAgentResult> {
@@ -167,6 +167,10 @@ export class SqlAgent implements Agent<SqlAgentInput, SqlAgentResult> {
     sql: string
   ): Promise<{ ok: true; rows: QueryRow[] } | { ok: false; error: Error }> {
     const { projectId, dataMartId, budgets } = shared;
+
+    if (!isReadonlyQuery(sql)) {
+      return { ok: false, error: new Error('Only readonly queries are allowed') };
+    }
 
     try {
       const rows: QueryRow[] = [];
