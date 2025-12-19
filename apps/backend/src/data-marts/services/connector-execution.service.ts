@@ -25,6 +25,9 @@ import { AthenaCredentials } from '../data-storage-types/athena/schemas/athena-c
 import { BigQueryCredentials } from '../data-storage-types/bigquery/schemas/bigquery-credentials.schema';
 import { SnowflakeConfig } from '../data-storage-types/snowflake/schemas/snowflake-config.schema';
 import { SnowflakeCredentials } from '../data-storage-types/snowflake/schemas/snowflake-credentials.schema';
+import { RedshiftConfig } from '../data-storage-types/redshift/schemas/redshift-config.schema';
+import { RedshiftCredentials } from '../data-storage-types/redshift/schemas/redshift-credentials.schema';
+import { RedshiftConnectionType } from '../data-storage-types/redshift/enums/redshift-connection-type.enum';
 import { ConnectorMessage } from '../connector-types/connector-message/schemas/connector-message.schema';
 import { ConnectorOutputCaptureService } from '../connector-types/connector-message/services/connector-output-capture.service';
 import { ConnectorMessageType } from '../connector-types/enums/connector-message-type-enum';
@@ -264,7 +267,13 @@ export class ConnectorExecutionService {
         error: errorMessage,
       });
     } finally {
-      await this.updateRunStatus(runId, capturedLogs, capturedErrors, mergeWithExisting);
+      await this.updateRunStatus(
+        runId,
+        hasSuccessfulRun,
+        capturedLogs,
+        capturedErrors,
+        mergeWithExisting
+      );
 
       if (hasSuccessfulRun) {
         // Register connector run consumption only if at least one configuration succeeded
@@ -333,7 +342,7 @@ export class ConnectorExecutionService {
 
       const configLogs: ConnectorMessage[] = [];
       const configErrors: ConnectorMessage[] = [];
-      let success = true;
+      let success = false;
 
       const logCaptureConfig = this.connectorOutputCaptureService.createCapture(
         (message: ConnectorMessage) => {
@@ -346,7 +355,6 @@ export class ConnectorExecutionService {
                 runId,
                 configId,
               });
-              success = false;
               break;
             case ConnectorMessageType.REQUESTED_DATE:
               this.connectorStateService
@@ -376,6 +384,7 @@ export class ConnectorExecutionService {
                   configId,
                 });
               } else {
+                success = true;
                 configLogs.push(message);
                 this.logger.log(`${message.status}`, {
                   dataMartId: dataMart.id,
@@ -426,7 +435,8 @@ export class ConnectorExecutionService {
         const runConfig = this.getRunConfig(payload, configState);
 
         await this.runConnector(dataMart.id, runId, configuration, runConfig, logCaptureConfig);
-        if (configErrors.length === 0) {
+
+        if (success) {
           this.logger.log(`Configuration ${configIndex + 1} completed successfully`, {
             dataMartId: dataMart.id,
             projectId: dataMart.projectId,
@@ -572,13 +582,14 @@ export class ConnectorExecutionService {
 
   private async updateRunStatus(
     runId: string,
+    hasSuccessfulRun: boolean,
     capturedLogs: ConnectorMessage[],
     capturedErrors: ConnectorMessage[],
     mergeWithExisting: boolean = false
   ): Promise<void> {
     const hasLogs = capturedLogs.length > 0;
     const hasErrors = capturedErrors.length > 0;
-    let status = hasErrors ? DataMartRunStatus.FAILED : DataMartRunStatus.SUCCESS;
+    let status = hasSuccessfulRun ? DataMartRunStatus.SUCCESS : DataMartRunStatus.FAILED;
     if (this.gracefulShutdownService.isInShutdownMode()) {
       status = DataMartRunStatus.INTERRUPTED;
     }
@@ -653,6 +664,9 @@ export class ConnectorExecutionService {
 
       case DataStorageType.SNOWFLAKE:
         return this.createSnowflakeStorageConfig(dataMart, connector);
+
+      case DataStorageType.AWS_REDSHIFT:
+        return this.createRedshiftStorageConfig(dataMart, connector);
 
       default:
         throw new ConnectorExecutionError(
@@ -753,6 +767,65 @@ export class ConnectorExecutionService {
       config: {
         ...baseConfig,
         ...authConfig,
+      },
+    });
+  }
+
+  private createRedshiftStorageConfig(
+    dataMart: DataMart,
+    connector: DataMartConnectorDefinition['connector']
+  ): StorageConfigDto {
+    const storageConfig = dataMart.storage.config as RedshiftConfig;
+    const credentials = dataMart.storage.credentials as RedshiftCredentials;
+
+    const fqnParts = connector.storage?.fullyQualifiedName.split('.') || [];
+
+    const unquoteIdentifier = (identifier: string): string => {
+      if (!identifier) {
+        return '';
+      }
+      if (identifier.startsWith('"') && identifier.endsWith('"')) {
+        return identifier.slice(1, -1);
+      }
+      return identifier;
+    };
+
+    let schema: string;
+    let tableName: string;
+
+    if (fqnParts.length === 3) {
+      schema = unquoteIdentifier(fqnParts[1]);
+      tableName = unquoteIdentifier(fqnParts[2]);
+    } else {
+      schema = unquoteIdentifier(fqnParts[0]);
+      tableName = unquoteIdentifier(fqnParts[1]);
+    }
+
+    if (!schema || !schema.trim()) {
+      throw new Error('Schema name is required in connector configuration');
+    }
+
+    if (!tableName || !tableName.trim()) {
+      throw new Error('Table name is required in connector configuration');
+    }
+
+    return new StorageConfigDto({
+      name: DataStorageType.AWS_REDSHIFT,
+      config: {
+        AWSRegion: storageConfig.region,
+        AWSAccessKeyId: credentials.accessKeyId,
+        AWSSecretAccessKey: credentials.secretAccessKey,
+        Database: storageConfig.database,
+        Schema: schema,
+        WorkgroupName:
+          storageConfig.connectionType === RedshiftConnectionType.SERVERLESS
+            ? storageConfig.workgroupName
+            : '',
+        ClusterIdentifier:
+          storageConfig.connectionType === RedshiftConnectionType.PROVISIONED
+            ? storageConfig.clusterIdentifier
+            : '',
+        DestinationTableNameOverride: `${connector.source.node} ${tableName}`,
       },
     });
   }

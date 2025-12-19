@@ -18,7 +18,7 @@ import { useInsights } from '../model';
  */
 export const InsightsEmptyState = () => {
   const navigate = useNavigate();
-  const { createInsight, insightLoading } = useInsights();
+  const { createInsight, createInsightWithAi, insightLoading } = useInsights();
 
   const handleCreateInsight = () => {
     void (async () => {
@@ -29,9 +29,18 @@ export const InsightsEmptyState = () => {
     })();
   };
 
+  const handleCreateInsightWithAi = () => {
+    void (async () => {
+      const created = await createInsightWithAi();
+      if (created) {
+        void navigate(created.id);
+      }
+    })();
+  };
+
   return (
     <Empty>
-      <EmptyHeader>
+      <EmptyHeader className='max-w-xl'>
         <EmptyMedia variant='icon'>
           <Sparkles />
         </EmptyMedia>
@@ -40,11 +49,17 @@ export const InsightsEmptyState = () => {
           Create an Insight to prompt your Data Mart and discover the story behind your data.
         </EmptyDescription>
       </EmptyHeader>
-      <EmptyContent>
-        <Button variant='outline' onClick={handleCreateInsight} disabled={insightLoading}>
-          <Plus className='h-4 w-4' />
-          New Insight
-        </Button>
+      <EmptyContent className='max-w-xl'>
+        <div className='flex w-full items-center justify-center gap-4'>
+          <Button onClick={handleCreateInsightWithAi} disabled={insightLoading}>
+            <Sparkles className='h-4 w-4' />
+            Generate Insight with AI
+          </Button>
+          <Button variant='outline' onClick={handleCreateInsight} disabled={insightLoading}>
+            <Plus className='h-4 w-4' />
+            Blank Insight
+          </Button>
+        </div>
       </EmptyContent>
     </Empty>
   );

@@ -27,10 +27,21 @@ export interface SnowflakeKeyPairCredentials {
 
 export type SnowflakeCredentials = SnowflakePasswordCredentials | SnowflakeKeyPairCredentials;
 
+export enum RedshiftConnectionType {
+  SERVERLESS = 'SERVERLESS',
+  PROVISIONED = 'PROVISIONED',
+}
+
+export interface RedshiftCredentials {
+  accessKeyId: string;
+  secretAccessKey: string;
+}
+
 export type DataStorageCredentials =
   | GoogleBigQueryCredentials
   | AwsAthenaCredentials
-  | SnowflakeCredentials;
+  | SnowflakeCredentials
+  | RedshiftCredentials;
 
 export function isGoogleBigQueryCredentials(
   credentials: DataStorageCredentials
@@ -48,4 +59,10 @@ export function isSnowflakeCredentials(
   credentials: DataStorageCredentials
 ): credentials is SnowflakeCredentials {
   return 'authMethod' in credentials && 'username' in credentials;
+}
+
+export function isRedshiftCredentials(
+  credentials: DataStorageCredentials
+): credentials is RedshiftCredentials {
+  return 'accessKeyId' in credentials && 'secretAccessKey' in credentials;
 }

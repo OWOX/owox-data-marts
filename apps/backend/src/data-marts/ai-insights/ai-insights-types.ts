@@ -1,6 +1,6 @@
 import { AgentBudgets, AgentTelemetry, AiContext } from '../../common/ai-insights/agent/types';
 import { z } from 'zod';
-import { DataMartSchemaSchema } from '../data-storage-types/data-mart-schema.type';
+import { DataMartSchema, DataMartSchemaSchema } from '../data-storage-types/data-mart-schema.type';
 import { AiChatProvider } from '../../common/ai-insights/agent/ai-core';
 import { ToolRegistry } from '../../common/ai-insights/agent/tool-registry';
 import { PromptAnswer } from './data-mart-insights.types';
@@ -106,4 +106,34 @@ export interface SharedAgentContext {
   telemetry: AgentTelemetry;
   projectId: string;
   dataMartId: string;
+}
+
+export enum SqlErrorKind {
+  DRY_RUN_ERROR = 'dry_run_error',
+  OVER_BUDGET = 'over_budget',
+  EXECUTE_ERROR = 'execute_error',
+}
+
+export type SqlStepError = {
+  kind: SqlErrorKind;
+  message: string;
+  bytes?: number;
+};
+
+export type ErrorPolicy = {
+  maxErrorsTotal: number; // total failures allowed
+  stopOnRepeatedSameError: boolean; // stop if the same canonical error repeats
+};
+
+export interface GenerateInsightRequest {
+  projectId: string;
+  dataMartId: string;
+  dataMartTitle: string;
+  dataMartDescription: string | null;
+  schema: DataMartSchema;
+}
+
+export interface GenerateInsightResponse {
+  title: string;
+  template: string;
 }

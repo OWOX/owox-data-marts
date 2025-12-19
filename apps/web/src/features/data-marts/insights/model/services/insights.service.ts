@@ -32,6 +32,10 @@ export class InsightsService extends ApiService {
     return this.post<CreateInsightResponseDto>(`/${dataMartId}/insights`, data);
   }
 
+  async createInsightWithAi(dataMartId: string): Promise<CreateInsightResponseDto> {
+    return this.post<CreateInsightResponseDto>(`/${dataMartId}/insights/ai-generate`, {});
+  }
+
   async updateInsight(
     dataMartId: string,
     id: string,

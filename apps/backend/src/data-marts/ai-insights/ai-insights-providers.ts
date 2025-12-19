@@ -1,4 +1,5 @@
 import { OpenAiChatProvider } from '../../common/ai-insights/services/openai/openai-chat-provider';
+import { OpenRouterChatProvider } from '../../common/ai-insights/services/openrouter/openrouter-chat-provider';
 import { AiInsightsFacadeImpl } from './facades/ai-insights.facade.impl';
 import { PromptTagHandler } from './template/handlers/prompt-tag.handler';
 import { DataMartInsightTemplateFacadeImpl } from './data-mart-insight-template.facade';
@@ -23,30 +24,46 @@ import { AiInsightsOrchestratorService } from './ai-insight-orchestrator.service
 import { FinalizeAgent } from './agent/finalize.agent';
 import { PlanAgent } from './agent/plan.agent';
 import { SqlAgent } from './agent/sql.agent';
+import { SqlBuilderAgent } from './agent/sql-builder.agent';
 import { TriageAgent } from './agent/triage.agent';
+import { GenerateInsightAgent } from './agent/generate-insight.agent';
+import { SqlErrorAdvisorAgent } from './agent/sql-error-advisor.agent';
+import { QueryRepairAgent } from './agent/query-repair.agent';
 
 export const aiInsightsProviders = [
   OpenAiChatProvider,
+  OpenRouterChatProvider,
   AiInsightsFacadeImpl,
   AiInsightsOrchestratorService,
   TriageAgent,
   PlanAgent,
+  SqlBuilderAgent,
   SqlAgent,
+  QueryRepairAgent,
+  SqlErrorAdvisorAgent,
   FinalizeAgent,
+  GenerateInsightAgent,
   PromptTagHandler,
   DataMartInsightTemplateFacadeImpl,
   {
     provide: AI_CHAT_PROVIDER,
-    useFactory: (config: ConfigService, openai: OpenAiChatProvider) => {
+    useFactory: (
+      config: ConfigService,
+      openai: OpenAiChatProvider,
+      openrouter: OpenRouterChatProvider
+    ) => {
       const raw = (config.get<string>(AI_PROVIDER_ENV) || '').toLowerCase();
       const provider = normalizeAiProviderName(raw);
       switch (provider) {
         case AiProviderName.OPENAI:
+          return openai;
+        case AiProviderName.OPENROUTER:
+          return openrouter;
         default:
           return openai;
       }
     },
-    inject: [ConfigService, OpenAiChatProvider],
+    inject: [ConfigService, OpenAiChatProvider, OpenRouterChatProvider],
   },
   {
     provide: TEMPLATE_RENDER_FACADE,

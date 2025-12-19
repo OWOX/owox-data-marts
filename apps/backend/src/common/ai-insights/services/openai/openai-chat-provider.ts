@@ -16,6 +16,7 @@ import {
   mapUsageToDomain,
   normalizeToolCallsFromBracketSyntax,
   normalizeToolCallsFromCommentary,
+  normalizeToolCallsFromDeepSeekFormat,
   normalizeToolCallsFromFunctionCall,
   normalizeToolCallsFromToolCalls,
 } from './openai.mapper';
@@ -26,21 +27,47 @@ import { RawResponse } from './types';
  */
 @Injectable()
 export class OpenAiChatProvider implements AiChatProvider {
-  private readonly requestTimeout = 60 * 10 * 1000; // 10 minutes
+  protected readonly requestTimeout = 60 * 10 * 1000; // 10 minutes
 
-  private readonly baseUrl: string;
-  private readonly apiKey: string;
-  private readonly model: string;
+  protected readonly baseUrl: string;
+  protected readonly apiKey: string;
+  protected readonly model: string;
 
-  constructor(private readonly config: ConfigService) {
-    this.baseUrl = this.config.get<string>('AI_BASE_URL', '')!.replace(/\/$/, '');
+  constructor(protected readonly config: ConfigService) {
+    this.baseUrl = this.getBaseUrl();
     this.apiKey = this.config.get<string>('AI_API_KEY', '')!;
     this.model = this.config.get<string>('AI_MODEL', '')!;
   }
 
+  /**
+   * Hook method to get the base URL for the AI provider.
+   * Can be overridden by subclasses to provide a fixed URL.
+   */
+  protected getBaseUrl(): string {
+    return this.config.get<string>('AI_BASE_URL', '')!.replace(/\/$/, '');
+  }
+
+  /**
+   * Hook method to add provider-specific fields to the request body.
+   * Can be overridden by subclasses to add custom fields.
+   */
+  protected getProviderSpecificFields(): Record<string, unknown> {
+    return {};
+  }
+
+  /**
+   * Hook method to get the provider name for error messages.
+   * Can be overridden by subclasses to provide a specific name.
+   */
+  protected getProviderName(): string {
+    return 'AI';
+  }
+
   async chat(request: AiChatRequest): Promise<AiChatResponse> {
     if (!this.baseUrl || !this.apiKey || !this.model) {
-      throw new Error('AI client is not configured');
+      throw new Error(
+        `${this.getProviderName()} client is not configured. Please set required environment variables.`
+      );
     }
 
     const body = {
@@ -58,6 +85,8 @@ export class OpenAiChatProvider implements AiChatProvider {
       })),
       tool_choice: request.toolMode ?? 'auto',
       response_format: request.responseFormat,
+      // Add provider-specific fields
+      ...this.getProviderSpecificFields(),
     };
 
     const start = performance.now();
@@ -66,7 +95,7 @@ export class OpenAiChatProvider implements AiChatProvider {
       {
         method: 'POST',
         headers: {
-          'content-type': 'application/json',
+          'content-type': 'application/json; charset=utf-8',
           authorization: `Bearer ${this.apiKey}`,
         },
         body: JSON.stringify(body),
@@ -78,13 +107,15 @@ export class OpenAiChatProvider implements AiChatProvider {
 
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`AI chat failed: ${res.status} ${res.statusText} ${text}`);
+      throw new Error(
+        `${this.getProviderName()} chat failed: ${res.status} ${res.statusText} ${text}`
+      );
     }
 
     const data: RawResponse = await res.json();
     const choice = data.choices?.[0];
     if (!choice || !choice.message) {
-      throw new Error('AI returned no message');
+      throw new Error(`${this.getProviderName()} returned no message`);
     }
 
     const msg = choice.message;
@@ -93,6 +124,7 @@ export class OpenAiChatProvider implements AiChatProvider {
     const normalizedToolCalls =
       normalizeToolCallsFromToolCalls(msg) ??
       normalizeToolCallsFromFunctionCall(msg) ??
+      normalizeToolCallsFromDeepSeekFormat(content) ??
       normalizeToolCallsFromCommentary(content) ??
       normalizeToolCallsFromBracketSyntax(content);
 

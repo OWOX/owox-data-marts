@@ -24,6 +24,14 @@ export function CreateInsightSpec() {
   );
 }
 
+export function CreateInsightWithAiSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Create a new Insight with AI' }),
+    ApiParam({ name: 'dataMartId', description: 'DataMart ID' }),
+    ApiResponse({ status: 201, type: InsightResponseApiDto })
+  );
+}
+
 export function GetInsightSpec() {
   return applyDecorators(
     ApiOperation({ summary: 'Get an Insight by ID' }),

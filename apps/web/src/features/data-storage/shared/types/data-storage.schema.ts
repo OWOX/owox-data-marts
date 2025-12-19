@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { DataStorageType } from '../model/types';
 import { googleServiceAccountSchema } from '../../../../shared';
-import { SnowflakeAuthMethod } from '../model/types/credentials';
+import { SnowflakeAuthMethod, RedshiftConnectionType } from '../model/types/credentials';
 
 const awsCredentialsSchema = z.object({
   accessKeyId: z.string().min(1, 'Access Key ID is required'),
@@ -41,6 +41,25 @@ const snowflakeConfigSchema = z.object({
   warehouse: z.string().min(1, 'Warehouse is required'),
 });
 
+const redshiftServerlessConfigSchema = z.object({
+  connectionType: z.literal(RedshiftConnectionType.SERVERLESS),
+  region: z.string().min(1, 'Region is required'),
+  database: z.string().min(1, 'Database is required'),
+  workgroupName: z.string().min(1, 'Workgroup Name is required'),
+});
+
+const redshiftProvisionedConfigSchema = z.object({
+  connectionType: z.literal(RedshiftConnectionType.PROVISIONED),
+  region: z.string().min(1, 'Region is required'),
+  database: z.string().min(1, 'Database is required'),
+  clusterIdentifier: z.string().min(1, 'Cluster Identifier is required'),
+});
+
+const redshiftConfigSchema = z.discriminatedUnion('connectionType', [
+  redshiftServerlessConfigSchema,
+  redshiftProvisionedConfigSchema,
+]);
+
 const baseSchema = z.object({
   title: z.string().min(1, 'Title is required').max(255, 'Title must be 255 characters or less'),
 });
@@ -63,13 +82,21 @@ export const snowflakeSchema = baseSchema.extend({
   config: snowflakeConfigSchema,
 });
 
+export const redshiftSchema = baseSchema.extend({
+  type: z.literal(DataStorageType.AWS_REDSHIFT),
+  credentials: awsCredentialsSchema,
+  config: redshiftConfigSchema,
+});
+
 export const dataStorageSchema = z.discriminatedUnion('type', [
   googleBigQuerySchema,
   awsAthenaSchema,
   snowflakeSchema,
+  redshiftSchema,
 ]);
 
 export type DataStorageFormData = z.infer<typeof dataStorageSchema>;
 export type GoogleBigQueryFormData = z.infer<typeof googleBigQuerySchema>;
 export type AwsAthenaFormData = z.infer<typeof awsAthenaSchema>;
 export type SnowflakeFormData = z.infer<typeof snowflakeSchema>;
+export type RedshiftFormData = z.infer<typeof redshiftSchema>;

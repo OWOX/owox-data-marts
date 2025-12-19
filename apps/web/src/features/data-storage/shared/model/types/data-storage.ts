@@ -3,6 +3,7 @@ import type {
   DataStorageCredentials,
   GoogleBigQueryCredentials,
   SnowflakeCredentials,
+  RedshiftCredentials,
 } from './credentials.ts';
 import { DataStorageType } from './data-storage-type.enum.ts';
 import type {
@@ -10,6 +11,7 @@ import type {
   DataStorageConfig,
   GoogleBigQueryDataStorageConfig,
   SnowflakeDataStorageConfig,
+  RedshiftDataStorageConfig,
 } from './data-storage-config.ts';
 
 export interface BaseDataStorage<T extends DataStorageCredentials, C extends DataStorageConfig> {
@@ -46,7 +48,19 @@ export interface SnowflakeDataStorage extends BaseDataStorage<
   config: SnowflakeDataStorageConfig;
 }
 
-export type DataStorage = GoogleBigQueryDataStorage | AwsAthenaDataStorage | SnowflakeDataStorage;
+export interface RedshiftDataStorage extends BaseDataStorage<
+  RedshiftCredentials,
+  RedshiftDataStorageConfig
+> {
+  type: DataStorageType.AWS_REDSHIFT;
+  config: RedshiftDataStorageConfig;
+}
+
+export type DataStorage =
+  | GoogleBigQueryDataStorage
+  | AwsAthenaDataStorage
+  | SnowflakeDataStorage
+  | RedshiftDataStorage;
 
 export function isGoogleBigQueryStorage(
   storage: DataStorage
@@ -60,4 +74,8 @@ export function isAwsAthenaStorage(storage: DataStorage): storage is AwsAthenaDa
 
 export function isSnowflakeStorage(storage: DataStorage): storage is SnowflakeDataStorage {
   return storage.type === DataStorageType.SNOWFLAKE;
+}
+
+export function isRedshiftStorage(storage: DataStorage): storage is RedshiftDataStorage {
+  return storage.type === DataStorageType.AWS_REDSHIFT;
 }

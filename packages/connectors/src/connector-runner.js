@@ -26,6 +26,13 @@ const {
   ListBucketsCommand
 } = require('@aws-sdk/client-s3');
 
+const {
+  RedshiftDataClient,
+  ExecuteStatementCommand,
+  DescribeStatementCommand,
+  GetStatementResultCommand
+} = require('@aws-sdk/client-redshift-data');
+
 const { Upload } = require('@aws-sdk/lib-storage');
 
 // Make dependencies globally available
@@ -46,6 +53,12 @@ global.S3Client = S3Client;
 global.DeleteObjectsCommand = DeleteObjectsCommand;
 global.ListObjectsV2Command = ListObjectsV2Command;
 global.ListBucketsCommand = ListBucketsCommand;
+
+// AWS Redshift
+global.RedshiftDataClient = RedshiftDataClient;
+global.ExecuteStatementCommand = ExecuteStatementCommand;
+global.DescribeStatementCommand = DescribeStatementCommand;
+global.GetStatementResultCommand = GetStatementResultCommand;
 
 // AWS S3 Upload
 global.Upload = Upload;

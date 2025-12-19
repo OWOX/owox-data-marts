@@ -64,6 +64,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-athena": "^3.839.0",
+    "@aws-sdk/client-redshift-data": "^3.952.0",
     "@aws-sdk/client-s3": "^3.840.0",
     "@google-cloud/bigquery": "^8.1.0",
     "@google-cloud/pubsub": "^4.0.7",

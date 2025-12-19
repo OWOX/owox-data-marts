@@ -4,10 +4,22 @@ import type {
   AthenaSchemaField,
   BigQuerySchemaField,
   DataMartSchema,
+  RedshiftSchemaField,
   SnowflakeSchemaField,
 } from '../../../shared/types/data-mart-schema.types';
-import { AthenaSchemaTable, BigQuerySchemaTable, SnowflakeSchemaTable } from './tables';
-import { createInitialSchema, isAthenaSchema, isBigQuerySchema, isSnowflakeSchema } from './utils';
+import {
+  AthenaSchemaTable,
+  BigQuerySchemaTable,
+  RedshiftSchemaTable,
+  SnowflakeSchemaTable,
+} from './tables';
+import {
+  createInitialSchema,
+  isAthenaSchema,
+  isBigQuerySchema,
+  isRedshiftSchema,
+  isSnowflakeSchema,
+} from './utils';
 
 /**
  * Props for the SchemaContent component
@@ -19,7 +31,11 @@ interface SchemaContentProps {
   storageType: DataStorageType;
   /** Callback function to call when the fields change */
   onFieldsChange: (
-    fields: BigQuerySchemaField[] | AthenaSchemaField[] | SnowflakeSchemaField[]
+    fields:
+      | BigQuerySchemaField[]
+      | AthenaSchemaField[]
+      | SnowflakeSchemaField[]
+      | RedshiftSchemaField[]
   ) => void;
 }
 
@@ -46,6 +62,8 @@ export function SchemaContent({ schema, storageType, onFieldsChange }: SchemaCon
     return <AthenaSchemaTable fields={initialSchema.fields} onFieldsChange={onFieldsChange} />;
   } else if (isSnowflakeSchema(initialSchema)) {
     return <SnowflakeSchemaTable fields={initialSchema.fields} onFieldsChange={onFieldsChange} />;
+  } else if (isRedshiftSchema(initialSchema)) {
+    return <RedshiftSchemaTable fields={initialSchema.fields} onFieldsChange={onFieldsChange} />;
   }
 
   // Fallback for unsupported schema types

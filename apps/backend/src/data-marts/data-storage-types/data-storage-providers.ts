@@ -11,6 +11,8 @@ import { AthenaReportReader } from './athena/services/athena-report-reader.servi
 import { AthenaReportHeadersGenerator } from './athena/services/athena-report-headers-generator.service';
 import { AthenaSchemaMerger } from './athena/services/athena-schema-merger';
 import { AthenaSqlDryRunExecutor } from './athena/services/athena-sql-dry-run.executor';
+import { AthenaSqlRunExecutor } from './athena/services/athena-sql-run.executor';
+import { AthenaCreateViewExecutor } from './athena/services/athena-create-view.executor';
 import { BigQueryApiAdapterFactory } from './bigquery/adapters/bigquery-api-adapter.factory';
 import { BigQueryAccessValidator } from './bigquery/services/bigquery-access.validator';
 import { BigQueryDataMartSchemaProvider } from './bigquery/services/bigquery-data-mart-schema.provider';
@@ -22,9 +24,7 @@ import { BigQueryReportHeadersGenerator } from './bigquery/services/bigquery-rep
 import { BigQuerySchemaMerger } from './bigquery/services/bigquery-schema-merger';
 import { BigquerySqlDryRunExecutor } from './bigquery/services/bigquery-sql-dry-run.executor';
 import { BigQuerySqlRunExecutor } from './bigquery/services/bigquery-sql-run.executor';
-import { AthenaSqlRunExecutor } from './athena/services/athena-sql-run.executor';
 import { BigQueryCreateViewExecutor } from './bigquery/services/bigquery-create-view.executor';
-import { AthenaCreateViewExecutor } from './athena/services/athena-create-view.executor';
 import { SnowflakeApiAdapterFactory } from './snowflake/adapters/snowflake-api-adapter.factory';
 import { SnowflakeAccessValidator } from './snowflake/services/snowflake-access.validator';
 import { SnowflakeDataMartSchemaParser } from './snowflake/services/snowflake-data-mart-schema.parser';
@@ -37,6 +37,18 @@ import { SnowflakeSchemaMerger } from './snowflake/services/snowflake-schema-mer
 import { SnowflakeSqlDryRunExecutor } from './snowflake/services/snowflake-sql-dry-run.executor';
 import { SnowflakeSqlRunExecutor } from './snowflake/services/snowflake-sql-run.executor';
 import { SnowflakeCreateViewExecutor } from './snowflake/services/snowflake-create-view.executor';
+import { RedshiftApiAdapterFactory } from './redshift/adapters/redshift-api-adapter.factory';
+import { RedshiftAccessValidator } from './redshift/services/redshift-access.validator';
+import { RedshiftDataMartSchemaParser } from './redshift/services/redshift-data-mart-schema.parser';
+import { RedshiftDataMartSchemaProvider } from './redshift/services/redshift-data-mart-schema.provider';
+import { RedshiftDataMartValidator } from './redshift/services/redshift-datamart.validator';
+import { RedshiftQueryBuilder } from './redshift/services/redshift-query.builder';
+import { RedshiftReportReader } from './redshift/services/redshift-report-reader.service';
+import { RedshiftReportHeadersGenerator } from './redshift/services/redshift-report-headers-generator.service';
+import { RedshiftSchemaMerger } from './redshift/services/redshift-schema-merger';
+import { RedshiftSqlDryRunExecutor } from './redshift/services/redshift-sql-dry-run.executor';
+import { RedshiftSqlRunExecutor } from './redshift/services/redshift-sql-run.executor';
+import { RedshiftCreateViewExecutor } from './redshift/services/redshift-create-view.executor';
 import { DataStorageType } from './enums/data-storage-type.enum';
 import { DataMartSchemaMerger } from './interfaces/data-mart-schema-merger.interface';
 import { DataMartSchemaParser } from './interfaces/data-mart-schema-parser.interface';
@@ -68,54 +80,74 @@ const accessValidatorProviders = [
   BigQueryAccessValidator,
   AthenaAccessValidator,
   SnowflakeAccessValidator,
+  RedshiftAccessValidator,
 ];
-const storageDataProviders = [BigQueryReportReader, AthenaReportReader, SnowflakeReportReader];
+const storageDataProviders = [
+  BigQueryReportReader,
+  AthenaReportReader,
+  SnowflakeReportReader,
+  RedshiftReportReader,
+];
 const adapterFactories = [
   BigQueryApiAdapterFactory,
   AthenaApiAdapterFactory,
   S3ApiAdapterFactory,
   SnowflakeApiAdapterFactory,
+  RedshiftApiAdapterFactory,
 ];
-const queryBuilderProviders = [AthenaQueryBuilder, BigQueryQueryBuilder, SnowflakeQueryBuilder];
+const queryBuilderProviders = [
+  AthenaQueryBuilder,
+  BigQueryQueryBuilder,
+  SnowflakeQueryBuilder,
+  RedshiftQueryBuilder,
+];
 const validatorProviders = [
   BigQueryDataMartValidator,
   AthenaDataMartValidator,
   SnowflakeDataMartValidator,
+  RedshiftDataMartValidator,
 ];
 const dataMartSchemaProviders = [
   BigQueryDataMartSchemaProvider,
   AthenaDataMartSchemaProvider,
   SnowflakeDataMartSchemaProvider,
+  RedshiftDataMartSchemaProvider,
 ];
 const dataMartSchemaMergerProviders = [
   BigQuerySchemaMerger,
   AthenaSchemaMerger,
   SnowflakeSchemaMerger,
+  RedshiftSchemaMerger,
 ];
 const schemaParserProviders = [
   BigQueryDataMartSchemaParser,
   AthenaDataMartSchemaParser,
   SnowflakeDataMartSchemaParser,
+  RedshiftDataMartSchemaParser,
 ];
 const reportHeadersGeneratorProviders = [
   BigQueryReportHeadersGenerator,
   AthenaReportHeadersGenerator,
   SnowflakeReportHeadersGenerator,
+  RedshiftReportHeadersGenerator,
 ];
 const sqlDryRunExecutorProviders = [
   BigquerySqlDryRunExecutor,
   AthenaSqlDryRunExecutor,
   SnowflakeSqlDryRunExecutor,
+  RedshiftSqlDryRunExecutor,
 ];
 const sqlRunExecutorProviders = [
   BigQuerySqlRunExecutor,
   AthenaSqlRunExecutor,
   SnowflakeSqlRunExecutor,
+  RedshiftSqlRunExecutor,
 ];
 const createViewExecutorProviders = [
   BigQueryCreateViewExecutor,
   AthenaCreateViewExecutor,
   SnowflakeCreateViewExecutor,
+  RedshiftCreateViewExecutor,
 ];
 const publicCredentialsProviders = [
   DataStoragePublicCredentialsFactory,

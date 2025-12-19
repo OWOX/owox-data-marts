@@ -1,4 +1,5 @@
 import { DataStorageType } from '../model/types/data-storage-type.enum';
+import { RedshiftConnectionType } from '../model/types/credentials';
 import type { DataStorage } from '../model/types/data-storage';
 
 /**
@@ -15,6 +16,14 @@ export function isDataStorageConfigValid(storage: DataStorage): boolean {
       return Boolean(storage.config.region && storage.config.outputBucket);
     case DataStorageType.SNOWFLAKE:
       return Boolean(storage.config.account && storage.config.warehouse);
+    case DataStorageType.AWS_REDSHIFT: {
+      const config = storage.config;
+      if (config.connectionType === RedshiftConnectionType.SERVERLESS) {
+        return Boolean(config.region && config.database && config.workgroupName);
+      } else {
+        return Boolean(config.region && config.database && config.clusterIdentifier);
+      }
+    }
     default:
       return false;
   }

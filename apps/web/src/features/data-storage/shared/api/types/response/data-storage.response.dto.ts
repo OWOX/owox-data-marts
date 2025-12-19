@@ -16,10 +16,20 @@ export interface SnowflakeConfigDto {
   warehouse: string;
 }
 
+export interface RedshiftConfigDto {
+  connectionType?: string;
+  region: string;
+  database: string;
+  workgroupName?: string;
+  clusterIdentifier?: string;
+  schema?: string;
+}
+
 export type DataStorageConfigDto =
   | GoogleBigQueryConfigDto
   | AwsAthenaConfigDto
-  | SnowflakeConfigDto;
+  | SnowflakeConfigDto
+  | RedshiftConfigDto;
 
 export interface DataStorageResponseDto {
   id: string;

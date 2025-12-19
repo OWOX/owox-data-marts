@@ -265,7 +265,9 @@ async function executeToolCalls(params: {
       logger.warn(`Tool execution failed for ${toolCall.name}`, { stack: castedError.stack });
 
       messages.push({
-        role: AiRole.SYSTEM,
+        role: AiRole.TOOL,
+        toolName: toolCall.name,
+        callId: toolCall.id,
         content: `Tool ${toolCall.name} failed with error: ${castedError.message}. Please adjust and try again.`,
       });
       telemetry.messageHistory.push(messages[messages.length - 1]);

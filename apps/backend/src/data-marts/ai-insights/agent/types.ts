@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { GetMetadataOutput } from '../ai-insights-types';
+import { GetMetadataOutput, QueryRow, SqlStepError } from '../ai-insights-types';
+import { DataMartSchema } from '../../data-storage-types/data-mart-schema.type';
 
 export function isFinalReasonAnswer(value: FinalReason) {
   return value === FinalReason.ANSWER;
@@ -11,6 +12,7 @@ export enum FinalReason {
   NOT_RELEVANT = 'not_relevant',
   CANNOT_ANSWER = 'cannot_answer',
   HIGH_AMBIGUITY = 'high_ambiguity',
+  SQL_ERROR = 'sql_error',
 }
 
 export enum TriageOutcome {
@@ -101,9 +103,59 @@ export const QueryPlanTableSchema = z.object({
     ),
 });
 
+export const ColumnPreNormalizeSchema = z.object({
+  kind: z
+    .enum(['strip_prefix', 'strip_suffix', 'regex_replace'])
+    .describe(
+      'Declarative pre-normalization applied BEFORE parsing/casting. ' +
+        'Must be implemented via deterministic string or regex replacement (NOT TRIM).'
+    ),
+
+  value: z
+    .string()
+    .optional()
+    .describe('For strip_prefix / strip_suffix: exact string value to remove.'),
+
+  pattern: z
+    .string()
+    .optional()
+    .describe('For regex_replace: regex pattern (storageType-agnostic, no SQL).'),
+
+  replacement: z.string().optional().describe('For regex_replace: replacement string.'),
+
+  note: z
+    .string()
+    .optional()
+    .describe('Short explanation and example of what is removed or changed.'),
+});
+
 export const ColumnTransformSchema = z.object({
   kind: z.enum(['none', 'cast', 'parse_date', 'parse_timestamp']),
-  format: z.string().optional(),
+  format: z
+    .string()
+    .optional()
+    .describe(
+      [
+        'Optional. StorageType-native parsing format for parse_date / parse_timestamp.',
+        'MUST use native format tokens for the target storage engine (e.g., Snowflake format model, not Java/strftime).',
+        'The format MUST be compatible with real column values and schema examples.',
+        'If real values contain fixed literal text (e.g., "GMT", "UTC", "T", "Z"), it MUST be either:',
+        '- included in the format as a quoted literal, OR',
+        '- removed deterministically via preNormalize steps.',
+        'Do NOT rely on TRY/SAFE parsing semantics.',
+      ].join('\n')
+    ),
+  targetType: z
+    .enum(['string', 'float', 'integer', 'boolean', 'number'])
+    .optional()
+    .describe(
+      'Optional. Desired logical result type for cast. ' +
+        'Used to control numeric precision (e.g. use "float" to preserve decimals and avoid integer truncation).'
+    ),
+  preNormalize: z
+    .array(ColumnPreNormalizeSchema)
+    .optional()
+    .describe('Optional declarative steps to normalize string input before parsing'),
 });
 
 export const RequiredColumnMetaSchema = z.object({
@@ -112,7 +164,7 @@ export const RequiredColumnMetaSchema = z.object({
     .optional()
     .describe('Column type from rawSchema (e.g. string/varchar/date/timestamp/number).'),
   semanticType: z
-    .enum(['string', 'number', 'boolean', 'date', 'timestamp'])
+    .enum(['string', 'number', 'boolean', 'date', 'datetime', 'timestamp'])
     .optional()
     .describe('How the column is used logically in the plan.'),
   resolvedIdentifier: z
@@ -267,7 +319,11 @@ export interface SqlAgentInput {
   prompt: string;
   plan: QueryPlan;
   schemaSummary?: string;
-  rawSchema?: unknown;
+  rawSchema?: GetMetadataOutput;
+}
+
+export function isSqlExecutionErrorStatus(status: SqlExecutionStatus) {
+  return status === SqlExecutionStatus.SQL_ERROR;
 }
 
 export enum SqlExecutionStatus {
@@ -276,43 +332,15 @@ export enum SqlExecutionStatus {
   SQL_ERROR = 'sql_error',
 }
 
-export interface SqlAgentResult {
+export type SqlAgentResult = {
   status: SqlExecutionStatus;
   sql: string;
-  dryRunBytes?: number | null;
-  rows?: Array<Record<string, unknown>> | null;
-}
+  dryRunBytes?: number;
+  rows: QueryRow[] | null;
 
-export const SqlAgentResponseSchema = z.object({
-  status: z
-    .nativeEnum(SqlExecutionStatus)
-    .describe(
-      [
-        'Execution status of the SQL pipeline.',
-        '- "ok": SQL executed successfully and returned one or more rows.',
-        '- "no_data": SQL executed successfully but returned zero rows.',
-        '- "sql_error": SQL could not be validated or executed after the allowed number of attempts.',
-      ].join('\n')
-    ),
-
-  sql: z
-    .string()
-    .min(1, 'SQL required')
-    .describe(
-      'Final SQL query string that was validated and executed (or last attempted SQL when status = "sql_error").'
-    ),
-
-  errorMessage: z
-    .string()
-    .nullable()
-    .optional()
-    .describe(
-      [
-        'Short English description of the main problem when status = "sql_error".',
-        'For "ok" and "no_data" this MUST be null or omitted.',
-      ].join('\n')
-    ),
-});
+  sqlError?: string | null;
+  sqlErrorSuggestion?: string | null;
+};
 
 export interface FinalizeAgentInput {
   prompt: string;
@@ -350,3 +378,127 @@ export const FinalizeAgentResponseSchema = z.object({
 });
 
 export type FinalizeAgentResponse = z.infer<typeof FinalizeAgentResponseSchema>;
+
+// Insight Generation Agent Types
+export interface InsightGenerationAgentInput {
+  dataMartTitle: string | null;
+  dataMartDescription: string | null;
+  schema: DataMartSchema;
+}
+
+export const InsightGenerationAgentResponseSchema = z.object({
+  title: z
+    .string()
+    .min(1, 'title is required')
+    .describe(
+      'A concise, engaging title for the insight that describes what kind of analysis or questions it can answer. ' +
+        'The title should be clear and actionable, typically 3-8 words.'
+    ),
+  template: z
+    .string()
+    .min(1, 'template is required')
+    .describe(
+      [
+        'A beautiful Markdown template for the insight.',
+        'Requirements:',
+        '- Must include 2-3 {{#prompt}}...{{/prompt}} blocks with interesting AI queries about the data mart.',
+        '- Each prompt block should contain a specific, valuable question that users would want to ask about their data.',
+        '- The prompts should be diverse and cover different aspects of the data (trends, comparisons, insights, anomalies, etc.).',
+        '- Use proper Markdown formatting: headers, lists, emphasis where appropriate.',
+        '- Make it visually appealing and easy to read.',
+        '- The template should provide structure for exploring the data mart in meaningful ways.',
+      ].join('\n')
+    ),
+});
+
+export type InsightGenerationAgentResponse = z.infer<typeof InsightGenerationAgentResponseSchema>;
+
+export type SqlErrorAdvisorInput = {
+  prompt: string;
+  sql: string;
+  sqlStepError: SqlStepError;
+  queryPlan: QueryPlan;
+  schema?: GetMetadataOutput;
+};
+
+export const SqlErrorAdvisorResponseSchema = z.object({
+  sqlError: z
+    .string()
+    .min(1)
+    .describe(
+      'Required. A short, user-facing summary of what went wrong (based on the error message).'
+    ),
+  sqlErrorSuggestion: z
+    .string()
+    .min(1)
+    .describe(
+      'Required. Concrete suggestions to resolve the error. Include either SQL-side fix ideas and/or data issue explanation. Must be actionable.'
+    ),
+});
+
+export type SqlErrorAdvisorResponse = z.infer<typeof SqlErrorAdvisorResponseSchema>;
+
+export const SqlBuilderResponseSchema = z.object({
+  sql: z
+    .string()
+    .min(1, 'SQL is required')
+    .describe(
+      'Single final SQL statement that answers the question per the provided plan and schema.'
+    ),
+  notes: z
+    .string()
+    .nullable()
+    .optional()
+    .describe(
+      'Optional short English note for internal debugging (not user-facing). No SQL instructions here.'
+    ),
+});
+
+export type SqlBuilderResponse = z.infer<typeof SqlBuilderResponseSchema>;
+
+export type QueryRepairAttempt = {
+  sql: string;
+  error: SqlStepError;
+};
+
+export type QueryRepairInput = {
+  prompt: string;
+  queryPlan: QueryPlan;
+  schema?: GetMetadataOutput;
+
+  attempts: QueryRepairAttempt[];
+};
+
+export enum QueryRepairAction {
+  RETRY_SQL = 'retry_sql',
+  CANNOT_REPAIR = 'cannot_repair',
+}
+
+export const QueryRepairResponseSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal(QueryRepairAction.RETRY_SQL).describe('when can safely fix the SQL'),
+    sql: z
+      .string()
+      .min(1)
+      .describe(
+        'Required. Repaired SQL query (single SELECT/WITH). Must differ from the CURRENT attempt.'
+      ),
+    notes: z
+      .string()
+      .optional()
+      .describe('Optional. Short internal notes for telemetry/debugging.'),
+  }),
+  z.object({
+    action: z
+      .literal(QueryRepairAction.CANNOT_REPAIR)
+      .describe('when safe repair is not possible from available metadata'),
+    notes: z
+      .string()
+      .min(1)
+      .describe(
+        'Required. Why repair is not safely possible (e.g., unknown date format requires date arithmetic).'
+      ),
+  }),
+]);
+
+export type QueryRepairResponse = z.infer<typeof QueryRepairResponseSchema>;

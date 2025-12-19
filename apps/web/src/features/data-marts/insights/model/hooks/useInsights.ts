@@ -105,6 +105,29 @@ export function useInsights() {
     [dataMart.id, dataMart.title, dispatch]
   );
 
+  const createInsightWithAi = useCallback(async () => {
+    dispatch({ type: InsightsActionType.CREATE_INSIGHT_START });
+    try {
+      const response = await insightsService.createInsightWithAi(dataMart.id);
+      const created = mapInsightFromDto(response);
+      dispatch({ type: InsightsActionType.CREATE_INSIGHT_SUCCESS, payload: created });
+      trackEvent({
+        event: 'insight_generated_with_ai',
+        category: 'Insights',
+        action: 'Generate with AI',
+        label: created.id,
+      });
+      toast.success('Insight generated with AI');
+      return created;
+    } catch (error) {
+      dispatch({
+        type: InsightsActionType.CREATE_INSIGHT_ERROR,
+        payload: extractApiError(error),
+      });
+      return null;
+    }
+  }, [dataMart.id, dispatch]);
+
   const updateInsight = useCallback(
     async (id: string, data: { title: string; template?: string | null }) => {
       dispatch({ type: InsightsActionType.UPDATE_INSIGHT_START });
@@ -260,6 +283,7 @@ export function useInsights() {
     getInsight,
     getInsightSilently,
     createInsight,
+    createInsightWithAi,
     updateInsight,
     updateInsightTitle,
     deleteInsight,

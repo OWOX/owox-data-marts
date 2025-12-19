@@ -9,6 +9,7 @@ import { DataStorageType } from '../../../../../../data-storage';
 import {
   AthenaFieldType,
   BigQueryFieldType,
+  RedshiftFieldType,
   SnowflakeFieldType,
 } from '../../../../../shared/types/data-mart-schema.types';
 
@@ -18,8 +19,9 @@ import {
 type StorageType =
   | DataStorageType.GOOGLE_BIGQUERY
   | DataStorageType.AWS_ATHENA
-  | DataStorageType.SNOWFLAKE;
-type FieldType = BigQueryFieldType | AthenaFieldType | SnowflakeFieldType;
+  | DataStorageType.SNOWFLAKE
+  | DataStorageType.AWS_REDSHIFT;
+type FieldType = BigQueryFieldType | AthenaFieldType | SnowflakeFieldType | RedshiftFieldType;
 
 /**
  * Props for the SchemaFieldTypeSelect component
@@ -47,7 +49,9 @@ export function SchemaFieldTypeSelect({
       ? Object.values(BigQueryFieldType)
       : storageType === DataStorageType.AWS_ATHENA
         ? Object.values(AthenaFieldType)
-        : Object.values(SnowflakeFieldType);
+        : storageType === DataStorageType.SNOWFLAKE
+          ? Object.values(SnowflakeFieldType)
+          : Object.values(RedshiftFieldType);
 
   // Handle type change
   const handleValueChange = (value: string) => {
@@ -57,8 +61,10 @@ export function SchemaFieldTypeSelect({
         onTypeChange(value as BigQueryFieldType);
       } else if (storageType === DataStorageType.AWS_ATHENA) {
         onTypeChange(value as AthenaFieldType);
-      } else {
+      } else if (storageType === DataStorageType.SNOWFLAKE) {
         onTypeChange(value as SnowflakeFieldType);
+      } else {
+        onTypeChange(value as RedshiftFieldType);
       }
     }
   };
