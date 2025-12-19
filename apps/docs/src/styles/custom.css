@@ -1,5 +1,5 @@
-td img,
-th img {
+td > img,
+th > img {
   display: inline-block;
 }
 

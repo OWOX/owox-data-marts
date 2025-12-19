@@ -24,7 +24,7 @@ export default defineConfig({
       customCss: ['./src/styles/custom.css'],
       components: {
         PageFrame: './src/components/starlight/PageFrame.astro',
-        // PageSidebar: './src/components/starlight/PageSidebar.astro',
+        PageSidebar: './src/components/starlight/PageSidebar.astro',
       },
       // tableOfContents: false,
       head: gtmId

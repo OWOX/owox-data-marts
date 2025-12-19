@@ -1,11 +1,10 @@
 ---
-import type { Props } from '@astrojs/starlight/props';
 import Default from '@astrojs/starlight/components/PageSidebar.astro';
 ---
 
 <button id="sidebar-toggle" class="sidebar-toggle-btn" aria-label="Toggle sidebar" title="Toggle sidebar">
     <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-      <path d="M7 14l5-5-5-5v10z"/>
+      <path d="M8 5l5 5-5 5V5z"/>
     </svg>
   </button>
 
@@ -14,19 +13,19 @@ import Default from '@astrojs/starlight/components/PageSidebar.astro';
 </div>
 
 <style is:global>
+
   .sidebar-toggle-btn {
     position: fixed;
     right: 0;
-    top: 50%;
+    top: calc(var(--sl-nav-height) + 2 * var(--sl-nav-pad-y));
     transform: translateY(-50%);
     z-index: 100;
     background: var(--sl-color-bg-nav);
     border: 1px solid var(--sl-color-hairline);
     border-right: none;
     border-radius: 0.5rem 0 0 0.5rem;
-    padding: 0.75rem 0.5rem;
+    padding: 0.5rem 0.5rem;
     cursor: pointer;
-    transition: all 0.3s ease;
     color: var(--sl-color-text);
     display: flex;
     align-items: center;
@@ -40,14 +39,11 @@ import Default from '@astrojs/starlight/components/PageSidebar.astro';
 
   .sidebar-toggle-btn svg {
     transition: transform 0.3s ease;
+    transform-origin: center;
   }
 
   .sidebar-toggle-btn.collapsed svg {
     transform: rotate(180deg);
-  }
-
-  .custom-page-sidebar {
-    transition: transform 0.3s ease, opacity 0.3s ease;
   }
 
   .custom-page-sidebar.collapsed {
@@ -56,17 +52,27 @@ import Default from '@astrojs/starlight/components/PageSidebar.astro';
     pointer-events: none;
   }
 
-  .right-sidebar-container {
-    transition: width 0.3s ease, opacity 0.3s ease;
-  }
-
   .right-sidebar-container.collapsed {
     width: 0 !important;
-    overflow: hidden;
+    overflow: visible !important;
+  }
+
+  .right-sidebar-container.collapsed .right-sidebar > * {
+    visibility: hidden;
+  }
+
+  .right-sidebar-container.collapsed #sidebar-toggle {
+    visibility: visible !important;
   }
 
   .main-pane.sidebar-collapsed {
     --sl-sidebar-width: 0rem !important;
+    width: 100% !important;
+  }
+
+  .main-pane.sidebar-collapsed .sl-container {
+    margin-left: auto;
+    margin-right: auto;
   }
 
   /* Hide toggle on mobile */
@@ -77,6 +83,47 @@ import Default from '@astrojs/starlight/components/PageSidebar.astro';
   }
 </style>
 
+<style is:inline>
+  /* Critical styles to prevent FOUC - must be inline */
+  html.sidebar-initially-collapsed .right-sidebar-container {
+    width: 0 !important;
+    overflow: visible !important;
+  }
+
+  html.sidebar-initially-collapsed .right-sidebar > * {
+    visibility: hidden;
+  }
+
+  html.sidebar-initially-collapsed #sidebar-toggle {
+    visibility: visible !important;
+  }
+
+  html.sidebar-initially-collapsed .custom-page-sidebar {
+    opacity: 0;
+    transform: translateX(100%);
+    pointer-events: none;
+  }
+
+  html.sidebar-initially-collapsed .main-pane {
+    --sl-sidebar-width: 0rem !important;
+    width: 100% !important;
+  }
+
+  html.sidebar-initially-collapsed .main-pane .sl-container {
+    margin-left: auto;
+    margin-right: auto;
+  }
+</style>
+
+<script is:inline>
+  // Apply collapsed state immediately to prevent FOUC
+  (function() {
+    if (localStorage.getItem('sidebar-collapsed') === 'true') {
+      document.documentElement.classList.add('sidebar-initially-collapsed');
+    }
+  })();
+</script>
+
 <script>
   function initSidebarToggle() {
     const toggleBtn = document.getElementById('sidebar-toggle');
@@ -85,6 +132,9 @@ import Default from '@astrojs/starlight/components/PageSidebar.astro';
     const mainPane = document.querySelector('.main-pane');
     
     if (!toggleBtn || !sidebar || !container || !mainPane) return;
+
+    // Remove initial class to allow normal styles to work
+    document.documentElement.classList.remove('sidebar-initially-collapsed');
 
     // Load saved state
     const isCollapsed = localStorage.getItem('sidebar-collapsed') === 'true';
