@@ -10,6 +10,8 @@ import {
   AppWizardStepHero,
   AppWizardStepLoading,
 } from '@owox/ui/components/common/wizard';
+import { trackEvent } from '../../../../../../utils';
+import { useEffect } from 'react';
 
 interface ConnectorSelectionStepProps {
   connectors: ConnectorListItem[];
@@ -28,6 +30,15 @@ export function ConnectorSelectionStep({
   onConnectorSelect,
   onConnectorDoubleClick,
 }: ConnectorSelectionStepProps) {
+  useEffect(() => {
+    trackEvent({
+      event: 'connector_setup',
+      category: 'connector_selection',
+      action: 'step',
+      label: 'Choose Connector',
+    });
+  }, []);
+
   if (loading) {
     return <AppWizardStepLoading variant='grid' />;
   }

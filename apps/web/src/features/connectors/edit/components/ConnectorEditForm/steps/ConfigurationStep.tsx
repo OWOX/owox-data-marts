@@ -14,6 +14,7 @@ import { SECRET_MASK } from '../../../../../../shared/constants/secrets';
 import { ConfigurationListRender } from './ConfigurationStep/ConfigurationListRender';
 import { CopyConfigurationButton } from '../../../../../data-marts/edit/components/DataMartDefinitionSettings/form/CopyConfigurationButton';
 import type { CopiedConfiguration } from '../../../../../data-marts/edit/model/types';
+import { trackEvent } from '../../../../../../utils';
 
 interface ConfigurationStepProps {
   connector: ConnectorListItem;
@@ -38,6 +39,15 @@ export function ConfigurationStep({
   const initializedRef = useRef(false);
   const updatingFromParentRef = useRef(false);
   const [secretEditing, setSecretEditing] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    trackEvent({
+      event: 'connector_setup',
+      category: connector.name,
+      action: 'connector_selected',
+      label: connector.displayName,
+    });
+  }, [connector]);
 
   useEffect(() => {
     if (connectorSpecification) {
