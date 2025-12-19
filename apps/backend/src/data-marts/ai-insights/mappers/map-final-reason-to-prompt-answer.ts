@@ -13,5 +13,7 @@ export function mapFinalReasonToPromptAnswer(reason: FinalReason): PromptAnswer 
       return PromptAnswer.CANNOT_ANSWER;
     case FinalReason.HIGH_AMBIGUITY:
       return PromptAnswer.HIGH_AMBIGUITY;
+    case FinalReason.SQL_ERROR:
+      return PromptAnswer.ERROR;
   }
 }

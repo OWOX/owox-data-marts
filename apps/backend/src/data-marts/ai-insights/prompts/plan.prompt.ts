@@ -23,10 +23,65 @@ StorageType-aware planning:
   - rawType
   - semanticType
   - resolvedIdentifier (exact column identifier for this storageType; already quoted if required)
-  - transform ("none" | "cast" | "parse_date" | "parse_timestamp"), optionally "format"
+  - transform ("none" | "cast" | "parse_date" | "parse_timestamp"), optionally:
+    - format (storageType-native format tokens),
+    - preNormalize (declarative cleanup steps, NO SQL).
+- If you provide transform.format, it MUST use the target storageType's native format tokens
+  (e.g., BigQuery, Snowflake, Redshift, Athena etc.).
+- If you output transform.preNormalize, it MUST be machine-actionable:
+  include concrete parameters (e.g., suffix/prefix or regex pattern), not only a vague note.
 - If a required column is used for date/timestamp filtering and rawType is a string-like type,
   transform MUST be "parse_date" or "parse_timestamp" (not "none").
 - requiredColumnsMeta must be abstract and MUST NOT contain SQL expressions.
+
+Date/time parsing contract (IMPORTANT):
+
+- If you set transform.kind to "parse_date" or "parse_timestamp" for a string-like rawType
+  AND the query requires true date/time arithmetic
+  (e.g., "last N days/hours", rolling windows, "yesterday"),
+  you MUST provide requiredColumnsMeta[column].transform.format (a concrete format string)
+  so SQL generation can be correct.
+
+- If schema metadata includes example values for the column and parsing is needed:
+  - Your transform.format MUST be compatible with those examples.
+  - Compatibility means: the combination of (transform.preNormalize + transform.format)
+    must be able to parse the example value end-to-end.
+  - If examples include extra prefix/suffix text not covered by the format (e.g., "(...)" ),
+    you MUST describe deterministic cleanup via transform.preNormalize so parsing can succeed.
+  - If the example contains fixed literal text that is part of the datetime string
+    (e.g., "GMT", "UTC", "T", "Z", fixed separators),
+    you MUST account for it:
+    - either remove it deterministically via transform.preNormalize, OR
+    - include it as a quoted literal in transform.format using storageType-native quoting rules.
+
+- If you cannot determine a reliable format from schema metadata
+  (e.g., column description lacks examples/format hints OR examples contain extra text and no preNormalize evidence exists):
+
+  1) If the requested time filter can be expressed without true date/time arithmetic
+     (e.g., whole year or whole month),
+     you MAY rely on a format-compatible string-based filter semantics
+     (such as year/month prefix matching),
+     and document this intent via transform.kind = "parse_date" WITHOUT format,
+     indicating that lexical comparison is sufficient.
+
+  2) If the requested time filter requires true date/time arithmetic,
+     you MUST NOT guess the format, and you MUST NOT invent preNormalize steps without evidence from schema examples.
+     You MUST NOT use TRY/SAFE parsing semantics.
+     In this case, you MUST mark the plan as ambiguous and request clarification from the user
+     (e.g., ask for example values, exact format, or schema type correction).
+
+Numeric casting contract (IMPORTANT):
+- If a required column has rawType string-like and semanticType is "number":
+  - Do NOT assume integer-only values.
+  - If the metric can be fractional (money, ratios, averages), plan casting to a fractional-capable type.
+  - Prefer to set transform.kind="cast" with a fractional-capable intent (e.g., document in notes/semantics),
+    or (if your schema supports it) include a target type hint (e.g., DOUBLE or DECIMAL with scale > 0).
+  - If precision is critical and the schema metadata does not clarify scale/precision, mark the plan as ambiguous
+    and request clarification (e.g., "is spend integer or decimal, and how many decimal places?").
+
+Correctness rule:
+- Prefer explicit clarification over guessing.
+- It is better to request clarification than to risk empty or misleading results.
 
 ${buildJsonFormatSection(PlanModelJsonSchema)}
 `.trim();
@@ -47,6 +102,8 @@ ${schemaSummary ?? '(not provided)'}
 Raw table schema (columns):
 ${rawSchema ? JSON.stringify(rawSchema) : '(omitted)'}
 
+StorageType is ${input.rawSchema?.storageType ?? 'unknown'}.
+
 - If the user question is ambiguous, provide an ambiguityExplanation.
 - The ambiguityExplanation MUST be written in the same language as the user question (detected language: ${input.promptLanguage}).
 - The explanation MUST clearly tell the user what exactly is unclear.
@@ -65,6 +122,7 @@ Instructions:
   - the primary dateField and dateFilterDescription (if the question implies a time range),
   - whereConditions and grouping,
   - requiredColumns so that the SQL agent has all necessary fields.
+- When schema column descriptions include example values or format hints, use them to define parsing/casting transforms.
 
 ${buildOutputRules()}
 `.trim();

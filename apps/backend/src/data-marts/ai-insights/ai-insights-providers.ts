@@ -24,8 +24,11 @@ import { AiInsightsOrchestratorService } from './ai-insight-orchestrator.service
 import { FinalizeAgent } from './agent/finalize.agent';
 import { PlanAgent } from './agent/plan.agent';
 import { SqlAgent } from './agent/sql.agent';
+import { SqlBuilderAgent } from './agent/sql-builder.agent';
 import { TriageAgent } from './agent/triage.agent';
 import { GenerateInsightAgent } from './agent/generate-insight.agent';
+import { SqlErrorAdvisorAgent } from './agent/sql-error-advisor.agent';
+import { QueryRepairAgent } from './agent/query-repair.agent';
 
 export const aiInsightsProviders = [
   OpenAiChatProvider,
@@ -34,7 +37,10 @@ export const aiInsightsProviders = [
   AiInsightsOrchestratorService,
   TriageAgent,
   PlanAgent,
+  SqlBuilderAgent,
   SqlAgent,
+  QueryRepairAgent,
+  SqlErrorAdvisorAgent,
   FinalizeAgent,
   GenerateInsightAgent,
   PromptTagHandler,

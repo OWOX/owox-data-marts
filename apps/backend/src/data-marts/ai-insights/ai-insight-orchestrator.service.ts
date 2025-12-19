@@ -2,14 +2,26 @@ import { AI_CHAT_PROVIDER } from '../../common/ai-insights/services/ai-chat-prov
 import { Inject, Injectable } from '@nestjs/common';
 import { ToolRegistry } from '../../common/ai-insights/agent/tool-registry';
 import { AiChatProvider } from '../../common/ai-insights/agent/ai-core';
-import { AnswerPromptRequest, AnswerPromptResponse, SharedAgentContext } from './ai-insights-types';
+import {
+  AnswerPromptRequest,
+  AnswerPromptResponse,
+  GetMetadataOutput,
+  SharedAgentContext,
+} from './ai-insights-types';
 import { AgentBudgets, AgentTelemetry } from '../../common/ai-insights/agent/types';
 import { TriageAgent } from './agent/triage.agent';
 import { PlanAgent } from './agent/plan.agent';
 import { SqlAgent } from './agent/sql.agent';
 import { FinalizeAgent } from './agent/finalize.agent';
 import { buildNarrowMetadata } from './utils/narrow-datamart-metadata';
-import { FinalizeResult, FinalReason, isTriageOutcomeNotOk, TriageOutcome } from './agent/types';
+import {
+  FinalizeResult,
+  FinalReason,
+  isSqlExecutionErrorStatus,
+  isTriageOutcomeNotOk,
+  SqlAgentResult,
+  TriageOutcome,
+} from './agent/types';
 import { mapFinalReasonToPromptAnswer } from './mappers/map-final-reason-to-prompt-answer';
 
 @Injectable()
@@ -77,9 +89,12 @@ export class AiInsightsOrchestratorService {
       return this.buildAnswerPromptResponse(finalizeStruct, telemetry, request);
     }
 
-    const narrowedMetadata = buildNarrowMetadata(planResult.plan, triage.rawSchema);
+    const narrowedMetadata: GetMetadataOutput = buildNarrowMetadata(
+      planResult.plan,
+      triage.rawSchema!
+    );
 
-    const sqlResult = await this.sqlAgent.run(
+    const sqlResult: SqlAgentResult = await this.sqlAgent.run(
       {
         prompt: request.prompt,
         plan: planResult.plan,
@@ -88,6 +103,15 @@ export class AiInsightsOrchestratorService {
       },
       shared
     );
+
+    if (isSqlExecutionErrorStatus(sqlResult.status)) {
+      const finalizeStruct: FinalizeResult = {
+        status: FinalReason.SQL_ERROR,
+        artifact: sqlResult.sql,
+        reasonDescription: `${sqlResult.sqlError}\nSuggestion:\n${sqlResult.sqlErrorSuggestion}`,
+      };
+      return this.buildAnswerPromptResponse(finalizeStruct, telemetry, request);
+    }
 
     const finalize: FinalizeResult = await this.finalizeAgent.run(
       {
