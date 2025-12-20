@@ -8,9 +8,11 @@ import { storageService } from '../services/localstorage.service';
 const TABLE_STORAGE_CONSTANTS = {
   DEFAULT_SORTING_COLUMN: 'createdAt',
   DEFAULT_EXCLUDED_COLUMNS: ['actions'] as string[],
+  DEFAULT_PAGE_SIZE: 15,
   STORAGE_KEYS: {
     SORTING_SUFFIX: '-sorting',
     COLUMN_VISIBILITY_SUFFIX: '-column-visibility',
+    PAGE_SIZE_SUFFIX: '-page-size',
   },
 } as const;
 
@@ -48,6 +50,8 @@ interface UseTableStorageProps<TData, TValue> {
   defaultSortingColumn?: string;
   /** Default visibility state for columns */
   defaultColumnVisibility?: VisibilityState;
+  /** Default page size for pagination */
+  defaultPageSize?: number;
   /** Column IDs to exclude from sorting persistence */
   excludedColumnsFromSorting?: string[];
   /** Column IDs to exclude from visibility persistence */
@@ -66,6 +70,10 @@ interface UseTableStorageReturn {
   columnVisibility: VisibilityState;
   /** Function to update column visibility state */
   setColumnVisibility: React.Dispatch<React.SetStateAction<VisibilityState>>;
+  /** Current page size */
+  pageSize: number;
+  /** Function to update page size */
+  setPageSize: React.Dispatch<React.SetStateAction<number>>;
 }
 
 /**
@@ -88,6 +96,7 @@ export function useTableStorage<TData, TValue>({
   storageKeyPrefix,
   defaultSortingColumn = TABLE_STORAGE_CONSTANTS.DEFAULT_SORTING_COLUMN,
   defaultColumnVisibility = {},
+  defaultPageSize = TABLE_STORAGE_CONSTANTS.DEFAULT_PAGE_SIZE,
   excludedColumnsFromSorting = TABLE_STORAGE_CONSTANTS.DEFAULT_EXCLUDED_COLUMNS,
   excludedColumnsFromVisibility = TABLE_STORAGE_CONSTANTS.DEFAULT_EXCLUDED_COLUMNS,
 }: UseTableStorageProps<TData, TValue>): UseTableStorageReturn {
@@ -96,6 +105,7 @@ export function useTableStorage<TData, TValue>({
     () => ({
       SORTING: `${storageKeyPrefix}${TABLE_STORAGE_CONSTANTS.STORAGE_KEYS.SORTING_SUFFIX}`,
       COLUMN_VISIBILITY: `${storageKeyPrefix}${TABLE_STORAGE_CONSTANTS.STORAGE_KEYS.COLUMN_VISIBILITY_SUFFIX}`,
+      PAGE_SIZE: `${storageKeyPrefix}${TABLE_STORAGE_CONSTANTS.STORAGE_KEYS.PAGE_SIZE_SUFFIX}`,
     }),
     [storageKeyPrefix]
   );
@@ -151,6 +161,18 @@ export function useTableStorage<TData, TValue>({
     defaultColumnVisibility,
   ]);
 
+  /**
+   * Initialize page size from localStorage or use default
+   * @returns Initial page size for the table
+   */
+  const getInitialPageSize = useCallback((): number => {
+    const savedValue = storageService.get(STORAGE_KEYS.PAGE_SIZE);
+    const savedPageSize = savedValue ? Number(savedValue) : null;
+    return typeof savedPageSize === 'number' && !isNaN(savedPageSize) && savedPageSize > 0
+      ? savedPageSize
+      : defaultPageSize;
+  }, [STORAGE_KEYS.PAGE_SIZE, defaultPageSize]);
+
   /** State for table sorting configuration */
   const [sorting, setSorting] = useState<SortingState>(getInitialSorting);
 
@@ -158,6 +180,9 @@ export function useTableStorage<TData, TValue>({
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
     getInitialColumnVisibility
   );
+
+  /** State for page size configuration */
+  const [pageSize, setPageSize] = useState<number>(getInitialPageSize);
 
   /** Persist sorting changes to localStorage */
   useEffect(() => {
@@ -179,10 +204,17 @@ export function useTableStorage<TData, TValue>({
     storageService.set(STORAGE_KEYS.COLUMN_VISIBILITY, toPersist);
   }, [columnVisibility, columnIds, excludedColumnsFromVisibility, STORAGE_KEYS.COLUMN_VISIBILITY]);
 
+  /** Persist page size changes to localStorage */
+  useEffect(() => {
+    storageService.set(STORAGE_KEYS.PAGE_SIZE, pageSize);
+  }, [pageSize, STORAGE_KEYS.PAGE_SIZE]);
+
   return {
     sorting,
     setSorting,
     columnVisibility,
     setColumnVisibility,
+    pageSize,
+    setPageSize,
   };
 }

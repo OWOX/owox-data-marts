@@ -41,6 +41,7 @@ import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
 import { useTableStorage } from '../../../../../hooks/useTableStorage';
 import { useContentPopovers } from '../../../../../app/store/hooks/useContentPopovers';
 import { storageService } from '../../../../../services/localstorage.service';
+import { TablePagination } from '@owox/ui/components/common/table-pagination';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -59,18 +60,20 @@ export function DataMartTable<TData, TValue>({
 }: DataTableProps<TData, TValue>) {
   const { navigate, scope } = useProjectRoute();
 
-  const { sorting, setSorting, columnVisibility, setColumnVisibility } = useTableStorage({
-    columns,
-    storageKeyPrefix: 'data-mart-list',
-    defaultColumnVisibility: {
-      triggersCount: false,
-      reportsCount: false,
-      createdByUser: false,
-    },
-  });
+  const { sorting, setSorting, columnVisibility, setColumnVisibility, pageSize, setPageSize } =
+    useTableStorage({
+      columns,
+      storageKeyPrefix: 'data-mart-list',
+      defaultColumnVisibility: {
+        triggersCount: false,
+        reportsCount: false,
+        createdByUser: false,
+      },
+    });
 
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [pageIndex, setPageIndex] = useState(0);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -125,13 +128,13 @@ export function DataMartTable<TData, TValue>({
           <button
             type='button'
             role='checkbox'
-            aria-checked={table.getIsAllRowsSelected()}
-            data-state={table.getIsAllRowsSelected() ? 'checked' : 'unchecked'}
-            aria-label='Select all rows'
+            aria-checked={table.getIsAllPageRowsSelected()}
+            data-state={table.getIsAllPageRowsSelected() ? 'checked' : 'unchecked'}
+            aria-label='Select all rows on this page'
             className='peer border-input data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground dark:data-[state=checked]:bg-primary data-[state=checked]:border-primary focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive size-4 shrink-0 rounded-[4px] border bg-white shadow-xs transition-shadow outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/8'
-            onClick={table.getToggleAllRowsSelectedHandler()}
+            onClick={table.getToggleAllPageRowsSelectedHandler()}
           >
-            {table.getIsAllRowsSelected() && (
+            {table.getIsAllPageRowsSelected() && (
               <span
                 data-state='checked'
                 data-slot='checkbox-indicator'
@@ -176,11 +179,33 @@ export function DataMartTable<TData, TValue>({
     getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
+    initialState: {
+      pagination: {
+        pageSize,
+      },
+    },
     state: {
       sorting,
       columnFilters,
       columnVisibility,
       rowSelection,
+      pagination: {
+        pageIndex,
+        pageSize,
+      },
+    },
+    onPaginationChange: updater => {
+      if (typeof updater === 'function') {
+        const currentPagination = { pageIndex, pageSize };
+        const newPagination = updater(currentPagination);
+
+        if (newPagination.pageSize !== pageSize) {
+          setPageSize(newPagination.pageSize);
+        }
+        if (newPagination.pageIndex !== pageIndex) {
+          setPageIndex(newPagination.pageIndex);
+        }
+      }
     },
     enableRowSelection: true,
   });
@@ -320,7 +345,8 @@ export function DataMartTable<TData, TValue>({
       {/* end: DM CARD TABLE */}
 
       {/* DM CARD PAGINATION */}
-      <div className='dm-card-pagination'>
+      <TablePagination table={table} />
+      {/* <div className='dm-card-pagination'>
         <Button
           variant='outline'
           size='sm'
@@ -341,7 +367,7 @@ export function DataMartTable<TData, TValue>({
         >
           Next
         </Button>
-      </div>
+      </div> */}
       {/* end: DM CARD PAGINATION */}
 
       {/* Delete Confirmation Dialog */}
