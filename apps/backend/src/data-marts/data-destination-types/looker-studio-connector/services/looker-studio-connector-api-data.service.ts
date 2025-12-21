@@ -41,9 +41,11 @@ export interface StreamingContext {
 
 /**
  * Batch size for streaming responses.
- * Smaller batches reduce peak memory during streaming.
+ * Balance between memory usage and performance:
+ * - Larger batches = fewer writes = faster
+ * - Smaller batches = less memory
  */
-const STREAMING_BATCH_SIZE = 1000;
+const STREAMING_BATCH_SIZE = 5000;
 
 /**
  * Service for handling data extraction requests from Looker Studio connector.
@@ -282,8 +284,11 @@ export class LookerStudioConnectorApiDataService {
    * Streams data response directly to HTTP response.
    * Writes JSON incrementally to avoid loading all rows into memory.
    *
-   * Memory optimization: Only one batch (~1000 rows) is held in memory at a time,
+   * Memory optimization: Only one batch (~5000 rows) is held in memory at a time,
    * compared to accumulating all rows (up to 1M) before sending.
+   *
+   * Performance optimization: Entire batches are serialized and written at once
+   * instead of row-by-row to reduce I/O overhead.
    *
    * @param res - Express response object
    * @param context - Pre-computed streaming context
@@ -300,7 +305,7 @@ export class LookerStudioConnectorApiDataService {
     res.write(`{"schema":${JSON.stringify(schema)},"rows":[`);
 
     let totalRows = 0;
-    let isFirstRow = true;
+    let isFirstBatch = true;
     let nextBatchId: string | undefined | null = undefined;
 
     do {
@@ -309,22 +314,22 @@ export class LookerStudioConnectorApiDataService {
 
       const batch = await reader.readReportDataBatch(nextBatchId, batchSize);
 
-      // Stream each row
-      for (const row of batch.dataRows) {
-        if (totalRows >= rowLimit) break;
+      // Format all rows in the batch
+      const rowsToWrite = Math.min(batch.dataRows.length, rowLimit - totalRows);
+      const formattedRows: DataRow[] = [];
 
-        const formattedRow: DataRow = {
-          values: fieldIndexMap.map(index => this.convertToFieldValue(row[index])),
-        };
+      for (let i = 0; i < rowsToWrite; i++) {
+        formattedRows.push({
+          values: fieldIndexMap.map(index => this.convertToFieldValue(batch.dataRows[i][index])),
+        });
+      }
 
-        // Write comma separator (except for first row)
-        if (!isFirstRow) {
-          res.write(',');
-        }
-        isFirstRow = false;
-
-        res.write(JSON.stringify(formattedRow));
-        totalRows++;
+      // Write entire batch as single chunk (much faster than row-by-row)
+      if (formattedRows.length > 0) {
+        const batchJson = formattedRows.map(row => JSON.stringify(row)).join(',');
+        res.write(isFirstBatch ? batchJson : ',' + batchJson);
+        isFirstBatch = false;
+        totalRows += formattedRows.length;
       }
 
       nextBatchId = batch.nextDataBatchId;
@@ -332,8 +337,9 @@ export class LookerStudioConnectorApiDataService {
       // Check if we've reached the row limit
       if (totalRows >= rowLimit) {
         if (nextBatchId) {
+          const limitType = rowLimit < MAX_ROWS_LIMIT ? 'sample extraction' : 'full extraction';
           this.logger.warn(
-            `Row limit reached during streaming: returned ${totalRows} rows (more data available)`
+            `Row limit reached during streaming (${limitType}): returned ${totalRows} rows (more data available)`
           );
         }
         break;
