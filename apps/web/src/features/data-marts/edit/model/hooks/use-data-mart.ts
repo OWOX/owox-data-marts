@@ -25,6 +25,8 @@ export function useDataMart(id?: string) {
     error,
     getErrorMessage,
     runs,
+    isManualRunTriggered,
+    resetManualRunTriggered,
   } = useDataMartContext();
 
   useEffect(() => {
@@ -57,5 +59,7 @@ export function useDataMart(id?: string) {
     loadMoreDataMartRuns,
     runs,
     getDataMart,
+    isManualRunTriggered,
+    resetManualRunTriggered,
   };
 }
