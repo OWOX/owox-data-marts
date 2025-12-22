@@ -236,7 +236,7 @@
   @apply bg-muted/50 rounded-md border-b border-gray-200 p-4 dark:border-white/8 dark:bg-white/4;
 }
 .dm-card-toolbar {
-  @apply flex items-center justify-between gap-2 pb-4;
+  @apply mb-4 flex items-center justify-between gap-2 last:mb-0;
 }
 .dm-card-toolbar-left {
   @apply flex items-center gap-2;
@@ -260,7 +260,7 @@
   @apply border-muted dark:border-muted/50 flex items-center gap-2 bg-white dark:bg-white/4 dark:hover:bg-white/8;
 }
 .dm-card-table-wrap {
-  @apply w-full table-fixed;
+  @apply mb-4 w-full table-fixed last:mb-0;
 }
 .dm-card-table {
   @apply w-full;
