@@ -1,0 +1,164 @@
+---
+import Default from '@astrojs/starlight/components/PageSidebar.astro';
+---
+
+<button id="sidebar-toggle" class="sidebar-toggle-btn" aria-label="Toggle sidebar" title="Toggle sidebar">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M8 5l5 5-5 5V5z"/>
+    </svg>
+  </button>
+
+<div id="page-sidebar" class="custom-page-sidebar">
+  <Default {...Astro.props} />
+</div>
+
+<style is:global>
+
+  .sidebar-toggle-btn {
+    position: fixed;
+    right: 0;
+    top: calc(var(--sl-nav-height) + 2 * var(--sl-nav-pad-y));
+    transform: translateY(-50%);
+    z-index: 100;
+    background: var(--sl-color-bg-nav);
+    border: 1px solid var(--sl-color-hairline);
+    border-right: none;
+    border-radius: 0.5rem 0 0 0.5rem;
+    padding: 0.5rem 0.5rem;
+    cursor: pointer;
+    color: var(--sl-color-text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sidebar-toggle-btn:hover {
+    background: var(--sl-color-bg-sidebar);
+    border-color: var(--sl-color-text-accent);
+  }
+
+  .sidebar-toggle-btn svg {
+    transition: transform 0.3s ease;
+    transform-origin: center;
+  }
+
+  .sidebar-toggle-btn.collapsed svg {
+    transform: rotate(180deg);
+  }
+
+  .custom-page-sidebar.collapsed {
+    transform: translateX(100%);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .right-sidebar-container.collapsed {
+    width: 0 !important;
+    overflow: visible !important;
+  }
+
+  .right-sidebar-container.collapsed .right-sidebar > * {
+    visibility: hidden;
+  }
+
+  .right-sidebar-container.collapsed #sidebar-toggle {
+    visibility: visible !important;
+  }
+
+  .main-pane.sidebar-collapsed {
+    --sl-sidebar-width: 0rem !important;
+    width: 100% !important;
+  }
+
+  .main-pane.sidebar-collapsed .sl-container {
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* Hide toggle on mobile */
+  @media (max-width: 72rem) {
+    .sidebar-toggle-btn {
+      display: none;
+    }
+  }
+</style>
+
+<style is:inline>
+  /* Critical styles to prevent FOUC - must be inline */
+  html.sidebar-initially-collapsed .right-sidebar-container {
+    width: 0 !important;
+    overflow: visible !important;
+  }
+
+  html.sidebar-initially-collapsed .right-sidebar > * {
+    visibility: hidden;
+  }
+
+  html.sidebar-initially-collapsed #sidebar-toggle {
+    visibility: visible !important;
+  }
+
+  html.sidebar-initially-collapsed .custom-page-sidebar {
+    opacity: 0;
+    transform: translateX(100%);
+    pointer-events: none;
+  }
+
+  html.sidebar-initially-collapsed .main-pane {
+    --sl-sidebar-width: 0rem !important;
+    width: 100% !important;
+  }
+
+  html.sidebar-initially-collapsed .main-pane .sl-container {
+    margin-left: auto;
+    margin-right: auto;
+  }
+</style>
+
+<script is:inline>
+  // Apply collapsed state immediately to prevent FOUC
+  (function() {
+    if (localStorage.getItem('sidebar-collapsed') === 'true') {
+      document.documentElement.classList.add('sidebar-initially-collapsed');
+    }
+  })();
+</script>
+
+<script>
+  function initSidebarToggle() {
+    const toggleBtn = document.getElementById('sidebar-toggle');
+    const sidebar = document.getElementById('page-sidebar');
+    const container = document.querySelector('.right-sidebar-container');
+    const mainPane = document.querySelector('.main-pane');
+    
+    if (!toggleBtn || !sidebar || !container || !mainPane) return;
+
+    // Remove initial class to allow normal styles to work
+    document.documentElement.classList.remove('sidebar-initially-collapsed');
+
+    // Load saved state
+    const isCollapsed = localStorage.getItem('sidebar-collapsed') === 'true';
+    if (isCollapsed) {
+      toggleBtn.classList.add('collapsed');
+      sidebar.classList.add('collapsed');
+      container.classList.add('collapsed');
+      mainPane.classList.add('sidebar-collapsed');
+    }
+
+    toggleBtn.addEventListener('click', () => {
+      const collapsed = toggleBtn.classList.toggle('collapsed');
+      sidebar.classList.toggle('collapsed');
+      container.classList.toggle('collapsed');
+      mainPane.classList.toggle('sidebar-collapsed');
+      
+      // Save state
+      localStorage.setItem('sidebar-collapsed', String(collapsed));
+    });
+  }
+
+  // Initialize on page load
+  document.addEventListener('DOMContentLoaded', initSidebarToggle);
+  
+  // Re-initialize on Astro page transitions
+  document.addEventListener('astro:page-load', initSidebarToggle);
+</script>

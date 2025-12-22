@@ -193,12 +193,6 @@ export function ConnectorEditForm({
     });
     void loadSpecificationSafely(connector.name);
     void loadFieldsSafely(connector.name);
-    trackEvent({
-      event: 'connector_setup',
-      category: connector.name,
-      action: 'connector_selected',
-      label: connector.displayName,
-    });
   };
 
   const handleFieldSelect = (fieldName: string) => {
@@ -256,17 +250,17 @@ export function ConnectorEditForm({
   }, [connectorSpecification]);
 
   useEffect(() => {
-    const stepTitle = steps[currentStep - 1]?.title ?? `Step ${String(currentStep)}`;
+    const step = steps[currentStep - 1];
     if (selectedConnector) {
       trackEvent({
         event: 'connector_setup',
         category: selectedConnector.name,
         action: `step`,
-        label: stepTitle,
+        label: step.title,
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStep, selectedConnector]);
+  }, [currentStep]);
   const handleNext = () => {
     if (currentStep < totalSteps) {
       setCurrentStep(currentStep + 1);
