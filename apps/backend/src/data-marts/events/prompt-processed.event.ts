@@ -6,6 +6,14 @@ import {
 } from '../ai-insights/data-mart-insights.types';
 import { ModelUsageByModel, ModelUsageTotals } from '../ai-insights/utils/compute-model-usage';
 
+export type PromptMetaBase = Pick<PromptTagMeta, 'reasonDescription' | 'artifact'>;
+
+export interface PromptExecutionMeta extends PromptMetaBase {
+  telemetry: string;
+  totalUsage: ModelUsageTotals;
+  totalUsageByModel: ModelUsageByModel[];
+}
+
 export interface PromptProcessedEventPayload {
   prompt: string;
   promptAnswer?: string;
@@ -14,11 +22,7 @@ export interface PromptProcessedEventPayload {
   entityId: string;
   userId: string;
   biProjectId: string;
-  meta: Pick<PromptTagMeta, 'reasonDescription' | 'artifact'> & {
-    telemetry: string;
-    totalUsage: ModelUsageTotals;
-    totalUsageByModel: ModelUsageByModel[];
-  };
+  meta: PromptExecutionMeta;
 }
 
 export class PromptProcessedEvent extends BaseEvent<PromptProcessedEventPayload> {
