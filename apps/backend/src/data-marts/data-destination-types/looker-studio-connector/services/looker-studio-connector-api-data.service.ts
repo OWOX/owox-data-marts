@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Response } from 'express';
+import * as zlib from 'zlib';
 import { BusinessViolationException } from '../../../../common/exceptions/business-violation.exception';
 import { DataStorageType } from '../../../data-storage-types/enums/data-storage-type.enum';
 import { DataStorageReportReader } from '../../../data-storage-types/interfaces/data-storage-report-reader.interface';
@@ -22,6 +23,13 @@ import { LookerStudioTypeMapperService } from './looker-studio-type-mapper.servi
  * @see https://developers.google.com/looker-studio/connector/reference#getdata
  */
 const MAX_ROWS_LIMIT = 1_000_000;
+
+/**
+ * The maximum number of bytes supported by Apps script UrlFetchApp.fetch() is 50 megabytes.
+ * We use a lower limit to prevent exceeding the Apps Script quota for URL fetch operations.
+ * @see https://developers.google.com/apps-script/guides/services/quotas
+ */
+const MAX_BYTES_LIMIT = 49.5 * 1024 * 1024;
 
 interface HeadersAndMapping {
   filteredHeaders: ReportDataHeader[];
@@ -297,18 +305,30 @@ export class LookerStudioConnectorApiDataService {
   public async streamData(res: Response, context: StreamingContext): Promise<number> {
     const { schema, reader, fieldIndexMap, rowLimit } = context;
 
+    const gzip = zlib.createGzip({ level: 3 });
+    gzip.setDefaultEncoding('utf-8');
+
     // Set headers for JSON streaming
     res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Encoding', 'gzip');
     res.setHeader('Transfer-Encoding', 'chunked');
 
+    // Pipe gzip stream to response
+    gzip.pipe(res);
+
     // Write opening JSON structure with schema
-    res.write(`{"schema":${JSON.stringify(schema)},"rows":[`);
+    gzip.write(`{"schema":${JSON.stringify(schema)},"rows":[`);
 
     let totalRows = 0;
     let isFirstBatch = true;
     let nextBatchId: string | undefined | null = undefined;
 
     do {
+      if (res.closed) {
+        this.logger.warn('Streaming aborted: response closed');
+        break;
+      }
+
       const remainingRows = rowLimit - totalRows;
       const batchSize = Math.min(STREAMING_BATCH_SIZE, remainingRows);
 
@@ -327,7 +347,7 @@ export class LookerStudioConnectorApiDataService {
       // Write entire batch as single chunk (much faster than row-by-row)
       if (formattedRows.length > 0) {
         const batchJson = formattedRows.map(row => JSON.stringify(row)).join(',');
-        res.write(isFirstBatch ? batchJson : ',' + batchJson);
+        gzip.write(isFirstBatch ? batchJson : ',' + batchJson);
         isFirstBatch = false;
         totalRows += formattedRows.length;
       }
@@ -344,13 +364,24 @@ export class LookerStudioConnectorApiDataService {
         }
         break;
       }
+
+      if (gzip.bytesWritten >= MAX_BYTES_LIMIT) {
+        if (nextBatchId) {
+          this.logger.warn(
+            `Size limit reached during streaming: returned ${totalRows} rows, data size: ${gzip.bytesWritten} bytes`
+          );
+        }
+        break;
+      }
     } while (nextBatchId);
 
     // Write closing JSON structure
-    res.write(`],"filtersApplied":[]}`);
-    res.end();
+    gzip.write(`],"filtersApplied":[]}`);
+    gzip.end();
 
-    this.logger.log(`Streaming completed: ${totalRows} rows sent`);
+    this.logger.log(
+      `Streaming completed: ${totalRows} rows sent, data size: ${gzip.bytesWritten} bytes`
+    );
     return totalRows;
   }
 }

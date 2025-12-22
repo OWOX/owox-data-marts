@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Response } from 'express';
+import { PassThrough } from 'stream';
+import * as zlib from 'zlib';
 import { LookerStudioConnectorApiDataService } from './looker-studio-connector-api-data.service';
 import { LookerStudioTypeMapperService } from './looker-studio-type-mapper.service';
 import { CachedReaderData } from '../../../dto/domain/cached-reader-data.dto';
@@ -67,25 +69,46 @@ describe('LookerStudioConnectorApiDataService', () => {
 
   const createMockResponse = (): {
     res: Partial<Response>;
-    chunks: string[];
+    chunks: Buffer[];
     headers: Record<string, string>;
   } => {
-    const chunks: string[] = [];
+    const chunks: Buffer[] = [];
     const headers: Record<string, string> = {};
 
-    const res: Partial<Response> = {
-      setHeader: jest.fn((key: string, value: string) => {
-        headers[key] = value;
-        return res as Response;
-      }),
-      write: jest.fn((chunk: string) => {
-        chunks.push(chunk);
-        return true;
-      }),
-      end: jest.fn(),
-    };
+    const res = new PassThrough() as any;
+    res.setHeader = jest.fn((key: string, value: string) => {
+      headers[key] = value;
+      return res;
+    });
+
+    let isClosed = false;
+    Object.defineProperty(res, 'closed', {
+      get: () => isClosed,
+      set: val => {
+        isClosed = val;
+      },
+      configurable: true,
+    });
+
+    const originalEnd = res.end.bind(res);
+    res.end = jest.fn().mockImplementation((...args) => {
+      res.closed = true;
+      return originalEnd(...args);
+    });
+
+    res.on('data', (chunk: Buffer) => {
+      chunks.push(chunk);
+    });
+
+    res.waitForFinish = () => new Promise(resolve => res.on('finish', resolve));
 
     return { res, chunks, headers };
+  };
+
+  const parseResponse = (chunks: Buffer[]): any => {
+    const buffer = Buffer.concat(chunks);
+    const decompressed = zlib.gunzipSync(buffer).toString();
+    return JSON.parse(decompressed);
   };
 
   describe('prepareStreamingContext', () => {
@@ -140,16 +163,18 @@ describe('LookerStudioConnectorApiDataService', () => {
         rowLimit: 1_000_000,
       };
 
-      const rowCount = await service.streamData(res as Response, context as any);
+      const rowCountPromise = service.streamData(res as Response, context as any);
+      await (res as any).waitForFinish();
+      const rowCount = await rowCountPromise;
 
       expect(headers['Content-Type']).toBe('application/json');
+      expect(headers['Content-Encoding']).toBe('gzip');
       expect(headers['Transfer-Encoding']).toBe('chunked');
       expect(rowCount).toBe(2);
       expect(res.end).toHaveBeenCalled();
 
       // Verify JSON structure
-      const fullResponse = chunks.join('');
-      const parsed = JSON.parse(fullResponse);
+      const parsed = parseResponse(chunks);
       expect(parsed.schema).toEqual([{ name: 'field1', dataType: FieldDataType.STRING }]);
       expect(parsed.rows).toHaveLength(2);
       expect(parsed.rows[0].values).toEqual(['value1']);
@@ -182,12 +207,13 @@ describe('LookerStudioConnectorApiDataService', () => {
         rowLimit: 1_000_000,
       };
 
-      const rowCount = await service.streamData(res as Response, context as any);
+      const rowCountPromise = service.streamData(res as Response, context as any);
+      await (res as any).waitForFinish();
+      const rowCount = await rowCountPromise;
 
       expect(rowCount).toBe(3);
 
-      const fullResponse = chunks.join('');
-      const parsed = JSON.parse(fullResponse);
+      const parsed = parseResponse(chunks);
       expect(parsed.rows).toHaveLength(3);
     });
 
@@ -206,12 +232,13 @@ describe('LookerStudioConnectorApiDataService', () => {
         rowLimit: 3,
       };
 
-      const rowCount = await service.streamData(res as Response, context as any);
+      const rowCountPromise = service.streamData(res as Response, context as any);
+      await (res as any).waitForFinish();
+      const rowCount = await rowCountPromise;
 
       expect(rowCount).toBe(3);
 
-      const fullResponse = chunks.join('');
-      const parsed = JSON.parse(fullResponse);
+      const parsed = parseResponse(chunks);
       expect(parsed.rows).toHaveLength(3);
     });
 
@@ -235,10 +262,11 @@ describe('LookerStudioConnectorApiDataService', () => {
         rowLimit: 1_000_000,
       };
 
-      await service.streamData(res as Response, context as any);
+      const rowCountPromise = service.streamData(res as Response, context as any);
+      await (res as any).waitForFinish();
+      await rowCountPromise;
 
-      const fullResponse = chunks.join('');
-      const parsed = JSON.parse(fullResponse);
+      const parsed = parseResponse(chunks);
       expect(parsed.rows[0].values).toEqual(['hello', 42, true, null]);
     });
 
@@ -257,12 +285,13 @@ describe('LookerStudioConnectorApiDataService', () => {
         rowLimit: 1_000_000,
       };
 
-      const rowCount = await service.streamData(res as Response, context as any);
+      const rowCountPromise = service.streamData(res as Response, context as any);
+      await (res as any).waitForFinish();
+      const rowCount = await rowCountPromise;
 
       expect(rowCount).toBe(0);
 
-      const fullResponse = chunks.join('');
-      const parsed = JSON.parse(fullResponse);
+      const parsed = parseResponse(chunks);
       expect(parsed.rows).toEqual([]);
     });
   });
