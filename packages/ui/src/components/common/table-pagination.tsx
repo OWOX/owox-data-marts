@@ -10,7 +10,6 @@ import {
   SelectValue,
 } from '@owox/ui/components/select';
 import { useEffect, useMemo } from 'react';
-import { cn } from '@owox/ui/lib/utils';
 
 interface TablePaginationProps<TData> {
   table: Table<TData>;
@@ -37,33 +36,36 @@ export function TablePagination<TData>({
       table.setPageSize(firstPageSize);
     }
   }, [pageSizeResult, table]);
+  const selectedCount = table.getSelectedRowModel().rows.length;
+  const pageIndex = table.getState().pagination.pageIndex;
+  const pageSize = table.getState().pagination.pageSize;
+  const total = table.getFilteredRowModel().rows.length;
+
+  const from = pageIndex * pageSize + 1;
+  const to = Math.min(from + pageSize - 1, total);
 
   return (
-    <div
-      className={cn('flex items-center px-2', displaySelected ? 'justify-center' : 'justify-end')}
-    >
-      {
-        // Optional display block with selected items
-        displaySelected && (
-          <div className='text-muted-foreground flex-1 text-sm'>
-            {table.getFilteredSelectedRowModel().rows.length} of{' '}
-            {table.getFilteredRowModel().rows.length} item(s) selected.
-          </div>
-        )
-      }
+    <div className='text-muted-foreground/75 flex items-center text-sm'>
+      <div className='flex-1'>
+        {displaySelected && selectedCount > 0 && (
+          <span>
+            {selectedCount} {selectedCount === 1 ? 'row' : 'rows'} selected
+          </span>
+        )}
+      </div>
       <div className='flex items-center space-x-6 lg:space-x-8'>
         <div className='flex items-center space-x-2'>
-          <p className='text-sm font-medium'>Items per page</p>
+          <span>Rows per page</span>
           <Select
             value={`${table.getState().pagination.pageSize}`}
             onValueChange={value => {
               table.setPageSize(Number(value));
             }}
           >
-            <SelectTrigger className='h-8 w-[74px]'>
+            <SelectTrigger className='bg-background h-8 w-[74px]'>
               <SelectValue placeholder={table.getState().pagination.pageSize} />
             </SelectTrigger>
-            <SelectContent side='top'>
+            <SelectContent>
               {pageSizeResult.map(pageSize => (
                 <SelectItem key={pageSize} value={`${pageSize}`}>
                   {pageSize}
@@ -72,10 +74,10 @@ export function TablePagination<TData>({
             </SelectContent>
           </Select>
         </div>
-        <div className='flex w-[100px] items-center justify-center text-sm font-medium'>
-          Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+        <div className='flex items-center justify-center'>
+          {from}–{to} of {total} {total === 1 ? 'row' : 'rows'}
         </div>
-        <div className='flex items-center space-x-2'>
+        <div className='flex items-center space-x-1'>
           <Button
             variant='outline'
             size='icon'

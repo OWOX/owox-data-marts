@@ -207,7 +207,7 @@ export function DataDestinationTable<TData, TValue>({
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length + 1} className='dm-card-table-body-row-empty'>
-                    No results
+                    Oops! Nothing matched your search
                   </TableCell>
                 </TableRow>
               )}
