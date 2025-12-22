@@ -346,28 +346,6 @@ export function DataMartTable<TData, TValue>({
 
       {/* DM CARD PAGINATION */}
       <TablePagination table={table} />
-      {/* <div className='dm-card-pagination'>
-        <Button
-          variant='outline'
-          size='sm'
-          onClick={() => {
-            table.previousPage();
-          }}
-          disabled={!table.getCanPreviousPage()}
-        >
-          Previous
-        </Button>
-        <Button
-          variant='outline'
-          size='sm'
-          onClick={() => {
-            table.nextPage();
-          }}
-          disabled={!table.getCanNextPage()}
-        >
-          Next
-        </Button>
-      </div> */}
       {/* end: DM CARD PAGINATION */}
 
       {/* Delete Confirmation Dialog */}

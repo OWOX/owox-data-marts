@@ -27,6 +27,7 @@ import { Input } from '@owox/ui/components/input';
 import { Plus, Search } from 'lucide-react';
 import { EmptyDataStoragesState } from './EmptyDataStoragesState';
 import { useTableStorage } from '../../../../../hooks/useTableStorage';
+import { TablePagination } from '@owox/ui/components/common/table-pagination';
 
 interface DataStorageTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -43,15 +44,17 @@ export function DataStorageTable<TData, TValue>({
   onEdit,
   onOpenTypeDialog,
 }: DataStorageTableProps<TData, TValue>) {
-  const { sorting, setSorting, columnVisibility, setColumnVisibility } = useTableStorage({
-    columns,
-    storageKeyPrefix: 'data-storage-list',
-  });
+  const { sorting, setSorting, columnVisibility, setColumnVisibility, pageSize, setPageSize } =
+    useTableStorage({
+      columns,
+      storageKeyPrefix: 'data-storage-list',
+    });
 
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [selectedDataStorage] = useState<DataStorageTableItem | null>(null);
+  const [pageIndex, setPageIndex] = useState(0);
 
   const table = useReactTable({
     data,
@@ -64,11 +67,33 @@ export function DataStorageTable<TData, TValue>({
     getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
+    initialState: {
+      pagination: {
+        pageSize,
+      },
+    },
     state: {
       sorting,
       columnFilters,
       columnVisibility,
       rowSelection,
+      pagination: {
+        pageIndex,
+        pageSize,
+      },
+    },
+    onPaginationChange: updater => {
+      if (typeof updater === 'function') {
+        const currentPagination = { pageIndex, pageSize };
+        const newPagination = updater(currentPagination);
+
+        if (newPagination.pageSize !== pageSize) {
+          setPageSize(newPagination.pageSize);
+        }
+        if (newPagination.pageIndex !== pageIndex) {
+          setPageIndex(newPagination.pageIndex);
+        }
+      }
     },
     enableRowSelection: true,
   });
@@ -204,28 +229,7 @@ export function DataStorageTable<TData, TValue>({
         {/* end: DM CARD TABLE */}
 
         {/* DM CARD PAGINATION */}
-        <div className='dm-card-pagination'>
-          <Button
-            variant='outline'
-            size='sm'
-            onClick={() => {
-              table.previousPage();
-            }}
-            disabled={!table.getCanPreviousPage()}
-          >
-            Previous
-          </Button>
-          <Button
-            variant='outline'
-            size='sm'
-            onClick={() => {
-              table.nextPage();
-            }}
-            disabled={!table.getCanNextPage()}
-          >
-            Next
-          </Button>
-        </div>
+        <TablePagination table={table} displaySelected={false} />
         {/* end: DM CARD PAGINATION */}
       </div>
     </div>

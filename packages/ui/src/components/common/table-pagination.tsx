@@ -10,10 +10,12 @@ import {
   SelectValue,
 } from '@owox/ui/components/select';
 import { useEffect, useMemo } from 'react';
+import { cn } from '@owox/ui/lib/utils';
 
 interface TablePaginationProps<TData> {
   table: Table<TData>;
   pageSizeOptions?: number[];
+  displaySelected?: boolean;
 }
 
 const DEFAULT_PAGE_SIZE_OPTIONS = [15, 30, 50, 100, 200];
@@ -21,6 +23,7 @@ const DEFAULT_PAGE_SIZE_OPTIONS = [15, 30, 50, 100, 200];
 export function TablePagination<TData>({
   table,
   pageSizeOptions = DEFAULT_PAGE_SIZE_OPTIONS,
+  displaySelected = true,
 }: TablePaginationProps<TData>) {
   const pageSizeResult = useMemo(() => {
     const result = pageSizeOptions.map(item => Math.round(item)).filter(item => item > 0);
@@ -36,11 +39,18 @@ export function TablePagination<TData>({
   }, [pageSizeResult, table]);
 
   return (
-    <div className='flex items-center justify-between px-2'>
-      <div className='text-muted-foreground flex-1 text-sm'>
-        {table.getFilteredSelectedRowModel().rows.length} of{' '}
-        {table.getFilteredRowModel().rows.length} item(s) selected.
-      </div>
+    <div
+      className={cn('flex items-center px-2', displaySelected ? 'justify-center' : 'justify-end')}
+    >
+      {
+        // Optional display block with selected items
+        displaySelected && (
+          <div className='text-muted-foreground flex-1 text-sm'>
+            {table.getFilteredSelectedRowModel().rows.length} of{' '}
+            {table.getFilteredRowModel().rows.length} item(s) selected.
+          </div>
+        )
+      }
       <div className='flex items-center space-x-6 lg:space-x-8'>
         <div className='flex items-center space-x-2'>
           <p className='text-sm font-medium'>Items per page</p>
@@ -50,7 +60,7 @@ export function TablePagination<TData>({
               table.setPageSize(Number(value));
             }}
           >
-            <SelectTrigger className='h-8 w-[70px]'>
+            <SelectTrigger className='h-8 w-[74px]'>
               <SelectValue placeholder={table.getState().pagination.pageSize} />
             </SelectTrigger>
             <SelectContent side='top'>
