@@ -1,0 +1,16 @@
+td > img,
+th > img {
+  display: inline-block;
+}
+
+@media (min-width: 90rem) {
+  :root {
+    --sl-content-width: 54rem;
+  }
+}
+
+@media (min-width: 100rem) {
+  :root {
+    --sl-content-width: 63.5rem;
+  }
+}
