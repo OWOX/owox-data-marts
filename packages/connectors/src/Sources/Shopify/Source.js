@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-var ShopifyAdsSource = class ShopifyAdsSource extends AbstractSource {
+var ShopifySource = class ShopifySource extends AbstractSource {
   constructor(config) {
     super(config.mergeParameters({
       ShopDomain: {
@@ -56,7 +56,7 @@ var ShopifyAdsSource = class ShopifyAdsSource extends AbstractSource {
       },
     }));
 
-    this.fieldsSchema = ShopifyAdsFieldsSchema;
+    this.fieldsSchema = ShopifyFieldsSchema;
   }
 
   /**
@@ -333,7 +333,7 @@ var ShopifyAdsSource = class ShopifyAdsSource extends AbstractSource {
 
   _buildGraphqlUrl() {
     const domain = String(this.config.ShopDomain.value).replace(/^https?:\/\//, "").replace(/\/$/, "");
-    return `https://${domain}/admin/api/2025-01/graphql.json`;
+    return `https://${domain}/admin/api/2025-10/graphql.json`;
   }
 
   _buildHeaders() {

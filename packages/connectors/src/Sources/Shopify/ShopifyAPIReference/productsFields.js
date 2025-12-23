@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-// API reference: https://shopify.dev/docs/api/admin-graphql/2025-01/objects/Product
+// API reference: https://shopify.dev/docs/api/admin-graphql/2025-10/objects/Product
 
 var productsFields = {
   'id': {
