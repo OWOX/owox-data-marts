@@ -5,6 +5,19 @@ export class RenameShopifyAdsConnectorToShopifyConnector1766492130137 implements
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
+        UPDATE data_mart 
+        SET definition = REPLACE(
+          REPLACE(definition, '"name":"ShopifyAds"', '"name":"Shopify"'),
+          '"name": "ShopifyAds"', 
+          '"name": "Shopify"'
+          )
+        WHERE definitionType='CONNECTOR'
+        AND (
+          definition LIKE '%"source":%"name":"ShopifyAds"%' 
+          OR definition LIKE '%"source":%"name": "ShopifyAds"%'
+          )
+    `);
+    await queryRunner.query(`
         UPDATE data_mart_run 
         SET definitionRun = REPLACE(
           REPLACE(definitionRun, '"name":"ShopifyAds"', '"name":"Shopify"'),
@@ -18,6 +31,19 @@ export class RenameShopifyAdsConnectorToShopifyConnector1766492130137 implements
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
+        UPDATE data_mart
+        SET definition = REPLACE(
+          REPLACE(definition, '"name":"Shopify"', '"name":"ShopifyAds"'),
+          '"name": "Shopify"', 
+          '"name": "ShopifyAds"'
+          )
+        WHERE definitionType='CONNECTOR'
+        AND (
+          definition LIKE '%"source":%"name":"Shopify"%' 
+          OR definition LIKE '%"source":%"name": "Shopify"%'
+          )
+    `);
     await queryRunner.query(`
         UPDATE data_mart_run
         SET definitionRun = REPLACE(
