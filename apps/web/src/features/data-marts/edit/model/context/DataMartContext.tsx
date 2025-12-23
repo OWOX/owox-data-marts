@@ -11,6 +11,8 @@ import {
   mapTablePatternDefinitionToDto,
   mapViewDefinitionToDto,
 } from '../mappers';
+import { useAutoRefresh } from '../../../../../hooks/useAutoRefresh';
+import { isDataMartRunFinalStatus } from '../../../shared/utils/status.utils';
 import { DataMartDefinitionType, dataMartService } from '../../../shared';
 import type {
   CreateDataMartRequestDto,
@@ -574,9 +576,25 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
   }, []);
 
   // Reset state
+  const resetManualRunTriggered = useCallback(() => {
+    dispatch({ type: 'RESET_MANUAL_RUN_TRIGGERED' });
+  }, []);
+
   const reset = useCallback(() => {
     dispatch({ type: 'RESET' });
   }, []);
+
+  // Unified polling for runs completion
+  useAutoRefresh({
+    enabled:
+      !!state.dataMart?.id &&
+      (state.isManualRunTriggered || state.runs.some(run => !isDataMartRunFinalStatus(run.status))),
+    intervalMs: 5000,
+    onTick: () => {
+      if (!state.dataMart?.id) return;
+      void getDataMartRuns(state.dataMart.id, 20, 0, { silent: true });
+    },
+  });
 
   // Get an error message for UI display
   const getErrorMessage = useCallback(() => {
@@ -605,6 +623,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     getDataMartRunById,
     loadMoreDataMartRuns,
     getErrorMessage,
+    resetManualRunTriggered,
     reset,
   };
 
