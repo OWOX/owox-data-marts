@@ -86,6 +86,7 @@ export function GoogleSheetsReportsTable({
 
   // Generate unique IDs for accessibility
   const tableId = `google-sheets-reports-table-${destination.id}`;
+  const actionsColumnWidth = 132;
 
   return (
     <div className='w-full'>
@@ -104,7 +105,11 @@ export function GoogleSheetsReportsTable({
                     key={header.id}
                     style={
                       header.column.id === 'actions'
-                        ? { width: 80, minWidth: 80, maxWidth: 80 }
+                        ? {
+                            width: actionsColumnWidth,
+                            minWidth: actionsColumnWidth,
+                            maxWidth: actionsColumnWidth,
+                          }
                         : { width: `${String(header.column.getSize())}%` }
                     }
                     scope='col'
@@ -140,7 +145,11 @@ export function GoogleSheetsReportsTable({
                       className={`px-6 whitespace-normal ${cell.column.id === 'actions' ? 'actions-cell' : ''}`}
                       style={
                         cell.column.id === 'actions'
-                          ? { width: 80, minWidth: 80, maxWidth: 80 }
+                          ? {
+                              width: actionsColumnWidth,
+                              minWidth: actionsColumnWidth,
+                              maxWidth: actionsColumnWidth,
+                            }
                           : { width: `${String(cell.column.getSize())}%` }
                       }
                       role='cell'
