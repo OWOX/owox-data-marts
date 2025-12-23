@@ -1,6 +1,8 @@
 import { useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
+import { Button } from '@owox/ui/components/button';
+import { CalendarClock, FileText, Play, Sparkles } from 'lucide-react';
 
 /**
  * Enum for next step promo types
@@ -33,68 +35,63 @@ export function useDataMartNextStepPromo() {
     ({ step, projectId, dataMartId, isInsightsEnabled, onManualRunClick }: ShowPromoOptions) => {
       switch (step) {
         case PromoStep.LOAD_DATA:
-          toast('Get your data now', {
-            closeButton: true,
-            description: (
-              <>
-                Start connector{' '}
-                <span
-                  className='cursor-pointer underline underline-offset-4'
-                  onClick={() => {
-                    toast.dismiss();
-                    onManualRunClick?.();
-                  }}
-                >
-                  run manually
-                </span>{' '}
-                or create a{' '}
-                <Link
-                  to={`/ui/${projectId}/data-marts/${dataMartId}/triggers`}
-                  className='underline underline-offset-4'
-                  onClick={() => toast.dismiss()}
-                >
-                  scheduled trigger
-                </Link>
-                .
-              </>
-            ),
-            duration: Infinity,
-          });
+          toast(
+            <div className='text-foreground text-sm'>Data Mart is ready to load your data</div>,
+            {
+              closeButton: true,
+              description: (
+                <div className='mt-2 flex gap-2'>
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    onClick={() => {
+                      toast.dismiss();
+                      onManualRunClick?.();
+                    }}
+                  >
+                    <Play className='h-4 w-4' />
+                    Manual Run…
+                  </Button>
+
+                  <Button size='sm' variant='ghost' asChild onClick={() => toast.dismiss()}>
+                    <Link to={`/ui/${projectId}/data-marts/${dataMartId}/triggers`}>
+                      <CalendarClock className='h-4 w-4' />
+                      Schedule Trigger…
+                    </Link>
+                  </Button>
+                </div>
+              ),
+              duration: Infinity,
+            }
+          );
           break;
 
         case PromoStep.USE_DATA:
-          toast('Go-go-go...', {
+          toast(<div className='text-foreground text-sm'>Turn your data into results</div>, {
             closeButton: true,
-            description: isInsightsEnabled ? (
-              <>
-                <Link
-                  to={`/ui/${projectId}/data-marts/${dataMartId}/insights`}
-                  className='underline underline-offset-4'
+            description: (
+              <div className='mt-2 flex gap-2'>
+                {isInsightsEnabled && (
+                  <Button size='sm' variant='outline' asChild onClick={() => toast.dismiss()}>
+                    <Link to={`/ui/${projectId}/data-marts/${dataMartId}/insights`}>
+                      <Sparkles className='h-4 w-4' />
+                      Generate Insights…
+                    </Link>
+                  </Button>
+                )}
+
+                <Button
+                  size='sm'
+                  variant={isInsightsEnabled ? 'ghost' : 'outline'}
+                  asChild
                   onClick={() => toast.dismiss()}
                 >
-                  Generate Insights
-                </Link>{' '}
-                based on your Data Mart or{' '}
-                <Link
-                  to={`/ui/${projectId}/data-marts/${dataMartId}/reports`}
-                  className='underline underline-offset-4'
-                  onClick={() => toast.dismiss()}
-                >
-                  create Report
-                </Link>
-                ...
-              </>
-            ) : (
-              <>
-                <Link
-                  to={`/ui/${projectId}/data-marts/${dataMartId}/reports`}
-                  className='underline underline-offset-4'
-                  onClick={() => toast.dismiss()}
-                >
-                  Create Report
-                </Link>{' '}
-                to share your data.
-              </>
+                  <Link to={`/ui/${projectId}/data-marts/${dataMartId}/reports`}>
+                    <FileText className='h-4 w-4' />
+                    Create Report…
+                  </Link>
+                </Button>
+              </div>
             ),
             duration: Infinity,
           });
