@@ -179,29 +179,42 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     const latestRun = runs[0];
     if (latestRun.id === lastRunIdRef.current) return;
 
-    if (
-      latestRun.status === DataMartRunStatus.SUCCESS &&
-      latestRun.triggerType === DataMartRunTriggerType.MANUAL &&
-      latestRun.type === DataMartRunType.CONNECTOR
-    ) {
-      // Check if this is the first successful manual connector run
-      const successfulManualConnectorRuns = runs.filter(
-        run =>
-          run.status === DataMartRunStatus.SUCCESS &&
-          run.triggerType === DataMartRunTriggerType.MANUAL &&
-          run.type === DataMartRunType.CONNECTOR
-      );
+    // Check if the latest run has reached a terminal state
+    const isTerminalState = [
+      DataMartRunStatus.SUCCESS,
+      DataMartRunStatus.FAILED,
+      DataMartRunStatus.CANCELLED,
+      DataMartRunStatus.INTERRUPTED,
+    ].includes(latestRun.status);
 
-      if (successfulManualConnectorRuns.length === 1) {
-        resetManualRunTriggered();
-        showPromo({
-          step: PromoStep.USE_DATA,
-          projectId,
-          dataMartId,
-          isInsightsEnabled: shouldShowInsights,
-        });
-      } else {
-        resetManualRunTriggered();
+    if (isTerminalState) {
+      // Mark this run as processed and reset the manual run trigger
+      lastRunIdRef.current = latestRun.id;
+      resetManualRunTriggered();
+
+      // Show promo only if the latest run was a successful manual connector run
+      if (
+        latestRun.status === DataMartRunStatus.SUCCESS &&
+        latestRun.triggerType === DataMartRunTriggerType.MANUAL &&
+        latestRun.type === DataMartRunType.CONNECTOR
+      ) {
+        // Count total successful manual connector runs
+        const successfulManualConnectorRuns = runs.filter(
+          run =>
+            run.status === DataMartRunStatus.SUCCESS &&
+            run.triggerType === DataMartRunTriggerType.MANUAL &&
+            run.type === DataMartRunType.CONNECTOR
+        );
+
+        // Show promo only after the very first successful manual connector run
+        if (successfulManualConnectorRuns.length === 1) {
+          showPromo({
+            step: PromoStep.USE_DATA,
+            projectId,
+            dataMartId,
+            isInsightsEnabled: shouldShowInsights,
+          });
+        }
       }
     }
   }, [

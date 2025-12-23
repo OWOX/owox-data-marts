@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -28,83 +29,80 @@ interface ShowPromoOptions {
  * Hook for showing next step promotion toasts after data mart actions
  */
 export function useDataMartNextStepPromo() {
-  const showPromo = ({
-    step,
-    projectId,
-    dataMartId,
-    isInsightsEnabled,
-    onManualRunClick,
-  }: ShowPromoOptions) => {
-    switch (step) {
-      case PromoStep.LOAD_DATA:
-        toast('Get your data now', {
-          closeButton: true,
-          description: (
-            <>
-              Start connector{' '}
-              <span
-                className='cursor-pointer underline underline-offset-4'
-                onClick={() => {
-                  toast.dismiss();
-                  onManualRunClick?.();
-                }}
-              >
-                run manually
-              </span>{' '}
-              or create a{' '}
-              <Link
-                to={`/ui/${projectId}/data-marts/${dataMartId}/triggers`}
-                className='underline underline-offset-4'
-                onClick={() => toast.dismiss()}
-              >
-                scheduled trigger
-              </Link>
-              .
-            </>
-          ),
-          duration: Infinity,
-        });
-        break;
+  const showPromo = useCallback(
+    ({ step, projectId, dataMartId, isInsightsEnabled, onManualRunClick }: ShowPromoOptions) => {
+      switch (step) {
+        case PromoStep.LOAD_DATA:
+          toast('Get your data now', {
+            closeButton: true,
+            description: (
+              <>
+                Start connector{' '}
+                <span
+                  className='cursor-pointer underline underline-offset-4'
+                  onClick={() => {
+                    toast.dismiss();
+                    onManualRunClick?.();
+                  }}
+                >
+                  run manually
+                </span>{' '}
+                or create a{' '}
+                <Link
+                  to={`/ui/${projectId}/data-marts/${dataMartId}/triggers`}
+                  className='underline underline-offset-4'
+                  onClick={() => toast.dismiss()}
+                >
+                  scheduled trigger
+                </Link>
+                .
+              </>
+            ),
+            duration: Infinity,
+          });
+          break;
 
-      case PromoStep.USE_DATA:
-        toast('Go-go-go...', {
-          closeButton: true,
-          description: isInsightsEnabled ? (
-            <>
-              <Link
-                to={`/ui/${projectId}/data-marts/${dataMartId}/insights`}
-                className='underline underline-offset-4'
-                onClick={() => toast.dismiss()}
-              >
-                Generate Insights
-              </Link>{' '}
-              based on your Data Mart or{' '}
-              <Link
-                to={`/ui/${projectId}/data-marts/${dataMartId}/reports`}
-                className='underline underline-offset-4'
-                onClick={() => toast.dismiss()}
-              >
-                create Report
-              </Link>
-              ...
-            </>
-          ) : (
-            <>
-              <Link
-                to={`/ui/${projectId}/data-marts/${dataMartId}/reports`}
-                className='underline underline-offset-4'
-                onClick={() => toast.dismiss()}
-              >
-                Create Report
-              </Link>{' '}
-              to share your data.
-            </>
-          ),
-          duration: Infinity,
-        });
-        break;
-    }
-  };
+        case PromoStep.USE_DATA:
+          toast('Go-go-go...', {
+            closeButton: true,
+            description: isInsightsEnabled ? (
+              <>
+                <Link
+                  to={`/ui/${projectId}/data-marts/${dataMartId}/insights`}
+                  className='underline underline-offset-4'
+                  onClick={() => toast.dismiss()}
+                >
+                  Generate Insights
+                </Link>{' '}
+                based on your Data Mart or{' '}
+                <Link
+                  to={`/ui/${projectId}/data-marts/${dataMartId}/reports`}
+                  className='underline underline-offset-4'
+                  onClick={() => toast.dismiss()}
+                >
+                  create Report
+                </Link>
+                ...
+              </>
+            ) : (
+              <>
+                <Link
+                  to={`/ui/${projectId}/data-marts/${dataMartId}/reports`}
+                  className='underline underline-offset-4'
+                  onClick={() => toast.dismiss()}
+                >
+                  Create Report
+                </Link>{' '}
+                to share your data.
+              </>
+            ),
+            duration: Infinity,
+          });
+          break;
+      }
+    },
+    []
+  );
 
   return { showPromo };
 }
