@@ -12,6 +12,7 @@ import { AI_INSIGHTS_FACADE } from '../ai-insights/ai-insights-types';
 import { OWOX_PRODUCER } from '../../common/producer/producer.module';
 import { type OwoxProducer } from '@owox/internal-helpers';
 import { InsightGeneratedSuccessfullyEvent } from '../events/insight-generated-successfully.event';
+import { PromptProcessedEventsService } from '../ai-insights/prompt-processed-events.service';
 
 @Injectable()
 export class CreateInsightWithAiService {
@@ -25,7 +26,8 @@ export class CreateInsightWithAiService {
     @Inject(AI_INSIGHTS_FACADE)
     private readonly aiInsightsFacade: AiInsightsFacade,
     @Inject(OWOX_PRODUCER)
-    private readonly producer: OwoxProducer
+    private readonly producer: OwoxProducer,
+    private readonly promptProcessedEvents: PromptProcessedEventsService
   ) {}
 
   async run(command: CreateInsightWithAiCommand): Promise<InsightDto> {
@@ -61,6 +63,13 @@ export class CreateInsightWithAiService {
     });
 
     const saved = await this.repository.save(insight);
+
+    this.promptProcessedEvents.produce(aiResult.prompts, {
+      entityName: 'INSIGHT',
+      entityId: saved.id,
+      userId: command.userId,
+      projectId: command.projectId,
+    });
 
     try {
       await this.producer.produceEvent(

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { DataMartSchema, DataMartSchemaSchema } from '../data-storage-types/data-mart-schema.type';
 import { AiChatProvider } from '../../common/ai-insights/agent/ai-core';
 import { ToolRegistry } from '../../common/ai-insights/agent/tool-registry';
-import { PromptAnswer } from './data-mart-insights.types';
+import { DataMartPromptMetaEntry, PromptAnswer } from './data-mart-insights.types';
 
 export const AI_INSIGHTS_FACADE = Symbol('AI_INSIGHTS_FACADE');
 
@@ -136,4 +136,5 @@ export interface GenerateInsightRequest {
 export interface GenerateInsightResponse {
   title: string;
   template: string;
+  prompts: DataMartPromptMetaEntry[];
 }
