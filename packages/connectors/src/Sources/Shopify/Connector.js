@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-var ShopifyAdsConnector = class ShopifyAdsConnector extends AbstractConnector {
+var ShopifyConnector = class ShopifyConnector extends AbstractConnector {
   constructor(config, source, storageName = "GoogleBigQueryStorage", runConfig = null) {
     super(config, source, null, runConfig);
 
@@ -13,7 +13,7 @@ var ShopifyAdsConnector = class ShopifyAdsConnector extends AbstractConnector {
   }
 
   /**
-   * Import entry point for Shopify Ads.
+   * Import entry point for Shopify.
    */
   async startImportProcess() {
     const fields = ConnectorUtils.parseFields(this.config.Fields.value);
