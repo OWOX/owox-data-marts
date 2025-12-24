@@ -16,6 +16,7 @@ import {
   isPromptAnswerWarning,
   PromptTagMetaEntry,
 } from './data-mart-insights.types';
+import { PromptProcessedEventsService } from './prompt-processed-events.service';
 import { PromptTagHandler } from './template/handlers/prompt-tag.handler';
 import { getPromptTotalUsage } from './utils/compute-model-usage';
 
@@ -30,7 +31,8 @@ export class DataMartInsightTemplateFacadeImpl implements DataMartInsightTemplat
       DataMartAdditionalParams
     >,
     private readonly promptHandler: PromptTagHandler,
-    private readonly consumptionTracker: ConsumptionTrackingService
+    private readonly consumptionTracker: ConsumptionTrackingService,
+    private readonly promptProcessedEvents: PromptProcessedEventsService
   ) {}
 
   async render(input: DataMartInsightTemplateInput): Promise<DataMartInsightTemplateOutput> {
@@ -66,6 +68,8 @@ export class DataMartInsightTemplateFacadeImpl implements DataMartInsightTemplat
           }
         });
     }
+
+    this.promptProcessedEvents.produce(prompts, input.promptProcessedContext);
 
     return {
       rendered: rendered,

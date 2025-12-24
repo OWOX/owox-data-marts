@@ -9,6 +9,10 @@ export interface ModelUsageTotals {
   totalTokens: number;
 }
 
+export interface ModelUsageByModel extends ModelUsageTotals {
+  model: string;
+}
+
 export function getTemplateTotalUsage(promptsEntry: DataMartPromptMetaEntry[]): ModelUsageTotals {
   const templateTotalUsage: ModelUsageTotals = {
     executionTime: 0,
@@ -57,4 +61,42 @@ export function getPromptTotalUsage(llmCallTelemetry: LlmCallTelemetry[]): Model
   }
 
   return totals;
+}
+
+export function getPromptTotalUsageByModels(
+  llmCallTelemetry: LlmCallTelemetry[]
+): ModelUsageByModel[] {
+  const totalsByModel = new Map<string, ModelUsageByModel>();
+
+  for (const call of llmCallTelemetry) {
+    const usage = call.usage;
+    if (!usage) continue;
+
+    const model = call.model ?? 'unknown';
+    const existing =
+      totalsByModel.get(model) ??
+      ({
+        model,
+        executionTime: 0,
+        calls: 0,
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+      } satisfies ModelUsageByModel);
+
+    const executionTime = usage.executionTime ?? 0;
+    const promptTokens = usage.promptTokens ?? 0;
+    const completionTokens = usage.completionTokens ?? 0;
+    const totalTokens = usage.totalTokens ?? 0;
+
+    existing.executionTime += executionTime;
+    existing.calls += 1;
+    existing.promptTokens += promptTokens;
+    existing.completionTokens += completionTokens;
+    existing.totalTokens += totalTokens;
+
+    totalsByModel.set(model, existing);
+  }
+
+  return Array.from(totalsByModel.values());
 }

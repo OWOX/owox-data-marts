@@ -9,6 +9,10 @@ import { DataMartService } from '../services/data-mart.service';
 import { InsightMapper } from '../mappers/insight.mapper';
 import { AiInsightsFacade } from '../ai-insights/facades/ai-insights.facade';
 import { AI_INSIGHTS_FACADE } from '../ai-insights/ai-insights-types';
+import { OWOX_PRODUCER } from '../../common/producer/producer.module';
+import { type OwoxProducer } from '@owox/internal-helpers';
+import { InsightGeneratedSuccessfullyEvent } from '../events/insight-generated-successfully.event';
+import { PromptProcessedEventsService } from '../ai-insights/prompt-processed-events.service';
 
 @Injectable()
 export class CreateInsightWithAiService {
@@ -20,7 +24,10 @@ export class CreateInsightWithAiService {
     private readonly dataMartService: DataMartService,
     private readonly mapper: InsightMapper,
     @Inject(AI_INSIGHTS_FACADE)
-    private readonly aiInsightsFacade: AiInsightsFacade
+    private readonly aiInsightsFacade: AiInsightsFacade,
+    @Inject(OWOX_PRODUCER)
+    private readonly producer: OwoxProducer,
+    private readonly promptProcessedEvents: PromptProcessedEventsService
   ) {}
 
   async run(command: CreateInsightWithAiCommand): Promise<InsightDto> {
@@ -56,6 +63,33 @@ export class CreateInsightWithAiService {
     });
 
     const saved = await this.repository.save(insight);
+
+    this.promptProcessedEvents.produce(aiResult.prompts, {
+      entityName: 'INSIGHT',
+      entityId: saved.id,
+      userId: command.userId,
+      projectId: command.projectId,
+    });
+
+    try {
+      await this.producer.produceEvent(
+        new InsightGeneratedSuccessfullyEvent(
+          dataMart.id,
+          saved.id,
+          command.projectId,
+          command.userId
+        )
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to produce InsightGeneratedSuccessfullyEvent: ${message}`, {
+        dataMartId: dataMart.id,
+        insightId: saved.id,
+        projectId: command.projectId,
+        userId: command.userId,
+      });
+    }
+
     return this.mapper.toDomainDto(saved);
   }
 }

@@ -155,6 +155,12 @@ export class InsightExecutionService {
           projectId: dataMart.projectId,
           dataMartId: dataMart.id,
         },
+        promptProcessedContext: {
+          entityName: 'INSIGHT',
+          entityId: insight.id,
+          userId: run.createdById!,
+          projectId: dataMart.projectId,
+        },
         consumptionContext: {
           contextType: 'INSIGHT',
           contextId: insight.id,

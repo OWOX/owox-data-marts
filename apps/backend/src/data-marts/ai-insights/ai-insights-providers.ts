@@ -29,6 +29,7 @@ import { TriageAgent } from './agent/triage.agent';
 import { GenerateInsightAgent } from './agent/generate-insight.agent';
 import { SqlErrorAdvisorAgent } from './agent/sql-error-advisor.agent';
 import { QueryRepairAgent } from './agent/query-repair.agent';
+import { PromptProcessedEventsService } from './prompt-processed-events.service';
 
 export const aiInsightsProviders = [
   OpenAiChatProvider,
@@ -44,6 +45,7 @@ export const aiInsightsProviders = [
   FinalizeAgent,
   GenerateInsightAgent,
   PromptTagHandler,
+  PromptProcessedEventsService,
   DataMartInsightTemplateFacadeImpl,
   {
     provide: AI_CHAT_PROVIDER,
