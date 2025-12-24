@@ -106,7 +106,11 @@ export function EmailReportsTable({
                     key={header.id}
                     style={
                       header.column.id === 'actions'
-                        ? { width: 80, minWidth: 80, maxWidth: 80 }
+                        ? {
+                            width: `${String(header.column.getSize())}px`,
+                            minWidth: `${String(header.column.getSize())}px`,
+                            maxWidth: `${String(header.column.getSize())}px`,
+                          }
                         : { width: `${String(header.column.getSize())}%` }
                     }
                     scope='col'
@@ -142,7 +146,11 @@ export function EmailReportsTable({
                       className={`px-6 whitespace-normal ${cell.column.id === 'actions' ? 'actions-cell' : ''}`}
                       style={
                         cell.column.id === 'actions'
-                          ? { width: 80, minWidth: 80, maxWidth: 80 }
+                          ? {
+                              width: `${String(cell.column.getSize())}px`,
+                              minWidth: `${String(cell.column.getSize())}px`,
+                              maxWidth: `${String(cell.column.getSize())}px`,
+                            }
                           : { width: `${String(cell.column.getSize())}%` }
                       }
                       role='cell'

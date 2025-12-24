@@ -86,7 +86,6 @@ export function GoogleSheetsReportsTable({
 
   // Generate unique IDs for accessibility
   const tableId = `google-sheets-reports-table-${destination.id}`;
-  const actionsColumnWidth = 132;
 
   return (
     <div className='w-full'>
@@ -106,9 +105,9 @@ export function GoogleSheetsReportsTable({
                     style={
                       header.column.id === 'actions'
                         ? {
-                            width: actionsColumnWidth,
-                            minWidth: actionsColumnWidth,
-                            maxWidth: actionsColumnWidth,
+                            width: `${String(header.column.getSize())}px`,
+                            minWidth: `${String(header.column.getSize())}px`,
+                            maxWidth: `${String(header.column.getSize())}px`,
                           }
                         : { width: `${String(header.column.getSize())}%` }
                     }
@@ -146,9 +145,9 @@ export function GoogleSheetsReportsTable({
                       style={
                         cell.column.id === 'actions'
                           ? {
-                              width: actionsColumnWidth,
-                              minWidth: actionsColumnWidth,
-                              maxWidth: actionsColumnWidth,
+                              width: `${String(cell.column.getSize())}px`,
+                              minWidth: `${String(cell.column.getSize())}px`,
+                              maxWidth: `${String(cell.column.getSize())}px`,
                             }
                           : { width: `${String(cell.column.getSize())}%` }
                       }

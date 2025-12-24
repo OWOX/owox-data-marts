@@ -60,6 +60,6 @@ export const getGoogleSheetsColumns = ({
         onEditReport={onEditReport}
       />
     ),
-    size: 132, // fixed width in pixels
+    size: 140, // fixed width in pixels
   },
 ];

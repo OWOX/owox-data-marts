@@ -95,6 +95,7 @@ export function GoogleSheetsActionsCell({
           e.stopPropagation();
         }}
       >
+        {/* Run report */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -103,7 +104,7 @@ export function GoogleSheetsActionsCell({
                 void handleRun();
               }}
               variant='ghost'
-              className={`dm-card-table-body-row-actionbtn opacity-0 transition-opacity group-hover:opacity-100 disabled:opacity-0 disabled:group-hover:opacity-50`}
+              className='dm-card-table-body-row-actionbtn opacity-0 transition-opacity group-hover:opacity-100 disabled:opacity-0 disabled:group-hover:opacity-50'
               disabled={isRunning}
               aria-label={isRunning ? 'Running report...' : `Run report: ${row.original.title}`}
             >
@@ -111,10 +112,11 @@ export function GoogleSheetsActionsCell({
             </Button>
           </TooltipTrigger>
           <TooltipContent id={`run-report-${row.original.id}`} side='bottom' role='tooltip'>
-            <div className='text-xs'>{'Run report'}</div>
+            Run report
           </TooltipContent>
         </Tooltip>
 
+        {/* Open doc */}
         <Tooltip>
           <TooltipTrigger asChild>
             <a
@@ -122,7 +124,7 @@ export function GoogleSheetsActionsCell({
                 (row.original.destinationConfig as GoogleSheetsDestinationConfig).spreadsheetId,
                 (row.original.destinationConfig as GoogleSheetsDestinationConfig).sheetId
               )}
-              className={`dm-card-table-body-row-actionbtn inline-flex items-center justify-center rounded-md px-3 opacity-0 transition-opacity group-hover:opacity-100`}
+              className='dm-card-table-body-row-actionbtn inline-flex items-center justify-center rounded-md px-3 opacity-0 transition-opacity group-hover:opacity-100'
               target='_blank'
               rel='noopener noreferrer'
               onClick={e => {
@@ -133,10 +135,11 @@ export function GoogleSheetsActionsCell({
             </a>
           </TooltipTrigger>
           <TooltipContent id={`run-report-${row.original.id}`} side='bottom' role='tooltip'>
-            <div className='text-xs'>{'Open document'}</div>
+            Open document
           </TooltipContent>
         </Tooltip>
 
+        {/* More actions */}
         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
           <DropdownMenuTrigger asChild>
             <Button
@@ -147,18 +150,10 @@ export function GoogleSheetsActionsCell({
               aria-expanded={menuOpen}
               aria-controls={actionsMenuId}
             >
-              <Tooltip>
-                <TooltipTrigger>
-                  <span className='sr-only'>Open menu</span>
-                  <MoreHorizontal
-                    className='dm-card-table-body-row-actionbtn-icon'
-                    aria-hidden='true'
-                  />
-                </TooltipTrigger>
-                <TooltipContent id={`run-report-${row.original.id}`} side='bottom' role='tooltip'>
-                  <div className='text-xs'>{'More actions'}</div>
-                </TooltipContent>
-              </Tooltip>
+              <MoreHorizontal
+                className='dm-card-table-body-row-actionbtn-icon'
+                aria-hidden='true'
+              />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent id={actionsMenuId} align='end' role='menu'>

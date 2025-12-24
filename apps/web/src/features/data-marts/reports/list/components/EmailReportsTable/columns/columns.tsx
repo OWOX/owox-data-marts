@@ -1,9 +1,9 @@
 import { type ColumnDef } from '@tanstack/react-table';
 import { EmailActionsCell } from '../EmailActionsCell.tsx';
 import { StatusIcon } from '../../StatusIcon';
-import { SortableHeader } from '../SortableHeader.tsx';
+import { SortableHeader } from '../../../../../../../shared/components/Table';
 import type { DataMartReport } from '../../../../shared/model/types/data-mart-report';
-import { ToggleColumnsHeader } from '../ToggleColumnsHeader.tsx';
+import { ToggleColumnsHeader } from '../../../../../../../shared/components/Table';
 import { ReportColumnKey } from './columnKeys.ts';
 import { ReportColumnLabels } from './columnLabels.ts';
 import RelativeTime from '@owox/ui/components/common/relative-time';
@@ -56,6 +56,6 @@ export const getEmailColumns = ({
     cell: ({ row }) => (
       <EmailActionsCell row={row} onDeleteSuccess={onDeleteSuccess} onEditReport={onEditReport} />
     ),
-    size: 80, // fixed width in pixels
+    size: 140, // fixed width in pixels
   },
 ];
