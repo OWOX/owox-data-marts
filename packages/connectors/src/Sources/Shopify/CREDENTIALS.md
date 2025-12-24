@@ -75,7 +75,7 @@ Return to the **Dev Dashboard**, open your app, and navigate to **Settings**.
 You will see:
 
 - Client ID  
-- Client Secret
+- Secret
 
 Save both — they will be required to generate the Admin API Access Token.
 
