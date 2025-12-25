@@ -38,6 +38,16 @@ var MicrosoftAdsFieldsSchema = {
     documentation: "https://learn.microsoft.com/en-us/advertising/reporting-service/userlocationperformancereportrequest",
     reportType: "UserLocationPerformanceReportRequest",
     fields: userLocationPerformanceReportFields,
+    defaultFields: [
+      "AccountName",
+      "CampaignName",
+      "AdGroupName",
+      "Country",
+      "Impressions",
+      "Clicks",
+      "Spend",
+      "AssetGroupName"
+    ],
     uniqueKeys: [
       "AccountId",
       "CampaignId",
@@ -62,6 +72,16 @@ var MicrosoftAdsFieldsSchema = {
     description: "Campaign data from Microsoft Ads API.",
     documentation: "https://learn.microsoft.com/en-us/advertising/bulk-service/bulk-service-reference",
     fields: campaignFields,
+    defaultFields: [
+      "Type",
+      "ParentId",
+      "CampaignId",
+      "Campaign",
+      "CampaignType",
+      "AdGroup",
+      "AdGroupType",
+      "Keyword"
+    ],
     uniqueKeys: ["Id"],
     destinationName: "microsoft_ads_campaigns",
     isTimeSeries: false
