@@ -74,7 +74,8 @@ export class SnowflakeSchemaMerger implements DataMartSchemaMerger {
     const hasTypeMismatch = existingField.type !== newField.type;
 
     return {
-      ...existingField,
+      ...newField,
+      alias: existingField.alias,
       status: this.getConnectedFieldStatus(hasTypeMismatch),
     };
   }
