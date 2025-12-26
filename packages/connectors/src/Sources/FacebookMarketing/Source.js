@@ -396,12 +396,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
             break;
 
           case type == 'datetime':
-            if (!record[field]) {
-              record[field] = null;
-            } else {
-              const date = new Date(record[field]);
-              record[field] = isNaN(date.getTime()) ? null : date;
-            }
+            record[field] = DateUtils.parseDate(record[field]);
             break;
 
           case type == 'int32':
