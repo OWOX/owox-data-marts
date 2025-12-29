@@ -363,12 +363,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         switch (true) {
 
           case type == 'string' && field.slice(0, 5) == "date_":
-            if (!record[field]) {
-              record[field] = null;
-            } else {
-              const date = new Date(record[field] + "T00:00:00Z");
-              record[field] = isNaN(date.getTime()) ? null : date;
-            }
+            record[field] = DateUtils.parseDate(record[field] ? record[field] + "T00:00:00Z" : null);
             break;
 
           case type == 'numeric string' && (field.slice(-3) == "_id" || field == "id"):

@@ -32,15 +32,6 @@ var DateUtils = class DateUtils {
         if (!value) {
             return null;
         }
-        // Check if value is a numeric string (Unix timestamp) or number
-        if (typeof value === 'number' || (typeof value === 'string' && value.match(/^\d+$/))) {
-            const timestamp = Number(value);
-            // Heuristic: if small (< 1e11), assume seconds and convert to ms
-            // 1e11 is roughly year 5138, so safe for now
-            const ms = timestamp < 1e11 ? timestamp * 1000 : timestamp;
-            const date = new Date(ms);
-            return isNaN(date.getTime()) ? null : date;
-        }
 
         const date = new Date(value);
         return isNaN(date.getTime()) ? null : date;
