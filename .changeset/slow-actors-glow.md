@@ -1,5 +1,5 @@
 ---
-'owox': patch
+'owox': minor
 ---
 
 # Improved Facebook Marketing Connector Stability and Data Depth
