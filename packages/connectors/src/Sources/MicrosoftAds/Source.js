@@ -36,7 +36,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
         description: "Your Microsoft Ads API Refresh Token",
         attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
-      AccountID: {
+      AccountIDs: {
         isRequired: true,
         requiredType: "string",
         label: "Account ID(s)",

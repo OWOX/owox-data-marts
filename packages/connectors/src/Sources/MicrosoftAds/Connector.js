@@ -17,7 +17,7 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
    * Processes all nodes defined in the fields configuration
    */
   async startImportProcess() {
-    const accountIds = String(this.config.AccountID.value).split(/[,;]\s*/).filter(id => id.trim().length > 0);
+    const accountIds = String(this.config.AccountIDs.value).split(/[,;]\s*/).filter(id => id.trim().length > 0);
     const fields = MicrosoftAdsHelper.parseFields(this.config.Fields.value);
 
     for (const rawAccountId of accountIds) {
