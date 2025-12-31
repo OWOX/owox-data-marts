@@ -17,10 +17,10 @@ var FormatUtils = {
    * @param {string} [options.stripCharacters] - Characters to remove from ID
    * @return {Array<number>} Array of numeric IDs
    */
-  parseIds: function(idsString, {prefix, stripCharacters = ''}) {
+  parseIds: function (idsString, { prefix, stripCharacters = '' }) {
     return String(idsString)
       .split(/[,;]\s*/)
-      .map(id => this.formatId(id.trim(), {prefix, stripCharacters}));
+      .map(id => this.formatId(id.trim(), { prefix, stripCharacters }));
   },
 
   /**
@@ -31,11 +31,11 @@ var FormatUtils = {
    * @param {string} [options.stripCharacters] - Characters to remove from ID
    * @return {number} Numeric ID
    */
-  formatId: function(id, {prefix, stripCharacters = ''}) {
+  formatId: function (id, { prefix, stripCharacters = '' }) {
     if (stripCharacters) {
       id = String(id).split(stripCharacters).join('');
     }
-    
+
     if (typeof id === 'string' && id.startsWith(prefix)) {
       return parseInt(id.replace(prefix, ''));
     }
@@ -47,11 +47,22 @@ var FormatUtils = {
    * @param {string} fieldsString - Fields string in format "nodeName fieldName, nodeName fieldName"
    * @return {Object} Object with node names as keys and arrays of field names as values
    */
-  parseFields: function(fieldsString) {
+  parseFields: function (fieldsString) {
     return fieldsString.split(", ").reduce((acc, pair) => {
       let [key, value] = pair.split(" ");
       (acc[key] = acc[key] || []).push(value.trim());
       return acc;
     }, {});
+  },
+
+  /**
+   * Parse account IDs from a comma/semicolon separated string
+   * @param {string} accountIdsString - Comma/semicolon separated list of account IDs
+   * @return {Array<string>} Array of trimmed account IDs (non-empty strings)
+   */
+  parseAccountIds: function (accountIdsString) {
+    return String(accountIdsString)
+      .split(/[,;]\s*/)
+      .filter(id => id.trim().length > 0);
   }
 };
