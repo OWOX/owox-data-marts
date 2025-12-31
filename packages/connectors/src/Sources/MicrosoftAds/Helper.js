@@ -62,11 +62,11 @@ const MicrosoftAdsHelper = {
     const response = await HttpUtils.fetch(url);
     const blob = await response.getBlob();
     const files = FileUtils.unzip(blob);
-    const allRows = [];
+    let allRows = [];
     files.forEach(file => {
       const csvText = file.getDataAsString();
       const rows = FileUtils.parseCsv(csvText);
-      allRows.push(...rows);
+      allRows = allRows.concat(rows);
     });
     return allRows;
   },
@@ -118,7 +118,7 @@ const MicrosoftAdsHelper = {
       const status = record.Status || record.CampaignStatus || '';
       return type === 'Campaign' && status !== 'Deleted';
     });
-    
+
     return campaigns.map(campaign => campaign.Id);
   }
 };
