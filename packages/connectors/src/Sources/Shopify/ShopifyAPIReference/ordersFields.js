@@ -197,5 +197,35 @@ var ordersFields = {
     'description': 'The date and time when the order was last updated.',
     'type': DATA_TYPES.TIMESTAMP,
     'graphqlPath': 'updatedAt'
+  },
+  'customer': {
+    'description': 'Full customer object as JSON (id, email, phone, defaultAddress).',
+    'type': 'string',
+    'graphqlPath': 'customer { id email phone defaultAddress { country city province } }'
+  },
+  'currentTotalDiscounts': {
+    'description': 'The current total discounts (after edits).',
+    'type': 'float',
+    'graphqlPath': 'currentTotalDiscountsSet { shopMoney { amount } }'
+  },
+  'currentTotalTax': {
+    'description': 'The current total tax (after edits).',
+    'type': 'float',
+    'graphqlPath': 'currentTotalTaxSet { shopMoney { amount } }'
+  },
+  'lineItems': {
+    'description': 'The line items in the order as JSON array.',
+    'type': 'string',
+    'graphqlPath': 'lineItems(first: 250) { nodes { id name title sku vendor quantity originalUnitPriceSet { shopMoney { amount } } discountedUnitPriceSet { shopMoney { amount } } } }'
+  },
+  'shippingLines': {
+    'description': 'Shipping lines as JSON array.',
+    'type': 'string',
+    'graphqlPath': 'shippingLines(first: 50) { nodes { id title discountedPriceSet { shopMoney { amount } } originalPriceSet { shopMoney { amount } } } }'
+  },
+  'refunds': {
+    'description': 'Refunds as JSON array.',
+    'type': 'string',
+    'graphqlPath': 'refunds(first: 50) { id createdAt note totalRefundedSet { shopMoney { amount } } refundLineItems(first: 50) { nodes { lineItem { id } quantity subtotalSet { shopMoney { amount } } } } }'
   }
 };

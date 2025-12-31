@@ -243,7 +243,17 @@ var ShopifySource = class ShopifySource extends AbstractSource {
       const [, parent, inner] = match;
       return node[parent] ? this._extractValue(node[parent], inner.trim()) : null;
     }
-    return node[graphqlPath.split(/\s+/)[0]];
+    // Extract the field name (handle cases like "field(args)" or plain "field")
+    const fieldName = graphqlPath.match(/^(\w+)/)?.[1];
+    if (!fieldName) {
+      return null;
+    }
+    const value = node[fieldName];
+    // If value is a GraphQL connection (has nodes array), extract nodes
+    if (value && typeof value === 'object' && 'nodes' in value && Array.isArray(value.nodes)) {
+      return value.nodes;
+    }
+    return value;
   }
 
   /**
@@ -254,6 +264,10 @@ var ShopifySource = class ShopifySource extends AbstractSource {
       return null;
     }
     if (Array.isArray(value)) {
+      // If array contains objects (like lineItems), convert to JSON
+      if (value.length > 0 && typeof value[0] === "object") {
+        return JSON.stringify(value);
+      }
       return value.join(", ");
     }
     if (typeof value === "object") {
