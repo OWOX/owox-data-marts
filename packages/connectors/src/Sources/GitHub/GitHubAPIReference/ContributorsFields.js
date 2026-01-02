@@ -7,39 +7,39 @@
 
 var contributorsFields = {
   login: {
-    type: "string",
+    type: DATA_TYPES.STRING,
     description: "Contributor login name"
   },
   id: {
-    type: "integer",
+    type: DATA_TYPES.INTEGER,
     description: "Contributor ID"
   },
   node_id: {
-    type: "string",
+    type: DATA_TYPES.STRING,
     description: "Contributor node ID"
   },
   avatar_url: {
-    type: "string",
+    type: DATA_TYPES.STRING,
     description: "Contributor avatar URL"
   },
   gravatar_id: {
-    type: "string",
+    type: DATA_TYPES.STRING,
     description: "Contributor gravatar ID"
   },
   html_url: {
-    type: "string",
+    type: DATA_TYPES.STRING,
     description: "Contributor HTML URL"
   },
   type: {
-    type: "string",
+    type: DATA_TYPES.STRING,
     description: "Contributor type (User/Bot)"
   },
   site_admin: {
-    type: "boolean",
+    type: DATA_TYPES.BOOLEAN,
     description: "Whether the contributor is a site admin"
   },
   contributions: {
-    type: "integer",
+    type: DATA_TYPES.INTEGER,
     description: "Number of contributions to the repository"
   }
 };

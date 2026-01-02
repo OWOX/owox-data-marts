@@ -531,32 +531,29 @@ var RedditAdsSource = class RedditAdsSource extends AbstractSource {
         "type" in this.fieldsSchema[nodeName]["fields"][field]) {
         const type = this.fieldsSchema[nodeName]["fields"][field]["type"];
         switch (true) {
-          case type === 'string' && field.startsWith("date_"):
+          case type === DATA_TYPES.DATE:
             record[field] = new Date(record[field] + "T00:00:00Z");
             break;
-          case type === 'numeric string' && (field.endsWith("_id") || field === "id"):
+          case type === DATA_TYPES.STRING && (field.endsWith("_id") || field === "id"):
             record[field] = String(record[field]);
             break;
-          case type === 'numeric string' && field.endsWith("spend"):
+          case type === DATA_TYPES.NUMBER && field.endsWith("spend"):
             record[field] = parseFloat(record[field]);
             break;
-          case type === 'numeric string':
-            record[field] = parseInt(record[field]);
-            break;
-          case type === 'unsigned int32':
-            record[field] = parseInt(record[field]);
-            break;
-          case type === 'float':
+          case type === DATA_TYPES.NUMBER:
             record[field] = parseFloat(record[field]);
             break;
-          case type === 'bool':
+          case type === DATA_TYPES.INTEGER:
+            record[field] = parseInt(record[field]);
+            break;
+          case type === DATA_TYPES.BOOLEAN:
             record[field] = Boolean(record[field]);
             break;
-          case type === 'datetime':
+          case type === DATA_TYPES.DATETIME:
             record[field] = new Date(record[field]);
             break;
-          case type === 'int32':
-            record[field] = parseInt(record[field]);
+          case type === DATA_TYPES.TIMESTAMP:
+            record[field] = new Date(record[field]);
             break;
         }
       }

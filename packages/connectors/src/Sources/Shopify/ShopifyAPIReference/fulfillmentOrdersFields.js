@@ -10,57 +10,57 @@
 var fulfillmentOrdersFields = {
   'id': {
     'description': 'A globally-unique ID.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'id'
   },
   'status': {
     'description': 'The status of the fulfillment order.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'status'
   },
   'requestStatus': {
     'description': 'The request status of the fulfillment order.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'requestStatus'
   },
   'orderId': {
     'description': 'The ID of the order associated with this fulfillment order.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'order { id }'
   },
   'orderName': {
     'description': 'The name of the order.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'order { name }'
   },
   'assignedLocationId': {
     'description': 'The ID of the location assigned to fulfill this order.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'assignedLocation { location { id } }'
   },
   'assignedLocationName': {
     'description': 'The name of the assigned location.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'assignedLocation { location { name } }'
   },
   'fulfillAt': {
     'description': 'The date and time at which the fulfillment order will be ready to be fulfilled.',
-    'type': 'timestamp',
+    'type': DATA_TYPES.TIMESTAMP,
     'graphqlPath': 'fulfillAt'
   },
   'deliveryMethod': {
     'description': 'The delivery method of the fulfillment order.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'deliveryMethod { methodType }'
   },
   'createdAt': {
     'description': 'The date and time when the fulfillment order was created.',
-    'type': 'timestamp',
+    'type': DATA_TYPES.TIMESTAMP,
     'graphqlPath': 'createdAt'
   },
   'updatedAt': {
     'description': 'The date and time when the fulfillment order was last updated.',
-    'type': 'timestamp',
+    'type': DATA_TYPES.TIMESTAMP,
     'graphqlPath': 'updatedAt'
   }
 };

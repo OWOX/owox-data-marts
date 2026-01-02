@@ -676,53 +676,49 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
    * @returns {string} Athena column type
    */
   getColumnType(columnName) {
-    return this.schema[columnName]["AthenaType"] || this._convertTypeToStorageType(this.schema[columnName]["type"]?.toLowerCase());
+    return this.schema[columnName]["AthenaType"] || this._convertTypeToStorageType(this.schema[columnName]["type"]);
   }
 
   //---- _convertTypeToStorageType ------------------------------------
   /**
-   * Converts generic type to Athena-specific type
-   * @param {string} genericType - Generic type from schema
+   * Converts generic type to Athena-specific type.
+   * Now uses UPPERCASE types from DataTypes constant.
+   * @param {string} genericType - Generic type from schema (UPPERCASE)
    * @returns {string} Athena column type
    */
   _convertTypeToStorageType(genericType) {
     if (!genericType) return 'string';
-    
-    // TODO: Move types to constants and refactor schemas
-    
-    switch (genericType.toLowerCase()) {
-      // Integer types
-      case 'integer':
-      case 'int32':
-      case 'unsigned int32':
-        return 'int';
-      case 'int64':
-      case 'long':
-        return 'bigint';
-      
-      // Float types
-      case 'float':
-      case 'number':
-      case 'double':
-        return 'double';
-      case 'decimal':
-        return 'decimal';
-      
-      // Boolean types
-      case 'bool':
-      case 'boolean':
-        return 'boolean';
-      
-      // Date/time types
-      case 'datetime':
-      case 'timestamp':
-        return 'timestamp';
-      case 'date':
-        return 'date';
 
-      // String types (explicit mapping for common API types)
-      case 'numeric string':
-      case 'list':
+    switch (genericType) {
+      // Integer type
+      case 'INTEGER':
+        return 'bigint';
+
+      // Number type
+      case 'NUMBER':
+        return 'double';
+
+      // Boolean type
+      case 'BOOLEAN':
+        return 'boolean';
+
+      // Date/time types
+      case 'DATE':
+        return 'date';
+      case 'DATETIME':
+        return 'timestamp';
+      case 'TIMESTAMP':
+        return 'timestamp';
+      case 'TIME':
+        return 'string';  // Athena doesn't have time type
+
+      // String type
+      case 'STRING':
+        return 'string';
+
+      // Array and Object types (serialized as JSON strings)
+      case 'ARRAY':
+      case 'OBJECT':
         return 'string';
 
       // Default to string for unknown types

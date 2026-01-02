@@ -23,21 +23,21 @@
  */
 
 var historicalFields = {
-  date: {
-    type: "date",
-    description: "Date of exchange rate",
-    GoogleBigQueryPartitioned: true
+  'date': {
+    'type': DATA_TYPES.DATE,
+    'description': 'Date of exchange rate',
+    'GoogleBigQueryPartitioned': true
   },
-  base: {
-    type: "string",
-    description: "Base currency"
+  'base': {
+    'type': DATA_TYPES.STRING,
+    'description': 'Base currency'
   },
-  currency: {
-    type: "string",
-    description: "Target currency"
+  'currency': {
+    'type': DATA_TYPES.STRING,
+    'description': 'Target currency'
   },
-  rate: {
-    type: "number",
-    description: "Exchange rate"
+  'rate': {
+    'type': DATA_TYPES.NUMBER,
+    'description': 'Exchange rate'
   }
 };

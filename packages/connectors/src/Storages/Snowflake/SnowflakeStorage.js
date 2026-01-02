@@ -628,7 +628,7 @@ ON ${this.uniqueKeyColumns.map(item => (`target."${item}" = source."${item}"`)).
      * @returns {string} Snowflake column type
      */
     getColumnType(columnName) {
-      return this.schema[columnName]["SnowflakeFieldType"] || this._convertTypeToStorageType(this.schema[columnName]["type"]?.toLowerCase());
+      return this.schema[columnName]["SnowflakeFieldType"] || this._convertTypeToStorageType(this.schema[columnName]["type"]);
     }
   //----------------------------------------------------------------
 
@@ -639,53 +639,45 @@ ON ${this.uniqueKeyColumns.map(item => (`target."${item}" = source."${item}"`)).
      * @returns {string} Snowflake column type
      */
     _convertTypeToStorageType(genericType) {
-      if (!genericType) return 'VARCHAR';
+    if (!genericType) return 'VARCHAR';
 
-      switch (genericType.toLowerCase()) {
-        // Integer types
-        case 'integer':
-        case 'int32':
-        case 'int64':
-        case 'long':
-          return 'INTEGER';
+    switch (genericType) {
+      // Integer type
+      case 'INTEGER':
+        return 'BIGINT';
 
-        // Float types
-        case 'float':
-        case 'number':
-        case 'double':
-          return 'FLOAT';
-        case 'decimal':
-          return 'NUMERIC';
+      // Number type
+      case 'NUMBER':
+        return 'FLOAT';
 
-        // Boolean types
-        case 'bool':
-        case 'boolean':
-          return 'BOOLEAN';
+      // Boolean type
+      case 'BOOLEAN':
+        return 'BOOLEAN';
 
-        // Date/time types
-        case 'date':
-          return 'DATE';
-        case 'datetime':
-          return 'TIMESTAMP_NTZ';  // Timezone-naive
-        case 'timestamp':
-          return 'TIMESTAMP_TZ';   // Timezone-aware
+      // Date/time types
+      case 'DATE':
+        return 'DATE';
+      case 'DATETIME':
+        return 'TIMESTAMP_NTZ';
+      case 'TIMESTAMP':
+        return 'TIMESTAMP_TZ';
+      case 'TIME':
+        return 'TIME';
 
-        // JSON/Object types
-        case 'json':
-        case 'object':
-        case 'array':
-          return 'VARCHAR';
+      // String type
+      case 'STRING':
+        return 'VARCHAR';
 
-        // String types
-        case 'numeric string':
-        case 'list':
-          return 'VARCHAR';
+      // Array and Object types (serialized as JSON strings)
+      case 'ARRAY':
+      case 'OBJECT':
+        return 'VARCHAR';
 
-        // Default to VARCHAR for unknown types
-        default:
-          return 'VARCHAR';
-      }
+      // Default to VARCHAR for unknown types
+      default:
+        return 'VARCHAR';
     }
+  }
   //----------------------------------------------------------------
 
 }

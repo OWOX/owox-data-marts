@@ -8,34 +8,34 @@
 var cardFields = {
   'id': {
     'description': 'The unique identifier for the card.',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'name': {
     'description': 'The name of the card.',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'card_type': {
     'description': 'Type of the card.',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'card_uri': {
     'description': 'URI of the card.',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'created_at': {
     'description': 'When the card was created.',
-    'type': 'datetime'
+    'type': DATA_TYPES.DATETIME
   },
   'updated_at': {
     'description': 'When the card was last updated.',
-    'type': 'datetime'
+    'type': DATA_TYPES.DATETIME
   },
   'deleted': {
     'description': 'Whether the card is deleted.',
-    'type': 'boolean'
+    'type': DATA_TYPES.BOOLEAN
   },
   'components': {
     'description': 'Card components including media and buttons.',
-    'type': 'array'
+    'type': DATA_TYPES.ARRAY
   }
 };

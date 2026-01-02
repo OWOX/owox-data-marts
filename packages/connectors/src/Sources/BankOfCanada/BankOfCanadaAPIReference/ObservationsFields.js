@@ -8,15 +8,15 @@
 var observationsFields = {
   'date': {
     'description': 'The date for which the exchange rate was recorded.',
-    'type': 'date',
+    'type': DATA_TYPES.DATE,
     'GoogleBigQueryPartitioned': true
   },
   'label': {
     'description': 'The currency code (e.g., USD, EUR, GBP).',
-    'type': 'string'
+    'type': DATA_TYPES.STRING,
   },
   'rate': {
     'description': 'The exchange rate value.',
-    'type': 'number'
+    'type': DATA_TYPES.NUMBER,
   }
 };

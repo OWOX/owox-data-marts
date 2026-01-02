@@ -8,40 +8,38 @@
 var audiencesFields = {
   'audience_id': {
     'description': 'Unique identifier for the audience',
-    'type': 'string',
-    'GoogleSheetsFormat': '@'
+    'type': DATA_TYPES.STRING,
   },
   'advertiser_id': {
     'description': 'Advertiser ID',
-    'type': 'string',
-    'GoogleSheetsFormat': '@'
+    'type': DATA_TYPES.STRING,
   },
   'name': {
     'description': 'Name of the audience',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'audience_type': {
     'description': 'Type of audience (e.g., demographic, interest-based)',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'cover_num': {
     'description': 'Number of audience members covered',
-    'type': 'int32'
+    'type': DATA_TYPES.INTEGER
   },
   'create_time': {
     'description': 'Timestamp indicating when the audience was created',
-    'type': 'datetime'
+    'type': DATA_TYPES.DATETIME
   },
   'is_valid': {
     'description': 'Flag indicating if the audience data is valid',
-    'type': 'bool'
+    'type': DATA_TYPES.BOOLEAN
   },
   'is_expiring': {
     'description': 'Flag indicating if the audience data is expiring soon',
-    'type': 'bool'
+    'type': DATA_TYPES.BOOLEAN
   },
   'expired_time': {
     'description': 'Timestamp indicating when the audience data expires',
-    'type': 'datetime'
+    'type': DATA_TYPES.DATETIME
   }
 };

@@ -32,7 +32,7 @@ var RedditFieldsSchema = {
     "parameters": {
       "pageSize": {
         "description": "Number of results to return per page",
-        "type": "integer",
+        "type": DATA_TYPES.INTEGER,
         "default": 10
       }
     }

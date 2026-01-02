@@ -10,52 +10,52 @@
 var collectionsFields = {
   'id': {
     'description': 'A globally-unique ID.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'id'
   },
   'title': {
     'description': 'The title of the collection.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'title'
   },
   'handle': {
     'description': 'A unique, human-friendly string for the collection URL.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'handle'
   },
   'description': {
     'description': 'The description of the collection, including any HTML tags and formatting.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'description'
   },
   'descriptionHtml': {
     'description': 'The description of the collection in HTML format.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'descriptionHtml'
   },
   'sortOrder': {
     'description': 'The order in which the products in the collection are displayed.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'sortOrder'
   },
   'templateSuffix': {
     'description': 'The name of the template the collection is using.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'templateSuffix'
   },
   'productsCount': {
     'description': 'The number of products in the collection.',
-    'type': 'int32',
+    'type': DATA_TYPES.INTEGER,
     'graphqlPath': 'productsCount { count }'
   },
   'imageUrl': {
     'description': 'The URL of the image associated with the collection.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'image { url }'
   },
   'updatedAt': {
     'description': 'The date and time when the collection was last updated.',
-    'type': 'timestamp',
+    'type': DATA_TYPES.TIMESTAMP,
     'graphqlPath': 'updatedAt'
   }
 };

@@ -243,7 +243,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
   /**
    * Determines if a Facebook API error is valid for retry
    * Based on Facebook error codes
-   * 
+   *
    * @param {HttpRequestException} error - The error to check
    * @return {boolean} True if the error should trigger a retry, false otherwise
    */
@@ -280,9 +280,9 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
   @param accountId string
   @param fields array
   @param startDate date
- 
+
   @return data array
- 
+
   */
   async fetchData(nodeName, accountId, fields, startDate = null) {
 
@@ -343,71 +343,67 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
 
 
   //---- castRecordFields -------------------------------------------------
-  /**
-   * Cast of record fields to the types defined in schema
-   * 
-   * @param nodeName string name of the facebook api node
-   * @param record object with all the row fields
-   * 
-   * @return record
-   * 
-   */
-  castRecordFields(nodeName, record) {
+    /**
+     * Cast of record fields to the types defined in schema
+     * 
+     * @param nodeName string name of the facebook api node
+     * @param record object with all the row fields
+     * 
+     * @return record
+     * 
+     */
+    castRecordFields(nodeName, record) {
 
-    for (var field in record) {
-      if (field in this.fieldsSchema[nodeName]["fields"]
-        && "type" in this.fieldsSchema[nodeName]["fields"][field]) {
+      for (var field in record) {
+        if( field in this.fieldsSchema[ nodeName ]["fields"]
+        && "type" in this.fieldsSchema[ nodeName ]["fields"][field] ) {
 
-        let type = this.fieldsSchema[nodeName]["fields"][field]["type"];
+          let type = this.fieldsSchema[ nodeName ]["fields"][field]["type"];
 
-        switch (true) {
+          switch ( true ) {
 
-          case type == 'string' && field.slice(0, 5) == "date_":
+            case type == DATA_TYPES.DATE:
             record[field] = DateUtils.parseDate(record[field] ? record[field] + "T00:00:00Z" : null);
-            break;
+              break;
 
-          case type == 'numeric string' && (field.slice(-3) == "_id" || field == "id"):
-            record[field] = String(record[field]);
-            break;
+            case type == DATA_TYPES.STRING && ( field.slice(-3) == "_id" || field == "id" ):
+              record[ field ] = String(record[ field ]);
+              break;
 
-          case type == 'numeric string' && (field.slice(-5) == "spend"):
-            record[field] = parseFloat(record[field]);
-            break;
+            case type == DATA_TYPES.NUMBER && ( field.slice(-5) == "spend"  ):
+              record[ field ] = parseFloat(record[ field ]);
+              break;
 
-          case type == 'numeric string':
-            record[field] = parseInt(record[field]);
-            break;
+            case type == DATA_TYPES.NUMBER:
+            record[field] = parseFloat(record[ field ]);
+              break;
 
-          case type == 'unsigned int32':
-            record[field] = parseInt(record[field]);
-            break;
+            case type == DATA_TYPES.INTEGER:
+              record[ field ] = parseInt(record[ field ]);
+              break;
 
-          case type == 'float':
-            record[field] = parseFloat(record[field]);
-            break;
+            case type == DATA_TYPES.BOOLEAN:
+              record[ field ] = Boolean(record[ field ]);
+              break;
 
-          case type == 'bool':
-            record[field] = Boolean(record[field]);
-            break;
+            case type == DATA_TYPES.DATETIME:
+            record[field] = DateUtils.parseDate(record[ field ]);
+              break;
 
-          case type == 'datetime':
-            record[field] = DateUtils.parseDate(record[field]);
-            break;
-
-          case type == 'int32':
-            record[field] = parseInt(record[field]);
-            break;
+            case type == DATA_TYPES.TIMESTAMP:
+            record[field] = new Date(record[ field ]);
+              break;
+          }
         }
       }
+
+      return record;
     }
-
-    return record;
-  }
-
+    
   //---- _fetchInsightsData ------------------------------------------------
   /**
    * Fetch insights data with breakdown support
-   * 
+   *
    * @param {Object} params - Parameters object
    * @param {string} params.nodeName - Node name
    * @param {string} params.accountId - Account ID
@@ -456,7 +452,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
    * Filter and prepare fields for API request
    * Filters out fields that don't exist in schema and removes breakdown fields
    * Breakdowns are passed separately in &breakdowns= parameter, not in &fields=
-   * 
+   *
    * @param {Object} params - Parameters object
    * @param {string} params.nodeName - Node name
    * @param {Array} params.fields - All fields
@@ -473,7 +469,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
   //---- _buildInsightsUrl ------------------------------------------------
   /**
    * Build insights URL for request
-   * 
+   *
    * @param {Object} params - Parameters object
    * @param {string} params.accountId - Account ID
    * @param {Array} params.fields - Fields to fetch
@@ -502,7 +498,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
    * Build fields string for Facebook API request
    * Filters out fields that don't exist in schema
    * Handles nested fields using Facebook's syntax: parent{field1,field2}
-   * 
+   *
    * @param {Object} params - Parameters object
    * @param {string} params.nodeName - Node name
    * @param {Array} params.fields - Fields to fetch
@@ -559,7 +555,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
    * Map API result to requested column names
    * Only includes fields that exist in schema and were requested
    * Handles nested fields using apiName mapping
-   * 
+   *
    * @param {Object} result - API response result
    * @param {string} nodeName - Node name for schema lookup
    * @param {Array<string>} requestedFields - Fields that were requested
@@ -604,7 +600,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
   //---- _fetchPaginatedData -----------------------------------------------
   /**
    * Fetch paginated data from Facebook API
-   * 
+   *
    * @param {string} initialUrl - Initial URL to fetch
    * @param {string} nodeName - Node name for field casting
    * @param {Array} fields - Fields that were requested
@@ -621,7 +617,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
       var text = await response.getContentText();
       var jsonData = JSON.parse(text);
 
-      // This node point returns a result in the data property, which might be paginated 
+      // This node point returns a result in the data property, which might be paginated
       if ("data" in jsonData) {
 
         nextPageURL = jsonData.paging ? jsonData.paging.next : null;

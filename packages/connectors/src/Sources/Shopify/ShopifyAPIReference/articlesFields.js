@@ -10,77 +10,77 @@
 var articlesFields = {
   'id': {
     'description': 'A globally-unique ID.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'id'
   },
   'title': {
     'description': 'The title of the article.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'title'
   },
   'handle': {
     'description': 'A unique, human-friendly string for the article URL.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'handle'
   },
   'body': {
     'description': 'The text of the article body, complete with HTML markup.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'body'
   },
   'summary': {
     'description': 'A summary of the article, which can include HTML markup.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'summary'
   },
   'authorName': {
     'description': 'The name of the author of the article.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'author { name }'
   },
   'blogId': {
     'description': 'The ID of the blog containing the article.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'blog { id }'
   },
   'blogTitle': {
     'description': 'The title of the blog containing the article.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'blog { title }'
   },
   'isPublished': {
     'description': 'Whether or not the article is visible.',
-    'type': 'bool',
+    'type': DATA_TYPES.BOOLEAN,
     'graphqlPath': 'isPublished'
   },
   'publishedAt': {
     'description': 'The date and time when the article became or will become visible.',
-    'type': 'timestamp',
+    'type': DATA_TYPES.TIMESTAMP,
     'graphqlPath': 'publishedAt'
   },
   'tags': {
     'description': 'A comma-separated list of tags.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'tags'
   },
   'templateSuffix': {
     'description': 'The name of the template the article is using.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'templateSuffix'
   },
   'imageUrl': {
     'description': 'The URL of the image associated with the article.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'image { url }'
   },
   'createdAt': {
     'description': 'The date and time when the article was created.',
-    'type': 'timestamp',
+    'type': DATA_TYPES.TIMESTAMP,
     'graphqlPath': 'createdAt'
   },
   'updatedAt': {
     'description': 'The date and time when the article was last updated.',
-    'type': 'timestamp',
+    'type': DATA_TYPES.TIMESTAMP,
     'graphqlPath': 'updatedAt'
   }
 };

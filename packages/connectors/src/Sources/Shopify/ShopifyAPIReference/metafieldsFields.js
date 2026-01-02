@@ -11,46 +11,46 @@
 var metafieldsFields = {
   'id': {
     'description': 'A globally-unique ID.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'id'
   },
   'namespace': {
     'description': 'The namespace of the metafield.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'namespace'
   },
   'key': {
     'description': 'The key of the metafield.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'key'
   },
   'value': {
     'description': 'The value of the metafield.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'value'
   },
   'type': {
     'description': 'The type of the metafield.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'type'
   },
   'ownerId': {
     'description': 'The ID of the owner resource.',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'ownerType': {
     'description': 'The type of the owner resource.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'ownerType'
   },
   'createdAt': {
     'description': 'The date and time when the metafield was created.',
-    'type': 'timestamp',
+    'type': DATA_TYPES.TIMESTAMP,
     'graphqlPath': 'createdAt'
   },
   'updatedAt': {
     'description': 'The date and time when the metafield was last updated.',
-    'type': 'timestamp',
+    'type': DATA_TYPES.TIMESTAMP,
     'graphqlPath': 'updatedAt'
   }
 };

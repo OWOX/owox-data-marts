@@ -10,102 +10,102 @@
 var shopFields = {
   'id': {
     'description': 'A globally-unique ID.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'id'
   },
   'name': {
     'description': 'The name of the shop.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'name'
   },
   'email': {
     'description': 'The email address of the shop.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'email'
   },
   'myshopifyDomain': {
     'description': 'The myshopify.com domain of the shop.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'myshopifyDomain'
   },
   'primaryDomain': {
     'description': 'The primary domain of the shop.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'primaryDomain { host }'
   },
   'currencyCode': {
     'description': 'The currency code of the shop.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'currencyCode'
   },
   'timezoneAbbreviation': {
     'description': 'The timezone abbreviation.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'timezoneAbbreviation'
   },
   'ianaTimezone': {
     'description': 'The IANA timezone.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'ianaTimezone'
   },
   'weightUnit': {
     'description': 'The default weight unit.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'weightUnit'
   },
   'billingAddressCity': {
     'description': 'City from the billing address.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'billingAddress { city }'
   },
   'billingAddressCountry': {
     'description': 'Country from the billing address.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'billingAddress { country }'
   },
   'billingAddressProvince': {
     'description': 'Province from the billing address.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'billingAddress { province }'
   },
   'billingAddressZip': {
     'description': 'Postal/ZIP code from the billing address.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'billingAddress { zip }'
   },
   'plan': {
     'description': 'The shop plan name.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'plan { displayName }'
   },
   'contactEmail': {
     'description': 'The contact email of the shop.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'contactEmail'
   },
   'customerAccountsV2': {
     'description': 'The customer accounts version.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'customerAccountsV2 { loginRequiredAtCheckout }'
   },
   'taxesIncluded': {
     'description': 'Whether taxes are included in prices.',
-    'type': 'bool',
+    'type': DATA_TYPES.BOOLEAN,
     'graphqlPath': 'taxesIncluded'
   },
   'taxShipping': {
     'description': 'Whether shipping is taxed.',
-    'type': 'bool',
+    'type': DATA_TYPES.BOOLEAN,
     'graphqlPath': 'taxShipping'
   },
   'createdAt': {
     'description': 'The date and time when the shop was created.',
-    'type': 'timestamp',
+    'type': DATA_TYPES.TIMESTAMP,
     'graphqlPath': 'createdAt'
   },
   'updatedAt': {
     'description': 'The date and time when the shop was last updated.',
-    'type': 'timestamp',
+    'type': DATA_TYPES.TIMESTAMP,
     'graphqlPath': 'updatedAt'
   }
 };

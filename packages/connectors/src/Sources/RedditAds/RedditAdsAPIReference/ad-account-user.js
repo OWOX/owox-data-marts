@@ -8,30 +8,30 @@
 var adAccountUserFields = {
   'email': {
     'description': 'Email address of the member.',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'firstname': {
     'description': 'The first name of the member.',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'id': {
     'description': 'The unique identifier of the member.',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'lastname': {
     'description': 'The last name of the member.',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'phone': {
     'description': 'The phone number of the member.',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'reddit_user_id': {
     'description': 'ID that maps to the Reddit user.',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'reddit_username': {
     'description': 'The Reddit username of the member.',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   }
 };
