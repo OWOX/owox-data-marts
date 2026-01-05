@@ -628,7 +628,7 @@ ON ${this.uniqueKeyColumns.map(item => (`target."${item}" = source."${item}"`)).
      * @returns {string} Snowflake column type
      */
     getColumnType(columnName) {
-      return this.schema[columnName]["SnowflakeFieldType"] || this._convertTypeToStorageType(this.schema[columnName]["type"]);
+      return this._convertTypeToStorageType(this.schema[columnName]["type"]);
     }
   //----------------------------------------------------------------
 
@@ -643,39 +643,38 @@ ON ${this.uniqueKeyColumns.map(item => (`target."${item}" = source."${item}"`)).
 
     switch (genericType) {
       // Integer type
-      case 'INTEGER':
+      case DATA_TYPES.INTEGER:
         return 'BIGINT';
 
       // Number type
-      case 'NUMBER':
+      case DATA_TYPES.NUMBER:
         return 'FLOAT';
 
       // Boolean type
-      case 'BOOLEAN':
+      case DATA_TYPES.BOOLEAN:
         return 'BOOLEAN';
 
       // Date/time types
-      case 'DATE':
+      case DATA_TYPES.DATE:
         return 'DATE';
-      case 'DATETIME':
+      case DATA_TYPES.DATETIME:
         return 'TIMESTAMP_NTZ';
-      case 'TIMESTAMP':
+      case DATA_TYPES.TIMESTAMP:
         return 'TIMESTAMP_TZ';
-      case 'TIME':
+      case DATA_TYPES.TIME:
         return 'TIME';
 
       // String type
-      case 'STRING':
+      case DATA_TYPES.STRING:
         return 'VARCHAR';
 
       // Array and Object types (serialized as JSON strings)
-      case 'ARRAY':
-      case 'OBJECT':
+      case DATA_TYPES.ARRAY:
+      case DATA_TYPES.OBJECT:
         return 'VARCHAR';
 
-      // Default to VARCHAR for unknown types
       default:
-        return 'VARCHAR';
+        throw new Error(`Unknown type: ${genericType}`);
     }
   }
   //----------------------------------------------------------------

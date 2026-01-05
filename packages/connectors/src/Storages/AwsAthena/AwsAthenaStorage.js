@@ -676,7 +676,7 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
    * @returns {string} Athena column type
    */
   getColumnType(columnName) {
-    return this.schema[columnName]["AthenaType"] || this._convertTypeToStorageType(this.schema[columnName]["type"]);
+    return this._convertTypeToStorageType(this.schema[columnName]["type"]);
   }
 
   //---- _convertTypeToStorageType ------------------------------------
@@ -691,39 +691,38 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
 
     switch (genericType) {
       // Integer type
-      case 'INTEGER':
+      case DATA_TYPES.INTEGER:
         return 'bigint';
 
       // Number type
-      case 'NUMBER':
+      case DATA_TYPES.NUMBER:
         return 'double';
 
       // Boolean type
-      case 'BOOLEAN':
+      case DATA_TYPES.BOOLEAN:
         return 'boolean';
 
       // Date/time types
-      case 'DATE':
+      case DATA_TYPES.DATE:
         return 'date';
-      case 'DATETIME':
+      case DATA_TYPES.DATETIME:
         return 'timestamp';
-      case 'TIMESTAMP':
+      case DATA_TYPES.TIMESTAMP:
         return 'timestamp';
-      case 'TIME':
-        return 'string';  // Athena doesn't have time type
+      case DATA_TYPES.TIME:
+        return 'string';
 
       // String type
-      case 'STRING':
+      case DATA_TYPES.STRING:
         return 'string';
 
       // Array and Object types (serialized as JSON strings)
-      case 'ARRAY':
-      case 'OBJECT':
+      case DATA_TYPES.ARRAY:
+      case DATA_TYPES.OBJECT:
         return 'string';
 
-      // Default to string for unknown types
       default:
-        return 'string';
+        throw new Error(`Unknown type: ${genericType}`);
     }
   }
 } 

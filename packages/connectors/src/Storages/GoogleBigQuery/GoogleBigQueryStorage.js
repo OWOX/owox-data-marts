@@ -541,7 +541,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
      * @returns {string} BigQuery column type
      */
     getColumnType(columnName) {
-      return this.schema[columnName]["GoogleBigQueryType"] || this._convertTypeToStorageType(this.schema[columnName]["type"]);
+      return this._convertTypeToStorageType(this.schema[columnName]["type"]);
     }
 
   //---- _convertTypeToStorageType ------------------------------------
@@ -556,39 +556,38 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
 
       switch (genericType) {
         // Integer type
-        case 'INTEGER':
+        case DATA_TYPES.INTEGER:
           return 'INT64';
 
         // Number type
-        case 'NUMBER':
+        case DATA_TYPES.NUMBER:
           return 'FLOAT64';
 
         // Boolean type
-        case 'BOOLEAN':
+        case DATA_TYPES.BOOLEAN:
           return 'BOOL';
 
         // Date/time types
-        case 'DATE':
+        case DATA_TYPES.DATE:
           return 'DATE';
-        case 'DATETIME':
+        case DATA_TYPES.DATETIME:
           return 'DATETIME';
-        case 'TIMESTAMP':
+        case DATA_TYPES.TIMESTAMP:
           return 'TIMESTAMP';
-        case 'TIME':
+        case DATA_TYPES.TIME:
           return 'TIME';
 
         // String type
-        case 'STRING':
+        case DATA_TYPES.STRING:
           return 'STRING';
 
         // Array and Object types (serialized as JSON strings)
-        case 'ARRAY':
-        case 'OBJECT':
+        case DATA_TYPES.ARRAY:
+        case DATA_TYPES.OBJECT:
           return 'STRING';
 
-        // Default to STRING for unknown types
         default:
-          return 'STRING';
+          throw new Error(`Unknown type: ${genericType}`);
       }
     }
 
