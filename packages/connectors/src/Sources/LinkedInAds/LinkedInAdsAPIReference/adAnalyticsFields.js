@@ -375,12 +375,10 @@ var adAnalyticsFields = {
   'viralPostViewJobApplyClicks': {
     'description': 'The number of times a member clicked on the job\'s apply button on an LinkedIn jobs page after viewing a viral ad which has a LinkedIn job landing page.',
     'type': DATA_TYPES.NUMBER,
-    'GoogleBigQueryType': 'numeric'
   },
   'viralPostViewRegistrations': {
     'description': 'The number of times a member has registered for an event or seminar after viewing a viral ad which has a LinkedIn event landing page. See viralImpressions definition. This includes gross registrations and does not account for a user unregistering.',
     'type': DATA_TYPES.NUMBER,
-    'GoogleBigQueryType': 'numeric'
   },
   'viralReactions': {
     'description': 'The count of positive reactions on viral Sponsored Content which can capture like, interest, praise, and other responses. See viral impressions definition for details on viral engagements.',
@@ -389,7 +387,6 @@ var adAnalyticsFields = {
   'viralRegistrations': {
     'description': 'The number of times a member has registered for an event or seminar after viewing or clicking on a viral ad which has a LinkedIn event landing page. See viralImpressions definition. This includes gross registrations and does not account for a user unregistering.',
     'type': DATA_TYPES.NUMBER,
-    'GoogleBigQueryType': 'numeric'
   },
   'viralShares': {
     'description': 'The count of shares from viral impressions for this activity. See viral impressions definition. Sponsored Content only.',
