@@ -18,11 +18,15 @@ var FB_UNKNOWN_ERROR_CODE = 99;
 // Connection reset error code
 var FB_CONNECTION_RESET_ERROR_CODE = 104;
 
+// Request timeout error subcode (error_user_title: "Your request timed out")
+var FB_REQUEST_TIMEOUT_ERROR_SUBCODE = 1504018;
+
 // All retryable error codes combined
 var FB_RETRYABLE_ERROR_CODES = [
   ...FB_RATE_LIMIT_ERROR_CODES,
   FB_TEMPORARY_OAUTH_ERROR_CODE,
   FB_BATCH_ERROR_CODE,
   FB_UNKNOWN_ERROR_CODE,
-  FB_CONNECTION_RESET_ERROR_CODE
+  FB_CONNECTION_RESET_ERROR_CODE,
+  FB_REQUEST_TIMEOUT_ERROR_SUBCODE
 ];
