@@ -1,8 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Plus } from 'lucide-react';
+import { Sparkles, Plus, ChevronDown } from 'lucide-react';
 
 import { Button } from '@owox/ui/components/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@owox/ui/components/dropdown-menu';
 import {
   CollapsibleCard,
   CollapsibleCardHeader,
@@ -18,7 +24,13 @@ import { InsightsTable } from './InsightsTable/InsightsTable';
 
 export default function InsightsListSection() {
   const navigate = useNavigate();
-  const { fetchInsights, deleteInsight, createInsight, insightLoading } = useInsights();
+  const {
+    fetchInsights,
+    deleteInsight,
+    insightLoading,
+    handleCreateInsight,
+    handleCreateInsightWithAi,
+  } = useInsights();
   const { insights, isLoading, error, hasInsights } = useInsightsList();
 
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -29,15 +41,6 @@ export default function InsightsListSection() {
 
   const handleRowClick = (id: string) => {
     void navigate(id);
-  };
-
-  const handleCreateClick = () => {
-    void (async () => {
-      const created = await createInsight({ title: 'Untitled insight' });
-      if (created) {
-        void navigate(created.id);
-      }
-    })();
   };
 
   const handleConfirmDelete = () => {
@@ -60,15 +63,45 @@ export default function InsightsListSection() {
         </CollapsibleCardHeaderTitle>
         {hasInsights && (
           <CollapsibleCardHeaderActions>
-            <Button
-              variant='outline'
-              aria-label='Add new insight'
-              disabled={insightLoading}
-              onClick={handleCreateClick}
-            >
-              <Plus className='h-4 w-4' aria-hidden='true' />
-              New insight
-            </Button>
+            <div className='inline-flex -space-x-px'>
+              <Button
+                variant='outline'
+                className='rounded-r-none'
+                onClick={() => void handleCreateInsight()}
+                disabled={insightLoading}
+              >
+                <Plus className='h-4 w-4' aria-hidden='true' />
+                New insight
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant='outline'
+                    className='rounded-l-none px-2'
+                    aria-label='More options'
+                    disabled={insightLoading}
+                  >
+                    <ChevronDown className='h-4 w-4' aria-hidden='true' />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align='end'>
+                  <DropdownMenuItem
+                    onClick={() => void handleCreateInsightWithAi()}
+                    disabled={insightLoading}
+                  >
+                    <Sparkles className='h-4 w-4' aria-hidden='true' />
+                    Generate insight with AI
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => void handleCreateInsight()}
+                    disabled={insightLoading}
+                  >
+                    <Plus className='h-4 w-4' aria-hidden='true' />
+                    Blank insight
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </CollapsibleCardHeaderActions>
         )}
       </CollapsibleCardHeader>
