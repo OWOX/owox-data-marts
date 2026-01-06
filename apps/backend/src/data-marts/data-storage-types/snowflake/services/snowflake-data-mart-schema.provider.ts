@@ -114,26 +114,11 @@ export class SnowflakeDataMartSchemaProvider implements DataMartSchemaProvider {
 
     const [rawDatabase, rawSchema, rawTable] = parts;
 
-    const databaseForQuery = rawDatabase.replace(/^"|"$/g, '').toUpperCase();
-    const schemaForQuery = rawSchema.replace(/^"|"$/g, '').toUpperCase();
-    const tableForQuery = rawTable.replace(/^"|"$/g, '').toUpperCase();
+    const databaseForQuery = this.normalizeIdentifier(rawDatabase);
+    const schemaForQuery = this.normalizeIdentifier(rawSchema);
+    const tableForQuery = this.normalizeIdentifier(rawTable);
 
-    const primaryKeyColumns: Set<string> = new Set();
-    try {
-      const pkQuery = `SHOW PRIMARY KEYS IN TABLE ${fullyQualifiedName}`;
-      const pkResult = await adapter.executeQuery(pkQuery);
-
-      if (pkResult.rows && pkResult.rows.length > 0) {
-        pkResult.rows.forEach((row: Record<string, unknown>) => {
-          const columnName = (row.column_name || row.COLUMN_NAME) as string;
-          if (columnName) {
-            primaryKeyColumns.add(columnName);
-          }
-        });
-      }
-    } catch (error) {
-      this.logger.debug('Failed to query primary keys, table may not have a primary key', error);
-    }
+    const primaryKeyColumns = await this.getPrimaryKeyColumns(fullyQualifiedName, adapter);
 
     const query = `
       SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COMMENT
@@ -167,6 +152,35 @@ export class SnowflakeDataMartSchemaProvider implements DataMartSchemaProvider {
       this.logger.debug('Failed to query INFORMATION_SCHEMA, table likely does not exist', error);
       return null;
     }
+  }
+
+  private normalizeIdentifier(identifier: string): string {
+    return identifier.replace(/^"|"$/g, '').toUpperCase();
+  }
+
+  private async getPrimaryKeyColumns(
+    fullyQualifiedName: string,
+    adapter: SnowflakeApiAdapter
+  ): Promise<Set<string>> {
+    const primaryKeyColumns: Set<string> = new Set();
+
+    try {
+      const pkQuery = `SHOW PRIMARY KEYS IN TABLE ${fullyQualifiedName}`;
+      const pkResult = await adapter.executeQuery(pkQuery);
+
+      if (pkResult.rows && pkResult.rows.length > 0) {
+        pkResult.rows.forEach((row: Record<string, unknown>) => {
+          const columnName = (row.column_name || row.COLUMN_NAME) as string;
+          if (columnName) {
+            primaryKeyColumns.add(columnName);
+          }
+        });
+      }
+    } catch (error) {
+      this.logger.debug('Failed to query primary keys, table may not have a primary key', error);
+    }
+
+    return primaryKeyColumns;
   }
 
   private createFieldFromResult(
