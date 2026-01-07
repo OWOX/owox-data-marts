@@ -46,6 +46,7 @@ import { RunType } from '../../common/scheduler/shared/types';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 import { ConnectorService } from './connector.service';
+import { ProjectBalanceService } from './project-balance.service';
 
 interface ConfigurationExecutionResult {
   configIndex: number;
@@ -70,7 +71,8 @@ export class ConnectorExecutionService {
     @Inject(OWOX_PRODUCER)
     private readonly producer: OwoxProducer,
     private readonly connectorSourceCredentialsService: ConnectorSourceCredentialsService,
-    private readonly connectorService: ConnectorService
+    private readonly connectorService: ConnectorService,
+    private readonly projectBalanceService: ProjectBalanceService
   ) {}
 
   async cancelRun(dataMartId: string, runId: string): Promise<void> {
@@ -220,6 +222,8 @@ export class ConnectorExecutionService {
           }
         );
       }
+
+      await this.projectBalanceService.verifyCanPerformOperations(dataMart.projectId);
 
       await this.dataMartRunRepository.update(runId, {
         status: DataMartRunStatus.RUNNING,
