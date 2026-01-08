@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
+import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
+import { useUrlParam } from '../../../../../shared/hooks';
+import { DataDestinationConfigSheet } from '../../../edit';
 import { generateLookerStudioJsonConfig, useDataDestination } from '../../../shared';
+import { isLookerStudioCredentials } from '../../../shared/model/types/looker-studio-credentials.ts';
 import {
   DataDestinationTable,
   type DataDestinationTableItem,
   getDataDestinationColumns,
 } from '../DataDestinationTable';
-import { DataDestinationConfigSheet } from '../../../edit';
-import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
-import toast from 'react-hot-toast';
-import { isLookerStudioCredentials } from '../../../shared/model/types/looker-studio-credentials.ts';
 
 interface DataDestinationListProps {
   isCreateSheetInitiallyOpen?: boolean;
@@ -27,13 +28,8 @@ export const DataDestinationList = ({
     getDataDestinationById,
     deleteDataDestination,
     rotateSecretKey,
+    loading,
   } = useDataDestination();
-
-  const handleOpenCreateForm = useCallback(() => {
-    clearCurrentDataDestination();
-    setIsEditSheetOpen(true);
-    onCreateSheetClose?.();
-  }, [clearCurrentDataDestination, onCreateSheetClose]);
 
   const [isEditSheetOpen, setIsEditSheetOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -42,6 +38,38 @@ export const DataDestinationList = ({
   const [destinationToRotateSecretKey, setDestinationToRotateSecretKey] = useState<string | null>(
     null
   );
+
+  const { value: deepLinkId, setParam: setIdParam, removeParam: removeIdParam } = useUrlParam('id');
+  const hasAttemptedDeepLink = useRef(false);
+
+  const handleEdit = useCallback(
+    async (id: string) => {
+      await getDataDestinationById(id);
+      setIsEditSheetOpen(true);
+      setIdParam(id);
+    },
+    [getDataDestinationById, setIdParam]
+  );
+
+  const handleOpenCreateForm = useCallback(() => {
+    clearCurrentDataDestination();
+    setIsEditSheetOpen(true);
+    onCreateSheetClose?.();
+    removeIdParam();
+  }, [clearCurrentDataDestination, onCreateSheetClose, removeIdParam]);
+
+  useEffect(() => {
+    if (!loading && dataDestinations.length > 0 && deepLinkId && !hasAttemptedDeepLink.current) {
+      const destination = dataDestinations.find(d => d.id === deepLinkId);
+      if (destination) {
+        void handleEdit(deepLinkId);
+      } else {
+        toast.error(`Destination not found by id ${deepLinkId}`);
+        removeIdParam();
+      }
+      hasAttemptedDeepLink.current = true;
+    }
+  }, [loading, dataDestinations, deepLinkId, removeIdParam, handleEdit]);
 
   useEffect(() => {
     void fetchDataDestinations();
@@ -52,11 +80,6 @@ export const DataDestinationList = ({
       handleOpenCreateForm();
     }
   }, [isCreateSheetInitiallyOpen, handleOpenCreateForm]);
-
-  const handleEdit = async (id: string) => {
-    await getDataDestinationById(id);
-    setIsEditSheetOpen(true);
-  };
 
   const handleDelete = (id: string) => {
     setDestinationToDelete(id);
@@ -105,6 +128,7 @@ export const DataDestinationList = ({
     try {
       setIsEditSheetOpen(false);
       await fetchDataDestinations();
+      removeIdParam();
     } catch (error) {
       console.error('Failed to save destination:', error);
     }
@@ -113,6 +137,7 @@ export const DataDestinationList = ({
   const handleCloseSheet = () => {
     setIsEditSheetOpen(false);
     clearCurrentDataDestination();
+    removeIdParam();
   };
 
   const tableData: DataDestinationTableItem[] = dataDestinations.map(destination => ({
