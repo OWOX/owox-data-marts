@@ -1,5 +1,74 @@
 # owox
 
+## 0.16.0
+
+### Minor Changes
+
+- 81112e2: # Floating Popovers and Help Menu for Tutorials and Support
+  - Added **FloatingPopover** component with context to manage popover state
+  - Added **video tutorial popovers** for Google Sheets and Looker integration
+  - Implemented **HelpMenu** with dropdown functionality for quick access to help resources
+  - Integrated **FloatingPopoverProvider** and HelpMenu into AppSidebar for a better user experience
+  - Enhanced **Intercom integration** with launcher visibility control and payload adjustments
+  - Added **popover tutorial** in EmptyDataMartsState to guide new users
+
+- 18c2a9f: # AI-Powered Insight Creation
+
+  Added the ability to create the first insight using AI, significantly simplifying the user's journey to start using insights functionality.
+
+  Users can now generate intelligent, data-driven insight templates with pre-configured AI prompts tailored to their data mart structure, making it easier to discover valuable insights without manual setup.
+
+- 8d8b75b: # AWS Redshift Storage Support
+
+  Introduced AWS Redshift as a new data storage type with comprehensive support for both Serverless and Provisioned clusters.
+  - Authentication Methods: Username/Password authentication for secure connections
+  - Flexible Configuration: Support for both Redshift Serverless (workgroup-based) and Provisioned (cluster-based) deployments
+  - Complete Schema Management: Added schemas, guards, and services for Redshift data mart configuration and credentials
+  - Enhanced Frontend: Updated UI components to handle Redshift configuration with relevant descriptions and validation
+  - Type Safety: Implemented comprehensive DTOs, mappers, and type guards for Redshift data structures
+  - Full Documentation: Included detailed documentation for setting up and using the Redshift connector
+
+  This update enables users to seamlessly connect OWOX to AWS Redshift data warehouses, expanding the platform's data storage capabilities to one of the most popular cloud data warehouse solutions.
+
+- 7d9eb45: # Streamlined Data Mart Onboarding
+
+  Introduced interactive "next-step" suggestions to help you set up and use your Data Marts faster. Now, after publishing or loading data, you'll get clear guidance on the best next action—like running a connector, scheduling triggers, or creating reports—ensuring a smoother transition from configuration to results.
+
+- 09c6270: # Add direct linking for Data Storages and Destinations
+  - Added support for direct links to specific Data Storages and Destinations via URL parameters, making it easier to share specific entities with others.
+  - Automatically synchronizes the URL with the currently opened entity.
+
+- 2f99ff4: # Improve pagination
+  - Improved pagination on lists of Data Marts, Storages and Destinations: added customizeble page-size selector and info about selected items and pages
+  - Added persistent page size support for storing and retrieving the user's preferred page size from localStorage
+  - Fixed "Select all" checkbox to operate on the current page only
+
+- 2d311f6: # Improve UX in Reports
+  - added buttons for running the report and opening the Google Sheets document directly in the table row
+  - changed the default action for the new report from "Create" to "Create and Run" action. It's affected Google Sheets and Email destinations
+
+- 6940365: # Add Shopify Connector
+
+  Added new Shopify connector with support for multiple data nodes including orders, products, customers, metafields, and more
+
+- 469e64f: # Improved Facebook Marketing Connector Stability and Data Depth
+  - **More Reliable Imports**: Fixed an issue where missing or invalid dates could interrupt data transfers. Your pipelines will now be more resilient to data inconsistencies.
+
+- c9e7dc5: # Microsoft Ads: AccountID changes to AccountIDs
+
+  The Microsoft Ads connector configuration field has been renamed from `AccountID` to `AccountIDs` to better reflect its capability. You can now specify multiple Account IDs (comma-separated) in a single field, allowing you to load data for several accounts using one connector instead of creating separate connectors for each account.
+
+  Existing Microsoft Ads connectors will be automatically migrated with no action required on your part.
+
+### Patch Changes
+
+- @owox/internal-helpers@0.16.0
+- @owox/idp-protocol@0.16.0
+- @owox/idp-better-auth@0.16.0
+- @owox/idp-owox@0.16.0
+- @owox/backend@0.16.0
+- @owox/web@0.16.0
+
 ## 0.15.0
 
 ### Minor Changes 0.15.0
@@ -909,7 +978,6 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
-
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -917,7 +985,6 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
-
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
