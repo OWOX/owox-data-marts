@@ -65,7 +65,7 @@ export const LookerStudioReportEditForm = forwardRef<
   (
     {
       initialReport,
-      mode = ReportFormMode.EDIT,
+      mode,
       onDirtyChange,
       onFormErrorChange,
       onSubmit,

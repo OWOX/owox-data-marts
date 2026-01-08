@@ -72,7 +72,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
   (
     {
       initialReport,
-      mode = ReportFormMode.EDIT,
+      mode,
       onDirtyChange,
       onFormErrorChange,
       onSubmit,

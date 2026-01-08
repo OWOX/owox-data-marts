@@ -59,9 +59,7 @@ export function scheduledTriggerReducer(
           trigger.id === action.payload.id ? action.payload : trigger
         ),
         selectedTrigger:
-          state.selectedTrigger && state.selectedTrigger.id === action.payload.id
-            ? action.payload
-            : state.selectedTrigger,
+          state.selectedTrigger?.id === action.payload.id ? action.payload : state.selectedTrigger,
         isLoading: false,
       };
     case 'DELETE_TRIGGER_SUCCESS':
@@ -69,9 +67,7 @@ export function scheduledTriggerReducer(
         ...state,
         triggers: state.triggers.filter(trigger => trigger.id !== action.payload),
         selectedTrigger:
-          state.selectedTrigger && state.selectedTrigger.id === action.payload
-            ? null
-            : state.selectedTrigger,
+          state.selectedTrigger?.id === action.payload ? null : state.selectedTrigger,
         isLoading: false,
       };
 
