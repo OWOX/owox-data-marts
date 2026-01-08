@@ -79,7 +79,7 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
   (
     {
       initialReport,
-      mode = ReportFormMode.EDIT,
+      mode,
       onDirtyChange,
       onFormErrorChange,
       onSubmit,

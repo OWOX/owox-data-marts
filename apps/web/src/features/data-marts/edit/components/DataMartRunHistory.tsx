@@ -12,14 +12,8 @@ import type { ConnectorListItem } from '../../../connectors/shared/model/types/c
 export function DataMartRunHistory() {
   const LIMIT = 20;
 
-  const {
-    dataMart,
-    getDataMartRuns,
-    loadMoreDataMartRuns,
-    cancelDataMartRun,
-    runs = [],
-    isLoading,
-  } = useOutletContext<DataMartContextType>();
+  const { dataMart, getDataMartRuns, loadMoreDataMartRuns, cancelDataMartRun, runs, isLoading } =
+    useOutletContext<DataMartContextType>();
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);

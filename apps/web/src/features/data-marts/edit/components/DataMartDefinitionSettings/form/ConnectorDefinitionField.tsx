@@ -269,18 +269,17 @@ export function ConnectorDefinitionField({
                           renderEditFieldsButton(field.value as ConnectorDefinitionConfig)}
                       </div>
                       <div className='flex items-center gap-2'>
-                        {dataMart &&
-                          dataMart.definitionType === DataMartDefinitionType.CONNECTOR && (
-                            <ConnectorRunView
-                              configuration={dataMart.definition as ConnectorDefinitionConfig}
-                              onManualRun={onManualRunHandler}
-                            >
-                              <Button variant='outline'>
-                                <Play className='h-4 w-4' />
-                                <span>Manual Run...</span>
-                              </Button>
-                            </ConnectorRunView>
-                          )}
+                        {dataMart?.definitionType === DataMartDefinitionType.CONNECTOR && (
+                          <ConnectorRunView
+                            configuration={dataMart.definition as ConnectorDefinitionConfig}
+                            onManualRun={onManualRunHandler}
+                          >
+                            <Button variant='outline'>
+                              <Play className='h-4 w-4' />
+                              <span>Manual Run...</span>
+                            </Button>
+                          </ConnectorRunView>
+                        )}
                       </div>
                     </div>
                     <div className='space-y-3'>
