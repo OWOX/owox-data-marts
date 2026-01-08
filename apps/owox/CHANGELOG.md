@@ -4,6 +4,8 @@
 
 ### Minor Changes 0.16.0
 
+![OWOX Data Marts – v0.15.0](https://github.com/user-attachments/assets/7512a17d-74ab-4c61-af83-fb0477f62882)
+
 - 81112e2: # Floating Popovers and Help Menu for Tutorials and Support
   - Added **FloatingPopover** component with context to manage popover state
   - Added **video tutorial popovers** for Google Sheets and Looker integration
