@@ -13,15 +13,17 @@ export class ProjectOperationBlockedException extends BusinessViolationException
   constructor(readonly blockedReasons: ProjectBlockedReason[]) {
     let message = '';
     if (blockedReasons.includes(ProjectBlockedReason.BI_PROJECT_NOT_ACTIVE)) {
-      message += 'Project is not active.';
+      message += 'This OWOX Data Marts project is inactive. Activate the project to continue.';
     }
     if (blockedReasons.includes(ProjectBlockedReason.OVERDRAFT_LIMIT_EXCEEDED)) {
-      message += ' Project credits limit is reached.';
+      message +=
+        ' You’ve reached the credit limit for this OWOX Data Marts project. Upgrade your plan to get more credits.';
     }
     message = message.trim();
 
     if (message.length === 0) {
-      message = 'Project operation is blocked. Please check your subscription and credits balance.';
+      message =
+        'This operation is blocked for this OWOX Data Marts project. Check the project status and your subscription to continue.';
     }
     super(message, { blockedReasons });
   }
