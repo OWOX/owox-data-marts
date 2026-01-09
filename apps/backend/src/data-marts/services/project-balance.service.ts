@@ -1,12 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { fetchWithBackoff } from '@owox/internal-helpers';
-import { GoogleAuth, Impersonated } from 'google-auth-library';
-import * as jwt from 'jsonwebtoken';
 import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
-import { CanPerformOperationsResponseDto } from '../dto/domain/can-perform-operations-response.dto';
-import { ProjectBalanceDto } from '../dto/domain/project-balance.dto';
+import {
+  CanPerformOperationsResponseDto,
+  CanPerformOperationsResponseSchema,
+} from '../dto/domain/can-perform-operations-response.dto';
+import { ProjectBalanceDto, ProjectBalanceSchema } from '../dto/domain/project-balance.dto';
 import { ProjectPlanType } from '../enums/project-plan-type.enum';
+import { ImpersonatedIdTokenService } from './impersonated-id-token.service';
 
 /**
  * Service for validating operations based on balance.
@@ -16,19 +18,16 @@ import { ProjectPlanType } from '../enums/project-plan-type.enum';
 @Injectable()
 export class ProjectBalanceService {
   private readonly logger = new Logger(ProjectBalanceService.name);
-  private readonly auth = new GoogleAuth();
 
   private readonly baseUrl: string | undefined;
   private readonly targetAudience: string | undefined;
   private readonly serviceAccountEmail: string | undefined;
   private readonly isBalanceServiceConfigured: boolean;
 
-  // Cache fields
-  private cachedIdToken: string;
-  private idTokenExpiresAt: number = 0;
-  private idTokenPromise: Promise<string> | null = null;
-
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly impersonatedIdTokenService: ImpersonatedIdTokenService
+  ) {
     this.serviceAccountEmail = this.configService.get<string>(
       'BALANCE_ENDPOINT_AUTH_SERVICE_ACCOUNT'
     );
@@ -79,7 +78,8 @@ export class ProjectBalanceService {
       const response = await this.fetchBalanceApi(
         `${this.baseUrl}/${projectId}/operation/can-perform`
       );
-      return (await response.json()) as CanPerformOperationsResponseDto;
+      const data = await response.json();
+      return CanPerformOperationsResponseSchema.parse(data);
     } catch (error) {
       this.logger.error(
         `Error checking balance for project ${projectId}: ${error?.message || error}`
@@ -104,7 +104,8 @@ export class ProjectBalanceService {
 
     try {
       const response = await this.fetchBalanceApi(`${this.baseUrl}/${projectId}/balance`);
-      return (await response.json()) as ProjectBalanceDto;
+      const data = await response.json();
+      return ProjectBalanceSchema.parse(data);
     } catch (error) {
       this.logger.error(
         `Error getting balance for project ${projectId}: ${error?.message || error}`
@@ -117,7 +118,10 @@ export class ProjectBalanceService {
    * Gets Balance API response for the specified project url.
    */
   private async fetchBalanceApi(url: string): Promise<Response> {
-    const idToken = await this.getIdToken();
+    const idToken = await this.impersonatedIdTokenService.getIdToken(
+      this.serviceAccountEmail!,
+      this.targetAudience!
+    );
     const response = await fetchWithBackoff(url, {
       method: 'GET',
       headers: {
@@ -134,74 +138,5 @@ export class ProjectBalanceService {
     }
 
     return response;
-  }
-
-  /**
-   * Returns a valid ID token, either from cache or by fetching a new one.
-   */
-  private async getIdToken(): Promise<string> {
-    const now = Math.floor(Date.now() / 1000);
-
-    // 1. Check if we have a cached token that is valid for at least another 5 minutes
-    if (this.cachedIdToken && this.idTokenExpiresAt > now + 300) {
-      return this.cachedIdToken;
-    }
-
-    // 2. If a request is already in progress, return the existing promise
-    if (this.idTokenPromise) {
-      return this.idTokenPromise;
-    }
-
-    // 3. Start a new token fetch process
-    this.idTokenPromise = this.fetchAndCacheIdToken();
-
-    try {
-      return await this.idTokenPromise;
-    } finally {
-      // Clear the promise so that future calls can trigger a new refresh if needed
-      this.idTokenPromise = null;
-    }
-  }
-
-  /**
-   * Performs the actual token generation and updates the cache.
-   */
-  private async fetchAndCacheIdToken(): Promise<string> {
-    try {
-      const authClient = await this.auth.getClient();
-
-      const targetClient = new Impersonated({
-        sourceClient: authClient,
-        targetPrincipal: this.serviceAccountEmail!,
-        targetScopes: ['openid'],
-        lifetime: 3600,
-      });
-
-      const token = await targetClient.fetchIdToken(this.targetAudience!, {
-        includeEmail: true,
-      });
-
-      // Update cache
-      this.cachedIdToken = token;
-
-      try {
-        // Decode JWT to get expiration time
-        const decoded = jwt.decode(token) as { exp: number };
-        // Default to 10 min if exp is missing
-        this.idTokenExpiresAt = decoded?.exp || Math.floor(Date.now() / 1000) + 600;
-      } catch (decodeError) {
-        this.logger.warn(
-          `Failed to decode ID token expiration. Using default 10 min. Error: ${decodeError?.message || decodeError}`
-        );
-        this.idTokenExpiresAt = Math.floor(Date.now() / 1000) + 600;
-      }
-
-      return token;
-    } catch (error) {
-      this.logger.error(`Error generating ID token: ${error?.message || error}`);
-      throw new Error(
-        'Failed to generate ID token. Please check the BALANCE_ENDPOINT_* environment variables.'
-      );
-    }
   }
 }

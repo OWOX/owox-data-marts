@@ -73,7 +73,7 @@ export class PromptTagHandler implements TagHandler<
           rendered: wrapCautionBlock(error.message),
           meta: {
             prompt: input.prompt,
-            status: PromptAnswer.ERROR,
+            status: PromptAnswer.RESTRICTED,
             reasonDescription: error.message,
             telemetry: { llmCalls: [], toolCalls: [], messageHistory: [] },
           },
