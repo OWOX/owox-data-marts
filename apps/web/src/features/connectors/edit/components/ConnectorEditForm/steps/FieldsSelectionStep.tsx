@@ -35,6 +35,7 @@ export function FieldsSelectionStep({
   selectedField,
   selectedFields,
   onFieldToggle,
+  onSelectAllFields,
 }: FieldsSelectionStepProps) {
   const filterInputRef = useRef<HTMLInputElement>(null);
   const [filterText, setFilterText] = useState('');
@@ -86,7 +87,6 @@ export function FieldsSelectionStep({
   ).length;
 
   useEffect(() => {
-    // Handle unique keys (mandatory)
     if (uniqueKeys.length > 0) {
       const uniqueKeysToAdd = uniqueKeys.filter(
         keyName =>
@@ -94,41 +94,48 @@ export function FieldsSelectionStep({
       );
 
       if (uniqueKeysToAdd.length > 0) {
-        uniqueKeysToAdd.forEach(keyName => {
-          onFieldToggle(keyName, true);
-        });
-      }
-    }
-
-    // Handle default fields (optional, only on initial load for this report)
-    const defaultFields = selectedFieldData?.defaultFields ?? [];
-    if (defaultFields.length > 0) {
-      // Check if we should apply defaults.
-      // Strategy: If ONLY unique keys (or nothing) are selected, we assume it's a fresh selection and add defaults.
-      // If the user has selected other things, we respect their choice and don't re-add defaults.
-      const userSelectedNonUnique = selectedFields.filter(f => !uniqueKeys.includes(f));
-
-      if (userSelectedNonUnique.length === 0) {
-        const defaultsToAdd = defaultFields.filter(
-          fieldName =>
-            availableFields.some(field => field.name === fieldName) &&
-            !selectedFields.includes(fieldName)
-        );
-
-        if (defaultsToAdd.length > 0) {
-          defaultsToAdd.forEach(fieldName => {
-            onFieldToggle(fieldName, true);
+        if (onSelectAllFields) {
+          onSelectAllFields(uniqueKeysToAdd, true);
+        } else {
+          uniqueKeysToAdd.forEach(keyName => {
+            onFieldToggle(keyName, true);
           });
         }
       }
     }
+  }, [uniqueKeys, availableFields, selectedFields, onFieldToggle, onSelectAllFields]);
+
+  useEffect(() => {
+    const defaultFields = selectedFieldData?.defaultFields ?? [];
+    if (defaultFields.length === 0) return;
+
+    const userSelectedNonUnique = selectedFields.filter(f => !uniqueKeys.includes(f));
+    if (userSelectedNonUnique.length > 0) return;
+
+    const defaultsToAdd = defaultFields.filter(
+      fieldName =>
+        availableFields.some(field => field.name === fieldName) &&
+        !selectedFields.includes(fieldName)
+    );
+    if (defaultsToAdd.length === 0) return;
+
+    const updateFields =
+      onSelectAllFields ??
+      ((fieldNames: string[], isSelected: boolean) => {
+        fieldNames.forEach(fieldName => {
+          onFieldToggle(fieldName, isSelected);
+        });
+      });
+
+    updateFields(defaultsToAdd, true);
   }, [
     selectedField,
-    uniqueKeys,
     selectedFieldData,
+    uniqueKeys,
     availableFields,
     selectedFields,
     onFieldToggle,
+    onSelectAllFields,
   ]);
 
   // HotKey for Selecting/Unselecting all fields
@@ -149,9 +156,13 @@ export function FieldsSelectionStep({
         const notYetSelected = availableNames.filter(name => !selectedFields.includes(name));
         const shouldSelectAll = notYetSelected.length > 0;
 
-        availableNames.forEach(fieldName => {
-          onFieldToggle(fieldName, shouldSelectAll);
-        });
+        if (onSelectAllFields) {
+          onSelectAllFields(availableNames, shouldSelectAll);
+        } else {
+          availableNames.forEach(fieldName => {
+            onFieldToggle(fieldName, shouldSelectAll);
+          });
+        }
       }
     };
 
@@ -159,7 +170,7 @@ export function FieldsSelectionStep({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [availableFields, selectedFields, onFieldToggle]);
+  }, [availableFields, selectedFields, onFieldToggle, onSelectAllFields]);
 
   if (!selectedField || !connectorFields) {
     return (
