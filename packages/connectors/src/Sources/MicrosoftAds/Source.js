@@ -426,7 +426,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
       schema
     });
 
-    const pollResult = await this._pollReportStatus({ submitResponse });
+    const pollResult = await this._pollReportStatus({ submitResponse, accountId });
 
     if (!pollResult.ReportRequestStatus.ReportDownloadUrl) {
       this.config.logMessage(`No data available for the specified time period (${start_time} to ${end_time}). Report status: ${JSON.stringify(pollResult.ReportRequestStatus)}`);
@@ -503,12 +503,13 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
    * Poll for report completion status
    * @param {Object} opts
    * @param {Object} opts.submitResponse - Response from submit request
+   * @param {string} opts.accountId - Account ID
    * @param {string} opts.start_time
    * @param {string} opts.end_time
    * @returns {Object} - Poll result with report status
    * @private
    */
-  async _pollReportStatus({ submitResponse }) {
+  async _pollReportStatus({ submitResponse, accountId }) {
     const pollUrl = 'https://reporting.api.bingads.microsoft.com/Reporting/v13/GenerateReport/Poll';
     const submitResponseText = JSON.stringify(submitResponse);
     const pollOpts = {
@@ -516,7 +517,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
       contentType: 'application/json',
       headers: {
         Authorization: `Bearer ${this.config.AccessToken.value}`,
-        CustomerAccountId: submitResponse.CustomerAccountId || `${this.config.CustomerID.value}|${this.config.AccountID.value}`,
+        CustomerAccountId: submitResponse.CustomerAccountId || `${this.config.CustomerID.value}|${accountId}`,
         CustomerId: this.config.CustomerID.value,
         DeveloperToken: this.config.DeveloperToken.value,
         'Content-Type': 'application/json'
