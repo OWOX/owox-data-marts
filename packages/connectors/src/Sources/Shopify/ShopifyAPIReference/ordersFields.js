@@ -200,32 +200,32 @@ var ordersFields = {
   },
   'customer': {
     'description': 'Full customer object as JSON (id, email, phone, defaultAddress).',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'customer { id email phone defaultAddress { country city province } }'
   },
   'currentTotalDiscounts': {
     'description': 'The current total discounts (after edits).',
-    'type': 'float',
+    'type': DATA_TYPES.NUMBER,
     'graphqlPath': 'currentTotalDiscountsSet { shopMoney { amount } }'
   },
   'currentTotalTax': {
     'description': 'The current total tax (after edits).',
-    'type': 'float',
+    'type': DATA_TYPES.NUMBER,
     'graphqlPath': 'currentTotalTaxSet { shopMoney { amount } }'
   },
   'lineItems': {
     'description': 'The line items in the order as JSON array.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'lineItems(first: 250) { nodes { id name title sku vendor quantity originalUnitPriceSet { shopMoney { amount } } discountedUnitPriceSet { shopMoney { amount } } } }'
   },
   'shippingLines': {
     'description': 'Shipping lines as JSON array.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'shippingLines(first: 50) { nodes { id title discountedPriceSet { shopMoney { amount } } originalPriceSet { shopMoney { amount } } } }'
   },
   'refunds': {
     'description': 'Refunds as JSON array.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'refunds(first: 50) { id createdAt note totalRefundedSet { shopMoney { amount } } refundLineItems(first: 50) { nodes { lineItem { id } quantity subtotalSet { shopMoney { amount } } } } }'
   }
 };
