@@ -4,6 +4,7 @@ import type {
 } from '../../../../../../shared/api/types';
 import { useOAuth } from '../../../../../../shared/model/hooks/useOAuth';
 import { FacebookOauthRender } from './impl/FacebookOauthRender';
+import { TikTokOauthRender } from './impl/TikTokOauthRender';
 import { useState, useEffect, useMemo } from 'react';
 import type {
   OAuthStatusResponseDto,
@@ -296,6 +297,15 @@ export function OauthRenderFactory({
       case 'FacebookMarketing':
         return (
           <FacebookOauthRender
+            isLoading={isLoading}
+            status={status}
+            settings={settings}
+            onOAuthSuccess={handleOAuthSuccess}
+          />
+        );
+      case 'TikTokAds':
+        return (
+          <TikTokOauthRender
             isLoading={isLoading}
             status={status}
             settings={settings}

@@ -9,12 +9,17 @@ import { DataStorageListPage } from '../pages/data-storage';
 import { DataDestinationListPage } from '../pages/data-destination/DataDestinationListPage';
 import { dataMartDetailsRoutes } from './data-marts/routes';
 import { ProjectRedirect } from '../components/ProjectRedirect';
+import { TikTokCallback } from '../pages/oauth';
 
 const routes: RouteObject[] = [
   {
     index: true,
     path: '/',
     element: <ProjectRedirect />,
+  },
+  {
+    path: '/oauth/tiktok/callback',
+    element: <TikTokCallback />,
   },
   {
     path: '/ui/:projectId',

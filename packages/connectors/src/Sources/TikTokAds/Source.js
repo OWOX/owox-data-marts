@@ -9,25 +9,96 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
 
   constructor(config) {
     super(config.mergeParameters({
-      AccessToken: {
+      AuthType: {
+        requiredType: "object",
+        label: "Auth Type",
+        description: "Authentication type",
         isRequired: true,
+        oneOf: [
+          {
+            label: "OAuth2",
+            value: "oauth2",
+            requiredType: "object",
+            attributes: [CONFIG_ATTRIBUTES.OAUTH_FLOW],
+            oauthParams: {
+              vars: {
+                AppId: {
+                  type: 'string',
+                  required: true,
+                  store: 'env',
+                  key: 'OAUTH_TIKTOK_ADS_APP_ID',
+                  attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
+                },
+                AppSecret: {
+                  type: 'string',
+                  required: true,
+                  store: 'env',
+                  key: 'OAUTH_TIKTOK_ADS_APP_SECRET',
+                  attributes: [OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
+                },
+                RedirectUri: {
+                  type: 'string',
+                  required: true,
+                  store: 'env',
+                  key: 'OAUTH_TIKTOK_ADS_REDIRECT_URI',
+                  attributes: [OAUTH_CONSTANTS.UI]
+                }
+              },
+              mapping: {
+                AccessToken: {
+                  type: 'string',
+                  required: true,
+                  store: 'secret',
+                  key: 'accessToken'
+                },
+                RefreshToken: {
+                  type: 'string',
+                  required: true,
+                  store: 'secret',
+                  key: 'refreshToken'
+                }
+              }
+            },
+            items: {
+              AccessToken: {
+                isRequired: true,
+                requiredType: "string",
+                label: "Access Token",
+                description: "TikTok Ads API Access Token for authentication",
+                attributes: [CONFIG_ATTRIBUTES.SECRET]
+              },
+              AppId: {
+                requiredType: "string",
+                label: "App ID",
+                description: "TikTok Ads API Application ID",
+              },
+              AppSecret: {
+                requiredType: "string",
+                label: "App Secret",
+                description: "TikTok Ads API Application Secret",
+                attributes: [CONFIG_ATTRIBUTES.SECRET]
+              },
+            }
+          }
+        ]
+      },
+      AccessToken: {
         requiredType: "string",
         label: "Access Token",
         description: "TikTok Ads API Access Token for authentication",
-        attributes: [CONFIG_ATTRIBUTES.SECRET]
+        attributes: [CONFIG_ATTRIBUTES.SECRET, CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
       AppId: {
         requiredType: "string",
-        isRequired: true,
         label: "App ID",
-        description: "TikTok Ads API Application ID"
+        description: "TikTok Ads API Application ID",
+        attributes: [CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
       AppSecret: {
         requiredType: "string",
-        isRequired: true,
         label: "App Secret",
         description: "TikTok Ads API Application Secret",
-        attributes: [CONFIG_ATTRIBUTES.SECRET]
+        attributes: [CONFIG_ATTRIBUTES.SECRET, CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
       AdvertiserIDs: {
         isRequired: true,
@@ -93,6 +164,205 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
     this.fieldsSchema = TikTokAdsFieldsSchema;
     this.apiVersion = "v1.3"; // TikTok Ads API version
 
+  }
+
+  /**
+   * Exchange OAuth authorization code for access and refresh tokens
+   * 
+   * @param {Object} credentials - OAuth credentials from the authorization flow
+   * @param {string} credentials.authCode - Authorization code from TikTok OAuth redirect
+   * @param {Object} variables - OAuth configuration variables
+   * @param {string} variables.AppId - TikTok App ID
+   * @param {string} variables.AppSecret - TikTok App Secret
+   * @param {string} variables.RedirectUri - OAuth redirect URI
+   * @return {Object} OAuth credentials DTO
+   */
+  async exchangeOauthCredentials(credentials, variables) {
+    try {
+      const tokenUrl = 'https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/';
+      
+      const tokenResponse = await HttpUtils.fetch(tokenUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          app_id: variables.AppId,
+          secret: variables.AppSecret,
+          auth_code: credentials.authCode,
+          grant_type: 'authorization_code'
+        })
+      });
+
+      const tokenData = await tokenResponse.getAsJson();
+
+      if (tokenData.code !== 0) {
+        throw new OauthFlowException({
+          message: tokenData.message || 'Failed to exchange authorization code',
+          payload: tokenData
+        });
+      }
+
+      const data = tokenData.data;
+      
+      if (!data.access_token) {
+        throw new OauthFlowException({
+          message: 'Missing access_token in exchange response'
+        });
+      }
+
+      // TikTok access tokens typically expire in 24 hours (86400 seconds)
+      const expiresIn = data.expires_in ?? 86400;
+      
+      const oauthCredentials = OauthCredentialsDto.builder()
+        .withUser({ id: data.advertiser_ids?.[0] || 'unknown', name: data.scope || 'TikTok Ads User' })
+        .withSecret({ 
+          accessToken: data.access_token,
+          refreshToken: data.refresh_token
+        })
+        .withExpiresIn(expiresIn);
+
+      // Include advertiser IDs in additional data if available
+      if (data.advertiser_ids && data.advertiser_ids.length > 0) {
+        oauthCredentials.withAdditional({ 
+          advertiserIds: data.advertiser_ids,
+          scope: data.scope
+        });
+      }
+
+      return oauthCredentials.build().toObject();
+    } catch (error) {
+      if (error instanceof OauthFlowException) {
+        throw error;
+      }
+      throw new OauthFlowException({ 
+        message: 'Failed to exchange TikTok authorization code', 
+        payload: error.message 
+      });
+    }
+  }
+
+  /**
+   * Refresh OAuth credentials when access token is about to expire
+   * 
+   * @param {Object} configuration - Connector configuration
+   * @param {Object} credentials - Stored OAuth credentials
+   * @param {Object} variables - OAuth configuration variables
+   * @return {Object|null} New OAuth credentials DTO or null if refresh not needed
+   */
+  async refreshCredentials(configuration, credentials, variables) {
+    const authTypeConfig = configuration.AuthType || {};
+    const isOAuth2 = 'oauth2' in authTypeConfig;
+
+    if (!isOAuth2) {
+      return null;
+    }
+
+    const oauthConfig = authTypeConfig.oauth2 || {};
+    const hasStoredCredential = OAUTH_SOURCE_CREDENTIALS_KEY in oauthConfig && oauthConfig[OAUTH_SOURCE_CREDENTIALS_KEY];
+
+    if (hasStoredCredential) {
+      // Check if token will expire within the next hour (3600000 ms)
+      const oneHourFromNow = Date.now() + 60 * 60 * 1000;
+      if (credentials.expiresAt && credentials.expiresAt < oneHourFromNow) {
+        const refreshToken = credentials.secret?.refreshToken;
+        if (!refreshToken) {
+          return null;
+        }
+
+        try {
+          const refreshUrl = 'https://business-api.tiktok.com/open_api/v1.3/oauth2/refresh_token/';
+          
+          const refreshResponse = await HttpUtils.fetch(refreshUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              app_id: variables.AppId,
+              secret: variables.AppSecret,
+              refresh_token: refreshToken,
+              grant_type: 'refresh_token'
+            })
+          });
+
+          const refreshData = await refreshResponse.getAsJson();
+
+          if (refreshData.code !== 0) {
+            throw new OauthFlowException({
+              message: refreshData.message || 'Failed to refresh access token',
+              payload: refreshData
+            });
+          }
+
+          const data = refreshData.data;
+          const expiresIn = data.expires_in ?? 86400;
+
+          const oauthCredentials = OauthCredentialsDto.builder()
+            .withUser({ id: credentials.user?.id || 'unknown', name: credentials.user?.name || 'TikTok Ads User' })
+            .withSecret({ 
+              accessToken: data.access_token,
+              refreshToken: data.refresh_token || refreshToken
+            })
+            .withExpiresIn(expiresIn);
+
+          if (data.advertiser_ids && data.advertiser_ids.length > 0) {
+            oauthCredentials.withAdditional({ 
+              advertiserIds: data.advertiser_ids,
+              scope: data.scope
+            });
+          }
+
+          return oauthCredentials.build().toObject();
+        } catch (error) {
+          console.error('Failed to refresh TikTok access token:', error.message);
+          return null;
+        }
+      } else {
+        return null;
+      }
+    } else {
+      // Manual mode - no refresh needed
+      return null;
+    }
+  }
+
+  /**
+   * Get access token based on authentication type
+   * @return {string} Access token
+   * @private
+   */
+  _getAccessToken() {
+    // If using OAuth2, get the access token from AuthType config
+    if (this.config.AuthType?.value && this.config.AuthType.value === 'oauth2') {
+      return this.config.AuthType.items?.AccessToken?.value;
+    }
+    // Fallback to legacy AccessToken config
+    return this.config.AccessToken?.value;
+  }
+
+  /**
+   * Get App ID based on authentication type
+   * @return {string} App ID
+   * @private
+   */
+  _getAppId() {
+    if (this.config.AuthType?.value && this.config.AuthType.value === 'oauth2') {
+      return this.config.AuthType.items?.AppId?.value;
+    }
+    return this.config.AppId?.value;
+  }
+
+  /**
+   * Get App Secret based on authentication type
+   * @return {string} App Secret
+   * @private
+   */
+  _getAppSecret() {
+    if (this.config.AuthType?.value && this.config.AuthType.value === 'oauth2') {
+      return this.config.AuthType.items?.AppSecret?.value;
+    }
+    return this.config.AppSecret?.value;
   }
 
   /**
@@ -165,9 +435,9 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
     
     // Initialize the API provider
     const provider = new TiktokMarketingApiProvider(
-      this.config.AppId.value,
-      this.config.AccessToken.value,
-      this.config.AppSecret.value,
+      this._getAppId(),
+      this._getAccessToken(),
+      this._getAppSecret(),
       this.config.SandboxMode && this.config.SandboxMode.value
     );
     
