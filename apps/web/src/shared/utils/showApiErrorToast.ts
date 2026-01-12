@@ -11,7 +11,7 @@ export function showApiErrorToast(error: unknown, fallbackMessage = 'Something w
   const apiError: ApiError = extractApiError(error);
 
   // Ensure we always have a base message
-  let message = apiError.message.trim() || fallbackMessage;
+  let message = apiError.message?.trim() ?? fallbackMessage;
 
   // Append details if present
   if (apiError.errorDetails?.error?.trim()) {
