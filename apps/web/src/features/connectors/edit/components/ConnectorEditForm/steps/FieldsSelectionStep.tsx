@@ -26,7 +26,7 @@ interface FieldsSelectionStepProps {
   selectedField: string;
   selectedFields: string[];
   onFieldToggle: (fieldName: string, isChecked: boolean) => void;
-  onSelectAllFields?: (fieldNames: string[], isSelected: boolean) => void;
+  onSelectAllFields: (fieldNames: string[], isSelected: boolean) => void;
 }
 
 export function FieldsSelectionStep({
@@ -87,56 +87,33 @@ export function FieldsSelectionStep({
   ).length;
 
   useEffect(() => {
-    if (uniqueKeys.length > 0) {
-      const uniqueKeysToAdd = uniqueKeys.filter(
-        keyName =>
-          availableFields.some(field => field.name === keyName) && !selectedFields.includes(keyName)
-      );
+    const availableFieldNamesSet = new Set(availableFields.map(f => f.name));
+    const selectedFieldsSet = new Set(selectedFields);
+    const uniqueKeysSet = new Set(uniqueKeys);
 
-      if (uniqueKeysToAdd.length > 0) {
-        if (onSelectAllFields) {
-          onSelectAllFields(uniqueKeysToAdd, true);
-        } else {
-          uniqueKeysToAdd.forEach(keyName => {
-            onFieldToggle(keyName, true);
-          });
-        }
+    const fieldsToAutoSelect = new Set<string>();
+
+    uniqueKeys.forEach(keyName => {
+      if (availableFieldNamesSet.has(keyName) && !selectedFieldsSet.has(keyName)) {
+        fieldsToAutoSelect.add(keyName);
       }
-    }
-  }, [uniqueKeys, availableFields, selectedFields, onFieldToggle, onSelectAllFields]);
+    });
 
-  useEffect(() => {
-    const defaultFields = selectedFieldData?.defaultFields ?? [];
-    if (defaultFields.length === 0) return;
-
-    const userSelectedNonUnique = selectedFields.filter(f => !uniqueKeys.includes(f));
-    if (userSelectedNonUnique.length > 0) return;
-
-    const defaultsToAdd = defaultFields.filter(
-      fieldName =>
-        availableFields.some(field => field.name === fieldName) &&
-        !selectedFields.includes(fieldName)
-    );
-    if (defaultsToAdd.length === 0) return;
-
-    const updateFields =
-      onSelectAllFields ??
-      ((fieldNames: string[], isSelected: boolean) => {
-        fieldNames.forEach(fieldName => {
-          onFieldToggle(fieldName, isSelected);
-        });
+    const hasFieldsBeyondUniqueKeys = selectedFields.some(f => !uniqueKeysSet.has(f));
+    if (!hasFieldsBeyondUniqueKeys) {
+      const defaultFields = selectedFieldData?.defaultFields ?? [];
+      defaultFields.forEach(fieldName => {
+        if (availableFieldNamesSet.has(fieldName) && !selectedFieldsSet.has(fieldName)) {
+          fieldsToAutoSelect.add(fieldName);
+        }
       });
+    }
 
-    updateFields(defaultsToAdd, true);
-  }, [
-    selectedField,
-    selectedFieldData,
-    uniqueKeys,
-    availableFields,
-    selectedFields,
-    onFieldToggle,
-    onSelectAllFields,
-  ]);
+    if (fieldsToAutoSelect.size > 0) {
+      const namesToAdd = Array.from(fieldsToAutoSelect);
+      onSelectAllFields(namesToAdd, true);
+    }
+  }, [availableFields, uniqueKeys, selectedFields, selectedFieldData, onSelectAllFields]);
 
   // HotKey for Selecting/Unselecting all fields
   useEffect(() => {
@@ -156,13 +133,7 @@ export function FieldsSelectionStep({
         const notYetSelected = availableNames.filter(name => !selectedFields.includes(name));
         const shouldSelectAll = notYetSelected.length > 0;
 
-        if (onSelectAllFields) {
-          onSelectAllFields(availableNames, shouldSelectAll);
-        } else {
-          availableNames.forEach(fieldName => {
-            onFieldToggle(fieldName, shouldSelectAll);
-          });
-        }
+        onSelectAllFields(availableNames, shouldSelectAll);
       }
     };
 
