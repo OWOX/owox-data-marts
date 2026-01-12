@@ -10,92 +10,92 @@
 var productVariantsFields = {
   'id': {
     'description': 'A globally-unique ID.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'id'
   },
   'title': {
     'description': 'The title of the variant.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'title'
   },
   'displayName': {
     'description': 'The display name of the variant.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'displayName'
   },
   'sku': {
     'description': 'The SKU of the variant.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'sku'
   },
   'barcode': {
     'description': 'The barcode of the variant.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'barcode'
   },
   'price': {
     'description': 'The price of the variant.',
-    'type': 'float',
+    'type': DATA_TYPES.NUMBER,
     'graphqlPath': 'price'
   },
   'compareAtPrice': {
     'description': 'The compare at price of the variant.',
-    'type': 'float',
+    'type': DATA_TYPES.NUMBER,
     'graphqlPath': 'compareAtPrice'
   },
   'position': {
     'description': 'The position of the variant in the list.',
-    'type': 'int32',
+    'type': DATA_TYPES.INTEGER,
     'graphqlPath': 'position'
   },
   'inventoryQuantity': {
     'description': 'The total inventory quantity.',
-    'type': 'int32',
+    'type': DATA_TYPES.INTEGER,
     'graphqlPath': 'inventoryQuantity'
   },
   'inventoryPolicy': {
     'description': 'The inventory policy.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'inventoryPolicy'
   },
   'inventoryItemId': {
     'description': 'The ID of the inventory item.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'inventoryItem { id }'
   },
   'productId': {
     'description': 'The ID of the product.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'product { id }'
   },
   'productTitle': {
     'description': 'The title of the product.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'product { title }'
   },
   'taxable': {
     'description': 'Whether the variant is taxable.',
-    'type': 'bool',
+    'type': DATA_TYPES.BOOLEAN,
     'graphqlPath': 'taxable'
   },
   'taxCode': {
     'description': 'The tax code.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'taxCode'
   },
   'availableForSale': {
     'description': 'Whether the variant is available for sale.',
-    'type': 'bool',
+    'type': DATA_TYPES.BOOLEAN,
     'graphqlPath': 'availableForSale'
   },
   'createdAt': {
     'description': 'The date and time when the variant was created.',
-    'type': 'timestamp',
+    'type': DATA_TYPES.TIMESTAMP,
     'graphqlPath': 'createdAt'
   },
   'updatedAt': {
     'description': 'The date and time when the variant was last updated.',
-    'type': 'timestamp',
+    'type': DATA_TYPES.TIMESTAMP,
     'graphqlPath': 'updatedAt'
   }
 };

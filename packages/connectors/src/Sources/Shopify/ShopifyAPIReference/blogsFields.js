@@ -10,32 +10,32 @@
 var blogsFields = {
   'id': {
     'description': 'A globally-unique ID.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'id'
   },
   'title': {
     'description': 'The title of the blog.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'title'
   },
   'handle': {
     'description': 'A unique, human-friendly string for the blog URL.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'handle'
   },
   'templateSuffix': {
     'description': 'The name of the template the blog is using.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'templateSuffix'
   },
   'createdAt': {
     'description': 'The date and time when the blog was created.',
-    'type': 'timestamp',
+    'type': DATA_TYPES.TIMESTAMP,
     'graphqlPath': 'createdAt'
   },
   'updatedAt': {
     'description': 'The date and time when the blog was last updated.',
-    'type': 'timestamp',
+    'type': DATA_TYPES.TIMESTAMP,
     'graphqlPath': 'updatedAt'
   }
 };

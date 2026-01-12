@@ -205,37 +205,36 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
   getColumnType(columnName) {
     const field = this.schema[columnName];
 
-    if (!field) {
+    if (!field || !field.type) {
       return 'VARCHAR(65535)';
     }
 
-    // Use RedshiftType if specified
-    if (field.RedshiftType) {
-      return field.RedshiftType;
-    }
+    switch (field.type) {
 
-    // Map from schema type to Redshift type
-    const type = field.type ? field.type.toLowerCase() : 'string';
-
-    switch (type) {
-      case 'integer':
-      case 'int':
+      case DATA_TYPES.INTEGER:
         return 'BIGINT';
-      case 'float':
-      case 'number':
+
+      case DATA_TYPES.NUMBER:
         return 'DOUBLE PRECISION';
-      case 'boolean':
-      case 'bool':
+
+      case DATA_TYPES.BOOLEAN:
         return 'BOOLEAN';
-      case 'date':
+
+      case DATA_TYPES.DATE:
         return 'DATE';
-      case 'datetime':
-      case 'timestamp':
+      case DATA_TYPES.DATETIME:
+      case DATA_TYPES.TIMESTAMP:
         return 'TIMESTAMP';
-      case 'json':
+
+      case DATA_TYPES.OBJECT:
         return 'SUPER';
-      default:
+
+      case DATA_TYPES.STRING:
+      case DATA_TYPES.ARRAY:
         return 'VARCHAR(65535)';
+
+      default:
+        throw new Error(`Unknown type: ${type}`);
     }
   }
   //----------------------------------------------------------------
@@ -436,6 +435,21 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
             return 'NULL';
           }
           return value;
+        }
+
+        if (value instanceof Date) {
+          const columnType = this.existingColumns[col] || this.getColumnType(col);
+
+          if (columnType === 'DATE') {
+            // Format as YYYY-MM-DD for DATE type
+            const formattedDate = DateUtils.formatDate(value);
+            return `'${formattedDate}'`;
+          } else if (columnType === 'TIMESTAMP') {
+            // Format as YYYY-MM-DD HH:MM:SS for TIMESTAMP type
+            const isoString = value.toISOString();
+            const formattedTimestamp = isoString.replace('T', ' ').substring(0, 19);
+            return `'${formattedTimestamp}'`;
+          }
         }
 
         // Escape single quotes in strings

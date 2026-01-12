@@ -10,107 +10,107 @@
 var productsFields = {
   'id': {
     'description': 'A globally-unique ID.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'id'
   },
   'title': {
     'description': 'The title of the product.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'title'
   },
   'handle': {
     'description': 'A unique, human-friendly string for the product URL.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'handle'
   },
   'description': {
     'description': 'The description of the product.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'description'
   },
   'descriptionHtml': {
     'description': 'The description of the product in HTML format.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'descriptionHtml'
   },
   'vendor': {
     'description': 'The name of the product vendor.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'vendor'
   },
   'productType': {
     'description': 'The product type.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'productType'
   },
   'status': {
     'description': 'The status of the product.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'status'
   },
   'tags': {
     'description': 'A comma-separated list of tags.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'tags'
   },
   'templateSuffix': {
     'description': 'The name of the template the product is using.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'templateSuffix'
   },
   'totalInventory': {
     'description': 'The total inventory across all variants.',
-    'type': 'int32',
+    'type': DATA_TYPES.INTEGER,
     'graphqlPath': 'totalInventory'
   },
   'variantsCount': {
     'description': 'The number of variants.',
-    'type': 'int32',
+    'type': DATA_TYPES.INTEGER,
     'graphqlPath': 'variantsCount { count }'
   },
   'featuredImageUrl': {
     'description': 'The URL of the featured image.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'featuredImage { url }'
   },
   'priceRangeMinAmount': {
     'description': 'The minimum price of the product.',
-    'type': 'float',
+    'type': DATA_TYPES.NUMBER,
     'graphqlPath': 'priceRangeV2 { minVariantPrice { amount } }'
   },
   'priceRangeMaxAmount': {
     'description': 'The maximum price of the product.',
-    'type': 'float',
+    'type': DATA_TYPES.NUMBER,
     'graphqlPath': 'priceRangeV2 { maxVariantPrice { amount } }'
   },
   'seoTitle': {
     'description': 'The SEO title.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'seo { title }'
   },
   'seoDescription': {
     'description': 'The SEO description.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'seo { description }'
   },
   'onlineStoreUrl': {
     'description': 'The URL of the product on the online store.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'onlineStoreUrl'
   },
   'publishedAt': {
     'description': 'The date and time when the product was published.',
-    'type': 'timestamp',
+    'type': DATA_TYPES.TIMESTAMP,
     'graphqlPath': 'publishedAt'
   },
   'createdAt': {
     'description': 'The date and time when the product was created.',
-    'type': 'timestamp',
+    'type': DATA_TYPES.TIMESTAMP,
     'graphqlPath': 'createdAt'
   },
   'updatedAt': {
     'description': 'The date and time when the product was last updated.',
-    'type': 'timestamp',
+    'type': DATA_TYPES.TIMESTAMP,
     'graphqlPath': 'updatedAt'
   }
 };

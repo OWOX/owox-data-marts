@@ -628,7 +628,7 @@ ON ${this.uniqueKeyColumns.map(item => (`target."${item}" = source."${item}"`)).
      * @returns {string} Snowflake column type
      */
     getColumnType(columnName) {
-      return this.schema[columnName]["SnowflakeFieldType"] || this._convertTypeToStorageType(this.schema[columnName]["type"]?.toLowerCase());
+      return this._convertTypeToStorageType(this.schema[columnName]["type"]);
     }
   //----------------------------------------------------------------
 
@@ -639,49 +639,44 @@ ON ${this.uniqueKeyColumns.map(item => (`target."${item}" = source."${item}"`)).
      * @returns {string} Snowflake column type
      */
     _convertTypeToStorageType(genericType) {
-      if (!genericType) return 'VARCHAR';
+    if (!genericType) return 'VARCHAR';
 
-      switch (genericType.toLowerCase()) {
-        // Integer types
-        case 'integer':
-        case 'int32':
-          return 'INTEGER';
-        case 'int64':
-        case 'long':
-          return 'BIGINT';
+    switch (genericType) {
+      // Integer type
+      case DATA_TYPES.INTEGER:
+        return 'BIGINT';
 
-        // Float types
-        case 'float':
-        case 'number':
-        case 'double':
-          return 'FLOAT';
-        case 'decimal':
-          return 'NUMERIC';
+      // Number type
+      case DATA_TYPES.NUMBER:
+        return 'FLOAT';
 
-        // Boolean types
-        case 'bool':
-        case 'boolean':
-          return 'BOOLEAN';
+      // Boolean type
+      case DATA_TYPES.BOOLEAN:
+        return 'BOOLEAN';
 
-        // Date/time types
-        case 'date':
-          return 'DATE';
-        case 'datetime':
-          return 'TIMESTAMP_NTZ';  // Timezone-naive
-        case 'timestamp':
-          return 'TIMESTAMP_TZ';   // Timezone-aware
+      // Date/time types
+      case DATA_TYPES.DATE:
+        return 'DATE';
+      case DATA_TYPES.DATETIME:
+        return 'TIMESTAMP_NTZ';
+      case DATA_TYPES.TIMESTAMP:
+        return 'TIMESTAMP_TZ';
+      case DATA_TYPES.TIME:
+        return 'TIME';
 
-        // JSON/Object types
-        case 'json':
-        case 'object':
-        case 'array':
-          return 'VARIANT';
+      // String type
+      case DATA_TYPES.STRING:
+        return 'VARCHAR';
 
-        // Default to VARCHAR for unknown types
-        default:
-          return 'VARCHAR';
-      }
+      // Array and Object types (serialized as JSON strings)
+      case DATA_TYPES.ARRAY:
+      case DATA_TYPES.OBJECT:
+        return 'VARCHAR';
+
+      default:
+        throw new Error(`Unknown type: ${genericType}`);
     }
+  }
   //----------------------------------------------------------------
 
 }

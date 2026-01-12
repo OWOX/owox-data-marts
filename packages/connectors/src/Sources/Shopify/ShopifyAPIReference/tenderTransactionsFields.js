@@ -10,37 +10,37 @@
 var tenderTransactionsFields = {
   'id': {
     'description': 'A globally-unique ID.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'id'
   },
   'amount': {
     'description': 'The amount of the tender transaction.',
-    'type': 'float',
+    'type': DATA_TYPES.NUMBER,
     'graphqlPath': 'amount { amount }'
   },
   'currencyCode': {
     'description': 'The currency code.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'amount { currencyCode }'
   },
   'remoteReference': {
     'description': 'The remote gateway reference.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'remoteReference'
   },
   'test': {
     'description': 'Whether the transaction is a test transaction.',
-    'type': 'bool',
+    'type': DATA_TYPES.BOOLEAN,
     'graphqlPath': 'test'
   },
   'orderId': {
     'description': 'The ID of the order.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'order { id }'
   },
   'processedAt': {
     'description': 'The date and time when the transaction was processed.',
-    'type': 'timestamp',
+    'type': DATA_TYPES.TIMESTAMP,
     'graphqlPath': 'processedAt'
   }
 };

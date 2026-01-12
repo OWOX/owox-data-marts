@@ -676,53 +676,53 @@ var AwsAthenaStorage = class AwsAthenaStorage extends AbstractStorage {
    * @returns {string} Athena column type
    */
   getColumnType(columnName) {
-    return this.schema[columnName]["AthenaType"] || this._convertTypeToStorageType(this.schema[columnName]["type"]?.toLowerCase());
+    return this._convertTypeToStorageType(this.schema[columnName]["type"]);
   }
 
   //---- _convertTypeToStorageType ------------------------------------
   /**
-   * Converts generic type to Athena-specific type
-   * @param {string} genericType - Generic type from schema
+   * Converts generic type to Athena-specific type.
+   * Now uses UPPERCASE types from DataTypes constant.
+   * @param {string} genericType - Generic type from schema (UPPERCASE)
    * @returns {string} Athena column type
    */
   _convertTypeToStorageType(genericType) {
     if (!genericType) return 'string';
-    
-    // TODO: Move types to constants and refactor schemas
-    
-    switch (genericType.toLowerCase()) {
-      // Integer types
-      case 'integer':
-      case 'int32':
-      case 'unsigned int32':
-        return 'int';
-      case 'int64':
-      case 'long':
+
+    switch (genericType) {
+      // Integer type
+      case DATA_TYPES.INTEGER:
         return 'bigint';
-      
-      // Float types
-      case 'float':
-      case 'number':
-      case 'double':
+
+      // Number type
+      case DATA_TYPES.NUMBER:
         return 'double';
-      case 'decimal':
-        return 'decimal';
-      
-      // Boolean types
-      case 'bool':
-      case 'boolean':
+
+      // Boolean type
+      case DATA_TYPES.BOOLEAN:
         return 'boolean';
-      
+
       // Date/time types
-      case 'datetime':
-      case 'timestamp':
-        return 'timestamp';
-      case 'date':
+      case DATA_TYPES.DATE:
         return 'date';
-      
-      // Default to string for unknown types
-      default:
+      case DATA_TYPES.DATETIME:
+        return 'timestamp';
+      case DATA_TYPES.TIMESTAMP:
+        return 'timestamp';
+      case DATA_TYPES.TIME:
         return 'string';
+
+      // String type
+      case DATA_TYPES.STRING:
+        return 'string';
+
+      // Array and Object types (serialized as JSON strings)
+      case DATA_TYPES.ARRAY:
+      case DATA_TYPES.OBJECT:
+        return 'string';
+
+      default:
+        throw new Error(`Unknown type: ${genericType}`);
     }
   }
 } 

@@ -8,19 +8,18 @@
 var advertiserFields = {
   'advertiser_id': {
     'description': 'Advertiser ID',
-    'type': 'string',
-    'GoogleSheetsFormat': '@'
+    'type': DATA_TYPES.STRING,
   },
   'advertiser_name': {
     'description': 'Advertiser Name',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'company_name': {
     'description': 'Company Name',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'currency': {
     'description': 'Account Currency',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   }
 };

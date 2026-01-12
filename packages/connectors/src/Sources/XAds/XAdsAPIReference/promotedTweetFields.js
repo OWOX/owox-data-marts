@@ -8,36 +8,34 @@
 var promotedTweetFields = {
   'line_item_id': {
     'description': 'ID of the parent line item',
-    'type': 'string',
-    'GoogleSheetsFormat': '@'
+    'type': DATA_TYPES.STRING,
   },
   'id': {
     'description': 'Unique identifier for the promoted tweet',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'entity_status': {
     'description': 'Status of the promoted tweet (e.g., ACTIVE, PAUSED)',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'created_at': {
     'description': 'Timestamp when the promoted tweet was created',
-    'type': 'datetime'
+    'type': DATA_TYPES.DATETIME
   },
   'updated_at': {
     'description': 'Timestamp when the promoted tweet was last updated',
-    'type': 'datetime'
+    'type': DATA_TYPES.DATETIME
   },
   'approval_status': {
     'description': 'Approval status of the promoted tweet (e.g., ACCEPTED, REJECTED)',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'tweet_id': {
     'description': 'ID of the original tweet',
-    'type': 'string',
-    'GoogleSheetsFormat': '@'
+    'type': DATA_TYPES.STRING,  
   },
   'deleted': {
     'description': 'Flag indicating whether the promoted tweet has been deleted',
-    'type': 'boolean'
+    'type': DATA_TYPES.BOOLEAN
   }
 };

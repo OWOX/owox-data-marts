@@ -10,97 +10,97 @@
 var locationsFields = {
   'id': {
     'description': 'A globally-unique ID.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'id'
   },
   'name': {
     'description': 'The name of the location.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'name'
   },
   'isActive': {
     'description': 'Whether the location is active.',
-    'type': 'bool',
+    'type': DATA_TYPES.BOOLEAN,
     'graphqlPath': 'isActive'
   },
   'isPrimary': {
     'description': 'Whether the location is the primary location.',
-    'type': 'bool',
+    'type': DATA_TYPES.BOOLEAN,
     'graphqlPath': 'isPrimary'
   },
   'isFulfillmentService': {
     'description': 'Whether the location is a fulfillment service location.',
-    'type': 'bool',
+    'type': DATA_TYPES.BOOLEAN,
     'graphqlPath': 'isFulfillmentService'
   },
   'fulfillsOnlineOrders': {
     'description': 'Whether the location can fulfill online orders.',
-    'type': 'bool',
+    'type': DATA_TYPES.BOOLEAN,
     'graphqlPath': 'fulfillsOnlineOrders'
   },
   'hasActiveInventory': {
     'description': 'Whether the location has active inventory.',
-    'type': 'bool',
+    'type': DATA_TYPES.BOOLEAN,
     'graphqlPath': 'hasActiveInventory'
   },
   'shipsInventory': {
     'description': 'Whether the location ships inventory.',
-    'type': 'bool',
+    'type': DATA_TYPES.BOOLEAN,
     'graphqlPath': 'shipsInventory'
   },
   'addressLine1': {
     'description': 'The first line of the address.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'address { address1 }'
   },
   'addressLine2': {
     'description': 'The second line of the address.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'address { address2 }'
   },
   'city': {
     'description': 'The city of the location.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'address { city }'
   },
   'province': {
     'description': 'The province or state of the location.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'address { province }'
   },
   'provinceCode': {
     'description': 'The province or state code.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'address { provinceCode }'
   },
   'country': {
     'description': 'The country of the location.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'address { country }'
   },
   'countryCode': {
     'description': 'The country code of the location.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'address { countryCode }'
   },
   'zip': {
     'description': 'The postal or ZIP code.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'address { zip }'
   },
   'phone': {
     'description': 'The phone number of the location.',
-    'type': 'string',
+    'type': DATA_TYPES.STRING,
     'graphqlPath': 'address { phone }'
   },
   'createdAt': {
     'description': 'The date and time when the location was created.',
-    'type': 'timestamp',
+    'type': DATA_TYPES.TIMESTAMP,
     'graphqlPath': 'createdAt'
   },
   'updatedAt': {
     'description': 'The date and time when the location was last updated.',
-    'type': 'timestamp',
+    'type': DATA_TYPES.TIMESTAMP,
     'graphqlPath': 'updatedAt'
   }
 };

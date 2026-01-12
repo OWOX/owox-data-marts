@@ -7,16 +7,16 @@
 
 var repositoryStatsFields = {
   date: {
-    type: "date",
+    type: DATA_TYPES.DATE,
     description: "Date of the data snapshot",
     GoogleBigQueryPartitioned: true
   },
   stars: {
-    type: "integer",
+    type: DATA_TYPES.INTEGER,
     description: "Number of stars for the repository"
   },
   contributors: {
-    type: "integer",
+    type: DATA_TYPES.INTEGER,
     description: "Number of contributors to the repository"
   }
 };
