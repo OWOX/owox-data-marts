@@ -138,12 +138,12 @@ export class SnowflakeDataMartSchemaProvider implements DataMartSchemaProvider {
       }
 
       return result.rows.map((row: Record<string, unknown>) => {
-        const columnName = (row.COLUMN_NAME || row.column_name) as string;
-        const comment = (row.COMMENT || row.comment) as string | undefined;
+        const columnName = this.getStringValueFromRecord(row, 'column_name');
+        const comment = this.getStringValueFromRecord(row, 'comment');
 
         return this.createFieldFromResult(
           columnName,
-          (row.DATA_TYPE || row.data_type) as string,
+          this.getStringValueFromRecord(row, 'data_type'),
           comment,
           primaryKeyColumns.has(columnName)
         );
@@ -170,7 +170,7 @@ export class SnowflakeDataMartSchemaProvider implements DataMartSchemaProvider {
 
       if (pkResult.rows && pkResult.rows.length > 0) {
         pkResult.rows.forEach((row: Record<string, unknown>) => {
-          const columnName = (row.column_name || row.COLUMN_NAME) as string;
+          const columnName = this.getStringValueFromRecord(row, 'column_name');
           if (columnName) {
             primaryKeyColumns.add(columnName);
           }
@@ -200,5 +200,9 @@ export class SnowflakeDataMartSchemaProvider implements DataMartSchemaProvider {
       isPrimaryKey,
       status: DataMartSchemaFieldStatus.CONNECTED,
     };
+  }
+
+  private getStringValueFromRecord(record: Record<string, unknown>, fieldName: string): string {
+    return (record[fieldName.toUpperCase()] || record[fieldName.toLowerCase()]) as string;
   }
 }
