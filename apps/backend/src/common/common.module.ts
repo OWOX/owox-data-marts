@@ -7,6 +7,7 @@ import { MarkdownParser } from './markdown/markdown-parser.service';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { ProducerModule } from './producer/producer.module.js';
 import { AppEditionLicenseRefresherService } from './config/app-edition-license-refresher.service';
+import { AiInsightsConfigService } from './ai-insights/services/ai-insights-config.service';
 
 @Module({
   imports: [SchedulerModule, ProducerModule, EmailModule],
@@ -24,6 +25,7 @@ import { AppEditionLicenseRefresherService } from './config/app-edition-license-
     },
     AppEditionLicenseRefresherService,
     MarkdownParser,
+    AiInsightsConfigService,
   ],
   exports: [
     SchedulerModule,
@@ -31,6 +33,7 @@ import { AppEditionLicenseRefresherService } from './config/app-edition-license-
     EmailModule,
     PublicOriginService,
     AppEditionConfig,
+    AiInsightsConfigService,
     MarkdownParser,
   ],
 })

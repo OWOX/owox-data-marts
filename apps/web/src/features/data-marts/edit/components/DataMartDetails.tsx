@@ -18,7 +18,7 @@ import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDi
 import { InlineEditTitle } from '../../../../shared/components/InlineEditTitle/InlineEditTitle.tsx';
 import { StatusLabel, StatusTypeEnum } from '../../../../shared/components/StatusLabel';
 import { useProjectRoute } from '../../../../shared/hooks';
-import { parseEnvList } from '../../../../utils';
+import { checkVisible } from '../../../../utils';
 import { ConnectorRunView } from '../../../connectors/edit/components/ConnectorRunSheet/ConnectorRunView.tsx';
 import { useAuth } from '../../../idp';
 import {
@@ -97,12 +97,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     await runActualizeSchemaInternal();
   }, [canActualizeSchema, runActualizeSchemaInternal]);
 
-  // TODO: Remove after implementing feature flags or global Insight rollout
-  const enabledProjectsRaw = flags?.INSIGHTS_ENABLED_PROJECT_IDS as string | undefined;
-  const currentProjectId = user?.projectId ?? '';
-  const shouldShowInsights =
-    currentProjectId.length > 0 &&
-    parseEnvList(enabledProjectsRaw ?? '').includes(currentProjectId);
+  const shouldShowInsights = checkVisible('INSIGHTS_ENABLED', 'true', flags);
 
   const { showPromo } = useDataMartNextStepPromo();
 
