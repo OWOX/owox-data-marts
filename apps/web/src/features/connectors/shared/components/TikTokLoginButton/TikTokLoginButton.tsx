@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@owox/ui/components/button';
 
 interface TikTokLoginButtonProps {
@@ -38,6 +38,7 @@ export function TikTokLoginButton({
 }: TikTokLoginButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleMessage = useCallback(
     (event: MessageEvent<unknown>) => {
@@ -61,10 +62,20 @@ export function TikTokLoginButton({
       }
 
       if (data.type === 'TIKTOK_AUTH_SUCCESS' && data.authCode) {
+        // Clear polling timer since auth is complete
+        if (pollTimerRef.current) {
+          clearInterval(pollTimerRef.current);
+          pollTimerRef.current = null;
+        }
         setIsLoading(false);
         setError(null);
         onSuccess({ authCode: data.authCode });
       } else if (data.type === 'TIKTOK_AUTH_ERROR') {
+        // Clear polling timer since auth failed
+        if (pollTimerRef.current) {
+          clearInterval(pollTimerRef.current);
+          pollTimerRef.current = null;
+        }
         setIsLoading(false);
         const err = new Error(data.error ?? 'TikTok authentication failed');
         setError(err.message);
@@ -78,6 +89,11 @@ export function TikTokLoginButton({
     window.addEventListener('message', handleMessage);
     return () => {
       window.removeEventListener('message', handleMessage);
+      // Clean up polling timer if component unmounts
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
     };
   }, [handleMessage]);
 
@@ -123,10 +139,18 @@ export function TikTokLoginButton({
       return;
     }
 
+    // Clean up any existing polling timer
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+    }
+
     // Poll to detect if popup was closed without completing auth
-    const pollTimer = setInterval(() => {
+    pollTimerRef.current = setInterval(() => {
       if (popup.closed) {
-        clearInterval(pollTimer);
+        if (pollTimerRef.current) {
+          clearInterval(pollTimerRef.current);
+          pollTimerRef.current = null;
+        }
         if (isLoading) {
           setIsLoading(false);
         }
