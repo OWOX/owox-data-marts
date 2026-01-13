@@ -5,4 +5,5 @@ export enum DataMartRunStatus {
   FAILED = 'FAILED',
   CANCELLED = 'CANCELLED',
   INTERRUPTED = 'INTERRUPTED',
+  RESTRICTED = 'RESTRICTED',
 }

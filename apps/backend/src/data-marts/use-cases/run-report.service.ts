@@ -213,7 +213,6 @@ export class RunReportService {
       const { logs, errors } = reportRunLogger.asArrays();
       await this.handleReportRunSuccess(reportRun, logs, errors);
     } catch (error) {
-      reportRunLogger.error(error);
       const { logs, errors } = reportRunLogger.asArrays();
       await this.handleReportRunError(reportRun, error as Error, logs, errors);
     } finally {
@@ -300,10 +299,10 @@ export class RunReportService {
       reportRun.markAsCancelled();
       this.logger.warn(`Report ${reportRun.getReportId()} was cancelled by user`);
     } else if (error instanceof BusinessViolationException) {
-      reportRun.markAsFailed(error);
+      reportRun.markAsUnsuccessful(error);
       this.logger.warn(`Report ${reportRun.getReportId()} execution failed: ${error.message}`);
     } else {
-      reportRun.markAsFailed(error);
+      reportRun.markAsUnsuccessful(error);
       this.logger.error(`Report ${reportRun.getReportId()} execution failed:`, error);
     }
     await this.saveReportRunResultSafely(reportRun, logs, errors);
