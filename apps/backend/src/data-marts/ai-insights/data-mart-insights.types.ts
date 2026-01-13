@@ -64,8 +64,14 @@ export function isPromptAnswerError(value: PromptAnswer): boolean {
   return value === PromptAnswer.ERROR;
 }
 
+export function isPromptAnswerRestricted(value: PromptAnswer): boolean {
+  return value === PromptAnswer.RESTRICTED;
+}
+
 export function isPromptAnswerWarning(value: PromptAnswer): boolean {
-  return !isPromptAnswerOk(value) && !isPromptAnswerError(value);
+  return (
+    !isPromptAnswerOk(value) && !isPromptAnswerError(value) && !isPromptAnswerRestricted(value)
+  );
 }
 
 export enum PromptAnswer {
@@ -74,6 +80,7 @@ export enum PromptAnswer {
   NOT_RELEVANT = 'not_relevant',
   CANNOT_ANSWER = 'cannot_answer',
   HIGH_AMBIGUITY = 'high_ambiguity',
+  RESTRICTED = 'restricted',
   ERROR = 'error',
 }
 

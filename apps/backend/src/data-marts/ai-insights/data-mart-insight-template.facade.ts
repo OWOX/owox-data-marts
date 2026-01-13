@@ -13,6 +13,7 @@ import {
   DataMartInsightTemplateStatus,
   DataMartPromptMetaEntry,
   isPromptAnswerError,
+  isPromptAnswerRestricted,
   isPromptAnswerWarning,
   PromptTagMetaEntry,
 } from './data-mart-insights.types';
@@ -55,7 +56,9 @@ export class DataMartInsightTemplateFacadeImpl implements DataMartInsightTemplat
     const consumptionContext = input.consumptionContext;
     if (consumptionContext) {
       prompts
-        .filter(p => !isPromptAnswerError(p.meta.status))
+        .filter(
+          p => !isPromptAnswerError(p.meta.status) && !isPromptAnswerRestricted(p.meta.status)
+        )
         .forEach(p => {
           try {
             const llmCalls = p.meta.telemetry?.llmCalls ?? [];
@@ -80,9 +83,10 @@ export class DataMartInsightTemplateFacadeImpl implements DataMartInsightTemplat
 
   private computeStatus(prompts: DataMartPromptMetaEntry[]) {
     const hasAtLeastOneWithError = prompts.some(p => isPromptAnswerError(p.meta.status));
+    const hasAtLeastOneWithRestricted = prompts.some(p => isPromptAnswerRestricted(p.meta.status));
     const hasAtLeastOneWithWarning = prompts.some(p => isPromptAnswerWarning(p.meta.status));
 
-    return hasAtLeastOneWithError
+    return hasAtLeastOneWithError || hasAtLeastOneWithRestricted
       ? DataMartInsightTemplateStatus.ERROR
       : hasAtLeastOneWithWarning
         ? DataMartInsightTemplateStatus.WARNING

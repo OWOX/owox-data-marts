@@ -1,8 +1,15 @@
 import { Inject, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import { OwoxProducer } from '@owox/internal-helpers';
 import { BusinessViolationException } from '../../../../common/exceptions/business-violation.exception';
+import { OWOX_PRODUCER } from '../../../../common/producer/producer.module';
 import { CachedReaderData } from '../../../dto/domain/cached-reader-data.dto';
 import { Report } from '../../../entities/report.entity';
+import { LookerReportRunSuccessfullyEvent } from '../../../events/looker-report-run-successfully.event';
+import { LookerStudioReportRun } from '../../../models/looker-studio-report-run.model';
 import { ConsumptionTrackingService } from '../../../services/consumption-tracking.service';
+import { LookerStudioReportRunService } from '../../../services/looker-studio-report-run.service';
+import { ProjectBalanceService } from '../../../services/project-balance.service';
+import { ReportDataCacheService } from '../../../services/report-data-cache.service';
 import { ReportService } from '../../../services/report.service';
 import { ConnectionConfigSchema } from '../schemas/connection-config.schema';
 import { ConnectorRequestConfigV1Schema } from '../schemas/connector-request-config.schema.v1';
@@ -12,12 +19,6 @@ import { GetSchemaRequest, GetSchemaResponse } from '../schemas/get-schema.schem
 import { LookerStudioConnectorApiConfigService } from './looker-studio-connector-api-config.service';
 import { LookerStudioConnectorApiDataService } from './looker-studio-connector-api-data.service';
 import { LookerStudioConnectorApiSchemaService } from './looker-studio-connector-api-schema.service';
-import { ReportDataCacheService } from '../../../services/report-data-cache.service';
-import { OWOX_PRODUCER } from '../../../../common/producer/producer.module';
-import { OwoxProducer } from '@owox/internal-helpers';
-import { LookerReportRunSuccessfullyEvent } from '../../../events/looker-report-run-successfully.event';
-import { LookerStudioReportRunService } from '../../../services/looker-studio-report-run.service';
-import { LookerStudioReportRun } from '../../../models/looker-studio-report-run.model';
 
 interface ValidatedRequestData {
   connectionConfig: { destinationSecretKey: string };
@@ -67,7 +68,8 @@ export class LookerStudioConnectorApiService {
     private readonly consumptionTrackingService: ConsumptionTrackingService,
     @Inject(OWOX_PRODUCER)
     private readonly producer: OwoxProducer,
-    private readonly lookerStudioReportRunService: LookerStudioReportRunService
+    private readonly lookerStudioReportRunService: LookerStudioReportRunService,
+    private readonly projectBalanceService: ProjectBalanceService
   ) {}
 
   /**
@@ -252,6 +254,7 @@ export class LookerStudioConnectorApiService {
     }
 
     try {
+      await this.projectBalanceService.verifyCanPerformOperations(report.dataMart.projectId);
       const result = await this.dataService.getData(request, report, cachedReader);
       await this.handleSuccessfulReportRun(reportRun);
 
