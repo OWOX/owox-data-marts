@@ -320,6 +320,10 @@ var adAccountInsightsFields = {
     'description': 'The percentage of results you received out of all the views of your ads.',
     'type': DATA_TYPES.ARRAY
   },
+  'results': {
+    'description': 'The number of results you received out of all the views of your ads.',
+    'type': DATA_TYPES.ARRAY
+  },
   'shops_assisted_purchases': {
     'description': 'shops_assisted_purchases',
     'type': DATA_TYPES.STRING
