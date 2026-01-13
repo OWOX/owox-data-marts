@@ -107,16 +107,22 @@
     "zod": "^3.25.64",
     "zod-to-json-schema": "^3.25.0"
   },
+  "peerDependencies": {
+    "express": "^5"
+  },
   "devDependencies": {
     "@nestjs/cli": "^11.0.9",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.1.2",
+    "@owox/eslint-config": "*",
+    "@owox/prettier-config": "*",
     "@swc/cli": "^0.6.0",
     "@swc/core": "^1.10.7",
     "@types/cross-spawn": "^6.0.6",
     "@types/express": "^5.0.0",
     "@types/jest": "^29.5.14",
     "@types/jsonwebtoken": "^9.0.0",
+    "@types/luxon": "^3",
     "@types/node": "^22.10.7",
     "@types/supertest": "^6.0.2",
     "jest": "^29.7.0",

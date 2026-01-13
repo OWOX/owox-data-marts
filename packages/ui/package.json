@@ -52,8 +52,14 @@
     "vaul": "^1.1.2",
     "zod": "^3.25.67"
   },
+  "peerDependencies": {
+    "@dnd-kit/sortable": "^8",
+    "@dnd-kit/utilities": "^3",
+    "react-router-dom": "^7"
+  },
   "devDependencies": {
     "@owox/eslint-config": "../eslint-config",
+    "@owox/prettier-config": "../prettier-config",
     "@owox/typescript-config": "../typescript-config",
     "@tailwindcss/postcss": "^4.0.8",
     "@types/node": "^20",

@@ -18,21 +18,24 @@
     "@owox/idp-owox": "*",
     "@owox/idp-protocol": "*",
     "@owox/internal-helpers": "*",
-    "@owox/web": "*",
-    "find-process": "^1.4.10"
+    "@owox/web": "*"
   },
   "peerDependencies": {
-    "zod": "^3.25.67",
-    "express": "^5"
+    "@nestjs/platform-express": "^11",
+    "express": "^5",
+    "zod": "^3.25"
   },
   "devDependencies": {
     "@eslint/compat": "^1",
     "@oclif/test": "^4",
+    "@owox/prettier-config": "*",
     "@types/chai": "^4",
+    "@types/express": "^5",
     "@types/mocha": "^10",
     "@types/node": "^18",
     "chai": "^4",
     "eslint-config-oclif": "^6",
+    "eslint-config-prettier": "~10.1.0",
     "mocha": "^10",
     "oclif": "^4",
     "ts-node": "^10"

@@ -41,6 +41,9 @@
     "mysql2": "^3.14.3"
   },
   "devDependencies": {
+    "@owox/eslint-config": "*",
+    "@owox/prettier-config": "*",
+    "@owox/typescript-config": "*",
     "@types/better-sqlite3": "^7.6.13",
     "@types/cookie-parser": "^1.4.9",
     "@types/express": "^5.0.0",

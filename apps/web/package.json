@@ -56,6 +56,8 @@
     "tailwindcss": "^4.1.8"
   },
   "devDependencies": {
+    "@owox/eslint-config": "*",
+    "@owox/prettier-config": "*",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@types/react": "^19.1.2",
@@ -64,6 +66,7 @@
     "@vitejs/plugin-react": "^4.4.1",
     "@vitest/coverage-v8": "^3.2.4",
     "happy-dom": "^20.0.0",
+    "typescript-eslint": "^8",
     "vite": "^6.3.5",
     "vitest": "^3.2.4"
   },

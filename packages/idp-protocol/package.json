@@ -35,6 +35,8 @@
     "cookie-parser": "^1.4.7"
   },
   "devDependencies": {
+    "@owox/eslint-config": "*",
+    "@owox/prettier-config": "*",
     "@types/cookie-parser": "^1.4.9",
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.7"
