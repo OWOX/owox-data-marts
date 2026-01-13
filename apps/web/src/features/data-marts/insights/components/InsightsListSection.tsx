@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Sparkles, Plus, ChevronDown } from 'lucide-react';
 
 import { Button } from '@owox/ui/components/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,8 +20,10 @@ import {
 } from '../../../../shared/components/CollapsibleCard';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
 import { useInsights, useInsightsList } from '../model';
+import { useInsightsPermissions } from '../hooks/useInsightsPermissions';
 import InsightsEmptyState from './InsightsEmptyState';
 import { InsightsTable } from './InsightsTable/InsightsTable';
+import { NO_PERMISSION_MESSAGE } from '../../../../app/permissions';
 
 export default function InsightsListSection() {
   const navigate = useNavigate();
@@ -32,6 +35,7 @@ export default function InsightsListSection() {
     handleCreateInsightWithAi,
   } = useInsights();
   const { insights, isLoading, error, hasInsights } = useInsightsList();
+  const { canCreate, canGenerateAI } = useInsightsPermissions();
 
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -64,15 +68,22 @@ export default function InsightsListSection() {
         {hasInsights && (
           <CollapsibleCardHeaderActions>
             <div className='inline-flex -space-x-px'>
-              <Button
-                variant='outline'
-                className='rounded-r-none'
-                onClick={() => void handleCreateInsight()}
-                disabled={insightLoading}
-              >
-                <Plus className='h-4 w-4' aria-hidden='true' />
-                New insight
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className='inline-flex'>
+                    <Button
+                      variant='outline'
+                      className='rounded-r-none'
+                      onClick={() => void handleCreateInsight()}
+                      disabled={insightLoading || !canCreate}
+                    >
+                      <Plus className='h-4 w-4' aria-hidden='true' />
+                      New insight
+                    </Button>
+                  </div>
+                </TooltipTrigger>
+                {!canCreate && <TooltipContent>{NO_PERMISSION_MESSAGE}</TooltipContent>}
+              </Tooltip>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -85,20 +96,34 @@ export default function InsightsListSection() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align='end'>
-                  <DropdownMenuItem
-                    onClick={() => void handleCreateInsightWithAi()}
-                    disabled={insightLoading}
-                  >
-                    <Sparkles className='h-4 w-4' aria-hidden='true' />
-                    Generate insight with AI
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => void handleCreateInsight()}
-                    disabled={insightLoading}
-                  >
-                    <Plus className='h-4 w-4' aria-hidden='true' />
-                    Blank insight
-                  </DropdownMenuItem>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className='w-full'>
+                        <DropdownMenuItem
+                          onClick={() => void handleCreateInsightWithAi()}
+                          disabled={insightLoading || !canGenerateAI}
+                        >
+                          <Sparkles className='h-4 w-4' aria-hidden='true' />
+                          Generate insight with AI
+                        </DropdownMenuItem>
+                      </div>
+                    </TooltipTrigger>
+                    {!canGenerateAI && <TooltipContent>{NO_PERMISSION_MESSAGE}</TooltipContent>}
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className='w-full'>
+                        <DropdownMenuItem
+                          onClick={() => void handleCreateInsight()}
+                          disabled={insightLoading || !canCreate}
+                        >
+                          <Plus className='h-4 w-4' aria-hidden='true' />
+                          Blank insight
+                        </DropdownMenuItem>
+                      </div>
+                    </TooltipTrigger>
+                    {!canCreate && <TooltipContent>{NO_PERMISSION_MESSAGE}</TooltipContent>}
+                  </Tooltip>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>

@@ -601,7 +601,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     if (!state.error) {
       return null;
     }
-    return state.error.message;
+    return state.error.message ?? null;
   }, [state.error]);
 
   const value = {

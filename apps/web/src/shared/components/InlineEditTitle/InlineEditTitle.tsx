@@ -9,6 +9,7 @@ interface InlineEditTitleProps {
   className?: string;
   errorMessage?: string;
   minWidth?: string;
+  readOnly?: boolean;
 }
 
 export function InlineEditTitle({
@@ -17,6 +18,7 @@ export function InlineEditTitle({
   className,
   errorMessage = 'Title cannot be empty',
   minWidth = '200px',
+  readOnly = false,
 }: InlineEditTitleProps) {
   const [editedTitle, setEditedTitle] = useState(title);
   const [isLoading, setIsLoading] = useState(false);
@@ -34,7 +36,7 @@ export function InlineEditTitle({
   }, [editedTitle]);
 
   const handleSubmit = async () => {
-    if (editedTitle.trim() === '') {
+    if (readOnly || editedTitle.trim() === '') {
       setEditedTitle(title);
       return;
     }
@@ -55,6 +57,7 @@ export function InlineEditTitle({
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (readOnly) return;
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (editedTitle.trim() === '') {
@@ -69,22 +72,31 @@ export function InlineEditTitle({
   };
 
   return (
-    <h2 className={cn('m-0 cursor-pointer p-0 hover:opacity-80', className)}>
+    <h2
+      className={cn('m-0 p-0', className, {
+        'cursor-pointer hover:opacity-80': !readOnly,
+      })}
+    >
       <Textarea
         ref={textareaRef}
         value={editedTitle}
+        readOnly={readOnly}
         onChange={e => {
+          if (readOnly) return;
           setEditedTitle(e.target.value);
           const textarea = e.target;
           textarea.style.height = 'auto';
           textarea.style.height = `${String(textarea.scrollHeight)}px`;
         }}
-        onBlur={() => void handleSubmit()}
+        onBlur={() => !readOnly && void handleSubmit()}
         onKeyDown={handleKeyDown}
         className={cn(
           'm-0 w-full border-0 p-0 shadow-none',
           'bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0',
-          { 'opacity-50': isLoading }
+          {
+            'opacity-50': isLoading,
+            'cursor-default': readOnly,
+          }
         )}
         style={{
           fontSize: 'inherit',
