@@ -36,9 +36,6 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.7",
-    "typescript": "^5.7.3",
-    "eslint": "^9.20.1",
-    "prettier": "^3.5.3",
     "ts-jest": "^29.2.5"
   },
   "peerDependencies": {

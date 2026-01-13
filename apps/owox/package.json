@@ -32,13 +32,10 @@
     "@types/mocha": "^10",
     "@types/node": "^18",
     "chai": "^4",
-    "eslint": "^9",
     "eslint-config-oclif": "^6",
-    "eslint-config-prettier": "^10",
     "mocha": "^10",
     "oclif": "^4",
-    "ts-node": "^10",
-    "typescript": "^5"
+    "ts-node": "^10"
   },
   "engines": {
     "node": ">=22.16.0"
