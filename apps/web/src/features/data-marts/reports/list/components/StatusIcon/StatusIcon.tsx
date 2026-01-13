@@ -34,6 +34,11 @@ const statusConfig = {
     color: 'text-gray-500',
     label: 'Cancelled',
   },
+  [ReportStatusEnum.RESTRICTED]: {
+    icon: XCircle,
+    color: 'text-yellow-500',
+    label: 'Restricted',
+  },
 } as const;
 
 export function StatusIcon({ status, error }: StatusIconProps) {

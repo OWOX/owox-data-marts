@@ -1,16 +1,16 @@
-import { type ComponentPropsWithoutRef, useCallback } from 'react';
-import type { DataDestination } from '../../../../../data-destination/shared/model/types';
-import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
-import { ReportStatusEnum } from '../../../shared/enums/report-status.enum';
 import RelativeTime from '@owox/ui/components/common/relative-time';
 import {
   SwitchItemCard,
-  SwitchItemCardContent,
-  SwitchItemCardTitle,
-  SwitchItemCardDescription,
-  SwitchItemCardToggle,
   SwitchItemCardChevronRight,
+  SwitchItemCardContent,
+  SwitchItemCardDescription,
+  SwitchItemCardTitle,
+  SwitchItemCardToggle,
 } from '@owox/ui/components/common/switch-item-card';
+import { type ComponentPropsWithoutRef, useCallback } from 'react';
+import type { DataDestination } from '../../../../../data-destination/shared/model/types';
+import { ReportStatusEnum } from '../../../shared/enums/report-status.enum';
+import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import { useLookerStudioReport } from './hooks/useLookerStudioReport';
 
 interface LookerStudioReportCardProps extends ComponentPropsWithoutRef<'div'> {
@@ -58,7 +58,8 @@ export function LookerStudioReportCard({
                   Last fetched{' '}
                   {existingReport.lastRunStatus === ReportStatusEnum.SUCCESS && 'successfully '}
                   <RelativeTime date={new Date(existingReport.lastRunDate)} />
-                  {existingReport.lastRunStatus === ReportStatusEnum.ERROR &&
+                  {(existingReport.lastRunStatus === ReportStatusEnum.ERROR ||
+                    existingReport.lastRunStatus === ReportStatusEnum.RESTRICTED) &&
                     ' but failed with error'}
                   {existingReport.lastRunError && (
                     <div className='mt-1 text-red-600 dark:text-red-400'>

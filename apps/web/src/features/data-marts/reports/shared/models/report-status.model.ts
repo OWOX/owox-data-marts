@@ -1,6 +1,6 @@
-import { CircleCheck, XCircle, Loader2 } from 'lucide-react';
-import { ReportStatusEnum } from '../enums';
+import { CircleCheck, Loader2, XCircle } from 'lucide-react';
 import type { AppIcon } from '../../../../../shared';
+import { ReportStatusEnum } from '../enums';
 
 interface ReportStatusInfo {
   status: ReportStatusEnum;
@@ -34,6 +34,12 @@ export const ReportStatusModel = {
       displayName: 'Cancelled',
       icon: XCircle,
       color: 'text-gray-500',
+    },
+    [ReportStatusEnum.RESTRICTED]: {
+      status: ReportStatusEnum.RESTRICTED,
+      displayName: 'Restricted',
+      icon: XCircle,
+      color: 'text-yellow-500',
     },
   },
 

@@ -1,6 +1,7 @@
 export enum ReportStatusEnum {
   SUCCESS = 'SUCCESS',
-  RUNNING = 'RUNNING',
   ERROR = 'ERROR',
+  RUNNING = 'RUNNING',
   CANCELLED = 'CANCELLED',
+  RESTRICTED = 'RESTRICTED',
 }
