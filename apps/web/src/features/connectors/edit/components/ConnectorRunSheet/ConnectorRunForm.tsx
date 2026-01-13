@@ -145,10 +145,11 @@ export function ConnectorRunForm({ configuration, onClose, onSubmit }: Connector
                 )
                 .map(connectorField => (
                   <FormField
+                    key={connectorField.name}
                     control={form.control}
                     name={`data.${connectorField.name}`}
                     render={() => (
-                      <FormItem key={connectorField.name}>
+                      <FormItem>
                         <FormLabel tooltip={connectorField.description}>
                           {connectorField.title ?? connectorField.name}
                         </FormLabel>
