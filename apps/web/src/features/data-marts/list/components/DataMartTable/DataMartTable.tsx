@@ -12,6 +12,7 @@ import {
   getFilteredRowModel,
   type RowSelectionState,
 } from '@tanstack/react-table';
+import { getTableColumnSize } from '../../../../../shared/utils/getTableColumnSize';
 
 import {
   Table,
@@ -42,6 +43,7 @@ import { useTableStorage } from '../../../../../hooks/useTableStorage';
 import { useContentPopovers } from '../../../../../app/store/hooks/useContentPopovers';
 import { storageService } from '../../../../../services/localstorage.service';
 import { TablePagination } from '@owox/ui/components/common/table-pagination';
+import { useDataMartHealthStatusPrefetch } from '../../model/hooks/useDataMartHealthStatusPrefetch';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -60,16 +62,24 @@ export function DataMartTable<TData, TValue>({
 }: DataTableProps<TData, TValue>) {
   const { navigate, scope } = useProjectRoute();
 
-  const { sorting, setSorting, columnVisibility, setColumnVisibility, pageSize, setPageSize } =
-    useTableStorage({
-      columns,
-      storageKeyPrefix: 'data-mart-list',
-      defaultColumnVisibility: {
-        triggersCount: false,
-        reportsCount: false,
-        createdByUser: false,
-      },
-    });
+  const {
+    sorting,
+    setSorting,
+    columnVisibility,
+    setColumnVisibility,
+    pageSize,
+    setPageSize,
+    columnSizing,
+    setColumnSizing,
+  } = useTableStorage({
+    columns,
+    storageKeyPrefix: 'data-mart-list',
+    defaultColumnVisibility: {
+      triggersCount: false,
+      reportsCount: false,
+      createdByUser: false,
+    },
+  });
 
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
@@ -80,6 +90,9 @@ export function DataMartTable<TData, TValue>({
   const ONBOARDING_VIDEO_KEY = 'data-mart-empty-state-onboarding-video-shown';
   const { open } = useContentPopovers();
 
+  /**
+   * Show onboarding video if the user has not seen it yet
+   */
   useEffect(() => {
     if (!isLoading && data.length === 0) {
       const wasShown = storageService.get(ONBOARDING_VIDEO_KEY, 'boolean');
@@ -124,6 +137,7 @@ export function DataMartTable<TData, TValue>({
       {
         id: 'select',
         size: 40,
+        enableResizing: false,
         header: ({ table }) => (
           <button
             type='button'
@@ -193,7 +207,12 @@ export function DataMartTable<TData, TValue>({
         pageIndex,
         pageSize,
       },
+      columnSizing,
     },
+    defaultColumn: {
+      size: undefined,
+    },
+    onColumnSizingChange: setColumnSizing,
     onPaginationChange: updater => {
       if (typeof updater === 'function') {
         const currentPagination = { pageIndex, pageSize };
@@ -208,6 +227,17 @@ export function DataMartTable<TData, TValue>({
       }
     },
     enableRowSelection: true,
+    enableColumnResizing: true,
+    columnResizeMode: 'onChange',
+  });
+
+  /**
+   * Prefetch health status for visible Data Marts in the table (respects pageSize).
+   */
+  useDataMartHealthStatusPrefetch({
+    table,
+    isLoading,
+    concurrency: 5,
   });
 
   if (isLoading) {
@@ -276,18 +306,24 @@ export function DataMartTable<TData, TValue>({
                   return (
                     <TableHead
                       key={header.id}
-                      className='[&:has([role=checkbox])]:pl-6 [&>[role=checkbox]]:translate-y-[2px]'
-                      style={
-                        header.column.id === 'select'
-                          ? { width: 40, minWidth: 40, maxWidth: 40 }
-                          : header.column.id === 'actions'
-                            ? { width: 80, minWidth: 80, maxWidth: 80 }
-                            : { width: `${String(header.getSize())}%` }
-                      }
+                      className='group relative [&:has([role=checkbox])]:pl-6 [&>[role=checkbox]]:translate-y-[2px]'
+                      style={getTableColumnSize(header.column)}
                     >
                       {header.isPlaceholder
                         ? null
                         : flexRender(header.column.columnDef.header, header.getContext())}
+
+                      {header.column.getCanResize() && (
+                        <div
+                          onMouseDown={header.getResizeHandler()}
+                          onTouchStart={header.getResizeHandler()}
+                          onDoubleClick={() => {
+                            header.column.resetSize();
+                          }}
+                          className='absolute top-0 right-[2px] flex h-full w-1 cursor-col-resize items-center justify-center bg-transparent select-none group-hover:bg-neutral-200/50 hover:bg-neutral-200'
+                          title='Drag to resize. Double-click to reset width'
+                        />
+                      )}
                     </TableHead>
                   );
                 })}
@@ -318,14 +354,8 @@ export function DataMartTable<TData, TValue>({
                   {row.getVisibleCells().map(cell => (
                     <TableCell
                       key={cell.id}
-                      className={`[&:has([role=checkbox])]pr-0 px-6 whitespace-normal [&>[role=checkbox]]:translate-y-[2px] ${cell.column.id === 'actions' ? 'actions-cell' : ''} ${cell.column.id === 'createdAt' ? 'whitespace-nowrap' : ''}`}
-                      style={
-                        cell.column.id === 'select'
-                          ? { width: 40, minWidth: 40, maxWidth: 40 }
-                          : cell.column.id === 'actions'
-                            ? { width: 80, minWidth: 80, maxWidth: 80 }
-                            : { width: `${String(cell.column.getSize())}%` }
-                      }
+                      className={`px-6 pr-0 whitespace-normal [&>[role=checkbox]]:translate-y-[2px] ${cell.column.id === 'actions' ? 'actions-cell' : ''} ${cell.column.id === 'createdAt' ? 'whitespace-nowrap' : ''} ${cell.column.id === 'runHistory' ? 'pl-5' : ''}`}
+                      style={getTableColumnSize(cell.column)}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
