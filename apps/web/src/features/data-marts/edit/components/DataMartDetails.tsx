@@ -180,6 +180,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
       DataMartRunStatus.FAILED,
       DataMartRunStatus.CANCELLED,
       DataMartRunStatus.INTERRUPTED,
+      DataMartRunStatus.RESTRICTED,
     ].includes(latestRun.status);
 
     if (isTerminalState) {

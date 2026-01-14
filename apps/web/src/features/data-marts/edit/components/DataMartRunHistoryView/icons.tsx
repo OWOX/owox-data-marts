@@ -29,6 +29,8 @@ export function getStatusIcon(status: DataMartRunStatus) {
             return <Ban className='h-4 w-4 text-gray-500' />;
           case DataMartRunStatus.INTERRUPTED:
             return <CircleStop className='h-4 w-4 text-gray-500' />;
+          case DataMartRunStatus.RESTRICTED:
+            return <XCircle className='h-4 w-4 text-yellow-500' />;
           default:
             return <Circle className='h-4 w-4 text-gray-500' />;
         }

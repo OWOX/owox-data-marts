@@ -1,6 +1,7 @@
 import { Inject, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { OwoxProducer } from '@owox/internal-helpers';
 import { BusinessViolationException } from '../../../../common/exceptions/business-violation.exception';
+import { ProjectOperationBlockedException } from '../../../../common/exceptions/project-operation-blocked.exception';
 import { OWOX_PRODUCER } from '../../../../common/producer/producer.module';
 import { CachedReaderData } from '../../../dto/domain/cached-reader-data.dto';
 import { Report } from '../../../entities/report.entity';
@@ -306,9 +307,13 @@ export class LookerStudioConnectorApiService {
    * @param error - Error that caused the failure
    */
   private async handleFailedReportRun(reportRun: LookerStudioReportRun, error: Error | string) {
-    reportRun.markAsFailed(error);
+    reportRun.markAsUnsuccessful(error);
     await this.saveReportRunResultSafely(reportRun);
-    this.logger.error(`Report ${reportRun.getReportId()} execution failed:`, error);
+    if (error instanceof ProjectOperationBlockedException) {
+      this.logger.warn(`Report ${reportRun.getReportId()} execution restricted: ${error.message}`);
+    } else {
+      this.logger.error(`Report ${reportRun.getReportId()} execution failed:`, error);
+    }
   }
 
   /**

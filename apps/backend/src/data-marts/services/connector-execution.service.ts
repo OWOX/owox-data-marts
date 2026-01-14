@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -209,6 +210,7 @@ export class ConnectorExecutionService {
     const capturedLogs: ConnectorMessage[] = [];
     const capturedErrors: ConnectorMessage[] = [];
     let hasSuccessfulRun = false;
+    let operationBlockedException: ProjectOperationBlockedException | undefined;
 
     try {
       if (this.gracefulShutdownService.isInShutdownMode()) {
@@ -264,19 +266,32 @@ export class ConnectorExecutionService {
         error: errorMessage,
         toFormattedString: () => `[ERROR] ${errorMessage}`,
       });
-      this.logger.error(`Error running connector configurations: ${errorMessage}`, error?.stack, {
+      const errorContext = {
         dataMartId: dataMart.id,
         projectId: dataMart.projectId,
         runId,
         error: errorMessage,
-      });
+      };
+      if (error instanceof ProjectOperationBlockedException) {
+        operationBlockedException = error;
+        this.logger.warn(
+          `Restrict running connector configurations: ${errorMessage}\n${JSON.stringify(errorContext)}`
+        );
+      } else {
+        this.logger.error(
+          `Error running connector configurations: ${errorMessage}`,
+          error?.stack,
+          errorContext
+        );
+      }
     } finally {
       await this.updateRunStatus(
         runId,
         hasSuccessfulRun,
         capturedLogs,
         capturedErrors,
-        mergeWithExisting
+        mergeWithExisting,
+        operationBlockedException
       );
 
       if (hasSuccessfulRun) {
@@ -589,11 +604,16 @@ export class ConnectorExecutionService {
     hasSuccessfulRun: boolean,
     capturedLogs: ConnectorMessage[],
     capturedErrors: ConnectorMessage[],
-    mergeWithExisting: boolean = false
+    mergeWithExisting: boolean = false,
+    operationBlockedException?: ProjectOperationBlockedException
   ): Promise<void> {
     const hasLogs = capturedLogs.length > 0;
     const hasErrors = capturedErrors.length > 0;
-    let status = hasSuccessfulRun ? DataMartRunStatus.SUCCESS : DataMartRunStatus.FAILED;
+    let status = hasSuccessfulRun
+      ? DataMartRunStatus.SUCCESS
+      : operationBlockedException
+        ? DataMartRunStatus.RESTRICTED
+        : DataMartRunStatus.FAILED;
     if (this.gracefulShutdownService.isInShutdownMode()) {
       status = DataMartRunStatus.INTERRUPTED;
     }
