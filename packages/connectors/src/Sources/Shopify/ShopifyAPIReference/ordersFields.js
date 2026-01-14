@@ -88,6 +88,16 @@ var ordersFields = {
     'type': DATA_TYPES.NUMBER,
     'graphqlPath': 'totalDiscountsSet { shopMoney { amount } }'
   },
+  'discountCodes': {
+    'description': 'Discount codes applied to the order as JSON array (code, amount, type).',
+    'type': DATA_TYPES.STRING,
+    'graphqlPath': 'discountCodes'
+  },
+  'discountApplications': {
+    'description': 'All discount applications (codes, automatic, manual) as JSON array.',
+    'type': DATA_TYPES.STRING,
+    'graphqlPath': 'discountApplications(first: 20) { nodes { allocationMethod targetSelection targetType value { ... on MoneyV2 { amount currencyCode } ... on PricingPercentageValue { percentage } } ... on DiscountCodeApplication { code } ... on AutomaticDiscountApplication { title } ... on ManualDiscountApplication { title description } } }'
+  },
   'totalRefunded': {
     'description': 'The total amount refunded.',
     'type': DATA_TYPES.NUMBER,
