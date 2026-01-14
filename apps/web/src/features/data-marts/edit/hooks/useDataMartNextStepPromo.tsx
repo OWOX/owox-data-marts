@@ -67,7 +67,7 @@ export function useDataMartNextStepPromo() {
           break;
 
         case PromoStep.USE_DATA:
-          toast(<div className='text-foreground text-sm'>Turn your data into results</div>, {
+          toast(<div className='text-foreground text-sm'>Enable your data</div>, {
             closeButton: true,
             description: (
               <div className='mt-2 flex gap-2'>
