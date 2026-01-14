@@ -64,7 +64,11 @@ export class LookerStudioReportRunService {
    */
   @Transactional()
   async finish(reportRun: LookerStudioReportRun): Promise<void> {
-    await this.reportService.saveReport(reportRun.getReport());
+    await this.reportService.updateRunStatus(
+      reportRun.getReport().id,
+      reportRun.getReport().lastRunStatus!,
+      reportRun.getReport().lastRunError
+    );
     await this.dataMartRunService.markReportRunAsFinished(reportRun.getDataMartRun());
   }
 }
