@@ -67,41 +67,6 @@ export function filterRunsByDateRange(
 }
 
 /**
- * Flags for run statuses.
- */
-interface RunStatusFlags {
-  hasSuccess: boolean;
-  hasFailure: boolean;
-  hasInProgress: boolean;
-}
-
-/**
- * Health status rule.
- */
-interface HealthStatusRule {
-  when: (flags: RunStatusFlags) => boolean;
-  status: DataMartHealthStatus;
-}
-
-const HEALTH_STATUS_RULES: HealthStatusRule[] = [
-  {
-    when: ({ hasInProgress, hasSuccess, hasFailure }) =>
-      hasInProgress && !hasSuccess && !hasFailure,
-    status: DataMartHealthStatus.RUNS_IN_PROGRESS,
-  },
-  {
-    when: ({ hasFailure, hasSuccess, hasInProgress }) =>
-      hasFailure && !hasSuccess && !hasInProgress,
-    status: DataMartHealthStatus.ALL_RUNS_FAILED,
-  },
-  {
-    when: ({ hasSuccess, hasFailure, hasInProgress }) =>
-      hasSuccess && !hasFailure && !hasInProgress,
-    status: DataMartHealthStatus.ALL_RUNS_SUCCESS,
-  },
-];
-
-/**
  * Computes aggregated Data Mart health status based on recent runs.
  *
  * IMPORTANT:
@@ -111,25 +76,28 @@ const HEALTH_STATUS_RULES: HealthStatusRule[] = [
 export function computeDataMartHealthStatus(
   recentRuns: readonly DataMartRunItem[]
 ): DataMartHealthStatus {
-  if (!recentRuns.length) {
+  if (recentRuns.length === 0) {
     return DataMartHealthStatus.NO_RUNS;
   }
 
-  const flags: RunStatusFlags = {
-    hasSuccess: false,
-    hasFailure: false,
-    hasInProgress: false,
-  };
+  const statuses = new Set(recentRuns.map(run => run.status));
 
-  for (const { status } of recentRuns) {
-    if (status === DataMartRunStatus.SUCCESS) flags.hasSuccess = true;
-    else if (status === DataMartRunStatus.FAILED) flags.hasFailure = true;
-    else if (status === DataMartRunStatus.PENDING || status === DataMartRunStatus.RUNNING) {
-      flags.hasInProgress = true;
-    }
+  const hasSuccess = statuses.has(DataMartRunStatus.SUCCESS);
+  const hasFailure = statuses.has(DataMartRunStatus.FAILED);
+  const hasInProgress =
+    statuses.has(DataMartRunStatus.PENDING) || statuses.has(DataMartRunStatus.RUNNING);
+
+  if (hasInProgress && !hasSuccess && !hasFailure) {
+    return DataMartHealthStatus.RUNS_IN_PROGRESS;
   }
 
-  const matchedRule = HEALTH_STATUS_RULES.find(rule => rule.when(flags));
+  if (hasFailure && !hasSuccess && !hasInProgress) {
+    return DataMartHealthStatus.ALL_RUNS_FAILED;
+  }
 
-  return matchedRule ? matchedRule.status : DataMartHealthStatus.MIXED_RUNS;
+  if (hasSuccess && !hasFailure && !hasInProgress) {
+    return DataMartHealthStatus.ALL_RUNS_SUCCESS;
+  }
+
+  return DataMartHealthStatus.MIXED_RUNS;
 }
