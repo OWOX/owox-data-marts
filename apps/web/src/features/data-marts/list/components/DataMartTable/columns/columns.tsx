@@ -5,7 +5,7 @@ import { type DataMartStatusInfo, getDataMartStatusType } from '../../../../shar
 import { StatusLabel } from '../../../../../../shared/components/StatusLabel';
 import { DataStorageType } from '../../../../../data-storage';
 import { DataStorageTypeModel } from '../../../../../data-storage/shared/types/data-storage-type.model.ts';
-import { DataMartActionsCell } from '../components';
+import { DataMartActionsCell, DataMartHealthStatusCell } from '../components';
 import { DataMartDefinitionType } from '../../../../shared';
 import { DataMartDefinitionTypeModel } from '../../../../shared/types/data-mart-definition-type.model.ts';
 import { DataMartColumnKey } from './columnKeys.ts';
@@ -14,6 +14,8 @@ import type { ConnectorDefinitionConfig } from '../../../../edit';
 import type { ConnectorListItem } from '../../../../../connectors/shared/model/types/connector';
 import { RawBase64Icon } from '../../../../../../shared';
 import { SortableHeader, ToggleColumnsHeader } from '../../../../../../shared/components/Table';
+import { getCachedHealthStatus } from '../../../../shared/services/data-mart-health-status.service';
+import { getHealthStatusSortRank } from '../../../utils/data-mart-health-status.utils';
 
 interface DataMartTableColumnsProps {
   onDeleteSuccess?: () => void;
@@ -25,14 +27,34 @@ export const getDataMartColumns = ({
   connectors = [],
 }: DataMartTableColumnsProps = {}): ColumnDef<DataMartListItem>[] => [
   {
+    id: DataMartColumnKey.HEALTH_STATUS,
+    size: 40,
+    enableResizing: false,
+    accessorFn: row => {
+      const cachedHealthStatus = getCachedHealthStatus(row.id);
+      return getHealthStatusSortRank({
+        dataMartStatus: row.status.code,
+        healthStatus: cachedHealthStatus?.healthStatus,
+      });
+    },
+    sortingFn: 'basic',
+    header: ({ column }) => (
+      <SortableHeader column={column}>
+        {dataMartColumnLabels[DataMartColumnKey.HEALTH_STATUS]}
+      </SortableHeader>
+    ),
+    cell: ({ row }) => <DataMartHealthStatusCell row={row} />,
+  },
+  {
     accessorKey: DataMartColumnKey.TITLE,
-    size: 40, // responsive width in %
+    size: 320,
+    minSize: 200,
     header: ({ column }) => (
       <SortableHeader column={column}>
         {dataMartColumnLabels[DataMartColumnKey.TITLE]}
       </SortableHeader>
     ),
-    cell: ({ row }) => <div>{row.getValue('title')}</div>,
+    cell: ({ row }) => <div className='w-full'>{row.getValue('title')}</div>,
   },
   {
     accessorFn: row => {
@@ -47,7 +69,7 @@ export const getDataMartColumns = ({
       }
     },
     id: DataMartColumnKey.DEFINITION_TYPE,
-    size: 15, // responsive width in %
+    size: 220,
     header: ({ column }) => (
       <SortableHeader column={column}>
         {dataMartColumnLabels[DataMartColumnKey.DEFINITION_TYPE]}
@@ -80,7 +102,7 @@ export const getDataMartColumns = ({
   },
   {
     accessorKey: DataMartColumnKey.STORAGE_TYPE,
-    size: 15, // responsive width in %
+    size: 220,
     header: ({ column }) => (
       <SortableHeader column={column}>
         {dataMartColumnLabels[DataMartColumnKey.STORAGE_TYPE]}
@@ -103,7 +125,7 @@ export const getDataMartColumns = ({
   },
   {
     accessorKey: DataMartColumnKey.CREATED_AT,
-    size: 15, // responsive width in %
+    size: 140,
     header: ({ column }) => (
       <SortableHeader column={column}>
         {dataMartColumnLabels[DataMartColumnKey.CREATED_AT]}
@@ -122,7 +144,7 @@ export const getDataMartColumns = ({
   },
   {
     id: DataMartColumnKey.CREATED_BY_USER,
-    size: 15, // responsive width in %
+    size: 220,
     accessorFn: row => {
       const u = row.createdByUser;
       return u?.fullName ?? u?.email;
@@ -142,7 +164,7 @@ export const getDataMartColumns = ({
   },
   {
     accessorKey: DataMartColumnKey.STATUS,
-    size: 15, // responsive width in %
+    size: 120,
     header: ({ column }) => (
       <SortableHeader column={column}>
         {dataMartColumnLabels[DataMartColumnKey.STATUS]}
@@ -160,7 +182,7 @@ export const getDataMartColumns = ({
   },
   {
     accessorKey: DataMartColumnKey.TRIGGERS_COUNT,
-    size: 15, // responsive width in %
+    size: 100,
     header: ({ column }) => (
       <SortableHeader column={column}>
         {dataMartColumnLabels[DataMartColumnKey.TRIGGERS_COUNT]}
@@ -174,7 +196,7 @@ export const getDataMartColumns = ({
   },
   {
     accessorKey: DataMartColumnKey.REPORTS_COUNT,
-    size: 15, // responsive width in %
+    size: 100,
     header: ({ column }) => (
       <SortableHeader column={column}>
         {dataMartColumnLabels[DataMartColumnKey.REPORTS_COUNT]}
@@ -188,7 +210,8 @@ export const getDataMartColumns = ({
   },
   {
     id: 'actions',
-    size: 80, // fixed width in pixels
+    size: 50,
+    enableResizing: false,
     header: ({ table }) => <ToggleColumnsHeader table={table} />,
     cell: ({ row }) => <DataMartActionsCell row={row} onDeleteSuccess={onDeleteSuccess} />,
   },

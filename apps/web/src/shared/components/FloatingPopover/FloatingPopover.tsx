@@ -37,6 +37,7 @@ export function FloatingPopover({
         'fixed z-[999] rounded-2xl border bg-white dark:bg-neutral-900',
         'border-neutral-200 dark:border-neutral-800',
         'hover:shadow-3xl transform shadow-2xl transition-all duration-200 ease-out',
+        'max-w-[calc(100vw-2rem)]',
         positionClasses[position]
       )}
       style={{ width, height }}

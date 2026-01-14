@@ -1,4 +1,9 @@
-import { type ColumnDef, type SortingState, type VisibilityState } from '@tanstack/react-table';
+import {
+  type ColumnDef,
+  type SortingState,
+  type VisibilityState,
+  type ColumnSizingState,
+} from '@tanstack/react-table';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { storageService } from '../services/localstorage.service';
 
@@ -13,6 +18,7 @@ const TABLE_STORAGE_CONSTANTS = {
     SORTING_SUFFIX: '-sorting',
     COLUMN_VISIBILITY_SUFFIX: '-column-visibility',
     PAGE_SIZE_SUFFIX: '-page-size',
+    COLUMN_SIZING_SUFFIX: '-column-sizing',
   },
 } as const;
 
@@ -74,6 +80,10 @@ interface UseTableStorageReturn {
   pageSize: number;
   /** Function to update page size */
   setPageSize: React.Dispatch<React.SetStateAction<number>>;
+  /** Current column sizing state */
+  columnSizing: ColumnSizingState;
+  /** Function to update column sizing state */
+  setColumnSizing: React.Dispatch<React.SetStateAction<ColumnSizingState>>;
 }
 
 /**
@@ -173,6 +183,23 @@ export function useTableStorage<TData, TValue>({
       : defaultPageSize;
   }, [STORAGE_KEYS.PAGE_SIZE, defaultPageSize]);
 
+  /**
+   * Initialize column sizing state from localStorage or use default
+   * @returns Initial column sizing state for the table
+   */
+  const getInitialColumnSizing = useCallback((): ColumnSizingState => {
+    const savedRaw = storageService.get(
+      `${storageKeyPrefix}${TABLE_STORAGE_CONSTANTS.STORAGE_KEYS.COLUMN_SIZING_SUFFIX}`,
+      'json'
+    );
+
+    if (savedRaw && typeof savedRaw === 'object' && !Array.isArray(savedRaw)) {
+      return savedRaw as ColumnSizingState;
+    }
+
+    return {};
+  }, [storageKeyPrefix]);
+
   /** State for table sorting configuration */
   const [sorting, setSorting] = useState<SortingState>(getInitialSorting);
 
@@ -184,12 +211,23 @@ export function useTableStorage<TData, TValue>({
   /** State for page size configuration */
   const [pageSize, setPageSize] = useState<number>(getInitialPageSize);
 
+  /** State for column sizing configuration */
+  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(getInitialColumnSizing);
+
   /** Persist sorting changes to localStorage */
   useEffect(() => {
     if (sorting.length > 0 && allowedSortingColumnIds.includes(sorting[0].id)) {
       storageService.set(STORAGE_KEYS.SORTING, sorting);
     }
   }, [sorting, allowedSortingColumnIds, STORAGE_KEYS.SORTING]);
+
+  /** Persist column sizing changes to localStorage */
+  useEffect(() => {
+    storageService.set(
+      `${storageKeyPrefix}${TABLE_STORAGE_CONSTANTS.STORAGE_KEYS.COLUMN_SIZING_SUFFIX}`,
+      columnSizing
+    );
+  }, [columnSizing, storageKeyPrefix]);
 
   /** Persist column visibility changes to localStorage */
   useEffect(() => {
@@ -216,5 +254,7 @@ export function useTableStorage<TData, TValue>({
     setColumnVisibility,
     pageSize,
     setPageSize,
+    columnSizing,
+    setColumnSizing,
   };
 }

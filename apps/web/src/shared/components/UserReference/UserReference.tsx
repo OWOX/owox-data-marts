@@ -11,16 +11,18 @@ export function UserReference({ userProjection }: { userProjection: UserProjecti
   return (
     <HoverCard>
       <HoverCardTrigger asChild>
-        <div className='mx-1 inline-flex min-w-max items-center gap-1 rounded-full bg-neutral-100 py-1 pr-3 pl-1 dark:bg-neutral-900'>
+        <div className='inline-flex max-w-[160px] items-center gap-1 rounded-full bg-neutral-100 py-1 pr-3 pl-1 dark:bg-neutral-900'>
           <UserAvatar
             avatar={avatar}
             initials={initials}
             displayName={displayName}
             size={UserAvatarSize.SMALL}
           />
+
           <span
-            className='text-muted-foreground inline text-sm leading-tight'
+            className='text-muted-foreground min-w-0 truncate text-sm leading-tight'
             aria-label={displayName}
+            title={displayName}
           >
             {displayName}
           </span>

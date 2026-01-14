@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { UserReference } from '../../../../../shared/components/UserReference';
 import { StatusBadge } from './StatusBadge';
 import { LogControls } from './LogControls';
@@ -148,9 +148,9 @@ export function RunItem({
 
         <div className='flex items-center gap-2'>
           <StatusBadge status={run.status} />
-          <ChevronRight
+          <ChevronDown
             className={`text-muted-foreground h-4 w-4 transition-transform ${
-              isExpanded ? 'rotate-90' : ''
+              isExpanded ? 'rotate-180' : ''
             }`}
           />
         </div>
