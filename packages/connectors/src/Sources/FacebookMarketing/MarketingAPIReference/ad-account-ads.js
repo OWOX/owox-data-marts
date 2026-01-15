@@ -8,15 +8,15 @@
 var adAccountAdsFields = {
 'id': {
     'description': 'The ID of this ad',
-    'type': 'numeric string'
+    'type': DATA_TYPES.STRING
 },
 'insights': {
     'description': 'Analytics summary for all objects',
-    'type': 'Edge<AdsInsights>'
+    'type': DATA_TYPES.OBJECT
 },
 'total_count': {
     'description': 'Total number of Ads returned by the query',
-    'type': 'unsigned int32'
+    'type': DATA_TYPES.INTEGER
 }
     
 }

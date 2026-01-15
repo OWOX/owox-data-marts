@@ -1,13 +1,17 @@
-import { useEffect, useState } from 'react';
-import { useDataStorage } from '../../../shared/model/hooks/useDataStorage.ts';
-import { DataStorageTable } from '../DataStorageTable';
-import { getDataStorageColumns, type DataStorageTableItem } from '../DataStorageTable';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
+import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
+import { useUrlParam } from '../../../../../shared/hooks';
 import { DataStorageConfigSheet } from '../../../edit';
-
 import { DataStorageType } from '../../../shared';
 import { DataStorageTypeDialog } from '../../../shared/components/DataStorageTypeDialog.tsx';
+import { useDataStorage } from '../../../shared/model/hooks/useDataStorage.ts';
 import { DataStorageDetailsDialog } from '../DataStorageDetailsDialog';
-import { ConfirmationDialog } from '../../../../../shared/components/ConfirmationDialog';
+import {
+  DataStorageTable,
+  type DataStorageTableItem,
+  getDataStorageColumns,
+} from '../DataStorageTable';
 
 interface DataStorageListProps {
   initialTypeDialogOpen?: boolean;
@@ -29,11 +33,44 @@ export const DataStorageList = ({
     getDataStorageById,
     deleteDataStorage,
     createDataStorage,
+    loading,
   } = useDataStorage();
+
+  const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [storageToDelete, setStorageToDelete] = useState<string | null>(null);
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+  const [selectedStorageId, setSelectedStorageId] = useState<string | null>(null);
+
+  const { value: deepLinkId, setParam: setIdParam, removeParam: removeIdParam } = useUrlParam('id');
+  const hasAttemptedDeepLink = useRef(false);
 
   useEffect(() => {
     void fetchDataStorages();
   }, [fetchDataStorages]);
+
+  const handleEdit = useCallback(
+    async (id: string) => {
+      await getDataStorageById(id);
+      setIsEditDrawerOpen(true);
+
+      setIdParam(id);
+    },
+    [getDataStorageById, setIdParam]
+  );
+
+  useEffect(() => {
+    if (!loading && dataStorages.length > 0 && deepLinkId && !hasAttemptedDeepLink.current) {
+      const storage = dataStorages.find(s => s.id === deepLinkId);
+      if (storage) {
+        void handleEdit(deepLinkId);
+      } else {
+        toast.error(`Storage not found by id ${deepLinkId}`);
+        removeIdParam();
+      }
+      hasAttemptedDeepLink.current = true;
+    }
+  }, [loading, dataStorages, deepLinkId, removeIdParam, handleEdit]);
 
   useEffect(() => {
     setIsTypeDialogOpen(initialTypeDialogOpen);
@@ -44,20 +81,13 @@ export const DataStorageList = ({
     onTypeDialogClose?.();
   };
 
-  const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [storageToDelete, setStorageToDelete] = useState<string | null>(null);
-  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
-  const [selectedStorageId, setSelectedStorageId] = useState<string | null>(null);
-
   const handleCreateNewStorage = async (type: DataStorageType) => {
     setIsCreatingDataStorage(true);
     try {
       const newStorage = await createDataStorage(type);
       handleTypeDialogClose();
       if (newStorage?.id) {
-        await getDataStorageById(newStorage.id);
-        setIsEditDrawerOpen(true);
+        await handleEdit(newStorage.id);
         setIsCreatingDataStorage(false);
       }
     } catch (error) {
@@ -68,16 +98,14 @@ export const DataStorageList = ({
   const handleViewDetails = (id: string) => {
     setSelectedStorageId(id);
     setIsDetailsDialogOpen(true);
+
+    setIdParam(id);
   };
 
   const handleDetailsDialogClose = () => {
     setIsDetailsDialogOpen(false);
     setSelectedStorageId(null);
-  };
-
-  const handleEdit = async (id: string) => {
-    await getDataStorageById(id);
-    setIsEditDrawerOpen(true);
+    removeIdParam();
   };
 
   const handleDelete = (id: string) => {
@@ -103,6 +131,7 @@ export const DataStorageList = ({
     try {
       setIsEditDrawerOpen(false);
       await fetchDataStorages();
+      removeIdParam();
     } catch (error) {
       console.error('Failed to save storage:', error);
     }
@@ -111,6 +140,7 @@ export const DataStorageList = ({
   const handleCloseDrawer = () => {
     setIsEditDrawerOpen(false);
     clearCurrentDataStorage();
+    removeIdParam();
   };
 
   const tableData: DataStorageTableItem[] = dataStorages.map(storage => ({

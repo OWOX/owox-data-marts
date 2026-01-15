@@ -541,53 +541,53 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
      * @returns {string} BigQuery column type
      */
     getColumnType(columnName) {
-      return this.schema[columnName]["GoogleBigQueryType"] || this._convertTypeToStorageType(this.schema[columnName]["type"]?.toLowerCase());
+      return this._convertTypeToStorageType(this.schema[columnName]["type"]);
     }
 
   //---- _convertTypeToStorageType ------------------------------------
     /**
-     * Converts generic type to BigQuery-specific type
-     * @param {string} genericType - Generic type from schema
+     * Converts generic type to BigQuery-specific type.
+     * Now uses UPPERCASE types from DataTypes constant.
+     * @param {string} genericType - Generic type from schema (UPPERCASE)
      * @returns {string} BigQuery column type
      */
     _convertTypeToStorageType(genericType) {
       if (!genericType) return 'STRING';
-      
-      // TODO: Move types to constants and refactor schemas
-      
-      switch (genericType.toLowerCase()) {
-        // Integer types
-        case 'integer':
-        case 'int32':
-        case 'int64':
-        case 'unsigned int32':
-        case 'long':
-          return 'INTEGER';
-        
-        // Float types
-        case 'float':
-        case 'number':
-        case 'double':
+
+      switch (genericType) {
+        // Integer type
+        case DATA_TYPES.INTEGER:
+          return 'INT64';
+
+        // Number type
+        case DATA_TYPES.NUMBER:
           return 'FLOAT64';
-        case 'decimal':
-          return 'NUMERIC';
-        
-        // Boolean types
-        case 'bool':
-        case 'boolean':
+
+        // Boolean type
+        case DATA_TYPES.BOOLEAN:
           return 'BOOL';
-        
+
         // Date/time types
-        case 'datetime':
-          return 'DATETIME';
-        case 'date':
+        case DATA_TYPES.DATE:
           return 'DATE';
-        case 'timestamp':
+        case DATA_TYPES.DATETIME:
+          return 'DATETIME';
+        case DATA_TYPES.TIMESTAMP:
           return 'TIMESTAMP';
-        
-        // Default to STRING for unknown types
-        default:
+        case DATA_TYPES.TIME:
+          return 'TIME';
+
+        // String type
+        case DATA_TYPES.STRING:
           return 'STRING';
+
+        // Array and Object types (serialized as JSON strings)
+        case DATA_TYPES.ARRAY:
+        case DATA_TYPES.OBJECT:
+          return 'STRING';
+
+        default:
+          throw new Error(`Unknown type: ${genericType}`);
       }
     }
 

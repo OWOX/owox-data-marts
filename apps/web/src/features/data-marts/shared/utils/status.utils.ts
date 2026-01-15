@@ -37,6 +37,8 @@ export const mapRunStatusToStatusType = (status: DataMartRunStatus): StatusTypeE
     case DataMartRunStatus.CANCELLED:
     case DataMartRunStatus.INTERRUPTED:
       return StatusTypeEnum.ERROR;
+    case DataMartRunStatus.RESTRICTED:
+      return StatusTypeEnum.WARNING;
     default:
       return StatusTypeEnum.NEUTRAL;
   }
@@ -56,6 +58,8 @@ export const mapReportStatusToStatusType = (status: ReportStatusEnum): StatusTyp
       return StatusTypeEnum.INFO;
     case ReportStatusEnum.ERROR:
       return StatusTypeEnum.ERROR;
+    case ReportStatusEnum.RESTRICTED:
+      return StatusTypeEnum.WARNING;
     default:
       return StatusTypeEnum.NEUTRAL;
   }
@@ -80,6 +84,8 @@ export const getRunStatusText = (status: DataMartRunStatus): string => {
       return 'Interrupted';
     case DataMartRunStatus.PENDING:
       return 'Pending';
+    case DataMartRunStatus.RESTRICTED:
+      return 'Restricted';
     default:
       return 'Unknown';
   }
@@ -98,6 +104,8 @@ export const getReportStatusText = (status: ReportStatusEnum): string => {
       return 'Running';
     case ReportStatusEnum.ERROR:
       return 'Failed';
+    case ReportStatusEnum.RESTRICTED:
+      return 'Restricted';
     default:
       return 'Unknown';
   }
@@ -116,6 +124,7 @@ export const isDataMartRunFinalStatus = (status?: DataMartRunStatus): boolean =>
     DataMartRunStatus.FAILED,
     DataMartRunStatus.CANCELLED,
     DataMartRunStatus.INTERRUPTED,
+    DataMartRunStatus.RESTRICTED,
   ];
 
   return finalStatuses.includes(status);

@@ -21,6 +21,22 @@ var DateUtils = class DateUtils {
      * @param {Date} date - The date to format.
      * @returns {string} ISO formatted date (YYYY-MM-DD)
      */
+    /**
+     * Parse input into a valid Date object or return null.
+     * Handles Unix timestamps (numeric strings/numbers) and ISO strings.
+     *
+     * @param {string|number|null} value - The value to parse
+     * @returns {Date|null} Date object or null if invalid/empty
+     */
+    static parseDate(value) {
+        if (!value) {
+            return null;
+        }
+
+        const date = new Date(value);
+        return isNaN(date.getTime()) ? null : date;
+    }
+
     static formatDate(date) {
         return date.toISOString().split("T")[0];
     }

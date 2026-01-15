@@ -148,7 +148,7 @@ export class ReportService {
     await this.repository.update(reportId, {
       lastRunAt: this.systemTimeService.now(),
       lastRunStatus: status,
-      lastRunError: error,
+      lastRunError: error ? error : () => 'NULL',
       runsCount: () => 'runsCount + 1',
     });
   }

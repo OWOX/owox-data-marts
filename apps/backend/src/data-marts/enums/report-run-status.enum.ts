@@ -3,4 +3,5 @@ export enum ReportRunStatus {
   ERROR = 'ERROR',
   RUNNING = 'RUNNING',
   CANCELLED = 'CANCELLED',
+  RESTRICTED = 'RESTRICTED',
 }

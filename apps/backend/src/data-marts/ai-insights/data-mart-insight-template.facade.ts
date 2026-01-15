@@ -13,9 +13,11 @@ import {
   DataMartInsightTemplateStatus,
   DataMartPromptMetaEntry,
   isPromptAnswerError,
+  isPromptAnswerRestricted,
   isPromptAnswerWarning,
   PromptTagMetaEntry,
 } from './data-mart-insights.types';
+import { PromptProcessedEventsService } from './prompt-processed-events.service';
 import { PromptTagHandler } from './template/handlers/prompt-tag.handler';
 import { getPromptTotalUsage } from './utils/compute-model-usage';
 
@@ -30,7 +32,8 @@ export class DataMartInsightTemplateFacadeImpl implements DataMartInsightTemplat
       DataMartAdditionalParams
     >,
     private readonly promptHandler: PromptTagHandler,
-    private readonly consumptionTracker: ConsumptionTrackingService
+    private readonly consumptionTracker: ConsumptionTrackingService,
+    private readonly promptProcessedEvents: PromptProcessedEventsService
   ) {}
 
   async render(input: DataMartInsightTemplateInput): Promise<DataMartInsightTemplateOutput> {
@@ -53,7 +56,9 @@ export class DataMartInsightTemplateFacadeImpl implements DataMartInsightTemplat
     const consumptionContext = input.consumptionContext;
     if (consumptionContext) {
       prompts
-        .filter(p => !isPromptAnswerError(p.meta.status))
+        .filter(
+          p => !isPromptAnswerError(p.meta.status) && !isPromptAnswerRestricted(p.meta.status)
+        )
         .forEach(p => {
           try {
             const llmCalls = p.meta.telemetry?.llmCalls ?? [];
@@ -67,6 +72,8 @@ export class DataMartInsightTemplateFacadeImpl implements DataMartInsightTemplat
         });
     }
 
+    this.promptProcessedEvents.produce(prompts, input.promptProcessedContext);
+
     return {
       rendered: rendered,
       status: this.computeStatus(prompts),
@@ -76,9 +83,10 @@ export class DataMartInsightTemplateFacadeImpl implements DataMartInsightTemplat
 
   private computeStatus(prompts: DataMartPromptMetaEntry[]) {
     const hasAtLeastOneWithError = prompts.some(p => isPromptAnswerError(p.meta.status));
+    const hasAtLeastOneWithRestricted = prompts.some(p => isPromptAnswerRestricted(p.meta.status));
     const hasAtLeastOneWithWarning = prompts.some(p => isPromptAnswerWarning(p.meta.status));
 
-    return hasAtLeastOneWithError
+    return hasAtLeastOneWithError || hasAtLeastOneWithRestricted
       ? DataMartInsightTemplateStatus.ERROR
       : hasAtLeastOneWithWarning
         ? DataMartInsightTemplateStatus.WARNING

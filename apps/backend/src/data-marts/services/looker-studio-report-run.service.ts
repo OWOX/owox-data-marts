@@ -5,7 +5,6 @@ import { ReportService } from './report.service';
 import { RunType } from '../../common/scheduler/shared/types';
 import { Report } from '../entities/report.entity';
 import { LookerStudioReportRun } from '../models/looker-studio-report-run.model';
-import { ReportRunStatus } from '../enums/report-run-status.enum';
 
 /**
  * Service managing the lifecycle of Looker Studio Community Connector report runs.
@@ -65,17 +64,11 @@ export class LookerStudioReportRunService {
    */
   @Transactional()
   async finish(reportRun: LookerStudioReportRun): Promise<void> {
+    await this.reportService.updateRunStatus(
+      reportRun.getReport().id,
+      reportRun.getReport().lastRunStatus!,
+      reportRun.getReport().lastRunError
+    );
     await this.dataMartRunService.markReportRunAsFinished(reportRun.getDataMartRun());
-
-    if (reportRun.isSuccess()) {
-      await this.reportService.updateRunStatus(reportRun.getReportId(), ReportRunStatus.SUCCESS);
-    } else {
-      const error = reportRun.getReportError();
-      await this.reportService.updateRunStatus(
-        reportRun.getReportId(),
-        ReportRunStatus.ERROR,
-        error
-      );
-    }
   }
 }

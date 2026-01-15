@@ -7,6 +7,7 @@ export const initialState: DataMartState = {
   isLoading: false,
   error: null,
   runs: [],
+  isManualRunTriggered: false,
 };
 
 // Reducer function
@@ -24,8 +25,15 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
     case 'ACTUALIZE_DATA_MART_SCHEMA_START':
     case 'UPDATE_DATA_MART_SCHEMA_START':
     case 'FETCH_DATA_MART_RUNS_START':
-    case 'LOAD_MORE_DATA_MART_RUNS_START':
-      return { ...state, isLoading: true, error: null };
+    case 'LOAD_MORE_DATA_MART_RUNS_START': {
+      const isManualRun = action.type === 'RUN_DATA_MART_START';
+      return {
+        ...state,
+        isLoading: true,
+        error: null,
+        isManualRunTriggered: isManualRun ? true : state.isManualRunTriggered,
+      };
+    }
 
     case 'CREATE_DATA_MART_SUCCESS':
       return { ...state, isLoading: false, error: null };
@@ -122,6 +130,9 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
     case 'FETCH_DATA_MART_RUNS_ERROR':
     case 'LOAD_MORE_DATA_MART_RUNS_ERROR':
       return { ...state, isLoading: false, error: action.payload };
+
+    case 'RESET_MANUAL_RUN_TRIGGERED':
+      return { ...state, isManualRunTriggered: false };
 
     case 'RESET':
       return initialState;

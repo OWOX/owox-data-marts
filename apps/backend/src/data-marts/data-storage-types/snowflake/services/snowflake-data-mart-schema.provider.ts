@@ -112,14 +112,20 @@ export class SnowflakeDataMartSchemaProvider implements DataMartSchemaProvider {
       return null;
     }
 
-    const [database, schema, table] = parts;
+    const [rawDatabase, rawSchema, rawTable] = parts;
+
+    const databaseForQuery = this.normalizeIdentifier(rawDatabase);
+    const schemaForQuery = this.normalizeIdentifier(rawSchema);
+    const tableForQuery = this.normalizeIdentifier(rawTable);
+
+    const primaryKeyColumns = await this.getPrimaryKeyColumns(fullyQualifiedName, adapter);
 
     const query = `
-      SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
-      FROM ${database}.INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_CATALOG = '${database}'
-        AND TABLE_SCHEMA = UPPER('${schema}')
-        AND TABLE_NAME = UPPER('${table}')
+      SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COMMENT
+      FROM ${databaseForQuery}.INFORMATION_SCHEMA.COLUMNS
+      WHERE UPPER(TABLE_CATALOG) = '${databaseForQuery}'
+        AND UPPER(TABLE_SCHEMA) = '${schemaForQuery}'
+        AND UPPER(TABLE_NAME) = '${tableForQuery}'
       ORDER BY ORDINAL_POSITION
     `;
 
@@ -131,21 +137,57 @@ export class SnowflakeDataMartSchemaProvider implements DataMartSchemaProvider {
         return null;
       }
 
-      return result.rows.map((row: Record<string, unknown>) =>
-        this.createFieldFromResult(
-          (row.COLUMN_NAME || row.column_name) as string,
-          (row.DATA_TYPE || row.data_type) as string
-        )
-      );
+      return result.rows.map((row: Record<string, unknown>) => {
+        const columnName = this.getStringValueFromRecord(row, 'column_name');
+        const comment = this.getStringValueFromRecord(row, 'comment');
+
+        return this.createFieldFromResult(
+          columnName,
+          this.getStringValueFromRecord(row, 'data_type'),
+          comment,
+          primaryKeyColumns.has(columnName)
+        );
+      });
     } catch (error) {
       this.logger.debug('Failed to query INFORMATION_SCHEMA, table likely does not exist', error);
       return null;
     }
   }
 
+  private normalizeIdentifier(identifier: string): string {
+    return identifier.replace(/^"|"$/g, '').toUpperCase();
+  }
+
+  private async getPrimaryKeyColumns(
+    fullyQualifiedName: string,
+    adapter: SnowflakeApiAdapter
+  ): Promise<Set<string>> {
+    const primaryKeyColumns: Set<string> = new Set();
+
+    try {
+      const pkQuery = `SHOW PRIMARY KEYS IN TABLE ${fullyQualifiedName}`;
+      const pkResult = await adapter.executeQuery(pkQuery);
+
+      if (pkResult.rows && pkResult.rows.length > 0) {
+        pkResult.rows.forEach((row: Record<string, unknown>) => {
+          const columnName = this.getStringValueFromRecord(row, 'column_name');
+          if (columnName) {
+            primaryKeyColumns.add(columnName);
+          }
+        });
+      }
+    } catch (error) {
+      this.logger.debug('Failed to query primary keys, table may not have a primary key', error);
+    }
+
+    return primaryKeyColumns;
+  }
+
   private createFieldFromResult(
     columnName: string,
-    type: string
+    type: string,
+    description?: string,
+    isPrimaryKey: boolean = false
   ): SnowflakeDataMartSchema['fields'][0] {
     if (!columnName) {
       throw new Error(`Failed to get field name`);
@@ -154,8 +196,13 @@ export class SnowflakeDataMartSchemaProvider implements DataMartSchemaProvider {
     return {
       name: columnName,
       type: parseSnowflakeFieldType(type) || SnowflakeFieldType.STRING,
-      isPrimaryKey: false,
+      description: description || undefined,
+      isPrimaryKey,
       status: DataMartSchemaFieldStatus.CONNECTED,
     };
+  }
+
+  private getStringValueFromRecord(record: Record<string, unknown>, fieldName: string): string {
+    return (record[fieldName.toUpperCase()] || record[fieldName.toLowerCase()]) as string;
   }
 }

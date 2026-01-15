@@ -24,6 +24,9 @@ export class ConnectorFieldsResponseApiDto {
   @ApiProperty({ example: 'Field Documentation', required: false })
   documentation?: string;
 
+  @ApiProperty({ example: ['field1', 'field2'], required: false })
+  defaultFields?: string[];
+
   @ApiProperty({ example: 'Field Fields', required: false })
   fields?: ConnectorFieldResponseApiDto[];
 }

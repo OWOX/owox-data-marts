@@ -1,3 +1,4 @@
+import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMart } from '../entities/data-mart.entity';
 import { Report } from '../entities/report.entity';
@@ -91,13 +92,22 @@ export abstract class BaseReportRun {
   }
 
   /**
-   * Marks the report run as failed.
+   * Marks the report run as unsuccessfully completed.
+   * Determines the appropriate error status based on the provided error.
    * Updates both Report and DataMartRun statuses atomically.
    * Appends error to the errors array to preserve error history.
    *
    * @param error - Error object or error message string
    */
-  markAsFailed(error: Error | string): void {
+  markAsUnsuccessful(error: Error | string): void {
+    if (error instanceof ProjectOperationBlockedException) {
+      this.report.lastRunStatus = ReportRunStatus.RESTRICTED;
+      this.dataMartRun.status = DataMartRunStatus.RESTRICTED;
+    } else {
+      this.report.lastRunStatus = ReportRunStatus.ERROR;
+      this.dataMartRun.status = DataMartRunStatus.FAILED;
+    }
+
     const errorString = error instanceof Error ? error.message : error;
     const errorEntry = JSON.stringify({
       type: 'error',
@@ -105,9 +115,7 @@ export abstract class BaseReportRun {
       error: errorString,
     });
 
-    this.report.lastRunStatus = ReportRunStatus.ERROR;
     this.report.lastRunError = errorString;
-    this.dataMartRun.status = DataMartRunStatus.FAILED;
     this.dataMartRun.errors = [...(this.dataMartRun.errors || []), errorEntry];
   }
 }

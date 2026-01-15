@@ -35,6 +35,7 @@ import {
   MarkdownEditorPreview,
 } from '../../../../shared/components/MarkdownEditor';
 import { useInsights } from '../model';
+import { useInsightsPermissions } from '../hooks/useInsightsPermissions';
 import { EmailReportEditSheet } from '../../reports/edit';
 import { ReportFormMode, ReportsProvider } from '../../reports/shared';
 import { DataDestinationType } from '../../../data-destination';
@@ -48,6 +49,7 @@ import {
 } from '@owox/ui/components/tooltip';
 import { formatDateShort, trackEvent } from '../../../../utils';
 import { DataMartStatus } from '../../shared';
+import { NO_PERMISSION_MESSAGE } from '../../../../app/permissions';
 
 export default function InsightDetailsView() {
   const navigate = useNavigate();
@@ -70,6 +72,7 @@ export default function InsightDetailsView() {
     resetTriggerId,
     ensureActiveRunPolling,
   } = useInsights();
+  const { canEdit, canDelete, canRun, canSendAndSchedule } = useInsightsPermissions();
 
   const {
     handleSubmit,
@@ -234,6 +237,7 @@ export default function InsightDetailsView() {
                   className='font-medium'
                   errorMessage='Title cannot be empty'
                   minWidth='200px'
+                  readOnly={!canEdit}
                 />
               </span>
             </BreadcrumbItem>
@@ -248,15 +252,23 @@ export default function InsightDetailsView() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end'>
-              <DropdownMenuItem
-                onClick={() => {
-                  setIsDeleteOpen(true);
-                }}
-                className='text-destructive'
-              >
-                <Trash2 className='h-4 w-4 text-red-600' />{' '}
-                <span className='text-red-600'>Delete insight</span>
-              </DropdownMenuItem>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className='w-full'>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setIsDeleteOpen(true);
+                      }}
+                      className='text-destructive'
+                      disabled={!canDelete}
+                    >
+                      <Trash2 className='h-4 w-4 text-red-600' />{' '}
+                      <span className='text-red-600'>Delete insight</span>
+                    </DropdownMenuItem>
+                  </div>
+                </TooltipTrigger>
+                {!canDelete && <TooltipContent side='left'>{NO_PERMISSION_MESSAGE}</TooltipContent>}
+              </Tooltip>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -276,7 +288,7 @@ export default function InsightDetailsView() {
                   }}
                   height={'calc(100vh - 275px)'}
                   placeholder='Type / to view available commands...'
-                  readOnly={isRunning}
+                  readOnly={isRunning || !canEdit}
                   excludeInsightId={insightId}
                 />
               </div>
@@ -291,7 +303,7 @@ export default function InsightDetailsView() {
                               <Button
                                 variant='default'
                                 size='default'
-                                disabled={isSubmitting || isRunning || !isTemplateDirty}
+                                disabled={isSubmitting || isRunning || !canRun}
                                 onClick={() => {
                                   if (isTemplateDirty) {
                                     void handleSubmit(async values => {
@@ -313,32 +325,47 @@ export default function InsightDetailsView() {
                             </span>
                           </TooltipTrigger>
                           <TooltipContent side='top'>
-                            <p>To run an insight, publish the Data Mart first</p>
+                            {canRun ? (
+                              <p>To run an insight, publish the Data Mart first</p>
+                            ) : (
+                              <p>{NO_PERMISSION_MESSAGE}</p>
+                            )}
                           </TooltipContent>
                         </Tooltip>
                       );
                     }
                     return (
-                      <Button
-                        variant='default'
-                        size='default'
-                        disabled={isSubmitting || isRunning}
-                        onClick={() => void (isTemplateDirty ? handleSaveAndRun() : handleRun())}
-                      >
-                        {isRunning ? (
-                          <span className='inline-flex items-center gap-2'>
-                            <Loader2 className='h-3 w-3 animate-spin' /> Running…
-                          </span>
-                        ) : isTemplateDirty ? (
-                          <span className='inline-flex items-center gap-2'>
-                            <Sparkles /> Save & Run Insight
-                          </span>
-                        ) : (
-                          <span className='inline-flex items-center gap-2'>
-                            <Sparkles /> Run Insight
-                          </span>
+                      <Tooltip delayDuration={150}>
+                        <TooltipTrigger asChild>
+                          <div className='inline-flex'>
+                            <Button
+                              variant='default'
+                              size='default'
+                              disabled={isSubmitting || isRunning || !canRun}
+                              onClick={() =>
+                                void (isTemplateDirty ? handleSaveAndRun() : handleRun())
+                              }
+                            >
+                              {isRunning ? (
+                                <span className='inline-flex items-center gap-2'>
+                                  <Loader2 className='h-3 w-3 animate-spin' /> Running…
+                                </span>
+                              ) : isTemplateDirty ? (
+                                <span className='inline-flex items-center gap-2'>
+                                  <Sparkles /> Save & Run Insight
+                                </span>
+                              ) : (
+                                <span className='inline-flex items-center gap-2'>
+                                  <Sparkles /> Run Insight
+                                </span>
+                              )}
+                            </Button>
+                          </div>
+                        </TooltipTrigger>
+                        {!canRun && (
+                          <TooltipContent side='top'>{NO_PERMISSION_MESSAGE}</TooltipContent>
                         )}
-                      </Button>
+                      </Tooltip>
                     );
                   })()}
                   <Tooltip delayDuration={1500}>
@@ -356,9 +383,9 @@ export default function InsightDetailsView() {
                                   action: 'SendSchedule',
                                   label: insightId,
                                 });
-                                if (!isDraft) setIsReportSheetOpen(true);
+                                if (!isDraft && canSendAndSchedule) setIsReportSheetOpen(true);
                               }}
-                              disabled={isDraft}
+                              disabled={isDraft || !canSendAndSchedule}
                               className='gap-2'
                             >
                               <Send className='text-muted-foreground h-4 w-4' />
@@ -370,11 +397,17 @@ export default function InsightDetailsView() {
                     </TooltipTrigger>
                     <TooltipContent side='top'>
                       {(() => {
-                        return isDraft ? (
-                          <p>
-                            You can schedule and send reports only after publishing the Data Mart
-                          </p>
-                        ) : (
+                        if (isDraft) {
+                          return (
+                            <p>
+                              You can schedule and send reports only after publishing the Data Mart
+                            </p>
+                          );
+                        }
+                        if (!canSendAndSchedule) {
+                          return <p>{NO_PERMISSION_MESSAGE}</p>;
+                        }
+                        return (
                           <p>
                             You can schedule this insight to run at a specific time or send it to a
                             recipient

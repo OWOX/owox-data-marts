@@ -8,187 +8,182 @@
 var adGroupsFields = {
   'adgroup_id': {
     'description': 'Ad Group ID',
-    'type': 'string',
-    'GoogleSheetsFormat': '@'
+    'type': DATA_TYPES.STRING,
   },
   'adgroup_name': {
     'description': 'Ad Group Name',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'advertiser_id': {
     'description': 'Advertiser ID',
-    'type': 'string',
-    'GoogleSheetsFormat': '@'
+    'type': DATA_TYPES.STRING,
   },
   'campaign_id': {
     'description': 'Campaign ID',
-    'type': 'string',
-    'GoogleSheetsFormat': '@'
+    'type': DATA_TYPES.STRING,
   },
   'campaign_name': {
     'description': 'Campaign Name',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'operation_status': {
     'description': 'Operation Status',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'budget': {
     'description': 'Ad Group Budget',
-    'type': 'float'
+    'type': DATA_TYPES.NUMBER
   },
   'budget_mode': {
     'description': 'Budget Mode (BUDGET_MODE_DAY or BUDGET_MODE_TOTAL)',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'bid_type': {
     'description': 'Bidding Type',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'bid_price': {
     'description': 'Bid Price',
-    'type': 'float'
+    'type': DATA_TYPES.NUMBER
   },
   'optimization_goal': {
     'description': 'Optimization Goal',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'optimization_event': {
     'description': 'Optimization Event',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'app_id': {
     'description': 'ID of the app being promoted',
-    'type': 'string',
-    'GoogleSheetsFormat': '@'
+    'type': DATA_TYPES.STRING,
   },
   'app_type': {
     'description': 'Type of app',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'audience_type': {
     'description': 'Type of audience',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'audience_ids': {
     'description': 'List of audience IDs',
-    'type': 'array'
+    'type': DATA_TYPES.ARRAY
   },
   'excluded_audience_ids': {
     'description': 'List of excluded audience IDs',
-    'type': 'array'
+    'type': DATA_TYPES.ARRAY
   },
   'gender': {
     'description': 'Target gender',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'age_groups': {
     'description': 'Target age groups',
-    'type': 'array'
+    'type': DATA_TYPES.ARRAY
   },
   'languages': {
     'description': 'Target languages',
-    'type': 'array'
+    'type': DATA_TYPES.ARRAY
   },
   'location_ids': {
     'description': 'Target location IDs',
-    'type': 'array'
+    'type': DATA_TYPES.ARRAY
   },
   'interest_category_ids': {
     'description': 'Interest category IDs',
-    'type': 'array'
+    'type': DATA_TYPES.ARRAY
   },
   'placements': {
     'description': 'Ad placements',
-    'type': 'array'
+    'type': DATA_TYPES.ARRAY
   },
   'placement_type': {
     'description': 'Type of placement',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'schedule_start_time': {
     'description': 'Schedule Start Time',
-    'type': 'datetime'
+    'type': DATA_TYPES.DATETIME
   },
   'schedule_end_time': {
     'description': 'Schedule End Time',
-    'type': 'datetime'
+    'type': DATA_TYPES.DATETIME
   },
   'schedule_type': {
     'description': 'Type of schedule',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'frequency': {
     'description': 'Frequency cap',
-    'type': 'integer'
+    'type': DATA_TYPES.INTEGER
   },
   'billing_event': {
     'description': 'Billing Event Type',
-    'type': 'string'
+    'type': DATA_TYPES.STRING
   },
   'conversion_id': {
     'description': 'Conversion ID',
-    'type': 'string',
-    'GoogleSheetsFormat': '@'
+    'type': DATA_TYPES.STRING,
   },
   'conversion_bid_price': {
     'description': 'Conversion Bid Price',
-    'type': 'float'
+    'type': DATA_TYPES.NUMBER
   },
   'conversion_window': {
     'description': 'Conversion Window',
-    'type': 'integer'
+    'type': DATA_TYPES.INTEGER
   },
   'click_attribution_window': {
     'description': 'Click Attribution Window',
-    'type': 'integer'
+    'type': DATA_TYPES.INTEGER
   },
   'view_attribution_window': {
     'description': 'View Attribution Window',
-    'type': 'integer'
+    'type': DATA_TYPES.INTEGER
   },
   'is_smart_performance_campaign': {
     'description': 'Flag indicating if the ad group uses smart performance optimization',
-    'type': 'bool'
+    'type': DATA_TYPES.BOOLEAN
   },
   'is_new_structure': {
     'description': 'Flag indicating if the ad group utilizes a new structure',
-    'type': 'bool'
+    'type': DATA_TYPES.BOOLEAN
   },
   'auto_targeting_enabled': {
     'description': 'Flag indicating if auto targeting is enabled',
-    'type': 'bool'
+    'type': DATA_TYPES.BOOLEAN
   },
   'targeting_expansion': {
     'description': 'Targeting expansion settings',
-    'type': 'object'
+    'type': DATA_TYPES.OBJECT
   },
   'device_price_ranges': {
     'description': 'Target device price ranges',
-    'type': 'array'
+    'type': DATA_TYPES.ARRAY
   },
   'device_model_ids': {
     'description': 'Target device model IDs',
-    'type': 'array'
+    'type': DATA_TYPES.ARRAY
   },
   'operating_systems': {
     'description': 'Target operating systems',
-    'type': 'array'
+    'type': DATA_TYPES.ARRAY
   },
   'network_types': {
     'description': 'Target network types',
-    'type': 'array'
+    'type': DATA_TYPES.ARRAY
   },
   'carrier_ids': {
     'description': 'Target carrier IDs',
-    'type': 'array'
+    'type': DATA_TYPES.ARRAY
   },
   'create_time': {
     'description': 'Creation Time',
-    'type': 'datetime'
+    'type': DATA_TYPES.DATETIME
   },
   'modify_time': {
     'description': 'Last Modified Time',
-    'type': 'datetime'
+    'type': DATA_TYPES.DATETIME
   }
 };

@@ -58,6 +58,15 @@ export function StatusBadge({ status }: StatusBadgeProps) {
           Pending
         </Badge>
       );
+    case DataMartRunStatus.RESTRICTED:
+      return (
+        <Badge
+          variant='secondary'
+          className='bg-yellow-50 text-yellow-500 dark:bg-yellow-950 dark:text-yellow-400'
+        >
+          Restricted
+        </Badge>
+      );
     default:
       return (
         <Badge

@@ -36,11 +36,11 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
         description: "Your Microsoft Ads API Refresh Token",
         attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
-      AccountID: {
+      AccountIDs: {
         isRequired: true,
         requiredType: "string",
-        label: "Account ID",
-        description: "Your Microsoft Ads Account ID"
+        label: "Account ID(s)",
+        description: "Your Microsoft Ads Account IDs (comma separated)"
       },
       CustomerID: {
         isRequired: true,
@@ -56,7 +56,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
       },
       EndDate: {
         requiredType: "date",
-        label: "End Date", 
+        label: "End Date",
         description: "End date for data import",
         attributes: [CONFIG_ATTRIBUTES.MANUAL_BACKFILL, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
@@ -187,9 +187,9 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
    */
   async _fetchCampaignData({ accountId, fields, onBatchReady }) {
     await this.getAccessToken();
-    
+
     this.config.logMessage(`Fetching Campaigns, AssetGroups and AdGroups for account ${accountId}...`);
-    
+
     const entityTypes = ['Campaigns', 'AssetGroups', 'AdGroups'];
     const allRecords = [];
     let campaignRecords = [];
@@ -234,21 +234,21 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
         campaignRecords = records;
       }
     }
-    
+
     // Save main data immediately
     const filteredMainData = MicrosoftAdsHelper.filterByFields(allRecords, fields);
     if (filteredMainData.length > 0) {
-     await onBatchReady(filteredMainData);
+      await onBatchReady(filteredMainData);
     }
-    
+
     // Handle Keywords with batching to avoid 100MB limit
     this.config.logMessage(`Fetching Keywords for account ${accountId} (processing by campaigns to avoid size limits)...`);
-    
+
     // Extract campaign IDs from campaigns
     const campaignIds = MicrosoftAdsHelper.extractCampaignIds(campaignRecords);
     this.config.logMessage(`Found ${campaignIds.length} campaigns, fetching Keywords in batches`);
     this.config.logMessage(`Campaign IDs: ${campaignIds.slice(0, 10).join(', ')}${campaignIds.length > 10 ? '...' : ''}`);
-    
+
     let totalFetched = 0;
     await this._fetchEntityByCampaigns({
       accountId,
@@ -320,7 +320,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
 
     for (let i = 0; i < campaignIds.length; i += batchSize) {
       const campaignBatch = campaignIds.slice(i, i + batchSize);
-      this.config.logMessage(`Fetching ${entityType} for campaigns batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(campaignIds.length/batchSize)} (${campaignBatch.length} campaigns)`);
+      this.config.logMessage(`Fetching ${entityType} for campaigns batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(campaignIds.length / batchSize)} (${campaignBatch.length} campaigns)`);
 
       try {
         const batchRecords = await this._downloadEntityBatch({ accountId, entityType, campaignBatch });
@@ -426,7 +426,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
       schema
     });
 
-    const pollResult = await this._pollReportStatus({ submitResponse });
+    const pollResult = await this._pollReportStatus({ submitResponse, accountId });
 
     if (!pollResult.ReportRequestStatus.ReportDownloadUrl) {
       this.config.logMessage(`No data available for the specified time period (${start_time} to ${end_time}). Report status: ${JSON.stringify(pollResult.ReportRequestStatus)}`);
@@ -503,12 +503,13 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
    * Poll for report completion status
    * @param {Object} opts
    * @param {Object} opts.submitResponse - Response from submit request
+   * @param {string} opts.accountId - Account ID
    * @param {string} opts.start_time
    * @param {string} opts.end_time
    * @returns {Object} - Poll result with report status
    * @private
    */
-  async _pollReportStatus({ submitResponse }) {
+  async _pollReportStatus({ submitResponse, accountId }) {
     const pollUrl = 'https://reporting.api.bingads.microsoft.com/Reporting/v13/GenerateReport/Poll';
     const submitResponseText = JSON.stringify(submitResponse);
     const pollOpts = {
@@ -516,7 +517,7 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
       contentType: 'application/json',
       headers: {
         Authorization: `Bearer ${this.config.AccessToken.value}`,
-        CustomerAccountId: submitResponse.CustomerAccountId || `${this.config.CustomerID.value}|${this.config.AccountID.value}`,
+        CustomerAccountId: submitResponse.CustomerAccountId || `${this.config.CustomerID.value}|${accountId}`,
         CustomerId: this.config.CustomerID.value,
         DeveloperToken: this.config.DeveloperToken.value,
         'Content-Type': 'application/json'

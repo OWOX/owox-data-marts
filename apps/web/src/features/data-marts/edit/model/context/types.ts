@@ -15,6 +15,7 @@ export interface DataMartState {
   isLoading: boolean;
   error: ApiError | null;
   runs: DataMartRunItem[];
+  isManualRunTriggered: boolean;
 }
 
 export type DataMartAction =
@@ -61,6 +62,7 @@ export type DataMartAction =
   | { type: 'LOAD_MORE_DATA_MART_RUNS_START' }
   | { type: 'LOAD_MORE_DATA_MART_RUNS_SUCCESS'; payload: DataMartRunItem[] }
   | { type: 'LOAD_MORE_DATA_MART_RUNS_ERROR'; payload: ApiError }
+  | { type: 'RESET_MANUAL_RUN_TRIGGERED' }
   | { type: 'RESET' };
 
 export interface DataMartContextType extends DataMartState {
@@ -93,5 +95,6 @@ export interface DataMartContextType extends DataMartState {
   isSchemaActualizationLoading?: boolean;
   error: ApiError | null;
   getErrorMessage: () => string | null;
+  resetManualRunTriggered: () => void;
   reset: () => void;
 }

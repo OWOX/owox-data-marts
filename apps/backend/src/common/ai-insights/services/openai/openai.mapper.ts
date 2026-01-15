@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto';
 import { AiMessage, AiRole, AiToolCall, AiUsage } from '../../agent/ai-core';
 import { NormalizedToolCall, RawMessage, RawResponse, UsageInfo } from './types';
 
@@ -32,6 +33,10 @@ export function mapUsageToDomain(executionTime: number, usage?: UsageInfo): AiUs
   };
 }
 
+export function generateShortId(): string {
+  return `${Date.now()}-${randomBytes(3).toString('hex')}`;
+}
+
 export function normalizeToolCallsFromToolCalls(
   message: RawMessage
 ): NormalizedToolCall[] | undefined {
@@ -44,7 +49,7 @@ export function normalizeToolCallsFromToolCalls(
       const fnName = tc.function?.name ?? '';
       if (!fnName) return null;
 
-      const id = tc.id ?? '';
+      const id = tc.id ?? generateShortId();
       const rawArgs = tc.function?.arguments;
       const args = typeof rawArgs === 'string' ? rawArgs : JSON.stringify(rawArgs ?? {});
 
@@ -71,7 +76,7 @@ export function normalizeToolCallsFromFunctionCall(
 
   return [
     {
-      id: '',
+      id: generateShortId(),
       type: 'function',
       function: { name: fc.name, arguments: args },
     },
@@ -93,7 +98,7 @@ export function normalizeToolCallsFromCommentary(
 
   return [
     {
-      id: '',
+      id: generateShortId(),
       type: 'function',
       function: { name: fnName, arguments: args },
     },
@@ -122,7 +127,51 @@ export function normalizeToolCallsFromBracketSyntax(
     const args = rawArgs && rawArgs.length > 0 ? rawArgs : '{}';
 
     calls.push({
-      id: '',
+      id: generateShortId(),
+      type: 'function',
+      function: { name: fnName, arguments: args },
+    });
+  }
+
+  return calls.length > 0 ? calls : undefined;
+}
+
+export function normalizeToolCallsFromDeepSeekFormat(
+  content?: string
+): NormalizedToolCall[] | undefined {
+  if (!content) return undefined;
+
+  // Matches DeepSeek-style tool calling format:
+  // <｜tool▁calls▁begin｜><｜tool▁call▁begin｜>function_name<｜tool▁sep｜>{"args": "value"}<｜tool▁call▁end｜><｜tool▁calls▁end｜>
+  // Note: Uses special Unicode characters (｜ and ▁)
+
+  // Check if the content contains the DeepSeek format markers
+  if (!content.includes('<｜tool▁call▁begin｜>') || !content.includes('<｜tool▁call▁end｜>')) {
+    return undefined;
+  }
+
+  const calls: NormalizedToolCall[] = [];
+
+  // Extract all individual tool calls between begin and end markers
+  const toolCallRegex = /<｜tool▁call▁begin｜>([\s\S]*?)<｜tool▁call▁end｜>/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = toolCallRegex.exec(content)) !== null) {
+    const toolCallContent = match[1];
+    if (!toolCallContent) continue;
+
+    // Split by the separator to get function name and arguments
+    const parts = toolCallContent.split('<｜tool▁sep｜>');
+    if (parts.length !== 2) continue;
+
+    const fnName = parts[0]?.trim();
+    if (!fnName) continue;
+
+    const rawArgs = parts[1]?.trim();
+    const args = rawArgs && rawArgs.length > 0 ? rawArgs : '{}';
+
+    calls.push({
+      id: generateShortId(),
       type: 'function',
       function: { name: fnName, arguments: args },
     });

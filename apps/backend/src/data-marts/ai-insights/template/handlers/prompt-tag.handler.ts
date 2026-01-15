@@ -1,27 +1,30 @@
-import { HelperOptions } from 'handlebars';
 import { Inject, Injectable } from '@nestjs/common';
+import { trimString } from '@owox/internal-helpers';
+import { HelperOptions } from 'handlebars';
+import { AgentTelemetry } from '../../../../common/ai-insights/agent/types';
+import { ProjectOperationBlockedException } from '../../../../common/exceptions/project-operation-blocked.exception';
+import {
+  wrapCautionBlock,
+  wrapCodeBlock,
+  wrapWarningBlock,
+} from '../../../../common/markdown/helpers/blockquote-alert-wrapper';
 import { TagHandler } from '../../../../common/template/handlers/tag-handler.interface';
 import {
   ADDITIONAL_PARAMS_SYMBOL,
   RootWithAdditional,
   TagRenderedResult,
 } from '../../../../common/template/types/render-template.types';
+import { ProjectBalanceService } from '../../../services/project-balance.service';
+import { AI_INSIGHTS_FACADE, AnswerPromptResponse } from '../../ai-insights-types';
 import {
   DataMartAdditionalParams,
   isPromptAnswerError,
   isPromptAnswerOk,
+  PromptAnswer,
   PromptTagMeta,
   PromptTagPayload,
 } from '../../data-mart-insights.types';
 import { AiInsightsFacade } from '../../facades/ai-insights.facade';
-import { AI_INSIGHTS_FACADE, AnswerPromptResponse } from '../../ai-insights-types';
-import {
-  wrapCautionBlock,
-  wrapCodeBlock,
-  wrapWarningBlock,
-} from '../../../../common/markdown/helpers/blockquote-alert-wrapper';
-import { trimString } from '@owox/internal-helpers';
-import { AgentTelemetry } from '../../../../common/ai-insights/agent/types';
 
 @Injectable()
 export class PromptTagHandler implements TagHandler<
@@ -32,7 +35,8 @@ export class PromptTagHandler implements TagHandler<
 
   constructor(
     @Inject(AI_INSIGHTS_FACADE)
-    private readonly aiInsightFacade: AiInsightsFacade
+    private readonly aiInsightFacade: AiInsightsFacade,
+    private readonly projectBalanceService: ProjectBalanceService
   ) {}
 
   buildPayload(args: unknown[], options: HelperOptions, context: unknown): PromptTagPayload {
@@ -61,6 +65,23 @@ export class PromptTagHandler implements TagHandler<
   }
 
   async handle(input: PromptTagPayload): Promise<TagRenderedResult<PromptTagMeta>> {
+    try {
+      await this.projectBalanceService.verifyCanPerformOperations(input.projectId);
+    } catch (error) {
+      if (error instanceof ProjectOperationBlockedException) {
+        return {
+          rendered: wrapCautionBlock(error.message),
+          meta: {
+            prompt: input.prompt,
+            status: PromptAnswer.RESTRICTED,
+            reasonDescription: error.message,
+            telemetry: { llmCalls: [], toolCalls: [], messageHistory: [] },
+          },
+        };
+      }
+      throw error;
+    }
+
     const response: AnswerPromptResponse = await this.aiInsightFacade.answerPrompt({
       projectId: input.projectId,
       dataMartId: input.dataMartId,

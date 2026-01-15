@@ -1,5 +1,3 @@
-import { useState, useCallback } from 'react';
-import { useDataMart } from '../model';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -7,23 +5,33 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
-import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
-import { MoreVertical, Trash2, ArrowLeft, CircleCheck, Play } from 'lucide-react';
-import { NavLink, Outlet } from 'react-router-dom';
-import { useProjectRoute } from '../../../../shared/hooks';
+import { Skeleton } from '@owox/ui/components/skeleton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { cn } from '@owox/ui/lib/utils';
+import { ArrowLeft, CircleCheck, MoreVertical, Play, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { toast } from 'react-hot-toast';
+import { NavLink, Outlet } from 'react-router-dom';
+import { useFlags } from '../../../../app/store/hooks';
+import { Button } from '../../../../shared/components/Button';
+import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
 import { InlineEditTitle } from '../../../../shared/components/InlineEditTitle/InlineEditTitle.tsx';
 import { StatusLabel, StatusTypeEnum } from '../../../../shared/components/StatusLabel';
-import { Button } from '../../../../shared/components/Button';
-import { DataMartDefinitionType, DataMartStatus, getValidationErrorMessages } from '../../shared';
-import { toast } from 'react-hot-toast';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import { useProjectRoute } from '../../../../shared/hooks';
+import { checkVisible } from '../../../../utils';
 import { ConnectorRunView } from '../../../connectors/edit/components/ConnectorRunSheet/ConnectorRunView.tsx';
-import { Skeleton } from '@owox/ui/components/skeleton';
-import { useSchemaActualizeTrigger } from '../../shared/hooks/useSchemaActualizeTrigger';
-import { useFlags } from '../../../../app/store/hooks';
-import { parseEnvList } from '../../../../utils';
 import { useAuth } from '../../../idp';
+import {
+  DataMartDefinitionType,
+  DataMartRunStatus,
+  DataMartRunTriggerType,
+  DataMartRunType,
+  DataMartStatus,
+  getValidationErrorMessages,
+} from '../../shared';
+import { useSchemaActualizeTrigger } from '../../shared/hooks/useSchemaActualizeTrigger';
+import { PromoStep, useDataMartNextStepPromo } from '../hooks/useDataMartNextStepPromo';
+import { useDataMart } from '../model';
 
 interface DataMartDetailsProps {
   id: string;
@@ -33,6 +41,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   const { navigate } = useProjectRoute();
   const { user } = useAuth();
   const { flags } = useFlags();
+  const projectId = user?.projectId ?? '';
 
   const {
     dataMart,
@@ -52,10 +61,14 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     getErrorMessage,
     runs,
     getDataMart,
+    isManualRunTriggered,
+    resetManualRunTriggered,
   } = useDataMart(id);
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isRunSheetOpen, setIsRunSheetOpen] = useState(false);
+  const lastRunIdRef = useRef<string | null>(null);
 
   const {
     id: dataMartId = '',
@@ -84,12 +97,9 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     await runActualizeSchemaInternal();
   }, [canActualizeSchema, runActualizeSchemaInternal]);
 
-  // TODO: Remove after implementing feature flags or global Insight rollout
-  const enabledProjectsRaw = flags?.INSIGHTS_ENABLED_PROJECT_IDS as string | undefined;
-  const currentProjectId = user?.projectId ?? '';
-  const shouldShowInsights =
-    currentProjectId.length > 0 &&
-    parseEnvList(enabledProjectsRaw ?? '').includes(currentProjectId);
+  const shouldShowInsights = checkVisible('INSIGHTS_ENABLED', 'true', flags);
+
+  const { showPromo } = useDataMartNextStepPromo();
 
   const navigation = [
     { name: 'Overview', path: 'overview' },
@@ -115,12 +125,33 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     try {
       await publishDataMart(dataMartId);
       void runSchemaActualization();
+
+      // Show promo toast based on a data mart type
+      const isConnector = dataMartDefinitionType === DataMartDefinitionType.CONNECTOR;
+
+      showPromo({
+        step: isConnector ? PromoStep.LOAD_DATA : PromoStep.USE_DATA,
+        projectId,
+        dataMartId,
+        isInsightsEnabled: shouldShowInsights,
+        onManualRunClick: () => {
+          setIsRunSheetOpen(true);
+        },
+      });
     } catch (error) {
       console.log(error instanceof Error ? error.message : 'Failed to publish Data Mart');
     } finally {
       setIsPublishing(false);
     }
-  }, [dataMartId, publishDataMart, runSchemaActualization]);
+  }, [
+    dataMartId,
+    dataMartDefinitionType,
+    publishDataMart,
+    runSchemaActualization,
+    showPromo,
+    projectId,
+    shouldShowInsights,
+  ]);
 
   const handleManualRun = useCallback(
     async (payload: Record<string, unknown>) => {
@@ -129,13 +160,69 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
         toast.error('Manual run is only available for published Data Marts');
         return;
       }
-      await runDataMart({
-        id: dataMartId,
-        payload,
-      });
+      lastRunIdRef.current = runs[0]?.id || null;
+      await runDataMart({ id: dataMartId, payload });
     },
-    [dataMartId, dataMartStatus, runDataMart]
+    [dataMartId, dataMartStatus, runDataMart, runs]
   );
+
+  // Show promo after the first successful manual connector run
+  useEffect(() => {
+    if (!isManualRunTriggered || !runs.length) return;
+    if (dataMartDefinitionType !== DataMartDefinitionType.CONNECTOR) return;
+
+    const latestRun = runs[0];
+    if (latestRun.id === lastRunIdRef.current) return;
+
+    // Check if the latest run has reached a terminal state
+    const isTerminalState = [
+      DataMartRunStatus.SUCCESS,
+      DataMartRunStatus.FAILED,
+      DataMartRunStatus.CANCELLED,
+      DataMartRunStatus.INTERRUPTED,
+      DataMartRunStatus.RESTRICTED,
+    ].includes(latestRun.status);
+
+    if (isTerminalState) {
+      // Mark this run as processed and reset the manual run trigger
+      lastRunIdRef.current = latestRun.id;
+      resetManualRunTriggered();
+
+      // Show promo only if the latest run was a successful manual connector run
+      if (
+        latestRun.status === DataMartRunStatus.SUCCESS &&
+        latestRun.triggerType === DataMartRunTriggerType.MANUAL &&
+        latestRun.type === DataMartRunType.CONNECTOR
+      ) {
+        // Count total successful manual connector runs
+        const successfulManualConnectorRuns = runs.filter(
+          run =>
+            run.status === DataMartRunStatus.SUCCESS &&
+            run.triggerType === DataMartRunTriggerType.MANUAL &&
+            run.type === DataMartRunType.CONNECTOR
+        );
+
+        // Show promo only after the very first successful manual connector run
+        if (successfulManualConnectorRuns.length === 1) {
+          showPromo({
+            step: PromoStep.USE_DATA,
+            projectId,
+            dataMartId,
+            isInsightsEnabled: shouldShowInsights,
+          });
+        }
+      }
+    }
+  }, [
+    runs,
+    isManualRunTriggered,
+    dataMartDefinitionType,
+    resetManualRunTriggered,
+    showPromo,
+    projectId,
+    dataMartId,
+    shouldShowInsights,
+  ]);
 
   if (isLoading) {
     // Loading data mart details...
@@ -278,7 +365,11 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
       </div>
 
       <div>
-        <nav className='-mb-px flex space-x-4 border-b' aria-label='Tabs' role='tablist'>
+        <nav
+          className='no-scrollbar -mb-px flex gap-2 overflow-x-auto border-b whitespace-nowrap'
+          aria-label='Tabs'
+          role='tablist'
+        >
           {navigation.map(item => {
             return (
               <NavLink
@@ -286,7 +377,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                 to={item.path}
                 className={({ isActive }) =>
                   cn(
-                    'border-b-2 px-4 py-2 text-sm font-medium whitespace-nowrap',
+                    'border-b-2 px-4 py-3 text-sm font-medium whitespace-nowrap sm:py-2',
                     isActive
                       ? 'border-primary text-primary'
                       : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:border-gray-200 dark:hover:text-gray-200'
@@ -348,6 +439,21 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
           })();
         }}
       />
+
+      {/* Controlled ConnectorRunView for toast "Run Now" action */}
+      {dataMartDefinitionType === DataMartDefinitionType.CONNECTOR && (
+        <ConnectorRunView
+          configuration={dataMartDefinition ?? null}
+          onManualRun={data => {
+            void handleManualRun({
+              runType: data.runType,
+              data: data.data,
+            });
+          }}
+          open={isRunSheetOpen}
+          onOpenChange={setIsRunSheetOpen}
+        />
+      )}
     </div>
   );
 }

@@ -9,9 +9,9 @@ export function EmptyDataMartDestinationsState() {
     <div className='dm-card'>
       <div className='dm-empty-state'>
         <ArchiveRestore className='dm-empty-state-ico' strokeWidth={1} />
-        <h2 className='dm-empty-state-title'>Google Sheets, Looker Studio… and friends!</h2>
+        <h2 className='dm-empty-state-title'>Google Sheets, Looker Studio, Email… and friends!</h2>
         <p className='dm-empty-state-subtitle'>
-          To send your Data Mart's data to your favorite tools, create a Destination first.
+          To turn data into reports using your favorite tools, create a Destination first.
         </p>
         <Button variant='outline' asChild>
           <Link to={scope('/data-destinations')} className='flex items-center gap-1'>

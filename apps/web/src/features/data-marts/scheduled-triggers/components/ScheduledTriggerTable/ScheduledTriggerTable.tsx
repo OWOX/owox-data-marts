@@ -165,7 +165,7 @@ export function ScheduledTriggerTable({
                   role='cell'
                 >
                   <span role='status' aria-live='polite'>
-                    No scheduled triggers found.
+                    No scheduled triggers yet. Create a trigger to automate data updates
                   </span>
                 </TableCell>
               </TableRow>

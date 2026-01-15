@@ -17,11 +17,21 @@ export interface ConsumptionContext {
   dataMart: DataMart;
 }
 
+export type PromptProcessedEntityName = 'INSIGHT' | 'REPORT';
+
+export interface PromptProcessedContext {
+  entityName: PromptProcessedEntityName;
+  entityId: string;
+  userId: string;
+  projectId: string;
+}
+
 export interface DataMartInsightTemplateInput {
   template: string;
   params: DataMartAdditionalParams;
   context?: Record<string, unknown>;
   consumptionContext?: ConsumptionContext;
+  promptProcessedContext?: PromptProcessedContext;
 }
 
 export interface DataMartPromptMetaEntry {
@@ -54,8 +64,14 @@ export function isPromptAnswerError(value: PromptAnswer): boolean {
   return value === PromptAnswer.ERROR;
 }
 
+export function isPromptAnswerRestricted(value: PromptAnswer): boolean {
+  return value === PromptAnswer.RESTRICTED;
+}
+
 export function isPromptAnswerWarning(value: PromptAnswer): boolean {
-  return !isPromptAnswerOk(value) && !isPromptAnswerError(value);
+  return (
+    !isPromptAnswerOk(value) && !isPromptAnswerError(value) && !isPromptAnswerRestricted(value)
+  );
 }
 
 export enum PromptAnswer {
@@ -64,6 +80,7 @@ export enum PromptAnswer {
   NOT_RELEVANT = 'not_relevant',
   CANNOT_ANSWER = 'cannot_answer',
   HIGH_AMBIGUITY = 'high_ambiguity',
+  RESTRICTED = 'restricted',
   ERROR = 'error',
 }
 

@@ -72,7 +72,7 @@ export const GoogleSheetsReportEditForm = forwardRef<
   (
     {
       initialReport,
-      mode = ReportFormMode.EDIT,
+      mode,
       onDirtyChange,
       onFormErrorChange,
       onSubmit,
@@ -400,15 +400,14 @@ export const GoogleSheetsReportEditForm = forwardRef<
               )}
             </FormSection>
           </FormLayout>
+
           <ReportFormActions
             mode={mode}
             isSubmitting={isSubmitting}
             isDirty={isDirty}
             triggersDirty={triggersDirty}
-            onRunAndSave={() => {
-              runAfterSaveRef.current = true;
-              void form.handleSubmit(handleFormSubmit)();
-            }}
+            runAfterSaveRef={runAfterSaveRef}
+            onSubmit={() => void form.handleSubmit(handleFormSubmit)()}
             onCancel={onCancel}
           />
         </AppForm>

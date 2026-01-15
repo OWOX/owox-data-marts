@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { InsightsActionType } from '../reducer/insights.actions';
 import { insightsService } from '../services';
 import {
@@ -17,6 +18,7 @@ import { RequestStatus } from '../../../../../shared/types/request-status.ts';
 import { isDataMartRunFinalStatus, isTaskFinalStatus } from '../../../shared';
 
 export function useInsights() {
+  const navigate = useNavigate();
   const { state, dispatch } = useInsightsContext();
   const { dataMart } = useDataMartContext();
 
@@ -271,6 +273,20 @@ export function useInsights() {
     }
   }, [state.activeInsight, state.executionTriggerId, dataMart.id, dispatch]);
 
+  const handleCreateInsight = useCallback(async () => {
+    const created = await createInsight({ title: 'Untitled insight' });
+    if (created) {
+      void navigate(created.id);
+    }
+  }, [createInsight, navigate]);
+
+  const handleCreateInsightWithAi = useCallback(async () => {
+    const created = await createInsightWithAi();
+    if (created) {
+      void navigate(created.id);
+    }
+  }, [createInsightWithAi, navigate]);
+
   return {
     insights: state.list,
     activeInsight: state.activeInsight,
@@ -284,6 +300,8 @@ export function useInsights() {
     getInsightSilently,
     createInsight,
     createInsightWithAi,
+    handleCreateInsight,
+    handleCreateInsightWithAi,
     updateInsight,
     updateInsightTitle,
     deleteInsight,

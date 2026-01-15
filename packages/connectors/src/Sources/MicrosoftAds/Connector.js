@@ -17,14 +17,20 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
    * Processes all nodes defined in the fields configuration
    */
   async startImportProcess() {
-    const fields = MicrosoftAdsHelper.parseFields(this.config.Fields.value);    
+    const accountIds = FormatUtils.parseAccountIds(this.config.AccountIDs.value);
+    const fields = MicrosoftAdsHelper.parseFields(this.config.Fields.value);
 
-    for (const nodeName in fields) {
-      await this.processNode({
-        nodeName,
-        accountId: this.config.AccountID.value,
-        fields: fields[nodeName] || []
-      });
+    for (const rawAccountId of accountIds) {
+      const accountId = rawAccountId.trim();
+      this.config.logMessage(`Starting import process for Account ID: ${accountId}`);
+
+      for (const nodeName in fields) {
+        await this.processNode({
+          nodeName,
+          accountId,
+          fields: fields[nodeName] || []
+        });
+      }
     }
   }
 
@@ -61,7 +67,7 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
    */
   async processTimeSeriesNode({ nodeName, accountId, fields }) {
     const [startDate, daysToFetch] = this.getStartDateAndDaysToFetch();
-  
+
     if (daysToFetch <= 0) {
       console.log('No days to fetch for time series data');
       return;
@@ -71,17 +77,17 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
     for (let dayOffset = 0; dayOffset < daysToFetch; dayOffset++) {
       const currentDate = new Date(startDate);
       currentDate.setDate(currentDate.getDate() + dayOffset);
-      
+
       const formattedDate = DateUtils.formatDate(currentDate);
-      
+
       this.config.logMessage(`Processing ${nodeName} for ${accountId} on ${formattedDate} (day ${dayOffset + 1} of ${daysToFetch})`);
 
-      const data = await this.source.fetchData({ 
-        nodeName, 
-        accountId, 
-        start_time: formattedDate, 
-        end_time: formattedDate, 
-        fields 
+      const data = await this.source.fetchData({
+        nodeName,
+        accountId,
+        start_time: formattedDate,
+        end_time: formattedDate,
+        fields
       });
 
       this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${accountId} on ${formattedDate}` : `No records have been fetched`);
@@ -99,7 +105,7 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
       }
     }
   }
-  
+
   /**
    * Process a catalog node
    * @param {Object} options - Processing options
@@ -109,9 +115,9 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
    * @param {Object} options.storage - Storage instance
    */
   async processCatalogNode({ nodeName, accountId, fields }) {
-    const data = await this.source.fetchData({ 
-      nodeName, 
-      accountId, 
+    const data = await this.source.fetchData({
+      nodeName,
+      accountId,
       fields,
       onBatchReady: async (batchData) => {
         this.config.logMessage(`Saving batch of ${batchData.length} records to storage`);
@@ -120,7 +126,7 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
         await storage.saveData(preparedData);
       }
     });
-    
+
     this.config.logMessage(data.length ? `${data.length} rows of ${nodeName} were fetched for ${accountId}` : `No records have been fetched`);
 
     if (data.length || this.config.CreateEmptyTables?.value) {
@@ -148,7 +154,7 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
       const uniqueFields = this.source.fieldsSchema[nodeName].uniqueKeys;
 
       this.storages[nodeName] = new globalThis[this.storageName](
-        this.config.mergeParameters({ 
+        this.config.mergeParameters({
           DestinationSheetName: { value: this.source.fieldsSchema[nodeName].destinationName },
           DestinationTableName: { value: this.getDestinationName(nodeName, this.config, this.source.fieldsSchema[nodeName].destinationName) },
         }),
@@ -159,7 +165,7 @@ var MicrosoftAdsConnector = class MicrosoftAdsConnector extends AbstractConnecto
 
       await this.storages[nodeName].init();
     }
-    
+
     return this.storages[nodeName];
   }
 };

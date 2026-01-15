@@ -1,5 +1,5 @@
 import { ConnectorContextProvider } from '../../../shared/model/context';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ConnectorRunSheet } from './ConnectorRunSheet';
 import type {
   ConnectorDefinitionConfig,
@@ -8,10 +8,11 @@ import type {
 import type { ConnectorRunFormData } from '../../../shared/model/types/connector';
 
 interface ConnectorRunViewProps {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   configuration: DataMartDefinitionConfig | null;
   onManualRun: (data: ConnectorRunFormData) => void;
   open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function ConnectorRunView({
@@ -19,16 +20,29 @@ export function ConnectorRunView({
   configuration,
   onManualRun,
   open,
+  onOpenChange,
 }: ConnectorRunViewProps) {
   const [isEditSheetOpen, setIsEditSheetOpen] = useState(open ?? false);
 
+  // Sync with external open prop for controlled mode
+  useEffect(() => {
+    if (open !== undefined) {
+      setIsEditSheetOpen(open);
+    }
+  }, [open]);
+
+  const handleOpenChange = (newOpen: boolean) => {
+    setIsEditSheetOpen(newOpen);
+    onOpenChange?.(newOpen);
+  };
+
   const handleTriggerClick = () => {
-    setIsEditSheetOpen(true);
+    handleOpenChange(true);
   };
 
   const handleSubmit = (data: ConnectorRunFormData) => {
     onManualRun(data);
-    setIsEditSheetOpen(false);
+    handleOpenChange(false);
   };
 
   const renderTrigger = () => {
@@ -48,7 +62,7 @@ export function ConnectorRunView({
           <ConnectorRunSheet
             isOpen={isEditSheetOpen}
             onClose={() => {
-              setIsEditSheetOpen(false);
+              handleOpenChange(false);
             }}
             configuration={configuration as ConnectorDefinitionConfig | null}
             onSubmit={handleSubmit}

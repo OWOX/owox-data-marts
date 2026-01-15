@@ -24,6 +24,7 @@ import {
   DataMartInsightTemplateStatus,
   isPromptAnswerError,
   isPromptAnswerOk,
+  isPromptAnswerRestricted,
 } from '../ai-insights/data-mart-insights.types';
 
 @Injectable()
@@ -155,6 +156,12 @@ export class InsightExecutionService {
           projectId: dataMart.projectId,
           dataMartId: dataMart.id,
         },
+        promptProcessedContext: {
+          entityName: 'INSIGHT',
+          entityId: insight.id,
+          userId: run.createdById!,
+          projectId: dataMart.projectId,
+        },
         consumptionContext: {
           contextType: 'INSIGHT',
           contextId: insight.id,
@@ -199,7 +206,11 @@ export class InsightExecutionService {
         if (!isPromptAnswerOk(p.meta.status)) {
           errors.push(
             JSON.stringify({
-              type: isPromptAnswerError(p.meta.status) ? 'prompt_error' : 'prompt_warning',
+              type: isPromptAnswerError(p.meta.status)
+                ? 'prompt_error'
+                : isPromptAnswerRestricted(p.meta.status)
+                  ? 'prompt_restricted'
+                  : 'prompt_warning',
               at: this.systemTimeService.now(),
               prompt: p.payload?.prompt,
               status: p.meta.status,

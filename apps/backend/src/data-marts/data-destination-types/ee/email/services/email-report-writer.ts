@@ -155,6 +155,12 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
         projectId: this.report.dataMart.projectId,
         dataMartId: this.report.dataMart.id,
       },
+      promptProcessedContext: {
+        entityName: 'REPORT',
+        entityId: this.report.id,
+        userId: this.report.createdById,
+        projectId: this.report.dataMart.projectId,
+      },
       consumptionContext: {
         contextType: 'REPORT',
         contextId: this.report.id,

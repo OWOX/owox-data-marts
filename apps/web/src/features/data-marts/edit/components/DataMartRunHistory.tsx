@@ -12,14 +12,8 @@ import type { ConnectorListItem } from '../../../connectors/shared/model/types/c
 export function DataMartRunHistory() {
   const LIMIT = 20;
 
-  const {
-    dataMart,
-    getDataMartRuns,
-    loadMoreDataMartRuns,
-    cancelDataMartRun,
-    runs = [],
-    isLoading,
-  } = useOutletContext<DataMartContextType>();
+  const { dataMart, getDataMartRuns, loadMoreDataMartRuns, cancelDataMartRun, runs, isLoading } =
+    useOutletContext<DataMartContextType>();
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
@@ -71,7 +65,7 @@ export function DataMartRunHistory() {
   return (
     <div className='flex flex-col gap-4 pb-4'>
       {runs.length === 0 ? (
-        <div className='text-muted-foreground py-8 text-center'>
+        <div className='text-muted-foreground rounded-sm border-b border-gray-200 bg-white p-8 text-center text-sm dark:border-white/4 dark:bg-white/1'>
           No runs found for this Data Mart
         </div>
       ) : (

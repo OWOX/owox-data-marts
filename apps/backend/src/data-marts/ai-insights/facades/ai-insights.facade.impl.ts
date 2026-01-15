@@ -9,7 +9,7 @@ import {
   SharedAgentContext,
 } from '../ai-insights-types';
 import { AiInsightsOrchestratorService } from '../ai-insight-orchestrator.service';
-import { PromptAnswer } from '../data-mart-insights.types';
+import { DataMartPromptMetaEntry, PromptAnswer } from '../data-mart-insights.types';
 import { GenerateInsightAgent } from '../agent/generate-insight.agent';
 import { AI_CHAT_PROVIDER } from '../../../common/ai-insights/services/ai-chat-provider.token';
 import { AiChatProvider } from '../../../common/ai-insights/agent/ai-core';
@@ -83,9 +83,26 @@ export class AiInsightsFacadeImpl implements AiInsightsFacade {
 
       this.logger.log(`AI generated insight title: "${aiResult.title}"`);
 
+      const prompts: DataMartPromptMetaEntry[] = [
+        {
+          payload: {
+            projectId: request.projectId,
+            dataMartId: request.dataMartId,
+            prompt: 'generate insight',
+          },
+          promptAnswer: JSON.stringify(aiResult),
+          meta: {
+            prompt: 'generate insight',
+            status: PromptAnswer.OK,
+            telemetry: sharedContext.telemetry,
+          },
+        },
+      ];
+
       return {
         title: aiResult.title,
         template: aiResult.template,
+        prompts,
       };
     } catch (e: unknown) {
       this.logger.error(`Error generating insight for data mart ${request.dataMartId}`, e);

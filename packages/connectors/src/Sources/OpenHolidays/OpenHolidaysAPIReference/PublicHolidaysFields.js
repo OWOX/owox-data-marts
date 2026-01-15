@@ -7,32 +7,32 @@
 
 var publicHolidaysFields = {
   id: {
-    type: "string",
-    description: "Unique identifier for the holiday"
+    'type': DATA_TYPES.STRING,
+    'description': "Unique identifier for the holiday"
   },
   date: {
-    type: "date",
-    description: "Date of the holiday",
-    GoogleBigQueryPartitioned: true
+    'type': DATA_TYPES.DATE,
+    'description': "Date of the holiday",
+    'GoogleBigQueryPartitioned': true
   },
   name: {
-    type: "string",
-    description: "Name of the holiday in the specified language"
+    'type': DATA_TYPES.STRING,
+    'description': "Name of the holiday in the specified language"
   },
   type: {
-    type: "string",
-    description: "Type of holiday (public, school, etc.)"
+    'type': DATA_TYPES.STRING,
+    'description': 'Type of holiday (public, school, etc.)'
   },
   regionalScope: {
-    type: "string",
-    description: "Regional scope of the holiday"
+    'type': DATA_TYPES.STRING,
+    'description': 'Regional scope of the holiday'
   },
   temporalScope: {
-    type: "string",
-    description: "Temporal scope of the holiday"
+    'type': DATA_TYPES.STRING,
+    'description': 'Temporal scope of the holiday'
   },
   nationwide: {
-    type: "boolean",
-    description: "Whether the holiday is nationwide"
+    'type': DATA_TYPES.BOOLEAN,
+    'description': 'Whether the holiday is nationwide'
   }
 };

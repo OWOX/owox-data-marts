@@ -259,7 +259,7 @@ class AbstractStorage {
      * @returns {string} Storage-specific column type
      */
     getColumnType(columnName) {
-      return 'string';
+      throw new Error("Method getColumnType() has to be implemented in a child class of AbstractStorage");
     }
     //----------------------------------------------------------------
 

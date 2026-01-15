@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Plus } from 'lucide-react';
+import { Sparkles, Plus, ChevronDown } from 'lucide-react';
 
 import { Button } from '@owox/ui/components/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@owox/ui/components/dropdown-menu';
 import {
   CollapsibleCard,
   CollapsibleCardHeader,
@@ -13,13 +20,22 @@ import {
 } from '../../../../shared/components/CollapsibleCard';
 import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
 import { useInsights, useInsightsList } from '../model';
+import { useInsightsPermissions } from '../hooks/useInsightsPermissions';
 import InsightsEmptyState from './InsightsEmptyState';
 import { InsightsTable } from './InsightsTable/InsightsTable';
+import { NO_PERMISSION_MESSAGE } from '../../../../app/permissions';
 
 export default function InsightsListSection() {
   const navigate = useNavigate();
-  const { fetchInsights, deleteInsight, createInsight, insightLoading } = useInsights();
+  const {
+    fetchInsights,
+    deleteInsight,
+    insightLoading,
+    handleCreateInsight,
+    handleCreateInsightWithAi,
+  } = useInsights();
   const { insights, isLoading, error, hasInsights } = useInsightsList();
+  const { canCreate, canGenerateAI } = useInsightsPermissions();
 
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -29,15 +45,6 @@ export default function InsightsListSection() {
 
   const handleRowClick = (id: string) => {
     void navigate(id);
-  };
-
-  const handleCreateClick = () => {
-    void (async () => {
-      const created = await createInsight({ title: 'Untitled insight' });
-      if (created) {
-        void navigate(created.id);
-      }
-    })();
   };
 
   const handleConfirmDelete = () => {
@@ -60,15 +67,66 @@ export default function InsightsListSection() {
         </CollapsibleCardHeaderTitle>
         {hasInsights && (
           <CollapsibleCardHeaderActions>
-            <Button
-              variant='outline'
-              aria-label='Add new insight'
-              disabled={insightLoading}
-              onClick={handleCreateClick}
-            >
-              <Plus className='h-4 w-4' aria-hidden='true' />
-              New insight
-            </Button>
+            <div className='inline-flex -space-x-px'>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className='inline-flex'>
+                    <Button
+                      variant='outline'
+                      className='rounded-r-none'
+                      onClick={() => void handleCreateInsight()}
+                      disabled={insightLoading || !canCreate}
+                    >
+                      <Plus className='h-4 w-4' aria-hidden='true' />
+                      New insight
+                    </Button>
+                  </div>
+                </TooltipTrigger>
+                {!canCreate && <TooltipContent>{NO_PERMISSION_MESSAGE}</TooltipContent>}
+              </Tooltip>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant='outline'
+                    className='rounded-l-none px-2'
+                    aria-label='More options'
+                    disabled={insightLoading}
+                  >
+                    <ChevronDown className='h-4 w-4' aria-hidden='true' />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align='end'>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className='w-full'>
+                        <DropdownMenuItem
+                          onClick={() => void handleCreateInsightWithAi()}
+                          disabled={insightLoading || !canGenerateAI}
+                        >
+                          <Sparkles className='h-4 w-4' aria-hidden='true' />
+                          Generate insight with AI
+                        </DropdownMenuItem>
+                      </div>
+                    </TooltipTrigger>
+                    {!canGenerateAI && <TooltipContent>{NO_PERMISSION_MESSAGE}</TooltipContent>}
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className='w-full'>
+                        <DropdownMenuItem
+                          onClick={() => void handleCreateInsight()}
+                          disabled={insightLoading || !canCreate}
+                        >
+                          <Plus className='h-4 w-4' aria-hidden='true' />
+                          Blank insight
+                        </DropdownMenuItem>
+                      </div>
+                    </TooltipTrigger>
+                    {!canCreate && <TooltipContent>{NO_PERMISSION_MESSAGE}</TooltipContent>}
+                  </Tooltip>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </CollapsibleCardHeaderActions>
         )}
       </CollapsibleCardHeader>
