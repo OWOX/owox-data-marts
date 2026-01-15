@@ -33,7 +33,7 @@ function MainLayoutContent() {
       <GlobalLoader isLoading={isLoading} />
       <AuthGuard redirectTo='/auth/sign-in'>
         <AppSidebar variant='inset' collapsible='icon' />
-        <SidebarInset>
+        <SidebarInset className='min-w-0'>
           {showTrigger && <SidebarTrigger />}
           <ProjectIdGuard>
             <Outlet />

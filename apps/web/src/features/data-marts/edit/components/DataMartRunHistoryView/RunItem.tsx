@@ -128,7 +128,7 @@ export function RunItem({
 
           <div className='text-muted-foreground flex items-center gap-2 text-sm'>
             {getTriggerTypeIcon(run.triggerType)}
-            <span className='inline-flex items-center'>
+            <div className='inline-flex items-center gap-2'>
               {runDescription}
               {run.createdByUser && (
                 <>
@@ -142,7 +142,7 @@ export function RunItem({
                   {reportTitle}
                 </>
               )}
-            </span>
+            </div>
           </div>
         </div>
 

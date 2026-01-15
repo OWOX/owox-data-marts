@@ -36,7 +36,8 @@ const HoverCardContent = React.forwardRef<
         align={align}
         sideOffset={sideOffset}
         className={cn(
-          'bg-popover text-popover-foreground z-50 w-110 rounded-lg border px-6 py-4 shadow-md outline-none',
+          'bg-popover text-popover-foreground z-50 rounded-lg border px-6 py-4 shadow-md outline-none',
+          'w-[calc(100vw-1rem)] sm:w-110 sm:max-w-110',
           'data-[state=open]:animate-in data-[state=closed]:animate-out',
           'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
           'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
@@ -107,7 +108,11 @@ const HoverCardItem = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTML
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn('border-border flex items-center justify-between border-b py-4', className)}
+      className={cn(
+        'flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between',
+        'border-border border-b py-3 sm:py-4',
+        className
+      )}
       {...props}
     />
   )
@@ -123,7 +128,11 @@ HoverCardItemLabel.displayName = 'HoverCardItemLabel';
 
 const HoverCardItemValue = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>(
   ({ className, ...props }, ref) => (
-    <span ref={ref} className={cn('text-sm', className)} {...props} />
+    <span
+      ref={ref}
+      className={cn('text-sm break-words sm:text-right sm:font-normal', className)}
+      {...props}
+    />
   )
 );
 HoverCardItemValue.displayName = 'HoverCardItemValue';
