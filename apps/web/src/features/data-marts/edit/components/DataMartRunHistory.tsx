@@ -8,40 +8,36 @@ import { LogViewType } from './DataMartRunHistoryView/types';
 import type { DataMartContextType } from '../model/context/types';
 import { DataMartDefinitionType } from '../../shared';
 import type { ConnectorListItem } from '../../../connectors/shared/model/types/connector';
+import { DATA_MART_RUNS_PAGE_SIZE } from '../constants';
 
 export function DataMartRunHistory() {
-  const LIMIT = 20;
-
-  const { dataMart, getDataMartRuns, loadMoreDataMartRuns, cancelDataMartRun, runs, isLoading } =
-    useOutletContext<DataMartContextType>();
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const [offset, setOffset] = useState(0);
+  const {
+    dataMart,
+    getDataMartRuns,
+    loadMoreDataMartRuns,
+    cancelDataMartRun,
+    runs,
+    isLoading,
+    isLoadingMoreRuns,
+    hasMoreRunsToLoad,
+  } = useOutletContext<DataMartContextType>();
   const [expandedRun, setExpandedRun] = useState<string | null>(null);
   const [logViewType, setLogViewType] = useState<LogViewType>(LogViewType.STRUCTURED);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const loadRunHistory = useCallback(async () => {
-    if (!dataMart?.id) return;
-    const data = await getDataMartRuns(dataMart.id, LIMIT, 0);
-    setOffset(data.length);
-    setHasMore(data.length === LIMIT);
-  }, [dataMart?.id, getDataMartRuns, LIMIT]);
-
   const loadMoreRuns = useCallback(async () => {
-    if (!dataMart?.id || loadingMore) return;
-    setLoadingMore(true);
-    const data = await loadMoreDataMartRuns(dataMart.id, offset, LIMIT);
-    setOffset(prev => prev + data.length);
-    setHasMore(data.length === LIMIT);
-    setLoadingMore(false);
-  }, [dataMart?.id, loadMoreDataMartRuns, offset, loadingMore, LIMIT]);
+    if (!dataMart?.id || isLoadingMoreRuns || !hasMoreRunsToLoad) return;
+    // Calculate offset dynamically based on current runs count
+    const currentOffset = runs.length;
+    await loadMoreDataMartRuns(dataMart.id, currentOffset, DATA_MART_RUNS_PAGE_SIZE);
+  }, [dataMart?.id, loadMoreDataMartRuns, runs.length, isLoadingMoreRuns, hasMoreRunsToLoad]);
 
+  //Load runs when component mounts
   useEffect(() => {
     if (dataMart?.id) {
-      void loadRunHistory();
+      void getDataMartRuns(dataMart.id, DATA_MART_RUNS_PAGE_SIZE, 0);
     }
-  }, [dataMart?.id, loadRunHistory]);
+  }, [dataMart?.id, getDataMartRuns]);
 
   const dataMartConnectorInfo = useMemo<ConnectorListItem | null>(() => {
     if (
@@ -86,16 +82,16 @@ export function DataMartRunHistory() {
             />
           ))}
 
-          {hasMore && (
+          {hasMoreRunsToLoad && (
             <div className='flex justify-center pt-4'>
               <Button
                 variant='outline'
                 size='sm'
                 onClick={() => void loadMoreRuns()}
-                disabled={loadingMore}
+                disabled={isLoadingMoreRuns}
                 className='flex items-center gap-2'
               >
-                {loadingMore ? (
+                {isLoadingMoreRuns ? (
                   <>
                     <RefreshCw className='h-4 w-4 animate-spin' />
                     Loading...

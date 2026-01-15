@@ -13,9 +13,12 @@ import type { DataMartRunItem } from '../types';
 export interface DataMartState {
   dataMart: DataMart | null;
   isLoading: boolean;
+  isLoadingMoreRuns: boolean;
   error: ApiError | null;
   runs: DataMartRunItem[];
   isManualRunTriggered: boolean;
+  hasMoreRunsToLoad: boolean;
+  hasActiveRuns: boolean;
 }
 
 export type DataMartAction =

@@ -12,7 +12,6 @@ import {
   mapViewDefinitionToDto,
 } from '../mappers';
 import { useAutoRefresh } from '../../../../../hooks/useAutoRefresh';
-import { isDataMartRunFinalStatus } from '../../../shared/utils/status.utils';
 import { DataMartDefinitionType, dataMartService } from '../../../shared';
 import type {
   CreateDataMartRequestDto,
@@ -38,6 +37,7 @@ import { extractApiError } from '../../../../../app/api';
 import type { DataMartSchema } from '../../../shared/types/data-mart-schema.types';
 import toast from 'react-hot-toast';
 import { pushToDataLayer, trackEvent } from '../../../../../utils';
+import { DATA_MART_RUNS_PAGE_SIZE } from '../../constants';
 
 // Props interface
 interface DataMartProviderProps {
@@ -584,15 +584,13 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     dispatch({ type: 'RESET' });
   }, []);
 
-  // Unified polling for runs completion
+  // Unified polling for runs: dynamic interval based on run status - 5 sec if active runs, 30 sec otherwise
   useAutoRefresh({
-    enabled:
-      !!state.dataMart?.id &&
-      (state.isManualRunTriggered || state.runs.some(run => !isDataMartRunFinalStatus(run.status))),
-    intervalMs: 5000,
+    enabled: !!state.dataMart?.id,
+    intervalMs: state.hasActiveRuns ? 5000 : 30000,
     onTick: () => {
       if (!state.dataMart?.id) return;
-      void getDataMartRuns(state.dataMart.id, 20, 0, { silent: true });
+      void getDataMartRuns(state.dataMart.id, DATA_MART_RUNS_PAGE_SIZE, 0, { silent: true });
     },
   });
 
