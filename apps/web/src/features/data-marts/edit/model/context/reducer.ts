@@ -127,23 +127,19 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
     case 'FETCH_DATA_MART_RUNS_SUCCESS': {
       // Smart merge: start with fresh data from payload (newest runs first)
       // then add old runs from state that are not in payload (loaded via Load More)
-      const payloadRunsMap = new Map(action.payload.map(run => [run.id, run]));
+      const payloadRunIds = new Set(action.payload.map(run => run.id));
 
       // Add old runs from state that are not in the fresh payload
-      state.runs.forEach(run => {
-        if (!payloadRunsMap.has(run.id)) {
-          payloadRunsMap.set(run.id, run);
-        }
-      });
+      const oldRunsNotInPayload = state.runs.filter(run => !payloadRunIds.has(run.id));
+      const mergedRuns = [...action.payload, ...oldRunsNotInPayload];
 
-      const mergedRuns = Array.from(payloadRunsMap.values());
-
-      // If initial fetch returned less than page size, no more runs to load
-      // Otherwise, keep the current hasMoreRunsToLoad state (might have been set by Load More)
-      const hasMoreRunsToLoad =
-        state.runs.length === 0
-          ? action.payload.length >= DATA_MART_RUNS_PAGE_SIZE
-          : state.hasMoreRunsToLoad;
+      // Determine if there are more runs to load:
+      // - On initial fetch (empty state): check if we received a full page
+      // - On polling updates: preserve existing state (Load More already knows if there's more)
+      const isInitialFetch = state.runs.length === 0;
+      const hasMoreRunsToLoad = isInitialFetch
+        ? action.payload.length >= DATA_MART_RUNS_PAGE_SIZE
+        : state.hasMoreRunsToLoad;
 
       // Check if there are any active (non-final) runs
       const hasActiveRuns = calculateHasActiveRuns(state.isManualRunTriggered, mergedRuns);

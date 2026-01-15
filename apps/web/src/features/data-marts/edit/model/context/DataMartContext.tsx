@@ -589,7 +589,8 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
     enabled: !!state.dataMart?.id,
     intervalMs: state.hasActiveRuns ? 5000 : 30000,
     onTick: () => {
-      if (!state.dataMart?.id) return;
+      // Skip polling if Load More is in progress to avoid race conditions
+      if (!state.dataMart?.id || state.isLoadingMoreRuns) return;
       void getDataMartRuns(state.dataMart.id, DATA_MART_RUNS_PAGE_SIZE, 0, { silent: true });
     },
   });

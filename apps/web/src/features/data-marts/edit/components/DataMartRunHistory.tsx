@@ -32,7 +32,7 @@ export function DataMartRunHistory() {
     await loadMoreDataMartRuns(dataMart.id, currentOffset, DATA_MART_RUNS_PAGE_SIZE);
   }, [dataMart?.id, loadMoreDataMartRuns, runs.length, isLoadingMoreRuns, hasMoreRunsToLoad]);
 
-  //Load runs when component mounts
+  // Load runs when component mounts
   useEffect(() => {
     if (dataMart?.id) {
       void getDataMartRuns(dataMart.id, DATA_MART_RUNS_PAGE_SIZE, 0);
