@@ -147,7 +147,6 @@ export function reducer(state: DataMartState, action: DataMartAction): DataMartS
       return {
         ...state,
         isLoading: false,
-        isLoadingMoreRuns: false,
         error: null,
         runs: mergedRuns,
         hasMoreRunsToLoad,
