@@ -4,7 +4,7 @@ import { mapDataMartRunListResponseDtoToEntity } from '../../edit/model/mappers/
 import type { DataMartRunItem } from '../../edit/model/types/data-mart-run';
 import {
   filterRunsByDateRange,
-  computeDataMartHealthStatus,
+  computeHealthStatusFromLatestRuns,
 } from '../../list/utils/data-mart-health-status.utils';
 import { DataMartHealthStatus } from '../types';
 import { DataMartRunType } from '../enums/data-mart-run-type.enum';
@@ -16,8 +16,22 @@ const HEALTH_STATUS_DAYS_RANGE = 30;
 const HEALTH_STATUS_PAGE_SIZE = 100;
 
 export interface CachedHealthStatus {
+  /**
+   * All runs within the configured time window.
+   * Used for UI (run history, hover details, etc).
+   */
   recentRuns: DataMartRunItem[];
+
+  /**
+   * Aggregated health status computed ONLY
+   * from the latest run of each type.
+   */
   healthStatus: DataMartHealthStatus;
+
+  /**
+   * Latest run per run type.
+   * Used both for UI and for health status computation.
+   */
   latestRunsByType: {
     connector: DataMartRunItem | null;
     report: DataMartRunItem | null;
@@ -59,18 +73,24 @@ export function getCachedHealthStatus(dataMartId: string): CachedHealthStatus | 
 
 /**
  * Builds CachedHealthStatus from a list of all runs.
+ *
+ * IMPORTANT BUSINESS LOGIC:
+ * - First, we filter runs by date range.
+ * - Then, we determine the latest run per type.
+ * - Health status is computed ONLY from those latest runs.
+ * - Historical runs do NOT affect health status.
  */
 export function buildCachedHealthStatus(allRuns: readonly DataMartRunItem[]): CachedHealthStatus {
+  // 1. Limit runs by time window
   const recentRuns = filterRunsByDateRange(allRuns, HEALTH_STATUS_DAYS_RANGE);
-  const healthStatus = computeDataMartHealthStatus(recentRuns);
 
+  // 2. Find latest run per type
   const latestRunsByType: CachedHealthStatus['latestRunsByType'] = {
     connector: null,
     report: null,
     insight: null,
   };
 
-  // Single pass over recentRuns
   for (const run of recentRuns) {
     switch (run.type) {
       case DataMartRunType.CONNECTOR: {
@@ -95,10 +115,13 @@ export function buildCachedHealthStatus(allRuns: readonly DataMartRunItem[]): Ca
     }
   }
 
+  // 3. Compute health status ONLY from latest runs
+  const healthStatus = computeHealthStatusFromLatestRuns(latestRunsByType);
+
   return {
     recentRuns,
-    healthStatus,
     latestRunsByType,
+    healthStatus,
   };
 }
 

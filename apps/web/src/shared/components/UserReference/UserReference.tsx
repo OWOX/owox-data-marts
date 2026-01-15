@@ -11,7 +11,7 @@ export function UserReference({ userProjection }: { userProjection: UserProjecti
   return (
     <HoverCard>
       <HoverCardTrigger asChild>
-        <div className='inline-flex max-w-[160px] items-center gap-1 rounded-full bg-neutral-100 py-1 pr-3 pl-1 dark:bg-neutral-900'>
+        <div className='inline-flex max-w-full items-center gap-1 rounded-full bg-neutral-100 py-1 pr-3 pl-1 dark:bg-neutral-900'>
           <UserAvatar
             avatar={avatar}
             initials={initials}
@@ -29,15 +29,19 @@ export function UserReference({ userProjection }: { userProjection: UserProjecti
         </div>
       </HoverCardTrigger>
 
-      <HoverCardContent side='top' align='start' className='w-max p-3'>
-        <div className='flex items-center gap-2'>
+      <HoverCardContent
+        side='top'
+        align='start'
+        className='max-w-auto sm:max-w-auto w-auto p-2 sm:w-auto'
+      >
+        <div className='flex min-w-0 items-center gap-2'>
           <UserAvatar
             avatar={avatar}
             initials={initials}
             displayName={displayName}
             size={UserAvatarSize.LARGE}
           />
-          <div className='grid text-left text-sm leading-tight'>
+          <div className='grid space-y-1 pr-4 text-left text-sm leading-tight'>
             <span className='truncate font-medium'>{fullName ?? email ?? 'Unknown User'}</span>
             {email && <span className='text-muted-foreground truncate text-xs'>{email}</span>}
           </div>

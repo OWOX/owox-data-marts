@@ -9,7 +9,7 @@ import { DataMartHealthStatus } from '../../shared/types';
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
- * Numeric rank for sorting Data Marts by run health.
+ * Numeric rank for sorting Data Marts by health status.
  * Higher = healthier / more actionable.
  */
 export enum HealthStatusSortRank {
@@ -31,7 +31,7 @@ const SORT_RANK_BY_HEALTH_STATUS: Record<DataMartHealthStatus, HealthStatusSortR
 };
 
 /**
- * Maps Data Mart state + indicator color to sortable rank.
+ * Maps Data Mart state + health status to sortable rank.
  */
 export function getHealthStatusSortRank(params: {
   dataMartStatus: DataMartStatus;
@@ -54,8 +54,7 @@ export function getHealthStatusSortRank(params: {
  * Filters runs to only include those within the specified number of days.
  *
  * NOTE:
- * Assumes runs are already mapped DataMartRunItem entities,
- * same as in Data Mart Run History.
+ * Assumes runs are already mapped DataMartRunItem entities.
  */
 export function filterRunsByDateRange(
   runs: readonly DataMartRunItem[],
@@ -67,37 +66,50 @@ export function filterRunsByDateRange(
 }
 
 /**
- * Computes aggregated Data Mart health status based on recent runs.
+ * Computes Data Mart health status based ONLY on the latest run of each type.
  *
- * IMPORTANT:
- * - Expects runs to be already filtered by date.
- * - Contains NO UI logic.
+ * IMPORTANT BUSINESS RULES:
+ * - Only the latest run per type is considered.
+ * - Previous runs do NOT affect the health status.
+ * - If no latest runs exist → NO_RUNS.
+ * - If all latest runs share the same final state → corresponding ALL_* status.
+ * - Any combination of different states → MIXED_RUNS.
  */
-export function computeDataMartHealthStatus(
-  recentRuns: readonly DataMartRunItem[]
-): DataMartHealthStatus {
-  if (recentRuns.length === 0) {
+export function computeHealthStatusFromLatestRuns(latestRunsByType: {
+  connector: DataMartRunItem | null;
+  report: DataMartRunItem | null;
+  insight: DataMartRunItem | null;
+}): DataMartHealthStatus {
+  const latestRuns = Object.values(latestRunsByType).filter((run): run is DataMartRunItem =>
+    Boolean(run)
+  );
+
+  if (latestRuns.length === 0) {
     return DataMartHealthStatus.NO_RUNS;
   }
 
-  const statuses = new Set(recentRuns.map(run => run.status));
+  const statuses = new Set(latestRuns.map(run => run.status));
 
   const hasSuccess = statuses.has(DataMartRunStatus.SUCCESS);
   const hasFailure = statuses.has(DataMartRunStatus.FAILED);
   const hasInProgress =
     statuses.has(DataMartRunStatus.PENDING) || statuses.has(DataMartRunStatus.RUNNING);
 
+  // Only in-progress runs
   if (hasInProgress && !hasSuccess && !hasFailure) {
     return DataMartHealthStatus.RUNS_IN_PROGRESS;
   }
 
+  // Only failed runs
   if (hasFailure && !hasSuccess && !hasInProgress) {
     return DataMartHealthStatus.ALL_RUNS_FAILED;
   }
 
+  // Only successful runs
   if (hasSuccess && !hasFailure && !hasInProgress) {
     return DataMartHealthStatus.ALL_RUNS_SUCCESS;
   }
 
+  // Any combination of different states
   return DataMartHealthStatus.MIXED_RUNS;
 }

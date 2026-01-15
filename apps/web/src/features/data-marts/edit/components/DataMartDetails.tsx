@@ -365,7 +365,11 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
       </div>
 
       <div>
-        <nav className='-mb-px flex space-x-4 border-b' aria-label='Tabs' role='tablist'>
+        <nav
+          className='no-scrollbar -mb-px flex gap-2 overflow-x-auto border-b whitespace-nowrap'
+          aria-label='Tabs'
+          role='tablist'
+        >
           {navigation.map(item => {
             return (
               <NavLink
@@ -373,7 +377,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                 to={item.path}
                 className={({ isActive }) =>
                   cn(
-                    'border-b-2 px-4 py-2 text-sm font-medium whitespace-nowrap',
+                    'border-b-2 px-4 py-3 text-sm font-medium whitespace-nowrap sm:py-2',
                     isActive
                       ? 'border-primary text-primary'
                       : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:border-gray-200 dark:hover:text-gray-200'
