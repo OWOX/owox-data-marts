@@ -7,6 +7,7 @@ import {
   GetStatementResultCommand,
   GetStatementResultCommandOutput,
   ColumnMetadata,
+  Field,
 } from '@aws-sdk/client-redshift-data';
 import { Logger } from '@nestjs/common';
 import { RedshiftConfig } from '../schemas/redshift-config.schema';
@@ -128,6 +129,106 @@ export class RedshiftApiAdapter {
     );
 
     return await this.redshiftDataClient.send(command);
+  }
+
+  /**
+   * Execute a SELECT query and return rows as plain JS objects
+   */
+  public async executeQueryAndGetRows(
+    query: string
+  ): Promise<Array<Record<string, string | null>>> {
+    const { statementId } = await this.executeQuery(query);
+    await this.waitForQueryToComplete(statementId);
+
+    const rows: Array<Record<string, string | null>> = [];
+    let columns: string[] | undefined;
+    let nextToken: string | undefined;
+
+    do {
+      const result = await this.getQueryResults(statementId, nextToken);
+
+      if (!columns && result.ColumnMetadata) {
+        columns = result.ColumnMetadata.map(col => col.label || col.name || '');
+      }
+
+      if (result.Records && columns) {
+        result.Records.forEach(record => {
+          rows.push(this.mapRecordToRow(record, columns!));
+        });
+      }
+
+      nextToken = result.NextToken;
+    } while (nextToken);
+
+    return rows;
+  }
+
+  private mapRecordToRow(
+    record: Field[] | undefined,
+    columns: string[]
+  ): Record<string, string | null> {
+    const row: Record<string, string | null> = {};
+
+    if (!record) {
+      return row;
+    }
+
+    columns.forEach((colName, idx) => {
+      row[colName] = this.extractFieldValue(record[idx]);
+    });
+
+    return row;
+  }
+
+  private extractFieldValue(field?: Field): string | null {
+    if (!field) return null;
+    if (field.isNull) return null;
+    if (field.stringValue !== undefined) return field.stringValue;
+    if (field.longValue !== undefined) return field.longValue.toString();
+    if (field.doubleValue !== undefined) return field.doubleValue.toString();
+    if (field.booleanValue !== undefined) return field.booleanValue ? 'true' : 'false';
+    if (field.blobValue !== undefined) return Buffer.from(field.blobValue).toString('utf-8');
+    return null;
+  }
+
+  /**
+   * Fetch column descriptions from Redshift catalog
+   */
+  public async getColumnDescriptions(
+    schema: string,
+    table: string
+  ): Promise<Map<string, string | null>> {
+    const query = `
+      SELECT
+        a.attname AS column_name,
+        pg_catalog.col_description(a.attrelid, a.attnum) AS comment
+      FROM pg_catalog.pg_attribute a
+      JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
+      JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = '${this.escapeLiteral(schema)}'
+        AND c.relname = '${this.escapeLiteral(table)}'
+        AND a.attnum > 0
+        AND NOT a.attisdropped
+      ORDER BY a.attnum
+    `;
+
+    const rows = await this.executeQueryAndGetRows(query);
+    const descriptions = new Map<string, string | null>();
+
+    rows.forEach(row => {
+      const columnName = (row.column_name || row.COLUMN_NAME) as string | undefined;
+      const comment = (row.comment || row.COMMENT) as string | null | undefined;
+
+      if (columnName) {
+        descriptions.set(columnName, comment ?? null);
+      }
+    });
+
+    return descriptions;
+  }
+
+  private escapeLiteral(value: string): string {
+    return value.replace(/'/g, "''");
   }
 
   /**

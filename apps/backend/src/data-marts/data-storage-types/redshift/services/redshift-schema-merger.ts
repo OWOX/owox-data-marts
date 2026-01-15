@@ -47,23 +47,21 @@ export class RedshiftSchemaMerger implements DataMartSchemaMerger {
           ...existingField,
           status: DataMartSchemaFieldStatus.DISCONNECTED,
         });
-      } else {
-        if (existingField.type === newField.type) {
-          mergedFields.push({
-            ...existingField,
-            type: newField.type,
-            status: DataMartSchemaFieldStatus.CONNECTED,
-          });
-        } else {
-          mergedFields.push({
-            ...existingField,
-            type: newField.type,
-            status: DataMartSchemaFieldStatus.CONNECTED_WITH_DEFINITION_MISMATCH,
-          });
-        }
-
-        newFieldsMap.delete(existingField.name as string);
+        continue;
       }
+
+      const hasTypeMismatch = existingField.type !== newField.type;
+
+      mergedFields.push({
+        ...newField,
+        alias: existingField.alias ?? newField.alias,
+        isPrimaryKey: existingField.isPrimaryKey ?? newField.isPrimaryKey ?? false,
+        status: hasTypeMismatch
+          ? DataMartSchemaFieldStatus.CONNECTED_WITH_DEFINITION_MISMATCH
+          : DataMartSchemaFieldStatus.CONNECTED,
+      });
+
+      newFieldsMap.delete(existingField.name as string);
     }
 
     for (const newField of newFieldsMap.values()) {

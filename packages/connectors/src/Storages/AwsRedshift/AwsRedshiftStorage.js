@@ -298,6 +298,7 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
 
     await this.executeQuery(query, 'ddl');
     this.config.logMessage(`Table "${this.config.Schema.value}"."${this.config.DestinationTableName.value}" created`);
+    await this.applyColumnComments(Object.keys(existingColumns));
     this.existingColumns = existingColumns;
 
     return existingColumns;
@@ -330,10 +331,54 @@ var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
       await this.executeQuery(query, 'ddl');
       this.config.logMessage(`Columns '${newColumns.join(',')}' were added to "${this.config.Schema.value}"."${this.config.DestinationTableName.value}" table`);
 
+      await this.applyColumnComments(newColumns);
       return newColumns;
     }
 
     return newColumns;
+  }
+  //----------------------------------------------------------------
+
+  //---- applyColumnComments ----------------------------------------
+  /**
+   * Apply comments to provided columns if description exists in schema
+   * @param {Array<string>} columns - columns to process
+   */
+  async applyColumnComments(columns) {
+    const schemaName = this.config.Schema.value;
+    const tableName = this.config.DestinationTableName.value;
+
+    for (let columnName of columns) {
+      const field = this.schema[columnName];
+
+      if (!field || !field.description) {
+        continue;
+      }
+
+      const escapedDescription = this.escapeDescription(field.description);
+      const query = `COMMENT ON COLUMN "${schemaName}"."${tableName}"."${columnName}" IS '${escapedDescription}'`;
+
+      try {
+        await this.executeQuery(query, 'ddl');
+      } catch (error) {
+        this.config.logMessage(
+          `Could not set comment for column "${columnName}" on "${schemaName}"."${tableName}": ${error.message}`
+        );
+      }
+    }
+  }
+  //----------------------------------------------------------------
+
+  //---- escapeDescription ------------------------------------------
+  /**
+   * Escape single quotes for safe COMMENT ON usage
+   */
+  escapeDescription(description) {
+    if (!description) {
+      return description;
+    }
+
+    return String(description).replace(/'/g, "''");
   }
   //----------------------------------------------------------------
 
