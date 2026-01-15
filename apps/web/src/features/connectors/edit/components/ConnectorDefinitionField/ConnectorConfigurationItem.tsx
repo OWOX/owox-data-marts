@@ -4,7 +4,10 @@ import { Info, Trash2, ChevronRight } from 'lucide-react';
 import { DataMartConnectorView } from '../../DataMartConnectorView';
 import { DataStorageType } from '../../../../data-storage';
 import type { ConnectorConfig, ConnectorDefinitionConfig } from '../../../../data-marts/edit/model';
-import { getBigQueryTableUrl } from '../../../../data-storage/shared/utils/storage-url.utils';
+import {
+  getBigQueryTableUrl,
+  getBigQueryDatasetUrl,
+} from '../../../../data-storage/shared/utils/storage-url.utils';
 import { getStorageDisplayName } from './connector-definition.helpers';
 import { ListItemCard } from '../../../../../shared/components/ListItemCard';
 import { DataStorageTypeModel } from '../../../../data-storage/shared/types/data-storage-type.model';
@@ -93,7 +96,7 @@ export function ConnectorConfigurationItem({
         const fullyQualifiedName = connectorDef.connector.storage.fullyQualifiedName;
         const dataset = fullyQualifiedName.split('.')[0];
         const table = fullyQualifiedName.split('.')[1];
-        const datasetLink = `https://console.cloud.google.com/bigquery?project=${projectId}&ws=!1m4!1m3!3m2!1s${projectId}!2s${dataset}`;
+        const datasetLink = getBigQueryDatasetUrl(projectId, dataset);
 
         return (
           <div className='flex flex-wrap items-center gap-2'>
