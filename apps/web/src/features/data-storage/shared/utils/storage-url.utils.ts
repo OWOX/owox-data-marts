@@ -47,6 +47,18 @@ export function getBigQueryTableUrl(projectId: string, dataset: string, table: s
 }
 
 /**
+ * Generates a Google BigQuery console URL for a specific dataset
+ * @param projectId The Google Cloud project ID
+ * @param dataset The dataset name
+ * @returns The BigQuery console URL for the specified dataset
+ */
+export function getBigQueryDatasetUrl(projectId: string, dataset: string): string {
+  const encodedProjectId = encodeURIComponent(projectId);
+  const encodedDataset = encodeURIComponent(dataset);
+  return `https://console.cloud.google.com/bigquery?project=${encodedProjectId}&ws=!1m4!1m3!3m2!1s${encodedProjectId}!2s${encodedDataset}`;
+}
+
+/**
  * Generates an AWS Athena console URL for a specific region
  * @param region The AWS region
  * @returns The Athena console URL for the specified region
