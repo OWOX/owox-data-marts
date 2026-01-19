@@ -1,5 +1,5 @@
 ---
-'@owox': minor
+'owox': minor
 ---
 
 # Fix: TikTok Connector Type Handling
