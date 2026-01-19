@@ -399,26 +399,27 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
         
         try {
           switch (type) {
-            case 'string':
+            case DATA_TYPES.STRING:
               processedRecord[field] = String(value).substring(0, MAX_STRING_LENGTH);
               break;
               
-            case 'int32':
-            case 'int64':
-            case 'integer':
-            case 'numeric string':
+            case DATA_TYPES.INTEGER:
               processedRecord[field] = parseInt(value);
               break;
               
-            case 'float':
+            case DATA_TYPES.NUMBER:
               processedRecord[field] = parseFloat(value);
               break;
               
-            case 'bool':
+            case DATA_TYPES.BOOLEAN:
               processedRecord[field] = Boolean(value);
               break;
               
-            case 'datetime':
+            case DATA_TYPES.DATE:
+              processedRecord[field] = new Date(value + "T00:00:00Z");
+              break;
+              
+            case DATA_TYPES.DATETIME:
               if (field === 'create_time' || field === 'modify_time') {
                 if (typeof value === 'number') {
                   processedRecord[field] = new Date(parseInt(value) * 1000);
@@ -429,9 +430,13 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
                 processedRecord[field] = new Date(value);
               }
               break;
- 
-            case 'object':
-            case 'array':
+              
+            case DATA_TYPES.TIMESTAMP:
+              processedRecord[field] = new Date(value);
+              break;
+
+            case DATA_TYPES.OBJECT:
+            case DATA_TYPES.ARRAY:
               try {
                 const jsonStr = JSON.stringify(value);
                 processedRecord[field] = jsonStr.substring(0, MAX_STRING_LENGTH);
