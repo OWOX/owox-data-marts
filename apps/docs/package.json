@@ -24,8 +24,14 @@
     "starlight-auto-sidebar": "^0.1.2"
   },
   "devDependencies": {
-    "glob": "^13.0.0",
+    "@owox/eslint-config": "*",
+    "@owox/prettier-config": "*",
+    "@types/js-yaml": "^4",
+    "@types/papaparse": "^5",
+    "glob": "^13",
+    "globals": "^16",
     "gray-matter": "^4.0.3",
+    "js-yaml": "^4",
     "papaparse": "^5.5.3",
     "rehype-external-links": "^3.0.0"
   }

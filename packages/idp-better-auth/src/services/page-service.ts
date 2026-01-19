@@ -10,6 +10,8 @@ import { CryptoService } from './crypto-service.js';
 import { BetterAuthConfig, Role } from '../types/index.js';
 import { logger } from '../logger.js';
 
+type ValidationResult = { success: true; userId: string } | { success: false; error: string };
+
 export class PageService {
   constructor(
     private readonly authenticationService: AuthenticationService,
@@ -228,13 +230,13 @@ export class PageService {
 
   async adminUserDetails(req: ExpressRequest, res: ExpressResponse): Promise<void> {
     try {
-      const userId = req.params.id;
-      if (!userId) {
-        res.status(400).send('User ID is required');
+      const validation = this.validateUserId(req.params.id);
+      if (!validation.success) {
+        res.status(400).send(validation.error);
         return;
       }
 
-      const user = await this.userManagementService.getUserDetails(userId);
+      const user = await this.userManagementService.getUserDetails(validation.userId);
 
       if (!user) {
         res.status(404).send('User not found');
@@ -342,9 +344,9 @@ export class PageService {
 
   async adminDeleteUser(req: ExpressRequest, res: ExpressResponse): Promise<void> {
     try {
-      const userId = req.params.id;
-      if (!userId) {
-        res.status(400).json({ error: 'User ID is required' });
+      const validation = this.validateUserId(req.params.id);
+      if (!validation.success) {
+        res.status(400).json({ error: validation.error });
         return;
       }
 
@@ -361,7 +363,7 @@ export class PageService {
         return;
       }
 
-      await this.userManagementService.removeUser(userId);
+      await this.userManagementService.removeUser(validation.userId);
       res.json({ success: true });
     } catch (error) {
       logger.error('Error deleting user', {}, error as Error);
@@ -425,9 +427,9 @@ export class PageService {
 
   async adminResetUserPassword(req: ExpressRequest, res: ExpressResponse): Promise<void> {
     try {
-      const userId = req.params.id;
-      if (!userId) {
-        res.status(400).json({ error: 'User ID is required' });
+      const validation = this.validateUserId(req.params.id);
+      if (!validation.success) {
+        res.status(400).json({ error: validation.error });
         return;
       }
 
@@ -437,7 +439,10 @@ export class PageService {
         return;
       }
 
-      const result = await this.userManagementService.resetUserPassword(userId, session.user.id);
+      const result = await this.userManagementService.resetUserPassword(
+        validation.userId,
+        session.user.id
+      );
 
       res.json({
         success: true,
@@ -453,6 +458,16 @@ export class PageService {
       const errorMessage = error instanceof Error ? error.message : 'Failed to reset password';
       res.status(500).json({ error: errorMessage });
     }
+  }
+
+  private validateUserId(userId: string | string[] | undefined): ValidationResult {
+    if (!userId) {
+      return { success: false, error: 'User ID is required' };
+    }
+    if (Array.isArray(userId)) {
+      return { success: false, error: 'Invalid user ID format' };
+    }
+    return { success: true, userId };
   }
 
   private generateNameFromEmail(email: string): string {

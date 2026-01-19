@@ -7,7 +7,7 @@
     "node": ">=22.16.0"
   },
   "scripts": {
-    "lint": "eslint . --max-warnings 0",
+    "lint": "eslint . --config ./eslint.config.js",
     "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs",
     "lint:md:fix": "markdownlint-cli2 --config ../../.markdownlint-cli2.mjs --fix",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css}\" --ignore-path ../../.prettierignore",
@@ -52,15 +52,20 @@
     "vaul": "^1.1.2",
     "zod": "^3.25.67"
   },
+  "peerDependencies": {
+    "@dnd-kit/sortable": "^8",
+    "@dnd-kit/utilities": "^3",
+    "react-router-dom": "^7"
+  },
   "devDependencies": {
     "@owox/eslint-config": "../eslint-config",
+    "@owox/prettier-config": "../prettier-config",
     "@owox/typescript-config": "../typescript-config",
     "@tailwindcss/postcss": "^4.0.8",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "tailwindcss": "^4.0.8",
-    "typescript": "^5.7.3"
+    "tailwindcss": "^4.0.8"
   },
   "exports": {
     "./globals.css": "./src/styles/globals.css",

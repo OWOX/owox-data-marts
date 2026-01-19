@@ -7,20 +7,20 @@
     "./base": "./base.js",
     "./react-internal": "./react-internal.js",
     "./vite": "./vite.js",
+    "./vite-react": "./vite-react.js",
     "./node": "./node.js",
     "./nestjs": "./nestjs.js"
   },
   "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^8.24.1",
-    "@typescript-eslint/parser": "^8.24.1",
-    "eslint": "^9.20.1",
-    "@eslint/js": "^9.20.1",
-    "eslint-config-prettier": "^9.1.0",
-    "eslint-plugin-react": "^7.37.4",
-    "eslint-plugin-react-hooks": "^5.1.0",
-    "eslint-plugin-react-refresh": "^0.4.19",
-    "globals": "^15.15.0",
-    "typescript": "^5.7.3",
-    "typescript-eslint": "^8.24.1"
+    "@eslint/js": "~9.39.0",
+    "@typescript-eslint/eslint-plugin": "~8.52.0",
+    "@typescript-eslint/parser": "~8.52.0",
+    "eslint": "~9.39.0",
+    "eslint-config-prettier": "~10.1.0",
+    "eslint-plugin-react": "~7.37.0",
+    "eslint-plugin-react-hooks": "~7.0.0",
+    "eslint-plugin-react-refresh": "~0.4.0",
+    "globals": "^16.2.0",
+    "typescript-eslint": "~8.52.0"
   }
 }

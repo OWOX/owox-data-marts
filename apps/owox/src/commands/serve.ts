@@ -1,4 +1,3 @@
-// eslint-disable-next-line n/no-extraneous-import
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import type { BootstrapOptions, HealthProbeAware } from '@owox/backend';
 import type { IdpProvider } from '@owox/idp-protocol';

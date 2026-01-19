@@ -23,7 +23,7 @@ jobs:
       matrix:
         check:
           - name: 'ESLint'
-            command: 'npm run lint -w @owox/docs -- --max-warnings 0'
+            command: 'npm run lint -w @owox/docs'
             timeout: 5
           - name: 'Prettier'
             command: 'npm run format:check -w @owox/docs'

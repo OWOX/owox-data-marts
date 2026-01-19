@@ -40,18 +40,22 @@
     }
   },
   "dependencies": {
-    "@google-cloud/bigquery": "^8.0.0",
     "@aws-sdk/client-athena": "3.810.0",
+    "@aws-sdk/client-redshift-data": "3.810.0",
     "@aws-sdk/client-s3": "3.810.0",
     "@aws-sdk/lib-storage": "3.810.0",
+    "@google-cloud/bigquery": "^8.0.0",
     "adm-zip": "0.5.16",
     "snowflake-sdk": "2.3.1"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
+    "@eslint/js": "^9",
+    "@owox/prettier-config": "*",
     "chokidar": "^3.5.0",
-    "fs-extra": "^11.0.0",
-    "glob": "^13.0.0",
+    "eslint-config-prettier": "^10",
+    "fs-extra": "^11",
+    "glob": "^13",
+    "globals": "^16",
     "vite": "^6.3.5"
   }
 }
