@@ -12,7 +12,6 @@
   "dependencies": {
     "@oclif/core": "^4",
     "@oclif/plugin-help": "^6",
-    "@oclif/plugin-plugins": "^5",
     "@owox/backend": "*",
     "@owox/idp-better-auth": "*",
     "@owox/idp-owox": "*",
@@ -65,7 +64,7 @@
     "bin": "owox",
     "dirname": "owox",
     "commands": "./dist/commands",
-    "plugins": ["@oclif/plugin-help", "@oclif/plugin-plugins"],
+    "plugins": ["@oclif/plugin-help"],
     "topicSeparator": " "
   },
   "repository": "OWOX/owox-data-marts",

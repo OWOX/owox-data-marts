@@ -78,6 +78,14 @@
     "typescript": "~5.9.0"
   },
   "overrides": {
-    "npm": "^11.6.4"
+    "devalue": "^5.6.2",
+    "diff": "^8.0.3",
+    "tar": "^7.5.3",
+    "mocha": {
+      "diff": "^8.0.3"
+    },
+    "ts-node": {
+      "diff": "^8.0.3"
+    }
   }
 }
