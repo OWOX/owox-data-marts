@@ -49,6 +49,18 @@ import { RedshiftSchemaMerger } from './redshift/services/redshift-schema-merger
 import { RedshiftSqlDryRunExecutor } from './redshift/services/redshift-sql-dry-run.executor';
 import { RedshiftSqlRunExecutor } from './redshift/services/redshift-sql-run.executor';
 import { RedshiftCreateViewExecutor } from './redshift/services/redshift-create-view.executor';
+import { DatabricksApiAdapterFactory } from './databricks/adapters/databricks-api-adapter.factory';
+import { DatabricksAccessValidator } from './databricks/services/databricks-access.validator';
+import { DatabricksDataMartSchemaParser } from './databricks/services/databricks-data-mart-schema.parser';
+import { DatabricksDataMartSchemaProvider } from './databricks/services/databricks-data-mart-schema.provider';
+import { DatabricksDataMartValidator } from './databricks/services/databricks-datamart.validator';
+import { DatabricksQueryBuilder } from './databricks/services/databricks-query.builder';
+import { DatabricksReportReader } from './databricks/services/databricks-report-reader.service';
+import { DatabricksReportHeadersGenerator } from './databricks/services/databricks-report-headers-generator.service';
+import { DatabricksSchemaMerger } from './databricks/services/databricks-schema-merger';
+import { DatabricksSqlDryRunExecutor } from './databricks/services/databricks-sql-dry-run.executor';
+import { DatabricksSqlRunExecutor } from './databricks/services/databricks-sql-run.executor';
+import { DatabricksCreateViewExecutor } from './databricks/services/databricks-create-view.executor';
 import { DataStorageType } from './enums/data-storage-type.enum';
 import { DataMartSchemaMerger } from './interfaces/data-mart-schema-merger.interface';
 import { DataMartSchemaParser } from './interfaces/data-mart-schema-parser.interface';
@@ -81,12 +93,14 @@ const accessValidatorProviders = [
   AthenaAccessValidator,
   SnowflakeAccessValidator,
   RedshiftAccessValidator,
+  DatabricksAccessValidator,
 ];
 const storageDataProviders = [
   BigQueryReportReader,
   AthenaReportReader,
   SnowflakeReportReader,
   RedshiftReportReader,
+  DatabricksReportReader,
 ];
 const adapterFactories = [
   BigQueryApiAdapterFactory,
@@ -94,60 +108,70 @@ const adapterFactories = [
   S3ApiAdapterFactory,
   SnowflakeApiAdapterFactory,
   RedshiftApiAdapterFactory,
+  DatabricksApiAdapterFactory,
 ];
 const queryBuilderProviders = [
   AthenaQueryBuilder,
   BigQueryQueryBuilder,
   SnowflakeQueryBuilder,
   RedshiftQueryBuilder,
+  DatabricksQueryBuilder,
 ];
 const validatorProviders = [
   BigQueryDataMartValidator,
   AthenaDataMartValidator,
   SnowflakeDataMartValidator,
   RedshiftDataMartValidator,
+  DatabricksDataMartValidator,
 ];
 const dataMartSchemaProviders = [
   BigQueryDataMartSchemaProvider,
   AthenaDataMartSchemaProvider,
   SnowflakeDataMartSchemaProvider,
   RedshiftDataMartSchemaProvider,
+  DatabricksDataMartSchemaProvider,
 ];
 const dataMartSchemaMergerProviders = [
   BigQuerySchemaMerger,
   AthenaSchemaMerger,
   SnowflakeSchemaMerger,
   RedshiftSchemaMerger,
+  DatabricksSchemaMerger,
 ];
 const schemaParserProviders = [
   BigQueryDataMartSchemaParser,
   AthenaDataMartSchemaParser,
   SnowflakeDataMartSchemaParser,
   RedshiftDataMartSchemaParser,
+  DatabricksDataMartSchemaParser,
 ];
 const reportHeadersGeneratorProviders = [
   BigQueryReportHeadersGenerator,
   AthenaReportHeadersGenerator,
   SnowflakeReportHeadersGenerator,
   RedshiftReportHeadersGenerator,
+  DatabricksReportHeadersGenerator,
 ];
 const sqlDryRunExecutorProviders = [
   BigquerySqlDryRunExecutor,
   AthenaSqlDryRunExecutor,
   SnowflakeSqlDryRunExecutor,
   RedshiftSqlDryRunExecutor,
+  DatabricksSqlDryRunExecutor,
 ];
 const sqlRunExecutorProviders = [
   BigQuerySqlRunExecutor,
   AthenaSqlRunExecutor,
   SnowflakeSqlRunExecutor,
   RedshiftSqlRunExecutor,
+  DatabricksSqlRunExecutor,
 ];
 const createViewExecutorProviders = [
   BigQueryCreateViewExecutor,
   AthenaCreateViewExecutor,
   SnowflakeCreateViewExecutor,
   RedshiftCreateViewExecutor,
+  DatabricksCreateViewExecutor,
 ];
 const publicCredentialsProviders = [
   DataStoragePublicCredentialsFactory,
