@@ -10,8 +10,6 @@ import { isDatabricksCredentials } from '../../data-storage-credentials.guards';
 import { isDatabricksConfig } from '../../data-storage-config.guards';
 import { DatabricksApiAdapterFactory } from '../adapters/databricks-api-adapter.factory';
 import { escapeFullyQualifiedIdentifier } from '../utils/databricks-identifier.utils';
-import { DatabricksApiAdapter } from '../adapters/databricks-api.adapter';
-import { DatabricksConfig } from '../schemas/databricks-config.schema';
 
 @Injectable()
 export class DatabricksCreateViewExecutor implements CreateViewExecutor {
@@ -35,7 +33,7 @@ export class DatabricksCreateViewExecutor implements CreateViewExecutor {
     const adapter = this.adapterFactory.create(credentials, config);
 
     try {
-      const fullyQualifiedName = this.normalizeViewName(adapter, viewName, config);
+      const fullyQualifiedName = this.normalizeViewName(viewName);
       await adapter.createView(fullyQualifiedName, sql);
 
       return { fullyQualifiedName };
@@ -47,41 +45,18 @@ export class DatabricksCreateViewExecutor implements CreateViewExecutor {
   /**
    * Normalize view name to a fully qualified Databricks identifier.
    * Supports: catalog.schema.view, schema.view, or view
+   * Note: catalog and schema are no longer part of storage config - they should be
+   * provided as part of the view name (fully qualified name from connector definition)
    */
-  private normalizeViewName(
-    adapter: DatabricksApiAdapter,
-    viewName: string,
-    config: DatabricksConfig
-  ): string {
+  private normalizeViewName(viewName: string): string {
     const parts = viewName.split('.').filter(Boolean);
 
-    let catalog: string | undefined;
-    let schema: string | undefined;
-    let view: string;
-
-    if (parts.length === 3) {
-      // catalog.schema.view
-      [catalog, schema, view] = parts;
-    } else if (parts.length === 2) {
-      // schema.view → use catalog from config
-      catalog = config.catalog;
-      [schema, view] = parts;
-    } else if (parts.length === 1) {
-      // view → use catalog and schema from config
-      catalog = config.catalog;
-      schema = config.schema;
-      [view] = parts;
-    } else {
-      throw new Error(
-        `Invalid Databricks view name. Expected "catalog.schema.view", "schema.view" or "view". Got: ${viewName}`
-      );
+    if (parts.length === 0) {
+      throw new Error('Invalid Databricks view name: empty name provided');
     }
 
-    const qualifiedParts: string[] = [];
-    if (catalog) qualifiedParts.push(catalog);
-    if (schema) qualifiedParts.push(schema);
-    qualifiedParts.push(view);
-
-    return escapeFullyQualifiedIdentifier(qualifiedParts);
+    // View name should already be fully qualified or partially qualified
+    // We don't have default catalog/schema anymore at storage level
+    return escapeFullyQualifiedIdentifier(parts);
   }
 }

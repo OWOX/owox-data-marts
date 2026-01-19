@@ -5,7 +5,12 @@ import { DatabricksConfig } from '../schemas/databricks-config.schema';
 
 @Injectable()
 export class DatabricksApiAdapterFactory {
-  create(credentials: DatabricksCredentials, config: DatabricksConfig): DatabricksApiAdapter {
-    return new DatabricksApiAdapter(credentials, config);
+  create(
+    credentials: DatabricksCredentials,
+    config: DatabricksConfig,
+    catalog?: string,
+    schema?: string
+  ): DatabricksApiAdapter {
+    return new DatabricksApiAdapter(credentials, config, catalog, schema);
   }
 }

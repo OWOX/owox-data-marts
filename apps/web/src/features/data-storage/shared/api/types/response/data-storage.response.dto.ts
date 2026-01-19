@@ -28,8 +28,6 @@ export interface RedshiftConfigDto {
 export interface DatabricksConfigDto {
   host: string;
   httpPath: string;
-  catalog?: string;
-  schema?: string;
 }
 
 export type DataStorageConfigDto =

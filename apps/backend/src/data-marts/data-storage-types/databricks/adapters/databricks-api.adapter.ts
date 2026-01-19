@@ -5,10 +5,7 @@ import { DatabricksConfig } from '../schemas/databricks-config.schema';
 import { DatabricksCredentials } from '../schemas/databricks-credentials.schema';
 import { DatabricksQueryMetadata } from '../interfaces/databricks-query-metadata';
 import { DatabricksQueryExplainJsonResponse } from '../interfaces/databricks-query-explain-json-response';
-import {
-  escapeDatabricksIdentifier,
-  escapeFullyQualifiedIdentifier,
-} from '../utils/databricks-identifier.utils';
+import { escapeFullyQualifiedIdentifier } from '../utils/databricks-identifier.utils';
 
 /**
  * Adapter for Databricks SQL API operations
@@ -30,12 +27,16 @@ export class DatabricksApiAdapter {
 
   /**
    * @param credentials - Databricks credentials (Personal Access Token)
-   * @param config - Databricks configuration (host, httpPath, catalog, schema)
+   * @param config - Databricks configuration (host, httpPath)
+   * @param catalog - Optional catalog to use for the session
+   * @param schema - Optional schema to use for the session
    * @throws Error if invalid credentials or config are provided
    */
   constructor(
     private readonly credentials: DatabricksCredentials,
-    private readonly config: DatabricksConfig
+    private readonly config: DatabricksConfig,
+    private readonly catalog?: string,
+    private readonly schema?: string
   ) {
     this.client = new DBSQLClient();
   }
@@ -58,8 +59,8 @@ export class DatabricksApiAdapter {
 
       // Then open a session with optional catalog and schema
       this.session = await this.client.openSession({
-        ...(this.config.catalog && { initialCatalog: this.config.catalog }),
-        ...(this.config.schema && { initialSchema: this.config.schema }),
+        ...(this.catalog && { initialCatalog: this.catalog }),
+        ...(this.schema && { initialSchema: this.schema }),
       });
       this.isConnected = true;
       this.logger.debug('Connected to Databricks SQL warehouse');
@@ -191,15 +192,16 @@ export class DatabricksApiAdapter {
 
   /**
    * Gets table schema from Databricks
+   * If tableName is not fully qualified, uses catalog and schema from constructor
    */
   public async getTableSchema(tableName: string): Promise<Record<string, unknown>[]> {
     const parts: string[] = [];
 
-    if (this.config.catalog) {
-      parts.push(this.config.catalog);
+    if (this.catalog) {
+      parts.push(this.catalog);
     }
-    if (this.config.schema) {
-      parts.push(this.config.schema);
+    if (this.schema) {
+      parts.push(this.schema);
     }
     parts.push(tableName);
 
@@ -233,10 +235,11 @@ export class DatabricksApiAdapter {
 
   /**
    * Creates a view in Databricks
+   * viewName can be a simple name or a fully qualified name (catalog.schema.view)
    */
   public async createView(viewName: string, query: string): Promise<void> {
-    const escapedViewName = escapeDatabricksIdentifier(viewName);
-    const createViewQuery = `CREATE OR REPLACE VIEW ${escapedViewName} AS ${query}`;
+    // viewName is already properly escaped by the caller if it's fully qualified
+    const createViewQuery = `CREATE OR REPLACE VIEW ${viewName} AS ${query}`;
     await this.executeQuery(createViewQuery);
   }
 

@@ -72,8 +72,6 @@ const databricksCredentialsSchema = z.object({
 const databricksConfigSchema = z.object({
   host: z.string().min(1, 'Host is required'),
   httpPath: z.string().min(1, 'HTTP Path is required'),
-  catalog: z.string().optional(),
-  schema: z.string().optional(),
 });
 
 const baseSchema = z.object({
