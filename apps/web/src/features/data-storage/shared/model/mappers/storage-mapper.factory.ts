@@ -4,6 +4,7 @@ import { GoogleBigQueryMapper } from './google-bigquery.mapper.ts';
 import { AwsAthenaMapper } from './aws-athena.mapper.ts';
 import { SnowflakeMapper } from './snowflake.mapper.ts';
 import { RedshiftMapper } from './redshift.mapper.ts';
+import { DatabricksMapper } from './databricks.mapper.ts';
 
 export const StorageMapperFactory = {
   getMapper(type: DataStorageType): StorageMapper {
@@ -16,6 +17,8 @@ export const StorageMapperFactory = {
         return new SnowflakeMapper();
       case DataStorageType.AWS_REDSHIFT:
         return new RedshiftMapper();
+      case DataStorageType.DATABRICKS:
+        return new DatabricksMapper();
       default:
         throw new Error(`Unknown storage type: ${type}`);
     }

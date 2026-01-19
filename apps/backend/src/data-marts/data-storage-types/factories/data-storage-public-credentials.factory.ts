@@ -3,6 +3,7 @@ import { AthenaCredentialsSchema } from '../athena/schemas/athena-credentials.sc
 import { BigQueryCredentialsSchema } from '../bigquery/schemas/bigquery-credentials.schema';
 import { SnowflakeCredentialsSchema } from '../snowflake/schemas/snowflake-credentials.schema';
 import { RedshiftCredentialsSchema } from '../redshift/schemas/redshift-credentials.schema';
+import { DatabricksCredentialsSchema } from '../databricks/schemas/databricks-credentials.schema';
 import { DataStorageType } from '../enums/data-storage-type.enum';
 import { DataStorageCredentialsPublic } from '../../dto/presentation/data-storage-response-api.dto';
 
@@ -43,6 +44,13 @@ export class DataStoragePublicCredentialsFactory {
         const validatedCredentials = RedshiftCredentialsSchema.parse(credentials);
         return {
           accessKeyId: validatedCredentials.accessKeyId,
+        };
+      }
+
+      case DataStorageType.DATABRICKS: {
+        const validatedCredentials = DatabricksCredentialsSchema.parse(credentials);
+        return {
+          authMethod: validatedCredentials.authMethod,
         };
       }
 

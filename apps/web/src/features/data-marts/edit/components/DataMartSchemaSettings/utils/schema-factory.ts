@@ -16,6 +16,8 @@ export function createInitialSchema(storageType: DataStorageType): DataMartSchem
       return { type: 'snowflake-data-mart-schema', fields: [] };
     case DataStorageType.AWS_REDSHIFT:
       return { type: 'redshift-data-mart-schema', fields: [] };
+    case DataStorageType.DATABRICKS:
+      return { type: 'databricks-data-mart-schema', fields: [] };
     default:
       throw new Error(`Unsupported storage type: ${storageType}`);
   }

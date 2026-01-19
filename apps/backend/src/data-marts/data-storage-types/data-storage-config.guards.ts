@@ -5,6 +5,10 @@ import {
   SnowflakeConfigSchema,
 } from './snowflake/schemas/snowflake-config.schema';
 import { RedshiftConfig, RedshiftConfigSchema } from './redshift/schemas/redshift-config.schema';
+import {
+  DatabricksConfig,
+  DatabricksConfigSchema,
+} from './databricks/schemas/databricks-config.schema';
 
 export function isBigQueryConfig(config: unknown): config is BigQueryConfig {
   return BigQueryConfigSchema.safeParse(config).success;
@@ -20,4 +24,8 @@ export function isSnowflakeConfig(config: unknown): config is SnowflakeConfig {
 
 export function isRedshiftConfig(config: unknown): config is RedshiftConfig {
   return RedshiftConfigSchema.safeParse(config).success;
+}
+
+export function isDatabricksConfig(config: unknown): config is DatabricksConfig {
+  return DatabricksConfigSchema.safeParse(config).success;
 }
