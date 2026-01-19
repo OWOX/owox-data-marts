@@ -14,8 +14,6 @@ import type { UseFormReturn } from 'react-hook-form';
 import DatabricksHostDescription from './FormDescriptions/DatabricksHostDescription.tsx';
 import DatabricksHttpPathDescription from './FormDescriptions/DatabricksHttpPathDescription.tsx';
 import DatabricksTokenDescription from './FormDescriptions/DatabricksTokenDescription.tsx';
-import DatabricksCatalogDescription from './FormDescriptions/DatabricksCatalogDescription.tsx';
-import DatabricksSchemaDescription from './FormDescriptions/DatabricksSchemaDescription.tsx';
 
 interface DatabricksFieldsProps {
   form: UseFormReturn<DataStorageFormData>;
@@ -57,38 +55,6 @@ export const DatabricksFields = ({ form }: DatabricksFieldsProps) => {
               </FormControl>
               <FormDescription>
                 <DatabricksHttpPathDescription />
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name='config.catalog'
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel tooltip='Optional Unity Catalog name'>Catalog (Optional)</FormLabel>
-              <FormControl>
-                <Input {...field} value={field.value ?? ''} placeholder='Enter catalog name' />
-              </FormControl>
-              <FormDescription>
-                <DatabricksCatalogDescription />
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name='config.schema'
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel tooltip='Optional schema name'>Schema (Optional)</FormLabel>
-              <FormControl>
-                <Input {...field} value={field.value ?? ''} placeholder='Enter schema name' />
-              </FormControl>
-              <FormDescription>
-                <DatabricksSchemaDescription />
               </FormDescription>
               <FormMessage />
             </FormItem>

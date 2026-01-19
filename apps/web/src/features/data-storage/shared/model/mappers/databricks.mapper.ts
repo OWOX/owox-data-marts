@@ -34,8 +34,6 @@ export class DatabricksMapper implements StorageMapper {
         ? {
             host: config.host,
             httpPath: config.httpPath,
-            catalog: config.catalog,
-            schema: config.schema,
           }
         : {
             host: '',
@@ -52,8 +50,6 @@ export class DatabricksMapper implements StorageMapper {
       config: {
         host: (formData.config as DatabricksConfigDto).host,
         httpPath: (formData.config as DatabricksConfigDto).httpPath,
-        catalog: (formData.config as DatabricksConfigDto).catalog,
-        schema: (formData.config as DatabricksConfigDto).schema,
       },
     };
 

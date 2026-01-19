@@ -32,8 +32,6 @@ export type RedshiftDataStorageConfig = RedshiftServerlessConfig | RedshiftProvi
 export interface DatabricksDataStorageConfig {
   host: string;
   httpPath: string;
-  catalog?: string;
-  schema?: string;
 }
 
 export type DataStorageConfig =
