@@ -43,14 +43,12 @@ export function TikTokLoginButton({
 
   const handleMessage = useCallback(
     (event: MessageEvent<unknown>) => {
-      // Verify the message is from our redirect URI origin
       try {
         const redirectOrigin = new URL(redirectUri).origin;
         if (event.origin !== redirectOrigin && event.origin !== window.location.origin) {
           return;
         }
       } catch {
-        // If redirectUri is invalid, only accept messages from same origin
         if (event.origin !== window.location.origin) {
           return;
         }
@@ -65,7 +63,6 @@ export function TikTokLoginButton({
       if (data.type === 'TIKTOK_AUTH_SUCCESS' && data.authCode) {
         if (authCompletedRef.current) return;
         authCompletedRef.current = true;
-        // Clear polling timer since auth is complete
         if (pollTimerRef.current) {
           clearInterval(pollTimerRef.current);
           pollTimerRef.current = null;
@@ -74,7 +71,6 @@ export function TikTokLoginButton({
         setError(null);
         onSuccess({ authCode: data.authCode });
       } else if (data.type === 'TIKTOK_AUTH_ERROR') {
-        // Clear polling timer since auth failed
         if (pollTimerRef.current) {
           clearInterval(pollTimerRef.current);
           pollTimerRef.current = null;
@@ -92,7 +88,6 @@ export function TikTokLoginButton({
     window.addEventListener('message', handleMessage);
     return () => {
       window.removeEventListener('message', handleMessage);
-      // Clean up polling timer if component unmounts
       if (pollTimerRef.current) {
         clearInterval(pollTimerRef.current);
         pollTimerRef.current = null;
@@ -112,18 +107,13 @@ export function TikTokLoginButton({
     setError(null);
     authCompletedRef.current = false;
 
-    // Generate a random state parameter for CSRF protection
-    // Use localStorage instead of sessionStorage because popup and parent don't share sessionStorage
     const state = Math.random().toString(36).substring(2, 15);
     localStorage.setItem('tiktok_oauth_state', state);
-
-    // Build the authorization URL
     const authUrl = new URL(TIKTOK_AUTH_URL);
     authUrl.searchParams.set('app_id', appId);
     authUrl.searchParams.set('redirect_uri', redirectUri);
     authUrl.searchParams.set('state', state);
 
-    // Open popup window for OAuth
     const width = 600;
     const height = 700;
     const left = window.screenX + (window.outerWidth - width) / 2;
@@ -143,12 +133,9 @@ export function TikTokLoginButton({
       return;
     }
 
-    // Clean up any existing polling timer
     if (pollTimerRef.current) {
       clearInterval(pollTimerRef.current);
     }
-
-    // Poll to detect if popup was closed without completing auth
     pollTimerRef.current = setInterval(() => {
       if (popup.closed) {
         if (pollTimerRef.current) {

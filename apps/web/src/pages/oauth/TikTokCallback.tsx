@@ -17,8 +17,6 @@ export function TikTokCallback() {
     const error = searchParams.get('error');
     const errorDescription = searchParams.get('error_description');
 
-    // Verify state parameter matches
-    // Use localStorage because popup and parent window don't share sessionStorage
     const savedState = localStorage.getItem('tiktok_oauth_state');
 
     const opener = window.opener as Window | null;
@@ -69,16 +67,13 @@ export function TikTokCallback() {
       return;
     }
 
-    // Clear the saved state
     localStorage.removeItem('tiktok_oauth_state');
 
-    // Success - send the auth code to the opener
     setStatus('success');
 
     if (opener) {
       opener.postMessage({ type: 'TIKTOK_AUTH_SUCCESS', authCode }, window.location.origin);
 
-      // Close the popup after a short delay
       setTimeout(() => {
         window.close();
       }, 1000);
