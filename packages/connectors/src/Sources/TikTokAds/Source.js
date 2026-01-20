@@ -416,19 +416,38 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
               break;
               
             case DATA_TYPES.DATE:
-              processedRecord[field] = new Date(value + "T00:00:00Z");
+              let dateValue;
+              if (value instanceof Date) {
+                dateValue = value;
+              } else if (typeof value === 'string') {
+                let dateStr = value.replace(' ', 'T');
+                if (!dateStr.includes('T')) {
+                  dateStr = dateStr + "T00:00:00Z";
+                } else if (!dateStr.endsWith('Z') && !dateStr.includes('+') && !dateStr.includes('-', 10)) {
+                  dateStr = dateStr + "Z";
+                }
+                dateValue = new Date(dateStr);
+              } else {
+                dateValue = new Date(value);
+              }
+              
+              processedRecord[field] = dateValue;
               break;
               
             case DATA_TYPES.DATETIME:
+              let datetimeValue;
               if (field === 'create_time' || field === 'modify_time') {
                 if (typeof value === 'number') {
-                  processedRecord[field] = new Date(parseInt(value) * 1000);
+                  datetimeValue = new Date(parseInt(value) * 1000);
                 } else if (typeof value === 'string') {
-                  processedRecord[field] = new Date(value);
+                  datetimeValue = new Date(value);
+                } else {
+                  datetimeValue = new Date(value);
                 }
               } else {
-                processedRecord[field] = new Date(value);
+                datetimeValue = new Date(value);
               }
+              processedRecord[field] = datetimeValue;
               break;
               
             case DATA_TYPES.TIMESTAMP:
