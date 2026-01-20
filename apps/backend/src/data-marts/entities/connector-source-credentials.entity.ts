@@ -33,7 +33,7 @@ export class ConnectorSourceCredentials {
   };
 
   @Column({ nullable: true })
-  expiresAt?: Date;
+  expiresAt?: Date | null;
 
   @CreateDateColumn()
   createdAt: Date;
