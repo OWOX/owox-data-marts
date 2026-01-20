@@ -35,7 +35,7 @@
     "chai": "^4",
     "eslint-config-oclif": "^6",
     "eslint-config-prettier": "~10.1.0",
-    "mocha": "^10",
+    "mocha": "^11",
     "oclif": "^4",
     "ts-node": "^10"
   },
