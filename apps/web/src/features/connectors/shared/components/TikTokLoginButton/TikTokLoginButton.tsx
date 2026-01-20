@@ -39,6 +39,7 @@ export function TikTokLoginButton({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const authCompletedRef = useRef(false);
 
   const handleMessage = useCallback(
     (event: MessageEvent<unknown>) => {
@@ -62,6 +63,8 @@ export function TikTokLoginButton({
       }
 
       if (data.type === 'TIKTOK_AUTH_SUCCESS' && data.authCode) {
+        if (authCompletedRef.current) return;
+        authCompletedRef.current = true;
         // Clear polling timer since auth is complete
         if (pollTimerRef.current) {
           clearInterval(pollTimerRef.current);
@@ -107,6 +110,7 @@ export function TikTokLoginButton({
 
     setIsLoading(true);
     setError(null);
+    authCompletedRef.current = false;
 
     // Generate a random state parameter for CSRF protection
     // Use localStorage instead of sessionStorage because popup and parent don't share sessionStorage

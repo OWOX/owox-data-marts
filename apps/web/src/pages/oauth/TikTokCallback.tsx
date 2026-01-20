@@ -27,6 +27,7 @@ export function TikTokCallback() {
       setStatus('error');
       const errorMsg = errorDescription ?? error;
       setErrorMessage(errorMsg);
+      console.error('TikTokCallback: Auth error received', errorMsg);
 
       if (opener) {
         opener.postMessage({ type: 'TIKTOK_AUTH_ERROR', error: errorMsg }, window.location.origin);
@@ -47,7 +48,15 @@ export function TikTokCallback() {
       return;
     }
 
-    if (savedState && state !== savedState) {
+    if (!savedState) {
+      console.warn(
+        'TikTokCallback: State parameter missing from localStorage - stopping processing'
+      );
+      return;
+    }
+
+    if (state !== savedState) {
+      console.error('TikTokCallback: State mismatch', { state, savedState });
       setStatus('error');
       setErrorMessage('State parameter mismatch - possible CSRF attack');
 

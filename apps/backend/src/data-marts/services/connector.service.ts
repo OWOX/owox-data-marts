@@ -196,12 +196,17 @@ export class ConnectorService {
       payload,
       oauthVariables
     )) as ConnectorOauthCredentials;
+    const expiresAt =
+      exchanged.expiresIn !== null && exchanged.expiresIn !== undefined
+        ? new Date(Date.now() + exchanged.expiresIn * 1000)
+        : null;
+
     const credential = await this.connectorSourceCredentialsService.createCredentials(
       projectId,
       userId,
       connectorName,
       exchanged.secret,
-      new Date(Date.now() + exchanged.expiresIn * 1000),
+      expiresAt as Date,
       exchanged.user
     );
     return {
