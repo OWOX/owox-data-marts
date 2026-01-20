@@ -49,11 +49,13 @@ To find the region and locator for your account, see [Snowflake documentation](h
 
 ### Enter Warehouse Name
 
-- In Snowflake, go to **Admin → Warehouses**
+- In Snowflake, go to **Compute → Warehouses**
 - Use an existing warehouse or create a new one
-- Copy the warehouse name (e.g., `COMPUTE_WH`)
+- Copy the warehouse name (e.g., `OWOX_DATA_MARTS`)
 
 > **Best Practice:** Use a dedicated warehouse for OWOX Data Marts to better control costs and performance.
+
+![Snowflake web UI showing Warehouse Activity with blue bars over recent dates; red circles highlight the warehouse name OWOX_DATA_MARTS in the header and the Compute → Warehouses menu path on the left.](/docs/res/screens/snowflake_copytitle.png)
 
 ### Choose Authentication Method
 
@@ -72,7 +74,7 @@ Key pair authentication provides enhanced security and is recommended for produc
 
 ##### How to set up key pair authentication
 
-1. **Generate a private key** (on your local machine):
+1. **Generate a private key** (in the terminal on your local machine):
 
    ```bash
    openssl genrsa 2048 | openssl pkcs8 -topk8 -inform PEM -out rsa_key.p8 -nocrypt
@@ -84,7 +86,13 @@ Key pair authentication provides enhanced security and is recommended for produc
    openssl rsa -in rsa_key.p8 -pubout -out rsa_key.pub
    ```
 
-3. **Assign the public key to your Snowflake user**:
+   ![Konsole terminal on Linux showing two openssl commands run from the home directory: one generating an RSA private key with pkcs8 and nocrypt options, and a second exporting the public key to rsa_key.pub, both finishing at the shell prompt.](/docs/res/screens/snowflake_terminal.png)
+
+Open the resulting `rsa_key.pub` file to copy the key. If you are not sure where it was saved, check your current directory: run `pwd` on macOS/Linux, or use `echo %cd%` (or `cd`) in Command Prompt on Windows.
+
+![Konsole terminal window showing the same openssl commands followed by the `pwd` command to print the working directory, with output indicating the files were saved in /home/vp.](/docs/res/screens/snowflake_pwd.png)
+
+1. **Assign the public key to your Snowflake user**:
 
    ```sql
    ALTER USER <username> SET RSA_PUBLIC_KEY='MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...';
@@ -92,11 +100,11 @@ Key pair authentication provides enhanced security and is recommended for produc
 
    (Remove the `-----BEGIN PUBLIC KEY-----` and `-----END PUBLIC KEY-----` lines and concatenate the remaining lines)
 
-4. **Enter the private key** in OWOX Data Marts:
+2. **Enter the private key** in OWOX Data Marts:
    - Copy the entire contents of `rsa_key.p8` file (including the BEGIN/END lines)
    - Paste it into the **Private Key** field
 
-5. **Optional - Private Key Passphrase**:
+3. **Optional - Private Key Passphrase**:
    - If you encrypted your private key with a passphrase, enter it here
    - If you used `-nocrypt` option (as shown above), leave this blank
 
