@@ -16,7 +16,7 @@ export class ConnectorOAuthStatusResponseApiDto {
   valid: boolean;
 
   @ApiProperty({ example: '2025-10-09T15:13:06.930Z' })
-  expiresAt?: Date;
+  expiresAt?: Date | null;
 
   @ApiProperty({ type: ConnectorOAuthStatusUserApiDto })
   user?: ConnectorOAuthStatusUserApiDto;
