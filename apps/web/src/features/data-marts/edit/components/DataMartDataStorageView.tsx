@@ -137,6 +137,18 @@ export const DataMartDataStorageView = ({
           </div>
         );
       }
+      case DataStorageType.DATABRICKS: {
+        const host = dataStorage.config.host;
+        const httpPath = dataStorage.config.httpPath;
+        const databricksConsoleLink = `https://${host}`;
+        return (
+          <div className='flex flex-wrap gap-2'>
+            {formatLinkParam('Host', host, databricksConsoleLink)}
+            <span className='text-muted-foreground'>•</span>
+            {formatParam('HTTP Path', httpPath)}
+          </div>
+        );
+      }
       default:
         return 'Unknown storage type configuration';
     }

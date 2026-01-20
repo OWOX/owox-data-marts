@@ -150,20 +150,26 @@ var DatabricksStorage = class DatabricksStorage extends AbstractStorage {
      */
     async loadTableSchema() {
 
+      this.config.logMessage('Loading table schema...');
       this.existingColumns = await this.getAListOfExistingColumns();
 
       if (Object.keys(this.existingColumns).length == 0) {
         // Table doesn't exist, create it
+        this.config.logMessage('Table does not exist, creating...');
         await this.createCatalogAndSchemaIfNotExist();
         await this.createTableIfItDoesntExist();
       } else {
         // Check if there are new columns from Fields config
+        this.config.logMessage(`Table exists with ${Object.keys(this.existingColumns).length} columns`);
         let selectedFields = this.getSelectedFields();
         let newFields = selectedFields.filter( column => !Object.keys(this.existingColumns).includes(column) );
         if( newFields.length > 0 ) {
+          this.config.logMessage(`Adding ${newFields.length} new columns`);
           await this.addNewColumns(newFields);
         }
       }
+
+      this.config.logMessage('Table schema loaded successfully');
 
     }
   //----------------------------------------------------------------
@@ -186,9 +192,11 @@ var DatabricksStorage = class DatabricksStorage extends AbstractStorage {
         queryResults = await this.executeQuery(query);
       } catch (error) {
         // If table doesn't exist, return empty columns
-        if (error.message && (error.message.includes('does not exist') || error.message.includes('TABLE_OR_VIEW_NOT_FOUND'))) {
+        if (error.message && (error.message.includes('does not exist') || error.message.includes('TABLE_OR_VIEW_NOT_FOUND') || error.message.includes('SCHEMA_NOT_FOUND') || error.message.includes('CATALOG_NOT_FOUND'))) {
+          this.config.logMessage(`Table does not exist yet: ${fullTableName}`);
           return {};
         }
+        this.config.logMessage(`Error checking table: ${error.message}`);
         throw error;
       }
 
@@ -274,6 +282,36 @@ var DatabricksStorage = class DatabricksStorage extends AbstractStorage {
 
       this.config.logMessage(`Table created: ${fullTableName}`);
 
+      // Add PRIMARY KEY constraint if uniqueKeyColumns are defined
+      await this.addPrimaryKeyConstraint(fullTableName);
+
+    }
+  //----------------------------------------------------------------
+
+  //---- addPrimaryKeyConstraint -------------------------------------
+    /**
+     * Adds PRIMARY KEY constraint to the table using uniqueKeyColumns
+     * In Databricks, PRIMARY KEY is informational (not enforced) but useful for schema documentation
+     */
+    async addPrimaryKeyConstraint(fullTableName) {
+      if (!this.uniqueKeyColumns || this.uniqueKeyColumns.length === 0) {
+        this.config.logMessage('No unique key columns defined, skipping PRIMARY KEY constraint');
+        return;
+      }
+
+      try {
+        const pkColumns = this.uniqueKeyColumns.map(col => quoteIdentifier(col)).join(', ');
+        const constraintName = `pk_${this.config.DestinationTableName.value}`;
+
+        const addConstraintQuery = `ALTER TABLE ${fullTableName} ADD CONSTRAINT ${quoteIdentifier(constraintName)} PRIMARY KEY (${pkColumns})`;
+
+        await this.executeQuery(addConstraintQuery);
+
+        this.config.logMessage(`Added PRIMARY KEY constraint on columns: ${this.uniqueKeyColumns.join(', ')}`);
+      } catch (error) {
+        // PRIMARY KEY constraint might already exist or not be supported
+        this.config.logMessage(`Note: Could not add PRIMARY KEY constraint: ${error.message}`);
+      }
     }
   //----------------------------------------------------------------
 
@@ -309,10 +347,18 @@ var DatabricksStorage = class DatabricksStorage extends AbstractStorage {
         return;
       }
 
+      // Check if there are new columns in the first row
+      if (dataRows.length > 0) {
+        let newFields = Object.keys(dataRows[0]).filter(column => !Object.keys(this.existingColumns).includes(column));
+        if (newFields.length > 0) {
+          await this.addNewColumns(newFields);
+        }
+      }
+
       // Group rows by unique key for MERGE operation
       for (let i in dataRows) {
         let row = dataRows[i];
-        let uniqueKey = this.getRecordUniqueKey(row);
+        let uniqueKey = this.getUniqueKeyByRecordFields(row);
 
         if( !this.updatedRecordsBuffer.hasOwnProperty(uniqueKey) ) {
           this.updatedRecordsBuffer[uniqueKey] = row;
@@ -322,10 +368,9 @@ var DatabricksStorage = class DatabricksStorage extends AbstractStorage {
         }
       }
 
-      // If buffer size exceeds max, flush to database
-      if( Object.keys(this.updatedRecordsBuffer).length >= this.config.MaxBufferSize.value ) {
-        await this.flushBuffer();
-      }
+      // Always flush buffer after saveData to ensure all data is persisted
+      // This is important because connectors might not call close() explicitly
+      await this.flushBuffer();
 
     }
   //----------------------------------------------------------------
@@ -503,6 +548,26 @@ var DatabricksStorage = class DatabricksStorage extends AbstractStorage {
         default:
           return "STRING";
       }
+
+    }
+  //----------------------------------------------------------------
+
+  //---- obfuscateSpecialCharacters ----------------------------------
+    /**
+     * Escape special characters for SQL string literals
+     * @param {string} inputString - String to escape
+     * @return {string} - Escaped string
+     */
+    obfuscateSpecialCharacters(inputString) {
+
+      return String(inputString)
+        .replace(/\\/g, '\\\\')          // Escape backslashes
+        .replace(/\r\n/g, ' ')           // Replace Windows line breaks with space
+        .replace(/\n/g, ' ')             // Replace Unix line breaks with space
+        .replace(/\r/g, ' ')             // Replace Mac line breaks with space
+        .replace(/'/g, "''")             // Escape single quotes (SQL standard)
+        .replace(/"/g, '\\"')            // Escape double quotes
+        .replace(/[\x00-\x1F]/g, ' ');   // Replace control chars with space
 
     }
   //----------------------------------------------------------------

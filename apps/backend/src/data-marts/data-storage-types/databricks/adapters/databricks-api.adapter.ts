@@ -193,19 +193,33 @@ export class DatabricksApiAdapter {
   /**
    * Gets table schema from Databricks
    * If tableName is not fully qualified, uses catalog and schema from constructor
+   * If tableName already contains dots (e.g., catalog.schema.table), uses it as-is
    */
   public async getTableSchema(tableName: string): Promise<Record<string, unknown>[]> {
-    const parts: string[] = [];
+    // Check if tableName is already fully qualified (contains dots)
+    const isAlreadyQualified = tableName.includes('.');
 
-    if (this.catalog) {
-      parts.push(this.catalog);
-    }
-    if (this.schema) {
-      parts.push(this.schema);
-    }
-    parts.push(tableName);
+    let fullyQualifiedName: string;
 
-    const fullyQualifiedName = escapeFullyQualifiedIdentifier(parts);
+    if (isAlreadyQualified) {
+      // tableName is already fully qualified, just escape it
+      const parts = tableName.split('.');
+      fullyQualifiedName = escapeFullyQualifiedIdentifier(parts);
+    } else {
+      // Build FQN from catalog/schema/table
+      const parts: string[] = [];
+
+      if (this.catalog) {
+        parts.push(this.catalog);
+      }
+      if (this.schema) {
+        parts.push(this.schema);
+      }
+      parts.push(tableName);
+
+      fullyQualifiedName = escapeFullyQualifiedIdentifier(parts);
+    }
+
     const query = `DESCRIBE TABLE ${fullyQualifiedName}`;
     return this.executeQueryAndFetchAll(query);
   }
@@ -265,6 +279,82 @@ export class DatabricksApiAdapter {
       throw new Error(
         `Failed to fetch results: ${error instanceof Error ? error.message : String(error)}`
       );
+    }
+  }
+
+  /**
+   * Gets extended table information including constraints
+   * Returns results from DESCRIBE TABLE EXTENDED
+   * If tableName already contains dots (e.g., catalog.schema.table), uses it as-is
+   */
+  public async getTableExtendedInfo(tableName: string): Promise<Record<string, unknown>[]> {
+    // Check if tableName is already fully qualified (contains dots)
+    const isAlreadyQualified = tableName.includes('.');
+
+    let fullyQualifiedName: string;
+
+    if (isAlreadyQualified) {
+      // tableName is already fully qualified, just escape it
+      const parts = tableName.split('.');
+      fullyQualifiedName = escapeFullyQualifiedIdentifier(parts);
+    } else {
+      // Build FQN from catalog/schema/table
+      const parts: string[] = [];
+
+      if (this.catalog) {
+        parts.push(this.catalog);
+      }
+      if (this.schema) {
+        parts.push(this.schema);
+      }
+      parts.push(tableName);
+
+      fullyQualifiedName = escapeFullyQualifiedIdentifier(parts);
+    }
+
+    const query = `DESCRIBE TABLE EXTENDED ${fullyQualifiedName}`;
+    return this.executeQueryAndFetchAll(query);
+  }
+
+  /**
+   * Gets primary key columns for a table
+   * Parses the Table Constraints section from DESCRIBE TABLE EXTENDED
+   */
+  public async getPrimaryKeyColumns(tableName: string): Promise<string[]> {
+    try {
+      const extendedInfo = await this.getTableExtendedInfo(tableName);
+
+      // Find the row with col_name = 'Table Constraints'
+      const constraintsRow = extendedInfo.find(
+        row => String(row.col_name || '').trim() === 'Table Constraints'
+      );
+
+      if (!constraintsRow) {
+        this.logger.debug('No table constraints found');
+        return [];
+      }
+
+      const constraintsText = String(constraintsRow.data_type || '');
+
+      // Parse PRIMARY KEY constraint
+      // Format: "primary_key_name PRIMARY KEY (column1, column2)"
+      const pkMatch = constraintsText.match(/PRIMARY\s+KEY\s*\(([^)]+)\)/i);
+
+      if (!pkMatch) {
+        this.logger.debug('No PRIMARY KEY constraint found');
+        return [];
+      }
+
+      // Extract column names and trim whitespace
+      const pkColumns = pkMatch[1].split(',').map(col => col.trim().replace(/`/g, ''));
+
+      this.logger.debug(`Found PRIMARY KEY columns: ${pkColumns.join(', ')}`);
+      return pkColumns;
+    } catch (error) {
+      this.logger.debug(
+        `Failed to get primary key columns: ${error instanceof Error ? error.message : String(error)}`
+      );
+      return [];
     }
   }
 }

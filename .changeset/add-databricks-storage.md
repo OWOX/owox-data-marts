@@ -14,6 +14,10 @@ This change adds support for Databricks as a new storage type in OWOX Data Marts
 - Added support for Databricks SQL data types (STRING, INT, BIGINT, DOUBLE, DECIMAL, TIMESTAMP, etc.)
 - Integrated Databricks reader state for resumable report reading
 - Added Databricks support to Looker Studio connector and Google Sheets export
+- Added Databricks storage configuration in connector execution service
+- Fixed schema type to use 'databricks-data-mart-schema' instead of storage type enum
+- Added support for retrieving column comments and primary key constraints from Databricks tables
+- Fixed table schema retrieval to properly handle fully qualified table names (catalog.schema.table)
 
 **Frontend:**
 
@@ -22,6 +26,9 @@ This change adds support for Databricks as a new storage type in OWOX Data Marts
 - Implemented Databricks schema table with full field type support
 - Added Databricks field type selector to schema editor
 - Updated data storage type status from COMING_SOON to ACTIVE
+- Fixed storage configuration display in Data Mart and Connector views
+- Added Target Setup step for Databricks connectors with catalog, schema, and table fields
+- Added Databricks display name to connector definition helpers
 
 **Connectors:**
 
@@ -29,6 +36,13 @@ This change adds support for Databricks as a new storage type in OWOX Data Marts
 - Added support for MERGE operations using Delta Lake
 - Included automatic table and schema creation
 - Added catalog and schema configuration at connector level (not storage level)
+- Added @databricks/sql package import and global exposure in connector-runner
+- Implemented obfuscateSpecialCharacters method for SQL string escaping
+- Fixed unique key generation to use inherited getUniqueKeyByRecordFields method
+- Added automatic buffer flush after saveData to ensure all data is persisted
+- Added automatic detection and creation of new columns from incoming data
+- Enhanced error handling with detailed logging for table/schema/catalog checks
+- Added automatic PRIMARY KEY constraint creation using connector's uniqueKeys
 
 **Configuration Notes:**
 

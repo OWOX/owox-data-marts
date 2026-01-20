@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type {
   AthenaSchemaField,
   BigQuerySchemaField,
+  DatabricksSchemaField,
   DataMartSchema,
   RedshiftSchemaField,
   SnowflakeSchemaField,
@@ -11,6 +12,8 @@ import {
   isAthenaSchema,
   isBigQueryField,
   isBigQuerySchema,
+  isDatabricksField,
+  isDatabricksSchema,
   isRedshiftField,
   isRedshiftSchema,
   isSnowflakeField,
@@ -60,6 +63,7 @@ export function useSchemaState(initialSchema: DataMartSchema | null | undefined)
         | AthenaSchemaField[]
         | SnowflakeSchemaField[]
         | RedshiftSchemaField[]
+        | DatabricksSchemaField[]
     ) => {
       if (schema) {
         if (isBigQuerySchema(schema) && newFields.every(isBigQueryField)) {
@@ -81,6 +85,12 @@ export function useSchemaState(initialSchema: DataMartSchema | null | undefined)
           });
           setIsDirty(true);
         } else if (isRedshiftSchema(schema) && newFields.every(isRedshiftField)) {
+          setSchema({
+            ...schema,
+            fields: newFields,
+          });
+          setIsDirty(true);
+        } else if (isDatabricksSchema(schema) && newFields.every(isDatabricksField)) {
           setSchema({
             ...schema,
             fields: newFields,
@@ -112,6 +122,12 @@ export function useSchemaState(initialSchema: DataMartSchema | null | undefined)
             setSchema({
               type: 'redshift-data-mart-schema',
               fields: newFields as RedshiftSchemaField[],
+            });
+            setIsDirty(true);
+          } else if (isDatabricksField(newFields[0])) {
+            setSchema({
+              type: 'databricks-data-mart-schema',
+              fields: newFields as DatabricksSchemaField[],
             });
             setIsDirty(true);
           }

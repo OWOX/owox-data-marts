@@ -130,12 +130,19 @@ export class DatabricksDataMartSchemaProvider implements DataMartSchemaProvider 
         return null;
       }
 
+      // Get primary key columns
+      const primaryKeyColumns = await adapter.getPrimaryKeyColumns(fullyQualifiedName);
+      this.logger.debug(`Primary key columns: ${primaryKeyColumns.join(', ') || 'none'}`);
+
       return describeResult.map((row: Record<string, unknown>) => {
         const columnName = this.getStringValue(row, 'col_name');
         const dataType = this.getStringValue(row, 'data_type');
         const comment = this.getStringValue(row, 'comment');
 
-        return this.createFieldFromResult(columnName, dataType, comment);
+        // Check if this column is part of the primary key
+        const isPrimaryKey = primaryKeyColumns.includes(columnName);
+
+        return this.createFieldFromResult(columnName, dataType, comment, isPrimaryKey);
       });
     } catch (error) {
       this.logger.debug('Failed to describe table, table likely does not exist', error);

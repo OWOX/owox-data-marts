@@ -4,6 +4,7 @@ import { useOutletContext } from 'react-router-dom';
 import type {
   AthenaSchemaField,
   BigQuerySchemaField,
+  DatabricksSchemaField,
   RedshiftSchemaField,
   SnowflakeSchemaField,
 } from '../../../shared/types/data-mart-schema.types';
@@ -49,6 +50,7 @@ export function DataMartSchemaSettings({ definitionType }: DataMartSchemaSetting
         | AthenaSchemaField[]
         | SnowflakeSchemaField[]
         | RedshiftSchemaField[]
+        | DatabricksSchemaField[]
     ) => {
       updateSchema(newFields);
     },
