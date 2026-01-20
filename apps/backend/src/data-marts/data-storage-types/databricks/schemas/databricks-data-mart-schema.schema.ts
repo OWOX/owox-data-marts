@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { DatabricksFieldType } from '../enums/databricks-field-type.enum';
 import { DataMartSchemaFieldStatus } from '../../enums/data-mart-schema-field-status.enum';
 
@@ -12,7 +11,7 @@ const DatabricksSchemaFieldSchema = z.object({
   status: z.nativeEnum(DataMartSchemaFieldStatus),
 });
 
-export const DatabricksDataMartSchemaType = DataStorageType.DATABRICKS;
+export const DatabricksDataMartSchemaType = 'databricks-data-mart-schema';
 
 export const DatabricksDataMartSchemaSchema = z.object({
   type: z.literal(DatabricksDataMartSchemaType),

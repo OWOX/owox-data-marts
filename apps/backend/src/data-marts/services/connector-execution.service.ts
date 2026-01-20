@@ -29,6 +29,8 @@ import { SnowflakeCredentials } from '../data-storage-types/snowflake/schemas/sn
 import { RedshiftConfig } from '../data-storage-types/redshift/schemas/redshift-config.schema';
 import { RedshiftCredentials } from '../data-storage-types/redshift/schemas/redshift-credentials.schema';
 import { RedshiftConnectionType } from '../data-storage-types/redshift/enums/redshift-connection-type.enum';
+import { DatabricksConfig } from '../data-storage-types/databricks/schemas/databricks-config.schema';
+import { DatabricksCredentials } from '../data-storage-types/databricks/schemas/databricks-credentials.schema';
 import { ConnectorMessage } from '../connector-types/connector-message/schemas/connector-message.schema';
 import { ConnectorOutputCaptureService } from '../connector-types/connector-message/services/connector-output-capture.service';
 import { ConnectorMessageType } from '../connector-types/enums/connector-message-type-enum';
@@ -692,6 +694,9 @@ export class ConnectorExecutionService {
       case DataStorageType.AWS_REDSHIFT:
         return this.createRedshiftStorageConfig(dataMart, connector);
 
+      case DataStorageType.DATABRICKS:
+        return this.createDatabricksStorageConfig(dataMart, connector);
+
       default:
         throw new ConnectorExecutionError(
           `Unsupported storage type: ${dataMart.storage.type}`,
@@ -849,6 +854,43 @@ export class ConnectorExecutionService {
           storageConfig.connectionType === RedshiftConnectionType.PROVISIONED
             ? storageConfig.clusterIdentifier
             : '',
+        DestinationTableNameOverride: `${connector.source.node} ${tableName}`,
+      },
+    });
+  }
+
+  private createDatabricksStorageConfig(
+    dataMart: DataMart,
+    connector: DataMartConnectorDefinition['connector']
+  ): StorageConfigDto {
+    const storageConfig = dataMart.storage.config as DatabricksConfig;
+    const credentials = dataMart.storage.credentials as DatabricksCredentials;
+
+    const fqnParts = connector.storage?.fullyQualifiedName.split('.') || [];
+    const catalog = fqnParts[0];
+    const schema = fqnParts[1];
+    const tableName = fqnParts[2];
+
+    if (!catalog || !catalog.trim()) {
+      throw new Error('Catalog name is required in connector configuration');
+    }
+
+    if (!schema || !schema.trim()) {
+      throw new Error('Schema name is required in connector configuration');
+    }
+
+    if (!tableName || !tableName.trim()) {
+      throw new Error('Table name is required in connector configuration');
+    }
+
+    return new StorageConfigDto({
+      name: DataStorageType.DATABRICKS,
+      config: {
+        DatabricksHost: storageConfig.host,
+        DatabricksHttpPath: storageConfig.httpPath,
+        DatabricksToken: credentials.token,
+        DatabricksCatalog: catalog,
+        DatabricksSchema: schema,
         DestinationTableNameOverride: `${connector.source.node} ${tableName}`,
       },
     });

@@ -10,6 +10,9 @@ const { BigQuery } = require('@google-cloud/bigquery');
 // Snowflake
 const snowflake = require('snowflake-sdk');
 
+// Databricks
+const databricks = require('@databricks/sql');
+
 // AWS SDK
 const {
   AthenaClient,
@@ -40,6 +43,7 @@ global.OWOX = OWOX;
 global.AdmZip = AdmZip;
 global.BigQuery = BigQuery;
 global.snowflake = snowflake;
+global.databricks = databricks;
 
 // AWS Athena
 global.AthenaClient = AthenaClient;
