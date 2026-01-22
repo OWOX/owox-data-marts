@@ -197,6 +197,9 @@
   body {
     @apply bg-background text-foreground;
   }
+  [data-sonner-toaster] {
+    @apply !z-30;
+  }
 }
 
 /* DM Animations */

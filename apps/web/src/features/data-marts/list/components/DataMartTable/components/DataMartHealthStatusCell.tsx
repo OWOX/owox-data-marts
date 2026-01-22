@@ -198,7 +198,7 @@ export const DataMartHealthStatusCell = ({ row }: DataMartHealthStatusCellProps)
       </HoverCardTrigger>
 
       {isFetched && !isLoading && (
-        <HoverCardContent>
+        <HoverCardContent side='right' align='start'>
           <HoverCardHeader>
             <HoverCardHeaderText>
               <HoverCardHeaderTitle>{dataMart.title}</HoverCardHeaderTitle>
