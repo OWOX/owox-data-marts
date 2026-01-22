@@ -50,9 +50,9 @@
     "@types/jest": "^29.5.14",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.10.7",
-    "jest": "^29.7.0",
+    "jest": "^30.2.0",
     "rimraf": "^6.0.1",
-    "ts-jest": "^29.2.5"
+    "ts-jest": "^29.4.6"
   },
   "files": ["dist"],
   "exports": {

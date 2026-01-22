@@ -40,7 +40,8 @@
     "@types/cookie-parser": "^1.4.9",
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.7",
-    "ts-jest": "^29.2.5"
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.6"
   },
   "peerDependencies": {
     "express": "^5",

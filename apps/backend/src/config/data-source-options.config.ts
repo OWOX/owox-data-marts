@@ -117,7 +117,7 @@ export function createDataSourceOptions(config: ConfigService): DataSourceOption
 
   if (dbType === DbType.sqlite) {
     return {
-      type: DbType.sqlite,
+      type: 'better-sqlite3',
       database: getSqliteDatabasePath(config),
       ...baseOptions,
     } as DataSourceOptions;
