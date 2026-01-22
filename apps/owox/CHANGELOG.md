@@ -4,28 +4,11 @@
 
 ### Minor Changes 0.17.0
 
-- bfdbc6b: # Insights feature is now available for all projects in the cloud version
+![OWOX Data Marts – v0.15.0](https://github.com/user-attachments/assets/5c46cc11-5282-41d5-b20f-ddcc74a3d47a)
+
+- bfdbc6b: # **Insights** feature is now available for all projects in the cloud version
 
   Users can now try out the new Insights functionality and share their feedback.
-
-- d15a3c4: # Fix bugs in data mart run history tab
-
-  Fixed bugs that users may have encountered in the Data Mart "Run History" tab, namely:
-  - Unexpected visual effects when clicking the "Load More" button.
-  - Automatic deletion of run items that were loaded via the "Load More" button, and displaying only the last 20 runs.
-
-- 3f381f7: # Fix: TikTok Connector Type Handling
-
-  Fixed "Unknown type STRING" errors in the TikTok Ads connector by updating type handling to use standardized DATA_TYPES constants.
-
-- 51a9bdd: # Added instant health status indicators to the Data Marts list
-
-  Improved Data Marts list with instant health status indicators and automatic prefetching of recent run data, making it easier to monitor Data Mart health at a glance.
-  - **Color-coded health status indicators** for each Data Mart
-    (success, failure, mixed results, in progress, or no recent runs)
-  - **Draft Data Marts** clearly communicate that publishing is required before runs are available
-  - **Automatic prefetching** of run statuses for visible rows — no waiting, no hover-to-load surprises
-  - **Helpful hover details** with recent run info and a quick path to full Run History
 
 - 3283bcd: # Insights: Improved permission handling and read-only mode
 
@@ -34,11 +17,22 @@
   - **Action enforcement**: Buttons and actions (like editing or deleting) are now properly disabled based on your access level.
   - **Better feedback**: New tooltips and messages explain why certain actions are restricted, helping you understand your permission levels at a glance.
 
-- 7d7ddd1: # Add cost_per_result, results and result_rate fields
+- 51a9bdd: # Added instant **health status indicators** to the Data Marts list
 
-  Added `cost_per_result`, `results` and `result_rate` fields to the Facebook Ad Account Insights report schema, allowing for better cost efficiency analysis.
+  Improved Data Marts list with instant health status indicators and automatic prefetching of recent run data, making it easier to monitor Data Mart health at a glance.
+  - **Color-coded health status indicators** for each Data Mart
+    (success, failure, mixed results, in progress, or no recent runs)
+  - **Draft Data Marts** clearly communicate that publishing is required before runs are available
+  - **Automatic prefetching** of run statuses for visible rows — no waiting, no hover-to-load surprises
+  - **Helpful hover details** with recent run info and a quick path to full Run History
 
-- c10c3ff: # Refactor: Standardize Data Types Across Connectors
+- d15a3c4: # Fix bugs in Data Mart **"Run History" tab**
+
+  Fixed bugs that users may have encountered in the Data Mart "Run History" tab, namely:
+  - Unexpected visual effects when clicking the "Load More" button.
+  - Automatic deletion of run items that were loaded via the "Load More" button, and displaying only the last 20 runs.
+
+- c10c3ff: # Refactor: **Standardize Data Types Across Connectors**
 
   Introduced centralized data type definitions and standardized type handling across all storage connectors and API references.
   - Created `Constants/DataTypes.js` with standardized type definitions (STRING, BOOLEAN, INTEGER, NUMBER, DATE, DATETIME, TIME, TIMESTAMP, ARRAY, OBJECT)
@@ -46,6 +40,10 @@
   - Refactored field definitions across all source connectors (Facebook Marketing, Google Ads, LinkedIn Ads, Microsoft Ads, Reddit Ads, TikTok Ads, X Ads, Shopify, GitHub, etc.) to use consistent data type references
   - Changed `AbstractStorage.getColumnType()` to throw an error if not implemented, enforcing proper implementation in child classes
   - Eliminated storage-specific type constants (e.g., `GoogleBigQueryType`) from API reference files where they were inappropriately used
+
+- 7d7ddd1: # Add new fields to **Facebook Ads source** connector
+
+  Added `cost_per_result`, `results` and `result_rate` fields to the Facebook Ad Account Insights report schema, allowing for better cost efficiency analysis.
 
 - dad1fd2: # Feat: Add default fields for Microsoft Ads
 
@@ -55,9 +53,13 @@
   - **Convenient:** Standardization of commonly used metrics.
   - **Flexible:** You can still uncheck these fields if you don't need them.
 
-- 4d4b7e9: # Add new fields to Shopify orders
+- 4d4b7e9: # Add new fields to **Shopify** orders
   - discountCodes: Array of discount code strings applied to the order
   - discountApplications: Detailed discount applications with code, amount/percentage, target type, and allocation method
+
+- 3f381f7: # Fix: **TikTok Connecto**r Type Handling
+
+  Fixed "Unknown type STRING" errors in the TikTok Ads connector by updating type handling to use standardized DATA_TYPES constants.
 
 ### Patch Changes 0.17.0
 
