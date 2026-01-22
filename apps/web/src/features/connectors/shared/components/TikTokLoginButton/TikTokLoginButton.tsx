@@ -145,6 +145,9 @@ export function TikTokLoginButton({
         if (isLoading) {
           setIsLoading(false);
         }
+        if (!authCompletedRef.current) {
+          localStorage.removeItem('tiktok_oauth_state');
+        }
       }
     }, 500);
   };

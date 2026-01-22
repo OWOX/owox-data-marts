@@ -1,5 +1,5 @@
 import { ConnectorService } from '../connector.service';
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { ConnectorSourceCredentialsService } from '../connector-source-credentials.service';
 import {
   ConnectorOAuthStatusSchema,
@@ -37,6 +37,13 @@ export class ConnectorOauthService {
         reasons: result.warnings,
       };
     } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.name === 'OauthFlowException' ||
+          ('type' in error && (error as { type: unknown }).type === 'OauthFlowException'))
+      ) {
+        throw new BadRequestException(error.message);
+      }
       if (error instanceof Error) {
         throw error;
       }

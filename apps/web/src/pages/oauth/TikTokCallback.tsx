@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 /**
@@ -10,8 +10,12 @@ export function TikTokCallback() {
   const [searchParams] = useSearchParams();
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const processed = useRef(false);
 
   useEffect(() => {
+    if (processed.current) return;
+    processed.current = true;
+
     const authCode = searchParams.get('auth_code');
     const state = searchParams.get('state');
     const error = searchParams.get('error');
@@ -21,49 +25,37 @@ export function TikTokCallback() {
 
     const opener = window.opener as Window | null;
 
-    if (error) {
+    const handleAuthFailure = (errorMsg: string) => {
+      localStorage.removeItem('tiktok_oauth_state');
       setStatus('error');
-      const errorMsg = errorDescription ?? error;
       setErrorMessage(errorMsg);
-      console.error('TikTokCallback: Auth error received', errorMsg);
 
       if (opener) {
         opener.postMessage({ type: 'TIKTOK_AUTH_ERROR', error: errorMsg }, window.location.origin);
       }
+    };
+
+    if (error) {
+      const errorMsg = errorDescription ?? error;
+      console.error('TikTokCallback: Auth error received', errorMsg);
+      handleAuthFailure(errorMsg);
       return;
     }
 
     if (!authCode) {
-      setStatus('error');
-      setErrorMessage('No authorization code received');
-
-      if (opener) {
-        opener.postMessage(
-          { type: 'TIKTOK_AUTH_ERROR', error: 'No authorization code received' },
-          window.location.origin
-        );
-      }
+      handleAuthFailure('No authorization code received');
       return;
     }
 
-    if (!savedState) {
-      console.warn(
-        'TikTokCallback: State parameter missing from localStorage - stopping processing'
-      );
-      return;
-    }
-
-    if (state !== savedState) {
-      console.error('TikTokCallback: State mismatch', { state, savedState });
-      setStatus('error');
-      setErrorMessage('State parameter mismatch - possible CSRF attack');
-
-      if (opener) {
-        opener.postMessage(
-          { type: 'TIKTOK_AUTH_ERROR', error: 'State parameter mismatch' },
-          window.location.origin
+    if (!savedState || state !== savedState) {
+      if (!savedState) {
+        console.warn(
+          'TikTokCallback: State parameter missing from localStorage - stopping processing'
         );
+      } else {
+        console.error('TikTokCallback: State mismatch', { state, savedState });
       }
+      handleAuthFailure(!savedState ? 'Session expired' : 'Security mismatch');
       return;
     }
 
