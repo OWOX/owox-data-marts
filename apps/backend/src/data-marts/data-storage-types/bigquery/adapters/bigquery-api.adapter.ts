@@ -8,6 +8,7 @@ import { BigQueryCredentials } from '../schemas/bigquery-credentials.schema';
  */
 export class BigQueryApiAdapter {
   private readonly bigQuery: BigQuery;
+  private readonly location: string;
 
   /**
    * @param credentials - BigQuery credentials
@@ -29,13 +30,18 @@ export class BigQueryApiAdapter {
       location: config.location,
       authClient,
     });
+
+    this.location = config.location;
   }
 
   /**
    * Executes a SQL query
    */
   public async executeQuery(query: string): Promise<{ jobId: string }> {
-    const [, , res] = await this.bigQuery.query(query, { maxResults: 0 });
+    const [, , res] = await this.bigQuery.query(query, {
+      maxResults: 0,
+      location: this.location,
+    });
     if (!res || !res.jobReference || !res.jobReference.jobId) {
       throw new Error('Unexpected error during getting sql result job id');
     }
@@ -51,6 +57,7 @@ export class BigQueryApiAdapter {
     const [job] = await this.bigQuery.createQueryJob({
       query,
       dryRun: true,
+      location: this.location,
     });
     return {
       totalBytesProcessed: Number(job.metadata.statistics.totalBytesProcessed),
@@ -62,7 +69,7 @@ export class BigQueryApiAdapter {
    * Gets job information by job ID
    */
   public async getJob(jobId: string): Promise<Job> {
-    const job = this.bigQuery.job(jobId);
+    const job = this.bigQuery.job(jobId, { location: this.location });
     const [jobResult] = await job.get();
     return jobResult;
   }
@@ -76,7 +83,10 @@ export class BigQueryApiAdapter {
    * @returns Table reference
    */
   public createTableReference(projectId: string, datasetId: string, tableId: string): Table {
-    const dataset = this.bigQuery.dataset(datasetId, { projectId: projectId });
+    const dataset = this.bigQuery.dataset(datasetId, {
+      projectId: projectId,
+      location: this.location,
+    });
     return dataset.table(tableId);
   }
 
@@ -85,7 +95,7 @@ export class BigQueryApiAdapter {
    */
   public async checkAccess(): Promise<void> {
     try {
-      await this.bigQuery.query('SELECT 1');
+      await this.bigQuery.query('SELECT 1', { location: this.location });
     } catch (e) {
       throw new Error(`BigQuery access error: ${e instanceof Error ? e.message : String(e)}`);
     }
