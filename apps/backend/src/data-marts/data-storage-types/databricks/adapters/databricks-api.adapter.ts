@@ -9,12 +9,6 @@ import { escapeFullyQualifiedIdentifier } from '../utils/databricks-identifier.u
 
 /**
  * Adapter for Databricks SQL API operations
- *
- * Connection Management:
- * - Each adapter instance creates a dedicated Databricks SQL connection
- * - Connection is lazy-loaded on first use
- * - Connection must be explicitly destroyed via destroy() method
- * - Uses Databricks SQL Driver for Node.js (@databricks/sql)
  */
 export class DatabricksApiAdapter {
   public static readonly DATABRICKS_QUERY_ERROR_PREFIX = 'Query execution failed:';
@@ -28,15 +22,11 @@ export class DatabricksApiAdapter {
   /**
    * @param credentials - Databricks credentials (Personal Access Token)
    * @param config - Databricks configuration (host, httpPath)
-   * @param catalog - Optional catalog to use for the session
-   * @param schema - Optional schema to use for the session
    * @throws Error if invalid credentials or config are provided
    */
   constructor(
     private readonly credentials: DatabricksCredentials,
-    private readonly config: DatabricksConfig,
-    private readonly catalog?: string,
-    private readonly schema?: string
+    private readonly config: DatabricksConfig
   ) {
     this.client = new DBSQLClient();
   }
@@ -50,18 +40,13 @@ export class DatabricksApiAdapter {
     }
 
     try {
-      // First, connect the client to the Databricks SQL warehouse
       await this.client.connect({
         host: this.config.host,
         path: this.config.httpPath,
         token: this.credentials.token,
       });
 
-      // Then open a session with optional catalog and schema
-      this.session = await this.client.openSession({
-        ...(this.catalog && { initialCatalog: this.catalog }),
-        ...(this.schema && { initialSchema: this.schema }),
-      });
+      this.session = await this.client.openSession();
       this.isConnected = true;
       this.logger.debug('Connected to Databricks SQL warehouse');
     } catch (error) {
@@ -196,25 +181,15 @@ export class DatabricksApiAdapter {
    * If tableName already contains dots (e.g., catalog.schema.table), uses it as-is
    */
   public async getTableSchema(tableName: string): Promise<Record<string, unknown>[]> {
-    // Check if tableName is already fully qualified (contains dots)
     const isAlreadyQualified = tableName.includes('.');
 
     let fullyQualifiedName: string;
 
     if (isAlreadyQualified) {
-      // tableName is already fully qualified, just escape it
       const parts = tableName.split('.');
       fullyQualifiedName = escapeFullyQualifiedIdentifier(parts);
     } else {
-      // Build FQN from catalog/schema/table
       const parts: string[] = [];
-
-      if (this.catalog) {
-        parts.push(this.catalog);
-      }
-      if (this.schema) {
-        parts.push(this.schema);
-      }
       parts.push(tableName);
 
       fullyQualifiedName = escapeFullyQualifiedIdentifier(parts);
@@ -252,7 +227,6 @@ export class DatabricksApiAdapter {
    * viewName can be a simple name or a fully qualified name (catalog.schema.view)
    */
   public async createView(viewName: string, query: string): Promise<void> {
-    // viewName is already properly escaped by the caller if it's fully qualified
     const createViewQuery = `CREATE OR REPLACE VIEW ${viewName} AS ${query}`;
     await this.executeQuery(createViewQuery);
   }
@@ -288,25 +262,15 @@ export class DatabricksApiAdapter {
    * If tableName already contains dots (e.g., catalog.schema.table), uses it as-is
    */
   public async getTableExtendedInfo(tableName: string): Promise<Record<string, unknown>[]> {
-    // Check if tableName is already fully qualified (contains dots)
     const isAlreadyQualified = tableName.includes('.');
 
     let fullyQualifiedName: string;
 
     if (isAlreadyQualified) {
-      // tableName is already fully qualified, just escape it
       const parts = tableName.split('.');
       fullyQualifiedName = escapeFullyQualifiedIdentifier(parts);
     } else {
-      // Build FQN from catalog/schema/table
       const parts: string[] = [];
-
-      if (this.catalog) {
-        parts.push(this.catalog);
-      }
-      if (this.schema) {
-        parts.push(this.schema);
-      }
       parts.push(tableName);
 
       fullyQualifiedName = escapeFullyQualifiedIdentifier(parts);
@@ -320,11 +284,10 @@ export class DatabricksApiAdapter {
    * Gets primary key columns for a table
    * Parses the Table Constraints section from DESCRIBE TABLE EXTENDED
    */
-  public async getPrimaryKeyColumns(tableName: string): Promise<string[]> {
+  public async getPrimaryKeyColumns(fullyQualifiedName: string): Promise<string[]> {
     try {
-      const extendedInfo = await this.getTableExtendedInfo(tableName);
+      const extendedInfo = await this.getTableExtendedInfo(fullyQualifiedName);
 
-      // Find the row with col_name = 'Table Constraints'
       const constraintsRow = extendedInfo.find(
         row => String(row.col_name || '').trim() === 'Table Constraints'
       );
@@ -336,8 +299,6 @@ export class DatabricksApiAdapter {
 
       const constraintsText = String(constraintsRow.data_type || '');
 
-      // Parse PRIMARY KEY constraint
-      // Format: "primary_key_name PRIMARY KEY (column1, column2)"
       const pkMatch = constraintsText.match(/PRIMARY\s+KEY\s*\(([^)]+)\)/i);
 
       if (!pkMatch) {
@@ -345,7 +306,6 @@ export class DatabricksApiAdapter {
         return [];
       }
 
-      // Extract column names and trim whitespace
       const pkColumns = pkMatch[1].split(',').map(col => col.trim().replace(/`/g, ''));
 
       this.logger.debug(`Found PRIMARY KEY columns: ${pkColumns.join(', ')}`);

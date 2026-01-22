@@ -43,7 +43,7 @@ export class DatabricksSqlDryRunExecutor implements SqlDryRunExecutor {
 
       this.logger.debug('Query validation successful');
       await adapter.destroy();
-      return SqlDryRunResult.success(0); // Databricks doesn't provide bytes estimate in EXPLAIN
+      return SqlDryRunResult.success(0);
     } catch (error) {
       this.logger.debug('Dry run failed', error);
       return SqlDryRunResult.failed(error.message);
