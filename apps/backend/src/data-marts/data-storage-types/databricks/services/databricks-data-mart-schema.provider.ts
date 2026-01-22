@@ -88,7 +88,6 @@ export class DatabricksDataMartSchemaProvider implements DataMartSchemaProvider 
 
       const { rows: _rows } = await adapter.executeQuery(query);
 
-      // Get column info from DESCRIBE on the query result
       const describeQuery = `DESCRIBE QUERY ${query}`;
       const describeResult = await adapter.executeQuery(describeQuery);
 
@@ -130,7 +129,6 @@ export class DatabricksDataMartSchemaProvider implements DataMartSchemaProvider 
         return null;
       }
 
-      // Get primary key columns
       const primaryKeyColumns = await adapter.getPrimaryKeyColumns(fullyQualifiedName);
       this.logger.debug(`Primary key columns: ${primaryKeyColumns.join(', ') || 'none'}`);
 
@@ -139,7 +137,6 @@ export class DatabricksDataMartSchemaProvider implements DataMartSchemaProvider 
         const dataType = this.getStringValue(row, 'data_type');
         const comment = this.getStringValue(row, 'comment');
 
-        // Check if this column is part of the primary key
         const isPrimaryKey = primaryKeyColumns.includes(columnName);
 
         return this.createFieldFromResult(columnName, dataType, comment, isPrimaryKey);
@@ -185,12 +182,10 @@ export class DatabricksDataMartSchemaProvider implements DataMartSchemaProvider 
 
     const upperType = typeString.toUpperCase();
 
-    // Direct matches
     if (upperType in DatabricksFieldType) {
       return DatabricksFieldType[upperType as keyof typeof DatabricksFieldType];
     }
 
-    // Handle complex types with parameters (e.g., DECIMAL(10,2), VARCHAR(100))
     if (upperType.startsWith('DECIMAL')) return DatabricksFieldType.DECIMAL;
     if (upperType.startsWith('VARCHAR')) return DatabricksFieldType.VARCHAR;
     if (upperType.startsWith('CHAR')) return DatabricksFieldType.CHAR;

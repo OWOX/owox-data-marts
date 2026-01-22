@@ -45,8 +45,6 @@ export class DatabricksCreateViewExecutor implements CreateViewExecutor {
   /**
    * Normalize view name to a fully qualified Databricks identifier.
    * Supports: catalog.schema.view, schema.view, or view
-   * Note: catalog and schema are no longer part of storage config - they should be
-   * provided as part of the view name (fully qualified name from connector definition)
    */
   private normalizeViewName(viewName: string): string {
     const parts = viewName.split('.').filter(Boolean);
@@ -55,8 +53,6 @@ export class DatabricksCreateViewExecutor implements CreateViewExecutor {
       throw new Error('Invalid Databricks view name: empty name provided');
     }
 
-    // View name should already be fully qualified or partially qualified
-    // We don't have default catalog/schema anymore at storage level
     return escapeFullyQualifiedIdentifier(parts);
   }
 }
