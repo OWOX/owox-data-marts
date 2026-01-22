@@ -62,15 +62,26 @@ export function TikTokLoginButton({
         return;
       }
 
-      const handleAuthError = (errorMsg: string) => {
+      const cleanup = () => {
         if (pollTimerRef.current) {
           clearInterval(pollTimerRef.current);
           pollTimerRef.current = null;
         }
         setIsLoading(false);
+      };
+
+      const handleAuthError = (errorMsg: string) => {
+        cleanup();
         const err = new Error(errorMsg);
         setError(err.message);
         onError?.(err);
+      };
+
+      const handleAuthSuccess = (code: string) => {
+        cleanup();
+        setError(null);
+        stateRef.current = null;
+        onSuccess({ authCode: code });
       };
 
       if (data.type === 'TIKTOK_AUTH_SUCCESS' && data.authCode) {
@@ -86,14 +97,7 @@ export function TikTokLoginButton({
         }
 
         authCompletedRef.current = true;
-        if (pollTimerRef.current) {
-          clearInterval(pollTimerRef.current);
-          pollTimerRef.current = null;
-        }
-        setIsLoading(false);
-        setError(null);
-        stateRef.current = null;
-        onSuccess({ authCode: data.authCode });
+        handleAuthSuccess(data.authCode);
       } else if (data.type === 'TIKTOK_AUTH_ERROR') {
         handleAuthError(data.error ?? 'TikTok authentication failed');
       }
