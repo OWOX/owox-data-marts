@@ -62,6 +62,17 @@ export function TikTokLoginButton({
         return;
       }
 
+      const handleAuthError = (errorMsg: string) => {
+        if (pollTimerRef.current) {
+          clearInterval(pollTimerRef.current);
+          pollTimerRef.current = null;
+        }
+        setIsLoading(false);
+        const err = new Error(errorMsg);
+        setError(err.message);
+        onError?.(err);
+      };
+
       if (data.type === 'TIKTOK_AUTH_SUCCESS' && data.authCode) {
         if (authCompletedRef.current) return;
 
@@ -70,14 +81,7 @@ export function TikTokLoginButton({
             received: data.state,
             expected: stateRef.current,
           });
-          const err = new Error('Security Error: OAuth State Mismatch');
-          setError(err.message);
-          onError?.(err);
-          setIsLoading(false);
-          if (pollTimerRef.current) {
-            clearInterval(pollTimerRef.current);
-            pollTimerRef.current = null;
-          }
+          handleAuthError('Security Error: OAuth State Mismatch');
           return;
         }
 
@@ -91,14 +95,7 @@ export function TikTokLoginButton({
         stateRef.current = null;
         onSuccess({ authCode: data.authCode });
       } else if (data.type === 'TIKTOK_AUTH_ERROR') {
-        if (pollTimerRef.current) {
-          clearInterval(pollTimerRef.current);
-          pollTimerRef.current = null;
-        }
-        setIsLoading(false);
-        const err = new Error(data.error ?? 'TikTok authentication failed');
-        setError(err.message);
-        onError?.(err);
+        handleAuthError(data.error ?? 'TikTok authentication failed');
       }
     },
     [redirectUri, onSuccess, onError]
