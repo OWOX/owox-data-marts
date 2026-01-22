@@ -116,6 +116,44 @@ export function TikTokLoginButton({
     };
   }, [handleMessage]);
 
+  const buildAuthUrl = (state: string) => {
+    const url = new URL(TIKTOK_AUTH_URL);
+    url.searchParams.set('app_id', appId);
+    url.searchParams.set('redirect_uri', redirectUri);
+    url.searchParams.set('state', state);
+    return url.toString();
+  };
+
+  const openCenteredPopup = (url: string, title: string) => {
+    const width = 600;
+    const height = 700;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+    return window.open(
+      url,
+      title,
+      `width=${String(width)},height=${String(height)},left=${String(left)},top=${String(top)},scrollbars=yes,resizable=yes`
+    );
+  };
+
+  const setupOAuthWindowPolling = (popup: Window) => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+    }
+    pollTimerRef.current = setInterval(() => {
+      if (popup.closed) {
+        if (pollTimerRef.current) {
+          clearInterval(pollTimerRef.current);
+          pollTimerRef.current = null;
+        }
+        setIsLoading(false);
+        if (!authCompletedRef.current) {
+          stateRef.current = null;
+        }
+      }
+    }, 500);
+  };
+
   const handleLogin = () => {
     if (!appId || !redirectUri) {
       const err = new Error('TikTok OAuth configuration is incomplete');
@@ -130,21 +168,8 @@ export function TikTokLoginButton({
 
     const state = Math.random().toString(36).substring(2, 15);
     stateRef.current = state;
-    const authUrl = new URL(TIKTOK_AUTH_URL);
-    authUrl.searchParams.set('app_id', appId);
-    authUrl.searchParams.set('redirect_uri', redirectUri);
-    authUrl.searchParams.set('state', state);
 
-    const width = 600;
-    const height = 700;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
-
-    const popup = window.open(
-      authUrl.toString(),
-      'TikTok OAuth',
-      `width=${String(width)},height=${String(height)},left=${String(left)},top=${String(top)},scrollbars=yes,resizable=yes`
-    );
+    const popup = openCenteredPopup(buildAuthUrl(state), 'TikTok OAuth');
 
     if (!popup) {
       setIsLoading(false);
@@ -154,23 +179,7 @@ export function TikTokLoginButton({
       return;
     }
 
-    if (pollTimerRef.current) {
-      clearInterval(pollTimerRef.current);
-    }
-    pollTimerRef.current = setInterval(() => {
-      if (popup.closed) {
-        if (pollTimerRef.current) {
-          clearInterval(pollTimerRef.current);
-          pollTimerRef.current = null;
-        }
-        if (isLoading) {
-          setIsLoading(false);
-        }
-        if (!authCompletedRef.current) {
-          stateRef.current = null;
-        }
-      }
-    }, 500);
+    setupOAuthWindowPolling(popup);
   };
 
   const isDisabled = disabled || isLoading || !appId || !redirectUri;
