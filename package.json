@@ -78,6 +78,7 @@
     "typescript": "~5.9.0"
   },
   "overrides": {
-    "diff": "^8.0.3"
+    "diff": "^8.0.3",
+    "lodash": "^4.17.23"
   }
 }
