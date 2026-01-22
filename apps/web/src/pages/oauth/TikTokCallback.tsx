@@ -21,12 +21,9 @@ export function TikTokCallback() {
     const error = searchParams.get('error');
     const errorDescription = searchParams.get('error_description');
 
-    const savedState = localStorage.getItem('tiktok_oauth_state');
-
     const opener = window.opener as Window | null;
 
     const handleAuthFailure = (errorMsg: string) => {
-      localStorage.removeItem('tiktok_oauth_state');
       setStatus('error');
       setErrorMessage(errorMsg);
 
@@ -47,24 +44,10 @@ export function TikTokCallback() {
       return;
     }
 
-    if (!savedState || state !== savedState) {
-      if (!savedState) {
-        console.warn(
-          'TikTokCallback: State parameter missing from localStorage - stopping processing'
-        );
-      } else {
-        console.error('TikTokCallback: State mismatch', { state, savedState });
-      }
-      handleAuthFailure(!savedState ? 'Session expired' : 'Security mismatch');
-      return;
-    }
-
-    localStorage.removeItem('tiktok_oauth_state');
-
     setStatus('success');
 
     if (opener) {
-      opener.postMessage({ type: 'TIKTOK_AUTH_SUCCESS', authCode }, window.location.origin);
+      opener.postMessage({ type: 'TIKTOK_AUTH_SUCCESS', authCode, state }, window.location.origin);
 
       setTimeout(() => {
         window.close();

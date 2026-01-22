@@ -17,6 +17,7 @@ export interface TikTokLoginResponse {
 interface TikTokAuthMessage {
   type: 'TIKTOK_AUTH_SUCCESS' | 'TIKTOK_AUTH_ERROR';
   authCode?: string;
+  state?: string;
   error?: string;
 }
 
@@ -40,6 +41,7 @@ export function TikTokLoginButton({
   const [error, setError] = useState<string | null>(null);
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const authCompletedRef = useRef(false);
+  const stateRef = useRef<string | null>(null);
 
   const handleMessage = useCallback(
     (event: MessageEvent<unknown>) => {
@@ -62,6 +64,23 @@ export function TikTokLoginButton({
 
       if (data.type === 'TIKTOK_AUTH_SUCCESS' && data.authCode) {
         if (authCompletedRef.current) return;
+
+        if (!data.state || data.state !== stateRef.current) {
+          console.error('State mismatch in LoginButton', {
+            received: data.state,
+            expected: stateRef.current,
+          });
+          const err = new Error('Security Error: OAuth State Mismatch');
+          setError(err.message);
+          onError?.(err);
+          setIsLoading(false);
+          if (pollTimerRef.current) {
+            clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+          }
+          return;
+        }
+
         authCompletedRef.current = true;
         if (pollTimerRef.current) {
           clearInterval(pollTimerRef.current);
@@ -69,6 +88,7 @@ export function TikTokLoginButton({
         }
         setIsLoading(false);
         setError(null);
+        stateRef.current = null;
         onSuccess({ authCode: data.authCode });
       } else if (data.type === 'TIKTOK_AUTH_ERROR') {
         if (pollTimerRef.current) {
@@ -108,7 +128,7 @@ export function TikTokLoginButton({
     authCompletedRef.current = false;
 
     const state = Math.random().toString(36).substring(2, 15);
-    localStorage.setItem('tiktok_oauth_state', state);
+    stateRef.current = state;
     const authUrl = new URL(TIKTOK_AUTH_URL);
     authUrl.searchParams.set('app_id', appId);
     authUrl.searchParams.set('redirect_uri', redirectUri);
@@ -146,7 +166,7 @@ export function TikTokLoginButton({
           setIsLoading(false);
         }
         if (!authCompletedRef.current) {
-          localStorage.removeItem('tiktok_oauth_state');
+          stateRef.current = null;
         }
       }
     }, 500);
