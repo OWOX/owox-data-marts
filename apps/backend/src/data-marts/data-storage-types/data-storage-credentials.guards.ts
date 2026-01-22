@@ -14,6 +14,10 @@ import {
   RedshiftCredentials,
   RedshiftCredentialsSchema,
 } from './redshift/schemas/redshift-credentials.schema';
+import {
+  OwoxLegacyCredentials,
+  OwoxLegacyCredentialsSchema,
+} from './owox-legacy/schemas/owox-legacy-credentials.schema';
 
 export function isBigQueryCredentials(credentials: unknown): credentials is BigQueryCredentials {
   return BigQueryCredentialsSchema.safeParse(credentials).success;
@@ -29,4 +33,10 @@ export function isSnowflakeCredentials(credentials: unknown): credentials is Sno
 
 export function isRedshiftCredentials(credentials: unknown): credentials is RedshiftCredentials {
   return RedshiftCredentialsSchema.safeParse(credentials).success;
+}
+
+export function isOwoxLegacyCredentials(
+  credentials: unknown
+): credentials is OwoxLegacyCredentials {
+  return OwoxLegacyCredentialsSchema.safeParse(credentials).success;
 }

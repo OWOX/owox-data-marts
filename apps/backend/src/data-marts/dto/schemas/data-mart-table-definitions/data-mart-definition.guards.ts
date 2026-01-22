@@ -1,5 +1,9 @@
 import { ConnectorDefinition, ConnectorDefinitionSchema } from './connector-definition.schema';
 import { DataMartDefinition } from './data-mart-definition';
+import {
+  LegacyExtensionSqlDefinition,
+  LegacyExtensionSqlDefinitionSchema,
+} from './legacy-extension-sql-definition.schema';
 import { SqlDefinition, SqlDefinitionSchema } from './sql-definition.schema';
 import { TableDefinition, TableDefinitionSchema } from './table-definition.schema';
 import {
@@ -7,6 +11,12 @@ import {
   TablePatternDefinitionSchema,
 } from './table-pattern-definition.schema';
 import { ViewDefinition, ViewDefinitionSchema } from './view-definition.schema';
+
+export function isLegacyExtensionSqlDefinition(
+  definition: DataMartDefinition
+): definition is LegacyExtensionSqlDefinition {
+  return LegacyExtensionSqlDefinitionSchema.safeParse(definition).success;
+}
 
 export function isSqlDefinition(definition: DataMartDefinition): definition is SqlDefinition {
   return SqlDefinitionSchema.safeParse(definition).success;

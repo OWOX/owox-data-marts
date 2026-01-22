@@ -1,5 +1,6 @@
 import z from 'zod';
 import { ConnectorDefinitionSchema } from './connector-definition.schema';
+import { LegacyExtensionSqlDefinitionSchema } from './legacy-extension-sql-definition.schema';
 import { SqlDefinitionSchema } from './sql-definition.schema';
 import { TableDefinitionSchema } from './table-definition.schema';
 import { TablePatternDefinitionSchema } from './table-pattern-definition.schema';
@@ -11,4 +12,5 @@ export const DataMartDefinitionSchema = z.union([
   TablePatternDefinitionSchema,
   ViewDefinitionSchema,
   ConnectorDefinitionSchema,
+  LegacyExtensionSqlDefinitionSchema,
 ]);

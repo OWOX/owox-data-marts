@@ -4,4 +4,5 @@ export enum DataMartDefinitionType {
   VIEW = 'VIEW',
   TABLE_PATTERN = 'TABLE_PATTERN',
   CONNECTOR = 'CONNECTOR',
+  LEGACY_EXTENSION_SQL = 'LEGACY_EXTENSION_SQL',
 }

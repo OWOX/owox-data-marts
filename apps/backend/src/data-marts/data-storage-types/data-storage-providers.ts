@@ -49,6 +49,16 @@ import { RedshiftSchemaMerger } from './redshift/services/redshift-schema-merger
 import { RedshiftSqlDryRunExecutor } from './redshift/services/redshift-sql-dry-run.executor';
 import { RedshiftSqlRunExecutor } from './redshift/services/redshift-sql-run.executor';
 import { RedshiftCreateViewExecutor } from './redshift/services/redshift-create-view.executor';
+import { OwoxLegacyAccessValidator } from './owox-legacy/services/owox-legacy-access.validator';
+import { OwoxLegacyQueryBuilder } from './owox-legacy/services/owox-legacy-query.builder';
+import { OwoxLegacyDataMartValidator } from './owox-legacy/services/owox-legacy-datamart.validator';
+import { OwoxLegacySchemaProvider } from './owox-legacy/services/owox-legacy-schema.provider';
+import { OwoxLegacySchemaMerger } from './owox-legacy/services/owox-legacy-schema-merger';
+import { OwoxLegacySchemaParser } from './owox-legacy/services/owox-legacy-schema-parser';
+import { OwoxLegacyReportHeadersGenerator } from './owox-legacy/services/owox-legacy-report-headers-generator.service';
+import { OwoxLegacySqlDryRunExecutor } from './owox-legacy/services/owox-legacy-sql-dry-run.executor';
+import { OwoxLegacySqlRunExecutor } from './owox-legacy/services/owox-legacy-sql-run.executor';
+import { OwoxLegacyCreateViewExecutor } from './owox-legacy/services/owox-legacy-create-view.executor';
 import { DataStorageType } from './enums/data-storage-type.enum';
 import { DataMartSchemaMerger } from './interfaces/data-mart-schema-merger.interface';
 import { DataMartSchemaParser } from './interfaces/data-mart-schema-parser.interface';
@@ -81,6 +91,7 @@ const accessValidatorProviders = [
   AthenaAccessValidator,
   SnowflakeAccessValidator,
   RedshiftAccessValidator,
+  OwoxLegacyAccessValidator,
 ];
 const storageDataProviders = [
   BigQueryReportReader,
@@ -100,54 +111,63 @@ const queryBuilderProviders = [
   BigQueryQueryBuilder,
   SnowflakeQueryBuilder,
   RedshiftQueryBuilder,
+  OwoxLegacyQueryBuilder,
 ];
 const validatorProviders = [
   BigQueryDataMartValidator,
   AthenaDataMartValidator,
   SnowflakeDataMartValidator,
   RedshiftDataMartValidator,
+  OwoxLegacyDataMartValidator,
 ];
 const dataMartSchemaProviders = [
   BigQueryDataMartSchemaProvider,
   AthenaDataMartSchemaProvider,
   SnowflakeDataMartSchemaProvider,
   RedshiftDataMartSchemaProvider,
+  OwoxLegacySchemaProvider,
 ];
 const dataMartSchemaMergerProviders = [
   BigQuerySchemaMerger,
   AthenaSchemaMerger,
   SnowflakeSchemaMerger,
   RedshiftSchemaMerger,
+  OwoxLegacySchemaMerger,
 ];
 const schemaParserProviders = [
   BigQueryDataMartSchemaParser,
   AthenaDataMartSchemaParser,
   SnowflakeDataMartSchemaParser,
   RedshiftDataMartSchemaParser,
+  OwoxLegacySchemaParser,
 ];
 const reportHeadersGeneratorProviders = [
   BigQueryReportHeadersGenerator,
   AthenaReportHeadersGenerator,
   SnowflakeReportHeadersGenerator,
   RedshiftReportHeadersGenerator,
+  OwoxLegacyReportHeadersGenerator,
 ];
 const sqlDryRunExecutorProviders = [
   BigquerySqlDryRunExecutor,
   AthenaSqlDryRunExecutor,
   SnowflakeSqlDryRunExecutor,
   RedshiftSqlDryRunExecutor,
+  OwoxLegacySqlDryRunExecutor,
 ];
 const sqlRunExecutorProviders = [
   BigQuerySqlRunExecutor,
   AthenaSqlRunExecutor,
   SnowflakeSqlRunExecutor,
   RedshiftSqlRunExecutor,
+  OwoxLegacySqlRunExecutor,
 ];
 const createViewExecutorProviders = [
   BigQueryCreateViewExecutor,
   AthenaCreateViewExecutor,
   SnowflakeCreateViewExecutor,
   RedshiftCreateViewExecutor,
+  OwoxLegacyCreateViewExecutor,
 ];
 const publicCredentialsProviders = [
   DataStoragePublicCredentialsFactory,

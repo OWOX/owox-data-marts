@@ -5,6 +5,10 @@ import {
   SnowflakeConfigSchema,
 } from './snowflake/schemas/snowflake-config.schema';
 import { RedshiftConfig, RedshiftConfigSchema } from './redshift/schemas/redshift-config.schema';
+import {
+  OwoxLegacyConfig,
+  OwoxLegacyConfigSchema,
+} from './owox-legacy/schemas/owox-legacy-config.schema';
 
 export function isBigQueryConfig(config: unknown): config is BigQueryConfig {
   return BigQueryConfigSchema.safeParse(config).success;
@@ -20,4 +24,8 @@ export function isSnowflakeConfig(config: unknown): config is SnowflakeConfig {
 
 export function isRedshiftConfig(config: unknown): config is RedshiftConfig {
   return RedshiftConfigSchema.safeParse(config).success;
+}
+
+export function isOwoxLegacyConfig(config: unknown): config is OwoxLegacyConfig {
+  return OwoxLegacyConfigSchema.safeParse(config).success;
 }
