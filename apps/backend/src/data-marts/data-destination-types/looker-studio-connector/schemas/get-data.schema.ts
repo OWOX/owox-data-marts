@@ -54,6 +54,18 @@ export const DataRowSchema = z.object({
   values: z.array(FieldValueSchema),
 });
 
+export enum GetDataLimitReason {
+  ROW_LIMIT = 'rowLimit',
+  SIZE_LIMIT = 'sizeLimit',
+}
+
+export const GetDataMetaSchema = z.object({
+  limitExceeded: z.boolean(),
+  limitReason: z.string().optional(),
+  rowsSent: z.number(),
+  bytesSent: z.number().optional(),
+});
+
 // Schema for getData response
 export const GetDataResponseSchema = z.object({
   schema: z.array(
@@ -74,3 +86,5 @@ export type GetDataRequest = z.infer<typeof GetDataRequestSchema>;
 export type FieldValue = z.infer<typeof FieldValueSchema>;
 export type DataRow = z.infer<typeof DataRowSchema>;
 export type GetDataResponse = z.infer<typeof GetDataResponseSchema>;
+export type GetDataMeta = z.infer<typeof GetDataMetaSchema>;
+export type GetDataResult = { response: GetDataResponse; meta: GetDataMeta };

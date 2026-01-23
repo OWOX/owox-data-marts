@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Response } from 'express';
-import { GetDataRequest } from '../schemas/get-data.schema';
 import { Report } from '../../../entities/report.entity';
+import { GetDataRequest } from '../schemas/get-data.schema';
 
 // Mock external modules before importing service
 jest.mock('@owox/internal-helpers', () => ({
@@ -14,14 +14,15 @@ jest.mock('@owox/internal-helpers', () => ({
 }));
 
 // Import after mocking
-import { LookerStudioConnectorApiService } from './looker-studio-connector-api.service';
-import { LookerStudioConnectorApiConfigService } from './looker-studio-connector-api-config.service';
-import { LookerStudioConnectorApiSchemaService } from './looker-studio-connector-api-schema.service';
-import { LookerStudioConnectorApiDataService } from './looker-studio-connector-api-data.service';
-import { ReportDataCacheService } from '../../../services/report-data-cache.service';
-import { ReportService } from '../../../services/report.service';
 import { ConsumptionTrackingService } from '../../../services/consumption-tracking.service';
 import { LookerStudioReportRunService } from '../../../services/looker-studio-report-run.service';
+import { ProjectBalanceService } from '../../../services/project-balance.service';
+import { ReportDataCacheService } from '../../../services/report-data-cache.service';
+import { ReportService } from '../../../services/report.service';
+import { LookerStudioConnectorApiConfigService } from './looker-studio-connector-api-config.service';
+import { LookerStudioConnectorApiDataService } from './looker-studio-connector-api-data.service';
+import { LookerStudioConnectorApiSchemaService } from './looker-studio-connector-api-schema.service';
+import { LookerStudioConnectorApiService } from './looker-studio-connector-api.service';
 
 describe('LookerStudioConnectorApiService', () => {
   let service: LookerStudioConnectorApiService;
@@ -30,6 +31,7 @@ describe('LookerStudioConnectorApiService', () => {
   let reportService: jest.Mocked<ReportService>;
   let reportRunService: jest.Mocked<LookerStudioReportRunService>;
   let consumptionTrackingService: jest.Mocked<ConsumptionTrackingService>;
+  let projectBalanceService: jest.Mocked<ProjectBalanceService>;
   let producer: jest.Mocked<{ produceEvent: jest.Mock }>;
 
   const originalEnv = process.env;
@@ -61,6 +63,10 @@ describe('LookerStudioConnectorApiService', () => {
       registerLookerReportRunConsumption: jest.fn(),
     } as unknown as jest.Mocked<ConsumptionTrackingService>;
 
+    projectBalanceService = {
+      verifyCanPerformOperations: jest.fn(),
+    } as unknown as jest.Mocked<ProjectBalanceService>;
+
     producer = {
       produceEvent: jest.fn(),
     };
@@ -73,8 +79,16 @@ describe('LookerStudioConnectorApiService', () => {
       reportService,
       consumptionTrackingService,
       producer as any,
-      reportRunService
+      reportRunService,
+      projectBalanceService
     );
+
+    (service as any).logger = {
+      log: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+      debug: jest.fn(),
+    };
   });
 
   afterEach(() => {
@@ -130,7 +144,15 @@ describe('LookerStudioConnectorApiService', () => {
         const res = createMockResponse();
         const mockResult = { schema: [], rows: [], filtersApplied: [] };
 
-        dataService.getData.mockResolvedValue(mockResult);
+        dataService.getData.mockResolvedValue({
+          response: mockResult,
+          meta: {
+            limitExceeded: false,
+            rowsSent: 0,
+            bytesSent: undefined,
+            limitReason: undefined,
+          },
+        } as any);
 
         await service.getDataStreaming(request, res as Response);
 
@@ -147,13 +169,16 @@ describe('LookerStudioConnectorApiService', () => {
         const mockResult = { schema: [], rows: [], filtersApplied: [] };
         const mockReportRun = {
           markAsSuccess: jest.fn(),
-          markAsFailed: jest.fn(),
+          markAsUnsuccessful: jest.fn(),
           getReport: jest.fn().mockReturnValue(createMockReport()),
           getReportId: jest.fn().mockReturnValue('report-1'),
         };
 
         reportRunService.create.mockResolvedValue(mockReportRun as any);
-        dataService.getData.mockResolvedValue(mockResult);
+        dataService.getData.mockResolvedValue({
+          response: mockResult,
+          meta: { limitExceeded: false, rowsSent: 0, bytesSent: undefined, limitReason: undefined },
+        } as any);
 
         await service.getDataStreaming(request, res as Response);
 
@@ -168,13 +193,16 @@ describe('LookerStudioConnectorApiService', () => {
         const mockResult = { schema: [], rows: [], filtersApplied: [] };
         const mockReportRun = {
           markAsSuccess: jest.fn(),
-          markAsFailed: jest.fn(),
+          markAsUnsuccessful: jest.fn(),
           getReport: jest.fn().mockReturnValue(createMockReport()),
           getReportId: jest.fn().mockReturnValue('report-1'),
         };
 
         reportRunService.create.mockResolvedValue(mockReportRun as any);
-        dataService.getData.mockResolvedValue(mockResult);
+        dataService.getData.mockResolvedValue({
+          response: mockResult,
+          meta: { limitExceeded: false, rowsSent: 0, bytesSent: undefined, limitReason: undefined },
+        } as any);
 
         await service.getDataStreaming(request, res as Response);
 
@@ -190,7 +218,7 @@ describe('LookerStudioConnectorApiService', () => {
         const res = createMockResponse();
         const mockReportRun = {
           markAsSuccess: jest.fn(),
-          markAsFailed: jest.fn(),
+          markAsUnsuccessful: jest.fn(),
           getReport: jest.fn().mockReturnValue(createMockReport()),
           getReportId: jest.fn().mockReturnValue('report-1'),
         };
@@ -198,7 +226,12 @@ describe('LookerStudioConnectorApiService', () => {
 
         reportRunService.create.mockResolvedValue(mockReportRun as any);
         dataService.prepareStreamingContext.mockResolvedValue(mockContext as any);
-        dataService.streamData.mockResolvedValue(100);
+        dataService.streamData.mockResolvedValue({
+          rowCount: 100,
+          limitExceeded: false,
+          bytesWritten: 10,
+          limitReason: undefined,
+        } as any);
 
         await service.getDataStreaming(request, res as Response);
 
@@ -213,14 +246,19 @@ describe('LookerStudioConnectorApiService', () => {
         const res = createMockResponse();
         const mockReportRun = {
           markAsSuccess: jest.fn(),
-          markAsFailed: jest.fn(),
+          markAsUnsuccessful: jest.fn(),
           getReport: jest.fn().mockReturnValue(createMockReport()),
           getReportId: jest.fn().mockReturnValue('report-1'),
         };
 
         reportRunService.create.mockResolvedValue(mockReportRun as any);
         dataService.prepareStreamingContext.mockResolvedValue({} as any);
-        dataService.streamData.mockResolvedValue(100);
+        dataService.streamData.mockResolvedValue({
+          rowCount: 100,
+          limitExceeded: false,
+          bytesWritten: 10,
+          limitReason: undefined,
+        } as any);
 
         await service.getDataStreaming(request, res as Response);
 
@@ -236,7 +274,7 @@ describe('LookerStudioConnectorApiService', () => {
         const res = createMockResponse();
         const mockReportRun = {
           markAsSuccess: jest.fn(),
-          markAsFailed: jest.fn(),
+          markAsUnsuccessful: jest.fn(),
           getReport: jest.fn().mockReturnValue(createMockReport()),
           getReportId: jest.fn().mockReturnValue('report-1'),
         };
@@ -248,7 +286,7 @@ describe('LookerStudioConnectorApiService', () => {
           'Preparation failed'
         );
 
-        expect(mockReportRun.markAsFailed).toHaveBeenCalled();
+        expect(mockReportRun.markAsUnsuccessful).toHaveBeenCalled();
       });
     });
   });

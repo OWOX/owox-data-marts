@@ -192,8 +192,20 @@ export class LookerStudioConnectorApiService {
         false
       );
 
-      await this.dataService.streamData(res, context);
-      await this.handleSuccessfulReportRun(reportRun);
+      const { limitExceeded, limitReason, rowCount, bytesWritten } =
+        await this.dataService.streamData(res, context);
+
+      if (limitExceeded) {
+        await this.handleFailedReportRun(
+          reportRun,
+          new BusinessViolationException(
+            limitReason ??
+              `Looker Studio streaming response truncated (unknown reason), rows sent: ${rowCount}, bytes sent: ${bytesWritten}`
+          )
+        );
+      } else {
+        await this.handleSuccessfulReportRun(reportRun);
+      }
     } catch (e) {
       await this.handleFailedReportRun(reportRun, e);
       // If headers haven't been sent yet, throw to let error handler respond
@@ -304,7 +316,8 @@ export class LookerStudioConnectorApiService {
     cachedReader: CachedReaderData
   ): Promise<GetDataResponse> {
     try {
-      return await this.dataService.getData(request, report, cachedReader, true);
+      const { response } = await this.dataService.getData(request, report, cachedReader, true);
+      return response;
     } catch (error) {
       this.logger.error('Failed to get sample data:', error);
       throw error;
@@ -337,10 +350,21 @@ export class LookerStudioConnectorApiService {
 
     try {
       await this.projectBalanceService.verifyCanPerformOperations(report.dataMart.projectId);
-      const result = await this.dataService.getData(request, report, cachedReader);
-      await this.handleSuccessfulReportRun(reportRun);
+      const { response, meta } = await this.dataService.getData(request, report, cachedReader);
 
-      return result;
+      if (meta.limitExceeded) {
+        await this.handleFailedReportRun(
+          reportRun,
+          new BusinessViolationException(
+            meta.limitReason ??
+              `Looker Studio response truncated (unknown reason), rows sent: ${meta.rowsSent}`
+          )
+        );
+      } else {
+        await this.handleSuccessfulReportRun(reportRun);
+      }
+
+      return response;
     } catch (e) {
       await this.handleFailedReportRun(reportRun, e);
       throw e;

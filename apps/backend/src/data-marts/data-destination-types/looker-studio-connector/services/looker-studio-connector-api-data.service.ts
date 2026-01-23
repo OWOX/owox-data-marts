@@ -12,7 +12,7 @@ import {
   DataRow,
   FieldValue,
   GetDataRequest,
-  GetDataResponse,
+  GetDataResult,
   RequestField,
 } from '../schemas/get-data.schema';
 import { LookerStudioTypeMapperService } from './looker-studio-type-mapper.service';
@@ -94,7 +94,7 @@ export class LookerStudioConnectorApiDataService {
     report: Report,
     cachedReader: CachedReaderData,
     isSampleExtraction = false
-  ): Promise<GetDataResponse> {
+  ): Promise<GetDataResult> {
     this.logger.log('getData called with request:', request);
     this.logger.debug(`Using ${cachedReader.fromCache ? 'cached' : 'fresh'} reader for data`);
 
@@ -149,17 +149,33 @@ export class LookerStudioConnectorApiDataService {
     filteredHeaders: ReportDataHeader[],
     fieldIndexMap: number[],
     rowLimit?: number
-  ): Promise<GetDataResponse> {
+  ): Promise<GetDataResult> {
     // Build schema for requested fields only
     const schema = this.buildResponseSchema(filteredHeaders, report.dataMart.storage.type);
 
     // Read and process data (prepareReportData already called in cache service)
-    const rows = await this.readAndProcessData(reader, fieldIndexMap, rowLimit);
+    const { rows, limitExceeded, limitReason } = await this.readAndProcessData(
+      reader,
+      fieldIndexMap,
+      rowLimit
+    );
 
-    return {
+    const response = {
       schema,
       rows,
       filtersApplied: [],
+    };
+
+    const bytesSent = Buffer.byteLength(JSON.stringify(response), 'utf8');
+
+    return {
+      response,
+      meta: {
+        limitExceeded,
+        limitReason,
+        rowsSent: rows.length,
+        bytesSent,
+      },
     };
   }
 
@@ -186,9 +202,15 @@ export class LookerStudioConnectorApiDataService {
     reportReader: DataStorageReportReader,
     fieldIndexMap: number[],
     rowLimit?: number
-  ): Promise<{ values: FieldValue[] }[]> {
+  ): Promise<{
+    rows: { values: FieldValue[] }[];
+    limitExceeded: boolean;
+    limitReason?: string;
+  }> {
     const allRows: { values: FieldValue[] }[] = [];
     let nextBatchId: string | undefined | null = undefined;
+    let limitExceeded = false;
+    let limitReason: string | undefined;
 
     do {
       const batch = await reportReader.readReportDataBatch(nextBatchId, rowLimit);
@@ -203,15 +225,23 @@ export class LookerStudioConnectorApiDataService {
 
       // Check row limit if specified
       if (rowLimit && allRows.length >= rowLimit) {
+        const overflowWithinBatch = batch.dataRows.length > formattedRows.length;
+        const hasMoreData = Boolean(nextBatchId) || overflowWithinBatch;
+
+        if (hasMoreData) {
+          limitExceeded = true;
+          limitReason = `Row limit reached (${rowLimit} rows)`;
+        }
+
         const limitType = rowLimit < MAX_ROWS_LIMIT ? 'sample extraction' : 'full extraction';
         this.logger.warn(
           `Row limit reached (${limitType}): returning ${rowLimit} rows (more data available)`
         );
-        return allRows.slice(0, rowLimit);
+        return { rows: allRows.slice(0, rowLimit), limitExceeded, limitReason };
       }
     } while (nextBatchId);
 
-    return allRows;
+    return { rows: allRows, limitExceeded, limitReason };
   }
 
   /**
@@ -300,9 +330,17 @@ export class LookerStudioConnectorApiDataService {
    *
    * @param res - Express response object
    * @param context - Pre-computed streaming context
-   * @returns Total number of rows streamed
+   * @returns Streaming result with meta
    */
-  public async streamData(res: Response, context: StreamingContext): Promise<number> {
+  public async streamData(
+    res: Response,
+    context: StreamingContext
+  ): Promise<{
+    rowCount: number;
+    limitExceeded: boolean;
+    limitReason?: string;
+    bytesWritten: number;
+  }> {
     const { schema, reader, fieldIndexMap, rowLimit } = context;
 
     const gzip = zlib.createGzip({ level: 3 });
@@ -322,6 +360,8 @@ export class LookerStudioConnectorApiDataService {
     let totalRows = 0;
     let isFirstBatch = true;
     let nextBatchId: string | undefined | null = undefined;
+    let limitExceeded = false;
+    let limitReason: string | undefined;
 
     do {
       if (res.closed) {
@@ -361,6 +401,8 @@ export class LookerStudioConnectorApiDataService {
           this.logger.warn(
             `Row limit reached during streaming (${limitType}): returned ${totalRows} rows (more data available)`
           );
+          limitExceeded = true;
+          limitReason = `Row limit reached (${rowLimit} rows)`;
         }
         break;
       }
@@ -371,6 +413,8 @@ export class LookerStudioConnectorApiDataService {
             `Size limit reached during streaming: returned ${totalRows} rows, data size: ${gzip.bytesWritten} bytes`
           );
         }
+        limitExceeded = true;
+        limitReason = limitReason ?? `Size limit reached (${MAX_BYTES_LIMIT} bytes gzipped)`;
         break;
       }
     } while (nextBatchId);
@@ -382,6 +426,11 @@ export class LookerStudioConnectorApiDataService {
     this.logger.log(
       `Streaming completed: ${totalRows} rows sent, data size: ${gzip.bytesWritten} bytes`
     );
-    return totalRows;
+    return {
+      rowCount: totalRows,
+      limitExceeded,
+      limitReason,
+      bytesWritten: gzip.bytesWritten,
+    };
   }
 }
