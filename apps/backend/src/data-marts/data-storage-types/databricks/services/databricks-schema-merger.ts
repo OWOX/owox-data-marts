@@ -74,8 +74,7 @@ export class DatabricksSchemaMerger implements DataMartSchemaMerger {
     const hasTypeMismatch = existingField.type !== newField.type;
 
     return {
-      ...newField,
-      alias: existingField.alias,
+      ...existingField,
       status: this.getConnectedFieldStatus(hasTypeMismatch),
     };
   }

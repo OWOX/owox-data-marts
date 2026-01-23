@@ -307,21 +307,32 @@ export class DatabricksApiAdapter {
     try {
       const extendedInfo = await this.getTableExtendedInfo(fullyQualifiedName);
 
-      const constraintsRow = extendedInfo.find(
-        row => String(row.col_name || '').trim() === 'Table Constraints'
+      const constraintsSectionIndex = extendedInfo.findIndex(
+        row => String(row.col_name || '').trim() === '# Constraints'
       );
 
-      if (!constraintsRow) {
-        this.logger.debug('No table constraints found');
+      if (constraintsSectionIndex === -1) {
+        this.logger.debug('No constraints section found');
         return [];
       }
 
-      const constraintsText = String(constraintsRow.data_type || '');
+      const pkRow = extendedInfo.slice(constraintsSectionIndex + 1).find(row => {
+        const dataType = String(row.data_type || '');
+        return dataType.match(/PRIMARY\s+KEY\s*\(/i);
+      });
+
+      if (!pkRow) {
+        this.logger.debug('No PRIMARY KEY constraint found');
+        return [];
+      }
+
+      const constraintsText = String(pkRow.data_type || '');
+      this.logger.debug(`Found PRIMARY KEY constraint: ${constraintsText}`);
 
       const pkMatch = constraintsText.match(/PRIMARY\s+KEY\s*\(([^)]+)\)/i);
 
       if (!pkMatch) {
-        this.logger.debug('No PRIMARY KEY constraint found');
+        this.logger.debug('Could not parse PRIMARY KEY columns');
         return [];
       }
 
