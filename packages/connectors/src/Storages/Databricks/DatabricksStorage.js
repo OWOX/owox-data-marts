@@ -251,6 +251,9 @@ var DatabricksStorage = class DatabricksStorage extends AbstractStorage {
       let selectedFields = this.getSelectedFields();
       let tableColumns = selectedFields.length > 0 ? selectedFields : this.uniqueKeyColumns;
 
+      // Check if uniqueKeyColumns is defined
+      const pkColumns = Array.isArray(this.uniqueKeyColumns) ? this.uniqueKeyColumns : [];
+
       for (let i in tableColumns) {
         let columnName = tableColumns[i];
         let columnDescription = '';
@@ -261,12 +264,16 @@ var DatabricksStorage = class DatabricksStorage extends AbstractStorage {
 
         let columnType = this.getColumnType(columnName);
 
+        // Add NOT NULL for PRIMARY KEY columns
+        const isPartOfPK = pkColumns.includes(columnName);
+        const nullability = isPartOfPK ? ' NOT NULL' : '';
+
         if( "description" in this.schema[ columnName ] ) {
           const escapedDescription = this.obfuscateSpecialCharacters(this.schema[ columnName ]["description"]);
           columnDescription = ` COMMENT '${escapedDescription}'`;
         }
 
-        columns.push(`${quoteIdentifier(columnName)} ${columnType}${columnDescription}`);
+        columns.push(`${quoteIdentifier(columnName)} ${columnType}${nullability}${columnDescription}`);
 
         existingColumns[ columnName ] = {"name": columnName, "type": columnType};
 
@@ -387,33 +394,27 @@ var DatabricksStorage = class DatabricksStorage extends AbstractStorage {
       // Prepare data for MERGE
       let records = Object.values(this.updatedRecordsBuffer);
 
-      // Create temporary view with data
-      let tempViewName = `temp_merge_${Date.now()}`;
-      await this.createTempViewFromRecords(tempViewName, records);
+      // Build inline SELECT statements for records
+      let selectStatements = this.buildSelectStatementsForRecords(records);
 
-      // Build MERGE query
-      let mergeQuery = this.buildMergeQuery(fullTableName, tempViewName);
+      // Build MERGE query with inline source
+      let mergeQuery = this.buildMergeQueryWithInlineSource(fullTableName, selectStatements);
 
-      try {
-        await this.executeQuery(mergeQuery);
+      await this.executeQuery(mergeQuery);
 
-        this.totalRecordsProcessed += records.length;
-        this.config.logMessage(`Merged ${records.length} records. Total processed: ${this.totalRecordsProcessed}`);
+      this.totalRecordsProcessed += records.length;
+      this.config.logMessage(`Merged ${records.length} records. Total processed: ${this.totalRecordsProcessed}`);
 
-        // Clear buffer
-        this.updatedRecordsBuffer = {};
-      } finally {
-        // Drop temporary view
-        await this.executeQuery(`DROP VIEW IF EXISTS ${tempViewName}`);
-      }
+      // Clear buffer
+      this.updatedRecordsBuffer = {};
 
     }
   //----------------------------------------------------------------
 
-  //---- createTempViewFromRecords -----------------------------------
-    async createTempViewFromRecords(viewName, records) {
+  //---- buildSelectStatementsForRecords ----------------------------
+    buildSelectStatementsForRecords(records) {
 
-      if (records.length === 0) return;
+      if (records.length === 0) return [];
 
       let selectedFields = this.getSelectedFields();
       let fields = selectedFields.length > 0 ? selectedFields : Object.keys(records[0]);
@@ -423,8 +424,16 @@ var DatabricksStorage = class DatabricksStorage extends AbstractStorage {
         let values = fields.map(field => {
           let value = record[field];
 
+          // Handle null, undefined, NaN, Infinity
           if (value === null || value === undefined) {
             return 'NULL';
+          }
+
+          if (typeof value === 'number') {
+            if (isNaN(value) || !isFinite(value)) {
+              return 'NULL';
+            }
+            return value;
           }
 
           if (typeof value === 'string') {
@@ -437,12 +446,85 @@ var DatabricksStorage = class DatabricksStorage extends AbstractStorage {
             return value ? 'TRUE' : 'FALSE';
           }
 
+          // Handle Date objects
+          if (value instanceof Date) {
+            const isoString = value.toISOString().replace('T', ' ').replace('Z', '');
+            return `TIMESTAMP '${isoString}'`;
+          }
+
+          // Handle arrays and objects - serialize to JSON
+          if (typeof value === 'object') {
+            const jsonString = JSON.stringify(value).replace(/'/g, "''");
+            return `'${jsonString}'`;
+          }
+
           return value;
         });
 
-        let aliases = fields.map((field, idx) => `${values[idx]} AS ${quoteIdentifier(field)}`);
+        // Cast values to proper types and add aliases
+        let aliases = fields.map((field, idx) => {
+          // Get column type from existing columns
+          let columnType = 'STRING';
+          if (this.existingColumns && this.existingColumns[field]) {
+            columnType = this.existingColumns[field].type;
+          }
+
+          let value = values[idx];
+
+          // Cast to correct type (including NULL)
+          return `CAST(${value} AS ${columnType}) AS ${quoteIdentifier(field)}`;
+        });
+
         return `SELECT ${aliases.join(', ')}`;
       });
+
+      return selectStatements;
+
+    }
+  //----------------------------------------------------------------
+
+  //---- buildMergeQueryWithInlineSource ----------------------------
+    buildMergeQueryWithInlineSource(targetTable, selectStatements) {
+
+      let selectedFields = this.getSelectedFields();
+      let updateFields = selectedFields.length > 0 ? selectedFields : Object.keys(this.existingColumns);
+
+      // Build ON condition using unique key columns
+      let uniqueKeys = Array.isArray(this.uniqueKeyColumns) ? this.uniqueKeyColumns : [this.uniqueKeyColumns];
+      let onConditions = uniqueKeys.map(key =>
+        `target.${quoteIdentifier(key)} = source.${quoteIdentifier(key)}`
+      ).join(' AND ');
+
+      // Build UPDATE SET clause
+      let updateSet = updateFields.map(field =>
+        `target.${quoteIdentifier(field)} = source.${quoteIdentifier(field)}`
+      ).join(', ');
+
+      // Build INSERT columns and values
+      let insertColumns = updateFields.map(field => quoteIdentifier(field)).join(', ');
+      let insertValues = updateFields.map(field => `source.${quoteIdentifier(field)}`).join(', ');
+
+      // Build MERGE query with inline subquery
+      return `MERGE INTO ${targetTable} AS target
+USING (
+  ${selectStatements.join('\n  UNION ALL\n  ')}
+) AS source
+ON ${onConditions}
+WHEN MATCHED THEN
+  UPDATE SET ${updateSet}
+WHEN NOT MATCHED THEN
+  INSERT (${insertColumns}) VALUES (${insertValues})`;
+
+    }
+  //----------------------------------------------------------------
+
+  //---- createTempViewFromRecords [DEPRECATED] ---------------------
+    // This method is no longer used - kept for reference
+    async createTempViewFromRecords(viewName, records) {
+
+      if (records.length === 0) return;
+
+      let selectStatements = this.buildSelectStatementsForRecords(records);
 
       let createViewQuery = `CREATE OR REPLACE TEMP VIEW ${viewName} AS ${selectStatements.join(' UNION ALL ')}`;
 
@@ -522,29 +604,32 @@ var DatabricksStorage = class DatabricksStorage extends AbstractStorage {
     getColumnType(fieldName) {
 
       if( !(fieldName in this.schema) ) {
+        this.config.logMessage(`WARNING: Field '${fieldName}' not found in schema, defaulting to STRING. Available fields: ${Object.keys(this.schema).join(', ')}`);
         return "STRING";
       }
 
       let type = this.schema[fieldName].type;
 
       switch (type) {
-        case "string":
+        case DATA_TYPES.STRING:
           return "STRING";
-        case "number":
+        case DATA_TYPES.NUMBER:
           return "DOUBLE";
-        case "integer":
+        case DATA_TYPES.INTEGER:
           return "BIGINT";
-        case "boolean":
+        case DATA_TYPES.BOOLEAN:
           return "BOOLEAN";
-        case "date":
+        case DATA_TYPES.DATE:
           return "DATE";
-        case "datetime":
-        case "timestamp":
+        case DATA_TYPES.DATETIME:
+        case DATA_TYPES.TIMESTAMP:
           return "TIMESTAMP";
-        case "array":
-          return "ARRAY<STRING>";
-        case "object":
-          return "STRUCT<>";
+        case DATA_TYPES.TIME:
+          return "TIME";
+        case DATA_TYPES.ARRAY:
+        case DATA_TYPES.OBJECT:
+          // Arrays and Objects are stored as JSON strings in Databricks
+          return "STRING";
         default:
           return "STRING";
       }

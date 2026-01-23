@@ -9,7 +9,7 @@ import {
 } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { DataMartQueryBuilder } from '../../interfaces/data-mart-query-builder.interface';
-import { escapeDatabricksIdentifier } from '../utils/databricks-identifier.utils';
+import { escapeFullyQualifiedIdentifier } from '../utils/databricks-identifier.utils';
 
 @Injectable()
 export class DatabricksQueryBuilder implements DataMartQueryBuilder {
@@ -17,9 +17,11 @@ export class DatabricksQueryBuilder implements DataMartQueryBuilder {
 
   buildQuery(definition: DataMartDefinition): string {
     if (isTableDefinition(definition) || isViewDefinition(definition)) {
-      return `SELECT * FROM ${escapeDatabricksIdentifier(definition.fullyQualifiedName)}`;
+      const parts = definition.fullyQualifiedName.split('.');
+      return `SELECT * FROM ${escapeFullyQualifiedIdentifier(parts)}`;
     } else if (isConnectorDefinition(definition)) {
-      return `SELECT * FROM ${escapeDatabricksIdentifier(definition.connector.storage.fullyQualifiedName)}`;
+      const parts = definition.connector.storage.fullyQualifiedName.split('.');
+      return `SELECT * FROM ${escapeFullyQualifiedIdentifier(parts)}`;
     } else if (isSqlDefinition(definition)) {
       return definition.sqlQuery;
     } else if (isTablePatternDefinition(definition)) {
