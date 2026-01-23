@@ -1,11 +1,28 @@
 import { Logger } from '@nestjs/common';
 import { DBSQLClient } from '@databricks/sql';
 import type IDBSQLSession from '@databricks/sql/dist/contracts/IDBSQLSession';
+import type IDBSQLLogger from '@databricks/sql/dist/contracts/IDBSQLLogger';
+import { LogLevel } from '@databricks/sql/dist/contracts/IDBSQLLogger';
 import { DatabricksConfig } from '../schemas/databricks-config.schema';
 import { DatabricksCredentials } from '../schemas/databricks-credentials.schema';
 import { DatabricksQueryMetadata } from '../interfaces/databricks-query-metadata';
 import { DatabricksQueryExplainJsonResponse } from '../interfaces/databricks-query-explain-json-response';
 import { escapeFullyQualifiedIdentifier } from '../utils/databricks-identifier.utils';
+
+/**
+ * Custom logger for Databricks SQL driver that only logs errors and warnings
+ */
+class SilentDatabricksLogger implements IDBSQLLogger {
+  private readonly logger = new Logger(SilentDatabricksLogger.name);
+
+  log(level: LogLevel, message: string) {
+    if (level === LogLevel.error) {
+      this.logger.error(message);
+    } else if (level === LogLevel.warn) {
+      this.logger.warn(message);
+    }
+  }
+}
 
 /**
  * Adapter for Databricks SQL API operations
@@ -28,7 +45,9 @@ export class DatabricksApiAdapter {
     private readonly credentials: DatabricksCredentials,
     private readonly config: DatabricksConfig
   ) {
-    this.client = new DBSQLClient();
+    this.client = new DBSQLClient({
+      logger: new SilentDatabricksLogger(),
+    });
   }
 
   /**
