@@ -16,6 +16,12 @@ import {
 import { parseRedshiftFieldType } from '../enums/redshift-field-type.enum';
 import { DataMartSchemaFieldStatus } from '../../enums/data-mart-schema-field-status.enum';
 import { ColumnMetadata } from '@aws-sdk/client-redshift-data';
+import {
+  isConnectorDefinition,
+  isTableDefinition,
+  isViewDefinition,
+} from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
+import { RedshiftApiAdapter } from '../adapters/redshift-api.adapter';
 
 @Injectable()
 export class RedshiftDataMartSchemaProvider implements DataMartSchemaProvider {
@@ -50,14 +56,20 @@ export class RedshiftDataMartSchemaProvider implements DataMartSchemaProvider {
     await adapter.waitForQueryToComplete(statementId);
 
     const metadata = await adapter.getQueryResultsMetadata(statementId);
+    const columnDescriptions = await this.getColumnDescriptions(dataMartDefinition, adapter);
 
     return {
       type: RedshiftDataMartSchemaType,
-      fields: metadata.map(column => this.createField(column)),
+      fields: metadata.map(column =>
+        this.createField(column, columnDescriptions.get(column.label || column.name || ''))
+      ),
     };
   }
 
-  private createField(column: ColumnMetadata): RedshiftDataMartSchemaField {
+  private createField(
+    column: ColumnMetadata,
+    description?: string | null
+  ): RedshiftDataMartSchemaField {
     const name = column.label || column.name;
     if (!name) {
       throw new Error('Column name is missing');
@@ -73,8 +85,55 @@ export class RedshiftDataMartSchemaProvider implements DataMartSchemaProvider {
     return {
       name,
       type,
+      description: description || undefined,
       isPrimaryKey: false,
       status: DataMartSchemaFieldStatus.CONNECTED,
     };
+  }
+
+  private async getColumnDescriptions(
+    definition: DataMartDefinition,
+    adapter: RedshiftApiAdapter
+  ): Promise<Map<string, string | null>> {
+    const tableInfo = this.getSchemaAndTable(definition);
+
+    if (!tableInfo) {
+      return new Map();
+    }
+
+    try {
+      return await adapter.getColumnDescriptions(tableInfo.schema, tableInfo.table);
+    } catch (error) {
+      this.logger.error('Failed to fetch column descriptions from Redshift catalog', error);
+      return new Map();
+    }
+  }
+
+  private getSchemaAndTable(
+    definition: DataMartDefinition
+  ): { schema: string; table: string } | null {
+    let tablePath: string | undefined;
+
+    if (isTableDefinition(definition) || isViewDefinition(definition)) {
+      tablePath = definition.fullyQualifiedName;
+    } else if (isConnectorDefinition(definition)) {
+      tablePath = definition.connector.storage.fullyQualifiedName;
+    }
+
+    if (!tablePath) {
+      return null;
+    }
+
+    const parts = tablePath.split('.').map(part => part.replace(/^"|"$/g, ''));
+
+    if (parts.length < 2) {
+      this.logger.warn(`Invalid Redshift table path for description lookup: ${tablePath}`);
+      return null;
+    }
+
+    const table = parts.pop() as string;
+    const schema = parts.pop() as string;
+
+    return { schema, table };
   }
 }
