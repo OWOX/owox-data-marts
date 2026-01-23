@@ -219,7 +219,9 @@
 }
 /* end: DM Animations */
 
-/* .dm-page {} */
+.dm-page {
+  @apply min-h-full;
+}
 
 /* DM Page: Header */
 .dm-page-header {
