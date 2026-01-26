@@ -229,14 +229,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   ]);
 
   if (isLoading) {
-    return (
-      <div className='dm-page-content flex flex-col gap-4 py-4 md:py-8'>
-        <Skeleton key={0} className='h-16 w-full' />
-        {Array.from({ length: 3 }).map((_, index) => (
-          <Skeleton key={index + 1} className='h-48 w-full' />
-        ))}
-      </div>
-    );
+    // TODO:: Add skeleton loading indicator
   }
 
   if (error?.statusCode === 404) {
@@ -245,8 +238,11 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
 
   if (!dataMart) {
     return (
-      <div className='dm-page-content py-8'>
-        <p>{getErrorMessage() ?? 'Something went wrong'}</p>
+      <div className='dm-page-content flex flex-col gap-4 py-4 md:py-8'>
+        <Skeleton key={0} className='h-16 w-full' />
+        {Array.from({ length: 3 }).map((_, index) => (
+          <Skeleton key={index + 1} className='h-48 w-full' />
+        ))}
       </div>
     );
   }
