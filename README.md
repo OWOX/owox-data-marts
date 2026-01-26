@@ -119,7 +119,7 @@ For more details on the types of deployment in your infrastructure, check out ou
 | Name            | Status    | Links                                                               |
 | --------------- | --------- | ------------------------------------------------------------------- |
 | Google BigQuery | 🟢 Public | [Readme](docs/storages/supported-storages/google-bigquery.md)       |
-| AWS RedShift    | 🟢 Public | [Readme](docs/storages/supported-storages/aws-redshift.md)          |
+| AWS Redshift    | 🟢 Public | [Readme](docs/storages/supported-storages/aws-redshift.md)          |
 | AWS Athena      | 🟢 Public | [Readme](docs/storages/supported-storages/aws-athena.md)            |
 | Snowflake       | 🟢 Public | [Readme](docs/storages/supported-storages/snowflake.md)             |
 
