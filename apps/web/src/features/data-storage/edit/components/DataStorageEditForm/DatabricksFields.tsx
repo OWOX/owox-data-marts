@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Input } from '@owox/ui/components/input';
 import { DataStorageType } from '../../../shared';
 import type { DataStorageFormData } from '../../../shared/types/data-storage.schema.ts';
@@ -20,6 +21,18 @@ interface DatabricksFieldsProps {
 }
 
 export const DatabricksFields = ({ form }: DatabricksFieldsProps) => {
+  const [maskedTokenValue, setMaskedTokenValue] = useState<string>('');
+
+  useEffect(() => {
+    const host = form.getValues('config.host');
+
+    if (host.length > 0) {
+      const maskedToken = '_'.repeat(12);
+      setMaskedTokenValue(maskedToken);
+      form.setValue('credentials.token', maskedToken, { shouldDirty: false });
+    }
+  }, [form]);
+
   if (form.watch('type') !== DataStorageType.DATABRICKS) {
     return null;
   }
@@ -73,7 +86,11 @@ export const DatabricksFields = ({ form }: DatabricksFieldsProps) => {
                 Personal Access Token
               </FormLabel>
               <FormControl>
-                <Input {...field} type='password' placeholder='Enter your token' />
+                <Input
+                  {...field}
+                  type='password'
+                  placeholder={maskedTokenValue || 'Enter your token'}
+                />
               </FormControl>
               <FormDescription>
                 <DatabricksTokenDescription />
