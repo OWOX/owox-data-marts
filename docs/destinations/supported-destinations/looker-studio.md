@@ -45,6 +45,8 @@ Integration with Looker Studio as a **Destination** for OWOX Data Marts  enables
 - Make sure all the required fields are connected this Looker Studio's data source and click **Create Report** or **Explore**.
   - You can control the name and description of fields shown in Looker Studio via the **Output Schema** of the Data Mart in your OWOX Data Marts web application.
 
+> **⚠️ Note**: Data from Data Marts is delivered to Looker Studio via streaming, so each `getData()` call must stay within Looker Studio’s limit of **1,000,000 rows** or 50 MB of data. Refer to the [official documentation](https://developers.google.com/looker-studio/connector/reference#getdata) for more details. If you encounter issues or slow performance, try reducing the number of rows you request to stay under the limit.
+
 Connector in Looker Studio (first step):
 
 ![Create Data Mart-1](../../res/screens/connector-in-looker-studio-1st-step.png)
