@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Input } from '@owox/ui/components/input';
 import { Textarea } from '@owox/ui/components/textarea';
 import { Tabs, TabsList, TabsTrigger } from '@owox/ui/components/tabs';
@@ -27,6 +28,22 @@ interface SnowflakeFieldsProps {
 
 export const SnowflakeFields = ({ form }: SnowflakeFieldsProps) => {
   const authMethod = form.watch('credentials.authMethod');
+  const [maskedPasswordValue, setMaskedPasswordValue] = useState<string>('');
+  const [maskedPrivateKeyValue, setMaskedPrivateKeyValue] = useState<string>('');
+
+  useEffect(() => {
+    const username = form.getValues('credentials.username');
+
+    if (username) {
+      const maskedPassword = '_'.repeat(12);
+      setMaskedPasswordValue(maskedPassword);
+      form.setValue('credentials.password', maskedPassword, { shouldDirty: false });
+
+      const maskedKey = '_'.repeat(20);
+      setMaskedPrivateKeyValue(maskedKey);
+      form.setValue('credentials.privateKey', maskedKey, { shouldDirty: false });
+    }
+  }, [form]);
 
   if (form.watch('type') !== DataStorageType.SNOWFLAKE) {
     return null;
@@ -123,7 +140,11 @@ export const SnowflakeFields = ({ form }: SnowflakeFieldsProps) => {
               <FormItem>
                 <FormLabel tooltip='Your Snowflake password'>Password</FormLabel>
                 <FormControl>
-                  <Input {...field} type='password' placeholder='Enter password' />
+                  <Input
+                    {...field}
+                    type='password'
+                    placeholder={maskedPasswordValue || 'Enter password'}
+                  />
                 </FormControl>
                 <FormDescription>
                   <SnowflakePasswordDescription />
@@ -145,7 +166,10 @@ export const SnowflakeFields = ({ form }: SnowflakeFieldsProps) => {
                   <FormControl>
                     <Textarea
                       {...field}
-                      placeholder='-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----'
+                      placeholder={
+                        maskedPrivateKeyValue ||
+                        '-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----'
+                      }
                       rows={6}
                     />
                   </FormControl>
