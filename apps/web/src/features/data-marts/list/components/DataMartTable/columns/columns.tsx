@@ -30,6 +30,10 @@ export const getDataMartColumns = ({
     id: DataMartColumnKey.HEALTH_STATUS,
     size: 40,
     enableResizing: false,
+    meta: {
+      title: dataMartColumnLabels[DataMartColumnKey.HEALTH_STATUS],
+      showHeaderTitle: false,
+    },
     accessorFn: row => {
       const cachedHealthStatus = getCachedHealthStatus(row.id);
       return getHealthStatusSortRank({
@@ -49,6 +53,9 @@ export const getDataMartColumns = ({
     accessorKey: DataMartColumnKey.TITLE,
     size: 320,
     minSize: 200,
+    meta: {
+      title: dataMartColumnLabels[DataMartColumnKey.TITLE],
+    },
     header: ({ column }) => (
       <SortableHeader column={column}>
         {dataMartColumnLabels[DataMartColumnKey.TITLE]}
@@ -70,6 +77,9 @@ export const getDataMartColumns = ({
     },
     id: DataMartColumnKey.DEFINITION_TYPE,
     size: 220,
+    meta: {
+      title: dataMartColumnLabels[DataMartColumnKey.DEFINITION_TYPE],
+    },
     header: ({ column }) => (
       <SortableHeader column={column}>
         {dataMartColumnLabels[DataMartColumnKey.DEFINITION_TYPE]}
@@ -103,6 +113,9 @@ export const getDataMartColumns = ({
   {
     accessorKey: DataMartColumnKey.STORAGE_TYPE,
     size: 220,
+    meta: {
+      title: dataMartColumnLabels[DataMartColumnKey.STORAGE_TYPE],
+    },
     header: ({ column }) => (
       <SortableHeader column={column}>
         {dataMartColumnLabels[DataMartColumnKey.STORAGE_TYPE]}
@@ -126,6 +139,9 @@ export const getDataMartColumns = ({
   {
     accessorKey: DataMartColumnKey.CREATED_AT,
     size: 140,
+    meta: {
+      title: dataMartColumnLabels[DataMartColumnKey.CREATED_AT],
+    },
     header: ({ column }) => (
       <SortableHeader column={column}>
         {dataMartColumnLabels[DataMartColumnKey.CREATED_AT]}
@@ -149,6 +165,9 @@ export const getDataMartColumns = ({
       const u = row.createdByUser;
       return u?.fullName ?? u?.email;
     },
+    meta: {
+      title: dataMartColumnLabels[DataMartColumnKey.CREATED_BY_USER],
+    },
     header: ({ column }) => (
       <SortableHeader column={column}>
         {dataMartColumnLabels[DataMartColumnKey.CREATED_BY_USER]}
@@ -165,6 +184,9 @@ export const getDataMartColumns = ({
   {
     accessorKey: DataMartColumnKey.STATUS,
     size: 120,
+    meta: {
+      title: dataMartColumnLabels[DataMartColumnKey.STATUS],
+    },
     header: ({ column }) => (
       <SortableHeader column={column}>
         {dataMartColumnLabels[DataMartColumnKey.STATUS]}
@@ -183,6 +205,9 @@ export const getDataMartColumns = ({
   {
     accessorKey: DataMartColumnKey.TRIGGERS_COUNT,
     size: 100,
+    meta: {
+      title: dataMartColumnLabels[DataMartColumnKey.TRIGGERS_COUNT],
+    },
     header: ({ column }) => (
       <SortableHeader column={column}>
         {dataMartColumnLabels[DataMartColumnKey.TRIGGERS_COUNT]}
@@ -197,6 +222,9 @@ export const getDataMartColumns = ({
   {
     accessorKey: DataMartColumnKey.REPORTS_COUNT,
     size: 100,
+    meta: {
+      title: dataMartColumnLabels[DataMartColumnKey.REPORTS_COUNT],
+    },
     header: ({ column }) => (
       <SortableHeader column={column}>
         {dataMartColumnLabels[DataMartColumnKey.REPORTS_COUNT]}
