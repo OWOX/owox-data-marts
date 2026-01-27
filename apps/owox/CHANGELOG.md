@@ -1,5 +1,26 @@
 # owox
 
+## 0.18.0
+
+### Minor Changes 0.18.0
+
+- 38d3593: # Descriptions for fields in AWS Redshift tables
+
+  After launching the connector, field descriptions will be synchronized with tables in Redshift
+
+- 38d3593: # Improved Looker Studio destination stability
+
+  Enhanced Looker Studio destination stability and performance by implementing data streaming. This update ensures a smoother user experience and more reliable delivery of large datasets from Data Marts.
+
+### Patch Changes 0.18.0
+
+- @owox/internal-helpers@0.18.0
+- @owox/idp-protocol@0.18.0
+- @owox/idp-better-auth@0.18.0
+- @owox/idp-owox@0.18.0
+- @owox/backend@0.18.0
+- @owox/web@0.18.0
+
 ## 0.17.0
 
 ### Minor Changes 0.17.0
