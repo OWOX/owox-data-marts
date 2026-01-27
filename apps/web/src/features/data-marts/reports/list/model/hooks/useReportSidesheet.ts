@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import type { DataMartReport } from '../../../shared/model/types/data-mart-report';
 import { ReportFormMode } from '../../../shared';
 import { trackEvent } from '../../../../../../utils/data-layer';
@@ -21,8 +21,9 @@ export function useReportSidesheet() {
 
   /**
    * Opens the modal in CREATE mode
+   * Memoized to prevent unnecessary re-renders of child components
    */
-  const handleAddReport = () => {
+  const handleAddReport = useCallback(() => {
     setMode(ReportFormMode.CREATE);
     setEditingReport(null);
     setIsOpen(true);
@@ -32,12 +33,13 @@ export function useReportSidesheet() {
       action: 'CreateReport',
       label: 'ReportForm',
     });
-  };
+  }, []);
 
   /**
    * Opens the modal in EDIT mode for a specific report
+   * Memoized to prevent unnecessary re-renders of child components
    */
-  const handleEditReport = (report: DataMartReport) => {
+  const handleEditReport = useCallback((report: DataMartReport) => {
     setMode(ReportFormMode.EDIT);
     setEditingReport(report);
     setIsOpen(true);
@@ -47,12 +49,13 @@ export function useReportSidesheet() {
       action: 'EditReport',
       label: report.dataDestination.type,
     });
-  };
+  }, []);
 
   /**
    * Closes the modal and resets the editing report
+   * Memoized to prevent unnecessary re-renders of child components
    */
-  const handleCloseModal = () => {
+  const handleCloseModal = useCallback(() => {
     setIsOpen(false);
     setEditingReport(null);
     trackEvent({
@@ -61,7 +64,7 @@ export function useReportSidesheet() {
       action: mode === ReportFormMode.EDIT ? 'Edit' : 'Create',
       label: 'ReportForm',
     });
-  };
+  }, [mode]);
 
   return {
     isOpen,

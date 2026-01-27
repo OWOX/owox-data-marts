@@ -50,7 +50,7 @@ export function ToggleColumnsHeader<TData>({
                 column.id;
 
               return (
-                <DropdownMenuItem key={column.id} className='capitalize'>
+                <DropdownMenuItem key={column.id}>
                   <label className='flex items-center space-x-2'>
                     <button
                       type='button'

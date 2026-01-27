@@ -4,7 +4,7 @@ import {
   type VisibilityState,
   type ColumnSizingState,
 } from '@tanstack/react-table';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { storageService } from '../services/localstorage.service';
 
 /**
@@ -100,6 +100,9 @@ interface UseTableStorageReturn {
  * @param props.excludedColumnsFromSorting - Column IDs to exclude from sorting persistence (defaults to ['actions'])
  * @param props.excludedColumnsFromVisibility - Column IDs to exclude from visibility persistence (defaults to ['actions'])
  * @returns Object containing sorting and column visibility state and their setters
+ *
+ * NOTE: Configuration (columns, excludedColumns) is read via refs.
+ * Effects must NOT depend on configuration to avoid render loops when multiple tables mount or columns are unstable.
  */
 export function useTableStorage<TData, TValue>({
   columns,
@@ -110,23 +113,28 @@ export function useTableStorage<TData, TValue>({
   excludedColumnsFromSorting = TABLE_STORAGE_CONSTANTS.DEFAULT_EXCLUDED_COLUMNS,
   excludedColumnsFromVisibility = TABLE_STORAGE_CONSTANTS.DEFAULT_EXCLUDED_COLUMNS,
 }: UseTableStorageProps<TData, TValue>): UseTableStorageReturn {
+  /**
+   * Store configuration in refs so effects can read current values without reacting to changes.
+   * This prevents infinite loops when columns or exclusion lists change identity.
+   */
+  const columnsRef = useRef(columns);
+  const excludedColumnsFromSortingRef = useRef(excludedColumnsFromSorting);
+  const excludedColumnsFromVisibilityRef = useRef(excludedColumnsFromVisibility);
+
+  // Update refs on every render (doesn't trigger effects)
+  columnsRef.current = columns;
+  excludedColumnsFromSortingRef.current = excludedColumnsFromSorting;
+  excludedColumnsFromVisibilityRef.current = excludedColumnsFromVisibility;
+
   /** localStorage keys for persisting table state */
   const STORAGE_KEYS = useMemo(
     () => ({
       SORTING: `${storageKeyPrefix}${TABLE_STORAGE_CONSTANTS.STORAGE_KEYS.SORTING_SUFFIX}`,
       COLUMN_VISIBILITY: `${storageKeyPrefix}${TABLE_STORAGE_CONSTANTS.STORAGE_KEYS.COLUMN_VISIBILITY_SUFFIX}`,
       PAGE_SIZE: `${storageKeyPrefix}${TABLE_STORAGE_CONSTANTS.STORAGE_KEYS.PAGE_SIZE_SUFFIX}`,
+      COLUMN_SIZING: `${storageKeyPrefix}${TABLE_STORAGE_CONSTANTS.STORAGE_KEYS.COLUMN_SIZING_SUFFIX}`,
     }),
     [storageKeyPrefix]
-  );
-
-  /** Extract column IDs from column definitions */
-  const columnIds = useMemo(() => tableStorageUtils.extractColumnIds(columns), [columns]);
-
-  /** Column IDs that are allowed to be used for sorting */
-  const allowedSortingColumnIds = useMemo(
-    () => columnIds.filter(id => !excludedColumnsFromSorting.includes(id)),
-    [columnIds, excludedColumnsFromSorting]
   );
 
   /**
@@ -140,13 +148,19 @@ export function useTableStorage<TData, TValue>({
       return savedRaw;
     }
 
+    // Compute allowed sorting columns at initialization time
+    const currentColumnIds = tableStorageUtils.extractColumnIds(columnsRef.current);
+    const allowedSortingColumnIds = currentColumnIds.filter(
+      id => !excludedColumnsFromSortingRef.current.includes(id)
+    );
+
     // Select sorting column: prefer defaultSortingColumn if available, otherwise use first allowed column or constant fallback
     const finalSortingColumn = allowedSortingColumnIds.includes(defaultSortingColumn)
       ? defaultSortingColumn
       : (allowedSortingColumnIds[0] ?? TABLE_STORAGE_CONSTANTS.DEFAULT_SORTING_COLUMN);
 
     return [{ id: finalSortingColumn, desc: true }];
-  }, [STORAGE_KEYS.SORTING, allowedSortingColumnIds, defaultSortingColumn]);
+  }, [STORAGE_KEYS.SORTING, defaultSortingColumn]);
 
   /**
    * Initialize column visibility state from localStorage or use default
@@ -156,20 +170,17 @@ export function useTableStorage<TData, TValue>({
     const savedRaw = storageService.get(STORAGE_KEYS.COLUMN_VISIBILITY, 'json');
 
     if (savedRaw && typeof savedRaw === 'object' && !Array.isArray(savedRaw)) {
+      // Compute column IDs at initialization time
+      const currentColumnIds = tableStorageUtils.extractColumnIds(columnsRef.current);
       const visibility: VisibilityState = {};
-      for (const id of columnIds) {
-        if (excludedColumnsFromVisibility.includes(id)) continue;
+      for (const id of currentColumnIds) {
+        if (excludedColumnsFromVisibilityRef.current.includes(id)) continue;
         visibility[id] = savedRaw[id] as boolean;
       }
       return visibility;
     }
     return defaultColumnVisibility;
-  }, [
-    STORAGE_KEYS.COLUMN_VISIBILITY,
-    columnIds,
-    excludedColumnsFromVisibility,
-    defaultColumnVisibility,
-  ]);
+  }, [STORAGE_KEYS.COLUMN_VISIBILITY, defaultColumnVisibility]);
 
   /**
    * Initialize page size from localStorage or use default
@@ -188,17 +199,14 @@ export function useTableStorage<TData, TValue>({
    * @returns Initial column sizing state for the table
    */
   const getInitialColumnSizing = useCallback((): ColumnSizingState => {
-    const savedRaw = storageService.get(
-      `${storageKeyPrefix}${TABLE_STORAGE_CONSTANTS.STORAGE_KEYS.COLUMN_SIZING_SUFFIX}`,
-      'json'
-    );
+    const savedRaw = storageService.get(STORAGE_KEYS.COLUMN_SIZING, 'json');
 
     if (savedRaw && typeof savedRaw === 'object' && !Array.isArray(savedRaw)) {
       return savedRaw as ColumnSizingState;
     }
 
     return {};
-  }, [storageKeyPrefix]);
+  }, [STORAGE_KEYS.COLUMN_SIZING]);
 
   /** State for table sorting configuration */
   const [sorting, setSorting] = useState<SortingState>(getInitialSorting);
@@ -214,33 +222,51 @@ export function useTableStorage<TData, TValue>({
   /** State for column sizing configuration */
   const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(getInitialColumnSizing);
 
-  /** Persist sorting changes to localStorage */
+  /**
+   * Persist sorting changes to localStorage
+   * Only reacts to sorting state changes, not configuration changes
+   */
   useEffect(() => {
-    if (sorting.length > 0 && allowedSortingColumnIds.includes(sorting[0].id)) {
+    if (sorting.length === 0) return;
+
+    // Derive allowed columns at effect execution time from current config
+    const currentColumnIds = tableStorageUtils.extractColumnIds(columnsRef.current);
+    const currentAllowedSortingColumnIds = currentColumnIds.filter(
+      id => !excludedColumnsFromSortingRef.current.includes(id)
+    );
+
+    // Only persist if sorting column is valid
+    if (currentAllowedSortingColumnIds.includes(sorting[0].id)) {
       storageService.set(STORAGE_KEYS.SORTING, sorting);
     }
-  }, [sorting, allowedSortingColumnIds, STORAGE_KEYS.SORTING]);
+  }, [sorting, STORAGE_KEYS.SORTING]);
 
-  /** Persist column sizing changes to localStorage */
+  /**
+   * Persist column sizing changes to localStorage
+   * Only reacts to columnSizing state changes, not configuration changes
+   */
   useEffect(() => {
-    storageService.set(
-      `${storageKeyPrefix}${TABLE_STORAGE_CONSTANTS.STORAGE_KEYS.COLUMN_SIZING_SUFFIX}`,
-      columnSizing
-    );
-  }, [columnSizing, storageKeyPrefix]);
+    storageService.set(STORAGE_KEYS.COLUMN_SIZING, columnSizing);
+  }, [columnSizing, STORAGE_KEYS.COLUMN_SIZING]);
 
-  /** Persist column visibility changes to localStorage */
+  /**
+   * Persist column visibility changes to localStorage
+   * Only reacts to columnVisibility state changes, not configuration changes
+   */
   useEffect(() => {
+    // Derive column IDs at effect execution time from current config
+    const currentColumnIds = tableStorageUtils.extractColumnIds(columnsRef.current);
+
     const toPersist: Record<string, boolean> = {};
-    for (const id of columnIds) {
-      if (excludedColumnsFromVisibility.includes(id)) continue;
+    for (const id of currentColumnIds) {
+      if (excludedColumnsFromVisibilityRef.current.includes(id)) continue;
       const isVisible = columnVisibility[id];
       if (typeof isVisible === 'boolean') {
         toPersist[id] = isVisible;
       }
     }
     storageService.set(STORAGE_KEYS.COLUMN_VISIBILITY, toPersist);
-  }, [columnVisibility, columnIds, excludedColumnsFromVisibility, STORAGE_KEYS.COLUMN_VISIBILITY]);
+  }, [columnVisibility, STORAGE_KEYS.COLUMN_VISIBILITY]);
 
   /** Persist page size changes to localStorage */
   useEffect(() => {

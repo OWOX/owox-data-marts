@@ -1,7 +1,12 @@
-import { type Column } from '@tanstack/react-table';
+import { type Column, type ColumnMeta } from '@tanstack/react-table';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { useCallback, type PropsWithChildren } from 'react';
+
+interface ExtendedColumnMeta<TData> extends ColumnMeta<TData, unknown> {
+  title?: string;
+  showHeaderTitle?: boolean;
+}
 
 export interface SortableHeaderProps<TData> extends PropsWithChildren {
   column: Column<TData>;
@@ -34,7 +39,14 @@ export function SortableHeader<TData>({ column, children, label }: SortableHeade
     return 'none' as const;
   };
 
-  const ariaLabel = label ?? (typeof children === 'string' ? children : 'Column');
+  const meta = (column as Partial<Column<TData>>).columnDef?.meta as
+    | ExtendedColumnMeta<TData>
+    | undefined;
+
+  const metaTitle = meta?.title;
+  const showHeaderTitle = meta?.showHeaderTitle ?? true;
+
+  const ariaLabel = label ?? metaTitle ?? (typeof children === 'string' ? children : column.id);
 
   return (
     <Button
@@ -44,7 +56,7 @@ export function SortableHeader<TData>({ column, children, label }: SortableHeade
       aria-label={`${ariaLabel} - ${getSortDescription()}. Click to sort.`}
       aria-sort={getAriaSort()}
     >
-      {children}
+      {showHeaderTitle ? children : ''}
       <span className='flex h-4 w-4 items-center justify-center' aria-hidden='true'>
         {isSorted === 'asc' && <ChevronUp className='text-foreground h-4 w-4' />}
         {isSorted === 'desc' && <ChevronDown className='text-foreground h-4 w-4' />}

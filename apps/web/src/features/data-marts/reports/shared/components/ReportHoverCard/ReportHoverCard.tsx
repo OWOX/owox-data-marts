@@ -122,24 +122,24 @@ export const ReportHoverCard = React.memo(
           </HoverCardHeader>
 
           <HoverCardBody>
-            <HoverCardItem>
-              <HoverCardItemLabel>Last run status:</HoverCardItemLabel>
-              <HoverCardItemValue>
-                {statusInfo ? (
+            {statusInfo && (
+              <HoverCardItem>
+                <HoverCardItemLabel>Last run status:</HoverCardItemLabel>
+                <HoverCardItemValue>
                   <StatusLabel type={statusInfo.statusType} variant='ghost'>
                     {statusInfo.statusText}
                   </StatusLabel>
-                ) : (
-                  'Not run yet'
-                )}
-              </HoverCardItemValue>
-            </HoverCardItem>
-            <HoverCardItem>
-              <HoverCardItemLabel>Last run date:</HoverCardItemLabel>
-              <HoverCardItemValue>
-                {report.lastRunDate ? <RelativeTime date={report.lastRunDate} /> : 'Never run'}
-              </HoverCardItemValue>
-            </HoverCardItem>
+                </HoverCardItemValue>
+              </HoverCardItem>
+            )}
+            {report.lastRunDate && (
+              <HoverCardItem>
+                <HoverCardItemLabel>Last run date:</HoverCardItemLabel>
+                <HoverCardItemValue>
+                  <RelativeTime date={report.lastRunDate} />
+                </HoverCardItemValue>
+              </HoverCardItem>
+            )}
             {report.lastRunError && (
               <HoverCardItem>
                 <HoverCardItemLabel>Error message:</HoverCardItemLabel>
@@ -147,9 +147,11 @@ export const ReportHoverCard = React.memo(
               </HoverCardItem>
             )}
             <HoverCardItem>
-              <HoverCardItemLabel>Total runs:</HoverCardItemLabel>
+              {report.runsCount > 0 ? <HoverCardItemLabel>Total runs:</HoverCardItemLabel> : ''}
               <HoverCardItemValue>
-                {report.runsCount || 0} runs
+                {report.runsCount === 0
+                  ? 'No runs'
+                  : `${report.runsCount.toString()} run${report.runsCount > 1 ? 's' : ''}`}
                 {formattedDates.createdAt && <>, since {formattedDates.createdAt}</>}
               </HoverCardItemValue>
             </HoverCardItem>
