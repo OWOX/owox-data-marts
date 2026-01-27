@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Response } from 'express';
+import * as zlib from 'zlib';
 import { BusinessViolationException } from '../../../../common/exceptions/business-violation.exception';
 import { DataStorageType } from '../../../data-storage-types/enums/data-storage-type.enum';
 import { DataStorageReportReader } from '../../../data-storage-types/interfaces/data-storage-report-reader.interface';
@@ -7,17 +9,51 @@ import { ReportDataHeader } from '../../../dto/domain/report-data-header.dto';
 import { Report } from '../../../entities/report.entity';
 import { FieldDataType } from '../enums/field-data-type.enum';
 import {
+  DataRow,
   FieldValue,
   GetDataRequest,
-  GetDataResponse,
+  GetDataResult,
   RequestField,
 } from '../schemas/get-data.schema';
 import { LookerStudioTypeMapperService } from './looker-studio-type-mapper.service';
+
+/**
+ * Maximum number of rows that can be returned in a single getData request.
+ * Looker Studio has a hard limit of 1 million rows per request.
+ * @see https://developers.google.com/looker-studio/connector/reference#getdata
+ */
+const MAX_ROWS_LIMIT = 1_000_000;
+
+/**
+ * The maximum number of bytes supported by Apps script UrlFetchApp.fetch() is 50 megabytes.
+ * We use a lower limit to prevent exceeding the Apps Script quota for URL fetch operations.
+ * @see https://developers.google.com/apps-script/guides/services/quotas
+ */
+const MAX_BYTES_LIMIT = 49 * 1024 * 1024;
 
 interface HeadersAndMapping {
   filteredHeaders: ReportDataHeader[];
   fieldIndexMap: number[];
 }
+
+/**
+ * Context for streaming data responses.
+ * Contains pre-computed schema and field mapping for efficient row streaming.
+ */
+export interface StreamingContext {
+  schema: Array<{ name: string; dataType: FieldDataType }>;
+  reader: DataStorageReportReader;
+  fieldIndexMap: number[];
+  rowLimit: number;
+}
+
+/**
+ * Batch size for streaming responses.
+ * Balance between memory usage and performance:
+ * - Larger batches = fewer writes = faster
+ * - Smaller batches = less memory
+ */
+const STREAMING_BATCH_SIZE = 5000;
 
 /**
  * Service for handling data extraction requests from Looker Studio connector.
@@ -58,7 +94,7 @@ export class LookerStudioConnectorApiDataService {
     report: Report,
     cachedReader: CachedReaderData,
     isSampleExtraction = false
-  ): Promise<GetDataResponse> {
+  ): Promise<GetDataResult> {
     this.logger.log('getData called with request:', request);
     this.logger.debug(`Using ${cachedReader.fromCache ? 'cached' : 'fresh'} reader for data`);
 
@@ -68,8 +104,8 @@ export class LookerStudioConnectorApiDataService {
       request.request.fields
     );
 
-    // Determine effective row limit: 100 if sample extraction, otherwise no limits
-    const effectiveRowLimit = isSampleExtraction ? 100 : undefined;
+    // Determine effective row limit: 100 for sample extraction, MAX_ROWS_LIMIT for full extraction
+    const effectiveRowLimit = isSampleExtraction ? 100 : MAX_ROWS_LIMIT;
 
     // Process data and build response using cached reader
     return this.processDataAndBuildResponse(
@@ -113,17 +149,33 @@ export class LookerStudioConnectorApiDataService {
     filteredHeaders: ReportDataHeader[],
     fieldIndexMap: number[],
     rowLimit?: number
-  ): Promise<GetDataResponse> {
+  ): Promise<GetDataResult> {
     // Build schema for requested fields only
     const schema = this.buildResponseSchema(filteredHeaders, report.dataMart.storage.type);
 
     // Read and process data (prepareReportData already called in cache service)
-    const rows = await this.readAndProcessData(reader, fieldIndexMap, rowLimit);
+    const { rows, limitExceeded, limitReason } = await this.readAndProcessData(
+      reader,
+      fieldIndexMap,
+      rowLimit
+    );
 
-    return {
+    const response = {
       schema,
       rows,
       filtersApplied: [],
+    };
+
+    const bytesSent = Buffer.byteLength(JSON.stringify(response), 'utf8');
+
+    return {
+      response,
+      meta: {
+        limitExceeded,
+        limitReason,
+        rowsSent: rows.length,
+        bytesSent,
+      },
     };
   }
 
@@ -150,9 +202,15 @@ export class LookerStudioConnectorApiDataService {
     reportReader: DataStorageReportReader,
     fieldIndexMap: number[],
     rowLimit?: number
-  ): Promise<{ values: FieldValue[] }[]> {
+  ): Promise<{
+    rows: { values: FieldValue[] }[];
+    limitExceeded: boolean;
+    limitReason?: string;
+  }> {
     const allRows: { values: FieldValue[] }[] = [];
     let nextBatchId: string | undefined | null = undefined;
+    let limitExceeded = false;
+    let limitReason: string | undefined;
 
     do {
       const batch = await reportReader.readReportDataBatch(nextBatchId, rowLimit);
@@ -167,11 +225,23 @@ export class LookerStudioConnectorApiDataService {
 
       // Check row limit if specified
       if (rowLimit && allRows.length >= rowLimit) {
-        return allRows.slice(0, rowLimit);
+        const overflowWithinBatch = batch.dataRows.length > formattedRows.length;
+        const hasMoreData = Boolean(nextBatchId) || overflowWithinBatch;
+
+        if (hasMoreData) {
+          limitExceeded = true;
+          limitReason = `Row limit reached (${rowLimit} rows)`;
+        }
+
+        const limitType = rowLimit < MAX_ROWS_LIMIT ? 'sample extraction' : 'full extraction';
+        this.logger.warn(
+          `Row limit reached (${limitType}): returning ${rowLimit} rows (more data available)`
+        );
+        return { rows: allRows.slice(0, rowLimit), limitExceeded, limitReason };
       }
     } while (nextBatchId);
 
-    return allRows;
+    return { rows: allRows, limitExceeded, limitReason };
   }
 
   /**
@@ -211,5 +281,156 @@ export class LookerStudioConnectorApiDataService {
     }
     // Convert all other types to string
     return String(value);
+  }
+
+  /**
+   * Prepares context for streaming data response.
+   * Pre-computes schema and field mapping before streaming begins.
+   *
+   * @param request - Looker Studio getData request
+   * @param report - Report entity
+   * @param cachedReader - Cached reader data
+   * @param isSampleExtraction - Whether this is a sample extraction
+   * @returns Streaming context with schema and field mapping
+   */
+  public async prepareStreamingContext(
+    request: GetDataRequest,
+    report: Report,
+    cachedReader: CachedReaderData,
+    isSampleExtraction = false
+  ): Promise<StreamingContext> {
+    this.logger.log('Preparing streaming context');
+    this.logger.debug(`Using ${cachedReader.fromCache ? 'cached' : 'fresh'} reader for streaming`);
+
+    const { filteredHeaders, fieldIndexMap } = await this.prepareHeadersAndMapping(
+      cachedReader.dataDescription.dataHeaders,
+      request.request.fields
+    );
+
+    const schema = this.buildResponseSchema(filteredHeaders, report.dataMart.storage.type);
+    const rowLimit = isSampleExtraction ? 100 : MAX_ROWS_LIMIT;
+
+    return {
+      schema,
+      reader: cachedReader.reader,
+      fieldIndexMap,
+      rowLimit,
+    };
+  }
+
+  /**
+   * Streams data response directly to HTTP response.
+   * Writes JSON incrementally to avoid loading all rows into memory.
+   *
+   * Memory optimization: Only one batch (~5000 rows) is held in memory at a time,
+   * compared to accumulating all rows (up to 1M) before sending.
+   *
+   * Performance optimization: Entire batches are serialized and written at once
+   * instead of row-by-row to reduce I/O overhead.
+   *
+   * @param res - Express response object
+   * @param context - Pre-computed streaming context
+   * @returns Streaming result with meta
+   */
+  public async streamData(
+    res: Response,
+    context: StreamingContext
+  ): Promise<{
+    rowCount: number;
+    limitExceeded: boolean;
+    limitReason?: string;
+    bytesWritten: number;
+  }> {
+    const { schema, reader, fieldIndexMap, rowLimit } = context;
+
+    const gzip = zlib.createGzip({ level: 3 });
+    gzip.setDefaultEncoding('utf-8');
+
+    // Set headers for JSON streaming
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Encoding', 'gzip');
+    res.setHeader('Transfer-Encoding', 'chunked');
+
+    // Pipe gzip stream to response
+    gzip.pipe(res);
+
+    // Write opening JSON structure with schema
+    gzip.write(`{"schema":${JSON.stringify(schema)},"rows":[`);
+
+    let totalRows = 0;
+    let isFirstBatch = true;
+    let nextBatchId: string | undefined | null = undefined;
+    let limitExceeded = false;
+    let limitReason: string | undefined;
+
+    do {
+      if (res.closed) {
+        this.logger.warn('Streaming aborted: response closed');
+        break;
+      }
+
+      const remainingRows = rowLimit - totalRows;
+      const batchSize = Math.min(STREAMING_BATCH_SIZE, remainingRows);
+
+      const batch = await reader.readReportDataBatch(nextBatchId, batchSize);
+
+      // Format all rows in the batch
+      const rowsToWrite = Math.min(batch.dataRows.length, rowLimit - totalRows);
+      const formattedRows: DataRow[] = [];
+
+      for (let i = 0; i < rowsToWrite; i++) {
+        formattedRows.push({
+          values: fieldIndexMap.map(index => this.convertToFieldValue(batch.dataRows[i][index])),
+        });
+      }
+
+      // Write entire batch as single chunk (much faster than row-by-row)
+      if (formattedRows.length > 0) {
+        const batchJson = formattedRows.map(row => JSON.stringify(row)).join(',');
+        gzip.write(isFirstBatch ? batchJson : ',' + batchJson);
+        isFirstBatch = false;
+        totalRows += formattedRows.length;
+      }
+
+      nextBatchId = batch.nextDataBatchId;
+
+      // Check if we've reached the row limit
+      if (totalRows >= rowLimit) {
+        if (nextBatchId) {
+          const limitType = rowLimit < MAX_ROWS_LIMIT ? 'sample extraction' : 'full extraction';
+          this.logger.warn(
+            `Row limit reached during streaming (${limitType}): returned ${totalRows} rows (more data available)`
+          );
+          limitExceeded = true;
+          limitReason = `Row limit reached (${rowLimit} rows)`;
+        }
+        break;
+      }
+
+      if (gzip.bytesWritten >= MAX_BYTES_LIMIT) {
+        if (nextBatchId) {
+          this.logger.warn(
+            `Size limit reached during streaming: returned ${totalRows} rows, data size: ${gzip.bytesWritten} bytes`
+          );
+        }
+        limitExceeded = true;
+        limitReason = limitReason ?? `Size limit reached (${MAX_BYTES_LIMIT} bytes gzipped)`;
+        break;
+      }
+    } while (nextBatchId);
+
+    // Write closing JSON structure
+    gzip.write(`],"filtersApplied":[]}`);
+    gzip.end();
+
+    this.logger.log(
+      `Streaming completed: ${totalRows} rows sent, data size: ${gzip.bytesWritten} bytes`
+    );
+    return {
+      rowCount: totalRows,
+      limitExceeded,
+      limitReason,
+      bytesWritten: gzip.bytesWritten,
+    };
   }
 }

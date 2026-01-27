@@ -1,5 +1,6 @@
 import { Inject, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { OwoxProducer } from '@owox/internal-helpers';
+import { Response } from 'express';
 import { BusinessViolationException } from '../../../../common/exceptions/business-violation.exception';
 import { ProjectOperationBlockedException } from '../../../../common/exceptions/project-operation-blocked.exception';
 import { OWOX_PRODUCER } from '../../../../common/producer/producer.module';
@@ -126,6 +127,98 @@ export class LookerStudioConnectorApiService {
   }
 
   /**
+   * Checks if streaming is enabled via environment variable.
+   * Default is false (non-streaming) for backward compatibility.
+   */
+  private isStreamingEnabled(): boolean {
+    return process.env.LOOKER_STREAMING_ENABLED === 'true';
+  }
+
+  /**
+   * Handles getData request with optional streaming response.
+   * Uses streaming when LOOKER_STREAMING_ENABLED=true environment variable is set.
+   *
+   * Streaming benefits:
+   * - Peak memory: ~1000 rows vs up to 1M rows
+   * - Faster time-to-first-byte for large datasets
+   * - Better handling of memory-constrained environments
+   *
+   * @param request - Looker Studio getData request
+   * @param res - Express response object for streaming
+   */
+  public async getDataStreaming(request: GetDataRequest, res: Response): Promise<void> {
+    const { report, cachedReader } = await this.getReportAndCachedReader(request);
+    const isSampleExtraction = Boolean(request.request.scriptParams?.sampleExtraction);
+
+    // Sample extraction always uses non-streaming (only 100 rows)
+    if (isSampleExtraction) {
+      const result = await this.getSampleDataExtraction(request, report, cachedReader);
+      res.json(result);
+      return;
+    }
+
+    // Check feature flag for full extraction
+    if (this.isStreamingEnabled()) {
+      this.logger.log('Using streaming mode for getData (LOOKER_STREAMING_ENABLED=true)');
+      await this.getFullDataExtractionStreaming(request, report, cachedReader, res);
+    } else {
+      // Non-streaming mode (default)
+      const result = await this.getFullDataExtraction(request, report, cachedReader);
+      res.json(result);
+    }
+  }
+
+  /**
+   * Processes full data extraction with streaming response.
+   */
+  private async getFullDataExtractionStreaming(
+    request: GetDataRequest,
+    report: Report,
+    cachedReader: CachedReaderData,
+    res: Response
+  ): Promise<void> {
+    this.logger.log(`Starting streaming report run ${report.id}`);
+
+    const reportRun = await this.lookerStudioReportRunService.create(report);
+    if (!reportRun) {
+      throw new InternalServerErrorException('Failed to create report run');
+    }
+
+    try {
+      const context = await this.dataService.prepareStreamingContext(
+        request,
+        report,
+        cachedReader,
+        false
+      );
+
+      const { limitExceeded, limitReason, rowCount, bytesWritten } =
+        await this.dataService.streamData(res, context);
+
+      if (limitExceeded) {
+        await this.handleFailedReportRun(
+          reportRun,
+          new BusinessViolationException(
+            limitReason ??
+              `Looker Studio streaming response truncated (unknown reason), rows sent: ${rowCount}, bytes sent: ${bytesWritten}`
+          )
+        );
+      } else {
+        await this.handleSuccessfulReportRun(reportRun);
+      }
+    } catch (e) {
+      await this.handleFailedReportRun(reportRun, e);
+      // If headers haven't been sent yet, throw to let error handler respond
+      if (!res.headersSent) {
+        throw e;
+      }
+      // If streaming already started, we can't send error response
+      // Error is already logged in handleFailedReportRun
+      this.logger.error('Error occurred after streaming started, response may be incomplete');
+    }
+  }
+
+  /**
    * Retrieves and validates report with cached data reader.
    *
    * Steps:
@@ -223,7 +316,8 @@ export class LookerStudioConnectorApiService {
     cachedReader: CachedReaderData
   ): Promise<GetDataResponse> {
     try {
-      return await this.dataService.getData(request, report, cachedReader, true);
+      const { response } = await this.dataService.getData(request, report, cachedReader, true);
+      return response;
     } catch (error) {
       this.logger.error('Failed to get sample data:', error);
       throw error;
@@ -256,10 +350,21 @@ export class LookerStudioConnectorApiService {
 
     try {
       await this.projectBalanceService.verifyCanPerformOperations(report.dataMart.projectId);
-      const result = await this.dataService.getData(request, report, cachedReader);
-      await this.handleSuccessfulReportRun(reportRun);
+      const { response, meta } = await this.dataService.getData(request, report, cachedReader);
 
-      return result;
+      if (meta.limitExceeded) {
+        await this.handleFailedReportRun(
+          reportRun,
+          new BusinessViolationException(
+            meta.limitReason ??
+              `Looker Studio response truncated (unknown reason), rows sent: ${meta.rowsSent}`
+          )
+        );
+      } else {
+        await this.handleSuccessfulReportRun(reportRun);
+      }
+
+      return response;
     } catch (e) {
       await this.handleFailedReportRun(reportRun, e);
       throw e;

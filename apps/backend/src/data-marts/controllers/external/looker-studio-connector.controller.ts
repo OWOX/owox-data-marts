@@ -1,14 +1,12 @@
-import { Controller, HttpCode, Post } from '@nestjs/common';
+import { Controller, HttpCode, Post, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { Response } from 'express';
 import { GoogleJwtBody } from '../../../common/jwt-body/google-jwt-body.decorator';
 import {
   GetConfigRequest,
   GetConfigResponse,
 } from '../../data-destination-types/looker-studio-connector/schemas/get-config.schema';
-import {
-  GetDataRequest,
-  GetDataResponse,
-} from '../../data-destination-types/looker-studio-connector/schemas/get-data.schema';
+import { GetDataRequest } from '../../data-destination-types/looker-studio-connector/schemas/get-data.schema';
 import {
   GetSchemaRequest,
   GetSchemaResponse,
@@ -45,13 +43,21 @@ export class LookerStudioConnectorController {
     return this.lookerStudioConnectorService.getSchema(request);
   }
 
+  /**
+   * Handles getData requests from Looker Studio with streaming response.
+   * Streams data directly to minimize memory usage for large datasets.
+   *
+   * @param request - Validated getData request from Looker Studio
+   * @param res - Express response for streaming
+   */
   @Auth(Role.none())
   @HttpCode(200)
   @Post('/get-data')
   async getData(
     @GoogleJwtBody(LOOKER_STUDIO_SERVICE_ACCOUNT)
-    request: GetDataRequest
-  ): Promise<GetDataResponse> {
-    return this.lookerStudioConnectorService.getData(request);
+    request: GetDataRequest,
+    @Res() res: Response
+  ): Promise<void> {
+    return this.lookerStudioConnectorService.getDataStreaming(request, res);
   }
 }
