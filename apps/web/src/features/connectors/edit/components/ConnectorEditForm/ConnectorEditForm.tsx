@@ -259,7 +259,8 @@ export function ConnectorEditForm({
         label: step.title,
       });
     }
-  }, [currentStep, selectedConnector, steps]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep]);
   const handleNext = () => {
     if (currentStep < totalSteps) {
       setCurrentStep(currentStep + 1);

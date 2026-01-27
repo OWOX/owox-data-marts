@@ -55,7 +55,8 @@ export function ConfigurationOneOfRender({
         });
       }
     }
-  }, [selectedOption, specification.name, configuration, onValueChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedOption, specification.name]);
 
   if (!specification.oneOf) {
     return null;
