@@ -29,7 +29,7 @@ const MAX_ROWS_LIMIT = 1_000_000;
  * We use a lower limit to prevent exceeding the Apps Script quota for URL fetch operations.
  * @see https://developers.google.com/apps-script/guides/services/quotas
  */
-const MAX_BYTES_LIMIT = 49.5 * 1024 * 1024;
+const MAX_BYTES_LIMIT = 49 * 1024 * 1024;
 
 interface HeadersAndMapping {
   filteredHeaders: ReportDataHeader[];
