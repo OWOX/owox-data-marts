@@ -166,6 +166,9 @@ Integration with Looker Studio as a <strong>Destination</strong> for OWOX Data M
 </ul>
 </li>
 </ul>
+<blockquote>
+<p><strong>⚠️ Note</strong>: Data from Data Marts is delivered to Looker Studio via streaming, so each <code dir="auto">getData()</code> call must stay within Looker Studio’s limit of <strong>1,000,000 rows</strong> or 50 MB of data. Refer to the <a href="https://developers.google.com/looker-studio/connector/reference#getdata" rel="noopener noreferrer" target="_blank">official documentation</a> for more details. If you encounter issues or slow performance, try reducing the number of rows you request to stay under the limit.</p>
+</blockquote>
 <p>Connector in Looker Studio (first step):</p>
 <p><img alt="Create Data Mart-1" loading="lazy" decoding="async" fetchpriority="auto" width="1780" height="1206" src="/_astro/connector-in-looker-studio-1st-step.9NB7c_da_Z61gje.webp" ></p>
 <p>Connector in Looker Studio (second step):</p>
