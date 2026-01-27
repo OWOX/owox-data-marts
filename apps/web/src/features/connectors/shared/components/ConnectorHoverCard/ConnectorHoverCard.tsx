@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 import React from 'react';
 import {
   HoverCard,
@@ -25,7 +25,11 @@ import { ExternalLink } from 'lucide-react';
 import RelativeTime from '@owox/ui/components/common/relative-time';
 import { StatusLabel } from '../../../../../shared/components/StatusLabel';
 import { ConnectorNameDisplay } from '../ConnectorNameDisplay';
-import { mapRunStatusToStatusType, getRunStatusText } from '../../../../data-marts/shared';
+import {
+  mapRunStatusToStatusType,
+  getRunStatusText,
+  DataMartRunType,
+} from '../../../../data-marts/shared';
 import { getRunDataInfo } from '../../../../data-marts/shared/utils/run-data.utils.ts';
 import { getStorageButtonText, openStorageConsole } from '../../../../data-storage';
 
@@ -42,13 +46,9 @@ const useConnectorData = (connectorName: string) => {
 export const ConnectorHoverCard = React.memo(
   function ConnectorHoverCard({ connector, children }: ConnectorHoverCardProps) {
     const connectorInfo = useConnectorData(connector.source.name);
-    const { dataMart, runs, getDataMartRuns } = useDataMartContext();
 
-    useEffect(() => {
-      if (dataMart?.id) {
-        void getDataMartRuns(dataMart.id);
-      }
-    }, [dataMart?.id, getDataMartRuns]);
+    // Use controlled hover card to only load context data when open
+    const [isOpen, setIsOpen] = useState(false);
 
     const connectorIcon = useMemo(() => {
       if (connectorInfo?.logoBase64) {
@@ -57,73 +57,81 @@ export const ConnectorHoverCard = React.memo(
       return null;
     }, [connectorInfo?.logoBase64]);
 
-    const handleStorageOpen = useCallback(() => {
-      if (!dataMart?.storage) {
-        return;
-      }
-
-      openStorageConsole(dataMart.storage, connector.storage.fullyQualifiedName);
-    }, [dataMart?.storage, connector.storage.fullyQualifiedName]);
-
-    const runDataInfo = useMemo(() => getRunDataInfo(runs), [runs]);
-
-    const lastRunStatus = useMemo(() => {
-      if (!runDataInfo.lastRunDate || !runDataInfo.lastRunStatus) return null;
-      return {
-        statusType: mapRunStatusToStatusType(runDataInfo.lastRunStatus),
-        statusText: getRunStatusText(runDataInfo.lastRunStatus),
-        date: runDataInfo.lastRunDate,
-      };
-    }, [runDataInfo]);
-
-    const buttonText = useMemo(() => {
-      return dataMart?.storage && getStorageButtonText(dataMart.storage);
-    }, [dataMart]);
-
     const descriptionText = useMemo(() => {
       const fieldsCount = connector.source.fields.length.toString();
       return `${connector.source.node} • ${fieldsCount} fields`;
     }, [connector.source.node, connector.source.fields.length]);
 
-    return (
-      <HoverCard>
-        <HoverCardTrigger asChild>
-          <span>{children}</span>
-        </HoverCardTrigger>
-        <HoverCardContent>
-          <HoverCardHeader>
-            <HoverCardHeaderIcon>{connectorIcon}</HoverCardHeaderIcon>
-            <HoverCardHeaderText>
-              <HoverCardHeaderTitle>
-                <ConnectorNameDisplay connector={connector} />
-              </HoverCardHeaderTitle>
-              <HoverCardHeaderDescription>{descriptionText}</HoverCardHeaderDescription>
-            </HoverCardHeaderText>
-          </HoverCardHeader>
+    // Separate component for hover card content to isolate context usage
+    const connectorFullyQualifiedName = connector.storage.fullyQualifiedName;
+    const HoverCardContentInner = React.memo(() => {
+      // This component only renders when hover card is open, reducing re-renders
+      const context = useDataMartContext();
+      const contextRuns = context.runs;
+      const contextDataMart = context.dataMart;
 
+      // Extract stable values for dependency arrays
+      const storage = contextDataMart?.storage;
+
+      const runDataInfo = useMemo(
+        () => getRunDataInfo(contextRuns.filter(run => run.type === DataMartRunType.CONNECTOR)),
+        [contextRuns]
+      );
+
+      const lastRunDate = runDataInfo.lastRunDate;
+      const lastRunStatusValue = runDataInfo.lastRunStatus;
+
+      const lastRunStatus = useMemo(() => {
+        if (!lastRunDate || !lastRunStatusValue) return null;
+        return {
+          statusType: mapRunStatusToStatusType(lastRunStatusValue),
+          statusText: getRunStatusText(lastRunStatusValue),
+          date: lastRunDate,
+        };
+      }, [lastRunDate, lastRunStatusValue]);
+
+      const buttonText = useMemo(() => {
+        return storage && getStorageButtonText(storage);
+      }, [storage]);
+
+      const handleStorageOpen = useCallback(() => {
+        if (!storage) {
+          return;
+        }
+        openStorageConsole(storage, connectorFullyQualifiedName);
+      }, [storage]);
+
+      return (
+        <>
           <HoverCardBody>
-            <HoverCardItem>
-              <HoverCardItemLabel>Last run status:</HoverCardItemLabel>
-              <HoverCardItemValue>
-                {lastRunStatus ? (
+            {lastRunStatus && (
+              <HoverCardItem>
+                <HoverCardItemLabel>Last run status:</HoverCardItemLabel>
+                <HoverCardItemValue>
                   <StatusLabel type={lastRunStatus.statusType} variant='ghost'>
                     {lastRunStatus.statusText}
                   </StatusLabel>
-                ) : (
-                  'Not run yet'
-                )}
-              </HoverCardItemValue>
-            </HoverCardItem>
+                </HoverCardItemValue>
+              </HoverCardItem>
+            )}
+            {lastRunStatus?.date && (
+              <HoverCardItem>
+                <HoverCardItemLabel>Last run date:</HoverCardItemLabel>
+                <HoverCardItemValue>
+                  <RelativeTime date={lastRunStatus.date} />
+                </HoverCardItemValue>
+              </HoverCardItem>
+            )}
             <HoverCardItem>
-              <HoverCardItemLabel>Last run date:</HoverCardItemLabel>
+              {runDataInfo.totalRuns > 0 ? (
+                <HoverCardItemLabel>Total runs:</HoverCardItemLabel>
+              ) : (
+                ''
+              )}
               <HoverCardItemValue>
-                {lastRunStatus ? <RelativeTime date={lastRunStatus.date} /> : 'Never run'}
-              </HoverCardItemValue>
-            </HoverCardItem>
-            <HoverCardItem>
-              <HoverCardItemLabel>Total runs:</HoverCardItemLabel>
-              <HoverCardItemValue>
-                {runDataInfo.totalRuns} runs
+                {runDataInfo.totalRuns === 0
+                  ? 'No runs'
+                  : `${runDataInfo.totalRuns.toString()} run${runDataInfo.totalRuns > 1 ? 's' : ''}`}
                 {runDataInfo.firstRunDate && (
                   <>
                     , since{' '}
@@ -150,18 +158,44 @@ export const ConnectorHoverCard = React.memo(
               <ExternalLink className='ml-1 inline h-4 w-4' aria-hidden='true' />
             </Button>
           </HoverCardFooter>
+        </>
+      );
+    });
+    HoverCardContentInner.displayName = 'HoverCardContentInner';
+
+    return (
+      <HoverCard open={isOpen} onOpenChange={setIsOpen}>
+        <HoverCardTrigger asChild>
+          <span>{children}</span>
+        </HoverCardTrigger>
+        <HoverCardContent>
+          <HoverCardHeader>
+            <HoverCardHeaderIcon>{connectorIcon}</HoverCardHeaderIcon>
+            <HoverCardHeaderText>
+              <HoverCardHeaderTitle>
+                <ConnectorNameDisplay connector={connector} />
+              </HoverCardHeaderTitle>
+              <HoverCardHeaderDescription>{descriptionText}</HoverCardHeaderDescription>
+            </HoverCardHeaderText>
+          </HoverCardHeader>
+          {isOpen && <HoverCardContentInner />}
         </HoverCardContent>
       </HoverCard>
     );
   },
   (prevProps, nextProps) => {
     // Custom comparison function to prevent unnecessary re-renders
-    return (
-      prevProps.connector.source.name === nextProps.connector.source.name &&
-      prevProps.connector.storage.fullyQualifiedName ===
-        nextProps.connector.storage.fullyQualifiedName &&
-      prevProps.connector.source.node === nextProps.connector.source.node &&
-      prevProps.connector.source.fields.length === nextProps.connector.source.fields.length
-    );
+    // Compare all relevant connector properties to ensure we only re-render when connector actually changes
+    const connectorChanged =
+      prevProps.connector.source.name !== nextProps.connector.source.name ||
+      prevProps.connector.storage.fullyQualifiedName !==
+        nextProps.connector.storage.fullyQualifiedName ||
+      prevProps.connector.source.node !== nextProps.connector.source.node ||
+      prevProps.connector.source.fields.length !== nextProps.connector.source.fields.length;
+
+    // Also compare children to ensure we re-render if children change
+    const childrenChanged = prevProps.children !== nextProps.children;
+
+    return !connectorChanged && !childrenChanged;
   }
 );

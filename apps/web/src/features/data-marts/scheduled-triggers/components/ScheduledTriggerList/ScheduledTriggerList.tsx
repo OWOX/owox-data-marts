@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useScheduledTrigger } from '../../model';
 import { ScheduledTriggerTable } from '../ScheduledTriggerTable';
 import { ScheduledTriggerFormSheet } from '../ScheduledTriggerFormSheet/ScheduledTriggerFormSheet';
@@ -17,25 +17,31 @@ export function ScheduledTriggerList({ dataMartId }: ScheduledTriggerListProps) 
     }
   }, [selectedTrigger]);
 
-  const handleEditTrigger = (triggerId: string) => {
-    const trigger = triggers.find(t => t.id === triggerId);
-    if (trigger) {
-      selectScheduledTrigger(trigger);
-    }
-  };
+  const handleEditTrigger = useCallback(
+    (triggerId: string) => {
+      const trigger = triggers.find(t => t.id === triggerId);
+      if (trigger) {
+        selectScheduledTrigger(trigger);
+      }
+    },
+    [triggers, selectScheduledTrigger]
+  );
 
-  const handleCloseFormSheet = () => {
+  const handleCloseFormSheet = useCallback(() => {
     setIsFormSheetOpen(false);
     selectScheduledTrigger(null);
-  };
+  }, [selectScheduledTrigger]);
 
-  const handleDeleteTrigger = async (triggerId: string) => {
-    try {
-      await deleteScheduledTrigger(dataMartId, triggerId);
-    } catch (error) {
-      console.error('Error deleting trigger:', error);
-    }
-  };
+  const handleDeleteTrigger = useCallback(
+    async (triggerId: string) => {
+      try {
+        await deleteScheduledTrigger(dataMartId, triggerId);
+      } catch (error) {
+        console.error('Error deleting trigger:', error);
+      }
+    },
+    [deleteScheduledTrigger, dataMartId]
+  );
 
   return (
     <>

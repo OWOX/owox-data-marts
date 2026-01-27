@@ -1,24 +1,9 @@
 import { useState, useCallback, useMemo } from 'react';
-import {
-  useReactTable,
-  getCoreRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  getFilteredRowModel,
-} from '@tanstack/react-table';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@owox/ui/components/table';
 import { getScheduledTriggerColumns } from './columns';
-import { TablePagination } from './TablePagination';
 import type { ScheduledTrigger } from '../../model/scheduled-trigger.model';
 import { ScheduledTriggerFormSheet } from '../ScheduledTriggerFormSheet/ScheduledTriggerFormSheet';
-import { useTableStorage } from '../../../../../hooks/useTableStorage';
+import { useBaseTable } from '../../../../../shared/hooks';
+import { BaseTable } from '../../../../../shared/components/Table';
 
 interface ScheduledTriggerTableProps {
   triggers: ScheduledTrigger[];
@@ -55,128 +40,35 @@ export function ScheduledTriggerTable({
     [onEditTrigger, handleDeleteClick]
   );
 
-  const { sorting, setSorting, columnVisibility, setColumnVisibility } = useTableStorage({
+  const { table } = useBaseTable<ScheduledTrigger>({
+    data: triggers,
     columns,
     storageKeyPrefix: 'data-mart-scheduled-triggers',
     defaultSortingColumn: 'type',
+    enableRowSelection: false,
   });
-
-  const table = useReactTable<ScheduledTrigger>({
-    data: triggers,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    onSortingChange: setSorting,
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    state: { sorting, columnVisibility },
-    onColumnVisibilityChange: setColumnVisibility,
-    enableGlobalFilter: true,
-    enableColumnResizing: false,
-  });
-
-  const handlePreviousClick = useCallback(() => {
-    table.previousPage();
-  }, [table]);
-
-  const handleNextClick = useCallback(() => {
-    table.nextPage();
-  }, [table]);
 
   // Generate unique IDs for accessibility
   const tableId = 'scheduled-triggers-table';
 
   return (
     <>
-      <div className='dm-card-table-wrap'>
-        <Table id={tableId} className='dm-card-table' role='table' aria-label='Scheduled Triggers'>
-          <TableHeader className='dm-card-table-header'>
-            {table.getHeaderGroups().map(headerGroup => {
-              return (
-                <TableRow key={headerGroup.id} className='dm-card-table-header-row'>
-                  {headerGroup.headers.map(header => {
-                    return (
-                      <TableHead
-                        key={header.id}
-                        className='[&:has([role=checkbox])]:pl-6 [&>[role=checkbox]]:translate-y-[2px]'
-                        scope='col'
-                        style={
-                          header.column.id === 'type'
-                            ? { width: 150, minWidth: 150, maxWidth: 150 }
-                            : header.column.id === 'actions'
-                              ? { width: 80, minWidth: 80, maxWidth: 80 }
-                              : { width: `${String(header.getSize())}%` }
-                        }
-                      >
-                        {header.isPlaceholder
-                          ? null
-                          : typeof header.column.columnDef.header === 'function'
-                            ? header.column.columnDef.header(header.getContext())
-                            : header.column.columnDef.header}
-                      </TableHead>
-                    );
-                  })}
-                </TableRow>
-              );
-            })}
-          </TableHeader>
-          <TableBody className='dm-card-table-body'>
-            {table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map((row, rowIndex) => {
-                return (
-                  <TableRow
-                    key={row.id}
-                    onClick={() => {
-                      onEditTrigger(row.original.id);
-                    }}
-                    className='dm-card-table-body-row group'
-                    role='row'
-                    aria-rowindex={rowIndex + 1}
-                  >
-                    {row.getVisibleCells().map((cell, cellIndex) => {
-                      return (
-                        <TableCell
-                          key={cell.id}
-                          className={`whitespace-normal ${cell.column.id === 'actions' ? 'actions-cell' : ''}`}
-                          role='cell'
-                          aria-colindex={cellIndex + 1}
-                          style={
-                            cell.column.id === 'type'
-                              ? { width: 150, minWidth: 150, maxWidth: 150 }
-                              : cell.column.id === 'actions'
-                                ? { width: 80, minWidth: 80, maxWidth: 80 }
-                                : { width: `${String(cell.column.getSize())}%` }
-                          }
-                        >
-                          {typeof cell.column.columnDef.cell === 'function'
-                            ? cell.column.columnDef.cell(cell.getContext())
-                            : cell.column.columnDef.cell}
-                        </TableCell>
-                      );
-                    })}
-                  </TableRow>
-                );
-              })
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className='dm-card-table-body-row-empty'
-                  role='cell'
-                >
-                  <span role='status' aria-live='polite'>
-                    No scheduled triggers yet. Create a trigger to automate data updates
-                  </span>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      <TablePagination
+      <BaseTable
+        tableId={tableId}
         table={table}
-        onPreviousClick={handlePreviousClick}
-        onNextClick={handleNextClick}
+        ariaLabel='Scheduled Triggers'
+        showPagination={true}
+        paginationProps={{
+          displaySelected: false,
+        }}
+        renderEmptyState={() => (
+          <span role='status' aria-live='polite'>
+            No scheduled triggers yet. Create a trigger to automate data updates
+          </span>
+        )}
+        onRowClick={row => {
+          onEditTrigger(row.original.id);
+        }}
       />
       <ScheduledTriggerFormSheet
         isOpen={isFormSheetOpen}
