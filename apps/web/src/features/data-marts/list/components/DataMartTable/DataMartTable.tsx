@@ -1,30 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useProjectRoute } from '../../../../../shared/hooks';
-import {
-  type ColumnDef,
-  flexRender,
-  getCoreRowModel,
-  useReactTable,
-  getPaginationRowModel,
-  getSortedRowModel,
-  type ColumnFiltersState,
-  getFilteredRowModel,
-  type RowSelectionState,
-} from '@tanstack/react-table';
-import { getTableColumnSize } from '../../../../../shared/utils/getTableColumnSize';
-
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@owox/ui/components/table';
-
+import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { Button } from '@owox/ui/components/button';
-import { Input } from '@owox/ui/components/input';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,15 +13,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@owox/ui/components/alert-dialog';
-import { Check, Search, Trash2, Plus } from 'lucide-react';
+import { Check, Trash2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { EmptyDataMartsState } from './components/EmptyDataMartsState';
 import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
-import { useTableStorage } from '../../../../../hooks/useTableStorage';
 import { useContentPopovers } from '../../../../../app/store/hooks/useContentPopovers';
 import { storageService } from '../../../../../services/localstorage.service';
-import { TablePagination } from '@owox/ui/components/common/table-pagination';
 import { useDataMartHealthStatusPrefetch } from '../../model/hooks/useDataMartHealthStatusPrefetch';
+import { useBaseTable } from '../../../../../shared/hooks';
+import {
+  BaseTable,
+  TableCTAButton,
+  TableColumnSearch,
+} from '../../../../../shared/components/Table';
+import { DataMartColumnKey } from './columns/columnKeys';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -62,28 +45,6 @@ export function DataMartTable<TData, TValue>({
 }: DataTableProps<TData, TValue>) {
   const { navigate, scope } = useProjectRoute();
 
-  const {
-    sorting,
-    setSorting,
-    columnVisibility,
-    setColumnVisibility,
-    pageSize,
-    setPageSize,
-    columnSizing,
-    setColumnSizing,
-  } = useTableStorage({
-    columns,
-    storageKeyPrefix: 'data-mart-list',
-    defaultColumnVisibility: {
-      triggersCount: false,
-      reportsCount: false,
-      createdByUser: false,
-    },
-  });
-
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const [pageIndex, setPageIndex] = useState(0);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -104,36 +65,9 @@ export function DataMartTable<TData, TValue>({
     }
   }, [isLoading, data.length, open]);
 
-  const handleBatchDelete = async () => {
-    try {
-      setIsDeleting(true);
-
-      const selectedRows = table.getSelectedRowModel().rows;
-      const selectedIds = selectedRows.map(row => (row.original as { id: string }).id);
-
-      for (const id of selectedIds) {
-        await deleteDataMart(id);
-      }
-
-      toast.success(
-        `Successfully deleted ${String(selectedIds.length)} data mart${selectedIds.length !== 1 ? 's' : ''}`
-      );
-      setRowSelection({});
-      await refetchDataMarts();
-    } catch (error) {
-      console.error('Error deleting data marts:', error);
-      toast.error('Failed to delete some data marts. Please try again.');
-    } finally {
-      setIsDeleting(false);
-      setShowDeleteConfirmation(false);
-    }
-  };
-
-  const hasSelectedRows = Object.keys(rowSelection).length > 0;
-
-  const table = useReactTable({
-    data,
-    columns: [
+  // Compose columns with selection column (feature-specific)
+  const columnsWithSelection = useMemo<ColumnDef<TData>[]>(
+    () => [
       {
         id: 'select',
         size: 40,
@@ -183,53 +117,65 @@ export function DataMartTable<TData, TValue>({
         enableSorting: false,
         enableHiding: false,
       },
-      ...columns,
+      ...(columns as ColumnDef<TData>[]),
     ],
-    getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    onSortingChange: setSorting,
-    getSortedRowModel: getSortedRowModel(),
-    onColumnFiltersChange: setColumnFilters,
-    getFilteredRowModel: getFilteredRowModel(),
-    onColumnVisibilityChange: setColumnVisibility,
-    onRowSelectionChange: setRowSelection,
-    initialState: {
-      pagination: {
-        pageSize,
-      },
-    },
-    state: {
-      sorting,
-      columnFilters,
-      columnVisibility,
-      rowSelection,
-      pagination: {
-        pageIndex,
-        pageSize,
-      },
-      columnSizing,
-    },
-    defaultColumn: {
-      size: undefined,
-    },
-    onColumnSizingChange: setColumnSizing,
-    onPaginationChange: updater => {
-      if (typeof updater === 'function') {
-        const currentPagination = { pageIndex, pageSize };
-        const newPagination = updater(currentPagination);
+    [columns]
+  );
 
-        if (newPagination.pageSize !== pageSize) {
-          setPageSize(newPagination.pageSize);
-        }
-        if (newPagination.pageIndex !== pageIndex) {
-          setPageIndex(newPagination.pageIndex);
-        }
-      }
+  // Initialize table with shared hook
+  const { table } = useBaseTable<TData>({
+    data,
+    columns: columnsWithSelection,
+    storageKeyPrefix: 'data-mart-list',
+    defaultColumnVisibility: {
+      triggersCount: false,
+      reportsCount: false,
+      createdByUser: false,
     },
     enableRowSelection: true,
-    enableColumnResizing: true,
-    columnResizeMode: 'onChange',
   });
+
+  const hasSelectedRows = Object.keys(table.getState().rowSelection).length > 0;
+
+  const handleBatchDelete = async () => {
+    try {
+      setIsDeleting(true);
+
+      const selectedRows = table.getSelectedRowModel().rows;
+      const selectedIds = selectedRows.map(row => (row.original as { id: string }).id);
+
+      for (const id of selectedIds) {
+        await deleteDataMart(id);
+      }
+
+      toast.success(
+        `Successfully deleted ${String(selectedIds.length)} data mart${selectedIds.length !== 1 ? 's' : ''}`
+      );
+      table.resetRowSelection();
+      await refetchDataMarts();
+    } catch (error) {
+      console.error('Error deleting data marts:', error);
+      toast.error('Failed to delete some data marts. Please try again.');
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirmation(false);
+    }
+  };
+
+  // Row click handler with navigation
+  const handleRowClick = (row: Row<TData>, e: React.MouseEvent) => {
+    if (
+      e.target instanceof HTMLElement &&
+      (e.target.closest('[role="checkbox"]') ||
+        e.target.closest('.actions-cell') ||
+        e.target.closest('[role="menuitem"]') ||
+        e.target.closest('[data-state="open"]'))
+    ) {
+      return;
+    }
+    const id = (row.original as { id: string }).id;
+    navigate(`/data-marts/${id}/data-setup`);
+  };
 
   /**
    * Prefetch health status for visible Data Marts in the table (respects pageSize).
@@ -240,6 +186,7 @@ export function DataMartTable<TData, TValue>({
     concurrency: 5,
   });
 
+  // Show loading skeleton
   if (isLoading) {
     return (
       <div>
@@ -248,135 +195,50 @@ export function DataMartTable<TData, TValue>({
     );
   }
 
+  // Show empty state
   if (!data.length) {
     return <EmptyDataMartsState />;
   }
 
+  const tableId = 'data-marts-table';
+
   return (
     <div className='dm-card'>
-      {/* TOOLBAR */}
-      <div className='dm-card-toolbar'>
-        {/* LEFT Column */}
-        <div className='dm-card-toolbar-left'>
-          {/* BTNs for selected Rows */}
-          {hasSelectedRows && (
-            <Button
-              variant='destructive'
-              size='sm'
-              className='dm-card-toolbar-btn-delete'
-              onClick={() => {
-                setShowDeleteConfirmation(true);
-              }}
-              disabled={isDeleting}
-            >
-              <Trash2 className='h-4 w-4' />
-            </Button>
-          )}
-          {/* Search */}
-          <div className='dm-card-toolbar-search'>
-            <Search className='dm-card-toolbar-search-icon' />
-            <Input
-              placeholder='Search by title'
-              value={table.getColumn('title')?.getFilterValue() as string}
-              onChange={event => table.getColumn('title')?.setFilterValue(event.target.value)}
-              className='dm-card-toolbar-search-input'
-            />
-          </div>
-        </div>
-
-        {/* RIGHT Column */}
-        <div className='dm-card-toolbar-right'>
-          <Link to={scope('/data-marts/create')}>
-            <Button variant='outline' className='dm-card-toolbar-btn-primary'>
-              <Plus className='h-4 w-4' />
-              New Data Mart
-            </Button>
-          </Link>
-        </div>
-      </div>
-      {/* end: TOOLBAR */}
-
-      {/* DM CARD TABLE */}
-      <div className='dm-card-table-wrap'>
-        <Table className='dm-card-table' role='table' aria-label='Data Marts table'>
-          <TableHeader className='dm-card-table-header'>
-            {table.getHeaderGroups().map(headerGroup => (
-              <TableRow key={headerGroup.id} className='dm-card-table-header-row'>
-                {headerGroup.headers.map(header => {
-                  return (
-                    <TableHead
-                      key={header.id}
-                      className='group relative [&:has([role=checkbox])]:pl-6 [&>[role=checkbox]]:translate-y-[2px]'
-                      style={getTableColumnSize(header.column)}
-                    >
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(header.column.columnDef.header, header.getContext())}
-
-                      {header.column.getCanResize() && (
-                        <div
-                          onMouseDown={header.getResizeHandler()}
-                          onTouchStart={header.getResizeHandler()}
-                          onDoubleClick={() => {
-                            header.column.resetSize();
-                          }}
-                          className='absolute top-0 right-[2px] flex h-full w-1 cursor-col-resize items-center justify-center bg-transparent select-none group-hover:bg-neutral-200/50 hover:bg-neutral-200'
-                          title='Drag to resize. Double-click to reset width'
-                        />
-                      )}
-                    </TableHead>
-                  );
-                })}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody className='dm-card-table-body'>
-            {table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map(row => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && 'selected'}
-                  className='dm-card-table-body-row group'
-                  onClick={e => {
-                    if (
-                      e.target instanceof HTMLElement &&
-                      (e.target.closest('[role="checkbox"]') ||
-                        e.target.closest('.actions-cell') ||
-                        e.target.closest('[role="menuitem"]') ||
-                        e.target.closest('[data-state="open"]'))
-                    ) {
-                      return;
-                    }
-                    const id = (row.original as { id: string }).id;
-                    navigate(`/data-marts/${id}/data-setup`);
-                  }}
-                >
-                  {row.getVisibleCells().map(cell => (
-                    <TableCell
-                      key={cell.id}
-                      className={`px-6 pr-0 whitespace-normal [&>[role=checkbox]]:translate-y-[2px] ${cell.column.id === 'actions' ? 'actions-cell' : ''} ${cell.column.id === 'createdAt' ? 'whitespace-nowrap' : ''} ${cell.column.id === 'runHistory' ? 'pl-5' : ''}`}
-                      style={getTableColumnSize(cell.column)}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length + 1} className='dm-card-table-body-row-empty'>
-                  Oops! Nothing matched your search
-                </TableCell>
-              </TableRow>
+      <BaseTable
+        tableId={tableId}
+        table={table}
+        onRowClick={handleRowClick}
+        ariaLabel='Data Marts table'
+        renderToolbarLeft={table => (
+          <>
+            {/* BTNs for selected Rows */}
+            {hasSelectedRows && (
+              <Button
+                variant='destructive'
+                size='sm'
+                className='dm-card-toolbar-btn-delete'
+                onClick={() => {
+                  setShowDeleteConfirmation(true);
+                }}
+                disabled={isDeleting}
+              >
+                <Trash2 className='h-4 w-4' />
+              </Button>
             )}
-          </TableBody>
-        </Table>
-      </div>
-      {/* end: DM CARD TABLE */}
-
-      {/* DM CARD PAGINATION */}
-      <TablePagination table={table} />
-      {/* end: DM CARD PAGINATION */}
+            {/* Search */}
+            <TableColumnSearch
+              table={table}
+              columnId={DataMartColumnKey.TITLE}
+              placeholder='Search by title'
+            />
+          </>
+        )}
+        renderToolbarRight={() => (
+          <TableCTAButton asChild>
+            <Link to={scope('/data-marts/create')}>New Data Mart</Link>
+          </TableCTAButton>
+        )}
+      />
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteConfirmation} onOpenChange={setShowDeleteConfirmation}>
@@ -384,8 +246,10 @@ export function DataMartTable<TData, TValue>({
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              You're about to delete {Object.keys(rowSelection).length} selected data mart
-              {Object.keys(rowSelection).length !== 1 ? 's' : ''}. This action cannot be undone.
+              You're about to delete {Object.keys(table.getState().rowSelection).length} selected
+              data mart
+              {Object.keys(table.getState().rowSelection).length !== 1 ? 's' : ''}. This action
+              cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
