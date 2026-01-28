@@ -15,8 +15,8 @@ export interface TikTokLoginResponse {
 }
 
 export type TikTokAuthMessage =
-  | { type: 'TIKTOK_AUTH_SUCCESS'; authCode: string; state: string | null; error?: never }
-  | { type: 'TIKTOK_AUTH_ERROR'; error: string; authCode?: never; state?: never };
+  | { type: 'TIKTOK_AUTH_SUCCESS'; authCode: string; state: string | null }
+  | { type: 'TIKTOK_AUTH_ERROR'; error: string };
 
 const TIKTOK_AUTH_URL = 'https://business-api.tiktok.com/portal/auth';
 
