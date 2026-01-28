@@ -178,11 +178,10 @@ export class AuthenticationService {
         return res.status(400).json({ error: 'Email is required' });
       }
 
-      const magicLink = await this.magicLinkService.generateMagicLink(email);
+      await this.magicLinkService.generateMagicLink(email);
 
       // TODO: Remove this after send email with magic link is implemented
-      console.log('Generated magic link for signup', { email, magicLink });
-      logger.info('Generated magic link for signup', { email, magicLink });
+      logger.info('Generated magic link for signup', { email });
 
       return res.redirect(
         `/auth/check-email?email=${encodeURIComponent(email)}&redirect=${encodeURIComponent(
@@ -210,8 +209,8 @@ export class AuthenticationService {
         );
       }
 
-      const magicLink = await this.magicLinkService.generateMagicLink(email);
-      logger.info('Generated magic link for password remind', { email, magicLink });
+      await this.magicLinkService.generateMagicLink(email);
+      logger.info('Generated magic link for password remind', { email });
 
       return res.redirect(
         `/auth/check-email?email=${encodeURIComponent(email)}&redirect=${encodeURIComponent(

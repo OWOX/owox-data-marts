@@ -5,10 +5,7 @@ export class MagicLinkService {
 
   constructor(private readonly auth: Awaited<ReturnType<typeof betterAuth>>) {}
 
-  async generateMagicLink(email: string): Promise<string> {
-    // Clear previous magic link
-    delete (global as unknown as { lastMagicLink?: string }).lastMagicLink;
-
+  async generateMagicLink(email: string): Promise<void> {
     // Generate magic link directly through Better Auth internals
     const baseURL = this.auth.options.baseURL || 'http://localhost:3000';
 
@@ -32,17 +29,5 @@ export class MagicLinkService {
       const errorText = await response.text();
       throw new Error(`Magic link generation failed: ${response.status} ${errorText}`);
     }
-
-    // Wait a moment for the sendMagicLink callback to be called
-    await new Promise(resolve => setTimeout(resolve, 200));
-
-    // Get the generated magic link from global storage
-    const magicLink = (global as unknown as { lastMagicLink?: string }).lastMagicLink;
-
-    if (!magicLink) {
-      throw new Error('Magic link generation failed - no link received');
-    }
-
-    return magicLink;
   }
 }

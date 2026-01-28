@@ -1,6 +1,7 @@
 import { LoggerFactory, LogLevel } from '@owox/internal-helpers';
 import { betterAuth } from 'better-auth';
 import { magicLink } from 'better-auth/plugins';
+import { EmailService } from '../services/email-service.js';
 import { BetterAuthConfig } from '../types/index.js';
 
 export async function createBetterAuthConfig(
@@ -8,6 +9,7 @@ export async function createBetterAuthConfig(
   options?: { adapter?: unknown }
 ): Promise<ReturnType<typeof betterAuth>> {
   const logger = LoggerFactory.createNamedLogger('better-auth');
+  const emailService = new EmailService();
   const database = options?.adapter;
 
   const plugins: unknown[] = [];
@@ -48,36 +50,14 @@ export async function createBetterAuthConfig(
             preConfirmPage.searchParams.set('callbackURL', callbackParam);
           }
 
-          (
-            global as unknown as {
-              lastMagicLink: string;
-              lastEmail: string;
-              lastToken: string;
-            }
-          ).lastMagicLink = preConfirmPage.toString();
-        } catch {
-          (
-            global as unknown as {
-              lastMagicLink: string;
-              lastEmail: string;
-              lastToken: string;
-            }
-          ).lastMagicLink = url;
+          await emailService.sendEmail(
+            email,
+            'Your sign-in link',
+            `<p>Click the button to continue:</p><p><a href="${preConfirmPage.toString()}">${preConfirmPage.toString()}</a></p>`
+          );
+        } catch (error) {
+          logger.error('Failed to send magic link', { error });
         }
-        (
-          global as unknown as {
-            lastMagicLink: string;
-            lastEmail: string;
-            lastToken: string;
-          }
-        ).lastEmail = email;
-        (
-          global as unknown as {
-            lastMagicLink: string;
-            lastEmail: string;
-            lastToken: string;
-          }
-        ).lastToken = token;
       },
       expiresIn: config.magicLinkTtl,
       disableSignUp: false,
@@ -113,28 +93,14 @@ export async function createBetterAuthConfig(
         url: string;
         token: string;
       }) => {
-        (
-          global as unknown as {
-            lastVerificationLink: string;
-            lastVerificationEmail: string;
-            lastVerificationToken: string;
-          }
-        ).lastVerificationLink =
+        const verificationLink =
           url || `${calcBaseURL}${basePath}/verify-email?token=${encodeURIComponent(token)}`;
-        (
-          global as unknown as {
-            lastVerificationLink: string;
-            lastVerificationEmail: string;
-            lastVerificationToken: string;
-          }
-        ).lastVerificationEmail = user.email;
-        (
-          global as unknown as {
-            lastVerificationLink: string;
-            lastVerificationEmail: string;
-            lastVerificationToken: string;
-          }
-        ).lastVerificationToken = token;
+
+        await emailService.sendEmail(
+          user.email,
+          'Verify your email',
+          `<p>Please confirm your email address:</p><p><a href="${verificationLink}">${verificationLink}</a></p>`
+        );
       },
       afterEmailVerification: async () => {
         // No-op: higher-level org/role handling removed
