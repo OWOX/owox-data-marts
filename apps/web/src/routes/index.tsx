@@ -7,6 +7,7 @@ import { DataMartDetailsPage } from '../pages/data-marts/edit';
 import CreateDataMartPage from '../pages/data-marts/create/CreateDataMartPage.tsx';
 import { DataStorageListPage } from '../pages/data-storage';
 import { DataDestinationListPage } from '../pages/data-destination/DataDestinationListPage';
+import { ProjectNotificationsPage } from '../pages/notifications/project';
 import { dataMartDetailsRoutes } from './data-marts/routes';
 import { ProjectRedirect } from '../components/ProjectRedirect';
 import { oauthRoutes } from './oauth.routes';
@@ -49,6 +50,10 @@ const routes: RouteObject[] = [
       {
         path: 'data-destinations',
         element: <DataDestinationListPage />,
+      },
+      {
+        path: 'notifications',
+        element: <ProjectNotificationsPage />,
       },
       {
         path: '*',

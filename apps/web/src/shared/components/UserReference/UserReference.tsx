@@ -3,7 +3,12 @@ import type { UserProjection } from '../../types';
 import { generateInitials } from '../../utils';
 import { UserAvatar, UserAvatarSize } from '../UserAvatar';
 
-export function UserReference({ userProjection }: { userProjection: UserProjection }) {
+interface UserReferenceProps {
+  userProjection: UserProjection;
+  variant?: 'full' | 'avatar-only';
+}
+
+export function UserReference({ userProjection, variant = 'full' }: UserReferenceProps) {
   const { fullName, email, avatar } = userProjection;
   const displayName = fullName ?? email ?? 'Unknown User';
   const initials = generateInitials(fullName, email);
@@ -11,22 +16,33 @@ export function UserReference({ userProjection }: { userProjection: UserProjecti
   return (
     <HoverCard>
       <HoverCardTrigger asChild>
-        <div className='inline-flex max-w-full items-center gap-1 rounded-full bg-neutral-100 py-1 pr-3 pl-1 dark:bg-neutral-900'>
-          <UserAvatar
-            avatar={avatar}
-            initials={initials}
-            displayName={displayName}
-            size={UserAvatarSize.SMALL}
-          />
+        {variant === 'avatar-only' ? (
+          <div className='cursor-pointer'>
+            <UserAvatar
+              avatar={avatar}
+              initials={initials}
+              displayName={displayName}
+              size={UserAvatarSize.NORMAL}
+            />
+          </div>
+        ) : (
+          <div className='inline-flex max-w-full items-center gap-1 rounded-full bg-neutral-100 py-1 pr-3 pl-1 dark:bg-neutral-900'>
+            <UserAvatar
+              avatar={avatar}
+              initials={initials}
+              displayName={displayName}
+              size={UserAvatarSize.SMALL}
+            />
 
-          <span
-            className='text-muted-foreground min-w-0 truncate text-sm leading-tight'
-            aria-label={displayName}
-            title={displayName}
-          >
-            {displayName}
-          </span>
-        </div>
+            <span
+              className='text-muted-foreground min-w-0 truncate text-sm leading-tight'
+              aria-label={displayName}
+              title={displayName}
+            >
+              {displayName}
+            </span>
+          </div>
+        )}
       </HoverCardTrigger>
 
       <HoverCardContent

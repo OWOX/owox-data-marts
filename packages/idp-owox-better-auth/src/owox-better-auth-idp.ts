@@ -1,4 +1,11 @@
-import { AuthResult, IdpProvider, Payload, Projects, ProtocolRoute } from '@owox/idp-protocol';
+import {
+  AuthResult,
+  IdpProvider,
+  Payload,
+  ProjectMember,
+  Projects,
+  ProtocolRoute,
+} from '@owox/idp-protocol';
 import { Logger, LoggerFactory } from '@owox/internal-helpers';
 import cookieParser from 'cookie-parser';
 import e, { Express, NextFunction } from 'express';
@@ -85,6 +92,23 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       this.store,
       this.pkceFlowOrchestrator
     );
+  }
+  async getProjectMembers(projectId: string): Promise<ProjectMember[]> {
+    this.logger.debug(`Getting project members for project ${projectId}`);
+    const response = await this.identityClient.getProjectMembers(projectId);
+
+    if (!response.projectMembers || response.projectMembers.length === 0) {
+      return [];
+    }
+    return response.projectMembers.map(member => ({
+      userId: String(member.userId),
+      email: member.email,
+      fullName: member.fullName || undefined,
+      avatar: member.avatar || undefined,
+      projectRole: member.projectRole,
+      userStatus: member.userStatus,
+      hasNotificationsEnabled: member.subscriptions?.ServiceNotifications ?? true,
+    }));
   }
 
   static async create(config: BetterAuthProviderConfig): Promise<OwoxBetterAuthIdp> {
