@@ -60,7 +60,7 @@ export abstract class AbstractTriggerRunnerService<
    */
   public async runTriggers(triggers: T[]): Promise<void> {
     if (triggers.length === 0) {
-      // this.logger.debug(`[${this.handlerName}] No triggers found for processing`);
+      this.logger.debug(`[${this.handlerName}] No triggers found for processing`);
       return;
     }
 
