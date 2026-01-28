@@ -1,0 +1,1 @@
+export { TikTokCallback } from './TikTokCallback';

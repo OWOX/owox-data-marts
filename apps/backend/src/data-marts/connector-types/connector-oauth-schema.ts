@@ -42,7 +42,7 @@ export const ConnectorOAuthUser = z.object({
 
 export const ConnectorOAuthStatusSchema = z.object({
   isValid: z.boolean(),
-  expiresAt: z.date().optional(),
+  expiresAt: z.date().nullable().optional(),
   user: ConnectorOAuthUser.optional(),
   additional: z.record(z.unknown()).optional(),
 });
