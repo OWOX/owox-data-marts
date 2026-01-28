@@ -1,0 +1,67 @@
+{
+  "name": "@owox/idp-owox-better-auth",
+  "version": "0.17.0",
+  "type": "module",
+  "author": "OWOX",
+  "license": "ELv2",
+  "description": "OWOX Better Auth implementation for OWOX IDP Protocol",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "scripts": {
+    "build": "tsc && node ./scripts/copy-public.cjs",
+    "build:dep": "npm run build:internal-helpers && npm run build:idp-protocol",
+    "build:idp-protocol": "npm run build -w @owox/idp-protocol --prefix ../..",
+    "build:internal-helpers": "npm run build -w @owox/internal-helpers --prefix ../..",
+    "clean": "rimraf dist",
+    "test": "jest",
+    "lint": "eslint . --config ./eslint.config.js",
+    "lint:fix": "eslint . --fix --config ./eslint.config.js",
+    "format": "prettier --write \"**/*.{ts,js,json,md}\" --ignore-path ../../.prettierignore",
+    "format:check": "prettier --check \"**/*.{ts,js,json,md}\" --ignore-path ../../.prettierignore",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run lint && npm run typecheck"
+  },
+  "keywords": ["idp", "better-auth", "authentication", "owox"],
+  "peerDependencies": {
+    "express": "^5",
+    "zod": "^3.23"
+  },
+  "dependencies": {
+    "@owox/idp-protocol": "*",
+    "@owox/internal-helpers": "*",
+    "better-auth": "^1.3.26",
+    "better-sqlite3": "^12.2.0",
+    "cookie-parser": "^1.4.7",
+    "env-paths": "^3.0.0",
+    "jsonwebtoken": "^9.0.0",
+    "mysql2": "^3.14.3"
+  },
+  "devDependencies": {
+    "@owox/eslint-config": "*",
+    "@owox/prettier-config": "*",
+    "@owox/typescript-config": "*",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/cookie-parser": "^1.4.9",
+    "@types/express": "^5.0.0",
+    "@types/jest": "^29.5.14",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^22.10.7",
+    "jest": "^30.2.0",
+    "rimraf": "^6.0.1",
+    "ts-jest": "^29.4.6"
+  },
+  "files": ["dist"],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts"
+}

@@ -5,6 +5,12 @@ import {
   SqliteConfig,
 } from '@owox/idp-better-auth';
 import { loadIdpOwoxConfigFromEnv, OwoxIdp } from '@owox/idp-owox';
+import {
+  CustomDatabaseConfig as OwoxBetterAuthCustomDatabaseConfig,
+  MySqlConfig as OwoxBetterAuthMySqlConfig,
+  OwoxBetterAuthProvider,
+  SqliteConfig as OwoxBetterAuthSqliteConfig,
+} from '@owox/idp-owox-better-auth';
 import { IdpConfig, IdpProvider, NullIdpProvider } from '@owox/idp-protocol';
 import { parseMysqlSslEnv } from '@owox/internal-helpers';
 
@@ -14,6 +20,7 @@ export enum IdpProviderType {
   BetterAuth = 'better-auth',
   None = 'none',
   Owox = 'owox',
+  OwoxBetterAuth = 'owox-better-auth',
 }
 
 export interface IdpFactoryOptions {
@@ -55,6 +62,10 @@ export class IdpFactory {
 
       case IdpProviderType.Owox: {
         return this.createOwoxProvider(command);
+      }
+
+      case IdpProviderType.OwoxBetterAuth: {
+        return this.createOwoxBetterAuthProvider(command);
       }
 
       default: {
@@ -176,6 +187,127 @@ export class IdpFactory {
    */
   private static async createNullProvider(): Promise<NullIdpProvider> {
     return new NullIdpProvider();
+  }
+
+  // TODO: Add new ENV variables for Owox Better Auth?
+  private static async createOwoxBetterAuthProvider(
+    command: BaseCommand
+  ): Promise<OwoxBetterAuthProvider> {
+    if (!process.env.IDP_BETTER_AUTH_SECRET) {
+      command.error('IDP_BETTER_AUTH_SECRET is not set');
+    }
+
+    const googleClientId = process.env.IDP_BETTER_AUTH_GOOGLE_CLIENT_ID;
+    const googleClientSecret = process.env.IDP_BETTER_AUTH_GOOGLE_CLIENT_SECRET;
+    const googleRedirectURI = process.env.IDP_BETTER_AUTH_GOOGLE_REDIRECT_URI;
+
+    const microsoftClientId = process.env.IDP_BETTER_AUTH_MICROSOFT_CLIENT_ID;
+    const microsoftClientSecret = process.env.IDP_BETTER_AUTH_MICROSOFT_CLIENT_SECRET;
+    const microsoftRedirectURI = process.env.IDP_BETTER_AUTH_MICROSOFT_REDIRECT_URI;
+    const microsoftTenantId = process.env.IDP_BETTER_AUTH_MICROSOFT_TENANT_ID;
+    const microsoftAuthority = process.env.IDP_BETTER_AUTH_MICROSOFT_AUTHORITY;
+
+    // Database configuration
+    const databaseType = (process.env.IDP_BETTER_AUTH_DATABASE_TYPE ||
+      process.env.DB_TYPE ||
+      'sqlite') as 'custom' | 'mysql' | 'sqlite';
+
+    let database:
+      | OwoxBetterAuthCustomDatabaseConfig
+      | OwoxBetterAuthMySqlConfig
+      | OwoxBetterAuthSqliteConfig;
+    switch (databaseType) {
+      case 'custom': {
+        database = {
+          adapter: undefined,
+          type: 'custom' as const,
+        };
+        break;
+      }
+
+      case 'mysql': {
+        database = this.buildBetterAuthMySqlConfig();
+        break;
+      }
+
+      case 'sqlite': {
+        database = {
+          filename: process.env.IDP_BETTER_AUTH_SQLITE_DB_PATH,
+          type: 'sqlite' as const,
+        };
+        break;
+      }
+
+      default: {
+        command.error(`Unsupported database type: ${databaseType}`);
+      }
+    }
+
+    const publicOriginOrDefault = (() => {
+      const po = process.env.PUBLIC_ORIGIN;
+      if (po && po.trim() !== '') {
+        return po;
+      }
+
+      return `http://localhost:${process.env.PORT}`;
+    })();
+
+    const baseURL = process.env.IDP_BETTER_AUTH_BASE_URL || publicOriginOrDefault;
+
+    const trustedOrigins = (() => {
+      const list = process.env.IDP_BETTER_AUTH_TRUSTED_ORIGINS;
+      if (list && list.trim() !== '') {
+        return list
+          .split(',')
+          .map(origin => origin.trim())
+          .filter(Boolean);
+      }
+
+      const fallback = baseURL;
+      return fallback && fallback.trim() !== '' ? [fallback] : undefined;
+    })();
+
+    const socialProviders = (() => {
+      const providers: Record<string, unknown> = {};
+
+      if (googleClientId && googleClientSecret) {
+        providers.google = {
+          clientId: googleClientId,
+          clientSecret: googleClientSecret,
+          redirectURI: googleRedirectURI,
+        };
+      }
+
+      if (microsoftClientId && microsoftClientSecret) {
+        providers.microsoft = {
+          clientId: microsoftClientId,
+          clientSecret: microsoftClientSecret,
+          redirectURI: microsoftRedirectURI,
+          ...(microsoftTenantId ? { tenantId: microsoftTenantId } : {}),
+          ...(microsoftAuthority ? { authority: microsoftAuthority } : {}),
+        };
+      }
+
+      return Object.keys(providers).length > 0 ? providers : undefined;
+    })();
+
+    return OwoxBetterAuthProvider.create({
+      baseURL,
+      database,
+      magicLinkTtl: Number.parseInt(
+        (process.env.IDP_BETTER_AUTH_MAGIC_LINK_TTL || '3600') as string,
+        10
+      ),
+      secret: process.env.IDP_BETTER_AUTH_SECRET,
+      session: {
+        maxAge: Number.parseInt(
+          (process.env.IDP_BETTER_AUTH_SESSION_MAX_AGE || '604800') as string,
+          10
+        ),
+      },
+      ...(socialProviders ? { socialProviders } : {}),
+      trustedOrigins,
+    });
   }
 
   /**
