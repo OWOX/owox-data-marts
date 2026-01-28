@@ -26,6 +26,12 @@ import {
   isValidRedshiftFullyQualifiedName,
   isValidRedshiftTablePattern,
 } from './redshift-validation';
+import {
+  getDatabricksFullyQualifiedNameError,
+  getDatabricksTablePatternError,
+  isValidDatabricksFullyQualifiedName,
+  isValidDatabricksTablePattern,
+} from './databricks-validation';
 
 /**
  * Validates if a string matches the fully qualified name pattern for the given storage type
@@ -45,6 +51,8 @@ export const isValidFullyQualifiedName = (value: string, storageType: DataStorag
       return isValidSnowflakeFullyQualifiedName(value);
     case DataStorageType.AWS_REDSHIFT:
       return isValidRedshiftFullyQualifiedName(value);
+    case DataStorageType.DATABRICKS:
+      return isValidDatabricksFullyQualifiedName(value);
     default:
       return false;
   }
@@ -68,6 +76,8 @@ export const isValidTablePattern = (value: string, storageType: DataStorageType)
       return isValidSnowflakeTablePattern(value);
     case DataStorageType.AWS_REDSHIFT:
       return isValidRedshiftTablePattern(value);
+    case DataStorageType.DATABRICKS:
+      return isValidDatabricksTablePattern(value);
     default:
       return false;
   }
@@ -91,6 +101,8 @@ export const getFullyQualifiedNameError = (value: string, storageType: DataStora
       return getSnowflakeFullyQualifiedNameError(value);
     case DataStorageType.AWS_REDSHIFT:
       return getRedshiftFullyQualifiedNameError(value);
+    case DataStorageType.DATABRICKS:
+      return getDatabricksFullyQualifiedNameError(value);
     default:
       return 'Unsupported storage type';
   }
@@ -114,6 +126,8 @@ export const getTablePatternError = (value: string, storageType: DataStorageType
       return getSnowflakeTablePatternError(value);
     case DataStorageType.AWS_REDSHIFT:
       return getRedshiftTablePatternError(value);
+    case DataStorageType.DATABRICKS:
+      return getDatabricksTablePatternError(value);
     default:
       return 'Unsupported storage type';
   }
@@ -134,6 +148,8 @@ export const getFullyQualifiedNamePlaceholder = (storageType: DataStorageType): 
       return 'database.schema.table';
     case DataStorageType.AWS_REDSHIFT:
       return 'schema.table or database.schema.table';
+    case DataStorageType.DATABRICKS:
+      return 'catalog.schema.table';
     default:
       return '';
   }
@@ -154,6 +170,8 @@ export const getTablePatternPlaceholder = (storageType: DataStorageType): string
       return 'database.schema.table_*';
     case DataStorageType.AWS_REDSHIFT:
       return 'schema.table_* or database.schema.table_*';
+    case DataStorageType.DATABRICKS:
+      return 'catalog.schema.table_*';
     default:
       return '';
   }
@@ -174,6 +192,8 @@ export const getFullyQualifiedNameHelpText = (storageType: DataStorageType): str
       return 'Enter the fully qualified name of the table (e.g., database.schema.table)';
     case DataStorageType.AWS_REDSHIFT:
       return 'Enter the fully qualified name of the table (e.g., schema.table or database.schema.table)';
+    case DataStorageType.DATABRICKS:
+      return 'Enter the fully qualified name of the table (e.g., catalog.schema.table)';
     default:
       return '';
   }
@@ -194,6 +214,8 @@ export const getTablePatternHelpText = (storageType: DataStorageType): string =>
       return 'Enter a pattern to match multiple tables (e.g., database.schema.table_* will match all tables starting with "table_")';
     case DataStorageType.AWS_REDSHIFT:
       return 'Enter a pattern to match multiple tables (e.g., schema.table_* will match all tables starting with "table_")';
+    case DataStorageType.DATABRICKS:
+      return 'Enter a pattern to match multiple tables (e.g., catalog.schema.table_* will match all tables starting with "table_")';
     default:
       return '';
   }

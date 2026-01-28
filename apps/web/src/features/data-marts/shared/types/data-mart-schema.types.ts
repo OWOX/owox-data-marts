@@ -189,6 +189,39 @@ export enum RedshiftFieldType {
 }
 
 /**
+ * Databricks field type enum
+ */
+export enum DatabricksFieldType {
+  // String types
+  STRING = 'STRING',
+
+  // Numeric types
+  INT = 'INT',
+  BIGINT = 'BIGINT',
+  SMALLINT = 'SMALLINT',
+  TINYINT = 'TINYINT',
+  DOUBLE = 'DOUBLE',
+  FLOAT = 'FLOAT',
+  DECIMAL = 'DECIMAL',
+
+  // Boolean
+  BOOLEAN = 'BOOLEAN',
+
+  // Date/Time types
+  DATE = 'DATE',
+  TIMESTAMP = 'TIMESTAMP',
+  TIMESTAMP_NTZ = 'TIMESTAMP_NTZ',
+
+  // Binary
+  BINARY = 'BINARY',
+
+  // Complex types
+  ARRAY = 'ARRAY',
+  STRUCT = 'STRUCT',
+  MAP = 'MAP',
+}
+
+/**
  * Base schema field interface
  */
 export interface BaseSchemaField {
@@ -231,6 +264,13 @@ export interface RedshiftSchemaField extends BaseSchemaField {
 }
 
 /**
+ * Databricks schema field interface
+ */
+export interface DatabricksSchemaField extends BaseSchemaField {
+  type: DatabricksFieldType;
+}
+
+/**
  * BigQuery data mart schema
  */
 export interface BigQueryDataMartSchema {
@@ -263,10 +303,20 @@ export interface RedshiftDataMartSchema {
 }
 
 /**
+ * Databricks data mart schema
+ */
+export interface DatabricksDataMartSchema {
+  type: 'databricks-data-mart-schema';
+  table?: string;
+  fields: DatabricksSchemaField[];
+}
+
+/**
  * Data mart schema type
  */
 export type DataMartSchema =
   | BigQueryDataMartSchema
   | AthenaDataMartSchema
   | SnowflakeDataMartSchema
-  | RedshiftDataMartSchema;
+  | RedshiftDataMartSchema
+  | DatabricksDataMartSchema;

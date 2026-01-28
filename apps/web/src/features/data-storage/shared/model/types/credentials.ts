@@ -37,11 +37,21 @@ export interface RedshiftCredentials {
   secretAccessKey: string;
 }
 
+export enum DatabricksAuthMethod {
+  PERSONAL_ACCESS_TOKEN = 'PERSONAL_ACCESS_TOKEN',
+}
+
+export interface DatabricksCredentials {
+  authMethod: DatabricksAuthMethod.PERSONAL_ACCESS_TOKEN;
+  token: string;
+}
+
 export type DataStorageCredentials =
   | GoogleBigQueryCredentials
   | AwsAthenaCredentials
   | SnowflakeCredentials
-  | RedshiftCredentials;
+  | RedshiftCredentials
+  | DatabricksCredentials;
 
 export function isGoogleBigQueryCredentials(
   credentials: DataStorageCredentials
@@ -65,4 +75,10 @@ export function isRedshiftCredentials(
   credentials: DataStorageCredentials
 ): credentials is RedshiftCredentials {
   return 'accessKeyId' in credentials && 'secretAccessKey' in credentials;
+}
+
+export function isDatabricksCredentials(
+  credentials: DataStorageCredentials
+): credentials is DatabricksCredentials {
+  return 'authMethod' in credentials && 'token' in credentials;
 }

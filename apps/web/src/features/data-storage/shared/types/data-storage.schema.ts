@@ -1,7 +1,11 @@
 import { z } from 'zod';
 import { DataStorageType } from '../model/types';
 import { googleServiceAccountSchema } from '../../../../shared';
-import { SnowflakeAuthMethod, RedshiftConnectionType } from '../model/types/credentials';
+import {
+  SnowflakeAuthMethod,
+  RedshiftConnectionType,
+  DatabricksAuthMethod,
+} from '../model/types/credentials';
 
 const awsCredentialsSchema = z.object({
   accessKeyId: z.string().min(1, 'Access Key ID is required'),
@@ -60,6 +64,16 @@ const redshiftConfigSchema = z.discriminatedUnion('connectionType', [
   redshiftProvisionedConfigSchema,
 ]);
 
+const databricksCredentialsSchema = z.object({
+  authMethod: z.literal(DatabricksAuthMethod.PERSONAL_ACCESS_TOKEN),
+  token: z.string().min(1, 'Token is required'),
+});
+
+const databricksConfigSchema = z.object({
+  host: z.string().min(1, 'Host is required'),
+  httpPath: z.string().min(1, 'HTTP Path is required'),
+});
+
 const baseSchema = z.object({
   title: z.string().min(1, 'Title is required').max(255, 'Title must be 255 characters or less'),
 });
@@ -88,11 +102,18 @@ export const redshiftSchema = baseSchema.extend({
   config: redshiftConfigSchema,
 });
 
+export const databricksSchema = baseSchema.extend({
+  type: z.literal(DataStorageType.DATABRICKS),
+  credentials: databricksCredentialsSchema,
+  config: databricksConfigSchema,
+});
+
 export const dataStorageSchema = z.discriminatedUnion('type', [
   googleBigQuerySchema,
   awsAthenaSchema,
   snowflakeSchema,
   redshiftSchema,
+  databricksSchema,
 ]);
 
 export type DataStorageFormData = z.infer<typeof dataStorageSchema>;
@@ -100,3 +121,4 @@ export type GoogleBigQueryFormData = z.infer<typeof googleBigQuerySchema>;
 export type AwsAthenaFormData = z.infer<typeof awsAthenaSchema>;
 export type SnowflakeFormData = z.infer<typeof snowflakeSchema>;
 export type RedshiftFormData = z.infer<typeof redshiftSchema>;
+export type DatabricksFormData = z.infer<typeof databricksSchema>;

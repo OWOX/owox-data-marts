@@ -18,6 +18,10 @@ export type DataStorageCredentialsPublic =
       // Snowflake credentials
       authMethod: string;
       username: string;
+    }
+  | {
+      // Databricks credentials
+      authMethod: string;
     };
 
 export class DataStorageResponseApiDto {

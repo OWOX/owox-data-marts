@@ -4,12 +4,14 @@ import type {
   AthenaSchemaField,
   BigQuerySchemaField,
   DataMartSchema,
+  DatabricksSchemaField,
   RedshiftSchemaField,
   SnowflakeSchemaField,
 } from '../../../shared/types/data-mart-schema.types';
 import {
   AthenaSchemaTable,
   BigQuerySchemaTable,
+  DatabricksSchemaTable,
   RedshiftSchemaTable,
   SnowflakeSchemaTable,
 } from './tables';
@@ -17,6 +19,7 @@ import {
   createInitialSchema,
   isAthenaSchema,
   isBigQuerySchema,
+  isDatabricksSchema,
   isRedshiftSchema,
   isSnowflakeSchema,
 } from './utils';
@@ -36,6 +39,7 @@ interface SchemaContentProps {
       | AthenaSchemaField[]
       | SnowflakeSchemaField[]
       | RedshiftSchemaField[]
+      | DatabricksSchemaField[]
   ) => void;
 }
 
@@ -64,6 +68,8 @@ export function SchemaContent({ schema, storageType, onFieldsChange }: SchemaCon
     return <SnowflakeSchemaTable fields={initialSchema.fields} onFieldsChange={onFieldsChange} />;
   } else if (isRedshiftSchema(initialSchema)) {
     return <RedshiftSchemaTable fields={initialSchema.fields} onFieldsChange={onFieldsChange} />;
+  } else if (isDatabricksSchema(initialSchema)) {
+    return <DatabricksSchemaTable fields={initialSchema.fields} onFieldsChange={onFieldsChange} />;
   }
 
   // Fallback for unsupported schema types

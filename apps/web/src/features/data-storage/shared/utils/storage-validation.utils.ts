@@ -24,6 +24,8 @@ export function isDataStorageConfigValid(storage: DataStorage): boolean {
         return Boolean(config.region && config.database && config.clusterIdentifier);
       }
     }
+    case DataStorageType.DATABRICKS:
+      return Boolean(storage.config.host && storage.config.httpPath);
     default:
       return false;
   }

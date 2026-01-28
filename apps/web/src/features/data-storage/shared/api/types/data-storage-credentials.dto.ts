@@ -33,10 +33,19 @@ export interface RedshiftCredentialsDto {
 }
 
 /**
+ * Databricks credentials DTO interface
+ */
+export interface DatabricksCredentialsDto {
+  authMethod?: string;
+  token?: string;
+}
+
+/**
  * Combined type for data storage credentials
  */
 export type DataStorageCredentialsDto =
   | GoogleBigQueryCredentialsDto
   | AwsAthenaCredentialsDto
   | SnowflakeCredentialsDto
-  | RedshiftCredentialsDto;
+  | RedshiftCredentialsDto
+  | DatabricksCredentialsDto;

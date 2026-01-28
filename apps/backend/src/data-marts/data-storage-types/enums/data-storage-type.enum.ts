@@ -3,6 +3,7 @@ export enum DataStorageType {
   AWS_ATHENA = 'AWS_ATHENA',
   SNOWFLAKE = 'SNOWFLAKE',
   AWS_REDSHIFT = 'AWS_REDSHIFT',
+  DATABRICKS = 'DATABRICKS',
 }
 
 export function toHumanReadable(type: DataStorageType): string {
@@ -15,6 +16,8 @@ export function toHumanReadable(type: DataStorageType): string {
       return 'Snowflake';
     case DataStorageType.AWS_REDSHIFT:
       return 'AWS Redshift';
+    case DataStorageType.DATABRICKS:
+      return 'Databricks';
     default:
       return type;
   }

@@ -14,6 +14,7 @@ import {
   AwsAthenaIcon,
   SnowflakeIcon,
   AwsRedshiftIcon,
+  DatabricksIcon,
 } from '../../../../../../shared';
 import { quoteIdentifier, unquoteIdentifier } from '../../../utils/snowflake-identifier.utils';
 import RedshiftSchemaPermissionsDescription from '../../../../shared/components/FormDescriptions/RedshiftSchemaPermissionsDescription.tsx';
@@ -37,13 +38,16 @@ export function TargetSetupStep({
   const sanitizedConnectorName = connectorName.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
 
   const [datasetName, setDatasetName] = useState<string>('');
+  const [catalogName, setCatalogName] = useState<string>('');
   const [schemaName, setSchemaName] = useState<string>('');
   const [tableName, setTableName] = useState<string>('');
   const [datasetError, setDatasetError] = useState<string | null>(null);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
   const [schemaError, setSchemaError] = useState<string | null>(null);
   const [tableError, setTableError] = useState<string | null>(null);
 
-  // Track if user has manually edited the schema and table fields
+  // Track if user has manually edited the catalog, schema and table fields
+  const catalogEditedByUser = useRef(false);
   const schemaEditedByUser = useRef(false);
   const tableEditedByUser = useRef(false);
 
@@ -77,7 +81,9 @@ export function TargetSetupStep({
       newDatasetError: string | null,
       newTableError: string | null,
       newSchemaName?: string,
-      newSchemaError?: string | null
+      newSchemaError?: string | null,
+      newCatalogName?: string,
+      newCatalogError?: string | null
     ) => {
       let fullyQualifiedName: string;
 
@@ -93,6 +99,13 @@ export function TargetSetupStep({
           const quotedSchema = quoteIdentifier(newSchemaName);
           const quotedTable = quoteIdentifier(newTableName);
           fullyQualifiedName = `${quotedSchema}.${quotedTable}`;
+        }
+      } else if (dataStorageType === DataStorageType.DATABRICKS) {
+        if (!newCatalogName || !newSchemaName || !newTableName) {
+          fullyQualifiedName = '';
+        } else {
+          // For Databricks: catalog.schema.table (backticks are added on backend)
+          fullyQualifiedName = `${newCatalogName}.${newSchemaName}.${newTableName}`;
         }
       } else {
         fullyQualifiedName = `${newDatasetName}.${newTableName}`;
@@ -110,12 +123,21 @@ export function TargetSetupStep({
             )
           : dataStorageType === DataStorageType.AWS_REDSHIFT
             ? !!(newSchemaName && newTableName && newSchemaError === null && newTableError === null)
-            : !!(
-                newDatasetName &&
-                newTableName &&
-                newDatasetError === null &&
-                newTableError === null
-              );
+            : dataStorageType === DataStorageType.DATABRICKS
+              ? !!(
+                  newCatalogName &&
+                  newSchemaName &&
+                  newTableName &&
+                  newCatalogError === null &&
+                  newSchemaError === null &&
+                  newTableError === null
+                )
+              : !!(
+                  newDatasetName &&
+                  newTableName &&
+                  newDatasetError === null &&
+                  newTableError === null
+                );
 
       onTargetChange({
         fullyQualifiedName,
@@ -127,6 +149,7 @@ export function TargetSetupStep({
 
   useEffect(() => {
     let newDatasetName = '';
+    let newCatalogName = '';
     let newSchemaName = '';
     let newTableName = '';
 
@@ -141,6 +164,15 @@ export function TargetSetupStep({
           newDatasetName = dataset;
           newSchemaName = unquoteIdentifier(schema);
           newTableName = unquoteIdentifier(table);
+        }
+      } else if (dataStorageType === DataStorageType.DATABRICKS && parts.length === 3) {
+        const catalog = parts[0];
+        const schema = parts[1];
+        const table = parts[2];
+        if (catalog && schema && table) {
+          newCatalogName = catalog;
+          newSchemaName = schema;
+          newTableName = table;
         }
       } else if (dataStorageType === DataStorageType.AWS_REDSHIFT) {
         if (parts.length === 2) {
@@ -170,6 +202,9 @@ export function TargetSetupStep({
       newDatasetName = `${sanitizedConnectorName}_owox`;
       if (dataStorageType === DataStorageType.SNOWFLAKE) {
         newSchemaName = 'PUBLIC';
+      } else if (dataStorageType === DataStorageType.DATABRICKS) {
+        newCatalogName = 'main';
+        newSchemaName = `${sanitizedConnectorName}_owox`;
       } else if (dataStorageType === DataStorageType.AWS_REDSHIFT) {
         newSchemaName = `${sanitizedConnectorName}_owox`;
       }
@@ -177,7 +212,12 @@ export function TargetSetupStep({
     }
 
     const newDatasetError =
-      dataStorageType === DataStorageType.AWS_REDSHIFT ? null : validate(newDatasetName);
+      dataStorageType === DataStorageType.AWS_REDSHIFT ||
+      dataStorageType === DataStorageType.DATABRICKS
+        ? null
+        : validate(newDatasetName);
+    const newCatalogError =
+      dataStorageType === DataStorageType.DATABRICKS ? validate(newCatalogName) : null;
     const newSchemaError =
       dataStorageType === DataStorageType.SNOWFLAKE
         ? validate(newSchemaName, true)
@@ -185,7 +225,9 @@ export function TargetSetupStep({
           ? newSchemaName
             ? validate(newSchemaName, true)
             : null
-          : null;
+          : dataStorageType === DataStorageType.DATABRICKS
+            ? validate(newSchemaName)
+            : null;
     const newTableError = validate(
       newTableName,
       dataStorageType === DataStorageType.SNOWFLAKE ||
@@ -193,6 +235,11 @@ export function TargetSetupStep({
     );
 
     setDatasetName(newDatasetName);
+    // Only update catalog if user hasn't manually edited it
+    if (!catalogEditedByUser.current) {
+      setCatalogName(newCatalogName);
+      setCatalogError(newCatalogError);
+    }
     // Only update schema if user hasn't manually edited it
     if (!schemaEditedByUser.current) {
       setSchemaName(newSchemaName);
@@ -212,7 +259,11 @@ export function TargetSetupStep({
           ? newSchemaName && newTableName
             ? `${quoteIdentifier(newSchemaName)}.${quoteIdentifier(newTableName)}`
             : ''
-          : `${newDatasetName}.${newTableName}`;
+          : dataStorageType === DataStorageType.DATABRICKS
+            ? newCatalogName && newSchemaName && newTableName
+              ? `${newCatalogName}.${newSchemaName}.${newTableName}`
+              : ''
+            : `${newDatasetName}.${newTableName}`;
 
     const newIsValid =
       dataStorageType === DataStorageType.SNOWFLAKE
@@ -226,16 +277,26 @@ export function TargetSetupStep({
           )
         : dataStorageType === DataStorageType.AWS_REDSHIFT
           ? !!(newSchemaName && newTableName && newSchemaError === null && newTableError === null)
-          : !!(
-              newDatasetName &&
-              newTableName &&
-              newDatasetError === null &&
-              newTableError === null
-            );
+          : dataStorageType === DataStorageType.DATABRICKS
+            ? !!(
+                newCatalogName &&
+                newSchemaName &&
+                newTableName &&
+                newCatalogError === null &&
+                newSchemaError === null &&
+                newTableError === null
+              )
+            : !!(
+                newDatasetName &&
+                newTableName &&
+                newDatasetError === null &&
+                newTableError === null
+              );
 
     // Only update target from useEffect if user hasn't manually edited fields
     // When user edits, handleSchemaNameChange/handleTableNameChange will call updateTarget
     const shouldUpdate =
+      !catalogEditedByUser.current &&
       !schemaEditedByUser.current &&
       !tableEditedByUser.current &&
       (target?.fullyQualifiedName !== newFullyQualifiedName || target.isValid !== newIsValid);
@@ -247,7 +308,9 @@ export function TargetSetupStep({
         newDatasetError,
         newTableError,
         newSchemaName,
-        newSchemaError
+        newSchemaError,
+        newCatalogName,
+        newCatalogError
       );
     }
   }, [target, sanitizedDestinationName, sanitizedConnectorName, dataStorageType, updateTarget]);
@@ -256,16 +319,52 @@ export function TargetSetupStep({
     setDatasetName(name);
     const validationError = validate(name);
     setDatasetError(validationError);
-    updateTarget(name, tableName, validationError, tableError, schemaName, schemaError);
+    updateTarget(
+      name,
+      tableName,
+      validationError,
+      tableError,
+      schemaName,
+      schemaError,
+      catalogName,
+      catalogError
+    );
+  };
+
+  const handleCatalogNameChange = (name: string) => {
+    catalogEditedByUser.current = true;
+    setCatalogName(name);
+    const validationError = validate(name);
+    setCatalogError(validationError);
+    updateTarget(
+      datasetName,
+      tableName,
+      datasetError,
+      tableError,
+      schemaName,
+      schemaError,
+      name,
+      validationError
+    );
   };
 
   const handleSchemaNameChange = (name: string) => {
     schemaEditedByUser.current = true;
     setSchemaName(name);
-    // Schema is required for both Snowflake and Redshift
-    const validationError = validate(name, true); // Allow quoted identifiers
+    // Schema is required for both Snowflake, Redshift and Databricks
+    const validationError =
+      dataStorageType === DataStorageType.DATABRICKS ? validate(name) : validate(name, true);
     setSchemaError(validationError);
-    updateTarget(datasetName, tableName, datasetError, tableError, name, validationError);
+    updateTarget(
+      datasetName,
+      tableName,
+      datasetError,
+      tableError,
+      name,
+      validationError,
+      catalogName,
+      catalogError
+    );
   };
 
   const handleTableNameChange = (name: string) => {
@@ -277,7 +376,16 @@ export function TargetSetupStep({
         dataStorageType === DataStorageType.AWS_REDSHIFT
     );
     setTableError(validationError);
-    updateTarget(datasetName, name, datasetError, validationError, schemaName, schemaError);
+    updateTarget(
+      datasetName,
+      name,
+      datasetError,
+      validationError,
+      schemaName,
+      schemaError,
+      catalogName,
+      catalogError
+    );
   };
 
   return (
@@ -609,6 +717,113 @@ export function TargetSetupStep({
               </p>
               {tableError && (
                 <p id='redshift-table-name-error' className='text-destructive text-sm'>
+                  {tableError}
+                </p>
+              )}
+            </AppWizardStepItem>
+          </AppWizardStepSection>
+        </>
+      )}
+      {dataStorageType === DataStorageType.DATABRICKS && (
+        <>
+          <AppWizardStepHero
+            icon={<DatabricksIcon />}
+            title='Databricks'
+            docUrl='https://docs.owox.com/docs/storages/supported-storages/databricks/'
+            variant='compact'
+          />
+          <AppWizardStepSection title='Choose where to store your data'>
+            <AppWizardStepItem>
+              <AppWizardStepLabel
+                required={true}
+                htmlFor='databricks-catalog-name'
+                tooltip='Enter catalog name for Databricks where the connector data will be stored. Use "main" for the default catalog or your Unity Catalog name.'
+              >
+                Catalog name
+              </AppWizardStepLabel>
+              <Input
+                type='text'
+                id='databricks-catalog-name'
+                placeholder='main'
+                autoComplete='off'
+                className='box-border w-full'
+                value={catalogName}
+                aria-invalid={Boolean(catalogError)}
+                aria-describedby={catalogError ? 'databricks-catalog-name-error' : undefined}
+                onChange={e => {
+                  handleCatalogNameChange(e.target.value);
+                }}
+                required
+              />
+              <p className='text-muted-foreground text-sm'>
+                Catalog is auto-created on first run if it doesn't exist
+              </p>
+              {catalogError && (
+                <p id='databricks-catalog-name-error' className='text-destructive text-sm'>
+                  {catalogError}
+                </p>
+              )}
+            </AppWizardStepItem>
+
+            <AppWizardStepItem>
+              <AppWizardStepLabel
+                required={true}
+                htmlFor='databricks-schema-name'
+                tooltip='Enter schema name for Databricks where the connector data will be stored.'
+              >
+                Schema name
+              </AppWizardStepLabel>
+              <Input
+                type='text'
+                id='databricks-schema-name'
+                placeholder='Enter schema name'
+                autoComplete='off'
+                className='box-border w-full'
+                value={schemaName}
+                aria-invalid={Boolean(schemaError)}
+                aria-describedby={schemaError ? 'databricks-schema-name-error' : undefined}
+                onChange={e => {
+                  handleSchemaNameChange(e.target.value);
+                }}
+                required
+              />
+              <p className='text-muted-foreground text-sm'>
+                Schema is auto-created on first run if it doesn't exist
+              </p>
+              {schemaError && (
+                <p id='databricks-schema-name-error' className='text-destructive text-sm'>
+                  {schemaError}
+                </p>
+              )}
+            </AppWizardStepItem>
+
+            <AppWizardStepItem>
+              <AppWizardStepLabel
+                required={true}
+                htmlFor='databricks-table-name'
+                tooltip='Enter table name where the connector data will be stored.'
+              >
+                Table name
+              </AppWizardStepLabel>
+              <Input
+                type='text'
+                id='databricks-table-name'
+                placeholder='my_table'
+                autoComplete='off'
+                className='box-border w-full'
+                value={tableName}
+                aria-invalid={Boolean(tableError)}
+                aria-describedby={tableError ? 'databricks-table-name-error' : undefined}
+                onChange={e => {
+                  handleTableNameChange(e.target.value);
+                }}
+                required
+              />
+              <p className='text-muted-foreground text-sm'>
+                Table is auto-created on first run if it doesn't exist
+              </p>
+              {tableError && (
+                <p id='databricks-table-name-error' className='text-destructive text-sm'>
                   {tableError}
                 </p>
               )}

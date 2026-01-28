@@ -11,6 +11,8 @@ export const getStorageDisplayName = (type: DataStorageType) => {
       return 'Snowflake';
     case DataStorageType.AWS_REDSHIFT:
       return 'AWS Redshift';
+    case DataStorageType.DATABRICKS:
+      return 'Databricks';
     default:
       return type;
   }

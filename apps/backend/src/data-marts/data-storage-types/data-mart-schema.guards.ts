@@ -14,6 +14,10 @@ import {
   RedshiftDataMartSchema,
   RedshiftDataMartSchemaSchema,
 } from './redshift/schemas/redshift-data-mart-schema.schema';
+import {
+  DatabricksDataMartSchema,
+  DatabricksDataMartSchemaSchema,
+} from './databricks/schemas/databricks-data-mart-schema.schema';
 
 export function isBigQueryDataMartSchema(schema: unknown): schema is BigqueryDataMartSchema {
   return BigQueryDataMartSchemaSchema.safeParse(schema).success;
@@ -29,4 +33,8 @@ export function isSnowflakeDataMartSchema(schema: unknown): schema is SnowflakeD
 
 export function isRedshiftDataMartSchema(schema: unknown): schema is RedshiftDataMartSchema {
   return RedshiftDataMartSchemaSchema.safeParse(schema).success;
+}
+
+export function isDatabricksDataMartSchema(schema: unknown): schema is DatabricksDataMartSchema {
+  return DatabricksDataMartSchemaSchema.safeParse(schema).success;
 }
