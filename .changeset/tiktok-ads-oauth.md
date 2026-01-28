@@ -9,4 +9,3 @@
 - Added TikTok login button UI component for OAuth flow
 - Added OAuth callback page for handling TikTok authorization redirect
 - Manual credential entry option remains available as fallback
-- Added TikTok OAuth environment variables to .env.example
