@@ -3,6 +3,7 @@ import { DBSQLClient } from '@databricks/sql';
 import type IDBSQLSession from '@databricks/sql/dist/contracts/IDBSQLSession';
 import type IDBSQLLogger from '@databricks/sql/dist/contracts/IDBSQLLogger';
 import { LogLevel } from '@databricks/sql/dist/contracts/IDBSQLLogger';
+import { castError } from '@owox/internal-helpers';
 import { DatabricksConfig } from '../schemas/databricks-config.schema';
 import { DatabricksCredentials } from '../schemas/databricks-credentials.schema';
 import { DatabricksQueryMetadata } from '../interfaces/databricks-query-metadata';
@@ -69,9 +70,7 @@ export class DatabricksApiAdapter {
       this.isConnected = true;
       this.logger.debug('Connected to Databricks SQL warehouse');
     } catch (error) {
-      throw new Error(
-        `Failed to connect to Databricks: ${error instanceof Error ? error.message : String(error)}`
-      );
+      throw new Error(`Failed to connect to Databricks: ${castError(error).message}`);
     }
   }
 
@@ -88,9 +87,7 @@ export class DatabricksApiAdapter {
       this.isConnected = false;
       this.logger.debug('Databricks connection destroyed');
     } catch (error) {
-      this.logger.error(
-        `Failed to destroy connection: ${error instanceof Error ? error.message : String(error)}`
-      );
+      this.logger.error(`Failed to destroy connection: ${castError(error).message}`);
     }
   }
 
@@ -137,9 +134,7 @@ export class DatabricksApiAdapter {
       return { queryId, rows, metadata };
     } catch (error) {
       throw new Error(
-        `${DatabricksApiAdapter.DATABRICKS_QUERY_ERROR_PREFIX} ${
-          error instanceof Error ? error.message : String(error)
-        }, ${query}`
+        `${DatabricksApiAdapter.DATABRICKS_QUERY_ERROR_PREFIX} ${castError(error).message}, ${query}`
       );
     }
   }
@@ -176,7 +171,7 @@ export class DatabricksApiAdapter {
       return {
         plan: '',
         isValid: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: castError(error).message,
       };
     }
   }
@@ -188,9 +183,7 @@ export class DatabricksApiAdapter {
     try {
       await this.executeQuery('SELECT 1');
     } catch (error) {
-      throw new Error(
-        `Databricks access error: ${error instanceof Error ? error.message : String(error)}`
-      );
+      throw new Error(`Databricks access error: ${castError(error).message}`);
     }
   }
 
@@ -269,9 +262,7 @@ export class DatabricksApiAdapter {
 
       return result as Record<string, unknown>[];
     } catch (error) {
-      throw new Error(
-        `Failed to fetch results: ${error instanceof Error ? error.message : String(error)}`
-      );
+      throw new Error(`Failed to fetch results: ${castError(error).message}`);
     }
   }
 
@@ -341,9 +332,7 @@ export class DatabricksApiAdapter {
       this.logger.debug(`Found PRIMARY KEY columns: ${pkColumns.join(', ')}`);
       return pkColumns;
     } catch (error) {
-      this.logger.debug(
-        `Failed to get primary key columns: ${error instanceof Error ? error.message : String(error)}`
-      );
+      this.logger.debug(`Failed to get primary key columns: ${castError(error).message}`);
       return [];
     }
   }
