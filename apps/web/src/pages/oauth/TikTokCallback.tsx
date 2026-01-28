@@ -22,14 +22,21 @@ export function TikTokCallback() {
     const errorDescription = searchParams.get('error_description');
 
     const opener = window.opener as Window | null;
+    const TARGET_ORIGIN = window.location.origin;
+
+    if (!opener) {
+      console.error('TikTokCallback: Window opener is missing');
+      setStatus('error');
+      setErrorMessage(
+        'Window opener is missing. Cannot complete authentication. Please try again from the main application.'
+      );
+      return;
+    }
 
     const handleAuthFailure = (errorMsg: string) => {
       setStatus('error');
       setErrorMessage(errorMsg);
-
-      if (opener) {
-        opener.postMessage({ type: 'TIKTOK_AUTH_ERROR', error: errorMsg }, window.location.origin);
-      }
+      opener.postMessage({ type: 'TIKTOK_AUTH_ERROR', error: errorMsg }, TARGET_ORIGIN);
     };
 
     if (error) {
@@ -39,20 +46,22 @@ export function TikTokCallback() {
       return;
     }
 
+    if (!state) {
+      handleAuthFailure('Security Error: No state parameter received');
+      return;
+    }
+
     if (!authCode) {
       handleAuthFailure('No authorization code received');
       return;
     }
 
     setStatus('success');
+    opener.postMessage({ type: 'TIKTOK_AUTH_SUCCESS', authCode, state }, TARGET_ORIGIN);
 
-    if (opener) {
-      opener.postMessage({ type: 'TIKTOK_AUTH_SUCCESS', authCode, state }, window.location.origin);
-
-      setTimeout(() => {
-        window.close();
-      }, 1000);
-    }
+    setTimeout(() => {
+      window.close();
+    }, 1000);
   }, [searchParams]);
 
   return (

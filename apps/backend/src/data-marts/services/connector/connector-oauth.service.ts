@@ -37,11 +37,7 @@ export class ConnectorOauthService {
         reasons: result.warnings,
       };
     } catch (error) {
-      if (
-        error instanceof Error &&
-        (error.name === 'OauthFlowException' ||
-          ('type' in error && (error as { type: unknown }).type === 'OauthFlowException'))
-      ) {
+      if (this.isOauthFlowException(error)) {
         throw new BadRequestException(error.message);
       }
       if (error instanceof Error) {
@@ -93,5 +89,13 @@ export class ConnectorOauthService {
       user: credential.user,
       additional: undefined,
     };
+  }
+
+  private isOauthFlowException(error: unknown): error is Error {
+    return (
+      error instanceof Error &&
+      (error.name === 'OauthFlowException' ||
+        ('type' in error && (error as { type: unknown }).type === 'OauthFlowException'))
+    );
   }
 }

@@ -14,19 +14,25 @@ export interface TikTokLoginResponse {
   authCode: string;
 }
 
-interface TikTokAuthMessage {
-  type: 'TIKTOK_AUTH_SUCCESS' | 'TIKTOK_AUTH_ERROR';
-  authCode?: string;
-  state?: string;
-  error?: string;
-}
+export type TikTokAuthMessage =
+  | { type: 'TIKTOK_AUTH_SUCCESS'; authCode: string; state: string | null; error?: never }
+  | { type: 'TIKTOK_AUTH_ERROR'; error: string; authCode?: never; state?: never };
 
 const TIKTOK_AUTH_URL = 'https://business-api.tiktok.com/portal/auth';
 
 function isTikTokAuthMessage(data: unknown): data is TikTokAuthMessage {
   if (typeof data !== 'object' || data === null) return false;
   const msg = data as Record<string, unknown>;
-  return msg.type === 'TIKTOK_AUTH_SUCCESS' || msg.type === 'TIKTOK_AUTH_ERROR';
+
+  if (msg.type === 'TIKTOK_AUTH_SUCCESS') {
+    return typeof msg.authCode === 'string';
+  }
+
+  if (msg.type === 'TIKTOK_AUTH_ERROR') {
+    return typeof msg.error === 'string';
+  }
+
+  return false;
 }
 
 export function TikTokLoginButton({
@@ -39,7 +45,7 @@ export function TikTokLoginButton({
 }: TikTokLoginButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const authCompletedRef = useRef(false);
   const stateRef = useRef<string | null>(null);
 
@@ -84,7 +90,7 @@ export function TikTokLoginButton({
         onSuccess({ authCode: code });
       };
 
-      if (data.type === 'TIKTOK_AUTH_SUCCESS' && data.authCode) {
+      if (data.type === 'TIKTOK_AUTH_SUCCESS') {
         if (authCompletedRef.current) return;
 
         if (!data.state || data.state !== stateRef.current) {
@@ -98,8 +104,8 @@ export function TikTokLoginButton({
 
         authCompletedRef.current = true;
         handleAuthSuccess(data.authCode);
-      } else if (data.type === 'TIKTOK_AUTH_ERROR') {
-        handleAuthError(data.error ?? 'TikTok authentication failed');
+      } else {
+        handleAuthError(data.error);
       }
     },
     [redirectUri, onSuccess, onError]
@@ -166,7 +172,7 @@ export function TikTokLoginButton({
     setError(null);
     authCompletedRef.current = false;
 
-    const state = Math.random().toString(36).substring(2, 15);
+    const state = crypto.randomUUID();
     stateRef.current = state;
 
     const popup = openCenteredPopup(buildAuthUrl(state), 'TikTok OAuth');
