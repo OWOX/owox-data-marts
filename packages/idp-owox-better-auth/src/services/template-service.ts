@@ -24,6 +24,11 @@ export class TemplateService {
     return this.loadTemplate('sign-in.html');
   }
 
+  public static renderPasswordRemind(error = ''): string {
+    const template = this.loadTemplate('password-remind.html');
+    return template.replace('{{ERROR}}', error || '');
+  }
+
   public static renderSignUp(): string {
     return this.loadTemplate('sign-up.html');
   }

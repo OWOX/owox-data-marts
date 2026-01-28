@@ -34,7 +34,8 @@ export class OwoxBetterAuthProvider implements IdpProvider {
     this.authenticationService = new AuthenticationService(
       this.auth,
       cryptoService,
-      magicLinkService
+      magicLinkService,
+      this.store
     );
     this.tokenService = new TokenService(this.auth, cryptoService);
     this.requestHandlerService = new RequestHandlerService(this.auth);
@@ -68,6 +69,10 @@ export class OwoxBetterAuthProvider implements IdpProvider {
     app.post(
       '/auth/api/sign-up',
       this.authenticationService.signUpMiddleware.bind(this.authenticationService)
+    );
+    app.post(
+      '/auth/api/password-remind',
+      this.authenticationService.passwordRemindMiddleware.bind(this.authenticationService)
     );
   }
 

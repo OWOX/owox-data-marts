@@ -14,6 +14,11 @@ export class PageService {
     res.send(TemplateService.renderSignIn());
   }
 
+  async passwordRemindPage(req: ExpressRequest, res: ExpressResponse): Promise<void> {
+    const error = encodeURIComponent((req.query.error as string) || '');
+    res.send(TemplateService.renderPasswordRemind(error));
+  }
+
   async signUpPage(_req: ExpressRequest, res: ExpressResponse): Promise<void> {
     res.send(TemplateService.renderSignUp());
   }
@@ -56,7 +61,7 @@ export class PageService {
       }
 
       try {
-        await this.authenticationService.setPassword(password, req);
+        await this.authenticationService.setPassword(password, req, session.user.id);
         try {
           await this.authenticationService.signOut(req);
         } catch (error) {
@@ -67,12 +72,8 @@ export class PageService {
         res.clearCookie('better-auth.state');
         res.send(TemplateService.renderPasswordSuccess());
       } catch (error: unknown) {
-        if (error instanceof Error && error.message === 'User already has a password') {
-          res.status(400).send('User already has a password');
-        } else {
-          logger.error('Failed to set password', {}, error as Error);
-          res.status(500).send('Failed to set password. Please try again.');
-        }
+        logger.error('Failed to set password', {}, error as Error);
+        res.status(500).send('Failed to set password. Please try again.');
       }
     } catch (error) {
       logger.error('Password update failed', {}, error as Error);
@@ -137,6 +138,7 @@ export class PageService {
       express.get('/auth/setup-password', this.setupPasswordPage.bind(this));
       express.post('/auth/set-password', this.setPassword.bind(this));
       express.get('/auth/magic-link-success', this.magicLinkSuccess.bind(this));
+      express.get('/auth/password-remind', this.passwordRemindPage.bind(this));
       express.get('/auth/sign-up', this.signUpPage.bind(this));
       express.get('/auth/sign-in', this.signInPage.bind(this));
       express.get('/auth/check-email', this.checkEmailPage.bind(this));

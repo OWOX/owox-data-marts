@@ -73,7 +73,7 @@
       Check your email
     </h2>
     <p class="mt-2 text-sm text-muted-foreground" id="emailText">
-      We sent a verification link to <strong>{{EMAIL}}</strong>. Please confirm to finish sign up.
+      We sent a secure link to <strong>{{EMAIL}}</strong>. Follow it to continue.
     </p>
   </div>
 
@@ -101,7 +101,7 @@
     if (email) {
       const el = document.getElementById('emailText');
       if (el) {
-        el.innerHTML = `We sent a verification link to <strong>${decodeURIComponent(email)}</strong>. Please confirm to finish sign up.`;
+        el.innerHTML = `We sent a secure link to <strong>${decodeURIComponent(email)}</strong>. Follow it to continue.`;
       }
     }
   </script>

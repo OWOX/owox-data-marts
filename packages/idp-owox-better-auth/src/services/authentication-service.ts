@@ -1,6 +1,7 @@
 import { type NextFunction, type Request, type Response } from 'express';
 import { createBetterAuthConfig } from '../auth/auth-config.js';
 import { logger } from '../logger.js';
+import type { DatabaseStore } from '../store/DatabaseStore.js';
 import { AuthSession, SessionValidationResult } from '../types/auth-session.js';
 import { CryptoService } from './crypto-service.js';
 import { MagicLinkService } from './magic-link-service.js';
@@ -8,7 +9,8 @@ export class AuthenticationService {
   constructor(
     private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
     private readonly cryptoService: CryptoService,
-    private readonly magicLinkService: MagicLinkService
+    private readonly magicLinkService: MagicLinkService,
+    private readonly store: DatabaseStore
   ) {}
 
   async getSession(req: Request): Promise<AuthSession | null> {
@@ -194,6 +196,35 @@ export class AuthenticationService {
     }
   }
 
+  async passwordRemindMiddleware(
+    req: Request,
+    res: Response,
+    _next: NextFunction
+  ): Promise<void | Response> {
+    try {
+      const { email, redirect: redirectParam } = req.body;
+
+      if (!email) {
+        return res.redirect(
+          `/auth/password-remind?error=${encodeURIComponent('Email is required')}`
+        );
+      }
+
+      const magicLink = await this.magicLinkService.generateMagicLink(email);
+      logger.info('Generated magic link for password remind', { email, magicLink });
+
+      return res.redirect(
+        `/auth/check-email?email=${encodeURIComponent(email)}&redirect=${encodeURIComponent(
+          redirectParam || '/'
+        )}`
+      );
+    } catch (error) {
+      logger.error('Password remind middleware error', {}, error as Error);
+      const errorMessage = 'We could not send the reset link. Please try again.';
+      return res.redirect(`/auth/password-remind?error=${encodeURIComponent(errorMessage)}`);
+    }
+  }
+
   async signOutMiddleware(
     req: Request,
     res: Response,
@@ -235,7 +266,17 @@ export class AuthenticationService {
     }
   }
 
-  async setPassword(password: string, req: Request): Promise<unknown> {
+  private isUserAlreadyHasPassword(error: unknown): boolean {
+    if (error && typeof error === 'object' && 'body' in error) {
+      const apiError = error as { body?: { code?: string } };
+      return apiError.body?.code === 'USER_ALREADY_HAS_A_PASSWORD';
+    }
+    return false;
+  }
+
+  async setPassword(password: string, req: Request, userId?: string): Promise<unknown> {
+    const targetUserId = userId || (await this.getSession(req))?.user?.id;
+
     try {
       return await this.auth.api.setPassword({
         body: {
@@ -244,13 +285,35 @@ export class AuthenticationService {
         headers: req.headers as unknown as Headers,
       });
     } catch (error: unknown) {
-      // Don't log error if user already has a password - this is expected behavior
-      if (error && typeof error === 'object' && 'body' in error) {
-        const apiError = error as { body?: { code?: string } };
-        if (apiError.body?.code === 'USER_ALREADY_HAS_A_PASSWORD') {
-          throw new Error('User already has a password');
+      if (this.isUserAlreadyHasPassword(error) && targetUserId) {
+        try {
+          await this.store.clearUserPassword(targetUserId);
+          const response = await this.auth.api.setPassword({
+            body: {
+              newPassword: password,
+            },
+            headers: req.headers as unknown as Headers,
+          });
+          try {
+            await this.store.revokeUserSessions(targetUserId);
+          } catch (sessionError) {
+            logger.warn(
+              'Failed to revoke existing sessions after password reset',
+              { userId: targetUserId },
+              sessionError as Error
+            );
+          }
+          return response;
+        } catch (retryError) {
+          logger.error(
+            'Failed to reset password after clearing existing credential',
+            { userId: targetUserId },
+            retryError as Error
+          );
+          throw new Error('Failed to update password');
         }
       }
+
       logger.error('Failed to set password', {}, error as Error);
       throw new Error('Failed to set password');
     }
