@@ -78,7 +78,7 @@ export class UserManagementService {
               projectId: UserManagementService.DEFAULT_ORGANIZATION_ID,
               email: member.user?.email || 'unknown@email.com',
               fullName: member.user?.name || member.user?.email || 'Unknown User',
-              roles: ['editor'],
+              roles: [this.isValidRole(member.role) ? member.role : 'viewer'],
             })
           );
         } else {

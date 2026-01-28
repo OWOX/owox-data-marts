@@ -14,4 +14,5 @@ export interface ProjectMenuItem {
   icon: React.ComponentType<{ className?: string }>;
   visible: VisibilityConfig;
   group: string;
+  internal?: boolean;
 }
