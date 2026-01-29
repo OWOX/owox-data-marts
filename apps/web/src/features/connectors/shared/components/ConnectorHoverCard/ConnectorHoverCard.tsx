@@ -66,16 +66,14 @@ export const ConnectorHoverCard = React.memo(
     const connectorFullyQualifiedName = connector.storage.fullyQualifiedName;
     const HoverCardContentInner = React.memo(() => {
       // This component only renders when hover card is open, reducing re-renders
-      const context = useDataMartContext();
-      const contextRuns = context.runs;
-      const contextDataMart = context.dataMart;
+      const { runs, dataMart } = useDataMartContext();
 
       // Extract stable values for dependency arrays
-      const storage = contextDataMart?.storage;
+      const storage = dataMart?.storage;
 
       const runDataInfo = useMemo(
-        () => getRunDataInfo(contextRuns.filter(run => run.type === DataMartRunType.CONNECTOR)),
-        [contextRuns]
+        () => getRunDataInfo(runs.filter(run => run.type === DataMartRunType.CONNECTOR)),
+        [runs]
       );
 
       const lastRunDate = runDataInfo.lastRunDate;

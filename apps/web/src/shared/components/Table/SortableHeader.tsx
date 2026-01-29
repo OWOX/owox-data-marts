@@ -52,7 +52,7 @@ export function SortableHeader<TData>({ column, children, label }: SortableHeade
     <Button
       variant='ghost'
       onClick={handleSort}
-      className='group dm-card-table-header-row-btn'
+      className='group inline-flex h-8 cursor-pointer items-center gap-1 transition-colors duration-200 hover:bg-white hover:shadow-xs dark:hover:bg-white/4'
       aria-label={`${ariaLabel} - ${getSortDescription()}. Click to sort.`}
       aria-sort={getAriaSort()}
     >

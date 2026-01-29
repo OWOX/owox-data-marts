@@ -78,26 +78,31 @@ export function BaseTable<TData>({
     <>
       {/* TOOLBAR */}
       {hasToolbar && (
-        <div className='dm-card-toolbar'>
+        <div className='mb-4 flex items-center justify-between gap-2 last:mb-0'>
           {/* LEFT Column */}
           {renderToolbarLeft && (
-            <div className='dm-card-toolbar-left'>{renderToolbarLeft(table)}</div>
+            <div className='flex items-center gap-2'>{renderToolbarLeft(table)}</div>
           )}
 
           {/* RIGHT Column */}
           {renderToolbarRight && (
-            <div className='dm-card-toolbar-right'>{renderToolbarRight(table)}</div>
+            <div className='flex items-center gap-2'>{renderToolbarRight(table)}</div>
           )}
         </div>
       )}
       {/* end: TOOLBAR */}
 
       {/* TABLE */}
-      <div className='dm-card-table-wrap'>
-        <TableComponent id={tableId} className='dm-card-table' role='table' aria-label={ariaLabel}>
-          <TableHeader className='dm-card-table-header'>
+      <div className='mb-4 w-full last:mb-0'>
+        <TableComponent
+          id={tableId}
+          className='w-full table-fixed'
+          role='table'
+          aria-label={ariaLabel}
+        >
+          <TableHeader className='bg-transparent'>
             {table.getHeaderGroups().map(headerGroup => (
-              <TableRow key={headerGroup.id} className='dm-card-table-header-row'>
+              <TableRow key={headerGroup.id} className='hover:bg-transparent'>
                 {headerGroup.headers.map(header => {
                   return (
                     <TableHead
@@ -116,7 +121,7 @@ export function BaseTable<TData>({
                           onDoubleClick={() => {
                             header.column.resetSize();
                           }}
-                          className='absolute top-0 right-[2px] flex h-full w-1 cursor-col-resize items-center justify-center bg-transparent select-none group-hover:bg-neutral-200/50 hover:bg-neutral-200'
+                          className='absolute top-0 right-[2px] flex h-full w-1 cursor-col-resize items-center justify-center bg-transparent select-none group-hover:bg-neutral-200/50 hover:bg-neutral-200 group-hover:dark:bg-neutral-700/50 hover:dark:bg-neutral-700'
                           title='Drag to resize. Double-click to reset width'
                         />
                       )}
@@ -126,13 +131,13 @@ export function BaseTable<TData>({
               </TableRow>
             ))}
           </TableHeader>
-          <TableBody className='dm-card-table-body'>
+          <TableBody className='border-b border-gray-200 bg-white dark:border-white/4 dark:bg-white/1'>
             {table.getRowModel().rows.length ? (
               table.getRowModel().rows.map(row => (
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && 'selected'}
-                  className='dm-card-table-body-row group'
+                  className='group cursor-pointer transition-colors duration-200 hover:bg-black/4 dark:border-white/4 dark:bg-transparent dark:hover:bg-white/4'
                   onClick={
                     onRowClick
                       ? e => {
@@ -144,7 +149,7 @@ export function BaseTable<TData>({
                   {row.getVisibleCells().map(cell => (
                     <TableCell
                       key={cell.id}
-                      className={`px-6 pr-0 whitespace-normal [&>[role=checkbox]]:translate-y-[2px] ${cell.column.id === 'actions' ? 'actions-cell' : ''} ${cell.column.id === 'createdAt' ? 'whitespace-nowrap' : ''} ${cell.column.id === 'healthStatus' ? 'pl-5' : ''}`}
+                      className={`px-6 pr-0 whitespace-normal [&>[role=checkbox]]:translate-y-[2px] ${cell.column.id === 'actions' ? 'px-2' : ''} ${cell.column.id === 'createdAt' ? 'whitespace-nowrap' : ''} ${cell.column.id === 'healthStatus' ? 'pl-5' : ''}`}
                       style={getTableColumnSize(cell.column)}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -156,7 +161,7 @@ export function BaseTable<TData>({
               <TableRow>
                 <TableCell
                   colSpan={table.getVisibleLeafColumns().length}
-                  className='dm-card-table-body-row-empty'
+                  className='text-muted-foreground h-32 text-center'
                 >
                   {renderEmptyState()}
                 </TableCell>
@@ -165,7 +170,7 @@ export function BaseTable<TData>({
               <TableRow>
                 <TableCell
                   colSpan={table.getVisibleLeafColumns().length}
-                  className='dm-card-table-body-row-empty'
+                  className='text-muted-foreground h-32 text-center'
                 >
                   Oops! Nothing matched your search
                 </TableCell>

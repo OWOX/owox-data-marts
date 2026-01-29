@@ -13,7 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@owox/ui/components/alert-dialog';
-import { Check, Trash2 } from 'lucide-react';
+import { Check, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { EmptyDataMartsState } from './components/EmptyDataMartsState';
 import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
@@ -216,7 +216,7 @@ export function DataMartTable<TData, TValue>({
               <Button
                 variant='destructive'
                 size='sm'
-                className='dm-card-toolbar-btn-delete'
+                className='mx-2.5 h-8'
                 onClick={() => {
                   setShowDeleteConfirmation(true);
                 }}
@@ -235,7 +235,10 @@ export function DataMartTable<TData, TValue>({
         )}
         renderToolbarRight={() => (
           <TableCTAButton asChild>
-            <Link to={scope('/data-marts/create')}>New Data Mart</Link>
+            <Link to={scope('/data-marts/create')}>
+              <Plus className='h-4 w-4' />
+              New Data Mart
+            </Link>
           </TableCTAButton>
         )}
       />

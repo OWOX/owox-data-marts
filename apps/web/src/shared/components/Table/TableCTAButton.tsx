@@ -18,7 +18,7 @@ export function TableCTAButton({
   return (
     <Button
       variant='outline'
-      className='dm-card-toolbar-btn-primary'
+      className='border-muted dark:border-muted/50 flex cursor-pointer items-center gap-2 bg-white hover:bg-white dark:bg-white/4 dark:hover:bg-white/8'
       onClick={onClick}
       asChild={asChild}
       disabled={disabled}

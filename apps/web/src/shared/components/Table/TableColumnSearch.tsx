@@ -30,15 +30,15 @@ export function TableColumnSearch<TData>({
   }
 
   return (
-    <div className='dm-card-toolbar-search'>
-      <Search className='dm-card-toolbar-search-icon' />
+    <div className='relative w-48 md:w-52 lg:w-96 xl:w-128'>
+      <Search className='text-muted-foreground absolute top-2.5 left-2 h-4 w-4' />
       <Input
         placeholder={placeholder}
         value={column.getFilterValue() as string}
         onChange={event => {
           column.setFilterValue(event.target.value);
         }}
-        className='dm-card-toolbar-search-input'
+        className='border-muted dark:border-muted/50 rounded-md border bg-white pl-8 text-sm dark:bg-white/4 dark:hover:bg-white/8'
       />
     </div>
   );

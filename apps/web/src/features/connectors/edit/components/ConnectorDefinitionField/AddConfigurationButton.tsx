@@ -36,11 +36,7 @@ export function AddConfigurationButton({
             : undefined
         }
       >
-        <Button
-          type='button'
-          variant='outline'
-          className='dm-card-table-add-field-btn cursor-pointer'
-        >
+        <Button type='button' variant='outline'>
           <Plus className='h-4 w-4' />
           <span>Configuration</span>
         </Button>

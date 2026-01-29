@@ -69,14 +69,20 @@ export function SearchInput({
   );
 
   return (
-    <div className='dm-card-toolbar-search'>
-      <Search className='dm-card-toolbar-search-icon' aria-hidden='true' />
+    <div className='relative w-48 md:w-52 lg:w-96 xl:w-128'>
+      <Search
+        className='text-muted-foreground absolute top-2.5 left-2 h-4 w-4'
+        aria-hidden='true'
+      />
       <Input
         id={id}
         placeholder={placeholder}
         value={inputValue}
         onChange={handleInputChange}
-        className={className ?? 'dm-card-toolbar-search-input'}
+        className={
+          className ??
+          'border-muted dark:border-muted/50 rounded-md border bg-white pl-8 text-sm dark:bg-white/4 dark:hover:bg-white/8'
+        }
         aria-label={ariaLabel ?? placeholder}
       />
     </div>
