@@ -10,7 +10,6 @@ import { InsightController } from './controllers/insight.controller';
 import { ScheduledTriggerController } from './controllers/scheduled-trigger.controller';
 import { ConsumptionTrackingService } from './services/consumption-tracking.service';
 import { ProjectBalanceService } from './services/project-balance.service';
-import { ImpersonatedIdTokenService } from './services/impersonated-id-token.service';
 import { ReportDataCacheService } from './services/report-data-cache.service';
 import { UserProjectionsFetcherService } from './services/user-projections-fetcher.service';
 import { CreateDataMartService } from './use-cases/create-data-mart.service';
@@ -253,7 +252,6 @@ import { ConnectorOauthService } from './services/connector/connector-oauth.serv
     ConnectorMessageParserService,
     ConnectorStateService,
     ConsumptionTrackingService,
-    ImpersonatedIdTokenService,
     ProjectBalanceService,
     ConnectorSecretService,
     DataMartRunService,
