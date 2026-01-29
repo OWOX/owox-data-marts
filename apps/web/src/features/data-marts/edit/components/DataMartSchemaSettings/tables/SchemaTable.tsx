@@ -167,11 +167,11 @@ export function SchemaTable<T extends BaseSchemaField>({
           disabled={isSchemaActualizationLoading}
         />
       )}
-      <div className='dm-card-table-wrap mb-0'>
+      <div className='mb-0 w-full'>
         <Table id={tableId} className='w-full table-auto' role='table'>
-          <TableHeader className='dm-card-table-header'>
+          <TableHeader className='bg-transparent'>
             {table.getHeaderGroups().map(headerGroup => (
-              <TableRow key={headerGroup.id} className='dm-card-table-header-row'>
+              <TableRow key={headerGroup.id} className='hover:bg-transparent'>
                 {headerGroup.headers.map(header => (
                   <TableHead
                     key={header.id}
@@ -192,7 +192,7 @@ export function SchemaTable<T extends BaseSchemaField>({
               </TableRow>
             ))}
           </TableHeader>
-          <TableBody className='dm-card-table-body'>
+          <TableBody className='border-b border-gray-200 bg-white dark:border-white/4 dark:bg-white/1'>
             {table.getRowModel().rows.length ? (
               <DragContext {...dragContextProps}>
                 {table.getRowModel().rows.map(row => (
@@ -234,7 +234,7 @@ export function SchemaTable<T extends BaseSchemaField>({
       {onAddRow && (
         <Button
           variant='outline'
-          className='dm-card-table-add-field-btn bg-background dark:bg-muted w-full cursor-pointer rounded-t-none border-0'
+          className='bg-background dark:bg-muted w-full rounded-t-none border-0'
           onClick={onAddRow}
           disabled={isSchemaActualizationLoading}
           aria-label='Add new field'

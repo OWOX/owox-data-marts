@@ -145,7 +145,6 @@ export function ConnectorDefinitionField({
         onClick={() => {
           setIsEditSheetOpen(true);
         }}
-        className='dm-card-table-add-field-btn cursor-pointer'
       >
         <Edit3 className='h-4 w-4' />
         <span>Edit Fields ({String(fieldsCount)})</span>
