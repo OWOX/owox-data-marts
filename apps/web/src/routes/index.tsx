@@ -9,6 +9,7 @@ import { DataStorageListPage } from '../pages/data-storage';
 import { DataDestinationListPage } from '../pages/data-destination/DataDestinationListPage';
 import { dataMartDetailsRoutes } from './data-marts/routes';
 import { ProjectRedirect } from '../components/ProjectRedirect';
+import { oauthRoutes } from './oauth.routes';
 
 const routes: RouteObject[] = [
   {
@@ -55,6 +56,7 @@ const routes: RouteObject[] = [
       },
     ],
   },
+  oauthRoutes,
   {
     path: '*',
     element: <NotFound />,

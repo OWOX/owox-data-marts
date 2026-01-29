@@ -9,25 +9,90 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
 
   constructor(config) {
     super(config.mergeParameters({
-      AccessToken: {
+      AuthType: {
+        requiredType: "object",
+        label: "Auth Type",
+        description: "Authentication type",
         isRequired: true,
+        oneOf: [
+          {
+            label: "OAuth2",
+            value: "oauth2",
+            requiredType: "object",
+            attributes: [CONFIG_ATTRIBUTES.OAUTH_FLOW],
+            oauthParams: {
+              vars: {
+                AppId: {
+                  type: 'string',
+                  required: true,
+                  store: 'env',
+                  key: 'OAUTH_TIKTOK_ADS_APP_ID',
+                  attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
+                },
+                AppSecret: {
+                  type: 'string',
+                  required: true,
+                  store: 'env',
+                  key: 'OAUTH_TIKTOK_ADS_APP_SECRET',
+                  attributes: [OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
+                },
+                RedirectUri: {
+                  type: 'string',
+                  required: true,
+                  store: 'env',
+                  key: 'OAUTH_TIKTOK_ADS_REDIRECT_URI',
+                  attributes: [OAUTH_CONSTANTS.UI]
+                }
+              },
+              mapping: {
+                AccessToken: {
+                  type: 'string',
+                  required: true,
+                  store: 'secret',
+                  key: 'accessToken'
+                }
+              }
+            },
+            items: {
+              AccessToken: {
+                isRequired: true,
+                requiredType: "string",
+                label: "Access Token",
+                description: "TikTok Ads API Access Token for authentication",
+                attributes: [CONFIG_ATTRIBUTES.SECRET]
+              },
+              AppId: {
+                requiredType: "string",
+                label: "App ID",
+                description: "TikTok Ads API Application ID",
+              },
+              AppSecret: {
+                requiredType: "string",
+                label: "App Secret",
+                description: "TikTok Ads API Application Secret",
+                attributes: [CONFIG_ATTRIBUTES.SECRET]
+              },
+            }
+          }
+        ]
+      },
+      AccessToken: {
         requiredType: "string",
         label: "Access Token",
         description: "TikTok Ads API Access Token for authentication",
-        attributes: [CONFIG_ATTRIBUTES.SECRET]
+        attributes: [CONFIG_ATTRIBUTES.SECRET, CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
       AppId: {
         requiredType: "string",
-        isRequired: true,
         label: "App ID",
-        description: "TikTok Ads API Application ID"
+        description: "TikTok Ads API Application ID",
+        attributes: [CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
       AppSecret: {
         requiredType: "string",
-        isRequired: true,
         label: "App Secret",
         description: "TikTok Ads API Application Secret",
-        attributes: [CONFIG_ATTRIBUTES.SECRET]
+        attributes: [CONFIG_ATTRIBUTES.SECRET, CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
       AdvertiserIDs: {
         isRequired: true,
@@ -35,7 +100,7 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
         description: "TikTok Ads Advertiser IDs to fetch data from"
       },
       DataLevel: {
-        requiredType: "string", 
+        requiredType: "string",
         default: "AUCTION_AD",
         label: "Data Level",
         description: "Data level for ad_insights reports (AUCTION_ADVERTISER, AUCTION_CAMPAIGN, AUCTION_ADGROUP, AUCTION_AD)",
@@ -96,6 +161,148 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
   }
 
   /**
+   * Exchange OAuth authorization code for access and refresh tokens
+   * 
+   * @param {Object} credentials - OAuth credentials from the authorization flow
+   * @param {string} credentials.authCode - Authorization code from TikTok OAuth redirect
+   * @param {Object} variables - OAuth configuration variables
+   * @param {string} variables.AppId - TikTok App ID
+   * @param {string} variables.AppSecret - TikTok App Secret
+   * @param {string} variables.RedirectUri - OAuth redirect URI
+   * @return {Object} OAuth credentials DTO
+   */
+  async exchangeOauthCredentials(credentials, variables) {
+    try {
+      const tokenUrl = 'https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/';
+
+      const tokenResponse = await HttpUtils.fetch(tokenUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          app_id: variables.AppId,
+          secret: variables.AppSecret,
+          auth_code: credentials.authCode,
+          grant_type: 'authorization_code'
+        })
+      });
+
+      const tokenData = await tokenResponse.getAsJson();
+
+      if (tokenData.code !== 0) {
+        throw new OauthFlowException({
+          message: tokenData.message || 'Failed to exchange authorization code',
+          payload: tokenData
+        });
+      }
+
+      const data = tokenData.data;
+
+      if (!data.access_token) {
+        throw new OauthFlowException({
+          message: 'Missing access_token in exchange response'
+        });
+      }
+
+      const provider = new TiktokMarketingApiProvider(
+        variables.AppId,
+        data.access_token,
+        variables.AppSecret,
+        false
+      );
+
+      let userName = 'TikTok Ads User';
+      let userId = 'unknown';
+      let advertiserIds = data.advertiser_ids || [];
+
+      try {
+        const advertisers = await provider.getAdvertisers(advertiserIds);
+
+        if (advertisers && advertisers.length > 0) {
+          userName = advertisers[0].advertiser_name || userName;
+          userId = advertisers[0].advertiser_id || userId;
+
+          advertiserIds = advertisers.map(adv => adv.advertiser_id);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch advertiser details during OAuth exchange:', err.message);
+        // Fallback to basic data if fetch fails
+        if (advertiserIds.length > 0) {
+          userId = advertiserIds[0];
+        }
+      }
+
+      const oauthCredentials = OauthCredentialsDto.builder()
+        .withUser({ id: userId, name: userName })
+        .withSecret({
+          accessToken: data.access_token
+        })
+        .withExpiresIn(null);
+
+      return oauthCredentials.build().toObject();
+    } catch (error) {
+      if (error instanceof OauthFlowException) {
+        throw error;
+      }
+      throw new OauthFlowException({
+        message: 'Failed to exchange TikTok authorization code',
+        payload: error.message
+      });
+    }
+  }
+
+  /**
+   * Refresh OAuth credentials when access token is about to expire
+   * 
+   * @param {Object} configuration - Connector configuration
+   * @param {Object} credentials - Stored OAuth credentials
+   * @param {Object} variables - OAuth configuration variables
+   * @return {Object|null} New OAuth credentials DTO or null if refresh not needed
+   */
+  async refreshCredentials() {
+    return null;
+  }
+
+  /**
+   * Get access token based on authentication type
+   * @return {string} Access token
+   * @private
+   */
+  _getAccessToken() {
+    // If using OAuth2, get the access token from AuthType config
+    if (this.config.AuthType?.value && this.config.AuthType.value === 'oauth2') {
+      return this.config.AuthType.items?.AccessToken?.value;
+    }
+    // Fallback to legacy AccessToken config
+    return this.config.AccessToken?.value;
+  }
+
+  /**
+   * Get App ID based on authentication type
+   * @return {string} App ID
+   * @private
+   */
+  _getAppId() {
+    if (this.config.AuthType?.value && this.config.AuthType.value === 'oauth2') {
+      return this.config.AuthType.items?.AppId?.value || process.env.OAUTH_TIKTOK_ADS_APP_ID;
+    }
+    return this.config.AppId?.value || process.env.OAUTH_TIKTOK_ADS_APP_ID;
+  }
+
+  /**
+   * Get App Secret based on authentication type
+   * @return {string} App Secret
+   * @private
+   */
+  _getAppSecret() {
+    if (this.config.AuthType?.value && this.config.AuthType.value === 'oauth2') {
+      return this.config.AuthType.items?.AppSecret?.value || process.env.OAUTH_TIKTOK_ADS_APP_SECRET;
+    }
+    return this.config.AppSecret?.value || process.env.OAUTH_TIKTOK_ADS_APP_SECRET;
+  }
+
+  /**
    * Get dimensions based on the specified data level
    * 
    * @param {string} dataLevel - The reporting data level
@@ -131,7 +338,7 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
    */
   getFilteredMetrics(filteredFields, dimensions, validMetricsList) {
     const nonMetricFields = [...dimensions, "advertiser_id", "stat_time_day", "date_start", "date_end"];
-    
+
     return filteredFields
       .filter(field => !nonMetricFields.includes(field))
       .filter(field => validMetricsList.includes(field));
@@ -152,31 +359,31 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
     if (!this.fieldsSchema[nodeName]) {
       throw new Error(`Unknown node type: ${nodeName}`);
     }
-    
+
     // Validate that required unique fields are included
     if (this.fieldsSchema[nodeName].uniqueKeys) {
       const uniqueKeys = this.fieldsSchema[nodeName].uniqueKeys;
       const missingKeys = uniqueKeys.filter(key => !fields.includes(key));
-      
+
       if (missingKeys.length > 0) {
         throw new Error(`Missing required unique fields for endpoint '${nodeName}'. Missing fields: ${missingKeys.join(', ')}`);
       }
     }
-    
+
     // Initialize the API provider
     const provider = new TiktokMarketingApiProvider(
-      this.config.AppId.value,
-      this.config.AccessToken.value,
-      this.config.AppSecret.value,
+      this._getAppId(),
+      this._getAccessToken(),
+      this._getAppSecret(),
       this.config.SandboxMode && this.config.SandboxMode.value
     );
-    
+
     // Store the current advertiser ID so it can be used if missing in records
     this.currentAdvertiserId = advertiserId;
-    
+
     let formattedStartDate = null;
     let formattedEndDate = null;
-    
+
     if (startDate) {
       formattedStartDate = DateUtils.formatDate(startDate);
       // If no end date is provided, use start date as end date (single day)
@@ -189,17 +396,17 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
     let filtering = null;
     if (this.config.IncludeDeleted && this.config.IncludeDeleted.value) {
       if (nodeName === 'campaigns') {
-        filtering = {"secondary_status": "CAMPAIGN_STATUS_ALL"};
+        filtering = { "secondary_status": "CAMPAIGN_STATUS_ALL" };
       } else if (nodeName === 'ad_groups') {
-        filtering = {"secondary_status": "ADGROUP_STATUS_ALL"};
+        filtering = { "secondary_status": "ADGROUP_STATUS_ALL" };
       } else if (nodeName === 'ads') {
-        filtering = {"secondary_status": "AD_STATUS_ALL"};
+        filtering = { "secondary_status": "AD_STATUS_ALL" };
       }
     }
-    
+
     // Use schema-defined fields
     let filteredFields = fields;
-    
+
     // If no fields specified or empty array, use all fields from schema
     if (!fields || fields.length === 0) {
       if (this.fieldsSchema[nodeName] && this.fieldsSchema[nodeName].fields) {
@@ -230,7 +437,7 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
         case 'ad_insights':
           // Format for ad reporting endpoint
           let dataLevel = this.config.DataLevel && this.config.DataLevel.value ?
-                        this.config.DataLevel.value : "AUCTION_AD";
+            this.config.DataLevel.value : "AUCTION_AD";
 
           // Validate the data level
           const validDataLevels = ["AUCTION_ADVERTISER", "AUCTION_CAMPAIGN", "AUCTION_ADGROUP", "AUCTION_AD"];
@@ -284,9 +491,9 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
           const fieldErrorMatch = error.message.match(/correct is \[(.*?)\]/);
           if (fieldErrorMatch && fieldErrorMatch[1]) {
             const validFieldsFromError = fieldErrorMatch[1].split("', '").map(f => f.replace(/'/g, "").trim());
-            
+
             console.log("API returned valid fields list: " + validFieldsFromError.join(", "));
-            
+
             // Retry with valid fields from the API
             if (validFieldsFromError.length > 0) {
               console.log("Retrying with valid fields from API");
@@ -297,7 +504,7 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
           console.error("Error parsing valid fields from error message: " + parseError);
         }
       }
-      
+
       console.error(`Error fetching data from TikTok Ads API: ${error.message}`);
       throw error;
     }
@@ -313,7 +520,7 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
   castFields(nodeName, record, schema) {
     // Maximum string length to prevent exceeding column limits
     const MAX_STRING_LENGTH = 50000;
-    
+
     // Special handling for metrics field in ad_insights
     if (nodeName === 'ad_insights') {
       if (record.metrics) {
@@ -331,12 +538,12 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
         }
         delete record.dimensions;
       }
-      
+
       // Ensure advertiser_id is present
       if (!record.advertiser_id && this.currentAdvertiserId) {
         record.advertiser_id = this.currentAdvertiserId;
       }
-      
+
       // Handle date fields
       if (record.stat_time_day && !record.date_start) {
         record.date_start = record.stat_time_day;
@@ -358,26 +565,26 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
 
     // Filter out any extremely large fields or fields not in schema
     const processedRecord = {};
-    
+
     // First ensure uniqueKey fields are always included
     if (schema[nodeName].uniqueKeys) {
       for (const keyField of schema[nodeName].uniqueKeys) {
         if (keyField in record) {
           processedRecord[keyField] = record[keyField];
-        } 
+        }
         else if (keyField === 'advertiser_id' && nodeName === 'ad_insights') {
           processedRecord['advertiser_id'] = this.currentAdvertiserId || '';
         }
       }
     }
-    
+
     // Next add all other fields defined in the schema
     for (let field in schema[nodeName].fields) {
       if (field in record && !processedRecord[field]) {
         processedRecord[field] = record[field];
       }
     }
-    
+
     // Then add other fields from the record that might be needed
     for (let field in record) {
       if (field === 'rowIndex' && !processedRecord[field]) {
@@ -387,34 +594,34 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
 
     // Now process field types
     for (let field in processedRecord) {
-      if (field in schema[nodeName].fields && 
-          "type" in schema[nodeName].fields[field]) {
-        
+      if (field in schema[nodeName].fields &&
+        "type" in schema[nodeName].fields[field]) {
+
         let type = schema[nodeName].fields[field].type;
         let value = processedRecord[field];
-        
+
         if (value === null || value === undefined) {
           continue;
         }
-        
+
         try {
           switch (type) {
             case DATA_TYPES.STRING:
               processedRecord[field] = String(value).substring(0, MAX_STRING_LENGTH);
               break;
-              
+
             case DATA_TYPES.INTEGER:
               processedRecord[field] = parseInt(value);
               break;
-              
+
             case DATA_TYPES.NUMBER:
               processedRecord[field] = parseFloat(value);
               break;
-              
+
             case DATA_TYPES.BOOLEAN:
               processedRecord[field] = Boolean(value);
               break;
-              
+
             case DATA_TYPES.DATE:
               let dateValue;
               if (value instanceof Date) {
@@ -430,10 +637,10 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
               } else {
                 dateValue = new Date(value);
               }
-              
+
               processedRecord[field] = dateValue;
               break;
-              
+
             case DATA_TYPES.DATETIME:
               let datetimeValue;
               if (field === 'create_time' || field === 'modify_time') {
@@ -449,7 +656,7 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
               }
               processedRecord[field] = datetimeValue;
               break;
-              
+
             case DATA_TYPES.TIMESTAMP:
               processedRecord[field] = new Date(value);
               break;
@@ -463,7 +670,7 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
                 processedRecord[field] = String(value).substring(0, MAX_STRING_LENGTH);
               }
               break;
-              
+
             default:
               console.warn(`Unknown type ${type} for field ${field}`);
               processedRecord[field] = String(value).substring(0, MAX_STRING_LENGTH);
@@ -484,7 +691,7 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
         }
       }
     }
-    
+
     return processedRecord;
   }
 
