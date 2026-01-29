@@ -224,6 +224,47 @@ export function ConnectorConfigurationItem({
           </div>
         );
       }
+      case DataStorageType.DATABRICKS: {
+        const fullyQualifiedName = connectorDef.connector.storage.fullyQualifiedName;
+        const fqnParts = fullyQualifiedName.split('.');
+
+        let catalog: string;
+        let schema: string;
+        let table: string;
+
+        if (fqnParts.length === 3) {
+          catalog = fqnParts[0];
+          schema = fqnParts[1];
+          table = fqnParts[2];
+        } else {
+          // If only 2 parts, assume no catalog (using default catalog)
+          catalog = 'hive_metastore';
+          schema = fqnParts[0];
+          table = fqnParts[1];
+        }
+
+        const host = dataStorage.config.host;
+        const databricksConsoleLink = `https://${host}`;
+
+        return (
+          <div className='flex flex-wrap items-center gap-2'>
+            {formatLinkParam('Catalog', catalog, databricksConsoleLink)}
+            <span className='text-muted-foreground'>•</span>
+            {formatLinkParam('Schema', schema, databricksConsoleLink)}
+            <span className='text-muted-foreground'>•</span>
+            {formatLinkParam('Table', table, databricksConsoleLink)}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className='h-4 w-4' />
+              </TooltipTrigger>
+              <TooltipContent>
+                The catalog, schema and table are automatically created during the first run of the
+                data mart, if they don't already exist
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        );
+      }
       default:
         return 'Unknown storage type configuration';
     }

@@ -3,6 +3,7 @@ import { AthenaFieldType } from '../../../data-storage-types/athena/enums/athena
 import { BigQueryFieldType } from '../../../data-storage-types/bigquery/enums/bigquery-field-type.enum';
 import { SnowflakeFieldType } from '../../../data-storage-types/snowflake/enums/snowflake-field-type.enum';
 import { RedshiftFieldType } from '../../../data-storage-types/redshift/enums/redshift-field-type.enum';
+import { DatabricksFieldType } from '../../../data-storage-types/databricks/enums/databricks-field-type.enum';
 import { DataStorageType } from '../../../data-storage-types/enums/data-storage-type.enum';
 import { FieldDataType } from '../enums/field-data-type.enum';
 
@@ -12,7 +13,12 @@ export class LookerStudioTypeMapperService {
    * Maps data types from storage types to Looker Studio types
    */
   mapToLookerStudioDataType(
-    fieldType: BigQueryFieldType | AthenaFieldType | SnowflakeFieldType | RedshiftFieldType,
+    fieldType:
+      | BigQueryFieldType
+      | AthenaFieldType
+      | SnowflakeFieldType
+      | RedshiftFieldType
+      | DatabricksFieldType,
     storageType: DataStorageType
   ): FieldDataType {
     if (storageType === DataStorageType.GOOGLE_BIGQUERY) {
@@ -23,6 +29,8 @@ export class LookerStudioTypeMapperService {
       return this.mapSnowflakeTypeToLookerStudio(fieldType as SnowflakeFieldType);
     } else if (storageType === DataStorageType.AWS_REDSHIFT) {
       return this.mapRedshiftTypeToLookerStudio(fieldType as RedshiftFieldType);
+    } else if (storageType === DataStorageType.DATABRICKS) {
+      return this.mapDatabricksTypeToLookerStudio(fieldType as DatabricksFieldType);
     }
     // Fallback for unknown storage types
     return FieldDataType.STRING;
@@ -146,6 +154,37 @@ export class LookerStudioTypeMapperService {
       case RedshiftFieldType.SUPER:
       case RedshiftFieldType.GEOMETRY:
       case RedshiftFieldType.GEOGRAPHY:
+      default:
+        return FieldDataType.STRING;
+    }
+  }
+
+  /**
+   * Maps Databricks types to Looker Studio types
+   */
+  private mapDatabricksTypeToLookerStudio(type: DatabricksFieldType): FieldDataType {
+    switch (type) {
+      case DatabricksFieldType.TINYINT:
+      case DatabricksFieldType.SMALLINT:
+      case DatabricksFieldType.INT:
+      case DatabricksFieldType.BIGINT:
+      case DatabricksFieldType.FLOAT:
+      case DatabricksFieldType.DOUBLE:
+      case DatabricksFieldType.DECIMAL:
+        return FieldDataType.NUMBER;
+      case DatabricksFieldType.BOOLEAN:
+        return FieldDataType.BOOLEAN;
+      case DatabricksFieldType.STRING:
+      case DatabricksFieldType.VARCHAR:
+      case DatabricksFieldType.CHAR:
+      case DatabricksFieldType.BINARY:
+      case DatabricksFieldType.DATE:
+      case DatabricksFieldType.TIMESTAMP:
+      case DatabricksFieldType.TIMESTAMP_NTZ:
+      case DatabricksFieldType.INTERVAL:
+      case DatabricksFieldType.ARRAY:
+      case DatabricksFieldType.MAP:
+      case DatabricksFieldType.STRUCT:
       default:
         return FieldDataType.STRING;
     }

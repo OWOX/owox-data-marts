@@ -25,7 +25,7 @@ export class ConnectorSourceCredentialsService {
     userId: string,
     connectorName: string,
     credentials: Record<string, unknown>,
-    expiresAt: Date,
+    expiresAt: Date | null,
     user?: { id?: string; name?: string; email?: string; picture?: string }
   ): Promise<ConnectorSourceCredentials> {
     const credentialEntity = this.connectorSourceCredentialsRepository.create({
@@ -75,7 +75,7 @@ export class ConnectorSourceCredentialsService {
   async updateCredentials(
     id: string,
     credentials: Record<string, unknown>,
-    expiresAt?: Date
+    expiresAt?: Date | null
   ): Promise<ConnectorSourceCredentials> {
     const existingCredentials = await this.getCredentialsById(id);
 

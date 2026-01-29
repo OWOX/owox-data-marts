@@ -29,11 +29,17 @@ export interface RedshiftProvisionedConfig {
 
 export type RedshiftDataStorageConfig = RedshiftServerlessConfig | RedshiftProvisionedConfig;
 
+export interface DatabricksDataStorageConfig {
+  host: string;
+  httpPath: string;
+}
+
 export type DataStorageConfig =
   | GoogleBigQueryDataStorageConfig
   | AwsAthenaDataStorageConfig
   | SnowflakeDataStorageConfig
-  | RedshiftDataStorageConfig;
+  | RedshiftDataStorageConfig
+  | DatabricksDataStorageConfig;
 
 export function isGoogleBigQueryDataStorageConfig(
   config: DataStorageConfig
@@ -64,4 +70,10 @@ export function isRedshiftDataStorageConfig(
     typedConfig.connectionType === RedshiftConnectionType.SERVERLESS ||
     typedConfig.connectionType === RedshiftConnectionType.PROVISIONED
   );
+}
+
+export function isDatabricksDataStorageConfig(
+  config: DataStorageConfig
+): config is DatabricksDataStorageConfig {
+  return 'host' in config && 'httpPath' in config;
 }

@@ -25,11 +25,17 @@ export interface RedshiftConfigDto {
   schema?: string;
 }
 
+export interface DatabricksConfigDto {
+  host: string;
+  httpPath: string;
+}
+
 export type DataStorageConfigDto =
   | GoogleBigQueryConfigDto
   | AwsAthenaConfigDto
   | SnowflakeConfigDto
-  | RedshiftConfigDto;
+  | RedshiftConfigDto
+  | DatabricksConfigDto;
 
 export interface DataStorageResponseDto {
   id: string;

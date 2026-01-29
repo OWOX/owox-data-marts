@@ -122,6 +122,8 @@ class StorageConfigDto {
       return 'Snowflake';
     } else if (name === 'AWS_REDSHIFT') {
       return 'AwsRedshift';
+    } else if (name === 'DATABRICKS') {
+      return 'Databricks';
     }
     return name;
   }

@@ -14,6 +14,10 @@ import {
   RedshiftCredentials,
   RedshiftCredentialsSchema,
 } from './redshift/schemas/redshift-credentials.schema';
+import {
+  DatabricksCredentials,
+  DatabricksCredentialsSchema,
+} from './databricks/schemas/databricks-credentials.schema';
 
 export function isBigQueryCredentials(credentials: unknown): credentials is BigQueryCredentials {
   return BigQueryCredentialsSchema.safeParse(credentials).success;
@@ -29,4 +33,10 @@ export function isSnowflakeCredentials(credentials: unknown): credentials is Sno
 
 export function isRedshiftCredentials(credentials: unknown): credentials is RedshiftCredentials {
   return RedshiftCredentialsSchema.safeParse(credentials).success;
+}
+
+export function isDatabricksCredentials(
+  credentials: unknown
+): credentials is DatabricksCredentials {
+  return DatabricksCredentialsSchema.safeParse(credentials).success;
 }

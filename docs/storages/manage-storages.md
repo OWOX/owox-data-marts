@@ -20,7 +20,7 @@ To configure a new **Storage**:
     - [AWS Athena](supported-storages/aws-athena.md)
     - [AWS Redshift](supported-storages/aws-redshift.md)
     - [Snowflake](supported-storages/snowflake.md)
-    - Databricks (Coming soon)
+    - [Databricks](supported-storages/databricks.md)
     - Azure Synapse (Coming soon)
 3. Fill in the required configuration fields based on the selected data warehouse. Follow the instructions for your platform.
 4. Click **Save** to complete storage setup or **Cancel** to finish the configuration later.

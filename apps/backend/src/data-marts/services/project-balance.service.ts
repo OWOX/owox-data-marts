@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { fetchWithBackoff } from '@owox/internal-helpers';
+import { fetchWithBackoff, ImpersonatedIdTokenFetcher } from '@owox/internal-helpers';
 import { ProjectOperationBlockedException } from '../../common/exceptions/project-operation-blocked.exception';
 import {
   CanPerformOperationsResponseDto,
@@ -8,7 +8,6 @@ import {
 } from '../dto/domain/can-perform-operations-response.dto';
 import { ProjectBalanceDto, ProjectBalanceSchema } from '../dto/domain/project-balance.dto';
 import { ProjectPlanType } from '../enums/project-plan-type.enum';
-import { ImpersonatedIdTokenService } from './impersonated-id-token.service';
 
 /**
  * Service for validating operations based on balance.
@@ -18,16 +17,14 @@ import { ImpersonatedIdTokenService } from './impersonated-id-token.service';
 @Injectable()
 export class ProjectBalanceService {
   private readonly logger = new Logger(ProjectBalanceService.name);
+  private readonly impersonatedIdTokenFetcher = new ImpersonatedIdTokenFetcher();
 
   private readonly baseUrl: string | undefined;
   private readonly targetAudience: string | undefined;
   private readonly serviceAccountEmail: string | undefined;
   private readonly isBalanceServiceConfigured: boolean;
 
-  constructor(
-    private readonly configService: ConfigService,
-    private readonly impersonatedIdTokenService: ImpersonatedIdTokenService
-  ) {
+  constructor(private readonly configService: ConfigService) {
     this.serviceAccountEmail = this.configService.get<string>(
       'BALANCE_ENDPOINT_AUTH_SERVICE_ACCOUNT'
     );
@@ -118,7 +115,7 @@ export class ProjectBalanceService {
    * Gets Balance API response for the specified project url.
    */
   private async fetchBalanceApi(url: string): Promise<Response> {
-    const idToken = await this.impersonatedIdTokenService.getIdToken(
+    const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
       this.serviceAccountEmail!,
       this.targetAudience!
     );
