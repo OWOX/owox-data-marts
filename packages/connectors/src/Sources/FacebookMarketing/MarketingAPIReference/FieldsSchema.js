@@ -44,6 +44,7 @@ var FacebookMarketingFieldsSchema = {
         "documentation": "https://developers.facebook.com/docs/marketing-api/reference/ad-account/ads",
         "fields": adAccountAdsFields,
         'uniqueKeys': ["id"],
+        'defaultFields': ["id", "name", "status", "effective_status", "adset_id", "campaign_id", "created_time", "updated_time"],
         "isTimeSeries": false,
         "destinationName": "facebook_ads_ad_account_ads",
         "limit": 100
