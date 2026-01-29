@@ -185,6 +185,7 @@ export class LookerStudioConnectorApiService {
     }
 
     try {
+      await this.projectBalanceService.verifyCanPerformOperations(report.dataMart.projectId);
       const context = await this.dataService.prepareStreamingContext(
         request,
         report,
