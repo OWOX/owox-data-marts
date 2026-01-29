@@ -3,6 +3,8 @@ import type {
   AthenaSchemaField,
   BigQueryDataMartSchema,
   BigQuerySchemaField,
+  DatabricksDataMartSchema,
+  DatabricksSchemaField,
   DataMartSchema,
   RedshiftDataMartSchema,
   RedshiftSchemaField,
@@ -75,6 +77,24 @@ export function isRedshiftSchema(schema: DataMartSchema): schema is RedshiftData
  * Uses structural typing similar to Athena and Snowflake (has isPrimaryKey).
  */
 export function isRedshiftField(field: unknown): field is RedshiftSchemaField {
+  return (
+    field !== null && typeof field === 'object' && 'isPrimaryKey' in field && !('mode' in field)
+  );
+}
+
+/**
+ * Type guard to check if a schema is a Databricks schema.
+ * Replaces runtime type checks using string literals with proper TypeScript type guards.
+ */
+export function isDatabricksSchema(schema: DataMartSchema): schema is DatabricksDataMartSchema {
+  return schema.type === 'databricks-data-mart-schema';
+}
+
+/**
+ * Type guard to check if a field is a Databricks field.
+ * Uses structural typing similar to Athena, Snowflake, and Redshift (has isPrimaryKey).
+ */
+export function isDatabricksField(field: unknown): field is DatabricksSchemaField {
   return (
     field !== null && typeof field === 'object' && 'isPrimaryKey' in field && !('mode' in field)
   );

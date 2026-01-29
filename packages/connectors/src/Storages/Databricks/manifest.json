@@ -1,0 +1,20 @@
+{
+  "name": "DatabricksStorage",
+  "description": "Storage for Databricks Data Lakehouse",
+  "title": "Databricks",
+  "version": "0.0.0",
+  "author": "OWOX, Inc.",
+  "license": "MIT",
+  "environment": {
+    "node": {
+      "enabled": true,
+      "dependencies": [
+        {
+          "name": "@databricks/sql",
+          "version": "^1.12.0",
+          "global": ["databricks"]
+        }
+      ]
+    }
+  }
+}

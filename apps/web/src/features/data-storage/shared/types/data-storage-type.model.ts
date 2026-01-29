@@ -46,7 +46,7 @@ export const DataStorageTypeModel = {
       type: DataStorageType.DATABRICKS,
       displayName: 'Databricks',
       icon: DatabricksIcon,
-      status: DataStorageStatus.COMING_SOON,
+      status: DataStorageStatus.ACTIVE,
     },
     [DataStorageType.AZURE_SYNAPSE]: {
       type: DataStorageType.AZURE_SYNAPSE,
