@@ -15,13 +15,11 @@ Click **Snowflake** to create a new **Storage** configuration.
 
 ## 3. Add title
 
-Give the storage configuration a clear **title**, eg `OWOX Data Marts – Snowflake Production`.
+Give the storage configuration a clear **title**, eg `Snowflake Production`.
 
 ## 4. Set General Settings and Connection Details
 
 ### Enter Account Identifier
-
-To find the region and locator for your account, see [Snowflake documentation](https://docs.snowflake.com/en/user-guide/admin-account-identifier#finding-the-region-and-locator-for-an-account).
 
 1. Open the account selector and review the list of accounts that you previously signed in to.
 2. Find the region in the account selector (e.g. US West (Oregon)).
@@ -57,18 +55,72 @@ To find the region and locator for your account, see [Snowflake documentation](h
 
 ![Snowflake web UI showing Warehouse Activity with blue bars over recent dates; red circles highlight the warehouse name OWOX_DATA_MARTS in the header and the Compute → Warehouses menu path on the left.](/docs/res/screens/snowflake_copytitle.png)
 
+Enter warhouse name in the appropriate field.
+
 ### Choose Authentication Method
 
 Snowflake supports two authentication methods:
 
-#### Option 1: Username and Password (Recommended for getting started)
+#### Option 1: Username + Programmatic Access Token (PAT)
 
-1. **Username**: Your Snowflake username
-2. **Password**: Your Snowflake password
+1. **Username**: Your Snowflake user login
+2. **Programmatic Access Token (PAT)**: A secure token used instead of a password for programmatic access
 
-This is the simplest method to get started.
+##### Step 1. Generate a Programmatic Access Token (PAT)
 
-#### Option 2: Key Pair Authentication (Recommended for production)
+1. Log in to Snowflake.
+2. Go to **Settings → Authentication**.
+3. Scroll down to **Programmatic access tokens**.
+4. Click **Generate new token**.
+5. Specify:
+   - **Token name** (for example: `OWOX_TOKEN`)
+   - **Expiration period** (up to **1 year**)
+6. Click **Generate**.
+
+> ⚠️ **Important**  
+> Copy the token immediately or download it and store it securely (for example, in a password manager).  
+> You will **not be able to view the token again** after closing the dialog.
+
+---
+
+##### Step 2. Configure Network Policy (Admin Action Required)
+
+For security reasons, Snowflake requires a **network policy** when PAT authentication is used.  
+A Snowflake **account administrator** must explicitly allow connections from trusted IP addresses.
+
+Example of the query:
+
+```sql
+
+CREATE NETWORK POLICY <policy_name>
+  ALLOWED_IP_LIST = ('34.38.103.182');
+
+ALTER USER <your_user>
+  SET NETWORK_POLICY = <policy_name>;
+
+```
+
+**Replace:**
+
+- `<policy_name>` with a descriptive name (for example, `owox_network_policy`)
+- `<your_user>` with your Snowflake username
+
+✅ **After the policy is applied**, Snowflake will allow PAT-based authentication **only from the specified IP address**.
+
+---
+
+##### Step 3. Configure Storage
+
+Once the network policy is active:
+
+1. Open your **storage or integration settings**.
+2. Select **Username + PAT** as the authentication method.
+3. Enter:
+   - Your **Snowflake username**
+   - Your **PAT** in the password/token field
+4. Save the configuration.
+
+#### Option 2: Key Pair Authentication
 
 Key pair authentication provides enhanced security and is recommended for production environments.
 
