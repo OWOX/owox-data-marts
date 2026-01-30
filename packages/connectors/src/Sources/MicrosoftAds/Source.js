@@ -9,6 +9,73 @@
 var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
   constructor(config) {
     super(config.mergeParameters({
+      AuthType: {
+        requiredType: "object",
+        label: "Auth Type",
+        description: "Authentication type",
+        isRequired: true,
+        oneOf: [
+          {
+            label: "OAuth2",
+            value: "oauth2",
+            requiredType: "object",
+            attributes: [CONFIG_ATTRIBUTES.OAUTH_FLOW],
+            oauthParams: {
+              vars: {
+                ClientId: {
+                  type: 'string',
+                  required: true,
+                  store: 'env',
+                  key: 'OAUTH_MICROSOFT_ADS_CLIENT_ID',
+                  attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
+                },
+                ClientSecret: {
+                  type: 'string',
+                  required: true,
+                  store: 'env',
+                  key: 'OAUTH_MICROSOFT_ADS_CLIENT_SECRET',
+                  attributes: [OAUTH_CONSTANTS.SECRET, OAUTH_CONSTANTS.REQUIRED]
+                },
+                RedirectUri: {
+                  type: 'string',
+                  required: true,
+                  store: 'env',
+                  key: 'OAUTH_MICROSOFT_ADS_REDIRECT_URI',
+                  attributes: [OAUTH_CONSTANTS.UI, OAUTH_CONSTANTS.REQUIRED]
+                }
+              },
+              mapping: {
+                RefreshToken: {
+                  type: 'string',
+                  required: true,
+                  store: 'secret',
+                  key: 'refresh_token'
+                }
+              }
+            },
+            items: {
+              RefreshToken: {
+                isRequired: true,
+                requiredType: "string",
+                label: "Refresh Token",
+                description: "Microsoft Ads Refresh Token",
+                attributes: [CONFIG_ATTRIBUTES.SECRET]
+              },
+              ClientId: {
+                requiredType: "string",
+                label: "Client ID",
+                description: "Microsoft Ads Client ID",
+              },
+              ClientSecret: {
+                requiredType: "string",
+                label: "Client Secret",
+                description: "Microsoft Ads Client Secret",
+                attributes: [CONFIG_ATTRIBUTES.SECRET]
+              }
+            }
+          }
+        ]
+      },
       DeveloperToken: {
         isRequired: true,
         requiredType: "string",
@@ -17,24 +84,25 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
         attributes: [CONFIG_ATTRIBUTES.SECRET]
       },
       ClientID: {
-        isRequired: true,
+        isRequired: false,
         requiredType: "string",
         label: "Client ID",
-        description: "Your Microsoft Ads API Client ID"
+        description: "Your Microsoft Ads API Client ID",
+        attributes: [CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
       ClientSecret: {
-        isRequired: true,
+        isRequired: false,
         requiredType: "string",
         label: "Client Secret",
         description: "Your Microsoft Ads API Client Secret",
-        attributes: [CONFIG_ATTRIBUTES.SECRET]
+        attributes: [CONFIG_ATTRIBUTES.SECRET, CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
       RefreshToken: {
-        isRequired: true,
+        isRequired: false,
         requiredType: "string",
         label: "Refresh Token",
         description: "Your Microsoft Ads API Refresh Token",
-        attributes: [CONFIG_ATTRIBUTES.SECRET]
+        attributes: [CONFIG_ATTRIBUTES.SECRET, CONFIG_ATTRIBUTES.DEPRECATED, CONFIG_ATTRIBUTES.HIDE_IN_CONFIG_FORM]
       },
       AccountIDs: {
         isRequired: true,
@@ -93,6 +161,71 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
     this.fieldsSchema = MicrosoftAdsFieldsSchema;
   }
 
+  async exchangeOauthCredentials(credentials, variables) {
+    try {
+      const tokenUrl = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
+
+      const payload = {
+        client_id: variables.ClientId,
+        client_secret: variables.ClientSecret,
+        grant_type: 'authorization_code',
+        code: credentials.code,
+        redirect_uri: variables.RedirectUri,
+      };
+
+      const options = {
+        method: 'post',
+        contentType: 'application/x-www-form-urlencoded',
+        payload: payload,
+        body: Object.entries(payload)
+          .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+          .join('&')
+      };
+
+      const resp = await HttpUtils.fetch(tokenUrl, options);
+      const data = await resp.getAsJson();
+
+      if (data.error) {
+        throw new OauthFlowException({
+          message: `Token exchange failed: ${data.error_description || data.error}`,
+          payload: data
+        });
+      }
+
+      const expiresIn = data.expires_in ?? 3600;
+
+      let userData = { id: 'unknown', name: 'Microsoft Ads User' };
+      try {
+        const meUrl = 'https://graph.microsoft.com/v1.0/me';
+        const meResp = await HttpUtils.fetch(meUrl, {
+          headers: { Authorization: `Bearer ${data.access_token}` }
+        });
+        const meData = await meResp.getAsJson();
+        if (!meData.error) {
+          userData = { id: meData.id, name: meData.displayName || meData.mail || meData.userPrincipalName };
+        }
+      } catch (e) {
+        console.warn('Failed to fetch user profile', e);
+      }
+
+      return OauthCredentialsDto.builder()
+        .withUser(userData)
+        .withSecret({
+          refresh_token: data.refresh_token,
+          access_token: data.access_token
+        })
+        .withExpiresIn(expiresIn)
+        .build()
+        .toObject();
+
+    } catch (error) {
+      if (error instanceof OauthFlowException) {
+        throw error;
+      }
+      throw new OauthFlowException({ message: 'Failed to exchange Microsoft Ads tokens', payload: error.message });
+    }
+  }
+
   /**
    * Retrieve and store an OAuth access token using the refresh token
    */
@@ -106,11 +239,11 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
     for (const scope of scopes) {
       try {
         const form = {
-          client_id: this.config.ClientID.value,
+          client_id: this.config.AuthType?.items?.ClientId?.value || this.config.ClientID.value,
           scope: scope,
-          refresh_token: this.config.RefreshToken.value,
+          refresh_token: this.config.AuthType?.items?.RefreshToken?.value || this.config.RefreshToken.value,
           grant_type: 'refresh_token',
-          client_secret: this.config.ClientSecret.value
+          client_secret: this.config.AuthType?.items?.ClientSecret?.value || this.config.ClientSecret.value
         };
 
         const options = {
