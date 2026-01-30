@@ -1,5 +1,53 @@
 # owox
 
+## 0.18.0
+
+### Minor Changes
+
+- 68d72af: # Add Databricks storage type with Personal Access Token authentication
+
+  This change adds support for Databricks as a new storage type in OWOX Data Marts platform. Users can now connect to Databricks SQL warehouses using Personal Access Token authentication.
+  - **Authentication:** Personal Access Token
+  - **Storage Configuration:** Host, HTTP Path
+  - **Driver:** @databricks/sql
+
+- 38d3593: # Descriptions for fields in AWS Redshift tables
+
+  After launching the connector, field descriptions will be synchronized with tables in Redshift
+
+- f52376f: # Enrich Facebook Marketing ad-account/ads endpoint
+
+  The Facebook Marketing connector's `ad-account/ads` endpoint now returns real ad data instead of null values.
+
+  **What's New:**
+  - Added 19 useful fields including ad name, status, campaign/adset relationships, creative details, and timestamps
+  - 8 essential fields are now pre-selected by default (id, name, status, effective_status, adset_id, campaign_id, created_time, updated_time)
+
+  **Before:** Only 3 placeholder fields that returned null
+  **After:** Comprehensive ad data ready for analytics
+
+  **Note:** For performance metrics (impressions, clicks, spend), continue using the `ad-account/insights` endpoint.
+
+- 38d3593: # Improved Looker Studio destination stability
+
+  Enhanced Looker Studio destination stability and performance by implementing data streaming. This update ensures a smoother user experience and more reliable delivery of large datasets from Data Marts.
+
+- ee0459e: # Add OAuth flow for TikTok Ads connector
+  - Added support for OAuth2 authentication in the TikTok Ads connector
+  - Implemented OAuth credential exchange
+  - Added TikTok login button UI component for OAuth flow
+  - Added OAuth callback page for handling TikTok authorization redirect
+  - Manual credential entry option remains available as fallback
+
+### Patch Changes
+
+- @owox/internal-helpers@0.18.0
+- @owox/idp-protocol@0.18.0
+- @owox/idp-better-auth@0.18.0
+- @owox/idp-owox@0.18.0
+- @owox/backend@0.18.0
+- @owox/web@0.18.0
+
 ## 0.17.0
 
 ### Minor Changes 0.17.0
@@ -1050,7 +1098,6 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
-
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -1058,7 +1105,6 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
-
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
