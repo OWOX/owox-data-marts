@@ -45,7 +45,7 @@ var adAccountInsightsFieldsByAgeAndGender = {
   },
   'adset_id': {
     'description': 'The unique ID of the ad set you\'re viewing in reporting. An ad set is a group of ads that share the same budget, schedule, delivery optimization and targeting.',
-    'type': DATA_TYPES.STRING,  
+    'type': DATA_TYPES.STRING,
   },
   'adset_name': {
     'description': 'The name of the ad set you\'re viewing in reporting. An ad set is a group of ads that share the same budget, schedule, delivery optimization and targeting.',
@@ -169,6 +169,10 @@ var adAccountInsightsFieldsByAgeAndGender = {
   },
   'cost_per_outbound_click': {
     'description': 'The average cost for each outbound click.',
+    'type': DATA_TYPES.ARRAY
+  },
+  'cost_per_result': {
+    'description': 'The average cost per result from your ads.',
     'type': DATA_TYPES.ARRAY
   },
   'cost_per_thruplay': {
@@ -319,6 +323,14 @@ var adAccountInsightsFieldsByAgeAndGender = {
   'reach': {
     'description': 'The number of people who saw your ads at least once. Reach is different from impressions, which may include multiple views of your ads by the same people. This metric is estimated.',
     'type': DATA_TYPES.NUMBER
+  },
+  'result_rate': {
+    'description': 'The result rate from your ads.',
+    'type': DATA_TYPES.ARRAY
+  },
+  'results': {
+    'description': 'The number of results from your ads.',
+    'type': DATA_TYPES.ARRAY
   },
   'shops_assisted_purchases': {
     'description': 'shops_assisted_purchases',

@@ -167,6 +167,10 @@ var adAccountInsightsFieldsByPublisherPlatformAndPosition = {
     'description': 'The average cost for each outbound click.',
     'type': DATA_TYPES.ARRAY
   },
+  'cost_per_result': {
+    'description': 'The average cost per result from your ads.',
+    'type': DATA_TYPES.ARRAY
+  },
   'cost_per_thruplay': {
     'description': 'The average cost for each ThruPlay. This metric is in development.',
     'type': DATA_TYPES.ARRAY
@@ -319,6 +323,14 @@ var adAccountInsightsFieldsByPublisherPlatformAndPosition = {
   'reach': {
     'description': 'The number of people who saw your ads at least once. Reach is different from impressions, which may include multiple views of your ads by the same people. This metric is estimated.',
     'type': DATA_TYPES.NUMBER
+  },
+  'result_rate': {
+    'description': 'The result rate from your ads.',
+    'type': DATA_TYPES.ARRAY
+  },
+  'results': {
+    'description': 'The number of results from your ads.',
+    'type': DATA_TYPES.ARRAY
   },
   'shops_assisted_purchases': {
     'description': 'shops_assisted_purchases',
