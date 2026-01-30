@@ -29,11 +29,10 @@ export class MigrateTikTokAdsToOauth2Structure1769769180000 implements Migration
       for (const config of configs) {
         if (config.AccessToken && !config.AuthType) {
           config.AuthType = {
-            value: 'oauth2',
-            items: {
-              AccessToken: { value: config.AccessToken },
-              AppId: { value: config.AppId },
-              AppSecret: { value: config.AppSecret },
+            oauth2: {
+              AccessToken: config.AccessToken,
+              AppId: config.AppId,
+              AppSecret: config.AppSecret,
             },
           };
 
@@ -72,13 +71,13 @@ export class MigrateTikTokAdsToOauth2Structure1769769180000 implements Migration
       let modified = false;
 
       for (const config of configs) {
-        if (config.AuthType?.items?.AccessToken?.value) {
-          config.AccessToken = config.AuthType.items.AccessToken.value;
-          if (config.AuthType.items.AppId?.value) {
-            config.AppId = config.AuthType.items.AppId.value;
+        if (config.AuthType?.oauth2?.AccessToken) {
+          config.AccessToken = config.AuthType.oauth2.AccessToken;
+          if (config.AuthType.oauth2.AppId) {
+            config.AppId = config.AuthType.oauth2.AppId;
           }
-          if (config.AuthType.items.AppSecret?.value) {
-            config.AppSecret = config.AuthType.items.AppSecret.value;
+          if (config.AuthType.oauth2.AppSecret) {
+            config.AppSecret = config.AuthType.oauth2.AppSecret;
           }
           delete config.AuthType;
           modified = true;
