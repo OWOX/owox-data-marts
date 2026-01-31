@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataMartDefinitionValidatorFacade } from '../data-storage-types/facades/data-mart-definition-validator-facade.service';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
 import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-definition.command';
@@ -24,6 +25,16 @@ export class UpdateDataMartDefinitionService {
     if (dataMart.definitionType && dataMart.definitionType !== command.definitionType) {
       throw new BusinessViolationException('DataMart already has definition');
     }
+
+    if (
+      dataMart.storage.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY &&
+      command.definitionType !== DataMartDefinitionType.SQL
+    ) {
+      throw new BusinessViolationException(
+        'Only SQL definition type is supported for Legacy Google BigQuery data storages.'
+      );
+    }
+
     dataMart.definitionType = command.definitionType;
 
     if (command.definitionType === DataMartDefinitionType.CONNECTOR && command.definition) {

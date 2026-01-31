@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { DataStorage } from '../entities/data-storage.entity';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DeleteDataStorageCommand } from '../dto/domain/delete-data-storage.command';
+import { DataStorage } from '../entities/data-storage.entity';
 import { DataMartService } from '../services/data-mart.service';
 import { DataStorageService } from '../services/data-storage.service';
-import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 
 @Injectable()
 export class DeleteDataStorageService {
@@ -21,6 +22,12 @@ export class DeleteDataStorageService {
       command.projectId,
       command.id
     );
+
+    if (dataStorage.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY) {
+      throw new BusinessViolationException(
+        "Legacy Google BigQuery storage can't be deleted manually."
+      );
+    }
 
     const dataMartsForStorage = await this.dataMartService.findByStorage(dataStorage);
 

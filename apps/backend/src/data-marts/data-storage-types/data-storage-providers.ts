@@ -25,6 +25,10 @@ import { BigQuerySchemaMerger } from './bigquery/services/bigquery-schema-merger
 import { BigquerySqlDryRunExecutor } from './bigquery/services/bigquery-sql-dry-run.executor';
 import { BigQuerySqlRunExecutor } from './bigquery/services/bigquery-sql-run.executor';
 import { BigQueryCreateViewExecutor } from './bigquery/services/bigquery-create-view.executor';
+import { LegacyBigQuerySqlDryRunExecutor } from './bigquery/services/legacy-bigquery-sql-dry-run.executor';
+import { LegacyBigQuerySqlPreprocessor } from './bigquery/services/legacy-bigquery-sql-preprocessor.service';
+import { LegacyBigQuerySqlRunExecutor } from './bigquery/services/legacy-bigquery-sql-run.executor';
+import { LegacyBigQueryCreateViewExecutor } from './bigquery/services/legacy-bigquery-create-view.executor';
 import { SnowflakeApiAdapterFactory } from './snowflake/adapters/snowflake-api-adapter.factory';
 import { SnowflakeAccessValidator } from './snowflake/services/snowflake-access.validator';
 import { SnowflakeDataMartSchemaParser } from './snowflake/services/snowflake-data-mart-schema.parser';
@@ -154,6 +158,7 @@ const reportHeadersGeneratorProviders = [
 ];
 const sqlDryRunExecutorProviders = [
   BigquerySqlDryRunExecutor,
+  LegacyBigQuerySqlDryRunExecutor,
   AthenaSqlDryRunExecutor,
   SnowflakeSqlDryRunExecutor,
   RedshiftSqlDryRunExecutor,
@@ -161,6 +166,7 @@ const sqlDryRunExecutorProviders = [
 ];
 const sqlRunExecutorProviders = [
   BigQuerySqlRunExecutor,
+  LegacyBigQuerySqlRunExecutor,
   AthenaSqlRunExecutor,
   SnowflakeSqlRunExecutor,
   RedshiftSqlRunExecutor,
@@ -168,6 +174,7 @@ const sqlRunExecutorProviders = [
 ];
 const createViewExecutorProviders = [
   BigQueryCreateViewExecutor,
+  LegacyBigQueryCreateViewExecutor,
   AthenaCreateViewExecutor,
   SnowflakeCreateViewExecutor,
   RedshiftCreateViewExecutor,
@@ -177,6 +184,11 @@ const publicCredentialsProviders = [
   DataStoragePublicCredentialsFactory,
   DataStorageCredentialsUtils,
 ];
+const legacyBigQueryProviders = [LegacyBigQuerySqlPreprocessor];
+
+const dataStorageTypeAliasMap = new Map<DataStorageType, DataStorageType>([
+  [DataStorageType.LEGACY_GOOGLE_BIGQUERY, DataStorageType.GOOGLE_BIGQUERY],
+]);
 
 export const dataStorageResolverProviders = [
   ...accessValidatorProviders,
@@ -192,46 +204,75 @@ export const dataStorageResolverProviders = [
   ...sqlRunExecutorProviders,
   ...createViewExecutorProviders,
   ...publicCredentialsProviders,
+  ...legacyBigQueryProviders,
   {
     provide: DATA_STORAGE_ACCESS_VALIDATOR_RESOLVER,
     useFactory: (...validators: DataStorageAccessValidator[]) =>
-      new TypeResolver<DataStorageType, DataStorageAccessValidator>(validators),
+      new TypeResolver<DataStorageType, DataStorageAccessValidator>(
+        validators,
+        undefined,
+        dataStorageTypeAliasMap
+      ),
     inject: accessValidatorProviders,
   },
   {
     provide: DATA_STORAGE_REPORT_READER_RESOLVER,
     useFactory: (moduleRef: ModuleRef, ...storageDataProviders: DataStorageReportReader[]) =>
-      new TypeResolver<DataStorageType, DataStorageReportReader>(storageDataProviders, moduleRef),
+      new TypeResolver<DataStorageType, DataStorageReportReader>(
+        storageDataProviders,
+        moduleRef,
+        dataStorageTypeAliasMap
+      ),
     inject: [ModuleRef, ...storageDataProviders],
   },
   {
     provide: DATA_MART_VALIDATOR_RESOLVER,
     useFactory: (...validators: DataMartValidator[]) =>
-      new TypeResolver<DataStorageType, DataMartValidator>(validators),
+      new TypeResolver<DataStorageType, DataMartValidator>(
+        validators,
+        undefined,
+        dataStorageTypeAliasMap
+      ),
     inject: validatorProviders,
   },
   {
     provide: DATA_MART_SCHEMA_PROVIDER_RESOLVER,
     useFactory: (...providers: DataMartSchemaProvider[]) =>
-      new TypeResolver<DataStorageType, DataMartSchemaProvider>(providers),
+      new TypeResolver<DataStorageType, DataMartSchemaProvider>(
+        providers,
+        undefined,
+        dataStorageTypeAliasMap
+      ),
     inject: dataMartSchemaProviders,
   },
   {
     provide: DATA_MART_SCHEMA_MERGER_RESOLVER,
     useFactory: (...mergers: DataMartSchemaMerger[]) =>
-      new TypeResolver<DataStorageType, DataMartSchemaMerger>(mergers),
+      new TypeResolver<DataStorageType, DataMartSchemaMerger>(
+        mergers,
+        undefined,
+        dataStorageTypeAliasMap
+      ),
     inject: dataMartSchemaMergerProviders,
   },
   {
     provide: DATA_MART_SCHEMA_PARSER_RESOLVER,
     useFactory: (...parsers: DataMartSchemaParser[]) =>
-      new TypeResolver<DataStorageType, DataMartSchemaParser>(parsers),
+      new TypeResolver<DataStorageType, DataMartSchemaParser>(
+        parsers,
+        undefined,
+        dataStorageTypeAliasMap
+      ),
     inject: schemaParserProviders,
   },
   {
     provide: REPORT_HEADERS_GENERATOR_RESOLVER,
     useFactory: (...generators: ReportHeadersGenerator[]) =>
-      new TypeResolver<DataStorageType, ReportHeadersGenerator>(generators),
+      new TypeResolver<DataStorageType, ReportHeadersGenerator>(
+        generators,
+        undefined,
+        dataStorageTypeAliasMap
+      ),
     inject: reportHeadersGeneratorProviders,
   },
   {

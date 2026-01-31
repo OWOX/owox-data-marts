@@ -10,11 +10,14 @@ import { TypedComponent } from './typed-component.resolver';
 export class TypeResolver<TType, TComponent extends TypedComponent<TType>> {
   private readonly singletonMap = new Map<TType, TComponent>();
   private readonly transientTypeMap = new Map<TType, Type<TComponent>>();
+  private readonly aliasMap?: Map<TType, TType>;
 
   constructor(
     components: TComponent[],
-    private readonly moduleRef?: ModuleRef
+    private readonly moduleRef?: ModuleRef,
+    aliasMap?: Map<TType, TType>
   ) {
+    this.aliasMap = aliasMap;
     for (const component of components) {
       const componentType = component.constructor as Type<TComponent>;
       if (this.isTransientComponent(componentType)) {
@@ -54,6 +57,7 @@ export class TypeResolver<TType, TComponent extends TypedComponent<TType>> {
    * @return A Promise that resolves to the component instance if found, or undefined if not.
    */
   async tryResolve(type: TType): Promise<TComponent | undefined> {
+    type = this.resolveAlias(type);
     // First, check if it's a transient component
     if (this.transientTypeMap.has(type) && this.moduleRef) {
       const ComponentType = this.transientTypeMap.get(type)!;
@@ -66,5 +70,34 @@ export class TypeResolver<TType, TComponent extends TypedComponent<TType>> {
   private isTransientComponent(componentType: Type<TComponent>): boolean {
     const metadata = Reflect.getMetadata('scope:options', componentType);
     return metadata && metadata.scope === Scope.TRANSIENT;
+  }
+
+  /**
+   * Resolves alias chains for component types.
+   *
+   * Why this is more complex than a simple `map.get(type)`:
+   * 1) We allow alias chains (e.g. `A → B → ...`)
+   *    so a single resolver can normalize multiple legacy or grouped types.
+   * 2) We protect against accidental cycles (e.g. `A → B → A`) to avoid infinite loops.
+   * 3) If no alias is configured, or no match is found, we return the original type
+   *    to keep behavior backwards compatible.
+   *
+   * This keeps the resolver robust while still allowing minimal changes when new
+   * aliases are introduced.
+   */
+  private resolveAlias(type: TType): TType {
+    if (!this.aliasMap || this.aliasMap.size === 0) {
+      return type;
+    }
+
+    let resolved = type;
+    const visited = new Set<TType>();
+
+    while (this.aliasMap.has(resolved) && !visited.has(resolved)) {
+      visited.add(resolved);
+      resolved = this.aliasMap.get(resolved)!;
+    }
+
+    return resolved;
   }
 }
