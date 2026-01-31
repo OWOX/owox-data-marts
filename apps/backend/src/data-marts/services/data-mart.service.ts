@@ -20,10 +20,11 @@ export class DataMartService {
     return this.dataMartRepository.create(data);
   }
 
-  async getByIdAndProjectId(id: string, projectId: string): Promise<DataMart> {
+  async getByIdAndProjectId(id: string, projectId: string, withDeleted = false): Promise<DataMart> {
     const entity = await this.dataMartRepository.findOne({
       where: { id, projectId },
       relations: ['connectorState'],
+      withDeleted,
     });
 
     if (!entity) {
@@ -46,6 +47,15 @@ export class DataMartService {
 
   async findByStorage(storage: DataStorage): Promise<DataMart[]> {
     return this.dataMartRepository.find({ where: { storage: { id: storage.id } } });
+  }
+
+  async softDeleteByStorageIdAndProjectId(storageId: string, projectId: string): Promise<void> {
+    await this.dataMartRepository
+      .createQueryBuilder()
+      .softDelete()
+      .where('storageId = :storageId', { storageId })
+      .andWhere('projectId = :projectId', { projectId })
+      .execute();
   }
 
   async softDeleteByIdAndProjectId(id: string, projectId: string): Promise<void> {

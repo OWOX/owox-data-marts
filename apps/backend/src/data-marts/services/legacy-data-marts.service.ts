@@ -229,7 +229,7 @@ export class LegacyDataMartsService {
     if (!response.ok) {
       const errorBody = await response.text();
       if (response.status >= 400 && response.status < 500) {
-        throw new BusinessViolationException(errorBody);
+        throw new BusinessViolationException(errorBody, { status: response.status });
       }
       const errorMessage = `Legacy ODM API request failed with status ${response.status}. Response: ${errorBody}`;
       this.logger.error(errorMessage);

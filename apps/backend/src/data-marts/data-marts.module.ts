@@ -128,6 +128,8 @@ import { InsightRunTriggerHandlerService } from './services/insight-run-trigger-
 import { ConnectorSourceCredentials } from './entities/connector-source-credentials.entity';
 import { ConnectorSourceCredentialsService } from './services/connector-source-credentials.service';
 import { ConnectorOauthService } from './services/connector/connector-oauth.service';
+import { SyncLegacyDataMartService } from './use-cases/legacy-data-marts/sync-legacy-data-mart.service';
+import { SyncLegacyDataMartsByProjectService } from './use-cases/legacy-data-marts/sync-legacy-data-marts-by-project.service';
 
 @Module({
   imports: [
@@ -264,6 +266,8 @@ import { ConnectorOauthService } from './services/connector/connector-oauth.serv
     ConnectorSourceCredentialsService,
     ConnectorOauthService,
     UserProjectionsFetcherService,
+    SyncLegacyDataMartService,
+    SyncLegacyDataMartsByProjectService,
   ],
 })
 export class DataMartsModule {
