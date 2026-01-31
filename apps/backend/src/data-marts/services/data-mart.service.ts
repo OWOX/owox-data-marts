@@ -5,6 +5,7 @@ import { DataMartSchemaMergerFacade } from '../data-storage-types/facades/data-m
 import { DataMartSchemaProviderFacade } from '../data-storage-types/facades/data-mart-schema-provider.facade';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataStorage } from '../entities/data-storage.entity';
+import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 
 @Injectable()
 export class DataMartService {
@@ -14,6 +15,10 @@ export class DataMartService {
     private readonly dataMartSchemaProviderFacade: DataMartSchemaProviderFacade,
     private readonly dataMartSchemaMergerFacade: DataMartSchemaMergerFacade
   ) {}
+
+  create(data: Partial<DataMart>): DataMart {
+    return this.dataMartRepository.create(data);
+  }
 
   async getByIdAndProjectId(id: string, projectId: string): Promise<DataMart> {
     const entity = await this.dataMartRepository.findOne({
@@ -28,8 +33,23 @@ export class DataMartService {
     return entity;
   }
 
+  async findByProjectId(projectId: string): Promise<DataMart[]> {
+    return this.dataMartRepository.find({ where: { projectId } });
+  }
+
+  async findByProjectIdAndDefinitionType(
+    projectId: string,
+    definitionType: DataMartDefinitionType
+  ): Promise<DataMart[]> {
+    return this.dataMartRepository.find({ where: { projectId, definitionType } });
+  }
+
   async findByStorage(storage: DataStorage): Promise<DataMart[]> {
     return this.dataMartRepository.find({ where: { storage: { id: storage.id } } });
+  }
+
+  async softDeleteByIdAndProjectId(id: string, projectId: string): Promise<void> {
+    await this.dataMartRepository.softDelete({ id, projectId });
   }
 
   async actualizeSchema(id: string, projectId: string): Promise<DataMart> {

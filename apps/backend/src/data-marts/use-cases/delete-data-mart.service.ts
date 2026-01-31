@@ -1,16 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { DataMart } from '../entities/data-mart.entity';
 import { DeleteDataMartCommand } from '../dto/domain/delete-data-mart.command';
 import { ScheduledTriggerService } from '../services/scheduled-trigger.service';
 import { ReportService } from '../services/report.service';
+import { DataMartService } from '../services/data-mart.service';
 
 @Injectable()
 export class DeleteDataMartService {
   constructor(
-    @InjectRepository(DataMart)
-    private readonly dataMartRepo: Repository<DataMart>,
+    private readonly dataMartService: DataMartService,
     private readonly scheduledTriggerService: ScheduledTriggerService,
     private readonly reportService: ReportService
   ) {}
@@ -26,9 +23,6 @@ export class DeleteDataMartService {
     );
 
     // Soft delete the data mart
-    await this.dataMartRepo.softDelete({
-      id: command.id,
-      projectId: command.projectId,
-    });
+    await this.dataMartService.softDeleteByIdAndProjectId(command.id, command.projectId);
   }
 }

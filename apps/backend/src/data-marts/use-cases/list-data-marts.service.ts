@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { DataMart } from '../entities/data-mart.entity';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
 import { ListDataMartsCommand } from '../dto/domain/list-data-marts.command';
@@ -10,12 +9,12 @@ import { Report } from '../entities/report.entity';
 import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
+import { DataMartService } from '../services/data-mart.service';
 
 @Injectable()
 export class ListDataMartsService {
   constructor(
-    @InjectRepository(DataMart)
-    private readonly dataMartRepo: Repository<DataMart>,
+    private readonly dataMartService: DataMartService,
     private readonly mapper: DataMartMapper,
     @InjectRepository(DataMartScheduledTrigger)
     private readonly triggerRepo: Repository<DataMartScheduledTrigger>,
@@ -25,9 +24,7 @@ export class ListDataMartsService {
   ) {}
 
   async run(command: ListDataMartsCommand): Promise<DataMartDto[]> {
-    let dataMarts = await this.dataMartRepo.find({
-      where: { projectId: command.projectId },
-    });
+    let dataMarts = await this.dataMartService.findByProjectId(command.projectId);
 
     if (dataMarts.length === 0) {
       return [];
