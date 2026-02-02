@@ -1,5 +1,9 @@
 # Snowflake
 
+## Overview
+
+This tutorial explains how to securely configure **Snowflake as a storage** in **OWOX Data Marts**.
+
 ## Go to the Storages Page
 
 In the OWOX Data Marts web application, navigate to **Storages** from the main navigation pane and click **+ New Storage**.
@@ -15,7 +19,7 @@ Click **Snowflake** to create a new **Storage** configuration.
 
 ## Add title
 
-Give the storage configuration a clear **title**, eg `Snowflake Production`.
+Give the storage configuration a clear **title**, e.g., `Snowflake Production`.
 
 ## Set General Settings and Connection Details
 
@@ -44,6 +48,8 @@ Give the storage configuration a clear **title**, eg `Snowflake Production`.
 > ```sql
 > SELECT CURRENT_ACCOUNT();
 > ```
+
+![Snowflake Account Details dialog with the Account locator field filled in, showing a sample account identifier. The dialog displays account information such as account identifier in a clean, businesslike interface. Sidebar navigation is visible on the left, and the main content area presents account details in a professional tone.](/docs/res/screens/snowflake_filledaccount.png)
 
 ### Enter Warehouse Name
 
