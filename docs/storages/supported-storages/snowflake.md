@@ -1,23 +1,23 @@
 # Snowflake
 
-## 1. Go to the Storages Page
+## Go to the Storages Page
 
 In the OWOX Data Marts web application, navigate to **Storages** from the main navigation pane and click **+ New Storage**.
 
 ![This image illustrates the Snowflake storage configuration screen, highlighting the form fields required for specifying the warehouse name. The arrow in the screenshot is pointing to the input field where users enter the warehouse name, guiding them through the setup process. The interface features a sidebar navigation menu on the left and a main content area displaying the configuration steps.](/docs/res/screens/snowflake_newdestination.png)
 
-## 2. Choose Storage Type
+## Choose Storage Type
 
 Click **Snowflake** to create a new **Storage** configuration.
 > Upon selecting the **+ New Storage** button and specifying the desired storage type, a Storage entry is created.
 > You can create **Data Mart** entities and model a data structure for your project prior to configuring the **Storage**.
 > Note that **Data Mart** cannot be validated or published until the associated **Storage** is fully configured.
 
-## 3. Add title
+## Add title
 
 Give the storage configuration a clear **title**, eg `Snowflake Production`.
 
-## 4. Set General Settings and Connection Details
+## Set General Settings and Connection Details
 
 ### Enter Account Identifier
 
@@ -113,26 +113,30 @@ ALTER USER <your_user>
 
 Once the network policy is active:
 
-1. Open your **storage or integration settings**.
-2. Select **Username + PAT** as the authentication method.
+1. Open your **storage settings**.
+2. Select **Username & PAT** as the authentication method.
 3. Enter:
    - Your **Snowflake username**
-   - Your **PAT** in the password/token field
-4. Save the configuration.
+   - Your **PAT** in the token field
+4. Go to the [Finalize Setup](#finalize-setup).
 
 #### Option 2: Key Pair Authentication
 
-Key pair authentication provides enhanced security and is recommended for production environments.
+Key pair authentication provides **enhanced security** and is the **recommended approach** for setting up Snowflake as a storage
 
 ##### How to set up key pair authentication
 
-1. **Generate a private key** (in the terminal on your local machine):
+- **Generate a private key**
+
+Run the following command in a terminal on your local machine:
 
    ```bash
    openssl genrsa 2048 | openssl pkcs8 -topk8 -inform PEM -out rsa_key.p8 -nocrypt
    ```
 
-2. **Generate a public key**:
+> *If you prefer to protect the key with a passphrase, omit the `-nocrypt` flag.*
+
+- **Generate a public key**:
 
    ```bash
    openssl rsa -in rsa_key.p8 -pubout -out rsa_key.pub
@@ -140,74 +144,104 @@ Key pair authentication provides enhanced security and is recommended for produc
 
    ![Konsole terminal on Linux showing two openssl commands run from the home directory: one generating an RSA private key with pkcs8 and nocrypt options, and a second exporting the public key to rsa_key.pub, both finishing at the shell prompt.](/docs/res/screens/snowflake_terminal.png)
 
-Open the resulting `rsa_key.pub` file to copy the key. If you are not sure where it was saved, check your current directory: run `pwd` on macOS/Linux, or use `echo %cd%` (or `cd`) in Command Prompt on Windows.
+Open the `rsa_key.pub` file in any text editor (for example, VS Code or Sublime Text) and copy its contents. If you are not sure where it was saved, check your current directory: run `pwd` on macOS/Linux, or use `echo %cd%` (or `cd`) in Command Prompt on Windows.
 
 ![Konsole terminal window showing the same openssl commands followed by the `pwd` command to print the working directory, with output indicating the files were saved in /home/vp.](/docs/res/screens/snowflake_pwd.png)
 
-1. **Assign the public key to your Snowflake user**:
+**Assign the public key to your Snowflake user**:
 
    ```sql
    ALTER USER <username> SET RSA_PUBLIC_KEY='MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...';
    ```
 
-   (Remove the `-----BEGIN PUBLIC KEY-----` and `-----END PUBLIC KEY-----` lines and concatenate the remaining lines)
+**Important formatting rules**:
 
-2. **Enter the private key** in OWOX Data Marts:
-   - Copy the entire contents of `rsa_key.p8` file (including the BEGIN/END lines)
-   - Paste it into the **Private Key** field
+- Remove the lines:
 
-3. **Optional - Private Key Passphrase**:
-   - If you encrypted your private key with a passphrase, enter it here
-   - If you used `-nocrypt` option (as shown above), leave this blank
+  ``` text
+  -----BEGIN PUBLIC KEY-----
+  -----END PUBLIC KEY-----
+  ```
 
-> **Security Note:** Never share your private key. Store it securely and never commit it to version control.
+- Concatenate the remaining lines into **one continuous string**
+- Do **not** include line breaks or spaces
 
-### Optional: Role Name
+**Configure Key Pair Authentication in OWOX Data Marts**:
 
-If your Snowflake account uses custom roles, enter the role name here (e.g., `DATA_ENGINEER`).
+1. Choose **Key Pair** as the authentication method.
+2. Open the `rsa_key.p8` file.
+3. Copy the **entire contents**, including:
 
-If left empty, the default role for the user will be used.
+   ``` text
+   -----BEGIN PRIVATE KEY-----
+   ...
+   -----END PRIVATE KEY-----
+   ```
 
-## 5. Finalize Setup
+4. Paste it into the **Private Key** field.
 
-Review your entries and click **Save** to add the **Storage configuration**, or **Cancel** to exit without saving.
+**(Optional) Private Key Passphrase**:
 
-Once saved, OWOX Data Marts will validate the connection to ensure all credentials are correct.
+- If your private key was created **with encryption**, enter the passphrase.
+- If you used the `-nocrypt` option, leave this field **empty**.
+
+🔒 **Security note**  
+Never share your private key.  
+Store it securely (for example, in a password manager or secret vault).
+
+## Finalize Setup
+
+1. Review all entered values.
+2. Click **Save** to add the Snowflake storage configuration  
+   — or **Cancel** to exit without saving.
+
+OWOX Data Marts will automatically validate the connection.
+
+---
 
 ## Next Steps
 
-After configuring your Snowflake storage:
+After Snowflake storage is configured:
 
-1. **Create a Data Mart** that uses this storage
-2. **Define your schema** with Snowflake-specific field types
-3. **Configure a Connector** to load data into Snowflake
-4. **Run reports** and export data from your Snowflake tables
+1. Create a **Data Mart** that uses this storage
+2. Configure a **Connector** to load data into Snowflake
+3. Run reports and work with data in your Snowflake tables
+
+---
 
 ## Troubleshooting
 
-### Connection Failed
+### ❌ Network policy error
 
-- Verify your account identifier is correct (format: `account.region`)
-- Ensure the warehouse name is spelled correctly and exists
-- Check that your username and password are correct
-- For key pair auth, verify the public key is properly assigned to the user
-
-### Permission Denied
-
-Make sure your Snowflake user has the following privileges:
-
-- `USAGE` on the warehouse
-- `CREATE SCHEMA` on the database
-- `CREATE TABLE` on the schema
-- `SELECT`, `INSERT`, `UPDATE` on tables
-
-### Warehouse Not Running
-
-Ensure your warehouse is running and not suspended. You can check this in Snowflake:
-
-```sql
-SHOW WAREHOUSES;
+``` text
+Access validation failed. Snowflake access error:
+Failed to connect to Snowflake: Network policy is required.
 ```
+
+**Cause:**  
+A Snowflake administrator has not applied a required network policy to your user.
+
+**Solution:**  
+Return to [Step 2: Configure Network Policy (Admin Action Required)](#step-2-configure-network-policy-admin-action-required) and ask an admin to apply the policy.  
+After that, try adding the storage again.
+
+---
+
+### ❌ MFA authentication error
+
+``` text
+Access validation failed. Snowflake access error:
+Failed to authenticate: MFA authentication is required,
+but none of your current MFA methods are supported
+for programmatic authentication.
+```
+
+**Cause:**  
+You entered a **password** instead of a PAT (for Option 1) or used the wrong authentication method.
+
+**Solution:**
+
+For **Username + PAT** authentication: [generate a PAT](#option-1-username--programmatic-access-token-pat) and use it instead of a password
 
 ## Additional Resources
 
