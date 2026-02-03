@@ -18,42 +18,23 @@ Select **Snowflake**. The storage record is created immediately, but a Data Mart
 
 Give the storage a clear **title**, e.g., `Snowflake Production`.
 
-## Set General Settings and Connection Details
+## Set Up Authentication
 
-### Enter Account Identifier
+Before you can configure the storage, you must provide valid authentication details. Without proper authentication, the setup cannot proceed. In this section, we'll guide you through gathering and entering the required credentials for Snowflake.
 
-1. In Snowflake, open the account selector and find your account.
-2. Note the region shown there (for example, **US West (Oregon)**).
-3. Click **View account details**.
+> **Note:**  
+> The authentication fields are located in the lower section of the storage configuration form. Make sure to scroll down to find and complete these fields.
 
-   ![Account selector interface in Snowflake web application showing a list of available accounts. The highlighted account displays options including View account details. Sidebar navigation is visible on the left, and the main content area presents account information in a neutral, businesslike tone. On-screen text includes View account details.](/docs/res/screens/snowflake_viewaccount.png)
-
-4. In **Account Details**, copy the value from **Account locator**.
-
-   ![ Snowflake Account Details dialog showing the Account locator field highlighted for copying. The dialog displays account information such as account identifier and account URL in a clean, businesslike interface. On-screen text includes Account locator and other account details. The environment is a neutral web application with sidebar navigation visible on the left. The tone is instructional and professional.](/docs/res/screens/snowflake_accountlocator.png)
-
-5. Build the **account identifier** as `locator.region` (examples: `xy12345.ap-northeast-3.aws`, `xy12345.north-europe.azure`).
-
-> **Note:** For accounts in **AWS US West (Oregon)** the identifier can be just the locator (for example, `xy12345`). If the region is shown in your account selector, include it.
-> **Tip:** You can also run `SELECT CURRENT_ACCOUNT();` in Snowflake to retrieve the identifier.
-
-![Snowflake Account Details dialog with the Account locator field filled in, showing a sample account identifier. The dialog displays account information such as account identifier in a clean, businesslike interface. Sidebar navigation is visible on the left, and the main content area presents account details in a professional tone.](/docs/res/screens/snowflake_filledaccount.png)
-
-### Enter Warehouse Name
-
-- In Snowflake, go to **Compute → Warehouses**
-- Use an existing warehouse or create a new one
-- Copy the warehouse name (e.g., `OWOX_DATA_MARTS`)
-
-> **Best Practice:** Use a dedicated warehouse for OWOX Data Marts to better control costs and performance.
-
-![Snowflake web UI showing Warehouse Activity with blue bars over recent dates; red circles highlight the warehouse name OWOX_DATA_MARTS in the header and the Compute → Warehouses menu path on the left.](/docs/res/screens/snowflake_copytitle.png)
-
-Enter the **warehouse name** in the storage form (use the exact name).
+Connection settings will be covered in the next steps.
 
 ### Choose Authentication Method
 
 Snowflake supports two authentication methods:
+
+- [Option 1: Username + Programmatic Access Token (PAT)](#option-1-username--programmatic-access-token-pat)
+- [Option 2: Key Pair Authentication](#option-2-key-pair-authentication)
+
+**Key Pair Authentication** is recommended for most environments, as it offers enhanced security. However, you can choose the method that best fits your needs. Follow the steps below to gather the required information and complete authentication successfully.
 
 #### Option 1: Username + Programmatic Access Token (PAT)
 
@@ -92,7 +73,7 @@ ALTER USER <your_user>
 - `<policy_name>` with a descriptive name (for example, `owox_network_policy`)
 - `<your_user>` with your Snowflake username
 
-> **Tip:** OWOX Data Marts connects from the external IP `34.38.103.182`. Add this address to allow traffic from the service.
+> **Tip:** The external IP address `34.38.103.182` is the official and permanent address used by OWOX Data Marts to connect to your Snowflake account. You can safely use this exact IP in your network policy configuration. Do not modify or replace it with a different address.
 
 ✅ After the policy is applied, PAT authentication is limited to the allowed addresses.
 
@@ -194,6 +175,54 @@ This step enables key pair authentication for your user account.
 🔒 **Security note**  
 Never share your private key.  
 Store it securely (for example, in a password manager or secret vault).
+
+## Set General Settings and Connection Details
+
+### Enter Account Identifier
+
+1. In Snowflake, open the account selector and find your account.
+2. In the account selector, look for the **region** displayed next to your account name (for example, **US West (Oregon)**).  
+   - Make a note of this region, as it determines the format of your account identifier.
+   - To find the correct format for your cloud provider and region, refer to the official Snowflake documentation:  
+     [Account Identifier formats by cloud and region](https://docs.snowflake.com/en/user-guide/admin-account-identifier#non-vps-account-locator-formats-by-cloud-platform-and-region).
+
+   > **Tip:** The account identifier format may vary depending on whether your Snowflake account is hosted on AWS, Azure, or Google Cloud, and which region it is in. Always double-check the documentation to ensure you use the correct format.
+3. Click **View account details**.
+
+   ![Account selector interface in Snowflake web application showing a list of available accounts. The highlighted account displays options including View account details. Sidebar navigation is visible on the left, and the main content area presents account information in a neutral, businesslike tone. On-screen text includes View account details.](/docs/res/screens/snowflake_viewaccount.png)
+
+4. In **Account Details**, copy the value from **Account locator**.
+
+   ![ Snowflake Account Details dialog showing the Account locator field highlighted for copying. The dialog displays account information such as account identifier and account URL in a clean, businesslike interface. On-screen text includes Account locator and other account details. The environment is a neutral web application with sidebar navigation visible on the left. The tone is instructional and professional.](/docs/res/screens/snowflake_accountlocator.png)
+
+   > **Tip:** To check your account locator directly, run this SQL in Snowflake:
+   >
+   > ```sql
+   > SELECT CURRENT_ACCOUNT();
+   > ```
+
+5. **Construct your account identifier** in the format: `<account_locator>.<region>`
+
+   **Examples:**  
+   - `xy12345.ap-northeast-3.aws`
+   - `xy12345.north-europe.azure`
+
+   > **Note:**  
+   > If your account is in **AWS US West (Oregon)**, the identifier can be just the locator (e.g., `xy12345`).  
+
+![Snowflake Account Details dialog with the Account locator field filled in, showing a sample account identifier. The dialog displays account information such as account identifier in a clean, businesslike interface. Sidebar navigation is visible on the left, and the main content area presents account details in a professional tone.](/docs/res/screens/snowflake_filledaccount.png)
+
+### Enter Warehouse Name
+
+- In Snowflake, go to **Compute → Warehouses**
+- Use an existing warehouse or create a new one
+- Copy the warehouse name (e.g., `OWOX_DATA_MARTS`)
+
+> **Best Practice:** Use a dedicated warehouse for OWOX Data Marts to better control costs and performance.
+
+![Snowflake web UI showing Warehouse Activity with blue bars over recent dates; red circles highlight the warehouse name OWOX_DATA_MARTS in the header and the Compute → Warehouses menu path on the left.](/docs/res/screens/snowflake_copytitle.png)
+
+Enter the **warehouse name** in the storage form (use the exact name).
 
 ## Finalize Setup
 
