@@ -100,9 +100,7 @@ export const SnowflakeFields = ({ form }: SnowflakeFieldsProps) => {
                 <FormLabel>Authentication Method</FormLabel>
                 <Tabs value={field.value} onValueChange={field.onChange}>
                   <TabsList>
-                    <TabsTrigger value={SnowflakeAuthMethod.PASSWORD}>
-                      Username & Password
-                    </TabsTrigger>
+                    <TabsTrigger value={SnowflakeAuthMethod.PASSWORD}>Username & PAT</TabsTrigger>
                     <TabsTrigger value={SnowflakeAuthMethod.KEY_PAIR}>Key Pair</TabsTrigger>
                   </TabsList>
                 </Tabs>
@@ -138,12 +136,12 @@ export const SnowflakeFields = ({ form }: SnowflakeFieldsProps) => {
             name='credentials.password'
             render={({ field }) => (
               <FormItem>
-                <FormLabel tooltip='Your Snowflake password'>Password</FormLabel>
+                <FormLabel tooltip='Your Snowflake PAT'>PAT (Programmatic access token)</FormLabel>
                 <FormControl>
                   <Input
                     {...field}
                     type='password'
-                    placeholder={maskedPasswordValue || 'Enter password'}
+                    placeholder={maskedPasswordValue || 'Enter PAT'}
                   />
                 </FormControl>
                 <FormDescription>

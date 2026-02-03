@@ -31,8 +31,8 @@ const StorageTypeSnowflakeDescription: React.FC = () => {
                 and warehouses.
               </li>
               <li>
-                Choose your authentication method: Username & Password for quick setup, or Key-Pair
-                authentication for production environments.
+                Choose your authentication method: Username & PAT (Programmatic access token) for
+                quick setup, or Key Pair authentication for better security.
               </li>
               <li>Fill in the connection details below (account identifier and warehouse).</li>
               <li>
