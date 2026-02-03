@@ -184,10 +184,13 @@ Store it securely (for example, in a password manager or secret vault).
 
 1. In Snowflake, open the account selector and find your account.
 2. In the account selector, look for the **region** displayed next to your account name (for example, **US West (Oregon)**).  
+
+   > **Tip:** The account identifier format may vary depending on whether your Snowflake account is hosted on AWS, Azure, or Google Cloud, and which region it is in. Always double-check the documentation to ensure you use the correct format.
+
    - Make a note of this region, as it determines the format of your account identifier.
    - To find the correct format for your cloud provider and region, refer to the official Snowflake documentation:  
      [Account Identifier formats by cloud and region](https://docs.snowflake.com/en/user-guide/admin-account-identifier#non-vps-account-locator-formats-by-cloud-platform-and-region).  
-   > **Tip:** The account identifier format may vary depending on whether your Snowflake account is hosted on AWS, Azure, or Google Cloud, and which region it is in. Always double-check the documentation to ensure you use the correct format.
+
 3. Click **View account details**.
 
    ![Account selector interface in Snowflake web application showing a list of available accounts. The highlighted account displays options including View account details. Sidebar navigation is visible on the left, and the main content area presents account information in a neutral, businesslike tone. On-screen text includes View account details.](/docs/res/screens/snowflake_viewaccount.png)
@@ -204,11 +207,12 @@ Store it securely (for example, in a password manager or secret vault).
 
 5. **Construct your account identifier** in the format: `<account_locator>.<region>`
 
+   > **Note:**  
+   > If your account is in **AWS US West (Oregon)**, the identifier can be just the locator (e.g., `xy12345`).
+
    **Examples:**  
    - `xy12345.ap-northeast-3.aws`
-   - `xy12345.north-europe.azure`  
-   > **Note:**  
-   > If your account is in **AWS US West (Oregon)**, the identifier can be just the locator (e.g., `xy12345`).  
+   - `xy12345.north-europe.azure`
 
 ![Snowflake Account Details dialog with the Account locator field filled in, showing a sample account identifier. The dialog displays account information such as account identifier in a clean, businesslike interface. Sidebar navigation is visible on the left, and the main content area presents account details in a professional tone.](/docs/res/screens/snowflake_filledaccount.png)
 
