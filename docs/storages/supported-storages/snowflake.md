@@ -2,56 +2,40 @@
 
 ## Overview
 
-This tutorial explains how to securely configure **Snowflake as a storage** in **OWOX Data Marts**.
+Use this guide to configure **Snowflake as a storage** in **OWOX Data Marts**. The steps below walk you from creating a storage record to finishing authentication and validation.
 
 ## Go to the Storages Page
 
-In the OWOX Data Marts web application, navigate to **Storages** from the main navigation pane and click **+ New Storage**.
+In OWOX Data Marts, open **Storages** from the main navigation pane and click **+ New Storage**.
 
 ![This image illustrates the Snowflake storage configuration screen, highlighting the form fields required for specifying the warehouse name. The arrow in the screenshot is pointing to the input field where users enter the warehouse name, guiding them through the setup process. The interface features a sidebar navigation menu on the left and a main content area displaying the configuration steps.](/docs/res/screens/snowflake_newdestination.png)
 
 ## Choose Storage Type
 
-Click **Snowflake** to create a new **Storage** configuration.
-> Upon selecting the **+ New Storage** button and specifying the desired storage type, a Storage entry is created.
-> You can create **Data Mart** entities and model a data structure for your project prior to configuring the **Storage**.
-> Note that **Data Mart** cannot be validated or published until the associated **Storage** is fully configured.
+Select **Snowflake**. The storage record is created immediately, but a Data Mart cannot be validated or published until the storage is fully configured.
 
-## Add title
+## Add Title
 
-Give the storage configuration a clear **title**, e.g., `Snowflake Production`.
+Give the storage a clear **title**, e.g., `Snowflake Production`.
 
 ## Set General Settings and Connection Details
 
 ### Enter Account Identifier
 
-1. Switch to Snowflake. Open the account selector and review the list of accounts that you previously signed in to.
-2. Find the region in the account selector (e.g. US West (Oregon)).
-3. Compare the found region with the **Account Identifier Region** in [Snowflake documentation](https://docs.snowflake.com/en/user-guide/admin-account-identifier#non-vps-account-locator-formats-by-cloud-platform-and-region) for locator formats by cloud platform and region.
-
-   > **Tip:** If your account region is **US West (Oregon)**, you only need to enter the account identifier in the storage settings.  
-   > Follow the steps below to find your account identifier.
-
-4. Select **View account details**.
+1. In Snowflake, open the account selector and find your account.
+2. Note the region shown there (for example, **US West (Oregon)**).
+3. Click **View account details**.
 
    ![Account selector interface in Snowflake web application showing a list of available accounts. The highlighted account displays options including View account details. Sidebar navigation is visible on the left, and the main content area presents account information in a neutral, businesslike tone. On-screen text includes View account details.](/docs/res/screens/snowflake_viewaccount.png)
 
-5. The **Account Details** dialog displays information about the account, including the account identifier and the account URL.
-6. Copy part of your account identifier from the **Account locator** field.
+4. In **Account Details**, copy the value from **Account locator**.
 
    ![ Snowflake Account Details dialog showing the Account locator field highlighted for copying. The dialog displays account information such as account identifier and account URL in a clean, businesslike interface. On-screen text includes Account locator and other account details. The environment is a neutral web application with sidebar navigation visible on the left. The tone is instructional and professional.](/docs/res/screens/snowflake_accountlocator.png)
 
-7. Create the account identifier by combining the locator and the region like this: `locator.region`
+5. Build the **account identifier** as `locator.region` (examples: `xy12345.ap-northeast-3.aws`, `xy12345.north-europe.azure`).
 
-   Examples:
-   - `xy12345.ap-northeast-3.aws`
-   - `xy12345.north-europe.azure`
-
-> **Tip:** You can also find your account identifier in Snowflake by running:
->
-> ```sql
-> SELECT CURRENT_ACCOUNT();
-> ```
+> **Note:** For accounts in **AWS US West (Oregon)** the identifier can be just the locator (for example, `xy12345`). If the region is shown in your account selector, include it.
+> **Tip:** You can also run `SELECT CURRENT_ACCOUNT();` in Snowflake to retrieve the identifier.
 
 ![Snowflake Account Details dialog with the Account locator field filled in, showing a sample account identifier. The dialog displays account information such as account identifier in a clean, businesslike interface. Sidebar navigation is visible on the left, and the main content area presents account details in a professional tone.](/docs/res/screens/snowflake_filledaccount.png)
 
@@ -65,7 +49,7 @@ Give the storage configuration a clear **title**, e.g., `Snowflake Production`.
 
 ![Snowflake web UI showing Warehouse Activity with blue bars over recent dates; red circles highlight the warehouse name OWOX_DATA_MARTS in the header and the Compute → Warehouses menu path on the left.](/docs/res/screens/snowflake_copytitle.png)
 
-Enter warhouse name in the appropriate field.
+Enter the **warehouse name** in the storage form (use the exact name).
 
 ### Choose Authentication Method
 
@@ -79,13 +63,10 @@ Snowflake supports two authentication methods:
 ##### Step 1. Generate a Programmatic Access Token (PAT)
 
 1. Log in to Snowflake.
-2. Go to user menu: **Settings → Authentication**.
-3. Scroll down to **Programmatic access tokens**.
-4. Click **Generate new token**.
-5. Specify:
-   - **Token name** (for example: `OWOX_TOKEN`)
-   - **Expiration period** (up to **1 year**)
-6. Click **Generate**.
+2. Go to **Settings → Authentication** (user menu).
+3. Scroll to **Programmatic access tokens** and click **Generate new token**.
+4. Enter a **Token name** (e.g., `OWOX_TOKEN`) and choose an expiration (up to **1 year** by default).
+5. Click **Generate**.
 
 > ⚠️ **Important**  
 > Copy the token immediately or download it and store it securely (for example, in a password manager).  
@@ -95,12 +76,9 @@ Snowflake supports two authentication methods:
 
 ##### Step 2. Configure Network Policy (Admin Action Required)
 
-For security reasons, Snowflake requires a **network policy** when PAT authentication is used.  
-A Snowflake **account administrator** must explicitly allow connections from trusted IP addresses.
-Example of the query:
+By default, Snowflake requires PAT users to be covered by a **network policy**. A Snowflake **account administrator** must allow connections from trusted IP addresses. Example:
 
 ```sql
-
 CREATE NETWORK POLICY <policy_name>
   ALLOWED_IP_LIST = ('34.38.103.182');
 
@@ -114,9 +92,9 @@ ALTER USER <your_user>
 - `<policy_name>` with a descriptive name (for example, `owox_network_policy`)
 - `<your_user>` with your Snowflake username
 
-> **Tip:** The IP address `34.38.103.182` is the actual external IP used by OWOX Data Marts to connect to your Snowflake instance. You can safely include this IP in your network policy configuration in production environments to allow access from OWOX Data Marts services.
+> **Tip:** OWOX Data Marts connects from the external IP `34.38.103.182`. Add this address to allow traffic from the service.
 
-✅ **After the policy is applied**, Snowflake will allow PAT-based authentication **only from the specified IP address**.
+✅ After the policy is applied, PAT authentication is limited to the allowed addresses.
 
 ##### Step 3. Configure Storage
 
@@ -131,11 +109,11 @@ Once the network policy is active:
 
 ![Snowflake interface displaying the Enter PAT (Personal Access Token) screen, prompting the user to input their token for authentication. The screen features a text input field labeled Personal Access Token and a button labeled Continue. The environment is a clean, modern web application interface with a neutral, professional tone. No additional emotional cues are present.](/docs/res/screens/snowflake_enterpat.png)
 
+---
+
 #### Option 2: Key Pair Authentication
 
-Key pair authentication provides **enhanced security** and is the **recommended approach** for setting up Snowflake as a storage
-
----
+Key pair authentication provides **enhanced security** and is the **recommended approach** for setting up Snowflake as a storage.
 
 ##### Step 1. Generate a private key
 
@@ -267,7 +245,8 @@ You entered a **password** instead of a PAT (for Option 1) or used the wrong aut
 
 **Solution:**
 
-For **Username + PAT** authentication: [generate a PAT](#option-1-username--programmatic-access-token-pat) and use it instead of a password
+For **Username + PAT** authentication: [generate a PAT](#option-1-username--programmatic-access-token-pat) and use it instead of a password.  
+For **Key Pair** authentication: ensure you selected **Key Pair** and pasted the private key from `rsa_key.p8`.
 
 ### ❌ Insufficient privileges error in the Snowflake interface
 
