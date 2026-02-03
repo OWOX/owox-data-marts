@@ -75,7 +75,7 @@ ALTER USER <your_user>
 
 > **Tip:** The external IP address `34.38.103.182` is the official and permanent address used by OWOX Data Marts to connect to your Snowflake account. You can safely use this exact IP in your network policy configuration. Do not modify or replace it with a different address.
 
-✅ After the policy is applied, PAT authentication is restricted to the IP addresses specified in the network policy. This means you will only be able to access Snowflake using a PAT from the allowed IPs (such as OWOX Data Marts' official address). If you attempt to connect from any other IP address—including your own workstation or an unlisted server, Snowflake will block the connection.  
+✅ After the policy is applied, PAT authentication is restricted to the IP addresses specified in the network policy. This means you will only be able to access Snowflake using a PAT from the allowed IPs (such as OWOX Data Marts' official address). If you attempt to connect from any other IP address including your own workstation or an unlisted server, Snowflake will block the connection.  
 **Technical note:** Snowflake enforces network policies at the account level for users authenticated via PAT, ensuring that only requests originating from permitted IPs are accepted.  
 If you need direct access from your own IP, ask your administrator to add it to the network policy.
 
@@ -187,7 +187,6 @@ Store it securely (for example, in a password manager or secret vault).
    - Make a note of this region, as it determines the format of your account identifier.
    - To find the correct format for your cloud provider and region, refer to the official Snowflake documentation:  
      [Account Identifier formats by cloud and region](https://docs.snowflake.com/en/user-guide/admin-account-identifier#non-vps-account-locator-formats-by-cloud-platform-and-region).  
-
    > **Tip:** The account identifier format may vary depending on whether your Snowflake account is hosted on AWS, Azure, or Google Cloud, and which region it is in. Always double-check the documentation to ensure you use the correct format.
 3. Click **View account details**.
 
@@ -208,7 +207,6 @@ Store it securely (for example, in a password manager or secret vault).
    **Examples:**  
    - `xy12345.ap-northeast-3.aws`
    - `xy12345.north-europe.azure`  
-
    > **Note:**  
    > If your account is in **AWS US West (Oregon)**, the identifier can be just the locator (e.g., `xy12345`).  
 
@@ -294,7 +292,8 @@ Once the admin has completed this step, try adding the storage again.
 ### ❌ Incoming request error in the Snowflake interface
 
 ```text
-Incoming request with IP/Token 00.00.000.000 is not allowed to access Snowflake. Contact your account administrator. For more information about this error, click here.
+Incoming request with IP/Token 00.00.000.000 is not allowed to access Snowflake. 
+Contact your account administrator. For more information about this error, click here.
 ```
 
 **Cause:**  
