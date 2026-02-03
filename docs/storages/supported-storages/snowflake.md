@@ -44,7 +44,7 @@ Snowflake supports two authentication methods:
 ##### Step 1. Generate a Programmatic Access Token (PAT)
 
 1. Log in to Snowflake.
-2. Go to **Settings → Authentication** (user menu).
+2. Go from the user menu to **Settings → Authentication**.
 3. Scroll to **Programmatic access tokens** and click **Generate new token**.
 4. Enter a **Token name** (e.g., `OWOX_TOKEN`) and choose an expiration (up to **1 year** by default).
 5. Click **Generate**.
@@ -75,7 +75,9 @@ ALTER USER <your_user>
 
 > **Tip:** The external IP address `34.38.103.182` is the official and permanent address used by OWOX Data Marts to connect to your Snowflake account. You can safely use this exact IP in your network policy configuration. Do not modify or replace it with a different address.
 
-✅ After the policy is applied, PAT authentication is limited to the allowed addresses.
+✅ After the policy is applied, PAT authentication is restricted to the IP addresses specified in the network policy. This means you will only be able to access Snowflake using a PAT from the allowed IPs (such as OWOX Data Marts' official address). If you attempt to connect from any other IP address—including your own workstation or an unlisted server, Snowflake will block the connection.  
+**Technical note:** Snowflake enforces network policies at the account level for users authenticated via PAT, ensuring that only requests originating from permitted IPs are accepted.  
+If you need direct access from your own IP, ask your administrator to add it to the network policy.
 
 ##### Step 3. Configure Storage
 
@@ -86,7 +88,7 @@ Once the network policy is active:
 3. Enter:
    - Your **Snowflake username**
    - Your **PAT** in the token field
-4. Go to the [Finalize Setup](#finalize-setup).
+4. Go to the [Set General Settings and Connection Details](#set-general-settings-and-connection-details) section.
 
 ![Snowflake interface displaying the Enter PAT (Personal Access Token) screen, prompting the user to input their token for authentication. The screen features a text input field labeled Personal Access Token and a button labeled Continue. The environment is a clean, modern web application interface with a neutral, professional tone. No additional emotional cues are present.](/docs/res/screens/snowflake_enterpat.png)
 
@@ -161,7 +163,7 @@ This step enables key pair authentication for your user account.
    ```
 
    > **Tip:** For key pair authentication, you must use your **private key** from the `.p8` file (not the `.pub` file).  
-   > Open the `rsa_key.p8` file you generated earlier and copy its entire contents—including the header and footer lines for this step.
+   > Open the `rsa_key.p8` file you generated earlier and copy its entire contents including the header and footer lines for this step.
 
 4. Paste it into the **Private Key** field.
 
@@ -173,7 +175,7 @@ This step enables key pair authentication for your user account.
 - If you used the `-nocrypt` option, leave this field **empty**.
 
 🔒 **Security note**  
-Never share your private key.  
+Never share your private key outside the organization.  
 Store it securely (for example, in a password manager or secret vault).
 
 ## Set General Settings and Connection Details
@@ -184,7 +186,7 @@ Store it securely (for example, in a password manager or secret vault).
 2. In the account selector, look for the **region** displayed next to your account name (for example, **US West (Oregon)**).  
    - Make a note of this region, as it determines the format of your account identifier.
    - To find the correct format for your cloud provider and region, refer to the official Snowflake documentation:  
-     [Account Identifier formats by cloud and region](https://docs.snowflake.com/en/user-guide/admin-account-identifier#non-vps-account-locator-formats-by-cloud-platform-and-region).
+     [Account Identifier formats by cloud and region](https://docs.snowflake.com/en/user-guide/admin-account-identifier#non-vps-account-locator-formats-by-cloud-platform-and-region).  
 
    > **Tip:** The account identifier format may vary depending on whether your Snowflake account is hosted on AWS, Azure, or Google Cloud, and which region it is in. Always double-check the documentation to ensure you use the correct format.
 3. Click **View account details**.
@@ -205,7 +207,7 @@ Store it securely (for example, in a password manager or secret vault).
 
    **Examples:**  
    - `xy12345.ap-northeast-3.aws`
-   - `xy12345.north-europe.azure`
+   - `xy12345.north-europe.azure`  
 
    > **Note:**  
    > If your account is in **AWS US West (Oregon)**, the identifier can be just the locator (e.g., `xy12345`).  
@@ -227,8 +229,7 @@ Enter the **warehouse name** in the storage form (use the exact name).
 ## Finalize Setup
 
 1. Review all entered values.
-2. Click **Save** to add the Snowflake storage configuration  
-   — or **Cancel** to exit without saving.
+2. Click **Save** to add the Snowflake storage configuration.
 
 OWOX Data Marts will automatically validate the connection.
 
@@ -289,6 +290,20 @@ Your Snowflake user does not have the required permissions to run the query.
 **Solution:**  
 Ask your Snowflake administrator to run the command for you or grant the necessary privileges.  
 Once the admin has completed this step, try adding the storage again.
+
+### ❌ Incoming request error in the Snowflake interface
+
+```text
+Incoming request with IP/Token 00.00.000.000 is not allowed to access Snowflake. Contact your account administrator. For more information about this error, click here.
+```
+
+**Cause:**  
+Your network policy does not include the IP address from which you are trying to access Snowflake. By default, the policy may only allow connections from the official OWOX Data Marts IP (`34.38.103.182`). If you attempt to connect from your own workstation or any other unlisted IP, access will be denied.
+
+**Solution:**  
+Ask your Snowflake administrator to update the network policy to include your current IP address in addition to the OWOX Data Marts IP.  
+Refer to [Step 2: Configure Network Policy (Admin Action Required)](#step-2-configure-network-policy-admin-action-required) for instructions on modifying the allowed IP list.  
+After the policy is updated, retry the connection.
 
 ## Additional Resources
 
