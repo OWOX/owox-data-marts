@@ -75,8 +75,8 @@ export function getAthenaRegionUrl(region: string): string {
  * @returns The Redshift Query Editor v2 console URL for the specified region
  */
 export function getRedshiftQueryEditorUrl(region: string): string {
-  const encodedRegion = encodeURIComponent(region);
-  return `https://console.aws.amazon.com/redshiftv2/home?region=${encodedRegion}#/query-editor`;
+  // We don't encode region here because it's part of the domain data
+  return `https://${region}.console.aws.amazon.com/sqlworkbench/home`;
 }
 
 /**
