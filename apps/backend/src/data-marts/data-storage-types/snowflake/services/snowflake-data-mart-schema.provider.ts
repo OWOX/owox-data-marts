@@ -77,8 +77,7 @@ export class SnowflakeDataMartSchemaProvider implements DataMartSchemaProvider {
       }
 
       this.logger.debug('Table does not exist yet, deriving schema from query');
-      const baseQuery = this.queryBuilder.buildQuery(definition);
-      const query = `${baseQuery} LIMIT 0`;
+      const query = this.queryBuilder.buildQuery(definition, { limit: 0 });
 
       const { metadata } = await adapter.executeQuery(query, true);
 
