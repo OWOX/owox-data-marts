@@ -2,7 +2,7 @@
 new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
 j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-})(window,document,'script','dataLayer','GTM-TVQPWGV6');</script><link rel="shortcut icon" href="/favicon.png" type="image/png"/><meta name="generator" content="Astro v5.16.13"/><meta name="generator" content="Starlight v0.34.8"/><meta property="og:type" content="article"/><meta property="og:url" content="https://docs.owox.com/packages/connectors/src/sources/linked-in-ads/getting-started/"/><meta property="og:locale" content="en"/><meta property="og:site_name" content="OWOX Data Marts"/><meta name="twitter:card" content="summary_large_image"/><meta name="description" content="Learn how to effectively import data from LinkedIn Ads into OWOX Data Marts with this step-by-step guide."/><meta property="og:title" content="Master the Art of Importing LinkedIn Ads Data!"/><meta property="og:description" content="Ready to harness the power of LinkedIn Ads data? Check out this easy-to-follow guide to import your data into OWOX Data Marts!"/><script>
+})(window,document,'script','dataLayer','GTM-TVQPWGV6');</script><link rel="shortcut icon" href="/favicon.png" type="image/png"/><meta name="generator" content="Astro v5.17.1"/><meta name="generator" content="Starlight v0.34.8"/><meta property="og:type" content="article"/><meta property="og:url" content="https://docs.owox.com/packages/connectors/src/sources/linked-in-ads/getting-started/"/><meta property="og:locale" content="en"/><meta property="og:site_name" content="OWOX Data Marts"/><meta name="twitter:card" content="summary_large_image"/><meta name="description" content="Learn how to effectively import data from LinkedIn Ads into OWOX Data Marts with this step-by-step guide."/><meta property="og:title" content="Master the Art of Importing LinkedIn Ads Data!"/><meta property="og:description" content="Ready to harness the power of LinkedIn Ads data? Check out this easy-to-follow guide to import your data into OWOX Data Marts!"/><script>
 	window.StarlightThemeProvider = (() => {
 		const storedTheme =
 			typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme');
@@ -116,14 +116,14 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <li>You have created a <strong>refresh token</strong> (as described in <a href="/packages/connectors/src/sources/linked-in-ads/credentials/">CREDENTIALS</a>) and securely saved your <strong>Client ID</strong> and <strong>Primary Client Secret</strong>.</li>
 <li>You have <a href="https://docs.owox.com/docs/getting-started/quick-start/" rel="noopener noreferrer" target="_blank">set up <strong>OWOX Data Marts</strong></a> and created at least one storage in the <strong>Storages</strong> section.</li>
 </ul>
-<p><img alt="LinkedIn Ads Storage" loading="lazy" decoding="async" fetchpriority="auto" width="2858" height="656" src="/_astro/bank-storage.CmHTztHf_1jqWxr.webp" ></p>
+<p><img alt="LinkedIn Ads Storage" loading="lazy" decoding="async" fetchpriority="auto" width="2858" height="656" src="/_astro/bank-storage.CmHTztHf_Z2ey3oG.webp" ></p>
 <div class="sl-heading-wrapper level-h2"><h2 id="create-the-data-mart">Create the Data Mart</h2><a class="sl-anchor-link" href="#create-the-data-mart"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only">Section titled “Create the Data Mart”</span></a></div>
 <ul>
 <li>Click <strong>New Data Mart</strong>.</li>
 <li>Enter a title and select the Storage.</li>
 <li>Click <strong>Create Data Mart</strong>.</li>
 </ul>
-<p><img alt="LinkedIn Ads New Data Mart" loading="lazy" decoding="async" fetchpriority="auto" width="2858" height="1498" src="/_astro/linkedin-ads-newdatamart.CJKf-Ida_Z1Vqp6s.webp" ></p>
+<p><img alt="LinkedIn Ads New Data Mart" loading="lazy" decoding="async" fetchpriority="auto" width="2858" height="1498" src="/_astro/linkedin-ads-newdatamart.CJKf-Ida_gD4a1.webp" ></p>
 <div class="sl-heading-wrapper level-h2"><h2 id="set-up-the-connector">Set Up the Connector</h2><a class="sl-anchor-link" href="#set-up-the-connector"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only">Section titled “Set Up the Connector”</span></a></div>
 <ol>
 <li>Select <strong>Connector</strong> as the input source type.</li>
@@ -138,9 +138,9 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 </ul>
 </li>
 </ol>
-<p><img alt="LinkedIn Ads Input Source" loading="lazy" decoding="async" fetchpriority="auto" width="2858" height="1272" src="/_astro/bank-connector.BM4JXoFH_1aWRyS.webp" ></p>
-<p><img alt="LinkedIn Ads Fill Data" loading="lazy" decoding="async" fetchpriority="auto" width="2858" height="1550" src="/_astro/linkedin-ads-fill-data.C2RYmOUH_2hen4t.webp" ></p>
-<p><img alt="LinkedIn Account URN" loading="lazy" decoding="async" fetchpriority="auto" width="1429" height="881" src="/_astro/linkedin-account.DjNlSybF_Z1SJ9Sh.webp" ></p>
+<p><img alt="LinkedIn Ads Input Source" loading="lazy" decoding="async" fetchpriority="auto" width="2858" height="1272" src="/_astro/bank-connector.BM4JXoFH_Z1BDacy.webp" ></p>
+<p><img alt="LinkedIn Ads Fill Data" loading="lazy" decoding="async" fetchpriority="auto" width="2858" height="1550" src="/_astro/linkedin-ads-fill-data.C2RYmOUH_Z1qdswu.webp" ></p>
+<p><img alt="LinkedIn Account URN" loading="lazy" decoding="async" fetchpriority="auto" width="1429" height="881" src="/_astro/linkedin-account.DjNlSybF_nPV9d.webp" ></p>
 <div class="sl-heading-wrapper level-h2"><h2 id="configure-data-import">Configure Data Import</h2><a class="sl-anchor-link" href="#configure-data-import"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only">Section titled “Configure Data Import”</span></a></div>
 <ol>
 <li>Choose one of the available <strong>endpoints</strong>.</li>
@@ -148,31 +148,31 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 <li>Specify the <strong>dataset</strong> where the data will be stored (or leave the default).</li>
 <li>Click <strong>Finish</strong>, then <strong>Publish Data Mart</strong>.</li>
 </ol>
-<p><img alt="LinkedIn Ads Publish Data Mart" loading="lazy" decoding="async" fetchpriority="auto" width="2858" height="1480" src="/_astro/linkedin-ads-publish.BOu93Ee-_187ENL.webp" ></p>
+<p><img alt="LinkedIn Ads Publish Data Mart" loading="lazy" decoding="async" fetchpriority="auto" width="2858" height="1480" src="/_astro/linkedin-ads-publish.BOu93Ee-_2vs5sb.webp" ></p>
 <div class="sl-heading-wrapper level-h2"><h2 id="run-the-data-mart">Run the Data Mart</h2><a class="sl-anchor-link" href="#run-the-data-mart"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only">Section titled “Run the Data Mart”</span></a></div>
 <p>You now have two options for importing data from LinkedIn Pages:</p>
 <p>Option 1: Import Current Day’s Data</p>
 <p>Choose <strong>Manual run → Incremental load</strong> to load data for the <strong>current day</strong>.</p>
-<p><img alt="Linkedin Ads Import New Data" loading="lazy" decoding="async" fetchpriority="auto" width="2858" height="950" src="/_astro/linkedin-ads-incremental.C1vo7dXD_1qHVRw.webp" ></p>
-<p><img alt="Linkedin Ads Incremental Load" loading="lazy" decoding="async" fetchpriority="auto" width="2858" height="2846" src="/_astro/bank-currentday.CM1KRVNt_Z12RotP.webp" ></p>
+<p><img alt="Linkedin Ads Import New Data" loading="lazy" decoding="async" fetchpriority="auto" width="2858" height="950" src="/_astro/linkedin-ads-incremental.C1vo7dXD_Z2gISIr.webp" ></p>
+<p><img alt="Linkedin Ads Incremental Load" loading="lazy" decoding="async" fetchpriority="auto" width="2858" height="2846" src="/_astro/bank-currentday.CM1KRVNt_Z1ijlFF.webp" ></p>
 <blockquote>
 <p>ℹ️ If you click <strong>Incremental load</strong> again after a successful initial load,<br>
 the connector will import: <strong>Current day’s data</strong>, plus <strong>Additional days</strong>, based on the value in the <strong>Reimport Lookback Window</strong> field.</p>
 </blockquote>
-<p><img alt="LinkedIn Ads Reimport" loading="lazy" decoding="async" fetchpriority="auto" width="2858" height="976" src="/_astro/linkedin-ads-reimportwindow.BLBAnUA3_1v0UA2.webp" ></p>
+<p><img alt="LinkedIn Ads Reimport" loading="lazy" decoding="async" fetchpriority="auto" width="2858" height="976" src="/_astro/linkedin-ads-reimportwindow.BLBAnUA3_Z12uduj.webp" ></p>
 <p>Option 2: Manual Backfill for Specific Date Range</p>
 <p>Choose <strong>Backfill (custom period)</strong> to load historical data.</p>
 <ol>
 <li>Select the <strong>Start Date</strong> and <strong>End Date</strong>.</li>
 <li>Click the <strong>Run</strong> button.</li>
 </ol>
-<p><img alt="LinkedIn Ads Backfill" loading="lazy" decoding="async" fetchpriority="auto" width="2858" height="3348" src="/_astro/bank-daterange.BEVlHYc1_ZBJfrG.webp" ></p>
+<p><img alt="LinkedIn Ads Backfill" loading="lazy" decoding="async" fetchpriority="auto" width="2858" height="3348" src="/_astro/bank-daterange.BEVlHYc1_1EPPzN.webp" ></p>
 <p>The process is complete when the <strong>Run history</strong> tab shows the message:<br>
 <strong>“Success”</strong></p>
-<p><img alt="LinkedIn Ads Success" loading="lazy" decoding="async" fetchpriority="auto" width="1429" height="423" src="/_astro/linkedin-ads-successrun.hVJ2x_Na_Z1d9onk.webp" ></p>
+<p><img alt="LinkedIn Ads Success" loading="lazy" decoding="async" fetchpriority="auto" width="1429" height="423" src="/_astro/linkedin-ads-successrun.hVJ2x_Na_WCt5T.webp" ></p>
 <div class="sl-heading-wrapper level-h2"><h2 id="access-your-data">Access Your Data</h2><a class="sl-anchor-link" href="#access-your-data"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentcolor" d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 0 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 1 0-1.42-1.42Zm8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 0 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 1 0 1.42 1.42l3.88-3.89a4.49 4.49 0 0 0 0-6.33ZM8.83 15.17a1 1 0 0 0 1.1.22 1 1 0 0 0 .32-.22l4.92-4.92a1 1 0 0 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42Z"></path></svg></span><span class="sr-only">Section titled “Access Your Data”</span></a></div>
 <p>Once the run is complete, the data will be written to the dataset you specified earlier.</p>
-<p><img alt="LinkedIn Ads Import Success" loading="lazy" decoding="async" fetchpriority="auto" width="1429" height="629" src="/_astro/linkedin-ads-bq.BA80cjNe_Z19e2TP.webp" ></p>
+<p><img alt="LinkedIn Ads Import Success" loading="lazy" decoding="async" fetchpriority="auto" width="1429" height="629" src="/_astro/linkedin-ads-bq.BA80cjNe_2cosxw.webp" ></p>
 <p>If you encounter any issues:</p>
 <ol>
 <li>Check the Run history for specific error messages</li>
