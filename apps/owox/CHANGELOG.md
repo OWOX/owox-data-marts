@@ -1,8 +1,8 @@
 # owox
 
-## 0.18.0
-
 ### Minor Changes 0.18.0
+
+![OWOX Data Marts – v0.18.0](https://github.com/user-attachments/assets/8053b97b-a659-440a-8b43-ed865fb7f315)
 
 - 68d72af: # Add Databricks storage type with Personal Access Token authentication
 
@@ -10,6 +10,17 @@
   - **Authentication:** Personal Access Token
   - **Storage Configuration:** Host, HTTP Path
   - **Driver:** @databricks/sql
+
+- ee0459e: # Add OAuth flow for TikTok Ads connector
+  - Added support for OAuth2 authentication in the TikTok Ads connector
+  - Implemented OAuth credential exchange
+  - Added TikTok login button UI component for OAuth flow
+  - Added OAuth callback page for handling TikTok authorization redirect
+  - Manual credential entry option remains available as fallback
+
+- 38d3593: # Improved Looker Studio destination stability
+
+  Enhanced Looker Studio destination stability and performance by implementing data streaming. This update ensures a smoother user experience and more reliable delivery of large datasets from Data Marts.
 
 - 38d3593: # Descriptions for fields in AWS Redshift tables
 
@@ -32,22 +43,11 @@
 
   Enhanced Snowflake data mart schema derivation to properly handle queries with LIMIT clauses by wrapping them in subqueries instead of naive concatenation. This ensures that the schema is derived correctly even when the query contains a LIMIT clause.
 
-- 38d3593: # Improved Looker Studio destination stability
-
-  Enhanced Looker Studio destination stability and performance by implementing data streaming. This update ensures a smoother user experience and more reliable delivery of large datasets from Data Marts.
-
 - 997fcba: # Update Snowflake storage UI to use PAT terminology
 
   Updated the Snowflake storage settings interface to refer to "PAT (Programmatic Access Token)" instead of "Password" to align with Snowflake's current terminology.
 
   **This is a visual change only.** Your existing configurations remain unchanged, and **no action is required on your part**. Everything will continue to work as before.
-
-- ee0459e: # Add OAuth flow for TikTok Ads connector
-  - Added support for OAuth2 authentication in the TikTok Ads connector
-  - Implemented OAuth credential exchange
-  - Added TikTok login button UI component for OAuth flow
-  - Added OAuth callback page for handling TikTok authorization redirect
-  - Manual credential entry option remains available as fallback
 
 ### Patch Changes 0.18.0
 
