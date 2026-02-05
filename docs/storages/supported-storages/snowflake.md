@@ -1,8 +1,37 @@
-# Snowflake
+# Snowflake Storage Setup
 
 ## Overview
 
 Use this guide to configure **Snowflake as a storage** in **OWOX Data Marts**. The steps below walk you from creating a storage record to finishing authentication and validation.
+
+## Account Prerequisites
+
+Before you begin, ensure you have a Snowflake account with the right permissions and access.
+
+To set up Snowflake storage in OWOX Data Marts, your account should:
+
+- **Have write access** to the warehouse and database where OWOX Data Marts will store data.
+- **Be assigned roles and permissions** that allow you to create or use warehouses, schemas, and tables (detailed steps are provided below).
+- **Follow your organization’s security policies** for account access and management.
+
+If you’re unsure about your permissions, contact your Snowflake administrator before proceeding.
+
+### Best Practice: Use a Dedicated Service Account
+
+For better security and governance, we highly recommend using a **dedicated service account** specifically for the OWOX Data Marts integration, rather than using a personal user account.
+
+**Why use a dedicated account?**
+
+- **Security:** Limits exposure if credentials are ever compromised.
+- **Stability:** Prevents interruptions caused by employee role changes or departures.
+- **Auditing:** Makes it easier to track changes and monitor activity related specifically to Data Marts.
+- **Safety:** Reduces the risk of accidental data modification by human users.
+
+**Can I use my personal account?**
+
+Yes, you can use your personal Snowflake account if your internal policies allow it. However, you must ensure it has the correct permissions and that you follow your organization's security guidelines.
+
+> **Recommendation:** If you are setting up a production environment, ask your Snowflake administrator to create a specific service user (e.g., `OWOX_SERVICE_USER`) for this integration.
 
 ## Go to the Storages Page
 
@@ -38,12 +67,12 @@ Snowflake supports two authentication methods:
 
 #### Option 1: Username + Programmatic Access Token (PAT)
 
-1. **Username**: Your Snowflake user login
+1. **Username**: Login for your Snowflake user or service account
 2. **Programmatic Access Token (PAT)**: A secure token used instead of a password for programmatic access
 
 ##### Step 1. Generate a Programmatic Access Token (PAT)
 
-1. Log in to Snowflake.
+1. Log in to the Snowflake account ensuring you’re using the specific user or service account intended for the OWOX Data Marts integration.
 2. Go from the user menu to **Settings → Authentication**.
 3. Scroll to **Programmatic access tokens** and click **Generate new token**.
 4. Enter a **Token name** (e.g., `OWOX_TOKEN`) and choose an expiration (up to **1 year** by default).
@@ -71,7 +100,7 @@ ALTER USER <your_user>
 **Replace:**
 
 - `<policy_name>` with a descriptive name (for example, `owox_network_policy`)
-- `<your_user>` with your Snowflake username
+- `<your_user>` with the dedicated account login name (e.g., `OWOX_SERVICE_USER`)
 
 > **Tip:** The external IP address `34.38.103.182` is the official and permanent address used by OWOX Data Marts to connect to your Snowflake account. You can safely use this exact IP in your network policy configuration. Do not modify or replace it with a different address.
 
@@ -83,11 +112,11 @@ If you need direct access from your own IP, ask your administrator to add it to 
 
 Once the network policy is active:
 
-1. Open your **storage settings**.
+1. Return to the **OWOX Data Marts** interface and verify you are in the new storage configuration screen.
 2. Select **Username & PAT** as the authentication method.
-3. Enter:
-   - Your **Snowflake username**
-   - Your **PAT** in the token field
+3. Enter the required credentials:
+   - In the **Username** field, enter the Snowflake login name for your dedicated user (e.g., `OWOX_SERVICE_USER`).
+   - In the **Personal Access Token** field, paste the **PAT** you generated in Step 1.
 4. Go to the [Set General Settings and Connection Details](#set-general-settings-and-connection-details) section.
 
 ![Snowflake interface displaying the Enter PAT (Personal Access Token) screen, prompting the user to input their token for authentication. The screen features a text input field labeled Personal Access Token and a button labeled Continue. The environment is a clean, modern web application interface with a neutral, professional tone. No additional emotional cues are present.](/docs/res/screens/snowflake_enterpat.png)
@@ -122,14 +151,16 @@ Open the `rsa_key.pub` file in any text editor (for example, VS Code or Sublime 
 
 ##### Step 3. Assign the public key to your Snowflake user
 
-Return to the Snowflake interface. Assign your public key to your Snowflake user by running the following SQL command:
+Log in to the Snowflake interface using the dedicated user account you are configuring for the storage. Run the following SQL command to assign the public key to your user:
 
 ```sql
 ALTER USER "<your_username>" SET RSA_PUBLIC_KEY='<your_public_key>';
 ```
 
-- Replace `<your_username>` with your actual Snowflake username.
-- Replace `<your_public_key>` with the full public key string you copied from the `rsa_key.pub` file.
+**Replace the placeholders:**
+
+- `<your_username>`: The Snowflake login name for your dedicated user (e.g., `OWOX_SERVICE_USER`).
+- `<your_public_key>`: The full public key string copied from your `rsa_key.pub` file.
 
 This step enables key pair authentication for your user account.
 
@@ -147,7 +178,7 @@ This step enables key pair authentication for your user account.
 
 ![Snowflake web interface displaying the SQL worksheet with an ALTER USER command to set the RSA public key for a user. The SQL editor area shows the command with placeholders for username and public key, and the interface includes sidebar navigation and a results pane below the editor. The environment is clean and businesslike, focusing on the key assignment process.](/docs/res/screens/snowflake_setpublickey.png)
 
-> If you encounter the error `SQL access control error: Insufficient privileges to operate on user '<your_user>'.`, it means your Snowflake user does not have the necessary permissions.  
+> If you encounter the error `SQL access control error: Insufficient privileges to operate on user '<your_username>'.`, it means your Snowflake user does not have the necessary permissions.  
 > Please ask your Snowflake administrator to run the required command or grant you the appropriate privileges.
 
 ##### Step 4. Configure Key Pair Authentication in OWOX Data Marts
@@ -182,8 +213,8 @@ Store it securely (for example, in a password manager or secret vault).
 
 ### Enter Account Identifier
 
-1. In Snowflake, open the account selector and find your account.
-2. In the account selector, look for the **region** displayed next to your account name (for example, **US West (Oregon)**).  
+1. In Snowflake, open the account selector and find your dedicated account.
+2. In the account selector, look for the **region** displayed next to account name (for example, **US West (Oregon)**).  
 
    > **Tip:** The account identifier format may vary depending on whether your Snowflake account is hosted on AWS, Azure, or Google Cloud, and which region it is in. Always double-check the documentation to ensure you use the correct format.
 
@@ -255,7 +286,7 @@ Failed to connect to Snowflake: Network policy is required.
 ```
 
 **Cause:**  
-A Snowflake administrator has not applied a required network policy to your user.
+A Snowflake administrator has not applied a required network policy to dedicated user.
 
 **Solution:**  
 Return to [Step 2: Configure Network Policy (Admin Action Required)](#step-2-configure-network-policy-admin-action-required) and ask an admin to apply the policy.  
@@ -304,7 +335,7 @@ Contact your account administrator. For more information about this error, click
 Your network policy does not include the IP address from which you are trying to access Snowflake. By default, the policy may only allow connections from the official OWOX Data Marts IP (`34.38.103.182`). If you attempt to connect from your own workstation or any other unlisted IP, access will be denied.
 
 **Solution:**  
-Ask your Snowflake administrator to update the network policy to include your current IP address in addition to the OWOX Data Marts IP.  
+Using a dedicated service account limits access to requests originating only from OWOX Data Marts. However, if you need to log in to the Snowflake interface using this dedicated account (for example, to verify settings), you must ask your Snowflake administrator to temporarily update the network policy to include your current workstation's IP address alongside the OWOX Data Marts IP.
 Refer to [Step 2: Configure Network Policy (Admin Action Required)](#step-2-configure-network-policy-admin-action-required) for instructions on modifying the allowed IP list.  
 After the policy is updated, retry the connection.
 
