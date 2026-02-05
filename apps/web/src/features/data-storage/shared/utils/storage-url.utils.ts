@@ -2,6 +2,7 @@ import {
   isGoogleBigQueryStorage,
   isAwsAthenaStorage,
   isSnowflakeStorage,
+  isRedshiftStorage,
 } from '../model/types/data-storage.ts';
 import type { DataStorage } from '../model/types/data-storage.ts';
 
@@ -69,6 +70,16 @@ export function getAthenaRegionUrl(region: string): string {
 }
 
 /**
+ * Generates an AWS Redshift Query Editor v2 URL for a specific region
+ * @param region The AWS region
+ * @returns The Redshift Query Editor v2 console URL for the specified region
+ */
+export function getRedshiftQueryEditorUrl(region: string): string {
+  // We don't encode region here because it's part of the domain data
+  return `https://${region}.console.aws.amazon.com/sqlworkbench/home`;
+}
+
+/**
  * Generates a Snowflake console URL
  * @param account The Snowflake account identifier
  * @returns The Snowflake console URL
@@ -101,6 +112,10 @@ export function getStorageUrl(storage: DataStorage, fullyQualifiedName: string):
 
   if (isSnowflakeStorage(storage)) {
     return getSnowflakeConsoleUrl(storage.config.account);
+  }
+
+  if (isRedshiftStorage(storage)) {
+    return getRedshiftQueryEditorUrl(storage.config.region);
   }
 
   return null;
@@ -138,6 +153,10 @@ export function getStorageButtonText(storage: DataStorage): string {
 
   if (isSnowflakeStorage(storage)) {
     return 'Open console in Snowflake';
+  }
+
+  if (isRedshiftStorage(storage)) {
+    return 'Open Query Editor v2 in AWS Redshift';
   }
 
   return 'Open data in storage';
