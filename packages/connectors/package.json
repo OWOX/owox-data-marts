@@ -47,7 +47,7 @@
     "@databricks/sql": "^1.12.0",
     "@google-cloud/bigquery": "^8.0.0",
     "adm-zip": "0.5.16",
-    "snowflake-sdk": "2.3.3"
+    "snowflake-sdk": "^2.3.3"
   },
   "devDependencies": {
     "@eslint/js": "^9",

@@ -34,7 +34,7 @@ interface ConnectorDefinitionFieldProps {
   storageType: DataStorageType;
   preset?: string;
   autoOpen?: boolean;
-  saveDataMartDefinition?: (e?: React.FormEvent<HTMLFormElement>) => void;
+  saveDataMartDefinition?: (e?: React.SyntheticEvent<HTMLFormElement>) => void;
 }
 
 export function ConnectorDefinitionField({
