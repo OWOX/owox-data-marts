@@ -13,7 +13,7 @@ interface DataMartDefinitionFormProps {
   definitionType: DataMartDefinitionType;
   storageType: DataStorageType;
   preset?: string;
-  saveDataMartDefinition?: (e?: React.FormEvent<HTMLFormElement>) => void;
+  saveDataMartDefinition?: (e?: React.SyntheticEvent<HTMLFormElement>) => void;
 }
 
 export function DataMartDefinitionForm({

@@ -173,7 +173,7 @@ export function DataMartDefinitionSettings({
   }, [shouldActualizeSchema, runSchemaActualization]);
 
   const handleFormSubmit = useCallback(
-    (e?: React.FormEvent<HTMLFormElement>) => {
+    (e?: React.SyntheticEvent<HTMLFormElement>) => {
       e?.preventDefault();
       void handleSubmit(onSubmit)(e);
     },
