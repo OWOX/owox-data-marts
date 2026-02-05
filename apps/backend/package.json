@@ -63,9 +63,9 @@
     "dump:apply": "ts-node commands/apply-dump-command.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-athena": "3.952.0",
-    "@aws-sdk/client-redshift-data": "3.952.0",
-    "@aws-sdk/client-s3": "3.952.0",
+    "@aws-sdk/client-athena": "^3.983.0",
+    "@aws-sdk/client-redshift-data": "^3.983.0",
+    "@aws-sdk/client-s3": "^3.983.0",
     "@databricks/sql": "^1.12.0",
     "@google-cloud/bigquery": "^8.1.0",
     "@google-cloud/pubsub": "^4.0.7",
@@ -101,7 +101,7 @@
     "remark-parse": "^11.0.0",
     "remark-rehype": "^11.1.2",
     "rxjs": "^7.8.1",
-    "snowflake-sdk": "^2.3.1",
+    "snowflake-sdk": "^2.3.3",
     "swagger-ui-express": "^5.0.1",
     "typeorm": "^0.3.24",
     "typeorm-transactional": "^0.5.0",
