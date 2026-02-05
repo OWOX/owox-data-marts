@@ -2,7 +2,7 @@
 
 ## Overview
 
-Use this guide to configure **Snowflake as a storage** in **OWOX Data Marts**. The steps below walk you from creating a storage record to finishing authentication and validation.
+Use this guide to configure **Snowflake as a storage** in **OWOX Data Marts**. The steps below walk you through creating a storage record, completing authentication, and finishing validation.
 
 ## Account Prerequisites
 
@@ -18,7 +18,7 @@ If you’re unsure about your permissions, contact your Snowflake administrator 
 
 ### Best Practice: Use a Dedicated Service Account
 
-For better security and governance, we highly recommend using a **dedicated service account** specifically for the OWOX Data Marts integration, rather than using a personal user account.
+For better security and governance, we highly recommend using a **dedicated service account** specifically for the OWOX Data Marts integration, rather than a personal user account.
 
 **Why use a dedicated account?**
 
@@ -29,13 +29,13 @@ For better security and governance, we highly recommend using a **dedicated serv
 
 **Can I use my personal account?**
 
-Yes, you can use your personal Snowflake account if your internal policies allow it. However, you must ensure it has the correct permissions and that you follow your organization's security guidelines.
+Yes, you can use your personal Snowflake account if your internal policies allow it. However, you must ensure it has the correct permissions and that you follow your organization’s security guidelines.
 
 > **Recommendation:** If you are setting up a production environment, ask your Snowflake administrator to create a specific service user (e.g., `OWOX_SERVICE_USER`) for this integration.
 
 ## Go to the Storages Page
 
-In OWOX Data Marts, open **Storages** from the main navigation pane and click **+ New Storage**.
+In OWOX Data Marts, open **Storages** from the main navigation pane, and click **+ New Storage**.
 
 ![This image illustrates the Snowflake storage configuration screen, highlighting the form fields required for specifying the warehouse name. The arrow in the screenshot is pointing to the input field where users enter the warehouse name, guiding them through the setup process. The interface features a sidebar navigation menu on the left and a main content area displaying the configuration steps.](/docs/res/screens/snowflake_newdestination.png)
 
@@ -45,14 +45,14 @@ Select **Snowflake**. The storage record is created immediately, but a Data Mart
 
 ## Add Title
 
-Give the storage a clear **title**, e.g., `Snowflake Production`.
+Give the storage a clear **title** (e.g., `Snowflake Production`).
 
 ## Set Up Authentication
 
-Before you can configure the storage, you must provide valid authentication details. Without proper authentication, the setup cannot proceed. In this section, we'll guide you through gathering and entering the required credentials for Snowflake.
+Before you can configure the storage, you must provide valid authentication details. Without proper authentication, the setup cannot proceed. In this section, we’ll guide you through gathering and entering the required credentials for Snowflake.
 
 > **Note:**  
-> The authentication fields are located in the lower section of the storage configuration form. Make sure to scroll down to find and complete these fields.
+> The authentication fields are located in the lower section of the storage configuration form. Be sure to scroll down to find and complete these fields.
 
 Connection settings will be covered in the next steps.
 
@@ -72,8 +72,8 @@ Snowflake supports two authentication methods:
 
 ##### Step 1. Generate a Programmatic Access Token (PAT)
 
-1. Log in to the Snowflake account ensuring you’re using the specific user or service account intended for the OWOX Data Marts integration.
-2. Go from the user menu to **Settings → Authentication**.
+1. Log in to your Snowflake account, ensuring you’re using the dedicated user or service account intended for the OWOX Data Marts integration.
+2. From the user menu, go to **Settings → Authentication**.
 3. Scroll to **Programmatic access tokens** and click **Generate new token**.
 4. Enter a **Token name** (e.g., `OWOX_TOKEN`) and choose an expiration (up to **1 year** by default).
 5. Click **Generate**.
@@ -86,7 +86,7 @@ Snowflake supports two authentication methods:
 
 ##### Step 2. Configure Network Policy (Admin Action Required)
 
-By default, Snowflake requires PAT users to be covered by a **network policy**. A Snowflake **account administrator** must allow connections from trusted IP addresses. Example:
+By default, Snowflake requires PAT users to be covered by a **network policy**. A Snowflake **account administrator** must allow connections from trusted IP addresses. For example:
 
 ```sql
 CREATE NETWORK POLICY <policy_name>
@@ -112,7 +112,7 @@ If you need direct access from your own IP, ask your administrator to add it to 
 
 Once the network policy is active:
 
-1. Return to the **OWOX Data Marts** interface and verify you are in the new storage configuration screen.
+1. Return to the **OWOX Data Marts** interface and verify you are on the new storage configuration screen.
 2. Select **Username & PAT** as the authentication method.
 3. Enter the required credentials:
    - In the **Username** field, enter the Snowflake login name for your dedicated user (e.g., `OWOX_SERVICE_USER`).
@@ -164,7 +164,7 @@ ALTER USER "<your_username>" SET RSA_PUBLIC_KEY='<your_public_key>';
 
 This step enables key pair authentication for your user account.
 
-**Important formatting rules**:
+**Important formatting rules:**
 
 - Remove the lines:
 
@@ -200,7 +200,7 @@ This step enables key pair authentication for your user account.
 
 ![OWOX Data Marts web interface showing the Private Key input field in the Snowflake storage configuration screen. The field is highlighted, prompting the user to paste the contents of their private key file. The interface is clean and businesslike, with sidebar navigation and a main content area focused on authentication setup.](/docs/res/screens/snowflake_privatekey.png)
 
-**(Optional) Private Key Passphrase**:
+**(Optional) Private Key Passphrase:**
 
 - If your private key was created **with encryption**, enter the passphrase.
 - If you used the `-nocrypt` option, leave this field **empty**.
@@ -214,13 +214,13 @@ Store it securely (for example, in a password manager or secret vault).
 ### Enter Account Identifier
 
 1. In Snowflake, open the account selector and find your dedicated account.
-2. In the account selector, look for the **region** displayed next to account name (for example, **US West (Oregon)**).  
+2. In the account selector, look for the **region** displayed next to your account name (for example, **US West (Oregon)**). This region information is essential for constructing your account identifier.  
 
-   > **Tip:** The account identifier format may vary depending on whether your Snowflake account is hosted on AWS, Azure, or Google Cloud, and which region it is in. Always double-check the documentation to ensure you use the correct format.
+   > **Tip:** The account identifier format varies depending on your Snowflake account’s cloud provider (AWS, Azure, or Google Cloud) and region. Always consult the documentation to ensure you use the correct format.
 
-   - Make a note of this region, as it determines the format of your account identifier.
-   - To find the correct format for your cloud provider and region, refer to the official Snowflake documentation:  
-     [Account Identifier formats by cloud and region](https://docs.snowflake.com/en/user-guide/admin-account-identifier#non-vps-account-locator-formats-by-cloud-platform-and-region).  
+    - Make a note of this region, as it determines the format of your account identifier.
+    - To find the correct format for your cloud provider and region, refer to the official Snowflake documentation:  
+       [Account Identifier formats by cloud and region](https://docs.snowflake.com/en/user-guide/admin-account-identifier#non-vps-account-locator-formats-by-cloud-platform-and-region).  
 
 3. Click **View account details**.
 
@@ -239,7 +239,7 @@ Store it securely (for example, in a password manager or secret vault).
 5. **Construct your account identifier** in the format: `<account_locator>.<region>`
 
    > **Note:**  
-   > If your account is in **AWS US West (Oregon)**, the identifier can be just the locator (e.g., `xy12345`).
+   > If your account is in **AWS US West (Oregon)**, the identifier may be just the locator (e.g., `xy12345`), without a region suffix.
 
    **Examples:**  
    - `xy12345.ap-northeast-3.aws`
@@ -268,11 +268,11 @@ OWOX Data Marts will automatically validate the connection.
 
 ## Next Steps
 
-After Snowflake storage is configured:
+After the Snowflake storage is configured:
 
-1. Create a **Data Mart** that uses this storage
-2. Configure a **Connector** to load data into Snowflake
-3. Run reports and work with data in your Snowflake tables
+1. Create a **Data Mart** that uses this storage.
+2. Configure a **Connector** to load data into Snowflake.
+3. Run reports and work with data in your Snowflake tables.
 
 ---
 
@@ -290,7 +290,7 @@ A Snowflake administrator has not applied a required network policy to dedicated
 
 **Solution:**  
 Return to [Step 2: Configure Network Policy (Admin Action Required)](#step-2-configure-network-policy-admin-action-required) and ask an admin to apply the policy.  
-After that, try adding the storage again.
+After that, try adding the storage once more.
 
 ---
 
@@ -335,7 +335,7 @@ Contact your account administrator. For more information about this error, click
 Your network policy does not include the IP address from which you are trying to access Snowflake. By default, the policy may only allow connections from the official OWOX Data Marts IP (`34.38.103.182`). If you attempt to connect from your own workstation or any other unlisted IP, access will be denied.
 
 **Solution:**  
-Using a dedicated service account limits access to requests originating only from OWOX Data Marts. However, if you need to log in to the Snowflake interface using this dedicated account (for example, to verify settings), you must ask your Snowflake administrator to temporarily update the network policy to include your current workstation's IP address alongside the OWOX Data Marts IP.
+Using a dedicated service account limits access to requests originating only from OWOX Data Marts. However, if you need to log in to the Snowflake interface using this dedicated account (for example, to verify settings), you must ask your Snowflake administrator to temporarily update the network policy to include your current workstation’s IP address alongside the OWOX Data Marts IP.
 Refer to [Step 2: Configure Network Policy (Admin Action Required)](#step-2-configure-network-policy-admin-action-required) for instructions on modifying the allowed IP list.  
 After the policy is updated, retry the connection.
 
