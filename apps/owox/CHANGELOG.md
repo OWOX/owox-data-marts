@@ -1,5 +1,7 @@
 # owox
 
+## 0.18.0
+
 ### Minor Changes 0.18.0
 
 ![OWOX Data Marts – v0.18.0](https://github.com/user-attachments/assets/8053b97b-a659-440a-8b43-ed865fb7f315)
