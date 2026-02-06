@@ -1,5 +1,3 @@
-import { useState, type FC } from 'react';
-import { MoreHorizontal, Pencil, Trash2, Eye } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import {
   DropdownMenu,
@@ -8,6 +6,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
+import { Eye, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { type FC, useState } from 'react';
+import { DataStorageType } from '../../../shared';
 
 /**
  * Component for displaying a context menu of actions on the data storage in a table.
@@ -19,6 +20,7 @@ import {
  */
 interface DataStorageActionsCellProps {
   id: string;
+  type: DataStorageType;
   onViewDetails?: (id: string) => void;
   onEdit?: (id: string) => Promise<void>;
   onDelete?: (id: string) => void;
@@ -26,11 +28,13 @@ interface DataStorageActionsCellProps {
 
 export const DataStorageActionsCell: FC<DataStorageActionsCellProps> = ({
   id,
+  type,
   onViewDetails,
   onEdit,
   onDelete,
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const canDelete = type !== DataStorageType.LEGACY_GOOGLE_BIGQUERY;
 
   return (
     <div className='text-right'>
@@ -53,11 +57,15 @@ export const DataStorageActionsCell: FC<DataStorageActionsCellProps> = ({
             <Pencil className='text-foreground h-4 w-4' aria-hidden='true' />
             <span>Edit</span>
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => onDelete?.(id)}>
-            <Trash2 className='h-4 w-4 text-red-600' aria-hidden='true' />
-            <span className='text-red-600'>Delete</span>
-          </DropdownMenuItem>
+          {canDelete && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => onDelete?.(id)}>
+                <Trash2 className='h-4 w-4 text-red-600' aria-hidden='true' />
+                <span className='text-red-600'>Delete</span>
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
