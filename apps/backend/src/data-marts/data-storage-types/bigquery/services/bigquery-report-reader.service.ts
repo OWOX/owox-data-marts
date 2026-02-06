@@ -30,8 +30,8 @@ import { BigQueryReportHeadersGenerator } from './bigquery-report-headers-genera
 
 @Injectable({ scope: Scope.TRANSIENT })
 export class BigQueryReportReader implements DataStorageReportReader {
-  private readonly logger = new Logger(BigQueryReportReader.name);
-  readonly type = DataStorageType.GOOGLE_BIGQUERY;
+  protected readonly logger = new Logger(BigQueryReportReader.name);
+  readonly type: DataStorageType = DataStorageType.GOOGLE_BIGQUERY;
 
   private adapter: BigQueryApiAdapter;
   private reportResultTable: Table;
@@ -46,9 +46,9 @@ export class BigQueryReportReader implements DataStorageReportReader {
   };
 
   constructor(
-    private readonly adapterFactory: BigQueryApiAdapterFactory,
-    private readonly bigQueryQueryBuilder: BigQueryQueryBuilder,
-    private readonly headersGenerator: BigQueryReportHeadersGenerator
+    protected readonly adapterFactory: BigQueryApiAdapterFactory,
+    protected readonly bigQueryQueryBuilder: BigQueryQueryBuilder,
+    protected readonly headersGenerator: BigQueryReportHeadersGenerator
   ) {}
 
   public async prepareReportData(report: Report): Promise<ReportDataDescription> {
@@ -148,7 +148,7 @@ export class BigQueryReportReader implements DataStorageReportReader {
           tablePath.length === 2 ? [this.contextGcpProject, ...tablePath] : tablePath;
         this.defineReportResultTable(projectId, datasetId, tableId);
       } else {
-        const query = this.bigQueryQueryBuilder.buildQuery(dataMartDefinition);
+        const query = await this.bigQueryQueryBuilder.buildQuery(dataMartDefinition);
         await this.prepareQueryData(query);
       }
     } catch (error) {

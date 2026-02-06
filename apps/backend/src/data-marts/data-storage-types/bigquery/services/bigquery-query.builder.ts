@@ -8,13 +8,13 @@ import {
   isViewDefinition,
 } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
-import { DataMartQueryBuilder } from '../../interfaces/data-mart-query-builder.interface';
+import { DataMartQueryBuilderAsync } from '../../interfaces/data-mart-query-builder.interface';
 
 @Injectable()
-export class BigQueryQueryBuilder implements DataMartQueryBuilder {
-  readonly type = DataStorageType.GOOGLE_BIGQUERY;
+export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
+  readonly type: DataStorageType = DataStorageType.GOOGLE_BIGQUERY;
 
-  buildQuery(definition: DataMartDefinition): string {
+  async buildQuery(definition: DataMartDefinition): Promise<string> {
     if (isTableDefinition(definition) || isViewDefinition(definition)) {
       return `SELECT * FROM \`${definition.fullyQualifiedName}\``;
     } else if (isConnectorDefinition(definition)) {

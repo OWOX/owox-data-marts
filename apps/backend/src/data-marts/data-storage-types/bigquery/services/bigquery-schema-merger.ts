@@ -12,8 +12,8 @@ type FieldsMap = Map<string, SchemaField>;
 
 @Injectable()
 export class BigQuerySchemaMerger implements DataMartSchemaMerger {
-  private readonly logger = new Logger(BigQuerySchemaMerger.name);
-  readonly type = DataStorageType.GOOGLE_BIGQUERY;
+  protected readonly logger = new Logger(BigQuerySchemaMerger.name);
+  readonly type: DataStorageType = DataStorageType.GOOGLE_BIGQUERY;
 
   mergeSchemas(
     existingSchema: DataMartSchema | undefined,

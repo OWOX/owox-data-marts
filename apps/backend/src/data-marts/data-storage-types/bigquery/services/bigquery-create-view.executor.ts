@@ -31,6 +31,7 @@ export class BigQueryCreateViewExecutor implements CreateViewExecutor {
     }
 
     const adapter = this.adapterFactory.create(credentials, config);
+    await adapter.executeDryRunQuery(sql); // for location auto-detection
 
     const fullyQualifiedName = await this.normalizeViewName(adapter, config, viewName);
 

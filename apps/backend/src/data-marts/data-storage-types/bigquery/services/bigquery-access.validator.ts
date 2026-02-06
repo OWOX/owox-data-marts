@@ -12,8 +12,8 @@ import { BigQueryApiAdapter } from '../adapters/bigquery-api.adapter';
 
 @Injectable()
 export class BigQueryAccessValidator implements DataStorageAccessValidator {
-  private readonly logger = new Logger(BigQueryAccessValidator.name);
-  readonly type = DataStorageType.GOOGLE_BIGQUERY;
+  readonly logger = new Logger(BigQueryAccessValidator.name);
+  readonly type: DataStorageType = DataStorageType.GOOGLE_BIGQUERY;
 
   async validate(
     config: DataStorageConfig,

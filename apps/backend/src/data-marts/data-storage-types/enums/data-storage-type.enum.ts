@@ -4,6 +4,7 @@ export enum DataStorageType {
   SNOWFLAKE = 'SNOWFLAKE',
   AWS_REDSHIFT = 'AWS_REDSHIFT',
   DATABRICKS = 'DATABRICKS',
+  LEGACY_GOOGLE_BIGQUERY = 'LEGACY_GOOGLE_BIGQUERY',
 }
 
 export function toHumanReadable(type: DataStorageType): string {
@@ -18,6 +19,8 @@ export function toHumanReadable(type: DataStorageType): string {
       return 'AWS Redshift';
     case DataStorageType.DATABRICKS:
       return 'Databricks';
+    case DataStorageType.LEGACY_GOOGLE_BIGQUERY:
+      return 'Legacy Google BigQuery';
     default:
       return type;
   }

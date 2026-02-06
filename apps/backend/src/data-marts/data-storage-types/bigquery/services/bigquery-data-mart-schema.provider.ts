@@ -27,12 +27,12 @@ import { BigQueryQueryBuilder } from './bigquery-query.builder';
 
 @Injectable()
 export class BigQueryDataMartSchemaProvider implements DataMartSchemaProvider {
-  private readonly logger = new Logger(BigQueryDataMartSchemaProvider.name);
-  readonly type = DataStorageType.GOOGLE_BIGQUERY;
+  protected readonly logger = new Logger(BigQueryDataMartSchemaProvider.name);
+  readonly type: DataStorageType = DataStorageType.GOOGLE_BIGQUERY;
 
   constructor(
-    private readonly adapterFactory: BigQueryApiAdapterFactory,
-    private readonly bigQueryQueryBuilder: BigQueryQueryBuilder
+    protected readonly adapterFactory: BigQueryApiAdapterFactory,
+    protected readonly bigQueryQueryBuilder: BigQueryQueryBuilder
   ) {}
 
   async getActualDataMartSchema(
@@ -60,10 +60,7 @@ export class BigQueryDataMartSchemaProvider implements DataMartSchemaProvider {
       throw new Error('Failed to get real data mart schema');
     }
 
-    return {
-      type: BigQueryDataMartSchemaType,
-      fields: this.parseFields(schema.fields, primaryKeyColumns),
-    };
+    return this.convertNativeFieldsToSchema(schema.fields, primaryKeyColumns);
   }
 
   private async getNativeSchema(
@@ -95,7 +92,7 @@ export class BigQueryDataMartSchemaProvider implements DataMartSchemaProvider {
       };
     }
 
-    const query = this.bigQueryQueryBuilder.buildQuery(dataMartDefinition);
+    const query = await this.bigQueryQueryBuilder.buildQuery(dataMartDefinition);
     const dryRunResult = await adapter.executeDryRunQuery(query);
     return { schema: dryRunResult.schema };
   }
@@ -142,5 +139,15 @@ export class BigQueryDataMartSchemaProvider implements DataMartSchemaProvider {
 
       return parsedField;
     });
+  }
+
+  public convertNativeFieldsToSchema(
+    fields: TableSchema['fields'],
+    primaryKeyColumns?: string[]
+  ): BigqueryDataMartSchema {
+    return {
+      type: BigQueryDataMartSchemaType,
+      fields: this.parseFields(fields, primaryKeyColumns),
+    };
   }
 }

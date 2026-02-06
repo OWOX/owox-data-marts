@@ -3,65 +3,60 @@ import { TypeResolver } from '../../common/resolver/type-resolver';
 import { AthenaApiAdapterFactory } from './athena/adapters/athena-api-adapter.factory';
 import { S3ApiAdapterFactory } from './athena/adapters/s3-api-adapter.factory';
 import { AthenaAccessValidator } from './athena/services/athena-access.validator';
+import { AthenaCreateViewExecutor } from './athena/services/athena-create-view.executor';
 import { AthenaDataMartSchemaParser } from './athena/services/athena-data-mart-schema.parser';
 import { AthenaDataMartSchemaProvider } from './athena/services/athena-data-mart-schema.provider';
 import { AthenaDataMartValidator } from './athena/services/athena-datamart.validator';
 import { AthenaQueryBuilder } from './athena/services/athena-query.builder';
-import { AthenaReportReader } from './athena/services/athena-report-reader.service';
 import { AthenaReportHeadersGenerator } from './athena/services/athena-report-headers-generator.service';
+import { AthenaReportReader } from './athena/services/athena-report-reader.service';
 import { AthenaSchemaMerger } from './athena/services/athena-schema-merger';
 import { AthenaSqlDryRunExecutor } from './athena/services/athena-sql-dry-run.executor';
 import { AthenaSqlRunExecutor } from './athena/services/athena-sql-run.executor';
-import { AthenaCreateViewExecutor } from './athena/services/athena-create-view.executor';
 import { BigQueryApiAdapterFactory } from './bigquery/adapters/bigquery-api-adapter.factory';
 import { BigQueryAccessValidator } from './bigquery/services/bigquery-access.validator';
-import { BigQueryDataMartSchemaProvider } from './bigquery/services/bigquery-data-mart-schema.provider';
+import { BigQueryCreateViewExecutor } from './bigquery/services/bigquery-create-view.executor';
 import { BigQueryDataMartSchemaParser } from './bigquery/services/bigquery-data-mart-schema.parser';
+import { BigQueryDataMartSchemaProvider } from './bigquery/services/bigquery-data-mart-schema.provider';
 import { BigQueryDataMartValidator } from './bigquery/services/bigquery-datamart.validator';
 import { BigQueryQueryBuilder } from './bigquery/services/bigquery-query.builder';
-import { BigQueryReportReader } from './bigquery/services/bigquery-report-reader.service';
 import { BigQueryReportHeadersGenerator } from './bigquery/services/bigquery-report-headers-generator.service';
+import { BigQueryReportReader } from './bigquery/services/bigquery-report-reader.service';
 import { BigQuerySchemaMerger } from './bigquery/services/bigquery-schema-merger';
 import { BigquerySqlDryRunExecutor } from './bigquery/services/bigquery-sql-dry-run.executor';
 import { BigQuerySqlRunExecutor } from './bigquery/services/bigquery-sql-run.executor';
-import { BigQueryCreateViewExecutor } from './bigquery/services/bigquery-create-view.executor';
-import { SnowflakeApiAdapterFactory } from './snowflake/adapters/snowflake-api-adapter.factory';
-import { SnowflakeAccessValidator } from './snowflake/services/snowflake-access.validator';
-import { SnowflakeDataMartSchemaParser } from './snowflake/services/snowflake-data-mart-schema.parser';
-import { SnowflakeDataMartSchemaProvider } from './snowflake/services/snowflake-data-mart-schema.provider';
-import { SnowflakeDataMartValidator } from './snowflake/services/snowflake-datamart.validator';
-import { SnowflakeQueryBuilder } from './snowflake/services/snowflake-query.builder';
-import { SnowflakeReportReader } from './snowflake/services/snowflake-report-reader.service';
-import { SnowflakeReportHeadersGenerator } from './snowflake/services/snowflake-report-headers-generator.service';
-import { SnowflakeSchemaMerger } from './snowflake/services/snowflake-schema-merger';
-import { SnowflakeSqlDryRunExecutor } from './snowflake/services/snowflake-sql-dry-run.executor';
-import { SnowflakeSqlRunExecutor } from './snowflake/services/snowflake-sql-run.executor';
-import { SnowflakeCreateViewExecutor } from './snowflake/services/snowflake-create-view.executor';
-import { RedshiftApiAdapterFactory } from './redshift/adapters/redshift-api-adapter.factory';
-import { RedshiftAccessValidator } from './redshift/services/redshift-access.validator';
-import { RedshiftDataMartSchemaParser } from './redshift/services/redshift-data-mart-schema.parser';
-import { RedshiftDataMartSchemaProvider } from './redshift/services/redshift-data-mart-schema.provider';
-import { RedshiftDataMartValidator } from './redshift/services/redshift-datamart.validator';
-import { RedshiftQueryBuilder } from './redshift/services/redshift-query.builder';
-import { RedshiftReportReader } from './redshift/services/redshift-report-reader.service';
-import { RedshiftReportHeadersGenerator } from './redshift/services/redshift-report-headers-generator.service';
-import { RedshiftSchemaMerger } from './redshift/services/redshift-schema-merger';
-import { RedshiftSqlDryRunExecutor } from './redshift/services/redshift-sql-dry-run.executor';
-import { RedshiftSqlRunExecutor } from './redshift/services/redshift-sql-run.executor';
-import { RedshiftCreateViewExecutor } from './redshift/services/redshift-create-view.executor';
+import { LegacyBigQueryAccessValidator } from './bigquery/services/legacy/legacy-bigquery-access.validator';
+import { LegacyBigQueryCreateViewExecutor } from './bigquery/services/legacy/legacy-bigquery-create-view.executor';
+import { LegacyBigQueryDataMartSchemaParser } from './bigquery/services/legacy/legacy-bigquery-data-mart-schema.parser';
+import { LegacyBigQueryDataMartSchemaProvider } from './bigquery/services/legacy/legacy-bigquery-data-mart-schema.provider';
+import { LegacyBigQueryDataMartValidator } from './bigquery/services/legacy/legacy-bigquery-datamart.validator';
+import { LegacyBigQueryQueryBuilder } from './bigquery/services/legacy/legacy-bigquery-query.builder';
+import { LegacyBigQueryReportHeadersGenerator } from './bigquery/services/legacy/legacy-bigquery-report-headers-generator.service';
+import { LegacyBigQueryReportReader } from './bigquery/services/legacy/legacy-bigquery-report-reader.service';
+import { LegacyBigQuerySchemaMerger } from './bigquery/services/legacy/legacy-bigquery-schema-merger';
+import { LegacyBigQuerySqlDryRunExecutor } from './bigquery/services/legacy/legacy-bigquery-sql-dry-run.executor';
+import { LegacyBigQuerySqlPreprocessor } from './bigquery/services/legacy/legacy-bigquery-sql-preprocessor.service';
+import { LegacyBigQuerySqlRunExecutor } from './bigquery/services/legacy/legacy-bigquery-sql-run.executor';
+import { DataStorageCredentialsUtils } from './data-mart-schema.utils';
 import { DatabricksApiAdapterFactory } from './databricks/adapters/databricks-api-adapter.factory';
 import { DatabricksAccessValidator } from './databricks/services/databricks-access.validator';
+import { DatabricksCreateViewExecutor } from './databricks/services/databricks-create-view.executor';
 import { DatabricksDataMartSchemaParser } from './databricks/services/databricks-data-mart-schema.parser';
 import { DatabricksDataMartSchemaProvider } from './databricks/services/databricks-data-mart-schema.provider';
 import { DatabricksDataMartValidator } from './databricks/services/databricks-datamart.validator';
 import { DatabricksQueryBuilder } from './databricks/services/databricks-query.builder';
-import { DatabricksReportReader } from './databricks/services/databricks-report-reader.service';
 import { DatabricksReportHeadersGenerator } from './databricks/services/databricks-report-headers-generator.service';
+import { DatabricksReportReader } from './databricks/services/databricks-report-reader.service';
 import { DatabricksSchemaMerger } from './databricks/services/databricks-schema-merger';
 import { DatabricksSqlDryRunExecutor } from './databricks/services/databricks-sql-dry-run.executor';
 import { DatabricksSqlRunExecutor } from './databricks/services/databricks-sql-run.executor';
-import { DatabricksCreateViewExecutor } from './databricks/services/databricks-create-view.executor';
 import { DataStorageType } from './enums/data-storage-type.enum';
+import { DataStoragePublicCredentialsFactory } from './factories/data-storage-public-credentials.factory';
+import { CreateViewExecutor } from './interfaces/create-view-executor.interface';
+import {
+  DataMartQueryBuilder,
+  DataMartQueryBuilderAsync,
+} from './interfaces/data-mart-query-builder.interface';
 import { DataMartSchemaMerger } from './interfaces/data-mart-schema-merger.interface';
 import { DataMartSchemaParser } from './interfaces/data-mart-schema-parser.interface';
 import { DataMartSchemaProvider } from './interfaces/data-mart-schema-provider.interface';
@@ -71,9 +66,30 @@ import { DataStorageReportReader } from './interfaces/data-storage-report-reader
 import { ReportHeadersGenerator } from './interfaces/report-headers-generator.interface';
 import { SqlDryRunExecutor } from './interfaces/sql-dry-run-executor.interface';
 import { SqlRunExecutor } from './interfaces/sql-run-executor.interface';
-import { CreateViewExecutor } from './interfaces/create-view-executor.interface';
-import { DataStoragePublicCredentialsFactory } from './factories/data-storage-public-credentials.factory';
-import { DataStorageCredentialsUtils } from './data-mart-schema.utils';
+import { RedshiftApiAdapterFactory } from './redshift/adapters/redshift-api-adapter.factory';
+import { RedshiftAccessValidator } from './redshift/services/redshift-access.validator';
+import { RedshiftCreateViewExecutor } from './redshift/services/redshift-create-view.executor';
+import { RedshiftDataMartSchemaParser } from './redshift/services/redshift-data-mart-schema.parser';
+import { RedshiftDataMartSchemaProvider } from './redshift/services/redshift-data-mart-schema.provider';
+import { RedshiftDataMartValidator } from './redshift/services/redshift-datamart.validator';
+import { RedshiftQueryBuilder } from './redshift/services/redshift-query.builder';
+import { RedshiftReportHeadersGenerator } from './redshift/services/redshift-report-headers-generator.service';
+import { RedshiftReportReader } from './redshift/services/redshift-report-reader.service';
+import { RedshiftSchemaMerger } from './redshift/services/redshift-schema-merger';
+import { RedshiftSqlDryRunExecutor } from './redshift/services/redshift-sql-dry-run.executor';
+import { RedshiftSqlRunExecutor } from './redshift/services/redshift-sql-run.executor';
+import { SnowflakeApiAdapterFactory } from './snowflake/adapters/snowflake-api-adapter.factory';
+import { SnowflakeAccessValidator } from './snowflake/services/snowflake-access.validator';
+import { SnowflakeCreateViewExecutor } from './snowflake/services/snowflake-create-view.executor';
+import { SnowflakeDataMartSchemaParser } from './snowflake/services/snowflake-data-mart-schema.parser';
+import { SnowflakeDataMartSchemaProvider } from './snowflake/services/snowflake-data-mart-schema.provider';
+import { SnowflakeDataMartValidator } from './snowflake/services/snowflake-datamart.validator';
+import { SnowflakeQueryBuilder } from './snowflake/services/snowflake-query.builder';
+import { SnowflakeReportHeadersGenerator } from './snowflake/services/snowflake-report-headers-generator.service';
+import { SnowflakeReportReader } from './snowflake/services/snowflake-report-reader.service';
+import { SnowflakeSchemaMerger } from './snowflake/services/snowflake-schema-merger';
+import { SnowflakeSqlDryRunExecutor } from './snowflake/services/snowflake-sql-dry-run.executor';
+import { SnowflakeSqlRunExecutor } from './snowflake/services/snowflake-sql-run.executor';
 
 export const DATA_STORAGE_ACCESS_VALIDATOR_RESOLVER = Symbol(
   'DATA_STORAGE_ACCESS_VALIDATOR_RESOLVER'
@@ -83,6 +99,7 @@ export const DATA_MART_VALIDATOR_RESOLVER = Symbol('DATA_MART_VALIDATOR_RESOLVER
 export const DATA_MART_SCHEMA_PROVIDER_RESOLVER = Symbol('DATA_MART_SCHEMA_PROVIDER_RESOLVER');
 export const DATA_MART_SCHEMA_MERGER_RESOLVER = Symbol('DATA_MART_SCHEMA_MERGER_RESOLVER');
 export const DATA_MART_SCHEMA_PARSER_RESOLVER = Symbol('DATA_MART_SCHEMA_PARSER_RESOLVER');
+export const DATA_MART_QUERY_BUILDER_RESOLVER = Symbol('DATA_MART_QUERY_BUILDER_RESOLVER');
 export const REPORT_HEADERS_GENERATOR_RESOLVER = Symbol('REPORT_HEADERS_GENERATOR_RESOLVER');
 export const SQL_DRY_RUN_EXECUTOR_RESOLVER = Symbol('SQL_DRY_RUN_EXECUTOR_RESOLVER');
 export const SQL_RUN_EXECUTOR_RESOLVER = Symbol('SQL_RUN_EXECUTOR_RESOLVER');
@@ -90,6 +107,7 @@ export const CREATE_VIEW_EXECUTOR_RESOLVER = Symbol('CREATE_VIEW_EXECUTOR_RESOLV
 
 const accessValidatorProviders = [
   BigQueryAccessValidator,
+  LegacyBigQueryAccessValidator,
   AthenaAccessValidator,
   SnowflakeAccessValidator,
   RedshiftAccessValidator,
@@ -97,6 +115,7 @@ const accessValidatorProviders = [
 ];
 const storageDataProviders = [
   BigQueryReportReader,
+  LegacyBigQueryReportReader,
   AthenaReportReader,
   SnowflakeReportReader,
   RedshiftReportReader,
@@ -113,12 +132,14 @@ const adapterFactories = [
 const queryBuilderProviders = [
   AthenaQueryBuilder,
   BigQueryQueryBuilder,
+  LegacyBigQueryQueryBuilder,
   SnowflakeQueryBuilder,
   RedshiftQueryBuilder,
   DatabricksQueryBuilder,
 ];
 const validatorProviders = [
   BigQueryDataMartValidator,
+  LegacyBigQueryDataMartValidator,
   AthenaDataMartValidator,
   SnowflakeDataMartValidator,
   RedshiftDataMartValidator,
@@ -126,6 +147,7 @@ const validatorProviders = [
 ];
 const dataMartSchemaProviders = [
   BigQueryDataMartSchemaProvider,
+  LegacyBigQueryDataMartSchemaProvider,
   AthenaDataMartSchemaProvider,
   SnowflakeDataMartSchemaProvider,
   RedshiftDataMartSchemaProvider,
@@ -133,6 +155,7 @@ const dataMartSchemaProviders = [
 ];
 const dataMartSchemaMergerProviders = [
   BigQuerySchemaMerger,
+  LegacyBigQuerySchemaMerger,
   AthenaSchemaMerger,
   SnowflakeSchemaMerger,
   RedshiftSchemaMerger,
@@ -140,6 +163,7 @@ const dataMartSchemaMergerProviders = [
 ];
 const schemaParserProviders = [
   BigQueryDataMartSchemaParser,
+  LegacyBigQueryDataMartSchemaParser,
   AthenaDataMartSchemaParser,
   SnowflakeDataMartSchemaParser,
   RedshiftDataMartSchemaParser,
@@ -147,6 +171,7 @@ const schemaParserProviders = [
 ];
 const reportHeadersGeneratorProviders = [
   BigQueryReportHeadersGenerator,
+  LegacyBigQueryReportHeadersGenerator,
   AthenaReportHeadersGenerator,
   SnowflakeReportHeadersGenerator,
   RedshiftReportHeadersGenerator,
@@ -154,6 +179,7 @@ const reportHeadersGeneratorProviders = [
 ];
 const sqlDryRunExecutorProviders = [
   BigquerySqlDryRunExecutor,
+  LegacyBigQuerySqlDryRunExecutor,
   AthenaSqlDryRunExecutor,
   SnowflakeSqlDryRunExecutor,
   RedshiftSqlDryRunExecutor,
@@ -161,6 +187,7 @@ const sqlDryRunExecutorProviders = [
 ];
 const sqlRunExecutorProviders = [
   BigQuerySqlRunExecutor,
+  LegacyBigQuerySqlRunExecutor,
   AthenaSqlRunExecutor,
   SnowflakeSqlRunExecutor,
   RedshiftSqlRunExecutor,
@@ -168,6 +195,7 @@ const sqlRunExecutorProviders = [
 ];
 const createViewExecutorProviders = [
   BigQueryCreateViewExecutor,
+  LegacyBigQueryCreateViewExecutor,
   AthenaCreateViewExecutor,
   SnowflakeCreateViewExecutor,
   RedshiftCreateViewExecutor,
@@ -177,6 +205,7 @@ const publicCredentialsProviders = [
   DataStoragePublicCredentialsFactory,
   DataStorageCredentialsUtils,
 ];
+const legacyBigQueryProviders = [LegacyBigQuerySqlPreprocessor];
 
 export const dataStorageResolverProviders = [
   ...accessValidatorProviders,
@@ -192,6 +221,13 @@ export const dataStorageResolverProviders = [
   ...sqlRunExecutorProviders,
   ...createViewExecutorProviders,
   ...publicCredentialsProviders,
+  ...legacyBigQueryProviders,
+  {
+    provide: DATA_MART_QUERY_BUILDER_RESOLVER,
+    useFactory: async (...builders: (DataMartQueryBuilder | DataMartQueryBuilderAsync)[]) =>
+      new TypeResolver<DataStorageType, DataMartQueryBuilder | DataMartQueryBuilderAsync>(builders),
+    inject: queryBuilderProviders,
+  },
   {
     provide: DATA_STORAGE_ACCESS_VALIDATOR_RESOLVER,
     useFactory: (...validators: DataStorageAccessValidator[]) =>
