@@ -6,6 +6,7 @@ import {
   DatabricksIcon,
   AwsRedshiftIcon,
   AzureSynapseIcon,
+  LegacyGoogleBigQueryIcon,
 } from '../../../../shared';
 import type { AppIcon } from '../../../../shared';
 
@@ -53,6 +54,12 @@ export const DataStorageTypeModel = {
       displayName: 'Azure Synapse',
       icon: AzureSynapseIcon,
       status: DataStorageStatus.COMING_SOON,
+    },
+    [DataStorageType.LEGACY_GOOGLE_BIGQUERY]: {
+      type: DataStorageType.LEGACY_GOOGLE_BIGQUERY,
+      displayName: 'Google BigQuery (used in OWOX Reports)',
+      icon: LegacyGoogleBigQueryIcon,
+      status: DataStorageStatus.LEGACY,
     },
   },
 

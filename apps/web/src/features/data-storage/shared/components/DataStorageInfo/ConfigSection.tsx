@@ -19,6 +19,10 @@ export const ConfigSection = ({ type, config }: ConfigSectionProps) => {
       { label: 'Project ID', key: 'projectId' },
       { label: 'Location', key: 'location' },
     ],
+    [DataStorageType.LEGACY_GOOGLE_BIGQUERY]: [
+      { label: 'Project ID', key: 'projectId' },
+      { label: 'Location', key: 'location' },
+    ],
     [DataStorageType.AWS_ATHENA]: [
       { label: 'Region', key: 'region' },
       { label: 'Output Bucket', key: 'outputBucket' },
@@ -32,6 +36,8 @@ export const ConfigSection = ({ type, config }: ConfigSectionProps) => {
   const isValidConfig =
     config &&
     ((type === DataStorageType.GOOGLE_BIGQUERY && isGoogleBigQueryDataStorageConfig(config)) ||
+      (type === DataStorageType.LEGACY_GOOGLE_BIGQUERY &&
+        isGoogleBigQueryDataStorageConfig(config)) ||
       (type === DataStorageType.AWS_ATHENA && isAwsAthenaDataStorageConfig(config)));
 
   return (
@@ -40,12 +46,9 @@ export const ConfigSection = ({ type, config }: ConfigSectionProps) => {
         let stringValue: string | undefined = undefined;
 
         if (isValidConfig) {
-          stringValue =
-            type === DataStorageType.GOOGLE_BIGQUERY
-              ? (config as GoogleBigQueryDataStorageConfig)[
-                  key as keyof GoogleBigQueryDataStorageConfig
-                ]
-              : (config as AwsAthenaDataStorageConfig)[key as keyof AwsAthenaDataStorageConfig];
+          stringValue = isGoogleBigQueryDataStorageConfig(config)
+            ? config[key as keyof GoogleBigQueryDataStorageConfig]
+            : config[key as keyof AwsAthenaDataStorageConfig];
         }
 
         return <InfoRow key={key} label={label} value={stringValue} />;
