@@ -1,36 +1,31 @@
-import envPaths from 'env-paths';
-import { existsSync, mkdirSync } from 'fs';
-import { dirname, join } from 'path';
+import type { DbConfig } from '../config/idp-owox-config.js';
 import type { DatabaseConfig, MySqlConfig, SqliteConfig } from '../types/index.js';
 import type { DatabaseStore } from './DatabaseStore.js';
 import { MysqlDatabaseStore } from './MysqlDatabaseStore.js';
 import { SqliteDatabaseStore } from './SqliteDatabaseStore.js';
 
-function getIdpSqliteDatabasePath(): string {
-  const paths = envPaths('owox', { suffix: '' });
-  const dbPath = join(paths.data, 'idp', 'auth.db');
-  const dbDir = dirname(dbPath);
-  if (!existsSync(dbDir)) {
-    try {
-      mkdirSync(dbDir, { recursive: true });
-    } catch (error) {
-      throw new Error(
-        `Failed to create IDP SQLite database directory: ${dbDir}. ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
+function normalizeConfig(database: DatabaseConfig | DbConfig): DatabaseConfig {
+  const config = database as DatabaseConfig;
+  if (config.type === 'sqlite' || config.type === 'mysql') {
+    return config;
   }
-  return dbPath;
+
+  throw new Error(`Unsupported database config shape: ${(database as { type?: string }).type ?? 'unknown'}`);
 }
 
-export function createDatabaseStore(database: DatabaseConfig): DatabaseStore {
-  switch (database.type) {
+export function createDatabaseStore(database: DatabaseConfig | DbConfig): DatabaseStore {
+  const normalized = normalizeConfig(database);
+  switch (normalized.type) {
     case 'sqlite': {
-      const cfg = database as SqliteConfig;
-      const dbPath = cfg.filename || getIdpSqliteDatabasePath();
+      const cfg = normalized as SqliteConfig;
+      if (!cfg.filename) {
+        throw new Error('SQLite filename is required but missing');
+      }
+      const dbPath = cfg.filename;
       return new SqliteDatabaseStore(dbPath);
     }
     case 'mysql': {
-      const cfg = database as MySqlConfig;
+      const cfg = normalized as MySqlConfig;
       return new MysqlDatabaseStore({
         host: cfg.host,
         user: cfg.user,
@@ -42,7 +37,7 @@ export function createDatabaseStore(database: DatabaseConfig): DatabaseStore {
     }
     default:
       throw new Error(
-        `Unsupported database type for store: ${(database as { type: string }).type}`
+        `Unsupported database type for store: ${(normalized as { type: string }).type}`
       );
   }
 }

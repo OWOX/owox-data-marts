@@ -1,17 +1,128 @@
 import { type NextFunction, type Request, type Response } from 'express';
-import { createBetterAuthConfig } from '../auth/auth-config.js';
+import { createBetterAuthConfig } from '../config/idp-better-auth-config.js';
 import { logger } from '../logger.js';
+import { AuthenticationException } from '../exception.js';
 import type { DatabaseStore } from '../store/DatabaseStore.js';
 import { AuthSession, SessionValidationResult } from '../types/auth-session.js';
+import { extractRefreshToken, extractState, getCookie } from '../utils/request-utils.js';
+import { AuthFlowService, type UserInfoPayload } from './auth-flow-service.js';
 import { CryptoService } from './crypto-service.js';
 import { MagicLinkService } from './magic-link-service.js';
+import { UserContextService } from './user-context-service.js';
 export class AuthenticationService {
+  private readonly authFlowService = new AuthFlowService();
+
   constructor(
     private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
     private readonly cryptoService: CryptoService,
     private readonly magicLinkService: MagicLinkService,
-    private readonly store: DatabaseStore
+    private readonly store: DatabaseStore,
+    private readonly userContextService: UserContextService
   ) {}
+
+  async buildUserInfoPayload(req: Request): Promise<UserInfoPayload> {
+    const session = await this.getSession(req);
+    if (session?.user) {
+      const [dbUser, account] = await Promise.all([
+        this.store.getUserById(session.user.id),
+        this.store.getAccountByUserId(session.user.id),
+      ]);
+
+      if (!account) {
+        throw new Error(`No account found for user ${session.user.id}`);
+      }
+
+      return this.buildUserInfoPayloadFromUser(req, dbUser, account);
+    }
+
+    const payloadFromToken = await this.buildUserInfoPayloadFromToken(req);
+    if (payloadFromToken) {
+      return payloadFromToken;
+    }
+
+    throw new Error('No session found for user info');
+  }
+
+  private async buildUserInfoPayloadFromToken(req: Request): Promise<UserInfoPayload | null> {
+    const refreshToken = extractRefreshToken(req);
+    if (!refreshToken) return null;
+
+    try {
+      const { user, account } = await this.userContextService.resolveFromToken(refreshToken);
+      return this.buildUserInfoPayloadFromUser(req, user, account);
+    } catch (error) {
+      logger.warn(
+        'Failed to resolve user info from token',
+        { context: error instanceof AuthenticationException ? error.context : undefined },
+        error as Error
+      );
+      return null;
+    }
+  }
+
+  private buildUserInfoPayloadFromUser(
+    req: Request,
+    dbUser: Awaited<ReturnType<DatabaseStore['getUserById']>> | null,
+    account: NonNullable<Awaited<ReturnType<DatabaseStore['getAccountByUserId']>>>,
+  ): UserInfoPayload {
+    const email = dbUser?.email;
+    if (!email) {
+      throw new Error('Email not found');
+    }
+
+    return {
+      state: extractState(req),
+      userInfo: {
+        uid: account.accountId,
+        signinProvider: account.providerId,
+        email,
+      },
+    };
+  }
+
+  async completeAuthFlow(req: Request): Promise<{ code: string; payload: UserInfoPayload }> {
+    const payload = await this.buildUserInfoPayload(req);
+    console.log('✅✅✅ completeAuthFlow', payload);
+    logger.info('Sending auth flow payload', { state: payload.state, userInfo: payload.userInfo });
+    const result = await this.authFlowService.completeAuthFlow(payload);
+    logger.info('Integrated backend responded', { code: result.code });
+    return { code: result.code, payload };
+  }
+
+  async completeAuthFlowWithRefreshToken(
+    refreshToken: string,
+    state: string
+  ): Promise<{ code: string; payload: UserInfoPayload }> {
+    const headers = new Headers();
+    headers.set('cookie', `refreshToken=${encodeURIComponent(refreshToken)}`);
+
+    const session = await this.auth.api.getSession({ headers });
+    if (!session || !session.user || !session.session) {
+      throw new Error('Failed to resolve session from refreshToken');
+    }
+
+    const dbUser = await this.store.getUserById(session.user.id);
+    const account = await this.store.getAccountByUserId(session.user.id);
+    if (!account) {
+      throw new Error(`No account found for user ${session.user.id}`);
+    }
+
+    const email = dbUser?.email ?? session.user.email;
+
+    const payload: UserInfoPayload = {
+      state,
+      userInfo: {
+        uid: account.accountId,
+        signinProvider: account.providerId,
+        email,
+      },
+    };
+
+    logger.info('Sending auth flow payload (callback)', { state: payload.state, userInfo: payload.userInfo });
+    const result = await this.authFlowService.completeAuthFlow(payload);
+    logger.info('Integrated backend responded (callback)', { code: result.code });
+    return { code: result.code, payload };
+  }
 
   async getSession(req: Request): Promise<AuthSession | null> {
     try {
@@ -86,10 +197,7 @@ export class AuthenticationService {
         throw new Error('No session found');
       }
 
-      const cookies = req.headers.cookie || '';
-      const sessionTokenMatch = cookies.match(/refreshToken=([^;]+)/);
-      const sessionToken =
-        sessionTokenMatch && sessionTokenMatch[1] ? decodeURIComponent(sessionTokenMatch[1]) : null;
+      const sessionToken = getCookie(req, 'refreshToken');
 
       if (!sessionToken) {
         logger.error('No session token found in cookies');
@@ -131,6 +239,9 @@ export class AuthenticationService {
     res: Response,
     _next: NextFunction
   ): Promise<void | Response> {
+    logger.info('Email/password sign-in is disabled temporarily');
+    return res.redirect(`/auth/signin`);
+
     try {
       const { email, password } = req.body;
 
@@ -157,12 +268,12 @@ export class AuthenticationService {
           response.status === 401
             ? 'Invalid email or password. Please try again.'
             : 'Sign in failed. Please try again.';
-        return res.redirect(`/auth/sign-in?error=${encodeURIComponent(errorMessage)}`);
+        return res.redirect(`/auth/signin?error=${encodeURIComponent(errorMessage)}`);
       }
     } catch (error) {
       logger.error('Sign-in middleware error', {}, error as Error);
       const errorMessage = 'An error occurred during sign in. Please try again.';
-      return res.redirect(`/auth/sign-in?error=${encodeURIComponent(errorMessage)}`);
+      return res.redirect(`/auth/signin?error=${encodeURIComponent(errorMessage)}`);
     }
   }
 
@@ -171,6 +282,9 @@ export class AuthenticationService {
     res: Response,
     _next: NextFunction
   ): Promise<void | Response> {
+    logger.info('Email sign-up is disabled temporarily');
+    return res.redirect(`/auth/signup`);
+
     try {
       const { email, redirect: redirectParam } = req.body;
 
@@ -191,7 +305,7 @@ export class AuthenticationService {
     } catch (error) {
       logger.error('Sign-up middleware error', {}, error as Error);
       const errorMessage = 'An error occurred during sign up. Please try again.';
-      return res.redirect(`/auth/sign-up?error=${encodeURIComponent(errorMessage)}`);
+      return res.redirect(`/auth/signup?error=${encodeURIComponent(errorMessage)}`);
     }
   }
 
@@ -200,6 +314,9 @@ export class AuthenticationService {
     res: Response,
     _next: NextFunction
   ): Promise<void | Response> {
+    logger.info('Password remind is disabled temporarily');
+    return res.redirect(`/auth/signin`);
+
     try {
       const { email, redirect: redirectParam } = req.body;
 
@@ -235,7 +352,7 @@ export class AuthenticationService {
       res.clearCookie('refreshToken');
       res.clearCookie('better-auth.csrf_token');
 
-      const redirectPath = (req.query.redirect as string) || '/auth/sign-in';
+      const redirectPath = (req.query.redirect as string) || '/auth/signin';
 
       return res.redirect(redirectPath);
     } catch (error) {
@@ -329,14 +446,14 @@ export class AuthenticationService {
       if (!session || !session.user) {
         console.log('session', session);
         const currentPath = encodeURIComponent(req.originalUrl || req.url);
-        return res.redirect(`/auth/sign-in?redirect=${currentPath}`);
+        return res.redirect(`/auth/signin?redirect=${currentPath}`);
       }
 
       next();
     } catch (error) {
       console.log('error in requireAuthMiddleware', error);
       logger.error('Authentication middleware error', {}, error as Error);
-      return res.redirect('/auth/sign-in');
+      return res.redirect('/auth/signin');
     }
   }
 }

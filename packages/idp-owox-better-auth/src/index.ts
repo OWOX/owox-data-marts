@@ -1,6 +1,11 @@
-// Main Better Auth exports
-export { createBetterAuthConfig } from './auth/auth-config.js';
-export { OwoxBetterAuthProvider } from './providers/better-auth-provider.js';
+// Main Auth exports
+export { createBetterAuthConfig } from './config/idp-better-auth-config.js';
+export {
+  loadBetterAuthProviderConfigFromEnv,
+  loadIdpOwoxConfigFromEnv,
+  type BetterAuthProviderConfig
+} from './config/index.js';
+export { OwoxBetterAuthIdp, OwoxBetterAuthIdp as OwoxBetterAuthProvider, OwoxBetterAuthIdp as OwoxIdp } from './owoxBetterAuthIdp.js';
 
 // Services
 export { AuthenticationService } from './services/authentication-service.js';
@@ -10,14 +15,13 @@ export { MiddlewareService } from './services/middleware-service.js';
 export { PageService } from './services/page-service.js';
 export { RequestHandlerService } from './services/request-handler-service.js';
 export { TemplateService } from './services/template-service.js';
-export { TokenService } from './services/token-service.js';
 export { UserManagementService } from './services/user-management-service.js';
 
 // Types
 export type {
   BetterAuthConfig,
-  CustomDatabaseConfig,
   DatabaseConfig,
   MySqlConfig,
-  SqliteConfig,
+  SqliteConfig
 } from './types/index.js';
+

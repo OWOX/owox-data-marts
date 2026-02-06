@@ -6,12 +6,12 @@ export class TemplateService {
   private static getTemplatePath(templateName: string): string {
     const currentDir = dirname(fileURLToPath(import.meta.url));
 
-    const distPath = join(currentDir, '..', 'templates', templateName);
+    const distPath = join(currentDir, '..', 'resources', 'templates', templateName);
     if (existsSync(distPath)) {
       return distPath;
     }
 
-    const srcPath = join(currentDir, '..', '..', 'src', 'templates', templateName);
+    const srcPath = join(currentDir, '..', '..', 'src', 'resources', 'templates', templateName);
     return srcPath;
   }
 

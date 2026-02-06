@@ -81,6 +81,7 @@
   <!-- Sign In Form -->
   <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
     <div class="bg-card py-8 px-4 shadow-sm rounded-lg sm:px-10 border border-border">
+      <!--
       <form class="space-y-6" action="/auth/api/sign-in" method="post" id="signInForm">
         <div>
           <label for="email" class="block text-sm font-medium text-card-foreground">
@@ -158,52 +159,54 @@
           </button>
         </div>
       </form>
+      -->
 
       <div class="mt-8">
-        <div class="relative">
+        <!-- <div class="relative">
           <div class="absolute inset-0 flex items-center" aria-hidden="true">
             <div class="w-full border-t border-border"></div>
           </div>
           <div class="relative flex justify-center text-sm">
             <span class="px-2 bg-card text-muted-foreground">Or continue with</span>
           </div>
-        </div>
+        </div> -->
 
-        <div class="mt-6 space-y-3">
+        <div class="mt-1 space-y-3">
           <button
             id="google-signin"
             type="button"
             class="w-full inline-flex justify-center items-center gap-2 py-2 px-4 border border-border rounded-md text-sm font-medium text-foreground bg-background hover:bg-muted transition-colors"
           >
-            <svg class="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
-              <path fill="#EA4335" d="M12 10.2v3.6h5.1c-.2 1.2-.9 2.3-1.9 3l3 2.3c1.7-1.6 2.8-3.9 2.8-6.7 0-.7-.1-1.4-.2-2H12z"></path>
-              <path fill="#34A853" d="M6.5 14.1 5.9 15l-3 2.3C4.8 20.4 8.2 22 12 22c2.4 0 4.5-.8 6-2.1l-3-2.3c-.8.5-1.8.8-3 .8-2.3 0-4.3-1.6-5-3.8z"></path>
-              <path fill="#4A90E2" d="M21 6.3 18 8.6c-.8-.5-1.8-.8-3-.8-2.2 0-4.1 1.5-4.8 3.5l-.1.9-3.1-2.4-.1-.9C8 5.2 9.9 4 12 4c2.4 0 4.5.9 6 2.3z"></path>
-              <path fill="#FBBC05" d="M3 5.3 6.1 7.7C6.7 5.5 8.7 4 11 4c1.2 0 2.2.3 3.1 1.1L17 2.2C15.5.9 13.4 0 11 0 7.2 0 3.8 1.6 1.9 4.2z"></path>
-            </svg>
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" x="0px" y="0px" width="100" height="100" viewBox="0 0 48 48">
+            <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"></path><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"></path><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"></path><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"></path>
+          </svg>
             <span>Sign in with Google</span>
           </button>
 
+          
+
+          <!--
           <button
             id="microsoft-signin"
             type="button"
             class="w-full inline-flex justify-center items-center gap-2 py-2 px-4 border border-border rounded-md text-sm font-medium text-foreground bg-background hover:bg-muted transition-colors"
           >
-            <svg class="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
-              <path fill="#F35325" d="M11 11H2V2h9z"></path>
-              <path fill="#81BC06" d="M22 11h-9V2h9z"></path>
-              <path fill="#05A6F0" d="M11 22H2v-9h9z"></path>
-              <path fill="#FFBA08" d="M22 22h-9v-9h9z"></path>
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" x="0px" y="0px" width="100" height="100" viewBox="0 0 48 48">
+              <path fill="#ff5722" d="M6 6H22V22H6z" transform="rotate(-180 14 14)"></path>
+              <path fill="#4caf50" d="M26 6H42V22H26z" transform="rotate(-180 34 14)"></path>
+              <path fill="#ffc107" d="M26 26H42V42H26z" transform="rotate(-180 34 34)"></path>
+              <path fill="#03a9f4" d="M6 26H22V42H6z" transform="rotate(-180 14 34)"></path>
             </svg>
             <span>Sign in with Microsoft</span>
           </button>
+          -->
         </div>
       </div>
 
-      <p class="mt-6 text-center text-sm text-muted-foreground">
+      <!-- <p class="mt-6 text-center text-sm text-muted-foreground">
         Don’t have an account?
-        <a href="/auth/sign-up" class="font-medium text-primary hover:text-primary/80">Create one</a>
-      </p>
+        <a href="/auth/signup" class="font-medium text-primary hover:text-primary/80">Create one</a>
+      </p> -->
     </div>
   </div>
 
@@ -231,10 +234,11 @@
       }
     }
 
-    // Show error message if present in URL
+    // Show error message if present in URL (guard when form commented)
     const urlParams = new URLSearchParams(window.location.search);
     const error = urlParams.get('error');
-    if (error) {
+    const form = document.querySelector('form');
+    if (error && form) {
       const errorDiv = document.createElement('div');
       errorDiv.className = 'mb-4 p-4 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md';
       errorDiv.innerHTML = `
@@ -245,7 +249,7 @@
           <span class="text-destructive">${decodeURIComponent(error)}</span>
         </div>
       `;
-      document.querySelector('form').insertBefore(errorDiv, document.querySelector('form').firstChild);
+      form.insertBefore(errorDiv, form.firstChild);
     }
 
     const redirect = urlParams.get('redirect');

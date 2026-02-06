@@ -1,16 +1,27 @@
 import {
-  type Express,
-  type Request as ExpressRequest,
-  type Response as ExpressResponse,
+    type Express,
+    type Request as ExpressRequest,
+    type Response as ExpressResponse,
 } from 'express';
 import { logger } from '../logger.js';
 import { AuthenticationService } from './authentication-service.js';
 import { TemplateService } from './template-service.js';
+import {
+  extractPlatformParams,
+  persistPlatformContext,
+} from '../utils/request-utils.js';
 
 export class PageService {
   constructor(private readonly authenticationService: AuthenticationService) {}
 
-  async signInPage(_req: ExpressRequest, res: ExpressResponse): Promise<void> {
+  private persistPlatformContext(req: ExpressRequest, res: ExpressResponse): void {
+    const state = typeof req.query?.state === 'string' ? req.query.state : undefined;
+    const params = extractPlatformParams(req);
+    persistPlatformContext(req, res, { state, params });
+  }
+
+  async signInPage(req: ExpressRequest, res: ExpressResponse): Promise<void> {
+    this.persistPlatformContext(req, res);
     res.send(TemplateService.renderSignIn());
   }
 
@@ -19,7 +30,8 @@ export class PageService {
     res.send(TemplateService.renderPasswordRemind(error));
   }
 
-  async signUpPage(_req: ExpressRequest, res: ExpressResponse): Promise<void> {
+  async signUpPage(req: ExpressRequest, res: ExpressResponse): Promise<void> {
+    this.persistPlatformContext(req, res);
     res.send(TemplateService.renderSignUp());
   }
 
@@ -33,14 +45,14 @@ export class PageService {
       const session = await this.authenticationService.getSession(req);
 
       if (!session || !session.user) {
-        res.redirect('/auth/sign-in?error=Invalid or expired magic link');
+        res.redirect('/auth/signin?error=Invalid or expired magic link');
         return;
       }
 
       res.send(TemplateService.renderPasswordSetup());
     } catch (error) {
       logger.error('Error loading password setup page', {}, error as Error);
-      res.redirect('/auth/sign-in');
+      res.redirect('/auth/signin');
     }
   }
 
@@ -56,7 +68,7 @@ export class PageService {
       const session = await this.authenticationService.getSession(req);
 
       if (!session || !session.user) {
-        res.redirect('/auth/sign-in');
+        res.redirect('/auth/signin');
         return;
       }
 
@@ -87,7 +99,7 @@ export class PageService {
       const callbackURL = (req.query.callbackURL as string) || '';
 
       if (!token || !callbackURL) {
-        res.redirect('/auth/sign-in?error=Invalid magic link');
+        res.redirect('/auth/signin?error=Invalid magic link');
         return;
       }
 
@@ -98,20 +110,20 @@ export class PageService {
       res.send(TemplateService.renderMagicLinkConfirm(verifyUrl));
     } catch (error) {
       logger.error('Error rendering magic link preconfirm page', {}, error as Error);
-      res.redirect('/auth/sign-in?error=Something went wrong with the magic link');
+      res.redirect('/auth/signin?error=Something went wrong with the magic link');
     }
   }
 
   async magicLinkSuccess(req: ExpressRequest, res: ExpressResponse): Promise<void> {
     try {
       if (req.query.error) {
-        res.redirect(`/auth/sign-in?error=Magic link verification failed: ${req.query.error}`);
+        res.redirect(`/auth/signin?error=Magic link verification failed: ${req.query.error}`);
         return;
       }
 
       const session = await this.authenticationService.getSession(req);
       if (!session || !session.user) {
-        res.redirect('/auth/sign-in?error=Invalid magic link session');
+        res.redirect('/auth/signin?error=Invalid magic link session');
         return;
       }
 
@@ -129,7 +141,7 @@ export class PageService {
       res.redirect('/auth/setup-password');
     } catch (error) {
       logger.error('Magic link success handler failed', {}, error as Error);
-      res.redirect('/auth/sign-in?error=Something went wrong');
+      res.redirect('/auth/signin?error=Something went wrong');
     }
   }
 
@@ -139,11 +151,9 @@ export class PageService {
       express.post('/auth/set-password', this.setPassword.bind(this));
       express.get('/auth/magic-link-success', this.magicLinkSuccess.bind(this));
       express.get('/auth/password-remind', this.passwordRemindPage.bind(this));
-      express.get('/auth/sign-up', this.signUpPage.bind(this));
-      express.get('/auth/sign-in', this.signInPage.bind(this));
       express.get('/auth/check-email', this.checkEmailPage.bind(this));
       express.get('/auth/magic-link', this.magicLinkConfirm.bind(this));
-      express.get('/auth', (_req, res) => res.redirect('/auth/sign-in'));
+      express.get('/auth', (_req, res) => res.redirect('/auth/signin'));
     } catch (error) {
       logger.error('Failed to register page routes', {}, error as Error);
       throw new Error('Failed to register page routes');

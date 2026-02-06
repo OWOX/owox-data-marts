@@ -1,37 +1,76 @@
-import { createBetterAuthConfig } from '../auth/auth-config.js';
-import { CryptoService } from './crypto-service.js';
-import { Payload, AuthResult } from '@owox/idp-protocol';
-import { logger } from '../logger.js';
+import { Payload } from '@owox/idp-protocol';
+import ms from 'ms';
+import { decodeProtectedHeader } from 'jose';
+import { IdentityOwoxClient } from '../client/index.js';
+import { toPayload } from '../mappers/idpOwoxPayloadToPayloadMapper.js';
+import { JWKSet, makeJwksCache } from '../token/jwksCache.js';
+import { verify } from '../token/verifyJwt.js';
+import { formatError } from '../utils/string-utils.js';
+
+export interface TokenServiceConfig {
+  algorithm: string;
+  clockTolerance: ms.StringValue | number;
+  issuer: string;
+  jwtKeyCacheTtl: ms.StringValue;
+}
 
 export class TokenService {
-  private static readonly DEFAULT_ORGANIZATION_ID = '0';
+  private readonly jwksCache;
 
   constructor(
-    private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
-    private readonly cryptoService: CryptoService
-  ) {}
-
-  async introspectToken(token: string): Promise<Payload | null> {
-    logger.info('Token introspection is disabled (no sessions issued)', {
-      tokenSnippet: token.slice(0, 8),
-    });
-    return null;
+    private readonly client: IdentityOwoxClient,
+    private readonly config: TokenServiceConfig
+  ) {
+    this.jwksCache = makeJwksCache(this.fetchJwks.bind(this), 'OWOX_JWKS');
   }
 
-  async parseToken(token: string): Promise<Payload | null> {
-    return this.introspectToken(token);
+  normalizeToken(authorization: string): string {
+    return authorization.replace(/^Bearer\s+/i, '').trim();
   }
 
-  async refreshToken(refreshToken: string): Promise<AuthResult> {
-    logger.info('Token refresh is disabled (no sessions issued)', {
-      tokenSnippet: refreshToken.slice(0, 8),
-    });
-    throw new Error('Token refresh is disabled for this deployment');
+  async parse(token: string): Promise<Payload | null> {
+    try {
+      const normalized = this.normalizeToken(token);
+      const { payload } = await this.verifyJwt(normalized);
+      return toPayload(payload);
+    } catch {
+      return null;
+    }
   }
 
-  async revokeToken(token: string): Promise<void> {
-    logger.info('Token revocation skipped (sessions disabled)', {
-      tokenSnippet: token.slice(0, 8),
-    });
+  async verify(token: string): Promise<Payload | null> {
+    return this.parse(token);
+  }
+
+  formatError(error: unknown): string {
+    return formatError(error);
+  }
+
+  private async fetchJwks(): Promise<JWKSet> {
+    const resp = await this.client.getJwks();
+    return { keys: resp.keys };
+  }
+
+  private async verifyJwt(token: string) {
+    const { alg } = decodeProtectedHeader(token);
+    if (alg && alg !== this.config.algorithm) {
+      throw new Error(`Unsupported JWT alg: ${alg}`);
+    }
+
+    const clockToleranceSeconds =
+      typeof this.config.clockTolerance === 'string'
+        ? ms(this.config.clockTolerance) / 1000
+        : this.config.clockTolerance;
+
+    return verify(
+      token,
+      async () => (await this.jwksCache.get(ms(this.config.jwtKeyCacheTtl))).keyResolver,
+      async () => (await this.jwksCache.refresh(ms(this.config.jwtKeyCacheTtl))).keyResolver,
+      {
+        algorithm: this.config.algorithm,
+        clockTolerance: clockToleranceSeconds,
+        issuer: this.config.issuer,
+      }
+    );
   }
 }

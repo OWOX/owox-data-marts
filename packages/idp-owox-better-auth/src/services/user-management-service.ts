@@ -1,6 +1,6 @@
-import { createBetterAuthConfig } from '../auth/auth-config.js';
-import type { DatabaseStore } from '../store/DatabaseStore.js';
+import { createBetterAuthConfig } from '../config/idp-better-auth-config.js';
 import { logger } from '../logger.js';
+import type { DatabaseStore } from '../store/DatabaseStore.js';
 
 export class UserManagementService {
   private readonly baseURL: string;

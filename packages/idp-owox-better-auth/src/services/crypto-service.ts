@@ -1,7 +1,7 @@
-import { createBetterAuthConfig } from '../auth/auth-config.js';
-import jwt, { type SignOptions } from 'jsonwebtoken';
 import { createCipheriv, createDecipheriv, randomBytes, scrypt } from 'crypto';
+import { SignJWT, jwtVerify } from 'jose';
 import { promisify } from 'util';
+import { createBetterAuthConfig } from '../config/idp-better-auth-config.js';
 
 export class CryptoServiceError extends Error {
   constructor(message: string) {
@@ -12,17 +12,17 @@ export class CryptoServiceError extends Error {
 
 export class CryptoService {
   private readonly secret: string;
-  private readonly algorithm: jwt.Algorithm;
   private readonly expiresIn: number;
   private readonly aesAlgorithm: string;
   private readonly issuer: string;
+  private readonly secretKey: Uint8Array;
 
   constructor(auth: Awaited<ReturnType<typeof createBetterAuthConfig>>) {
     this.secret = auth.options.secret || 'default-secret';
-    this.algorithm = 'HS256';
     this.expiresIn = 3600;
     this.aesAlgorithm = 'aes-256-cbc';
     this.issuer = 'idp-owox-better-auth';
+    this.secretKey = new TextEncoder().encode(this.secret);
   }
 
   private async deriveKey(salt: Buffer): Promise<Buffer> {
@@ -75,14 +75,11 @@ export class CryptoService {
     try {
       const encryptedData = await this.encryptData(data);
 
-      const payload = { payload: encryptedData };
-      const options: SignOptions = {
-        algorithm: this.algorithm,
-        expiresIn: this.expiresIn,
-        issuer: this.issuer,
-      };
-
-      const token = jwt.sign(payload, this.secret, options);
+      const token = await new SignJWT({ payload: encryptedData })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setIssuer(this.issuer)
+        .setExpirationTime(`${this.expiresIn}s`)
+        .sign(this.secretKey);
 
       return token;
     } catch (error) {
@@ -94,29 +91,19 @@ export class CryptoService {
 
   async decrypt(token: string): Promise<string> {
     try {
-      const decoded = jwt.verify(token, this.secret, {
-        algorithms: [this.algorithm],
-      }) as jwt.JwtPayload;
+      const { payload } = await jwtVerify(token, this.secretKey, {
+        issuer: this.issuer,
+        algorithms: ['HS256'],
+      });
 
-      if (!decoded || !decoded.exp || decoded.exp < Date.now() / 1000) {
-        throw new CryptoServiceError('Token expired');
-      }
-
-      if (!decoded.payload || typeof decoded.payload !== 'string') {
+      if (!payload || typeof (payload as { payload?: unknown }).payload !== 'string') {
         throw new CryptoServiceError('Invalid token payload - missing or invalid encrypted data');
       }
 
-      if (decoded.iss !== this.issuer) {
-        throw new CryptoServiceError('Invalid token issuer');
-      }
-
-      const decryptedData = await this.decryptData(decoded.payload);
+      const decryptedData = await this.decryptData((payload as { payload: string }).payload);
 
       return decryptedData;
     } catch (error) {
-      if (error instanceof jwt.JsonWebTokenError) {
-        throw new CryptoServiceError(`Decryption failed: Invalid token: ${error.message}`);
-      }
       if (error instanceof CryptoServiceError) {
         throw error;
       }

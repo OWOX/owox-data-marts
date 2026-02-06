@@ -1,7 +1,7 @@
 import { Logger, LoggerFactory } from '@owox/internal-helpers';
-import { randomUUID } from 'crypto';
-import type { DatabaseOperationResult, DatabaseUser } from '../types/index.js';
+import type { DatabaseAccount, DatabaseOperationResult, DatabaseUser } from '../types/index.js';
 import type { DatabaseStore } from './DatabaseStore.js';
+import { StoreResult } from './StoreResult.js';
 
 type MysqlExecResult = { affectedRows?: number };
 type MysqlPool = {
@@ -25,8 +25,10 @@ export interface MysqlConnectionConfig {
 export class MysqlDatabaseStore implements DatabaseStore {
   private pool?: MysqlPool;
   private readonly logger: Logger;
+  private authTableReady = false;
 
   constructor(private readonly config: MysqlConnectionConfig) {
+    this.assertConfig(config);
     this.logger = LoggerFactory.createNamedLogger('BetterAuthMysqlDatabaseStore');
   }
 
@@ -57,20 +59,48 @@ export class MysqlDatabaseStore implements DatabaseStore {
     return this.pool;
   }
 
-  private toIso(val: unknown): string | null {
-    if (val == null) return null;
+  private toIso(val: unknown): string | undefined {
+    if (val == null) return undefined;
     if (val instanceof Date) return val.toISOString();
+    try {
+      const parsed = new Date(String(val));
+      if (!Number.isNaN(parsed.getTime())) return parsed.toISOString();
+    } catch {
+      // ignore parse errors
+    }
     return String(val);
   }
 
-  private generateId(): string {
-    return randomUUID();
+  private mapUser(row: Record<string, unknown>): DatabaseUser {
+    return {
+      id: String(row.id),
+      email: String(row.email),
+      name: row.name != null ? String(row.name) : undefined,
+      image: row.image != null ? String(row.image) : null,
+      createdAt: this.toIso(row.createdAt),
+    };
+  }
+
+  private mapAccount(row: Record<string, unknown>): DatabaseAccount {
+    return {
+      id: String(row.id),
+      accountId: String(row.accountId),
+      providerId: String(row.providerId),
+      userId: String(row.userId),
+      createdAt: this.toIso(row.createdAt),
+    };
+  }
+
+  async initialize(): Promise<void> {
+    const pool = await this.getPool();
+    await this.ensureAuthStatesTable(pool);
   }
 
   async isHealthy(): Promise<boolean> {
     try {
       const pool = await this.getPool();
       await pool.query('SELECT 1');
+      await this.ensureAuthStatesTable(pool);
       return true;
     } catch {
       return false;
@@ -99,46 +129,39 @@ export class MysqlDatabaseStore implements DatabaseStore {
   async getUsers(): Promise<DatabaseUser[]> {
     const pool = await this.getPool();
     const [rows] = (await pool.query(
-      'SELECT id, email, name, createdAt FROM user ORDER BY createdAt DESC'
+      'SELECT id, email, name, image, createdAt FROM user ORDER BY createdAt DESC'
     )) as [Array<Record<string, unknown>>, unknown];
-    return (rows as Array<Record<string, unknown>>).map((r: Record<string, unknown>) => ({
-      id: String(r.id),
-      email: String(r.email),
-      name: r.name != null ? String(r.name) : undefined,
-      createdAt: this.toIso(r.createdAt) ?? undefined,
-    }));
+    return (rows as Array<Record<string, unknown>>).map(row => this.mapUser(row));
   }
 
   async getUserById(userId: string): Promise<DatabaseUser | null> {
     const pool = await this.getPool();
     const [rows] = (await pool.execute(
-      'SELECT id, email, name, createdAt FROM user WHERE id = ? LIMIT 1',
+      'SELECT id, email, name, image, createdAt FROM user WHERE id = ? LIMIT 1',
       [userId]
     )) as [Array<Record<string, unknown>>, unknown];
-    const r = (rows as Array<Record<string, unknown>>)[0];
-    if (!r) return null;
-    return {
-      id: String(r.id),
-      email: String(r.email),
-      name: r.name != null ? String(r.name) : undefined,
-      createdAt: this.toIso(r.createdAt) ?? undefined,
-    };
+    const row = (rows as Array<Record<string, unknown>>)[0];
+    return row ? this.mapUser(row) : null;
   }
 
   async getUserByEmail(email: string): Promise<DatabaseUser | null> {
     const pool = await this.getPool();
     const [rows] = (await pool.execute(
-      'SELECT id, email, name, createdAt FROM user WHERE email = ? LIMIT 1',
+      'SELECT id, email, name, image, createdAt FROM user WHERE email = ? LIMIT 1',
       [email]
     )) as [Array<Record<string, unknown>>, unknown];
-    const r = (rows as Array<Record<string, unknown>>)[0];
-    if (!r) return null;
-    return {
-      id: String(r.id),
-      email: String(r.email),
-      name: r.name != null ? String(r.name) : undefined,
-      createdAt: this.toIso(r.createdAt) ?? undefined,
-    };
+    const row = (rows as Array<Record<string, unknown>>)[0];
+    return row ? this.mapUser(row) : null;
+  }
+
+  async getAccountByUserId(userId: string): Promise<DatabaseAccount | null> {
+    const pool = await this.getPool();
+    const [rows] = (await pool.execute(
+      'SELECT id, accountId, providerId, userId, createdAt FROM account WHERE userId = ? ORDER BY createdAt DESC LIMIT 1',
+      [userId]
+    )) as [Array<Record<string, unknown>>, unknown];
+    const row = (rows as Array<Record<string, unknown>>)[0];
+    return row ? this.mapAccount(row) : null;
   }
 
   async userHasPassword(userId: string): Promise<boolean> {
@@ -148,8 +171,8 @@ export class MysqlDatabaseStore implements DatabaseStore {
         "SELECT password FROM account WHERE userId = ? AND providerId = 'credential' LIMIT 1",
         [userId]
       )) as [Array<Record<string, unknown>>, unknown];
-      const r = (rows as Array<Record<string, unknown>>)[0];
-      return !!(r?.password && String(r.password).length > 0);
+      const row = (rows as Array<Record<string, unknown>>)[0];
+      return !!(row?.password && String(row.password).length > 0);
     } catch {
       return false;
     }
@@ -175,6 +198,59 @@ export class MysqlDatabaseStore implements DatabaseStore {
     }
   }
 
+  async saveAuthState(state: string, codeVerifier: string, expiresAt?: Date | null): Promise<void> {
+    const pool = await this.getPool();
+    await this.ensureAuthStatesTable(pool);
+    const exp: Date | null = expiresAt ?? null;
+    await pool.execute(
+      `INSERT INTO auth_states (state, code_verifier, expires_at)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+          code_verifier = VALUES(code_verifier),
+          expires_at    = VALUES(expires_at),
+          created_at    = CURRENT_TIMESTAMP`,
+      [state, codeVerifier, exp]
+    );
+  }
+
+  async getAuthState(state: string): Promise<StoreResult> {
+    const pool = await this.getPool();
+    await this.ensureAuthStatesTable(pool);
+    const [rows] = await pool.execute(
+      `SELECT code_verifier, expires_at FROM auth_states WHERE state = ? LIMIT 1`,
+      [state]
+    );
+
+    const row =
+      Array.isArray(rows) && rows.length > 0
+        ? (rows as Array<{ code_verifier: string; expires_at: Date | null }>)[0]
+        : null;
+    if (!row) return StoreResult.notFound();
+
+    const exp = row.expires_at ? new Date(row.expires_at) : null;
+    if (exp && exp.getTime() <= Date.now()) {
+      await this.deleteAuthState(state);
+      return StoreResult.expired();
+    }
+
+    return StoreResult.withCode(row.code_verifier);
+  }
+
+  async deleteAuthState(state: string): Promise<void> {
+    const pool = await this.getPool();
+    await this.ensureAuthStatesTable(pool);
+    await pool.execute(`DELETE FROM auth_states WHERE state = ?`, [state]);
+  }
+
+  async purgeExpiredAuthStates(): Promise<number> {
+    const pool = await this.getPool();
+    await this.ensureAuthStatesTable(pool);
+    const [result] = await pool.execute(
+      `DELETE FROM auth_states WHERE expires_at IS NOT NULL AND expires_at <= CURRENT_TIMESTAMP`
+    );
+    return (result as MysqlExecResult).affectedRows ?? 0;
+  }
+
   async updateUserName(userId: string, name: string): Promise<void> {
     const pool = await this.getPool();
     const [res] = (await pool.execute('UPDATE user SET name = ? WHERE id = ?', [name, userId])) as [
@@ -191,12 +267,12 @@ export class MysqlDatabaseStore implements DatabaseStore {
       try {
         await pool.execute('DELETE FROM session WHERE userId = ?', [userId]);
       } catch {
-        // Non-fatal cleanup: table may not exist yet or may contain no rows for this user
+        // Non-fatal cleanup
       }
       try {
         await pool.execute('DELETE FROM account WHERE userId = ?', [userId]);
       } catch {
-        // Non-fatal cleanup: table may not exist yet or may contain no rows for this user
+        // Non-fatal cleanup
       }
       const [res] = (await pool.execute('DELETE FROM user WHERE id = ?', [userId])) as [
         MysqlExecResult,
@@ -224,6 +300,35 @@ export class MysqlDatabaseStore implements DatabaseStore {
   }
 
   async getAdapter(): Promise<unknown> {
-    return await this.getPool();
+    const pool = await this.getPool();
+    await this.ensureAuthStatesTable(pool);
+    return pool;
+  }
+
+  private assertConfig(cfg: MysqlConnectionConfig): void {
+    const requiredKeys = ['host', 'user', 'password', 'database'] as const;
+    const missing = requiredKeys.filter(key => !cfg[key]);
+    if (missing.length > 0) {
+      throw new Error(`MysqlDatabaseStore config is incomplete. Missing: ${missing.join(', ')}`);
+    }
+  }
+
+  private async ensureAuthStatesTable(pool: MysqlPool): Promise<void> {
+    if (this.authTableReady) return;
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS auth_states (
+            state VARCHAR(255) NOT NULL PRIMARY KEY,
+            code_verifier VARCHAR(255) NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP NULL
+            )
+    `);
+
+    try {
+      await pool.query(`CREATE INDEX idx_auth_states_expires_at ON auth_states (expires_at)`);
+    } catch {
+      // index already exists
+    }
+    this.authTableReady = true;
   }
 }

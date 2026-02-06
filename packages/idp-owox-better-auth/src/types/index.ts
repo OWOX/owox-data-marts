@@ -1,9 +1,10 @@
+import type { PoolOptions } from 'mysql2';
 /**
  * SQLite database configuration
  */
 export interface SqliteConfig {
   type: 'sqlite';
-  filename?: string;
+  filename: string;
 }
 
 /**
@@ -15,8 +16,9 @@ export interface MySqlConfig {
   user: string;
   password: string;
   database: string;
-  port?: number;
-  ssl?: unknown;
+  port: number | undefined;
+  ssl?: PoolOptions['ssl'];
+  connectionLimit: number | undefined;
 }
 
 export interface GoogleProviderConfig {
@@ -41,15 +43,7 @@ export interface SocialProvidersConfig {
   microsoft?: MicrosoftProviderConfig;
 }
 
-/**
- * Custom database adapter (for advanced use cases)
- */
-export interface CustomDatabaseConfig {
-  type: 'custom';
-  adapter: unknown;
-}
-
-export type DatabaseConfig = SqliteConfig | MySqlConfig | CustomDatabaseConfig;
+export type DatabaseConfig = SqliteConfig | MySqlConfig;
 
 export interface BetterAuthConfig {
   database: DatabaseConfig;

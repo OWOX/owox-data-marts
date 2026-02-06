@@ -32,7 +32,7 @@ export const projectMenuItems: ProjectMenuItem[] = [
     title: 'Project settings',
     href: 'https://platform.owox.com/ui/p/none/settings/general',
     icon: Settings,
-    visible: { flagKey: 'IDP_PROVIDER', expectedValue: 'owox' },
+    visible: { flagKey: 'IDP_PROVIDER', expectedValue: ['owox', 'owox-better-auth'] },
     group: 'project',
   },
   {
@@ -40,7 +40,7 @@ export const projectMenuItems: ProjectMenuItem[] = [
     title: 'Credits consumption',
     href: 'https://platform.owox.com/ui/p/none/settings/consumption',
     icon: Gem,
-    visible: { flagKey: 'IDP_PROVIDER', expectedValue: 'owox' },
+    visible: { flagKey: 'IDP_PROVIDER', expectedValue: ['owox', 'owox-better-auth'] },
     group: 'project',
   },
   {
@@ -48,7 +48,7 @@ export const projectMenuItems: ProjectMenuItem[] = [
     title: 'Subscription',
     href: 'https://platform.owox.com/ui/p/none/settings/subscription',
     icon: BriefcaseBusiness,
-    visible: { flagKey: 'IDP_PROVIDER', expectedValue: 'owox' },
+    visible: { flagKey: 'IDP_PROVIDER', expectedValue: ['owox', 'owox-better-auth'] },
     group: 'project',
   },
   {
@@ -56,7 +56,7 @@ export const projectMenuItems: ProjectMenuItem[] = [
     title: 'Members',
     href: 'https://platform.owox.com/ui/p/none/settings/members',
     icon: Users,
-    visible: { flagKey: 'IDP_PROVIDER', expectedValue: 'owox' },
+    visible: { flagKey: 'IDP_PROVIDER', expectedValue: ['owox', 'owox-better-auth'] },
     group: 'project',
   },
   {
@@ -64,7 +64,7 @@ export const projectMenuItems: ProjectMenuItem[] = [
     title: 'Members',
     href: '/auth',
     icon: Users,
-    visible: { flagKey: 'IDP_PROVIDER', expectedValue: 'better-auth' },
+    visible: { flagKey: 'IDP_PROVIDER', expectedValue: ['owox', 'owox-better-auth'] },
     group: 'project',
   },
   {

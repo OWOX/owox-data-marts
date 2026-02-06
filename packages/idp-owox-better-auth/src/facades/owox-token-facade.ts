@@ -1,0 +1,159 @@
+import { AuthResult, Payload } from '@owox/idp-protocol';
+import { Logger } from '@owox/internal-helpers';
+import { Request, Response, NextFunction } from 'express';
+import {
+  IdentityOwoxClient,
+  IntrospectionRequest,
+  IntrospectionResponse,
+  RevocationRequest,
+  TokenRequest,
+  TokenResponse,
+} from '../client/index.js';
+import { AuthenticationException, IdpFailedException } from '../exception.js';
+import { toPayload } from '../mappers/idpOwoxPayloadToPayloadMapper.js';
+import type { IdpOwoxConfig } from '../config/idp-owox-config.js';
+import type { DatabaseStore } from '../store/DatabaseStore.js';
+import { StoreReason } from '../store/StoreResult.js';
+import { TokenService, type TokenServiceConfig } from '../services/token-service.js';
+
+type CookieName = string;
+
+export class OwoxTokenFacade {
+  private readonly tokenService: TokenService;
+
+  constructor(
+    private readonly identityClient: IdentityOwoxClient,
+    private readonly store: DatabaseStore,
+    private readonly config: IdpOwoxConfig,
+    private readonly logger: Logger,
+    private readonly cookieName: CookieName = 'refreshToken'
+  ) {
+    const tokenCfg: TokenServiceConfig = {
+      algorithm: this.config.jwtConfig.algorithm,
+      clockTolerance: this.config.jwtConfig.clockTolerance,
+      issuer: this.config.jwtConfig.issuer,
+      jwtKeyCacheTtl: this.config.jwtConfig.jwtKeyCacheTtl,
+    };
+    this.tokenService = new TokenService(this.identityClient, tokenCfg);
+  }
+
+  async changeAuthCode(code: string, state: string): Promise<TokenResponse> {
+    const res = await this.store.getAuthState(state);
+    if (!res.code) {
+      if (res.reason == StoreReason.EXPIRED) {
+        throw new AuthenticationException('Code verifier has expired');
+      }
+      throw new IdpFailedException(`Code verifier is not available: ${res.reason ?? 'unknown'}`);
+    }
+
+    const request: TokenRequest = {
+      grantType: 'authorization_code',
+      authCode: code,
+      codeVerifier: res.code,
+      clientId: this.config.idpConfig.clientId,
+    };
+
+    return await this.identityClient.getToken(request);
+  }
+
+  async introspectToken(token: string): Promise<Payload | null> {
+    const request: IntrospectionRequest = { token: token };
+    const response: IntrospectionResponse = await this.identityClient.introspectToken(request);
+
+    if (!response.isActive) {
+      return null;
+    }
+
+    return toPayload(response);
+  }
+
+  async parseToken(token: string): Promise<Payload | null> {
+    return this.tokenService.parse(token);
+  }
+
+  async verifyToken(token: string): Promise<Payload | null> {
+    return this.tokenService.verify(token);
+  }
+
+  async refreshToken(refreshToken: string): Promise<AuthResult> {
+    const request: TokenRequest = {
+      grantType: 'refresh_token',
+      refreshToken: refreshToken,
+      clientId: this.config.idpConfig.clientId,
+    };
+
+    const response: TokenResponse = await this.identityClient.getToken(request);
+
+    return {
+      accessToken: response.accessToken,
+      refreshToken: response.refreshToken,
+      accessTokenExpiresIn: response.accessTokenExpiresIn,
+      refreshTokenExpiresIn: response.refreshTokenExpiresIn,
+    };
+  }
+
+  async revokeToken(token: string): Promise<void> {
+    const request: RevocationRequest = { token: token, tokenType: 'refresh_token' };
+    await this.identityClient.revokeToken(request);
+  }
+
+  async accessTokenMiddleware(
+    req: Request,
+    res: Response,
+    _next: NextFunction
+  ): Promise<void | Response> {
+    try {
+      const refreshToken = req.cookies[this.cookieName];
+      if (!refreshToken) {
+        return res.json({ reason: 'atm1' });
+      }
+      const auth = await this.refreshToken(refreshToken);
+
+      const newRefreshToken = auth.refreshToken;
+      if (!newRefreshToken) {
+        return res.json({ reason: 'atm2' });
+      }
+
+      if (!auth.refreshTokenExpiresIn) {
+        return res.json({ reason: 'atm3' });
+      }
+
+      this.setTokenToCookie(res, req, newRefreshToken, auth.refreshTokenExpiresIn);
+      return res.json(auth);
+    } catch (error: unknown) {
+      res.clearCookie(this.cookieName);
+      if (error instanceof AuthenticationException) {
+        this.logger.info(this.tokenService.formatError(error), {
+          context: error.name,
+          params: error.context,
+          cause: error.cause,
+        });
+        return res.json({ reason: 'atm4' });
+      }
+
+      if (error instanceof IdpFailedException) {
+        this.logger.error(
+          'Access Token middleware failed with unexpected code',
+          error.context,
+          error.cause
+        );
+        return res.json({ reason: 'atm5' });
+      }
+
+      this.logger.error(this.tokenService.formatError(error));
+      return res.json({ reason: 'atm6' });
+    }
+  }
+
+  setTokenToCookie(res: Response, req: Request, refreshToken: string, expiresIn: number) {
+    const isSecure =
+      req.protocol !== 'http' && !(req.hostname === 'localhost' || req.hostname === '127.0.0.1');
+    res.cookie(this.cookieName, refreshToken, {
+      httpOnly: true,
+      secure: isSecure,
+      sameSite: 'lax',
+      maxAge: expiresIn * 1000,
+      path: '/',
+    });
+  }
+}
