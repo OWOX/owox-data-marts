@@ -8,11 +8,18 @@ import { MarkdownParserController } from './controllers/markdown-parser.controll
 import { ReportController } from './controllers/report.controller';
 import { InsightController } from './controllers/insight.controller';
 import { ScheduledTriggerController } from './controllers/scheduled-trigger.controller';
+import { SyncDataMartsByGcpTrigger } from './entities/legacy-data-marts/sync-data-marts-by-gcp-trigger.entity';
+import { SyncGcpStoragesForProjectTrigger } from './entities/legacy-data-marts/sync-gcp-storages-for-project-trigger.entity';
 import { ConsumptionTrackingService } from './services/consumption-tracking.service';
+import { SyncDataMartsByGcpTriggerHandler } from './services/legacy-data-marts/sync-data-marts-by-gcp-trigger.handler';
+import { SyncGcpStoragesForProjectTriggerHandler } from './services/legacy-data-marts/sync-gcp-storages-for-project-trigger.handler';
 import { ProjectBalanceService } from './services/project-balance.service';
+import { LegacyDataMartsService } from './services/legacy-data-marts/legacy-data-marts.service';
 import { ReportDataCacheService } from './services/report-data-cache.service';
 import { UserProjectionsFetcherService } from './services/user-projections-fetcher.service';
 import { CreateDataMartService } from './use-cases/create-data-mart.service';
+import { DeleteLegacyDataMartService } from './use-cases/legacy-data-marts/delete-legacy-data-mart.service';
+import { SyncLegacyGcpStoragesForProjectService } from './use-cases/legacy-data-marts/sync-legacy-gcp-storages-for-project.service';
 import { ListDataMartsService } from './use-cases/list-data-marts.service';
 import { ListDataMartsByConnectorNameService } from './use-cases/list-data-marts-by-connector-name.service';
 import { GetDataMartService } from './use-cases/get-data-mart.service';
@@ -127,6 +134,11 @@ import { InsightRunTriggerHandlerService } from './services/insight-run-trigger-
 import { ConnectorSourceCredentials } from './entities/connector-source-credentials.entity';
 import { ConnectorSourceCredentialsService } from './services/connector-source-credentials.service';
 import { ConnectorOauthService } from './services/connector/connector-oauth.service';
+import { LegacyDataStorageService } from './services/legacy-data-marts/legacy-data-storage.service';
+import { LegacySyncTriggersService } from './services/legacy-data-marts/legacy-sync-triggers.service';
+import { SyncLegacyDataMartService } from './use-cases/legacy-data-marts/sync-legacy-data-mart.service';
+import { SyncLegacyDataMartsByGcpService } from './use-cases/legacy-data-marts/sync-legacy-data-marts-by-gcp.service';
+import { LegacyDataMartsSyncController } from './controllers/internal/legacy-data-marts-sync.controller';
 
 @Module({
   imports: [
@@ -144,6 +156,8 @@ import { ConnectorOauthService } from './services/connector/connector-oauth.serv
       SchemaActualizeTrigger,
       InsightRunTrigger,
       ConnectorSourceCredentials,
+      SyncDataMartsByGcpTrigger,
+      SyncGcpStoragesForProjectTrigger,
     ]),
     CommonModule,
     IdpModule,
@@ -161,6 +175,7 @@ import { ConnectorOauthService } from './services/connector/connector-oauth.serv
     SchemaActualizeTriggerController,
     InsightRunTriggerController,
     MarkdownParserController,
+    LegacyDataMartsSyncController,
   ],
   providers: [
     ...dataStorageResolverProviders,
@@ -253,6 +268,9 @@ import { ConnectorOauthService } from './services/connector/connector-oauth.serv
     ConnectorStateService,
     ConsumptionTrackingService,
     ProjectBalanceService,
+    LegacyDataMartsService,
+    LegacyDataStorageService,
+    LegacySyncTriggersService,
     ConnectorSecretService,
     DataMartRunService,
     ReportRunService,
@@ -262,6 +280,12 @@ import { ConnectorOauthService } from './services/connector/connector-oauth.serv
     ConnectorSourceCredentialsService,
     ConnectorOauthService,
     UserProjectionsFetcherService,
+    DeleteLegacyDataMartService,
+    SyncLegacyDataMartService,
+    SyncLegacyDataMartsByGcpService,
+    SyncLegacyGcpStoragesForProjectService,
+    SyncDataMartsByGcpTriggerHandler,
+    SyncGcpStoragesForProjectTriggerHandler,
   ],
 })
 export class DataMartsModule {
