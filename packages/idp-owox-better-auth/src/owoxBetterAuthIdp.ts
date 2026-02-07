@@ -1,10 +1,4 @@
-import {
-  AuthResult,
-  IdpProvider,
-  Payload,
-  Projects,
-  ProtocolRoute,
-} from '@owox/idp-protocol';
+import { AuthResult, IdpProvider, Payload, Projects, ProtocolRoute } from '@owox/idp-protocol';
 import { Logger, LoggerFactory } from '@owox/internal-helpers';
 import cookieParser from 'cookie-parser';
 import e, { Express, NextFunction } from 'express';
@@ -46,7 +40,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   private readonly logger: Logger;
   private readonly tokenFacade: OwoxTokenFacade;
   private readonly userContextService: UserContextService;
-  private readonly authFlowService = new AuthFlowService();
+  private readonly authFlowService: AuthFlowService;
 
   private constructor(
     auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
@@ -67,6 +61,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       COOKIE_NAME
     );
     this.userContextService = new UserContextService(this.store, this.tokenFacade, this.logger);
+    this.authFlowService = new AuthFlowService(this.config.idpOwox.identityOwoxClientConfig);
 
     const cryptoService = new CryptoService(this.auth);
     const magicLinkService = new MagicLinkService(this.auth);
@@ -76,9 +71,14 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       cryptoService,
       magicLinkService,
       this.store,
-      this.userContextService
+      this.userContextService,
+      this.authFlowService
     );
-    this.requestHandlerService = new RequestHandlerService(this.auth, this.authenticationService, this.config.idpOwox);
+    this.requestHandlerService = new RequestHandlerService(
+      this.auth,
+      this.authenticationService,
+      this.config.idpOwox
+    );
     this.pageService = new PageService(this.authenticationService);
     this.middlewareService = new MiddlewareService(
       this.authenticationService,
@@ -118,23 +118,28 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       try {
         const auth = await this.tokenFacade.refreshToken(refreshToken);
         if (auth.refreshToken && auth.refreshTokenExpiresIn !== undefined) {
-          this.tokenFacade.setTokenToCookie(res, req, auth.refreshToken, auth.refreshTokenExpiresIn);
+          this.tokenFacade.setTokenToCookie(
+            res,
+            req,
+            auth.refreshToken,
+            auth.refreshTokenExpiresIn
+          );
         }
-        const { user: dbUser, account } = await this.userContextService.resolveFromToken(auth.accessToken);
+        const { user: dbUser, account } = await this.userContextService.resolveFromToken(
+          auth.accessToken
+        );
         const flowPayload = {
           state,
           userInfo: {
             uid: account.accountId,
             signinProvider: account.providerId,
-            email: dbUser.email
+            email: dbUser.email,
           },
         };
         console.log('❤️❤️❤️ tryPlatformFastPath', flowPayload);
         const result = await this.authFlowService.completeAuthFlow(flowPayload);
         const redirectUrl = buildPlatformRedirectUrl({
-          baseUrl:
-            this.config.idpOwox.idpConfig.platformSignInUrl ||
-            '',
+          baseUrl: this.config.idpOwox.idpConfig.platformSignInUrl || '',
           code: result.code,
           state,
           params,
@@ -144,12 +149,18 @@ export class OwoxBetterAuthIdp implements IdpProvider {
           return true;
         }
       } catch (error) {
-        this.logger.warn('Fast-path platform->app with refresh failed, fallback to signin page', { error });
+        this.logger.warn('Fast-path platform->app with refresh failed, fallback to signin page', {
+          error,
+        });
       }
       return false;
     };
 
-    const ensureAppAuthRedirect = async (req: e.Request, res: e.Response, handler: () => Promise<void>) => {
+    const ensureAppAuthRedirect = async (
+      req: e.Request,
+      res: e.Response,
+      handler: () => Promise<void>
+    ) => {
       const hasFlowParams =
         typeof req.query?.state === 'string' ||
         typeof req.query?.code === 'string' ||
@@ -166,7 +177,12 @@ export class OwoxBetterAuthIdp implements IdpProvider {
           try {
             const auth = await this.tokenFacade.refreshToken(refreshToken);
             if (auth.refreshToken && auth.refreshTokenExpiresIn !== undefined) {
-              this.tokenFacade.setTokenToCookie(res, req, auth.refreshToken, auth.refreshTokenExpiresIn);
+              this.tokenFacade.setTokenToCookie(
+                res,
+                req,
+                auth.refreshToken,
+                auth.refreshTokenExpiresIn
+              );
             }
             return res.redirect('/');
           } catch {
@@ -233,7 +249,12 @@ export class OwoxBetterAuthIdp implements IdpProvider {
 
       try {
         const response: TokenResponse = await this.tokenFacade.changeAuthCode(code, state);
-        this.tokenFacade.setTokenToCookie(res, req, response.refreshToken, response.refreshTokenExpiresIn);
+        this.tokenFacade.setTokenToCookie(
+          res,
+          req,
+          response.refreshToken,
+          response.refreshTokenExpiresIn
+        );
         const target =
           appRedirectTo ||
           redirectTo ||
@@ -386,5 +407,4 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     if (params.projectId) platformUrl.searchParams.set('projectId', params.projectId);
     return res.redirect(platformUrl.toString());
   }
-
 }

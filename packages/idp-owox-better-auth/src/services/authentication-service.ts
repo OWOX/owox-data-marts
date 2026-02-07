@@ -10,14 +10,13 @@ import { CryptoService } from './crypto-service.js';
 import { MagicLinkService } from './magic-link-service.js';
 import { UserContextService } from './user-context-service.js';
 export class AuthenticationService {
-  private readonly authFlowService = new AuthFlowService();
-
   constructor(
     private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
     private readonly cryptoService: CryptoService,
     private readonly magicLinkService: MagicLinkService,
     private readonly store: DatabaseStore,
-    private readonly userContextService: UserContextService
+    private readonly userContextService: UserContextService,
+    private readonly authFlowService: AuthFlowService
   ) {}
 
   async buildUserInfoPayload(req: Request): Promise<UserInfoPayload> {
@@ -63,7 +62,7 @@ export class AuthenticationService {
   private buildUserInfoPayloadFromUser(
     req: Request,
     dbUser: Awaited<ReturnType<DatabaseStore['getUserById']>> | null,
-    account: NonNullable<Awaited<ReturnType<DatabaseStore['getAccountByUserId']>>>,
+    account: NonNullable<Awaited<ReturnType<DatabaseStore['getAccountByUserId']>>>
   ): UserInfoPayload {
     const email = dbUser?.email;
     if (!email) {
@@ -118,7 +117,10 @@ export class AuthenticationService {
       },
     };
 
-    logger.info('Sending auth flow payload (callback)', { state: payload.state, userInfo: payload.userInfo });
+    logger.info('Sending auth flow payload (callback)', {
+      state: payload.state,
+      userInfo: payload.userInfo,
+    });
     const result = await this.authFlowService.completeAuthFlow(payload);
     logger.info('Integrated backend responded (callback)', { code: result.code });
     return { code: result.code, payload };

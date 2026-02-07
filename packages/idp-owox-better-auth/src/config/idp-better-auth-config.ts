@@ -40,7 +40,7 @@ export async function createBetterAuthConfig(
     })
   );
 
-  const calcBaseURL = config.baseURL || `http://localhost:${process.env.PORT || '3000'}`;
+  const calcBaseURL = config.baseURL || 'http://localhost:3000';
   const trustedOrigins =
     config.trustedOrigins && config.trustedOrigins.length > 0
       ? config.trustedOrigins
@@ -134,7 +134,9 @@ export async function createBetterAuthConfig(
 
 function buildSocialProviders(
   config: BetterAuthConfig,
-  providerLogger: { log: (level: LogLevel, message: string, meta?: Record<string, unknown>) => void },
+  providerLogger: {
+    log: (level: LogLevel, message: string, meta?: Record<string, unknown>) => void;
+  },
   redirectBuilder: (provider: string) => string
 ): Record<string, unknown> | undefined {
   if (!config.socialProviders) return undefined;
@@ -144,8 +146,7 @@ function buildSocialProviders(
   if (config.socialProviders.google) {
     const googleProvider = new GoogleProvider({
       ...config.socialProviders.google,
-      redirectURI:
-        config.socialProviders.google.redirectURI ?? redirectBuilder('google'),
+      redirectURI: config.socialProviders.google.redirectURI ?? redirectBuilder('google'),
       logger: providerLogger,
     });
     providers.google = googleProvider.buildConfig();
@@ -154,8 +155,7 @@ function buildSocialProviders(
   if (config.socialProviders.microsoft) {
     const microsoftProvider = new MicrosoftProvider({
       ...config.socialProviders.microsoft,
-      redirectURI:
-        config.socialProviders.microsoft.redirectURI ?? redirectBuilder('microsoft'),
+      redirectURI: config.socialProviders.microsoft.redirectURI ?? redirectBuilder('microsoft'),
       logger: providerLogger,
     });
     providers.microsoft = microsoftProvider.buildConfig();

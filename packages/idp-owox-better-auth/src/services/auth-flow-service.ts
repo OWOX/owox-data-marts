@@ -1,4 +1,5 @@
 import { fetchWithBackoff, ImpersonatedIdTokenFetcher } from '@owox/internal-helpers';
+import { IdentityOwoxClientConfig } from '../config/idp-owox-config.js';
 import { logger } from '../logger.js';
 
 export interface UserInfoPayload {
@@ -16,21 +17,17 @@ export interface UserInfoPayload {
 
 export class AuthFlowService {
   private readonly impersonatedIdTokenFetcher = new ImpersonatedIdTokenFetcher();
-  private readonly endpoint: string;
-  private readonly serviceAccountEmail: string | undefined;
-  private readonly targetAudience: string | undefined;
 
-  constructor() {
-    this.endpoint =
-      process.env.INTEGRATED_BACKEND_AUTH_COMPLETE_ENDPOINT ||
-      'https://integrated-backend.bi.owox.com/internal-api/idp/auth-flow/complete';
-    this.serviceAccountEmail = process.env.INTEGRATED_BACKEND_SERVICE_ACCOUNT;
-    this.targetAudience = process.env.INTEGRATED_BACKEND_TARGET_AUDIENCE;
-  }
+  constructor(
+    private readonly config: Pick<
+      IdentityOwoxClientConfig,
+      'baseUrl' | 'authCompleteEndpoint' | 'c2cServiceAccountEmail' | 'c2cTargetAudience'
+    >
+  ) {}
 
   private ensureConfigured(): void {
-    if (!this.serviceAccountEmail || !this.targetAudience) {
-      throw new Error('Integrated backend auth flow is not configured');
+    if (!this.config.c2cServiceAccountEmail || !this.config.c2cTargetAudience) {
+      throw new Error('IDP OWOX auth flow is not configured');
     }
   }
 
@@ -38,11 +35,12 @@ export class AuthFlowService {
     this.ensureConfigured();
     console.log('❌❌❌ completeAuthFlow', payload);
     const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
-      this.serviceAccountEmail!,
-      this.targetAudience!
+      this.config.c2cServiceAccountEmail!,
+      this.config.c2cTargetAudience!
     );
 
-    const response = await fetchWithBackoff(this.endpoint, {
+    const endpoint = new URL(this.config.authCompleteEndpoint, this.config.baseUrl).toString();
+    const response = await fetchWithBackoff(endpoint, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${idToken}`,
@@ -55,7 +53,7 @@ export class AuthFlowService {
     const text = await response.text();
 
     if (!response.ok) {
-      const errorMessage = `Integrated backend request failed with status ${response.status}. Response: ${text}`;
+      const errorMessage = `IDP OWOX request failed with status ${response.status}. Response: ${text}`;
       logger.error(errorMessage);
       throw new Error(errorMessage);
     }
@@ -67,8 +65,8 @@ export class AuthFlowService {
       }
       return { code: parsed.code };
     } catch (error) {
-      logger.error('Failed to parse integrated backend response', {}, error as Error);
-      throw new Error('Failed to parse integrated backend response');
+      logger.error('Failed to parse IDP OWOX response', {}, error as Error);
+      throw new Error('Failed to parse IDP OWOX response');
     }
   }
 }

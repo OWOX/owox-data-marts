@@ -92,6 +92,11 @@ const IdentityOwoxClientEnvSchema = z
     IDP_OWOX_BASE_URL: z.string().url({ message: 'IDP_OWOX_BASE_URL must be a valid URL' }),
     IDP_OWOX_DEFAULT_HEADERS: z.string().optional(),
     IDP_OWOX_TIMEOUT: zMsString.optional(),
+    IDP_OWOX_AUTH_COMPLETE_ENDPOINT: z
+      .string()
+      .min(1, 'IDP_OWOX_AUTH_COMPLETE_ENDPOINT is required'),
+    IDP_OWOX_C2C_SERVICE_ACCOUNT: z.string().min(1, 'IDP_OWOX_C2C_SERVICE_ACCOUNT is required'),
+    IDP_OWOX_C2C_TARGET_AUDIENCE: z.string().min(1, 'IDP_OWOX_C2C_TARGET_AUDIENCE is required'),
   })
   .transform(e => {
     const defaultHeaders = e.IDP_OWOX_DEFAULT_HEADERS
@@ -101,6 +106,9 @@ const IdentityOwoxClientEnvSchema = z
       baseUrl: e.IDP_OWOX_BASE_URL,
       defaultHeaders,
       clientTimeout: (e.IDP_OWOX_TIMEOUT ?? '3s') as ms.StringValue,
+      authCompleteEndpoint: e.IDP_OWOX_AUTH_COMPLETE_ENDPOINT,
+      c2cServiceAccountEmail: e.IDP_OWOX_C2C_SERVICE_ACCOUNT,
+      c2cTargetAudience: e.IDP_OWOX_C2C_TARGET_AUDIENCE,
     };
   });
 
@@ -144,9 +152,9 @@ export type DbConfig = z.infer<typeof DbEnvSchema>;
 export type MysqlConfig = Extract<DbConfig, { type: 'mysql' }>;
 export type SqliteConfig = Extract<DbConfig, { type: 'sqlite' }>;
 
-export type IdentityOwoxClientConfig = z.infer<typeof IdentityOwoxClientEnvSchema>;
 export type IdpConfig = z.infer<typeof IdpEnvSchema>;
 export type JwtConfig = z.infer<typeof JwtEnvSchema>;
+export type IdentityOwoxClientConfig = z.infer<typeof IdentityOwoxClientEnvSchema>;
 
 export type IdpOwoxConfig = {
   idpConfig: IdpConfig;
@@ -207,7 +215,9 @@ function buildSocialProviders(
     social.google = {
       clientId: env.IDP_BETTER_AUTH_GOOGLE_CLIENT_ID,
       clientSecret: env.IDP_BETTER_AUTH_GOOGLE_CLIENT_SECRET,
-      redirectURI: baseURL ? `${baseURL.replace(/\/$/, '')}/auth/better-auth/callback/google` : undefined,
+      redirectURI: baseURL
+        ? `${baseURL.replace(/\/$/, '')}/auth/better-auth/callback/google`
+        : undefined,
       prompt: env.IDP_BETTER_AUTH_GOOGLE_PROMPT ?? 'select_account',
       accessType: env.IDP_BETTER_AUTH_GOOGLE_ACCESS_TYPE ?? 'offline',
     };
@@ -279,4 +289,3 @@ export function loadBetterAuthProviderConfigFromEnv(
 
   return { betterAuth: betterAuthConfig, idpOwox };
 }
-

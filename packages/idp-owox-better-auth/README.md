@@ -18,6 +18,9 @@ IDP_OWOX_MYSQL_PORT=3306
 IDP_OWOX_MYSQL_SSL=true
 
 IDP_OWOX_BASE_URL=https://idp.example.com
+IDP_OWOX_AUTH_COMPLETE_ENDPOINT=/internal-api/idp/auth-flow/complete
+IDP_OWOX_C2C_SERVICE_ACCOUNT=service-account@example.com
+IDP_OWOX_C2C_TARGET_AUDIENCE=audience-string
 IDP_OWOX_CLIENT_ID=your-client-id
 IDP_OWOX_PLATFORM_SIGN_IN_URL=https://platform.example.com/auth/sign-in
 IDP_OWOX_PLATFORM_SIGN_UP_URL=https://platform.example.com/auth/sign-up
@@ -48,8 +51,8 @@ IDP_BETTER_AUTH_MICROSOFT_AUTHORITY=https://login.microsoftonline.com
 
 | Variable                              | Required |                   Default                   | Description                                 |
 | ------------------------------------- | :------: | :-----------------------------------------: | ------------------------------------------- |
-| `IDP_PROVIDER`                        | **Yes**  |                      –                      | Set to `better-auth`                        |
-| `IDP_OWOX_DB_TYPE`                    |    No    |                  `sqlite`                  | Shared DB type for PKCE + Better Auth store |
+| `IDP_PROVIDER`                        | **Yes**  |                      –                      | Set to `owox-better-auth`                        |
+| `IDP_OWOX_DB_TYPE`                    |    No    |                  `sqlite`                  | Database type: `sqlite` or `mysql` |
 | `IDP_OWOX_SQLITE_DB_PATH`             |    No    | `<app data>/sqlite/idp/owox-better-auth.db` | SQLite database file path                   |
 | `IDP_OWOX_MYSQL_HOST`                 |    No    |                      –                      | MySQL host                                  |
 | `IDP_OWOX_MYSQL_USER`                 |    No    |                      –                      | MySQL user                                  |
@@ -58,6 +61,9 @@ IDP_BETTER_AUTH_MICROSOFT_AUTHORITY=https://login.microsoftonline.com
 | `IDP_OWOX_MYSQL_PORT`                 |    No    |                   `3306`                    | MySQL port                                  |
 | `IDP_OWOX_MYSQL_SSL`                  |    No    |                   `false`                   | Enable SSL: `true`, JSON, or string         |
 | `IDP_OWOX_BASE_URL`                   | **Yes**  |                      –                      | Identity client base URL                    |
+| `IDP_OWOX_AUTH_COMPLETE_ENDPOINT`     | **Yes**  |                      –                      | Path for completes auth flow and returns one-time code |
+| `IDP_OWOX_C2C_SERVICE_ACCOUNT`        | **Yes**  |                      –                      | Service account email for C2C impersonation |
+| `IDP_OWOX_C2C_TARGET_AUDIENCE`        | **Yes**  |                      –                      | Target audience for C2C impersonation       |
 | `IDP_OWOX_CLIENT_ID`                  | **Yes**  |                      –                      | Client id for PKCE                          |
 | `IDP_OWOX_PLATFORM_SIGN_IN_URL`       | **Yes**  |                      –                      | Platform sign-in URL (redirect target)      |
 | `IDP_OWOX_PLATFORM_SIGN_UP_URL`       | **Yes**  |                      –                      | Platform sign-up URL (redirect target)      |
