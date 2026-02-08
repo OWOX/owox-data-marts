@@ -11,7 +11,7 @@ import {
 import { DataStorageType } from '../../data-storage-types/enums/data-storage-type.enum';
 import { DataStorage } from '../../entities/data-storage.entity';
 
-const LEGACY_DATA_STORAGE_ID_NAMESPACE = 'c6b09b4f-6fa4-4e6e-bb1a-4bfe94e50b7f';
+export const LEGACY_DATA_STORAGE_ID_NAMESPACE = 'c6b09b4f-6fa4-4e6e-bb1a-4bfe94e50b7f';
 
 @Injectable()
 export class LegacyDataStorageService {
