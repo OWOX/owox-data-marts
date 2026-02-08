@@ -1,6 +1,6 @@
 import { AuthResult, Payload } from '@owox/idp-protocol';
 import { Logger } from '@owox/internal-helpers';
-import { Request, Response, NextFunction } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import {
   IdentityOwoxClient,
   IntrospectionRequest,
@@ -9,15 +9,19 @@ import {
   TokenRequest,
   TokenResponse,
 } from '../client/index.js';
-import { AuthenticationException, IdpFailedException } from '../exception.js';
-import { toPayload } from '../mappers/idpOwoxPayloadToPayloadMapper.js';
 import type { IdpOwoxConfig } from '../config/idp-owox-config.js';
+import { AuthenticationException, IdpFailedException } from '../exception.js';
+import { toPayload } from '../mappers/client-payload-mapper.js';
+import { TokenService, type TokenServiceConfig } from '../services/token-service.js';
 import type { DatabaseStore } from '../store/DatabaseStore.js';
 import { StoreReason } from '../store/StoreResult.js';
-import { TokenService, type TokenServiceConfig } from '../services/token-service.js';
+import { buildCookieOptions, clearCookie } from '../utils/cookie-policy.js';
 
 type CookieName = string;
 
+/**
+ * Wraps Identity OWOX token operations and refresh-token cookies.
+ */
 export class OwoxTokenFacade {
   private readonly tokenService: TokenService;
 
@@ -121,7 +125,7 @@ export class OwoxTokenFacade {
       this.setTokenToCookie(res, req, newRefreshToken, auth.refreshTokenExpiresIn);
       return res.json(auth);
     } catch (error: unknown) {
-      res.clearCookie(this.cookieName);
+      clearCookie(res, this.cookieName, req);
       if (error instanceof AuthenticationException) {
         this.logger.info(this.tokenService.formatError(error), {
           context: error.name,
@@ -146,14 +150,10 @@ export class OwoxTokenFacade {
   }
 
   setTokenToCookie(res: Response, req: Request, refreshToken: string, expiresIn: number) {
-    const isSecure =
-      req.protocol !== 'http' && !(req.hostname === 'localhost' || req.hostname === '127.0.0.1');
-    res.cookie(this.cookieName, refreshToken, {
-      httpOnly: true,
-      secure: isSecure,
-      sameSite: 'lax',
-      maxAge: expiresIn * 1000,
-      path: '/',
-    });
+    res.cookie(
+      this.cookieName,
+      refreshToken,
+      buildCookieOptions(req, { maxAgeMs: expiresIn * 1000 })
+    );
   }
 }

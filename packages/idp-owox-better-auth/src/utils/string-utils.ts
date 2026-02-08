@@ -1,3 +1,6 @@
+/**
+ * Splits a full name into first/last parts.
+ */
 export function splitName(name?: string): { firstName: string; lastName: string; fullName: string } {
   const cleaned = (name || '').trim();
   if (!cleaned) {
@@ -8,6 +11,9 @@ export function splitName(name?: string): { firstName: string; lastName: string;
   return { firstName, lastName, fullName: cleaned };
 }
 
+/**
+ * Formats an error into a readable string with stack.
+ */
 export function formatError(error: unknown): string {
   if (error instanceof Error) {
     return `${error.message}\n${error.stack ?? ''}`;

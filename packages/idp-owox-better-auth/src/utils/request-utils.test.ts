@@ -1,8 +1,13 @@
+/**
+ * Tests for request utility functions.
+ */
 import { describe, expect, it, jest } from '@jest/globals';
 import { type Request, type Response } from 'express';
 import {
+  clearPlatformCookies,
   extractPlatformParams,
   extractState,
+  hasStateMismatch,
   persistPlatformContext,
   setCookie,
 } from './request-utils.js';
@@ -21,6 +26,16 @@ describe('request-utils', () => {
     } as unknown as Request;
 
     expect(extractState(req)).toBe('fromCookie');
+  });
+
+  it('returns empty state on mismatch', () => {
+    const req = {
+      headers: { cookie: 'idp-owox-state=fromCookie;' },
+      query: { state: 'otherState' },
+    } as unknown as Request;
+
+    expect(hasStateMismatch(req)).toBe(true);
+    expect(extractState(req)).toBe('');
   });
 
   it('extracts platform params from cookie payload', () => {
@@ -81,5 +96,19 @@ describe('request-utils', () => {
 
     expect(cookieCalls).toHaveLength(1);
     expect(cookieCalls[0]?.[2]).toMatchObject({ secure: true });
+  });
+
+  it('clears cookies with secure options when request provided', () => {
+    const res = createResponseMock();
+    const req = {
+      protocol: 'https',
+      hostname: 'app.example',
+    } as unknown as Request;
+
+    clearPlatformCookies(res, req);
+
+    const clearCalls = (res.clearCookie as jest.Mock).mock.calls;
+    expect(clearCalls).toHaveLength(2);
+    expect(clearCalls[0]?.[2]).toMatchObject({ secure: true, sameSite: 'lax' });
   });
 });

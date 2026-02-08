@@ -10,6 +10,9 @@ export type GoogleProviderOptions = {
   logger?: ProviderLogger;
 };
 
+/**
+ * Maps Google OAuth profile data into the app user format.
+ */
 export class GoogleProvider implements SocialProvider {
   public providerId = 'google';
 

@@ -14,6 +14,44 @@ const zMsString = z
   })
   .transform(s => s as ms.StringValue);
 
+function normalizeOrigin(value: string, label: string): string {
+  try {
+    return new URL(value).origin;
+  } catch (error) {
+    throw new Error(`Invalid ${label} value: ${value}. ${error instanceof Error ? error.message : error}`);
+  }
+}
+
+function ensureValidUrl(value: string, label: string): string {
+  try {
+    // eslint-disable-next-line no-new
+    new URL(value);
+    return value;
+  } catch {
+    throw new Error(`Invalid ${label} value: ${value}`);
+  }
+}
+
+function buildAllowedRedirectOrigins(
+  raw: string | undefined,
+  signInUrl: string,
+  signUpUrl: string
+): string[] {
+  const defaults = [
+    normalizeOrigin(signInUrl, 'IDP_OWOX_PLATFORM_SIGN_IN_URL'),
+    normalizeOrigin(signUpUrl, 'IDP_OWOX_PLATFORM_SIGN_UP_URL'),
+  ];
+  const extra = raw
+    ? raw
+        .split(',')
+        .map(x => x.trim())
+        .filter(Boolean)
+        .map(origin => normalizeOrigin(origin, 'IDP_OWOX_ALLOWED_REDIRECT_ORIGINS'))
+    : [];
+
+  return Array.from(new Set([...defaults, ...extra]));
+}
+
 /** ---------- DB env (SQLite or MySQL) ---------- */
 
 function defaultSqlitePath(): string {
@@ -123,13 +161,24 @@ const IdpEnvSchema = z
     IDP_OWOX_PLATFORM_SIGN_UP_URL: z
       .string()
       .url({ message: 'IDP_OWOX_PLATFORM_SIGN_UP_URL must be a valid URL' }),
-    IDP_OWOX_CALLBACK_URL: z.string().min(1, 'IDP_OWOX_CALLBACK_URL is required'),
+    IDP_OWOX_CALLBACK_URL: z
+      .string()
+      .min(1, 'IDP_OWOX_CALLBACK_URL is required')
+      .refine(value => value.startsWith('/'), {
+        message: 'IDP_OWOX_CALLBACK_URL must start with "/"',
+      }),
+    IDP_OWOX_ALLOWED_REDIRECT_ORIGINS: z.string().optional(),
   })
   .transform(e => ({
     clientId: e.IDP_OWOX_CLIENT_ID,
     platformSignInUrl: e.IDP_OWOX_PLATFORM_SIGN_IN_URL,
     platformSignUpUrl: e.IDP_OWOX_PLATFORM_SIGN_UP_URL,
     callbackUrl: e.IDP_OWOX_CALLBACK_URL,
+    allowedRedirectOrigins: buildAllowedRedirectOrigins(
+      e.IDP_OWOX_ALLOWED_REDIRECT_ORIGINS,
+      e.IDP_OWOX_PLATFORM_SIGN_IN_URL,
+      e.IDP_OWOX_PLATFORM_SIGN_UP_URL
+    ),
   }));
 
 /** ---------- JWT config ---------- */
@@ -165,23 +214,17 @@ export type IdpOwoxConfig = {
 
 /** ---------- Better Auth (UI/auth) config ---------- */
 
-const DEFAULT_MAGIC_LINK_TTL = 3600; // seconds
 const DEFAULT_SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
 const BetterAuthEnvSchema = z.object({
   IDP_BETTER_AUTH_SECRET: z.string().min(32, 'IDP_BETTER_AUTH_SECRET is required'),
-  IDP_BETTER_AUTH_BASE_URL: z.string().optional(),
-  IDP_BETTER_AUTH_MAGIC_LINK_TTL: z.string().optional(),
+  IDP_BETTER_AUTH_BASE_URL: z.string().url().optional(),
   IDP_BETTER_AUTH_SESSION_MAX_AGE: z.string().optional(),
   IDP_BETTER_AUTH_TRUSTED_ORIGINS: z.string().optional(),
   IDP_BETTER_AUTH_GOOGLE_CLIENT_ID: z.string().optional(),
   IDP_BETTER_AUTH_GOOGLE_CLIENT_SECRET: z.string().optional(),
   IDP_BETTER_AUTH_GOOGLE_PROMPT: z.string().optional(),
   IDP_BETTER_AUTH_GOOGLE_ACCESS_TYPE: z.string().optional(),
-  IDP_BETTER_AUTH_MICROSOFT_CLIENT_ID: z.string().optional(),
-  IDP_BETTER_AUTH_MICROSOFT_CLIENT_SECRET: z.string().optional(),
-  IDP_BETTER_AUTH_MICROSOFT_TENANT_ID: z.string().optional(),
-  IDP_BETTER_AUTH_MICROSOFT_AUTHORITY: z.string().optional(),
 });
 
 type Env = NodeJS.ProcessEnv;
@@ -198,9 +241,12 @@ function parseTrustedOrigins(raw: string | undefined, baseUrl: string | undefine
         .split(',')
         .map(x => x.trim())
         .filter(Boolean)
+        .map(origin => normalizeOrigin(origin, 'IDP_BETTER_AUTH_TRUSTED_ORIGINS'))
     : [];
 
-  if (baseUrl) origins.push(baseUrl);
+  if (baseUrl) {
+    origins.push(normalizeOrigin(baseUrl, 'IDP_BETTER_AUTH_BASE_URL'));
+  }
 
   return Array.from(new Set(origins));
 }
@@ -222,18 +268,6 @@ function buildSocialProviders(
       accessType: env.IDP_BETTER_AUTH_GOOGLE_ACCESS_TYPE ?? 'offline',
     };
   }
-
-  // if (env.IDP_BETTER_AUTH_MICROSOFT_CLIENT_ID && env.IDP_BETTER_AUTH_MICROSOFT_CLIENT_SECRET) {
-  //   social.microsoft = {
-  //     clientId: env.IDP_BETTER_AUTH_MICROSOFT_CLIENT_ID,
-  //     clientSecret: env.IDP_BETTER_AUTH_MICROSOFT_CLIENT_SECRET,
-  //     redirectURI:
-  //       baseURL ? `${baseURL.replace(/\/$/, '')}/auth/better-auth/callback/microsoft` : undefined,
-  //     prompt: undefined,
-  //     tenantId: env.IDP_BETTER_AUTH_MICROSOFT_TENANT_ID,
-  //     authority: env.IDP_BETTER_AUTH_MICROSOFT_AUTHORITY,
-  //   };
-  // }
 
   return Object.keys(social).length ? social : undefined;
 }
@@ -265,6 +299,9 @@ export function loadIdpOwoxConfigFromEnv(env: NodeJS.ProcessEnv = process.env): 
   };
 }
 
+/**
+ * Loads Better Auth + IdP OWOX config from environment.
+ */
 export function loadBetterAuthProviderConfigFromEnv(
   env: Env = process.env
 ): BetterAuthProviderConfig {
@@ -276,15 +313,15 @@ export function loadBetterAuthProviderConfigFromEnv(
     env.PUBLIC_ORIGIN ??
     (env.PORT ? `http://localhost:${env.PORT}` : undefined) ??
     'http://localhost:3000';
+  const safeBaseURL = ensureValidUrl(baseURL, 'IDP_BETTER_AUTH_BASE_URL');
 
   const betterAuthConfig: BetterAuthConfig = {
     database: idpOwox.dbConfig,
     secret: baEnv.IDP_BETTER_AUTH_SECRET,
-    baseURL,
-    magicLinkTtl: toNumber(baEnv.IDP_BETTER_AUTH_MAGIC_LINK_TTL, DEFAULT_MAGIC_LINK_TTL),
+    baseURL: safeBaseURL,
     session: { maxAge: toNumber(baEnv.IDP_BETTER_AUTH_SESSION_MAX_AGE, DEFAULT_SESSION_MAX_AGE) },
-    trustedOrigins: parseTrustedOrigins(baEnv.IDP_BETTER_AUTH_TRUSTED_ORIGINS, baseURL),
-    socialProviders: buildSocialProviders(baEnv, baseURL),
+    trustedOrigins: parseTrustedOrigins(baEnv.IDP_BETTER_AUTH_TRUSTED_ORIGINS, safeBaseURL),
+    socialProviders: buildSocialProviders(baEnv, safeBaseURL),
   };
 
   return { betterAuth: betterAuthConfig, idpOwox };

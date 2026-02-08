@@ -2,6 +2,9 @@ import { fetchWithBackoff, ImpersonatedIdTokenFetcher } from '@owox/internal-hel
 import { IdentityOwoxClientConfig } from '../config/idp-owox-config.js';
 import { logger } from '../logger.js';
 
+/**
+ * Payload sent to the backend to complete auth flow.
+ */
 export interface UserInfoPayload {
   state: string;
   userInfo: {
@@ -15,6 +18,9 @@ export interface UserInfoPayload {
   };
 }
 
+/**
+ * Calls the backend to exchange user info for a one-time auth code.
+ */
 export class AuthFlowService {
   private readonly impersonatedIdTokenFetcher = new ImpersonatedIdTokenFetcher();
 
@@ -33,7 +39,11 @@ export class AuthFlowService {
 
   async completeAuthFlow(payload: UserInfoPayload): Promise<{ code: string }> {
     this.ensureConfigured();
-    console.log('❌❌❌ completeAuthFlow', payload);
+    logger.info('Completing auth flow', {
+      hasState: Boolean(payload.state),
+      signinProvider: payload.userInfo.signinProvider,
+      userId: payload.userInfo.uid,
+    });
     const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
       this.config.c2cServiceAccountEmail!,
       this.config.c2cTargetAudience!

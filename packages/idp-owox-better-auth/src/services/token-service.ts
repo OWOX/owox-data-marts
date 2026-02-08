@@ -1,8 +1,8 @@
 import { Payload } from '@owox/idp-protocol';
-import ms from 'ms';
 import { decodeProtectedHeader } from 'jose';
+import ms from 'ms';
 import { IdentityOwoxClient } from '../client/index.js';
-import { toPayload } from '../mappers/idpOwoxPayloadToPayloadMapper.js';
+import { toPayload } from '../mappers/client-payload-mapper.js';
 import { JWKSet, makeJwksCache } from '../token/jwksCache.js';
 import { verify } from '../token/verifyJwt.js';
 import { formatError } from '../utils/string-utils.js';
@@ -14,6 +14,9 @@ export interface TokenServiceConfig {
   jwtKeyCacheTtl: ms.StringValue;
 }
 
+/**
+ * Validates and parses JWT access tokens using JWKS cache.
+ */
 export class TokenService {
   private readonly jwksCache;
 

@@ -72,59 +72,10 @@
     <h2 class="mt-6 text-center text-3xl font-bold tracking-tight text-foreground">
       OWOX Data Marts
     </h2>
-    <!-- <p class="mt-2 text-center text-sm text-muted-foreground">
-      Enter your email and we’ll send you a magic link to finish sign up.
-    </p> -->
     <p class="mt-2 text-center text-sm text-muted-foreground">
       Sign up to your account to continue
     </p>
   </div>
-
-  <!-- <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-    <div class="bg-card py-8 px-4 shadow-sm rounded-lg sm:px-10 border border-border">
-      
-      <form class="space-y-6" action="/auth/api/sign-up" method="post" id="signUpForm">
-        <input type="hidden" name="redirect" id="redirect" value="/" />
-
-        <div>
-          <label for="email" class="block text-sm font-medium text-card-foreground">
-            Email address
-          </label>
-          <div class="mt-1">
-            <input
-              id="email"
-              name="email"
-              type="email"
-              autocomplete="email"
-              required
-              class="appearance-none block w-full px-3 py-2 border border-input bg-background rounded-md placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring sm:text-sm transition-colors"
-              placeholder="Enter your email"
-            >
-          </div>
-        </div>
-
-        <div>
-          <button
-            type="submit"
-            class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors"
-          >
-            <span class="absolute left-0 inset-y-0 flex items-center pl-3">
-              <svg class="h-4 w-4 text-primary-foreground group-hover:text-primary-foreground/90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-              </svg>
-            </span>
-            Send magic link
-          </button>
-        </div>
-      </form>
-     
-
-      <p class="mt-4 text-center text-sm text-muted-foreground">
-        Already have an account?
-        <a href="/auth/signin" class="font-medium text-primary hover:text-primary/80">Sign in</a>
-      </p>
-    </div>
-  </div> -->
 
   <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
     <div class="bg-card py-6 px-4 shadow-sm rounded-lg sm:px-10 border border-border">
@@ -151,21 +102,6 @@
           <span>Sign up with Google</span>
         </button>
 
-        <!--
-        <button
-          id="microsoft-signup"
-          type="button"
-          class="w-full inline-flex justify-center items-center gap-2 py-2 px-4 border border-border rounded-md text-sm font-medium text-foreground bg-background hover:bg-muted transition-colors"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" x="0px" y="0px" width="100" height="100" viewBox="0 0 48 48">
-            <path fill="#ff5722" d="M6 6H22V22H6z" transform="rotate(-180 14 14)"></path>
-            <path fill="#4caf50" d="M26 6H42V22H26z" transform="rotate(-180 34 14)"></path>
-            <path fill="#ffc107" d="M26 26H42V42H26z" transform="rotate(-180 34 34)"></path>
-            <path fill="#03a9f4" d="M6 26H22V42H6z" transform="rotate(-180 14 34)"></path>
-          </svg>
-          <span>Sign up with Microsoft</span>
-        </button>
-        -->
       </div>
     </div>
   </div>
@@ -178,30 +114,8 @@
 
   <script>
     const urlParams = new URLSearchParams(window.location.search);
-    const error = urlParams.get('error');
     const redirectValue = urlParams.get('redirect') || '/';
-    const redirectInput = document.getElementById('redirect');
-    const form = document.querySelector('form');
-    if (redirectInput) {
-      redirectInput.value = redirectValue;
-    }
-
-    if (error && form) {
-      const errorDiv = document.createElement('div');
-      errorDiv.className = 'mb-4 p-4 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md';
-      errorDiv.innerHTML = `
-        <div class="flex items-center">
-          <svg class="w-4 h-4 mr-2 text-destructive" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-          </svg>
-          <span class="text-destructive">${decodeURIComponent(error)}</span>
-        </div>
-      `;
-      form.insertBefore(errorDiv, form.firstChild);
-    }
-
     const googleButton = document.getElementById('google-signup');
-    const microsoftButton = document.getElementById('microsoft-signup');
     const redirectTarget = redirectValue || '/';
 
     async function startSocial(provider) {
@@ -234,7 +148,6 @@
     }
 
     googleButton?.addEventListener('click', () => startSocial('google'));
-    microsoftButton?.addEventListener('click', () => startSocial('microsoft'));
   </script>
 </body>
 </html>

@@ -1,7 +1,9 @@
 import { z } from 'zod';
 
+/** OAuth grant types supported by Identity OWOX. */
 export type GrantType = 'authorization_code' | 'refresh_token';
 
+/** Token request payload for Identity OWOX. */
 export interface TokenRequest {
   grantType: GrantType;
   clientId: string;
@@ -10,6 +12,7 @@ export interface TokenRequest {
   codeVerifier?: string;
 }
 
+/** Token response schema for Identity OWOX. */
 export const TokenResponseSchema = z.object({
   accessToken: z.string().min(10),
   refreshToken: z.string().min(10),

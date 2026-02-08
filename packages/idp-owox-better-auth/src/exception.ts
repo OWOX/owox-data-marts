@@ -1,3 +1,6 @@
+/**
+ * Error for authentication flow failures with context.
+ */
 export class AuthenticationException extends Error {
   readonly cause?: unknown;
   readonly context?: Record<string, unknown>;
@@ -10,6 +13,9 @@ export class AuthenticationException extends Error {
   }
 }
 
+/**
+ * Error for failed requests to Identity OWOX.
+ */
 export class IdpFailedException extends Error {
   readonly cause?: unknown;
   readonly context?: Record<string, unknown>;

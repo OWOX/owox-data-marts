@@ -1,9 +1,11 @@
 import { createLocalJWKSet, JWK } from 'jose';
 
+/** JWKS payload structure. */
 export interface JWKSet {
   keys: JWK[];
 }
 
+/** Async loader for JWKS keys. */
 export interface JwksFetcher {
   (): Promise<JWKSet>;
 }
@@ -15,6 +17,9 @@ interface CacheEntry {
   inflight?: Promise<CacheEntry>;
 }
 
+/**
+ * Creates an in-memory JWKS cache with refresh support.
+ */
 export function makeJwksCache(fetchJwks: JwksFetcher, key: string) {
   const cache = new Map<string, CacheEntry>();
 

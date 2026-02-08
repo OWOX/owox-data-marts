@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { RoleEnum } from '@owox/idp-protocol';
 
+/** Payload schema returned by Identity OWOX introspection. */
 export const IdpOwoxPayloadSchema = z
   .object({
     userId: z.string().min(1, 'userId is required'),

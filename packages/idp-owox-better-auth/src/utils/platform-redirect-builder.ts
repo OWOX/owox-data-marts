@@ -7,6 +7,58 @@ export interface PlatformRedirectOptions {
   state: string;
   params?: PlatformParams;
   defaultSource?: string;
+  allowedRedirectOrigins?: string[];
+}
+
+export interface PlatformEntryOptions {
+  authUrl: string;
+  params?: PlatformParams;
+  defaultSource?: string;
+  allowedRedirectOrigins?: string[];
+}
+
+function isRelativePath(value: string): boolean {
+  return value.startsWith('/') && !value.startsWith('//');
+}
+
+function normalizeOrigin(value: string): string | null {
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Sanitizes redirect parameters to avoid open redirects.
+ */
+export function sanitizeRedirectParam(
+  value: string | undefined,
+  allowedRedirectOrigins: string[] | undefined
+): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  if (isRelativePath(trimmed)) return trimmed;
+  const origin = normalizeOrigin(trimmed);
+  if (!origin || !allowedRedirectOrigins?.length) return undefined;
+  return allowedRedirectOrigins.includes(origin) ? trimmed : undefined;
+}
+
+function applyPlatformParams(
+  url: URL,
+  params: PlatformParams | undefined,
+  options: { defaultSource?: string; allowedRedirectOrigins?: string[] }
+): void {
+  const source = params?.source || options.defaultSource;
+  if (source) url.searchParams.set('source', source);
+  const redirectTo = sanitizeRedirectParam(params?.redirectTo, options.allowedRedirectOrigins);
+  if (redirectTo) url.searchParams.set('redirect-to', redirectTo);
+  const appRedirectTo = sanitizeRedirectParam(params?.appRedirectTo, options.allowedRedirectOrigins);
+  if (appRedirectTo) url.searchParams.set('app-redirect-to', appRedirectTo);
+  if (params?.clientId) url.searchParams.set('clientId', params.clientId);
+  if (params?.codeChallenge) url.searchParams.set('codeChallenge', params.codeChallenge);
+  if (params?.projectId) url.searchParams.set('projectId', params.projectId);
 }
 
 function resolveBaseUrl(baseUrl?: string | null, signInUrl?: string | null): string | null {
@@ -22,22 +74,33 @@ function resolveBaseUrl(baseUrl?: string | null, signInUrl?: string | null): str
   }
 }
 
+/**
+ * Builds a Platform redirect URL with code/state and safe params.
+ */
 export function buildPlatformRedirectUrl(options: PlatformRedirectOptions): URL | null {
   const base = resolveBaseUrl(options.baseUrl, options.signInUrl);
   if (!base) return null;
 
   const url = new URL(base);
-  const { params } = options;
   url.searchParams.set('code', options.code);
   url.searchParams.set('state', options.state);
 
-  if (params?.redirectTo) url.searchParams.set('redirect-to', params.redirectTo);
-  if (params?.appRedirectTo) url.searchParams.set('app-redirect-to', params.appRedirectTo);
-  const source = params?.source || options.defaultSource;
-  if (source) url.searchParams.set('source', source);
-  if (params?.clientId) url.searchParams.set('clientId', params.clientId);
-  if (params?.codeChallenge) url.searchParams.set('codeChallenge', params.codeChallenge);
-  if (params?.projectId) url.searchParams.set('projectId', params.projectId);
+  applyPlatformParams(url, options.params, {
+    defaultSource: options.defaultSource,
+    allowedRedirectOrigins: options.allowedRedirectOrigins,
+  });
 
+  return url;
+}
+
+/**
+ * Builds a Platform entry URL (sign-in or sign-up) with safe params.
+ */
+export function buildPlatformEntryUrl(options: PlatformEntryOptions): URL {
+  const url = new URL(options.authUrl);
+  applyPlatformParams(url, options.params, {
+    defaultSource: options.defaultSource,
+    allowedRedirectOrigins: options.allowedRedirectOrigins,
+  });
   return url;
 }

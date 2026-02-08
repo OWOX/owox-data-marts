@@ -2,6 +2,9 @@ import { existsSync, readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
+/**
+ * Loads and renders static HTML templates for auth pages.
+ */
 export class TemplateService {
   private static getTemplatePath(templateName: string): string {
     const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -24,30 +27,7 @@ export class TemplateService {
     return this.loadTemplate('sign-in.html');
   }
 
-  public static renderPasswordRemind(error = ''): string {
-    const template = this.loadTemplate('password-remind.html');
-    return template.replace('{{ERROR}}', error || '');
-  }
-
   public static renderSignUp(): string {
     return this.loadTemplate('sign-up.html');
-  }
-
-  public static renderCheckEmail(email: string): string {
-    const template = this.loadTemplate('check-email.html');
-    return template.replace('{{EMAIL}}', email);
-  }
-
-  public static renderPasswordSetup(): string {
-    return this.loadTemplate('password-setup.html');
-  }
-
-  public static renderPasswordSuccess(): string {
-    return this.loadTemplate('password-success.html');
-  }
-
-  public static renderMagicLinkConfirm(verifyUrl: string): string {
-    const template = this.loadTemplate('magic-link-confirm.html');
-    return template.replace('{{VERIFY_URL}}', verifyUrl);
   }
 }

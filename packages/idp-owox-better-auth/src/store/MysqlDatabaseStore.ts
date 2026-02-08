@@ -22,13 +22,15 @@ export interface MysqlConnectionConfig {
   ssl?: unknown;
 }
 
+/**
+ * MySQL-backed DatabaseStore implementation.
+ */
 export class MysqlDatabaseStore implements DatabaseStore {
   private pool?: MysqlPool;
   private readonly logger: Logger;
   private authTableReady = false;
 
   constructor(private readonly config: MysqlConnectionConfig) {
-    this.assertConfig(config);
     this.logger = LoggerFactory.createNamedLogger('BetterAuthMysqlDatabaseStore');
   }
 
@@ -116,24 +118,6 @@ export class MysqlDatabaseStore implements DatabaseStore {
     return { changes: Number((result as MysqlExecResult)?.affectedRows ?? 0) };
   }
 
-  async getUserCount(): Promise<number> {
-    const pool = await this.getPool();
-    const [rows] = (await pool.query('SELECT COUNT(*) as count FROM user')) as [
-      Array<Record<string, unknown>>,
-      unknown,
-    ];
-    const row = rows[0] as Record<string, unknown> & { count?: number };
-    return row?.count ?? 0;
-  }
-
-  async getUsers(): Promise<DatabaseUser[]> {
-    const pool = await this.getPool();
-    const [rows] = (await pool.query(
-      'SELECT id, email, name, image, createdAt FROM user ORDER BY createdAt DESC'
-    )) as [Array<Record<string, unknown>>, unknown];
-    return (rows as Array<Record<string, unknown>>).map(row => this.mapUser(row));
-  }
-
   async getUserById(userId: string): Promise<DatabaseUser | null> {
     const pool = await this.getPool();
     const [rows] = (await pool.execute(
@@ -162,40 +146,6 @@ export class MysqlDatabaseStore implements DatabaseStore {
     )) as [Array<Record<string, unknown>>, unknown];
     const row = (rows as Array<Record<string, unknown>>)[0];
     return row ? this.mapAccount(row) : null;
-  }
-
-  async userHasPassword(userId: string): Promise<boolean> {
-    const pool = await this.getPool();
-    try {
-      const [rows] = (await pool.execute(
-        "SELECT password FROM account WHERE userId = ? AND providerId = 'credential' LIMIT 1",
-        [userId]
-      )) as [Array<Record<string, unknown>>, unknown];
-      const row = (rows as Array<Record<string, unknown>>)[0];
-      return !!(row?.password && String(row.password).length > 0);
-    } catch {
-      return false;
-    }
-  }
-
-  async clearUserPassword(userId: string): Promise<void> {
-    const pool = await this.getPool();
-    try {
-      await pool.execute("DELETE FROM account WHERE userId = ? AND providerId = 'credential'", [
-        userId,
-      ]);
-    } catch {
-      // Non-fatal: account might not exist
-    }
-  }
-
-  async revokeUserSessions(userId: string): Promise<void> {
-    const pool = await this.getPool();
-    try {
-      await pool.execute('DELETE FROM session WHERE userId = ?', [userId]);
-    } catch {
-      // Non-fatal: sessions might not exist
-    }
   }
 
   async saveAuthState(state: string, codeVerifier: string, expiresAt?: Date | null): Promise<void> {
@@ -251,42 +201,6 @@ export class MysqlDatabaseStore implements DatabaseStore {
     return (result as MysqlExecResult).affectedRows ?? 0;
   }
 
-  async updateUserName(userId: string, name: string): Promise<void> {
-    const pool = await this.getPool();
-    const [res] = (await pool.execute('UPDATE user SET name = ? WHERE id = ?', [name, userId])) as [
-      MysqlExecResult,
-      unknown,
-    ];
-    if (!(res as MysqlExecResult)?.affectedRows)
-      throw new Error(`User ${userId} not found or not updated`);
-  }
-
-  async deleteUserCascade(userId: string): Promise<DatabaseOperationResult> {
-    const pool = await this.getPool();
-    try {
-      try {
-        await pool.execute('DELETE FROM session WHERE userId = ?', [userId]);
-      } catch {
-        // Non-fatal cleanup
-      }
-      try {
-        await pool.execute('DELETE FROM account WHERE userId = ?', [userId]);
-      } catch {
-        // Non-fatal cleanup
-      }
-      const [res] = (await pool.execute('DELETE FROM user WHERE id = ?', [userId])) as [
-        MysqlExecResult,
-        unknown,
-      ];
-      if (!(res as MysqlExecResult)?.affectedRows) throw new Error(`User ${userId} not found`);
-      return { changes: Number((res as MysqlExecResult).affectedRows ?? 0) };
-    } catch (e) {
-      throw new Error(
-        `Failed to delete user ${userId}: ${e instanceof Error ? e.message : String(e)}`
-      );
-    }
-  }
-
   async shutdown(): Promise<void> {
     if (this.pool && typeof this.pool.end === 'function') {
       try {
@@ -303,14 +217,6 @@ export class MysqlDatabaseStore implements DatabaseStore {
     const pool = await this.getPool();
     await this.ensureAuthStatesTable(pool);
     return pool;
-  }
-
-  private assertConfig(cfg: MysqlConnectionConfig): void {
-    const requiredKeys = ['host', 'user', 'password', 'database'] as const;
-    const missing = requiredKeys.filter(key => !cfg[key]);
-    if (missing.length > 0) {
-      throw new Error(`MysqlDatabaseStore config is incomplete. Missing: ${missing.join(', ')}`);
-    }
   }
 
   private async ensureAuthStatesTable(pool: MysqlPool): Promise<void> {

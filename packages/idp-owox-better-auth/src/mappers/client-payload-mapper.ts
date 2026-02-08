@@ -11,6 +11,9 @@ const IdpOwoxToPayloadSchema = IdpOwoxPayloadSchema.transform((src: IdpOwoxPaylo
   projectTitle: src.projectTitle,
 })).pipe(PayloadSchema);
 
+/**
+ * Maps Identity OWOX payloads into idp-protocol payloads.
+ */
 export function toPayload(input: unknown): Payload {
   return IdpOwoxToPayloadSchema.parse(input);
 }

@@ -4,10 +4,11 @@ import { JWKSet, makeJwksCache } from './jwksCache.js';
 import { verify } from './verifyJwt.js';
 
 import { Payload } from '@owox/idp-protocol';
-import { IdentityOwoxClient } from '../client/index.js';
-import { toPayload } from '../mappers/idpOwoxPayloadToPayloadMapper.js';
 import ms from 'ms';
+import { IdentityOwoxClient } from '../client/index.js';
+import { toPayload } from '../mappers/client-payload-mapper.js';
 
+/** Configuration for JWT parsing and verification. */
 export interface ParseTokenConfig {
   jwtKeyCacheTtl: ms.StringValue;
   clockTolerance: string | number;
@@ -15,6 +16,9 @@ export interface ParseTokenConfig {
   algorithm: string;
 }
 
+/**
+ * Parses and verifies a JWT using JWKS from Identity OWOX.
+ */
 export async function parseToken(
   token: string,
   client: IdentityOwoxClient,

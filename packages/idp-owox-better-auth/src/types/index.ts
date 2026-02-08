@@ -29,18 +29,8 @@ export interface GoogleProviderConfig {
   accessType?: string;
 }
 
-export interface MicrosoftProviderConfig {
-  clientId: string;
-  clientSecret: string;
-  redirectURI?: string;
-  prompt?: string;
-  tenantId?: string;
-  authority?: string;
-}
-
 export interface SocialProvidersConfig {
   google?: GoogleProviderConfig;
-  microsoft?: MicrosoftProviderConfig;
 }
 
 export type DatabaseConfig = SqliteConfig | MySqlConfig;
@@ -48,18 +38,12 @@ export type DatabaseConfig = SqliteConfig | MySqlConfig;
 export interface BetterAuthConfig {
   database: DatabaseConfig;
   socialProviders?: SocialProvidersConfig;
-  emailAndPassword?: {
-    enabled: boolean;
-    requireEmailVerification?: boolean;
-    sendEmailVerification?: (email: string, url: string, token: string) => Promise<void>;
-  };
   session?: {
     maxAge?: number;
   };
   trustedOrigins?: string[];
   baseURL?: string;
   secret: string;
-  magicLinkTtl: number;
 }
 
 export * from './auth-session.js';

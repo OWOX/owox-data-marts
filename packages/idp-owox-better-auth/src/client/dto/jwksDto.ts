@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { JWK } from 'jose';
 
+/** JSON Web Key schema used in JWKS responses. */
 export const JsonWebKeySchema = z
   .object({
     kty: z.string(),
@@ -12,6 +13,7 @@ export const JsonWebKeySchema = z
   })
   .passthrough();
 
+/** JWKS response schema. */
 export const JwksResponseSchema = z
   .object({
     keys: z.array(JsonWebKeySchema).nonempty(),

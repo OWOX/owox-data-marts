@@ -6,19 +6,19 @@ import {
 } from 'express';
 import { createBetterAuthConfig } from '../config/idp-better-auth-config.js';
 import { logger } from '../logger.js';
-import { buildAuthRequestContext } from '../types/auth-request-context.js';
-import { buildPlatformRedirectUrl } from '../utils/platform-redirect-builder.js';
-import { clearPlatformCookies, extractPlatformParams } from '../utils/request-utils.js';
-import { AuthenticationService } from './authentication-service.js';
-import { IdpOwoxConfig } from '../config/idp-owox-config.js';
+import { extractPlatformParams } from '../utils/request-utils.js';
+import { BETTER_AUTH_SESSION_COOKIE } from '../constants.js';
+import { FlowCompletionService } from './flow-completion-service.js';
 
+/**
+ * Proxies Better Auth requests and completes social login flow.
+ */
 export class RequestHandlerService {
   private static readonly AUTH_ROUTE_PREFIX = '/auth/better-auth';
 
   constructor(
     private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
-    private readonly authenticationService: AuthenticationService,
-    private readonly idpOwoxConfig: IdpOwoxConfig
+    private readonly flowCompletionService: FlowCompletionService
   ) {}
 
   setupBetterAuthHandler(expressApp: Express): void {
@@ -50,7 +50,7 @@ export class RequestHandlerService {
     });
   }
 
-  private getRefreshTokenFromResponse(response: Response): string | null {
+  private getSessionTokenFromResponse(response: Response): string | null {
     const rawHeaders: string[] = [];
     const getSetCookieFn = (response.headers as unknown as { getSetCookie?: () => string[] }).getSetCookie;
     const getSetCookie =
@@ -65,8 +65,9 @@ export class RequestHandlerService {
       rawHeaders.push(...header.split(/,(?=[^;]+=[^;]+)/g));
     }
 
+    const cookieName = this.escapeRegex(BETTER_AUTH_SESSION_COOKIE);
     for (const h of rawHeaders) {
-      const match = h.match(/refreshToken=([^;]+)/);
+      const match = h.match(new RegExp(`${cookieName}=([^;]+)`));
       if (match && match[1]) {
         return decodeURIComponent(match[1]);
       }
@@ -74,51 +75,29 @@ export class RequestHandlerService {
     return null;
   }
 
+  private escapeRegex(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
   private async tryCompleteAuthFlow(
     req: ExpressRequest,
     response: Response,
     res: ExpressResponse
   ): Promise<boolean> {
-    const context = buildAuthRequestContext(req);
-    try {
-      const refreshToken = this.getRefreshTokenFromResponse(response);
-      if (!refreshToken) return false;
+    const sessionToken = this.getSessionTokenFromResponse(response);
+    if (!sessionToken) return false;
 
-      const stateFromReq = context.state || '';
-      console.log('🎉🎉🎉 completeAuthFlowWithRefreshToken', refreshToken, stateFromReq);
-      const { code, payload } = await this.authenticationService.completeAuthFlowWithRefreshToken(
-        refreshToken,
-        stateFromReq
-      );
-      const state = stateFromReq || payload.state;
-
-      const url = this.buildPlatformCodeRedirectUrl(req, code, state);
-      if (url) {
-        clearPlatformCookies(res);
-        res.redirect(url.toString());
-        return true;
-      }
-    } catch (error) {
-      logger.warn('Failed to auto-complete auth flow on callback', {}, error as Error);
-      clearPlatformCookies(res);
-      res.redirect('/auth/signin');
+    const redirectUrl = await this.flowCompletionService.completeWithSocialSessionToken(
+      sessionToken,
+      extractPlatformParams(req),
+      req,
+      res
+    );
+    if (redirectUrl) {
+      res.redirect(redirectUrl.toString());
       return true;
     }
     return false;
-  }
-
-  private buildPlatformCodeRedirectUrl(
-    req: ExpressRequest,
-    code: string,
-    state: string
-  ): URL | null {
-    return buildPlatformRedirectUrl({
-      baseUrl: this.idpOwoxConfig.idpConfig.platformSignInUrl,
-      code,
-      state,
-      params: extractPlatformParams(req),
-      defaultSource: 'app',
-    });
   }
 
   convertExpressToFetchRequest(req: ExpressRequest): Request {

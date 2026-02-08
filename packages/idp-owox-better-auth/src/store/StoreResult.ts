@@ -3,6 +3,9 @@ export enum StoreReason {
   EXPIRED = 'expired',
 }
 
+/**
+ * Wraps PKCE state lookup results with reason metadata.
+ */
 export class StoreResult {
   private constructor(
     public readonly code: string | null,

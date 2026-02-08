@@ -1,0 +1,149 @@
+import { Logger } from '@owox/internal-helpers';
+import { ProtocolRoute } from '@owox/idp-protocol';
+import type { Request, Response } from 'express';
+import type { IdpOwoxConfig } from '../config/idp-owox-config.js';
+import type { OwoxTokenFacade } from '../facades/owox-token-facade.js';
+import { AuthFlowService, type UserInfoPayload } from './auth-flow-service.js';
+import type { AuthenticationService } from './authentication-service.js';
+import { buildPlatformRedirectUrl } from '../utils/platform-redirect-builder.js';
+import {
+  extractState,
+  extractStateFromCookie,
+  clearPlatformCookies,
+  clearBetterAuthCookies,
+  type PlatformParams,
+} from '../utils/request-utils.js';
+import { formatError } from '../utils/string-utils.js';
+import { UserContextService } from './user-context-service.js';
+import { buildUserInfoPayload } from '../mappers/user-info-payload-builder.js';
+
+/**
+ * Orchestrates PKCE completion for Platform using core tokens or social login.
+ */
+export class FlowCompletionService {
+  /**
+   * Creates a local sign-in URL for fallback redirects.
+   */
+  private buildLocalSignInUrl(req: Request): URL {
+    const host =
+      (typeof req.get === 'function' ? req.get('host') : undefined) ||
+      req.headers.host ||
+      'localhost';
+    const base = `${req.protocol}://${host}`;
+    return new URL(`/auth${ProtocolRoute.SIGN_IN}`, base);
+  }
+
+  /**
+   * Detects "state expired" errors coming from the auth flow backend.
+   */
+  private isStateExpiredError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false;
+    const message = error instanceof Error ? error.message : String(error);
+    return message.toLowerCase().includes('state expired');
+  }
+  constructor(
+    private readonly idpOwoxConfig: IdpOwoxConfig,
+    private readonly tokenFacade: OwoxTokenFacade,
+    private readonly userContextService: UserContextService,
+    private readonly authFlowService: AuthFlowService,
+    private readonly authenticationService: AuthenticationService,
+    private readonly logger: Logger
+  ) {}
+
+  private buildRedirectUrl(code: string, state: string, params: PlatformParams): URL | null {
+    return buildPlatformRedirectUrl({
+      baseUrl: this.idpOwoxConfig.idpConfig.platformSignInUrl || '',
+      code,
+      state,
+      params,
+      defaultSource: 'app',
+      allowedRedirectOrigins: this.idpOwoxConfig.idpConfig.allowedRedirectOrigins,
+    });
+  }
+
+  /**
+   * Completes auth flow using Identity refresh token (platform fast-path).
+   */
+  async completeWithIdentityRefreshToken(
+    refreshToken: string,
+    params: PlatformParams,
+    req: Request,
+    res: Response
+  ): Promise<URL | null> {
+    const state = extractState(req);
+    if (!state) {
+      this.logger.warn('Missing or mismatched state for identity refresh flow');
+      return null;
+    }
+    try {
+      const auth = await this.tokenFacade.refreshToken(refreshToken);
+      if (auth.refreshToken && auth.refreshTokenExpiresIn !== undefined) {
+        this.tokenFacade.setTokenToCookie(res, req, auth.refreshToken, auth.refreshTokenExpiresIn);
+      }
+
+      const { user, account } = await this.userContextService.resolveFromToken(auth.accessToken);
+      const payload: UserInfoPayload = buildUserInfoPayload({
+        state,
+        user,
+        account,
+      });
+
+      const result = await this.authFlowService.completeAuthFlow(payload);
+      const redirectUrl = this.buildRedirectUrl(result.code, state, params);
+      if (!redirectUrl) {
+        this.logger.warn('Failed to build redirect URL after identity refresh');
+      }
+      return redirectUrl;
+    } catch (error) {
+      if (this.isStateExpiredError(error)) {
+        clearPlatformCookies(res, req);
+        clearBetterAuthCookies(res, req);
+        return this.buildLocalSignInUrl(req);
+      }
+      this.logger.warn('Platform fast-path failed, will fallback to UI', { error: formatError(error) });
+      return null;
+    }
+  }
+
+  /**
+   * Completes auth flow using Better Auth session token received from handler response.
+   */
+  async completeWithSocialSessionToken(
+    sessionToken: string,
+    params: PlatformParams,
+    req: Request,
+    res: Response
+  ): Promise<URL | null> {
+    const state = extractStateFromCookie(req);
+    if (!state) {
+      this.logger.warn('Missing or mismatched state for social login flow');
+      clearPlatformCookies(res, req);
+      clearBetterAuthCookies(res, req);
+      return this.buildLocalSignInUrl(req);
+    }
+    try {
+      const { code, payload } = await this.authenticationService.completeAuthFlowWithSessionToken(
+        sessionToken,
+        state
+      );
+      const finalState = payload.state || state;
+      const redirectUrl = this.buildRedirectUrl(code, finalState || '', params);
+      if (redirectUrl) {
+        clearPlatformCookies(res, req);
+        clearBetterAuthCookies(res, req);
+        return redirectUrl;
+      }
+    } catch (error) {
+      if (this.isStateExpiredError(error)) {
+        clearPlatformCookies(res, req);
+        clearBetterAuthCookies(res, req);
+        return this.buildLocalSignInUrl(req);
+      }
+      this.logger.warn('Auto-complete auth flow on callback failed', { error: formatError(error) });
+      clearPlatformCookies(res, req);
+      clearBetterAuthCookies(res, req);
+      return null;
+    }
+    return null;
+  }
+}

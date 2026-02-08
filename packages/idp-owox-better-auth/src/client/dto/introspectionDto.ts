@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { IdpOwoxPayload, IdpOwoxPayloadSchema } from './idpOwoxPayloadDto.js';
 
+/** Token introspection request payload. */
 export interface IntrospectionRequest {
   token: string;
 }
@@ -19,6 +20,7 @@ const InactiveSchema = z
   .strict()
   .extend({ isActive: z.literal(false) });
 
+/** Token introspection response schema. */
 export const IntrospectionResponseSchema = z.discriminatedUnion('isActive', [
   ActiveSchema,
   InactiveSchema,

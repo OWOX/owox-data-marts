@@ -1,3 +1,6 @@
+/**
+ * Re-exports configuration helpers and types.
+ */
 export { createBetterAuthConfig } from './idp-better-auth-config.js';
 export {
   loadBetterAuthProviderConfigFromEnv,

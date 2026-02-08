@@ -13,6 +13,9 @@ function normalizeConfig(database: DatabaseConfig | DbConfig): DatabaseConfig {
   throw new Error(`Unsupported database config shape: ${(database as { type?: string }).type ?? 'unknown'}`);
 }
 
+/**
+ * Creates a database store implementation based on config.
+ */
 export function createDatabaseStore(database: DatabaseConfig | DbConfig): DatabaseStore {
   const normalized = normalizeConfig(database);
   switch (normalized.type) {

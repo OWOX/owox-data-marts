@@ -1,10 +1,12 @@
 import { LoggerFactory, LogLevel } from '@owox/internal-helpers';
 import { betterAuth } from 'better-auth';
-import { magicLink } from 'better-auth/plugins';
 import { GoogleProvider } from '../social/google-provider.js';
-import { MicrosoftProvider } from '../social/microsoft-provider.js';
 import { BetterAuthConfig } from '../types/index.js';
+import { BETTER_AUTH_SESSION_COOKIE } from '../constants.js';
 
+/**
+ * Builds Better Auth configuration with social providers and cookies.
+ */
 export async function createBetterAuthConfig(
   config: BetterAuthConfig,
   options?: { adapter?: unknown }
@@ -12,33 +14,7 @@ export async function createBetterAuthConfig(
   const logger = LoggerFactory.createNamedLogger('better-auth');
   const database = options?.adapter;
 
-  const plugins: unknown[] = [];
   const basePath = '/auth/better-auth';
-  plugins.push(
-    magicLink({
-      sendMagicLink: async ({ email, token, url }) => {
-        try {
-          const original = new URL(url);
-          const tokenParam = original.searchParams.get('token') || token;
-          const callbackParam = original.searchParams.get('callbackURL') || '';
-          const preConfirmPage = new URL(original.origin);
-          preConfirmPage.pathname = '/auth/magic-link';
-          preConfirmPage.searchParams.set('token', tokenParam);
-          if (callbackParam) {
-            preConfirmPage.searchParams.set('callbackURL', callbackParam);
-          }
-
-          const link = preConfirmPage.toString();
-          logger.info('Magic link logged instead of sent', { email, link });
-        } catch (error) {
-          logger.error('Failed to process magic link', { error });
-        }
-      },
-      expiresIn: config.magicLinkTtl,
-      // TODO: Set true after email sign up is implemented
-      disableSignUp: true,
-    })
-  );
 
   const calcBaseURL = config.baseURL || 'http://localhost:3000';
   const trustedOrigins =
@@ -48,7 +24,6 @@ export async function createBetterAuthConfig(
 
   const authConfig: Record<string, unknown> = {
     database,
-    plugins,
     session: {
       expiresIn: config.session?.maxAge || 60 * 60 * 24 * 7,
       updateAge: 60 * 60 * 24,
@@ -58,33 +33,16 @@ export async function createBetterAuthConfig(
     secret: config.secret,
     emailAndPassword: {
       enabled: false,
-      requireEmailVerification: false,
-      autoSignIn: false,
-    },
-    emailVerification: {
-      sendVerificationEmail: async () => {
-        logger.warn('Email verification is тимчасово вимкнено; посилання не відправляємо');
-        return Promise.resolve();
-      },
-      afterEmailVerification: async () => {
-        // No-op: higher-level org/role handling removed
-        return Promise.resolve();
-      },
     },
     advanced: {
       cookies: {
         session_token: {
-          name: 'refreshToken',
+          name: BETTER_AUTH_SESSION_COOKIE,
           attributes: {
             httpOnly: true,
             sameSite: 'lax',
             path: '/',
-            secure:
-              config.baseURL?.includes('localhost') ||
-              config.baseURL?.includes('127.0.0.1') ||
-              !config.baseURL?.startsWith('https://')
-                ? false
-                : true,
+            secure: isSecureBaseURL(calcBaseURL),
           },
         },
       },
@@ -125,11 +83,22 @@ export async function createBetterAuthConfig(
   };
 
   const socialProviders = buildSocialProviders(config, providerLogger, defaultRedirect);
-  if (socialProviders) {
-    authConfig.socialProviders = socialProviders;
-  }
+  if (socialProviders) authConfig.socialProviders = socialProviders;
 
   return betterAuth(authConfig);
+}
+
+function isLocalhost(hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '127.0.0.1';
+}
+
+function isSecureBaseURL(baseURL: string): boolean {
+  try {
+    const url = new URL(baseURL);
+    return url.protocol === 'https:' && !isLocalhost(url.hostname);
+  } catch {
+    return false;
+  }
 }
 
 function buildSocialProviders(
@@ -150,15 +119,6 @@ function buildSocialProviders(
       logger: providerLogger,
     });
     providers.google = googleProvider.buildConfig();
-  }
-
-  if (config.socialProviders.microsoft) {
-    const microsoftProvider = new MicrosoftProvider({
-      ...config.socialProviders.microsoft,
-      redirectURI: config.socialProviders.microsoft.redirectURI ?? redirectBuilder('microsoft'),
-      logger: providerLogger,
-    });
-    providers.microsoft = microsoftProvider.buildConfig();
   }
 
   return Object.keys(providers).length ? providers : undefined;

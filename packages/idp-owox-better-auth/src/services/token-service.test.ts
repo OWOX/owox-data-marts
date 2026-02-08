@@ -1,3 +1,6 @@
+/**
+ * Tests for TokenService JWT validation.
+ */
 import { describe, expect, it, jest } from '@jest/globals';
 import { generateKeyPair, SignJWT, exportJWK } from 'jose';
 import { TokenService, type TokenServiceConfig } from './token-service.js';
