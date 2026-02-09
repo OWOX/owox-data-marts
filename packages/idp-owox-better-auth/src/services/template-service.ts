@@ -54,17 +54,15 @@ export class TemplateService {
 
   public static renderSignIn(): string {
     return this.renderWithLayout('pages/sign-in.ejs', 'layouts/auth.ejs', {
-      pageTitle: 'Sign In - IDP OWOX',
-      heading: 'OWOX Data Marts',
-      subheading: 'Sign in to your account to continue',
+      pageTitle: 'Sign In - OWOX Data Marts',
+      heading: 'Sign in to OWOX using your Google account',
     });
   }
 
   public static renderSignUp(): string {
     return this.renderWithLayout('pages/sign-up.ejs', 'layouts/auth.ejs', {
-      pageTitle: 'Sign Up - IDP OWOX',
-      heading: 'OWOX Data Marts',
-      subheading: 'Sign up to your account to continue',
+      pageTitle: 'Sign Up - OWOX Data Marts',
+      heading: 'Sign up to OWOX using your Google account',
     });
   }
 }
