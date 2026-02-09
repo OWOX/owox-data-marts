@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sign Up - IDP Better Auth</title>
+  <title>Sign Up - IDP OWOX</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -79,15 +79,6 @@
 
   <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
     <div class="bg-card py-6 px-4 shadow-sm rounded-lg sm:px-10 border border-border">
-      <!-- <div class="relative">
-        <div class="absolute inset-0 flex items-center" aria-hidden="true">
-          <div class="w-full border-t border-border"></div>
-        </div>
-        <div class="relative flex justify-center text-sm">
-          <span class="px-2 bg-card text-muted-foreground">Or sign up with</span>
-        </div>
-      </div> -->
-
       <div class="mt-1 space-y-3">
         <button
           id="google-signup"
@@ -105,6 +96,11 @@
       </div>
     </div>
   </div>
+
+  <p class="mt-4 text-center text-sm text-muted-foreground">
+    Already have an account?
+    <a href="/auth/sign-in" class="font-medium text-primary hover:text-primary/80">Sign in</a>
+  </p>
 
   <div class="mt-8 text-center">
     <p class="text-xs text-muted-foreground">

@@ -17,8 +17,6 @@ import type { DatabaseStore } from '../store/DatabaseStore.js';
 import { StoreReason } from '../store/StoreResult.js';
 import { buildCookieOptions, clearCookie } from '../utils/cookie-policy.js';
 
-type CookieName = string;
-
 /**
  * Wraps Identity OWOX token operations and refresh-token cookies.
  */
@@ -30,7 +28,7 @@ export class OwoxTokenFacade {
     private readonly store: DatabaseStore,
     private readonly config: IdpOwoxConfig,
     private readonly logger: Logger,
-    private readonly cookieName: CookieName = 'refreshToken'
+    private readonly cookieName: string = 'refreshToken'
   ) {
     const tokenCfg: TokenServiceConfig = {
       algorithm: this.config.jwtConfig.algorithm,
