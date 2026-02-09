@@ -23,7 +23,7 @@ Choose **Slack** from the **Destination Type** dropdown.
 #### 1.3. Configure Destination details
 
 - **Title**: Enter a unique name for the Destination (for example, “Marketing Team”).  
-- **Slack channel emails list**: Add recipient emails or Slack user IDs separated by commas, semicolons, or new lines  
+- **Slack channel emails list**: Add recipient emails separated by commas, semicolons, or new lines  
   (for example: `john.doe@yourworkspace.slack.com`, `marketing-team@yourworkspace.slack.com`).
 
 #### 1.4. Save the Destination
