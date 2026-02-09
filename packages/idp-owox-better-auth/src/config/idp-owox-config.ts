@@ -1,11 +1,11 @@
-import envPaths from 'env-paths';
-import { dirname, join } from 'path';
 import { parseMysqlSslEnv } from '@owox/internal-helpers';
+import envPaths from 'env-paths';
+import { existsSync, mkdirSync } from 'fs';
 import ms from 'ms';
 import type { PoolOptions } from 'mysql2';
+import { dirname, join } from 'path';
 import { z } from 'zod';
 import type { BetterAuthConfig, DatabaseConfig, SocialProvidersConfig } from '../types/index.js';
-import { existsSync, mkdirSync } from 'fs';
 
 const zMsString = z
   .string()
@@ -129,9 +129,9 @@ const IdentityOwoxClientEnvSchema = z
     IDP_OWOX_BASE_URL: z.string().url({ message: 'IDP_OWOX_BASE_URL must be a valid URL' }),
     IDP_OWOX_DEFAULT_HEADERS: z.string().optional(),
     IDP_OWOX_TIMEOUT: zMsString.optional(),
-    IDP_OWOX_AUTH_COMPLETE_ENDPOINT: z
+    IDP_OWOX_BACKCHANNEL_API_PREFIX: z
       .string()
-      .min(1, 'IDP_OWOX_AUTH_COMPLETE_ENDPOINT is required'),
+      .min(1, 'IDP_OWOX_BACKCHANNEL_API_PREFIX is required'),
     IDP_OWOX_C2C_SERVICE_ACCOUNT: z.string().min(1, 'IDP_OWOX_C2C_SERVICE_ACCOUNT is required'),
     IDP_OWOX_C2C_TARGET_AUDIENCE: z.string().min(1, 'IDP_OWOX_C2C_TARGET_AUDIENCE is required'),
   })
@@ -143,7 +143,7 @@ const IdentityOwoxClientEnvSchema = z
       baseUrl: e.IDP_OWOX_BASE_URL,
       defaultHeaders,
       clientTimeout: (e.IDP_OWOX_TIMEOUT ?? '3s') as ms.StringValue,
-      authCompleteEndpoint: e.IDP_OWOX_AUTH_COMPLETE_ENDPOINT,
+      backchannelApiPrefix: e.IDP_OWOX_BACKCHANNEL_API_PREFIX,
       c2cServiceAccountEmail: e.IDP_OWOX_C2C_SERVICE_ACCOUNT,
       c2cTargetAudience: e.IDP_OWOX_C2C_TARGET_AUDIENCE,
     };

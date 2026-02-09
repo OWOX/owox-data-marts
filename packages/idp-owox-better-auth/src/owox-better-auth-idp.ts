@@ -20,11 +20,11 @@ import type { DatabaseStore } from './store/database-store.js';
 import { clearCookie } from './utils/cookie-policy.js';
 import { buildPlatformEntryUrl } from './utils/platform-redirect-builder.js';
 import {
-  clearBetterAuthCookies,
-  clearPlatformCookies,
-  extractPlatformParams,
-  extractRefreshToken,
-  getStateManager,
+    clearBetterAuthCookies,
+    clearPlatformCookies,
+    extractPlatformParams,
+    extractRefreshToken,
+    getStateManager,
 } from './utils/request-utils.js';
 import { formatError } from './utils/string-utils.js';
 
@@ -62,7 +62,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       CORE_REFRESH_TOKEN_COOKIE
     );
     this.userContextService = new UserContextService(this.store, this.tokenFacade, this.logger);
-    this.authFlowService = new AuthFlowService(this.config.idpOwox.identityOwoxClientConfig);
+    this.authFlowService = new AuthFlowService(this.identityClient);
 
     this.authenticationService = new AuthenticationService(
       this.auth,

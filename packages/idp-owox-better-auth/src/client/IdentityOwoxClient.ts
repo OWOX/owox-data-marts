@@ -1,20 +1,24 @@
+import { Projects, ProjectsSchema } from '@owox/idp-protocol';
+import { ImpersonatedIdTokenFetcher } from '@owox/internal-helpers';
 import axios, { AxiosInstance } from 'axios';
+import ms from 'ms';
+import { IdentityOwoxClientConfig } from '../config/idp-owox-config.js';
+import { AuthenticationException, IdpFailedException } from '../exception.js';
 import {
-  TokenRequest,
-  TokenResponse,
-  RevocationRequest,
-  RevocationResponse,
+  AuthFlowRequest,
+  AuthFlowResponse,
+  AuthFlowResponseSchema,
   IntrospectionRequest,
   IntrospectionResponse,
-  JwksResponse,
-  TokenResponseSchema,
   IntrospectionResponseSchema,
+  JwksResponse,
   JwksResponseSchema,
+  RevocationRequest,
+  RevocationResponse,
+  TokenRequest,
+  TokenResponse,
+  TokenResponseSchema,
 } from './dto/index.js';
-import { IdentityOwoxClientConfig } from '../config/idp-owox-config.js';
-import ms from 'ms';
-import { Projects, ProjectsSchema } from '@owox/idp-protocol';
-import { AuthenticationException, IdpFailedException } from '../exception.js';
 
 /**
  * Represents a client for interacting with the Identity OWOX API.
@@ -22,6 +26,10 @@ import { AuthenticationException, IdpFailedException } from '../exception.js';
  */
 export class IdentityOwoxClient {
   private readonly http: AxiosInstance;
+  private readonly impersonatedIdTokenFetcher?: ImpersonatedIdTokenFetcher;
+  private readonly c2cServiceAccountEmail?: string;
+  private readonly c2cTargetAudience?: string;
+  private readonly backchannelApiPrefix: string;
 
   constructor(config: IdentityOwoxClientConfig) {
     const timeout =
@@ -34,6 +42,15 @@ export class IdentityOwoxClient {
         ...(config.defaultHeaders ?? {}),
       },
     });
+
+    this.backchannelApiPrefix = config.backchannelApiPrefix;
+
+    // Initialize service account authentication if configured
+    if (config.c2cServiceAccountEmail && config.c2cTargetAudience) {
+      this.impersonatedIdTokenFetcher = new ImpersonatedIdTokenFetcher();
+      this.c2cServiceAccountEmail = config.c2cServiceAccountEmail;
+      this.c2cTargetAudience = config.c2cTargetAudience;
+    }
   }
 
   /**
@@ -104,5 +121,53 @@ export class IdentityOwoxClient {
   async getJwks(): Promise<JwksResponse> {
     const { data } = await this.http.get<JwksResponse>('/api/idp/.well-known/jwks.json');
     return JwksResponseSchema.parse(data);
+  }
+
+  /**
+   * Completes auth flow by exchanging user info for a one-time authorization code.
+   * Requires service account authentication for the private internal endpoint.
+   */
+  async completeAuthFlow(request: AuthFlowRequest): Promise<AuthFlowResponse> {
+    if (!this.impersonatedIdTokenFetcher || !this.c2cServiceAccountEmail || !this.c2cTargetAudience) {
+      throw new IdpFailedException(
+        'Service account authentication is not configured. Cannot complete auth flow.',
+        { context: { hasRequest: Boolean(request) } }
+      );
+    }
+
+    try {
+      const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
+        this.c2cServiceAccountEmail,
+        this.c2cTargetAudience
+      );
+
+      const { data } = await this.http.post<AuthFlowResponse>(
+        `${this.backchannelApiPrefix}/idp/auth-flow/complete`,
+        request,
+        {
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+          },
+        }
+      );
+
+      // Validate and return response
+      return AuthFlowResponseSchema.parse(data);
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        const status = err.response?.status;
+        const responseData = err.response?.data;
+
+        throw new IdpFailedException(
+          `Failed to complete auth flow: ${status}`,
+          {
+            cause: err,
+            context: { request, status, responseData },
+          }
+        );
+      }
+
+      throw err;
+    }
   }
 }

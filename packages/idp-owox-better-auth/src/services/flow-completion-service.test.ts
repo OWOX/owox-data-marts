@@ -1,17 +1,17 @@
 /**
  * Tests for FlowCompletionService behavior and redirects.
  */
-import { describe, expect, it, jest, beforeEach } from '@jest/globals';
-import { FlowCompletionService } from './flow-completion-service.js';
-import type { IdpOwoxConfig } from '../config/idp-owox-config.js';
-import type { OwoxTokenFacade } from '../facades/owox-token-facade.js';
-import type { AuthFlowService } from './auth-flow-service.js';
-import type { AuthenticationService } from './authentication-service.js';
-import type { UserContextService } from './user-context-service.js';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import type { Logger } from '@owox/internal-helpers';
 import type { Request, Response } from 'express';
-import type { DatabaseAccount, DatabaseUser } from '../types/database-models.js';
+import type { IdpOwoxConfig } from '../config/idp-owox-config.js';
 import { SOURCE } from '../constants.js';
+import type { OwoxTokenFacade } from '../facades/owox-token-facade.js';
+import type { DatabaseAccount, DatabaseUser } from '../types/database-models.js';
+import type { AuthFlowService } from './auth-flow-service.js';
+import type { AuthenticationService } from './authentication-service.js';
+import { FlowCompletionService } from './flow-completion-service.js';
+import type { UserContextService } from './user-context-service.js';
 
 const baseConfig: IdpOwoxConfig = {
   baseUrl: 'https://auth.test',
@@ -25,7 +25,7 @@ const baseConfig: IdpOwoxConfig = {
     baseUrl: 'https://idp.test',
     defaultHeaders: undefined,
     clientTimeout: '3s',
-    authCompleteEndpoint: '/internal-api/idp/auth-flow/complete',
+    backchannelApiPrefix: '/backchannel',
     c2cServiceAccountEmail: 'svc@test',
     c2cTargetAudience: 'aud',
   },

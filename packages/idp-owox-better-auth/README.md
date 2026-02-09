@@ -18,7 +18,7 @@ IDP_OWOX_MYSQL_PORT=3306
 IDP_OWOX_MYSQL_SSL=true
 
 IDP_OWOX_BASE_URL=https://idp.example.com
-IDP_OWOX_AUTH_COMPLETE_ENDPOINT=/internal-api/idp/auth-flow/complete
+IDP_OWOX_BACKCHANNEL_API_PREFIX=/your-custom-prefix
 IDP_OWOX_C2C_SERVICE_ACCOUNT=service-account@example.com
 IDP_OWOX_C2C_TARGET_AUDIENCE=audience-string
 IDP_OWOX_CLIENT_ID=your-client-id
@@ -55,7 +55,7 @@ IDP_BETTER_AUTH_GOOGLE_CLIENT_SECRET=xx
 | `IDP_OWOX_MYSQL_PORT`                 |    No    |                   `3306`                    | MySQL port                                  |
 | `IDP_OWOX_MYSQL_SSL`                  |    No    |                   `false`                   | Enable SSL: `true`, JSON, or string         |
 | `IDP_OWOX_BASE_URL`                   | **Yes**  |                      –                      | Identity client base URL                    |
-| `IDP_OWOX_AUTH_COMPLETE_ENDPOINT`     | **Yes**  |                      –                      | Path for completes auth flow and returns one-time code |
+| `IDP_OWOX_BACKCHANNEL_API_PREFIX`     | **Yes**  |                      –                      | Path prefix for backchannel endpoints        |
 | `IDP_OWOX_C2C_SERVICE_ACCOUNT`        | **Yes**  |                      –                      | Service account email for C2C impersonation |
 | `IDP_OWOX_C2C_TARGET_AUDIENCE`        | **Yes**  |                      –                      | Target audience for C2C impersonation       |
 | `IDP_OWOX_CLIENT_ID`                  | **Yes**  |                      –                      | Client id for PKCE                          |
