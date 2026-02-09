@@ -27,6 +27,41 @@ const STATE_COOKIE = 'idp-owox-state';
 const PLATFORM_PARAMS_COOKIE = 'idp-owox-params';
 
 /**
+ * Centralized state handling with single-source validation.
+ */
+export class StateManager {
+  private readonly stateFromCookie: string | undefined;
+  private readonly queryState: string;
+
+  constructor(private readonly req: Request) {
+    this.stateFromCookie = getCookie(req, STATE_COOKIE);
+    this.queryState = typeof req.query?.state === 'string' ? req.query.state : '';
+  }
+
+  extract(): string {
+    if (this.hasMismatch()) {
+      return '';
+    }
+    return this.stateFromCookie || this.queryState || '';
+  }
+
+  extractFromCookie(): string {
+    return this.stateFromCookie || '';
+  }
+
+  hasMismatch(): boolean {
+    return Boolean(
+      this.stateFromCookie && this.queryState && this.stateFromCookie !== this.queryState
+    );
+  }
+
+  persist(res: Response, state: string): void {
+    if (!state) return;
+    setCookie(res, this.req, STATE_COOKIE, state);
+  }
+}
+
+/**
  * Reads a cookie value from request headers or cookie parser.
  */
 export function getCookie(req: Request, name: string): string | undefined {
@@ -69,36 +104,28 @@ export function clearAllAuthCookies(res: Response, req?: Request): void {
  * Persists the PKCE state into a cookie.
  */
 export function persistStateCookie(req: Request, res: Response, state: string): void {
-  if (!state) return;
-  setCookie(res, req, STATE_COOKIE, state);
+  new StateManager(req).persist(res, state);
 }
 
 /**
  * Extracts state from cookie or query, with mismatch protection.
  */
 export function extractState(req: Request): string {
-  const stateFromCookie = getCookie(req, STATE_COOKIE);
-  const queryState = typeof req.query?.state === 'string' ? req.query.state : '';
-  if (stateFromCookie && queryState && stateFromCookie !== queryState) {
-    return '';
-  }
-  return stateFromCookie || queryState || '';
+  return new StateManager(req).extract();
 }
 
 /**
  * Extracts state only from the cookie.
  */
 export function extractStateFromCookie(req: Request): string {
-  return getCookie(req, STATE_COOKIE) || '';
+  return new StateManager(req).extractFromCookie();
 }
 
 /**
  * Returns true when cookie state and query state mismatch.
  */
 export function hasStateMismatch(req: Request): boolean {
-  const stateFromCookie = getCookie(req, STATE_COOKIE);
-  const queryState = typeof req.query?.state === 'string' ? req.query.state : '';
-  return Boolean(stateFromCookie && queryState && stateFromCookie !== queryState);
+  return new StateManager(req).hasMismatch();
 }
 
 /**

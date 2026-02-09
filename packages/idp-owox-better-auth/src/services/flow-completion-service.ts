@@ -6,12 +6,7 @@ import type { OwoxTokenFacade } from '../facades/owox-token-facade.js';
 import { AuthFlowService, type UserInfoPayload } from './auth-flow-service.js';
 import type { AuthenticationService } from './authentication-service.js';
 import { buildPlatformRedirectUrl } from '../utils/platform-redirect-builder.js';
-import {
-  extractState,
-  extractStateFromCookie,
-  clearAllAuthCookies,
-  type PlatformParams,
-} from '../utils/request-utils.js';
+import { StateManager, clearAllAuthCookies, type PlatformParams } from '../utils/request-utils.js';
 import { formatError } from '../utils/string-utils.js';
 import { UserContextService } from './user-context-service.js';
 import { buildUserInfoPayload } from '../mappers/user-info-payload-builder.js';
@@ -46,7 +41,8 @@ export class FlowCompletionService {
     req: Request,
     res: Response
   ): Promise<URL | null> {
-    const state = extractState(req);
+    const stateManager = new StateManager(req);
+    const state = stateManager.extract();
     if (!state) {
       this.logger.warn('Missing or mismatched state for identity refresh flow');
       return null;
@@ -96,7 +92,8 @@ export class FlowCompletionService {
     req: Request,
     res: Response
   ): Promise<URL | null> {
-    const state = extractStateFromCookie(req);
+    const stateManager = new StateManager(req);
+    const state = stateManager.extractFromCookie();
     if (!state) {
       this.logger.warn('Missing or mismatched state for social login flow');
       clearAllAuthCookies(res, req);

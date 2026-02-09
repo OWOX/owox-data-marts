@@ -6,9 +6,8 @@ import { type Request, type Response } from 'express';
 import {
   clearPlatformCookies,
   extractPlatformParams,
-  extractState,
-  hasStateMismatch,
   persistPlatformContext,
+  StateManager,
   setCookie,
 } from './request-utils.js';
 
@@ -25,7 +24,8 @@ describe('request-utils', () => {
       query: { state: 'queryState' },
     } as unknown as Request;
 
-    expect(extractState(req)).toBe('fromCookie');
+    const manager = new StateManager(req);
+    expect(manager.extract()).toBe('fromCookie');
   });
 
   it('returns empty state on mismatch', () => {
@@ -34,8 +34,10 @@ describe('request-utils', () => {
       query: { state: 'otherState' },
     } as unknown as Request;
 
-    expect(hasStateMismatch(req)).toBe(true);
-    expect(extractState(req)).toBe('');
+    const manager = new StateManager(req);
+
+    expect(manager.hasMismatch()).toBe(true);
+    expect(manager.extract()).toBe('');
   });
 
   it('extracts platform params from cookie payload', () => {

@@ -3,7 +3,7 @@ import { createBetterAuthConfig } from '../config/idp-better-auth-config.js';
 import { logger } from '../logger.js';
 import type { DatabaseStore } from '../store/DatabaseStore.js';
 import { AuthSession } from '../types/auth-session.js';
-import { extractState } from '../utils/request-utils.js';
+import { StateManager } from '../utils/request-utils.js';
 import { AuthFlowService, type UserInfoPayload } from './auth-flow-service.js';
 import { BETTER_AUTH_SESSION_COOKIE } from '../constants.js';
 import { buildUserInfoPayload } from '../mappers/user-info-payload-builder.js';
@@ -24,6 +24,7 @@ export class AuthenticationService {
   ) {}
 
   async buildUserInfoPayload(req: Request): Promise<UserInfoPayload> {
+    const stateManager = new StateManager(req);
     const session = await this.getSession(req);
     if (session?.user) {
       const [dbUser, account] = await Promise.all([
@@ -40,7 +41,7 @@ export class AuthenticationService {
       }
 
       return buildUserInfoPayload({
-        state: extractState(req),
+        state: stateManager.extract(),
         user: dbUser,
         account,
       });

@@ -22,13 +22,11 @@ import {
   sanitizeRedirectParam,
 } from './utils/platform-redirect-builder.js';
 import {
+  StateManager,
   clearBetterAuthCookies,
   clearPlatformCookies,
   extractPlatformParams,
   extractRefreshToken,
-  extractState,
-  hasStateMismatch,
-  persistStateCookie,
 } from './utils/request-utils.js';
 import { clearCookie } from './utils/cookie-policy.js';
 import { formatError } from './utils/string-utils.js';
@@ -132,12 +130,13 @@ export class OwoxBetterAuthIdp implements IdpProvider {
         (req.query['redirect-to'] as string | undefined) ||
         (req.query.redirectTo as string | undefined);
       const appRedirectTo = req.query['app-redirect-to'] as string | undefined;
+      const stateManager = new StateManager(req);
       if (!code) {
         this.logger.warn('Redirect url should contain code param');
         return res.redirect(`/auth${ProtocolRoute.SIGN_IN}`);
       }
 
-      if (!state || hasStateMismatch(req)) {
+      if (!state || stateManager.hasMismatch()) {
         this.logger.warn('Redirect url should contain state param');
         clearPlatformCookies(res, req);
         return res.redirect(`/auth${ProtocolRoute.SIGN_IN}`);
@@ -186,12 +185,13 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     res: e.Response,
     next: NextFunction
   ): Promise<void | e.Response> {
-    if (hasStateMismatch(req)) {
+    const stateManager = new StateManager(req);
+    if (stateManager.hasMismatch()) {
       this.logger.warn('State mismatch detected during sign-in');
       clearPlatformCookies(res, req);
       return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignInUrl);
     }
-    const incomingState = extractState(req);
+    const incomingState = stateManager.extract();
     if (!incomingState) {
       const refreshToken = extractRefreshToken(req);
       if (refreshToken) {
@@ -213,7 +213,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignInUrl);
     }
 
-    persistStateCookie(req, res, incomingState);
+    stateManager.persist(res, incomingState);
     return this.middlewareService.signInMiddleware(req, res, next);
   }
 
@@ -222,16 +222,17 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     res: e.Response,
     _next: NextFunction
   ): Promise<void | e.Response> {
-    if (hasStateMismatch(req)) {
+    const stateManager = new StateManager(req);
+    if (stateManager.hasMismatch()) {
       this.logger.warn('State mismatch detected during sign-up');
       clearPlatformCookies(res, req);
       return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignUpUrl);
     }
-    const incomingState = extractState(req);
+    const incomingState = stateManager.extract();
     if (!incomingState) {
       return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignUpUrl);
     }
-    persistStateCookie(req, res, incomingState);
+    stateManager.persist(res, incomingState);
     return this.middlewareService.signUpMiddleware(req, res, _next);
   }
 
