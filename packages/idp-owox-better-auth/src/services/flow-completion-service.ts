@@ -16,6 +16,7 @@ import {
 import { formatError } from '../utils/string-utils.js';
 import { UserContextService } from './user-context-service.js';
 import { buildUserInfoPayload } from '../mappers/user-info-payload-builder.js';
+import { isStateExpiredError } from '../exception.js';
 
 /**
  * Orchestrates PKCE completion for Platform using core tokens or social login.
@@ -35,15 +36,6 @@ export class FlowCompletionService {
    */
   private buildLocalSignInUrl(_req: Request): URL {
     return new URL(`/auth${ProtocolRoute.SIGN_IN}`, this.idpOwoxConfig.baseUrl);
-  }
-
-  /**
-   * Detects "state expired" errors coming from the auth flow backend.
-   */
-  private isStateExpiredError(error: unknown): boolean {
-    if (!error || typeof error !== 'object') return false;
-    const message = error instanceof Error ? error.message : String(error);
-    return message.toLowerCase().includes('state expired');
   }
 
   /**
@@ -87,7 +79,7 @@ export class FlowCompletionService {
       }
       return redirectUrl;
     } catch (error) {
-      if (this.isStateExpiredError(error)) {
+      if (isStateExpiredError(error)) {
         clearPlatformCookies(res, req);
         clearBetterAuthCookies(res, req);
         return this.buildLocalSignInUrl(req);
@@ -133,7 +125,7 @@ export class FlowCompletionService {
         return redirectUrl;
       }
     } catch (error) {
-      if (this.isStateExpiredError(error)) {
+      if (isStateExpiredError(error)) {
         clearPlatformCookies(res, req);
         clearBetterAuthCookies(res, req);
         return this.buildLocalSignInUrl(req);

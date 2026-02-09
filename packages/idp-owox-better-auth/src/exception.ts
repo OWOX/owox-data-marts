@@ -13,6 +13,17 @@ export class AuthenticationException extends Error {
   }
 }
 
+const STATE_EXPIRED_ERROR_MARKER = 'state expired';
+
+/**
+ * Detects "state expired" errors by a consistent marker.
+ */
+export function isStateExpiredError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const message = error instanceof Error ? error.message : String(error);
+  return message.toLowerCase().includes(STATE_EXPIRED_ERROR_MARKER);
+}
+
 /**
  * Error for failed requests to Identity OWOX.
  */
