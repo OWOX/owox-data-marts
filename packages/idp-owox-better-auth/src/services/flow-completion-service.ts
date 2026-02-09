@@ -21,26 +21,6 @@ import { buildUserInfoPayload } from '../mappers/user-info-payload-builder.js';
  * Orchestrates PKCE completion for Platform using core tokens or social login.
  */
 export class FlowCompletionService {
-  /**
-   * Creates a local sign-in URL for fallback redirects.
-   */
-  private buildLocalSignInUrl(req: Request): URL {
-    const host =
-      (typeof req.get === 'function' ? req.get('host') : undefined) ||
-      req.headers.host ||
-      'localhost';
-    const base = `${req.protocol}://${host}`;
-    return new URL(`/auth${ProtocolRoute.SIGN_IN}`, base);
-  }
-
-  /**
-   * Detects "state expired" errors coming from the auth flow backend.
-   */
-  private isStateExpiredError(error: unknown): boolean {
-    if (!error || typeof error !== 'object') return false;
-    const message = error instanceof Error ? error.message : String(error);
-    return message.toLowerCase().includes('state expired');
-  }
   constructor(
     private readonly idpOwoxConfig: IdpOwoxConfig,
     private readonly tokenFacade: OwoxTokenFacade,
@@ -50,15 +30,20 @@ export class FlowCompletionService {
     private readonly logger: Logger
   ) {}
 
-  private buildRedirectUrl(code: string, state: string, params: PlatformParams): URL | null {
-    return buildPlatformRedirectUrl({
-      baseUrl: this.idpOwoxConfig.idpConfig.platformSignInUrl || '',
-      code,
-      state,
-      params,
-      defaultSource: 'app',
-      allowedRedirectOrigins: this.idpOwoxConfig.idpConfig.allowedRedirectOrigins,
-    });
+  /**
+   * Creates a local sign-in URL for fallback redirects.
+   */
+  private buildLocalSignInUrl(_req: Request): URL {
+    return new URL(`/auth${ProtocolRoute.SIGN_IN}`, this.idpOwoxConfig.baseUrl);
+  }
+
+  /**
+   * Detects "state expired" errors coming from the auth flow backend.
+   */
+  private isStateExpiredError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false;
+    const message = error instanceof Error ? error.message : String(error);
+    return message.toLowerCase().includes('state expired');
   }
 
   /**
@@ -89,7 +74,14 @@ export class FlowCompletionService {
       });
 
       const result = await this.authFlowService.completeAuthFlow(payload);
-      const redirectUrl = this.buildRedirectUrl(result.code, state, params);
+      const redirectUrl = buildPlatformRedirectUrl({
+        baseUrl: this.idpOwoxConfig.idpConfig.platformSignInUrl,
+        code: result.code,
+        state,
+        params,
+        defaultSource: 'app',
+        allowedRedirectOrigins: this.idpOwoxConfig.idpConfig.allowedRedirectOrigins,
+      });
       if (!redirectUrl) {
         this.logger.warn('Failed to build redirect URL after identity refresh');
       }
@@ -127,7 +119,14 @@ export class FlowCompletionService {
         state
       );
       const finalState = payload.state || state;
-      const redirectUrl = this.buildRedirectUrl(code, finalState || '', params);
+      const redirectUrl = buildPlatformRedirectUrl({
+        baseUrl: this.idpOwoxConfig.idpConfig.platformSignInUrl,
+        code,
+        state: finalState || '',
+        params,
+        defaultSource: 'app',
+        allowedRedirectOrigins: this.idpOwoxConfig.idpConfig.allowedRedirectOrigins,
+      });
       if (redirectUrl) {
         clearPlatformCookies(res, req);
         clearBetterAuthCookies(res, req);

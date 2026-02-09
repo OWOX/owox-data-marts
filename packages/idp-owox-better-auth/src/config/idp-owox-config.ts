@@ -24,7 +24,6 @@ function normalizeOrigin(value: string, label: string): string {
 
 function ensureValidUrl(value: string, label: string): string {
   try {
-    // eslint-disable-next-line no-new
     new URL(value);
     return value;
   } catch {
@@ -206,6 +205,7 @@ export type JwtConfig = z.infer<typeof JwtEnvSchema>;
 export type IdentityOwoxClientConfig = z.infer<typeof IdentityOwoxClientEnvSchema>;
 
 export type IdpOwoxConfig = {
+  baseUrl: string;
   idpConfig: IdpConfig;
   identityOwoxClientConfig: IdentityOwoxClientConfig;
   jwtConfig: JwtConfig;
@@ -228,6 +228,15 @@ const BetterAuthEnvSchema = z.object({
 });
 
 type Env = NodeJS.ProcessEnv;
+
+function resolveBaseUrl(env: Env): string {
+  const baseURL =
+    env.IDP_BETTER_AUTH_BASE_URL ??
+    env.PUBLIC_ORIGIN ??
+    (env.PORT ? `http://localhost:${env.PORT}` : undefined) ??
+    'http://localhost:3000';
+  return ensureValidUrl(baseURL, 'IDP_BETTER_AUTH_BASE_URL');
+}
 
 function toNumber(value: string | undefined, fallback: number): number {
   if (!value) return fallback;
@@ -286,12 +295,14 @@ export function loadIdpOwoxConfigFromEnv(env: NodeJS.ProcessEnv = process.env): 
   const identityOwoxClientConfig = IdentityOwoxClientEnvSchema.parse(env);
   const idpConfig = IdpEnvSchema.parse(env);
   const jwtConfig = JwtEnvSchema.parse(env);
+  const baseUrl = resolveBaseUrl(env);
 
   if (jwtConfig.algorithm !== 'RS256') {
     throw new Error(`Only RS256 is supported, got: ${jwtConfig.algorithm}`);
   }
 
   return {
+    baseUrl,
     idpConfig,
     identityOwoxClientConfig,
     jwtConfig,
@@ -308,12 +319,7 @@ export function loadBetterAuthProviderConfigFromEnv(
   const idpOwox = loadIdpOwoxConfigFromEnv(env);
   const baEnv = BetterAuthEnvSchema.parse(env);
 
-  const baseURL =
-    baEnv.IDP_BETTER_AUTH_BASE_URL ??
-    env.PUBLIC_ORIGIN ??
-    (env.PORT ? `http://localhost:${env.PORT}` : undefined) ??
-    'http://localhost:3000';
-  const safeBaseURL = ensureValidUrl(baseURL, 'IDP_BETTER_AUTH_BASE_URL');
+  const safeBaseURL = resolveBaseUrl(env);
 
   const betterAuthConfig: BetterAuthConfig = {
     database: idpOwox.dbConfig,

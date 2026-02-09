@@ -10,8 +10,10 @@ import type { AuthenticationService } from './authentication-service.js';
 import type { UserContextService } from './user-context-service.js';
 import type { Logger } from '@owox/internal-helpers';
 import type { Request, Response } from 'express';
+import type { DatabaseAccount, DatabaseUser } from '../types/database-models.js';
 
 const baseConfig: IdpOwoxConfig = {
+  baseUrl: 'https://auth.test',
   idpConfig: {
     clientId: 'client',
     platformSignInUrl: 'https://platform.test/auth/sign-in',
@@ -108,6 +110,13 @@ describe('FlowCompletionService', () => {
       accessTokenExpiresIn: 100,
       refreshTokenExpiresIn: 120,
     });
+    const user: DatabaseUser = { id: 'u1', email: 'user@test' };
+    const account: DatabaseAccount = {
+      id: 'acc-db-id',
+      userId: 'u1',
+      providerId: 'google',
+      accountId: 'acc-1',
+    };
     userContextService.resolveFromToken.mockResolvedValue({
       payload: {
         userId: 'u1',
@@ -117,8 +126,8 @@ describe('FlowCompletionService', () => {
         roles: ['viewer'],
         projectTitle: 'Project',
       },
-      user: { id: 'u1', email: 'user@test' } as any,
-      account: { accountId: 'acc-1', providerId: 'google' } as any,
+      user,
+      account,
     });
     authFlowService.completeAuthFlow.mockResolvedValue({ code: 'code-123' });
 
