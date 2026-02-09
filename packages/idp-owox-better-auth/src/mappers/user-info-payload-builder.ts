@@ -1,5 +1,6 @@
 import type { DatabaseAccount, DatabaseUser } from '../types/database-models.js';
 import type { UserInfoPayload } from '../services/auth-flow-service.js';
+import { splitName } from '../utils/string-utils.js';
 
 /**
  * Builds the auth-flow payload from DB user and account data.
@@ -14,12 +15,24 @@ export function buildUserInfoPayload(params: {
     throw new Error('Email not found in DB');
   }
 
+  const { firstName, lastName, fullName } = splitName(params.user.name);
+  const avatar = params.user.image ?? undefined;
+
   return {
     state: params.state,
     userInfo: {
       uid: params.account.accountId,
       signinProvider: params.account.providerId,
       email,
+      firstName: toOptional(firstName),
+      lastName: toOptional(lastName),
+      fullName: toOptional(fullName),
+      avatar,
     },
   };
+}
+
+function toOptional(value: string): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
 }
