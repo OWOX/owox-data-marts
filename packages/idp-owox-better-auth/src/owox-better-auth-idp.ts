@@ -18,10 +18,7 @@ import { UserContextService } from './services/user-context-service.js';
 import { createDatabaseStore } from './store/database-store-factory.js';
 import type { DatabaseStore } from './store/database-store.js';
 import { clearCookie } from './utils/cookie-policy.js';
-import {
-  buildPlatformEntryUrl,
-  sanitizeRedirectParam,
-} from './utils/platform-redirect-builder.js';
+import { buildPlatformEntryUrl } from './utils/platform-redirect-builder.js';
 import {
   StateManager,
   clearBetterAuthCookies,
@@ -32,7 +29,7 @@ import {
 import { formatError } from './utils/string-utils.js';
 
 /**
- * Main IdP implementation that wires core PKCE flow and social login.
+ * Main IdP implementation that wires core PKCE flow and Better Auth.
  */
 export class OwoxBetterAuthIdp implements IdpProvider {
   private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>;
@@ -126,17 +123,12 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     app.get('/auth/callback', async (req, res) => {
       const code = req.query.code as string | undefined;
       const state = req.query.state as string | undefined;
-      const redirectTo =
-        (req.query['redirect-to'] as string | undefined) ||
-        (req.query.redirectTo as string | undefined);
-      const appRedirectTo = req.query['app-redirect-to'] as string | undefined;
-      const stateManager = new StateManager(req);
       if (!code) {
         this.logger.warn('Redirect url should contain code param');
         return res.redirect(`/auth${ProtocolRoute.SIGN_IN}`);
       }
 
-      if (!state || stateManager.hasMismatch()) {
+      if (!state) {
         this.logger.warn('Redirect url should contain state param');
         clearPlatformCookies(res, req);
         return res.redirect(`/auth${ProtocolRoute.SIGN_IN}`);
@@ -150,15 +142,8 @@ export class OwoxBetterAuthIdp implements IdpProvider {
           response.refreshToken,
           response.refreshTokenExpiresIn
         );
-        const allowedOrigins = this.config.idpOwox.idpConfig.allowedRedirectOrigins;
-        const safeAppRedirectTo = sanitizeRedirectParam(appRedirectTo, allowedOrigins);
-        const safeRedirectTo = sanitizeRedirectParam(redirectTo, allowedOrigins);
-        const target =
-          safeAppRedirectTo ||
-          safeRedirectTo ||
-          this.config.idpOwox.idpConfig.platformSignInUrl ||
-          `/auth${ProtocolRoute.SIGN_IN}`;
-        res.redirect(target);
+        
+        res.redirect('/');
       } catch (error: unknown) {
         if (error instanceof AuthenticationException) {
           this.logger.info(formatError(error), {
@@ -198,7 +183,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       if (projectId && refreshToken) {
         return this.middlewareService.idpStartMiddleware(req, res);
       }
-      
+
       if (refreshToken) {
         try {
           const auth = await this.tokenFacade.refreshToken(refreshToken);
