@@ -187,13 +187,18 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   ): Promise<void | e.Response> {
     const stateManager = new StateManager(req);
     const queryState = typeof req.query?.state === 'string' ? req.query.state : '';
+    const projectId = typeof req.query?.projectId === 'string' ? req.query.projectId : '';
+    const refreshToken = extractRefreshToken(req);
     if (stateManager.hasMismatch()) {
       this.logger.warn('State mismatch detected during sign-in');
       clearPlatformCookies(res, req);
       return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignInUrl);
     }
     if (!queryState) {
-      const refreshToken = extractRefreshToken(req);
+      if (projectId && refreshToken) {
+        return this.middlewareService.idpStartMiddleware(req, res);
+      }
+      
       if (refreshToken) {
         try {
           const auth = await this.tokenFacade.refreshToken(refreshToken);
