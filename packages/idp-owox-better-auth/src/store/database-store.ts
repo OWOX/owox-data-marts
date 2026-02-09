@@ -1,5 +1,5 @@
 import { DatabaseAccount, DatabaseOperationResult, DatabaseUser } from '../types/index.js';
-import { StoreResult } from './StoreResult.js';
+import { StoreResult } from './store-result.js';
 
 /**
  * Contract for database operations used by Better Auth and PKCE storage.

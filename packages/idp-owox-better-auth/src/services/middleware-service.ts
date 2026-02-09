@@ -3,7 +3,7 @@ import ms from 'ms';
 import { IdpOwoxConfig } from '../config/idp-owox-config.js';
 import { logger } from '../logger.js';
 import { generatePkce, generateState } from '../pkce.js';
-import type { DatabaseStore } from '../store/DatabaseStore.js';
+import type { DatabaseStore } from '../store/database-store.js';
 import { buildAuthRequestContext } from '../types/auth-request-context.js';
 import { extractPlatformParams } from '../utils/request-utils.js';
 import { PageService } from './page-service.js';

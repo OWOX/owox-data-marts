@@ -1,8 +1,8 @@
 import type { DbConfig } from '../config/idp-owox-config.js';
 import type { DatabaseConfig, MySqlConfig, SqliteConfig } from '../types/index.js';
-import type { DatabaseStore } from './DatabaseStore.js';
-import { MysqlDatabaseStore } from './MysqlDatabaseStore.js';
-import { SqliteDatabaseStore } from './SqliteDatabaseStore.js';
+import type { DatabaseStore } from './database-store.js';
+import { MysqlDatabaseStore } from './mysql-database-store.js';
+import { SqliteDatabaseStore } from './sqlite-database-store.js';
 
 function normalizeConfig(database: DatabaseConfig | DbConfig): DatabaseConfig {
   const config = database as DatabaseConfig;

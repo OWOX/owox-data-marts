@@ -2,19 +2,19 @@ import { AuthResult, Payload } from '@owox/idp-protocol';
 import { Logger } from '@owox/internal-helpers';
 import { NextFunction, Request, Response } from 'express';
 import {
-  IdentityOwoxClient,
-  IntrospectionRequest,
-  IntrospectionResponse,
-  RevocationRequest,
-  TokenRequest,
-  TokenResponse,
+    IdentityOwoxClient,
+    IntrospectionRequest,
+    IntrospectionResponse,
+    RevocationRequest,
+    TokenRequest,
+    TokenResponse,
 } from '../client/index.js';
 import type { IdpOwoxConfig } from '../config/idp-owox-config.js';
 import { AuthenticationException, IdpFailedException } from '../exception.js';
 import { toPayload } from '../mappers/client-payload-mapper.js';
 import { TokenService, type TokenServiceConfig } from '../services/token-service.js';
-import type { DatabaseStore } from '../store/DatabaseStore.js';
-import { StoreReason } from '../store/StoreResult.js';
+import type { DatabaseStore } from '../store/database-store.js';
+import { StoreReason } from '../store/store-result.js';
 import { buildCookieOptions, clearCookie } from '../utils/cookie-policy.js';
 
 /**

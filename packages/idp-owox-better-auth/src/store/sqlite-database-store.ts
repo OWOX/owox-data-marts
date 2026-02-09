@@ -1,7 +1,7 @@
 import { logger } from '../logger.js';
 import type { DatabaseAccount, DatabaseOperationResult, DatabaseUser } from '../types/index.js';
-import type { DatabaseStore } from './DatabaseStore.js';
-import { StoreResult } from './StoreResult.js';
+import type { DatabaseStore } from './database-store.js';
+import { StoreResult } from './store-result.js';
 
 type SqliteRunResult = { changes?: number };
 type SqliteStmt = {

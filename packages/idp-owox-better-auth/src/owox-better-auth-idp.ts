@@ -15,8 +15,9 @@ import { MiddlewareService } from './services/middleware-service.js';
 import { PageService } from './services/page-service.js';
 import { RequestHandlerService } from './services/request-handler-service.js';
 import { UserContextService } from './services/user-context-service.js';
-import type { DatabaseStore } from './store/DatabaseStore.js';
-import { createDatabaseStore } from './store/DatabaseStoreFactory.js';
+import { createDatabaseStore } from './store/database-store-factory.js';
+import type { DatabaseStore } from './store/database-store.js';
+import { clearCookie } from './utils/cookie-policy.js';
 import {
   buildPlatformEntryUrl,
   sanitizeRedirectParam,
@@ -28,7 +29,6 @@ import {
   extractPlatformParams,
   extractRefreshToken,
 } from './utils/request-utils.js';
-import { clearCookie } from './utils/cookie-policy.js';
 import { formatError } from './utils/string-utils.js';
 
 /**

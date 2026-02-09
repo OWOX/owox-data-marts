@@ -1,12 +1,12 @@
 import { type Request } from 'express';
 import { createBetterAuthConfig } from '../config/idp-better-auth-config.js';
+import { BETTER_AUTH_SESSION_COOKIE } from '../constants.js';
 import { logger } from '../logger.js';
-import type { DatabaseStore } from '../store/DatabaseStore.js';
+import { buildUserInfoPayload } from '../mappers/user-info-payload-builder.js';
+import type { DatabaseStore } from '../store/database-store.js';
 import { AuthSession } from '../types/auth-session.js';
 import { StateManager } from '../utils/request-utils.js';
 import { AuthFlowService, type UserInfoPayload } from './auth-flow-service.js';
-import { BETTER_AUTH_SESSION_COOKIE } from '../constants.js';
-import { buildUserInfoPayload } from '../mappers/user-info-payload-builder.js';
 
 /**
  * Better Auth integration for social login and user/account lookup.
