@@ -70,4 +70,11 @@ export class MiddlewareService {
     return this.pageService.signInPage.bind(this.pageService)(req, res);
   }
 
+  async signUpMiddleware(
+    req: Request,
+    res: Response,
+    _next: NextFunction
+  ): Promise<void | Response> {
+    return this.pageService.signUpPage.bind(this.pageService)(req, res);
+  }
 }

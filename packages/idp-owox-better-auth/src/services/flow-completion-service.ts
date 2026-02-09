@@ -9,8 +9,7 @@ import { buildPlatformRedirectUrl } from '../utils/platform-redirect-builder.js'
 import {
   extractState,
   extractStateFromCookie,
-  clearPlatformCookies,
-  clearBetterAuthCookies,
+  clearAllAuthCookies,
   type PlatformParams,
 } from '../utils/request-utils.js';
 import { formatError } from '../utils/string-utils.js';
@@ -80,8 +79,7 @@ export class FlowCompletionService {
       return redirectUrl;
     } catch (error) {
       if (isStateExpiredError(error)) {
-        clearPlatformCookies(res, req);
-        clearBetterAuthCookies(res, req);
+        clearAllAuthCookies(res, req);
         return this.buildLocalSignInUrl(req);
       }
       this.logger.warn('Platform fast-path failed, will fallback to UI', { error: formatError(error) });
@@ -101,8 +99,7 @@ export class FlowCompletionService {
     const state = extractStateFromCookie(req);
     if (!state) {
       this.logger.warn('Missing or mismatched state for social login flow');
-      clearPlatformCookies(res, req);
-      clearBetterAuthCookies(res, req);
+      clearAllAuthCookies(res, req);
       return this.buildLocalSignInUrl(req);
     }
     try {
@@ -120,19 +117,16 @@ export class FlowCompletionService {
         allowedRedirectOrigins: this.idpOwoxConfig.idpConfig.allowedRedirectOrigins,
       });
       if (redirectUrl) {
-        clearPlatformCookies(res, req);
-        clearBetterAuthCookies(res, req);
+        clearAllAuthCookies(res, req);
         return redirectUrl;
       }
     } catch (error) {
       if (isStateExpiredError(error)) {
-        clearPlatformCookies(res, req);
-        clearBetterAuthCookies(res, req);
+        clearAllAuthCookies(res, req);
         return this.buildLocalSignInUrl(req);
       }
       this.logger.warn('Auto-complete auth flow on callback failed', { error: formatError(error) });
-      clearPlatformCookies(res, req);
-      clearBetterAuthCookies(res, req);
+      clearAllAuthCookies(res, req);
       return null;
     }
     return null;

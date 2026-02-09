@@ -3,6 +3,7 @@ import {
   clearCookie,
   setCookie,
 } from './cookie-policy.js';
+export { setCookie } from './cookie-policy.js';
 import {
   BETTER_AUTH_CSRF_COOKIE,
   BETTER_AUTH_SESSION_COOKIE,
@@ -54,6 +55,14 @@ export function clearBetterAuthCookies(res: Response, req?: Request): void {
   clearCookie(res, BETTER_AUTH_SESSION_COOKIE, req);
   clearCookie(res, BETTER_AUTH_CSRF_COOKIE, req);
   clearCookie(res, BETTER_AUTH_STATE_COOKIE, req);
+}
+
+/**
+ * Clears all auth-related cookies (Platform + Better Auth).
+ */
+export function clearAllAuthCookies(res: Response, req?: Request): void {
+  clearPlatformCookies(res, req);
+  clearBetterAuthCookies(res, req);
 }
 
 /**

@@ -232,7 +232,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignUpUrl);
     }
     persistStateCookie(req, res, incomingState);
-    return this.pageService.signUpPage.bind(this.pageService)(req, res);
+    return this.middlewareService.signUpMiddleware(req, res, _next);
   }
 
   async signOutMiddleware(
