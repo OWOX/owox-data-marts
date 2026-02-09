@@ -1,3 +1,4 @@
+import React from 'react';
 import { Database, Info } from 'lucide-react';
 import { RawBase64Icon } from '../../../../../shared';
 import { ConnectorHoverCard, ConnectorNameDisplay } from '../../../../connectors/shared/components';
@@ -52,13 +53,22 @@ function renderConnectorRunTarget(trigger: ScheduledTrigger) {
 /**
  * Main component that renders the appropriate target based on trigger type
  */
-export function ScheduledTriggerRunTarget({ trigger }: { trigger: ScheduledTrigger }) {
-  switch (trigger.type) {
-    case ScheduledTriggerType.REPORT_RUN:
-      return renderReportRunTarget(trigger);
-    case ScheduledTriggerType.CONNECTOR_RUN:
-      return renderConnectorRunTarget(trigger);
-    default:
-      return <div className='text-muted-foreground text-sm'>—</div>;
+export const ScheduledTriggerRunTarget = React.memo(
+  function ScheduledTriggerRunTarget({ trigger }: { trigger: ScheduledTrigger }) {
+    switch (trigger.type) {
+      case ScheduledTriggerType.REPORT_RUN:
+        return renderReportRunTarget(trigger);
+      case ScheduledTriggerType.CONNECTOR_RUN:
+        return renderConnectorRunTarget(trigger);
+      default:
+        return <div className='text-muted-foreground text-sm'>—</div>;
+    }
+  },
+  (prevProps, nextProps) => {
+    // Only re-render if trigger ID or type changes
+    return (
+      prevProps.trigger.id === nextProps.trigger.id &&
+      prevProps.trigger.type === nextProps.trigger.type
+    );
   }
-}
+);

@@ -7,6 +7,7 @@ import type { ConnectorConfig, ConnectorDefinitionConfig } from '../../../../dat
 import {
   getBigQueryTableUrl,
   getBigQueryDatasetUrl,
+  getRedshiftQueryEditorUrl,
 } from '../../../../data-storage/shared/utils/storage-url.utils';
 import { getStorageDisplayName } from './connector-definition.helpers';
 import { ListItemCard } from '../../../../../shared/components/ListItemCard';
@@ -188,7 +189,7 @@ export function ConnectorConfigurationItem({
             ? `Workgroup: ${redshiftConfig.workgroupName}`
             : `Cluster: ${redshiftConfig.clusterIdentifier}`;
 
-        const redshiftConsoleLink = `https://console.aws.amazon.com/redshiftv2/home?region=${redshiftConfig.region}#query-editor`;
+        const redshiftConsoleLink = getRedshiftQueryEditorUrl(redshiftConfig.region);
 
         return (
           <div className='flex flex-wrap items-center gap-2'>

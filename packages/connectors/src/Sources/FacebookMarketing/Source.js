@@ -308,7 +308,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         break;
 
       case 'ad-account/ads':
-        url += `act_${accountId}/ads?limit=${this.fieldsSchema[nodeName].limit}`;
+        url += `act_${accountId}/ads?fields=${this._buildFieldsString({ nodeName, fields })}&limit=${this.fieldsSchema[nodeName].limit}`;
         break;
 
       case 'ad-account/adcreatives':
@@ -343,63 +343,63 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
 
 
   //---- castRecordFields -------------------------------------------------
-    /**
-     * Cast of record fields to the types defined in schema
-     * 
-     * @param nodeName string name of the facebook api node
-     * @param record object with all the row fields
-     * 
-     * @return record
-     * 
-     */
-    castRecordFields(nodeName, record) {
+  /**
+   * Cast of record fields to the types defined in schema
+   * 
+   * @param nodeName string name of the facebook api node
+   * @param record object with all the row fields
+   * 
+   * @return record
+   * 
+   */
+  castRecordFields(nodeName, record) {
 
-      for (var field in record) {
-        if( field in this.fieldsSchema[ nodeName ]["fields"]
-        && "type" in this.fieldsSchema[ nodeName ]["fields"][field] ) {
+    for (var field in record) {
+      if (field in this.fieldsSchema[nodeName]["fields"]
+        && "type" in this.fieldsSchema[nodeName]["fields"][field]) {
 
-          let type = this.fieldsSchema[ nodeName ]["fields"][field]["type"];
+        let type = this.fieldsSchema[nodeName]["fields"][field]["type"];
 
-          switch ( true ) {
+        switch (true) {
 
-            case type == DATA_TYPES.DATE:
+          case type == DATA_TYPES.DATE:
             record[field] = DateUtils.parseDate(record[field] ? record[field] + "T00:00:00Z" : null);
-              break;
+            break;
 
-            case type == DATA_TYPES.STRING && ( field.slice(-3) == "_id" || field == "id" ):
-              record[ field ] = String(record[ field ]);
-              break;
+          case type == DATA_TYPES.STRING && (field.slice(-3) == "_id" || field == "id"):
+            record[field] = String(record[field]);
+            break;
 
-            case type == DATA_TYPES.NUMBER && ( field.slice(-5) == "spend"  ):
-              record[ field ] = parseFloat(record[ field ]);
-              break;
+          case type == DATA_TYPES.NUMBER && (field.slice(-5) == "spend"):
+            record[field] = parseFloat(record[field]);
+            break;
 
-            case type == DATA_TYPES.NUMBER:
-            record[field] = parseFloat(record[ field ]);
-              break;
+          case type == DATA_TYPES.NUMBER:
+            record[field] = parseFloat(record[field]);
+            break;
 
-            case type == DATA_TYPES.INTEGER:
-              record[ field ] = parseInt(record[ field ]);
-              break;
+          case type == DATA_TYPES.INTEGER:
+            record[field] = parseInt(record[field]);
+            break;
 
-            case type == DATA_TYPES.BOOLEAN:
-              record[ field ] = Boolean(record[ field ]);
-              break;
+          case type == DATA_TYPES.BOOLEAN:
+            record[field] = Boolean(record[field]);
+            break;
 
-            case type == DATA_TYPES.DATETIME:
-            record[field] = DateUtils.parseDate(record[ field ]);
-              break;
+          case type == DATA_TYPES.DATETIME:
+            record[field] = DateUtils.parseDate(record[field]);
+            break;
 
-            case type == DATA_TYPES.TIMESTAMP:
-            record[field] = new Date(record[ field ]);
-              break;
-          }
+          case type == DATA_TYPES.TIMESTAMP:
+            record[field] = new Date(record[field]);
+            break;
         }
       }
-
-      return record;
     }
-    
+
+    return record;
+  }
+
   //---- _fetchInsightsData ------------------------------------------------
   /**
    * Fetch insights data with breakdown support

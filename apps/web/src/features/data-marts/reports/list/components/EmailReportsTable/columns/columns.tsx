@@ -1,34 +1,44 @@
 import { type ColumnDef } from '@tanstack/react-table';
-import { EmailActionsCell } from '../EmailActionsCell.tsx';
-import { StatusIcon } from '../../StatusIcon';
-import { SortableHeader } from '../../../../../../../shared/components/Table';
-import type { DataMartReport } from '../../../../shared/model/types/data-mart-report';
-import { ToggleColumnsHeader } from '../../../../../../../shared/components/Table';
-import { ReportColumnKey } from './columnKeys.ts';
-import { ReportColumnLabels } from './columnLabels.ts';
+import { SortableHeader, ToggleColumnsHeader } from '../../../../../../../shared/components/Table';
 import RelativeTime from '@owox/ui/components/common/relative-time';
+import { EmailActionsCell } from '../EmailActionsCell';
+import { StatusIcon } from '../../StatusIcon';
+import type { DataMartReport } from '../../../../shared/model/types/data-mart-report';
+import { ReportColumnKey } from './columnKeys';
+import { ReportColumnLabels } from './columnLabels';
+
+interface EmailTableColumnsProps {
+  onDeleteSuccess?: () => void;
+  onEditReport?: (report: DataMartReport) => void;
+}
 
 export const getEmailColumns = ({
   onDeleteSuccess,
   onEditReport,
-}: {
-  onDeleteSuccess?: () => void;
-  onEditReport?: (report: DataMartReport) => void;
-} = {}): (ColumnDef<DataMartReport> & {
-  meta?: { hidden?: boolean; title?: string };
-})[] => [
+}: EmailTableColumnsProps = {}): ColumnDef<DataMartReport>[] => [
   {
     accessorKey: ReportColumnKey.TITLE,
+    size: 320,
+    enableColumnFilter: true,
+    meta: {
+      title: ReportColumnLabels[ReportColumnKey.TITLE],
+    },
     header: ({ column }) => (
       <SortableHeader column={column}>{ReportColumnLabels[ReportColumnKey.TITLE]}</SortableHeader>
     ),
     cell: ({ row }) => row.original.title,
-    enableColumnFilter: true,
-    size: 50, // responsive width in %
   },
   {
     accessorKey: ReportColumnKey.LAST_RUN_DATE,
-    header: ({ column }) => <SortableHeader column={column}>Last Run Date</SortableHeader>,
+    size: 250,
+    meta: {
+      title: ReportColumnLabels[ReportColumnKey.LAST_RUN_DATE],
+    },
+    header: ({ column }) => (
+      <SortableHeader column={column}>
+        {ReportColumnLabels[ReportColumnKey.LAST_RUN_DATE]}
+      </SortableHeader>
+    ),
     cell: ({ row }) => {
       const lastRunTimestamp = row.original.lastRunDate;
       return (
@@ -37,25 +47,32 @@ export const getEmailColumns = ({
         </div>
       );
     },
-    size: 25, // responsive width in %
   },
   {
     accessorKey: ReportColumnKey.LAST_RUN_STATUS,
-    header: ({ column }) => <SortableHeader column={column}>Last Run Status</SortableHeader>,
+    size: 200,
+    meta: {
+      title: ReportColumnLabels[ReportColumnKey.LAST_RUN_STATUS],
+    },
+    header: ({ column }) => (
+      <SortableHeader column={column}>
+        {ReportColumnLabels[ReportColumnKey.LAST_RUN_STATUS]}
+      </SortableHeader>
+    ),
     cell: ({ row }) =>
       row.original.lastRunStatus ? (
         <StatusIcon status={row.original.lastRunStatus} error={row.original.lastRunError} />
       ) : (
         <span className='text-muted-foreground text-sm'>&mdash;</span>
       ),
-    size: 25, // responsive width in %
   },
   {
     id: 'actions',
+    size: 140,
+    enableResizing: false,
     header: ({ table }) => <ToggleColumnsHeader table={table} />,
     cell: ({ row }) => (
       <EmailActionsCell row={row} onDeleteSuccess={onDeleteSuccess} onEditReport={onEditReport} />
     ),
-    size: 140, // fixed width in pixels
   },
 ];

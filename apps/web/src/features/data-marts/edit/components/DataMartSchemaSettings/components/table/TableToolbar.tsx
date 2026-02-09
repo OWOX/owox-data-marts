@@ -39,18 +39,18 @@ export function TableToolbar<TData extends BaseSchemaField>({
   disabled = false,
 }: TableToolbarProps<TData>) {
   return (
-    <div className='dm-card-toolbar'>
-      <div className='dm-card-toolbar-left'>
+    <div className='mb-4 flex items-center justify-between gap-2 last:mb-0'>
+      <div className='flex items-center gap-2'>
         <SearchInput
           id={searchInputId}
           placeholder='Search fields'
           value={filterValue}
           onChange={onFilterChange}
-          className='dm-card-toolbar-search-input'
+          className='border-muted dark:border-muted/50 rounded-md border bg-white pl-8 text-sm dark:bg-white/4 dark:hover:bg-white/8'
           aria-label='Search fields'
         />
       </div>
-      <div className='dm-card-toolbar-right'>
+      <div className='flex items-center gap-2'>
         {statusCounts && (
           <div className='mr-3 flex items-center gap-3'>
             {Object.entries(statusCounts).map(([status, count]) => {
@@ -66,7 +66,6 @@ export function TableToolbar<TData extends BaseSchemaField>({
         )}
         <Button
           variant='outline'
-          className='dm-card-table-add-field-btn cursor-pointer'
           onClick={onAddField}
           disabled={disabled}
           aria-label='Add new field'

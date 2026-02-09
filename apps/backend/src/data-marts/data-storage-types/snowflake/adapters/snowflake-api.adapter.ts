@@ -154,7 +154,8 @@ export class SnowflakeApiAdapter {
    * Uses EXPLAIN to validate without executing
    */
   public async executeDryRunQuery(query: string): Promise<SnowflakeQueryExplainJsonResponse> {
-    const explainQuery = `EXPLAIN USING JSON (${query})`;
+    const cleanQuery = query.trim().endsWith(';') ? query.trim().slice(0, -1) : query.trim();
+    const explainQuery = `EXPLAIN USING JSON (${cleanQuery});`;
     const { rows } = await this.executeQuery(explainQuery, false);
 
     if (!rows || rows.length === 0) {

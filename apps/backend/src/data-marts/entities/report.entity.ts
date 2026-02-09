@@ -51,7 +51,7 @@ export class Report implements CreatorAwareEntity {
   @Column({ nullable: true })
   lastRunStatus?: ReportRunStatus;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   lastRunError?: string;
 
   @Column({ default: 0 })

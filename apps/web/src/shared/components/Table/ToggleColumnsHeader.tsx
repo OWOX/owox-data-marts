@@ -33,10 +33,10 @@ export function ToggleColumnsHeader<TData>({
         <DropdownMenuTrigger asChild>
           <Button
             variant='ghost'
-            className='dm-card-table-body-row-actionbtn'
+            className='h-8 transition-colors transition-shadow duration-200 hover:bg-white hover:shadow-xs dark:hover:bg-white/4'
             aria-label='Toggle columns'
           >
-            <MoreHorizontal className='dm-card-table-body-row-actionbtn-icon' />
+            <MoreHorizontal className='text-muted-foreground h-4 w-4' />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end'>
@@ -50,7 +50,7 @@ export function ToggleColumnsHeader<TData>({
                 column.id;
 
               return (
-                <DropdownMenuItem key={column.id} className='capitalize'>
+                <DropdownMenuItem key={column.id}>
                   <label className='flex items-center space-x-2'>
                     <button
                       type='button'

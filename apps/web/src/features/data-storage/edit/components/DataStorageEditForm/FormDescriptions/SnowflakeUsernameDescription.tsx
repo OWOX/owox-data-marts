@@ -24,8 +24,9 @@ export default function SnowflakeUsernameDescription() {
               Snowflake usernames are case-insensitive and are typically in uppercase by default.
             </li>
             <li>
-              If you're using SSO (Single Sign-On) for the web interface, you may need to create a
-              separate user account with password authentication for programmatic access.
+              If you're using SSO (Single Sign-On) for the web interface, you may need to set a
+              password or programmatic access token (PAT) for your user account, or ask your
+              administrator to enable programmatic access.
             </li>
             <li>
               You can view all users in your account by running: SHOW USERS; (requires appropriate

@@ -167,6 +167,10 @@ var adAccountInsightsFieldsByRegion = {
     'description': 'The average cost for each outbound click.',
     'type': DATA_TYPES.ARRAY
   },
+  'cost_per_result': {
+    'description': 'The average cost per result from your ads.',
+    'type': DATA_TYPES.ARRAY
+  },
   'cost_per_thruplay': {
     'description': 'The average cost for each ThruPlay. This metric is in development.',
     'type': DATA_TYPES.ARRAY
@@ -315,6 +319,14 @@ var adAccountInsightsFieldsByRegion = {
   'region': {
     'description': 'The region where your ads were shown.',
     'type': DATA_TYPES.STRING
+  },
+  'result_rate': {
+    'description': 'The result rate from your ads.',
+    'type': DATA_TYPES.ARRAY
+  },
+  'results': {
+    'description': 'The number of results from your ads.',
+    'type': DATA_TYPES.ARRAY
   },
   'shops_assisted_purchases': {
     'description': 'shops_assisted_purchases',

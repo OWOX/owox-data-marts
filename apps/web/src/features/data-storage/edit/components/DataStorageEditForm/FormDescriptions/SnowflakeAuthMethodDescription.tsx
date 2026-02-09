@@ -15,15 +15,13 @@ export default function SnowflakeAuthMethodDescription() {
       <AccordionItem value='snowflake-auth-method-details'>
         <AccordionTrigger>Which authentication method should I choose?</AccordionTrigger>
         <AccordionContent>
-          <p className='mb-2'>
-            Snowflake supports two authentication methods for programmatic access:
-          </p>
+          <p className='mb-2'>Snowflake supports two authentication methods:</p>
           <div className='space-y-3 text-sm'>
             <div>
-              <strong className='font-medium'>Username & Password:</strong>
+              <strong className='font-medium'>Username & PAT (Programmatic access token):</strong>
               <p className='mt-1'>
-                The simplest method using your Snowflake username and password. Suitable for
-                development and testing environments.
+                The simplest method using your Snowflake username and PAT. Suitable for development
+                and testing environments.
               </p>
             </div>
             <div>
@@ -37,9 +35,9 @@ export default function SnowflakeAuthMethodDescription() {
                 Learn more about{' '}
                 <ExternalAnchor
                   className='underline'
-                  href='https://docs.snowflake.com/en/user-guide/key-pair-auth.html'
+                  href='https://docs.owox.com/docs/storages/supported-storages/snowflake/'
                 >
-                  key pair authentication
+                  authentication methods
                 </ExternalAnchor>
                 .
               </p>

@@ -34,7 +34,7 @@ interface ConnectorDefinitionFieldProps {
   storageType: DataStorageType;
   preset?: string;
   autoOpen?: boolean;
-  saveDataMartDefinition?: (e?: React.FormEvent<HTMLFormElement>) => void;
+  saveDataMartDefinition?: (e?: React.SyntheticEvent<HTMLFormElement>) => void;
 }
 
 export function ConnectorDefinitionField({
@@ -145,7 +145,6 @@ export function ConnectorDefinitionField({
         onClick={() => {
           setIsEditSheetOpen(true);
         }}
-        className='dm-card-table-add-field-btn cursor-pointer'
       >
         <Edit3 className='h-4 w-4' />
         <span>Edit Fields ({String(fieldsCount)})</span>

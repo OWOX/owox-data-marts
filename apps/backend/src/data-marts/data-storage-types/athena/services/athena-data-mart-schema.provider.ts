@@ -1,4 +1,4 @@
-import { ColumnInfo } from '@aws-sdk/client-athena/dist-types/models';
+import { ColumnInfo } from '@aws-sdk/client-athena';
 import { Injectable, Logger } from '@nestjs/common';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import { DataMartSchema } from '../../data-mart-schema.type';

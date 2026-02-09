@@ -21,8 +21,8 @@ export default function SnowflakeWarehouseDescription() {
           <p className='mb-2'>Here's how to find your warehouse:</p>
           <ol className='list-inside list-decimal space-y-2 text-sm'>
             <li>
-              Log in to your Snowflake account and navigate to the "Warehouses" section in the left
-              sidebar.
+              Log in to your Snowflake account and navigate to the "Compute - Warehouses" section in
+              the left sidebar.
             </li>
             <li>
               You'll see a list of available warehouses. Common default names include "COMPUTE_WH"

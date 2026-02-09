@@ -240,69 +240,11 @@
 .dm-card {
   @apply bg-muted/50 rounded-md border-b border-gray-200 p-4 dark:border-white/8 dark:bg-white/4;
 }
-.dm-card-toolbar {
-  @apply mb-4 flex items-center justify-between gap-2 last:mb-0;
-}
-.dm-card-toolbar-left {
-  @apply flex items-center gap-2;
-}
-.dm-card-toolbar-search {
-  @apply relative w-48 md:w-52 lg:w-96 xl:w-128;
-}
-.dm-card-toolbar-search-icon {
-  @apply text-muted-foreground absolute top-2.5 left-2 h-4 w-4;
-}
-.dm-card-toolbar-search-input {
-  @apply border-muted dark:border-muted/50 rounded-md border bg-white pl-8 text-sm dark:bg-white/4 dark:hover:bg-white/8;
-}
-.dm-card-toolbar-btn-delete {
-  @apply mx-2.5 h-8;
-}
-.dm-card-toolbar-right {
-  @apply flex items-center gap-2;
-}
-.dm-card-toolbar-btn-primary {
-  @apply border-muted dark:border-muted/50 flex items-center gap-2 bg-white dark:bg-white/4 dark:hover:bg-white/8;
-}
-.dm-card-table-wrap {
-  @apply mb-4 w-full last:mb-0;
-}
-.dm-card-table {
-  @apply w-full table-fixed;
-}
-.dm-card-table-header {
-  @apply bg-transparent;
-}
-.dm-card-table-header-row {
-  @apply hover:bg-transparent;
-}
-.dm-card-table-header-row-btn {
-  @apply inline-flex h-8 cursor-pointer items-center gap-1 transition-colors duration-200 hover:bg-white hover:shadow-xs dark:hover:bg-white/4;
-}
-.dm-card-table-body {
-  @apply border-b border-gray-200 bg-white dark:border-white/4 dark:bg-white/1;
-}
-.dm-card-table-body-row {
-  @apply cursor-pointer transition-colors duration-200 hover:bg-black/4 dark:border-white/4 dark:bg-transparent dark:hover:bg-white/4;
-}
-.dm-card-table-body-row .actions-cell {
-  @apply px-2;
-}
 .dm-card-table-body-row-actionbtn {
   @apply h-8 transition-colors transition-shadow duration-200 hover:bg-white hover:shadow-xs dark:hover:bg-white/4;
 }
 .dm-card-table-body-row-actionbtn-icon {
   @apply text-muted-foreground h-4 w-4;
-}
-.dm-card-table-body-row-actiondropdownitem {
-  @apply block w-full cursor-default;
-}
-.dm-card-table-body-row-empty {
-  @apply text-muted-foreground h-32 text-center;
-}
-
-.dm-card-pagination {
-  @apply mt-4 flex items-center justify-end space-x-2;
 }
 
 /* DM Empty State Block */
