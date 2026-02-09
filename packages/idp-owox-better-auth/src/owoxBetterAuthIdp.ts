@@ -23,7 +23,6 @@ import {
 } from './utils/platform-redirect-builder.js';
 import {
   clearBetterAuthCookies,
-  clearCookie,
   clearPlatformCookies,
   extractPlatformParams,
   extractRefreshToken,
@@ -31,6 +30,7 @@ import {
   hasStateMismatch,
   persistStateCookie,
 } from './utils/request-utils.js';
+import { clearCookie } from './utils/cookie-policy.js';
 import { formatError } from './utils/string-utils.js';
 
 /**
@@ -125,13 +125,8 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       this.middlewareService.idpStartMiddleware.bind(this.middlewareService)
     );
 
-    // app.post(
-    //   '/auth/api/auth-flow/complete',
-    //   this.middlewareService.completeAuthFlowMiddleware.bind(this.middlewareService)
-    // );
-
     // Core callback route (PKCE code exchange)
-    app.get(this.config.idpOwox.idpConfig.callbackUrl, async (req, res) => {
+    app.get('/auth/callback', async (req, res) => {
       const code = req.query.code as string | undefined;
       const state = req.query.state as string | undefined;
       const redirectTo =

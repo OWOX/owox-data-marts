@@ -1,8 +1,7 @@
 import { type Request, type Response } from 'express';
 import {
-  buildCookieOptions,
-  clearCookie as clearCookieWithPolicy,
-  isSecureRequest,
+  clearCookie,
+  setCookie,
 } from './cookie-policy.js';
 import {
   BETTER_AUTH_CSRF_COOKIE,
@@ -10,8 +9,6 @@ import {
   BETTER_AUTH_STATE_COOKIE,
   CORE_REFRESH_TOKEN_COOKIE,
 } from '../constants.js';
-
-export { isSecureRequest };
 
 /**
  * Parameters used for Platform redirects and context persistence.
@@ -40,26 +37,6 @@ export function getCookie(req: Request, name: string): string | undefined {
   const cookieHeader = req.headers.cookie || '';
   const match = cookieHeader.match(new RegExp(`${name}=([^;]+)`));
   return match && match[1] ? decodeURIComponent(match[1]) : undefined;
-}
-
-/**
- * Sets a cookie using the shared cookie policy.
- */
-export function setCookie(
-  res: Response,
-  req: Request,
-  name: string,
-  value: string,
-  options?: { maxAgeMs?: number }
-): void {
-  res.cookie(name, value, buildCookieOptions(req, options));
-}
-
-/**
- * Clears a cookie using the shared cookie policy when request is available.
- */
-export function clearCookie(res: Response, name: string, req?: Request): void {
-  clearCookieWithPolicy(res, name, req);
 }
 
 /**

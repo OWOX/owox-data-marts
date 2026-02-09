@@ -61,7 +61,6 @@ IDP_BETTER_AUTH_GOOGLE_CLIENT_SECRET=xx
 | `IDP_OWOX_CLIENT_ID`                  | **Yes**  |                      –                      | Client id for PKCE                          |
 | `IDP_OWOX_PLATFORM_SIGN_IN_URL`       | **Yes**  |                      –                      | Platform sign-in URL (redirect target)      |
 | `IDP_OWOX_PLATFORM_SIGN_UP_URL`       | **Yes**  |                      –                      | Platform sign-up URL (redirect target)      |
-| `IDP_OWOX_CALLBACK_URL`               | **Yes**  |                      –                      | Callback path for code exchange             |
 | `IDP_OWOX_ALLOWED_REDIRECT_ORIGINS`   |    No    |     origins from platform sign-in/up URLs   | Allowlist for redirect-to/app-redirect-to   |
 | `IDP_OWOX_JWT_ISSUER`                 | **Yes**  |                      –                      | Expected JWT issuer                         |
 | `IDP_OWOX_JWT_CACHE_TTL`              |    No    |                    `1h`                     | JWKS cache TTL                              |
