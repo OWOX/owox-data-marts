@@ -2,7 +2,6 @@ import { type NextFunction, type Request, type Response } from 'express';
 import ms from 'ms';
 import { IdpOwoxConfig } from '../config/idp-owox-config.js';
 import { logger } from '../logger.js';
-import type { OwoxBetterAuthIdp } from '../owoxBetterAuthIdp.js';
 import { generatePkce, generateState } from '../pkce.js';
 import type { DatabaseStore } from '../store/DatabaseStore.js';
 import { buildAuthRequestContext } from '../types/auth-request-context.js';
@@ -11,15 +10,12 @@ import { PageService } from './page-service.js';
 import { FlowCompletionService } from './flow-completion-service.js';
 import { buildPlatformEntryUrl } from '../utils/platform-redirect-builder.js';
 
-type CoreIdpLike = Pick<OwoxBetterAuthIdp, 'accessTokenMiddleware' | 'refreshToken'>;
-
 /**
  * Express middleware handlers for starting PKCE and fast-path sign-in.
  */
 export class MiddlewareService {
   constructor(
     private readonly pageService: PageService,
-    private readonly coreIdp: CoreIdpLike,
     private readonly idpOwoxConfig: IdpOwoxConfig,
     private readonly store: DatabaseStore,
     private readonly flowCompletionService: FlowCompletionService
@@ -74,11 +70,4 @@ export class MiddlewareService {
     return this.pageService.signInPage.bind(this.pageService)(req, res);
   }
 
-  async accessTokenMiddleware(
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): Promise<void | Response> {
-    return this.coreIdp.accessTokenMiddleware(req, res, next);
-  }
 }

@@ -89,7 +89,6 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     this.pageService = new PageService();
     this.middlewareService = new MiddlewareService(
       this.pageService,
-      this,
       this.config.idpOwox,
       this.store,
       this.flowCompletionService
