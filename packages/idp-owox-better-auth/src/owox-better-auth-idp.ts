@@ -20,11 +20,11 @@ import type { DatabaseStore } from './store/database-store.js';
 import { clearCookie } from './utils/cookie-policy.js';
 import { buildPlatformEntryUrl } from './utils/platform-redirect-builder.js';
 import {
-  StateManager,
   clearBetterAuthCookies,
   clearPlatformCookies,
   extractPlatformParams,
   extractRefreshToken,
+  getStateManager,
 } from './utils/request-utils.js';
 import { formatError } from './utils/string-utils.js';
 
@@ -170,7 +170,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     res: e.Response,
     next: NextFunction
   ): Promise<void | e.Response> {
-    const stateManager = new StateManager(req);
+    const stateManager = getStateManager(req);
     const queryState = typeof req.query?.state === 'string' ? req.query.state : '';
     const projectId = typeof req.query?.projectId === 'string' ? req.query.projectId : '';
     const refreshToken = extractRefreshToken(req);
@@ -212,7 +212,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     res: e.Response,
     _next: NextFunction
   ): Promise<void | e.Response> {
-    const stateManager = new StateManager(req);
+    const stateManager = getStateManager(req);
     const queryState = typeof req.query?.state === 'string' ? req.query.state : '';
     if (stateManager.hasMismatch()) {
       this.logger.warn('State mismatch detected during sign-up');

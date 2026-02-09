@@ -5,7 +5,7 @@ import { logger } from '../logger.js';
 import { buildUserInfoPayload } from '../mappers/user-info-payload-builder.js';
 import type { DatabaseStore } from '../store/database-store.js';
 import { AuthSession } from '../types/auth-session.js';
-import { StateManager } from '../utils/request-utils.js';
+import { getStateManager } from '../utils/request-utils.js';
 import { AuthFlowService, type UserInfoPayload } from './auth-flow-service.js';
 
 /**
@@ -24,7 +24,7 @@ export class AuthenticationService {
   ) {}
 
   async buildUserInfoPayload(req: Request): Promise<UserInfoPayload> {
-    const stateManager = new StateManager(req);
+    const stateManager = getStateManager(req);
     const session = await this.getSession(req);
     if (session?.user) {
       const [dbUser, account] = await Promise.all([

@@ -5,7 +5,9 @@ import { describe, expect, it, jest } from '@jest/globals';
 import { type Request, type Response } from 'express';
 import {
   clearPlatformCookies,
+  extractState,
   extractPlatformParams,
+  getStateManager,
   persistPlatformContext,
   StateManager,
   setCookie,
@@ -39,6 +41,17 @@ describe('request-utils', () => {
 
     expect(manager.hasMismatch()).toBe(true);
     expect(manager.extract()).toBe('');
+  });
+
+  it('reuses cached state manager on the same request', () => {
+    const req = {
+      headers: { cookie: 'idp-owox-state=fromCookie;' },
+      query: { state: 'queryState' },
+    } as unknown as Request;
+
+    const first = getStateManager(req);
+    expect(extractState(req)).toBe('fromCookie');
+    expect(getStateManager(req)).toBe(first);
   });
 
   it('extracts platform params from cookie payload', () => {

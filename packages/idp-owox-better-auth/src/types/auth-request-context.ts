@@ -1,8 +1,8 @@
 import { type Request } from 'express';
 import {
-  StateManager,
   extractPlatformParams,
   extractRefreshToken,
+  getStateManager,
   type PlatformParams,
 } from '../utils/request-utils.js';
 
@@ -19,7 +19,7 @@ export interface AuthRequestContext {
  * Builds auth request context from query and cookies.
  */
 export function buildAuthRequestContext(req: Request): AuthRequestContext {
-  const stateManager = new StateManager(req);
+  const stateManager = getStateManager(req);
   return {
     state: stateManager.extract() || undefined,
     platformParams: extractPlatformParams(req),

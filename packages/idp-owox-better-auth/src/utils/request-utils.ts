@@ -1,15 +1,15 @@
 import { type Request, type Response } from 'express';
 import {
-  clearCookie,
-  setCookie,
-} from './cookie-policy.js';
-export { setCookie } from './cookie-policy.js';
-import {
   BETTER_AUTH_CSRF_COOKIE,
   BETTER_AUTH_SESSION_COOKIE,
   BETTER_AUTH_STATE_COOKIE,
   CORE_REFRESH_TOKEN_COOKIE,
 } from '../constants.js';
+import {
+  clearCookie,
+  setCookie,
+} from './cookie-policy.js';
+export { setCookie } from './cookie-policy.js';
 
 /**
  * Parameters used for Platform redirects and context persistence.
@@ -61,6 +61,22 @@ export class StateManager {
   }
 }
 
+declare module 'express' {
+  interface Request {
+    _stateManager?: StateManager;
+  }
+}
+
+/**
+ * Returns a cached StateManager instance for the request.
+ */
+export function getStateManager(req: Request): StateManager {
+  if (!req._stateManager) {
+    req._stateManager = new StateManager(req);
+  }
+  return req._stateManager;
+}
+
 /**
  * Reads a cookie value from request headers or cookie parser.
  */
@@ -104,28 +120,28 @@ export function clearAllAuthCookies(res: Response, req?: Request): void {
  * Persists the PKCE state into a cookie.
  */
 export function persistStateCookie(req: Request, res: Response, state: string): void {
-  new StateManager(req).persist(res, state);
+  getStateManager(req).persist(res, state);
 }
 
 /**
  * Extracts state from cookie or query, with mismatch protection.
  */
 export function extractState(req: Request): string {
-  return new StateManager(req).extract();
+  return getStateManager(req).extract();
 }
 
 /**
  * Extracts state only from the cookie.
  */
 export function extractStateFromCookie(req: Request): string {
-  return new StateManager(req).extractFromCookie();
+  return getStateManager(req).extractFromCookie();
 }
 
 /**
  * Returns true when cookie state and query state mismatch.
  */
 export function hasStateMismatch(req: Request): boolean {
-  return new StateManager(req).hasMismatch();
+  return getStateManager(req).hasMismatch();
 }
 
 /**
