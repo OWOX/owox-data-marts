@@ -8,6 +8,7 @@ import type { AuthenticationService } from './authentication-service.js';
 import { buildPlatformRedirectUrl } from '../utils/platform-redirect-builder.js';
 import { StateManager, clearAllAuthCookies, type PlatformParams } from '../utils/request-utils.js';
 import { formatError } from '../utils/string-utils.js';
+import { SOURCE } from '../constants.js';
 import { UserContextService } from './user-context-service.js';
 import { buildUserInfoPayload } from '../mappers/user-info-payload-builder.js';
 import { isStateExpiredError } from '../exception.js';
@@ -66,7 +67,7 @@ export class FlowCompletionService {
         code: result.code,
         state,
         params,
-        defaultSource: 'app',
+        defaultSource: SOURCE.APP,
         allowedRedirectOrigins: this.idpOwoxConfig.idpConfig.allowedRedirectOrigins,
       });
       if (!redirectUrl) {
@@ -110,7 +111,7 @@ export class FlowCompletionService {
         code,
         state: finalState || '',
         params,
-        defaultSource: 'app',
+        defaultSource: SOURCE.APP,
         allowedRedirectOrigins: this.idpOwoxConfig.idpConfig.allowedRedirectOrigins,
       });
       if (redirectUrl) {

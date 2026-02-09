@@ -10,6 +10,7 @@ import {
   StateManager,
   setCookie,
 } from './request-utils.js';
+import { SOURCE } from '../constants.js';
 
 const createResponseMock = () =>
   ({
@@ -45,7 +46,7 @@ describe('request-utils', () => {
       JSON.stringify({
         redirectTo: '/platform',
         appRedirectTo: '/app',
-        source: 'platform',
+        source: SOURCE.PLATFORM,
         clientId: 'cid',
         codeChallenge: 'challenge',
       })
@@ -58,7 +59,7 @@ describe('request-utils', () => {
     expect(extractPlatformParams(req)).toMatchObject({
       redirectTo: '/platform',
       appRedirectTo: '/app',
-      source: 'platform',
+      source: SOURCE.PLATFORM,
       clientId: 'cid',
       codeChallenge: 'challenge',
     });
@@ -75,7 +76,7 @@ describe('request-utils', () => {
 
     persistPlatformContext(req, res, {
       state: 'state123',
-      params: { redirectTo: '/next', source: 'app' },
+      params: { redirectTo: '/next', source: SOURCE.APP },
     });
 
     const cookieCalls = (res.cookie as jest.Mock).mock.calls;

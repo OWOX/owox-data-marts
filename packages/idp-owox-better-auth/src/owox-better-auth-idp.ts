@@ -5,7 +5,7 @@ import e, { Express, NextFunction } from 'express';
 import { IdentityOwoxClient, TokenResponse } from './client/index.js';
 import { createBetterAuthConfig } from './config/idp-better-auth-config.js';
 import type { BetterAuthProviderConfig } from './config/index.js';
-import { CORE_REFRESH_TOKEN_COOKIE } from './constants.js';
+import { CORE_REFRESH_TOKEN_COOKIE, SOURCE } from './constants.js';
 import { AuthenticationException, IdpFailedException } from './exception.js';
 import { OwoxTokenFacade } from './facades/owox-token-facade.js';
 import { AuthFlowService } from './services/auth-flow-service.js';
@@ -326,7 +326,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     const platformUrl = buildPlatformEntryUrl({
       authUrl,
       params,
-      defaultSource: 'app',
+      defaultSource: SOURCE.APP,
       allowedRedirectOrigins: this.config.idpOwox.idpConfig.allowedRedirectOrigins,
     });
     return res.redirect(platformUrl.toString());

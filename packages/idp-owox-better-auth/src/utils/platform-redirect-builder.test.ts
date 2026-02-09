@@ -2,6 +2,7 @@
  * Tests for Platform redirect URL helpers.
  */
 import { describe, expect, it } from '@jest/globals';
+import { SOURCE } from '../constants.js';
 import {
   buildPlatformEntryUrl,
   buildPlatformRedirectUrl,
@@ -17,7 +18,7 @@ describe('platform-redirect-builder', () => {
       params: {
         redirectTo: '/dashboard',
         appRedirectTo: '/auth/callback',
-        source: 'app',
+        source: SOURCE.APP,
         clientId: 'client',
         codeChallenge: 'challenge',
       },
@@ -44,7 +45,7 @@ describe('platform-redirect-builder', () => {
   it('builds entry url with params', () => {
     const url = buildPlatformEntryUrl({
       authUrl: 'https://platform.test/ui/p/signin',
-      defaultSource: 'app',
+      defaultSource: SOURCE.APP,
       params: {
         redirectTo: '/dashboard',
         appRedirectTo: '/auth/callback',
@@ -53,7 +54,7 @@ describe('platform-redirect-builder', () => {
       allowedRedirectOrigins: ['https://platform.test'],
     });
 
-    expect(url.toString()).toContain('source=app');
+    expect(url.toString()).toContain(`source=${SOURCE.APP}`);
     expect(url.searchParams.get('redirect-to')).toBe('/dashboard');
     expect(url.searchParams.get('app-redirect-to')).toBe('/auth/callback');
     expect(url.searchParams.get('projectId')).toBe('p1');

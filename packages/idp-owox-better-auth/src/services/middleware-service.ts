@@ -6,6 +6,7 @@ import { generatePkce, generateState } from '../pkce.js';
 import type { DatabaseStore } from '../store/database-store.js';
 import { buildAuthRequestContext } from '../types/auth-request-context.js';
 import { extractPlatformParams } from '../utils/request-utils.js';
+import { SOURCE } from '../constants.js';
 import { PageService } from './page-service.js';
 import { FlowCompletionService } from './flow-completion-service.js';
 import { buildPlatformEntryUrl } from '../utils/platform-redirect-builder.js';
@@ -33,7 +34,7 @@ export class MiddlewareService {
 
       const platformUrl = buildPlatformEntryUrl({
         authUrl: this.idpOwoxConfig.idpConfig.platformSignInUrl,
-        defaultSource: 'app',
+        defaultSource: SOURCE.APP,
         params: { redirectTo, appRedirectTo, projectId },
         allowedRedirectOrigins: this.idpOwoxConfig.idpConfig.allowedRedirectOrigins,
       });

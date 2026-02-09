@@ -11,6 +11,7 @@ import type { UserContextService } from './user-context-service.js';
 import type { Logger } from '@owox/internal-helpers';
 import type { Request, Response } from 'express';
 import type { DatabaseAccount, DatabaseUser } from '../types/database-models.js';
+import { SOURCE } from '../constants.js';
 
 const baseConfig: IdpOwoxConfig = {
   baseUrl: 'https://auth.test',
@@ -18,7 +19,6 @@ const baseConfig: IdpOwoxConfig = {
     clientId: 'client',
     platformSignInUrl: 'https://platform.test/auth/sign-in',
     platformSignUpUrl: 'https://platform.test/auth/sign-up',
-    callbackUrl: '/auth/callback',
     allowedRedirectOrigins: ['https://platform.test'],
   },
   identityOwoxClientConfig: {
@@ -131,7 +131,7 @@ describe('FlowCompletionService', () => {
     });
     authFlowService.completeAuthFlow.mockResolvedValue({ code: 'code-123' });
 
-    const url = await service.completeWithIdentityRefreshToken('rt', { source: 'platform' }, req, res);
+    const url = await service.completeWithIdentityRefreshToken('rt', { source: SOURCE.PLATFORM }, req, res);
 
     expect(url?.toString()).toContain('code=code-123');
     expect(url?.toString()).toContain('state=state-1');
@@ -154,7 +154,7 @@ describe('FlowCompletionService', () => {
 
     const url = await service.completeWithSocialSessionToken(
       'session-token',
-      { source: 'platform' },
+      { source: SOURCE.PLATFORM },
       req,
       res
     );
@@ -176,7 +176,7 @@ describe('FlowCompletionService', () => {
 
     const url = await service.completeWithSocialSessionToken(
       'session-token',
-      { source: 'platform' },
+      { source: SOURCE.PLATFORM },
       req,
       res
     );
