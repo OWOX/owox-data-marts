@@ -10,6 +10,7 @@ import {
   TokenResponse,
 } from '../client/index.js';
 import type { IdpOwoxConfig } from '../config/idp-owox-config.js';
+import { CORE_REFRESH_TOKEN_COOKIE } from '../core/constants.js';
 import { AuthenticationException, IdpFailedException } from '../core/exceptions.js';
 import { toPayload } from '../mappers/client-payload-mapper.js';
 import { TokenService, type TokenServiceConfig } from '../services/core/token-service.js';
@@ -28,7 +29,7 @@ export class OwoxTokenFacade {
     private readonly store: DatabaseStore,
     private readonly config: IdpOwoxConfig,
     private readonly logger: Logger,
-    private readonly cookieName: string = 'refreshToken'
+    private readonly cookieName: string = CORE_REFRESH_TOKEN_COOKIE
   ) {
     const tokenCfg: TokenServiceConfig = {
       algorithm: this.config.jwtConfig.algorithm,

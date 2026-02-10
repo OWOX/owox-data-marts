@@ -59,6 +59,8 @@ function redactingReplacer(key: string, value: unknown): unknown {
 /**
  * Console logging with light redaction to avoid leaking tokens/PII.
  * Keeps console.log available for temporary tracing while protecting secrets.
+ *
+ * TODO: DELETE THIS FUNCTION AFTER DEBUGGING
  */
 export function safeConsoleLog(message: string, payload?: unknown): void {
   if (payload === undefined) {
