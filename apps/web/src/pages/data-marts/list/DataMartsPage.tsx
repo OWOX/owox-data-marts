@@ -9,7 +9,8 @@ import { ConnectorContextProvider } from '../../../features/connectors/shared/mo
 import { useConnector } from '../../../features/connectors/shared/model/hooks/useConnector.ts';
 
 const DataMartTableWithContext = () => {
-  const { items, loadDataMarts, deleteDataMart, refreshList, loading } = useDataMartList();
+  const { items, loadDataMarts, deleteDataMart, publishDataMart, refreshList, loading } =
+    useDataMartList();
   const { connectors, fetchAvailableConnectors } = useConnector();
 
   useEffect(() => {
@@ -25,6 +26,7 @@ const DataMartTableWithContext = () => {
       columns={getDataMartColumns({ connectors })}
       data={items}
       deleteDataMart={deleteDataMart}
+      publishDataMart={publishDataMart}
       refetchDataMarts={refreshList}
       isLoading={loading}
     />

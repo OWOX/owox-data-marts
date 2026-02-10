@@ -1,8 +1,3 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
-import { useProjectRoute } from '../../../../../shared/hooks';
-import { type ColumnDef, type Row } from '@tanstack/react-table';
-import { Button } from '@owox/ui/components/button';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,25 +8,32 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@owox/ui/components/alert-dialog';
-import { Check, Plus, Trash2 } from 'lucide-react';
+import { Button } from '@owox/ui/components/button';
+import { type ColumnDef, type Row } from '@tanstack/react-table';
+import { Check, CircleCheckBig, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { EmptyDataMartsState } from './components/EmptyDataMartsState';
-import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
+import { Link } from 'react-router-dom';
 import { useContentPopovers } from '../../../../../app/store/hooks/useContentPopovers';
 import { storageService } from '../../../../../services/localstorage.service';
-import { useDataMartHealthStatusPrefetch } from '../../model/hooks/useDataMartHealthStatusPrefetch';
-import { useBaseTable } from '../../../../../shared/hooks';
+import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
 import {
   BaseTable,
-  TableCTAButton,
   TableColumnSearch,
+  TableCTAButton,
 } from '../../../../../shared/components/Table';
+import { useBaseTable, useProjectRoute } from '../../../../../shared/hooks';
+import { DataMartStatus } from '../../../shared';
+import { useDataMartHealthStatusPrefetch } from '../../model/hooks/useDataMartHealthStatusPrefetch';
+import type { DataMartListItem } from '../../model/types';
 import { DataMartColumnKey } from './columns/columnKeys';
+import { EmptyDataMartsState } from './components/EmptyDataMartsState';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   deleteDataMart: (id: string) => Promise<void>;
+  publishDataMart: (id: string) => Promise<void>;
   refetchDataMarts: () => Promise<void>;
   isLoading?: boolean;
 }
@@ -40,6 +42,7 @@ export function DataMartTable<TData, TValue>({
   columns,
   data,
   deleteDataMart,
+  publishDataMart,
   refetchDataMarts,
   isLoading,
 }: DataTableProps<TData, TValue>) {
@@ -47,6 +50,8 @@ export function DataMartTable<TData, TValue>({
 
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showPublishConfirmation, setShowPublishConfirmation] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
 
   const ONBOARDING_VIDEO_KEY = 'data-mart-empty-state-onboarding-video-shown';
   const { open } = useContentPopovers();
@@ -135,7 +140,12 @@ export function DataMartTable<TData, TValue>({
     enableRowSelection: true,
   });
 
-  const hasSelectedRows = Object.keys(table.getState().rowSelection).length > 0;
+  const selectedRows = table.getSelectedRowModel().flatRows;
+  const hasSelectedRows = selectedRows.length > 0;
+  const selectedDraftRows = selectedRows.filter(
+    row => (row.original as DataMartListItem).status.code === DataMartStatus.DRAFT
+  );
+  const hasSelectedDrafts = selectedDraftRows.length > 0;
 
   const handleBatchDelete = async () => {
     try {
@@ -159,6 +169,46 @@ export function DataMartTable<TData, TValue>({
     } finally {
       setIsDeleting(false);
       setShowDeleteConfirmation(false);
+    }
+  };
+
+  const handleBatchPublish = async () => {
+    try {
+      setIsPublishing(true);
+
+      const draftIds = selectedDraftRows.map(row => (row.original as { id: string }).id);
+
+      let successCount = 0;
+
+      for (const id of draftIds) {
+        try {
+          await publishDataMart(id);
+          successCount++;
+        } catch (error) {
+          console.error(`Error publishing data mart ${id}:`, error);
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(
+          `Successfully published ${String(successCount)} data mart${successCount !== 1 ? 's' : ''}`,
+          { duration: 10000 }
+        );
+      }
+
+      const failedCount = draftIds.length - successCount;
+      if (failedCount > 0) {
+        toast.error(
+          `Failed to publish ${String(failedCount)} data mart${failedCount !== 1 ? 's' : ''}. Please check ${failedCount !== 1 ? 'them' : 'it'} independently.`,
+          { duration: 10000 }
+        );
+      }
+
+      table.resetRowSelection();
+      await refetchDataMarts();
+    } finally {
+      setIsPublishing(false);
+      setShowPublishConfirmation(false);
     }
   };
 
@@ -214,15 +264,30 @@ export function DataMartTable<TData, TValue>({
             {/* BTNs for selected Rows */}
             {hasSelectedRows && (
               <Button
-                variant='destructive'
+                variant='outline'
                 size='sm'
-                className='mx-2.5 h-8'
                 onClick={() => {
                   setShowDeleteConfirmation(true);
                 }}
                 disabled={isDeleting}
+                title='Delete selected data marts'
               >
                 <Trash2 className='h-4 w-4' />
+                <span className='hidden md:block'>Delete</span>
+              </Button>
+            )}
+            {hasSelectedRows && (
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={() => {
+                  setShowPublishConfirmation(true);
+                }}
+                disabled={!hasSelectedDrafts || isPublishing}
+                title='Publish selected data marts'
+              >
+                <CircleCheckBig className='h-4 w-4' />
+                <span className='hidden md:block'>Publish</span>
               </Button>
             )}
             {/* Search */}
@@ -265,6 +330,31 @@ export function DataMartTable<TData, TValue>({
               className='bg-destructive hover:bg-destructive/90'
             >
               {isDeleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Publish Confirmation Dialog */}
+      <AlertDialog open={showPublishConfirmation} onOpenChange={setShowPublishConfirmation}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Publish Draft Data Marts?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You're about to publish {selectedDraftRows.length} draft data mart
+              {selectedDraftRows.length !== 1 ? 's' : ''}.<br />
+              Their schemas will be updated and they will become Published.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPublishing}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                void handleBatchPublish();
+              }}
+              disabled={isPublishing}
+            >
+              {isPublishing ? 'Publishing...' : 'Publish'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
