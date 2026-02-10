@@ -4,7 +4,7 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import { generateKeyPair, SignJWT, exportJWK } from 'jose';
 import { TokenService, type TokenServiceConfig } from './token-service.js';
-import type { IdentityOwoxClient } from '../client/index.js';
+import type { IdentityOwoxClient } from '../../client/index.js';
 
 describe('TokenService', () => {
   it('parses signed token with cached JWKS', async () => {

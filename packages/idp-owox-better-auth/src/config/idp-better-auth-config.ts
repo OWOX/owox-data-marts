@@ -1,8 +1,8 @@
 import { LoggerFactory, LogLevel } from '@owox/internal-helpers';
 import { betterAuth } from 'better-auth';
+import { BETTER_AUTH_SESSION_COOKIE } from '../core/constants.js';
 import { GoogleProvider } from '../social/google-provider.js';
 import { BetterAuthConfig } from '../types/index.js';
-import { BETTER_AUTH_SESSION_COOKIE } from '../constants.js';
 
 /**
  * Builds Better Auth configuration with social providers and cookies.

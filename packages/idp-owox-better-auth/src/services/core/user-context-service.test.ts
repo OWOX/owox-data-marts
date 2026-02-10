@@ -1,10 +1,10 @@
-import { describe, expect, it, jest, beforeEach } from '@jest/globals';
-import type { Logger } from '@owox/internal-helpers';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import type { Payload } from '@owox/idp-protocol';
-import { AuthenticationException } from '../exception.js';
-import type { OwoxTokenFacade } from '../facades/owox-token-facade.js';
-import type { DatabaseStore } from '../store/database-store.js';
-import type { DatabaseAccount, DatabaseUser } from '../types/database-models.js';
+import type { Logger } from '@owox/internal-helpers';
+import { AuthenticationException } from '../../core/exceptions.js';
+import type { OwoxTokenFacade } from '../../facades/owox-token-facade.js';
+import type { DatabaseStore } from '../../store/database-store.js';
+import type { DatabaseAccount, DatabaseUser } from '../../types/database-models.js';
 import { UserContextService } from './user-context-service.js';
 
 describe('UserContextService', () => {

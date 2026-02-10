@@ -1,15 +1,15 @@
 import { type NextFunction, type Request, type Response } from 'express';
 import ms from 'ms';
-import { IdpOwoxConfig } from '../config/idp-owox-config.js';
-import { SOURCE } from '../constants.js';
-import { logger } from '../logger.js';
-import { generatePkce, generateState } from '../pkce.js';
-import type { DatabaseStore } from '../store/database-store.js';
-import { buildAuthRequestContext } from '../types/auth-request-context.js';
-import { buildPlatformEntryUrl } from '../utils/platform-redirect-builder.js';
-import { extractPlatformParams } from '../utils/request-utils.js';
-import { PageService } from './page-service.js';
-import { PkceFlowOrchestrator } from './pkce-flow-orchestrator.js';
+import { IdpOwoxConfig } from '../../config/idp-owox-config.js';
+import { SOURCE } from '../../core/constants.js';
+import { logger } from '../../core/logger.js';
+import { generatePkce, generateState } from '../../core/pkce.js';
+import type { DatabaseStore } from '../../store/database-store.js';
+import { buildAuthRequestContext } from '../../types/auth-request-context.js';
+import { buildPlatformEntryUrl } from '../../utils/platform-redirect-builder.js';
+import { extractPlatformParams } from '../../utils/request-utils.js';
+import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
+import { PageService } from '../rendering/page-service.js';
 
 /**
  * Express middleware handlers for starting PKCE and fast-path sign-in.

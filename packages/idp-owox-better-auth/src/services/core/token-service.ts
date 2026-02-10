@@ -1,11 +1,11 @@
 import { Payload } from '@owox/idp-protocol';
 import { decodeProtectedHeader } from 'jose';
 import ms from 'ms';
-import { IdentityOwoxClient } from '../client/index.js';
-import { toPayload } from '../mappers/client-payload-mapper.js';
-import { JWKSet, makeJwksCache } from '../token/jwksCache.js';
-import { verify } from '../token/verifyJwt.js';
-import { formatError } from '../utils/string-utils.js';
+import { IdentityOwoxClient } from '../../client/index.js';
+import { JWKSet, makeJwksCache } from '../../jwt/jwksCache.js';
+import { verify } from '../../jwt/verifyJwt.js';
+import { toPayload } from '../../mappers/client-payload-mapper.js';
+import { formatError } from '../../utils/string-utils.js';
 
 export interface TokenServiceConfig {
   algorithm: string;

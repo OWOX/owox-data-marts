@@ -1,6 +1,6 @@
-import type { IdentityOwoxClient } from '../client/IdentityOwoxClient.js';
-import type { AuthFlowRequest, AuthFlowResponse } from '../client/dto/authFlowDto.js';
-import { logger } from '../logger.js';
+import type { IdentityOwoxClient } from '../../client/IdentityOwoxClient.js';
+import type { AuthFlowRequest, AuthFlowResponse } from '../../client/dto/authFlowDto.js';
+import { logger } from '../../core/logger.js';
 
 export type UserInfoPayload = AuthFlowRequest;
 

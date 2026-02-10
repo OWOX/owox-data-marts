@@ -4,11 +4,11 @@ import {
   type Response as ExpressResponse,
   type NextFunction,
 } from 'express';
-import { createBetterAuthConfig } from '../config/idp-better-auth-config.js';
-import { BETTER_AUTH_SESSION_COOKIE } from '../constants.js';
-import { logger } from '../logger.js';
-import { extractPlatformParams } from '../utils/request-utils.js';
-import { PkceFlowOrchestrator } from './pkce-flow-orchestrator.js';
+import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
+import { createBetterAuthConfig } from '../../config/idp-better-auth-config.js';
+import { BETTER_AUTH_SESSION_COOKIE } from '../../core/constants.js';
+import { logger } from '../../core/logger.js';
+import { extractPlatformParams } from '../../utils/request-utils.js';
 
 /**
  * Proxies Better Auth requests and completes social login flow.

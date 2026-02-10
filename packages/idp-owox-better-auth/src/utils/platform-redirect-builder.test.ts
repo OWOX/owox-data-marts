@@ -2,7 +2,7 @@
  * Tests for Platform redirect URL helpers.
  */
 import { describe, expect, it } from '@jest/globals';
-import { SOURCE } from '../constants.js';
+import { SOURCE } from '../core/constants.js';
 import {
   buildPlatformEntryUrl,
   buildPlatformRedirectUrl,

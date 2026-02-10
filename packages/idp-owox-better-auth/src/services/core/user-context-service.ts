@@ -1,9 +1,9 @@
 import { Payload } from '@owox/idp-protocol';
 import { Logger } from '@owox/internal-helpers';
-import { AuthenticationException } from '../exception.js';
-import { OwoxTokenFacade } from '../facades/owox-token-facade.js';
-import type { DatabaseStore } from '../store/database-store.js';
-import type { DatabaseAccount, DatabaseUser } from '../types/database-models.js';
+import { AuthenticationException } from '../../core/exceptions.js';
+import { OwoxTokenFacade } from '../../facades/owox-token-facade.js';
+import type { DatabaseStore } from '../../store/database-store.js';
+import type { DatabaseAccount, DatabaseUser } from '../../types/database-models.js';
 
 export interface UserContext {
   payload: Payload;

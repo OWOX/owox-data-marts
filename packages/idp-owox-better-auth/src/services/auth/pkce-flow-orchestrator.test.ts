@@ -4,14 +4,14 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import type { Logger } from '@owox/internal-helpers';
 import type { Request, Response } from 'express';
-import type { IdpOwoxConfig } from '../config/idp-owox-config.js';
-import { SOURCE } from '../constants.js';
-import type { OwoxTokenFacade } from '../facades/owox-token-facade.js';
-import type { DatabaseAccount, DatabaseUser } from '../types/database-models.js';
-import type { BetterAuthSessionService } from './better-auth-session-service.js';
-import { PkceFlowOrchestrator } from './pkce-flow-orchestrator.js';
-import type { PlatformAuthFlowClient } from './platform-auth-flow-client.js';
-import type { UserContextService } from './user-context-service.js';
+import type { BetterAuthSessionService } from '../auth/better-auth-session-service.js';
+import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
+import type { PlatformAuthFlowClient } from '../auth/platform-auth-flow-client.js';
+import type { IdpOwoxConfig } from '../../config/idp-owox-config.js';
+import { SOURCE } from '../../core/constants.js';
+import type { OwoxTokenFacade } from '../../facades/owox-token-facade.js';
+import type { DatabaseAccount, DatabaseUser } from '../../types/database-models.js';
+import type { UserContextService } from './../core/user-context-service.js';
 
 const baseConfig: IdpOwoxConfig = {
   baseUrl: 'https://auth.test',

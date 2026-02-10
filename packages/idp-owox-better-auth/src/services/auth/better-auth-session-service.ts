@@ -1,11 +1,11 @@
 import { type Request } from 'express';
-import { createBetterAuthConfig } from '../config/idp-better-auth-config.js';
-import { BETTER_AUTH_SESSION_COOKIE } from '../constants.js';
-import { logger } from '../logger.js';
-import { buildUserInfoPayload } from '../mappers/user-info-payload-builder.js';
-import type { DatabaseStore } from '../store/database-store.js';
-import { AuthSession } from '../types/auth-session.js';
-import { getStateManager } from '../utils/request-utils.js';
+import { createBetterAuthConfig } from '../../config/idp-better-auth-config.js';
+import { BETTER_AUTH_SESSION_COOKIE } from '../../core/constants.js';
+import { logger } from '../../core/logger.js';
+import { buildUserInfoPayload } from '../../mappers/user-info-payload-builder.js';
+import type { DatabaseStore } from '../../store/database-store.js';
+import { AuthSession } from '../../types/auth-session.js';
+import { getStateManager } from '../../utils/request-utils.js';
 import { PlatformAuthFlowClient, type UserInfoPayload } from './platform-auth-flow-client.js';
 
 /**

@@ -4,7 +4,7 @@ import {
   BETTER_AUTH_SESSION_COOKIE,
   BETTER_AUTH_STATE_COOKIE,
   CORE_REFRESH_TOKEN_COOKIE,
-} from '../constants.js';
+} from '../core/constants.js';
 import { clearCookie, setCookie } from './cookie-policy.js';
 export { setCookie } from './cookie-policy.js';
 

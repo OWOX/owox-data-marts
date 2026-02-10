@@ -15,11 +15,11 @@ export {
 } from './owox-better-auth-idp.js';
 
 // Services
-export { BetterAuthSessionService } from './services/better-auth-session-service.js';
-export { MiddlewareService } from './services/middleware-service.js';
-export { PageService } from './services/page-service.js';
-export { RequestHandlerService } from './services/request-handler-service.js';
-export { TemplateService } from './services/template-service.js';
+export { BetterAuthSessionService } from './services/auth/better-auth-session-service.js';
+export { MiddlewareService } from './services/middleware/middleware-service.js';
+export { RequestHandlerService } from './services/middleware/request-handler-service.js';
+export { PageService } from './services/rendering/page-service.js';
+export { TemplateService } from './services/rendering/template-service.js';
 
 // Types
 export type { BetterAuthConfig, DatabaseConfig, MySqlConfig, SqliteConfig } from './types/index.js';

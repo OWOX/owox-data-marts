@@ -3,16 +3,16 @@
  */
 import { describe, expect, it, jest } from '@jest/globals';
 import { type Request, type Response } from 'express';
+import { SOURCE } from '../core/constants.js';
 import {
+  StateManager,
   clearPlatformCookies,
-  extractState,
   extractPlatformParams,
+  extractState,
   getStateManager,
   persistPlatformContext,
-  StateManager,
   setCookie,
 } from './request-utils.js';
-import { SOURCE } from '../constants.js';
 
 const createResponseMock = () =>
   ({

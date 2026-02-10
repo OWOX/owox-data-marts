@@ -4,8 +4,8 @@ import {
   type Request as ExpressRequest,
   type Response as ExpressResponse,
 } from 'express';
-import { TemplateService } from './template-service.js';
-import { extractPlatformParams, persistPlatformContext } from '../utils/request-utils.js';
+import { TemplateService } from '../rendering/template-service.js';
+import { extractPlatformParams, persistPlatformContext } from '../../utils/request-utils.js';
 
 const AUTH_BASE_PATH = '/auth';
 

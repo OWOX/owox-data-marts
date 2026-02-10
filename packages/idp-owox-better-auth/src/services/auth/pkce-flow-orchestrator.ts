@@ -1,22 +1,22 @@
 import { ProtocolRoute } from '@owox/idp-protocol';
 import { Logger } from '@owox/internal-helpers';
 import type { Request, Response } from 'express';
-import type { IdpOwoxConfig } from '../config/idp-owox-config.js';
-import { SOURCE } from '../constants.js';
-import { isStateExpiredError } from '../exception.js';
-import type { OwoxTokenFacade } from '../facades/owox-token-facade.js';
-import { buildUserInfoPayload } from '../mappers/user-info-payload-builder.js';
-import { buildPlatformRedirectUrl } from '../utils/platform-redirect-builder.js';
+import type { IdpOwoxConfig } from '../../config/idp-owox-config.js';
+import { SOURCE } from '../../core/constants.js';
+import { isStateExpiredError } from '../../core/exceptions.js';
+import type { OwoxTokenFacade } from '../../facades/owox-token-facade.js';
+import { buildUserInfoPayload } from '../../mappers/user-info-payload-builder.js';
+import { buildPlatformRedirectUrl } from '../../utils/platform-redirect-builder.js';
 import {
   clearAllAuthCookies,
   extractState,
   extractStateFromCookie,
   type PlatformParams,
-} from '../utils/request-utils.js';
-import { formatError } from '../utils/string-utils.js';
-import type { BetterAuthSessionService } from './better-auth-session-service.js';
+} from '../../utils/request-utils.js';
+import { formatError } from '../../utils/string-utils.js';
+import type { BetterAuthSessionService } from '../auth/better-auth-session-service.js';
+import type { UserContextService } from '../core/user-context-service.js';
 import { PlatformAuthFlowClient, type UserInfoPayload } from './platform-auth-flow-client.js';
-import { UserContextService } from './user-context-service.js';
 
 /**
  * Orchestrates PKCE completion for Platform using core tokens or social login.

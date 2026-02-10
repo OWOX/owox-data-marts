@@ -1,4 +1,4 @@
-import { logger } from '../logger.js';
+import { logger } from '../core/logger.js';
 import type { DatabaseAccount, DatabaseOperationResult, DatabaseUser } from '../types/index.js';
 import type { DatabaseStore } from './database-store.js';
 import { StoreResult } from './store-result.js';
