@@ -7,7 +7,7 @@ import {
 import { loadIdpOwoxConfigFromEnv, OwoxIdp } from '@owox/idp-owox';
 import {
   loadBetterAuthProviderConfigFromEnv,
-  OwoxBetterAuthProvider
+  OwoxBetterAuthProvider,
 } from '@owox/idp-owox-better-auth';
 import { IdpConfig, IdpProvider, NullIdpProvider } from '@owox/idp-protocol';
 import { parseMysqlSslEnv } from '@owox/internal-helpers';
@@ -186,7 +186,6 @@ export class IdpFactory {
   private static async createNullProvider(): Promise<NullIdpProvider> {
     return new NullIdpProvider();
   }
-
 
   /**
    * Creates and initializes an OwoxBetterAuth provider using configuration
