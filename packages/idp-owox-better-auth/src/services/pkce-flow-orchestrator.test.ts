@@ -1,5 +1,5 @@
 /**
- * Tests for FlowCompletionService behavior and redirects.
+ * Tests for PkceFlowOrchestrator behavior and redirects.
  */
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import type { Logger } from '@owox/internal-helpers';
@@ -8,9 +8,9 @@ import type { IdpOwoxConfig } from '../config/idp-owox-config.js';
 import { SOURCE } from '../constants.js';
 import type { OwoxTokenFacade } from '../facades/owox-token-facade.js';
 import type { DatabaseAccount, DatabaseUser } from '../types/database-models.js';
-import type { AuthFlowService } from './auth-flow-service.js';
-import type { AuthenticationService } from './authentication-service.js';
-import { FlowCompletionService } from './flow-completion-service.js';
+import type { BetterAuthSessionService } from './better-auth-session-service.js';
+import { PkceFlowOrchestrator } from './pkce-flow-orchestrator.js';
+import type { PlatformAuthFlowClient } from './platform-auth-flow-client.js';
 import type { UserContextService } from './user-context-service.js';
 
 const baseConfig: IdpOwoxConfig = {
@@ -61,13 +61,13 @@ function createRes(): Response {
   } as unknown as Response;
 }
 
-describe('FlowCompletionService', () => {
+describe('PkceFlowOrchestrator', () => {
   let tokenFacade: jest.Mocked<OwoxTokenFacade>;
-  let authFlowService: jest.Mocked<AuthFlowService>;
-  let authenticationService: jest.Mocked<AuthenticationService>;
+  let platformAuthFlowClient: jest.Mocked<PlatformAuthFlowClient>;
+  let betterAuthSessionService: jest.Mocked<BetterAuthSessionService>;
   let userContextService: jest.Mocked<UserContextService>;
   let logger: jest.Mocked<Logger>;
-  let service: FlowCompletionService;
+  let service: PkceFlowOrchestrator;
 
   beforeEach(() => {
     tokenFacade = {
@@ -75,13 +75,13 @@ describe('FlowCompletionService', () => {
       setTokenToCookie: jest.fn(),
     } as unknown as jest.Mocked<OwoxTokenFacade>;
 
-    authFlowService = {
+    platformAuthFlowClient = {
       completeAuthFlow: jest.fn(),
-    } as unknown as jest.Mocked<AuthFlowService>;
+    } as unknown as jest.Mocked<PlatformAuthFlowClient>;
 
-    authenticationService = {
+    betterAuthSessionService = {
       completeAuthFlowWithSessionToken: jest.fn(),
-    } as unknown as jest.Mocked<AuthenticationService>;
+    } as unknown as jest.Mocked<BetterAuthSessionService>;
 
     userContextService = {
       resolveFromToken: jest.fn(),
@@ -91,12 +91,12 @@ describe('FlowCompletionService', () => {
       warn: jest.fn(),
     } as unknown as jest.Mocked<Logger>;
 
-    service = new FlowCompletionService(
+    service = new PkceFlowOrchestrator(
       baseConfig,
       tokenFacade,
       userContextService,
-      authFlowService,
-      authenticationService,
+      platformAuthFlowClient,
+      betterAuthSessionService,
       logger
     );
   });
@@ -130,7 +130,7 @@ describe('FlowCompletionService', () => {
       user,
       account,
     });
-    authFlowService.completeAuthFlow.mockResolvedValue({ code: 'code-123' });
+    platformAuthFlowClient.completeAuthFlow.mockResolvedValue({ code: 'code-123' });
 
     const url = await service.completeWithIdentityRefreshToken(
       'rt',
@@ -150,7 +150,7 @@ describe('FlowCompletionService', () => {
     });
     const res = createRes();
 
-    authenticationService.completeAuthFlowWithSessionToken.mockResolvedValue({
+    betterAuthSessionService.completeAuthFlowWithSessionToken.mockResolvedValue({
       code: 'code-social',
       payload: {
         state: 'state-2',
@@ -176,7 +176,7 @@ describe('FlowCompletionService', () => {
     });
     const res = createRes();
 
-    authenticationService.completeAuthFlowWithSessionToken.mockRejectedValue(
+    betterAuthSessionService.completeAuthFlowWithSessionToken.mockRejectedValue(
       new Error('Authentication Flow Error, state expired')
     );
 

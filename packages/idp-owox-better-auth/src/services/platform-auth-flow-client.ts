@@ -2,14 +2,13 @@ import type { IdentityOwoxClient } from '../client/IdentityOwoxClient.js';
 import type { AuthFlowRequest, AuthFlowResponse } from '../client/dto/authFlowDto.js';
 import { logger } from '../logger.js';
 
-/** @deprecated Use `AuthFlowRequest` from client DTOs instead */
 export type UserInfoPayload = AuthFlowRequest;
 
 /**
- * Wrapper service for auth flow completion with logging.
+ * Client wrapper for Platform auth flow completion with logging.
  * Delegates HTTP communication to IdentityOwoxClient.
  */
-export class AuthFlowService {
+export class PlatformAuthFlowClient {
   constructor(private readonly identityClient: IdentityOwoxClient) {}
 
   /** Exchanges user info for a one-time authorization code. */

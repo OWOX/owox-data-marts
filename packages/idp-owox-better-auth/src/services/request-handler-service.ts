@@ -5,10 +5,10 @@ import {
   type NextFunction,
 } from 'express';
 import { createBetterAuthConfig } from '../config/idp-better-auth-config.js';
+import { BETTER_AUTH_SESSION_COOKIE } from '../constants.js';
 import { logger } from '../logger.js';
 import { extractPlatformParams } from '../utils/request-utils.js';
-import { BETTER_AUTH_SESSION_COOKIE } from '../constants.js';
-import { FlowCompletionService } from './flow-completion-service.js';
+import { PkceFlowOrchestrator } from './pkce-flow-orchestrator.js';
 
 /**
  * Proxies Better Auth requests and completes social login flow.
@@ -18,7 +18,7 @@ export class RequestHandlerService {
 
   constructor(
     private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
-    private readonly flowCompletionService: FlowCompletionService
+    private readonly pkceFlowOrchestrator: PkceFlowOrchestrator
   ) {}
 
   setupBetterAuthHandler(expressApp: Express): void {
@@ -88,7 +88,7 @@ export class RequestHandlerService {
     const sessionToken = this.getSessionTokenFromResponse(response);
     if (!sessionToken) return false;
 
-    const redirectUrl = await this.flowCompletionService.completeWithSocialSessionToken(
+    const redirectUrl = await this.pkceFlowOrchestrator.completeWithSocialSessionToken(
       sessionToken,
       extractPlatformParams(req),
       req,

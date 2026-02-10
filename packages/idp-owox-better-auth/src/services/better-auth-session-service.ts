@@ -6,21 +6,18 @@ import { buildUserInfoPayload } from '../mappers/user-info-payload-builder.js';
 import type { DatabaseStore } from '../store/database-store.js';
 import { AuthSession } from '../types/auth-session.js';
 import { getStateManager } from '../utils/request-utils.js';
-import { AuthFlowService, type UserInfoPayload } from './auth-flow-service.js';
+import { PlatformAuthFlowClient, type UserInfoPayload } from './platform-auth-flow-client.js';
 
 /**
  * Better Auth integration for social login and user/account lookup.
- * Core IdP tokens are handled in OwoxTokenFacade/FlowCompletionService.
+ * Manages Better Auth sessions and user data.
+ * Core IdP tokens are handled in OwoxTokenFacade/PkceFlowOrchestrator.
  */
-/**
- * Reads Better Auth session data and builds payloads
- * for the Platform auth flow.
- */
-export class AuthenticationService {
+export class BetterAuthSessionService {
   constructor(
     private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
     private readonly store: DatabaseStore,
-    private readonly authFlowService: AuthFlowService
+    private readonly platformAuthFlowClient: PlatformAuthFlowClient
   ) {}
 
   async buildUserInfoPayload(req: Request): Promise<UserInfoPayload> {
@@ -56,7 +53,7 @@ export class AuthenticationService {
       signinProvider: payload.userInfo.signinProvider,
       userId: payload.userInfo.uid,
     });
-    const result = await this.authFlowService.completeAuthFlow(payload);
+    const result = await this.platformAuthFlowClient.completeAuthFlow(payload);
     logger.info('Integrated backend responded', { hasCode: Boolean(result.code) });
     return { code: result.code, payload };
   }
@@ -93,7 +90,7 @@ export class AuthenticationService {
       state: payload.state,
       userInfo: payload.userInfo,
     });
-    const result = await this.authFlowService.completeAuthFlow(payload);
+    const result = await this.platformAuthFlowClient.completeAuthFlow(payload);
     logger.info('Integrated backend responded (callback)', { hasCode: Boolean(result.code) });
     return { code: result.code, payload };
   }

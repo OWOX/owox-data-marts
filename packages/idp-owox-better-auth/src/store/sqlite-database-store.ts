@@ -56,10 +56,32 @@ export class SqliteDatabaseStore implements DatabaseStore {
     return String(val);
   }
 
+  private toBoolean(val: unknown): boolean | undefined {
+    if (val == null) return undefined;
+    if (typeof val === 'boolean') return val;
+    if (typeof val === 'number') return val !== 0;
+    if (val instanceof Date) return true;
+
+    if (val instanceof Uint8Array) {
+      return val.length > 0 ? val[0] !== 0 : undefined;
+    }
+
+    if (typeof val === 'string') {
+      const normalized = val.trim().toLowerCase();
+      if (!normalized) return undefined;
+      if (['1', 'true', 't', 'yes', 'y'].includes(normalized)) return true;
+      if (['0', 'false', 'f', 'no', 'n'].includes(normalized)) return false;
+      if (!Number.isNaN(Date.parse(normalized))) return true;
+    }
+
+    return undefined;
+  }
+
   private mapUser(row: Record<string, unknown>): DatabaseUser {
     return {
       id: String(row.id),
       email: String(row.email),
+      emailVerified: this.toBoolean(row.emailVerified),
       name: row.name != null ? String(row.name) : undefined,
       image: row.image != null ? String(row.image) : null,
       createdAt: this.toIso(row.createdAt),
@@ -136,18 +158,14 @@ export class SqliteDatabaseStore implements DatabaseStore {
 
   async getUserById(userId: string): Promise<DatabaseUser | null> {
     await this.connect();
-    const stmt = this.getDb().prepare(
-      'SELECT id, email, name, image, createdAt FROM user WHERE id = ?'
-    );
+    const stmt = this.getDb().prepare('SELECT * FROM user WHERE id = ?');
     const row = stmt.get(userId) as Record<string, unknown> | undefined;
     return row ? this.mapUser(row) : null;
   }
 
   async getUserByEmail(email: string): Promise<DatabaseUser | null> {
     await this.connect();
-    const stmt = this.getDb().prepare(
-      'SELECT id, email, name, image, createdAt FROM user WHERE email = ?'
-    );
+    const stmt = this.getDb().prepare('SELECT * FROM user WHERE lower(email) = lower(?)');
     const row = stmt.get(email) as Record<string, unknown> | undefined;
     return row ? this.mapUser(row) : null;
   }

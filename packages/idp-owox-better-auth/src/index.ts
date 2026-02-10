@@ -15,7 +15,7 @@ export {
 } from './owox-better-auth-idp.js';
 
 // Services
-export { AuthenticationService } from './services/authentication-service.js';
+export { BetterAuthSessionService } from './services/better-auth-session-service.js';
 export { MiddlewareService } from './services/middleware-service.js';
 export { PageService } from './services/page-service.js';
 export { RequestHandlerService } from './services/request-handler-service.js';

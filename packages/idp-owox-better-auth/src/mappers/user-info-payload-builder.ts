@@ -1,5 +1,5 @@
+import type { UserInfoPayload } from '../services/platform-auth-flow-client.js';
 import type { DatabaseAccount, DatabaseUser } from '../types/database-models.js';
-import type { UserInfoPayload } from '../services/auth-flow-service.js';
 import { splitName } from '../utils/string-utils.js';
 
 /**

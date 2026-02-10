@@ -29,26 +29,44 @@ export class UserContextService {
       throw new AuthenticationException('Invalid token payload: email is missing');
     }
 
-    const user = await this.store.getUserByEmail(payload.email);
+    const normalizedEmail = this.normalizeEmail(payload.email);
+    if (!normalizedEmail) {
+      throw new AuthenticationException('Invalid token payload: email is malformed', {
+        context: { email: payload.email },
+      });
+    }
+
+    const user = await this.store.getUserByEmail(normalizedEmail);
     if (!user) {
       throw new AuthenticationException('User not found in Better Auth DB', {
-        context: { email: payload.email },
+        context: { email: normalizedEmail },
+      });
+    }
+
+    if (user.emailVerified !== true) {
+      throw new AuthenticationException('User email is not verified in Better Auth DB', {
+        context: { email: normalizedEmail, userId: user.id, emailVerified: user.emailVerified },
       });
     }
 
     const account = await this.store.getAccountByUserId(user.id);
     if (!account) {
       throw new AuthenticationException('Account not found for user', {
-        context: { userId: user.id, email: payload.email },
+        context: { userId: user.id, email: normalizedEmail },
       });
     }
 
     this.logger?.debug?.('Resolved user context from token', {
-      email: payload.email,
+      email: normalizedEmail,
       userId: user.id,
       accountId: account.accountId,
     });
 
     return { payload, user, account };
+  }
+
+  private normalizeEmail(email: string): string | null {
+    const normalized = email.trim().toLowerCase();
+    return normalized.length > 0 ? normalized : null;
   }
 }

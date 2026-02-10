@@ -1,15 +1,15 @@
 import { type NextFunction, type Request, type Response } from 'express';
 import ms from 'ms';
 import { IdpOwoxConfig } from '../config/idp-owox-config.js';
+import { SOURCE } from '../constants.js';
 import { logger } from '../logger.js';
 import { generatePkce, generateState } from '../pkce.js';
 import type { DatabaseStore } from '../store/database-store.js';
 import { buildAuthRequestContext } from '../types/auth-request-context.js';
-import { extractPlatformParams } from '../utils/request-utils.js';
-import { SOURCE } from '../constants.js';
-import { PageService } from './page-service.js';
-import { FlowCompletionService } from './flow-completion-service.js';
 import { buildPlatformEntryUrl } from '../utils/platform-redirect-builder.js';
+import { extractPlatformParams } from '../utils/request-utils.js';
+import { PageService } from './page-service.js';
+import { PkceFlowOrchestrator } from './pkce-flow-orchestrator.js';
 
 /**
  * Express middleware handlers for starting PKCE and fast-path sign-in.
@@ -19,7 +19,7 @@ export class MiddlewareService {
     private readonly pageService: PageService,
     private readonly idpOwoxConfig: IdpOwoxConfig,
     private readonly store: DatabaseStore,
-    private readonly flowCompletionService: FlowCompletionService
+    private readonly pkceFlowOrchestrator: PkceFlowOrchestrator
   ) {}
 
   async idpStartMiddleware(req: Request, res: Response): Promise<void> {
@@ -56,7 +56,7 @@ export class MiddlewareService {
   ): Promise<void | Response> {
     const context = buildAuthRequestContext(req);
     if (context.state && context.refreshToken) {
-      const fastRedirect = await this.flowCompletionService.completeWithIdentityRefreshToken(
+      const fastRedirect = await this.pkceFlowOrchestrator.completeWithIdentityRefreshToken(
         context.refreshToken,
         context.platformParams,
         req,

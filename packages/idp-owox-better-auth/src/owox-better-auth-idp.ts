@@ -8,11 +8,11 @@ import type { BetterAuthProviderConfig } from './config/index.js';
 import { CORE_REFRESH_TOKEN_COOKIE, SOURCE } from './constants.js';
 import { AuthenticationException, IdpFailedException } from './exception.js';
 import { OwoxTokenFacade } from './facades/owox-token-facade.js';
-import { AuthFlowService } from './services/auth-flow-service.js';
-import { AuthenticationService } from './services/authentication-service.js';
-import { FlowCompletionService } from './services/flow-completion-service.js';
+import { BetterAuthSessionService } from './services/better-auth-session-service.js';
 import { MiddlewareService } from './services/middleware-service.js';
 import { PageService } from './services/page-service.js';
+import { PkceFlowOrchestrator } from './services/pkce-flow-orchestrator.js';
+import { PlatformAuthFlowClient } from './services/platform-auth-flow-client.js';
 import { RequestHandlerService } from './services/request-handler-service.js';
 import { UserContextService } from './services/user-context-service.js';
 import { createDatabaseStore } from './store/database-store-factory.js';
@@ -36,14 +36,14 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   private readonly store: DatabaseStore;
   private readonly requestHandlerService: RequestHandlerService;
   private readonly pageService: PageService;
-  private readonly authenticationService: AuthenticationService;
+  private readonly betterAuthSessionService: BetterAuthSessionService;
   private readonly middlewareService: MiddlewareService;
   private readonly identityClient: IdentityOwoxClient;
   private readonly logger: Logger;
   private readonly tokenFacade: OwoxTokenFacade;
   private readonly userContextService: UserContextService;
-  private readonly authFlowService: AuthFlowService;
-  private readonly flowCompletionService: FlowCompletionService;
+  private readonly platformAuthFlowClient: PlatformAuthFlowClient;
+  private readonly pkceFlowOrchestrator: PkceFlowOrchestrator;
 
   private constructor(
     auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
@@ -62,28 +62,28 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       CORE_REFRESH_TOKEN_COOKIE
     );
     this.userContextService = new UserContextService(this.store, this.tokenFacade, this.logger);
-    this.authFlowService = new AuthFlowService(this.identityClient);
+    this.platformAuthFlowClient = new PlatformAuthFlowClient(this.identityClient);
 
-    this.authenticationService = new AuthenticationService(
+    this.betterAuthSessionService = new BetterAuthSessionService(
       this.auth,
       this.store,
-      this.authFlowService
+      this.platformAuthFlowClient
     );
-    this.flowCompletionService = new FlowCompletionService(
+    this.pkceFlowOrchestrator = new PkceFlowOrchestrator(
       this.config.idpOwox,
       this.tokenFacade,
       this.userContextService,
-      this.authFlowService,
-      this.authenticationService,
+      this.platformAuthFlowClient,
+      this.betterAuthSessionService,
       this.logger
     );
-    this.requestHandlerService = new RequestHandlerService(this.auth, this.flowCompletionService);
+    this.requestHandlerService = new RequestHandlerService(this.auth, this.pkceFlowOrchestrator);
     this.pageService = new PageService();
     this.middlewareService = new MiddlewareService(
       this.pageService,
       this.config.idpOwox,
       this.store,
-      this.flowCompletionService
+      this.pkceFlowOrchestrator
     );
   }
 
@@ -193,8 +193,21 @@ export class OwoxBetterAuthIdp implements IdpProvider {
             );
           }
           return res.redirect('/');
-        } catch {
-          // ignore and fall through to page
+        } catch (error: unknown) {
+          if (error instanceof AuthenticationException) {
+            clearCookie(res, CORE_REFRESH_TOKEN_COOKIE, req);
+            this.logger.warn('Refresh token rejected during sign-in, cookie cleared', {
+              context: error.context,
+              cause: error.cause,
+            });
+          } else if (error instanceof IdpFailedException) {
+            this.logger.warn('Sign-in refresh failed due to upstream IdP error', {
+              context: error.context,
+              cause: error.cause,
+            });
+          } else {
+            this.logger.error(formatError(error));
+          }
         }
       }
       return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignInUrl);

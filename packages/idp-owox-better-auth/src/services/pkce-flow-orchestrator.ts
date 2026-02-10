@@ -1,10 +1,11 @@
-import { Logger } from '@owox/internal-helpers';
 import { ProtocolRoute } from '@owox/idp-protocol';
+import { Logger } from '@owox/internal-helpers';
 import type { Request, Response } from 'express';
 import type { IdpOwoxConfig } from '../config/idp-owox-config.js';
+import { SOURCE } from '../constants.js';
+import { isStateExpiredError } from '../exception.js';
 import type { OwoxTokenFacade } from '../facades/owox-token-facade.js';
-import { AuthFlowService, type UserInfoPayload } from './auth-flow-service.js';
-import type { AuthenticationService } from './authentication-service.js';
+import { buildUserInfoPayload } from '../mappers/user-info-payload-builder.js';
 import { buildPlatformRedirectUrl } from '../utils/platform-redirect-builder.js';
 import {
   clearAllAuthCookies,
@@ -13,21 +14,20 @@ import {
   type PlatformParams,
 } from '../utils/request-utils.js';
 import { formatError } from '../utils/string-utils.js';
-import { SOURCE } from '../constants.js';
+import type { BetterAuthSessionService } from './better-auth-session-service.js';
+import { PlatformAuthFlowClient, type UserInfoPayload } from './platform-auth-flow-client.js';
 import { UserContextService } from './user-context-service.js';
-import { buildUserInfoPayload } from '../mappers/user-info-payload-builder.js';
-import { isStateExpiredError } from '../exception.js';
 
 /**
  * Orchestrates PKCE completion for Platform using core tokens or social login.
  */
-export class FlowCompletionService {
+export class PkceFlowOrchestrator {
   constructor(
     private readonly idpOwoxConfig: IdpOwoxConfig,
     private readonly tokenFacade: OwoxTokenFacade,
     private readonly userContextService: UserContextService,
-    private readonly authFlowService: AuthFlowService,
-    private readonly authenticationService: AuthenticationService,
+    private readonly platformAuthFlowClient: PlatformAuthFlowClient,
+    private readonly betterAuthSessionService: BetterAuthSessionService,
     private readonly logger: Logger
   ) {}
 
@@ -65,7 +65,7 @@ export class FlowCompletionService {
         account,
       });
 
-      const result = await this.authFlowService.completeAuthFlow(payload);
+      const result = await this.platformAuthFlowClient.completeAuthFlow(payload);
       const redirectUrl = buildPlatformRedirectUrl({
         baseUrl: this.idpOwoxConfig.idpConfig.platformSignInUrl,
         code: result.code,
@@ -106,10 +106,8 @@ export class FlowCompletionService {
       return this.buildLocalSignInUrl(req);
     }
     try {
-      const { code, payload } = await this.authenticationService.completeAuthFlowWithSessionToken(
-        sessionToken,
-        state
-      );
+      const { code, payload } =
+        await this.betterAuthSessionService.completeAuthFlowWithSessionToken(sessionToken, state);
       const finalState = payload.state || state;
       const redirectUrl = buildPlatformRedirectUrl({
         baseUrl: this.idpOwoxConfig.idpConfig.platformSignInUrl,
