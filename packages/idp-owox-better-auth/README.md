@@ -82,3 +82,32 @@ For MySQL, verify your connection settings and ensure the database exists.
 ### Permission Denied
 
 Ensure the user has permission for the action they're trying to perform.
+
+## Customizing the auth UI
+
+### How it works
+- Rendering goes through `TemplateService`, which stitches layout + page: `renderSignIn()` and `renderSignUp()` inject `pageTitle` and `heading` and place the page body into `layouts/auth.ejs`.
+- The service first looks for templates in `dist/resources/templates`, and if missing, falls back to `src/resources/templates`. After changing files in `src`, run `npm run build` to refresh `dist`.
+- Templates are EJS and styled with Tailwind via CDN (`partials/head.ejs` contains the Tailwind config with OWOX brand colors).
+
+### Where the files live
+- Layout: `src/resources/templates/layouts/auth.ejs` — splits the screen into brand panel + content and pulls in header/footer.
+- Pages: `pages/sign-in.ejs`, `pages/sign-up.ejs` — Google buttons, copy, and the social-login start script.
+- Partials:
+  - `head.ejs` — `<head>`, Tailwind include, color palette.
+  - `header.ejs` — page heading (receives `heading`).
+  - `brand-panel.ejs` — left panel with background and logo.
+  - `footer.ejs` — terms and privacy links.
+
+### What and how to change
+- Text/links: edit the relevant `pages/*.ejs` or `partials/footer.ejs`.
+- Page heading: adjust `heading` in `TemplateService.renderSignIn|renderSignUp`, or edit `partials/header.ejs` if you need a different look.
+- Buttons and social-login logic: in `pages/sign-in.ejs` and `pages/sign-up.ejs` (the `fetch` handler to `/auth/better-auth/sign-in/social`).
+- Styles/colors: tweak the Tailwind config in `partials/head.ejs` or utility classes in each section.
+- Branding (background, logo, tagline): in `partials/brand-panel.ejs`.
+
+### Quick steps
+1) Edit the needed `.ejs` in `src/resources/templates/**`.
+2) Check rendering locally (via the app that consumes this package).
+3) Run `npm run build` to update `dist/resources/templates`.
+4) Commit changes in `src` (and `dist` if you ship built artifacts).
