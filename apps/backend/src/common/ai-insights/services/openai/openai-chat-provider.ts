@@ -21,6 +21,13 @@ import {
   normalizeToolCallsFromToolCalls,
 } from './openai.mapper';
 import { RawResponse } from './types';
+import {
+  AiChatHttpError,
+  AiContentFilterError,
+  ErrorEnvelopeSchema,
+  ErrorPayload,
+  ErrorPayloadSchema,
+} from '../error';
 
 /**
  * OpenAI-specific adapter that maps our domain-level request/response
@@ -70,24 +77,11 @@ export class OpenAiChatProvider implements AiChatProvider {
       );
     }
 
-    const body = {
-      model: this.model,
-      messages: request.messages.map(m => mapDomainMessageToOpenAi(m)),
-      temperature: request.temperature ?? 0.1,
-      max_tokens: request.maxTokens ?? 5000,
-      tools: request.tools?.map(t => ({
-        type: 'function' as const,
-        function: {
-          name: t.name,
-          description: t.description,
-          parameters: t.inputJsonSchema,
-        },
-      })),
-      tool_choice: request.toolMode ?? 'auto',
-      response_format: request.responseFormat,
-      // Add provider-specific fields
-      ...this.getProviderSpecificFields(),
-    };
+    return this.executeChat(request);
+  }
+
+  private async executeChat(request: AiChatRequest): Promise<AiChatResponse> {
+    const body = this.buildRequestBody(request);
 
     const start = performance.now();
     const res = await fetchWithBackoff(
@@ -107,9 +101,10 @@ export class OpenAiChatProvider implements AiChatProvider {
 
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(
-        `${this.getProviderName()} chat failed: ${res.status} ${res.statusText} ${text}`
-      );
+      if (this.isContentFilterResponse(res.status, text)) {
+        throw new AiContentFilterError(this.getProviderName(), res.status, text);
+      }
+      throw new AiChatHttpError(this.getProviderName(), res.status, res.statusText, text);
     }
 
     const data: RawResponse = await res.json();
@@ -141,5 +136,62 @@ export class OpenAiChatProvider implements AiChatProvider {
       finishReason: reasoning,
       model: this.model,
     };
+  }
+
+  private buildRequestBody(request: AiChatRequest): Record<string, unknown> {
+    return {
+      model: this.model,
+      messages: request.messages.map(m => mapDomainMessageToOpenAi(m)),
+      temperature: request.temperature ?? 0.1,
+      max_tokens: request.maxTokens ?? 5000,
+      tools: request.tools?.map(t => ({
+        type: 'function' as const,
+        function: {
+          name: t.name,
+          description: t.description,
+          parameters: t.inputJsonSchema,
+        },
+      })),
+      tool_choice: request.toolMode ?? 'auto',
+      response_format: request.responseFormat,
+      // Add provider-specific fields
+      ...this.getProviderSpecificFields(),
+    };
+  }
+
+  private isContentFilterResponse(status: number, body: string): boolean {
+    if (!body || (status !== 400 && status !== 403)) {
+      return false;
+    }
+
+    const parsed = this.safeJsonParse(body);
+    const errorPayload = this.extractErrorPayload(parsed);
+    return errorPayload?.innererror?.code === 'ResponsibleAIPolicyViolation';
+  }
+
+  private extractErrorPayload(parsed: unknown): ErrorPayload | undefined {
+    if (!parsed || typeof parsed !== 'object') {
+      return undefined;
+    }
+
+    const envelope = ErrorEnvelopeSchema.safeParse(parsed);
+    if (envelope.success) {
+      return envelope.data.error;
+    }
+
+    const payload = ErrorPayloadSchema.safeParse(parsed);
+    if (payload.success) {
+      return payload.data;
+    }
+
+    return undefined;
+  }
+
+  private safeJsonParse(value: string): unknown | undefined {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return undefined;
+    }
   }
 }

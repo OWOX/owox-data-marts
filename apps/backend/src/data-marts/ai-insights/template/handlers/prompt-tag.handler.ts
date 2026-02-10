@@ -73,6 +73,7 @@ export class PromptTagHandler implements TagHandler<
           rendered: wrapCautionBlock(error.message),
           meta: {
             prompt: input.prompt,
+            sanitizedPrompt: null,
             status: PromptAnswer.RESTRICTED,
             reasonDescription: error.message,
             telemetry: { llmCalls: [], toolCalls: [], messageHistory: [] },
@@ -94,6 +95,7 @@ export class PromptTagHandler implements TagHandler<
       rendered: this.computeRendered(response),
       meta: {
         prompt: response.meta.prompt,
+        sanitizedPrompt: response.meta.sanitizedPrompt,
         status: response.status,
         reasonDescription: response.meta.reasonDescription,
         artifact: response.meta.artifact,
