@@ -38,10 +38,14 @@ const MicrosoftAdsHelper = {
         if (Date.now() - startTime > timeout) {
           throw new Error('Polling timed out after 30 minutes');
         }
-        await AsyncUtils.delay(interval);
         const response = await HttpUtils.fetch(url, options);
         const text = await response.getContentText();
         statusResult = JSON.parse(text);
+
+        // Only delay if we need to poll again
+        if (!isDone(statusResult)) {
+          await AsyncUtils.delay(interval);
+        }
       } while (!isDone(statusResult));
 
       return statusResult;
