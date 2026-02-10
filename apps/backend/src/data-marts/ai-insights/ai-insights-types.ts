@@ -41,6 +41,7 @@ export const AnswerPromptResponseSchema = z.object({
   status: z.nativeEnum(PromptAnswer),
   meta: z.object({
     prompt: z.string().min(1),
+    sanitizedPrompt: z.string().min(1).nullable(),
     artifact: z.string().optional(),
     reasonDescription: z.string().optional(),
     telemetry: z.unknown(),

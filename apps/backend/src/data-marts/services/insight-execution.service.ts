@@ -174,7 +174,8 @@ export class InsightExecutionService {
         // Basic meta about prompt/artifact
         pushLog({
           type: 'prompt_meta',
-          prompt: p.payload?.prompt,
+          prompt: p.meta?.prompt,
+          sanitizedPrompt: p.meta?.sanitizedPrompt,
           artifact: p.meta?.artifact,
           status: p.meta?.status,
         });

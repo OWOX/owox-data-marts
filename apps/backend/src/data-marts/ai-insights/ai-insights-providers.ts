@@ -1,5 +1,6 @@
 import { OpenAiChatProvider } from '../../common/ai-insights/services/openai/openai-chat-provider';
 import { OpenRouterChatProvider } from '../../common/ai-insights/services/openrouter/openrouter-chat-provider';
+import { PromptSanitizerService } from '../../common/ai-insights/services/prompt-sanitizer.service';
 import { AiInsightsFacadeImpl } from './facades/ai-insights.facade.impl';
 import { PromptTagHandler } from './template/handlers/prompt-tag.handler';
 import { DataMartInsightTemplateFacadeImpl } from './data-mart-insight-template.facade';
@@ -34,6 +35,7 @@ import { PromptProcessedEventsService } from './prompt-processed-events.service'
 export const aiInsightsProviders = [
   OpenAiChatProvider,
   OpenRouterChatProvider,
+  PromptSanitizerService,
   AiInsightsFacadeImpl,
   AiInsightsOrchestratorService,
   TriageAgent,

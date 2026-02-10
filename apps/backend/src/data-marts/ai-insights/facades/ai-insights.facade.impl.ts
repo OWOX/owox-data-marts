@@ -14,6 +14,8 @@ import { GenerateInsightAgent } from '../agent/generate-insight.agent';
 import { AI_CHAT_PROVIDER } from '../../../common/ai-insights/services/ai-chat-provider.token';
 import { AiChatProvider } from '../../../common/ai-insights/agent/ai-core';
 import { ToolRegistry } from '../../../common/ai-insights/agent/tool-registry';
+import { AiContentFilterError } from '../../../common/ai-insights/services/error';
+import { castError } from '@owox/internal-helpers';
 
 @Injectable()
 export class AiInsightsFacadeImpl implements AiInsightsFacade {
@@ -41,8 +43,8 @@ export class AiInsightsFacadeImpl implements AiInsightsFacade {
         status: PromptAnswer.ERROR,
         meta: {
           prompt: request.prompt,
-          reasonDescription:
-            'Something went wrong while processing the prompt. Try again later or contact us.',
+          sanitizedPrompt: null,
+          reasonDescription: this.computeReasonDescription(castError(e)),
           telemetry: {
             llmCalls: [],
             toolCalls: [],
@@ -51,6 +53,12 @@ export class AiInsightsFacadeImpl implements AiInsightsFacade {
         },
       };
     }
+  }
+
+  private computeReasonDescription(e: Error) {
+    return e instanceof AiContentFilterError
+      ? 'AI content filter error'
+      : 'Something went wrong while processing the prompt. Try again later or contact us.';
   }
 
   async generateInsight(request: GenerateInsightRequest): Promise<GenerateInsightResponse> {
@@ -93,6 +101,7 @@ export class AiInsightsFacadeImpl implements AiInsightsFacade {
           promptAnswer: JSON.stringify(aiResult),
           meta: {
             prompt: 'generate insight',
+            sanitizedPrompt: null,
             status: PromptAnswer.OK,
             telemetry: sharedContext.telemetry,
           },
