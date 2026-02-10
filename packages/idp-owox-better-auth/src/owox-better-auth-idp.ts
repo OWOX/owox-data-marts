@@ -20,11 +20,11 @@ import type { DatabaseStore } from './store/database-store.js';
 import { clearCookie } from './utils/cookie-policy.js';
 import { buildPlatformEntryUrl } from './utils/platform-redirect-builder.js';
 import {
-    clearBetterAuthCookies,
-    clearPlatformCookies,
-    extractPlatformParams,
-    extractRefreshToken,
-    getStateManager,
+  clearBetterAuthCookies,
+  clearPlatformCookies,
+  extractPlatformParams,
+  extractRefreshToken,
+  getStateManager,
 } from './utils/request-utils.js';
 import { formatError } from './utils/string-utils.js';
 
@@ -77,10 +77,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       this.authenticationService,
       this.logger
     );
-    this.requestHandlerService = new RequestHandlerService(
-      this.auth,
-      this.flowCompletionService
-    );
+    this.requestHandlerService = new RequestHandlerService(this.auth, this.flowCompletionService);
     this.pageService = new PageService();
     this.middlewareService = new MiddlewareService(
       this.pageService,
@@ -142,7 +139,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
           response.refreshToken,
           response.refreshTokenExpiresIn
         );
-        
+
         res.redirect('/');
       } catch (error: unknown) {
         if (error instanceof AuthenticationException) {

@@ -5,10 +5,7 @@ import {
   BETTER_AUTH_STATE_COOKIE,
   CORE_REFRESH_TOKEN_COOKIE,
 } from '../constants.js';
-import {
-  clearCookie,
-  setCookie,
-} from './cookie-policy.js';
+import { clearCookie, setCookie } from './cookie-policy.js';
 export { setCookie } from './cookie-policy.js';
 
 /**
@@ -189,11 +186,7 @@ export function extractPlatformParams(req: Request): PlatformParams {
 /**
  * Persists redirect parameters into a cookie.
  */
-export function persistPlatformParams(
-  req: Request,
-  res: Response,
-  params: PlatformParams
-): void {
+export function persistPlatformParams(req: Request, res: Response, params: PlatformParams): void {
   try {
     const serialized = encodeURIComponent(JSON.stringify(params));
     setCookie(res, req, PLATFORM_PARAMS_COOKIE, serialized);
@@ -221,4 +214,3 @@ export function persistPlatformContext(
  */
 export const extractRefreshToken = (req: Request): string | undefined =>
   getCookie(req, CORE_REFRESH_TOKEN_COOKIE);
-

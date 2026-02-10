@@ -54,7 +54,10 @@ function applyPlatformParams(
   if (source) url.searchParams.set('source', source);
   const redirectTo = sanitizeRedirectParam(params?.redirectTo, options.allowedRedirectOrigins);
   if (redirectTo) url.searchParams.set('redirect-to', redirectTo);
-  const appRedirectTo = sanitizeRedirectParam(params?.appRedirectTo, options.allowedRedirectOrigins);
+  const appRedirectTo = sanitizeRedirectParam(
+    params?.appRedirectTo,
+    options.allowedRedirectOrigins
+  );
   if (appRedirectTo) url.searchParams.set('app-redirect-to', appRedirectTo);
   if (params?.clientId) url.searchParams.set('clientId', params.clientId);
   if (params?.codeChallenge) url.searchParams.set('codeChallenge', params.codeChallenge);

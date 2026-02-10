@@ -132,7 +132,12 @@ describe('FlowCompletionService', () => {
     });
     authFlowService.completeAuthFlow.mockResolvedValue({ code: 'code-123' });
 
-    const url = await service.completeWithIdentityRefreshToken('rt', { source: SOURCE.PLATFORM }, req, res);
+    const url = await service.completeWithIdentityRefreshToken(
+      'rt',
+      { source: SOURCE.PLATFORM },
+      req,
+      res
+    );
 
     expect(url?.toString()).toContain('code=code-123');
     expect(url?.toString()).toContain('state=state-1');

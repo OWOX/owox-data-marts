@@ -79,12 +79,14 @@ export class SqliteDatabaseStore implements DatabaseStore {
   private ensureAuthStatesTable(): void {
     if (this.authTableReady) return;
     const db = this.getDb();
-    db.prepare(`CREATE TABLE IF NOT EXISTS auth_states (
+    db.prepare(
+      `CREATE TABLE IF NOT EXISTS auth_states (
       state TEXT NOT NULL PRIMARY KEY,
       code_verifier TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
       expires_at TEXT NULL
-    )`).run();
+    )`
+    ).run();
     try {
       db.prepare(`CREATE INDEX idx_auth_states_expires_at ON auth_states (expires_at)`).run();
     } catch {

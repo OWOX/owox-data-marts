@@ -83,7 +83,9 @@ export class FlowCompletionService {
         clearAllAuthCookies(res, req);
         return this.buildLocalSignInUrl(req);
       }
-      this.logger.warn('Platform fast-path failed, will fallback to UI', { error: formatError(error) });
+      this.logger.warn('Platform fast-path failed, will fallback to UI', {
+        error: formatError(error),
+      });
       return null;
     }
   }

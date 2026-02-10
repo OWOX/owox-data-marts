@@ -41,35 +41,35 @@ IDP_BETTER_AUTH_SECRET=your-super-secret-key-at-least-32-characters-long
 
 ## Configuration Reference
 
-| Variable                            | Required | Default                                   | Description                                |
-| ----------------------------------- | :------: | :---------------------------------------: | ------------------------------------------ |
-| `IDP_PROVIDER`                      | **Yes**  | –                                         | Set to `owox-better-auth`                   |
-| `IDP_OWOX_DB_TYPE`                  | No       | `sqlite`                                  | Database type: `sqlite` or `mysql`          |
-| `IDP_OWOX_SQLITE_DB_PATH`           | No       | `<app data>/sqlite/idp/owox-better-auth.db` | SQLite database file path                  |
-| `IDP_OWOX_MYSQL_HOST`               | No       | –                                         | MySQL host                                 |
-| `IDP_OWOX_MYSQL_USER`               | No       | –                                         | MySQL user                                 |
-| `IDP_OWOX_MYSQL_PASSWORD`           | No       | –                                         | MySQL password                             |
-| `IDP_OWOX_MYSQL_DB`                 | No       | –                                         | MySQL database                             |
-| `IDP_OWOX_MYSQL_PORT`               | No       | `3306`                                    | MySQL port                                 |
-| `IDP_OWOX_MYSQL_SSL`                | No       | `false`                                   | Enable SSL: `true`, JSON, or string         |
-| `IDP_OWOX_CLIENT_BASE_URL`          | **Yes**  | –                                         | Identity client base URL                   |
-| `IDP_OWOX_CLIENT_BACKCHANNEL_PREFIX`| **Yes**  | –                                         | Identity client path prefix for backchannel endpoints |
-| `IDP_OWOX_C2C_SERVICE_ACCOUNT`      | **Yes**  | –                                         | Service account email for C2C impersonation |
-| `IDP_OWOX_C2C_TARGET_AUDIENCE`      | **Yes**  | –                                         | Target audience for C2C impersonation       |
-| `IDP_OWOX_CLIENT_ID`                | **Yes**  | –                                         | Client id for PKCE                          |
-| `IDP_OWOX_PLATFORM_SIGN_IN_URL`     | **Yes**  | –                                         | Platform sign-in URL (redirect target)     |
-| `IDP_OWOX_PLATFORM_SIGN_UP_URL`     | **Yes**  | –                                         | Platform sign-up URL (redirect target)     |
-| `IDP_OWOX_SIGN_OUT_REDIRECT_URL`    | No       | `/auth/sign-in`                           | Custom redirect after sign-out             |
-| `IDP_OWOX_ALLOWED_REDIRECT_ORIGINS` | No       | origins from platform sign-in/up URLs     | Allowlist for redirect-to/app-redirect-to  |
-| `IDP_OWOX_JWT_ISSUER`               | **Yes**  | –                                         | Expected JWT issuer                        |
-| `IDP_OWOX_JWT_CACHE_TTL`            | No       | `1h`                                      | JWKS cache TTL                             |
-| `IDP_OWOX_JWT_CLOCK_TOLERANCE`      | No       | `5s`                                      | Clock skew tolerance                       |
-| `IDP_BETTER_AUTH_SECRET`            | **Yes**  | –                                         | Secret key for signing (min. 32 characters) |
-| `PUBLIC_ORIGIN`                     | No       | `http://localhost:3000`                  | Base URL for callbacks                     |
-| `IDP_BETTER_AUTH_SESSION_MAX_AGE`   | No       | `1800` (30 mins)                          | Session duration (seconds)                 |
-| `IDP_BETTER_AUTH_TRUSTED_ORIGINS`   | No       | `PUBLIC_ORIGIN`                           | Trusted origins for auth service           |
-| `IDP_BETTER_AUTH_GOOGLE_CLIENT_ID`  | No       | –                                         | Google OAuth client id (enables Google)    |
-| `IDP_BETTER_AUTH_GOOGLE_CLIENT_SECRET` | No     | –                                         | Google OAuth client secret                 |
+| Variable                               | Required |                   Default                   | Description                                           |
+| -------------------------------------- | :------: | :-----------------------------------------: | ----------------------------------------------------- |
+| `IDP_PROVIDER`                         | **Yes**  |                      –                      | Set to `owox-better-auth`                             |
+| `IDP_OWOX_DB_TYPE`                     |    No    |                  `sqlite`                   | Database type: `sqlite` or `mysql`                    |
+| `IDP_OWOX_SQLITE_DB_PATH`              |    No    | `<app data>/sqlite/idp/owox-better-auth.db` | SQLite database file path                             |
+| `IDP_OWOX_MYSQL_HOST`                  |    No    |                      –                      | MySQL host                                            |
+| `IDP_OWOX_MYSQL_USER`                  |    No    |                      –                      | MySQL user                                            |
+| `IDP_OWOX_MYSQL_PASSWORD`              |    No    |                      –                      | MySQL password                                        |
+| `IDP_OWOX_MYSQL_DB`                    |    No    |                      –                      | MySQL database                                        |
+| `IDP_OWOX_MYSQL_PORT`                  |    No    |                   `3306`                    | MySQL port                                            |
+| `IDP_OWOX_MYSQL_SSL`                   |    No    |                   `false`                   | Enable SSL: `true`, JSON, or string                   |
+| `IDP_OWOX_CLIENT_BASE_URL`             | **Yes**  |                      –                      | Identity client base URL                              |
+| `IDP_OWOX_CLIENT_BACKCHANNEL_PREFIX`   | **Yes**  |                      –                      | Identity client path prefix for backchannel endpoints |
+| `IDP_OWOX_C2C_SERVICE_ACCOUNT`         | **Yes**  |                      –                      | Service account email for C2C impersonation           |
+| `IDP_OWOX_C2C_TARGET_AUDIENCE`         | **Yes**  |                      –                      | Target audience for C2C impersonation                 |
+| `IDP_OWOX_CLIENT_ID`                   | **Yes**  |                      –                      | Client id for PKCE                                    |
+| `IDP_OWOX_PLATFORM_SIGN_IN_URL`        | **Yes**  |                      –                      | Platform sign-in URL (redirect target)                |
+| `IDP_OWOX_PLATFORM_SIGN_UP_URL`        | **Yes**  |                      –                      | Platform sign-up URL (redirect target)                |
+| `IDP_OWOX_SIGN_OUT_REDIRECT_URL`       |    No    |               `/auth/sign-in`               | Custom redirect after sign-out                        |
+| `IDP_OWOX_ALLOWED_REDIRECT_ORIGINS`    |    No    |    origins from platform sign-in/up URLs    | Allowlist for redirect-to/app-redirect-to             |
+| `IDP_OWOX_JWT_ISSUER`                  | **Yes**  |                      –                      | Expected JWT issuer                                   |
+| `IDP_OWOX_JWT_CACHE_TTL`               |    No    |                    `1h`                     | JWKS cache TTL                                        |
+| `IDP_OWOX_JWT_CLOCK_TOLERANCE`         |    No    |                    `5s`                     | Clock skew tolerance                                  |
+| `IDP_BETTER_AUTH_SECRET`               | **Yes**  |                      –                      | Secret key for signing (min. 32 characters)           |
+| `PUBLIC_ORIGIN`                        |    No    |           `http://localhost:3000`           | Base URL for callbacks                                |
+| `IDP_BETTER_AUTH_SESSION_MAX_AGE`      |    No    |              `1800` (30 mins)               | Session duration (seconds)                            |
+| `IDP_BETTER_AUTH_TRUSTED_ORIGINS`      |    No    |               `PUBLIC_ORIGIN`               | Trusted origins for auth service                      |
+| `IDP_BETTER_AUTH_GOOGLE_CLIENT_ID`     |    No    |                      –                      | Google OAuth client id (enables Google)               |
+| `IDP_BETTER_AUTH_GOOGLE_CLIENT_SECRET` |    No    |                      –                      | Google OAuth client secret                            |
 
 ## Troubleshooting
 
@@ -88,11 +88,13 @@ Ensure the user has permission for the action they're trying to perform.
 ## Customizing the auth UI
 
 ### How it works
+
 - Rendering goes through `TemplateService`, which stitches layout + page: `renderSignIn()` and `renderSignUp()` inject `pageTitle` and `heading` and place the page body into `layouts/auth.ejs`.
 - The service first looks for templates in `dist/resources/templates`, and if missing, falls back to `src/resources/templates`. After changing files in `src`, run `npm run build` to refresh `dist`.
 - Templates are EJS and styled with Tailwind via CDN (`partials/head.ejs` contains the Tailwind config with OWOX brand colors).
 
 ### Where the files live
+
 - Layout: `src/resources/templates/layouts/auth.ejs` — splits the screen into brand panel + content and pulls in header/footer.
 - Pages: `pages/sign-in.ejs`, `pages/sign-up.ejs` — Google buttons, copy, and the social-login start script.
 - Partials:
@@ -102,6 +104,7 @@ Ensure the user has permission for the action they're trying to perform.
   - `footer.ejs` — terms and privacy links.
 
 ### What and how to change
+
 - Text/links: edit the relevant `pages/*.ejs` or `partials/footer.ejs`.
 - Page heading: adjust `heading` in `TemplateService.renderSignIn|renderSignUp`, or edit `partials/header.ejs` if you need a different look.
 - Buttons and social-login logic: in `pages/sign-in.ejs` and `pages/sign-up.ejs` (the `fetch` handler to `/auth/better-auth/sign-in/social`).
@@ -109,7 +112,8 @@ Ensure the user has permission for the action they're trying to perform.
 - Branding (background, logo, tagline): in `partials/brand-panel.ejs`.
 
 ### Quick steps
-1) Edit the needed `.ejs` in `src/resources/templates/**`.
-2) Check rendering locally (via the app that consumes this package).
-3) Run `npm run build` to update `dist/resources/templates`.
-4) Commit changes in `src` (and `dist` if you ship built artifacts).
+
+1. Edit the needed `.ejs` in `src/resources/templates/**`.
+2. Check rendering locally (via the app that consumes this package).
+3. Run `npm run build` to update `dist/resources/templates`.
+4. Commit changes in `src` (and `dist` if you ship built artifacts).

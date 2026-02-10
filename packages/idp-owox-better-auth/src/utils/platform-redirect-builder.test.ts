@@ -62,11 +62,9 @@ describe('platform-redirect-builder', () => {
 
   it('drops redirect params with disallowed origins', () => {
     const allowed = ['https://platform.test'];
-    expect(
-      sanitizeRedirectParam('https://evil.test/path', allowed)
-    ).toBeUndefined();
-    expect(
-      sanitizeRedirectParam('https://platform.test/welcome', allowed)
-    ).toBe('https://platform.test/welcome');
+    expect(sanitizeRedirectParam('https://evil.test/path', allowed)).toBeUndefined();
+    expect(sanitizeRedirectParam('https://platform.test/welcome', allowed)).toBe(
+      'https://platform.test/welcome'
+    );
   });
 });

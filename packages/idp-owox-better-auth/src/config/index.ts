@@ -11,4 +11,3 @@ export {
   type MysqlConfig,
   type SqliteConfig,
 } from './idp-owox-config.js';
-

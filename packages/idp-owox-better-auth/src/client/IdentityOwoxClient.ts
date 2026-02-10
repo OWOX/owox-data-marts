@@ -5,19 +5,19 @@ import ms from 'ms';
 import { IdentityOwoxClientConfig } from '../config/idp-owox-config.js';
 import { AuthenticationException, IdpFailedException } from '../exception.js';
 import {
-    AuthFlowRequest,
-    AuthFlowResponse,
-    AuthFlowResponseSchema,
-    IntrospectionRequest,
-    IntrospectionResponse,
-    IntrospectionResponseSchema,
-    JwksResponse,
-    JwksResponseSchema,
-    RevocationRequest,
-    RevocationResponse,
-    TokenRequest,
-    TokenResponse,
-    TokenResponseSchema,
+  AuthFlowRequest,
+  AuthFlowResponse,
+  AuthFlowResponseSchema,
+  IntrospectionRequest,
+  IntrospectionResponse,
+  IntrospectionResponseSchema,
+  JwksResponse,
+  JwksResponseSchema,
+  RevocationRequest,
+  RevocationResponse,
+  TokenRequest,
+  TokenResponse,
+  TokenResponseSchema,
 } from './dto/index.js';
 
 /**
@@ -128,7 +128,11 @@ export class IdentityOwoxClient {
    * Requires service account authentication for the private internal endpoint.
    */
   async completeAuthFlow(request: AuthFlowRequest): Promise<AuthFlowResponse> {
-    if (!this.impersonatedIdTokenFetcher || !this.c2cServiceAccountEmail || !this.c2cTargetAudience) {
+    if (
+      !this.impersonatedIdTokenFetcher ||
+      !this.c2cServiceAccountEmail ||
+      !this.c2cTargetAudience
+    ) {
       throw new IdpFailedException(
         'Service account authentication is not configured. Cannot complete auth flow.',
         { context: { hasRequest: Boolean(request) } }
@@ -158,13 +162,10 @@ export class IdentityOwoxClient {
         const status = err.response?.status;
         const responseData = err.response?.data;
 
-        throw new IdpFailedException(
-          `Failed to complete auth flow: ${status}`,
-          {
-            cause: err,
-            context: { request, status, responseData },
-          }
-        );
+        throw new IdpFailedException(`Failed to complete auth flow: ${status}`, {
+          cause: err,
+          context: { request, status, responseData },
+        });
       }
 
       throw err;

@@ -2,12 +2,12 @@ import { AuthResult, Payload } from '@owox/idp-protocol';
 import { Logger } from '@owox/internal-helpers';
 import { NextFunction, Request, Response } from 'express';
 import {
-    IdentityOwoxClient,
-    IntrospectionRequest,
-    IntrospectionResponse,
-    RevocationRequest,
-    TokenRequest,
-    TokenResponse,
+  IdentityOwoxClient,
+  IntrospectionRequest,
+  IntrospectionResponse,
+  RevocationRequest,
+  TokenRequest,
+  TokenResponse,
 } from '../client/index.js';
 import type { IdpOwoxConfig } from '../config/idp-owox-config.js';
 import { AuthenticationException, IdpFailedException } from '../exception.js';

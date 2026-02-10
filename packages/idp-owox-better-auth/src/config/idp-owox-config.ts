@@ -18,7 +18,9 @@ function normalizeOrigin(value: string, label: string): string {
   try {
     return new URL(value).origin;
   } catch (error) {
-    throw new Error(`Invalid ${label} value: ${value}. ${error instanceof Error ? error.message : error}`);
+    throw new Error(
+      `Invalid ${label} value: ${value}. ${error instanceof Error ? error.message : error}`
+    );
   }
 }
 
@@ -126,7 +128,9 @@ export function loadDbConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Datab
 
 const IdentityOwoxClientEnvSchema = z
   .object({
-    IDP_OWOX_CLIENT_BASE_URL: z.string().url({ message: 'IDP_OWOX_CLIENT_BASE_URL must be a valid URL' }),
+    IDP_OWOX_CLIENT_BASE_URL: z
+      .string()
+      .url({ message: 'IDP_OWOX_CLIENT_BASE_URL must be a valid URL' }),
     IDP_OWOX_DEFAULT_HEADERS: z.string().optional(),
     IDP_OWOX_TIMEOUT: zMsString.optional(),
     IDP_OWOX_CLIENT_BACKCHANNEL_PREFIX: z

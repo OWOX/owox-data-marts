@@ -10,7 +10,9 @@ function normalizeConfig(database: DatabaseConfig | DbConfig): DatabaseConfig {
     return config;
   }
 
-  throw new Error(`Unsupported database config shape: ${(database as { type?: string }).type ?? 'unknown'}`);
+  throw new Error(
+    `Unsupported database config shape: ${(database as { type?: string }).type ?? 'unknown'}`
+  );
 }
 
 /**

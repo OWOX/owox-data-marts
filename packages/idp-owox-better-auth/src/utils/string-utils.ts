@@ -1,7 +1,11 @@
 /**
  * Splits a full name into first/last parts.
  */
-export function splitName(name?: string): { firstName: string; lastName: string; fullName: string } {
+export function splitName(name?: string): {
+  firstName: string;
+  lastName: string;
+  fullName: string;
+} {
   const cleaned = (name || '').trim();
   if (!cleaned) {
     return { firstName: '', lastName: '', fullName: '' };

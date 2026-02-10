@@ -52,7 +52,8 @@ export class RequestHandlerService {
 
   private getSessionTokenFromResponse(response: Response): string | null {
     const rawHeaders: string[] = [];
-    const getSetCookieFn = (response.headers as unknown as { getSetCookie?: () => string[] }).getSetCookie;
+    const getSetCookieFn = (response.headers as unknown as { getSetCookie?: () => string[] })
+      .getSetCookie;
     const getSetCookie =
       typeof getSetCookieFn === 'function'
         ? getSetCookieFn.bind(response.headers as unknown as object)

@@ -67,9 +67,7 @@ export function safeConsoleLog(message: string, payload?: unknown): void {
     return;
   }
   const serialized =
-    typeof payload === 'string'
-      ? payload
-      : JSON.stringify(payload, redactingReplacer, 2);
+    typeof payload === 'string' ? payload : JSON.stringify(payload, redactingReplacer, 2);
   // eslint-disable-next-line no-console
   console.log(message, serialized);
 }

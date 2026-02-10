@@ -3,18 +3,14 @@ import type { CookieOptions, Request, Response } from 'express';
 /** Default cookie path for auth cookies. */
 export const COOKIE_DEFAULT_PATH = '/';
 
-const isLocalhost = (host?: string): boolean =>
-  host === 'localhost' || host === '127.0.0.1';
+const isLocalhost = (host?: string): boolean => host === 'localhost' || host === '127.0.0.1';
 
 /** Determines if a request should use secure cookies. */
 export const isSecureRequest = (req: Request): boolean =>
   req.protocol !== 'http' && !isLocalhost(req.hostname);
 
 /** Builds cookie options using consistent security defaults. */
-export function buildCookieOptions(
-  req: Request,
-  options?: { maxAgeMs?: number }
-): CookieOptions {
+export function buildCookieOptions(req: Request, options?: { maxAgeMs?: number }): CookieOptions {
   return {
     httpOnly: true,
     sameSite: 'lax',

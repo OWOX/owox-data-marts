@@ -18,7 +18,7 @@ const createResponseMock = () =>
   ({
     cookie: jest.fn(),
     clearCookie: jest.fn(),
-  } as unknown as Response);
+  }) as unknown as Response;
 
 describe('request-utils', () => {
   it('extracts state from cookie before query', () => {

@@ -63,7 +63,9 @@ export class MiddlewareService {
         res
       );
       if (fastRedirect) {
-        logger.info('Fast-path completeAuthFlow redirectUrl', { redirectUrl: fastRedirect.toString() });
+        logger.info('Fast-path completeAuthFlow redirectUrl', {
+          redirectUrl: fastRedirect.toString(),
+        });
         return res.redirect(fastRedirect.toString());
       }
     }

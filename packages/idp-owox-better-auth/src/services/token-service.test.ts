@@ -13,9 +13,7 @@ describe('TokenService', () => {
     (publicJwk as Record<string, unknown>).kid = 'test-key';
 
     const mockClient = {
-      getJwks: jest
-        .fn<IdentityOwoxClient['getJwks']>()
-        .mockResolvedValue({ keys: [publicJwk] }),
+      getJwks: jest.fn<IdentityOwoxClient['getJwks']>().mockResolvedValue({ keys: [publicJwk] }),
       getToken: jest.fn(),
       revokeToken: jest.fn(),
       introspectToken: jest.fn(),
