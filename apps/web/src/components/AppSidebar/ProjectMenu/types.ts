@@ -3,7 +3,7 @@ import React from 'react';
 export type VisibilityConfig =
   | {
       flagKey: string;
-      expectedValue?: boolean | string | Array<boolean | string>;
+      expectedValue?: boolean | string | (boolean | string)[];
     }
   | boolean;
 

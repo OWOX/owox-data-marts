@@ -22,12 +22,12 @@ function normalizeOrigin(value: string, label: string): string {
   }
 }
 
-function ensureValidUrl(value: string, label: string): string {
+function ensureValidUrl(value: string): string {
   try {
     new URL(value);
     return value;
   } catch {
-    throw new Error(`Invalid ${label} value: ${value}`);
+    throw new Error(`Invalid URL: ${value}`);
   }
 }
 
@@ -126,12 +126,12 @@ export function loadDbConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Datab
 
 const IdentityOwoxClientEnvSchema = z
   .object({
-    IDP_OWOX_BASE_URL: z.string().url({ message: 'IDP_OWOX_BASE_URL must be a valid URL' }),
+    IDP_OWOX_CLIENT_BASE_URL: z.string().url({ message: 'IDP_OWOX_CLIENT_BASE_URL must be a valid URL' }),
     IDP_OWOX_DEFAULT_HEADERS: z.string().optional(),
     IDP_OWOX_TIMEOUT: zMsString.optional(),
-    IDP_OWOX_BACKCHANNEL_API_PREFIX: z
+    IDP_OWOX_CLIENT_BACKCHANNEL_PREFIX: z
       .string()
-      .min(1, 'IDP_OWOX_BACKCHANNEL_API_PREFIX is required'),
+      .min(1, 'IDP_OWOX_CLIENT_BACKCHANNEL_PREFIX is required'),
     IDP_OWOX_C2C_SERVICE_ACCOUNT: z.string().min(1, 'IDP_OWOX_C2C_SERVICE_ACCOUNT is required'),
     IDP_OWOX_C2C_TARGET_AUDIENCE: z.string().min(1, 'IDP_OWOX_C2C_TARGET_AUDIENCE is required'),
   })
@@ -140,10 +140,10 @@ const IdentityOwoxClientEnvSchema = z
       ? (JSON.parse(e.IDP_OWOX_DEFAULT_HEADERS) as Record<string, string>)
       : undefined;
     return {
-      baseUrl: e.IDP_OWOX_BASE_URL,
+      clientBaseUrl: e.IDP_OWOX_CLIENT_BASE_URL,
       defaultHeaders,
       clientTimeout: (e.IDP_OWOX_TIMEOUT ?? '3s') as ms.StringValue,
-      backchannelApiPrefix: e.IDP_OWOX_BACKCHANNEL_API_PREFIX,
+      clientBackchannelPrefix: e.IDP_OWOX_CLIENT_BACKCHANNEL_PREFIX,
       c2cServiceAccountEmail: e.IDP_OWOX_C2C_SERVICE_ACCOUNT,
       c2cTargetAudience: e.IDP_OWOX_C2C_TARGET_AUDIENCE,
     };
@@ -207,11 +207,10 @@ export type IdpOwoxConfig = {
 
 /** ---------- Better Auth (UI/auth) config ---------- */
 
-const DEFAULT_SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
+const DEFAULT_SESSION_MAX_AGE = 60 * 30; // 30 minutes
 
 const BetterAuthEnvSchema = z.object({
   IDP_BETTER_AUTH_SECRET: z.string().min(32, 'IDP_BETTER_AUTH_SECRET is required'),
-  IDP_BETTER_AUTH_BASE_URL: z.string().url().optional(),
   IDP_BETTER_AUTH_SESSION_MAX_AGE: z.string().optional(),
   IDP_BETTER_AUTH_TRUSTED_ORIGINS: z.string().optional(),
   IDP_BETTER_AUTH_GOOGLE_CLIENT_ID: z.string().optional(),
@@ -223,12 +222,8 @@ const BetterAuthEnvSchema = z.object({
 type Env = NodeJS.ProcessEnv;
 
 function resolveBaseUrl(env: Env): string {
-  const baseURL =
-    env.IDP_BETTER_AUTH_BASE_URL ??
-    env.PUBLIC_ORIGIN ??
-    (env.PORT ? `http://localhost:${env.PORT}` : undefined) ??
-    'http://localhost:3000';
-  return ensureValidUrl(baseURL, 'IDP_BETTER_AUTH_BASE_URL');
+  const baseURL = env.PUBLIC_ORIGIN ?? (env.PORT ? `http://localhost:${env.PORT}` : '');
+  return ensureValidUrl(baseURL);
 }
 
 function toNumber(value: string | undefined, fallback: number): number {

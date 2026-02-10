@@ -22,10 +22,10 @@ const baseConfig: IdpOwoxConfig = {
     allowedRedirectOrigins: ['https://platform.test'],
   },
   identityOwoxClientConfig: {
-    baseUrl: 'https://idp.test',
+    clientBaseUrl: 'https://idp.test',
     defaultHeaders: undefined,
     clientTimeout: '3s',
-    backchannelApiPrefix: '/backchannel',
+    clientBackchannelPrefix: '/backchannel',
     c2cServiceAccountEmail: 'svc@test',
     c2cTargetAudience: 'aud',
   },

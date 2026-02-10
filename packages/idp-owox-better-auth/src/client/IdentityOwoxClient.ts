@@ -5,19 +5,19 @@ import ms from 'ms';
 import { IdentityOwoxClientConfig } from '../config/idp-owox-config.js';
 import { AuthenticationException, IdpFailedException } from '../exception.js';
 import {
-  AuthFlowRequest,
-  AuthFlowResponse,
-  AuthFlowResponseSchema,
-  IntrospectionRequest,
-  IntrospectionResponse,
-  IntrospectionResponseSchema,
-  JwksResponse,
-  JwksResponseSchema,
-  RevocationRequest,
-  RevocationResponse,
-  TokenRequest,
-  TokenResponse,
-  TokenResponseSchema,
+    AuthFlowRequest,
+    AuthFlowResponse,
+    AuthFlowResponseSchema,
+    IntrospectionRequest,
+    IntrospectionResponse,
+    IntrospectionResponseSchema,
+    JwksResponse,
+    JwksResponseSchema,
+    RevocationRequest,
+    RevocationResponse,
+    TokenRequest,
+    TokenResponse,
+    TokenResponseSchema,
 } from './dto/index.js';
 
 /**
@@ -29,13 +29,13 @@ export class IdentityOwoxClient {
   private readonly impersonatedIdTokenFetcher?: ImpersonatedIdTokenFetcher;
   private readonly c2cServiceAccountEmail?: string;
   private readonly c2cTargetAudience?: string;
-  private readonly backchannelApiPrefix: string;
+  private readonly clientBackchannelPrefix: string;
 
   constructor(config: IdentityOwoxClientConfig) {
     const timeout =
       typeof config.clientTimeout === 'number' ? config.clientTimeout : ms(config.clientTimeout);
     this.http = axios.create({
-      baseURL: config.baseUrl,
+      baseURL: config.clientBaseUrl,
       timeout,
       headers: {
         'Content-Type': 'application/json',
@@ -43,7 +43,7 @@ export class IdentityOwoxClient {
       },
     });
 
-    this.backchannelApiPrefix = config.backchannelApiPrefix;
+    this.clientBackchannelPrefix = config.clientBackchannelPrefix;
 
     // Initialize service account authentication if configured
     if (config.c2cServiceAccountEmail && config.c2cTargetAudience) {
@@ -142,7 +142,7 @@ export class IdentityOwoxClient {
       );
 
       const { data } = await this.http.post<AuthFlowResponse>(
-        `${this.backchannelApiPrefix}/idp/auth-flow/complete`,
+        `${this.clientBackchannelPrefix}/idp/auth-flow/complete`,
         request,
         {
           headers: {

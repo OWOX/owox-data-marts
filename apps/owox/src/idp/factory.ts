@@ -187,7 +187,14 @@ export class IdpFactory {
     return new NullIdpProvider();
   }
 
-  // TODO: Add new ENV variables for Owox Better Auth?
+
+  /**
+   * Creates and initializes an OwoxBetterAuth provider using configuration
+   * loaded from the environment. On error, logs it and exits the command.
+   *
+   * @param {BaseCommand} command - Command instance for logging and exiting with an error.
+   * @returns {Promise<OwoxBetterAuthProvider>} Promise resolving to an initialized OwoxBetterAuth provider.
+   */
   private static async createOwoxBetterAuthProvider(
     command: BaseCommand
   ): Promise<OwoxBetterAuthProvider> {
