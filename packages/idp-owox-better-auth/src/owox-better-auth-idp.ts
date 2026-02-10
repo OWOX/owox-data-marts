@@ -237,7 +237,9 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     }
     clearCookie(res, CORE_REFRESH_TOKEN_COOKIE, req);
     clearBetterAuthCookies(res, req);
-    res.redirect(`/auth${ProtocolRoute.SIGN_IN}`);
+    const redirectUrl =
+      this.config.idpOwox.idpConfig.signOutRedirectUrl ?? `/auth${ProtocolRoute.SIGN_IN}`;
+    res.redirect(redirectUrl);
   }
 
   async userApiMiddleware(

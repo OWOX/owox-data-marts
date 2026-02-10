@@ -28,6 +28,7 @@ IDP_OWOX_C2C_TARGET_AUDIENCE=audience-string
 IDP_OWOX_CLIENT_ID=your-client-id
 IDP_OWOX_PLATFORM_SIGN_IN_URL=https://platform.example.com/auth/sign-in
 IDP_OWOX_PLATFORM_SIGN_UP_URL=https://platform.example.com/auth/sign-up
+IDP_OWOX_SIGN_OUT_REDIRECT_URL=https://platform.example.com/auth/signed-out
 IDP_OWOX_JWT_ISSUER=https://idp.example.com
 
 # Better Auth IDP
@@ -58,6 +59,7 @@ IDP_BETTER_AUTH_SECRET=your-super-secret-key-at-least-32-characters-long
 | `IDP_OWOX_CLIENT_ID`                | **Yes**  | –                                         | Client id for PKCE                          |
 | `IDP_OWOX_PLATFORM_SIGN_IN_URL`     | **Yes**  | –                                         | Platform sign-in URL (redirect target)     |
 | `IDP_OWOX_PLATFORM_SIGN_UP_URL`     | **Yes**  | –                                         | Platform sign-up URL (redirect target)     |
+| `IDP_OWOX_SIGN_OUT_REDIRECT_URL`    | No       | `/auth/sign-in`                           | Custom redirect after sign-out             |
 | `IDP_OWOX_ALLOWED_REDIRECT_ORIGINS` | No       | origins from platform sign-in/up URLs     | Allowlist for redirect-to/app-redirect-to  |
 | `IDP_OWOX_JWT_ISSUER`               | **Yes**  | –                                         | Expected JWT issuer                        |
 | `IDP_OWOX_JWT_CACHE_TTL`            | No       | `1h`                                      | JWKS cache TTL                             |

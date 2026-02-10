@@ -19,6 +19,7 @@ const baseConfig: IdpOwoxConfig = {
     clientId: 'client',
     platformSignInUrl: 'https://platform.test/auth/sign-in',
     platformSignUpUrl: 'https://platform.test/auth/sign-up',
+    signOutRedirectUrl: 'https://platform.test/sign-out',
     allowedRedirectOrigins: ['https://platform.test'],
   },
   identityOwoxClientConfig: {

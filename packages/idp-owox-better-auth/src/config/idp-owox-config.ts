@@ -161,11 +161,16 @@ const IdpEnvSchema = z
       .string()
       .url({ message: 'IDP_OWOX_PLATFORM_SIGN_UP_URL must be a valid URL' }),
     IDP_OWOX_ALLOWED_REDIRECT_ORIGINS: z.string().optional(),
+    IDP_OWOX_SIGN_OUT_REDIRECT_URL: z
+      .string()
+      .url({ message: 'IDP_OWOX_SIGN_OUT_REDIRECT_URL must be a valid URL' })
+      .optional(),
   })
   .transform(e => ({
     clientId: e.IDP_OWOX_CLIENT_ID,
     platformSignInUrl: e.IDP_OWOX_PLATFORM_SIGN_IN_URL,
     platformSignUpUrl: e.IDP_OWOX_PLATFORM_SIGN_UP_URL,
+    signOutRedirectUrl: e.IDP_OWOX_SIGN_OUT_REDIRECT_URL,
     allowedRedirectOrigins: buildAllowedRedirectOrigins(
       e.IDP_OWOX_ALLOWED_REDIRECT_ORIGINS,
       e.IDP_OWOX_PLATFORM_SIGN_IN_URL,
