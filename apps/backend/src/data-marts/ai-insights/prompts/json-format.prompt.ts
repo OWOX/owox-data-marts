@@ -1,5 +1,5 @@
 import type { ZodTypeAny } from 'zod';
-import { buildJsonSchema } from '../utils/build-json-schema-by-zod-schema';
+import { buildJsonSchema } from '../../../common/ai-insights/utils/build-json-schema-by-zod-schema';
 
 export function buildJsonFormatSection(schema: ZodTypeAny): string {
   const jsonSchema = buildJsonSchema(schema);

@@ -8,7 +8,7 @@ import {
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { cn } from '@owox/ui/lib/utils';
-import { ArrowLeft, CircleCheck, MoreVertical, Play, Trash2 } from 'lucide-react';
+import { ArrowLeft, CircleCheckBig, MoreVertical, Play, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { NavLink, Outlet } from 'react-router-dom';
@@ -307,7 +307,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                       disabled={isPublishing || !canPublish}
                       className='ml-2 flex items-center gap-1'
                     >
-                      <CircleCheck className='h-4 w-4' />
+                      <CircleCheckBig className='h-4 w-4' />
                       Publish Data Mart
                     </Button>
                   </div>

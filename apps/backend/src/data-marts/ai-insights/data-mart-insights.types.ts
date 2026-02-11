@@ -94,6 +94,7 @@ export interface PromptTagPayload {
 
 export interface PromptTagMeta {
   prompt: string;
+  sanitizedPrompt: string | null;
   status: PromptAnswer;
   reasonDescription?: string;
   artifact?: string;

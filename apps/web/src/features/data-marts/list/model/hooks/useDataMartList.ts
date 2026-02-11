@@ -51,6 +51,28 @@ export function useDataMartList() {
     [dispatch]
   );
 
+  const publishDataMart = useCallback(async (id: string) => {
+    try {
+      await dataMartService.publishDataMart(id);
+      await dataMartService.createSchemaActualizeTrigger(id);
+      trackEvent({
+        event: 'data_mart_published',
+        category: 'DataMart',
+        action: 'Publish',
+        context: id,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to publish data mart';
+      trackEvent({
+        event: 'data_mart_error',
+        category: 'DataMart',
+        action: 'PublishError',
+        label: message,
+      });
+      throw error;
+    }
+  }, []);
+
   const refreshList = useCallback(() => {
     return loadDataMarts();
   }, [loadDataMarts]);
@@ -62,5 +84,6 @@ export function useDataMartList() {
     loadDataMarts,
     refreshList,
     deleteDataMart,
+    publishDataMart,
   };
 }
