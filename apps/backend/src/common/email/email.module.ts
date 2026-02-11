@@ -1,8 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { createMailingProvider, type EmailProviderName } from '@owox/internal-helpers';
 import { EMAIL_PROVIDER_FACADE } from './shared/email-provider.facade';
-import { SendgridProvider } from './providers/sendgrid-provider';
-import { NoopEmailProvider } from './providers/noop-provider';
 
 /**
  * EmailModule provides email sending functionality based on the configured provider.
@@ -14,15 +13,18 @@ import { NoopEmailProvider } from './providers/noop-provider';
       provide: EMAIL_PROVIDER_FACADE,
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
-        const name = (config.get<string>('EMAIL_PROVIDER') ?? 'none').toLowerCase();
-        switch (name) {
-          case 'sendgrid':
-            return new SendgridProvider(config);
-          case 'none':
-            return new NoopEmailProvider();
-          default:
-            throw new Error(`Unsupported EMAIL_PROVIDER=${name}. Allowed: sendgrid|none`);
-        }
+        const name = (
+          config.get<string>('EMAIL_PROVIDER') ?? 'none'
+        ).toLowerCase() as EmailProviderName;
+
+        return createMailingProvider({
+          provider: name,
+          sendgrid: {
+            apiKey: config.get<string>('SENDGRID_API_KEY') as string,
+            verifiedSenderEmail: config.get<string>('SENDGRID_VERIFIED_SENDER_EMAIL') as string,
+            verifiedSenderName: config.get<string>('SENDGRID_VERIFIED_SENDER_NAME') ?? undefined,
+          },
+        });
       },
     },
   ],
