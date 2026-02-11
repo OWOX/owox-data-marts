@@ -46,7 +46,7 @@ export class DataMartInsightTemplateFacadeImpl implements DataMartInsightTemplat
     const { rendered, meta } = await this.templateRenderer.render(
       baseInput,
       [this.promptHandler],
-      !!input.disableBaseTagHandlers
+      input.disableBaseTagHandlers
     );
 
     const tags = meta?.tags ?? [];

@@ -168,6 +168,7 @@ export class InsightExecutionService {
           contextTitle: insight.title,
           dataMart,
         },
+        disableBaseTagHandlers: true,
       });
 
       for (const p of prompts ?? []) {
