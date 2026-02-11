@@ -245,10 +245,10 @@ export class LookerStudioConnectorApiDataService {
   }
 
   /**
-   * Extracts requested field names, excluding fields marked for filtering only
+   * Extracts requested field names
    */
   private getRequestedFieldNames(fields: RequestField[]): string[] {
-    return fields.filter(field => !field.forFilterOnly).map(field => field.name);
+    return fields.map(field => field.name);
   }
 
   /**
