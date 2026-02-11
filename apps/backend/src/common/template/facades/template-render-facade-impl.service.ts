@@ -40,7 +40,7 @@ export class TemplateRenderFacadeImpl<
     handlers: ReadonlyArray<
       TagHandler<TTagMeta['payload'], TagRenderedResult<TTagMeta['resultMeta']>>
     >,
-    disableBaseHandlers = true
+    disableBaseHandlers: boolean
   ): Promise<TemplateRenderOutput<TemplateTagsMeta<TTagMeta>>> {
     const handlebars = Handlebars.create();
 
