@@ -6,8 +6,8 @@ const path = require('node:path');
 const rootDir = path.resolve(__dirname, '..');
 const publicSrcDir = path.join(rootDir, 'src', 'public');
 const publicDistDir = path.join(rootDir, 'dist', 'public');
-const templatesSrcDir = path.join(rootDir, 'src', 'templates');
-const templatesDistDir = path.join(rootDir, 'dist', 'templates');
+const templatesSrcDir = path.join(rootDir, 'src', 'resources', 'templates');
+const templatesDistDir = path.join(rootDir, 'dist', 'resources', 'templates');
 
 const copyRecursive = (from, to) => {
   for (const entry of fs.readdirSync(from, { withFileTypes: true })) {
