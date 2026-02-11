@@ -1,8 +1,8 @@
 import { type ColumnDef } from '@tanstack/react-table';
-import { DataStorageTypeModel } from '../../../../shared/types/data-storage-type.model';
-import { DataStorageType } from '../../../../shared';
-import { DataStorageActionsCell } from '../DataStorageActionsCell';
 import { SortableHeader, ToggleColumnsHeader } from '../../../../../../shared/components/Table';
+import { DataStorageHealthIndicator, DataStorageType } from '../../../../shared';
+import { DataStorageTypeModel } from '../../../../shared/types/data-storage-type.model';
+import { DataStorageActionsCell } from '../DataStorageActionsCell';
 import { DataStorageColumnKey } from './columnKeys';
 import { dataStorageColumnLabels } from './columnLabels';
 
@@ -26,6 +26,19 @@ export const getDataStorageColumns = ({
   onEdit,
   onDelete,
 }: DataStorageColumnsProps = {}): ColumnDef<DataStorageTableItem>[] => [
+  {
+    id: DataStorageColumnKey.HEALTH,
+    size: 15,
+    enableResizing: false,
+    enableSorting: false,
+    meta: {
+      title: dataStorageColumnLabels[DataStorageColumnKey.HEALTH],
+    },
+    header: () => null,
+    cell: ({ row }) => (
+      <DataStorageHealthIndicator storageId={row.original.id} storageTitle={row.original.title} />
+    ),
+  },
   {
     accessorKey: DataStorageColumnKey.TITLE,
     size: 320,

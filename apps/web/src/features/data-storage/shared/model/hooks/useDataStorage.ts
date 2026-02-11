@@ -8,6 +8,7 @@ import {
 } from '../mappers';
 import type { DataStorage } from '../types/data-storage.ts';
 import { dataStorageApiService } from '../../api';
+import { invalidateDataStorageHealthStatus } from '../../services/data-storage-health-status.service';
 import type { DataStorageFormData } from '../../types/data-storage.schema.ts';
 import { DataStorageType } from '../types';
 import { extractApiError } from '../../../../../app/api';
@@ -103,6 +104,7 @@ export function useDataStorage() {
           context: updatedStorage.id,
         });
         toast.success('Storage updated');
+        invalidateDataStorageHealthStatus(id);
         return updatedStorage;
       } catch (error) {
         dispatch({

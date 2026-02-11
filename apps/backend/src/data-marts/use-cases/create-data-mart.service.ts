@@ -22,7 +22,7 @@ export class CreateDataMartService {
   ) {}
 
   async run(command: CreateDataMartCommand): Promise<DataMartDto> {
-    const dataStorage = await this.dataStorageService.getByIdAndProjectId(
+    const dataStorage = await this.dataStorageService.getByProjectIdAndId(
       command.projectId,
       command.storageId
     );

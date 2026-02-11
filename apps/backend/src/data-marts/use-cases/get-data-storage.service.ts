@@ -12,7 +12,7 @@ export class GetDataStorageService {
   ) {}
 
   async run(command: GetDataStorageCommand): Promise<DataStorageDto> {
-    const dataStorageEntity = await this.dataStorageService.getByIdAndProjectId(
+    const dataStorageEntity = await this.dataStorageService.getByProjectIdAndId(
       command.projectId,
       command.id
     );

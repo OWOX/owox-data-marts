@@ -1,3 +1,4 @@
+import type { AxiosRequestConfig } from '../../../../app/api';
 import { ApiService } from '../../../../services';
 import type {
   CreateDataStorageRequestDto,
@@ -5,6 +6,11 @@ import type {
   DataStorageResponseDto,
   UpdateDataStorageRequestDto,
 } from './types';
+
+export interface DataStorageValidationResponseDto {
+  valid: boolean;
+  errorMessage?: string;
+}
 
 export class DataStorageApiService extends ApiService {
   constructor() {
@@ -62,6 +68,20 @@ export class DataStorageApiService extends ApiService {
    */
   async deleteDataStorage(id: string): Promise<void> {
     return this.delete(`/${id}`);
+  }
+
+  /**
+   * Validates access to a data storage by its identifier.
+   *
+   * @param {string} id - The unique identifier of the data storage to validate.
+   * @param {AxiosRequestConfig} [config] - Optional Axios request configuration.
+   * @return {Promise<DataStorageValidationResponseDto>} A promise resolving to the validation result.
+   */
+  async validateAccess(
+    id: string,
+    config?: AxiosRequestConfig
+  ): Promise<DataStorageValidationResponseDto> {
+    return this.post<DataStorageValidationResponseDto>(`/${id}/validate-access`, {}, config);
   }
 }
 
