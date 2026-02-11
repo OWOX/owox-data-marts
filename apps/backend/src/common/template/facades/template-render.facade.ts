@@ -15,6 +15,7 @@ export interface TemplateRenderFacade<
     input: TemplateRenderInput<TAdditional>,
     handlers: ReadonlyArray<
       TagHandler<TTagMeta['payload'], TagRenderedResult<TTagMeta['resultMeta']>>
-    >
+    >,
+    disableBaseHandlers?: boolean
   ): Promise<TemplateRenderOutput<TemplateTagsMeta<TTagMeta>>>;
 }

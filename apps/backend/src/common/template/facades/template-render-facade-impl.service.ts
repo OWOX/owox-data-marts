@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import Handlebars, { HelperOptions } from 'handlebars';
+import { getBaseHandlers } from '../handlers/base';
 import { TemplateRenderFacade } from './template-render.facade';
 import { TagHandler } from '../handlers/tag-handler.interface';
 import {
@@ -38,11 +39,15 @@ export class TemplateRenderFacadeImpl<
     input: TemplateRenderInput<TAdditional>,
     handlers: ReadonlyArray<
       TagHandler<TTagMeta['payload'], TagRenderedResult<TTagMeta['resultMeta']>>
-    >
+    >,
+    disableBaseHandlers = true
   ): Promise<TemplateRenderOutput<TemplateTagsMeta<TTagMeta>>> {
     const handlebars = Handlebars.create();
 
-    this.registerHelpers(handlebars, handlers);
+    this.registerHelpers(handlebars, [
+      ...(disableBaseHandlers ? [] : getBaseHandlers()),
+      ...handlers,
+    ]);
 
     const template = handlebars.compile(input.template);
 
@@ -101,6 +106,15 @@ export class TemplateRenderFacadeImpl<
         const context = this as unknown;
 
         const payload = handler.buildPayload(args, options, context) as T['payload'];
+
+        // Immediate handlers render inline — no token, no collector
+        if (handler.immediate) {
+          const result = handler.handle(payload);
+          if (result instanceof Promise) {
+            throw new Error(`[${handler.tag}] immediate handler must return synchronously`);
+          }
+          return (result as TagRenderedResult<T['resultMeta']>).rendered;
+        }
 
         const root = (options.data?.root ?? {}) as RootWithAdditional & {
           [COLLECTOR_SYMBOL]?: TagCollector<T>;
