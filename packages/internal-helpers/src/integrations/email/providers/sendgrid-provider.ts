@@ -14,13 +14,17 @@ export class SendgridMailingProvider implements EmailProvider {
   private readonly sender: { email: string; name?: string };
 
   constructor(config: SendgridMailingConfig) {
+    if (!config) {
+      throw new Error('SendGrid config is required');
+    }
+
     const { apiKey, verifiedSenderEmail, verifiedSenderName } = config;
 
     if (!apiKey) {
-      throw new Error('SENDGRID_API_KEY is not provided');
+      throw new Error('SendGrid config is missing apiKey');
     }
     if (!verifiedSenderEmail) {
-      throw new Error('SENDGRID_VERIFIED_SENDER_EMAIL is not provided');
+      throw new Error('SendGrid config is missing verifiedSenderEmail');
     }
 
     sendgrid.setApiKey(apiKey);
