@@ -36,7 +36,7 @@ export class LegacyDataStorageService {
         `Legacy data storage whitelist enabled with ${this.whitelistProjects.size} projects`
       );
     } else {
-      // Whitelist не задан - разрешаем всем (graceful degradation)
+      // Whitelist isn't configured - allow all projects (graceful degradation)
       this.whitelistProjects = null;
       this.logger.log('Legacy data storage whitelist is not configured, all projects allowed');
     }

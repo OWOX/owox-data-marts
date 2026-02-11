@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
-import { OAuth2Client } from 'google-auth-library';
+import { LoginTicket, OAuth2Client } from 'google-auth-library';
 
 @Injectable()
 export class InternalApiGuard implements CanActivate {
@@ -36,16 +36,22 @@ export class InternalApiGuard implements CanActivate {
     const authHeader = request.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      this.logger.error(`Wrong Authorization header: ${authHeader}`);
+      this.logger.error('Authorization header is missing or malformed');
       throw new UnauthorizedException();
     }
 
     const idToken = authHeader.substring(7);
 
-    const ticket = await this.client.verifyIdToken({
-      idToken,
-      audience: this.expectedAudience,
-    });
+    let ticket: LoginTicket;
+    try {
+      ticket = await this.client.verifyIdToken({
+        idToken,
+        audience: this.expectedAudience,
+      });
+    } catch (err) {
+      this.logger.error('Failed to verify internal API token', err);
+      throw new UnauthorizedException();
+    }
 
     const payload = ticket.getPayload();
 

@@ -26,6 +26,7 @@ export class CreateSyncDataMartsByGcpTriggerTable1769769180001 implements Migrat
           {
             name: 'IDX_sync_data_marts_by_gcp_trigger_gcp_project',
             columnNames: ['gcpProjectId'],
+            isUnique: true,
           },
         ],
       }),

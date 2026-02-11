@@ -23,7 +23,7 @@ export class LookerStudioTypeMapperService {
   ): FieldDataType {
     if (
       storageType === DataStorageType.GOOGLE_BIGQUERY ||
-      storageType == DataStorageType.LEGACY_GOOGLE_BIGQUERY
+      storageType === DataStorageType.LEGACY_GOOGLE_BIGQUERY
     ) {
       return this.mapBigQueryTypeToLookerStudio(fieldType as BigQueryFieldType);
     } else if (storageType === DataStorageType.AWS_ATHENA) {

@@ -38,7 +38,7 @@ export class SyncGcpStoragesForProjectTriggerHandler
   }
 
   processingCronExpression(): string {
-    return '*/5 * * * * *'; // 5 seconds
+    return '*/30 * * * * *'; // 30 seconds
   }
 
   stuckTriggerTimeoutSeconds(): number {

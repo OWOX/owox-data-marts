@@ -17,46 +17,30 @@ export class LegacySyncTriggersService {
   ) {}
 
   async scheduleDataMartsSyncForStorageByGcp(gcpProjectId: string): Promise<void> {
-    let trigger = await this.syncDataMartsTriggerRepository.findOne({
-      where: {
-        gcpProjectId,
-      },
-    });
-
-    if (trigger) {
-      trigger.status = TriggerStatus.IDLE;
-      trigger.isActive = true;
-    } else {
-      trigger = this.syncDataMartsTriggerRepository.create({
+    await this.syncDataMartsTriggerRepository.upsert(
+      {
         gcpProjectId,
         status: TriggerStatus.IDLE,
         isActive: true,
-      });
-    }
-
-    await this.syncDataMartsTriggerRepository.save(trigger);
+      },
+      {
+        conflictPaths: ['gcpProjectId'],
+      }
+    );
     this.logger.log(`Data marts sync planned for GCP ${gcpProjectId}`);
   }
 
   async scheduleStoragesSyncForProject(projectId: string): Promise<void> {
-    let trigger = await this.syncStoragesTriggerRepository.findOne({
-      where: {
-        projectId,
-      },
-    });
-
-    if (trigger) {
-      trigger.status = TriggerStatus.IDLE;
-      trigger.isActive = true;
-    } else {
-      trigger = this.syncStoragesTriggerRepository.create({
+    await this.syncStoragesTriggerRepository.upsert(
+      {
         projectId,
         status: TriggerStatus.IDLE,
         isActive: true,
-      });
-    }
-
-    await this.syncStoragesTriggerRepository.save(trigger);
+      },
+      {
+        conflictPaths: ['projectId'],
+      }
+    );
     this.logger.log(`Data storages sync planned for project ${projectId}`);
   }
 }

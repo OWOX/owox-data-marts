@@ -26,6 +26,7 @@ export class CreateSyncGcpStoragesForProjectTriggerTable1769769180002 implements
           {
             name: 'IDX_sync_gcp_storages_for_project_trigger_project',
             columnNames: ['projectId'],
+            isUnique: true,
           },
         ],
       }),
