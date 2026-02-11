@@ -3,16 +3,19 @@ import { Logger } from '@owox/internal-helpers';
 import type { Request, Response } from 'express';
 import type { IdpOwoxConfig } from '../../config/idp-owox-config.js';
 import { SOURCE } from '../../core/constants.js';
-import { isStateExpiredError } from '../../core/exceptions.js';
+import { AuthenticationException, isStateExpiredError } from '../../core/exceptions.js';
 import type { OwoxTokenFacade } from '../../facades/owox-token-facade.js';
 import { buildUserInfoPayload } from '../../mappers/user-info-payload-builder.js';
 import { buildPlatformRedirectUrl } from '../../utils/platform-redirect-builder.js';
 import {
   clearAllAuthCookies,
+  clearBetterAuthCookies,
   extractState,
   extractStateFromCookie,
   type PlatformParams,
 } from '../../utils/request-utils.js';
+import { clearCookie } from '../../utils/cookie-policy.js';
+import { CORE_REFRESH_TOKEN_COOKIE } from '../../core/constants.js';
 import { formatError } from '../../utils/string-utils.js';
 import type { BetterAuthSessionService } from '../auth/better-auth-session-service.js';
 import type { UserContextService } from '../core/user-context-service.js';
@@ -32,10 +35,24 @@ export class PkceFlowOrchestrator {
   ) {}
 
   /**
-   * Creates a local sign-in URL for fallback redirects.
+   * Revokes refresh token and clears auth cookies before redirecting to sign-in.
    */
-  private buildLocalSignInUrl(_req: Request): URL {
-    return new URL(`/auth${ProtocolRoute.SIGN_IN}`, this.idpOwoxConfig.baseUrl);
+  private async revokeRefreshTokenAndClearCookies(
+    refreshToken: string,
+    req: Request,
+    res: Response
+  ): Promise<void> {
+    try {
+      if (refreshToken) {
+        await this.tokenFacade.revokeToken(refreshToken);
+      }
+    } catch (revokeError) {
+      this.logger.warn('Failed to revoke refresh token during user-context recovery', {
+        error: formatError(revokeError),
+      });
+    }
+    clearCookie(res, CORE_REFRESH_TOKEN_COOKIE, req);
+    clearBetterAuthCookies(res, req);
   }
 
   /**
@@ -81,7 +98,14 @@ export class PkceFlowOrchestrator {
     } catch (error) {
       if (isStateExpiredError(error)) {
         clearAllAuthCookies(res, req);
-        return this.buildLocalSignInUrl(req);
+        return new URL(`/auth${ProtocolRoute.SIGN_IN}`, this.idpOwoxConfig.baseUrl);
+      }
+      if (error instanceof AuthenticationException) {
+        this.logger.warn('Failed to resolve user from access token, redirecting to sign-in', {
+          error: formatError(error),
+        });
+        await this.revokeRefreshTokenAndClearCookies(refreshToken, req, res);
+        return new URL(`/auth${ProtocolRoute.SIGN_IN}`, this.idpOwoxConfig.baseUrl);
       }
       this.logger.warn('Platform fast-path failed, will fallback to UI', {
         error: formatError(error),
@@ -103,7 +127,7 @@ export class PkceFlowOrchestrator {
     if (!state) {
       this.logger.warn('Missing or mismatched state for social login flow');
       clearAllAuthCookies(res, req);
-      return this.buildLocalSignInUrl(req);
+      return new URL(`/auth${ProtocolRoute.SIGN_IN}`, this.idpOwoxConfig.baseUrl);
     }
     try {
       const { code, payload } =
@@ -124,7 +148,7 @@ export class PkceFlowOrchestrator {
     } catch (error) {
       if (isStateExpiredError(error)) {
         clearAllAuthCookies(res, req);
-        return this.buildLocalSignInUrl(req);
+        return new URL(`/auth${ProtocolRoute.SIGN_IN}`, this.idpOwoxConfig.baseUrl);
       }
       this.logger.warn('Auto-complete auth flow on callback failed', { error: formatError(error) });
       clearAllAuthCookies(res, req);

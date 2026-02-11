@@ -9,6 +9,7 @@ import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
 import type { PlatformAuthFlowClient } from '../auth/platform-auth-flow-client.js';
 import type { IdpOwoxConfig } from '../../config/idp-owox-config.js';
 import { SOURCE } from '../../core/constants.js';
+import { AuthenticationException } from '../../core/exceptions.js';
 import type { OwoxTokenFacade } from '../../facades/owox-token-facade.js';
 import type { DatabaseAccount, DatabaseUser } from '../../types/database-models.js';
 import type { UserContextService } from './../core/user-context-service.js';
@@ -73,6 +74,7 @@ describe('PkceFlowOrchestrator', () => {
     tokenFacade = {
       refreshToken: jest.fn(),
       setTokenToCookie: jest.fn(),
+      revokeToken: jest.fn(),
     } as unknown as jest.Mocked<OwoxTokenFacade>;
 
     platformAuthFlowClient = {
@@ -142,6 +144,32 @@ describe('PkceFlowOrchestrator', () => {
     expect(url?.toString()).toContain('code=code-123');
     expect(url?.toString()).toContain('state=state-1');
     expect(tokenFacade.setTokenToCookie).toHaveBeenCalled();
+  });
+
+  it('redirects to sign-in and revokes token when user not found for access token', async () => {
+    const req = createReq();
+    const res = createRes();
+
+    tokenFacade.refreshToken.mockResolvedValue({
+      accessToken: 'acc',
+      refreshToken: 'new-refresh',
+      accessTokenExpiresIn: 100,
+      refreshTokenExpiresIn: 120,
+    });
+    userContextService.resolveFromToken.mockRejectedValue(
+      new AuthenticationException('User not found in Better Auth DB')
+    );
+
+    const url = await service.completeWithIdentityRefreshToken(
+      'rt',
+      { source: SOURCE.PLATFORM },
+      req,
+      res
+    );
+
+    expect(url?.pathname).toBe('/auth/sign-in');
+    expect(tokenFacade.revokeToken).toHaveBeenCalledWith('rt');
+    expect(res.clearCookie).toHaveBeenCalled();
   });
 
   it('completes with social session token and builds redirect', async () => {
