@@ -18,7 +18,7 @@ export class DeleteDataStorageService {
   ) {}
 
   async run(command: DeleteDataStorageCommand): Promise<void> {
-    const dataStorage = await this.dataStorageService.getByIdAndProjectId(
+    const dataStorage = await this.dataStorageService.getByProjectIdAndId(
       command.projectId,
       command.id
     );

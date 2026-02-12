@@ -1,9 +1,10 @@
 import { applyDecorators } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiBody, ApiParam } from '@nestjs/swagger';
+import { ApiBody, ApiOkResponse, ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
 import { CreateDataStorageApiDto } from '../../dto/presentation/create-data-storage-api.dto';
-import { UpdateDataStorageApiDto } from '../../dto/presentation/update-data-storage-api.dto';
-import { DataStorageResponseApiDto } from '../../dto/presentation/data-storage-response-api.dto';
+import { DataStorageAccessValidationResponseApiDto } from '../../dto/presentation/data-storage-access-validation-response-api.dto';
 import { DataStorageListResponseApiDto } from '../../dto/presentation/data-storage-list-response-api.dto';
+import { DataStorageResponseApiDto } from '../../dto/presentation/data-storage-response-api.dto';
+import { UpdateDataStorageApiDto } from '../../dto/presentation/update-data-storage-api.dto';
 
 export function CreateDataStorageSpec() {
   return applyDecorators(
@@ -42,5 +43,13 @@ export function DeleteDataStorageSpec() {
     ApiOperation({ summary: 'Delete Data Storage by ID' }),
     ApiParam({ name: 'id', description: 'Data Storage ID' }),
     ApiResponse({ status: 204, description: 'Data Storage successfully deleted' })
+  );
+}
+
+export function ValidateDataStorageAccessSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Validate Data Storage access' }),
+    ApiParam({ name: 'id', type: String }),
+    ApiOkResponse({ type: DataStorageAccessValidationResponseApiDto })
   );
 }

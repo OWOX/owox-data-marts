@@ -1,13 +1,15 @@
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Button } from '@owox/ui/components/button';
 import {
-  Form,
   AppForm,
+  Form,
+  FormActions,
+  FormControl,
   FormField,
   FormItem,
   FormLabel,
-  FormControl,
-  FormMessage,
   FormLayout,
-  FormActions,
+  FormMessage,
 } from '@owox/ui/components/form';
 import { Input } from '@owox/ui/components/input';
 import {
@@ -15,20 +17,18 @@ import {
   SelectContent,
   SelectGroup,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
-  SelectSeparator,
 } from '@owox/ui/components/select';
+import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { type DataMart, useDataMartForm, dataMartSchema, type DataMartFormData } from '../model';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { DataStorageHealthIndicator, DataStorageType } from '../../../data-storage';
+import { DataStorageTypeDialog } from '../../../data-storage/shared/components/DataStorageTypeDialog';
 import { useDataStorage } from '../../../data-storage/shared/model/hooks/useDataStorage';
 import { DataStorageTypeModel } from '../../../data-storage/shared/types/data-storage-type.model.ts';
-import { Button } from '@owox/ui/components/button';
-import { DataStorageTypeDialog } from '../../../data-storage/shared/components/DataStorageTypeDialog';
-import { DataStorageType } from '../../../data-storage/shared/model/types/data-storage-type.enum';
-import { Plus } from 'lucide-react';
+import { type DataMart, type DataMartFormData, dataMartSchema, useDataMartForm } from '../model';
 
 interface DataMartFormProps {
   initialData?: {
@@ -154,6 +154,11 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
                               return (
                                 <SelectItem key={storage.id} value={storage.id}>
                                   <div className='flex items-center gap-2'>
+                                    <DataStorageHealthIndicator
+                                      storageId={storage.id}
+                                      storageTitle={storage.title}
+                                      hovercardSide='left'
+                                    />
                                     <Icon size={20} />
                                     <span>{storage.title}</span>
                                   </div>

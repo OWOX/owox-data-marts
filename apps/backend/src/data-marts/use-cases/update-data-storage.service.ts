@@ -4,12 +4,12 @@ import { Repository } from 'typeorm';
 import { BigQueryConfig } from '../data-storage-types/bigquery/schemas/bigquery-config.schema';
 import { DataStorageCredentials } from '../data-storage-types/data-storage-credentials.type';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
-import { DataStorageAccessFacade } from '../data-storage-types/facades/data-storage-access.facade';
 import { DataStorageDto } from '../dto/domain/data-storage.dto';
 import { UpdateDataStorageCommand } from '../dto/domain/update-data-storage.command';
 import { DataStorage } from '../entities/data-storage.entity';
 import { DataStorageMapper } from '../mappers/data-storage.mapper';
 import { DataStorageService } from '../services/data-storage.service';
+import { DataStorageAccessValidatorFacade } from '../data-storage-types/facades/data-storage-access-validator-facade.service';
 
 @Injectable()
 export class UpdateDataStorageService {
@@ -18,11 +18,11 @@ export class UpdateDataStorageService {
     private readonly dataStorageRepository: Repository<DataStorage>,
     private readonly dataStorageService: DataStorageService,
     private readonly dataStorageMapper: DataStorageMapper,
-    private readonly dataStorageAccessFacade: DataStorageAccessFacade
+    private readonly dataStorageAccessFacade: DataStorageAccessValidatorFacade
   ) {}
 
   async run(command: UpdateDataStorageCommand): Promise<DataStorageDto> {
-    const dataStorageEntity = await this.dataStorageService.getByIdAndProjectId(
+    const dataStorageEntity = await this.dataStorageService.getByProjectIdAndId(
       command.projectId,
       command.id
     );
@@ -38,7 +38,7 @@ export class UpdateDataStorageService {
       ).projectId;
     }
 
-    await this.dataStorageAccessFacade.checkAccess(
+    await this.dataStorageAccessFacade.verifyAccess(
       dataStorageEntity.type,
       command.config,
       credentialsToCheck ?? ({} as DataStorageCredentials)

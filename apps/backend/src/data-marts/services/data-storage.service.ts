@@ -10,7 +10,7 @@ export class DataStorageService {
     private readonly dataStorageRepository: Repository<DataStorage>
   ) {}
 
-  async getByIdAndProjectId(projectId: string, id: string): Promise<DataStorage> {
+  async getByProjectIdAndId(projectId: string, id: string): Promise<DataStorage> {
     const entity = await this.dataStorageRepository.findOne({ where: { id, projectId } });
 
     if (!entity) {

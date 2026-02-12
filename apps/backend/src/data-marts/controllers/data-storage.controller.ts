@@ -1,25 +1,27 @@
 import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import { Auth, AuthContext, AuthorizationContext } from '../../idp';
+import { Role, Strategy } from '../../idp/types/role-config.types';
 import { CreateDataStorageApiDto } from '../dto/presentation/create-data-storage-api.dto';
-import { CreateDataStorageService } from '../use-cases/create-data-storage.service';
-import { DataStorageMapper } from '../mappers/data-storage.mapper';
-import { UpdateDataStorageApiDto } from '../dto/presentation/update-data-storage-api.dto';
+import { DataStorageAccessValidationResponseApiDto } from '../dto/presentation/data-storage-access-validation-response-api.dto';
+import { DataStorageListResponseApiDto } from '../dto/presentation/data-storage-list-response-api.dto';
 import { DataStorageResponseApiDto } from '../dto/presentation/data-storage-response-api.dto';
-import { UpdateDataStorageService } from '../use-cases/update-data-storage.service';
+import { UpdateDataStorageApiDto } from '../dto/presentation/update-data-storage-api.dto';
+import { DataStorageMapper } from '../mappers/data-storage.mapper';
+import { CreateDataStorageService } from '../use-cases/create-data-storage.service';
+import { DeleteDataStorageService } from '../use-cases/delete-data-storage.service';
 import { GetDataStorageService } from '../use-cases/get-data-storage.service';
 import { ListDataStoragesService } from '../use-cases/list-data-storages.service';
-
-import { AuthContext, AuthorizationContext, Auth } from '../../idp';
-import { Role, Strategy } from '../../idp/types/role-config.types';
+import { UpdateDataStorageService } from '../use-cases/update-data-storage.service';
+import { ValidateDataStorageAccessService } from '../use-cases/validate-data-storage-access.service';
 import {
   CreateDataStorageSpec,
   DeleteDataStorageSpec,
   GetDataStorageSpec,
   ListDataStoragesSpec,
   UpdateDataStorageSpec,
+  ValidateDataStorageAccessSpec,
 } from './spec/data-storage.api';
-import { ApiTags } from '@nestjs/swagger';
-import { DataStorageListResponseApiDto } from '../dto/presentation/data-storage-list-response-api.dto';
-import { DeleteDataStorageService } from '../use-cases/delete-data-storage.service';
 
 @Controller('data-storages')
 @ApiTags('DataStorages')
@@ -30,6 +32,7 @@ export class DataStorageController {
     private readonly getService: GetDataStorageService,
     private readonly listService: ListDataStoragesService,
     private readonly deleteService: DeleteDataStorageService,
+    private readonly validateAccessService: ValidateDataStorageAccessService,
     private readonly mapper: DataStorageMapper
   ) {}
 
@@ -90,5 +93,17 @@ export class DataStorageController {
   ): Promise<void> {
     const command = this.mapper.toDeleteCommand(id, context);
     await this.deleteService.run(command);
+  }
+
+  @Auth(Role.viewer(Strategy.INTROSPECT))
+  @Post(':id/validate-access')
+  @ValidateDataStorageAccessSpec()
+  async validate(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string
+  ): Promise<DataStorageAccessValidationResponseApiDto> {
+    const command = this.mapper.toValidateAccessCommand(id, context);
+    const validationResult = await this.validateAccessService.run(command);
+    return this.mapper.toValidateAccessResponse(validationResult);
   }
 }
