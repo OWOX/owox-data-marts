@@ -66,11 +66,18 @@ export class RequestHandlerService {
       rawHeaders.push(...header.split(/,(?=[^;]+=[^;]+)/g));
     }
 
-    const cookieName = this.escapeRegex(BETTER_AUTH_SESSION_COOKIE);
+    const candidateCookieNames = [
+      BETTER_AUTH_SESSION_COOKIE,
+      `__Secure-${BETTER_AUTH_SESSION_COOKIE}`,
+      `__Host-${BETTER_AUTH_SESSION_COOKIE}`,
+    ];
     for (const h of rawHeaders) {
-      const match = h.match(new RegExp(`${cookieName}=([^;]+)`));
-      if (match && match[1]) {
-        return decodeURIComponent(match[1]);
+      for (const cookieName of candidateCookieNames) {
+        const escapedCookieName = this.escapeRegex(cookieName);
+        const match = h.match(new RegExp(`(?:^|\\s*)${escapedCookieName}=([^;]+)`));
+        if (match && match[1]) {
+          return decodeURIComponent(match[1]);
+        }
       }
     }
     return null;

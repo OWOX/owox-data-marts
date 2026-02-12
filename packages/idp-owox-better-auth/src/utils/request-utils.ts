@@ -109,9 +109,20 @@ export function clearPlatformCookies(res: Response, req?: Request): void {
  * Clears Better Auth session and CSRF cookies.
  */
 export function clearBetterAuthCookies(res: Response, req?: Request): void {
-  clearCookie(res, BETTER_AUTH_SESSION_COOKIE, req);
-  clearCookie(res, BETTER_AUTH_CSRF_COOKIE, req);
-  clearCookie(res, BETTER_AUTH_STATE_COOKIE, req);
+  const cookieNames = [
+    BETTER_AUTH_SESSION_COOKIE,
+    BETTER_AUTH_CSRF_COOKIE,
+    BETTER_AUTH_STATE_COOKIE,
+  ];
+  const allCookieVariants = cookieNames.flatMap(name => [
+    name,
+    `__Secure-${name}`,
+    `__Host-${name}`,
+  ]);
+  const uniqueCookieVariants = Array.from(new Set(allCookieVariants));
+  for (const cookieName of uniqueCookieVariants) {
+    clearCookie(res, cookieName, req);
+  }
 }
 
 /**
