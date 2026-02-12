@@ -7,7 +7,7 @@
  */
 export function checkVisible(
   flagKey: string,
-  expectedValue?: boolean | string,
+  expectedValue?: boolean | string | (boolean | string)[],
   flags?: Record<string, unknown> | null
 ): boolean {
   if (!flags || typeof flags !== 'object') {
@@ -18,6 +18,10 @@ export function checkVisible(
   // If expectedValue is not provided, treat as boolean check (default true)
   if (expectedValue === undefined) {
     return Boolean(flagValue);
+  }
+
+  if (Array.isArray(expectedValue)) {
+    return expectedValue.some(value => flagValue === value);
   }
 
   // Check for exact match with expected value

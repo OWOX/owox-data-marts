@@ -5,6 +5,10 @@ import {
   SqliteConfig,
 } from '@owox/idp-better-auth';
 import { loadIdpOwoxConfigFromEnv, OwoxIdp } from '@owox/idp-owox';
+import {
+  loadBetterAuthProviderConfigFromEnv,
+  OwoxBetterAuthProvider,
+} from '@owox/idp-owox-better-auth';
 import { IdpConfig, IdpProvider, NullIdpProvider } from '@owox/idp-protocol';
 import { parseMysqlSslEnv } from '@owox/internal-helpers';
 
@@ -14,6 +18,7 @@ export enum IdpProviderType {
   BetterAuth = 'better-auth',
   None = 'none',
   Owox = 'owox',
+  OwoxBetterAuth = 'owox-better-auth',
 }
 
 export interface IdpFactoryOptions {
@@ -55,6 +60,10 @@ export class IdpFactory {
 
       case IdpProviderType.Owox: {
         return this.createOwoxProvider(command);
+      }
+
+      case IdpProviderType.OwoxBetterAuth: {
+        return this.createOwoxBetterAuthProvider(command);
       }
 
       default: {
@@ -176,6 +185,28 @@ export class IdpFactory {
    */
   private static async createNullProvider(): Promise<NullIdpProvider> {
     return new NullIdpProvider();
+  }
+
+  /**
+   * Creates and initializes an OwoxBetterAuth provider using configuration
+   * loaded from the environment. On error, logs it and exits the command.
+   *
+   * @param {BaseCommand} command - Command instance for logging and exiting with an error.
+   * @returns {Promise<OwoxBetterAuthProvider>} Promise resolving to an initialized OwoxBetterAuth provider.
+   */
+  private static async createOwoxBetterAuthProvider(
+    command: BaseCommand
+  ): Promise<OwoxBetterAuthProvider> {
+    try {
+      const config = loadBetterAuthProviderConfigFromEnv();
+      return OwoxBetterAuthProvider.create(config);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        command.error(error, { exit: 1 });
+      }
+
+      command.error(new Error(String(error)), { exit: 1 });
+    }
   }
 
   /**

@@ -16,7 +16,7 @@
     "build:dep": "npm run build:internal-helpers && npm run build:idp-protocol",
     "build:idp-protocol": "npm run build -w @owox/idp-protocol --prefix ../..",
     "build:internal-helpers": "npm run build -w @owox/internal-helpers --prefix ../..",
-    "clean": "rimraf dist",
+    "clean": "shx rm -rf dist",
     "test": "jest",
     "lint": "eslint . --config ./eslint.config.js",
     "lint:fix": "eslint . --fix --config ./eslint.config.js",
@@ -51,7 +51,6 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.10.7",
     "jest": "^30.2.0",
-    "rimraf": "^6.0.1",
     "ts-jest": "^29.4.6"
   },
   "files": ["dist"],
