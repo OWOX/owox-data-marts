@@ -98,7 +98,7 @@ export class BetterAuthSessionService {
   async getSession(req: Request): Promise<AuthSession | null> {
     try {
       const session = await this.auth.api.getSession({
-        headers: req.headers as unknown as Headers,
+        headers: this.buildHeadersFromExpress(req),
       });
 
       if (!session || !session.user || !session.session) {
@@ -122,5 +122,18 @@ export class BetterAuthSessionService {
       logger.error('Failed to get session', {}, error as Error);
       throw new Error('Failed to get session');
     }
+  }
+
+  private buildHeadersFromExpress(req: Request): Headers {
+    const headers = new Headers();
+    for (const [key, value] of Object.entries(req.headers)) {
+      if (!value) continue;
+      if (Array.isArray(value)) {
+        headers.set(key, value.join(', '));
+      } else {
+        headers.set(key, String(value));
+      }
+    }
+    return headers;
   }
 }

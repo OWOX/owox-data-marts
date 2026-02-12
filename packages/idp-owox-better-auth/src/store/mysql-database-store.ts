@@ -204,6 +204,7 @@ export class MysqlDatabaseStore implements DatabaseStore {
       return StoreResult.expired();
     }
 
+    await this.deleteAuthState(state);
     return StoreResult.withCode(row.code_verifier);
   }
 

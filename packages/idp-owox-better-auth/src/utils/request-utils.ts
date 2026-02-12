@@ -84,8 +84,17 @@ export function getCookie(req: Request, name: string): string | undefined {
   }
 
   const cookieHeader = req.headers.cookie || '';
-  const match = cookieHeader.match(new RegExp(`${name}=([^;]+)`));
-  return match && match[1] ? decodeURIComponent(match[1]) : undefined;
+  if (!cookieHeader) return undefined;
+
+  const escapedName = encodeURIComponent(name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${escapedName}=([^;]*)`));
+  if (!match || !match[1]) return undefined;
+
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
 }
 
 /**
