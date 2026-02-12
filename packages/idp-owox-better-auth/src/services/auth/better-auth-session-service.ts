@@ -62,10 +62,19 @@ export class BetterAuthSessionService {
     sessionToken: string,
     state: string
   ): Promise<{ code: string; payload: UserInfoPayload }> {
-    const headers = new Headers();
-    headers.set('cookie', `${BETTER_AUTH_SESSION_COOKIE}=${encodeURIComponent(sessionToken)}`);
+    const encodedToken = encodeURIComponent(sessionToken);
+    let session: Awaited<ReturnType<typeof this.auth.api.getSession>> | null = null;
 
-    const session = await this.auth.api.getSession({ headers });
+    for (const cookieName of this.resolveSessionCookieNames()) {
+      const headers = new Headers();
+      headers.set('cookie', `${cookieName}=${encodedToken}`);
+      const candidate = await this.auth.api.getSession({ headers });
+      if (candidate?.user && candidate?.session) {
+        session = candidate;
+        break;
+      }
+    }
+
     if (!session || !session.user || !session.session) {
       throw new Error('Failed to resolve session from Better Auth token');
     }
@@ -93,6 +102,21 @@ export class BetterAuthSessionService {
     const result = await this.platformAuthFlowClient.completeAuthFlow(payload);
     logger.info('Integrated backend responded (callback)', { hasCode: Boolean(result.code) });
     return { code: result.code, payload };
+  }
+
+  private resolveSessionCookieNames(): string[] {
+    const secure = this.auth.options.advanced?.cookies?.session_token?.attributes?.secure === true;
+    const primaryName = secure
+      ? `__Secure-${BETTER_AUTH_SESSION_COOKIE}`
+      : BETTER_AUTH_SESSION_COOKIE;
+    return Array.from(
+      new Set([
+        primaryName,
+        BETTER_AUTH_SESSION_COOKIE,
+        `__Secure-${BETTER_AUTH_SESSION_COOKIE}`,
+        `__Host-${BETTER_AUTH_SESSION_COOKIE}`,
+      ])
+    );
   }
 
   async getSession(req: Request): Promise<AuthSession | null> {

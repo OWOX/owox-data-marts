@@ -6,6 +6,7 @@ import { type Request, type Response } from 'express';
 import { SOURCE } from '../core/constants.js';
 import {
   StateManager,
+  clearBetterAuthCookies,
   clearPlatformCookies,
   extractPlatformParams,
   extractState,
@@ -19,6 +20,11 @@ const createResponseMock = () =>
     cookie: jest.fn(),
     clearCookie: jest.fn(),
   }) as unknown as Response;
+
+const findOptionsArg = (callArgs: unknown[]): Record<string, unknown> | undefined =>
+  callArgs.find(arg => typeof arg === 'object' && arg !== null) as
+    | Record<string, unknown>
+    | undefined;
 
 describe('request-utils', () => {
   it('extracts state from cookie before query', () => {
@@ -125,6 +131,39 @@ describe('request-utils', () => {
 
     const clearCalls = (res.clearCookie as jest.Mock).mock.calls;
     expect(clearCalls).toHaveLength(2);
-    expect(clearCalls[0]?.[2]).toMatchObject({ secure: true, sameSite: 'lax' });
+    for (const call of clearCalls) {
+      const options = findOptionsArg(call);
+      expect(options).toMatchObject({ secure: true, sameSite: 'lax' });
+    }
+  });
+
+  it('clears Better Auth cookies with secure and host prefixes', () => {
+    const res = createResponseMock();
+    const req = {
+      protocol: 'https',
+      hostname: 'app.example',
+    } as unknown as Request;
+
+    clearBetterAuthCookies(res, req);
+
+    const clearCalls = (res.clearCookie as jest.Mock).mock.calls;
+    const names = clearCalls.map(call => call[0]);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'better-auth.session_token',
+        '__Secure-better-auth.session_token',
+        '__Host-better-auth.session_token',
+        'better-auth.csrf_token',
+        '__Secure-better-auth.csrf_token',
+        '__Host-better-auth.csrf_token',
+        'better-auth.state',
+        '__Secure-better-auth.state',
+        '__Host-better-auth.state',
+      ])
+    );
+    for (const call of clearCalls) {
+      const options = findOptionsArg(call);
+      expect(options).toMatchObject({ secure: true, sameSite: 'lax' });
+    }
   });
 });
