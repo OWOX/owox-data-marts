@@ -12,7 +12,7 @@ var adAccountFields = {
   },
   'id': {
     'description': 'Unique internal ID representing the account',
-    'type': DATA_TYPES.INTEGER
+    'type': DATA_TYPES.STRING
   },
   'name': {
     'description': 'A label for the account',

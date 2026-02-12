@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { AppEditionConfig } from './config/app-edition-config.service';
 import { PublicOriginService } from './config/public-origin.service';
 import { EmailModule } from './email/email.module';
+import { InternalApiGuard } from './guards/internal-api.guard';
 import { MarkdownParser } from './markdown/markdown-parser.service';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { ProducerModule } from './producer/producer.module.js';
@@ -26,6 +27,7 @@ import { AiInsightsConfigService } from './ai-insights/services/ai-insights-conf
     AppEditionLicenseRefresherService,
     MarkdownParser,
     AiInsightsConfigService,
+    InternalApiGuard,
   ],
   exports: [
     SchedulerModule,
@@ -35,6 +37,7 @@ import { AiInsightsConfigService } from './ai-insights/services/ai-insights-conf
     AppEditionConfig,
     AiInsightsConfigService,
     MarkdownParser,
+    InternalApiGuard,
   ],
 })
 export class CommonModule {}

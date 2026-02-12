@@ -1,13 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataStorage } from '../entities/data-storage.entity';
 import { Repository } from 'typeorm';
-import { DataStorageMapper } from '../mappers/data-storage.mapper';
+import { BigQueryConfig } from '../data-storage-types/bigquery/schemas/bigquery-config.schema';
+import { DataStorageCredentials } from '../data-storage-types/data-storage-credentials.type';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { DataStorageAccessFacade } from '../data-storage-types/facades/data-storage-access.facade';
 import { DataStorageDto } from '../dto/domain/data-storage.dto';
 import { UpdateDataStorageCommand } from '../dto/domain/update-data-storage.command';
+import { DataStorage } from '../entities/data-storage.entity';
+import { DataStorageMapper } from '../mappers/data-storage.mapper';
 import { DataStorageService } from '../services/data-storage.service';
-import { DataStorageAccessFacade } from '../data-storage-types/facades/data-storage-access.facade';
-import { DataStorageCredentials } from '../data-storage-types/data-storage-credentials.type';
 
 @Injectable()
 export class UpdateDataStorageService {
@@ -29,6 +31,13 @@ export class UpdateDataStorageService {
       ? command.credentials
       : dataStorageEntity.credentials;
 
+    const isLegacyStorage = dataStorageEntity.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY;
+    if (isLegacyStorage && command.hasConfig()) {
+      (command.config as BigQueryConfig).projectId = (
+        dataStorageEntity.config as BigQueryConfig
+      ).projectId;
+    }
+
     await this.dataStorageAccessFacade.checkAccess(
       dataStorageEntity.type,
       command.config,
@@ -40,7 +49,10 @@ export class UpdateDataStorageService {
     }
 
     dataStorageEntity.config = command.config;
-    dataStorageEntity.title = command.title;
+
+    if (!isLegacyStorage) {
+      dataStorageEntity.title = command.title;
+    }
 
     const updatedDataStorageEntity = await this.dataStorageRepository.save(dataStorageEntity);
     return this.dataStorageMapper.toDomainDto(updatedDataStorageEntity);

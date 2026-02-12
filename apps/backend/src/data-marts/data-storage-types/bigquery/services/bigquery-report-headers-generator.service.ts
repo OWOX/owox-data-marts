@@ -14,7 +14,7 @@ import { ReportDataHeader } from '../../../dto/domain/report-data-header.dto';
  */
 @Injectable()
 export class BigQueryReportHeadersGenerator implements ReportHeadersGenerator {
-  readonly type = DataStorageType.GOOGLE_BIGQUERY;
+  readonly type: DataStorageType = DataStorageType.GOOGLE_BIGQUERY;
 
   generateHeaders(dataMartSchema: DataMartSchema): ReportDataHeader[] {
     if (!isBigQueryDataMartSchema(dataMartSchema)) {

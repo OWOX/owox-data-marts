@@ -8,7 +8,7 @@
 var adCampaignFields = {
   'id': {
     'description': 'Unique internal ID representing the campaign',
-    'type': DATA_TYPES.NUMBER
+    'type': DATA_TYPES.STRING
   },
   'account': {
     'description': 'URN identifying the advertising account associated with the campaign. This value is immutable once set. For example, urn:li:sponsoredAccount:{id}',

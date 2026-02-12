@@ -149,6 +149,7 @@ export const DataStorageList = ({
     type: storage.type,
     createdAt: storage.createdAt,
     modifiedAt: storage.modifiedAt,
+    dataMartsCount: storage.dataMartsCount,
   }));
 
   const columns = getDataStorageColumns({

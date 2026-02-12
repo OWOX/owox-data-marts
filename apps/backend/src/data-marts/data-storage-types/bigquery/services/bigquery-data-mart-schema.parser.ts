@@ -9,7 +9,7 @@ import {
 
 @Injectable()
 export class BigQueryDataMartSchemaParser implements DataMartSchemaParser {
-  readonly type = DataStorageType.GOOGLE_BIGQUERY;
+  readonly type: DataStorageType = DataStorageType.GOOGLE_BIGQUERY;
 
   async validateAndParse(schema: unknown): Promise<BigqueryDataMartSchema> {
     const result = BigQueryDataMartSchemaSchema.safeParse(schema);

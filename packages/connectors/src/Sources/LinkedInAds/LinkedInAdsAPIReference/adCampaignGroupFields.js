@@ -20,7 +20,7 @@ var adCampaignGroupFields = {
   },
   'id': {
     'description': 'Numerical identifier for the campaign group. This is a read-only field set by the system.',
-    'type': DATA_TYPES.NUMBER
+    'type': DATA_TYPES.STRING
   },
   'name': {
     'description': 'The name of the campaign group used to make it easier to reference a campaign group and recall its purpose. The value of this field cannot exceed 100 characters.',

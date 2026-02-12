@@ -12,11 +12,11 @@ import { BigQueryQueryBuilder } from './bigquery-query.builder';
 
 @Injectable()
 export class BigQuerySqlRunExecutor implements SqlRunExecutor {
-  readonly type = DataStorageType.GOOGLE_BIGQUERY;
+  readonly type: DataStorageType = DataStorageType.GOOGLE_BIGQUERY;
 
   constructor(
-    private readonly adapterFactory: BigQueryApiAdapterFactory,
-    private readonly queryBuilder: BigQueryQueryBuilder
+    protected readonly adapterFactory: BigQueryApiAdapterFactory,
+    protected readonly queryBuilder: BigQueryQueryBuilder
   ) {}
 
   async *execute<Row = Record<string, unknown>>(
@@ -35,7 +35,7 @@ export class BigQuerySqlRunExecutor implements SqlRunExecutor {
 
     const adapter = this.adapterFactory.create(credentials, config);
     if (!sql) {
-      sql = this.queryBuilder.buildQuery(definition);
+      sql = await this.queryBuilder.buildQuery(definition);
     }
 
     const { jobId } = await adapter.executeQuery(sql);

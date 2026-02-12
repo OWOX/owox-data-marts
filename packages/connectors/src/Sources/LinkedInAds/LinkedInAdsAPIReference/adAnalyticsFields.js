@@ -68,12 +68,12 @@ var adAnalyticsFields = {
   },
   'dateRangeStart': {
     'description': 'Start date of the report data point. Date is specified in UTC format (YYYY-MM-DD).',
-    'type': DATA_TYPES.STRING,
+    'type': DATA_TYPES.DATE,
     'GoogleBigQueryPartitioned': true
   },
   'dateRangeEnd': {
     'description': 'End date of the report data point. Date is specified in UTC format (YYYY-MM-DD).',
-    'type': DATA_TYPES.STRING,
+    'type': DATA_TYPES.DATE,
     'GoogleBigQueryPartitioned': true
   },
   'documentCompletions': {

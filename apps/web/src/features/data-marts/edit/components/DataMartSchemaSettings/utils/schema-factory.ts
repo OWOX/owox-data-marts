@@ -9,6 +9,7 @@ import type { DataMartSchema } from '../../../../shared/types/data-mart-schema.t
 export function createInitialSchema(storageType: DataStorageType): DataMartSchema {
   switch (storageType) {
     case DataStorageType.GOOGLE_BIGQUERY:
+    case DataStorageType.LEGACY_GOOGLE_BIGQUERY:
       return { type: 'bigquery-data-mart-schema', fields: [] };
     case DataStorageType.AWS_ATHENA:
       return { type: 'athena-data-mart-schema', fields: [] };

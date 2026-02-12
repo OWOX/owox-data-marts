@@ -13,4 +13,8 @@ export class UpdateDataStorageCommand {
   hasCredentials(): boolean {
     return this.credentials !== undefined;
   }
+
+  hasConfig(): boolean {
+    return this.config !== undefined;
+  }
 }

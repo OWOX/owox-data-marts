@@ -1,13 +1,19 @@
-import React from 'react';
-import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { DataStorageStatus, DataStorageType } from '../../../shared';
-import { GoogleBigQueryFields } from './GoogleBigQueryFields';
-import { AwsAthenaFields } from './AwsAthenaFields';
-import { SnowflakeFields } from './SnowflakeFields';
-import { RedshiftFields } from './RedshiftFields';
-import { DatabricksFields } from './DatabricksFields';
-import StorageTypeSnowflakeDescription from './FormDescriptions/StorageTypeSnowflakeDescription.tsx';
+import { Button } from '@owox/ui/components/button';
+import {
+  AppForm,
+  Form,
+  FormActions,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormLayout,
+  FormMessage,
+  FormSection,
+} from '@owox/ui/components/form';
+import { Input } from '@owox/ui/components/input';
 import {
   Select,
   SelectContent,
@@ -16,28 +22,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@owox/ui/components/select';
-import { DataStorageTypeModel } from '../../../shared/types/data-storage-type.model.ts';
-import { type DataStorageFormData, dataStorageSchema } from '../../../shared';
-import { Input } from '@owox/ui/components/input';
-import {
-  Form,
-  AppForm,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  FormLayout,
-  FormActions,
-  FormSection,
-  FormDescription,
-} from '@owox/ui/components/form';
-import StorageTypeBigQueryDescription from './FormDescriptions/StorageTypeBigQueryDescription.tsx';
-import StorageTypeAthenaDescription from './FormDescriptions/StorageTypeAthenaDescription.tsx';
-import StorageTypeRedshiftDescription from './FormDescriptions/StorageTypeRedshiftDescription.tsx';
-import StorageTypeDatabricksDescription from './FormDescriptions/StorageTypeDatabricksDescription.tsx';
-import { Button } from '@owox/ui/components/button';
+import React from 'react';
+import { useForm } from 'react-hook-form';
 import { createFormPayload } from '../../../../../utils/form-utils';
+import {
+  type DataStorageFormData,
+  dataStorageSchema,
+  DataStorageStatus,
+  DataStorageType,
+} from '../../../shared';
+import { DataStorageTypeModel } from '../../../shared/types/data-storage-type.model.ts';
+import { AwsAthenaFields } from './AwsAthenaFields';
+import { DatabricksFields } from './DatabricksFields';
+import LegacyGoogleBigQueryTitleDescription from './FormDescriptions/LegacyGoogleBigQueryTitleDescription.tsx';
+import StorageTypeAthenaDescription from './FormDescriptions/StorageTypeAthenaDescription.tsx';
+import StorageTypeBigQueryDescription from './FormDescriptions/StorageTypeBigQueryDescription.tsx';
+import StorageTypeDatabricksDescription from './FormDescriptions/StorageTypeDatabricksDescription.tsx';
+import StorageTypeLegacyBigQueryDescription from './FormDescriptions/StorageTypeLegacyBigQueryDescription.tsx';
+import StorageTypeRedshiftDescription from './FormDescriptions/StorageTypeRedshiftDescription.tsx';
+import StorageTypeSnowflakeDescription from './FormDescriptions/StorageTypeSnowflakeDescription.tsx';
+import { GoogleBigQueryFields } from './GoogleBigQueryFields';
+import { LegacyGoogleBigQueryFields } from './LegacyGoogleBigQueryFields';
+import { RedshiftFields } from './RedshiftFields';
+import { SnowflakeFields } from './SnowflakeFields';
 
 interface DataStorageFormProps {
   initialData?: DataStorageFormData;
@@ -96,8 +103,17 @@ export function DataStorageForm({
                 <FormItem>
                   <FormLabel tooltip='Name the storage to clarify its purpose'>Title</FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder='Storage title' />
+                    <Input
+                      {...field}
+                      placeholder='Storage title'
+                      disabled={selectedType === DataStorageType.LEGACY_GOOGLE_BIGQUERY}
+                    />
                   </FormControl>
+                  {selectedType === DataStorageType.LEGACY_GOOGLE_BIGQUERY && (
+                    <FormDescription>
+                      <LegacyGoogleBigQueryTitleDescription />
+                    </FormDescription>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
@@ -143,6 +159,9 @@ export function DataStorageForm({
                     {selectedType === DataStorageType.GOOGLE_BIGQUERY && (
                       <StorageTypeBigQueryDescription />
                     )}
+                    {selectedType === DataStorageType.LEGACY_GOOGLE_BIGQUERY && (
+                      <StorageTypeLegacyBigQueryDescription />
+                    )}
                     {selectedType === DataStorageType.AWS_ATHENA && (
                       <StorageTypeAthenaDescription />
                     )}
@@ -162,6 +181,9 @@ export function DataStorageForm({
             />
           </FormSection>
           {selectedType === DataStorageType.GOOGLE_BIGQUERY && <GoogleBigQueryFields form={form} />}
+          {selectedType === DataStorageType.LEGACY_GOOGLE_BIGQUERY && (
+            <LegacyGoogleBigQueryFields form={form} />
+          )}
           {selectedType === DataStorageType.AWS_ATHENA && <AwsAthenaFields form={form} />}
           {selectedType === DataStorageType.SNOWFLAKE && <SnowflakeFields form={form} />}
           {selectedType === DataStorageType.AWS_REDSHIFT && <RedshiftFields form={form} />}

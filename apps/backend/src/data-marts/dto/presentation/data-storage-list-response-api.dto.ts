@@ -16,4 +16,7 @@ export class DataStorageListResponseApiDto {
 
   @ApiProperty({ example: '2024-01-02T15:30:00.000Z' })
   modifiedAt: Date;
+
+  @ApiProperty({ example: 0 })
+  dataMartsCount: number = 0;
 }

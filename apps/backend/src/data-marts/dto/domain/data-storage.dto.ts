@@ -11,6 +11,7 @@ export class DataStorageDto {
     public readonly credentials: DataStorageCredentials | undefined,
     public readonly config: DataStorageConfig | undefined,
     public readonly createdAt: Date,
-    public readonly modifiedAt: Date
+    public readonly modifiedAt: Date,
+    public readonly dataMartsCount: number = 0
   ) {}
 }

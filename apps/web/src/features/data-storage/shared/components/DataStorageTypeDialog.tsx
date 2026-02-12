@@ -34,30 +34,34 @@ export const DataStorageTypeDialog = ({
           <DialogDescription>Choose the type of storage you want to create</DialogDescription>
         </DialogHeader>
         <div className='flex flex-col gap-4 py-4'>
-          {DataStorageTypeModel.getAllTypes().map(typeInfo => {
-            const Icon = typeInfo.icon;
-            const isActive = typeInfo.status === DataStorageStatus.ACTIVE;
-            return (
-              <Button
-                key={typeInfo.type}
-                variant='outline'
-                className='flex px-4 py-6 select-none'
-                onClick={() => {
-                  void trigger(typeInfo.type);
-                }}
-                disabled={!isActive || isCreatingDataStorage || isLocked}
-                onDoubleClick={e => {
-                  e.preventDefault();
-                }}
-              >
-                <span className='flex flex-grow items-center gap-2'>
-                  <Icon size={24} />
-                  <span className='font-medium'>{typeInfo.displayName}</span>
-                </span>
-                {!isActive && <Badge variant='secondary'>Coming soon</Badge>}
-              </Button>
-            );
-          })}
+          {DataStorageTypeModel.getAllTypes()
+            .filter(typeInfo => typeInfo.status !== DataStorageStatus.LEGACY)
+            .map(typeInfo => {
+              const Icon = typeInfo.icon;
+              const isActive = typeInfo.status === DataStorageStatus.ACTIVE;
+              return (
+                <Button
+                  key={typeInfo.type}
+                  variant='outline'
+                  className='flex px-4 py-6 select-none'
+                  onClick={() => {
+                    void trigger(typeInfo.type);
+                  }}
+                  disabled={!isActive || isCreatingDataStorage || isLocked}
+                  onDoubleClick={e => {
+                    e.preventDefault();
+                  }}
+                >
+                  <span className='flex flex-grow items-center gap-2'>
+                    <Icon size={24} />
+                    <span className='font-medium'>{typeInfo.displayName}</span>
+                  </span>
+                  {typeInfo.status === DataStorageStatus.COMING_SOON && (
+                    <Badge variant='secondary'>Coming soon</Badge>
+                  )}
+                </Button>
+              );
+            })}
         </div>
       </DialogContent>
     </Dialog>

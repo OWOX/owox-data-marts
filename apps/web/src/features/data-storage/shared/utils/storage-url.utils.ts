@@ -1,10 +1,11 @@
+import type { DataStorage } from '../model/types/data-storage.ts';
 import {
-  isGoogleBigQueryStorage,
   isAwsAthenaStorage,
+  isGoogleBigQueryStorage,
+  isLegacyGoogleBigQueryStorage,
   isSnowflakeStorage,
   isRedshiftStorage,
 } from '../model/types/data-storage.ts';
-import type { DataStorage } from '../model/types/data-storage.ts';
 
 export interface ParsedFullyQualifiedName {
   dataset: string;
@@ -102,7 +103,7 @@ export function getStorageUrl(storage: DataStorage, fullyQualifiedName: string):
 
   const { dataset, table } = parsedName;
 
-  if (isGoogleBigQueryStorage(storage)) {
+  if (isGoogleBigQueryStorage(storage) || isLegacyGoogleBigQueryStorage(storage)) {
     return getBigQueryTableUrl(storage.config.projectId, dataset, table);
   }
 
@@ -143,7 +144,7 @@ export function openStorageConsole(storage: DataStorage, fullyQualifiedName: str
  * @returns Human-readable button text
  */
 export function getStorageButtonText(storage: DataStorage): string {
-  if (isGoogleBigQueryStorage(storage)) {
+  if (isGoogleBigQueryStorage(storage) || isLegacyGoogleBigQueryStorage(storage)) {
     return 'Open table in Google BigQuery';
   }
 

@@ -1,14 +1,16 @@
 import { BigQuery, Job, Table, TableSchema } from '@google-cloud/bigquery';
+import { Logger } from '@nestjs/common';
 import { JWT } from 'google-auth-library';
-import { BigQueryConfig } from '../schemas/bigquery-config.schema';
+import { BIGQUERY_AUTODETECT_LOCATION, BigQueryConfig } from '../schemas/bigquery-config.schema';
 import { BigQueryCredentials } from '../schemas/bigquery-credentials.schema';
 
 /**
  * Adapter for BigQuery API operations
  */
 export class BigQueryApiAdapter {
+  private readonly logger = new Logger(BigQueryApiAdapter.name);
   private readonly bigQuery: BigQuery;
-  private readonly location: string;
+  private location?: string;
 
   /**
    * @param credentials - BigQuery credentials
@@ -25,13 +27,18 @@ export class BigQueryApiAdapter {
       ],
     });
 
+    const shouldAutodetectLocation = config.location === BIGQUERY_AUTODETECT_LOCATION;
     this.bigQuery = new BigQuery({
       projectId: config.projectId,
-      location: config.location,
       authClient,
+      ...(shouldAutodetectLocation ? {} : { location: config.location }),
     });
 
-    this.location = config.location;
+    if (!shouldAutodetectLocation) {
+      this.location = config.location;
+    } else {
+      this.logger.log(`Using autodetect location for BigQuery operations in ${config.projectId}`);
+    }
   }
 
   /**
@@ -40,11 +47,12 @@ export class BigQueryApiAdapter {
   public async executeQuery(query: string): Promise<{ jobId: string }> {
     const [, , res] = await this.bigQuery.query(query, {
       maxResults: 0,
-      location: this.location,
+      ...this.getLocationOption(),
     });
     if (!res || !res.jobReference || !res.jobReference.jobId) {
       throw new Error('Unexpected error during getting sql result job id');
     }
+    this.setLocationFromJobReference(res.jobReference.location);
     return { jobId: res.jobReference.jobId };
   }
 
@@ -57,8 +65,9 @@ export class BigQueryApiAdapter {
     const [job] = await this.bigQuery.createQueryJob({
       query,
       dryRun: true,
-      location: this.location,
+      ...this.getLocationOption(),
     });
+    this.setLocationFromJob(job);
     return {
       totalBytesProcessed: Number(job.metadata.statistics.totalBytesProcessed),
       schema: job.metadata.statistics.query.schema ?? undefined,
@@ -69,8 +78,9 @@ export class BigQueryApiAdapter {
    * Gets job information by job ID
    */
   public async getJob(jobId: string): Promise<Job> {
-    const job = this.bigQuery.job(jobId, { location: this.location });
+    const job = this.bigQuery.job(jobId, this.getLocationOption());
     const [jobResult] = await job.get();
+    this.setLocationFromJob(jobResult);
     return jobResult;
   }
 
@@ -85,7 +95,7 @@ export class BigQueryApiAdapter {
   public createTableReference(projectId: string, datasetId: string, tableId: string): Table {
     const dataset = this.bigQuery.dataset(datasetId, {
       projectId: projectId,
-      location: this.location,
+      ...this.getLocationOption(),
     });
     return dataset.table(tableId);
   }
@@ -95,9 +105,26 @@ export class BigQueryApiAdapter {
    */
   public async checkAccess(): Promise<void> {
     try {
-      await this.bigQuery.query('SELECT 1', { location: this.location });
+      const [, , res] = await this.bigQuery.query('SELECT 1', this.getLocationOption());
+      this.setLocationFromJobReference(res?.jobReference?.location);
     } catch (e) {
       throw new Error(`BigQuery access error: ${e instanceof Error ? e.message : String(e)}`);
     }
+  }
+
+  private getLocationOption(): { location?: string } {
+    return this.location ? { location: this.location } : {};
+  }
+
+  private setLocationFromJobReference(location?: string | null): void {
+    if (!this.location && location) {
+      this.location = location;
+    }
+  }
+
+  private setLocationFromJob(job: Job): void {
+    this.setLocationFromJobReference(
+      job.metadata?.jobReference?.location ?? job.metadata?.location
+    );
   }
 }

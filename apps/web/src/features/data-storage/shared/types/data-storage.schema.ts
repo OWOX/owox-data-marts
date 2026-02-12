@@ -84,6 +84,12 @@ export const googleBigQuerySchema = baseSchema.extend({
   config: googleConfigSchema,
 });
 
+export const legacyGoogleBigQuerySchema = baseSchema.extend({
+  type: z.literal(DataStorageType.LEGACY_GOOGLE_BIGQUERY),
+  credentials: googleServiceAccountSchema,
+  config: googleConfigSchema,
+});
+
 export const awsAthenaSchema = baseSchema.extend({
   type: z.literal(DataStorageType.AWS_ATHENA),
   credentials: awsCredentialsSchema,
@@ -110,6 +116,7 @@ export const databricksSchema = baseSchema.extend({
 
 export const dataStorageSchema = z.discriminatedUnion('type', [
   googleBigQuerySchema,
+  legacyGoogleBigQuerySchema,
   awsAthenaSchema,
   snowflakeSchema,
   redshiftSchema,
@@ -118,6 +125,7 @@ export const dataStorageSchema = z.discriminatedUnion('type', [
 
 export type DataStorageFormData = z.infer<typeof dataStorageSchema>;
 export type GoogleBigQueryFormData = z.infer<typeof googleBigQuerySchema>;
+export type LegacyGoogleBigQueryFormData = z.infer<typeof legacyGoogleBigQuerySchema>;
 export type AwsAthenaFormData = z.infer<typeof awsAthenaSchema>;
 export type SnowflakeFormData = z.infer<typeof snowflakeSchema>;
 export type RedshiftFormData = z.infer<typeof redshiftSchema>;

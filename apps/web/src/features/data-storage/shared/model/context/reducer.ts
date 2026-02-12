@@ -1,4 +1,4 @@
-import type { DataStorageList } from '../types/data-storage-list.ts';
+import type { DataStorageList, DataStorageListItem } from '../types/data-storage-list.ts';
 import type { DataStorage } from '../types/data-storage.ts';
 import { type DataStorageAction, DataStorageActionType } from './types.ts';
 import { type ApiError } from '../../../../../app/api';
@@ -50,7 +50,10 @@ export function reducer(state: DataStorageState, action: DataStorageAction): Dat
     case DataStorageActionType.CREATE_STORAGE_SUCCESS:
       return {
         ...state,
-        dataStorages: [...state.dataStorages, action.payload],
+        dataStorages: [
+          ...state.dataStorages,
+          { ...action.payload, dataMartsCount: 0 } as DataStorageListItem,
+        ],
         loading: false,
         error: null,
       };
@@ -59,7 +62,9 @@ export function reducer(state: DataStorageState, action: DataStorageAction): Dat
         ...state,
         currentDataStorage: action.payload,
         dataStorages: state.dataStorages.map(ds =>
-          ds.id === action.payload.id ? action.payload : ds
+          ds.id === action.payload.id
+            ? ({ ...action.payload, dataMartsCount: ds.dataMartsCount } as DataStorageListItem)
+            : ds
         ),
         loading: false,
         error: null,

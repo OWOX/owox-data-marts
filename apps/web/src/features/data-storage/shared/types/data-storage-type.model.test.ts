@@ -17,8 +17,9 @@ describe('DataStorageTypeModel', () => {
 
   it('should return all types', () => {
     const types = DataStorageTypeModel.getAllTypes();
-    expect(types).toHaveLength(6);
+    expect(types).toHaveLength(7);
     expect(types.map(t => t.type)).toContain(DataStorageType.GOOGLE_BIGQUERY);
+    expect(types.map(t => t.type)).toContain(DataStorageType.LEGACY_GOOGLE_BIGQUERY);
     expect(types.map(t => t.type)).toContain(DataStorageType.AWS_ATHENA);
     expect(types.map(t => t.type)).toContain(DataStorageType.SNOWFLAKE);
     expect(types.map(t => t.type)).toContain(DataStorageType.DATABRICKS);
