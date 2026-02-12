@@ -62,6 +62,8 @@ interface ConfigurationExecutionResult {
 export class ConnectorExecutionService {
   private readonly logger = new Logger(ConnectorExecutionService.name);
 
+  private readonly MAX_ERROR_MESSAGE_LENGTH = 5000;
+
   constructor(
     @InjectRepository(DataMartRun)
     private readonly dataMartRunRepository: Repository<DataMartRun>,
@@ -243,8 +245,12 @@ export class ConnectorExecutionService {
       );
 
       configurationResults.forEach(result => {
-        capturedLogs.push(...result.logs);
-        capturedErrors.push(...result.errors);
+        result.logs.forEach(log => {
+          this.addMessageToArray(capturedLogs, log);
+        });
+        result.errors.forEach(error => {
+          this.addMessageToArray(capturedErrors, error);
+        });
       });
 
       const successCount = configurationResults.filter(r => r.success).length;
@@ -262,7 +268,7 @@ export class ConnectorExecutionService {
       );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      capturedErrors.push({
+      this.addMessageToArray(capturedErrors, {
         type: ConnectorMessageType.ERROR,
         at: new Date().toISOString(),
         error: errorMessage,
@@ -369,7 +375,7 @@ export class ConnectorExecutionService {
         (message: ConnectorMessage) => {
           switch (message.type) {
             case ConnectorMessageType.ERROR:
-              configErrors.push(message);
+              this.addMessageToArray(configErrors, message);
               this.logger.error(`${message.toFormattedString()}`, {
                 dataMartId: dataMart.id,
                 projectId: dataMart.projectId,
@@ -397,7 +403,7 @@ export class ConnectorExecutionService {
             case ConnectorMessageType.STATUS:
               if (message.status === Core.EXECUTION_STATUS.ERROR) {
                 success = false;
-                configErrors.push(message);
+                this.addMessageToArray(configErrors, message);
                 this.logger.error(`${message.toFormattedString()}`, {
                   dataMartId: dataMart.id,
                   projectId: dataMart.projectId,
@@ -406,7 +412,7 @@ export class ConnectorExecutionService {
                 });
               } else {
                 success = true;
-                configLogs.push(message);
+                this.addMessageToArray(configLogs, message);
                 this.logger.log(`${message.status}`, {
                   dataMartId: dataMart.id,
                   projectId: dataMart.projectId,
@@ -416,7 +422,7 @@ export class ConnectorExecutionService {
               }
               break;
             default:
-              configLogs.push(message);
+              this.addMessageToArray(configLogs, message);
               this.logger.log(`${message.toFormattedString()}`, {
                 dataMartId: dataMart.id,
                 projectId: dataMart.projectId,
@@ -469,7 +475,7 @@ export class ConnectorExecutionService {
       } catch (error) {
         success = false;
         const errorMessage = error instanceof Error ? error.message : String(error);
-        configErrors.push({
+        this.addMessageToArray(configErrors, {
           type: ConnectorMessageType.ERROR,
           at: new Date().toISOString(),
           error: errorMessage,
@@ -1195,5 +1201,71 @@ export class ConnectorExecutionService {
     }
 
     return result;
+  }
+
+  /**
+   * Truncate message
+   */
+  private truncateMessage(message: ConnectorMessage): ConnectorMessage {
+    const formatted = message.toFormattedString();
+    if (formatted.length <= this.MAX_ERROR_MESSAGE_LENGTH) {
+      return message;
+    }
+
+    const truncated = formatted.substring(0, this.MAX_ERROR_MESSAGE_LENGTH);
+    const truncationNote = `... [TRUNCATED: original length ${formatted.length} characters]`;
+
+    if (message.type === ConnectorMessageType.ERROR && 'error' in message) {
+      return {
+        ...message,
+        error: `${String(message.error).substring(0, this.MAX_ERROR_MESSAGE_LENGTH - truncationNote.length)}${truncationNote}`,
+        toFormattedString: () => `${truncated}${truncationNote}`,
+      };
+    }
+
+    if (message.type === ConnectorMessageType.LOG && 'message' in message) {
+      return {
+        ...message,
+        message: `${String(message.message).substring(0, this.MAX_ERROR_MESSAGE_LENGTH - truncationNote.length)}${truncationNote}`,
+        toFormattedString: () => `${truncated}${truncationNote}`,
+      };
+    }
+
+    if (message.type === ConnectorMessageType.WARNING && 'warning' in message) {
+      return {
+        ...message,
+        warning: `${String(message.warning).substring(0, this.MAX_ERROR_MESSAGE_LENGTH - truncationNote.length)}${truncationNote}`,
+        toFormattedString: () => `${truncated}${truncationNote}`,
+      };
+    }
+
+    return {
+      ...message,
+      toFormattedString: () => `${truncated}${truncationNote}`,
+    };
+  }
+
+  /**
+   * Add message to array with size limits to prevent OOM
+   */
+  private addMessageToArray(
+    array: ConnectorMessage[],
+    message: ConnectorMessage,
+    maxCount?: number
+  ): void {
+    if (maxCount && array.length >= maxCount) {
+      if (array.length === maxCount) {
+        this.logger.warn(`Maximum number of messages (${maxCount}) reached.`);
+        array.push({
+          type: ConnectorMessageType.ERROR,
+          at: new Date().toISOString(),
+          error: `Maximum number of messages (${maxCount}) reached.`,
+          toFormattedString: () => `[WARNING] Maximum number of messages (${maxCount}) reached.`,
+        });
+      }
+      return;
+    }
+
+    array.push(this.truncateMessage(message));
   }
 }
