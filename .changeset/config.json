@@ -7,6 +7,7 @@
       "@owox/internal-helpers",
       "@owox/idp-protocol",
       "@owox/idp-better-auth",
+      "@owox/idp-owox-better-auth",
       "@owox/idp-owox",
       "@owox/connectors",
       "@owox/backend",
