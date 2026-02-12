@@ -34,6 +34,14 @@ export interface GoogleBigQueryDataStorage extends BaseDataStorage<
   config: GoogleBigQueryDataStorageConfig;
 }
 
+export interface LegacyGoogleBigQueryDataStorage extends BaseDataStorage<
+  GoogleBigQueryCredentials,
+  GoogleBigQueryDataStorageConfig
+> {
+  type: DataStorageType.LEGACY_GOOGLE_BIGQUERY;
+  config: GoogleBigQueryDataStorageConfig;
+}
+
 export interface AwsAthenaDataStorage extends BaseDataStorage<
   AwsAthenaCredentials,
   AwsAthenaDataStorageConfig
@@ -68,6 +76,7 @@ export interface DatabricksDataStorage extends BaseDataStorage<
 
 export type DataStorage =
   | GoogleBigQueryDataStorage
+  | LegacyGoogleBigQueryDataStorage
   | AwsAthenaDataStorage
   | SnowflakeDataStorage
   | RedshiftDataStorage
@@ -77,6 +86,12 @@ export function isGoogleBigQueryStorage(
   storage: DataStorage
 ): storage is GoogleBigQueryDataStorage {
   return storage.type === DataStorageType.GOOGLE_BIGQUERY;
+}
+
+export function isLegacyGoogleBigQueryStorage(
+  storage: DataStorage
+): storage is LegacyGoogleBigQueryDataStorage {
+  return storage.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY;
 }
 
 export function isAwsAthenaStorage(storage: DataStorage): storage is AwsAthenaDataStorage {

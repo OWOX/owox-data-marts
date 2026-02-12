@@ -1,25 +1,25 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
+import { isBigQueryConfig } from '../../data-storage-config.guards';
+import { DataStorageConfig } from '../../data-storage-config.type';
+import { isBigQueryCredentials } from '../../data-storage-credentials.guards';
+import { DataStorageCredentials } from '../../data-storage-credentials.type';
+import { DataStorageType } from '../../enums/data-storage-type.enum';
 import {
   DataMartValidator,
   ValidationResult,
 } from '../../interfaces/data-mart-validator.interface';
 import { BigQueryApiAdapterFactory } from '../adapters/bigquery-api-adapter.factory';
-import { isBigQueryCredentials } from '../../data-storage-credentials.guards';
-import { isBigQueryConfig } from '../../data-storage-config.guards';
-import { DataStorageConfig } from '../../data-storage-config.type';
-import { DataStorageCredentials } from '../../data-storage-credentials.type';
 import { BigQueryQueryBuilder } from './bigquery-query.builder';
 
 @Injectable()
 export class BigQueryDataMartValidator implements DataMartValidator {
-  private readonly logger = new Logger(BigQueryDataMartValidator.name);
-  readonly type = DataStorageType.GOOGLE_BIGQUERY;
+  readonly logger = new Logger(BigQueryDataMartValidator.name);
+  readonly type: DataStorageType = DataStorageType.GOOGLE_BIGQUERY;
 
   constructor(
-    private readonly adapterFactory: BigQueryApiAdapterFactory,
-    private readonly bigQueryQueryBuilder: BigQueryQueryBuilder
+    protected readonly adapterFactory: BigQueryApiAdapterFactory,
+    protected readonly bigQueryQueryBuilder: BigQueryQueryBuilder
   ) {}
 
   async validate(
@@ -35,7 +35,7 @@ export class BigQueryDataMartValidator implements DataMartValidator {
     }
     try {
       const adapter = this.adapterFactory.create(credentials, config);
-      const query = this.bigQueryQueryBuilder.buildQuery(definition);
+      const query = await this.bigQueryQueryBuilder.buildQuery(definition);
       const result = await adapter.executeDryRunQuery(query);
       return ValidationResult.success(result);
     } catch (error) {

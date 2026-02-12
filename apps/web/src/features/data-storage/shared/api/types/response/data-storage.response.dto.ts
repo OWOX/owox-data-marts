@@ -45,4 +45,5 @@ export interface DataStorageResponseDto {
   config: DataStorageConfigDto | null;
   createdAt: string;
   modifiedAt: string;
+  dataMartsCount: number;
 }

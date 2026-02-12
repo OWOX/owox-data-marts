@@ -12,6 +12,7 @@ export interface DataStorageTableItem {
   type: DataStorageType;
   createdAt: Date;
   modifiedAt: Date;
+  dataMartsCount: number;
 }
 
 interface DataStorageColumnsProps {
@@ -43,7 +44,7 @@ export const getDataStorageColumns = ({
   },
   {
     accessorKey: DataStorageColumnKey.TYPE,
-    size: 150,
+    size: 220,
     meta: {
       title: dataStorageColumnLabels[DataStorageColumnKey.TYPE],
     },
@@ -88,6 +89,22 @@ export const getDataStorageColumns = ({
     },
   },
   {
+    accessorKey: DataStorageColumnKey.DATA_MARTS_COUNT,
+    size: 80,
+    meta: {
+      title: dataStorageColumnLabels[DataStorageColumnKey.DATA_MARTS_COUNT],
+    },
+    header: ({ column }) => (
+      <SortableHeader column={column}>
+        {dataStorageColumnLabels[DataStorageColumnKey.DATA_MARTS_COUNT]}
+      </SortableHeader>
+    ),
+    cell: ({ row }) => {
+      const count = row.getValue<string>(DataStorageColumnKey.DATA_MARTS_COUNT);
+      return <div>{count}</div>;
+    },
+  },
+  {
     id: 'actions',
     size: 80,
     enableResizing: false,
@@ -95,6 +112,7 @@ export const getDataStorageColumns = ({
     cell: ({ row }) => (
       <DataStorageActionsCell
         id={row.original.id}
+        type={row.original.type}
         onViewDetails={onViewDetails}
         onEdit={onEdit}
         onDelete={onDelete}

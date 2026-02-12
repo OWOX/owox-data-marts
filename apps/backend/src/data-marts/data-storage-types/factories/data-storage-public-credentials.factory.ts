@@ -15,7 +15,8 @@ export class DataStoragePublicCredentialsFactory {
     }
 
     switch (type) {
-      case DataStorageType.GOOGLE_BIGQUERY: {
+      case DataStorageType.GOOGLE_BIGQUERY:
+      case DataStorageType.LEGACY_GOOGLE_BIGQUERY: {
         const validatedCredentials = BigQueryCredentialsSchema.parse(credentials);
         return {
           type: validatedCredentials.type,

@@ -12,6 +12,10 @@ export function isDataStorageConfigValid(storage: DataStorage): boolean {
   switch (storage.type) {
     case DataStorageType.GOOGLE_BIGQUERY:
       return Boolean(storage.config.projectId && storage.config.location);
+    case DataStorageType.LEGACY_GOOGLE_BIGQUERY:
+      return Boolean(
+        storage.config.projectId && storage.config.location && storage.credentials.serviceAccount
+      );
     case DataStorageType.AWS_ATHENA:
       return Boolean(storage.config.region && storage.config.outputBucket);
     case DataStorageType.SNOWFLAKE:

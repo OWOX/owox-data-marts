@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { AthenaFieldType } from '../../../data-storage-types/athena/enums/athena-field-type.enum';
 import { BigQueryFieldType } from '../../../data-storage-types/bigquery/enums/bigquery-field-type.enum';
-import { SnowflakeFieldType } from '../../../data-storage-types/snowflake/enums/snowflake-field-type.enum';
-import { RedshiftFieldType } from '../../../data-storage-types/redshift/enums/redshift-field-type.enum';
 import { DatabricksFieldType } from '../../../data-storage-types/databricks/enums/databricks-field-type.enum';
 import { DataStorageType } from '../../../data-storage-types/enums/data-storage-type.enum';
+import { RedshiftFieldType } from '../../../data-storage-types/redshift/enums/redshift-field-type.enum';
+import { SnowflakeFieldType } from '../../../data-storage-types/snowflake/enums/snowflake-field-type.enum';
 import { FieldDataType } from '../enums/field-data-type.enum';
 
 @Injectable()
@@ -21,7 +21,10 @@ export class LookerStudioTypeMapperService {
       | DatabricksFieldType,
     storageType: DataStorageType
   ): FieldDataType {
-    if (storageType === DataStorageType.GOOGLE_BIGQUERY) {
+    if (
+      storageType === DataStorageType.GOOGLE_BIGQUERY ||
+      storageType === DataStorageType.LEGACY_GOOGLE_BIGQUERY
+    ) {
       return this.mapBigQueryTypeToLookerStudio(fieldType as BigQueryFieldType);
     } else if (storageType === DataStorageType.AWS_ATHENA) {
       return this.mapAthenaTypeToLookerStudio(fieldType as AthenaFieldType);

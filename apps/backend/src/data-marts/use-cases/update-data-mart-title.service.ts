@@ -1,26 +1,28 @@
 import { Injectable } from '@nestjs/common';
-import { DataMart } from '../entities/data-mart.entity';
-import { DataMartMapper } from '../mappers/data-mart.mapper';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
-import { Repository } from 'typeorm';
-import { DataMartService } from '../services/data-mart.service';
 import { UpdateDataMartTitleCommand } from '../dto/domain/update-data-mart-title.command';
-import { InjectRepository } from '@nestjs/typeorm';
+import { DataMartMapper } from '../mappers/data-mart.mapper';
+import { DataMartService } from '../services/data-mart.service';
+import { LegacyDataMartsService } from '../services/legacy-data-marts/legacy-data-marts.service';
 
 @Injectable()
 export class UpdateDataMartTitleService {
   constructor(
-    @InjectRepository(DataMart)
-    private readonly dataMartRepository: Repository<DataMart>,
     private readonly dataMartService: DataMartService,
-    private readonly mapper: DataMartMapper
+    private readonly mapper: DataMartMapper,
+    private readonly legacyDataMartsService: LegacyDataMartsService
   ) {}
 
   async run(command: UpdateDataMartTitleCommand): Promise<DataMartDto> {
     const dataMart = await this.dataMartService.getByIdAndProjectId(command.id, command.projectId);
 
+    if (dataMart.storage.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY) {
+      await this.legacyDataMartsService.updateTitle(dataMart.id, command.title);
+    }
+
     dataMart.title = command.title;
-    await this.dataMartRepository.save(dataMart);
+    await this.dataMartService.save(dataMart);
 
     return this.mapper.toDomainDto(dataMart);
   }

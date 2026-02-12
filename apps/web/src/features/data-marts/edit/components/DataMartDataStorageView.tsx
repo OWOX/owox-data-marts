@@ -76,7 +76,8 @@ export const DataMartDataStorageView = ({
     };
 
     switch (dataStorage.type) {
-      case DataStorageType.GOOGLE_BIGQUERY: {
+      case DataStorageType.GOOGLE_BIGQUERY:
+      case DataStorageType.LEGACY_GOOGLE_BIGQUERY: {
         const projectId = dataStorage.config.projectId;
         const location = dataStorage.config.location;
         const bigQueryConsoleLink = `https://console.cloud.google.com/bigquery?project=${projectId}`;
