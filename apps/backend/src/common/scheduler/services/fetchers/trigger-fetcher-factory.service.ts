@@ -33,7 +33,8 @@ export class TriggerFetcherFactory {
     repository: Repository<T>,
     systemTimeService: SystemTimeService,
     stuckTriggerTimeoutSeconds: number | undefined,
-    triggerTtlSeconds: number | undefined
+    triggerTtlSeconds: number | undefined,
+    processingBatchLimit: number | undefined
   ): TriggerFetcherService<T> {
     const strategy = this.detectFetchStrategy<T>(repository);
     const strategyName = strategy.constructor.name;
@@ -47,7 +48,8 @@ export class TriggerFetcherFactory {
       systemTimeService,
       stuckTriggerTimeoutSeconds,
       triggerTtlSeconds,
-      strategy
+      strategy,
+      processingBatchLimit
     );
   }
 

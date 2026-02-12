@@ -21,6 +21,8 @@ export class TriggerFetcherService<T extends Trigger> {
   private readonly logger = new Logger(TriggerFetcherService.name);
   private readonly entityName: string;
 
+  private static readonly DEFAULT_PROCESSING_BATCH_LIMIT = 100;
+
   /**
    * Creates a new instance of the TimeBasedTriggerFetcherService.
    *
@@ -29,13 +31,16 @@ export class TriggerFetcherService<T extends Trigger> {
    * @param stuckTriggerTimeoutSeconds The timeout in seconds after which a trigger is considered stuck
    * @param triggerTtlSeconds The TTL in seconds for triggers
    * @param fetchStrategy The strategy for determining which triggers are ready for processing
+   * @param processingBatchLimit The maximum number of triggers to fetch in a single batch.
+   * Defaults to 100 if not specified.
    */
   constructor(
     private readonly repository: Repository<T>,
     private readonly systemClock: SystemTimeService,
     private readonly stuckTriggerTimeoutSeconds: number | undefined,
     private readonly triggerTtlSeconds: number | undefined,
-    private readonly fetchStrategy: TriggerFetchStrategy<T>
+    private readonly fetchStrategy: TriggerFetchStrategy<T>,
+    private readonly processingBatchLimit: number | undefined
   ) {
     this.entityName = this.repository.metadata.name;
   }
@@ -57,8 +62,7 @@ export class TriggerFetcherService<T extends Trigger> {
     try {
       await this.deleteTriggersByTtl();
       await this.recoverStuckTriggers();
-      const triggers = await this.findTriggersReadyForProcessing(startTime);
-      return await this.markTriggersAsReady(triggers);
+      return await this.fetchAndClaimTriggers(startTime);
     } catch (error) {
       this.logCriticalFailure(error);
     }
@@ -79,57 +83,83 @@ export class TriggerFetcherService<T extends Trigger> {
   }
 
   /**
-   * Marks triggers as ready for processing.
+   * Fetches and claims triggers in chunks until batch is full or no triggers remain.
    *
-   * This method updates the status of each trigger to READY and handles optimistic locking
-   * conflicts by skipping triggers that are likely being processed by another instance.
+   * Each iteration fetches up to `remaining` triggers (how many more are needed to fill
+   * the batch), then tries to claim each one via UPDATE with optimistic lock.
+   * On success: trigger is claimed (READY), added to batch.
+   * On failure: another instance claimed it, skip and try next from the chunk.
+   * When chunk is exhausted — fetch next chunk with updated `remaining`.
    *
-   * @param triggers The triggers to mark as ready
-   * @returns A promise that resolves to an array of triggers that were successfully marked as ready
-   */
-  private async markTriggersAsReady(triggers: T[]): Promise<T[]> {
-    const triggersToProcess: T[] = [];
-    for (const trigger of triggers) {
-      const timeNow = this.systemClock.now();
-      const { affected } = await this.repository.update(
-        {
-          id: trigger.id,
-          version: trigger.version,
-          status: TriggerStatus.IDLE,
-        } as FindOptionsWhere<T>,
-        {
-          status: TriggerStatus.READY,
-          modifiedAt: timeNow,
-          version: () => 'version + 1',
-        } as QueryDeepPartialEntity<T>
-      );
-
-      if (!affected) {
-        this.logger.log(
-          `[${this.entityName}] Optimistic lock conflict for trigger ${trigger.id}. Skipping as likely processed by another instance.`
-        );
-        continue;
-      }
-
-      trigger.status = TriggerStatus.READY;
-      trigger.modifiedAt = timeNow;
-      trigger.version += 1;
-      triggersToProcess.push(trigger);
-    }
-
-    return triggersToProcess;
-  }
-
-  /**
-   * Finds triggers that are ready for processing using the configured strategy.
-   * The strategy determines the specific criteria for selecting triggers.
+   * This approach naturally distributes work across multiple instances,
+   * enforces processingBatchLimit, and minimizes DB round-trips by fetching
+   * as many triggers as needed in a single SELECT.
    *
    * @param currentTime The current time to use for time-based comparisons
-   * @returns A promise that resolves to an array of triggers that are ready for processing
+   * @returns A promise that resolves to an array of triggers that were successfully claimed
    */
-  private async findTriggersReadyForProcessing(currentTime: Date): Promise<T[]> {
-    const findOptions = this.fetchStrategy.getFindOptions(currentTime);
-    return this.repository.find(findOptions);
+  private async fetchAndClaimTriggers(currentTime: Date): Promise<T[]> {
+    const result: T[] = [];
+    const limit = this.processingBatchLimit ?? TriggerFetcherService.DEFAULT_PROCESSING_BATCH_LIMIT;
+    const maxIterations = limit * 3; // Safeguard against infinite loop
+    let iterations = 0;
+
+    while (result.length < limit) {
+      if (++iterations > maxIterations) {
+        this.logger.warn(
+          `[${this.entityName}] Reached max iterations safeguard (${maxIterations}), stopping. ` +
+            `Claimed ${result.length}/${limit} triggers.`
+        );
+        break;
+      }
+
+      const remaining = limit - result.length;
+      const findOptions = this.fetchStrategy.getFindOptions(currentTime);
+      findOptions.take = remaining;
+
+      const triggers = await this.repository.find(findOptions);
+      if (triggers.length === 0) {
+        break;
+      }
+
+      for (const trigger of triggers) {
+        if (result.length >= limit) {
+          break;
+        }
+
+        const timeNow = this.systemClock.now();
+        const { affected } = await this.repository.update(
+          {
+            id: trigger.id,
+            version: trigger.version,
+            status: TriggerStatus.IDLE,
+          } as FindOptionsWhere<T>,
+          {
+            status: TriggerStatus.READY,
+            modifiedAt: timeNow,
+            version: () => 'version + 1',
+          } as QueryDeepPartialEntity<T>
+        );
+
+        if (affected) {
+          trigger.status = TriggerStatus.READY;
+          trigger.modifiedAt = timeNow;
+          trigger.version += 1;
+          result.push(trigger);
+        } else {
+          this.logger.log(
+            `[${this.entityName}] Trigger ${trigger.id} claimed by another instance, trying next.`
+          );
+        }
+      }
+
+      // If DB returned fewer triggers than requested — no more available
+      if (triggers.length < remaining) {
+        break;
+      }
+    }
+
+    return result;
   }
 
   /**
