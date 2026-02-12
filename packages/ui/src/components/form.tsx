@@ -240,10 +240,14 @@ function FormActions({
 }: {
   className?: string;
   children: React.ReactNode;
-  variant?: 'default' | 'light';
+  variant?: 'default' | 'light' | 'inline';
 }) {
   const wrapperClass =
-    variant === 'light' ? 'flex flex-col gap-1.5 pt-4' : 'flex flex-col gap-1.5 border-t px-4 py-3';
+    variant === 'inline'
+      ? 'flex items-center justify-between gap-2 border-t px-4 py-3'
+      : variant === 'light'
+        ? 'flex flex-col gap-1.5 pt-4'
+        : 'flex flex-col gap-1.5 border-t px-4 py-3';
 
   return <div className={cn(wrapperClass, className)}>{children}</div>;
 }

@@ -7,3 +7,6 @@ export type { ToggleColumnsHeaderProps } from './ToggleColumnsHeader';
 export { TableColumnSearch } from './TableColumnSearch';
 export type { TableColumnSearchProps } from './TableColumnSearch';
 export { TableCTAButton } from './TableCTAButton';
+export { TableFilters } from './TableFilters';
+export { TableFiltersTrigger } from './TableFilters';
+export { TableFiltersContent } from './TableFilters';

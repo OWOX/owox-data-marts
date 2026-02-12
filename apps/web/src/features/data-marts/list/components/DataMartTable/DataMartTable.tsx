@@ -21,6 +21,9 @@ import {
   BaseTable,
   TableColumnSearch,
   TableCTAButton,
+  TableFilters,
+  TableFiltersTrigger,
+  TableFiltersContent,
 } from '../../../../../shared/components/Table';
 import { useBaseTable, useProjectRoute } from '../../../../../shared/hooks';
 import { DataMartStatus } from '../../../shared';
@@ -263,33 +266,38 @@ export function DataMartTable<TData, TValue>({
           <>
             {/* BTNs for selected Rows */}
             {hasSelectedRows && (
-              <Button
-                variant='outline'
-                size='sm'
-                onClick={() => {
-                  setShowDeleteConfirmation(true);
-                }}
-                disabled={isDeleting}
-                title='Delete selected data marts'
-              >
-                <Trash2 className='h-4 w-4' />
-                <span className='hidden md:block'>Delete</span>
-              </Button>
+              <div className='mr-2 flex items-center gap-2 border-r pr-4'>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  onClick={() => {
+                    setShowDeleteConfirmation(true);
+                  }}
+                  disabled={isDeleting}
+                  title='Delete selected data marts'
+                >
+                  <Trash2 className='h-4 w-4' />
+                  <span className='hidden md:block'>Delete</span>
+                </Button>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  onClick={() => {
+                    setShowPublishConfirmation(true);
+                  }}
+                  disabled={!hasSelectedDrafts || isPublishing}
+                  title='Publish selected data marts'
+                >
+                  <CircleCheckBig className='h-4 w-4' />
+                  <span className='hidden md:block'>Publish</span>
+                </Button>
+              </div>
             )}
-            {hasSelectedRows && (
-              <Button
-                variant='outline'
-                size='sm'
-                onClick={() => {
-                  setShowPublishConfirmation(true);
-                }}
-                disabled={!hasSelectedDrafts || isPublishing}
-                title='Publish selected data marts'
-              >
-                <CircleCheckBig className='h-4 w-4' />
-                <span className='hidden md:block'>Publish</span>
-              </Button>
-            )}
+            {/* Filters */}
+            <TableFilters>
+              <TableFiltersTrigger />
+              <TableFiltersContent />
+            </TableFilters>
             {/* Search */}
             <TableColumnSearch
               table={table}
