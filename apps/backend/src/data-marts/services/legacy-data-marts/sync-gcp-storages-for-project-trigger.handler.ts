@@ -38,11 +38,15 @@ export class SyncGcpStoragesForProjectTriggerHandler
   }
 
   processingCronExpression(): string {
-    return '*/30 * * * * *'; // 30 seconds
+    return '*/10 * * * * *'; // 10 seconds
   }
 
   stuckTriggerTimeoutSeconds(): number {
     return 60 * 60; // 1 hour;
+  }
+
+  processingBatchLimit(): number {
+    return 10;
   }
 
   async onModuleInit(): Promise<void> {
