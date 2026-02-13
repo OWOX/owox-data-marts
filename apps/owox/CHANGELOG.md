@@ -1,5 +1,31 @@
 # owox
 
+## 0.19.0
+
+### Minor Changes
+
+- a23ec87: # Add batch publish action for draft data marts
+
+  Add the ability to publish multiple draft data marts at once from the list page.
+
+- 6e25a0a: # Add health status indicator for data storages
+
+  Display a live access-validation indicator (colored dot with details on hover) for each configured data storage — both in the storages list and in the storage selector when creating a new data mart.
+
+- 807c16d: # Fix Looker Studio connector requests with forFilterOnly fields
+
+  Remove incorrect `forFilterOnly` exclusion in `getRequestedFieldNames` to ensure all requested fields are returned in the connector data response.
+
+### Patch Changes
+
+- @owox/internal-helpers@0.19.0
+- @owox/idp-protocol@0.19.0
+- @owox/idp-better-auth@0.19.0
+- @owox/idp-owox-better-auth@0.19.0
+- @owox/idp-owox@0.19.0
+- @owox/backend@0.19.0
+- @owox/web@0.19.0
+
 ## 0.18.0
 
 ### Minor Changes 0.18.0
@@ -1110,7 +1136,6 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
-
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -1118,7 +1143,6 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
-
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
