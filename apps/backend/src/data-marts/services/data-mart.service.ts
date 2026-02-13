@@ -37,8 +37,17 @@ export class DataMartService {
     return this.dataMartRepository.findOne({ where: { id }, withDeleted });
   }
 
-  async findByProjectId(projectId: string): Promise<DataMart[]> {
-    return this.dataMartRepository.find({ where: { projectId } });
+  async findByProjectId(
+    projectId: string,
+    options?: { limit?: number; offset?: number }
+  ): Promise<{ items: DataMart[]; total: number }> {
+    const [items, total] = await this.dataMartRepository.findAndCount({
+      where: { projectId },
+      take: options?.limit,
+      skip: options?.offset,
+      order: { createdAt: 'DESC', id: 'ASC' }, // for consistent pagination
+    });
+    return { items, total };
   }
 
   async findByProjectIdAndDefinitionType(
