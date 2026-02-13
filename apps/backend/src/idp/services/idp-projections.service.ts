@@ -80,7 +80,7 @@ export class IdpProjectionsService {
    */
   public async getProjectMembers(projectId: string): Promise<ProjectMemberApiDto[]> {
     try {
-      const provider = this.idpProviderService.getProvider();
+      const provider = this.idpProviderService.getProviderFromApp();
       const members = await provider.getProjectMembers(projectId);
 
       await this.updateUserProjections(members);
