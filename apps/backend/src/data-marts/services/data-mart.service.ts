@@ -41,6 +41,34 @@ export class DataMartService {
     return this.dataMartRepository.find({ where: { projectId } });
   }
 
+  async findByProjectIdBatched(
+    projectId: string,
+    options: {
+      connectorName?: string;
+      offset: number;
+      limit: number;
+    }
+  ): Promise<DataMart[]> {
+    const qb = this.dataMartRepository
+      .createQueryBuilder('dm')
+      .leftJoinAndSelect('dm.storage', 'storage')
+      .where('dm.projectId = :projectId', { projectId })
+      .orderBy('dm.createdAt', 'DESC')
+      .skip(options.offset)
+      .take(options.limit);
+
+    if (options.connectorName) {
+      qb.andWhere('dm.definitionType = :type', {
+        type: DataMartDefinitionType.CONNECTOR,
+      });
+      qb.andWhere("json_extract(dm.definition, '$.connector.source.name') = :name", {
+        name: options.connectorName,
+      });
+    }
+
+    return qb.getMany();
+  }
+
   async findByProjectIdAndDefinitionType(
     projectId: string,
     definitionType: DataMartDefinitionType

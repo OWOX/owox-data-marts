@@ -110,6 +110,21 @@ export class ReportService {
     });
   }
 
+  async countByDataMartIds(dataMartIds: string[]): Promise<Map<string, number>> {
+    if (dataMartIds.length === 0) return new Map();
+
+    const raw = await this.repository
+      .createQueryBuilder('r')
+      .leftJoin('r.dataMart', 'dm')
+      .where('dm.id IN (:...ids)', { ids: dataMartIds })
+      .select('dm.id', 'dataMartId')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('dm.id')
+      .getRawMany<{ dataMartId: string; count: string }>();
+
+    return new Map(raw.map(r => [r.dataMartId, Number(r.count)]));
+  }
+
   /**
    * Fetches single Looker Studio report with secret validation.
    *

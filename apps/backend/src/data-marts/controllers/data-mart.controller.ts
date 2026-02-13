@@ -1,4 +1,16 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Put,
+  Query,
+  Res,
+} from '@nestjs/common';
+import { Response } from 'express';
 import { CreateDataMartRequestApiDto } from '../dto/presentation/create-data-mart-request-api.dto';
 import { CreateDataMartResponseApiDto } from '../dto/presentation/create-data-mart-response-api.dto';
 import { DataMartResponseApiDto } from '../dto/presentation/data-mart-response-api.dto';
@@ -22,6 +34,7 @@ import { GetDataMartService } from '../use-cases/get-data-mart.service';
 import { ListDataMartRunsService } from '../use-cases/list-data-mart-runs.service';
 import { ListDataMartsByConnectorNameService } from '../use-cases/list-data-marts-by-connector-name.service';
 import { ListDataMartsService } from '../use-cases/list-data-marts.service';
+import { ListDataMartsStreamingService } from '../use-cases/list-data-marts-streaming.service';
 import { PublishDataMartService } from '../use-cases/publish-data-mart.service';
 import { RunDataMartService } from '../use-cases/run-data-mart.service';
 import { UpdateDataMartDefinitionService } from '../use-cases/update-data-mart-definition.service';
@@ -66,7 +79,8 @@ export class DataMartController {
     private readonly getDataMartRunsService: ListDataMartRunsService,
     private readonly getDataMartRunService: GetDataMartRunService,
     private readonly cancelDataMartRunService: CancelDataMartRunService,
-    private readonly listDataMartsByConnectorNameService: ListDataMartsByConnectorNameService
+    private readonly listDataMartsByConnectorNameService: ListDataMartsByConnectorNameService,
+    private readonly listDataMartsStreamingService: ListDataMartsStreamingService
   ) {}
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -86,11 +100,22 @@ export class DataMartController {
   @ListDataMartsSpec()
   async list(
     @AuthContext() context: AuthorizationContext,
-    @Query('connectorName') connectorName?: string
-  ): Promise<DataMartResponseApiDto[]> {
+    @Query('connectorName') connectorName?: string,
+    @Res() res?: Response
+  ): Promise<DataMartResponseApiDto[] | void> {
     const command = this.mapper.toListCommand(context, connectorName);
-    const dataMarts = await this.listDataMartsService.run(command);
-    return this.mapper.toResponseList(dataMarts);
+
+    if (this.isListStreamingEnabled()) {
+      await this.listDataMartsStreamingService.stream(command, res!);
+    } else {
+      const dataMarts = await this.listDataMartsService.run(command);
+      const response = await this.mapper.toResponseList(dataMarts);
+      res!.json(response);
+    }
+  }
+
+  private isListStreamingEnabled(): boolean {
+    return process.env.DATA_MARTS_LIST_STREAMING_ENABLED === 'true';
   }
 
   @Auth(Role.viewer(Strategy.PARSE))

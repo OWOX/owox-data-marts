@@ -58,6 +58,21 @@ export class ScheduledTriggerService {
     });
   }
 
+  async countByDataMartIds(dataMartIds: string[]): Promise<Map<string, number>> {
+    if (dataMartIds.length === 0) return new Map();
+
+    const raw = await this.triggerRepository
+      .createQueryBuilder('t')
+      .leftJoin('t.dataMart', 'dm')
+      .where('dm.id IN (:...ids)', { ids: dataMartIds })
+      .select('dm.id', 'dataMartId')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('dm.id')
+      .getRawMany<{ dataMartId: string; count: string }>();
+
+    return new Map(raw.map(r => [r.dataMartId, Number(r.count)]));
+  }
+
   async deleteAllByReportIdAndDataMartIdAndProjectId(
     reportId: string,
     dataMartId: string,
