@@ -275,7 +275,12 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
   async _downloadEntity({ submitUrl, submitOpts }) {
     const submitResp = await HttpUtils.fetch(submitUrl, submitOpts);
     const text = await submitResp.getContentText();
-    const requestId = JSON.parse(text).DownloadRequestId;
+    const responseData = JSON.parse(text);
+    const requestId = responseData.DownloadRequestId;
+
+    if (!requestId) {
+      throw new Error(`Bulk download submission failed. API Response: ${text}`);
+    }
 
     const pollUrl = 'https://bulk.api.bingads.microsoft.com/Bulk/v13/BulkDownloadStatus/Query';
     const pollOpts = Object.assign({}, submitOpts, {
