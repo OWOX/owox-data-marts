@@ -1,19 +1,19 @@
 import 'reflect-metadata';
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
-import { NestExpressApplication } from '@nestjs/platform-express';
-import { ExpressAdapter } from '@nestjs/platform-express';
-import { createLogger } from './common/logger/logger.service';
-import { setupSwagger } from './config/swagger.config';
-import { setupGlobalPipes } from './config/global-pipes.config';
+import { ExpressAdapter, NestExpressApplication } from '@nestjs/platform-express';
+import compression from 'compression';
+import { Express, text } from 'express';
+import { initializeTransactionalContext, StorageDriver } from 'typeorm-transactional';
+import { AppModule } from './app.module';
 import { BaseExceptionFilter } from './common/exceptions/base-exception.filter';
 import { GlobalExceptionFilter } from './common/exceptions/global-exception.filter';
-import { ConfigService } from '@nestjs/config';
-import { runMigrationsIfNeeded } from './config/migrations.config';
-import { loadEnv } from './load-env';
-import { Express, text } from 'express';
-import { AppModule } from './app.module';
+import { createLogger } from './common/logger/logger.service';
 import { DEFAULT_PORT } from './config/constants';
-import { initializeTransactionalContext, StorageDriver } from 'typeorm-transactional';
+import { setupGlobalPipes } from './config/global-pipes.config';
+import { runMigrationsIfNeeded } from './config/migrations.config';
+import { setupSwagger } from './config/swagger.config';
+import { loadEnv } from './load-env';
 
 const logger = createLogger('Bootstrap');
 const PATH_PREFIX = 'api';
@@ -42,6 +42,18 @@ export async function bootstrap(options: BootstrapOptions): Promise<NestExpressA
   app.useLogger(createLogger());
   app.useGlobalFilters(new GlobalExceptionFilter(), new BaseExceptionFilter());
   app.setGlobalPrefix(PATH_PREFIX);
+
+  app.use(
+    compression({
+      filter: (req, res) => {
+        // Don't compress if the response is already custom-compressed(e.g., for looker)
+        if (res.getHeader('Content-Encoding')) {
+          return false;
+        }
+        return compression.filter(req, res);
+      },
+    })
+  );
 
   app.use(text({ type: 'application/jwt' }));
 
