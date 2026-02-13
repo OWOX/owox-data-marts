@@ -77,7 +77,8 @@ export class SchedulerFacadeImpl implements SchedulerFacade {
       triggerHandler.getTriggerRepository(),
       this.systemTimeService,
       triggerHandler.stuckTriggerTimeoutSeconds?.(),
-      triggerHandler.triggerTtlSeconds?.()
+      triggerHandler.triggerTtlSeconds?.(),
+      triggerHandler.processingBatchLimit?.()
     );
 
     // Create and start processing job

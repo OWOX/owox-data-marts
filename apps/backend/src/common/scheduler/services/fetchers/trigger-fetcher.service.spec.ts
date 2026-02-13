@@ -28,7 +28,6 @@ describe('TimeBasedTriggerFetcherService', () => {
   const mockCurrentTime = new Date('2023-01-01T12:00:00Z');
   const trigger1 = new TestTimeBasedTrigger('trigger-1', new Date('2023-01-01T11:00:00Z'));
   const trigger2 = new TestTimeBasedTrigger('trigger-2', new Date('2023-01-01T11:30:00Z'));
-  const mockTriggers = [trigger1, trigger2];
 
   beforeEach(async () => {
     // Create mock repository
@@ -64,6 +63,7 @@ describe('TimeBasedTriggerFetcherService', () => {
     jest.spyOn(Logger.prototype, 'debug').mockImplementation();
     jest.spyOn(Logger.prototype, 'error').mockImplementation();
     jest.spyOn(Logger.prototype, 'log').mockImplementation();
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation();
 
     // Create service instance
     service = new TriggerFetcherService<TestTimeBasedTrigger>(
@@ -71,7 +71,8 @@ describe('TimeBasedTriggerFetcherService', () => {
       systemTimeService,
       0,
       0,
-      new TimeBasedFetchStrategy<TestTimeBasedTrigger>()
+      new TimeBasedFetchStrategy<TestTimeBasedTrigger>(),
+      undefined
     );
   });
 
@@ -80,16 +81,16 @@ describe('TimeBasedTriggerFetcherService', () => {
   });
 
   describe('fetchTriggersReadyForProcessing', () => {
-    it('should fetch and mark triggers as ready for processing', async () => {
-      // Arrange
-      repository.find.mockResolvedValue(mockTriggers);
+    it('should fetch and claim triggers in chunks', async () => {
+      // Arrange - return both triggers in first chunk (remaining = 100)
+      repository.find.mockResolvedValueOnce([trigger1, trigger2]);
 
       // Act
       const result = await service.fetchTriggersReadyForProcessing();
 
       // Assert
-      // Verify the query was built correctly
       expect(systemTimeService.now).toHaveBeenCalled();
+      // Called once: got 2 triggers which is less than remaining (100), so early exit
       expect(repository.find).toHaveBeenCalledTimes(1);
       expect(repository.find).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -99,10 +100,11 @@ describe('TimeBasedTriggerFetcherService', () => {
             nextRunTimestamp: LessThanOrEqual(mockCurrentTime),
           }),
           order: { nextRunTimestamp: 'ASC' },
+          take: 100,
         })
       );
 
-      // Verify the triggers were marked as ready
+      // Verify each trigger was claimed individually
       expect(repository.update).toHaveBeenCalledTimes(2);
       expect(result.length).toBe(2);
       expect(result[0].status).toBe(TriggerStatus.READY);
@@ -121,11 +123,11 @@ describe('TimeBasedTriggerFetcherService', () => {
       expect(repository.update).toHaveBeenCalledTimes(0);
     });
 
-    it('should handle optimistic lock version mismatch errors', async () => {
-      // Arrange
-      repository.find.mockResolvedValue(mockTriggers);
+    it('should skip trigger claimed by another instance and continue fetching', async () => {
+      // Arrange - both triggers returned in first chunk, then empty on re-fetch
+      repository.find.mockResolvedValueOnce([trigger1, trigger2]);
 
-      // Mock update to simulate optimistic lock conflict (affected: 0) for the first trigger
+      // Mock update: trigger-1 loses optimistic lock, trigger-2 succeeds
       repository.update.mockImplementation(
         async (
           criteria: FindOptionsWhere<TestTimeBasedTrigger>,
@@ -147,15 +149,14 @@ describe('TimeBasedTriggerFetcherService', () => {
       const result = await service.fetchTriggersReadyForProcessing();
 
       // Assert
-      // Verify both triggers were attempted to be updated
+      // Both triggers were attempted from the chunk
       expect(repository.update).toHaveBeenCalledTimes(2);
 
-      // Verify only the second trigger was returned (first one had lock conflict)
+      // Only trigger-2 was successfully claimed
       expect(result.length).toBe(1);
       expect(result[0].id).toBe('trigger-2');
       expect(result[0].status).toBe(TriggerStatus.READY);
 
-      // Verify the first trigger is not in the result array
       expect(result.find(t => t.id === 'trigger-1')).toBeUndefined();
     });
 
@@ -168,22 +169,17 @@ describe('TimeBasedTriggerFetcherService', () => {
       const result = await service.fetchTriggersReadyForProcessing();
 
       // Assert
-      // Verify the query was attempted
       expect(repository.find).toHaveBeenCalled();
-
-      // Verify an empty array is returned when an error occurs
       expect(result).toEqual([]);
-
-      // Verify no triggers were updated
       expect(repository.update).toHaveBeenCalledTimes(0);
     });
 
-    it('should handle non-optimistic lock errors during markTriggersAsReady and return empty array', async () => {
+    it('should handle errors during claim and return empty array', async () => {
       // Arrange
-      repository.find.mockResolvedValue([trigger1]);
+      repository.find.mockResolvedValueOnce([trigger1]);
       const testError = new Error('Non-optimistic lock error');
 
-      // Mock update to throw a non-optimistic lock error
+      // Mock update to throw an error
       repository.update.mockImplementation(
         async (
           criteria: FindOptionsWhere<TestTimeBasedTrigger>,
@@ -200,14 +196,74 @@ describe('TimeBasedTriggerFetcherService', () => {
       const result = await service.fetchTriggersReadyForProcessing();
 
       // Assert
-      // Verify triggers were fetched
       expect(repository.find).toHaveBeenCalled();
-
-      // Verify update was attempted
       expect(repository.update).toHaveBeenCalled();
-
-      // Verify an empty array is returned when an error occurs
       expect(result).toEqual([]);
+    });
+
+    it('should stop at max iterations safeguard (limit * 3)', async () => {
+      // Create service with batch limit of 2
+      const limitedService = new TriggerFetcherService<TestTimeBasedTrigger>(
+        repository,
+        systemTimeService,
+        0,
+        0,
+        new TimeBasedFetchStrategy<TestTimeBasedTrigger>(),
+        2
+      );
+
+      // Arrange - always return triggers but never let claim succeed
+      // This simulates extreme contention where every claim fails
+      const stubbornTrigger1 = new TestTimeBasedTrigger(
+        'stubborn-1',
+        new Date('2023-01-01T11:00:00Z')
+      );
+      const stubbornTrigger2 = new TestTimeBasedTrigger(
+        'stubborn-2',
+        new Date('2023-01-01T11:00:00Z')
+      );
+      // Each fetch returns 2 triggers (remaining=2), all claims fail,
+      // DB keeps returning same count so loop continues until safeguard
+      repository.find.mockResolvedValue([stubbornTrigger1, stubbornTrigger2]);
+      repository.update.mockResolvedValue({ affected: 0 } as UpdateResult);
+
+      // Act
+      const result = await limitedService.fetchTriggersReadyForProcessing();
+
+      // Assert - should stop after limit * 3 = 6 iterations (chunk fetches)
+      expect(result.length).toBe(0);
+      expect(repository.find).toHaveBeenCalledTimes(6); // 2 * 3 = 6
+      // Each chunk has 2 triggers, so 6 chunks * 2 updates = 12 updates
+      expect(repository.update).toHaveBeenCalledTimes(12);
+      expect(Logger.prototype.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Reached max iterations safeguard')
+      );
+    });
+
+    it('should respect processingBatchLimit', async () => {
+      // Create service with batch limit of 1
+      const limitedService = new TriggerFetcherService<TestTimeBasedTrigger>(
+        repository,
+        systemTimeService,
+        0,
+        0,
+        new TimeBasedFetchStrategy<TestTimeBasedTrigger>(),
+        1
+      );
+
+      // Arrange - return trigger1 (take=1 because remaining=1)
+      repository.find.mockResolvedValueOnce([trigger1]);
+
+      // Act
+      const result = await limitedService.fetchTriggersReadyForProcessing();
+
+      // Assert - should stop after claiming 1 trigger
+      expect(result.length).toBe(1);
+      expect(result[0].id).toBe('trigger-1');
+      // find called once with take=1, limit reached after first claim
+      expect(repository.find).toHaveBeenCalledTimes(1);
+      expect(repository.find).toHaveBeenCalledWith(expect.objectContaining({ take: 1 }));
+      expect(repository.update).toHaveBeenCalledTimes(1);
     });
   });
 });

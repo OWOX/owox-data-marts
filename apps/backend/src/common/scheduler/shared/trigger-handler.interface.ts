@@ -57,4 +57,11 @@ export interface TriggerHandler<T extends Trigger> {
    * @return {number} The number of seconds configured for the trigger TTL.
    */
   triggerTtlSeconds?(): number;
+
+  /**
+   * Returns the maximum number of triggers that should be processed in a single batch.
+   * This limit defines the maximum number of triggers that should be processed
+   * in a single batch when processing triggers in parallel.
+   */
+  processingBatchLimit?(): number;
 }
