@@ -144,7 +144,16 @@ export class ProjectNotificationSettingsService {
       });
     });
 
-    const saved = await this.repository.save(newSettings);
-    return [...existing, ...saved];
+    try {
+      const saved = await this.repository.save(newSettings);
+      return [...existing, ...saved];
+    } catch (error) {
+      const msg = String(error);
+      if (msg.includes('UNIQUE constraint failed') || msg.includes('Duplicate entry')) {
+        // Race condition: another process initialized settings concurrently — re-fetch
+        return this.findByProjectId(projectId);
+      }
+      throw error;
+    }
   }
 }

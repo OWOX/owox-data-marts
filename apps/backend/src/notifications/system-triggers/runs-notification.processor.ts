@@ -6,6 +6,7 @@ import { SystemTrigger } from '../../common/scheduler/shared/entities/system-tri
 import { BaseSystemTaskProcessor } from '../../common/scheduler/system-tasks/base-system-task.processor';
 import { SystemTriggerType } from '../../common/scheduler/system-tasks/system-trigger-type';
 import { DataMartRun } from '../../data-marts/entities/data-mart-run.entity';
+import { ProjectNotificationSettings } from '../entities/project-notification-settings.entity';
 import { NotificationQueueService } from '../services/notification-queue.service';
 import { ProjectNotificationSettingsService } from '../services/project-notification-settings.service';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
@@ -115,7 +116,7 @@ export class RunsNotificationProcessor extends BaseSystemTaskProcessor {
       .select('DISTINCT dm.projectId', 'projectId')
       .where('run.finishedAt >= :since', { since })
       .andWhere(
-        `NOT EXISTS (SELECT 1 FROM project_notification_settings pns WHERE pns.projectId = dm.projectId)`
+        `NOT EXISTS (SELECT 1 FROM ${this.runRepository.manager.connection.getMetadata(ProjectNotificationSettings).tableName} pns WHERE pns.projectId = dm.projectId)`
       )
       .getRawMany<{ projectId: string }>();
 

@@ -13,11 +13,65 @@ export class NotificationWebhookService {
 
   constructor(private readonly configService: ConfigService) {}
 
+  /**
+   * Throws if the URL targets a loopback, private, or link-local address.
+   * Protects against SSRF: an editor could otherwise use a webhook to probe
+   * internal services (e.g. http://169.254.169.254/ AWS metadata endpoint).
+   *
+   * Note: only the literal hostname is checked. A public domain that resolves
+   * to a private IP is not blocked here (DNS rebinding).
+   */
+  private assertSafeWebhookUrl(rawUrl: string): void {
+    let url: URL;
+    try {
+      url = new URL(rawUrl);
+    } catch {
+      throw new Error(`Invalid webhook URL: ${rawUrl}`);
+    }
+
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      throw new Error(`Webhook URL must use http or https protocol`);
+    }
+
+    // Strip IPv6 brackets (e.g. [::1] → ::1)
+    const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+
+    if (hostname === 'localhost' || hostname === '0.0.0.0' || hostname === '::1') {
+      throw new Error(`Webhook URL targets an internal address`);
+    }
+
+    const ipv4 = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (ipv4) {
+      const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
+      const isPrivate =
+        a === 0 || // 0.0.0.0/8
+        a === 10 || // 10.0.0.0/8
+        a === 127 || // 127.0.0.0/8 loopback
+        (a === 100 && b >= 64 && b <= 127) || // 100.64.0.0/10 shared
+        (a === 169 && b === 254) || // 169.254.0.0/16 link-local / cloud metadata
+        (a === 172 && b >= 16 && b <= 31) || // 172.16.0.0/12
+        (a === 192 && b === 168) || // 192.168.0.0/16
+        a >= 240; // 240.0.0.0/4 reserved
+      if (isPrivate) {
+        throw new Error(`Webhook URL targets an internal address`);
+      }
+    }
+  }
+
   async sendWebhook(
     queueItem: NotificationPendingQueue,
     settings: ProjectNotificationSettings
   ): Promise<void> {
     if (!settings.webhookUrl) return;
+
+    try {
+      this.assertSafeWebhookUrl(settings.webhookUrl);
+    } catch (error) {
+      this.logger.error(
+        `Blocked unsafe webhook URL for ${settings.notificationType}: ${error instanceof Error ? error.message : String(error)}`
+      );
+      return;
+    }
 
     const handler = NOTIFICATION_DEFINITIONS[settings.notificationType];
     if (!handler) {
@@ -28,10 +82,10 @@ export class NotificationWebhookService {
     const appUrl = this.configService.get<string>('APP_URL');
     const payload = handler.getWebhookPayload(queueItem, { appUrl });
 
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.WEBHOOK_TIMEOUT_MS);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.WEBHOOK_TIMEOUT_MS);
 
+    try {
       const response = await fetch(settings.webhookUrl, {
         method: 'POST',
         headers: {
@@ -54,6 +108,7 @@ export class NotificationWebhookService {
         `Webhook sent to ${settings.webhookUrl} for ${settings.notificationType} notification`
       );
     } catch (error) {
+      clearTimeout(timeoutId);
       const errorMessage = error instanceof Error ? error.message : String(error);
 
       this.logger.error(
@@ -80,6 +135,8 @@ export class NotificationWebhookService {
     projectId: string,
     context?: { userId?: string; projectTitle?: string }
   ): Promise<void> {
+    this.assertSafeWebhookUrl(webhookUrl);
+
     const handler = NOTIFICATION_DEFINITIONS[notificationType];
     if (!handler) {
       throw new Error(`No handler found for notification type: ${notificationType}`);

@@ -19,18 +19,13 @@ import { EmailModule } from '../common/email/email.module';
 import { IdpModule } from '../idp/idp.module';
 import { DataMartsModule } from '../data-marts/data-marts.module';
 import { DataMartRun } from '../data-marts/entities/data-mart-run.entity';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigService } from '@nestjs/config';
 import { createMailingProvider, type EmailProviderName } from '@owox/internal-helpers';
 import { NOTIFICATIONS_EMAIL_PROVIDER_FACADE } from './types/email-provider.facade';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      ProjectNotificationSettings,
-      NotificationPendingQueue,
-      DataMartRun,
-      ConfigModule,
-    ]),
+    TypeOrmModule.forFeature([ProjectNotificationSettings, NotificationPendingQueue, DataMartRun]),
     EmailModule,
     IdpModule,
     forwardRef(() => DataMartsModule),

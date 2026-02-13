@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseEnumPipe, Post, Put } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AuthContext, AuthorizationContext, Auth } from '../../idp';
 import { Role, Strategy } from '../../idp/types/role-config.types';
@@ -58,7 +58,8 @@ export class ProjectNotificationSettingsController {
   async updateSetting(
     @AuthContext() _context: AuthorizationContext,
     @Param('projectId') projectId: string,
-    @Param('notificationType') notificationType: NotificationType,
+    @Param('notificationType', new ParseEnumPipe(NotificationType))
+    notificationType: NotificationType,
     @Body() dto: UpdateNotificationSettingApiDto
   ): Promise<NotificationSettingsItemResponseApiDto> {
     return this.upsertNotificationSettingService.run(
@@ -79,7 +80,8 @@ export class ProjectNotificationSettingsController {
   async testWebhook(
     @AuthContext() _context: AuthorizationContext,
     @Param('projectId') projectId: string,
-    @Param('notificationType') notificationType: NotificationType,
+    @Param('notificationType', new ParseEnumPipe(NotificationType))
+    notificationType: NotificationType,
     @Body() body: { webhookUrl?: string }
   ): Promise<{ message: string }> {
     await this.testNotificationWebhookService.run(

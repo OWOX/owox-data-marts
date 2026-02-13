@@ -25,11 +25,11 @@ export class NotificationPendingQueue {
   @Column({ type: 'varchar' })
   projectId: string;
 
-  @Column({ type: 'varchar', nullable: true })
-  dataMartId?: string | null;
+  @Column({ type: 'varchar', default: '' })
+  dataMartId: string;
 
-  @Column({ type: 'varchar', nullable: true })
-  runId?: string | null;
+  @Column({ type: 'varchar', default: '' })
+  runId: string;
 
   @Column({
     type: 'json',

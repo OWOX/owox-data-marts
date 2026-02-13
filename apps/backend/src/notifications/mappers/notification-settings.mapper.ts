@@ -9,6 +9,7 @@ type UserProjection = {
   email?: string | null;
   fullName?: string | null;
   avatar?: string | null;
+  hasNotificationsEnabled?: boolean;
 };
 
 @Injectable()
@@ -26,7 +27,7 @@ export class NotificationSettingsMapper {
           email: user.email,
           displayName: user.fullName ?? undefined,
           avatarUrl: user.avatar ?? undefined,
-          hasNotificationsEnabled: true,
+          hasNotificationsEnabled: user.hasNotificationsEnabled ?? true,
         };
       })
       .filter((r): r is ReceiverInfoApiDto => r !== null);

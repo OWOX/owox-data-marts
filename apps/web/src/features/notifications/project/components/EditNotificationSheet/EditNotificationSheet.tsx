@@ -101,7 +101,11 @@ export function EditNotificationSheet({
       await testWebhook(setting.notificationType, webhookUrl);
       setWebhookTestSuccess(true);
     } catch (error) {
-      setWebhookTestError(error instanceof Error ? error.message : 'Failed to send test webhook');
+      const serverMessage = (error as { response?: { data?: { message?: string } } }).response?.data
+        ?.message;
+      setWebhookTestError(
+        serverMessage ?? (error instanceof Error ? error.message : 'Failed to send test webhook')
+      );
     }
   }, [setting, webhookUrl, testWebhook]);
 
