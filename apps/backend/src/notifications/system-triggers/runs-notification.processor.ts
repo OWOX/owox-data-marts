@@ -121,7 +121,10 @@ export class RunsNotificationProcessor extends BaseSystemTaskProcessor {
 
     for (const { projectId } of rows) {
       try {
-        await this.settingsService.getOrCreateDefaultSettings(projectId);
+        const members = await this.idpProjectionsFacade.getProjectMembers(projectId);
+        await this.settingsService.getOrCreateDefaultSettings(projectId, type =>
+          NOTIFICATION_DEFINITIONS[type].getDefaultReceivers(members)
+        );
       } catch (error) {
         this.logger.warn(
           `Failed to initialize notification settings for project ${projectId}`,

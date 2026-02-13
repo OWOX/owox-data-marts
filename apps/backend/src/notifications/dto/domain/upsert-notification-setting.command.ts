@@ -1,3 +1,4 @@
+import { GroupingDelayCron } from '../../enums/grouping-delay.enum';
 import { NotificationType } from '../../enums/notification-type.enum';
 
 export class UpsertNotificationSettingCommand {
@@ -7,6 +8,6 @@ export class UpsertNotificationSettingCommand {
     public readonly enabled: boolean | undefined,
     public readonly receivers: string[] | undefined,
     public readonly webhookUrl: string | null | undefined,
-    public readonly groupingDelayCron: string | undefined
+    public readonly groupingDelayCron: GroupingDelayCron | undefined
   ) {}
 }
