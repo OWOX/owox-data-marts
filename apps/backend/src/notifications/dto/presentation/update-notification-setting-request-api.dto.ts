@@ -1,5 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsBoolean, IsOptional, IsString, IsUrl, ValidateIf } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsUrl,
+  ValidateIf,
+} from 'class-validator';
+import { GroupingDelayCron } from '../../enums/grouping-delay.enum';
 
 export class UpdateNotificationSettingApiDto {
   @ApiProperty({ required: false })
@@ -19,8 +28,12 @@ export class UpdateNotificationSettingApiDto {
   @IsUrl({ require_tld: false }, { message: 'webhookUrl must be a valid URL' })
   webhookUrl?: string | null;
 
-  @ApiProperty({ required: false, description: 'Cron expression for grouping delay' })
+  @ApiProperty({
+    required: false,
+    enum: GroupingDelayCron,
+    description: 'Grouping delay cron expression',
+  })
   @IsOptional()
-  @IsString()
-  groupingDelayCron?: string;
+  @IsEnum(GroupingDelayCron)
+  groupingDelayCron?: GroupingDelayCron;
 }
