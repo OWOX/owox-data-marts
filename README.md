@@ -122,6 +122,7 @@ For more details on the types of deployment in your infrastructure, check out ou
 | AWS Redshift    | 🟢 Public | [Readme](docs/storages/supported-storages/aws-redshift.md)          |
 | AWS Athena      | 🟢 Public | [Readme](docs/storages/supported-storages/aws-athena.md)            |
 | Snowflake       | 🟢 Public | [Readme](docs/storages/supported-storages/snowflake.md)             |
+| Databricks      | 🟢 Public | [Readme](docs/storages/supported-storages/databricks.md)            |
 
 If you find an integration missing, you can share your use case and request it in the [discussions](https://github.com/OWOX/owox-data-marts/discussions)
 
