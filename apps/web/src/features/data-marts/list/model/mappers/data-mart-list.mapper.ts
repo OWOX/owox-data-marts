@@ -1,8 +1,8 @@
-import type { DataMartListResponseDto } from '../../../shared/types/api';
-import type { DataMartListItem } from '../types';
+import type { DataMartResponseDto } from '../../../shared';
 import { DataMartStatusModel } from '../../../shared';
+import type { DataMartListItem } from '../types';
 
-export function mapDataMartListFromDto(datamartsDto: DataMartListResponseDto): DataMartListItem[] {
+export function mapDataMartListFromDto(datamartsDto: DataMartResponseDto[]): DataMartListItem[] {
   return datamartsDto.map(dmart => ({
     id: dmart.id,
     title: dmart.title,

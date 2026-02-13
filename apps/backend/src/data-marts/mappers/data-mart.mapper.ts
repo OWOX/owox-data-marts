@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
 import { CreateDataMartCommand } from '../dto/domain/create-data-mart.command';
+import { PaginatedDataMartListDto } from '../dto/domain/paginated-data-mart-list.dto';
 import { CreateDataMartRequestApiDto } from '../dto/presentation/create-data-mart-request-api.dto';
 import { CreateDataMartResponseApiDto } from '../dto/presentation/create-data-mart-response-api.dto';
 import { DataMartResponseApiDto } from '../dto/presentation/data-mart-response-api.dto';
@@ -45,6 +46,7 @@ import { ConnectorState as ConnectorStateData } from '../connector-types/interfa
 import { isConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { GetDataMartRunCommand } from '../dto/domain/get-data-mart-run.command';
 import { DataMartRunResponseApiDto } from '../dto/presentation/data-mart-run-response-api.dto';
+import { PaginatedDataMartsResponseApiDto } from '../dto/presentation/paginated-data-marts-response-api.dto';
 
 @Injectable()
 export class DataMartMapper {
@@ -152,8 +154,19 @@ export class DataMartMapper {
     return new GetDataMartRunsCommand(id, context.projectId, limit, offset);
   }
 
-  toListCommand(context: AuthorizationContext, connectorName?: string): ListDataMartsCommand {
-    return new ListDataMartsCommand(context.projectId, connectorName);
+  toListCommand(context: AuthorizationContext, offset?: number): ListDataMartsCommand {
+    return new ListDataMartsCommand(context.projectId, offset);
+  }
+
+  async toPaginatedResponse(
+    result: PaginatedDataMartListDto
+  ): Promise<PaginatedDataMartsResponseApiDto> {
+    const nextOffset = result.offset + result.items.length;
+    return {
+      items: await Promise.all(result.items.map(item => this.toResponse(item))),
+      total: result.total,
+      nextOffset: nextOffset < result.total ? nextOffset : null,
+    };
   }
 
   toUpdateTitleCommand(
