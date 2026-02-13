@@ -21,11 +21,8 @@ import { EMAIL_PROVIDER_FACADE } from './shared/email-provider.facade';
           provider: name,
           sendgrid: {
             apiKey: config.get<string>('SENDGRID_API_KEY') as string,
-            verifiedSenderEmail: config.get<string>(
-              'NOTIFICATIONS_VERIFIED_SENDER_EMAIL'
-            ) as string,
-            verifiedSenderName:
-              config.get<string>('NOTIFICATIONS_VERIFIED_SENDER_NAME') ?? undefined,
+            verifiedSenderEmail: config.get<string>('SENDGRID_VERIFIED_SENDER_EMAIL') as string,
+            verifiedSenderName: config.get<string>('SENDGRID_VERIFIED_SENDER_NAME') ?? undefined,
           },
         });
       },

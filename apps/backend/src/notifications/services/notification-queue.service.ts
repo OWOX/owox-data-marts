@@ -8,8 +8,8 @@ import { NotificationType } from '../enums/notification-type.enum';
 export interface AddToQueueParams {
   notificationType: NotificationType;
   projectId: string;
-  dataMartId?: string | null;
-  runId?: string | null;
+  dataMartId?: string;
+  runId?: string;
   payload: NotificationQueuePayload;
 }
 
@@ -30,8 +30,8 @@ export class NotificationQueueService {
       const queueItem = this.repository.create({
         notificationType: params.notificationType,
         projectId: params.projectId,
-        dataMartId: params.dataMartId,
-        runId: params.runId,
+        dataMartId: params.dataMartId ?? '',
+        runId: params.runId ?? '',
         payload: params.payload,
       });
 

@@ -35,7 +35,8 @@ export class SendNotificationProcessor extends BaseSystemTaskProcessor {
 
     this.logger.debug('Processing pending notifications');
 
-    // Refresh user projections before validating receivers
+    // Pull fresh member data from IDP into the local UserProjection cache before
+    // resolving receiver profiles, so emails/names are always up-to-date.
     await this.refreshUserProjections();
 
     await this.notificationService.processQueue(async (projectId: string) =>
@@ -46,20 +47,19 @@ export class SendNotificationProcessor extends BaseSystemTaskProcessor {
   }
 
   /**
-   * Refresh user projections for all projects with active notification settings.
-   * This ensures we have up-to-date user information before sending notifications.
+   * Call IDP for every project that has active notification settings and sync the
+   * response into the local UserProjection cache. Failures per-project are logged
+   * and skipped so one unavailable project does not block the others.
    */
   private async refreshUserProjections(): Promise<void> {
     try {
       this.logger.debug('Refreshing user projections from IDP');
 
-      // Get all projects with active notification settings
       const allSettings = await this.settingsService.findAllActive();
       const projectIds = [...new Set(allSettings.map(s => s.projectId))];
 
       this.logger.debug(`Refreshing projections for ${projectIds.length} projects`);
 
-      // Refresh projections for all projects in parallel
       await Promise.allSettled(
         projectIds.map(async projectId => {
           try {
@@ -73,23 +73,19 @@ export class SendNotificationProcessor extends BaseSystemTaskProcessor {
       this.logger.debug('User projections refresh completed');
     } catch (error) {
       this.logger.error('Failed to refresh user projections', error);
-      // Don't throw - continue with cached projections
     }
   }
 
   /**
-   * Get project members from UserProjection table.
+   * Resolve profile data (email, name) for all configured receivers of a project.
    *
-   * This uses cached user projections from the database.
-   * Users are added to projections when they authenticate.
-   *
-   * For MVP: All users in UserProjection are considered project members
-   * (single organization model).
+   * Reads only the user IDs explicitly listed in the project's notification settings,
+   * not all project members. Profile data comes from the local UserProjection cache,
+   * which was just refreshed from IDP by refreshUserProjections().
    */
   private async getProjectMembers(projectId: string): Promise<UserInfo[]> {
     this.logger.debug(`Getting project members for project ${projectId}`);
 
-    // Get all receiver IDs from project settings
     const settings = await this.settingsService.findByProjectId(projectId);
     const allReceiverIds = new Set<string>();
     for (const s of settings) {
@@ -103,12 +99,10 @@ export class SendNotificationProcessor extends BaseSystemTaskProcessor {
       return [];
     }
 
-    // Get user projections for these receivers
     const userProjections = await this.idpProjectionsFacade.getUserProjectionList(
       Array.from(allReceiverIds)
     );
 
-    // Convert to UserInfo format, filtering out users without email
     return userProjections.projections
       .filter(u => u.email)
       .map(u => ({
