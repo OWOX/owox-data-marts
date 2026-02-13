@@ -64,7 +64,7 @@ export const projectMenuItems: ProjectMenuItem[] = [
     title: 'Members',
     href: '/auth',
     icon: Users,
-    visible: { flagKey: 'IDP_PROVIDER', expectedValue: ['owox', 'owox-better-auth'] },
+    visible: { flagKey: 'IDP_PROVIDER', expectedValue: 'better-auth' },
     group: 'project',
   },
   {
