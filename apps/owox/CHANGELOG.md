@@ -1,5 +1,31 @@
 # owox
 
+## 0.19.0
+
+### Minor Changes 0.19.0
+
+- a23ec87: # Add batch publish action for draft data marts
+
+  Add the ability to publish multiple draft data marts at once from the list page.
+
+- 6e25a0a: # Add health status indicator for data storages
+
+  Display a live access-validation indicator (colored dot with details on hover) for each configured data storage — both in the storages list and in the storage selector when creating a new data mart.
+
+- 807c16d: # Fix Looker Studio connector requests with forFilterOnly fields
+
+  Remove incorrect `forFilterOnly` exclusion in `getRequestedFieldNames` to ensure all requested fields are returned in the connector data response.
+
+### Patch Changes 0.19.0
+
+- @owox/internal-helpers@0.19.0
+- @owox/idp-protocol@0.19.0
+- @owox/idp-better-auth@0.19.0
+- @owox/idp-owox-better-auth@0.19.0
+- @owox/idp-owox@0.19.0
+- @owox/backend@0.19.0
+- @owox/web@0.19.0
+
 ## 0.18.0
 
 ### Minor Changes 0.18.0
