@@ -10,11 +10,14 @@ import {
   TokenResponseSchema,
   IntrospectionResponseSchema,
   JwksResponseSchema,
+  OwoxProjectMembersResponse,
+  OwoxProjectMembersResponseSchema,
 } from './dto';
 import { IdentityOwoxClientConfig } from '../config';
 import ms from 'ms';
 import { Projects, ProjectsSchema } from '@owox/idp-protocol';
 import { AuthenticationException, IdpFailedException } from '../exception';
+import { ImpersonatedIdTokenFetcher } from '@owox/internal-helpers';
 
 /**
  * Represents a client for interacting with the Identity OWOX API.
@@ -22,6 +25,11 @@ import { AuthenticationException, IdpFailedException } from '../exception';
  */
 export class IdentityOwoxClient {
   private readonly http: AxiosInstance;
+
+  private readonly impersonatedIdTokenFetcher?: ImpersonatedIdTokenFetcher;
+  private readonly c2cServiceAccountEmail?: string;
+  private readonly c2cTargetAudience?: string;
+  private readonly clientBackchannelPrefix?: string;
 
   constructor(config: IdentityOwoxClientConfig) {
     this.http = axios.create({
@@ -32,6 +40,18 @@ export class IdentityOwoxClient {
         ...(config.defaultHeaders ?? {}),
       },
     });
+
+    // Initialize service account authentication if configured
+    if (
+      config.c2cServiceAccountEmail &&
+      config.c2cTargetAudience &&
+      config.clientBackchannelPrefix
+    ) {
+      this.impersonatedIdTokenFetcher = new ImpersonatedIdTokenFetcher();
+      this.c2cServiceAccountEmail = config.c2cServiceAccountEmail;
+      this.c2cTargetAudience = config.c2cTargetAudience;
+      this.clientBackchannelPrefix = config.clientBackchannelPrefix;
+    }
   }
 
   /**
@@ -102,5 +122,48 @@ export class IdentityOwoxClient {
   async getJwks(): Promise<JwksResponse> {
     const { data } = await this.http.get<JwksResponse>('/api/idp/.well-known/jwks.json');
     return JwksResponseSchema.parse(data);
+  }
+
+  /**
+   * GET /api/idp/projects/:projectId/project-members
+   */
+  async getProjectMembers(projectId: string): Promise<OwoxProjectMembersResponse> {
+    if (
+      !this.impersonatedIdTokenFetcher ||
+      !this.c2cServiceAccountEmail ||
+      !this.c2cTargetAudience ||
+      !this.clientBackchannelPrefix
+    ) {
+      throw new IdpFailedException(
+        'C2C authentication is not configured. Cannot fetch project members.',
+        { context: { projectId } }
+      );
+    }
+
+    const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
+      this.c2cServiceAccountEmail,
+      this.c2cTargetAudience
+    );
+
+    try {
+      const { data } = await this.http.get<unknown>(
+        `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/members`,
+        {
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+          },
+        }
+      );
+      return OwoxProjectMembersResponseSchema.parse(data);
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        const status = err.response?.status;
+        throw new IdpFailedException(`Failed to fetch project members: ${status}`, {
+          cause: err,
+          context: { projectId, status },
+        });
+      }
+      throw err;
+    }
   }
 }

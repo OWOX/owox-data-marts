@@ -8,6 +8,7 @@ import {
   Settings,
   BriefcaseBusiness,
   Users,
+  Bell,
 } from 'lucide-react';
 
 export const projectMenuItems: ProjectMenuItem[] = [
@@ -66,6 +67,15 @@ export const projectMenuItems: ProjectMenuItem[] = [
     icon: Users,
     visible: { flagKey: 'IDP_PROVIDER', expectedValue: 'better-auth' },
     group: 'project',
+  },
+  {
+    type: 'menu-item',
+    title: 'Notification settings',
+    href: '/notifications',
+    icon: Bell,
+    visible: true,
+    group: 'project',
+    internal: true,
   },
   {
     type: 'menu-item',

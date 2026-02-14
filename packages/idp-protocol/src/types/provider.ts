@@ -1,4 +1,4 @@
-import { Payload, AuthResult, Projects } from './models.js';
+import { Payload, AuthResult, Projects, ProjectMember } from './models.js';
 import { Express, NextFunction, Request, Response } from 'express';
 
 /**
@@ -99,4 +99,11 @@ export interface IdpProvider {
    * Shutdown the IDP, close all connections and release resources
    */
   shutdown(): Promise<void>;
+
+  /**
+   * Get list of project members for a specific project
+   * @param projectId - The project ID to get members for
+   * @returns Array of project members with their details
+   */
+  getProjectMembers(projectId: string): Promise<ProjectMember[]>;
 }

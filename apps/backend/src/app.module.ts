@@ -5,6 +5,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { DataMartsModule } from './data-marts/data-marts.module';
 import { CommonModule } from './common/common.module';
 import { IdpModule } from './idp/idp.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { createDataSourceOptions } from './config/data-source-options.config';
 import { validateConfig } from './config/env-validation.config';
 import { ClsModule } from 'nestjs-cls';
@@ -42,6 +43,7 @@ import { addTransactionalDataSource } from 'typeorm-transactional';
     DataMartsModule,
     CommonModule,
     IdpModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}
