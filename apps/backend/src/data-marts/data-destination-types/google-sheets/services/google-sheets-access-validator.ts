@@ -71,8 +71,9 @@ export class GoogleSheetsAccessValidator implements DataDestinationAccessValidat
         sheetTitle: sheet.properties?.title,
       });
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Access check failed';
       this.logger.warn('Access check failed', error);
-      return new ValidationResult(false, 'Access check failed');
+      return new ValidationResult(false, message);
     }
   }
 }
