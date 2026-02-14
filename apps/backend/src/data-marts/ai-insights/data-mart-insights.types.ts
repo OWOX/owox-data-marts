@@ -32,6 +32,7 @@ export interface DataMartInsightTemplateInput {
   context?: Record<string, unknown>;
   consumptionContext?: ConsumptionContext;
   promptProcessedContext?: PromptProcessedContext;
+  disableBaseTagHandlers?: boolean;
 }
 
 export interface DataMartPromptMetaEntry {
