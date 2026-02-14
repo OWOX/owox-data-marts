@@ -7,7 +7,7 @@
 
 var repositoryFields = {
   id: {
-    type: DATA_TYPES.INTEGER,
+    type: DATA_TYPES.STRING,
     description: "Repository ID"
   },
   node_id: {
@@ -31,7 +31,7 @@ var repositoryFields = {
     description: "Repository owner login"
   },
   owner_id: {
-    type: DATA_TYPES.INTEGER,
+    type: DATA_TYPES.STRING,
     description: "Repository owner ID"
   },
   owner_type: {

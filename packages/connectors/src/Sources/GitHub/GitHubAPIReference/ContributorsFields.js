@@ -11,7 +11,7 @@ var contributorsFields = {
     description: "Contributor login name"
   },
   id: {
-    type: DATA_TYPES.INTEGER,
+    type: DATA_TYPES.STRING,
     description: "Contributor ID"
   },
   node_id: {
