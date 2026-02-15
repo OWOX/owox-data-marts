@@ -6,6 +6,7 @@ import { DataMartSchemaProviderFacade } from '../data-storage-types/facades/data
 import { DataMart } from '../entities/data-mart.entity';
 import { DataStorage } from '../entities/data-storage.entity';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
+import { DataMartStatus } from '../enums/data-mart-status.enum';
 
 @Injectable()
 export class DataMartService {
@@ -58,6 +59,15 @@ export class DataMartService {
         where: { storage: { id: storage.id } },
         select: ['id'],
         withDeleted,
+      })
+      .then(dms => dms.map(dm => dm.id));
+  }
+
+  async findDraftIdsByStorage(storage: DataStorage): Promise<string[]> {
+    return this.dataMartRepository
+      .find({
+        where: { storage: { id: storage.id }, status: DataMartStatus.DRAFT },
+        select: ['id'],
       })
       .then(dms => dms.map(dm => dm.id));
   }

@@ -5,6 +5,7 @@ import { DataStorageAccessValidationResponseApiDto } from '../../dto/presentatio
 import { DataStorageListResponseApiDto } from '../../dto/presentation/data-storage-list-response-api.dto';
 import { DataStorageResponseApiDto } from '../../dto/presentation/data-storage-response-api.dto';
 import { UpdateDataStorageApiDto } from '../../dto/presentation/update-data-storage-api.dto';
+import { PublishDataStorageDraftsResponseApiDto } from '../../dto/presentation/publish-data-storage-drafts-response-api.dto';
 
 export function CreateDataStorageSpec() {
   return applyDecorators(
@@ -51,5 +52,13 @@ export function ValidateDataStorageAccessSpec() {
     ApiOperation({ summary: 'Validate Data Storage access' }),
     ApiParam({ name: 'id', type: String }),
     ApiOkResponse({ type: DataStorageAccessValidationResponseApiDto })
+  );
+}
+
+export function PublishDataStorageDraftsSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Publish all Data Storage draft DataMarts' }),
+    ApiParam({ name: 'id', description: 'Data Storage ID' }),
+    ApiOkResponse({ type: PublishDataStorageDraftsResponseApiDto })
   );
 }

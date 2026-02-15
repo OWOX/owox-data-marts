@@ -68,6 +68,7 @@ import { ListDataStoragesService } from './use-cases/list-data-storages.service'
 import { ListDataDestinationsService } from './use-cases/list-data-destinations.service';
 import { DeleteDataStorageService } from './use-cases/delete-data-storage.service';
 import { DeleteDataDestinationService } from './use-cases/delete-data-destination.service';
+import { PublishDataStorageDraftsService } from './use-cases/publish-data-storage-drafts.service';
 import { RotateSecretKeyService } from './use-cases/rotate-secret-key.service';
 import { DeleteDataMartService } from './use-cases/delete-data-mart.service';
 import { DataDestination } from './entities/data-destination.entity';
@@ -206,6 +207,7 @@ import { ValidateDataStorageAccessService } from './use-cases/validate-data-stor
     ListDataStoragesService,
     ListDataDestinationsService,
     DeleteDataStorageService,
+    PublishDataStorageDraftsService,
     DeleteDataDestinationService,
     RotateSecretKeyService,
     DataDestinationSecretKeyRotatorFacade,
