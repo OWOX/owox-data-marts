@@ -26,6 +26,10 @@ export enum DataStorageActionType {
   DELETE_STORAGE_SUCCESS = 'DELETE_STORAGE_SUCCESS',
   DELETE_STORAGE_ERROR = 'DELETE_STORAGE_ERROR',
 
+  PUBLISH_DRAFTS_START = 'PUBLISH_DRAFTS_START',
+  PUBLISH_DRAFTS_SUCCESS = 'PUBLISH_DRAFTS_SUCCESS',
+  PUBLISH_DRAFTS_ERROR = 'PUBLISH_DRAFTS_ERROR',
+
   CLEAR_ERROR = 'CLEAR_ERROR',
 }
 
@@ -45,6 +49,9 @@ export type DataStorageAction =
   | { type: DataStorageActionType.DELETE_STORAGE_START }
   | { type: DataStorageActionType.DELETE_STORAGE_SUCCESS; payload: string }
   | { type: DataStorageActionType.DELETE_STORAGE_ERROR; payload: ApiError | null }
+  | { type: DataStorageActionType.PUBLISH_DRAFTS_START }
+  | { type: DataStorageActionType.PUBLISH_DRAFTS_SUCCESS }
+  | { type: DataStorageActionType.PUBLISH_DRAFTS_ERROR; payload: ApiError | null }
   | { type: DataStorageActionType.CLEAR_CURRENT_STORAGE }
   | { type: DataStorageActionType.CLEAR_ERROR };
 

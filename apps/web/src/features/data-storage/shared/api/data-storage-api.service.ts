@@ -4,6 +4,7 @@ import type {
   CreateDataStorageRequestDto,
   DataStorageListResponseDto,
   DataStorageResponseDto,
+  PublishDataStorageDraftsResponseDto,
   UpdateDataStorageRequestDto,
 } from './types';
 
@@ -82,6 +83,16 @@ export class DataStorageApiService extends ApiService {
     config?: AxiosRequestConfig
   ): Promise<DataStorageValidationResponseDto> {
     return this.post<DataStorageValidationResponseDto>(`/${id}/validate-access`, {}, config);
+  }
+
+  /**
+   * Publishes all drafts for a data storage.
+   *
+   * @param {string} id - The unique identifier of the data storage.
+   * @return {Promise<PublishDataStorageDraftsResponseDto>} A promise resolving to publish result counts.
+   */
+  async publishDrafts(id: string): Promise<PublishDataStorageDraftsResponseDto> {
+    return this.post<PublishDataStorageDraftsResponseDto>(`/${id}/publish-drafts`, {});
   }
 }
 

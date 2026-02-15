@@ -23,6 +23,7 @@ export function reducer(state: DataStorageState, action: DataStorageAction): Dat
     case DataStorageActionType.FETCH_STORAGE_START:
     case DataStorageActionType.CREATE_STORAGE_START:
     case DataStorageActionType.UPDATE_STORAGE_START:
+    case DataStorageActionType.PUBLISH_DRAFTS_START:
       return {
         ...state,
         error: null,
@@ -80,11 +81,18 @@ export function reducer(state: DataStorageState, action: DataStorageAction): Dat
         loading: false,
         error: null,
       };
+    case DataStorageActionType.PUBLISH_DRAFTS_SUCCESS:
+      return {
+        ...state,
+        loading: false,
+        error: null,
+      };
     case DataStorageActionType.FETCH_STORAGES_ERROR:
     case DataStorageActionType.FETCH_STORAGE_ERROR:
     case DataStorageActionType.CREATE_STORAGE_ERROR:
     case DataStorageActionType.UPDATE_STORAGE_ERROR:
     case DataStorageActionType.DELETE_STORAGE_ERROR:
+    case DataStorageActionType.PUBLISH_DRAFTS_ERROR:
       return {
         ...state,
         loading: false,

@@ -6,7 +6,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
-import { Eye, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { CircleCheckBig, Eye, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { type FC, useState } from 'react';
 import { DataStorageType } from '../../../shared';
 
@@ -21,20 +21,25 @@ import { DataStorageType } from '../../../shared';
 interface DataStorageActionsCellProps {
   id: string;
   type: DataStorageType;
+  draftsCount: number;
   onViewDetails?: (id: string) => void;
   onEdit?: (id: string) => Promise<void>;
   onDelete?: (id: string) => void;
+  onPublishDrafts?: (id: string) => Promise<void>;
 }
 
 export const DataStorageActionsCell: FC<DataStorageActionsCellProps> = ({
   id,
   type,
+  draftsCount,
   onViewDetails,
   onEdit,
   onDelete,
+  onPublishDrafts,
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const canDelete = type !== DataStorageType.LEGACY_GOOGLE_BIGQUERY;
+  const hasDrafts = draftsCount > 0;
 
   return (
     <div className='text-right'>
@@ -56,6 +61,17 @@ export const DataStorageActionsCell: FC<DataStorageActionsCellProps> = ({
           <DropdownMenuItem onClick={() => void onEdit?.(id)}>
             <Pencil className='text-foreground h-4 w-4' aria-hidden='true' />
             <span>Edit</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={!hasDrafts}
+            onClick={() => {
+              if (hasDrafts) {
+                void onPublishDrafts?.(id);
+              }
+            }}
+          >
+            <CircleCheckBig className='text-foreground h-4 w-4' aria-hidden='true' />
+            <span>Publish drafts</span>
           </DropdownMenuItem>
           {canDelete && (
             <>

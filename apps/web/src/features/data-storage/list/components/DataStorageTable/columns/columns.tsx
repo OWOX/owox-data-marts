@@ -20,12 +20,14 @@ interface DataStorageColumnsProps {
   onViewDetails?: (id: string) => void;
   onEdit?: (id: string) => Promise<void>;
   onDelete?: (id: string) => void;
+  onPublishDrafts?: (id: string) => Promise<void>;
 }
 
 export const getDataStorageColumns = ({
   onViewDetails,
   onEdit,
   onDelete,
+  onPublishDrafts,
 }: DataStorageColumnsProps = {}): ColumnDef<DataStorageTableItem>[] => [
   {
     id: DataStorageColumnKey.HEALTH,
@@ -143,9 +145,11 @@ export const getDataStorageColumns = ({
       <DataStorageActionsCell
         id={row.original.id}
         type={row.original.type}
+        draftsCount={row.original.draftsCount}
         onViewDetails={onViewDetails}
         onEdit={onEdit}
         onDelete={onDelete}
+        onPublishDrafts={onPublishDrafts}
       />
     ),
   },

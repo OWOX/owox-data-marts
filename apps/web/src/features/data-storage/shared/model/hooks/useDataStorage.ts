@@ -141,6 +141,43 @@ export function useDataStorage() {
     [dispatch]
   );
 
+  const publishDrafts = useCallback(
+    async (id: DataStorage['id']) => {
+      dispatch({ type: DataStorageActionType.PUBLISH_DRAFTS_START });
+      try {
+        const result = await dataStorageApiService.publishDrafts(id);
+
+        if (result.successCount > 0) {
+          toast.success(
+            `Successfully published ${String(result.successCount)} data mart draft${result.successCount !== 1 ? 's' : ''}`,
+            { duration: 10000 }
+          );
+        }
+
+        if (result.failedCount > 0) {
+          toast.error(
+            `Failed to publish ${String(result.failedCount)} data mart draft${result.failedCount !== 1 ? 's' : ''}. Please check ${result.failedCount !== 1 ? 'them' : 'it'} independently.`,
+            { duration: 10000 }
+          );
+        }
+        dispatch({ type: DataStorageActionType.PUBLISH_DRAFTS_SUCCESS });
+        trackEvent({
+          event: 'data_storage_drafts_published',
+          category: 'DataStorage',
+          action: 'PublishDrafts',
+          context: id,
+        });
+      } catch (error) {
+        dispatch({
+          type: DataStorageActionType.PUBLISH_DRAFTS_ERROR,
+          payload: extractApiError(error),
+        });
+        throw error;
+      }
+    },
+    [dispatch]
+  );
+
   const clearCurrentDataStorage = useCallback(() => {
     dispatch({ type: DataStorageActionType.CLEAR_CURRENT_STORAGE });
   }, [dispatch]);
@@ -155,6 +192,7 @@ export function useDataStorage() {
     createDataStorage,
     updateDataStorage,
     deleteDataStorage,
+    publishDrafts,
     clearCurrentDataStorage,
   };
 }
