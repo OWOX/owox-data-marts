@@ -19,4 +19,7 @@ export class DataStorageListResponseApiDto {
 
   @ApiProperty({ example: 0 })
   dataMartsCount: number = 0;
+
+  @ApiProperty({ example: 0 })
+  draftsCount: number = 0;
 }

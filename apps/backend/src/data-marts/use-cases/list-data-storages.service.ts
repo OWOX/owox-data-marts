@@ -6,6 +6,7 @@ import { DataStorageMapper } from '../mappers/data-storage.mapper';
 import { DataStorageDto } from '../dto/domain/data-storage.dto';
 import { ListDataStoragesCommand } from '../dto/domain/list-data-storages.command';
 import { DataMart } from '../entities/data-mart.entity';
+import { DataMartStatus } from '../enums/data-mart-status.enum';
 
 @Injectable()
 export class ListDataStoragesService {
@@ -35,12 +36,28 @@ export class ListDataStoragesService {
       .andWhere('dm.projectId = :projectId', { projectId: command.projectId })
       .andWhere('dm.deletedAt IS NULL')
       .select('s.id', 'storageId')
-      .addSelect('COUNT(DISTINCT dm.id)', 'count')
+      .addSelect(
+        'COUNT(DISTINCT CASE WHEN dm.status = :publishedStatus THEN dm.id END)',
+        'publishedCount'
+      )
+      .addSelect('COUNT(DISTINCT CASE WHEN dm.status = :draftStatus THEN dm.id END)', 'draftsCount')
+      .setParameters({
+        publishedStatus: DataMartStatus.PUBLISHED,
+        draftStatus: DataMartStatus.DRAFT,
+      })
       .groupBy('s.id')
-      .getRawMany<{ storageId: string; count: string }>();
+      .getRawMany<{ storageId: string; publishedCount: string; draftsCount: string }>();
 
-    const countMap = new Map<string, number>(rawCounts.map(r => [r.storageId, Number(r.count)]));
+    const countMap = new Map(
+      rawCounts.map(r => [
+        r.storageId,
+        { published: Number(r.publishedCount), drafts: Number(r.draftsCount) },
+      ])
+    );
 
-    return dataStorages.map(s => this.mapper.toDomainDto(s, countMap.get(s.id) ?? 0));
+    return dataStorages.map(s => {
+      const counts = countMap.get(s.id);
+      return this.mapper.toDomainDto(s, counts?.published ?? 0, counts?.drafts ?? 0);
+    });
   }
 }
