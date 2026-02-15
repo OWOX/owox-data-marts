@@ -7,4 +7,5 @@ export enum DataMartRunType {
   MS_TEAMS = 'MS_TEAMS',
   GOOGLE_CHAT = 'GOOGLE_CHAT',
   INSIGHT = 'INSIGHT',
+  INSIGHT_TEMPLATE = 'INSIGHT_TEMPLATE',
 }

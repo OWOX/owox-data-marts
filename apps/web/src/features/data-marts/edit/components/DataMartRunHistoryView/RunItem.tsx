@@ -81,6 +81,7 @@ export function RunItem({
           definitionRun={run.definitionRun}
           reportDefinition={run.reportDefinition}
           insightDefinition={run.insightDefinition}
+          insightTemplateDefinition={run.insightTemplateDefinition}
         />
       );
     }
@@ -92,6 +93,7 @@ export function RunItem({
     run.definitionRun,
     run.reportDefinition,
     run.insightDefinition,
+    run.insightTemplateDefinition,
   ]);
 
   const startedAtValue = getStartedAtDisplay(run);

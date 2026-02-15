@@ -25,3 +25,15 @@ export interface DataMartRunInsightDefinitionDto {
   title: string;
   template: string | null;
 }
+
+export interface InsightTemplateSourceDto {
+  key: string;
+  type: 'CURRENT_DATA_MART' | 'INSIGHT_ARTIFACT';
+  artifactId?: string | null;
+}
+
+export interface DataMartRunInsightTemplateDefinitionDto {
+  title: string;
+  template: string | null;
+  sources?: InsightTemplateSourceDto[] | null;
+}

@@ -41,13 +41,17 @@ export class RedshiftSqlRunExecutor implements SqlRunExecutor {
     await adapter.waitForQueryToComplete(statementId);
 
     let nextToken: string | undefined = undefined;
+    let columns: string[] | undefined;
 
     do {
       const results = await adapter.getQueryResults(statementId, nextToken);
+      if (!columns) {
+        columns = results.ColumnMetadata?.map(meta => meta.name || '').filter(Boolean);
+      }
 
       if (!results.Records || results.Records.length === 0) {
         if (nextToken === undefined) {
-          yield new SqlRunBatch([], null);
+          yield new SqlRunBatch([], null, columns ?? null);
         }
         break;
       }
@@ -76,7 +80,7 @@ export class RedshiftSqlRunExecutor implements SqlRunExecutor {
         return row as Row;
       });
 
-      yield new SqlRunBatch(rows, results.NextToken);
+      yield new SqlRunBatch(rows, results.NextToken, columns);
 
       nextToken = results.NextToken;
     } while (nextToken);

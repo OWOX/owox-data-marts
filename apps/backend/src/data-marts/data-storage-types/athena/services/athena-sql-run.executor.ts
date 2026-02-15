@@ -84,7 +84,7 @@ export class AthenaSqlRunExecutor implements SqlRunExecutor {
         });
 
         const nextId = results.NextToken ?? null;
-        yield new SqlRunBatch<Row>(mapped, nextId);
+        yield new SqlRunBatch<Row>(mapped, nextId, columnNames ?? null);
 
         nextToken = results.NextToken ?? undefined;
         isFirstPage = false;

@@ -40,9 +40,11 @@ export class DatabricksSqlRunExecutor implements SqlRunExecutor {
 
     try {
       const { rows } = await adapter.executeQuery(sql);
+      const columns =
+        rows && rows.length > 0 ? Object.keys(rows[0] as Record<string, unknown>) : undefined;
 
       if (!rows || rows.length === 0) {
-        yield new SqlRunBatch<Row>([], null);
+        yield new SqlRunBatch<Row>([], null, columns ?? null);
         return;
       }
 
@@ -52,7 +54,7 @@ export class DatabricksSqlRunExecutor implements SqlRunExecutor {
         const batch = rows.slice(i, i + maxRowsPerBatch) as Row[];
         const isLast = i + maxRowsPerBatch >= rows.length;
         const nextBatchId = isLast ? null : String(i + maxRowsPerBatch);
-        yield new SqlRunBatch<Row>(batch, nextBatchId);
+        yield new SqlRunBatch<Row>(batch, nextBatchId, columns);
       }
     } finally {
       await adapter.destroy();

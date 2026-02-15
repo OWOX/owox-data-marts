@@ -7,6 +7,9 @@ import { LookerStudioConnectorController } from './controllers/external/looker-s
 import { MarkdownParserController } from './controllers/markdown-parser.controller';
 import { ReportController } from './controllers/report.controller';
 import { InsightController } from './controllers/insight.controller';
+import { InsightArtifactController } from './controllers/insight-artifact.controller';
+import { InsightArtifactSqlPreviewTriggerController } from './controllers/insight-artifact-sql-preview-trigger.controller';
+import { InsightTemplateController } from './controllers/insight-template.controller';
 import { ScheduledTriggerController } from './controllers/scheduled-trigger.controller';
 import { SyncDataMartsByGcpTrigger } from './entities/legacy-data-marts/sync-data-marts-by-gcp-trigger.entity';
 import { SyncGcpStoragesForProjectTrigger } from './entities/legacy-data-marts/sync-gcp-storages-for-project-trigger.entity';
@@ -74,6 +77,9 @@ import { DeleteDataMartService } from './use-cases/delete-data-mart.service';
 import { DataDestination } from './entities/data-destination.entity';
 import { Report } from './entities/report.entity';
 import { Insight } from './entities/insight.entity';
+import { InsightArtifact } from './entities/insight-artifact.entity';
+import { InsightArtifactSqlPreviewTrigger } from './entities/insight-artifact-sql-preview-trigger.entity';
+import { InsightTemplate } from './entities/insight-template.entity';
 import { ConnectorController } from './controllers/connector.controller';
 import { AvailableConnectorService } from './use-cases/connector/available-connector.service';
 import { ConnectorService } from './services/connector.service';
@@ -92,6 +98,11 @@ import { DataMartScheduledTrigger } from './entities/data-mart-scheduled-trigger
 import { ScheduledTriggersHandlerService } from './services/scheduled-triggers-handler.service';
 import { ReportService } from './services/report.service';
 import { InsightService } from './services/insight.service';
+import { InsightArtifactService } from './services/insight-artifact.service';
+import { InsightArtifactSqlPreviewTriggerHandlerService } from './services/insight-artifact-sql-preview-trigger-handler.service';
+import { InsightArtifactSqlPreviewTriggerService } from './services/insight-artifact-sql-preview-trigger.service';
+import { InsightTemplateService } from './services/insight-template.service';
+import { InsightTemplateValidationService } from './services/insight-template-validation.service';
 import { ConnectorOutputCaptureService } from './connector-types/connector-message/services/connector-output-capture.service';
 import { ConnectorMessageParserService } from './connector-types/connector-message/services/connector-message-parser.service';
 import { ConnectorStateService } from './connector-types/connector-message/services/connector-state.service';
@@ -117,6 +128,8 @@ import { PublishDraftsTriggerController } from './controllers/publish-drafts-tri
 import { ReportRunService } from './services/report-run.service';
 import { LookerStudioReportRunService } from './services/looker-studio-report-run.service';
 import { InsightMapper } from './mappers/insight.mapper';
+import { InsightArtifactMapper } from './mappers/insight-artifact.mapper';
+import { InsightTemplateMapper } from './mappers/insight-template.mapper';
 import { CreateInsightService } from './use-cases/create-insight.service';
 import { CreateInsightWithAiService } from './use-cases/create-insight-with-ai.service';
 import { GetInsightService } from './use-cases/get-insight.service';
@@ -124,21 +137,44 @@ import { ListInsightsService } from './use-cases/list-insights.service';
 import { UpdateInsightService } from './use-cases/update-insight.service';
 import { UpdateInsightTitleService } from './use-cases/update-insight-title.service';
 import { DeleteInsightService } from './use-cases/delete-insight.service';
+import { CreateInsightArtifactService } from './use-cases/create-insight-artifact.service';
+import { GetInsightArtifactService } from './use-cases/get-insight-artifact.service';
+import { ListInsightArtifactsService } from './use-cases/list-insight-artifacts.service';
+import { RunInsightArtifactSqlPreviewService } from './use-cases/run-insight-artifact-sql-preview.service';
+import { UpdateInsightArtifactService } from './use-cases/update-insight-artifact.service';
+import { UpdateInsightArtifactTitleService } from './use-cases/update-insight-artifact-title.service';
+import { DeleteInsightArtifactService } from './use-cases/delete-insight-artifact.service';
+import { CreateInsightTemplateService } from './use-cases/create-insight-template.service';
+import { GetInsightTemplateService } from './use-cases/get-insight-template.service';
+import { ListInsightTemplatesService } from './use-cases/list-insight-templates.service';
+import { UpdateInsightTemplateService } from './use-cases/update-insight-template.service';
+import { UpdateInsightTemplateTitleService } from './use-cases/update-insight-template-title.service';
+import { DeleteInsightTemplateService } from './use-cases/delete-insight-template.service';
 import { RetryInterruptedConnectorRunsProcessor } from './system-triggers/processors/retry-interrupted-connector-runs-processor';
 import { SqlRunService } from './use-cases/sql-run.service';
 import { CreateViewService } from './use-cases/create-view.service';
 import { aiInsightsProviders } from './ai-insights/ai-insights-providers';
 import { InsightExecutionService } from './services/insight-execution.service';
 import { RunInsightService } from './use-cases/run-insight.service';
+import { RunInsightTemplateService } from './use-cases/run-insight-template.service';
 import { GetDataMartRunService } from './use-cases/get-data-mart-run.service';
 import { ListDataMartRunsService } from './use-cases/list-data-mart-runs.service';
 import { InsightRunTrigger } from './entities/insight-run-trigger.entity';
+import { InsightTemplateRunTrigger } from './entities/insight-template-run-trigger.entity';
 import { InsightRunTriggerController } from './controllers/insight-run-trigger.controller';
+import { InsightTemplateRunTriggerController } from './controllers/insight-template-run-trigger.controller';
 import { InsightRunTriggerService } from './services/insight-run-trigger.service';
 import { InsightRunTriggerHandlerService } from './services/insight-run-trigger-handler.service';
+import { InsightTemplateRunTriggerService } from './services/insight-template-run-trigger.service';
+import { InsightTemplateRunTriggerHandlerService } from './services/insight-template-run-trigger-handler.service';
+import { InsightTemplateExecutionService } from './services/insight-template-execution.service';
 import { ConnectorSourceCredentials } from './entities/connector-source-credentials.entity';
 import { ConnectorSourceCredentialsService } from './services/connector-source-credentials.service';
 import { ConnectorOauthService } from './services/connector/connector-oauth.service';
+import { DataMartTableReferenceService } from './services/data-mart-table-reference.service';
+import { InsightTemplateSourceDataService } from './services/insight-template-source-data.service';
+import { DataMartSqlTableService } from './services/data-mart-sql-table.service';
+import { DataMartTemplateFacadeImpl } from './template/data-mart-template.facade.impl';
 import { LegacyDataStorageService } from './services/legacy-data-marts/legacy-data-storage.service';
 import { LegacySyncTriggersService } from './services/legacy-data-marts/legacy-sync-triggers.service';
 import { SyncLegacyDataMartService } from './use-cases/legacy-data-marts/sync-legacy-data-mart.service';
@@ -155,6 +191,9 @@ import { BatchDataMartHealthStatusService } from './use-cases/batch-data-mart-he
       DataDestination,
       Report,
       Insight,
+      InsightArtifact,
+      InsightArtifactSqlPreviewTrigger,
+      InsightTemplate,
       DataMartRun,
       DataMartScheduledTrigger,
       ConnectorState,
@@ -163,6 +202,7 @@ import { BatchDataMartHealthStatusService } from './use-cases/batch-data-mart-he
       SchemaActualizeTrigger,
       PublishDraftsTrigger,
       InsightRunTrigger,
+      InsightTemplateRunTrigger,
       ConnectorSourceCredentials,
       SyncDataMartsByGcpTrigger,
       SyncGcpStoragesForProjectTrigger,
@@ -176,6 +216,9 @@ import { BatchDataMartHealthStatusService } from './use-cases/batch-data-mart-he
     DataDestinationController,
     ReportController,
     InsightController,
+    InsightArtifactController,
+    InsightArtifactSqlPreviewTriggerController,
+    InsightTemplateController,
     ConnectorController,
     ScheduledTriggerController,
     LookerStudioConnectorController,
@@ -183,6 +226,7 @@ import { BatchDataMartHealthStatusService } from './use-cases/batch-data-mart-he
     SchemaActualizeTriggerController,
     PublishDraftsTriggerController,
     InsightRunTriggerController,
+    InsightTemplateRunTriggerController,
     MarkdownParserController,
     LegacyDataMartsSyncController,
   ],
@@ -234,7 +278,14 @@ import { BatchDataMartHealthStatusService } from './use-cases/batch-data-mart-he
     RunReportService,
     UpdateReportService,
     InsightMapper,
+    InsightArtifactMapper,
+    InsightTemplateMapper,
     InsightService,
+    InsightArtifactService,
+    InsightArtifactSqlPreviewTriggerService,
+    InsightArtifactSqlPreviewTriggerHandlerService,
+    InsightTemplateService,
+    InsightTemplateValidationService,
     CreateInsightService,
     CreateInsightWithAiService,
     GetInsightService,
@@ -242,8 +293,27 @@ import { BatchDataMartHealthStatusService } from './use-cases/batch-data-mart-he
     UpdateInsightService,
     UpdateInsightTitleService,
     DeleteInsightService,
+    CreateInsightArtifactService,
+    GetInsightArtifactService,
+    ListInsightArtifactsService,
+    RunInsightArtifactSqlPreviewService,
+    UpdateInsightArtifactService,
+    UpdateInsightArtifactTitleService,
+    DeleteInsightArtifactService,
+    CreateInsightTemplateService,
+    GetInsightTemplateService,
+    ListInsightTemplatesService,
+    UpdateInsightTemplateService,
+    UpdateInsightTemplateTitleService,
+    DeleteInsightTemplateService,
     InsightExecutionService,
     RunInsightService,
+    InsightTemplateExecutionService,
+    RunInsightTemplateService,
+    DataMartTemplateFacadeImpl,
+    InsightTemplateSourceDataService,
+    DataMartTableReferenceService,
+    DataMartSqlTableService,
     GetDataMartRunService,
     AvailableConnectorService,
     ConnectorService,
@@ -289,6 +359,8 @@ import { BatchDataMartHealthStatusService } from './use-cases/batch-data-mart-he
     LookerStudioReportRunService,
     InsightRunTriggerService,
     InsightRunTriggerHandlerService,
+    InsightTemplateRunTriggerService,
+    InsightTemplateRunTriggerHandlerService,
     ConnectorSourceCredentialsService,
     ConnectorOauthService,
     UserProjectionsFetcherService,

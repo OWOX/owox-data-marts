@@ -153,6 +153,10 @@ export const getRunSummaryParts = (
       title = run.insightDefinition?.title ?? '';
       runType = 'insight';
       break;
+    case DataMartRunType.INSIGHT_TEMPLATE:
+      title = run.insightTemplateDefinition?.title ?? '';
+      runType = 'insight template';
+      break;
     default:
       break;
   }

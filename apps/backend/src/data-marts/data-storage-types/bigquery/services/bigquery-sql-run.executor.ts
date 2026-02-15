@@ -55,6 +55,9 @@ export class BigQuerySqlRunExecutor implements SqlRunExecutor {
       destinationTable.datasetId,
       destinationTable.tableId
     );
+    const [tableMetadata] = await table.getMetadata();
+    const columns =
+      tableMetadata?.schema?.fields?.map(field => field.name).filter(Boolean) ?? undefined;
 
     let pageToken: string | undefined = undefined;
     const maxResults = options?.maxRowsPerBatch ?? 5000;
@@ -69,7 +72,7 @@ export class BigQuerySqlRunExecutor implements SqlRunExecutor {
       const mapped = Array.isArray(rows) ? (rows as Row[]) : [];
 
       const nextBatchToken: string | null = nextQuery?.pageToken ?? null;
-      yield new SqlRunBatch<Row>(mapped, nextBatchToken);
+      yield new SqlRunBatch<Row>(mapped, nextBatchToken, columns);
 
       pageToken = nextQuery?.pageToken ?? undefined;
     } while (pageToken);
