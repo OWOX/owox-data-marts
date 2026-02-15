@@ -7,5 +7,6 @@ export interface DataStorageListItem {
   createdAt: Date;
   modifiedAt: Date;
   dataMartsCount: number;
+  draftsCount: number;
 }
 export type DataStorageList = DataStorageListItem[];

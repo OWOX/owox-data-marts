@@ -46,4 +46,5 @@ export interface DataStorageResponseDto {
   createdAt: string;
   modifiedAt: string;
   dataMartsCount: number;
+  draftsCount: number;
 }

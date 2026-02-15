@@ -6,4 +6,5 @@ export const dataStorageColumnLabels: Record<DataStorageColumnKey, string> = {
   [DataStorageColumnKey.TYPE]: 'Type',
   [DataStorageColumnKey.CREATED_AT]: 'Created At',
   [DataStorageColumnKey.DATA_MARTS_COUNT]: 'Data Marts',
+  [DataStorageColumnKey.DRAFTS_COUNT]: 'Drafts',
 };

@@ -13,6 +13,7 @@ export interface DataStorageTableItem {
   createdAt: Date;
   modifiedAt: Date;
   dataMartsCount: number;
+  draftsCount: number;
 }
 
 interface DataStorageColumnsProps {
@@ -57,7 +58,7 @@ export const getDataStorageColumns = ({
   },
   {
     accessorKey: DataStorageColumnKey.TYPE,
-    size: 220,
+    size: 240,
     meta: {
       title: dataStorageColumnLabels[DataStorageColumnKey.TYPE],
     },
@@ -80,7 +81,7 @@ export const getDataStorageColumns = ({
   },
   {
     accessorKey: DataStorageColumnKey.CREATED_AT,
-    size: 200,
+    size: 140,
     sortDescFirst: true,
     meta: {
       title: dataStorageColumnLabels[DataStorageColumnKey.CREATED_AT],
@@ -103,7 +104,7 @@ export const getDataStorageColumns = ({
   },
   {
     accessorKey: DataStorageColumnKey.DATA_MARTS_COUNT,
-    size: 80,
+    size: 125,
     meta: {
       title: dataStorageColumnLabels[DataStorageColumnKey.DATA_MARTS_COUNT],
     },
@@ -114,6 +115,22 @@ export const getDataStorageColumns = ({
     ),
     cell: ({ row }) => {
       const count = row.getValue<string>(DataStorageColumnKey.DATA_MARTS_COUNT);
+      return <div>{count}</div>;
+    },
+  },
+  {
+    accessorKey: DataStorageColumnKey.DRAFTS_COUNT,
+    size: 80,
+    meta: {
+      title: dataStorageColumnLabels[DataStorageColumnKey.DRAFTS_COUNT],
+    },
+    header: ({ column }) => (
+      <SortableHeader column={column}>
+        {dataStorageColumnLabels[DataStorageColumnKey.DRAFTS_COUNT]}
+      </SortableHeader>
+    ),
+    cell: ({ row }) => {
+      const count = row.getValue<string>(DataStorageColumnKey.DRAFTS_COUNT);
       return <div>{count}</div>;
     },
   },
