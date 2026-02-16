@@ -1,15 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { DataMartMapper } from '../mappers/data-mart.mapper';
-import { DataMartDto } from '../dto/domain/data-mart.dto';
 import { ListDataMartsCommand } from '../dto/domain/list-data-marts.command';
+import { PaginatedDataMartListDto } from '../dto/domain/paginated-data-mart-list.dto';
 import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
 import { Report } from '../entities/report.entity';
-import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
-import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
-import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
+import { DataMartMapper } from '../mappers/data-mart.mapper';
 import { DataMartService } from '../services/data-mart.service';
+import { UserProjectionsFetcherService } from '../services/user-projections-fetcher.service';
+
+const DATA_MARTS_PAGE_SIZE = 1000;
 
 @Injectable()
 export class ListDataMartsService {
@@ -23,25 +23,16 @@ export class ListDataMartsService {
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService
   ) {}
 
-  async run(command: ListDataMartsCommand): Promise<DataMartDto[]> {
-    let dataMarts = await this.dataMartService.findByProjectId(command.projectId);
+  async run(command: ListDataMartsCommand): Promise<PaginatedDataMartListDto> {
+    const offset = command.offset ?? 0;
+
+    const { items: dataMarts, total } = await this.dataMartService.findByProjectId(
+      command.projectId,
+      { offset, limit: DATA_MARTS_PAGE_SIZE }
+    );
 
     if (dataMarts.length === 0) {
-      return [];
-    }
-
-    if (command.connectorName) {
-      dataMarts = dataMarts.filter(dm => {
-        if (!dm.definition || dm.definitionType !== DataMartDefinitionType.CONNECTOR) {
-          return false;
-        }
-        const connectorDef = dm.definition as unknown as ConnectorDefinition;
-        return connectorDef?.connector?.source?.name === command.connectorName;
-      });
-    }
-
-    if (dataMarts.length === 0) {
-      return [];
+      return { items: [], total, offset };
     }
 
     const ids = dataMarts.map(dataMart => dataMart.id);
@@ -75,7 +66,7 @@ export class ListDataMartsService {
     const userProjections =
       await this.userProjectionsFetcherService.fetchRelevantUserProjections(dataMarts);
 
-    return dataMarts.map(dm =>
+    const items = dataMarts.map(dm =>
       this.mapper.toDomainDto(
         dm,
         {
@@ -85,5 +76,7 @@ export class ListDataMartsService {
         userProjections.getByUserId(dm.createdById)
       )
     );
+
+    return { items, total, offset };
   }
 }

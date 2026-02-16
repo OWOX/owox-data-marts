@@ -20,7 +20,6 @@ describe('DataMartService', () => {
 
   const mockDataMartId = '123';
   const mockDataMartResponse = { id: mockDataMartId, title: 'Test Data Mart' };
-  const mockDataMartListResponse = { items: [mockDataMartResponse] };
   const mockCreateData = { title: 'New Data Mart' } as CreateDataMartRequestDto;
   const mockUpdateData = { title: 'Updated Data Mart' };
   const mockDefinition = { sqlQuery: 'SELECT * FROM table' };
@@ -48,13 +47,33 @@ describe('DataMartService', () => {
   });
 
   describe('getDataMarts', () => {
-    it('should fetch all data marts', async () => {
-      (apiClient.get as any).mockResolvedValueOnce({ data: mockDataMartListResponse });
+    it('should fetch all data marts with pagination', async () => {
+      (apiClient.get as any).mockResolvedValueOnce({
+        data: { items: [mockDataMartResponse], total: 1, nextOffset: null },
+      });
 
       const result = await service.getDataMarts();
 
-      expect(apiClient.get).toHaveBeenCalledWith('/data-marts/', { params: undefined });
-      expect(result).toEqual(mockDataMartListResponse);
+      expect(apiClient.get).toHaveBeenCalledWith('/data-marts/', { params: {} });
+      expect(result).toEqual([mockDataMartResponse]);
+    });
+
+    it('should fetch multiple pages when nextOffset is not null', async () => {
+      const secondItem = { id: '456', title: 'Second Data Mart' };
+      (apiClient.get as any)
+        .mockResolvedValueOnce({
+          data: { items: [mockDataMartResponse], total: 2, nextOffset: 50 },
+        })
+        .mockResolvedValueOnce({
+          data: { items: [secondItem], total: 2, nextOffset: null },
+        });
+
+      const result = await service.getDataMarts();
+
+      expect(apiClient.get).toHaveBeenCalledTimes(2);
+      expect(apiClient.get).toHaveBeenNthCalledWith(1, '/data-marts/', { params: {} });
+      expect(apiClient.get).toHaveBeenNthCalledWith(2, '/data-marts/', { params: { offset: 50 } });
+      expect(result).toEqual([mockDataMartResponse, secondItem]);
     });
   });
 

@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query } from
 import { CreateDataMartRequestApiDto } from '../dto/presentation/create-data-mart-request-api.dto';
 import { CreateDataMartResponseApiDto } from '../dto/presentation/create-data-mart-response-api.dto';
 import { DataMartResponseApiDto } from '../dto/presentation/data-mart-response-api.dto';
+import { PaginatedDataMartsResponseApiDto } from '../dto/presentation/paginated-data-marts-response-api.dto';
 import { UpdateDataMartDefinitionApiDto } from '../dto/presentation/update-data-mart-definition-api.dto';
 import { UpdateDataMartDescriptionApiDto } from '../dto/presentation/update-data-mart-description-api.dto';
 import { UpdateDataMartTitleApiDto } from '../dto/presentation/update-data-mart-title-api.dto';
@@ -86,11 +87,11 @@ export class DataMartController {
   @ListDataMartsSpec()
   async list(
     @AuthContext() context: AuthorizationContext,
-    @Query('connectorName') connectorName?: string
-  ): Promise<DataMartResponseApiDto[]> {
-    const command = this.mapper.toListCommand(context, connectorName);
-    const dataMarts = await this.listDataMartsService.run(command);
-    return this.mapper.toResponseList(dataMarts);
+    @Query('offset') offset?: number
+  ): Promise<PaginatedDataMartsResponseApiDto> {
+    const command = this.mapper.toListCommand(context, offset);
+    const result = await this.listDataMartsService.run(command);
+    return this.mapper.toPaginatedResponse(result);
   }
 
   @Auth(Role.viewer(Strategy.PARSE))

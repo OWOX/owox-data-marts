@@ -29,11 +29,27 @@ export class DataMartService extends ApiService {
   }
 
   /**
-   * Fetch data marts
-   * @returns Promise with data mart list response
+   * Fetch all data marts with automatic pagination.
+   * Pagination is handled internally — callers receive the full list.
+   * @returns Promise with all data mart items
    */
-  async getDataMarts(): Promise<DataMartListResponseDto> {
-    return this.get<DataMartListResponseDto>('/');
+  async getDataMarts(): Promise<DataMartResponseDto[]> {
+    const allItems: DataMartResponseDto[] = [];
+    let nextOffset: number | null = 0;
+
+    while (nextOffset !== null) {
+      const params: Record<string, unknown> = {};
+      if (nextOffset > 0) {
+        params.offset = nextOffset;
+      }
+
+      const page = await this.get<DataMartListResponseDto>('/', params);
+
+      allItems.push(...page.items);
+      nextOffset = page.nextOffset;
+    }
+
+    return allItems;
   }
 
   /**
