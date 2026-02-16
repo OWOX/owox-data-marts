@@ -46,6 +46,7 @@ export class DataMartService {
       take: options?.limit,
       skip: options?.offset,
       order: { createdAt: 'DESC', id: 'ASC' }, // for consistent pagination
+      relations: ['storage'],
     });
     return { items, total };
   }
