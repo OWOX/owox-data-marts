@@ -19,6 +19,7 @@ import { SheetsReportRunSuccessfullyEvent } from '../../../events/sheets-report-
 import { OWOX_PRODUCER } from '../../../../common/producer/producer.module';
 import { OwoxProducer } from '@owox/internal-helpers';
 import { GoogleSheetNotFound } from '../../../errors/google-sheet-not-found.error';
+import { BusinessViolationException } from 'src/common/exceptions/business-violation.exception';
 
 /**
  * Service for writing report data to Google Sheets
@@ -292,7 +293,7 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
       this.logger.debug(`${operationName} completed`);
       return result;
     } catch (error) {
-      if (error instanceof GoogleSheetNotFound) {
+      if (error instanceof BusinessViolationException) {
         this.logger.warn(`${operationName} warning: ${error.message}`);
       } else {
         this.logger.error(`${operationName} failed: ${error.message}`, error.stack);
