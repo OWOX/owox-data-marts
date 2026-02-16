@@ -1,8 +1,8 @@
 import { ProtocolRoute } from '@owox/idp-protocol';
 import {
-    type Express,
-    type Request as ExpressRequest,
-    type Response as ExpressResponse,
+  type Express,
+  type Request as ExpressRequest,
+  type Response as ExpressResponse,
 } from 'express';
 import type { createBetterAuthConfig } from '../config/idp-better-auth-config.js';
 import { logger } from '../core/logger.js';

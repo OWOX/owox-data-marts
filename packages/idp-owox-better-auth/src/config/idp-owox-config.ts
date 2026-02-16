@@ -6,10 +6,10 @@ import type { PoolOptions } from 'mysql2';
 import { dirname, join } from 'path';
 import { z } from 'zod';
 import type {
-    BetterAuthConfig,
-    DatabaseConfig,
-    EmailConfig,
-    SocialProvidersConfig,
+  BetterAuthConfig,
+  DatabaseConfig,
+  EmailConfig,
+  SocialProvidersConfig,
 } from '../types/index.js';
 
 const zMsString = z

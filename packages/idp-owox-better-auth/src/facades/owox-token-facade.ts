@@ -1,12 +1,12 @@
 import { AuthResult, Payload } from '@owox/idp-protocol';
 import { NextFunction, Request, Response } from 'express';
 import {
-    IdentityOwoxClient,
-    IntrospectionRequest,
-    IntrospectionResponse,
-    RevocationRequest,
-    TokenRequest,
-    TokenResponse,
+  IdentityOwoxClient,
+  IntrospectionRequest,
+  IntrospectionResponse,
+  RevocationRequest,
+  TokenRequest,
+  TokenResponse,
 } from '../client/index.js';
 import type { IdpOwoxConfig } from '../config/idp-owox-config.js';
 import { CORE_REFRESH_TOKEN_COOKIE } from '../core/constants.js';

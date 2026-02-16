@@ -1,9 +1,6 @@
 import { describe, expect, it, jest } from '@jest/globals';
 
-import {
-  resolveAccountForUser,
-  resolveProviderFromLoginMethod,
-} from './account-resolver.js';
+import { resolveAccountForUser, resolveProviderFromLoginMethod } from './account-resolver.js';
 import type { DatabaseStore } from '../store/database-store.js';
 import type { DatabaseAccount } from '../types/database-models.js';
 

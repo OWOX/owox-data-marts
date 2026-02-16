@@ -10,7 +10,7 @@ import {
 } from './cookie-policy.js';
 
 const createReq = (protocol: string, hostname: string) =>
-  ({ protocol, hostname } as unknown as Request);
+  ({ protocol, hostname }) as unknown as Request;
 
 const createRes = () =>
   ({

@@ -82,7 +82,11 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     );
     this.betterAuthProxyHandler = new BetterAuthProxyHandler(this.auth, this.pkceFlowOrchestrator);
     this.pageController = new PageController();
-    this.passwordFlowController = new PasswordFlowController(this.auth, this.betterAuthSessionService, this.magicLinkService);
+    this.passwordFlowController = new PasswordFlowController(
+      this.auth,
+      this.betterAuthSessionService,
+      this.magicLinkService
+    );
     this.authFlowMiddleware = new AuthFlowMiddleware(
       this.pageController,
       this.config.idpOwox,

@@ -5,7 +5,10 @@ import { logger } from '../../core/logger.js';
 import { buildUserInfoPayload } from '../../mappers/user-info-payload-builder.js';
 import type { DatabaseStore } from '../../store/database-store.js';
 import { AuthSession } from '../../types/auth-session.js';
-import { resolveAccountForUser, resolveProviderFromLoginMethod } from '../../utils/account-resolver.js';
+import {
+  resolveAccountForUser,
+  resolveProviderFromLoginMethod,
+} from '../../utils/account-resolver.js';
 import { convertExpressHeaders } from '../../utils/express-compat.js';
 import { getStateManager } from '../../utils/request-utils.js';
 import { PlatformAuthFlowClient, type UserInfoPayload } from './platform-auth-flow-client.js';
@@ -93,11 +96,7 @@ export class BetterAuthSessionService {
     }
 
     const loginMethod = callbackProviderId || dbUser.lastLoginMethod;
-    const account = await resolveAccountForUser(
-      this.store,
-      session.user.id,
-      loginMethod
-    );
+    const account = await resolveAccountForUser(this.store, session.user.id, loginMethod);
     if (!account) {
       throw new Error(`No account found for user ${session.user.id}`);
     }

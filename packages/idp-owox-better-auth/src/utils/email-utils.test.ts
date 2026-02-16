@@ -1,12 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import {
-  formatError,
-  isValidEmail,
-  normalizeEmail,
-  parseEmail,
-  splitName,
-} from './email-utils.js';
+import { formatError, isValidEmail, normalizeEmail, parseEmail, splitName } from './email-utils.js';
 
 describe('email-utils', () => {
   it('normalizes email by trimming and lowering case', () => {

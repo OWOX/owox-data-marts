@@ -5,19 +5,19 @@ import ms from 'ms';
 import { IdentityOwoxClientConfig } from '../config/idp-owox-config.js';
 import { AuthenticationException, IdpFailedException } from '../core/exceptions.js';
 import {
-    AuthFlowRequest,
-    AuthFlowResponse,
-    AuthFlowResponseSchema,
-    IntrospectionRequest,
-    IntrospectionResponse,
-    IntrospectionResponseSchema,
-    JwksResponse,
-    JwksResponseSchema,
-    RevocationRequest,
-    RevocationResponse,
-    TokenRequest,
-    TokenResponse,
-    TokenResponseSchema,
+  AuthFlowRequest,
+  AuthFlowResponse,
+  AuthFlowResponseSchema,
+  IntrospectionRequest,
+  IntrospectionResponse,
+  IntrospectionResponseSchema,
+  JwksResponse,
+  JwksResponseSchema,
+  RevocationRequest,
+  RevocationResponse,
+  TokenRequest,
+  TokenResponse,
+  TokenResponseSchema,
 } from './dto/index.js';
 
 /**

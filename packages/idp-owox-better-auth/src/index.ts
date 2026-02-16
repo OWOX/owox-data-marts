@@ -4,14 +4,14 @@
 // Main Auth exports
 export { createBetterAuthConfig } from './config/idp-better-auth-config.js';
 export {
-    loadBetterAuthProviderConfigFromEnv,
-    loadIdpOwoxConfigFromEnv,
-    type BetterAuthProviderConfig
+  loadBetterAuthProviderConfigFromEnv,
+  loadIdpOwoxConfigFromEnv,
+  type BetterAuthProviderConfig,
 } from './config/index.js';
 export {
-    OwoxBetterAuthIdp,
-    OwoxBetterAuthIdp as OwoxBetterAuthProvider,
-    OwoxBetterAuthIdp as OwoxIdp
+  OwoxBetterAuthIdp,
+  OwoxBetterAuthIdp as OwoxBetterAuthProvider,
+  OwoxBetterAuthIdp as OwoxIdp,
 } from './owox-better-auth-idp.js';
 
 // Services

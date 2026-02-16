@@ -1,8 +1,8 @@
 import {
-    type Express,
-    type Request as ExpressRequest,
-    type Response as ExpressResponse,
-    type NextFunction,
+  type Express,
+  type Request as ExpressRequest,
+  type Response as ExpressResponse,
+  type NextFunction,
 } from 'express';
 import { createBetterAuthConfig } from '../../config/idp-better-auth-config.js';
 import { BETTER_AUTH_SESSION_COOKIE } from '../../core/constants.js';

@@ -10,11 +10,11 @@ import { clearCookie } from '../../utils/cookie-policy.js';
 import { formatError } from '../../utils/email-utils.js';
 import { buildPlatformRedirectUrl } from '../../utils/platform-redirect-builder.js';
 import {
-    clearAllAuthCookies,
-    clearBetterAuthCookies,
-    extractState,
-    extractStateFromCookie,
-    type PlatformParams,
+  clearAllAuthCookies,
+  clearBetterAuthCookies,
+  extractState,
+  extractStateFromCookie,
+  type PlatformParams,
 } from '../../utils/request-utils.js';
 import type { BetterAuthSessionService } from '../auth/better-auth-session-service.js';
 import type { UserContextService } from '../core/user-context-service.js';

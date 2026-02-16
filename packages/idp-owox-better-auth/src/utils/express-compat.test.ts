@@ -1,10 +1,7 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import type { Request as ExpressRequest } from 'express';
 
-import {
-  convertExpressHeaders,
-  convertExpressToFetchRequest,
-} from './express-compat.js';
+import { convertExpressHeaders, convertExpressToFetchRequest } from './express-compat.js';
 
 const createRequest = (overrides: Partial<ExpressRequest>): ExpressRequest =>
   ({

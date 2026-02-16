@@ -155,7 +155,11 @@ describe('MagicLinkService', () => {
 
     const result = await service.generate('user@example.com', 'signup');
 
-    expect(result).toMatchObject({ sent: false, reason: 'rate_limited', waitSeconds: expect.any(Number) });
+    expect(result).toMatchObject({
+      sent: false,
+      reason: 'rate_limited',
+      waitSeconds: expect.any(Number),
+    });
     expect(handlerMock).not.toHaveBeenCalled();
   });
 });

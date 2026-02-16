@@ -41,7 +41,11 @@ describe('PasswordFlowController.sendMagicLink', () => {
       generate: jest.fn(async () => ({ sent: false as const, reason: 'rate_limited' as const })),
     } as unknown as MagicLinkService;
     const auth = {} as BetterAuthInstance;
-    const service = new PasswordFlowController(auth, {} as BetterAuthSessionService, magicLinkService);
+    const service = new PasswordFlowController(
+      auth,
+      {} as BetterAuthSessionService,
+      magicLinkService
+    );
 
     const req = { body: { email: 'user@example.com', intent: 'signup' } } as unknown as Request;
     const res = createResponseMock();
@@ -64,7 +68,11 @@ describe('PasswordFlowController.passwordSetupPage', () => {
         getSession,
       },
     } as unknown as BetterAuthInstance;
-    const service = new PasswordFlowController(auth, {} as BetterAuthSessionService, {} as MagicLinkService);
+    const service = new PasswordFlowController(
+      auth,
+      {} as BetterAuthSessionService,
+      {} as MagicLinkService
+    );
     const req = {
       query: { token: 'reset-token', intent: 'reset' },
     } as unknown as Request;
@@ -94,7 +102,11 @@ describe('PasswordFlowController.setPassword', () => {
         signOut,
       },
     } as unknown as BetterAuthInstance;
-    const service = new PasswordFlowController(auth, {} as BetterAuthSessionService, {} as MagicLinkService);
+    const service = new PasswordFlowController(
+      auth,
+      {} as BetterAuthSessionService,
+      {} as MagicLinkService
+    );
     const req = {
       body: { password: 'NewPassw0rd', intent: 'reset', token: 'reset-token' },
       headers: baseHeaders,
@@ -125,7 +137,11 @@ describe('PasswordFlowController.setPassword', () => {
         signOut: jest.fn(async () => ({})),
       },
     } as unknown as BetterAuthInstance;
-    const service = new PasswordFlowController(auth, {} as BetterAuthSessionService, {} as MagicLinkService);
+    const service = new PasswordFlowController(
+      auth,
+      {} as BetterAuthSessionService,
+      {} as MagicLinkService
+    );
     const req = {
       body: { password: 'NewPassw0rd', token: 'reset-token' },
       headers: baseHeaders,
@@ -154,7 +170,11 @@ describe('PasswordFlowController.setPassword', () => {
         signOut: jest.fn(),
       },
     } as unknown as BetterAuthInstance;
-    const service = new PasswordFlowController(auth, {} as BetterAuthSessionService, {} as MagicLinkService);
+    const service = new PasswordFlowController(
+      auth,
+      {} as BetterAuthSessionService,
+      {} as MagicLinkService
+    );
     const req = {
       body: { password: 'NewPassw0rd', intent: 'reset' },
       headers: baseHeaders,
