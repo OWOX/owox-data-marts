@@ -1,12 +1,14 @@
+import type { Logger } from '@owox/internal-helpers';
 import { type Request } from 'express';
 import { createBetterAuthConfig } from '../../config/idp-better-auth-config.js';
 import { BETTER_AUTH_SESSION_COOKIE } from '../../core/constants.js';
-import { logger } from '../../core/logger.js';
+import { logger as defaultLogger } from '../../core/logger.js';
 import { buildUserInfoPayload } from '../../mappers/user-info-payload-builder.js';
 import type { DatabaseStore } from '../../store/database-store.js';
-import type { DatabaseAccount } from '../../types/database-models.js';
 import { AuthSession } from '../../types/auth-session.js';
+import type { DatabaseAccount } from '../../types/database-models.js';
 import { resolveProviderFromLoginMethod } from '../../utils/auth-provider-utils.js';
+import { convertExpressHeaders } from '../../utils/express-headers.js';
 import { getStateManager } from '../../utils/request-utils.js';
 import { PlatformAuthFlowClient, type UserInfoPayload } from './platform-auth-flow-client.js';
 
@@ -16,11 +18,16 @@ import { PlatformAuthFlowClient, type UserInfoPayload } from './platform-auth-fl
  * Core IdP tokens are handled in OwoxTokenFacade/PkceFlowOrchestrator.
  */
 export class BetterAuthSessionService {
+  private readonly logger: Logger;
+
   constructor(
     private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
     private readonly store: DatabaseStore,
-    private readonly platformAuthFlowClient: PlatformAuthFlowClient
-  ) {}
+    private readonly platformAuthFlowClient: PlatformAuthFlowClient,
+    logger?: Logger
+  ) {
+    this.logger = logger ?? defaultLogger;
+  }
 
   async buildUserInfoPayload(req: Request): Promise<UserInfoPayload> {
     const stateManager = getStateManager(req);
@@ -50,7 +57,7 @@ export class BetterAuthSessionService {
 
   async completeAuthFlow(req: Request): Promise<{ code: string; payload: UserInfoPayload }> {
     const payload = await this.buildUserInfoPayload(req);
-    logger.info('Sending auth flow payload', {
+    this.logger.info('Sending auth flow payload', {
       hasState: Boolean(payload.state),
       signinProvider: payload.userInfo.signinProvider,
       userId: payload.userInfo.uid,
@@ -60,7 +67,7 @@ export class BetterAuthSessionService {
     if (session?.user?.id) {
       await this.tryPersistLastLoginMethod(session.user.id, payload.userInfo.signinProvider);
     }
-    logger.info('Integrated backend responded', { hasCode: Boolean(result.code) });
+    this.logger.info('Integrated backend responded', { hasCode: Boolean(result.code) });
     return { code: result.code, payload };
   }
 
@@ -106,13 +113,13 @@ export class BetterAuthSessionService {
       account,
     });
 
-    logger.info('Sending auth flow payload (callback)', {
+    this.logger.info('Sending auth flow payload (callback)', {
       state: payload.state,
       userInfo: payload.userInfo,
     });
     const result = await this.platformAuthFlowClient.completeAuthFlow(payload);
     await this.tryPersistLastLoginMethod(dbUser.id, account.providerId);
-    logger.info('Integrated backend responded (callback)', { hasCode: Boolean(result.code) });
+    this.logger.info('Integrated backend responded (callback)', { hasCode: Boolean(result.code) });
     return { code: result.code, payload };
   }
 
@@ -134,7 +141,7 @@ export class BetterAuthSessionService {
   async getSession(req: Request): Promise<AuthSession | null> {
     try {
       const session = await this.auth.api.getSession({
-        headers: this.buildHeadersFromExpress(req),
+        headers: convertExpressHeaders(req),
       });
 
       if (!session || !session.user || !session.session) {
@@ -155,22 +162,9 @@ export class BetterAuthSessionService {
         },
       };
     } catch (error) {
-      logger.error('Failed to get session', {}, error as Error);
+      this.logger.error('Failed to get session', {}, error as Error);
       throw new Error('Failed to get session');
     }
-  }
-
-  private buildHeadersFromExpress(req: Request): Headers {
-    const headers = new Headers();
-    for (const [key, value] of Object.entries(req.headers)) {
-      if (!value) continue;
-      if (Array.isArray(value)) {
-        headers.set(key, value.join(', '));
-      } else {
-        headers.set(key, String(value));
-      }
-    }
-    return headers;
   }
 
   private async resolveAccountForUser(params: {
@@ -190,7 +184,7 @@ export class BetterAuthSessionService {
       if (preferredAccount) {
         return preferredAccount;
       }
-      logger.warn(
+      this.logger.warn(
         'Account for last-login provider not found in callback flow, falling back to latest account',
         {
           userId: params.userId,
@@ -208,7 +202,7 @@ export class BetterAuthSessionService {
     try {
       await this.store.updateUserLastLoginMethod(userId, method);
     } catch (error) {
-      logger.warn('Failed to persist lastLoginMethod after successful authorization', {
+      this.logger.warn('Failed to persist lastLoginMethod after successful authorization', {
         userId,
         method,
         error: error instanceof Error ? error.message : String(error),

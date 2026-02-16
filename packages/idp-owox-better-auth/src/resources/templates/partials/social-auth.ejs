@@ -1,0 +1,48 @@
+<script>
+  /**
+   * Submits a social sign-in/sign-up request to Better Auth.
+   * Shared across sign-in and sign-up pages.
+   */
+  async function submitSocial(provider) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const redirect = urlParams.get('redirect');
+    const callbackURL = redirect || '/';
+
+    // Save last used provider (if available)
+    try {
+      const LAST_PROVIDER_KEY = 'owox_last_auth_provider';
+      localStorage.setItem(LAST_PROVIDER_KEY, provider);
+    } catch (e) {
+      console.error('Failed to save last used provider', e);
+    }
+
+    try {
+      const response = await fetch('/auth/better-auth/sign-in/social', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ provider, callbackURL }),
+        redirect: 'follow',
+      });
+
+      if (response.redirected) {
+        window.location.href = response.url;
+        return;
+      }
+
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const data = await response.json();
+        if (data?.url) {
+          window.location.href = data.url;
+          return;
+        }
+      }
+
+      window.location.reload();
+    } catch (error) {
+      console.error('Social sign-in failed', error);
+    }
+  }
+</script>

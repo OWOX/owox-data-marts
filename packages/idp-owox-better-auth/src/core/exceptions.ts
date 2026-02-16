@@ -33,7 +33,7 @@ export class IdpFailedException extends Error {
 
   constructor(message: string, opts?: { cause?: unknown; context?: Record<string, unknown> }) {
     super(message);
-    this.name = 'IdpRequestFailedException';
+    this.name = 'IdpFailedException';
     this.cause = opts?.cause;
     this.context = opts?.context;
   }

@@ -2,7 +2,7 @@ import { describe, expect, it, jest } from '@jest/globals';
 import type { Request, Response } from 'express';
 import type { createBetterAuthConfig } from '../../config/idp-better-auth-config.js';
 import type { MagicLinkService } from '../auth/magic-link-service.js';
-import { PageService } from './page-service.js';
+import { PasswordFlowController } from './password-flow-controller.js';
 
 type BetterAuthInstance = Awaited<ReturnType<typeof createBetterAuthConfig>>;
 
@@ -34,13 +34,13 @@ function createResponseMock(): Response & { body?: unknown; statusCode?: number 
   return res;
 }
 
-describe('PageService.sendMagicLink', () => {
+describe('PasswordFlowController.sendMagicLink', () => {
   it('returns 429 when magic link is rate limited', async () => {
     const magicLinkService = {
       generate: jest.fn(async () => ({ sent: false as const, reason: 'rate_limited' as const })),
     } as unknown as MagicLinkService;
     const auth = {} as BetterAuthInstance;
-    const service = new PageService(auth, magicLinkService);
+    const service = new PasswordFlowController(auth, magicLinkService);
 
     const req = { body: { email: 'user@example.com', intent: 'signup' } } as unknown as Request;
     const res = createResponseMock();
@@ -54,7 +54,7 @@ describe('PageService.sendMagicLink', () => {
   });
 });
 
-describe('PageService.passwordSetupPage', () => {
+describe('PasswordFlowController.passwordSetupPage', () => {
   it('renders reset form without requiring session when token is present', async () => {
     const getSession = jest.fn(async () => null);
     const auth = {
@@ -62,7 +62,7 @@ describe('PageService.passwordSetupPage', () => {
         getSession,
       },
     } as unknown as BetterAuthInstance;
-    const service = new PageService(auth, {} as MagicLinkService);
+    const service = new PasswordFlowController(auth, {} as MagicLinkService);
     const req = {
       query: { token: 'reset-token', intent: 'reset' },
     } as unknown as Request;
@@ -76,7 +76,7 @@ describe('PageService.passwordSetupPage', () => {
   });
 });
 
-describe('PageService.setPassword', () => {
+describe('PasswordFlowController.setPassword', () => {
   const baseHeaders = { cookie: 'session=token' } as unknown as Headers;
 
   it('uses resetPassword when intent is reset and token is provided', async () => {
@@ -92,7 +92,7 @@ describe('PageService.setPassword', () => {
         signOut,
       },
     } as unknown as BetterAuthInstance;
-    const service = new PageService(auth, {} as MagicLinkService);
+    const service = new PasswordFlowController(auth, {} as MagicLinkService);
     const req = {
       body: { password: 'NewPassw0rd', intent: 'reset', token: 'reset-token' },
       headers: baseHeaders,
@@ -121,7 +121,7 @@ describe('PageService.setPassword', () => {
         signOut: jest.fn(async () => ({})),
       },
     } as unknown as BetterAuthInstance;
-    const service = new PageService(auth, {} as MagicLinkService);
+    const service = new PasswordFlowController(auth, {} as MagicLinkService);
     const req = {
       body: { password: 'NewPassw0rd', token: 'reset-token' },
       headers: baseHeaders,
@@ -148,7 +148,7 @@ describe('PageService.setPassword', () => {
         signOut: jest.fn(),
       },
     } as unknown as BetterAuthInstance;
-    const service = new PageService(auth, {} as MagicLinkService);
+    const service = new PasswordFlowController(auth, {} as MagicLinkService);
     const req = {
       body: { password: 'NewPassw0rd', intent: 'reset' },
       headers: baseHeaders,

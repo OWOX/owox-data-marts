@@ -1,5 +1,5 @@
 import { AuthResult, IdpProvider, Payload, Projects, ProtocolRoute } from '@owox/idp-protocol';
-import { createMailingProvider, Logger, LoggerFactory } from '@owox/internal-helpers';
+import { Logger, LoggerFactory, createMailingProvider } from '@owox/internal-helpers';
 import cookieParser from 'cookie-parser';
 import e, { Express, NextFunction } from 'express';
 import { IdentityOwoxClient, TokenResponse } from './client/index.js';
@@ -16,7 +16,8 @@ import { UserContextService } from './services/core/user-context-service.js';
 import { MagicLinkEmailService } from './services/email/magic-link-email-service.js';
 import { MiddlewareService } from './services/middleware/middleware-service.js';
 import { RequestHandlerService } from './services/middleware/request-handler-service.js';
-import { PageService } from './services/rendering/page-service.js';
+import { PageRenderService } from './services/rendering/page-service.js';
+import { PasswordFlowController } from './services/rendering/password-flow-controller.js';
 import { createDatabaseStore } from './store/database-store-factory.js';
 import type { DatabaseStore } from './store/database-store.js';
 import { clearCookie } from './utils/cookie-policy.js';
@@ -37,7 +38,8 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>;
   private readonly store: DatabaseStore;
   private readonly requestHandlerService: RequestHandlerService;
-  private readonly pageService: PageService;
+  private readonly pageService: PageRenderService;
+  private readonly passwordFlowController: PasswordFlowController;
   private readonly betterAuthSessionService: BetterAuthSessionService;
   private readonly middlewareService: MiddlewareService;
   private readonly identityClient: IdentityOwoxClient;
@@ -81,7 +83,8 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       this.logger
     );
     this.requestHandlerService = new RequestHandlerService(this.auth, this.pkceFlowOrchestrator);
-    this.pageService = new PageService(this.auth, this.magicLinkService);
+    this.pageService = new PageRenderService();
+    this.passwordFlowController = new PasswordFlowController(this.auth, this.magicLinkService);
     this.middlewareService = new MiddlewareService(
       this.pageService,
       this.config.idpOwox,
@@ -127,6 +130,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
 
     this.requestHandlerService.setupBetterAuthHandler(app);
     this.pageService.registerRoutes(app);
+    this.passwordFlowController.registerRoutes(app);
 
     app.get(
       '/auth/idp-start',
@@ -186,52 +190,74 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   ): Promise<void | e.Response> {
     const stateManager = getStateManager(req);
     const queryState = typeof req.query?.state === 'string' ? req.query.state : '';
-    const projectId = typeof req.query?.projectId === 'string' ? req.query.projectId : '';
-    const refreshToken = extractRefreshToken(req);
+
     if (stateManager.hasMismatch()) {
       this.logger.warn('State mismatch detected during sign-in');
       clearPlatformCookies(res, req);
       return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignInUrl);
     }
-    if (!queryState) {
-      if (projectId && refreshToken) {
-        return this.middlewareService.idpStartMiddleware(req, res);
-      }
 
-      if (refreshToken) {
-        try {
-          const auth = await this.tokenFacade.refreshToken(refreshToken);
-          if (auth.refreshToken && auth.refreshTokenExpiresIn !== undefined) {
-            this.tokenFacade.setTokenToCookie(
-              res,
-              req,
-              auth.refreshToken,
-              auth.refreshTokenExpiresIn
-            );
-          }
-          return res.redirect('/');
-        } catch (error: unknown) {
-          if (error instanceof AuthenticationException) {
-            clearCookie(res, CORE_REFRESH_TOKEN_COOKIE, req);
-            this.logger.warn('Refresh token rejected during sign-in, cookie cleared', {
-              context: error.context,
-              cause: error.cause,
-            });
-          } else if (error instanceof IdpFailedException) {
-            this.logger.warn('Sign-in refresh failed due to upstream IdP error', {
-              context: error.context,
-              cause: error.cause,
-            });
-          } else {
-            this.logger.error(formatError(error));
-          }
-        }
-      }
-      return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignInUrl);
+    if (!queryState) {
+      return this.handleNoState(req, res);
     }
 
     stateManager.persist(res, queryState);
     return this.middlewareService.signInMiddleware(req, res, next);
+  }
+
+  /**
+   * Handles sign-in when no query state is present.
+   * Attempts fast-path IDP start or refresh token reuse, otherwise redirects to platform.
+   */
+  private async handleNoState(req: e.Request, res: e.Response): Promise<void | e.Response> {
+    const projectId = typeof req.query?.projectId === 'string' ? req.query.projectId : '';
+    const refreshToken = extractRefreshToken(req);
+
+    if (projectId && refreshToken) {
+      return this.middlewareService.idpStartMiddleware(req, res);
+    }
+
+    if (refreshToken) {
+      const handled = await this.handleExistingRefreshToken(req, res, refreshToken);
+      if (handled) return;
+    }
+
+    return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignInUrl);
+  }
+
+  /**
+   * Attempts to use an existing refresh token for silent re-authentication.
+   * Returns true if the user was redirected, false if the token was invalid.
+   */
+  private async handleExistingRefreshToken(
+    req: e.Request,
+    res: e.Response,
+    refreshToken: string
+  ): Promise<boolean> {
+    try {
+      const auth = await this.tokenFacade.refreshToken(refreshToken);
+      if (auth.refreshToken && auth.refreshTokenExpiresIn !== undefined) {
+        this.tokenFacade.setTokenToCookie(res, req, auth.refreshToken, auth.refreshTokenExpiresIn);
+      }
+      res.redirect('/');
+      return true;
+    } catch (error: unknown) {
+      if (error instanceof AuthenticationException) {
+        clearCookie(res, CORE_REFRESH_TOKEN_COOKIE, req);
+        this.logger.warn('Refresh token rejected during sign-in, cookie cleared', {
+          context: error.context,
+          cause: error.cause,
+        });
+      } else if (error instanceof IdpFailedException) {
+        this.logger.warn('Sign-in refresh failed due to upstream IdP error', {
+          context: error.context,
+          cause: error.cause,
+        });
+      } else {
+        this.logger.error(formatError(error));
+      }
+      return false;
+    }
   }
 
   async signUpMiddleware(

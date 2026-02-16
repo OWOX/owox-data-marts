@@ -18,7 +18,8 @@ export {
 export { BetterAuthSessionService } from './services/auth/better-auth-session-service.js';
 export { MiddlewareService } from './services/middleware/middleware-service.js';
 export { RequestHandlerService } from './services/middleware/request-handler-service.js';
-export { PageService } from './services/rendering/page-service.js';
+export { PageRenderService } from './services/rendering/page-service.js';
+export { PasswordFlowController } from './services/rendering/password-flow-controller.js';
 export { TemplateService } from './services/rendering/template-service.js';
 
 // Types

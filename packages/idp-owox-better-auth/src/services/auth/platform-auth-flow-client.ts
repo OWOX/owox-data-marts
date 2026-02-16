@@ -1,6 +1,7 @@
+import type { Logger } from '@owox/internal-helpers';
 import type { IdentityOwoxClient } from '../../client/IdentityOwoxClient.js';
 import type { AuthFlowRequest, AuthFlowResponse } from '../../client/dto/authFlowDto.js';
-import { logger } from '../../core/logger.js';
+import { logger as defaultLogger } from '../../core/logger.js';
 
 export type UserInfoPayload = AuthFlowRequest;
 
@@ -9,11 +10,18 @@ export type UserInfoPayload = AuthFlowRequest;
  * Delegates HTTP communication to IdentityOwoxClient.
  */
 export class PlatformAuthFlowClient {
-  constructor(private readonly identityClient: IdentityOwoxClient) {}
+  private readonly logger: Logger;
+
+  constructor(
+    private readonly identityClient: IdentityOwoxClient,
+    logger?: Logger
+  ) {
+    this.logger = logger ?? defaultLogger;
+  }
 
   /** Exchanges user info for a one-time authorization code. */
   async completeAuthFlow(payload: UserInfoPayload): Promise<{ code: string }> {
-    logger.info('Completing auth flow', {
+    this.logger.info('Completing auth flow', {
       hasState: Boolean(payload.state),
       signinProvider: payload.userInfo.signinProvider,
       userId: payload.userInfo.uid,
@@ -23,14 +31,14 @@ export class PlatformAuthFlowClient {
       // Delegate HTTP communication to the client layer
       const response: AuthFlowResponse = await this.identityClient.completeAuthFlow(payload);
 
-      logger.info('Auth flow completed successfully', {
+      this.logger.info('Auth flow completed successfully', {
         hasCode: Boolean(response.code),
       });
 
       return { code: response.code };
     } catch (error) {
       // Log error with context for troubleshooting
-      logger.error('Failed to complete auth flow', {}, error as Error);
+      this.logger.error('Failed to complete auth flow', {}, error as Error);
       throw error;
     }
   }

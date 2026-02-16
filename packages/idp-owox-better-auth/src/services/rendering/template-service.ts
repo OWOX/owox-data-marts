@@ -1,31 +1,13 @@
 import ejs from 'ejs';
-import { existsSync, readFileSync } from 'fs';
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
+import { readFileSync } from 'fs';
+import { resolveResourcePath } from '../../utils/template-paths.js';
 
 /**
  * Loads and renders EJS templates for auth pages with layout composition.
  */
 export class TemplateService {
   private static getTemplatePath(templateName: string): string {
-    const currentDir = dirname(fileURLToPath(import.meta.url));
-
-    const distPath = join(currentDir, '..', '..', 'resources', 'templates', templateName);
-    if (existsSync(distPath)) {
-      return distPath;
-    }
-
-    const srcPath = join(
-      currentDir,
-      '..',
-      '..',
-      '..',
-      'src',
-      'resources',
-      'templates',
-      templateName
-    );
-    return srcPath;
+    return resolveResourcePath(`templates/${templateName}`);
   }
 
   private static loadTemplate(templateName: string): string {

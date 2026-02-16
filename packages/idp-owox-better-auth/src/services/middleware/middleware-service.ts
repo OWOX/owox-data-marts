@@ -1,26 +1,32 @@
+import type { Logger } from '@owox/internal-helpers';
 import { type NextFunction, type Request, type Response } from 'express';
 import ms from 'ms';
 import { IdpOwoxConfig } from '../../config/idp-owox-config.js';
 import { SOURCE } from '../../core/constants.js';
-import { logger } from '../../core/logger.js';
+import { logger as defaultLogger } from '../../core/logger.js';
 import { generatePkce, generateState } from '../../core/pkce.js';
 import type { DatabaseStore } from '../../store/database-store.js';
 import { buildAuthRequestContext } from '../../types/auth-request-context.js';
 import { buildPlatformEntryUrl } from '../../utils/platform-redirect-builder.js';
 import { extractPlatformParams } from '../../utils/request-utils.js';
 import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
-import { PageService } from '../rendering/page-service.js';
+import { PageRenderService } from '../rendering/page-service.js';
 
 /**
  * Express middleware handlers for starting PKCE and fast-path sign-in.
  */
 export class MiddlewareService {
+  private readonly logger: Logger;
+
   constructor(
-    private readonly pageService: PageService,
+    private readonly pageService: PageRenderService,
     private readonly idpOwoxConfig: IdpOwoxConfig,
     private readonly store: DatabaseStore,
-    private readonly pkceFlowOrchestrator: PkceFlowOrchestrator
-  ) {}
+    private readonly pkceFlowOrchestrator: PkceFlowOrchestrator,
+    logger?: Logger
+  ) {
+    this.logger = logger ?? defaultLogger;
+  }
 
   async idpStartMiddleware(req: Request, res: Response): Promise<void> {
     try {
@@ -44,7 +50,7 @@ export class MiddlewareService {
 
       return res.redirect(platformUrl.toString());
     } catch (error) {
-      logger.error('Failed to start IDP flow', {}, error as Error);
+      this.logger.error('Failed to start IDP flow', {}, error as Error);
       res.status(500).end('Failed to start IDP flow');
     }
   }
@@ -63,7 +69,7 @@ export class MiddlewareService {
         res
       );
       if (fastRedirect) {
-        logger.info('Fast-path completeAuthFlow redirectUrl', {
+        this.logger.info('Fast-path completeAuthFlow redirectUrl', {
           redirectUrl: fastRedirect.toString(),
         });
         return res.redirect(fastRedirect.toString());

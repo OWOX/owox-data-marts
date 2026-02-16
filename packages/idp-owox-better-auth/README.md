@@ -100,7 +100,6 @@ Ensure the user has permission for the action they're trying to perform.
 - Sign-in page shows Email + Password (Google remains available); it posts to Better Auth email sign-in and completes PKCE when `state` is present.
 - Sign-up page shows only Email. A magic link is sent; after clicking it, the user lands on `/auth/password/setup` to set a password, then sees a success screen with a sign-in link.
 - Forgot password lives at `/auth/forgot-password` and reuses the same magic-link + password setup flow.
-- For forgot password, email sending is intentionally silent when user is missing or has non-`credentials` provider to prevent account enumeration.
 - Magic-link confirm page: `/auth/magic-link?token=...&callbackURL=...` renders a confirm button before calling Better Auth verify.
 - Password setup and success pages: `/auth/password/setup` (POST to save) and `/auth/password/success`.
 - Email delivery uses `@owox/internal-helpers` SendGrid integration and one shared EJS template (`resources/templates/email/magic-link-email.ejs`) with intent-specific wording.
