@@ -5,7 +5,12 @@ import ms from 'ms';
 import type { PoolOptions } from 'mysql2';
 import { dirname, join } from 'path';
 import { z } from 'zod';
-import type { BetterAuthConfig, DatabaseConfig, SocialProvidersConfig } from '../types/index.js';
+import type {
+  BetterAuthConfig,
+  DatabaseConfig,
+  EmailConfig,
+  SocialProvidersConfig,
+} from '../types/index.js';
 
 const zMsString = z
   .string()
@@ -217,15 +222,25 @@ export type IdpOwoxConfig = {
 /** ---------- Better Auth (UI/auth) config ---------- */
 
 const DEFAULT_SESSION_MAX_AGE = 60 * 30; // 30 minutes
+const DEFAULT_MAGIC_LINK_TTL = 60 * 60; // 1 hour
 
 const BetterAuthEnvSchema = z.object({
   IDP_BETTER_AUTH_SECRET: z.string().min(32, 'IDP_BETTER_AUTH_SECRET is required'),
   IDP_BETTER_AUTH_SESSION_MAX_AGE: z.string().optional(),
   IDP_BETTER_AUTH_TRUSTED_ORIGINS: z.string().optional(),
+  IDP_BETTER_AUTH_MAGIC_LINK_TTL: z.string().optional(),
   IDP_BETTER_AUTH_GOOGLE_CLIENT_ID: z.string().optional(),
   IDP_BETTER_AUTH_GOOGLE_CLIENT_SECRET: z.string().optional(),
   IDP_BETTER_AUTH_GOOGLE_PROMPT: z.string().optional(),
   IDP_BETTER_AUTH_GOOGLE_ACCESS_TYPE: z.string().optional(),
+});
+
+const SendgridEnvSchema = z.object({
+  SENDGRID_API_KEY: z.string().min(1, 'SENDGRID_API_KEY is required'),
+  SENDGRID_VERIFIED_SENDER_EMAIL: z
+    .string()
+    .email('SENDGRID_VERIFIED_SENDER_EMAIL must be a valid email'),
+  SENDGRID_VERIFIED_SENDER_NAME: z.string().trim().optional(),
 });
 
 type Env = NodeJS.ProcessEnv;
@@ -281,6 +296,7 @@ function buildSocialProviders(
 export type BetterAuthProviderConfig = {
   betterAuth: BetterAuthConfig;
   idpOwox: IdpOwoxConfig;
+  email: EmailConfig;
 };
 
 /**
@@ -315,6 +331,7 @@ export function loadBetterAuthProviderConfigFromEnv(
 ): BetterAuthProviderConfig {
   const idpOwox = loadIdpOwoxConfigFromEnv(env);
   const baEnv = BetterAuthEnvSchema.parse(env);
+  const sendgridEnv = SendgridEnvSchema.parse(env);
 
   const safeBaseURL = resolveBaseUrl(env);
 
@@ -323,9 +340,21 @@ export function loadBetterAuthProviderConfigFromEnv(
     secret: baEnv.IDP_BETTER_AUTH_SECRET,
     baseURL: safeBaseURL,
     session: { maxAge: toNumber(baEnv.IDP_BETTER_AUTH_SESSION_MAX_AGE, DEFAULT_SESSION_MAX_AGE) },
+    magicLinkTtl: toNumber(baEnv.IDP_BETTER_AUTH_MAGIC_LINK_TTL, DEFAULT_MAGIC_LINK_TTL),
     trustedOrigins: parseTrustedOrigins(baEnv.IDP_BETTER_AUTH_TRUSTED_ORIGINS, safeBaseURL),
     socialProviders: buildSocialProviders(baEnv, safeBaseURL),
   };
 
-  return { betterAuth: betterAuthConfig, idpOwox };
+  return {
+    betterAuth: betterAuthConfig,
+    idpOwox,
+    email: {
+      provider: 'sendgrid',
+      sendgrid: {
+        apiKey: sendgridEnv.SENDGRID_API_KEY,
+        verifiedSenderEmail: sendgridEnv.SENDGRID_VERIFIED_SENDER_EMAIL,
+        verifiedSenderName: sendgridEnv.SENDGRID_VERIFIED_SENDER_NAME,
+      },
+    },
+  };
 }

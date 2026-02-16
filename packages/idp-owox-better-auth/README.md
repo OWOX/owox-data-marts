@@ -33,6 +33,12 @@ IDP_OWOX_JWT_ISSUER=https://idp.example.com
 
 # Better Auth IDP
 IDP_BETTER_AUTH_SECRET=your-super-secret-key-at-least-32-characters-long
+IDP_BETTER_AUTH_MAGIC_LINK_TTL=3600
+
+# Magic-link email delivery (SendGrid)
+SENDGRID_API_KEY=your-sendgrid-api-key
+SENDGRID_VERIFIED_SENDER_EMAIL=verified-sender@example.com
+SENDGRID_VERIFIED_SENDER_NAME=OWOX Data Marts
 
 # Social login (Google)
 # IDP_BETTER_AUTH_GOOGLE_CLIENT_ID=xx
@@ -68,8 +74,12 @@ IDP_BETTER_AUTH_SECRET=your-super-secret-key-at-least-32-characters-long
 | `PUBLIC_ORIGIN`                        |    No    |           `http://localhost:3000`           | Base URL for callbacks                                |
 | `IDP_BETTER_AUTH_SESSION_MAX_AGE`      |    No    |              `1800` (30 mins)               | Session duration (seconds)                            |
 | `IDP_BETTER_AUTH_TRUSTED_ORIGINS`      |    No    |               `PUBLIC_ORIGIN`               | Trusted origins for auth service                      |
+| `IDP_BETTER_AUTH_MAGIC_LINK_TTL`       |    No    |                  `3600`                     | Magic-link token TTL (seconds)                        |
 | `IDP_BETTER_AUTH_GOOGLE_CLIENT_ID`     |    No    |                      –                      | Google OAuth client id (enables Google)               |
 | `IDP_BETTER_AUTH_GOOGLE_CLIENT_SECRET` |    No    |                      –                      | Google OAuth client secret                            |
+| `SENDGRID_API_KEY`                     | **Yes**  |                      –                      | SendGrid API key for magic-link emails                |
+| `SENDGRID_VERIFIED_SENDER_EMAIL`       | **Yes**  |                      –                      | Verified sender email in SendGrid                     |
+| `SENDGRID_VERIFIED_SENDER_NAME`        |    No    |                      –                      | Sender display name for auth emails                   |
 
 ## Troubleshooting
 
@@ -85,6 +95,16 @@ For MySQL, verify your connection settings and ensure the database exists.
 
 Ensure the user has permission for the action they're trying to perform.
 
+## Email/password & magic-link flow
+
+- Sign-in page shows Email + Password (Google remains available); it posts to Better Auth email sign-in and completes PKCE when `state` is present.
+- Sign-up page shows only Email. A magic link is sent; after clicking it, the user lands on `/auth/password/setup` to set a password, then sees a success screen with a sign-in link.
+- Forgot password lives at `/auth/forgot-password` and reuses the same magic-link + password setup flow.
+- For forgot password, email sending is intentionally silent when user is missing or has non-`credentials` provider to prevent account enumeration.
+- Magic-link confirm page: `/auth/magic-link?token=...&callbackURL=...` renders a confirm button before calling Better Auth verify.
+- Password setup and success pages: `/auth/password/setup` (POST to save) and `/auth/password/success`.
+- Email delivery uses `@owox/internal-helpers` SendGrid integration and one shared EJS template (`resources/templates/email/magic-link-email.ejs`) with intent-specific wording.
+
 ## Customizing the auth UI
 
 ### How it works
@@ -96,18 +116,20 @@ Ensure the user has permission for the action they're trying to perform.
 ### Where the files live
 
 - Layout: `src/resources/templates/layouts/auth.ejs` — splits the screen into brand panel + content and pulls in header/footer.
-- Pages: `pages/sign-in.ejs`, `pages/sign-up.ejs` — Google buttons, copy, and the social-login start script.
+- Pages: `pages/sign-in.ejs` (email+password + Google), `pages/sign-up.ejs` (email only → magic link), `pages/forgot-password.ejs`, `pages/magic-link-confirm.ejs`, `pages/password-setup.ejs`, `pages/password-success.ejs`.
 - Partials:
   - `head.ejs` — `<head>`, Tailwind include, color palette.
   - `header.ejs` — page heading (receives `heading`).
   - `brand-panel.ejs` — left panel with background and logo.
   - `footer.ejs` — terms and privacy links.
+- Email template: `resources/templates/email/magic-link-email.ejs`.
 
 ### What and how to change
 
 - Text/links: edit the relevant `pages/*.ejs` or `partials/footer.ejs`.
 - Page heading: adjust `heading` in `TemplateService.renderSignIn|renderSignUp`, or edit `partials/header.ejs` if you need a different look.
-- Buttons and social-login logic: in `pages/sign-in.ejs` and `pages/sign-up.ejs` (the `fetch` handler to `/auth/better-auth/sign-in/social`).
+- Buttons and social-login logic: in `pages/sign-in.ejs` and `pages/sign-up.ejs` (the `fetch` handlers).
+- Magic-link / password reset UI and copy: in `pages/forgot-password.ejs`, `pages/magic-link-confirm.ejs`, `pages/password-setup.ejs`, `pages/password-success.ejs`.
 - Styles/colors: tweak the Tailwind config in `partials/head.ejs` or utility classes in each section.
 - Branding (background, logo, tagline): in `partials/brand-panel.ejs`.
 

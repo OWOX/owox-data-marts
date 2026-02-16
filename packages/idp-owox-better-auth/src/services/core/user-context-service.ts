@@ -4,6 +4,7 @@ import { AuthenticationException } from '../../core/exceptions.js';
 import { OwoxTokenFacade } from '../../facades/owox-token-facade.js';
 import type { DatabaseStore } from '../../store/database-store.js';
 import type { DatabaseAccount, DatabaseUser } from '../../types/database-models.js';
+import { resolveProviderFromLoginMethod } from '../../utils/auth-provider-utils.js';
 
 export interface UserContext {
   payload: Payload;
@@ -49,7 +50,7 @@ export class UserContextService {
       });
     }
 
-    const account = await this.store.getAccountByUserId(user.id);
+    const account = await this.resolveAccountForUser(user, normalizedEmail);
     if (!account) {
       throw new AuthenticationException('Account not found for user', {
         context: { userId: user.id, email: normalizedEmail },
@@ -68,5 +69,30 @@ export class UserContextService {
   private normalizeEmail(email: string): string | null {
     const normalized = email.trim().toLowerCase();
     return normalized.length > 0 ? normalized : null;
+  }
+
+  private async resolveAccountForUser(
+    user: DatabaseUser,
+    normalizedEmail: string
+  ): Promise<DatabaseAccount | null> {
+    const preferredProvider = resolveProviderFromLoginMethod(user.lastLoginMethod);
+    if (preferredProvider) {
+      const preferredAccount = await this.store.getAccountByUserIdAndProvider(
+        user.id,
+        preferredProvider
+      );
+      if (preferredAccount) {
+        return preferredAccount;
+      }
+      this.logger?.warn?.(
+        'Account for last-login provider not found in refresh flow, falling back to latest account',
+        {
+          userId: user.id,
+          email: normalizedEmail,
+          preferredProvider,
+        }
+      );
+    }
+    return this.store.getAccountByUserId(user.id);
   }
 }

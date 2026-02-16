@@ -17,6 +17,8 @@ describe('UserContextService', () => {
     store = {
       getUserByEmail: jest.fn(),
       getAccountByUserId: jest.fn(),
+      getAccountByUserIdAndProvider: jest.fn(),
+      updateUserLastLoginMethod: jest.fn(),
     } as unknown as jest.Mocked<DatabaseStore>;
 
     tokenFacade = {

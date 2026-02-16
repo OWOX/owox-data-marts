@@ -4,11 +4,11 @@ import {
   type Response as ExpressResponse,
   type NextFunction,
 } from 'express';
-import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
 import { createBetterAuthConfig } from '../../config/idp-better-auth-config.js';
 import { BETTER_AUTH_SESSION_COOKIE } from '../../core/constants.js';
 import { logger } from '../../core/logger.js';
 import { extractPlatformParams } from '../../utils/request-utils.js';
+import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
 
 /**
  * Proxies Better Auth requests and completes social login flow.
@@ -94,18 +94,32 @@ export class RequestHandlerService {
   ): Promise<boolean> {
     const sessionToken = this.getSessionTokenFromResponse(response);
     if (!sessionToken) return false;
+    const callbackProviderId = this.resolveCallbackProviderId(req.path);
 
     const redirectUrl = await this.pkceFlowOrchestrator.completeWithSocialSessionToken(
       sessionToken,
       extractPlatformParams(req),
       req,
-      res
+      res,
+      callbackProviderId
     );
     if (redirectUrl) {
       res.redirect(redirectUrl.toString());
       return true;
     }
     return false;
+  }
+
+  private resolveCallbackProviderId(path: string | undefined): string | undefined {
+    if (!path) return undefined;
+    const callbackMatch = path.match(/\/callback\/([^/]+)/);
+    if (callbackMatch?.[1]) {
+      return callbackMatch[1].trim().toLowerCase();
+    }
+    if (path.includes('/sign-in/email') || path.includes('/sign-up/email')) {
+      return 'credential';
+    }
+    return undefined;
   }
 
   convertExpressToFetchRequest(req: ExpressRequest): Request {

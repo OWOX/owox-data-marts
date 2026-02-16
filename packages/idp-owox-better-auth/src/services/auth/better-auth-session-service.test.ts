@@ -35,6 +35,8 @@ describe('BetterAuthSessionService', () => {
     store = {
       getUserById: jest.fn(),
       getAccountByUserId: jest.fn(),
+      getAccountByUserIdAndProvider: jest.fn(),
+      updateUserLastLoginMethod: jest.fn(),
     } as unknown as jest.Mocked<DatabaseStore>;
 
     platformAuthFlowClient = {
@@ -124,5 +126,31 @@ describe('BetterAuthSessionService', () => {
     expect(getSessionMock).toHaveBeenCalledTimes(2);
     expect(getCookieHeaderFromCall(0)).toBe(`${BETTER_AUTH_SESSION_COOKIE}=session-token`);
     expect(getCookieHeaderFromCall(1)).toBe(`__Secure-${BETTER_AUTH_SESSION_COOKIE}=session-token`);
+  });
+
+  it('does not persist lastLoginMethod when platform auth flow fails', async () => {
+    getSessionMock.mockImplementation(async () => ({
+      user: { id: 'u3', email: 'third@test.com', name: 'Third User', lastLoginMethod: 'google' },
+      session: { id: 's3', userId: 'u3', token: 'session-token', expiresAt: '2030-01-01' },
+    }));
+    store.getUserById.mockResolvedValue({
+      id: 'u3',
+      email: 'third@test.com',
+      name: 'Third User',
+      image: null,
+      lastLoginMethod: 'google',
+    });
+    store.getAccountByUserIdAndProvider.mockResolvedValue({
+      id: 'a3',
+      userId: 'u3',
+      providerId: 'google',
+      accountId: 'google-u3',
+    });
+    platformAuthFlowClient.completeAuthFlow.mockRejectedValue(new Error('platform auth failed'));
+
+    await expect(
+      service.completeAuthFlowWithSessionToken('session-token', 'state-3')
+    ).rejects.toThrow('platform auth failed');
+    expect(store.updateUserLastLoginMethod).not.toHaveBeenCalled();
   });
 });

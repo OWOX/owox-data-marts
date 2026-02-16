@@ -1,5 +1,5 @@
 import { AuthResult, IdpProvider, Payload, Projects, ProtocolRoute } from '@owox/idp-protocol';
-import { Logger, LoggerFactory } from '@owox/internal-helpers';
+import { createMailingProvider, Logger, LoggerFactory } from '@owox/internal-helpers';
 import cookieParser from 'cookie-parser';
 import e, { Express, NextFunction } from 'express';
 import { IdentityOwoxClient, TokenResponse } from './client/index.js';
@@ -9,9 +9,11 @@ import { CORE_REFRESH_TOKEN_COOKIE, SOURCE } from './core/constants.js';
 import { AuthenticationException, IdpFailedException } from './core/exceptions.js';
 import { OwoxTokenFacade } from './facades/owox-token-facade.js';
 import { BetterAuthSessionService } from './services/auth/better-auth-session-service.js';
+import { MagicLinkService } from './services/auth/magic-link-service.js';
 import { PkceFlowOrchestrator } from './services/auth/pkce-flow-orchestrator.js';
 import { PlatformAuthFlowClient } from './services/auth/platform-auth-flow-client.js';
 import { UserContextService } from './services/core/user-context-service.js';
+import { MagicLinkEmailService } from './services/email/magic-link-email-service.js';
 import { MiddlewareService } from './services/middleware/middleware-service.js';
 import { RequestHandlerService } from './services/middleware/request-handler-service.js';
 import { PageService } from './services/rendering/page-service.js';
@@ -48,7 +50,8 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   private constructor(
     auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
     store: DatabaseStore,
-    private readonly config: BetterAuthProviderConfig
+    private readonly config: BetterAuthProviderConfig,
+    private readonly magicLinkService: MagicLinkService
   ) {
     this.auth = auth;
     this.store = store;
@@ -78,7 +81,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       this.logger
     );
     this.requestHandlerService = new RequestHandlerService(this.auth, this.pkceFlowOrchestrator);
-    this.pageService = new PageService();
+    this.pageService = new PageService(this.auth, this.magicLinkService);
     this.middlewareService = new MiddlewareService(
       this.pageService,
       this.config.idpOwox,
@@ -90,10 +93,24 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   static async create(config: BetterAuthProviderConfig): Promise<OwoxBetterAuthIdp> {
     const store = createDatabaseStore(config.idpOwox.dbConfig);
     const adapter = await store.getAdapter();
+    const mailProvider = createMailingProvider(config.email);
+    const magicLinkEmailService = new MagicLinkEmailService(mailProvider);
+    const magicLinkService = new MagicLinkService(
+      store,
+      magicLinkEmailService,
+      config.betterAuth.baseURL || config.idpOwox.baseUrl,
+      config.betterAuth.magicLinkTtl ?? 60 * 60
+    );
+
     const auth = await createBetterAuthConfig(config.betterAuth, {
       adapter,
+      magicLinkSender: magicLinkService.buildSender(),
+      resetPasswordSender: magicLinkService.buildResetPasswordSender(),
     });
-    return new OwoxBetterAuthIdp(auth, store, config);
+
+    magicLinkService.setAuth(auth);
+
+    return new OwoxBetterAuthIdp(auth, store, config, magicLinkService);
   }
 
   async initialize(): Promise<void> {

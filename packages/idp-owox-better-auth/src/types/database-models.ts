@@ -7,6 +7,7 @@ export interface DatabaseUser {
   emailVerified?: boolean;
   name?: string;
   image?: string | null;
+  lastLoginMethod?: string;
   createdAt?: string;
 }
 

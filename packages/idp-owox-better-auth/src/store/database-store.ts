@@ -19,6 +19,18 @@ export interface DatabaseStore {
   getUserById(userId: string): Promise<DatabaseUser | null>;
   getUserByEmail(email: string): Promise<DatabaseUser | null>;
   getAccountByUserId(userId: string): Promise<DatabaseAccount | null>;
+  getAccountByUserIdAndProvider(
+    userId: string,
+    providerId: string
+  ): Promise<DatabaseAccount | null>;
+  updateUserLastLoginMethod(userId: string, loginMethod: string): Promise<void>;
+
+  /**
+   * Returns active (non-expired) magic-link verification entry for the email, if any.
+   */
+  findActiveMagicLink(
+    email: string
+  ): Promise<{ id: string; createdAt?: Date | null; expiresAt?: Date | null } | null>;
 
   // PKCE
   saveAuthState(state: string, codeVerifier: string, expiresAt?: Date | null): Promise<void>;

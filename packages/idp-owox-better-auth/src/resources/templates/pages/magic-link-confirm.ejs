@@ -1,0 +1,64 @@
+<div class="space-y-6">
+  <!-- Page Heading -->
+  <div class="text-center">
+    <h1 class="text-3xl font-semibold text-foreground tracking-tight">
+      <%= intent === 'reset' ? 'Confirm to reset your password' : 'Confirm your email to continue' %>
+    </h1>
+  </div>
+  <% if (!token || !callbackURL) { %>
+    <div class="rounded-md border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
+      Access link is missing or invalid. Please request a new link.
+    </div>
+    <a href="/auth/sign-in" class="inline-flex items-center gap-2 text-sm font-medium text-primary hover:text-primary-hover transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+      </svg>
+      Back to sign in
+    </a>
+  <% } else { %>
+    <div class="space-y-3">
+      <p class="text-sm text-muted-foreground leading-relaxed">
+        This will verify your email and redirect you to the next step.
+      </p>
+    </div>
+
+    <button
+      id="confirm-magic-link"
+      type="button"
+      class="w-full inline-flex justify-center items-center gap-2 py-2.5 px-4 rounded-md text-sm font-medium text-white bg-primary hover:bg-primary-hover transition-all shadow-sm"
+      data-token="<%= token %>"
+      data-callback="<%= callbackURL %>"
+    >
+      <span>Confirm and continue</span>
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+      </svg>
+    </button>
+
+    <p id="magic-link-status" class="text-sm text-red-600 min-h-[20px]" aria-live="polite"></p>
+  <% } %>
+</div>
+
+<script>
+  const confirmButton = document.getElementById('confirm-magic-link');
+  const statusEl = document.getElementById('magic-link-status');
+
+  function setStatus(message) {
+    if (!statusEl) return;
+    statusEl.textContent = message || '';
+  }
+
+  confirmButton?.addEventListener('click', () => {
+    const token = confirmButton.dataset.token;
+    const callbackURL = confirmButton.dataset.callback;
+    if (!token || !callbackURL) {
+      setStatus('Access link data is missing.');
+      return;
+    }
+
+    const url = new URL('/auth/better-auth/magic-link/verify', window.location.origin);
+    url.searchParams.set('token', token);
+    url.searchParams.set('callbackURL', callbackURL);
+    window.location.href = url.toString();
+  });
+</script>

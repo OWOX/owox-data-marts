@@ -121,8 +121,14 @@ export class PkceFlowOrchestrator {
     sessionToken: string,
     params: PlatformParams,
     req: Request,
-    res: Response
+    res: Response,
+    callbackProviderId?: string
   ): Promise<URL | null> {
+    const isMagicLinkVerify = req.path?.includes('/magic-link/verify');
+    if (isMagicLinkVerify) {
+      return null;
+    }
+
     const state = extractStateFromCookie(req);
     if (!state) {
       this.logger.warn('Missing or mismatched state for social login flow');
@@ -131,7 +137,11 @@ export class PkceFlowOrchestrator {
     }
     try {
       const { code, payload } =
-        await this.betterAuthSessionService.completeAuthFlowWithSessionToken(sessionToken, state);
+        await this.betterAuthSessionService.completeAuthFlowWithSessionToken(
+          sessionToken,
+          state,
+          callbackProviderId
+        );
       const finalState = payload.state || state;
       const redirectUrl = buildPlatformRedirectUrl({
         baseUrl: this.idpOwoxConfig.idpConfig.platformSignInUrl,

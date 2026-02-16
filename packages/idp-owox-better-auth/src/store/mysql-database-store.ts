@@ -95,12 +95,14 @@ export class MysqlDatabaseStore implements DatabaseStore {
   }
 
   private mapUser(row: Record<string, unknown>): DatabaseUser {
+    const lastLoginMethod = row.lastLoginMethod ?? row.last_login_method;
     return {
       id: String(row.id),
       email: String(row.email),
       emailVerified: this.toBoolean(row.emailVerified),
       name: row.name != null ? String(row.name) : undefined,
       image: row.image != null ? String(row.image) : null,
+      lastLoginMethod: lastLoginMethod != null ? String(lastLoginMethod) : undefined,
       createdAt: this.toIso(row.createdAt),
     };
   }
@@ -167,6 +169,24 @@ export class MysqlDatabaseStore implements DatabaseStore {
     )) as [Array<Record<string, unknown>>, unknown];
     const row = (rows as Array<Record<string, unknown>>)[0];
     return row ? this.mapAccount(row) : null;
+  }
+
+  async getAccountByUserIdAndProvider(
+    userId: string,
+    providerId: string
+  ): Promise<DatabaseAccount | null> {
+    const pool = await this.getPool();
+    const [rows] = (await pool.execute(
+      'SELECT id, accountId, providerId, userId, createdAt FROM account WHERE userId = ? AND providerId = ? ORDER BY createdAt DESC LIMIT 1',
+      [userId, providerId]
+    )) as [Array<Record<string, unknown>>, unknown];
+    const row = (rows as Array<Record<string, unknown>>)[0];
+    return row ? this.mapAccount(row) : null;
+  }
+
+  async updateUserLastLoginMethod(userId: string, loginMethod: string): Promise<void> {
+    const pool = await this.getPool();
+    await pool.execute('UPDATE user SET lastLoginMethod = ? WHERE id = ?', [loginMethod, userId]);
   }
 
   async saveAuthState(state: string, codeVerifier: string, expiresAt?: Date | null): Promise<void> {
@@ -258,5 +278,53 @@ export class MysqlDatabaseStore implements DatabaseStore {
       // index already exists
     }
     this.authTableReady = true;
+  }
+
+  async findActiveMagicLink(
+    email: string
+  ): Promise<{ id: string; createdAt?: Date | null; expiresAt?: Date | null } | null> {
+    const pool = await this.getPool();
+    const pattern = `%\\"email\\":\\"${email.toLowerCase()}\\"%`;
+    const [rows] = (await pool.execute(
+      `SELECT id, createdAt, expiresAt 
+       FROM verification 
+       WHERE LOWER(value) LIKE ? 
+       ORDER BY expiresAt DESC 
+       LIMIT 1`,
+      [pattern]
+    )) as [
+      Array<{ id?: string; createdAt?: Date | string | null; expiresAt?: Date | string | null }>,
+      unknown,
+    ];
+
+    const row = (
+      rows as Array<{
+        id?: string;
+        createdAt?: Date | string | null;
+        expiresAt?: Date | string | null;
+      }>
+    )[0];
+    if (!row?.id) {
+      return null;
+    }
+
+    const expiresAt =
+      row.expiresAt instanceof Date
+        ? row.expiresAt
+        : row.expiresAt
+          ? new Date(String(row.expiresAt))
+          : null;
+    const createdAt =
+      row.createdAt instanceof Date
+        ? row.createdAt
+        : row.createdAt
+          ? new Date(String(row.createdAt))
+          : null;
+
+    return {
+      id: String(row.id),
+      createdAt: createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt : null,
+      expiresAt: expiresAt && !Number.isNaN(expiresAt.getTime()) ? expiresAt : null,
+    };
   }
 }

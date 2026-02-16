@@ -4,7 +4,9 @@ import { BETTER_AUTH_SESSION_COOKIE } from '../../core/constants.js';
 import { logger } from '../../core/logger.js';
 import { buildUserInfoPayload } from '../../mappers/user-info-payload-builder.js';
 import type { DatabaseStore } from '../../store/database-store.js';
+import type { DatabaseAccount } from '../../types/database-models.js';
 import { AuthSession } from '../../types/auth-session.js';
+import { resolveProviderFromLoginMethod } from '../../utils/auth-provider-utils.js';
 import { getStateManager } from '../../utils/request-utils.js';
 import { PlatformAuthFlowClient, type UserInfoPayload } from './platform-auth-flow-client.js';
 
@@ -24,17 +26,17 @@ export class BetterAuthSessionService {
     const stateManager = getStateManager(req);
     const session = await this.getSession(req);
     if (session?.user) {
-      const [dbUser, account] = await Promise.all([
-        this.store.getUserById(session.user.id),
-        this.store.getAccountByUserId(session.user.id),
-      ]);
-
-      if (!account) {
-        throw new Error(`No account found for user ${session.user.id}`);
-      }
-
+      const dbUser = await this.store.getUserById(session.user.id);
       if (!dbUser) {
         throw new Error(`User not found in DB for session ${session.user.id}`);
+      }
+
+      const account = await this.resolveAccountForUser({
+        userId: session.user.id,
+        userLastLoginMethod: dbUser.lastLoginMethod,
+      });
+      if (!account) {
+        throw new Error(`No account found for user ${session.user.id}`);
       }
 
       return buildUserInfoPayload({
@@ -54,13 +56,18 @@ export class BetterAuthSessionService {
       userId: payload.userInfo.uid,
     });
     const result = await this.platformAuthFlowClient.completeAuthFlow(payload);
+    const session = await this.getSession(req);
+    if (session?.user?.id) {
+      await this.tryPersistLastLoginMethod(session.user.id, payload.userInfo.signinProvider);
+    }
     logger.info('Integrated backend responded', { hasCode: Boolean(result.code) });
     return { code: result.code, payload };
   }
 
   async completeAuthFlowWithSessionToken(
     sessionToken: string,
-    state: string
+    state: string,
+    callbackProviderId?: string
   ): Promise<{ code: string; payload: UserInfoPayload }> {
     const encodedToken = encodeURIComponent(sessionToken);
     let session: Awaited<ReturnType<typeof this.auth.api.getSession>> | null = null;
@@ -80,13 +87,17 @@ export class BetterAuthSessionService {
     }
 
     const dbUser = await this.store.getUserById(session.user.id);
-    const account = await this.store.getAccountByUserId(session.user.id);
-    if (!account) {
-      throw new Error(`No account found for user ${session.user.id}`);
-    }
-
     if (!dbUser) {
       throw new Error(`User not found in DB for session ${session.user.id}`);
+    }
+
+    const account = await this.resolveAccountForUser({
+      userId: session.user.id,
+      callbackProviderId,
+      userLastLoginMethod: dbUser.lastLoginMethod,
+    });
+    if (!account) {
+      throw new Error(`No account found for user ${session.user.id}`);
     }
 
     const payload: UserInfoPayload = buildUserInfoPayload({
@@ -100,6 +111,7 @@ export class BetterAuthSessionService {
       userInfo: payload.userInfo,
     });
     const result = await this.platformAuthFlowClient.completeAuthFlow(payload);
+    await this.tryPersistLastLoginMethod(dbUser.id, account.providerId);
     logger.info('Integrated backend responded (callback)', { hasCode: Boolean(result.code) });
     return { code: result.code, payload };
   }
@@ -159,5 +171,48 @@ export class BetterAuthSessionService {
       }
     }
     return headers;
+  }
+
+  private async resolveAccountForUser(params: {
+    userId: string;
+    callbackProviderId?: string | null;
+    userLastLoginMethod?: string | null;
+  }): Promise<DatabaseAccount | null> {
+    const preferredProvider =
+      resolveProviderFromLoginMethod(params.callbackProviderId) ??
+      resolveProviderFromLoginMethod(params.userLastLoginMethod);
+
+    if (preferredProvider) {
+      const preferredAccount = await this.store.getAccountByUserIdAndProvider(
+        params.userId,
+        preferredProvider
+      );
+      if (preferredAccount) {
+        return preferredAccount;
+      }
+      logger.warn(
+        'Account for last-login provider not found in callback flow, falling back to latest account',
+        {
+          userId: params.userId,
+          preferredProvider,
+        }
+      );
+    }
+
+    return this.store.getAccountByUserId(params.userId);
+  }
+
+  private async tryPersistLastLoginMethod(userId: string, providerId: string): Promise<void> {
+    const method = resolveProviderFromLoginMethod(providerId) ?? providerId?.trim().toLowerCase();
+    if (!method) return;
+    try {
+      await this.store.updateUserLastLoginMethod(userId, method);
+    } catch (error) {
+      logger.warn('Failed to persist lastLoginMethod after successful authorization', {
+        userId,
+        method,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 }

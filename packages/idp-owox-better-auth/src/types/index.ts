@@ -35,12 +35,31 @@ export interface SocialProvidersConfig {
 
 export type DatabaseConfig = SqliteConfig | MySqlConfig;
 
+export interface SendgridEmailConfig {
+  apiKey: string;
+  verifiedSenderEmail: string;
+  verifiedSenderName?: string;
+}
+
+export type EmailConfig =
+  | {
+      provider: 'none';
+    }
+  | {
+      provider: 'sendgrid';
+      sendgrid: SendgridEmailConfig;
+    };
+
 export interface BetterAuthConfig {
   database: DatabaseConfig;
   socialProviders?: SocialProvidersConfig;
   session?: {
     maxAge?: number;
   };
+  /**
+   * TTL для magic-link токенів (секунди).
+   */
+  magicLinkTtl?: number;
   trustedOrigins?: string[];
   baseURL?: string;
   secret: string;

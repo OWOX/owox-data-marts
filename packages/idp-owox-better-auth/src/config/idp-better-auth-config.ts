@@ -1,5 +1,6 @@
 import { LoggerFactory, LogLevel } from '@owox/internal-helpers';
 import { betterAuth } from 'better-auth';
+import { magicLink } from 'better-auth/plugins';
 import { BETTER_AUTH_SESSION_COOKIE } from '../core/constants.js';
 import { GoogleProvider } from '../social/google-provider.js';
 import { BetterAuthConfig } from '../types/index.js';
@@ -7,23 +8,58 @@ import { BetterAuthConfig } from '../types/index.js';
 /**
  * Builds Better Auth configuration with social providers and cookies.
  */
+type MagicLinkSender = (params: { email: string; token: string; url: string }) => Promise<void>;
+type ResetPasswordSender = (params: { email: string; token: string; url: string }) => Promise<void>;
+
+type AuthOptions = {
+  adapter?: unknown;
+  magicLinkSender?: MagicLinkSender;
+  resetPasswordSender?: ResetPasswordSender;
+};
+
 export async function createBetterAuthConfig(
   config: BetterAuthConfig,
-  options?: { adapter?: unknown }
+  options?: AuthOptions
 ): Promise<ReturnType<typeof betterAuth>> {
   const logger = LoggerFactory.createNamedLogger('better-auth');
   const database = options?.adapter;
+  const plugins: unknown[] = [];
+  const emailAndPasswordConfig: Record<string, unknown> = {
+    enabled: true,
+    requireEmailVerification: false,
+  };
+
+  if (options?.resetPasswordSender) {
+    emailAndPasswordConfig.sendResetPassword = async ({
+      user,
+      token,
+      url,
+    }: {
+      user: { email: string };
+      token: string;
+      url: string;
+    }) => {
+      await options.resetPasswordSender?.({ email: user.email, token, url });
+    };
+    emailAndPasswordConfig.resetPasswordTokenExpiresIn = config.magicLinkTtl ?? 60 * 60;
+  }
 
   const basePath = '/auth/better-auth';
 
   const calcBaseURL = config.baseURL || 'http://localhost:3000';
-  const trustedOrigins =
-    config.trustedOrigins && config.trustedOrigins.length > 0
-      ? config.trustedOrigins
-      : [calcBaseURL];
+  const envPublicOrigin = process.env.PUBLIC_ORIGIN;
+  const trustedOrigins = Array.from(
+    new Set([
+      ...(config.trustedOrigins && config.trustedOrigins.length > 0
+        ? config.trustedOrigins
+        : [calcBaseURL]),
+      ...(envPublicOrigin ? [envPublicOrigin] : []),
+    ])
+  );
 
   const authConfig: Record<string, unknown> = {
     database,
+    plugins,
     session: {
       expiresIn: config.session?.maxAge || 60 * 60 * 24 * 7,
       updateAge: 60 * 60 * 24,
@@ -31,8 +67,15 @@ export async function createBetterAuthConfig(
     trustedOrigins: Array.from(new Set(trustedOrigins)),
     baseURL: calcBaseURL,
     secret: config.secret,
-    emailAndPassword: {
-      enabled: false,
+    emailAndPassword: emailAndPasswordConfig,
+    user: {
+      additionalFields: {
+        lastLoginMethod: {
+          type: 'string',
+          required: false,
+          input: false,
+        },
+      },
     },
     advanced: {
       cookies: {
@@ -84,6 +127,21 @@ export async function createBetterAuthConfig(
 
   const socialProviders = buildSocialProviders(config, providerLogger, defaultRedirect);
   if (socialProviders) authConfig.socialProviders = socialProviders;
+
+  plugins.push(
+    magicLink({
+      sendMagicLink: async ({ email, token, url }) => {
+        const sender = options?.magicLinkSender;
+        if (!sender) {
+          logger.log(LogLevel.ERROR, 'Magic link sender is not configured');
+          throw new Error('Magic link sender is not configured');
+        }
+        await sender({ email, token, url });
+      },
+      expiresIn: config.magicLinkTtl ?? 60 * 60,
+      disableSignUp: false,
+    })
+  );
 
   return betterAuth(authConfig);
 }
