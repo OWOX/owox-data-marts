@@ -48,8 +48,8 @@ export class DataMartService {
       .andWhere('dm.deletedAt IS NULL')
       .orderBy('dm.createdAt', 'DESC')
       .addOrderBy('dm.id', 'ASC')
-      .take(options?.limit)
-      .skip(options?.offset);
+      .limit(options?.limit)
+      .offset(options?.offset);
 
     const [items, total] = await qb.getManyAndCount();
     return { items, total };
