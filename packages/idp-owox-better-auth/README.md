@@ -43,6 +43,10 @@ SENDGRID_VERIFIED_SENDER_NAME=OWOX Data Marts
 # Social login (Google)
 # IDP_BETTER_AUTH_GOOGLE_CLIENT_ID=xx
 # IDP_BETTER_AUTH_GOOGLE_CLIENT_SECRET=xx
+# IDP_BETTER_AUTH_MICROSOFT_CLIENT_ID=xx
+# IDP_BETTER_AUTH_MICROSOFT_CLIENT_SECRET=xx
+# IDP_BETTER_AUTH_MICROSOFT_TENANT_ID=common
+# IDP_BETTER_AUTH_MICROSOFT_AUTHORITY=https://login.microsoftonline.com
 ```
 
 ## Configuration Reference
@@ -77,6 +81,10 @@ SENDGRID_VERIFIED_SENDER_NAME=OWOX Data Marts
 | `IDP_BETTER_AUTH_MAGIC_LINK_TTL`       |    No    |                  `3600`                     | Magic-link token TTL (seconds)                        |
 | `IDP_BETTER_AUTH_GOOGLE_CLIENT_ID`     |    No    |                      –                      | Google OAuth client id (enables Google)               |
 | `IDP_BETTER_AUTH_GOOGLE_CLIENT_SECRET` |    No    |                      –                      | Google OAuth client secret                            |
+| `IDP_BETTER_AUTH_MICROSOFT_CLIENT_ID`  |    No    |                      –                      | Microsoft OAuth client id (enables Microsoft)         |
+| `IDP_BETTER_AUTH_MICROSOFT_CLIENT_SECRET` |    No    |                      –                      | Microsoft OAuth client secret                         |
+| `IDP_BETTER_AUTH_MICROSOFT_TENANT_ID`  |    No    |                 `common`                    | Microsoft tenant id (e.g. common, consumers, or GUID) |
+| `IDP_BETTER_AUTH_MICROSOFT_AUTHORITY`  |    No    | `https://login.microsoftonline.com`         | Microsoft authority URL                               |
 | `SENDGRID_API_KEY`                     | **Yes**  |                      –                      | SendGrid API key for magic-link emails                |
 | `SENDGRID_VERIFIED_SENDER_EMAIL`       | **Yes**  |                      –                      | Verified sender email in SendGrid                     |
 | `SENDGRID_VERIFIED_SENDER_NAME`        |    No    |                      –                      | Sender display name for auth emails                   |

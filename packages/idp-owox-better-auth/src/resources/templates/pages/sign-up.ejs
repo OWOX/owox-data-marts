@@ -29,6 +29,19 @@
       </svg>
       <span>Continue with Google</span>
     </button>
+    <button
+      id="microsoft-signup"
+      type="button"
+      class="w-full inline-flex justify-center items-center gap-2 py-2.5 px-4 border border-border rounded-md text-sm font-medium text-foreground bg-background hover:bg-muted transition-colors"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 23 23">
+        <rect width="10" height="10" x="1" y="1" fill="#f35325"></rect>
+        <rect width="10" height="10" x="12" y="1" fill="#81bc06"></rect>
+        <rect width="10" height="10" x="1" y="12" fill="#05a6f0"></rect>
+        <rect width="10" height="10" x="12" y="12" fill="#ffba08"></rect>
+      </svg>
+      <span>Continue with Microsoft</span>
+    </button>
   </div>
 
   <!-- OR Divider -->
@@ -179,6 +192,8 @@
   }
 
   const googleButton = document.getElementById('google-signup');
+  const microsoftButton = document.getElementById('microsoft-signup');
   googleButton?.addEventListener('click', () => submitSocial('google'));
+  microsoftButton?.addEventListener('click', () => submitSocial('microsoft'));
   signupForm?.addEventListener('submit', handleSignUp);
 </script>

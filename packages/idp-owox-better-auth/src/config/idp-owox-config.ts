@@ -233,6 +233,11 @@ const BetterAuthEnvSchema = z.object({
   IDP_BETTER_AUTH_GOOGLE_CLIENT_SECRET: z.string().optional(),
   IDP_BETTER_AUTH_GOOGLE_PROMPT: z.string().optional(),
   IDP_BETTER_AUTH_GOOGLE_ACCESS_TYPE: z.string().optional(),
+  IDP_BETTER_AUTH_MICROSOFT_CLIENT_ID: z.string().optional(),
+  IDP_BETTER_AUTH_MICROSOFT_CLIENT_SECRET: z.string().optional(),
+  IDP_BETTER_AUTH_MICROSOFT_TENANT_ID: z.string().optional(),
+  IDP_BETTER_AUTH_MICROSOFT_AUTHORITY: z.string().optional(),
+  IDP_BETTER_AUTH_MICROSOFT_PROMPT: z.string().optional(),
 });
 
 const SendgridEnvSchema = z.object({
@@ -287,6 +292,19 @@ function buildSocialProviders(
         : undefined,
       prompt: env.IDP_BETTER_AUTH_GOOGLE_PROMPT ?? 'select_account',
       accessType: env.IDP_BETTER_AUTH_GOOGLE_ACCESS_TYPE ?? 'offline',
+    };
+  }
+
+  if (env.IDP_BETTER_AUTH_MICROSOFT_CLIENT_ID && env.IDP_BETTER_AUTH_MICROSOFT_CLIENT_SECRET) {
+    social.microsoft = {
+      clientId: env.IDP_BETTER_AUTH_MICROSOFT_CLIENT_ID,
+      clientSecret: env.IDP_BETTER_AUTH_MICROSOFT_CLIENT_SECRET,
+      tenantId: env.IDP_BETTER_AUTH_MICROSOFT_TENANT_ID ?? 'common',
+      authority: env.IDP_BETTER_AUTH_MICROSOFT_AUTHORITY ?? 'https://login.microsoftonline.com',
+      prompt: env.IDP_BETTER_AUTH_MICROSOFT_PROMPT ?? 'select_account',
+      redirectURI: baseURL
+        ? `${baseURL.replace(/\/$/, '')}/auth/better-auth/callback/microsoft`
+        : undefined,
     };
   }
 

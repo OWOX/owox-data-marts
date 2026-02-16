@@ -30,6 +30,20 @@
       <span>Continue with Google</span>
       <span id="google-badge" class="hidden absolute -top-2 -right-2 bg-background text-primary text-xs font-semibold px-2 py-0.5 rounded border border-primary">Last used</span>
     </button>
+    <button
+      id="microsoft-signin"
+      type="button"
+      class="relative w-full inline-flex justify-center items-center gap-2 py-2.5 px-4 border border-border rounded-md text-sm font-medium text-foreground bg-background hover:bg-muted transition-colors"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 23 23">
+        <rect width="10" height="10" x="1" y="1" fill="#f35325"></rect>
+        <rect width="10" height="10" x="12" y="1" fill="#81bc06"></rect>
+        <rect width="10" height="10" x="1" y="12" fill="#05a6f0"></rect>
+        <rect width="10" height="10" x="12" y="12" fill="#ffba08"></rect>
+      </svg>
+      <span>Continue with Microsoft</span>
+      <span id="microsoft-badge" class="hidden absolute -top-2 -right-2 bg-background text-primary text-xs font-semibold px-2 py-0.5 rounded border border-primary">Last used</span>
+    </button>
   </div>
 
   <!-- OR Divider -->
@@ -107,6 +121,7 @@
   const urlParams = new URLSearchParams(window.location.search);
   const redirect = urlParams.get('redirect');
   const googleButton = document.getElementById('google-signin');
+  const microsoftButton = document.getElementById('microsoft-signin');
   const emailForm = document.getElementById('email-signin-form');
   const statusEl = document.getElementById('email-signin-status');
   const submitBtn = document.getElementById('email-signin-submit');
@@ -131,7 +146,7 @@
     if (!lastProvider) return;
     
     // Hide all badges first
-    ['google-badge', 'email-badge'].forEach((badgeId) => {
+    ['google-badge', 'microsoft-badge', 'email-badge'].forEach((badgeId) => {
       document.getElementById(badgeId)?.classList.add('hidden');
     });
     
@@ -216,6 +231,7 @@
   }
 
   googleButton?.addEventListener('click', () => submitSocial('google'));
+  microsoftButton?.addEventListener('click', () => submitSocial('microsoft'));
   emailForm?.addEventListener('submit', submitEmailSignIn);
 
   // Password visibility toggle

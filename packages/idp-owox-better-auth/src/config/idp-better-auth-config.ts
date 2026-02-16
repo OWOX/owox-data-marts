@@ -4,6 +4,7 @@ import { magicLink } from 'better-auth/plugins';
 import { BETTER_AUTH_SESSION_COOKIE } from '../core/constants.js';
 import { logger } from '../core/logger.js';
 import { GoogleProvider } from '../social/google-provider.js';
+import { MicrosoftProvider } from '../social/microsoft-provider.js';
 import { BetterAuthConfig } from '../types/index.js';
 
 /**
@@ -177,6 +178,15 @@ function buildSocialProviders(
       logger: providerLogger,
     });
     providers.google = googleProvider.buildConfig();
+  }
+
+  if (config.socialProviders.microsoft) {
+    const microsoftProvider = new MicrosoftProvider({
+      ...config.socialProviders.microsoft,
+      redirectURI: config.socialProviders.microsoft.redirectURI ?? redirectBuilder('microsoft'),
+      logger: providerLogger,
+    });
+    providers.microsoft = microsoftProvider.buildConfig();
   }
 
   return Object.keys(providers).length ? providers : undefined;

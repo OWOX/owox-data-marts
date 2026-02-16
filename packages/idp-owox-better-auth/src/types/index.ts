@@ -29,8 +29,18 @@ export interface GoogleProviderConfig {
   accessType?: string;
 }
 
+export interface MicrosoftProviderConfig {
+  clientId: string;
+  clientSecret: string;
+  redirectURI?: string;
+  tenantId?: string;
+  authority?: string;
+  prompt?: string;
+}
+
 export interface SocialProvidersConfig {
   google?: GoogleProviderConfig;
+  microsoft?: MicrosoftProviderConfig;
 }
 
 export type DatabaseConfig = SqliteConfig | MySqlConfig;
