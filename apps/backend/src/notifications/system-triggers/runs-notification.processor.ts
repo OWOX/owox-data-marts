@@ -11,6 +11,7 @@ import { NotificationQueueService } from '../services/notification-queue.service
 import { ProjectNotificationSettingsService } from '../services/project-notification-settings.service';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { NOTIFICATION_DEFINITIONS } from '../definitions';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class RunsNotificationProcessor extends BaseSystemTaskProcessor {
@@ -21,9 +22,14 @@ export class RunsNotificationProcessor extends BaseSystemTaskProcessor {
     private readonly runRepository: Repository<DataMartRun>,
     private readonly queueService: NotificationQueueService,
     private readonly settingsService: ProjectNotificationSettingsService,
-    private readonly idpProjectionsFacade: IdpProjectionsFacade
+    private readonly idpProjectionsFacade: IdpProjectionsFacade,
+    private readonly configService: ConfigService
   ) {
     super();
+  }
+
+  override isEnabled(): boolean {
+    return super.isEnabled() && (this.configService.get<boolean>('NOTIFICATIONS_ENABLED') ?? false);
   }
 
   getType() {

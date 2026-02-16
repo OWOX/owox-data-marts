@@ -6,6 +6,7 @@ import { NotificationService } from '../services/notification.service';
 import { ProjectNotificationSettingsService } from '../services/project-notification-settings.service';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { UserInfo } from '../services/notification-email.service';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class SendNotificationProcessor extends BaseSystemTaskProcessor {
@@ -14,9 +15,14 @@ export class SendNotificationProcessor extends BaseSystemTaskProcessor {
   constructor(
     private readonly notificationService: NotificationService,
     private readonly settingsService: ProjectNotificationSettingsService,
-    private readonly idpProjectionsFacade: IdpProjectionsFacade
+    private readonly idpProjectionsFacade: IdpProjectionsFacade,
+    private readonly configService: ConfigService
   ) {
     super();
+  }
+
+  override isEnabled(): boolean {
+    return this.configService.get<boolean>('NOTIFICATIONS_ENABLED') ?? false;
   }
 
   getType() {
