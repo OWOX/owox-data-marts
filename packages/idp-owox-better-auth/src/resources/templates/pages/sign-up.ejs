@@ -79,11 +79,53 @@
   const signupStatus = document.getElementById('signup-status');
   const signupSubmit = document.getElementById('signup-submit');
 
+  const TIMER_KEY = 'signup_email_timer_expiry';
+
   function setSignupStatus(message, type = 'error') {
     if (!signupStatus) return;
     signupStatus.textContent = message || '';
-    signupStatus.classList.remove('text-red-600', 'text-emerald-700');
-    signupStatus.classList.add(type === 'success' ? 'text-emerald-700' : 'text-red-600');
+    signupStatus.classList.remove('text-red-600', 'text-emerald-700', 'text-blue-600');
+    if (type === 'success') {
+      signupStatus.classList.add('text-emerald-700');
+    } else if (type === 'info') {
+      signupStatus.classList.add('text-blue-600');
+    } else {
+      signupStatus.classList.add('text-red-600');
+    }
+  }
+
+  function getTimeRemaining() {
+    const expiry = localStorage.getItem(TIMER_KEY);
+    if (!expiry) return 0;
+    
+    const remaining = Math.max(0, Math.floor((Number(expiry) - Date.now()) / 1000));
+    if (remaining === 0) {
+      localStorage.removeItem(TIMER_KEY);
+    }
+    return remaining;
+  }
+
+  function startTimer(seconds) {
+    const expiry = Date.now() + (seconds * 1000);
+    localStorage.setItem(TIMER_KEY, expiry.toString());
+    updateTimerUI();
+  }
+
+  function updateTimerUI() {
+    const remaining = getTimeRemaining();
+    if (remaining > 0) {
+      signupSubmit.disabled = true;
+      setSignupStatus(`Please wait ${remaining} second${remaining !== 1 ? 's' : ''} before requesting another email.`, 'info');
+      setTimeout(updateTimerUI, 1000);
+    } else {
+      signupSubmit.disabled = false;
+      setSignupStatus('');
+    }
+  }
+
+  // Check for existing timer on page load
+  if (getTimeRemaining() > 0) {
+    updateTimerUI();
   }
 
   async function handleSignUp(event) {
@@ -112,19 +154,26 @@
         if (contentType.includes('application/json')) {
           const data = await response.json().catch(() => null);
           if (data?.error) message = data.error;
+          // Handle rate limiting with waitSeconds from backend
+          if (response.status === 429 && data?.waitSeconds) {
+            startTimer(data.waitSeconds);
+            return;
+          }
         } else {
           const text = await response.text().catch(() => '');
           if (text) message = text;
         }
         setSignupStatus(message);
+        signupSubmit.disabled = false;
         return;
       }
 
+      // Success - start 60 second timer
+      startTimer(60);
       setSignupStatus('Access link sent! Check your email to verify it and set your password.', 'success');
     } catch (error) {
       console.error('Sign-up access link failed', error);
       setSignupStatus('Unable to send access link. Please try again.');
-    } finally {
       signupSubmit.disabled = false;
     }
   }

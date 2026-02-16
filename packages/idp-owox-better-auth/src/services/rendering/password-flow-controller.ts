@@ -46,7 +46,10 @@ export class PasswordFlowController {
         return;
       }
       if (!result.sent && result.reason === 'rate_limited') {
-        res.status(429).json({ error: 'Magic link already sent. Please wait until it expires.' });
+        res.status(429).json({
+          error: 'Please wait before requesting another email',
+          waitSeconds: result.waitSeconds,
+        });
         return;
       }
       if (!result.sent) {

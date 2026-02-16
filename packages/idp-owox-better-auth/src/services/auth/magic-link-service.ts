@@ -9,7 +9,12 @@ export type MagicLinkSendResult =
   | { sent: true }
   | {
       sent: false;
-      reason: 'user_not_found' | 'not_initialized' | 'invalid_email' | 'rate_limited';
+      reason: 'user_not_found' | 'not_initialized' | 'invalid_email';
+    }
+  | {
+      sent: false;
+      reason: 'rate_limited';
+      waitSeconds: number;
     };
 
 /**
@@ -17,6 +22,7 @@ export type MagicLinkSendResult =
  * Keeps sendMagicLink callback separate from creation to avoid tight coupling in config.
  */
 export class MagicLinkService {
+  private static readonly RESEND_COOLDOWN_SECONDS = 60;
   private auth?: BetterAuthInstance;
 
   constructor(
@@ -108,20 +114,15 @@ export class MagicLinkService {
     }
 
     const now = Date.now();
-    const retryWindowMs = Math.max(this.magicLinkTtlSeconds * 1000, 0);
     const activeVerification = await this.store.findActiveMagicLink(normalizedEmail);
-    if (activeVerification) {
-      const expiresAt = activeVerification.expiresAt?.getTime();
-      const createdAt = activeVerification.createdAt?.getTime();
-      const stillValid = typeof expiresAt === 'number' && expiresAt > now;
-      const withinConfiguredWindow =
-        !stillValid &&
-        typeof createdAt === 'number' &&
-        retryWindowMs > 0 &&
-        createdAt + retryWindowMs > now;
+    if (activeVerification?.createdAt) {
+      const createdAtMs = activeVerification.createdAt.getTime();
+      const elapsedMs = now - createdAtMs;
+      const cooldownMs = MagicLinkService.RESEND_COOLDOWN_SECONDS * 1000;
 
-      if (stillValid || withinConfiguredWindow) {
-        return { sent: false, reason: 'rate_limited' };
+      if (elapsedMs < cooldownMs) {
+        const waitSeconds = Math.ceil((cooldownMs - elapsedMs) / 1000);
+        return { sent: false, reason: 'rate_limited', waitSeconds };
       }
     }
 

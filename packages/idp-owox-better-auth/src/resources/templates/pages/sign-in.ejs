@@ -61,15 +61,29 @@
         <label for="password" class="block text-sm font-medium text-foreground">Password</label>
         <a href="/auth/forgot-password" class="text-xs text-primary hover:text-primary/80">Forgot password?</a>
       </div>
-      <input
-        id="password"
-        name="password"
-        type="password"
-        autocomplete="current-password"
-        required
-        class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-        placeholder="••••••••"
-      />
+      <div class="relative">
+        <input
+          id="password"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          required
+          class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary pr-10"
+          placeholder="••••••••"
+        />
+        <button
+          type="button"
+          id="toggle-password"
+          class="absolute inset-y-0 right-0 px-3 text-muted-foreground hover:text-foreground transition-colors"
+          aria-label="Toggle password visibility"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path id="eye-open" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            <path id="eye-open-2" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+            <path id="eye-closed" class="hidden" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path>
+          </svg>
+        </button>
+      </div>
     </div>
     <button
       id="email-signin-submit"
@@ -195,7 +209,7 @@
       setStatus(message);
     } catch (error) {
       console.error('Email sign-in failed', error);
-      setStatus('Sign-in failed. Please try again.');
+      setStatus('Sign-in failed. Please try again or try a different sign-in method.');
     } finally {
       submitBtn.disabled = false;
     }
@@ -203,6 +217,32 @@
 
   googleButton?.addEventListener('click', () => submitSocial('google'));
   emailForm?.addEventListener('submit', submitEmailSignIn);
+
+  // Password visibility toggle
+  const passwordInput = document.getElementById('password');
+  const togglePassword = document.getElementById('toggle-password');
+
+  function togglePasswordVisibility() {
+    if (!passwordInput || !togglePassword) return;
+    
+    const isPassword = passwordInput.type === 'password';
+    passwordInput.type = isPassword ? 'text' : 'password';
+    
+    const openPaths = togglePassword.querySelectorAll('#eye-open, #eye-open-2');
+    const closedPath = togglePassword.querySelector('#eye-closed');
+    
+    if (isPassword) {
+      // Showing password - show closed eye
+      openPaths.forEach(path => path.classList.add('hidden'));
+      closedPath?.classList.remove('hidden');
+    } else {
+      // Hiding password - show open eye
+      openPaths.forEach(path => path.classList.remove('hidden'));
+      closedPath?.classList.add('hidden');
+    }
+  }
+
+  togglePassword?.addEventListener('click', togglePasswordVisibility);
 
   // Show last used badge on page load
   showLastUsedBadge();

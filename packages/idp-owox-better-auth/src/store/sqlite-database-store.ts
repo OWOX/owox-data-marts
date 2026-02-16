@@ -252,11 +252,19 @@ export class SqliteDatabaseStore implements DatabaseStore {
     return Number(res.changes ?? 0);
   }
 
+  /**
+   * Escapes special LIKE pattern characters (%, _, \) to prevent SQL injection.
+   */
+  private escapeLikePattern(value: string): string {
+    return value.replace(/[%_\\]/g, '\\$&');
+  }
+
   async findActiveMagicLink(
     email: string
   ): Promise<{ id: string; createdAt?: Date | null; expiresAt?: Date | null } | null> {
     await this.connect();
-    const pattern = `%\\"email\\":\\"${email.toLowerCase()}\\"%`;
+    const escapedEmail = this.escapeLikePattern(email.toLowerCase());
+    const pattern = `%\\"email\\":\\"${escapedEmail}\\"%`;
     const row = this.getDb()
       .prepare(
         `SELECT id, createdAt, expiresAt 

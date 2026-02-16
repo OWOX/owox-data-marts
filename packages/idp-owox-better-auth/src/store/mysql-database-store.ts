@@ -243,6 +243,13 @@ export class MysqlDatabaseStore implements DatabaseStore {
     return (result as MysqlExecResult).affectedRows ?? 0;
   }
 
+  /**
+   * Escapes special LIKE pattern characters (%, _, \) to prevent SQL injection.
+   */
+  private escapeLikePattern(value: string): string {
+    return value.replace(/[%_\\]/g, '\\$&');
+  }
+
   async shutdown(): Promise<void> {
     if (this.pool && typeof this.pool.end === 'function') {
       try {
@@ -284,7 +291,8 @@ export class MysqlDatabaseStore implements DatabaseStore {
     email: string
   ): Promise<{ id: string; createdAt?: Date | null; expiresAt?: Date | null } | null> {
     const pool = await this.getPool();
-    const pattern = `%\\"email\\":\\"${email.toLowerCase()}\\"%`;
+    const escapedEmail = this.escapeLikePattern(email.toLowerCase());
+    const pattern = `%\\"email\\":\\"${escapedEmail}\\"%`;
     const [rows] = (await pool.execute(
       `SELECT id, createdAt, expiresAt 
        FROM verification 
