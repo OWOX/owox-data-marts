@@ -18,7 +18,7 @@ import { SheetValuesFormatter } from './sheet-formatters/sheet-values-formatter'
 import { SheetsReportRunSuccessfullyEvent } from '../../../events/sheets-report-run-successfully.event';
 import { OWOX_PRODUCER } from '../../../../common/producer/producer.module';
 import { OwoxProducer } from '@owox/internal-helpers';
-import { Warning } from '../../../errors/warning.error';
+import { GoogleSheetNotFound } from '../../../errors/google-sheet-not-found.error';
 
 /**
  * Service for writing report data to Google Sheets
@@ -170,14 +170,14 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
       const spreadsheet = await this.adapter
         .getSpreadsheet(this.destination.spreadsheetId)
         .catch(error => {
-          throw new Warning(
+          throw new GoogleSheetNotFound(
             `Failed to access spreadsheet ${this.destination.spreadsheetId}: ${error.message}`
           );
         });
       const sheet = this.adapter.findSheetById(spreadsheet, this.destination.sheetId);
 
       if (!sheet) {
-        throw new Warning(
+        throw new GoogleSheetNotFound(
           `Failed to find sheet ${this.destination.sheetId} in spreadsheet ${this.destination.spreadsheetId}`
         );
       }
@@ -292,7 +292,7 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
       this.logger.debug(`${operationName} completed`);
       return result;
     } catch (error) {
-      if (error instanceof Warning) {
+      if (error instanceof GoogleSheetNotFound) {
         this.logger.warn(`${operationName} warning: ${error.message}`);
       } else {
         this.logger.error(`${operationName} failed: ${error.message}`, error.stack);
