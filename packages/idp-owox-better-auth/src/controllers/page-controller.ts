@@ -1,18 +1,18 @@
 import { ProtocolRoute } from '@owox/idp-protocol';
 import {
-  type Express,
-  type Request as ExpressRequest,
-  type Response as ExpressResponse,
+    type Express,
+    type Request as ExpressRequest,
+    type Response as ExpressResponse,
 } from 'express';
-import { extractPlatformParams, persistPlatformContext } from '../../utils/request-utils.js';
-import { TemplateService } from './template-service.js';
+import { TemplateService } from '../services/rendering/template-service.js';
+import { extractPlatformParams, persistPlatformContext } from '../utils/request-utils.js';
 
 const AUTH_BASE_PATH = '/auth';
 
 /**
  * Renders static auth pages and persists platform context.
  */
-export class PageRenderService {
+export class PageController {
   constructor() {}
 
   private persistPlatformContext(req: ExpressRequest, res: ExpressResponse): void {

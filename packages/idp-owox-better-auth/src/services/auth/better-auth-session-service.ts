@@ -5,9 +5,8 @@ import { logger } from '../../core/logger.js';
 import { buildUserInfoPayload } from '../../mappers/user-info-payload-builder.js';
 import type { DatabaseStore } from '../../store/database-store.js';
 import { AuthSession } from '../../types/auth-session.js';
-import { resolveAccountForUser } from '../../utils/account-resolver.js';
-import { resolveProviderFromLoginMethod } from '../../utils/auth-provider-utils.js';
-import { convertExpressHeaders } from '../../utils/express-headers.js';
+import { resolveAccountForUser, resolveProviderFromLoginMethod } from '../../utils/account-resolver.js';
+import { convertExpressHeaders } from '../../utils/express-compat.js';
 import { getStateManager } from '../../utils/request-utils.js';
 import { PlatformAuthFlowClient, type UserInfoPayload } from './platform-auth-flow-client.js';
 

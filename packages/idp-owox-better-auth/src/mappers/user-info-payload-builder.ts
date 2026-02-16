@@ -1,6 +1,6 @@
 import type { UserInfoPayload } from '../services/auth/platform-auth-flow-client.js';
 import type { DatabaseAccount, DatabaseUser } from '../types/database-models.js';
-import { splitName } from '../utils/string-utils.js';
+import { splitName } from '../utils/email-utils.js';
 
 /**
  * Builds the auth-flow payload from DB user and account data.

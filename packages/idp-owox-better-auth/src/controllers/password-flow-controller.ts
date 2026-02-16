@@ -1,18 +1,18 @@
 import { ProtocolRoute } from '@owox/idp-protocol';
 import {
-  type Express,
-  type Request as ExpressRequest,
-  type Response as ExpressResponse,
+    type Express,
+    type Request as ExpressRequest,
+    type Response as ExpressResponse,
 } from 'express';
-import type { createBetterAuthConfig } from '../../config/idp-better-auth-config.js';
-import { logger } from '../../core/logger.js';
-import { parseEmail } from '../../utils/email-utils.js';
-import { convertExpressHeaders } from '../../utils/express-headers.js';
-import { clearBetterAuthCookies } from '../../utils/request-utils.js';
-import type { BetterAuthSessionService } from '../auth/better-auth-session-service.js';
-import { MagicLinkService } from '../auth/magic-link-service.js';
-import type { MagicLinkIntent } from '../email/magic-link-email-service.js';
-import { TemplateService } from './template-service.js';
+import type { createBetterAuthConfig } from '../config/idp-better-auth-config.js';
+import { logger } from '../core/logger.js';
+import type { BetterAuthSessionService } from '../services/auth/better-auth-session-service.js';
+import { MagicLinkService } from '../services/auth/magic-link-service.js';
+import type { MagicLinkIntent } from '../services/email/magic-link-email-service.js';
+import { TemplateService } from '../services/rendering/template-service.js';
+import { parseEmail } from '../utils/email-utils.js';
+import { convertExpressHeaders } from '../utils/express-compat.js';
+import { clearBetterAuthCookies } from '../utils/request-utils.js';
 
 const AUTH_BASE_PATH = '/auth';
 type BetterAuthInstance = Awaited<ReturnType<typeof createBetterAuthConfig>>;

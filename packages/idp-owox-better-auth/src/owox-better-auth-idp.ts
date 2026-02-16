@@ -5,6 +5,8 @@ import e, { Express, NextFunction } from 'express';
 import { IdentityOwoxClient, TokenResponse } from './client/index.js';
 import { createBetterAuthConfig } from './config/idp-better-auth-config.js';
 import type { BetterAuthProviderConfig } from './config/index.js';
+import { PageController } from './controllers/page-controller.js';
+import { PasswordFlowController } from './controllers/password-flow-controller.js';
 import { CORE_REFRESH_TOKEN_COOKIE, SOURCE } from './core/constants.js';
 import { AuthenticationException, IdpFailedException } from './core/exceptions.js';
 import { logger } from './core/logger.js';
@@ -15,22 +17,20 @@ import { PkceFlowOrchestrator } from './services/auth/pkce-flow-orchestrator.js'
 import { PlatformAuthFlowClient } from './services/auth/platform-auth-flow-client.js';
 import { UserContextService } from './services/core/user-context-service.js';
 import { MagicLinkEmailService } from './services/email/magic-link-email-service.js';
-import { MiddlewareService } from './services/middleware/middleware-service.js';
-import { RequestHandlerService } from './services/middleware/request-handler-service.js';
-import { PageRenderService } from './services/rendering/page-service.js';
-import { PasswordFlowController } from './services/rendering/password-flow-controller.js';
+import { AuthFlowMiddleware } from './services/middleware/auth-flow-middleware.js';
+import { BetterAuthProxyHandler } from './services/middleware/better-auth-proxy-handler.js';
 import { createDatabaseStore } from './store/database-store-factory.js';
 import type { DatabaseStore } from './store/database-store.js';
 import { clearCookie } from './utils/cookie-policy.js';
+import { formatError } from './utils/email-utils.js';
 import { buildPlatformEntryUrl } from './utils/platform-redirect-builder.js';
 import {
-    clearBetterAuthCookies,
-    clearPlatformCookies,
-    extractPlatformParams,
-    extractRefreshToken,
-    getStateManager,
+  clearBetterAuthCookies,
+  clearPlatformCookies,
+  extractPlatformParams,
+  extractRefreshToken,
+  getStateManager,
 } from './utils/request-utils.js';
-import { formatError } from './utils/string-utils.js';
 
 /**
  * Main IdP implementation that wires core PKCE flow and Better Auth.
@@ -38,11 +38,11 @@ import { formatError } from './utils/string-utils.js';
 export class OwoxBetterAuthIdp implements IdpProvider {
   private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>;
   private readonly store: DatabaseStore;
-  private readonly requestHandlerService: RequestHandlerService;
-  private readonly pageService: PageRenderService;
+  private readonly betterAuthProxyHandler: BetterAuthProxyHandler;
+  private readonly pageController: PageController;
   private readonly passwordFlowController: PasswordFlowController;
   private readonly betterAuthSessionService: BetterAuthSessionService;
-  private readonly middlewareService: MiddlewareService;
+  private readonly authFlowMiddleware: AuthFlowMiddleware;
   private readonly identityClient: IdentityOwoxClient;
   private readonly tokenFacade: OwoxTokenFacade;
   private readonly userContextService: UserContextService;
@@ -80,11 +80,11 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       this.betterAuthSessionService,
       logger
     );
-    this.requestHandlerService = new RequestHandlerService(this.auth, this.pkceFlowOrchestrator);
-    this.pageService = new PageRenderService();
+    this.betterAuthProxyHandler = new BetterAuthProxyHandler(this.auth, this.pkceFlowOrchestrator);
+    this.pageController = new PageController();
     this.passwordFlowController = new PasswordFlowController(this.auth, this.betterAuthSessionService, this.magicLinkService);
-    this.middlewareService = new MiddlewareService(
-      this.pageService,
+    this.authFlowMiddleware = new AuthFlowMiddleware(
+      this.pageController,
       this.config.idpOwox,
       this.store,
       this.pkceFlowOrchestrator
@@ -126,13 +126,13 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     app.use(e.urlencoded({ extended: true }));
     app.use(cookieParser());
 
-    this.requestHandlerService.setupBetterAuthHandler(app);
-    this.pageService.registerRoutes(app);
+    this.betterAuthProxyHandler.setupBetterAuthHandler(app);
+    this.pageController.registerRoutes(app);
     this.passwordFlowController.registerRoutes(app);
 
     app.get(
       '/auth/idp-start',
-      this.middlewareService.idpStartMiddleware.bind(this.middlewareService)
+      this.authFlowMiddleware.idpStartMiddleware.bind(this.authFlowMiddleware)
     );
 
     // Core callback route (PKCE code exchange)
@@ -200,7 +200,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     }
 
     stateManager.persist(res, queryState);
-    return this.middlewareService.signInMiddleware(req, res, next);
+    return this.authFlowMiddleware.signInMiddleware(req, res, next);
   }
 
   /**
@@ -212,7 +212,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     const refreshToken = extractRefreshToken(req);
 
     if (projectId && refreshToken) {
-      return this.middlewareService.idpStartMiddleware(req, res);
+      return this.authFlowMiddleware.idpStartMiddleware(req, res);
     }
 
     if (refreshToken) {
@@ -274,7 +274,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignUpUrl);
     }
     stateManager.persist(res, queryState);
-    return this.middlewareService.signUpMiddleware(req, res, _next);
+    return this.authFlowMiddleware.signUpMiddleware(req, res, _next);
   }
 
   async signOutMiddleware(

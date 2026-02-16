@@ -5,7 +5,7 @@ import type { JWTVerifyOptions } from 'jose/jwt/verify';
 import ms from 'ms';
 import { IdentityOwoxClient } from '../../client/index.js';
 import { toPayload } from '../../mappers/client-payload-mapper.js';
-import { formatError } from '../../utils/string-utils.js';
+import { formatError } from '../../utils/email-utils.js';
 
 export interface TokenServiceConfig {
   algorithm: string;

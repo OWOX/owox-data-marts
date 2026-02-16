@@ -14,7 +14,7 @@ import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
 /**
  * Express middleware handlers for starting PKCE and fast-path sign-in.
  */
-export class MiddlewareService {
+export class AuthFlowMiddleware {
   constructor(
     private readonly pageController: PageController,
     private readonly idpOwoxConfig: IdpOwoxConfig,

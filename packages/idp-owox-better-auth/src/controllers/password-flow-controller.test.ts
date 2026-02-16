@@ -1,8 +1,8 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import type { Request, Response } from 'express';
-import type { createBetterAuthConfig } from '../../config/idp-better-auth-config.js';
-import type { BetterAuthSessionService } from '../auth/better-auth-session-service.js';
-import type { MagicLinkService } from '../auth/magic-link-service.js';
+import type { createBetterAuthConfig } from '../config/idp-better-auth-config.js';
+import type { BetterAuthSessionService } from '../services/auth/better-auth-session-service.js';
+import type { MagicLinkService } from '../services/auth/magic-link-service.js';
 import { PasswordFlowController } from './password-flow-controller.js';
 
 type BetterAuthInstance = Awaited<ReturnType<typeof createBetterAuthConfig>>;
@@ -50,7 +50,8 @@ describe('PasswordFlowController.sendMagicLink', () => {
 
     expect(res.status).toHaveBeenCalledWith(429);
     expect(res.json).toHaveBeenCalledWith({
-      error: 'Magic link already sent. Please wait until it expires.',
+      error: 'Please wait before requesting another email',
+      waitSeconds: undefined,
     });
   });
 });
@@ -78,7 +79,7 @@ describe('PasswordFlowController.passwordSetupPage', () => {
 });
 
 describe('PasswordFlowController.setPassword', () => {
-  const baseHeaders = { cookie: 'session=token' } as unknown as Headers;
+  const baseHeaders = { cookie: 'session=token' };
 
   it('uses resetPassword when intent is reset and token is provided', async () => {
     const resetPassword = jest.fn(async (_params?: unknown) => ({}));
@@ -104,8 +105,10 @@ describe('PasswordFlowController.setPassword', () => {
 
     expect(resetPassword).toHaveBeenCalledWith({
       body: { newPassword: 'NewPassw0rd', token: 'reset-token' },
-      headers: baseHeaders,
+      headers: expect.any(Headers),
     });
+    const resetHeaders = (resetPassword as jest.Mock).mock.calls[0]?.[0]?.headers as Headers;
+    expect(resetHeaders.get('cookie')).toBe('session=token');
     expect(signOut).not.toHaveBeenCalled();
     expect(res.redirect).toHaveBeenCalledWith('/auth/password/success');
   });
@@ -133,8 +136,10 @@ describe('PasswordFlowController.setPassword', () => {
 
     expect(resetPassword).toHaveBeenCalledWith({
       body: { newPassword: 'NewPassw0rd', token: 'reset-token' },
-      headers: baseHeaders,
+      headers: expect.any(Headers),
     });
+    const resetHeaders = (resetPassword as jest.Mock).mock.calls[0]?.[0]?.headers as Headers;
+    expect(resetHeaders.get('cookie')).toBe('session=token');
     expect(auth.api.signOut).not.toHaveBeenCalled();
   });
 

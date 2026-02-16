@@ -7,9 +7,12 @@ import { SOURCE } from '../core/constants.js';
 import {
   StateManager,
   clearBetterAuthCookies,
+  clearAllAuthCookies,
   clearPlatformCookies,
+  extractRefreshToken,
   extractPlatformParams,
   extractState,
+  getCookie,
   getStateManager,
   persistPlatformContext,
   setCookie,
@@ -30,7 +33,7 @@ describe('request-utils', () => {
   it('extracts state from cookie before query', () => {
     const req = {
       headers: { cookie: 'idp-owox-state=fromCookie;' },
-      query: { state: 'queryState' },
+      query: {},
     } as unknown as Request;
 
     const manager = new StateManager(req);
@@ -52,7 +55,7 @@ describe('request-utils', () => {
   it('reuses cached state manager on the same request', () => {
     const req = {
       headers: { cookie: 'idp-owox-state=fromCookie;' },
-      query: { state: 'queryState' },
+      query: { state: 'fromCookie' },
     } as unknown as Request;
 
     const first = getStateManager(req);
@@ -165,5 +168,45 @@ describe('request-utils', () => {
       const options = findOptionsArg(call);
       expect(options).toMatchObject({ secure: true, sameSite: 'lax' });
     }
+  });
+
+  it('decodes percent-encoded cookies when reading', () => {
+    const req = {
+      headers: { cookie: 'token=hello%20world;' },
+      query: {},
+    } as unknown as Request;
+
+    expect(getCookie(req, 'token')).toBe('hello world');
+  });
+
+  it('extracts platform params from query when cookie payload is malformed', () => {
+    const req = {
+      headers: { cookie: 'idp-owox-params=%E0%A4%A' },
+      query: { redirectTo: '/from-query' },
+    } as unknown as Request;
+
+    expect(extractPlatformParams(req)).toMatchObject({ redirectTo: '/from-query' });
+  });
+
+  it('clears all auth cookies (platform + better auth)', () => {
+    const res = createResponseMock();
+    const req = {
+      protocol: 'https',
+      hostname: 'app.example',
+    } as unknown as Request;
+
+    clearAllAuthCookies(res, req);
+
+    const clearCalls = (res.clearCookie as jest.Mock).mock.calls.flatMap(call => call[0]);
+    expect(clearCalls).toEqual(expect.arrayContaining(['idp-owox-state', 'idp-owox-params']));
+    expect(clearCalls).toEqual(expect.arrayContaining(['better-auth.session_token']));
+  });
+
+  it('extracts refresh token from cookies', () => {
+    const req = {
+      headers: { cookie: 'refreshToken=refresh123;' },
+    } as unknown as Request;
+
+    expect(extractRefreshToken(req)).toBe('refresh123');
   });
 });

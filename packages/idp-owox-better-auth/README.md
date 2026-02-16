@@ -121,12 +121,13 @@ Entry point (OwoxBetterAuthIdp)
  ├── Config layer (idp-owox-config, idp-better-auth-config)
  ├── Client layer (IdentityOwoxClient)
  ├── Facade layer (OwoxTokenFacade)
+ ├── Controllers (PageController, PasswordFlowController)
  ├── Service layer
  │    ├── auth/ (BetterAuthSessionService, PkceFlowOrchestrator, MagicLinkService)
  │    ├── core/ (TokenService, UserContextService)
  │    ├── email/ (MagicLinkEmailService)
- │    ├── middleware/ (signInMiddleware)
- │    └── rendering/ (PageRenderService, PasswordFlowController, TemplateService)
+ │    ├── middleware/ (AuthFlowMiddleware, BetterAuthProxyHandler)
+ │    └── rendering/ (TemplateService)
  └── Utils (account-resolver, cookie-policy, url-utils, email-utils, request-utils …)
 ```
 

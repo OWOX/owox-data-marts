@@ -1,6 +1,21 @@
 import type { Logger } from '@owox/internal-helpers';
 import type { Request as ExpressRequest } from 'express';
-import { convertExpressHeaders } from './express-headers.js';
+
+/**
+ * Converts Express request headers into a Fetch API Headers object.
+ */
+export function convertExpressHeaders(req: ExpressRequest): Headers {
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (!value) continue;
+    if (Array.isArray(value)) {
+      headers.set(key, value.join(', '));
+    } else {
+      headers.set(key, String(value));
+    }
+  }
+  return headers;
+}
 
 /**
  * Converts an Express request into a Fetch API Request.

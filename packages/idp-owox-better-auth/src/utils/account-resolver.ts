@@ -1,7 +1,22 @@
 import { logger } from '../core/logger.js';
 import type { DatabaseStore } from '../store/database-store.js';
 import type { DatabaseAccount } from '../types/database-models.js';
-import { resolveProviderFromLoginMethod } from './auth-provider-utils.js';
+
+const CREDENTIAL_PROVIDER_ID = 'credential';
+const CREDENTIAL_LOGIN_METHODS = new Set(['email', 'email-password']);
+
+/**
+ * Maps Better Auth last-login method to providerId used in account records.
+ */
+export function resolveProviderFromLoginMethod(
+  loginMethod: string | null | undefined
+): string | undefined {
+  if (!loginMethod) return undefined;
+  const normalized = loginMethod.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (CREDENTIAL_LOGIN_METHODS.has(normalized)) return CREDENTIAL_PROVIDER_ID;
+  return normalized;
+}
 
 /**
  * Resolves the best account for a user, preferring their last-login provider.
