@@ -1,5 +1,4 @@
-import type { Logger } from '@owox/internal-helpers';
-import { logger as defaultLogger } from '../core/logger.js';
+import { logger } from '../core/logger.js';
 import type { DatabaseAccount, DatabaseOperationResult, DatabaseUser } from '../types/index.js';
 import type { DatabaseStore } from './database-store.js';
 import { StoreResult } from './store-result.js';
@@ -22,14 +21,8 @@ type SqliteDb = {
 export class SqliteDatabaseStore implements DatabaseStore {
   private db?: SqliteDb;
   private authTableReady = false;
-  private readonly logger: Logger;
 
-  constructor(
-    private readonly dbPath: string,
-    logger?: Logger
-  ) {
-    this.logger = logger ?? defaultLogger;
-  }
+  constructor(private readonly dbPath: string) {}
 
   async connect(): Promise<void> {
     if (this.db) return;
@@ -130,7 +123,7 @@ export class SqliteDatabaseStore implements DatabaseStore {
     try {
       (this.db as { close?: () => void } | undefined)?.close?.();
     } catch (error) {
-      this.logger.error('Failed to close SQLite database', {}, error as Error);
+      logger.error('Failed to close SQLite database', {}, error as Error);
     } finally {
       this.db = undefined;
     }

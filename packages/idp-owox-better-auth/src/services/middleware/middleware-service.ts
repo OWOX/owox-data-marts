@@ -1,9 +1,8 @@
-import type { Logger } from '@owox/internal-helpers';
-import { type NextFunction, type Request, type Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import ms from 'ms';
 import { IdpOwoxConfig } from '../../config/idp-owox-config.js';
 import { SOURCE } from '../../core/constants.js';
-import { logger as defaultLogger } from '../../core/logger.js';
+import { logger } from '../../core/logger.js';
 import { generatePkce, generateState } from '../../core/pkce.js';
 import type { DatabaseStore } from '../../store/database-store.js';
 import { buildAuthRequestContext } from '../../types/auth-request-context.js';
@@ -16,17 +15,12 @@ import { PageRenderService } from '../rendering/page-service.js';
  * Express middleware handlers for starting PKCE and fast-path sign-in.
  */
 export class MiddlewareService {
-  private readonly logger: Logger;
-
   constructor(
     private readonly pageService: PageRenderService,
     private readonly idpOwoxConfig: IdpOwoxConfig,
     private readonly store: DatabaseStore,
-    private readonly pkceFlowOrchestrator: PkceFlowOrchestrator,
-    logger?: Logger
-  ) {
-    this.logger = logger ?? defaultLogger;
-  }
+    private readonly pkceFlowOrchestrator: PkceFlowOrchestrator
+  ) {}
 
   async idpStartMiddleware(req: Request, res: Response): Promise<void> {
     try {
@@ -50,7 +44,7 @@ export class MiddlewareService {
 
       return res.redirect(platformUrl.toString());
     } catch (error) {
-      this.logger.error('Failed to start IDP flow', {}, error as Error);
+      logger.error('Failed to start IDP flow', {}, error as Error);
       res.status(500).end('Failed to start IDP flow');
     }
   }
@@ -69,7 +63,7 @@ export class MiddlewareService {
         res
       );
       if (fastRedirect) {
-        this.logger.info('Fast-path completeAuthFlow redirectUrl', {
+        logger.info('Fast-path completeAuthFlow redirectUrl', {
           redirectUrl: fastRedirect.toString(),
         });
         return res.redirect(fastRedirect.toString());

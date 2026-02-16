@@ -1,7 +1,8 @@
-import { LoggerFactory, LogLevel } from '@owox/internal-helpers';
+import { LogLevel } from '@owox/internal-helpers';
 import { betterAuth } from 'better-auth';
 import { magicLink } from 'better-auth/plugins';
 import { BETTER_AUTH_SESSION_COOKIE } from '../core/constants.js';
+import { logger } from '../core/logger.js';
 import { GoogleProvider } from '../social/google-provider.js';
 import { BetterAuthConfig } from '../types/index.js';
 
@@ -21,7 +22,6 @@ export async function createBetterAuthConfig(
   config: BetterAuthConfig,
   options?: AuthOptions
 ): Promise<ReturnType<typeof betterAuth>> {
-  const logger = LoggerFactory.createNamedLogger('better-auth');
   const database = options?.adapter;
   const plugins: unknown[] = [];
   const emailAndPasswordConfig: Record<string, unknown> = {

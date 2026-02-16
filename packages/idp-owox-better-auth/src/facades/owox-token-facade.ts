@@ -1,5 +1,4 @@
 import { AuthResult, Payload } from '@owox/idp-protocol';
-import { Logger } from '@owox/internal-helpers';
 import { NextFunction, Request, Response } from 'express';
 import {
   IdentityOwoxClient,
@@ -12,6 +11,7 @@ import {
 import type { IdpOwoxConfig } from '../config/idp-owox-config.js';
 import { CORE_REFRESH_TOKEN_COOKIE } from '../core/constants.js';
 import { AuthenticationException, IdpFailedException } from '../core/exceptions.js';
+import { logger } from '../core/logger.js';
 import { toPayload } from '../mappers/client-payload-mapper.js';
 import { TokenService, type TokenServiceConfig } from '../services/core/token-service.js';
 import type { DatabaseStore } from '../store/database-store.js';
@@ -28,7 +28,6 @@ export class OwoxTokenFacade {
     private readonly identityClient: IdentityOwoxClient,
     private readonly store: DatabaseStore,
     private readonly config: IdpOwoxConfig,
-    private readonly logger: Logger,
     private readonly cookieName: string = CORE_REFRESH_TOKEN_COOKIE
   ) {
     const tokenCfg: TokenServiceConfig = {
@@ -126,7 +125,7 @@ export class OwoxTokenFacade {
     } catch (error: unknown) {
       clearCookie(res, this.cookieName, req);
       if (error instanceof AuthenticationException) {
-        this.logger.info(this.tokenService.formatError(error), {
+        logger.info(this.tokenService.formatError(error), {
           context: error.name,
           params: error.context,
           cause: error.cause,
@@ -135,7 +134,7 @@ export class OwoxTokenFacade {
       }
 
       if (error instanceof IdpFailedException) {
-        this.logger.error(
+        logger.error(
           'Access Token middleware failed with unexpected code',
           error.context,
           error.cause
@@ -143,7 +142,7 @@ export class OwoxTokenFacade {
         return res.json({ reason: 'atm5' });
       }
 
-      this.logger.error(this.tokenService.formatError(error));
+      logger.error(this.tokenService.formatError(error));
       return res.json({ reason: 'atm6' });
     }
   }

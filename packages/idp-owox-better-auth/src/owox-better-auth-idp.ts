@@ -1,5 +1,5 @@
 import { AuthResult, IdpProvider, Payload, Projects, ProtocolRoute } from '@owox/idp-protocol';
-import { Logger, LoggerFactory, createMailingProvider } from '@owox/internal-helpers';
+import { createMailingProvider } from '@owox/internal-helpers';
 import cookieParser from 'cookie-parser';
 import e, { Express, NextFunction } from 'express';
 import { IdentityOwoxClient, TokenResponse } from './client/index.js';
@@ -7,6 +7,7 @@ import { createBetterAuthConfig } from './config/idp-better-auth-config.js';
 import type { BetterAuthProviderConfig } from './config/index.js';
 import { CORE_REFRESH_TOKEN_COOKIE, SOURCE } from './core/constants.js';
 import { AuthenticationException, IdpFailedException } from './core/exceptions.js';
+import { logger } from './core/logger.js';
 import { OwoxTokenFacade } from './facades/owox-token-facade.js';
 import { BetterAuthSessionService } from './services/auth/better-auth-session-service.js';
 import { MagicLinkService } from './services/auth/magic-link-service.js';
@@ -43,7 +44,6 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   private readonly betterAuthSessionService: BetterAuthSessionService;
   private readonly middlewareService: MiddlewareService;
   private readonly identityClient: IdentityOwoxClient;
-  private readonly logger: Logger;
   private readonly tokenFacade: OwoxTokenFacade;
   private readonly userContextService: UserContextService;
   private readonly platformAuthFlowClient: PlatformAuthFlowClient;
@@ -58,15 +58,13 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     this.auth = auth;
     this.store = store;
     this.identityClient = new IdentityOwoxClient(config.idpOwox.identityOwoxClientConfig);
-    this.logger = LoggerFactory.createNamedLogger('OwoxBetterAuthIdp');
     this.tokenFacade = new OwoxTokenFacade(
       this.identityClient,
       this.store,
       this.config.idpOwox,
-      this.logger,
       CORE_REFRESH_TOKEN_COOKIE
     );
-    this.userContextService = new UserContextService(this.store, this.tokenFacade, this.logger);
+    this.userContextService = new UserContextService(this.store, this.tokenFacade);
     this.platformAuthFlowClient = new PlatformAuthFlowClient(this.identityClient);
 
     this.betterAuthSessionService = new BetterAuthSessionService(
@@ -80,7 +78,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       this.userContextService,
       this.platformAuthFlowClient,
       this.betterAuthSessionService,
-      this.logger
+      logger
     );
     this.requestHandlerService = new RequestHandlerService(this.auth, this.pkceFlowOrchestrator);
     this.pageService = new PageRenderService();
@@ -142,12 +140,12 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       const code = req.query.code as string | undefined;
       const state = req.query.state as string | undefined;
       if (!code) {
-        this.logger.warn('Redirect url should contain code param');
+        logger.warn('Redirect url should contain code param');
         return res.redirect(`/auth${ProtocolRoute.SIGN_IN}`);
       }
 
       if (!state) {
-        this.logger.warn('Redirect url should contain state param');
+        logger.warn('Redirect url should contain state param');
         clearPlatformCookies(res, req);
         return res.redirect(`/auth${ProtocolRoute.SIGN_IN}`);
       }
@@ -164,19 +162,19 @@ export class OwoxBetterAuthIdp implements IdpProvider {
         res.redirect('/');
       } catch (error: unknown) {
         if (error instanceof AuthenticationException) {
-          this.logger.info(formatError(error), {
+          logger.info(formatError(error), {
             context: error.name,
             params: error.context,
             cause: error.cause,
           });
         } else if (error instanceof IdpFailedException) {
-          this.logger.error(
+          logger.error(
             'Token Exchange callback failed with unexpected code',
             error.context,
             error.cause
           );
         } else {
-          this.logger.error(formatError(error));
+          logger.error(formatError(error));
         }
         return res.redirect(`/auth${ProtocolRoute.SIGN_IN}`);
       }
@@ -192,7 +190,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     const queryState = typeof req.query?.state === 'string' ? req.query.state : '';
 
     if (stateManager.hasMismatch()) {
-      this.logger.warn('State mismatch detected during sign-in');
+      logger.warn('State mismatch detected during sign-in');
       clearPlatformCookies(res, req);
       return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignInUrl);
     }
@@ -244,17 +242,17 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     } catch (error: unknown) {
       if (error instanceof AuthenticationException) {
         clearCookie(res, CORE_REFRESH_TOKEN_COOKIE, req);
-        this.logger.warn('Refresh token rejected during sign-in, cookie cleared', {
+        logger.warn('Refresh token rejected during sign-in, cookie cleared', {
           context: error.context,
           cause: error.cause,
         });
       } else if (error instanceof IdpFailedException) {
-        this.logger.warn('Sign-in refresh failed due to upstream IdP error', {
+        logger.warn('Sign-in refresh failed due to upstream IdP error', {
           context: error.context,
           cause: error.cause,
         });
       } else {
-        this.logger.error(formatError(error));
+        logger.error(formatError(error));
       }
       return false;
     }
@@ -268,7 +266,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     const stateManager = getStateManager(req);
     const queryState = typeof req.query?.state === 'string' ? req.query.state : '';
     if (stateManager.hasMismatch()) {
-      this.logger.warn('State mismatch detected during sign-up');
+      logger.warn('State mismatch detected during sign-up');
       clearPlatformCookies(res, req);
       return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignUpUrl);
     }
@@ -360,11 +358,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     try {
       await this.store.shutdown();
     } catch (error) {
-      LoggerFactory.createNamedLogger('OwoxBetterAuthIdp').error(
-        'Failed to shutdown BetterAuth store',
-        {},
-        error as Error
-      );
+      logger.error('Failed to shutdown BetterAuth store', {}, error as Error);
     }
   }
 

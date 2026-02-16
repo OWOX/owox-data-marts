@@ -1,4 +1,3 @@
-import type { Logger } from '@owox/internal-helpers';
 import {
   type Express,
   type Request as ExpressRequest,
@@ -7,7 +6,7 @@ import {
 } from 'express';
 import { createBetterAuthConfig } from '../../config/idp-better-auth-config.js';
 import { BETTER_AUTH_SESSION_COOKIE } from '../../core/constants.js';
-import { logger as defaultLogger } from '../../core/logger.js';
+import { logger } from '../../core/logger.js';
 import { convertExpressToFetchRequest } from '../../utils/express-to-fetch.js';
 import { extractPlatformParams } from '../../utils/request-utils.js';
 import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
@@ -17,15 +16,11 @@ import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
  */
 export class RequestHandlerService {
   private static readonly AUTH_ROUTE_PREFIX = '/auth/better-auth';
-  private readonly logger: Logger;
 
   constructor(
     private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
-    private readonly pkceFlowOrchestrator: PkceFlowOrchestrator,
-    logger?: Logger
-  ) {
-    this.logger = logger ?? defaultLogger;
-  }
+    private readonly pkceFlowOrchestrator: PkceFlowOrchestrator
+  ) {}
 
   setupBetterAuthHandler(expressApp: Express): void {
     expressApp.use(async (req: ExpressRequest, res: ExpressResponse, next: NextFunction) => {
@@ -50,7 +45,7 @@ export class RequestHandlerService {
         const body = await response.text();
         res.send(body);
       } catch (error) {
-        this.logger.error('Auth handler error', { path: req.path }, error as Error);
+        logger.error('Auth handler error', { path: req.path }, error as Error);
         res.status(500).json({ error: 'Internal server error' });
       }
     });
@@ -129,6 +124,6 @@ export class RequestHandlerService {
   }
 
   convertExpressToFetchRequest(req: ExpressRequest): globalThis.Request {
-    return convertExpressToFetchRequest(req, this.logger);
+    return convertExpressToFetchRequest(req, logger);
   }
 }

@@ -1,7 +1,7 @@
-import type { EmailProvider, Logger } from '@owox/internal-helpers';
+import type { EmailProvider } from '@owox/internal-helpers';
 import ejs from 'ejs';
 import { readFileSync } from 'fs';
-import { logger as defaultLogger } from '../../core/logger.js';
+import { logger } from '../../core/logger.js';
 import { resolveResourcePath } from '../../utils/template-paths.js';
 
 export type MagicLinkIntent = 'signup' | 'reset' | undefined;
@@ -17,13 +17,8 @@ export interface MagicLinkEmailPayload {
  */
 export class MagicLinkEmailService {
   private readonly template: string;
-  private readonly logger: Logger;
 
-  constructor(
-    private readonly emailProvider: EmailProvider,
-    logger?: Logger
-  ) {
-    this.logger = logger ?? defaultLogger;
+  constructor(private readonly emailProvider: EmailProvider) {
     this.template = this.loadTemplate();
   }
 
@@ -62,11 +57,7 @@ export class MagicLinkEmailService {
     try {
       await this.emailProvider.sendEmail(payload.email, subject, html);
     } catch (error) {
-      this.logger.error(
-        'Failed to send magic link email',
-        { email: payload.email },
-        error as Error
-      );
+      logger.error('Failed to send magic link email', { email: payload.email }, error as Error);
       throw error;
     }
   }

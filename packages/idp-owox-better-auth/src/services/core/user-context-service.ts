@@ -1,6 +1,6 @@
 import { Payload } from '@owox/idp-protocol';
-import { Logger } from '@owox/internal-helpers';
 import { AuthenticationException } from '../../core/exceptions.js';
+import { logger } from '../../core/logger.js';
 import { OwoxTokenFacade } from '../../facades/owox-token-facade.js';
 import type { DatabaseStore } from '../../store/database-store.js';
 import type { DatabaseAccount, DatabaseUser } from '../../types/database-models.js';
@@ -19,8 +19,7 @@ export interface UserContext {
 export class UserContextService {
   constructor(
     private readonly store: DatabaseStore,
-    private readonly tokenFacade: OwoxTokenFacade,
-    private readonly logger?: Logger
+    private readonly tokenFacade: OwoxTokenFacade
   ) {}
 
   async resolveFromToken(token: string): Promise<UserContext> {
@@ -57,7 +56,7 @@ export class UserContextService {
       });
     }
 
-    this.logger?.debug?.('Resolved user context from token', {
+    logger.debug('Resolved user context from token', {
       email: normalizedEmail,
       userId: user.id,
       accountId: account.accountId,
@@ -84,7 +83,7 @@ export class UserContextService {
       if (preferredAccount) {
         return preferredAccount;
       }
-      this.logger?.warn?.(
+      logger.warn(
         'Account for last-login provider not found in refresh flow, falling back to latest account',
         {
           userId: user.id,

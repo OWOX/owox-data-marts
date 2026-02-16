@@ -1,12 +1,11 @@
 import { ProtocolRoute } from '@owox/idp-protocol';
-import type { Logger } from '@owox/internal-helpers';
 import {
   type Express,
   type Request as ExpressRequest,
   type Response as ExpressResponse,
 } from 'express';
 import type { createBetterAuthConfig } from '../../config/idp-better-auth-config.js';
-import { logger as defaultLogger } from '../../core/logger.js';
+import { logger } from '../../core/logger.js';
 import { parseEmail } from '../../utils/email-utils.js';
 import { clearBetterAuthCookies } from '../../utils/request-utils.js';
 import { MagicLinkService } from '../auth/magic-link-service.js';
@@ -21,15 +20,10 @@ type BetterAuthInstance = Awaited<ReturnType<typeof createBetterAuthConfig>>;
  * and password success pages.
  */
 export class PasswordFlowController {
-  private readonly logger: Logger;
-
   constructor(
     private readonly auth: BetterAuthInstance,
-    private readonly magicLinkService: MagicLinkService,
-    logger?: Logger
-  ) {
-    this.logger = logger ?? defaultLogger;
-  }
+    private readonly magicLinkService: MagicLinkService
+  ) {}
 
   async sendMagicLink(req: ExpressRequest, res: ExpressResponse): Promise<void> {
     const email = parseEmail(req.body?.email);
@@ -60,7 +54,7 @@ export class PasswordFlowController {
       }
       res.json({ status: 'ok' });
     } catch (error) {
-      this.logger.error('Failed to send magic link', { intent }, error as Error);
+      logger.error('Failed to send magic link', { intent }, error as Error);
       res.status(500).json({ error: 'Failed to send magic link' });
     }
   }
@@ -75,7 +69,7 @@ export class PasswordFlowController {
       }
       return { userId: session.user.id, email: session.user.email };
     } catch (error) {
-      this.logger.error('Failed to resolve session for password setup', {}, error as Error);
+      logger.error('Failed to resolve session for password setup', {}, error as Error);
       return null;
     }
   }
@@ -156,7 +150,7 @@ export class PasswordFlowController {
         clearBetterAuthCookies(res, req);
         return res.redirect(`${AUTH_BASE_PATH}/password/success`);
       } catch (error) {
-        this.logger.error('Failed to reset password', { intent }, error as Error);
+        logger.error('Failed to reset password', { intent }, error as Error);
         return res.status(400).json({ error: 'Reset link is invalid or has expired.' });
       }
     }
@@ -175,13 +169,13 @@ export class PasswordFlowController {
       try {
         await this.auth.api.signOut({ headers: req.headers as unknown as Headers });
       } catch (signOutError) {
-        this.logger.warn('Failed to sign out after password setup', {}, signOutError as Error);
+        logger.warn('Failed to sign out after password setup', {}, signOutError as Error);
       }
 
       clearBetterAuthCookies(res, req);
       return res.redirect(`${AUTH_BASE_PATH}/password/success`);
     } catch (error) {
-      this.logger.error('Failed to set password', {}, error as Error);
+      logger.error('Failed to set password', {}, error as Error);
       return res.status(400).json({ error: 'Failed to set password. Please try again.' });
     }
   }
