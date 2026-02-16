@@ -45,9 +45,9 @@ The **Grouping Delay** controls how often notifications are batched and sent.
 | 15 minutes | Runs are grouped and sent every 15 minutes |
 | 30 minutes | Runs are grouped and sent every 30 minutes |
 | **1 hour** *(default)* | Runs are grouped and sent every hour |
-| 2 hours | ... |
-| 6 hours | ... |
-| 12 hours | ... |
+| 2 hours | Runs are grouped and sent every 2 hours |
+| 6 hours | Runs are grouped and sent every 6 hours |
+| 12 hours | Runs are grouped and sent every 12 hours |
 | 24 hours | Runs are grouped and sent once a day |
 
 > ☝️ Instead of sending a separate notification for every single run, OWOX batches all runs within the window into one message. This keeps your inbox clean on busy projects.

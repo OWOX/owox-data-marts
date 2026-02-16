@@ -97,9 +97,21 @@ export class NotificationService {
   ): UserInfo[] {
     const memberMap = new Map(projectMembers.map(m => [m.userId, m]));
 
-    return settings.receivers
-      .map(receiverId => memberMap.get(receiverId))
-      .filter((user): user is UserInfo => user !== undefined);
+    const validReceivers: UserInfo[] = [];
+    for (const receiverId of settings.receivers) {
+      const user = memberMap.get(receiverId);
+      if (!user) {
+        this.logger.debug(`Receiver ${receiverId} not found in project members`);
+        continue;
+      }
+      if (!user.hasNotificationsEnabled) {
+        this.logger.debug(`Skipping ${user.email}: notifications disabled in user preferences`);
+        continue;
+      }
+      validReceivers.push(user);
+    }
+
+    return validReceivers;
   }
 
   private groupByRunStatus(

@@ -83,11 +83,12 @@ export class SendNotificationProcessor extends BaseSystemTaskProcessor {
   }
 
   /**
-   * Resolve profile data (email, name) for all configured receivers of a project.
+   * Resolve profile data (email, name, notification preferences) for all configured
+   * receivers of a project.
    *
    * Reads only the user IDs explicitly listed in the project's notification settings,
-   * not all project members. Profile data comes from the local UserProjection cache,
-   * which was just refreshed from IDP by refreshUserProjections().
+   * not all project members. Profile data comes from IDP and includes the user's
+   * notification preference (hasNotificationsEnabled).
    */
   private async getProjectMembers(projectId: string): Promise<UserInfo[]> {
     this.logger.debug(`Getting project members for project ${projectId}`);
@@ -105,16 +106,17 @@ export class SendNotificationProcessor extends BaseSystemTaskProcessor {
       return [];
     }
 
-    const userProjections = await this.idpProjectionsFacade.getUserProjectionList(
-      Array.from(allReceiverIds)
-    );
+    const members = await this.idpProjectionsFacade.getProjectMembers(projectId);
+    const memberMap = new Map(members.map(m => [m.userId, m]));
 
-    return userProjections.projections
-      .filter(u => u.email)
-      .map(u => ({
-        userId: u.userId,
-        email: u.email!,
-        fullName: u.fullName ?? undefined,
+    return Array.from(allReceiverIds)
+      .map(userId => memberMap.get(userId))
+      .filter((m): m is NonNullable<typeof m> => m !== undefined && !!m.email)
+      .map(m => ({
+        userId: m.userId,
+        email: m.email,
+        fullName: m.displayName ?? undefined,
+        hasNotificationsEnabled: m.hasNotificationsEnabled,
       }));
   }
 }

@@ -107,7 +107,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       avatar: member.avatar || undefined,
       projectRole: member.projectRole,
       userStatus: member.userStatus,
-      hasNotificationsEnabled: member.subscriptions?.ServiceNotifications ?? true,
+      hasNotificationsEnabled: member.subscriptions?.serviceNotifications ?? true,
     }));
   }
 

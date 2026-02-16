@@ -80,7 +80,11 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 },
                 {
                   label: 'Notifications',
-                  items: ['docs/notifications/webhooks'],
+                  items: [
+                    'docs/notifications/notification-settings',
+                    'docs/notifications/email',
+                    'docs/notifications/webhooks',
+                  ],
                 },
               ],
             },

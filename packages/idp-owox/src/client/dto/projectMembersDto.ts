@@ -9,9 +9,9 @@ export const OwoxProjectMemberSchema = z.object({
   projectRole: z.string(),
   subscriptions: z
     .object({
-      ServiceNotifications: z.boolean().optional().default(true),
-      PerformanceSuggestions: z.boolean().optional().default(false),
-      Offers: z.boolean().optional().default(false),
+      serviceNotifications: z.boolean().optional().default(true),
+      performanceSuggestions: z.boolean().optional().default(false),
+      offers: z.boolean().optional().default(false),
     })
     .optional(),
 });
