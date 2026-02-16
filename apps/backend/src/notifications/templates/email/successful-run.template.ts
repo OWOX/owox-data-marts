@@ -43,9 +43,10 @@ ${emailHeader}
                   <div style="padding:12px 16px;background-color:#ffffff;border-bottom:1px solid #e5e7eb;border-radius:6px;{{#unless @last}}margin-bottom:8px;{{/unless}}">
                     <table role="presentation" width="100%">
                       <tr>
+                        {{#if iconSvg}}<td style="width:20px;text-align:center;vertical-align:top;padding-top:2px;"><div style="width:16px;height:16px;text-align:center;line-height:16px;box-sizing:border-box;">{{{iconSvg}}}</div></td>{{/if}}
                         <td style="font-size:14px;font-weight:600;color:#374151;">
                           {{startedAt}}
-                          {{#if runTypeLabel}}<div style="font-size:12px;font-weight:400;color:#6b7280;margin-top:2px;">{{runTypeLabel}}</div>{{/if}}
+                          {{#if subtitle}}<div style="font-size:12px;font-weight:400;color:#6b7280;margin-top:2px;">{{subtitle}}</div>{{/if}}
                         </td>
                         <td style="font-size:14px;color:#00a63e;font-weight:600;text-align:right;vertical-align:top;">Success</td>
                       </tr>

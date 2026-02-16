@@ -47,6 +47,7 @@ export class SuccessfulRunsAllDmNotification extends BaseNotification {
       projectTitle,
       runStatus: 'SUCCESSFUL',
       dataMartRunType: item.type,
+      runType: item.runType,
       creatorUserId: item.createdById,
       startedAt: item.startedAt?.toISOString(),
       finishedAt: item.finishedAt?.toISOString(),
@@ -70,11 +71,16 @@ export class SuccessfulRunsAllDmNotification extends BaseNotification {
         subjectBatch: successfulRunEmailSubjectBatch,
         body: successfulRunEmailTemplate,
       },
-      item => ({
-        runId: item.runId ?? 'N/A',
-        startedAt: this.formatDateTime(item.payload.startedAt),
-        runTypeLabel: this.formatRunType(item.payload.dataMartRunType),
-      }),
+      item => {
+        const runTypeLabel = this.formatRunType(item.payload.dataMartRunType);
+        const triggerLabel = this.formatTriggerLabel(item.payload.runType);
+        return {
+          runId: item.runId ?? 'N/A',
+          startedAt: this.formatDateTime(item.payload.startedAt),
+          subtitle: [runTypeLabel, triggerLabel].filter(Boolean).join(' • ') || undefined,
+          iconSvg: this.getRunTypeIconSvg(item.payload.dataMartRunType),
+        };
+      },
       undefined,
       runtimeConfig,
       {

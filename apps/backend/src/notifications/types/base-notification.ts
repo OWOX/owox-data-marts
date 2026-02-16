@@ -13,6 +13,7 @@ import {
   NotificationEmailLimits,
   NotificationRuntimeConfig,
 } from './notification-context';
+import { RUN_TYPE_ICONS } from '../templates/email/assets/img';
 
 export interface EmailContent {
   subject: string;
@@ -225,16 +226,26 @@ export abstract class BaseNotification {
   protected formatRunType(type?: string): string | undefined {
     if (!type) return undefined;
     const labels: Record<string, string> = {
-      CONNECTOR: 'Connector',
-      GOOGLE_SHEETS_EXPORT: 'Google Sheets Export',
-      LOOKER_STUDIO: 'Looker Studio',
-      EMAIL: 'Email',
-      SLACK: 'Slack',
-      MS_TEAMS: 'MS Teams',
-      GOOGLE_CHAT: 'Google Chat',
-      INSIGHT: 'Insight',
+      CONNECTOR: 'Connector run',
+      GOOGLE_SHEETS_EXPORT: 'Google Sheets report run',
+      LOOKER_STUDIO: 'Looker Studio run',
+      EMAIL: 'Email delivery',
+      SLACK: 'Slack delivery',
+      MS_TEAMS: 'MS Teams delivery',
+      GOOGLE_CHAT: 'Google Chat delivery',
+      INSIGHT: 'Insight run',
     };
     return labels[type] ?? type;
+  }
+
+  protected formatTriggerLabel(runType?: string): string | undefined {
+    if (!runType) return undefined;
+    return runType === 'scheduled' ? 'Scheduled' : runType === 'manual' ? 'Manual' : undefined;
+  }
+
+  protected getRunTypeIconSvg(dataMartRunType?: string): string | undefined {
+    if (!dataMartRunType) return undefined;
+    return RUN_TYPE_ICONS[dataMartRunType];
   }
 
   protected formatDateTime(isoString?: string): string {

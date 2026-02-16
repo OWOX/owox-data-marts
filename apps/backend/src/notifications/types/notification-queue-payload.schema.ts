@@ -14,6 +14,7 @@ export const NotificationQueuePayloadSchema = z.object({
   creditsLimit: z.number().optional(),
   connectorName: z.string().optional(),
   dataMartRunType: z.string().optional(),
+  runType: z.string().optional(),
 });
 
 export type NotificationQueuePayload = z.infer<typeof NotificationQueuePayloadSchema>;

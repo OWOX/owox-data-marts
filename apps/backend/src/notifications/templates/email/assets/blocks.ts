@@ -46,12 +46,8 @@ export const dmCardStart = `
                 <div style="margin-top:20px;padding:16px;background-color:#FAFAFA;border-radius:8px;border-bottom:1px solid #e6e9ee;">
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                     <tr>
-                      <td style="width:28px;vertical-align:middle;">
-                        <div style="width:28px;height:28px;background-color:#F0F1F3;border-radius:6px;text-align:center;line-height:28px;font-size:14px;padding:5px;box-sizing:border-box;color:#0f172a;">
-                          ${DM_ICON}
-                        </div>
-                      </td>
-                      <td style="vertical-align:middle;padding-left:8px;">
+                      ${DM_ICON ? `<td style="width:28px;vertical-align:middle;"><div style="width:28px;height:28px;background-color:#F0F1F3;border-radius:6px;text-align:center;line-height:28px;font-size:14px;padding:5px;box-sizing:border-box;color:#0f172a;">${DM_ICON}</div></td>` : ''}
+                      <td style="vertical-align:middle;${DM_ICON ? 'padding-left:8px;' : ''}">
                         <div style="font-size:16px;font-weight:600;color:#0f172a;">{{dataMartTitle}}</div>
                       </td>
                       <td style="vertical-align:middle;text-align:right;white-space:nowrap;">

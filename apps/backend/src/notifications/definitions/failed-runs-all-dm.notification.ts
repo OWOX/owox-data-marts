@@ -59,6 +59,7 @@ export class FailedRunsAllDmNotification extends BaseNotification {
       projectTitle,
       runStatus: 'FAILED',
       dataMartRunType: item.type,
+      runType: item.runType,
       errors: item.errors ?? undefined,
       creatorUserId: item.createdById,
       startedAt: item.startedAt?.toISOString(),
@@ -85,10 +86,13 @@ export class FailedRunsAllDmNotification extends BaseNotification {
       },
       item => {
         const allErrors = item.payload.errors ?? [];
+        const runTypeLabel = this.formatRunType(item.payload.dataMartRunType);
+        const triggerLabel = this.formatTriggerLabel(item.payload.runType);
         return {
           runId: item.runId ?? 'N/A',
           startedAt: this.formatDateTime(item.payload.startedAt ?? item.payload.finishedAt),
-          runTypeLabel: this.formatRunType(item.payload.dataMartRunType),
+          subtitle: [runTypeLabel, triggerLabel].filter(Boolean).join(' • ') || undefined,
+          iconSvg: this.getRunTypeIconSvg(item.payload.dataMartRunType),
           errors:
             allErrors.length > 0
               ? allErrors.slice(0, FailedRunsAllDmNotification.MAX_ERRORS_PER_RUN).map(e => {
