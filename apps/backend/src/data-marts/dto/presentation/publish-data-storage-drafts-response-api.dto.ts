@@ -6,4 +6,7 @@ export class PublishDataStorageDraftsResponseApiDto {
 
   @ApiProperty({ example: 0 })
   failedCount: number;
+
+  @ApiProperty({ example: null, required: false })
+  error?: string;
 }

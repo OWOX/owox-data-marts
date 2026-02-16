@@ -53,7 +53,11 @@ export function reducer(state: DataStorageState, action: DataStorageAction): Dat
         ...state,
         dataStorages: [
           ...state.dataStorages,
-          { ...action.payload, dataMartsCount: 0, draftsCount: 0 } as DataStorageListItem,
+          {
+            ...action.payload,
+            publishedDataMartsCount: 0,
+            draftDataMartsCount: 0,
+          } as DataStorageListItem,
         ],
         loading: false,
         error: null,
@@ -66,8 +70,8 @@ export function reducer(state: DataStorageState, action: DataStorageAction): Dat
           ds.id === action.payload.id
             ? ({
                 ...action.payload,
-                dataMartsCount: ds.dataMartsCount,
-                draftsCount: ds.draftsCount,
+                publishedDataMartsCount: ds.publishedDataMartsCount,
+                draftDataMartsCount: ds.draftDataMartsCount,
               } as DataStorageListItem)
             : ds
         ),

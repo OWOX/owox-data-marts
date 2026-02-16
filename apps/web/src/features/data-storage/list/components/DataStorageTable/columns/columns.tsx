@@ -12,8 +12,8 @@ export interface DataStorageTableItem {
   type: DataStorageType;
   createdAt: Date;
   modifiedAt: Date;
-  dataMartsCount: number;
-  draftsCount: number;
+  publishedDataMartsCount: number;
+  draftDataMartsCount: number;
 }
 
 interface DataStorageColumnsProps {
@@ -31,7 +31,7 @@ export const getDataStorageColumns = ({
 }: DataStorageColumnsProps = {}): ColumnDef<DataStorageTableItem>[] => [
   {
     id: DataStorageColumnKey.HEALTH,
-    size: 15,
+    size: 40,
     enableResizing: false,
     enableSorting: false,
     meta: {
@@ -106,7 +106,7 @@ export const getDataStorageColumns = ({
   },
   {
     accessorKey: DataStorageColumnKey.DATA_MARTS_COUNT,
-    size: 125,
+    size: 200,
     meta: {
       title: dataStorageColumnLabels[DataStorageColumnKey.DATA_MARTS_COUNT],
     },
@@ -122,7 +122,7 @@ export const getDataStorageColumns = ({
   },
   {
     accessorKey: DataStorageColumnKey.DRAFTS_COUNT,
-    size: 80,
+    size: 200,
     meta: {
       title: dataStorageColumnLabels[DataStorageColumnKey.DRAFTS_COUNT],
     },
@@ -145,7 +145,7 @@ export const getDataStorageColumns = ({
       <DataStorageActionsCell
         id={row.original.id}
         type={row.original.type}
-        draftsCount={row.original.draftsCount}
+        draftDataMartsCount={row.original.draftDataMartsCount}
         onViewDetails={onViewDetails}
         onEdit={onEdit}
         onDelete={onDelete}

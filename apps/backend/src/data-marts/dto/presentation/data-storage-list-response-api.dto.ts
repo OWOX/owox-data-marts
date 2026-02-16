@@ -18,8 +18,8 @@ export class DataStorageListResponseApiDto {
   modifiedAt: Date;
 
   @ApiProperty({ example: 0 })
-  dataMartsCount: number = 0;
+  publishedDataMartsCount: number = 0;
 
   @ApiProperty({ example: 0 })
-  draftsCount: number = 0;
+  draftDataMartsCount: number = 0;
 }

@@ -6,6 +6,7 @@ import { DataStorageConfigSheet } from '../../../edit';
 import { DataStorageType } from '../../../shared';
 import { DataStorageTypeDialog } from '../../../shared/components/DataStorageTypeDialog.tsx';
 import { useDataStorage } from '../../../shared/model/hooks/useDataStorage.ts';
+import { usePublishDraftsTrigger } from '../../../shared/hooks/usePublishDraftsTrigger.ts';
 import { DataStorageDetailsDialog } from '../DataStorageDetailsDialog';
 import {
   DataStorageTable,
@@ -33,7 +34,6 @@ export const DataStorageList = ({
     getDataStorageById,
     deleteDataStorage,
     createDataStorage,
-    publishDrafts,
     loading,
   } = useDataStorage();
 
@@ -43,7 +43,7 @@ export const DataStorageList = ({
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [storageToPublish, setStorageToPublish] = useState<{
     id: string;
-    draftsCount: number;
+    draftDataMartsCount: number;
   } | null>(null);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [selectedStorageId, setSelectedStorageId] = useState<string | null>(null);
@@ -141,28 +141,34 @@ export const DataStorageList = ({
   const openPublishDraftsDialog = (id: string) => {
     const storage = dataStorages.find(item => item.id === id);
 
-    if (!storage || storage.draftsCount === 0) {
+    if (!storage || storage.draftDataMartsCount === 0) {
       return;
     }
 
-    setStorageToPublish({ id: storage.id, draftsCount: storage.draftsCount });
+    setStorageToPublish({ id: storage.id, draftDataMartsCount: storage.draftDataMartsCount });
     setPublishDialogOpen(true);
   };
 
-  const handleConfirmPublishDrafts = async () => {
+  const handlePublishDraftsSuccess = useCallback(() => {
+    void (async () => {
+      await fetchDataStorages();
+    })();
+  }, [fetchDataStorages]);
+
+  const { run: runPublishDraftsTrigger } = usePublishDraftsTrigger(handlePublishDraftsSuccess);
+
+  const handleConfirmPublishDrafts = () => {
     if (!storageToPublish) {
       return;
     }
 
-    try {
-      await publishDrafts(storageToPublish.id);
-      await fetchDataStorages();
-    } catch (error) {
-      console.error('Failed to publish drafts:', error);
-    } finally {
-      setPublishDialogOpen(false);
-      setStorageToPublish(null);
-    }
+    const storageId = storageToPublish.id;
+    setPublishDialogOpen(false);
+    setStorageToPublish(null);
+
+    void (async () => {
+      await runPublishDraftsTrigger(storageId);
+    })();
   };
 
   const handleSave = async (savedStorageId: string) => {
@@ -171,7 +177,7 @@ export const DataStorageList = ({
       await fetchDataStorages();
       removeIdParam();
       const storage = dataStorages.find(item => item.id === savedStorageId);
-      if (storage && storage.draftsCount > 0 && storage.dataMartsCount === 0) {
+      if (storage && storage.draftDataMartsCount > 0 && storage.publishedDataMartsCount === 0) {
         openPublishDraftsDialog(storage.id);
       }
     } catch (error) {
@@ -191,8 +197,8 @@ export const DataStorageList = ({
     type: storage.type,
     createdAt: storage.createdAt,
     modifiedAt: storage.modifiedAt,
-    dataMartsCount: storage.dataMartsCount,
-    draftsCount: storage.draftsCount,
+    publishedDataMartsCount: storage.publishedDataMartsCount,
+    draftDataMartsCount: storage.draftDataMartsCount,
   }));
 
   const columns = getDataStorageColumns({
@@ -255,15 +261,16 @@ export const DataStorageList = ({
         title='Publish drafts'
         description={
           <span>
-            There are <strong>{String(storageToPublish?.draftsCount ?? 0)}</strong> data mart draft
-            {storageToPublish?.draftsCount === 1 ? '' : 's'} available. We can publish them now.
-            Continue?
+            There are <strong>{String(storageToPublish?.draftDataMartsCount ?? 0)}</strong> data
+            mart draft
+            {storageToPublish?.draftDataMartsCount === 1 ? '' : 's'} available. We can publish them
+            now. Continue?
           </span>
         }
         confirmLabel='Publish'
         cancelLabel='Not now'
         onConfirm={() => {
-          void handleConfirmPublishDrafts();
+          handleConfirmPublishDrafts();
         }}
         onCancel={() => {
           setStorageToPublish(null);

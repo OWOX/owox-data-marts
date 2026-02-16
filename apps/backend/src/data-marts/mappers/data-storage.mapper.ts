@@ -45,7 +45,7 @@ export class DataStorageMapper {
     );
   }
 
-  toDomainDto(dataStorage: DataStorage, dataMartsCount = 0, draftsCount = 0): DataStorageDto {
+  toDomainDto(dataStorage: DataStorage, publishedCount = 0, draftsCount = 0): DataStorageDto {
     return new DataStorageDto(
       dataStorage.id,
       dataStorage.title || toHumanReadable(dataStorage.type),
@@ -55,7 +55,7 @@ export class DataStorageMapper {
       dataStorage.config,
       dataStorage.createdAt,
       dataStorage.modifiedAt,
-      dataMartsCount,
+      publishedCount,
       draftsCount
     );
   }
@@ -95,8 +95,8 @@ export class DataStorageMapper {
       type: dataStorageDto.type,
       createdAt: dataStorageDto.createdAt,
       modifiedAt: dataStorageDto.modifiedAt,
-      dataMartsCount: dataStorageDto.dataMartsCount,
-      draftsCount: dataStorageDto.draftsCount,
+      publishedDataMartsCount: dataStorageDto.dataMartsCount,
+      draftDataMartsCount: dataStorageDto.draftsCount,
     }));
   }
 

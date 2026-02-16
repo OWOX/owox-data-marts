@@ -6,14 +6,13 @@ import { CreateDataStorageApiDto } from '../dto/presentation/create-data-storage
 import { DataStorageAccessValidationResponseApiDto } from '../dto/presentation/data-storage-access-validation-response-api.dto';
 import { DataStorageListResponseApiDto } from '../dto/presentation/data-storage-list-response-api.dto';
 import { DataStorageResponseApiDto } from '../dto/presentation/data-storage-response-api.dto';
-import { PublishDataStorageDraftsResponseApiDto } from '../dto/presentation/publish-data-storage-drafts-response-api.dto';
 import { UpdateDataStorageApiDto } from '../dto/presentation/update-data-storage-api.dto';
 import { DataStorageMapper } from '../mappers/data-storage.mapper';
 import { CreateDataStorageService } from '../use-cases/create-data-storage.service';
 import { DeleteDataStorageService } from '../use-cases/delete-data-storage.service';
 import { GetDataStorageService } from '../use-cases/get-data-storage.service';
 import { ListDataStoragesService } from '../use-cases/list-data-storages.service';
-import { PublishDataStorageDraftsService } from '../use-cases/publish-data-storage-drafts.service';
+
 import { UpdateDataStorageService } from '../use-cases/update-data-storage.service';
 import { ValidateDataStorageAccessService } from '../use-cases/validate-data-storage-access.service';
 import {
@@ -21,7 +20,6 @@ import {
   DeleteDataStorageSpec,
   GetDataStorageSpec,
   ListDataStoragesSpec,
-  PublishDataStorageDraftsSpec,
   UpdateDataStorageSpec,
   ValidateDataStorageAccessSpec,
 } from './spec/data-storage.api';
@@ -36,7 +34,6 @@ export class DataStorageController {
     private readonly listService: ListDataStoragesService,
     private readonly deleteService: DeleteDataStorageService,
     private readonly validateAccessService: ValidateDataStorageAccessService,
-    private readonly publishDraftsService: PublishDataStorageDraftsService,
     private readonly mapper: DataStorageMapper
   ) {}
 
@@ -109,17 +106,5 @@ export class DataStorageController {
     const command = this.mapper.toValidateAccessCommand(id, context);
     const validationResult = await this.validateAccessService.run(command);
     return this.mapper.toValidateAccessResponse(validationResult);
-  }
-
-  @Auth(Role.editor(Strategy.INTROSPECT))
-  @Post(':id/publish-drafts')
-  @PublishDataStorageDraftsSpec()
-  async publishDrafts(
-    @AuthContext() context: AuthorizationContext,
-    @Param('id') id: string
-  ): Promise<PublishDataStorageDraftsResponseApiDto> {
-    const command = this.mapper.toPublishDraftsCommand(id, context);
-    const result = await this.publishDraftsService.run(command);
-    return this.mapper.toPublishDraftsResponse(result);
   }
 }

@@ -11,8 +11,8 @@ export function mapDataStorageListFromDto(
     title: dto.title,
     createdAt: new Date(dto.createdAt),
     modifiedAt: new Date(dto.modifiedAt),
-    dataMartsCount: dto.dataMartsCount,
-    draftsCount: dto.draftsCount,
+    publishedDataMartsCount: dto.publishedDataMartsCount,
+    draftDataMartsCount: dto.draftDataMartsCount,
   };
 }
 

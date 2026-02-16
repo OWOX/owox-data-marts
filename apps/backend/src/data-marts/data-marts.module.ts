@@ -110,6 +110,10 @@ import { SchemaActualizeTrigger } from './entities/schema-actualize-trigger.enti
 import { SchemaActualizeTriggerService } from './services/schema-actualize-trigger.service';
 import { SchemaActualizeTriggerHandlerService } from './services/schema-actualize-trigger-handler.service';
 import { SchemaActualizeTriggerController } from './controllers/schema-actualize-trigger.controller';
+import { PublishDraftsTrigger } from './entities/publish-drafts-trigger.entity';
+import { PublishDraftsTriggerService } from './services/publish-drafts-trigger.service';
+import { PublishDraftsTriggerHandlerService } from './services/publish-drafts-trigger-handler.service';
+import { PublishDraftsTriggerController } from './controllers/publish-drafts-trigger.controller';
 import { ReportRunService } from './services/report-run.service';
 import { LookerStudioReportRunService } from './services/looker-studio-report-run.service';
 import { InsightMapper } from './mappers/insight.mapper';
@@ -156,6 +160,7 @@ import { ValidateDataStorageAccessService } from './use-cases/validate-data-stor
       ReportDataCache,
       SqlDryRunTrigger,
       SchemaActualizeTrigger,
+      PublishDraftsTrigger,
       InsightRunTrigger,
       ConnectorSourceCredentials,
       SyncDataMartsByGcpTrigger,
@@ -175,6 +180,7 @@ import { ValidateDataStorageAccessService } from './use-cases/validate-data-stor
     LookerStudioConnectorController,
     SqlDryRunTriggerController,
     SchemaActualizeTriggerController,
+    PublishDraftsTriggerController,
     InsightRunTriggerController,
     MarkdownParserController,
     LegacyDataMartsSyncController,
@@ -256,6 +262,8 @@ import { ValidateDataStorageAccessService } from './use-cases/validate-data-stor
     SqlDryRunTriggerHandlerService,
     SchemaActualizeTriggerService,
     SchemaActualizeTriggerHandlerService,
+    PublishDraftsTriggerService,
+    PublishDraftsTriggerHandlerService,
     RetryInterruptedConnectorRunsProcessor,
     ScheduledTriggerService,
     ScheduledTriggerMapper,

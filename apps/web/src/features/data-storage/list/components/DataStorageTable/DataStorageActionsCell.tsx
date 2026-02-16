@@ -21,7 +21,7 @@ import { DataStorageType } from '../../../shared';
 interface DataStorageActionsCellProps {
   id: string;
   type: DataStorageType;
-  draftsCount: number;
+  draftDataMartsCount: number;
   onViewDetails?: (id: string) => void;
   onEdit?: (id: string) => Promise<void>;
   onDelete?: (id: string) => void;
@@ -31,7 +31,7 @@ interface DataStorageActionsCellProps {
 export const DataStorageActionsCell: FC<DataStorageActionsCellProps> = ({
   id,
   type,
-  draftsCount,
+  draftDataMartsCount,
   onViewDetails,
   onEdit,
   onDelete,
@@ -39,7 +39,7 @@ export const DataStorageActionsCell: FC<DataStorageActionsCellProps> = ({
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const canDelete = type !== DataStorageType.LEGACY_GOOGLE_BIGQUERY;
-  const hasDrafts = draftsCount > 0;
+  const hasDrafts = draftDataMartsCount > 0;
 
   return (
     <div className='text-right'>
