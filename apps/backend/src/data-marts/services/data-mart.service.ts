@@ -41,13 +41,17 @@ export class DataMartService {
     projectId: string,
     options?: { limit?: number; offset?: number }
   ): Promise<{ items: DataMart[]; total: number }> {
-    const [items, total] = await this.dataMartRepository.findAndCount({
-      where: { projectId },
-      take: options?.limit,
-      skip: options?.offset,
-      order: { createdAt: 'DESC', id: 'ASC' }, // for consistent pagination
-      relations: ['storage'],
-    });
+    const qb = this.dataMartRepository
+      .createQueryBuilder('dm')
+      .leftJoinAndSelect('dm.storage', 'storage')
+      .where('dm.projectId = :projectId', { projectId })
+      .andWhere('dm.deletedAt IS NULL')
+      .orderBy('dm.createdAt', 'DESC')
+      .addOrderBy('dm.id', 'ASC')
+      .take(options?.limit)
+      .skip(options?.offset);
+
+    const [items, total] = await qb.getManyAndCount();
     return { items, total };
   }
 
