@@ -56,7 +56,7 @@ export class UserContextService {
       });
     }
 
-    logger.debug('Resolved user context from token', {
+    logger.info('Resolved user context from token', {
       email: normalizedEmail,
       userId: user.id,
       accountId: account.accountId,
@@ -80,10 +80,12 @@ export class UserContextService {
         user.id,
         preferredProvider
       );
+
       if (preferredAccount) {
         return preferredAccount;
       }
-      logger.warn(
+
+      logger.error(
         'Account for last-login provider not found in refresh flow, falling back to latest account',
         {
           userId: user.id,

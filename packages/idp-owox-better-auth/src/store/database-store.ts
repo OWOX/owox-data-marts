@@ -19,6 +19,10 @@ export interface DatabaseStore {
   getUserById(userId: string): Promise<DatabaseUser | null>;
   getUserByEmail(email: string): Promise<DatabaseUser | null>;
   getAccountByUserId(userId: string): Promise<DatabaseAccount | null>;
+  /**
+   * Returns all accounts linked to the user, ordered by update time desc if available.
+   */
+  getAccountsByUserId(userId: string): Promise<DatabaseAccount[]>;
   getAccountByUserIdAndProvider(
     userId: string,
     providerId: string

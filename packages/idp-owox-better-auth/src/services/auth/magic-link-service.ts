@@ -97,8 +97,9 @@ export class MagicLinkService {
       if (!user) {
         return { sent: false, reason: 'user_not_found' };
       }
-      const account = await this.store.getAccountByUserId(user.id);
-      if (!account || account.providerId !== 'credential') {
+      const accounts = await this.store.getAccountsByUserId(user.id);
+      const hasCredentialAccount = accounts.some(account => account.providerId === 'credential');
+      if (!hasCredentialAccount) {
         return { sent: false, reason: 'user_not_found' };
       }
 

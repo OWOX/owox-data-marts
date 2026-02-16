@@ -63,6 +63,8 @@ export type EmailConfig =
 export interface BetterAuthConfig {
   database: DatabaseConfig;
   socialProviders?: SocialProvidersConfig;
+  baseURL: string;
+  secret: string;
   session?: {
     maxAge?: number;
   };
@@ -71,8 +73,6 @@ export interface BetterAuthConfig {
    */
   magicLinkTtl?: number;
   trustedOrigins?: string[];
-  baseURL?: string;
-  secret: string;
 }
 
 export * from './auth-session.js';

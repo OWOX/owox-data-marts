@@ -175,10 +175,19 @@ export class SqliteDatabaseStore implements DatabaseStore {
   async getAccountByUserId(userId: string): Promise<DatabaseAccount | null> {
     await this.connect();
     const stmt = this.getDb().prepare(
-      'SELECT id, accountId, providerId, userId, createdAt FROM account WHERE userId = ? ORDER BY createdAt DESC LIMIT 1'
+      'SELECT id, accountId, providerId, userId, createdAt FROM account WHERE userId = ? ORDER BY updatedAt DESC LIMIT 1'
     );
     const row = stmt.get(userId) as Record<string, unknown> | undefined;
     return row ? this.mapAccount(row) : null;
+  }
+
+  async getAccountsByUserId(userId: string): Promise<DatabaseAccount[]> {
+    await this.connect();
+    const stmt = this.getDb().prepare(
+      'SELECT id, accountId, providerId, userId, createdAt FROM account WHERE userId = ? ORDER BY updatedAt DESC'
+    );
+    const rows = stmt.all(userId) as Array<Record<string, unknown>>;
+    return rows.map(row => this.mapAccount(row));
   }
 
   async getAccountByUserIdAndProvider(
@@ -187,7 +196,7 @@ export class SqliteDatabaseStore implements DatabaseStore {
   ): Promise<DatabaseAccount | null> {
     await this.connect();
     const stmt = this.getDb().prepare(
-      'SELECT id, accountId, providerId, userId, createdAt FROM account WHERE userId = ? AND providerId = ? ORDER BY createdAt DESC LIMIT 1'
+      'SELECT id, accountId, providerId, userId, createdAt FROM account WHERE userId = ? AND providerId = ? ORDER BY updatedAt DESC LIMIT 1'
     );
     const row = stmt.get(userId, providerId) as Record<string, unknown> | undefined;
     return row ? this.mapAccount(row) : null;

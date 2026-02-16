@@ -13,6 +13,7 @@ function createStoreMock(): jest.Mocked<DatabaseStore> {
     getUserById: jest.fn(),
     getUserByEmail: jest.fn(),
     getAccountByUserId: jest.fn(),
+    getAccountsByUserId: jest.fn(),
     getAccountByUserIdAndProvider: jest.fn(),
     updateUserLastLoginMethod: jest.fn(),
     findActiveMagicLink: jest.fn(),
@@ -73,12 +74,14 @@ describe('MagicLinkService', () => {
       id: 'user-1',
       email: 'user@example.com',
     });
-    store.getAccountByUserId.mockResolvedValue({
-      id: 'account-1',
-      userId: 'user-1',
-      providerId: 'google',
-      accountId: 'google-user',
-    });
+    store.getAccountsByUserId.mockResolvedValue([
+      {
+        id: 'account-1',
+        userId: 'user-1',
+        providerId: 'google',
+        accountId: 'google-user',
+      },
+    ]);
 
     const result = await service.generate('user@example.com', 'reset');
 
@@ -92,12 +95,20 @@ describe('MagicLinkService', () => {
       id: 'user-1',
       email: 'user@example.com',
     });
-    store.getAccountByUserId.mockResolvedValue({
-      id: 'account-1',
-      userId: 'user-1',
-      providerId: 'credential',
-      accountId: 'credentials-user',
-    });
+    store.getAccountsByUserId.mockResolvedValue([
+      {
+        id: 'account-1',
+        userId: 'user-1',
+        providerId: 'google',
+        accountId: 'google-user',
+      },
+      {
+        id: 'account-2',
+        userId: 'user-1',
+        providerId: 'credential',
+        accountId: 'credentials-user',
+      },
+    ]);
 
     const result = await service.generate('  User@Example.com  ', 'reset');
 

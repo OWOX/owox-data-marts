@@ -35,6 +35,7 @@ describe('BetterAuthSessionService', () => {
     store = {
       getUserById: jest.fn(),
       getAccountByUserId: jest.fn(),
+      getAccountsByUserId: jest.fn(),
       getAccountByUserIdAndProvider: jest.fn(),
       updateUserLastLoginMethod: jest.fn(),
     } as unknown as jest.Mocked<DatabaseStore>;

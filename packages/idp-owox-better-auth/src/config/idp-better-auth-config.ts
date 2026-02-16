@@ -47,14 +47,11 @@ export async function createBetterAuthConfig(
 
   const basePath = '/auth/better-auth';
 
-  const calcBaseURL = config.baseURL || 'http://localhost:3000';
-  const envPublicOrigin = process.env.PUBLIC_ORIGIN;
   const trustedOrigins = Array.from(
     new Set([
       ...(config.trustedOrigins && config.trustedOrigins.length > 0
         ? config.trustedOrigins
-        : [calcBaseURL]),
-      ...(envPublicOrigin ? [envPublicOrigin] : []),
+        : [config.baseURL]),
     ])
   );
 
@@ -66,7 +63,7 @@ export async function createBetterAuthConfig(
       updateAge: 60 * 60 * 24,
     },
     trustedOrigins: Array.from(new Set(trustedOrigins)),
-    baseURL: calcBaseURL,
+    baseURL: config.baseURL,
     secret: config.secret,
     emailAndPassword: emailAndPasswordConfig,
     user: {
@@ -86,7 +83,7 @@ export async function createBetterAuthConfig(
             httpOnly: true,
             sameSite: 'lax',
             path: '/',
-            secure: isSecureBaseURL(calcBaseURL),
+            secure: isSecureBaseURL(config.baseURL),
           },
         },
       },
@@ -119,7 +116,7 @@ export async function createBetterAuthConfig(
   } as Record<string, unknown>;
 
   const defaultRedirect = (provider: string): string =>
-    `${calcBaseURL.replace(/\/$/, '')}${basePath}/callback/${provider}`;
+    `${config.baseURL.replace(/\/$/, '')}${basePath}/callback/${provider}`;
 
   const providerLogger = {
     log: (level: LogLevel, message: string, meta?: Record<string, unknown>) =>

@@ -1,5 +1,5 @@
 const CREDENTIAL_PROVIDER_ID = 'credential';
-const CREDENTIAL_LOGIN_METHODS = new Set(['email', 'email-password', 'magic-link']);
+const CREDENTIAL_LOGIN_METHODS = new Set(['email', 'email-password']);
 
 /**
  * Maps Better Auth last-login method to providerId used in account records.

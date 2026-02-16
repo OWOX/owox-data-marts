@@ -164,11 +164,20 @@ export class MysqlDatabaseStore implements DatabaseStore {
   async getAccountByUserId(userId: string): Promise<DatabaseAccount | null> {
     const pool = await this.getPool();
     const [rows] = (await pool.execute(
-      'SELECT id, accountId, providerId, userId, createdAt FROM account WHERE userId = ? ORDER BY createdAt DESC LIMIT 1',
+      'SELECT id, accountId, providerId, userId, createdAt FROM account WHERE userId = ? ORDER BY updatedAt DESC LIMIT 1',
       [userId]
     )) as [Array<Record<string, unknown>>, unknown];
     const row = (rows as Array<Record<string, unknown>>)[0];
     return row ? this.mapAccount(row) : null;
+  }
+
+  async getAccountsByUserId(userId: string): Promise<DatabaseAccount[]> {
+    const pool = await this.getPool();
+    const [rows] = (await pool.execute(
+      'SELECT id, accountId, providerId, userId, createdAt FROM account WHERE userId = ? ORDER BY updatedAt DESC',
+      [userId]
+    )) as [Array<Record<string, unknown>>, unknown];
+    return (rows as Array<Record<string, unknown>>).map(row => this.mapAccount(row));
   }
 
   async getAccountByUserIdAndProvider(
@@ -177,7 +186,7 @@ export class MysqlDatabaseStore implements DatabaseStore {
   ): Promise<DatabaseAccount | null> {
     const pool = await this.getPool();
     const [rows] = (await pool.execute(
-      'SELECT id, accountId, providerId, userId, createdAt FROM account WHERE userId = ? AND providerId = ? ORDER BY createdAt DESC LIMIT 1',
+      'SELECT id, accountId, providerId, userId, createdAt FROM account WHERE userId = ? AND providerId = ? ORDER BY updatedAt DESC LIMIT 1',
       [userId, providerId]
     )) as [Array<Record<string, unknown>>, unknown];
     const row = (rows as Array<Record<string, unknown>>)[0];
