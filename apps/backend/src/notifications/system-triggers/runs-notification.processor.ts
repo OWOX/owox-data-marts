@@ -47,7 +47,10 @@ export class RunsNotificationProcessor extends BaseSystemTaskProcessor {
     }
 
     const now = new Date();
-    await this.initializeSettingsForNewProjects(trigger.lastRunTimestamp ?? now);
+    const DEFAULT_LOOKBACK_MS = 3600000; // 1 hour
+    await this.initializeSettingsForNewProjects(
+      trigger.lastRunTimestamp ?? new Date(now.getTime() - DEFAULT_LOOKBACK_MS)
+    );
     const dueSettings = await this.settingsService.findDueSettings(now);
 
     if (dueSettings.length === 0) {
@@ -119,11 +122,10 @@ export class RunsNotificationProcessor extends BaseSystemTaskProcessor {
     const rows = await this.runRepository
       .createQueryBuilder('run')
       .innerJoin('run.dataMart', 'dm')
+      .leftJoin(ProjectNotificationSettings, 'pns', 'pns.projectId = dm.projectId')
       .select('DISTINCT dm.projectId', 'projectId')
       .where('run.finishedAt >= :since', { since })
-      .andWhere(
-        `NOT EXISTS (SELECT 1 FROM ${this.runRepository.manager.connection.getMetadata(ProjectNotificationSettings).tableName} pns WHERE pns.projectId = dm.projectId)`
-      )
+      .andWhere('pns.id IS NULL')
       .getRawMany<{ projectId: string }>();
 
     for (const { projectId } of rows) {

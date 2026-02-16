@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import dns from 'node:dns/promises';
 import { NotificationType } from '../enums/notification-type.enum';
 import { NotificationPendingQueue } from '../entities/notification-pending-queue.entity';
 import { ProjectNotificationSettings } from '../entities/project-notification-settings.entity';
@@ -18,10 +19,10 @@ export class NotificationWebhookService {
    * Protects against SSRF: an editor could otherwise use a webhook to probe
    * internal services (e.g. http://169.254.169.254/ AWS metadata endpoint).
    *
-   * Note: only the literal hostname is checked. A public domain that resolves
-   * to a private IP is not blocked here (DNS rebinding).
+   * Both the literal hostname and its resolved IP addresses are checked
+   * to prevent DNS rebinding attacks.
    */
-  private assertSafeWebhookUrl(rawUrl: string): void {
+  private async assertSafeWebhookUrl(rawUrl: string): Promise<void> {
     let url: URL;
     try {
       url = new URL(rawUrl);
@@ -40,6 +41,31 @@ export class NotificationWebhookService {
       throw new Error(`Webhook URL targets an internal address`);
     }
 
+    this.assertNotPrivateIpv4(hostname);
+
+    // Resolve DNS and check resolved IPs to prevent DNS rebinding
+    const ipv4Addresses = await dns.resolve4(hostname).catch(() => []);
+    const ipv6Addresses = await dns.resolve6(hostname).catch(() => []);
+
+    for (const addr of ipv4Addresses) {
+      this.assertNotPrivateIpv4(addr);
+    }
+
+    for (const addr of ipv6Addresses) {
+      const normalized = addr.toLowerCase();
+      if (
+        normalized === '::1' ||
+        normalized === '::' ||
+        normalized.startsWith('fe80:') ||
+        normalized.startsWith('fc') ||
+        normalized.startsWith('fd')
+      ) {
+        throw new Error(`Webhook URL resolves to an internal address`);
+      }
+    }
+  }
+
+  private assertNotPrivateIpv4(hostname: string): void {
     const ipv4 = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
     if (ipv4) {
       const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
@@ -65,7 +91,7 @@ export class NotificationWebhookService {
     if (!settings.webhookUrl) return;
 
     try {
-      this.assertSafeWebhookUrl(settings.webhookUrl);
+      await this.assertSafeWebhookUrl(settings.webhookUrl);
     } catch (error) {
       this.logger.error(
         `Blocked unsafe webhook URL for ${settings.notificationType}: ${error instanceof Error ? error.message : String(error)}`
@@ -124,8 +150,10 @@ export class NotificationWebhookService {
   ): Promise<void> {
     if (!settings.webhookUrl) return;
 
-    for (const item of queueItems) {
-      await this.sendWebhook(item, settings);
+    const CONCURRENCY = 5;
+    for (let i = 0; i < queueItems.length; i += CONCURRENCY) {
+      const batch = queueItems.slice(i, i + CONCURRENCY);
+      await Promise.allSettled(batch.map(item => this.sendWebhook(item, settings)));
     }
   }
 
@@ -135,7 +163,7 @@ export class NotificationWebhookService {
     projectId: string,
     context?: { userId?: string; projectTitle?: string }
   ): Promise<void> {
-    this.assertSafeWebhookUrl(webhookUrl);
+    await this.assertSafeWebhookUrl(webhookUrl);
 
     const handler = NOTIFICATION_DEFINITIONS[notificationType];
     if (!handler) {

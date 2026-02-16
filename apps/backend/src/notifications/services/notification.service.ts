@@ -87,7 +87,7 @@ export class NotificationService {
       this.logger.error(
         `Failed to process ${notificationType} for project ${projectId}: ${error instanceof Error ? error.message : String(error)}`
       );
-      await this.queueService.deleteProcessed(queueItems);
+      this.logger.error(error);
     }
   }
 

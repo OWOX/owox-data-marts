@@ -154,7 +154,6 @@ export class IdentityOwoxClient {
           },
         }
       );
-      console.log('data', JSON.stringify(data, null, 2));
       return OwoxProjectMembersResponseSchema.parse(data);
     } catch (err) {
       if (axios.isAxiosError(err)) {

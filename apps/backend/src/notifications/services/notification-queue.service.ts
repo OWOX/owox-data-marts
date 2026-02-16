@@ -48,11 +48,7 @@ export class NotificationQueueService {
     }
   }
 
-  async getAll(): Promise<NotificationPendingQueue[]> {
-    return this.repository.find({
-      order: { createdAt: 'ASC' },
-    });
-  }
+  private static readonly PAGE_SIZE = 500;
 
   async getByProjectAndType(
     projectId: string,
@@ -67,19 +63,30 @@ export class NotificationQueueService {
   async getGroupedByProjectAndType(): Promise<
     Map<string, Map<NotificationType, NotificationPendingQueue[]>>
   > {
-    const all = await this.getAll();
     const grouped = new Map<string, Map<NotificationType, NotificationPendingQueue[]>>();
+    let skip = 0;
 
-    for (const item of all) {
-      if (!grouped.has(item.projectId)) {
-        grouped.set(item.projectId, new Map());
-      }
-      const projectMap = grouped.get(item.projectId)!;
+    while (true) {
+      const page = await this.repository.find({
+        order: { createdAt: 'ASC' },
+        take: NotificationQueueService.PAGE_SIZE,
+        skip,
+      });
 
-      if (!projectMap.has(item.notificationType)) {
-        projectMap.set(item.notificationType, []);
+      for (const item of page) {
+        if (!grouped.has(item.projectId)) {
+          grouped.set(item.projectId, new Map());
+        }
+        const projectMap = grouped.get(item.projectId)!;
+
+        if (!projectMap.has(item.notificationType)) {
+          projectMap.set(item.notificationType, []);
+        }
+        projectMap.get(item.notificationType)!.push(item);
       }
-      projectMap.get(item.notificationType)!.push(item);
+
+      if (page.length < NotificationQueueService.PAGE_SIZE) break;
+      skip += NotificationQueueService.PAGE_SIZE;
     }
 
     return grouped;

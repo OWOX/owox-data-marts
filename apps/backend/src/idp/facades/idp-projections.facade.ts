@@ -4,7 +4,7 @@ import { UserProjectionDto } from '../dto/domain/user-projection.dto';
 import { UserProjectionsListDto } from '../dto/domain/user-projections-list.dto';
 import { ProjectionsMapper } from '../mappers/projections.mapper';
 import { IdpProjectionsService } from '../services/idp-projections.service';
-import { ProjectMemberApiDto } from '../../notifications/dto/presentation/project-member-api.dto';
+import { ProjectMemberDto } from '../dto/domain/project-member.dto';
 
 /**
  * A facade service that provides methods to retrieve projections
@@ -36,7 +36,7 @@ export class IdpProjectionsFacade {
     return this.mapper.toUserProjectionDtoList(projections);
   }
 
-  public async getProjectMembers(projectId: string): Promise<ProjectMemberApiDto[]> {
+  public async getProjectMembers(projectId: string): Promise<ProjectMemberDto[]> {
     return this.idpProjectionsService.getProjectMembers(projectId);
   }
 }

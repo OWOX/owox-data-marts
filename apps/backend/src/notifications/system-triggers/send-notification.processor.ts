@@ -66,15 +66,19 @@ export class SendNotificationProcessor extends BaseSystemTaskProcessor {
 
       this.logger.debug(`Refreshing projections for ${projectIds.length} projects`);
 
-      await Promise.allSettled(
-        projectIds.map(async projectId => {
-          try {
-            await this.idpProjectionsFacade.getProjectMembers(projectId);
-          } catch (error) {
-            this.logger.warn(`Failed to refresh projections for project ${projectId}`, error);
-          }
-        })
-      );
+      const CONCURRENCY = 10;
+      for (let i = 0; i < projectIds.length; i += CONCURRENCY) {
+        const batch = projectIds.slice(i, i + CONCURRENCY);
+        await Promise.allSettled(
+          batch.map(async projectId => {
+            try {
+              await this.idpProjectionsFacade.getProjectMembers(projectId);
+            } catch (error) {
+              this.logger.warn(`Failed to refresh projections for project ${projectId}`, error);
+            }
+          })
+        );
+      }
 
       this.logger.debug('User projections refresh completed');
     } catch (error) {

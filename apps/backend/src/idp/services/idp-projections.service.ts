@@ -5,7 +5,7 @@ import { In, Repository } from 'typeorm';
 import { ProjectProjection } from '../entities/project-projection.entity';
 import { UserProjection } from '../entities/user-projection.entity';
 import { IdpProviderService } from './idp-provider.service';
-import { ProjectMemberApiDto } from '../../notifications/dto/presentation/project-member-api.dto';
+import { ProjectMemberDto } from '../dto/domain/project-member.dto';
 
 /**
  * Service for updating projections in the database based on authorization payload.
@@ -78,7 +78,7 @@ export class IdpProjectionsService {
   /**
    * Get project members from IDP provider and update projections
    */
-  public async getProjectMembers(projectId: string): Promise<ProjectMemberApiDto[]> {
+  public async getProjectMembers(projectId: string): Promise<ProjectMemberDto[]> {
     try {
       const provider = this.idpProviderService.getProviderFromApp();
       const members = await provider.getProjectMembers(projectId);
@@ -96,7 +96,7 @@ export class IdpProjectionsService {
           hasNotificationsEnabled: m.hasNotificationsEnabled,
         }));
     } catch (error) {
-      this.logger.error('Failed to get project members', error);
+      this.logger.error(`Failed to get project members for project ${projectId}`, error);
       return [];
     }
   }
