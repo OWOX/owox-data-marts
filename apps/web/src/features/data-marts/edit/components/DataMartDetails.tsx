@@ -20,6 +20,7 @@ import { StatusLabel, StatusTypeEnum } from '../../../../shared/components/Statu
 import { useProjectRoute } from '../../../../shared/hooks';
 import { checkVisible } from '../../../../utils';
 import { ConnectorRunView } from '../../../connectors/edit/components/ConnectorRunSheet/ConnectorRunView.tsx';
+import { DataStorageType } from '../../../data-storage';
 import { useAuth } from '../../../idp';
 import {
   DataMartDefinitionType,
@@ -433,6 +434,16 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
           <>
             Are you sure you want to delete <strong>"{dataMartTitle}"</strong>? This action cannot
             be undone.
+            {dataMart.storage.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY && (
+              <>
+                <br />
+                <br />
+                <span className='text-destructive'>
+                  Deleting this data mart will also make it unavailable in the Google Sheets
+                  extension.
+                </span>
+              </>
+            )}
           </>
         }
         confirmLabel='Delete'
