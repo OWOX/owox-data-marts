@@ -5,19 +5,19 @@ import ms from 'ms';
 import { IdentityOwoxClientConfig } from '../config/idp-owox-config.js';
 import { AuthenticationException, IdpFailedException } from '../core/exceptions.js';
 import {
-  AuthFlowRequest,
-  AuthFlowResponse,
-  AuthFlowResponseSchema,
-  IntrospectionRequest,
-  IntrospectionResponse,
-  IntrospectionResponseSchema,
-  JwksResponse,
-  JwksResponseSchema,
-  RevocationRequest,
-  RevocationResponse,
-  TokenRequest,
-  TokenResponse,
-  TokenResponseSchema,
+    AuthFlowRequest,
+    AuthFlowResponse,
+    AuthFlowResponseSchema,
+    IntrospectionRequest,
+    IntrospectionResponse,
+    IntrospectionResponseSchema,
+    JwksResponse,
+    JwksResponseSchema,
+    RevocationRequest,
+    RevocationResponse,
+    TokenRequest,
+    TokenResponse,
+    TokenResponseSchema,
 } from './dto/index.js';
 
 /**
@@ -85,8 +85,15 @@ export class IdentityOwoxClient {
    * POST /api/idp/revocation
    */
   async revokeToken(req: RevocationRequest): Promise<RevocationResponse> {
-    const resp = await this.http.post<void>('/api/idp/revocation', req);
-    return { success: resp.status >= 200 && resp.status < 300 };
+    try {
+      const resp = await this.http.post<void>('/api/idp/revocation', req);
+      return { success: resp.status >= 200 && resp.status < 300 };
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        return { success: false };
+      }
+      throw err;
+    }
   }
 
   /**

@@ -24,11 +24,11 @@ import type { DatabaseStore } from './store/database-store.js';
 import { clearCookie } from './utils/cookie-policy.js';
 import { buildPlatformEntryUrl } from './utils/platform-redirect-builder.js';
 import {
-  clearBetterAuthCookies,
-  clearPlatformCookies,
-  extractPlatformParams,
-  extractRefreshToken,
-  getStateManager,
+    clearBetterAuthCookies,
+    clearPlatformCookies,
+    extractPlatformParams,
+    extractRefreshToken,
+    getStateManager,
 } from './utils/request-utils.js';
 import { formatError } from './utils/string-utils.js';
 
@@ -82,7 +82,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     );
     this.requestHandlerService = new RequestHandlerService(this.auth, this.pkceFlowOrchestrator);
     this.pageService = new PageRenderService();
-    this.passwordFlowController = new PasswordFlowController(this.auth, this.magicLinkService);
+    this.passwordFlowController = new PasswordFlowController(this.auth, this.betterAuthSessionService, this.magicLinkService);
     this.middlewareService = new MiddlewareService(
       this.pageService,
       this.config.idpOwox,

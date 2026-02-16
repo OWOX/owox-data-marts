@@ -1,12 +1,12 @@
 import { AuthResult, Payload } from '@owox/idp-protocol';
 import { NextFunction, Request, Response } from 'express';
 import {
-  IdentityOwoxClient,
-  IntrospectionRequest,
-  IntrospectionResponse,
-  RevocationRequest,
-  TokenRequest,
-  TokenResponse,
+    IdentityOwoxClient,
+    IntrospectionRequest,
+    IntrospectionResponse,
+    RevocationRequest,
+    TokenRequest,
+    TokenResponse,
 } from '../client/index.js';
 import type { IdpOwoxConfig } from '../config/idp-owox-config.js';
 import { CORE_REFRESH_TOKEN_COOKIE } from '../core/constants.js';
@@ -74,7 +74,7 @@ export class OwoxTokenFacade {
   }
 
   async verifyToken(token: string): Promise<Payload | null> {
-    return this.tokenService.verify(token);
+    return this.tokenService.parse(token);
   }
 
   async refreshToken(refreshToken: string): Promise<AuthResult> {
@@ -107,17 +107,17 @@ export class OwoxTokenFacade {
     try {
       const refreshToken = req.cookies[this.cookieName];
       if (!refreshToken) {
-        return res.json({ reason: 'atm1' });
+        return res.status(401).json({ reason: 'atm1' });
       }
       const auth = await this.refreshToken(refreshToken);
 
       const newRefreshToken = auth.refreshToken;
       if (!newRefreshToken) {
-        return res.json({ reason: 'atm2' });
+        return res.status(401).json({ reason: 'atm2' });
       }
 
       if (!auth.refreshTokenExpiresIn) {
-        return res.json({ reason: 'atm3' });
+        return res.status(401).json({ reason: 'atm3' });
       }
 
       this.setTokenToCookie(res, req, newRefreshToken, auth.refreshTokenExpiresIn);
@@ -130,7 +130,7 @@ export class OwoxTokenFacade {
           params: error.context,
           cause: error.cause,
         });
-        return res.json({ reason: 'atm4' });
+        return res.status(401).json({ reason: 'atm4' });
       }
 
       if (error instanceof IdpFailedException) {
@@ -139,11 +139,11 @@ export class OwoxTokenFacade {
           error.context,
           error.cause
         );
-        return res.json({ reason: 'atm5' });
+        return res.status(502).json({ reason: 'atm5' });
       }
 
       logger.error(this.tokenService.formatError(error));
-      return res.json({ reason: 'atm6' });
+      return res.status(502).json({ reason: 'atm6' });
     }
   }
 

@@ -1,9 +1,9 @@
 import { Payload } from '@owox/idp-protocol';
-import { decodeProtectedHeader } from 'jose';
+import { createLocalJWKSet, decodeProtectedHeader, JWK, jwtVerify } from 'jose';
+import { JWKSNoMatchingKey, JWSSignatureVerificationFailed } from 'jose/errors';
+import type { JWTVerifyOptions } from 'jose/jwt/verify';
 import ms from 'ms';
 import { IdentityOwoxClient } from '../../client/index.js';
-import { JWKSet, makeJwksCache } from '../../jwt/jwksCache.js';
-import { verify } from '../../jwt/verifyJwt.js';
 import { toPayload } from '../../mappers/client-payload-mapper.js';
 import { formatError } from '../../utils/string-utils.js';
 
@@ -14,18 +14,23 @@ export interface TokenServiceConfig {
   jwtKeyCacheTtl: ms.StringValue;
 }
 
+interface JwksCacheEntry {
+  keys: JWK[];
+  keyResolver: ReturnType<typeof createLocalJWKSet>;
+  exp: number;
+  inflight?: Promise<JwksCacheEntry>;
+}
+
 /**
- * Validates and parses JWT access tokens using JWKS cache.
+ * Validates and parses JWT access tokens using an inline JWKS cache.
  */
 export class TokenService {
-  private readonly jwksCache;
+  private cacheEntry: JwksCacheEntry | null = null;
 
   constructor(
     private readonly client: IdentityOwoxClient,
     private readonly config: TokenServiceConfig
-  ) {
-    this.jwksCache = makeJwksCache(this.fetchJwks.bind(this), 'OWOX_JWKS');
-  }
+  ) {}
 
   normalizeToken(authorization: string): string {
     return authorization.replace(/^Bearer\s+/i, '').trim();
@@ -41,18 +46,53 @@ export class TokenService {
     }
   }
 
-  async verify(token: string): Promise<Payload | null> {
-    return this.parse(token);
-  }
-
   formatError(error: unknown): string {
     return formatError(error);
   }
 
-  private async fetchJwks(): Promise<JWKSet> {
+  // ── JWKS cache ──────────────────────────────────────────────
+
+  private async fetchJwks(): Promise<{ keys: JWK[] }> {
     const resp = await this.client.getJwks();
     return { keys: resp.keys };
   }
+
+  private async loadKeys(ttlMs: number): Promise<JwksCacheEntry> {
+    if (this.cacheEntry?.inflight) return this.cacheEntry.inflight;
+
+    const inflight = (async (): Promise<JwksCacheEntry> => {
+      const jwks = await this.fetchJwks();
+      const entry: JwksCacheEntry = {
+        keys: jwks.keys,
+        keyResolver: createLocalJWKSet(jwks),
+        exp: Date.now() + ttlMs,
+      };
+      this.cacheEntry = entry;
+      return entry;
+    })();
+
+    this.cacheEntry = { ...(this.cacheEntry ?? ({} as JwksCacheEntry)), inflight };
+    try {
+      return await inflight;
+    } finally {
+      if (this.cacheEntry) {
+        this.cacheEntry.inflight = undefined;
+      }
+    }
+  }
+
+  private async getKeyResolver(ttlMs: number): Promise<ReturnType<typeof createLocalJWKSet>> {
+    if (this.cacheEntry && this.cacheEntry.exp > Date.now()) {
+      return this.cacheEntry.keyResolver;
+    }
+    return (await this.loadKeys(ttlMs)).keyResolver;
+  }
+
+  private async refreshKeyResolver(ttlMs: number): Promise<ReturnType<typeof createLocalJWKSet>> {
+    return (await this.loadKeys(ttlMs)).keyResolver;
+  }
+
+  // ── JWT verification ────────────────────────────────────────
 
   private async verifyJwt(token: string) {
     const { alg } = decodeProtectedHeader(token);
@@ -65,15 +105,23 @@ export class TokenService {
         ? ms(this.config.clockTolerance) / 1000
         : this.config.clockTolerance;
 
-    return verify(
-      token,
-      async () => (await this.jwksCache.get(ms(this.config.jwtKeyCacheTtl))).keyResolver,
-      async () => (await this.jwksCache.refresh(ms(this.config.jwtKeyCacheTtl))).keyResolver,
-      {
-        algorithm: this.config.algorithm,
-        clockTolerance: clockToleranceSeconds,
-        issuer: this.config.issuer,
-      }
-    );
+    const ttlMs = ms(this.config.jwtKeyCacheTtl);
+    const jwtVerifyOptions: JWTVerifyOptions = {
+      algorithms: [this.config.algorithm],
+      clockTolerance: clockToleranceSeconds,
+      issuer: this.config.issuer,
+    };
+
+    try {
+      const key = await this.getKeyResolver(ttlMs);
+      return await jwtVerify(token, key, jwtVerifyOptions);
+    } catch (err) {
+      const shouldRefresh =
+        err instanceof JWKSNoMatchingKey || err instanceof JWSSignatureVerificationFailed;
+      if (!shouldRefresh) throw err;
+
+      const refreshedKey = await this.refreshKeyResolver(ttlMs);
+      return await jwtVerify(token, refreshedKey, jwtVerifyOptions);
+    }
   }
 }

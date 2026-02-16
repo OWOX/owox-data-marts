@@ -5,7 +5,7 @@ import { logger } from '../../core/logger.js';
 import { buildUserInfoPayload } from '../../mappers/user-info-payload-builder.js';
 import type { DatabaseStore } from '../../store/database-store.js';
 import { AuthSession } from '../../types/auth-session.js';
-import type { DatabaseAccount } from '../../types/database-models.js';
+import { resolveAccountForUser } from '../../utils/account-resolver.js';
 import { resolveProviderFromLoginMethod } from '../../utils/auth-provider-utils.js';
 import { convertExpressHeaders } from '../../utils/express-headers.js';
 import { getStateManager } from '../../utils/request-utils.js';
@@ -32,10 +32,11 @@ export class BetterAuthSessionService {
         throw new Error(`User not found in DB for session ${session.user.id}`);
       }
 
-      const account = await this.resolveAccountForUser({
-        userId: session.user.id,
-        userLastLoginMethod: dbUser.lastLoginMethod,
-      });
+      const account = await resolveAccountForUser(
+        this.store,
+        session.user.id,
+        dbUser.lastLoginMethod
+      );
       if (!account) {
         throw new Error(`No account found for user ${session.user.id}`);
       }
@@ -92,11 +93,12 @@ export class BetterAuthSessionService {
       throw new Error(`User not found in DB for session ${session.user.id}`);
     }
 
-    const account = await this.resolveAccountForUser({
-      userId: session.user.id,
-      callbackProviderId,
-      userLastLoginMethod: dbUser.lastLoginMethod,
-    });
+    const loginMethod = callbackProviderId || dbUser.lastLoginMethod;
+    const account = await resolveAccountForUser(
+      this.store,
+      session.user.id,
+      loginMethod
+    );
     if (!account) {
       throw new Error(`No account found for user ${session.user.id}`);
     }
@@ -159,35 +161,6 @@ export class BetterAuthSessionService {
       logger.error('Failed to get session', {}, error as Error);
       throw new Error('Failed to get session');
     }
-  }
-
-  private async resolveAccountForUser(params: {
-    userId: string;
-    callbackProviderId?: string | null;
-    userLastLoginMethod?: string | null;
-  }): Promise<DatabaseAccount | null> {
-    const preferredProvider =
-      resolveProviderFromLoginMethod(params.callbackProviderId) ??
-      resolveProviderFromLoginMethod(params.userLastLoginMethod);
-
-    if (preferredProvider) {
-      const preferredAccount = await this.store.getAccountByUserIdAndProvider(
-        params.userId,
-        preferredProvider
-      );
-      if (preferredAccount) {
-        return preferredAccount;
-      }
-      logger.warn(
-        'Account for last-login provider not found in callback flow, falling back to latest account',
-        {
-          userId: params.userId,
-          preferredProvider,
-        }
-      );
-    }
-
-    return this.store.getAccountByUserId(params.userId);
   }
 
   private async tryPersistLastLoginMethod(userId: string, providerId: string): Promise<void> {

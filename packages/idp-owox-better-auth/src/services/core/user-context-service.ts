@@ -4,7 +4,8 @@ import { logger } from '../../core/logger.js';
 import { OwoxTokenFacade } from '../../facades/owox-token-facade.js';
 import type { DatabaseStore } from '../../store/database-store.js';
 import type { DatabaseAccount, DatabaseUser } from '../../types/database-models.js';
-import { resolveProviderFromLoginMethod } from '../../utils/auth-provider-utils.js';
+import { resolveAccountForUser } from '../../utils/account-resolver.js';
+import { normalizeEmail } from '../../utils/email-utils.js';
 
 export interface UserContext {
   payload: Payload;
@@ -29,12 +30,13 @@ export class UserContextService {
       throw new AuthenticationException('Invalid token payload: email is missing');
     }
 
-    const normalizedEmail = this.normalizeEmail(payload.email);
-    if (!normalizedEmail) {
+    const normalized = normalizeEmail(payload.email);
+    if (!normalized) {
       throw new AuthenticationException('Invalid token payload: email is malformed', {
         context: { email: payload.email },
       });
     }
+    const normalizedEmail = normalized;
 
     const user = await this.store.getUserByEmail(normalizedEmail);
     if (!user) {
@@ -49,7 +51,7 @@ export class UserContextService {
       });
     }
 
-    const account = await this.resolveAccountForUser(user, normalizedEmail);
+    const account = await resolveAccountForUser(this.store, user.id, user.lastLoginMethod);
     if (!account) {
       throw new AuthenticationException('Account not found for user', {
         context: { userId: user.id, email: normalizedEmail },
@@ -63,37 +65,5 @@ export class UserContextService {
     });
 
     return { payload, user, account };
-  }
-
-  private normalizeEmail(email: string): string | null {
-    const normalized = email.trim().toLowerCase();
-    return normalized.length > 0 ? normalized : null;
-  }
-
-  private async resolveAccountForUser(
-    user: DatabaseUser,
-    normalizedEmail: string
-  ): Promise<DatabaseAccount | null> {
-    const preferredProvider = resolveProviderFromLoginMethod(user.lastLoginMethod);
-    if (preferredProvider) {
-      const preferredAccount = await this.store.getAccountByUserIdAndProvider(
-        user.id,
-        preferredProvider
-      );
-
-      if (preferredAccount) {
-        return preferredAccount;
-      }
-
-      logger.error(
-        'Account for last-login provider not found in refresh flow, falling back to latest account',
-        {
-          userId: user.id,
-          email: normalizedEmail,
-          preferredProvider,
-        }
-      );
-    }
-    return this.store.getAccountByUserId(user.id);
   }
 }

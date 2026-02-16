@@ -6,6 +6,7 @@ import { logger } from '../core/logger.js';
 import { GoogleProvider } from '../social/google-provider.js';
 import { MicrosoftProvider } from '../social/microsoft-provider.js';
 import { BetterAuthConfig } from '../types/index.js';
+import { isSecureOrigin } from '../utils/url-utils.js';
 
 /**
  * Builds Better Auth configuration with social providers and cookies.
@@ -144,14 +145,10 @@ export async function createBetterAuthConfig(
   return betterAuth(authConfig);
 }
 
-function isLocalhost(hostname: string): boolean {
-  return hostname === 'localhost' || hostname === '127.0.0.1';
-}
-
 function isSecureBaseURL(baseURL: string): boolean {
   try {
     const url = new URL(baseURL);
-    return url.protocol === 'https:' && !isLocalhost(url.hostname);
+    return isSecureOrigin(url.protocol, url.hostname);
   } catch {
     return false;
   }

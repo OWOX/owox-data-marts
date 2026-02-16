@@ -7,7 +7,9 @@ import {
 import type { createBetterAuthConfig } from '../../config/idp-better-auth-config.js';
 import { logger } from '../../core/logger.js';
 import { parseEmail } from '../../utils/email-utils.js';
+import { convertExpressHeaders } from '../../utils/express-headers.js';
 import { clearBetterAuthCookies } from '../../utils/request-utils.js';
+import type { BetterAuthSessionService } from '../auth/better-auth-session-service.js';
 import { MagicLinkService } from '../auth/magic-link-service.js';
 import type { MagicLinkIntent } from '../email/magic-link-email-service.js';
 import { TemplateService } from './template-service.js';
@@ -22,6 +24,7 @@ type BetterAuthInstance = Awaited<ReturnType<typeof createBetterAuthConfig>>;
 export class PasswordFlowController {
   constructor(
     private readonly auth: BetterAuthInstance,
+    private readonly sessionService: BetterAuthSessionService,
     private readonly magicLinkService: MagicLinkService
   ) {}
 
@@ -64,15 +67,10 @@ export class PasswordFlowController {
 
   private async getSession(req: ExpressRequest): Promise<{ userId: string; email: string } | null> {
     try {
-      const session = await this.auth.api.getSession({
-        headers: req.headers as unknown as Headers,
-      });
-      if (!session || !session.user) {
-        return null;
-      }
+      const session = await this.sessionService.getSession(req);
+      if (!session) return null;
       return { userId: session.user.id, email: session.user.email };
-    } catch (error) {
-      logger.error('Failed to resolve session for password setup', {}, error as Error);
+    } catch {
       return null;
     }
   }
@@ -148,7 +146,7 @@ export class PasswordFlowController {
       try {
         await this.auth.api.resetPassword({
           body: { newPassword: password, token: resetToken },
-          headers: req.headers as unknown as Headers,
+          headers: convertExpressHeaders(req),
         });
         clearBetterAuthCookies(res, req);
         return res.redirect(`${AUTH_BASE_PATH}/password/success`);
@@ -166,11 +164,11 @@ export class PasswordFlowController {
     try {
       await this.auth.api.setPassword({
         body: { newPassword: password },
-        headers: req.headers as unknown as Headers,
+        headers: convertExpressHeaders(req),
       });
 
       try {
-        await this.auth.api.signOut({ headers: req.headers as unknown as Headers });
+        await this.auth.api.signOut({ headers: convertExpressHeaders(req) });
       } catch (signOutError) {
         logger.warn('Failed to sign out after password setup', {}, signOutError as Error);
       }

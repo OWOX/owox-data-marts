@@ -103,7 +103,9 @@ For MySQL, verify your connection settings and ensure the database exists.
 
 Ensure the user has permission for the action they're trying to perform.
 
-## Email/password & magic-link flow
+## Architecture
+
+### Email/password & magic-link flow
 
 - Sign-in page shows Email + Password (Google remains available); it posts to Better Auth email sign-in and completes PKCE when `state` is present.
 - Sign-up page shows only Email. A magic link is sent; after clicking it, the user lands on `/auth/password/setup` to set a password, then sees a success screen with a sign-in link.
@@ -111,6 +113,29 @@ Ensure the user has permission for the action they're trying to perform.
 - Magic-link confirm page: `/auth/magic-link?token=...&callbackURL=...` renders a confirm button before calling Better Auth verify.
 - Password setup and success pages: `/auth/password/setup` (POST to save) and `/auth/password/success`.
 - Email delivery uses `@owox/internal-helpers` SendGrid integration and one shared EJS template (`resources/templates/email/magic-link-email.ejs`) with intent-specific wording.
+
+### Component interaction
+
+```
+Entry point (OwoxBetterAuthIdp)
+ ├── Config layer (idp-owox-config, idp-better-auth-config)
+ ├── Client layer (IdentityOwoxClient)
+ ├── Facade layer (OwoxTokenFacade)
+ ├── Service layer
+ │    ├── auth/ (BetterAuthSessionService, PkceFlowOrchestrator, MagicLinkService)
+ │    ├── core/ (TokenService, UserContextService)
+ │    ├── email/ (MagicLinkEmailService)
+ │    ├── middleware/ (signInMiddleware)
+ │    └── rendering/ (PageRenderService, PasswordFlowController, TemplateService)
+ └── Utils (account-resolver, cookie-policy, url-utils, email-utils, request-utils …)
+```
+
+### Social login
+
+- Extensible via `SocialProvider` interface — currently Google and Microsoft.
+- Providers are registered as Better Auth social plugins with custom `mapProfile` mapping.
+- `callbackProviderId` is captured from the social callback route and used to resolve the correct account.
+
 
 ## Customizing the auth UI
 
@@ -126,7 +151,6 @@ Ensure the user has permission for the action they're trying to perform.
 - Pages: `pages/sign-in.ejs` (email+password + Google), `pages/sign-up.ejs` (email only → magic link), `pages/forgot-password.ejs`, `pages/magic-link-confirm.ejs`, `pages/password-setup.ejs`, `pages/password-success.ejs`.
 - Partials:
   - `head.ejs` — `<head>`, Tailwind include, color palette.
-  - `header.ejs` — page heading (receives `heading`).
   - `brand-panel.ejs` — left panel with background and logo.
   - `footer.ejs` — terms and privacy links.
 - Email template: `resources/templates/email/magic-link-email.ejs`.
@@ -134,7 +158,7 @@ Ensure the user has permission for the action they're trying to perform.
 ### What and how to change
 
 - Text/links: edit the relevant `pages/*.ejs` or `partials/footer.ejs`.
-- Page heading: adjust `heading` in `TemplateService.renderSignIn|renderSignUp`, or edit `partials/header.ejs` if you need a different look.
+- Page heading: adjust `heading` in `TemplateService.renderSignIn|renderSignUp`.
 - Buttons and social-login logic: in `pages/sign-in.ejs` and `pages/sign-up.ejs` (the `fetch` handlers).
 - Magic-link / password reset UI and copy: in `pages/forgot-password.ejs`, `pages/magic-link-confirm.ejs`, `pages/password-setup.ejs`, `pages/password-success.ejs`.
 - Styles/colors: tweak the Tailwind config in `partials/head.ejs` or utility classes in each section.

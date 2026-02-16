@@ -6,10 +6,10 @@ import type { PoolOptions } from 'mysql2';
 import { dirname, join } from 'path';
 import { z } from 'zod';
 import type {
-  BetterAuthConfig,
-  DatabaseConfig,
-  EmailConfig,
-  SocialProvidersConfig,
+    BetterAuthConfig,
+    DatabaseConfig,
+    EmailConfig,
+    SocialProvidersConfig,
 } from '../types/index.js';
 
 const zMsString = z
@@ -19,14 +19,14 @@ const zMsString = z
   })
   .transform(s => s as ms.StringValue);
 
+import { tryNormalizeOrigin } from '../utils/url-utils.js';
+
 function normalizeOrigin(value: string, label: string): string {
-  try {
-    return new URL(value).origin;
-  } catch (error) {
-    throw new Error(
-      `Invalid ${label} value: ${value}. ${error instanceof Error ? error.message : error}`
-    );
+  const origin = tryNormalizeOrigin(value);
+  if (!origin) {
+    throw new Error(`Invalid ${label} value: ${value}`);
   }
+  return origin;
 }
 
 function ensureValidUrl(value: string): string {

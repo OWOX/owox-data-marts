@@ -6,13 +6,21 @@ import { resolveResourcePath } from '../../utils/template-paths.js';
  * Loads and renders EJS templates for auth pages with layout composition.
  */
 export class TemplateService {
+  private static readonly templateCache = new Map<string, string>();
+
   private static getTemplatePath(templateName: string): string {
     return resolveResourcePath(`templates/${templateName}`);
   }
 
   private static loadTemplate(templateName: string): string {
+    const cached = this.templateCache.get(templateName);
+    if (cached) {
+      return cached;
+    }
     const templatePath = this.getTemplatePath(templateName);
-    return readFileSync(templatePath, 'utf-8');
+    const content = readFileSync(templatePath, 'utf-8');
+    this.templateCache.set(templateName, content);
+    return content;
   }
 
   /**

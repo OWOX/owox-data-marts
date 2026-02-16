@@ -38,9 +38,7 @@ export class MagicLinkEmailService {
         : 'Click the button below to confirm your email and finish setting your password. This link is valid for 1 hour.',
       buttonText: isReset ? 'Reset password' : 'Confirm email',
       magicLink: payload.magicLink,
-      footer: isReset
-        ? 'If you did not request this, you can safely ignore this email.'
-        : 'If you did not request this, you can safely ignore this email.',
+      footer: 'If you did not request this, you can safely ignore this email.',
     };
   }
 
