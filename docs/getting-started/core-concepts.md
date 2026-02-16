@@ -133,4 +133,4 @@ There are two notification types:
 
 > ☝️ Notification settings are created automatically when a project's first run occurs.
 
-See [Notification Settings →](../notifications/notification-settings.md) and [Email Notifications →](../notifications/email.md) to learn more.
+See [Notification Settings](../notifications/notification-settings.md) and [Email Notifications](../notifications/email.md) to learn more.

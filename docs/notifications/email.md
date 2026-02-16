@@ -12,13 +12,15 @@ An email is sent when:
 - The notification is enabled, **and**
 - At least one receiver is configured.
 
+> ☝️ Make sure that the `service@e.owox.com` address is not in your block list, and that emails do not end up in your spam folder.
+
 ---
 
 ## Email Content
 
 The email contains a summary of all matching runs grouped by Data Mart.
 
-<!-- SCREENSHOT: Example "Failed runs" email showing the email subject, project name, and a list of Data Marts with their failed runs and error messages -->
+![Example "Failed runs" email showing the email subject, project name, and a list of Data Marts with their failed runs and error messages](res/notification_email_failed_example.png)
 
 For **Failed runs** emails, each Data Mart section shows:
 
@@ -26,7 +28,7 @@ For **Failed runs** emails, each Data Mart section shows:
 - Run timestamp and duration
 - Error message(s) that caused the failure
 
-<!-- SCREENSHOT: Example "Successful runs" email showing the email subject, project name, and a list of Data Marts with their successful runs -->
+![Example "Successful runs" email showing the email subject, project name, and a list of Data Marts with their successful runs](res/notification_email_success_example.png)
 
 For **Successful runs** emails, each Data Mart section shows:
 
@@ -42,13 +44,11 @@ For **Successful runs** emails, each Data Mart section shows:
 3. In the **Receivers** field, select the project members who should receive the email.
 4. Click **Save**.
 
-<!-- SCREENSHOT: Notification settings drawer with the Receivers field highlighted, showing selected members -->
-
 > ☝️ Only project members with email notifications enabled will receive emails. If a member has notifications disabled in their account settings, they will appear with a warning badge in the receivers list.
 
 ---
 
 ## 🔗 Related
 
-- [Notification Settings →](./notification-settings.md)
-- [Webhooks →](./webhooks.md)
+- [Notification Settings](./notification-settings.md)
+- [Webhooks](./webhooks.md)
