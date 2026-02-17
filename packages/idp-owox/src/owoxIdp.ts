@@ -1,4 +1,11 @@
-import { AuthResult, IdpProvider, Payload, Projects, ProtocolRoute } from '@owox/idp-protocol';
+import {
+  AuthResult,
+  IdpProvider,
+  Payload,
+  Projects,
+  ProjectMember,
+  ProtocolRoute,
+} from '@owox/idp-protocol';
 import e, { NextFunction } from 'express';
 import { Logger, LoggerFactory } from '@owox/internal-helpers';
 import { IdpOwoxConfig } from './config';
@@ -299,5 +306,23 @@ export class OwoxIdp implements IdpProvider {
     }
 
     return String(error);
+  }
+
+  async getProjectMembers(projectId: string): Promise<ProjectMember[]> {
+    this.logger.debug(`Getting project members for project ${projectId}`);
+    const response = await this.identityClient.getProjectMembers(projectId);
+
+    if (!response.projectMembers || response.projectMembers.length === 0) {
+      return [];
+    }
+    return response.projectMembers.map(member => ({
+      userId: String(member.userId),
+      email: member.email,
+      fullName: member.fullName || undefined,
+      avatar: member.avatar || undefined,
+      projectRole: member.projectRole,
+      userStatus: member.userStatus,
+      hasNotificationsEnabled: member.subscriptions?.serviceNotifications ?? true,
+    }));
   }
 }

@@ -29,18 +29,21 @@ export class SystemTriggerHandlerService implements TriggerHandler<SystemTrigger
       const processor = this.processorByType.get(trigger.type as SystemTriggerType);
       if (!processor) {
         this.logger.warn(`No processor registered for system trigger type ${trigger.type}`);
-        trigger.onSuccess(now);
-        await this.repository.save(trigger);
+        await this.saveTriggerSuccess(trigger, now);
+        return;
+      }
+
+      if (!processor.isEnabled()) {
+        this.logger.debug(`System task processor for type ${trigger.type} is disabled, skipping`);
+        await this.saveTriggerSuccess(trigger, now);
         return;
       }
 
       await processor.process(trigger, options);
-      trigger.onSuccess(now);
-      await this.repository.save(trigger);
+      await this.saveTriggerSuccess(trigger, now);
     } catch (error) {
       this.logger.error(`Failed to execute system trigger ${trigger.type}`, error);
-      trigger.onError(now);
-      await this.repository.save(trigger);
+      await this.saveTriggerError(trigger, now);
     }
   }
 
@@ -112,10 +115,18 @@ export class SystemTriggerHandlerService implements TriggerHandler<SystemTrigger
         changed = true;
       }
       if (changed) {
-        trigger.scheduleNextRun(new Date());
-        await this.repository.save(trigger);
+        await this.saveTriggerSuccess(trigger, new Date());
         this.logger.log(`Updated system trigger '${type}' to cron '${cron}'`);
       }
     }
+  }
+
+  private async saveTriggerSuccess(trigger: SystemTrigger, now: Date): Promise<void> {
+    trigger.onSuccess(now);
+    await this.repository.save(trigger);
+  }
+  private async saveTriggerError(trigger: SystemTrigger, now: Date): Promise<void> {
+    trigger.onError(now);
+    await this.repository.save(trigger);
   }
 }
