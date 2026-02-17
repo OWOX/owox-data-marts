@@ -11,19 +11,14 @@ Click **AWS Redshift** to create a new **Storage** configuration.
 > You can create **Data Mart** entities and model a data structure for your project prior to configuring the **Storage**.
 > Note that **Data Mart** cannot be validated or published until the associated **Storage** is fully configured.
 
-## 3. Add title
+## 3. Add title and AWS region
 
-Give the storage configuration a clear **title**, eg `Redshift – dev database`.
+Give the storage configuration a clear **title**, eg `AWS Redshift Dev Database`.
 
-## 4. Set General Settings and Connection Details
+Choose the AWS region where your Redshift cluster or workgroup is located:
 
-### Enter AWS Region
-
-- Choose the AWS region where your Redshift cluster or workgroup is located
 - Examples: `us-east-1`, `eu-west-1`, `ap-southeast-1`
 - You can find your region in the [AWS Redshift Console](https://console.aws.amazon.com/redshiftv2/home) in the top right corner or url.
-
-> **Note:** The region must match where your Redshift cluster or Serverless workgroup is deployed.
 
 ### Enter Database Name
 
