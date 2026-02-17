@@ -34,6 +34,7 @@ IDP_OWOX_JWT_ISSUER=https://idp.example.com
 # Better Auth IDP
 IDP_BETTER_AUTH_SECRET=your-super-secret-key-at-least-32-characters-long
 IDP_BETTER_AUTH_MAGIC_LINK_TTL=3600
+IDP_BETTER_AUTH_PROVIDERS=google,email,microsoft
 
 # Magic-link email delivery (SendGrid)
 IDP_OWOX_SENDGRID_API_KEY=your-sendgrid-api-key
@@ -79,6 +80,7 @@ IDP_OWOX_SENDGRID_VERIFIED_SENDER_NAME=OWOX Data Marts
 | `IDP_BETTER_AUTH_SESSION_MAX_AGE`         |    No    |              `1800` (30 mins)               | Session duration (seconds)                            |
 | `IDP_BETTER_AUTH_TRUSTED_ORIGINS`         |    No    |               `PUBLIC_ORIGIN`               | Trusted origins for auth service                      |
 | `IDP_BETTER_AUTH_MAGIC_LINK_TTL`          |    No    |                   `3600`                    | Magic-link token TTL (seconds)                        |
+| `IDP_BETTER_AUTH_PROVIDERS`               |    No    |                 `google`                    | UI-only toggle: `google` always on; add `email`, `microsoft` separated by commas |
 | `IDP_BETTER_AUTH_GOOGLE_CLIENT_ID`        |    No    |                      –                      | Google OAuth client id (enables Google)               |
 | `IDP_BETTER_AUTH_GOOGLE_CLIENT_SECRET`    |    No    |                      –                      | Google OAuth client secret                            |
 | `IDP_BETTER_AUTH_MICROSOFT_CLIENT_ID`     |    No    |                      –                      | Microsoft OAuth client id (enables Microsoft)         |
@@ -160,6 +162,7 @@ Entry point (OwoxBetterAuthIdp)
 - Text/links: edit the relevant `pages/*.ejs` or `partials/footer.ejs`.
 - Page heading: adjust `heading` in `TemplateService.renderSignIn|renderSignUp`.
 - Buttons and social-login logic: in `pages/sign-in.ejs` and `pages/sign-up.ejs` (the `fetch` handlers).
+- Provider visibility in the UI is controlled by `IDP_BETTER_AUTH_PROVIDERS` (comma-separated: `google,email,microsoft`; Google is always enabled).
 - Magic-link / password reset UI and copy: in `pages/forgot-password.ejs`, `pages/magic-link-confirm.ejs`, `pages/password-setup.ejs`, `pages/password-success.ejs`.
 - Styles/colors: tweak the Tailwind config in `partials/head.ejs` or utility classes in each section.
 - Branding (background, logo, tagline): in `partials/brand-panel.ejs`.

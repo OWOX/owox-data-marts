@@ -1,5 +1,6 @@
 import ejs from 'ejs';
 import { readFileSync } from 'fs';
+import type { UiAuthProviders } from '../../types/index.js';
 import { resolveResourcePath } from '../../utils/template-paths.js';
 
 /**
@@ -51,19 +52,21 @@ export class TemplateService {
     );
   }
 
-  public static renderSignIn(data: Record<string, unknown> = {}): string {
+  public static renderSignIn(data: Record<string, unknown> & { providers: UiAuthProviders }): string {
     return this.renderWithLayout('pages/sign-in.ejs', 'layouts/auth.ejs', {
       pageTitle: 'Sign In - OWOX Data Marts',
       heading: 'Sign in to OWOX',
       ...data,
+      providers: data.providers,
     });
   }
 
-  public static renderSignUp(data: Record<string, unknown> = {}): string {
+  public static renderSignUp(data: Record<string, unknown> & { providers: UiAuthProviders }): string {
     return this.renderWithLayout('pages/sign-up.ejs', 'layouts/auth.ejs', {
       pageTitle: 'Sign Up - OWOX Data Marts',
       heading: 'Create your OWOX account',
       ...data,
+      providers: data.providers,
     });
   }
 

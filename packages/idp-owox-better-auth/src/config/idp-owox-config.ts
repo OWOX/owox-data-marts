@@ -10,6 +10,7 @@ import type {
   DatabaseConfig,
   EmailConfig,
   SocialProvidersConfig,
+  UiAuthProviders,
 } from '../types/index.js';
 
 const zMsString = z
@@ -229,6 +230,7 @@ const BetterAuthEnvSchema = z.object({
   IDP_BETTER_AUTH_SESSION_MAX_AGE: z.string().optional(),
   IDP_BETTER_AUTH_TRUSTED_ORIGINS: z.string().optional(),
   IDP_BETTER_AUTH_MAGIC_LINK_TTL: z.string().optional(),
+  IDP_BETTER_AUTH_PROVIDERS: z.string().optional(),
   IDP_BETTER_AUTH_GOOGLE_CLIENT_ID: z.string().optional(),
   IDP_BETTER_AUTH_GOOGLE_CLIENT_SECRET: z.string().optional(),
   IDP_BETTER_AUTH_GOOGLE_PROMPT: z.string().optional(),
@@ -277,6 +279,21 @@ function parseTrustedOrigins(raw: string | undefined, baseUrl: string | undefine
   return Array.from(new Set(origins));
 }
 
+function parseUiProviders(raw: string | undefined): UiAuthProviders {
+  const parts = (raw ?? 'google')
+    .split(',')
+    .map(x => x.trim().toLowerCase())
+    .filter(Boolean);
+
+  const providerSet = new Set(parts);
+
+  return {
+    google: true,
+    microsoft: providerSet.has('microsoft'),
+    email: providerSet.has('email'),
+  };
+}
+
 function buildSocialProviders(
   env: z.infer<typeof BetterAuthEnvSchema>,
   baseURL: string | undefined
@@ -315,6 +332,7 @@ export type BetterAuthProviderConfig = {
   betterAuth: BetterAuthConfig;
   idpOwox: IdpOwoxConfig;
   email: EmailConfig;
+  uiProviders: UiAuthProviders;
 };
 
 /**
@@ -352,6 +370,7 @@ export function loadBetterAuthProviderConfigFromEnv(
   const sendgridEnv = SendgridEnvSchema.parse(env);
 
   const safeBaseURL = resolveBaseUrl(env);
+  const uiProviders = parseUiProviders(baEnv.IDP_BETTER_AUTH_PROVIDERS);
 
   const betterAuthConfig: BetterAuthConfig = {
     database: idpOwox.dbConfig,
@@ -374,5 +393,6 @@ export function loadBetterAuthProviderConfigFromEnv(
         verifiedSenderName: sendgridEnv.IDP_OWOX_SENDGRID_VERIFIED_SENDER_NAME,
       },
     },
+    uiProviders,
   };
 }

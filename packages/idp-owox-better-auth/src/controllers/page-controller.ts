@@ -5,6 +5,7 @@ import {
   type Response as ExpressResponse,
 } from 'express';
 import { TemplateService } from '../services/rendering/template-service.js';
+import type { UiAuthProviders } from '../types/index.js';
 import { extractPlatformParams, persistPlatformContext } from '../utils/request-utils.js';
 
 const AUTH_BASE_PATH = '/auth';
@@ -13,7 +14,7 @@ const AUTH_BASE_PATH = '/auth';
  * Renders static auth pages and persists platform context.
  */
 export class PageController {
-  constructor() {}
+  constructor(private readonly providers: UiAuthProviders) {}
 
   private persistPlatformContext(req: ExpressRequest, res: ExpressResponse): void {
     const state = typeof req.query?.state === 'string' ? req.query.state : undefined;
@@ -25,14 +26,14 @@ export class PageController {
     this.persistPlatformContext(req, res);
     const errorMessage = typeof req.query?.error === 'string' ? req.query.error : undefined;
     const infoMessage = typeof req.query?.info === 'string' ? req.query.info : undefined;
-    res.send(TemplateService.renderSignIn({ errorMessage, infoMessage }));
+    res.send(TemplateService.renderSignIn({ errorMessage, infoMessage, providers: this.providers }));
   }
 
   async signUpPage(req: ExpressRequest, res: ExpressResponse): Promise<void> {
     this.persistPlatformContext(req, res);
     const errorMessage = typeof req.query?.error === 'string' ? req.query.error : undefined;
     const infoMessage = typeof req.query?.info === 'string' ? req.query.info : undefined;
-    res.send(TemplateService.renderSignUp({ errorMessage, infoMessage }));
+    res.send(TemplateService.renderSignUp({ errorMessage, infoMessage, providers: this.providers }));
   }
 
   private sanitizeCallbackURL(rawCallbackURL: string, req: ExpressRequest): string {

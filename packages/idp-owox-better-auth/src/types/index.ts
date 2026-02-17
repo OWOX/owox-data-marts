@@ -43,6 +43,12 @@ export interface SocialProvidersConfig {
   microsoft?: MicrosoftProviderConfig;
 }
 
+export type UiAuthProviders = {
+  google: boolean;
+  microsoft: boolean;
+  email: boolean;
+};
+
 export type DatabaseConfig = SqliteConfig | MySqlConfig;
 
 export interface SendgridEmailConfig {
