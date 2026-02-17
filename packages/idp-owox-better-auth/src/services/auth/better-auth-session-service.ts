@@ -64,7 +64,7 @@ export class BetterAuthSessionService {
     if (session?.user?.id) {
       await this.tryPersistLastLoginMethod(session.user.id, payload.userInfo.signinProvider);
     }
-    logger.info('Integrated backend responded', { hasCode: Boolean(result.code) });
+    logger.info('OWOX client completed auth flow', { hasCode: Boolean(result.code) });
     return { code: result.code, payload };
   }
 
@@ -107,13 +107,13 @@ export class BetterAuthSessionService {
       account,
     });
 
-    logger.info('Sending auth flow payload (callback)', {
+    logger.info('OWOX client sending auth flow payload with session token', {
       state: payload.state,
       userInfo: payload.userInfo,
     });
     const result = await this.platformAuthFlowClient.completeAuthFlow(payload);
     await this.tryPersistLastLoginMethod(dbUser.id, account.providerId);
-    logger.info('Integrated backend responded (callback)', { hasCode: Boolean(result.code) });
+    logger.info('OWOX client completed auth flow with session token', { hasCode: Boolean(result.code) });
     return { code: result.code, payload };
   }
 
