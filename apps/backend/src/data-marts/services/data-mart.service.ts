@@ -37,13 +37,29 @@ export class DataMartService {
     return this.dataMartRepository.findOne({ where: { id }, withDeleted });
   }
 
-  async findByProjectId(
+  async findByProjectIdForList(
     projectId: string,
     options?: { limit?: number; offset?: number }
   ): Promise<{ items: DataMart[]; total: number }> {
     const qb = this.dataMartRepository
       .createQueryBuilder('dm')
-      .leftJoinAndSelect('dm.storage', 'storage')
+      .leftJoin('dm.storage', 'storage')
+      .select([
+        'dm.id',
+        'dm.title',
+        'dm.status',
+        'dm.definitionType',
+        'dm.createdById',
+        'dm.createdAt',
+        'dm.modifiedAt',
+        'storage.type',
+        'storage.title',
+      ])
+      .addSelect(
+        'CASE WHEN dm.definitionType = :connectorDefinitionType THEN dm.definition ELSE NULL END',
+        'dm_definition'
+      )
+      .setParameter('connectorDefinitionType', DataMartDefinitionType.CONNECTOR)
       .where('dm.projectId = :projectId', { projectId })
       .andWhere('dm.deletedAt IS NULL')
       .orderBy('dm.createdAt', 'DESC')
@@ -51,7 +67,16 @@ export class DataMartService {
       .limit(options?.limit)
       .offset(options?.offset);
 
-    const [items, total] = await qb.getManyAndCount();
+    const countQb = qb.clone().limit(undefined).offset(undefined);
+    const total = await countQb.getCount();
+    const { raw, entities } = await qb.getRawAndEntities();
+    const items = entities.map((item, index) => {
+      if (raw[index]?.dm_definition) {
+        // raw values returned by TypeORM are strings, so we need to parse it back to JSON
+        item.definition = JSON.parse(raw[index].dm_definition);
+      }
+      return item;
+    });
     return { items, total };
   }
 

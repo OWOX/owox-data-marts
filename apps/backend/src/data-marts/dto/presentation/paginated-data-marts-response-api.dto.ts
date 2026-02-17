@@ -1,9 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { DataMartResponseApiDto } from './data-mart-response-api.dto';
+import { DataMartListItemResponseApiDto } from './data-mart-list-item-response-api.dto';
 
 export class PaginatedDataMartsResponseApiDto {
-  @ApiProperty({ type: [DataMartResponseApiDto] })
-  items: DataMartResponseApiDto[];
+  @ApiProperty({ type: [DataMartListItemResponseApiDto] })
+  items: DataMartListItemResponseApiDto[];
 
   @ApiProperty({ example: 120 })
   total: number;
