@@ -24,7 +24,7 @@ export class NotificationQueueService {
   ) {}
 
   async addToQueue(params: AddToQueueParams): Promise<NotificationPendingQueue | null> {
-    this.logger.debug(
+    this.logger.log(
       `Adding notification to queue: ${params.notificationType} for project ${params.projectId}`
     );
     try {
@@ -40,7 +40,7 @@ export class NotificationQueueService {
     } catch (error) {
       const msg = String(error);
       if (msg.includes('UNIQUE constraint failed') || msg.includes('Duplicate entry')) {
-        this.logger.debug(
+        this.logger.warn(
           `Duplicate notification ignored: ${params.notificationType} for project ${params.projectId}`
         );
         return null;

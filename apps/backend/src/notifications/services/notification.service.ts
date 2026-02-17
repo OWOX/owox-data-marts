@@ -26,7 +26,7 @@ export class NotificationService {
       this.logger.debug('No pending notifications to process');
       return;
     }
-    this.logger.debug(`Processing notifications for ${grouped.size} projects`);
+    this.logger.log(`Processing notifications for ${grouped.size} projects`);
     for (const [projectId, typeMap] of grouped) {
       for (const [notificationType, queueItems] of typeMap) {
         await this.processNotificationGroup(
@@ -48,7 +48,7 @@ export class NotificationService {
     const settings = await this.settingsService.findByProjectIdAndType(projectId, notificationType);
 
     if (!settings || !settings.enabled) {
-      this.logger.debug(
+      this.logger.log(
         `Skipping ${notificationType} for project ${projectId}: notifications disabled`
       );
       await this.queueService.deleteProcessed(queueItems);
@@ -60,7 +60,7 @@ export class NotificationService {
       const validReceivers = this.getValidReceivers(settings, projectMembers);
 
       if (validReceivers.length === 0 && !settings.webhookUrl) {
-        this.logger.debug(
+        this.logger.log(
           `Skipping ${notificationType} for project ${projectId}: no valid receivers`
         );
         await this.queueService.deleteProcessed(queueItems);
@@ -73,7 +73,7 @@ export class NotificationService {
 
       for (const [_status, items] of groupedByStatus) {
         for (const receiver of validReceivers) {
-          this.logger.debug(`Sending ${notificationType} notification to ${receiver.email}`);
+          this.logger.log(`Sending ${notificationType} notification to ${receiver.email}`);
           try {
             await this.emailService.sendBatchedEmail(items, settings, receiver);
           } catch (error) {
@@ -109,11 +109,11 @@ export class NotificationService {
     for (const receiverId of settings.receivers) {
       const user = memberMap.get(receiverId);
       if (!user) {
-        this.logger.debug(`Receiver ${receiverId} not found in project members`);
+        this.logger.log(`Receiver ${receiverId} not found in project members`);
         continue;
       }
       if (!user.hasNotificationsEnabled) {
-        this.logger.debug(`Skipping ${user.email}: notifications disabled in user preferences`);
+        this.logger.log(`Skipping ${user.email}: notifications disabled in user preferences`);
         continue;
       }
       validReceivers.push(user);
