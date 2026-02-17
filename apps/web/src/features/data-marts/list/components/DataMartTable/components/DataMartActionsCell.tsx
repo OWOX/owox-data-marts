@@ -76,19 +76,18 @@ export const DataMartActionsCell = ({ row, onDeleteSuccess }: DataMartActionsCel
         onOpenChange={setIsDeleteDialogOpen}
         title='Delete Data Mart'
         description={
-          <>
-            Are you sure you want to delete this data mart? This action cannot be undone.
+          <span className='mt-2 block space-y-2'>
+            <span className='block'>
+              Are you sure you want to delete <strong>this data mart</strong>? This action cannot be
+              undone.
+            </span>
             {row.original.storageType === DataStorageType.LEGACY_GOOGLE_BIGQUERY && (
-              <>
-                <br />
-                <br />
-                <span className='text-destructive'>
-                  Deleting this data mart will also make it unavailable in the Google Sheets
-                  extension.
-                </span>
-              </>
+              <span className='text-destructive block'>
+                Deleting this data mart will also make it unavailable in the Google Sheets
+                extension.
+              </span>
             )}
-          </>
+          </span>
         }
         confirmLabel='Delete'
         cancelLabel='Cancel'

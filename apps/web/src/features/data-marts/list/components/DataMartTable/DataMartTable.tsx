@@ -315,24 +315,26 @@ export function DataMartTable<TData, TValue>({
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              You're about to delete {Object.keys(table.getState().rowSelection).length} selected
-              data mart
-              {Object.keys(table.getState().rowSelection).length !== 1 ? 's' : ''}. This action
-              cannot be undone.
-              {selectedRows.some(
-                row =>
-                  (row.original as DataMartListItem).storageType ===
-                  DataStorageType.LEGACY_GOOGLE_BIGQUERY
-              ) && (
-                <>
-                  <br />
-                  <br />
-                  <span className='text-destructive'>
+              <span className='mt-2 block space-y-2'>
+                <span className='block'>
+                  You're about to delete{' '}
+                  <strong>
+                    {Object.keys(table.getState().rowSelection).length} selected data mart
+                    {Object.keys(table.getState().rowSelection).length !== 1 ? 's' : ''}
+                  </strong>
+                  . This action cannot be undone.
+                </span>
+                {selectedRows.some(
+                  row =>
+                    (row.original as DataMartListItem).storageType ===
+                    DataStorageType.LEGACY_GOOGLE_BIGQUERY
+                ) && (
+                  <span className='text-destructive block'>
                     Some of the selected data marts will also become unavailable in the Google
                     Sheets extension because they use legacy BigQuery storage.
                   </span>
-                </>
-              )}
+                )}
+              </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
