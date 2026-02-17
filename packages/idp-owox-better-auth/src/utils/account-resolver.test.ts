@@ -44,7 +44,9 @@ describe('account-resolver', () => {
       getAccountByUserIdAndProvider: jest
         .fn<DatabaseStore['getAccountByUserIdAndProvider']>()
         .mockResolvedValue(null),
-      getAccountByUserId: jest.fn<DatabaseStore['getAccountByUserId']>().mockResolvedValue(fallback),
+      getAccountByUserId: jest
+        .fn<DatabaseStore['getAccountByUserId']>()
+        .mockResolvedValue(fallback),
     });
 
     const result = await resolveAccountForUser(store, 'user2', 'Google');
@@ -57,7 +59,9 @@ describe('account-resolver', () => {
   it('uses fallback when login method is missing or blank', async () => {
     const fallback = { id: 'fallback' } as DatabaseAccount;
     const store = createStoreMock({
-      getAccountByUserId: jest.fn<DatabaseStore['getAccountByUserId']>().mockResolvedValue(fallback),
+      getAccountByUserId: jest
+        .fn<DatabaseStore['getAccountByUserId']>()
+        .mockResolvedValue(fallback),
     });
 
     const result = await resolveAccountForUser(store, 'user3', '   ');
