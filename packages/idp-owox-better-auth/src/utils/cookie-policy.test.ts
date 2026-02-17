@@ -45,7 +45,8 @@ describe('cookie-policy', () => {
     setCookie(res, req, 'test', 'value', { maxAgeMs: 1000 });
 
     expect(res.cookie).toHaveBeenCalledTimes(1);
-    const [, , options] = (res.cookie as jest.Mock).mock.calls[0];
+    const call = (res.cookie as jest.Mock).mock.calls[0] ?? [];
+    const [, , options] = call as [string, string, ReturnType<typeof buildCookieOptions>];
     expect(options).toMatchObject({ secure: false, maxAge: 1000, path: COOKIE_DEFAULT_PATH });
   });
 

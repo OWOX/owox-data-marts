@@ -4,9 +4,8 @@ import { MagicLinkEmailService } from './magic-link-email-service.js';
 
 describe('MagicLinkEmailService', () => {
   it('sends signup email with confirmation subject and content', async () => {
-    const emailProvider: jest.Mocked<EmailProvider> = {
-      sendEmail: jest.fn().mockResolvedValue(undefined),
-    };
+    const sendEmail = jest.fn<EmailProvider['sendEmail']>(async () => undefined);
+    const emailProvider: jest.Mocked<EmailProvider> = { sendEmail };
     const service = new MagicLinkEmailService(emailProvider);
 
     await service.send({
@@ -15,8 +14,8 @@ describe('MagicLinkEmailService', () => {
       intent: 'signup',
     });
 
-    expect(emailProvider.sendEmail).toHaveBeenCalledTimes(1);
-    const [to, subject, html] = emailProvider.sendEmail.mock.calls[0] as [string, string, string];
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    const [to, subject, html] = sendEmail.mock.calls[0] as [string, string, string];
     expect(to).toBe('user@example.com');
     expect(subject).toBe('Confirm your email');
     expect(html).toContain('Confirm your email');
@@ -25,9 +24,8 @@ describe('MagicLinkEmailService', () => {
   });
 
   it('sends reset email with reset subject and content', async () => {
-    const emailProvider: jest.Mocked<EmailProvider> = {
-      sendEmail: jest.fn().mockResolvedValue(undefined),
-    };
+    const sendEmail = jest.fn<EmailProvider['sendEmail']>(async () => undefined);
+    const emailProvider: jest.Mocked<EmailProvider> = { sendEmail };
     const service = new MagicLinkEmailService(emailProvider);
 
     await service.send({
@@ -36,8 +34,8 @@ describe('MagicLinkEmailService', () => {
       intent: 'reset',
     });
 
-    expect(emailProvider.sendEmail).toHaveBeenCalledTimes(1);
-    const [to, subject, html] = emailProvider.sendEmail.mock.calls[0] as [string, string, string];
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    const [to, subject, html] = sendEmail.mock.calls[0] as [string, string, string];
     expect(to).toBe('user@example.com');
     expect(subject).toBe('Reset your password');
     expect(html).toContain('Reset your password');

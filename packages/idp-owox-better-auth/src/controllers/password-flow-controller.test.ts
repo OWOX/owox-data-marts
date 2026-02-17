@@ -88,9 +88,12 @@ describe('PasswordFlowController.passwordSetupPage', () => {
 
 describe('PasswordFlowController.setPassword', () => {
   const baseHeaders = { cookie: 'session=token' };
+  type ResetPasswordParams = { headers?: Headers; body?: unknown };
 
   it('uses resetPassword when intent is reset and token is provided', async () => {
-    const resetPassword = jest.fn(async (_params?: unknown) => ({}));
+    const resetPassword = jest.fn<(_params: ResetPasswordParams) => Promise<unknown>>(
+      async () => ({})
+    );
     const signOut = jest.fn(async () => ({}));
     const auth = {
       api: {
@@ -119,14 +122,16 @@ describe('PasswordFlowController.setPassword', () => {
       body: { newPassword: 'NewPassw0rd', token: 'reset-token' },
       headers: expect.any(Headers),
     });
-    const resetHeaders = (resetPassword as jest.Mock).mock.calls[0]?.[0]?.headers as Headers;
-    expect(resetHeaders.get('cookie')).toBe('session=token');
+    const resetHeaders = resetPassword.mock.calls[0]?.[0]?.headers;
+    expect(resetHeaders?.get('cookie')).toBe('session=token');
     expect(signOut).not.toHaveBeenCalled();
     expect(res.redirect).toHaveBeenCalledWith('/auth/password/success');
   });
 
   it('uses resetPassword when token is provided even without intent', async () => {
-    const resetPassword = jest.fn(async (_params?: unknown) => ({}));
+    const resetPassword = jest.fn<(_params: ResetPasswordParams) => Promise<unknown>>(
+      async () => ({})
+    );
     const auth = {
       api: {
         getSession: jest.fn(async () => ({
@@ -154,8 +159,8 @@ describe('PasswordFlowController.setPassword', () => {
       body: { newPassword: 'NewPassw0rd', token: 'reset-token' },
       headers: expect.any(Headers),
     });
-    const resetHeaders = (resetPassword as jest.Mock).mock.calls[0]?.[0]?.headers as Headers;
-    expect(resetHeaders.get('cookie')).toBe('session=token');
+    const resetHeaders = resetPassword.mock.calls[0]?.[0]?.headers;
+    expect(resetHeaders?.get('cookie')).toBe('session=token');
     expect(auth.api.signOut).not.toHaveBeenCalled();
   });
 
