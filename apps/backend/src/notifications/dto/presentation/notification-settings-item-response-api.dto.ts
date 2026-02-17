@@ -2,6 +2,9 @@ import { ApiProperty } from '@nestjs/swagger';
 import { NotificationType } from '../../enums/notification-type.enum';
 import { ReceiverInfoApiDto } from './receiver-info-api.dto';
 
+/**
+ * NotificationSettingsItemResponseApiDto is the response object for a notification settings item.
+ */
 export class NotificationSettingsItemResponseApiDto {
   @ApiProperty()
   id: string;
