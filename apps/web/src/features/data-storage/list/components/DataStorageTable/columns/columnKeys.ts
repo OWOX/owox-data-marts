@@ -1,5 +1,5 @@
 export enum DataStorageColumnKey {
-  HEALTH = 'health',
+  HEALTH = 'healthStatus',
   TITLE = 'title',
   TYPE = 'type',
   CREATED_AT = 'createdAt',

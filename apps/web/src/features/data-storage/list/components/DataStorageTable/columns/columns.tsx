@@ -5,6 +5,8 @@ import { DataStorageTypeModel } from '../../../../shared/types/data-storage-type
 import { DataStorageActionsCell } from '../DataStorageActionsCell';
 import { DataStorageColumnKey } from './columnKeys';
 import { dataStorageColumnLabels } from './columnLabels';
+import { getDataStorageHealthSortRank } from '../../../../shared/utils';
+import { getCachedDataStorageHealthStatus } from '../../../../shared/services/data-storage-health-status.service';
 
 export interface DataStorageTableItem {
   id: string;
@@ -33,13 +35,26 @@ export const getDataStorageColumns = ({
     id: DataStorageColumnKey.HEALTH,
     size: 40,
     enableResizing: false,
-    enableSorting: false,
     meta: {
       title: dataStorageColumnLabels[DataStorageColumnKey.HEALTH],
+      showHeaderTitle: false,
     },
-    header: () => null,
+    sortingFn: 'basic',
+    accessorFn: row => {
+      const cached = getCachedDataStorageHealthStatus(row.id);
+      return getDataStorageHealthSortRank(cached?.status);
+    },
+    header: ({ column }) => (
+      <SortableHeader column={column}>
+        {dataStorageColumnLabels[DataStorageColumnKey.HEALTH]}
+      </SortableHeader>
+    ),
     cell: ({ row }) => (
-      <DataStorageHealthIndicator storageId={row.original.id} storageTitle={row.original.title} />
+      <DataStorageHealthIndicator
+        storageId={row.original.id}
+        storageTitle={row.original.title}
+        hovercardSide='right'
+      />
     ),
   },
   {
@@ -106,7 +121,7 @@ export const getDataStorageColumns = ({
   },
   {
     accessorKey: DataStorageColumnKey.DATA_MARTS_COUNT,
-    size: 200,
+    size: 120,
     meta: {
       title: dataStorageColumnLabels[DataStorageColumnKey.DATA_MARTS_COUNT],
     },
@@ -122,7 +137,7 @@ export const getDataStorageColumns = ({
   },
   {
     accessorKey: DataStorageColumnKey.DRAFTS_COUNT,
-    size: 200,
+    size: 120,
     meta: {
       title: dataStorageColumnLabels[DataStorageColumnKey.DRAFTS_COUNT],
     },

@@ -13,6 +13,7 @@ import {
   type DataStorageTableItem,
   getDataStorageColumns,
 } from '../DataStorageTable';
+import { subscribeToDataStorageHealthStatusUpdates } from '../../../shared/services/data-storage-health-status.service';
 
 interface DataStorageListProps {
   initialTypeDialogOpen?: boolean;
@@ -53,6 +54,12 @@ export const DataStorageList = ({
 
   useEffect(() => {
     void fetchDataStorages();
+  }, [fetchDataStorages]);
+
+  useEffect(() => {
+    return subscribeToDataStorageHealthStatusUpdates(() => {
+      void fetchDataStorages();
+    });
   }, [fetchDataStorages]);
 
   const handleEdit = useCallback(
