@@ -15,7 +15,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { useContentPopovers } from '../../../../../app/store/hooks/useContentPopovers';
-import { storageService } from '../../../../../services/localstorage.service';
+import { storageService } from '../../../../../services';
 import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
 import {
   BaseTable,
@@ -23,11 +23,12 @@ import {
   TableCTAButton,
 } from '../../../../../shared/components/Table';
 import { useBaseTable, useProjectRoute } from '../../../../../shared/hooks';
+import { DataStorageType } from '../../../../data-storage';
 import { DataMartStatus } from '../../../shared';
 import { useDataMartHealthStatusPrefetch } from '../../model/hooks/useDataMartHealthStatusPrefetch';
 import type { DataMartListItem } from '../../model/types';
-import { DataMartColumnKey } from './columns/columnKeys';
-import { EmptyDataMartsState } from './components/EmptyDataMartsState';
+import { DataMartColumnKey } from './columns';
+import { EmptyDataMartsState } from './components';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -314,10 +315,26 @@ export function DataMartTable<TData, TValue>({
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              You're about to delete {Object.keys(table.getState().rowSelection).length} selected
-              data mart
-              {Object.keys(table.getState().rowSelection).length !== 1 ? 's' : ''}. This action
-              cannot be undone.
+              <span className='mt-2 block space-y-2'>
+                <span className='block'>
+                  You're about to delete{' '}
+                  <strong>
+                    {Object.keys(table.getState().rowSelection).length} selected data mart
+                    {Object.keys(table.getState().rowSelection).length !== 1 ? 's' : ''}
+                  </strong>
+                  . This action cannot be undone.
+                </span>
+                {selectedRows.some(
+                  row =>
+                    (row.original as DataMartListItem).storageType ===
+                    DataStorageType.LEGACY_GOOGLE_BIGQUERY
+                ) && (
+                  <span className='text-destructive block'>
+                    Some of the selected data marts will also become unavailable in the Google
+                    Sheets extension because they use legacy BigQuery storage.
+                  </span>
+                )}
+              </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

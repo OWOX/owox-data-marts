@@ -1,6 +1,3 @@
-import { useState } from 'react';
-import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { Button } from '@owox/ui/components/button';
 import {
   DropdownMenu,
@@ -9,10 +6,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
+import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ConfirmationDialog } from '../../../../../../shared/components/ConfirmationDialog';
-import type { DataMartListItem } from '../../../model/types';
-import { useDataMartList } from '../../../model/hooks';
 import { useProjectRoute } from '../../../../../../shared/hooks';
+import { DataStorageType } from '../../../../../data-storage';
+import { useDataMartList } from '../../../model/hooks';
+import type { DataMartListItem } from '../../../model/types';
 
 interface DataMartActionsCellProps {
   row: { original: DataMartListItem };
@@ -74,7 +75,20 @@ export const DataMartActionsCell = ({ row, onDeleteSuccess }: DataMartActionsCel
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}
         title='Delete Data Mart'
-        description='Are you sure you want to delete this data mart? This action cannot be undone.'
+        description={
+          <span className='mt-2 block space-y-2'>
+            <span className='block'>
+              Are you sure you want to delete <strong>this data mart</strong>? This action cannot be
+              undone.
+            </span>
+            {row.original.storageType === DataStorageType.LEGACY_GOOGLE_BIGQUERY && (
+              <span className='text-destructive block'>
+                Deleting this data mart will also make it unavailable in the Google Sheets
+                extension.
+              </span>
+            )}
+          </span>
+        }
         confirmLabel='Delete'
         cancelLabel='Cancel'
         onConfirm={() => void handleDelete()}
