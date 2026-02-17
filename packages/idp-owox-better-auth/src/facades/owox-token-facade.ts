@@ -129,7 +129,7 @@ export class OwoxTokenFacade {
     } catch (error: unknown) {
       clearCookie(res, this.cookieName, req);
       if (error instanceof ForbiddenException) {
-        this.logger.warn('Access Token middleware received 403, redirecting to sign-out', {
+        logger.warn('Access Token middleware received 403, redirecting to sign-out', {
           context: error.name,
           params: error.context,
           cause: error.cause,
