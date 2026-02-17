@@ -3,6 +3,7 @@ import { SystemTrigger } from '../../common/scheduler/shared/entities/system-tri
 import { BaseSystemTaskProcessor } from '../../common/scheduler/system-tasks/base-system-task.processor';
 import { SystemTriggerType } from '../../common/scheduler/system-tasks/system-trigger-type';
 import { NotificationService } from '../services/notification.service';
+import { NotificationQueueService } from '../services/notification-queue.service';
 import { ProjectNotificationSettingsService } from '../services/project-notification-settings.service';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { UserInfo } from '../services/notification-email.service';
@@ -12,8 +13,11 @@ import { ConfigService } from '@nestjs/config';
 export class SendNotificationProcessor extends BaseSystemTaskProcessor {
   private readonly logger = new Logger(SendNotificationProcessor.name);
 
+  private static readonly STALE_LOCK_TIMEOUT_MINUTES = 5;
+
   constructor(
     private readonly notificationService: NotificationService,
+    private readonly queueService: NotificationQueueService,
     private readonly settingsService: ProjectNotificationSettingsService,
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
     private readonly configService: ConfigService
@@ -40,6 +44,11 @@ export class SendNotificationProcessor extends BaseSystemTaskProcessor {
     }
 
     this.logger.debug('Processing pending notifications');
+
+    // Reset items stuck in 'processing' from a previous crashed run
+    await this.queueService.resetStaleProcessing(
+      SendNotificationProcessor.STALE_LOCK_TIMEOUT_MINUTES
+    );
 
     // Pull fresh member data from IDP into the local UserProjection cache before
     // resolving receiver profiles, so emails/names are always up-to-date.

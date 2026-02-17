@@ -35,7 +35,7 @@ ${emailHeader}
                 </h1>
 
                 <p style="margin:12px 0 0 0;color:#374151;font-size:14px;">
-                  All scheduled runs from {{groupingWindowLabel}} finished successfully.
+                  Scheduled runs from {{groupingWindowLabel}} finished successfully.
                   Everything is running as expected.
                 </p>
 

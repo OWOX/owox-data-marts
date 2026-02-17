@@ -67,12 +67,20 @@ export class NotificationService {
         return;
       }
 
+      await this.queueService.lockItems(queueItems);
+
       const groupedByStatus = this.groupByRunStatus(queueItems);
 
       for (const [_status, items] of groupedByStatus) {
         for (const receiver of validReceivers) {
           this.logger.debug(`Sending ${notificationType} notification to ${receiver.email}`);
-          await this.emailService.sendBatchedEmail(items, settings, receiver);
+          try {
+            await this.emailService.sendBatchedEmail(items, settings, receiver);
+          } catch (error) {
+            this.logger.error(
+              `Email delivery failed for ${receiver.email} after retries: ${error instanceof Error ? error.message : String(error)}`
+            );
+          }
         }
 
         await this.webhookService.sendWebhooksForQueueItems(items, settings);

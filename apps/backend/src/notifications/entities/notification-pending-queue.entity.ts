@@ -5,6 +5,7 @@ import {
   NotificationQueuePayloadSchema,
 } from '../types/notification-queue-payload.schema';
 import { createZodTransformer } from '../../common/zod/zod-transformer';
+import { QueueStatus } from '../enums/queue-status.enum';
 
 @Entity('notification_pending_queue')
 @Unique('uq_notification_pending_queue_type_project_dm_run', [
@@ -37,6 +38,16 @@ export class NotificationPendingQueue {
     transformer: createZodTransformer<NotificationQueuePayload>(NotificationQueuePayloadSchema),
   })
   payload: NotificationQueuePayload;
+
+  @Column({ type: 'varchar', default: QueueStatus.PENDING })
+  @Index('idx_notification_pending_queue_status')
+  status: QueueStatus;
+
+  @Column({ type: 'int', default: 0 })
+  attemptCount: number;
+
+  @Column({ type: 'datetime', nullable: true })
+  lockedAt: Date | null;
 
   @CreateDateColumn()
   createdAt: Date;

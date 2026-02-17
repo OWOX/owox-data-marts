@@ -1,9 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, LessThan } from 'typeorm';
 import { NotificationPendingQueue } from '../entities/notification-pending-queue.entity';
 import { NotificationQueuePayload } from '../types/notification-queue-payload.schema';
 import { NotificationType } from '../enums/notification-type.enum';
+import { QueueStatus } from '../enums/queue-status.enum';
 
 export interface AddToQueueParams {
   notificationType: NotificationType;
@@ -68,6 +69,7 @@ export class NotificationQueueService {
 
     while (true) {
       const page = await this.repository.find({
+        where: { status: QueueStatus.PENDING },
         order: { createdAt: 'ASC' },
         take: NotificationQueueService.PAGE_SIZE,
         skip,
@@ -100,5 +102,42 @@ export class NotificationQueueService {
   async deleteProcessed(items: NotificationPendingQueue[]): Promise<void> {
     const ids = items.map(i => i.id);
     await this.deleteByIds(ids);
+  }
+
+  async lockItems(items: NotificationPendingQueue[]): Promise<void> {
+    const ids = items.map(i => i.id);
+    if (ids.length === 0) return;
+    await this.repository.update(
+      { id: In(ids) },
+      { status: QueueStatus.PROCESSING, lockedAt: new Date() }
+    );
+  }
+
+  async unlockItems(items: NotificationPendingQueue[]): Promise<void> {
+    const ids = items.map(i => i.id);
+    if (ids.length === 0) return;
+    await this.repository
+      .createQueryBuilder()
+      .update(NotificationPendingQueue)
+      .set({
+        status: QueueStatus.PENDING,
+        lockedAt: null,
+        attemptCount: () => 'attemptCount + 1',
+      })
+      .whereInIds(ids)
+      .execute();
+  }
+
+  async resetStaleProcessing(timeoutMinutes: number): Promise<number> {
+    const cutoff = new Date(Date.now() - timeoutMinutes * 60 * 1000);
+    const result = await this.repository.update(
+      { status: QueueStatus.PROCESSING, lockedAt: LessThan(cutoff) },
+      { status: QueueStatus.PENDING, lockedAt: null }
+    );
+    const affected = result.affected ?? 0;
+    if (affected > 0) {
+      this.logger.warn(`Reset ${affected} stale processing items (locked > ${timeoutMinutes}min)`);
+    }
+    return affected;
   }
 }

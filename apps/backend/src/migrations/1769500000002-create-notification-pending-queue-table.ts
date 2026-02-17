@@ -15,6 +15,9 @@ export class CreateNotificationPendingQueueTable1769500000002 implements Migrati
           { name: 'dataMartId', type: 'varchar', isNullable: false, default: "''" },
           { name: 'runId', type: 'varchar', isNullable: false, default: "''" },
           { name: 'payload', type: 'json', isNullable: false, default: "'{}'" },
+          { name: 'status', type: 'varchar', isNullable: false, default: "'PENDING'" },
+          { name: 'attemptCount', type: 'int', isNullable: false, default: '0' },
+          { name: 'lockedAt', type: 'datetime', isNullable: true },
           { name: 'createdAt', type: 'datetime', default: 'CURRENT_TIMESTAMP' },
         ],
         indices: [
@@ -30,6 +33,10 @@ export class CreateNotificationPendingQueueTable1769500000002 implements Migrati
           {
             name: 'idx_notification_pending_queue_project_type',
             columnNames: ['projectId', 'notificationType'],
+          },
+          {
+            name: 'idx_notification_pending_queue_status',
+            columnNames: ['status'],
           },
         ],
       }),
