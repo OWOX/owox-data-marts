@@ -52,11 +52,18 @@ export function SortableHeader<TData>({ column, children, label }: SortableHeade
     <Button
       variant='ghost'
       onClick={handleSort}
-      className='group inline-flex h-8 cursor-pointer items-center gap-1 transition-colors duration-200 hover:bg-white hover:shadow-xs dark:hover:bg-white/4'
+      className='group flex h-8 w-full min-w-[48px] cursor-pointer items-center gap-2 transition-colors duration-200 hover:bg-white hover:shadow-xs dark:hover:bg-white/4'
       aria-label={`${ariaLabel} - ${getSortDescription()}. Click to sort.`}
       aria-sort={getAriaSort()}
     >
-      {showHeaderTitle ? children : ''}
+      {showHeaderTitle && (
+        <span
+          className='min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap'
+          title={typeof children === 'string' ? children : undefined}
+        >
+          {children}
+        </span>
+      )}
       <span className='flex h-4 w-4 items-center justify-center' aria-hidden='true'>
         {isSorted === 'asc' && <ChevronUp className='text-foreground h-4 w-4' />}
         {isSorted === 'desc' && <ChevronDown className='text-foreground h-4 w-4' />}
