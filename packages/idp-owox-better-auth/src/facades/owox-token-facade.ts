@@ -1,4 +1,4 @@
-import { AuthResult, Payload, ProtocolRoute } from '@owox/idp-protocol';
+import { AuthResult, Payload } from '@owox/idp-protocol';
 import { Logger } from '@owox/internal-helpers';
 import { NextFunction, Request, Response } from 'express';
 import {
@@ -130,12 +130,12 @@ export class OwoxTokenFacade {
     } catch (error: unknown) {
       clearCookie(res, this.cookieName, req);
       if (error instanceof ForbiddenException) {
-        this.logger.warn('Access Token middleware received 403, redirecting to sign-out', {
+        this.logger.warn('Access Token middleware received 403 code', {
           context: error.name,
           params: error.context,
           cause: error.cause,
         });
-        return res.redirect(`/auth${ProtocolRoute.SIGN_OUT}`);
+        return res.status(403).json({ reason: 'atm7', message: 'Forbidden' });
       }
 
       if (error instanceof AuthenticationException) {
