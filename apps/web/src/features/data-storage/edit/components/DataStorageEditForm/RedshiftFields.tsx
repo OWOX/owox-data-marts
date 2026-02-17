@@ -79,23 +79,6 @@ export const RedshiftFields = ({ form }: RedshiftFieldsProps) => {
 
         <FormField
           control={form.control}
-          name='config.database'
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel tooltip='The database name to connect to'>Database</FormLabel>
-              <FormControl>
-                <Input {...field} placeholder='Enter database name' />
-              </FormControl>
-              <FormDescription>
-                <RedshiftDatabaseDescription />
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
           name='config.connectionType'
           render={({ field }) => {
             const connectionType =
@@ -150,6 +133,23 @@ export const RedshiftFields = ({ form }: RedshiftFieldsProps) => {
               </FormItem>
             );
           }}
+        />
+
+        <FormField
+          control={form.control}
+          name='config.database'
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel tooltip='The database name to connect to'>Database</FormLabel>
+              <FormControl>
+                <Input {...field} placeholder='Enter database name' />
+              </FormControl>
+              <FormDescription>
+                <RedshiftDatabaseDescription />
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
         />
       </FormSection>
 
