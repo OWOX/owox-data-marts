@@ -20,12 +20,6 @@ Choose the AWS region where your Redshift cluster or workgroup is located:
 - Examples: `us-east-1`, `eu-west-1`, `ap-southeast-1`
 - You can find your region in the [AWS Redshift Console](https://console.aws.amazon.com/redshiftv2/home) in the top right corner or url.
 
-### Enter Database Name
-
-- This is the name of the database within your Redshift cluster
-- Default Redshift database is typically `dev` or `defaultdb`
-- You can find this in the [AWS Redshift Console](https://console.aws.amazon.com/redshiftv2/home)
-
 ### Choose Connection Type
 
 AWS Redshift supports two deployment types (one is required). It's based on your use case and pricing model.
@@ -45,6 +39,12 @@ AWS Redshift supports two deployment types (one is required). It's based on your
 - Go to [AWS Redshift Provisioned Clusters](https://console.aws.amazon.com/redshiftv2/home#clusters)
 - Find your cluster in the list
 - Copy the **Cluster identifier** (e.g., `redshift-cluster-1`)
+
+### Enter Database Name
+
+- This is the name of the database within your Redshift cluster
+- Default Redshift database is typically `dev` or `defaultdb`
+- You can find this in the [AWS Redshift Query Editor](https://console.aws.amazon.com/redshiftv2/home)
 
 ### Authentication
 
