@@ -13,7 +13,7 @@ export class CreateProjectNotificationSettingsTable1769500000001 implements Migr
           { name: 'projectId', type: 'varchar', isNullable: false },
           { name: 'notificationType', type: 'varchar', isNullable: false },
           { name: 'enabled', type: 'boolean', isNullable: false, default: false },
-          { name: 'receivers', type: 'json', isNullable: false, default: "'[]'" },
+          { name: 'receivers', type: 'json', isNullable: false },
           { name: 'webhookUrl', type: 'varchar', isNullable: true },
           { name: 'groupingDelayCron', type: 'varchar', isNullable: false, default: "'0 * * * *'" },
           { name: 'lastRunAt', type: 'datetime', isNullable: true },
