@@ -4,6 +4,7 @@ import type { TaskStatus } from '../../../../shared/types/task-status.enum.ts';
 import type {
   CreateDataMartRequestDto,
   CreateDataMartResponseDto,
+  DataMartListItemResponseDto,
   DataMartListResponseDto,
   DataMartResponseDto,
   DataMartRunListResponseDto,
@@ -33,8 +34,8 @@ export class DataMartService extends ApiService {
    * Pagination is handled internally — callers receive the full list.
    * @returns Promise with all data mart items
    */
-  async getDataMarts(): Promise<DataMartResponseDto[]> {
-    const allItems: DataMartResponseDto[] = [];
+  async getDataMarts(): Promise<DataMartListItemResponseDto[]> {
+    const allItems: DataMartListItemResponseDto[] = [];
     let nextOffset: number | null = 0;
 
     while (nextOffset !== null) {
