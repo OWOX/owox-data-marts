@@ -4,6 +4,8 @@ import { ReceiversAvatarGroup } from './ReceiversAvatarGroup';
 import { GROUPING_DELAY_OPTIONS } from '../../types';
 import type { NotificationSettingsItem } from '../../types';
 import { SortableHeader } from '../../../../../shared/components/Table/SortableHeader';
+import { ToggleColumnsHeader } from '../../../../../shared/components/Table/ToggleColumnsHeader';
+import { NotificationSettingsActionsCell } from './NotificationSettingsActionsCell';
 
 export enum NotificationSettingsColumnKey {
   TITLE = 'title',
@@ -30,10 +32,12 @@ function getGroupingDelayLabel(cronExpression: string): string {
 
 interface GetNotificationSettingsColumnsOptions {
   onToggleEnabled: (setting: NotificationSettingsItem, enabled: boolean) => void | Promise<void>;
+  onEdit: (setting: NotificationSettingsItem) => void;
 }
 
 export function getNotificationSettingsColumns({
   onToggleEnabled,
+  onEdit,
 }: GetNotificationSettingsColumnsOptions): ColumnDef<NotificationSettingsItem>[] {
   return [
     {
@@ -55,7 +59,6 @@ export function getNotificationSettingsColumns({
       id: NotificationSettingsColumnKey.RECEIVERS,
       accessorKey: 'receivers',
       size: 160,
-      enableSorting: false,
       meta: {
         title: notificationSettingsColumnLabels[NotificationSettingsColumnKey.RECEIVERS],
       },
@@ -70,7 +73,6 @@ export function getNotificationSettingsColumns({
       id: NotificationSettingsColumnKey.WEBHOOK_URL,
       accessorKey: 'webhookUrl',
       size: 220,
-      enableSorting: false,
       meta: {
         title: notificationSettingsColumnLabels[NotificationSettingsColumnKey.WEBHOOK_URL],
       },
@@ -92,7 +94,6 @@ export function getNotificationSettingsColumns({
       id: NotificationSettingsColumnKey.GROUPING_DELAY,
       accessorKey: 'groupingDelayCron',
       size: 140,
-      enableSorting: false,
       meta: {
         title: notificationSettingsColumnLabels[NotificationSettingsColumnKey.GROUPING_DELAY],
       },
@@ -111,7 +112,6 @@ export function getNotificationSettingsColumns({
       id: NotificationSettingsColumnKey.ENABLED,
       accessorKey: 'enabled',
       size: 80,
-      enableSorting: false,
       meta: {
         title: notificationSettingsColumnLabels[NotificationSettingsColumnKey.ENABLED],
       },
@@ -132,6 +132,13 @@ export function getNotificationSettingsColumns({
           aria-label={`Toggle ${row.original.title}`}
         />
       ),
+    },
+    {
+      id: 'actions',
+      size: 80,
+      enableResizing: false,
+      header: ({ table }) => <ToggleColumnsHeader table={table} />,
+      cell: ({ row }) => <NotificationSettingsActionsCell setting={row.original} onEdit={onEdit} />,
     },
   ];
 }

@@ -121,7 +121,7 @@ export function EditNotificationSheet({
       <SheetContent>
         <SheetHeader>
           <SheetTitle>Edit notification</SheetTitle>
-          <SheetDescription>Fill in the details...</SheetDescription>
+          <SheetDescription>Update the notification settings</SheetDescription>
         </SheetHeader>
 
         <AppForm

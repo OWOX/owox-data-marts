@@ -25,7 +25,7 @@ export function GroupingDelaySection({ value, onChange, disabled }: GroupingDela
   return (
     <FormSection title='Delay'>
       <FieldItem>
-        <FieldLabel tooltip='How long to wait before sending grouped notifications'>
+        <FieldLabel tooltip='Select how long to wait before sending a grouped email'>
           Grouping multiple notifications
         </FieldLabel>
         <Select value={value} onValueChange={onChange} disabled={disabled}>
@@ -43,10 +43,10 @@ export function GroupingDelaySection({ value, onChange, disabled }: GroupingDela
         <FieldDescription>
           <Accordion variant='common' type='single' collapsible>
             <AccordionItem value='grouping-delay-info'>
-              <AccordionTrigger>What is this?</AccordionTrigger>
+              <AccordionTrigger>How grouping works?</AccordionTrigger>
               <AccordionContent>
-                Multiple notifications within this time window will be grouped into a single email
-                to reduce inbox clutter. Only email notifications are grouped.
+                If multiple notifications are triggered within this time window, they are sent as a
+                single email to keep your inbox tidy. Only email notifications are grouped.
               </AccordionContent>
             </AccordionItem>
           </Accordion>

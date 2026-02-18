@@ -17,8 +17,8 @@ export function NotificationSettingsTable({
   onToggleEnabled,
 }: NotificationSettingsTableProps) {
   const columns = useMemo(
-    () => getNotificationSettingsColumns({ onToggleEnabled }),
-    [onToggleEnabled]
+    () => getNotificationSettingsColumns({ onToggleEnabled, onEdit: onRowClick }),
+    [onToggleEnabled, onRowClick]
   );
 
   const { table } = useBaseTable<NotificationSettingsItem>({
