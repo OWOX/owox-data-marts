@@ -75,7 +75,7 @@ export class SendNotificationProcessor extends BaseSystemTaskProcessor {
 
       this.logger.debug(`Refreshing projections for ${projectIds.length} projects`);
 
-      const CONCURRENCY = 10;
+      const CONCURRENCY = 3;
       for (let i = 0; i < projectIds.length; i += CONCURRENCY) {
         const batch = projectIds.slice(i, i + CONCURRENCY);
         await Promise.allSettled(

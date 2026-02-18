@@ -108,8 +108,9 @@ export class IdpProjectionsService {
     if (members.length === 0) return;
     try {
       const now = new Date();
+      const sorted = [...members].sort((a, b) => a.userId.localeCompare(b.userId));
       await this.usersRepository.upsert(
-        members.map(member => ({
+        sorted.map(member => ({
           userId: member.userId,
           email: member.email,
           fullName: member.fullName,
