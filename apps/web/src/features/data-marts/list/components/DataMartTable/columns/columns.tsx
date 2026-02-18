@@ -10,7 +10,6 @@ import { DataMartDefinitionType } from '../../../../shared';
 import { DataMartDefinitionTypeModel } from '../../../../shared/types/data-mart-definition-type.model.ts';
 import { DataMartColumnKey } from './columnKeys.ts';
 import { dataMartColumnLabels } from './columnLabels.ts';
-import type { ConnectorDefinitionConfig } from '../../../../edit';
 import type { ConnectorListItem } from '../../../../../connectors/shared/model/types/connector';
 import { RawBase64Icon } from '../../../../../../shared';
 import { SortableHeader, ToggleColumnsHeader } from '../../../../../../shared/components/Table';
@@ -67,8 +66,8 @@ export const getDataMartColumns = ({
     accessorFn: row => {
       const type = row.definitionType;
       if (type === DataMartDefinitionType.CONNECTOR) {
-        const definition = row.definition as ConnectorDefinitionConfig;
-        const connector = connectors.find(c => c.name === definition.connector.source.name);
+        const connectorSourceName = row.connectorSourceName;
+        const connector = connectors.find(c => c.name === connectorSourceName);
         return connector?.displayName ?? connector?.name ?? 'Unknown';
       } else {
         const { displayName } = DataMartDefinitionTypeModel.getInfo(type);
@@ -89,8 +88,8 @@ export const getDataMartColumns = ({
       const type = row.original.definitionType;
       switch (type) {
         case DataMartDefinitionType.CONNECTOR: {
-          const definition = row.original.definition as ConnectorDefinitionConfig;
-          const connector = connectors.find(c => c.name === definition.connector.source.name);
+          const connectorSourceName = row.original.connectorSourceName;
+          const connector = connectors.find(c => c.name === connectorSourceName);
           return (
             <div className='text-muted-foreground flex items-center gap-2'>
               {connector?.logoBase64 && <RawBase64Icon base64={connector.logoBase64} size={18} />}

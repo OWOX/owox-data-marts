@@ -1,52 +1,55 @@
 import { Injectable } from '@nestjs/common';
+import { RunType } from '../../common/scheduler/shared/types';
+import { AuthorizationContext } from '../../idp';
 import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
+import { ConnectorState as ConnectorStateData } from '../connector-types/interfaces/connector-state';
+import { toHumanReadable } from '../data-storage-types/enums/data-storage-type.enum';
+import { ValidationResult } from '../data-storage-types/interfaces/data-mart-validator.interface';
+import { ActualizeDataMartSchemaCommand } from '../dto/domain/actualize-data-mart-schema.command';
+import { CancelDataMartRunCommand } from '../dto/domain/cancel-data-mart-run.command';
 import { CreateDataMartCommand } from '../dto/domain/create-data-mart.command';
-import { PaginatedDataMartListDto } from '../dto/domain/paginated-data-mart-list.dto';
+import { DataMartListItemDto } from '../dto/domain/data-mart-list-item.dto';
+import { DataMartRunDto } from '../dto/domain/data-mart-run.dto';
+import { DataMartDto } from '../dto/domain/data-mart.dto';
+import { DeleteDataMartCommand } from '../dto/domain/delete-data-mart.command';
+import { GetDataMartRunCommand } from '../dto/domain/get-data-mart-run.command';
+import { GetDataMartRunsCommand } from '../dto/domain/get-data-mart-runs.command';
+import { GetDataMartCommand } from '../dto/domain/get-data-mart.command';
+import { ListDataMartsByConnectorNameCommand } from '../dto/domain/list-data-mart-by-connector-name';
+import { ListDataMartsCommand } from '../dto/domain/list-data-marts.command';
+import { PaginatedDataMartListItemsDto } from '../dto/domain/paginated-data-mart-list-items.dto';
+import { PublishDataMartCommand } from '../dto/domain/publish-data-mart.command';
+import { RunDataMartCommand } from '../dto/domain/run-data-mart.command';
+import { SqlDryRunResult } from '../dto/domain/sql-dry-run-result.dto';
+import { SqlDryRunCommand } from '../dto/domain/sql-dry-run.command';
+import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-definition.command';
+import { UpdateDataMartDescriptionCommand } from '../dto/domain/update-data-mart-description.command';
+import { UpdateDataMartSchemaCommand } from '../dto/domain/update-data-mart-schema.command';
+import { UpdateDataMartTitleCommand } from '../dto/domain/update-data-mart-title.command';
+import { ValidateDataMartDefinitionCommand } from '../dto/domain/validate-data-mart-definition.command';
 import { CreateDataMartRequestApiDto } from '../dto/presentation/create-data-mart-request-api.dto';
 import { CreateDataMartResponseApiDto } from '../dto/presentation/create-data-mart-response-api.dto';
+import { DataMartListItemResponseApiDto } from '../dto/presentation/data-mart-list-item-response-api.dto';
 import { DataMartResponseApiDto } from '../dto/presentation/data-mart-response-api.dto';
-import { DataMartDto } from '../dto/domain/data-mart.dto';
-import { DataMart } from '../entities/data-mart.entity';
-import { UpdateDataMartDefinitionApiDto } from '../dto/presentation/update-data-mart-definition-api.dto';
-import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-definition.command';
-import { AuthorizationContext } from '../../idp';
-import { GetDataMartCommand } from '../dto/domain/get-data-mart.command';
-import { GetDataMartRunsCommand } from '../dto/domain/get-data-mart-runs.command';
-import { ListDataMartsCommand } from '../dto/domain/list-data-marts.command';
-import { UpdateDataMartTitleApiDto } from '../dto/presentation/update-data-mart-title-api.dto';
-import { UpdateDataMartTitleCommand } from '../dto/domain/update-data-mart-title.command';
-import { UpdateDataMartDescriptionApiDto } from '../dto/presentation/update-data-mart-description-api.dto';
-import { UpdateDataMartDescriptionCommand } from '../dto/domain/update-data-mart-description.command';
-import { PublishDataMartCommand } from '../dto/domain/publish-data-mart.command';
-import { DataStorageMapper } from './data-storage.mapper';
-import { DeleteDataMartCommand } from '../dto/domain/delete-data-mart.command';
-import { RunDataMartCommand } from '../dto/domain/run-data-mart.command';
-import { ValidateDataMartDefinitionCommand } from '../dto/domain/validate-data-mart-definition.command';
-import { ActualizeDataMartSchemaCommand } from '../dto/domain/actualize-data-mart-schema.command';
-import { UpdateDataMartSchemaCommand } from '../dto/domain/update-data-mart-schema.command';
-import { ValidationResult } from '../data-storage-types/interfaces/data-mart-validator.interface';
+import { DataMartRunResponseApiDto } from '../dto/presentation/data-mart-run-response-api.dto';
+import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-response-api.dto';
 import { DataMartValidationResponseApiDto } from '../dto/presentation/data-mart-validation-response-api.dto';
-import { UpdateDataMartSchemaApiDto } from '../dto/presentation/update-data-mart-schema-api.dto';
-import { SqlDryRunCommand } from '../dto/domain/sql-dry-run.command';
+import { PaginatedDataMartsResponseApiDto } from '../dto/presentation/paginated-data-marts-response-api.dto';
 import { SqlDryRunRequestApiDto } from '../dto/presentation/sql-dry-run-request-api.dto';
 import { SqlDryRunResponseApiDto } from '../dto/presentation/sql-dry-run-response-api.dto';
-import { SqlDryRunResult } from '../dto/domain/sql-dry-run-result.dto';
-import { DataMartRun } from '../entities/data-mart-run.entity';
-import { DataMartRunDto } from '../dto/domain/data-mart-run.dto';
-import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-response-api.dto';
+import { UpdateDataMartDefinitionApiDto } from '../dto/presentation/update-data-mart-definition-api.dto';
+import { UpdateDataMartDescriptionApiDto } from '../dto/presentation/update-data-mart-description-api.dto';
+import { UpdateDataMartSchemaApiDto } from '../dto/presentation/update-data-mart-schema-api.dto';
+import { UpdateDataMartTitleApiDto } from '../dto/presentation/update-data-mart-title-api.dto';
 import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
-import { CancelDataMartRunCommand } from '../dto/domain/cancel-data-mart-run.command';
-import { ConnectorSecretService } from '../services/connector-secret.service';
-import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
-import { RunType } from '../../common/scheduler/shared/types';
 import { DataMartDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition';
-import { ListDataMartsByConnectorNameCommand } from '../dto/domain/list-data-mart-by-connector-name';
-import { ConnectorState as ConnectorStateData } from '../connector-types/interfaces/connector-state';
 import { isConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
-import { GetDataMartRunCommand } from '../dto/domain/get-data-mart-run.command';
-import { DataMartRunResponseApiDto } from '../dto/presentation/data-mart-run-response-api.dto';
-import { PaginatedDataMartsResponseApiDto } from '../dto/presentation/paginated-data-marts-response-api.dto';
+import { DataMartRun } from '../entities/data-mart-run.entity';
+import { DataMart } from '../entities/data-mart.entity';
+import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
+import { ConnectorSecretService } from '../services/connector-secret.service';
+import { DataStorageMapper } from './data-storage.mapper';
 
 @Injectable()
 export class DataMartMapper {
@@ -158,12 +161,50 @@ export class DataMartMapper {
     return new ListDataMartsCommand(context.projectId, offset);
   }
 
-  async toPaginatedResponse(
-    result: PaginatedDataMartListDto
-  ): Promise<PaginatedDataMartsResponseApiDto> {
+  toListItemDto(
+    entity: DataMart,
+    counters: { triggersCount: number; reportsCount: number },
+    createdByUser?: UserProjectionDto
+  ): DataMartListItemDto {
+    return new DataMartListItemDto(
+      entity.id,
+      entity.title,
+      entity.status,
+      entity.storage.type,
+      entity.storage.title || toHumanReadable(entity.storage.type),
+      entity.createdAt,
+      entity.modifiedAt,
+      entity.definitionType,
+      entity.definition,
+      counters.triggersCount,
+      counters.reportsCount,
+      createdByUser ?? null
+    );
+  }
+
+  toListItemResponse(dto: DataMartListItemDto): DataMartListItemResponseApiDto {
+    return {
+      id: dto.id,
+      title: dto.title,
+      status: dto.status,
+      storage: { type: dto.storageType, title: dto.storageTitle },
+      definitionType: dto.definitionType,
+      connectorSourceName:
+        dto.definitionType === DataMartDefinitionType.CONNECTOR && dto.definition
+          ? (dto.definition as ConnectorDefinition).connector.source.name
+          : undefined,
+      triggersCount: dto.triggersCount,
+      reportsCount: dto.reportsCount,
+      createdByUser: dto.createdByUser,
+      createdAt: dto.createdAt,
+      modifiedAt: dto.modifiedAt,
+    };
+  }
+
+  toPaginatedResponse(result: PaginatedDataMartListItemsDto): PaginatedDataMartsResponseApiDto {
     const nextOffset = result.offset + result.items.length;
     return {
-      items: await Promise.all(result.items.map(item => this.toResponse(item))),
+      items: result.items.map(item => this.toListItemResponse(item)),
       total: result.total,
       nextOffset: nextOffset < result.total ? nextOffset : null,
     };

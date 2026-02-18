@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ListDataMartsCommand } from '../dto/domain/list-data-marts.command';
-import { PaginatedDataMartListDto } from '../dto/domain/paginated-data-mart-list.dto';
+import { PaginatedDataMartListItemsDto } from '../dto/domain/paginated-data-mart-list-items.dto';
 import { DataMartScheduledTrigger } from '../entities/data-mart-scheduled-trigger.entity';
 import { Report } from '../entities/report.entity';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
@@ -23,10 +23,10 @@ export class ListDataMartsService {
     private readonly userProjectionsFetcherService: UserProjectionsFetcherService
   ) {}
 
-  async run(command: ListDataMartsCommand): Promise<PaginatedDataMartListDto> {
+  async run(command: ListDataMartsCommand): Promise<PaginatedDataMartListItemsDto> {
     const offset = command.offset ?? 0;
 
-    const { items: dataMarts, total } = await this.dataMartService.findByProjectId(
+    const { items: dataMarts, total } = await this.dataMartService.findByProjectIdForList(
       command.projectId,
       { offset, limit: DATA_MARTS_PAGE_SIZE }
     );
@@ -67,7 +67,7 @@ export class ListDataMartsService {
       await this.userProjectionsFetcherService.fetchRelevantUserProjections(dataMarts);
 
     const items = dataMarts.map(dm =>
-      this.mapper.toDomainDto(
+      this.mapper.toListItemDto(
         dm,
         {
           triggersCount: triggerCountMap.get(dm.id) ?? 0,
