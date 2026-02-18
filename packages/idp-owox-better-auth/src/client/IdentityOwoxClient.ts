@@ -17,6 +17,8 @@ import {
   IntrospectionResponseSchema,
   JwksResponse,
   JwksResponseSchema,
+  OwoxProjectMembersResponse,
+  OwoxProjectMembersResponseSchema,
   RevocationRequest,
   RevocationResponse,
   TokenRequest,
@@ -186,6 +188,49 @@ export class IdentityOwoxClient {
         });
       }
 
+      throw err;
+    }
+  }
+
+  /**
+   * GET project members via C2C (component-to-component) authentication.
+   */
+  async getProjectMembers(projectId: string): Promise<OwoxProjectMembersResponse> {
+    if (
+      !this.impersonatedIdTokenFetcher ||
+      !this.c2cServiceAccountEmail ||
+      !this.c2cTargetAudience ||
+      !this.clientBackchannelPrefix
+    ) {
+      throw new IdpFailedException(
+        'C2C authentication is not configured. Cannot fetch project members.',
+        { context: { projectId } }
+      );
+    }
+
+    const idToken = await this.impersonatedIdTokenFetcher.getIdToken(
+      this.c2cServiceAccountEmail,
+      this.c2cTargetAudience
+    );
+
+    try {
+      const { data } = await this.http.get<unknown>(
+        `${this.clientBackchannelPrefix}/idp/bi-project/${projectId}/members`,
+        {
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+          },
+        }
+      );
+      return OwoxProjectMembersResponseSchema.parse(data);
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        const status = err.response?.status;
+        throw new IdpFailedException(`Failed to fetch project members: ${status}`, {
+          cause: err,
+          context: { projectId, status },
+        });
+      }
       throw err;
     }
   }

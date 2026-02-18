@@ -23,6 +23,7 @@ export function reducer(state: DataStorageState, action: DataStorageAction): Dat
     case DataStorageActionType.FETCH_STORAGE_START:
     case DataStorageActionType.CREATE_STORAGE_START:
     case DataStorageActionType.UPDATE_STORAGE_START:
+    case DataStorageActionType.PUBLISH_DRAFTS_START:
       return {
         ...state,
         error: null,
@@ -52,7 +53,11 @@ export function reducer(state: DataStorageState, action: DataStorageAction): Dat
         ...state,
         dataStorages: [
           ...state.dataStorages,
-          { ...action.payload, dataMartsCount: 0 } as DataStorageListItem,
+          {
+            ...action.payload,
+            publishedDataMartsCount: 0,
+            draftDataMartsCount: 0,
+          } as DataStorageListItem,
         ],
         loading: false,
         error: null,
@@ -63,7 +68,11 @@ export function reducer(state: DataStorageState, action: DataStorageAction): Dat
         currentDataStorage: action.payload,
         dataStorages: state.dataStorages.map(ds =>
           ds.id === action.payload.id
-            ? ({ ...action.payload, dataMartsCount: ds.dataMartsCount } as DataStorageListItem)
+            ? ({
+                ...action.payload,
+                publishedDataMartsCount: ds.publishedDataMartsCount,
+                draftDataMartsCount: ds.draftDataMartsCount,
+              } as DataStorageListItem)
             : ds
         ),
         loading: false,
@@ -76,11 +85,18 @@ export function reducer(state: DataStorageState, action: DataStorageAction): Dat
         loading: false,
         error: null,
       };
+    case DataStorageActionType.PUBLISH_DRAFTS_SUCCESS:
+      return {
+        ...state,
+        loading: false,
+        error: null,
+      };
     case DataStorageActionType.FETCH_STORAGES_ERROR:
     case DataStorageActionType.FETCH_STORAGE_ERROR:
     case DataStorageActionType.CREATE_STORAGE_ERROR:
     case DataStorageActionType.UPDATE_STORAGE_ERROR:
     case DataStorageActionType.DELETE_STORAGE_ERROR:
+    case DataStorageActionType.PUBLISH_DRAFTS_ERROR:
       return {
         ...state,
         loading: false,

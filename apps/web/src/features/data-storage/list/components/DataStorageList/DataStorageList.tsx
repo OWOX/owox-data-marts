@@ -6,12 +6,14 @@ import { DataStorageConfigSheet } from '../../../edit';
 import { DataStorageType } from '../../../shared';
 import { DataStorageTypeDialog } from '../../../shared/components/DataStorageTypeDialog.tsx';
 import { useDataStorage } from '../../../shared/model/hooks/useDataStorage.ts';
+import { usePublishDraftsTrigger } from '../../../shared/hooks/usePublishDraftsTrigger.ts';
 import { DataStorageDetailsDialog } from '../DataStorageDetailsDialog';
 import {
   DataStorageTable,
   type DataStorageTableItem,
   getDataStorageColumns,
 } from '../DataStorageTable';
+import { subscribeToDataStorageHealthStatusUpdates } from '../../../shared/services/data-storage-health-status.service';
 
 interface DataStorageListProps {
   initialTypeDialogOpen?: boolean;
@@ -39,6 +41,11 @@ export const DataStorageList = ({
   const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [storageToDelete, setStorageToDelete] = useState<string | null>(null);
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
+  const [storageToPublish, setStorageToPublish] = useState<{
+    id: string;
+    draftDataMartsCount: number;
+  } | null>(null);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [selectedStorageId, setSelectedStorageId] = useState<string | null>(null);
 
@@ -47,6 +54,12 @@ export const DataStorageList = ({
 
   useEffect(() => {
     void fetchDataStorages();
+  }, [fetchDataStorages]);
+
+  useEffect(() => {
+    return subscribeToDataStorageHealthStatusUpdates(() => {
+      void fetchDataStorages();
+    });
   }, [fetchDataStorages]);
 
   const handleEdit = useCallback(
@@ -127,11 +140,53 @@ export const DataStorageList = ({
     }
   };
 
-  const handleSave = async () => {
+  const handlePublishDraftsRequest = (id: string): Promise<void> => {
+    openPublishDraftsDialog(id);
+    return Promise.resolve();
+  };
+
+  const openPublishDraftsDialog = (id: string) => {
+    const storage = dataStorages.find(item => item.id === id);
+
+    if (!storage || storage.draftDataMartsCount === 0) {
+      return;
+    }
+
+    setStorageToPublish({ id: storage.id, draftDataMartsCount: storage.draftDataMartsCount });
+    setPublishDialogOpen(true);
+  };
+
+  const handlePublishDraftsSuccess = useCallback(() => {
+    void (async () => {
+      await fetchDataStorages();
+    })();
+  }, [fetchDataStorages]);
+
+  const { run: runPublishDraftsTrigger } = usePublishDraftsTrigger(handlePublishDraftsSuccess);
+
+  const handleConfirmPublishDrafts = () => {
+    if (!storageToPublish) {
+      return;
+    }
+
+    const storageId = storageToPublish.id;
+    setPublishDialogOpen(false);
+    setStorageToPublish(null);
+
+    void (async () => {
+      await runPublishDraftsTrigger(storageId);
+    })();
+  };
+
+  const handleSave = async (savedStorageId: string) => {
     try {
       setIsEditDrawerOpen(false);
       await fetchDataStorages();
       removeIdParam();
+      const storage = dataStorages.find(item => item.id === savedStorageId);
+      if (storage && storage.draftDataMartsCount > 0 && storage.publishedDataMartsCount === 0) {
+        openPublishDraftsDialog(storage.id);
+      }
     } catch (error) {
       console.error('Failed to save storage:', error);
     }
@@ -149,13 +204,15 @@ export const DataStorageList = ({
     type: storage.type,
     createdAt: storage.createdAt,
     modifiedAt: storage.modifiedAt,
-    dataMartsCount: storage.dataMartsCount,
+    publishedDataMartsCount: storage.publishedDataMartsCount,
+    draftDataMartsCount: storage.draftDataMartsCount,
   }));
 
   const columns = getDataStorageColumns({
     onViewDetails: handleViewDetails,
     onEdit: handleEdit,
     onDelete: handleDelete,
+    onPublishDrafts: handlePublishDraftsRequest,
   });
 
   return (
@@ -186,7 +243,7 @@ export const DataStorageList = ({
         isOpen={isEditDrawerOpen}
         onClose={handleCloseDrawer}
         dataStorage={currentDataStorage}
-        onSaveSuccess={() => void handleSave()}
+        onSaveSuccess={dataStorage => void handleSave(dataStorage.id)}
       />
 
       <ConfirmationDialog
@@ -203,6 +260,29 @@ export const DataStorageList = ({
           setStorageToDelete(null);
         }}
         variant='destructive'
+      />
+
+      <ConfirmationDialog
+        open={publishDialogOpen}
+        onOpenChange={setPublishDialogOpen}
+        title='Publish drafts'
+        description={
+          <span>
+            There are <strong>{String(storageToPublish?.draftDataMartsCount ?? 0)}</strong> data
+            mart draft
+            {storageToPublish?.draftDataMartsCount === 1 ? '' : 's'} available. We can publish them
+            now. Continue?
+          </span>
+        }
+        confirmLabel='Publish'
+        cancelLabel='Not now'
+        onConfirm={() => {
+          handleConfirmPublishDrafts();
+        }}
+        onCancel={() => {
+          setStorageToPublish(null);
+        }}
+        variant='brand'
       />
     </div>
   );

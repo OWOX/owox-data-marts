@@ -43,3 +43,16 @@ export interface AuthResult {
   accessTokenExpiresIn?: number;
   refreshTokenExpiresIn?: number;
 }
+
+/**
+ * Project member information
+ */
+export type ProjectMember = {
+  userId: string;
+  email: string;
+  fullName?: string;
+  avatar?: string;
+  projectRole: string; // 'admin' | 'editor' | 'viewer'
+  userStatus: string; // 'active' | 'blocked' | 'deleted' | 'locked' | 'erased'
+  hasNotificationsEnabled: boolean; // from subscriptions.serviceNotifications
+};

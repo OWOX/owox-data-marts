@@ -1,5 +1,13 @@
-import { AuthResult, IdpProvider, Payload, Projects, ProtocolRoute } from '@owox/idp-protocol';
 import { createMailingProvider } from '@owox/internal-helpers';
+import {
+  AuthResult,
+  IdpProvider,
+  Payload,
+  ProjectMember,
+  Projects,
+  ProtocolRoute,
+} from '@owox/idp-protocol';
+import { Logger } from '@owox/internal-helpers';
 import cookieParser from 'cookie-parser';
 import e, { Express, NextFunction } from 'express';
 import { IdentityOwoxClient, TokenResponse } from './client/index.js';
@@ -44,6 +52,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   private readonly betterAuthSessionService: BetterAuthSessionService;
   private readonly authFlowMiddleware: AuthFlowMiddleware;
   private readonly identityClient: IdentityOwoxClient;
+  private readonly logger: Logger;
   private readonly tokenFacade: OwoxTokenFacade;
   private readonly userContextService: UserContextService;
   private readonly platformAuthFlowClient: PlatformAuthFlowClient;
@@ -93,6 +102,23 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       this.store,
       this.pkceFlowOrchestrator
     );
+  }
+  async getProjectMembers(projectId: string): Promise<ProjectMember[]> {
+    this.logger.debug(`Getting project members for project ${projectId}`);
+    const response = await this.identityClient.getProjectMembers(projectId);
+
+    if (!response.projectMembers || response.projectMembers.length === 0) {
+      return [];
+    }
+    return response.projectMembers.map(member => ({
+      userId: String(member.userId),
+      email: member.email,
+      fullName: member.fullName || undefined,
+      avatar: member.avatar || undefined,
+      projectRole: member.projectRole,
+      userStatus: member.userStatus,
+      hasNotificationsEnabled: member.subscriptions?.serviceNotifications ?? true,
+    }));
   }
 
   static async create(config: BetterAuthProviderConfig): Promise<OwoxBetterAuthIdp> {

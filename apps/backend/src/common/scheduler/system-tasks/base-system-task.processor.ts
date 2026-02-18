@@ -5,4 +5,8 @@ export abstract class BaseSystemTaskProcessor {
   abstract getType(): SystemTriggerType;
   abstract getDefaultCron(): string;
   abstract process(trigger: SystemTrigger, options?: { signal?: AbortSignal }): Promise<void>;
+
+  isEnabled(): boolean {
+    return true;
+  }
 }

@@ -22,6 +22,7 @@ OWOX Data Marts has a lot of terms inside, but here are the basic ones:
 - [**Report**](#report) is a specific spreadsheet tab where data is exported to.
 - [**Trigger**](#trigger) rules for automated data delivery on a schedule.
 - [**Run**](#run-types) is a single manual or an automated data load action.
+- [**Notification**](#notification) alerts your team when runs succeed or fail.
 
 ### Data Mart
 
@@ -113,5 +114,23 @@ Different Google Sheets Reports of the same Data Mart may have different schedul
 
 ### Run Types
 
-- **Connector Run** – import data from a **Source** into **Storage**.  
+- **Connector Run** – import data from a **Source** into **Storage**.
 - **Report Runs** – push or pull data (stored in **Storage**) to a **Destination**.
+
+### Notification
+
+**Notifications** keep your team informed about run results automatically — no need to check the dashboard manually.
+
+OWOX supports two notification channels:
+
+- **Email** – sends a batched summary to selected project members
+- **Webhook** – sends a structured JSON payload to any HTTP endpoint
+
+There are two notification types:
+
+- **Failed runs** – enabled by default, alerts when one or more Data Mart runs fail
+- **Successful runs** – disabled by default, confirms when runs complete successfully
+
+> ☝️ Notification settings are created automatically when a project's first run occurs.
+
+See [Notification Settings](../notifications/notification-settings.md) and [Email Notifications](../notifications/email.md) to learn more.

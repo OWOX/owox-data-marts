@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataMartSchemaMergerFacade } from '../data-storage-types/facades/data-mart-schema-merger.facade';
@@ -6,9 +6,12 @@ import { DataMartSchemaProviderFacade } from '../data-storage-types/facades/data
 import { DataMart } from '../entities/data-mart.entity';
 import { DataStorage } from '../entities/data-storage.entity';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
+import { DataMartStatus } from '../enums/data-mart-status.enum';
 
 @Injectable()
 export class DataMartService {
+  private readonly logger = new Logger(DataMartService.name);
+
   constructor(
     @InjectRepository(DataMart)
     private readonly dataMartRepository: Repository<DataMart>,
@@ -37,13 +40,29 @@ export class DataMartService {
     return this.dataMartRepository.findOne({ where: { id }, withDeleted });
   }
 
-  async findByProjectId(
+  async findByProjectIdForList(
     projectId: string,
     options?: { limit?: number; offset?: number }
   ): Promise<{ items: DataMart[]; total: number }> {
     const qb = this.dataMartRepository
       .createQueryBuilder('dm')
-      .leftJoinAndSelect('dm.storage', 'storage')
+      .leftJoin('dm.storage', 'storage')
+      .select([
+        'dm.id',
+        'dm.title',
+        'dm.status',
+        'dm.definitionType',
+        'dm.createdById',
+        'dm.createdAt',
+        'dm.modifiedAt',
+        'storage.type',
+        'storage.title',
+      ])
+      .addSelect(
+        'CASE WHEN dm.definitionType = :connectorDefinitionType THEN dm.definition ELSE NULL END',
+        'dm_definition'
+      )
+      .setParameter('connectorDefinitionType', DataMartDefinitionType.CONNECTOR)
       .where('dm.projectId = :projectId', { projectId })
       .andWhere('dm.deletedAt IS NULL')
       .orderBy('dm.createdAt', 'DESC')
@@ -51,7 +70,23 @@ export class DataMartService {
       .limit(options?.limit)
       .offset(options?.offset);
 
-    const [items, total] = await qb.getManyAndCount();
+    const countQb = qb.clone().limit(undefined).offset(undefined);
+    const [total, { raw, entities }] = await Promise.all([
+      countQb.getCount(),
+      qb.getRawAndEntities(),
+    ]);
+    const items = entities.map((item, index) => {
+      if (raw[index]?.dm_definition) {
+        // raw values returned by TypeORM are strings, so we need to parse it back to JSON
+        try {
+          item.definition = JSON.parse(raw[index].dm_definition);
+        } catch (error) {
+          this.logger.error(`Failed to parse definition for DataMart ${item.id}`, error);
+          item.definition = undefined;
+        }
+      }
+      return item;
+    });
     return { items, total };
   }
 
@@ -72,6 +107,15 @@ export class DataMartService {
         where: { storage: { id: storage.id } },
         select: ['id'],
         withDeleted,
+      })
+      .then(dms => dms.map(dm => dm.id));
+  }
+
+  async findDraftIdsByStorage(storage: DataStorage): Promise<string[]> {
+    return this.dataMartRepository
+      .find({
+        where: { storage: { id: storage.id }, status: DataMartStatus.DRAFT },
+        select: ['id'],
       })
       .then(dms => dms.map(dm => dm.id));
   }

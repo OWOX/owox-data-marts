@@ -2,6 +2,7 @@ import { IdpProtocolMiddleware, NullIdpProvider } from '@owox/idp-protocol';
 import { bootstrap } from './bootstrap';
 import express from 'express';
 import { Logger } from '@nestjs/common';
+import { loadEnv } from './load-env';
 
 async function setupIdp(app: express.Express) {
   const idpProvider = new NullIdpProvider();
@@ -16,6 +17,7 @@ async function setupIdp(app: express.Express) {
  */
 export async function main() {
   const logger = new Logger('Bootstrap::main');
+  loadEnv();
   try {
     const app = express();
     app.set('trust proxy', 1);

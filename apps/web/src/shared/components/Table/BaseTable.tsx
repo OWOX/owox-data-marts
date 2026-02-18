@@ -107,7 +107,7 @@ export function BaseTable<TData>({
                   return (
                     <TableHead
                       key={header.id}
-                      className='group relative [&:has([role=checkbox])]:pl-6 [&>[role=checkbox]]:translate-y-[2px]'
+                      className='relative [&:has([role=checkbox])]:pl-6 [&>[role=checkbox]]:translate-y-[2px]'
                       style={getTableColumnSize(header.column)}
                     >
                       {header.isPlaceholder
@@ -121,7 +121,7 @@ export function BaseTable<TData>({
                           onDoubleClick={() => {
                             header.column.resetSize();
                           }}
-                          className='absolute top-0 right-[2px] flex h-full w-1 cursor-col-resize items-center justify-center bg-transparent select-none group-hover:bg-neutral-200/50 hover:bg-neutral-200 group-hover:dark:bg-neutral-700/50 hover:dark:bg-neutral-700'
+                          className='absolute top-0 right-[2px] h-full w-1 cursor-col-resize bg-transparent select-none hover:bg-neutral-200 dark:hover:bg-white/4'
                           title='Drag to resize. Double-click to reset width'
                         />
                       )}

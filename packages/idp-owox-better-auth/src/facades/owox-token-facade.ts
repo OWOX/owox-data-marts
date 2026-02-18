@@ -1,4 +1,4 @@
-import { AuthResult, Payload, ProtocolRoute } from '@owox/idp-protocol';
+import { AuthResult, Payload } from '@owox/idp-protocol';
 import { NextFunction, Request, Response } from 'express';
 import {
   IdentityOwoxClient,
@@ -111,17 +111,17 @@ export class OwoxTokenFacade {
     try {
       const refreshToken = req.cookies[this.cookieName];
       if (!refreshToken) {
-        return res.status(401).json({ reason: 'atm1' });
+        return res.json({ reason: 'atm1' });
       }
       const auth = await this.refreshToken(refreshToken);
 
       const newRefreshToken = auth.refreshToken;
       if (!newRefreshToken) {
-        return res.status(401).json({ reason: 'atm2' });
+        return res.json({ reason: 'atm2' });
       }
 
       if (!auth.refreshTokenExpiresIn) {
-        return res.status(401).json({ reason: 'atm3' });
+        return res.json({ reason: 'atm3' });
       }
 
       this.setTokenToCookie(res, req, newRefreshToken, auth.refreshTokenExpiresIn);
@@ -129,12 +129,12 @@ export class OwoxTokenFacade {
     } catch (error: unknown) {
       clearCookie(res, this.cookieName, req);
       if (error instanceof ForbiddenException) {
-        logger.warn('Access Token middleware received 403, redirecting to sign-out', {
+        logger.warn('Access Token middleware received 403 code', {
           context: error.name,
           params: error.context,
           cause: error.cause,
         });
-        return res.redirect(`/auth${ProtocolRoute.SIGN_OUT}`);
+        return res.status(403).json({ reason: 'atm7', message: 'Forbidden' });
       }
 
       if (error instanceof AuthenticationException) {
@@ -143,7 +143,7 @@ export class OwoxTokenFacade {
           params: error.context,
           cause: error.cause,
         });
-        return res.status(401).json({ reason: 'atm4' });
+        return res.json({ reason: 'atm4' });
       }
 
       if (error instanceof IdpFailedException) {
@@ -152,7 +152,7 @@ export class OwoxTokenFacade {
           error.context,
           error.cause
         );
-        return res.status(502).json({ reason: 'atm5' });
+        return res.json({ reason: 'atm5' });
       }
 
       logger.error(this.tokenService.formatError(error));

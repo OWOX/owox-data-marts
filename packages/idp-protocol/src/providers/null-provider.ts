@@ -1,5 +1,5 @@
 import { IdpProvider } from '../types/provider.js';
-import { AuthResult, Payload, Projects } from '../types/models.js';
+import { AuthResult, Payload, Projects, ProjectMember } from '../types/models.js';
 import { Express, Request, Response, NextFunction } from 'express';
 
 /**
@@ -92,6 +92,20 @@ export class NullIdpProvider implements IdpProvider {
 
   async revokeToken(_token: string): Promise<void> {
     // No-op for NULL provider
+  }
+
+  async getProjectMembers(_projectId: string): Promise<ProjectMember[]> {
+    return [
+      {
+        userId: '0',
+        email: 'admin@localhost',
+        fullName: 'Admin User',
+        avatar: undefined,
+        projectRole: 'admin',
+        userStatus: 'active',
+        hasNotificationsEnabled: true,
+      },
+    ];
   }
 
   /**

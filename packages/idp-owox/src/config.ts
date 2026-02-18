@@ -114,6 +114,9 @@ const IdentityOwoxClientEnvSchema = z
     IDP_OWOX_BASE_URL: z.string().url({ message: 'IDP_OWOX_BASE_URL must be a valid URL' }),
     IDP_OWOX_DEFAULT_HEADERS: z.string().optional(),
     IDP_OWOX_TIMEOUT: zMsString.optional(),
+    IDP_OWOX_CLIENT_BACKCHANNEL_PREFIX: z.string().min(1).optional(),
+    IDP_OWOX_C2C_SERVICE_ACCOUNT: z.string().min(1).optional(),
+    IDP_OWOX_C2C_TARGET_AUDIENCE: z.string().min(1).optional(),
   })
   .transform(e => {
     const defaultHeaders = e.IDP_OWOX_DEFAULT_HEADERS
@@ -123,6 +126,9 @@ const IdentityOwoxClientEnvSchema = z
       baseUrl: e.IDP_OWOX_BASE_URL,
       defaultHeaders,
       clientTimeout: (e.IDP_OWOX_TIMEOUT ?? '3s') as ms.StringValue,
+      clientBackchannelPrefix: e.IDP_OWOX_CLIENT_BACKCHANNEL_PREFIX,
+      c2cServiceAccountEmail: e.IDP_OWOX_C2C_SERVICE_ACCOUNT,
+      c2cTargetAudience: e.IDP_OWOX_C2C_TARGET_AUDIENCE,
     };
   });
 

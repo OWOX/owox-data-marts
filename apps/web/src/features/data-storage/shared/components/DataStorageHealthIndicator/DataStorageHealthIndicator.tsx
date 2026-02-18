@@ -8,13 +8,13 @@ import {
   HoverCardHeaderDescription,
   HoverCardBody,
   HoverCardItem,
-  HoverCardItemLabel,
   HoverCardItemValue,
 } from '@owox/ui/components/hover-card';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { cn } from '@owox/ui/lib/utils';
 import { useDataStorageHealthStatus } from '../../model/hooks/useDataStorageHealthStatus';
 import { DataStorageHealthStatus } from '../../services/data-storage-health-status.service';
+import { CircleCheck, TriangleAlert } from 'lucide-react';
 
 interface DataStorageHealthIndicatorProps {
   storageId: string;
@@ -94,23 +94,24 @@ export function DataStorageHealthIndicator({
           <HoverCardHeader>
             <HoverCardHeaderText>
               <HoverCardHeaderTitle>{storageTitle ?? 'Storage Validation'}</HoverCardHeaderTitle>
-              <HoverCardHeaderDescription>
-                Storage access validation details
-              </HoverCardHeaderDescription>
+              <HoverCardHeaderDescription>Storage validation result</HoverCardHeaderDescription>
             </HoverCardHeaderText>
           </HoverCardHeader>
 
           <HoverCardBody>
             <HoverCardItem>
-              <HoverCardItemLabel>Result</HoverCardItemLabel>
-              <HoverCardItemValue
-                className={
-                  status === DataStorageHealthStatus.VALID ? 'text-green-600' : 'text-red-500'
-                }
-              >
-                {status === DataStorageHealthStatus.VALID
-                  ? 'Storage access validated'
-                  : errorMessage}
+              <HoverCardItemValue>
+                {status === DataStorageHealthStatus.VALID ? (
+                  <div className='flex items-center gap-2 text-green-500'>
+                    <CircleCheck className='size-4' />
+                    <span>Storage access validated</span>
+                  </div>
+                ) : (
+                  <div className='flex items-center gap-2 text-red-500'>
+                    <TriangleAlert className='size-4' />
+                    <span>{errorMessage}</span>
+                  </div>
+                )}
               </HoverCardItemValue>
             </HoverCardItem>
           </HoverCardBody>

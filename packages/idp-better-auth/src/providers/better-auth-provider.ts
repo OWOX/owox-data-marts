@@ -7,6 +7,7 @@ import {
   IdpProvider,
   Payload,
   Projects,
+  ProjectMember,
 } from '@owox/idp-protocol';
 import { Express, type Request, Response, NextFunction } from 'express';
 import express from 'express';
@@ -237,5 +238,19 @@ export class BetterAuthProvider
 
   async removeUser(userId: string): Promise<void> {
     return this.userManagementService.removeUser(userId);
+  }
+
+  async getProjectMembers(_projectId: string): Promise<ProjectMember[]> {
+    const users = await this.userManagementService.listUsers();
+
+    return users.map(user => ({
+      userId: user.userId,
+      email: user.email || '',
+      fullName: user.fullName,
+      avatar: user.avatar,
+      projectRole: user.roles?.[0] ?? 'viewer',
+      userStatus: 'active',
+      hasNotificationsEnabled: true, // No preference table yet
+    }));
   }
 }
