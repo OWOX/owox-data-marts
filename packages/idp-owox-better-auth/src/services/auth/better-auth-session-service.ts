@@ -113,7 +113,9 @@ export class BetterAuthSessionService {
     });
     const result = await this.platformAuthFlowClient.completeAuthFlow(payload);
     await this.tryPersistLastLoginMethod(dbUser.id, account.providerId);
-    logger.info('OWOX client completed auth flow with session token', { hasCode: Boolean(result.code) });
+    logger.info('OWOX client completed auth flow with session token', {
+      hasCode: Boolean(result.code),
+    });
     return { code: result.code, payload };
   }
 

@@ -244,7 +244,7 @@ const BetterAuthEnvSchema = z.object({
 });
 
 const SendgridEnvSchema = z.object({
-  IDP_OWOX_SENDGRID_API_KEY: z.string().min(1, 'IDP_OWOX_SENDGRID_API_KEY is required'),
+  SENDGRID_API_KEY: z.string().min(1, 'SENDGRID_API_KEY is required'),
   IDP_OWOX_SENDGRID_VERIFIED_SENDER_EMAIL: z
     .string()
     .email('IDP_OWOX_SENDGRID_VERIFIED_SENDER_EMAIL must be a valid email'),
@@ -389,7 +389,7 @@ export function loadBetterAuthProviderConfigFromEnv(
     email: {
       provider: 'sendgrid',
       sendgrid: {
-        apiKey: sendgridEnv.IDP_OWOX_SENDGRID_API_KEY,
+        apiKey: sendgridEnv.SENDGRID_API_KEY,
         verifiedSenderEmail: sendgridEnv.IDP_OWOX_SENDGRID_VERIFIED_SENDER_EMAIL,
         verifiedSenderName: sendgridEnv.IDP_OWOX_SENDGRID_VERIFIED_SENDER_NAME,
       },
