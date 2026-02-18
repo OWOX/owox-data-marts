@@ -190,7 +190,7 @@ export class DataMartMapper {
       storage: { type: dto.storageType, title: dto.storageTitle },
       definitionType: dto.definitionType,
       connectorSourceName:
-        dto.definitionType === DataMartDefinitionType.CONNECTOR
+        dto.definitionType === DataMartDefinitionType.CONNECTOR && dto.definition
           ? (dto.definition as ConnectorDefinition).connector.source.name
           : undefined,
       triggersCount: dto.triggersCount,

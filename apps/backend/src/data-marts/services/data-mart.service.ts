@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataMartSchemaMergerFacade } from '../data-storage-types/facades/data-mart-schema-merger.facade';
@@ -9,6 +9,8 @@ import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum'
 
 @Injectable()
 export class DataMartService {
+  private readonly logger = new Logger(DataMartService.name);
+
   constructor(
     @InjectRepository(DataMart)
     private readonly dataMartRepository: Repository<DataMart>,
@@ -68,12 +70,19 @@ export class DataMartService {
       .offset(options?.offset);
 
     const countQb = qb.clone().limit(undefined).offset(undefined);
-    const total = await countQb.getCount();
-    const { raw, entities } = await qb.getRawAndEntities();
+    const [total, { raw, entities }] = await Promise.all([
+      countQb.getCount(),
+      qb.getRawAndEntities(),
+    ]);
     const items = entities.map((item, index) => {
       if (raw[index]?.dm_definition) {
         // raw values returned by TypeORM are strings, so we need to parse it back to JSON
-        item.definition = JSON.parse(raw[index].dm_definition);
+        try {
+          item.definition = JSON.parse(raw[index].dm_definition);
+        } catch (error) {
+          this.logger.error(`Failed to parse definition for DataMart ${item.id}`, error);
+          item.definition = undefined;
+        }
       }
       return item;
     });
