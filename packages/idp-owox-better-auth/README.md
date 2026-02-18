@@ -33,43 +33,63 @@ IDP_OWOX_JWT_ISSUER=https://idp.example.com
 
 # Better Auth IDP
 IDP_BETTER_AUTH_SECRET=your-super-secret-key-at-least-32-characters-long
+IDP_BETTER_AUTH_MAGIC_LINK_TTL=3600
+IDP_BETTER_AUTH_PROVIDERS=google,email,microsoft
+
+# Magic-link email delivery (SendGrid)
+SENDGRID_API_KEY=your-sendgrid-api-key
+IDP_OWOX_SENDGRID_VERIFIED_SENDER_EMAIL=verified-sender@example.com
+IDP_OWOX_SENDGRID_VERIFIED_SENDER_NAME=OWOX Data Marts
 
 # Social login (Google)
 # IDP_BETTER_AUTH_GOOGLE_CLIENT_ID=xx
 # IDP_BETTER_AUTH_GOOGLE_CLIENT_SECRET=xx
+# IDP_BETTER_AUTH_MICROSOFT_CLIENT_ID=xx
+# IDP_BETTER_AUTH_MICROSOFT_CLIENT_SECRET=xx
+# IDP_BETTER_AUTH_MICROSOFT_TENANT_ID=common
+# IDP_BETTER_AUTH_MICROSOFT_AUTHORITY=https://login.microsoftonline.com
 ```
 
 ## Configuration Reference
 
-| Variable                               | Required |                   Default                   | Description                                           |
-| -------------------------------------- | :------: | :-----------------------------------------: | ----------------------------------------------------- |
-| `IDP_PROVIDER`                         | **Yes**  |                      –                      | Set to `owox-better-auth`                             |
-| `IDP_OWOX_DB_TYPE`                     |    No    |                  `sqlite`                   | Database type: `sqlite` or `mysql`                    |
-| `IDP_OWOX_SQLITE_DB_PATH`              |    No    | `<app data>/sqlite/idp/owox-better-auth.db` | SQLite database file path                             |
-| `IDP_OWOX_MYSQL_HOST`                  |    No    |                      –                      | MySQL host                                            |
-| `IDP_OWOX_MYSQL_USER`                  |    No    |                      –                      | MySQL user                                            |
-| `IDP_OWOX_MYSQL_PASSWORD`              |    No    |                      –                      | MySQL password                                        |
-| `IDP_OWOX_MYSQL_DB`                    |    No    |                      –                      | MySQL database                                        |
-| `IDP_OWOX_MYSQL_PORT`                  |    No    |                   `3306`                    | MySQL port                                            |
-| `IDP_OWOX_MYSQL_SSL`                   |    No    |                   `false`                   | Enable SSL: `true`, JSON, or string                   |
-| `IDP_OWOX_CLIENT_BASE_URL`             | **Yes**  |                      –                      | Identity client base URL                              |
-| `IDP_OWOX_CLIENT_BACKCHANNEL_PREFIX`   | **Yes**  |                      –                      | Identity client path prefix for backchannel endpoints |
-| `IDP_OWOX_C2C_SERVICE_ACCOUNT`         | **Yes**  |                      –                      | Service account email for C2C impersonation           |
-| `IDP_OWOX_C2C_TARGET_AUDIENCE`         | **Yes**  |                      –                      | Target audience for C2C impersonation                 |
-| `IDP_OWOX_CLIENT_ID`                   | **Yes**  |                      –                      | Client id for PKCE                                    |
-| `IDP_OWOX_PLATFORM_SIGN_IN_URL`        | **Yes**  |                      –                      | Platform sign-in URL (redirect target)                |
-| `IDP_OWOX_PLATFORM_SIGN_UP_URL`        | **Yes**  |                      –                      | Platform sign-up URL (redirect target)                |
-| `IDP_OWOX_SIGN_OUT_REDIRECT_URL`       |    No    |               `/auth/sign-in`               | Custom redirect after sign-out                        |
-| `IDP_OWOX_ALLOWED_REDIRECT_ORIGINS`    |    No    |    origins from platform sign-in/up URLs    | Allowlist for redirect-to/app-redirect-to             |
-| `IDP_OWOX_JWT_ISSUER`                  | **Yes**  |                      –                      | Expected JWT issuer                                   |
-| `IDP_OWOX_JWT_CACHE_TTL`               |    No    |                    `1h`                     | JWKS cache TTL                                        |
-| `IDP_OWOX_JWT_CLOCK_TOLERANCE`         |    No    |                    `5s`                     | Clock skew tolerance                                  |
-| `IDP_BETTER_AUTH_SECRET`               | **Yes**  |                      –                      | Secret key for signing (min. 32 characters)           |
-| `PUBLIC_ORIGIN`                        |    No    |           `http://localhost:3000`           | Base URL for callbacks                                |
-| `IDP_BETTER_AUTH_SESSION_MAX_AGE`      |    No    |              `1800` (30 mins)               | Session duration (seconds)                            |
-| `IDP_BETTER_AUTH_TRUSTED_ORIGINS`      |    No    |               `PUBLIC_ORIGIN`               | Trusted origins for auth service                      |
-| `IDP_BETTER_AUTH_GOOGLE_CLIENT_ID`     |    No    |                      –                      | Google OAuth client id (enables Google)               |
-| `IDP_BETTER_AUTH_GOOGLE_CLIENT_SECRET` |    No    |                      –                      | Google OAuth client secret                            |
+| Variable                                  | Required |                   Default                   | Description                                                                      |
+| ----------------------------------------- | :------: | :-----------------------------------------: | -------------------------------------------------------------------------------- |
+| `IDP_PROVIDER`                            | **Yes**  |                      –                      | Set to `owox-better-auth`                                                        |
+| `IDP_OWOX_DB_TYPE`                        |    No    |                  `sqlite`                   | Database type: `sqlite` or `mysql`                                               |
+| `IDP_OWOX_SQLITE_DB_PATH`                 |    No    | `<app data>/sqlite/idp/owox-better-auth.db` | SQLite database file path                                                        |
+| `IDP_OWOX_MYSQL_HOST`                     |    No    |                      –                      | MySQL host                                                                       |
+| `IDP_OWOX_MYSQL_USER`                     |    No    |                      –                      | MySQL user                                                                       |
+| `IDP_OWOX_MYSQL_PASSWORD`                 |    No    |                      –                      | MySQL password                                                                   |
+| `IDP_OWOX_MYSQL_DB`                       |    No    |                      –                      | MySQL database                                                                   |
+| `IDP_OWOX_MYSQL_PORT`                     |    No    |                   `3306`                    | MySQL port                                                                       |
+| `IDP_OWOX_MYSQL_SSL`                      |    No    |                   `false`                   | Enable SSL: `true`, JSON, or string                                              |
+| `IDP_OWOX_CLIENT_BASE_URL`                | **Yes**  |                      –                      | Identity client base URL                                                         |
+| `IDP_OWOX_CLIENT_BACKCHANNEL_PREFIX`      | **Yes**  |                      –                      | Identity client path prefix for backchannel endpoints                            |
+| `IDP_OWOX_C2C_SERVICE_ACCOUNT`            | **Yes**  |                      –                      | Service account email for C2C impersonation                                      |
+| `IDP_OWOX_C2C_TARGET_AUDIENCE`            | **Yes**  |                      –                      | Target audience for C2C impersonation                                            |
+| `IDP_OWOX_CLIENT_ID`                      | **Yes**  |                      –                      | Client id for PKCE                                                               |
+| `IDP_OWOX_PLATFORM_SIGN_IN_URL`           | **Yes**  |                      –                      | Platform sign-in URL (redirect target)                                           |
+| `IDP_OWOX_PLATFORM_SIGN_UP_URL`           | **Yes**  |                      –                      | Platform sign-up URL (redirect target)                                           |
+| `IDP_OWOX_SIGN_OUT_REDIRECT_URL`          |    No    |               `/auth/sign-in`               | Custom redirect after sign-out                                                   |
+| `IDP_OWOX_ALLOWED_REDIRECT_ORIGINS`       |    No    |    origins from platform sign-in/up URLs    | Allowlist for redirect-to/app-redirect-to                                        |
+| `IDP_OWOX_JWT_ISSUER`                     | **Yes**  |                      –                      | Expected JWT issuer                                                              |
+| `IDP_OWOX_JWT_CACHE_TTL`                  |    No    |                    `1h`                     | JWKS cache TTL                                                                   |
+| `IDP_OWOX_JWT_CLOCK_TOLERANCE`            |    No    |                    `5s`                     | Clock skew tolerance                                                             |
+| `IDP_BETTER_AUTH_SECRET`                  | **Yes**  |                      –                      | Secret key for signing (min. 32 characters)                                      |
+| `PUBLIC_ORIGIN`                           |    No    |           `http://localhost:3000`           | Base URL for callbacks                                                           |
+| `IDP_BETTER_AUTH_SESSION_MAX_AGE`         |    No    |              `1800` (30 mins)               | Session duration (seconds)                                                       |
+| `IDP_BETTER_AUTH_TRUSTED_ORIGINS`         |    No    |               `PUBLIC_ORIGIN`               | Trusted origins for auth service                                                 |
+| `IDP_BETTER_AUTH_MAGIC_LINK_TTL`          |    No    |                   `3600`                    | Magic-link token TTL (seconds)                                                   |
+| `IDP_BETTER_AUTH_PROVIDERS`               |    No    |                  `google`                   | UI-only toggle: `google` always on; add `email`, `microsoft` separated by commas |
+| `IDP_BETTER_AUTH_GOOGLE_CLIENT_ID`        |    No    |                      –                      | Google OAuth client id (enables Google)                                          |
+| `IDP_BETTER_AUTH_GOOGLE_CLIENT_SECRET`    |    No    |                      –                      | Google OAuth client secret                                                       |
+| `IDP_BETTER_AUTH_MICROSOFT_CLIENT_ID`     |    No    |                      –                      | Microsoft OAuth client id (enables Microsoft)                                    |
+| `IDP_BETTER_AUTH_MICROSOFT_CLIENT_SECRET` |    No    |                      –                      | Microsoft OAuth client secret                                                    |
+| `IDP_BETTER_AUTH_MICROSOFT_TENANT_ID`     |    No    |                  `common`                   | Microsoft tenant id (e.g. common, consumers, or GUID)                            |
+| `IDP_BETTER_AUTH_MICROSOFT_AUTHORITY`     |    No    |     `https://login.microsoftonline.com`     | Microsoft authority URL                                                          |
+| `SENDGRID_API_KEY`                        | **Yes**  |                      –                      | SendGrid API key for magic-link emails                                           |
+| `IDP_OWOX_SENDGRID_VERIFIED_SENDER_EMAIL` | **Yes**  |                      –                      | Verified sender email in SendGrid                                                |
+| `IDP_OWOX_SENDGRID_VERIFIED_SENDER_NAME`  |    No    |                      –                      | Sender display name for auth emails                                              |
 
 ## Troubleshooting
 
@@ -85,6 +105,40 @@ For MySQL, verify your connection settings and ensure the database exists.
 
 Ensure the user has permission for the action they're trying to perform.
 
+## Architecture
+
+### Email/password & magic-link flow
+
+- Sign-in page shows Email + Password (Google remains available); it posts to Better Auth email sign-in and completes PKCE when `state` is present.
+- Sign-up page shows only Email. A magic link is sent; after clicking it, the user lands on `/auth/password/setup` to set a password, then sees a success screen with a sign-in link.
+- Forgot password lives at `/auth/forgot-password` and reuses the same magic-link + password setup flow.
+- Magic-link confirm page: `/auth/magic-link?token=...&callbackURL=...` renders a confirm button before calling Better Auth verify.
+- Password setup and success pages: `/auth/password/setup` (POST to save) and `/auth/password/success`.
+- Email delivery uses `@owox/internal-helpers` SendGrid integration and one shared EJS template (`resources/templates/email/magic-link-email.ejs`) with intent-specific wording.
+
+### Component interaction
+
+```
+Entry point (OwoxBetterAuthIdp)
+ ├── Config layer (idp-owox-config, idp-better-auth-config)
+ ├── Client layer (IdentityOwoxClient)
+ ├── Facade layer (OwoxTokenFacade)
+ ├── Controllers (PageController, PasswordFlowController)
+ ├── Service layer
+ │    ├── auth/ (BetterAuthSessionService, PkceFlowOrchestrator, MagicLinkService)
+ │    ├── core/ (TokenService, UserContextService)
+ │    ├── email/ (MagicLinkEmailService)
+ │    ├── middleware/ (AuthFlowMiddleware, BetterAuthProxyHandler)
+ │    └── rendering/ (TemplateService)
+ └── Utils (account-resolver, cookie-policy, url-utils, email-utils, request-utils …)
+```
+
+### Social login
+
+- Extensible via `SocialProvider` interface — currently Google and Microsoft.
+- Providers are registered as Better Auth social plugins with custom `mapProfile` mapping.
+- `callbackProviderId` is captured from the social callback route and used to resolve the correct account.
+
 ## Customizing the auth UI
 
 ### How it works
@@ -96,18 +150,20 @@ Ensure the user has permission for the action they're trying to perform.
 ### Where the files live
 
 - Layout: `src/resources/templates/layouts/auth.ejs` — splits the screen into brand panel + content and pulls in header/footer.
-- Pages: `pages/sign-in.ejs`, `pages/sign-up.ejs` — Google buttons, copy, and the social-login start script.
+- Pages: `pages/sign-in.ejs` (email+password + Google), `pages/sign-up.ejs` (email only → magic link), `pages/forgot-password.ejs`, `pages/magic-link-confirm.ejs`, `pages/password-setup.ejs`, `pages/password-success.ejs`.
 - Partials:
   - `head.ejs` — `<head>`, Tailwind include, color palette.
-  - `header.ejs` — page heading (receives `heading`).
   - `brand-panel.ejs` — left panel with background and logo.
   - `footer.ejs` — terms and privacy links.
+- Email template: `resources/templates/email/magic-link-email.ejs`.
 
 ### What and how to change
 
 - Text/links: edit the relevant `pages/*.ejs` or `partials/footer.ejs`.
-- Page heading: adjust `heading` in `TemplateService.renderSignIn|renderSignUp`, or edit `partials/header.ejs` if you need a different look.
-- Buttons and social-login logic: in `pages/sign-in.ejs` and `pages/sign-up.ejs` (the `fetch` handler to `/auth/better-auth/sign-in/social`).
+- Page heading: adjust `heading` in `TemplateService.renderSignIn|renderSignUp`.
+- Buttons and social-login logic: in `pages/sign-in.ejs` and `pages/sign-up.ejs` (the `fetch` handlers).
+- Provider visibility in the UI is controlled by `IDP_BETTER_AUTH_PROVIDERS` (comma-separated: `google,email,microsoft`; Google is always enabled).
+- Magic-link / password reset UI and copy: in `pages/forgot-password.ejs`, `pages/magic-link-confirm.ejs`, `pages/password-setup.ejs`, `pages/password-success.ejs`.
 - Styles/colors: tweak the Tailwind config in `partials/head.ejs` or utility classes in each section.
 - Branding (background, logo, tagline): in `partials/brand-panel.ejs`.
 

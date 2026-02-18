@@ -15,10 +15,11 @@ export {
 } from './owox-better-auth-idp.js';
 
 // Services
+export { PageController } from './controllers/page-controller.js';
+export { PasswordFlowController } from './controllers/password-flow-controller.js';
 export { BetterAuthSessionService } from './services/auth/better-auth-session-service.js';
-export { MiddlewareService } from './services/middleware/middleware-service.js';
-export { RequestHandlerService } from './services/middleware/request-handler-service.js';
-export { PageService } from './services/rendering/page-service.js';
+export { AuthFlowMiddleware } from './services/middleware/auth-flow-middleware.js';
+export { BetterAuthProxyHandler } from './services/middleware/better-auth-proxy-handler.js';
 export { TemplateService } from './services/rendering/template-service.js';
 
 // Types

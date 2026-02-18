@@ -1,38 +1,80 @@
-import { LoggerFactory, LogLevel } from '@owox/internal-helpers';
+import { LogLevel } from '@owox/internal-helpers';
 import { betterAuth } from 'better-auth';
-import { BETTER_AUTH_SESSION_COOKIE } from '../core/constants.js';
+import { magicLink } from 'better-auth/plugins';
+import { BETTER_AUTH_BASE_PATH, BETTER_AUTH_SESSION_COOKIE } from '../core/constants.js';
+import { logger } from '../core/logger.js';
 import { GoogleProvider } from '../social/google-provider.js';
+import { MicrosoftProvider } from '../social/microsoft-provider.js';
 import { BetterAuthConfig } from '../types/index.js';
+import { isSecureOrigin } from '../utils/url-utils.js';
 
 /**
  * Builds Better Auth configuration with social providers and cookies.
  */
+type MagicLinkSender = (params: { email: string; token: string; url: string }) => Promise<void>;
+type ResetPasswordSender = (params: { email: string; token: string; url: string }) => Promise<void>;
+
+type AuthOptions = {
+  adapter?: unknown;
+  magicLinkSender?: MagicLinkSender;
+  resetPasswordSender?: ResetPasswordSender;
+};
+
 export async function createBetterAuthConfig(
   config: BetterAuthConfig,
-  options?: { adapter?: unknown }
+  options?: AuthOptions
 ): Promise<ReturnType<typeof betterAuth>> {
-  const logger = LoggerFactory.createNamedLogger('better-auth');
   const database = options?.adapter;
+  const plugins: unknown[] = [];
+  const emailAndPasswordConfig: Record<string, unknown> = {
+    enabled: true,
+    requireEmailVerification: false,
+  };
 
-  const basePath = '/auth/better-auth';
+  if (options?.resetPasswordSender) {
+    emailAndPasswordConfig.sendResetPassword = async ({
+      user,
+      token,
+      url,
+    }: {
+      user: { email: string };
+      token: string;
+      url: string;
+    }) => {
+      await options.resetPasswordSender?.({ email: user.email, token, url });
+    };
+    emailAndPasswordConfig.resetPasswordTokenExpiresIn = config.magicLinkTtl ?? 60 * 60;
+  }
 
-  const calcBaseURL = config.baseURL || 'http://localhost:3000';
-  const trustedOrigins =
-    config.trustedOrigins && config.trustedOrigins.length > 0
-      ? config.trustedOrigins
-      : [calcBaseURL];
+  const basePath = BETTER_AUTH_BASE_PATH;
+
+  const trustedOrigins = Array.from(
+    new Set([
+      ...(config.trustedOrigins && config.trustedOrigins.length > 0
+        ? config.trustedOrigins
+        : [config.baseURL]),
+    ])
+  );
 
   const authConfig: Record<string, unknown> = {
     database,
+    plugins,
     session: {
       expiresIn: config.session?.maxAge || 60 * 60 * 24 * 7,
       updateAge: 60 * 60 * 24,
     },
     trustedOrigins: Array.from(new Set(trustedOrigins)),
-    baseURL: calcBaseURL,
+    baseURL: config.baseURL,
     secret: config.secret,
-    emailAndPassword: {
-      enabled: false,
+    emailAndPassword: emailAndPasswordConfig,
+    user: {
+      additionalFields: {
+        lastLoginMethod: {
+          type: 'string',
+          required: false,
+          input: false,
+        },
+      },
     },
     advanced: {
       cookies: {
@@ -42,7 +84,7 @@ export async function createBetterAuthConfig(
             httpOnly: true,
             sameSite: 'lax',
             path: '/',
-            secure: isSecureBaseURL(calcBaseURL),
+            secure: isSecureBaseURL(config.baseURL),
           },
         },
       },
@@ -75,7 +117,7 @@ export async function createBetterAuthConfig(
   } as Record<string, unknown>;
 
   const defaultRedirect = (provider: string): string =>
-    `${calcBaseURL.replace(/\/$/, '')}${basePath}/callback/${provider}`;
+    `${config.baseURL.replace(/\/$/, '')}${basePath}/callback/${provider}`;
 
   const providerLogger = {
     log: (level: LogLevel, message: string, meta?: Record<string, unknown>) =>
@@ -85,17 +127,28 @@ export async function createBetterAuthConfig(
   const socialProviders = buildSocialProviders(config, providerLogger, defaultRedirect);
   if (socialProviders) authConfig.socialProviders = socialProviders;
 
-  return betterAuth(authConfig);
-}
+  plugins.push(
+    magicLink({
+      sendMagicLink: async ({ email, token, url }) => {
+        const sender = options?.magicLinkSender;
+        if (!sender) {
+          logger.log(LogLevel.ERROR, 'Magic link sender is not configured');
+          throw new Error('Magic link sender is not configured');
+        }
+        await sender({ email, token, url });
+      },
+      expiresIn: config.magicLinkTtl ?? 60 * 60,
+      disableSignUp: false,
+    })
+  );
 
-function isLocalhost(hostname: string): boolean {
-  return hostname === 'localhost' || hostname === '127.0.0.1';
+  return betterAuth(authConfig);
 }
 
 function isSecureBaseURL(baseURL: string): boolean {
   try {
     const url = new URL(baseURL);
-    return url.protocol === 'https:' && !isLocalhost(url.hostname);
+    return isSecureOrigin(url.protocol, url.hostname);
   } catch {
     return false;
   }
@@ -119,6 +172,15 @@ function buildSocialProviders(
       logger: providerLogger,
     });
     providers.google = googleProvider.buildConfig();
+  }
+
+  if (config.socialProviders.microsoft) {
+    const microsoftProvider = new MicrosoftProvider({
+      ...config.socialProviders.microsoft,
+      redirectURI: config.socialProviders.microsoft.redirectURI ?? redirectBuilder('microsoft'),
+      logger: providerLogger,
+    });
+    providers.microsoft = microsoftProvider.buildConfig();
   }
 
   return Object.keys(providers).length ? providers : undefined;

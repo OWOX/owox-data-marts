@@ -1,9 +1,11 @@
 import { Payload } from '@owox/idp-protocol';
-import { Logger } from '@owox/internal-helpers';
 import { AuthenticationException } from '../../core/exceptions.js';
+import { logger } from '../../core/logger.js';
 import { OwoxTokenFacade } from '../../facades/owox-token-facade.js';
 import type { DatabaseStore } from '../../store/database-store.js';
 import type { DatabaseAccount, DatabaseUser } from '../../types/database-models.js';
+import { resolveAccountForUser } from '../../utils/account-resolver.js';
+import { normalizeEmail } from '../../utils/email-utils.js';
 
 export interface UserContext {
   payload: Payload;
@@ -18,8 +20,7 @@ export interface UserContext {
 export class UserContextService {
   constructor(
     private readonly store: DatabaseStore,
-    private readonly tokenFacade: OwoxTokenFacade,
-    private readonly logger?: Logger
+    private readonly tokenFacade: OwoxTokenFacade
   ) {}
 
   async resolveFromToken(token: string): Promise<UserContext> {
@@ -29,12 +30,13 @@ export class UserContextService {
       throw new AuthenticationException('Invalid token payload: email is missing');
     }
 
-    const normalizedEmail = this.normalizeEmail(payload.email);
-    if (!normalizedEmail) {
+    const normalized = normalizeEmail(payload.email);
+    if (!normalized) {
       throw new AuthenticationException('Invalid token payload: email is malformed', {
         context: { email: payload.email },
       });
     }
+    const normalizedEmail = normalized;
 
     const user = await this.store.getUserByEmail(normalizedEmail);
     if (!user) {
@@ -49,24 +51,19 @@ export class UserContextService {
       });
     }
 
-    const account = await this.store.getAccountByUserId(user.id);
+    const account = await resolveAccountForUser(this.store, user.id, user.lastLoginMethod);
     if (!account) {
       throw new AuthenticationException('Account not found for user', {
         context: { userId: user.id, email: normalizedEmail },
       });
     }
 
-    this.logger?.debug?.('Resolved user context from token', {
+    logger.info('Resolved user context from token', {
       email: normalizedEmail,
       userId: user.id,
       accountId: account.accountId,
     });
 
     return { payload, user, account };
-  }
-
-  private normalizeEmail(email: string): string | null {
-    const normalized = email.trim().toLowerCase();
-    return normalized.length > 0 ? normalized : null;
   }
 }

@@ -39,7 +39,7 @@ describe('platform-redirect-builder', () => {
       params: {},
     });
 
-    expect(url?.pathname).toBe('/signin');
+    expect(url?.pathname).toBe('/ui/p/signin');
   });
 
   it('builds entry url with params', () => {
@@ -66,5 +66,22 @@ describe('platform-redirect-builder', () => {
     expect(sanitizeRedirectParam('https://platform.test/welcome', allowed)).toBe(
       'https://platform.test/welcome'
     );
+  });
+
+  it('returns null when base cannot be resolved', () => {
+    const url = buildPlatformRedirectUrl({
+      baseUrl: null,
+      signInUrl: 'not-a-url',
+      code: 'c',
+      state: 's',
+      params: {},
+    });
+
+    expect(url).toBeNull();
+  });
+
+  it('drops absolute redirects when allowed origins are missing', () => {
+    expect(sanitizeRedirectParam('https://platform.test/path', undefined)).toBeUndefined();
+    expect(sanitizeRedirectParam('/relative', undefined)).toBe('/relative');
   });
 });

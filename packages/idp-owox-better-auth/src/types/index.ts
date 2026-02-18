@@ -29,22 +29,58 @@ export interface GoogleProviderConfig {
   accessType?: string;
 }
 
-export interface SocialProvidersConfig {
-  google?: GoogleProviderConfig;
+export interface MicrosoftProviderConfig {
+  clientId: string;
+  clientSecret: string;
+  redirectURI?: string;
+  tenantId?: string;
+  authority?: string;
+  prompt?: string;
 }
 
+export interface SocialProvidersConfig {
+  google?: GoogleProviderConfig;
+  microsoft?: MicrosoftProviderConfig;
+}
+
+export type UiAuthProviders = {
+  google: boolean;
+  microsoft: boolean;
+  email: boolean;
+};
+
 export type DatabaseConfig = SqliteConfig | MySqlConfig;
+
+export interface SendgridEmailConfig {
+  apiKey: string;
+  verifiedSenderEmail: string;
+  verifiedSenderName?: string;
+}
+
+export type EmailConfig =
+  | {
+      provider: 'none';
+    }
+  | {
+      provider: 'sendgrid';
+      sendgrid: SendgridEmailConfig;
+    };
 
 export interface BetterAuthConfig {
   database: DatabaseConfig;
   socialProviders?: SocialProvidersConfig;
+  baseURL: string;
+  secret: string;
   session?: {
     maxAge?: number;
   };
+  /**
+   * TTL для magic-link токенів (секунди).
+   */
+  magicLinkTtl?: number;
   trustedOrigins?: string[];
-  baseURL?: string;
-  secret: string;
 }
 
 export * from './auth-session.js';
 export * from './database-models.js';
+export * from './magic-link.js';

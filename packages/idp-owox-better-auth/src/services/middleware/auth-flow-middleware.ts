@@ -1,6 +1,7 @@
-import { type NextFunction, type Request, type Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import ms from 'ms';
 import { IdpOwoxConfig } from '../../config/idp-owox-config.js';
+import { PageController } from '../../controllers/page-controller.js';
 import { SOURCE } from '../../core/constants.js';
 import { logger } from '../../core/logger.js';
 import { generatePkce, generateState } from '../../core/pkce.js';
@@ -9,14 +10,13 @@ import { buildAuthRequestContext } from '../../types/auth-request-context.js';
 import { buildPlatformEntryUrl } from '../../utils/platform-redirect-builder.js';
 import { extractPlatformParams } from '../../utils/request-utils.js';
 import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
-import { PageService } from '../rendering/page-service.js';
 
 /**
  * Express middleware handlers for starting PKCE and fast-path sign-in.
  */
-export class MiddlewareService {
+export class AuthFlowMiddleware {
   constructor(
-    private readonly pageService: PageService,
+    private readonly pageController: PageController,
     private readonly idpOwoxConfig: IdpOwoxConfig,
     private readonly store: DatabaseStore,
     private readonly pkceFlowOrchestrator: PkceFlowOrchestrator
@@ -70,7 +70,7 @@ export class MiddlewareService {
       }
     }
 
-    return this.pageService.signInPage.bind(this.pageService)(req, res);
+    return this.pageController.signInPage.bind(this.pageController)(req, res);
   }
 
   async signUpMiddleware(
@@ -78,6 +78,6 @@ export class MiddlewareService {
     res: Response,
     _next: NextFunction
   ): Promise<void | Response> {
-    return this.pageService.signUpPage.bind(this.pageService)(req, res);
+    return this.pageController.signUpPage.bind(this.pageController)(req, res);
   }
 }

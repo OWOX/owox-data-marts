@@ -11,7 +11,7 @@
     "build:idp-protocol": "npm run build -w @owox/idp-protocol --prefix ../..",
     "build:internal-helpers": "npm run build -w @owox/internal-helpers --prefix ../..",
     "clean": "shx rm -rf dist",
-    "test": "jest",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "lint": "eslint . --config ./eslint.config.js",
     "lint:fix": "eslint . --fix --config ./eslint.config.js",
     "format": "prettier --write \"**/*.{ts,js,json,md}\" --ignore-path ../../.prettierignore",

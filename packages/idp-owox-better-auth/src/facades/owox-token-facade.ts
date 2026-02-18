@@ -1,5 +1,4 @@
 import { AuthResult, Payload } from '@owox/idp-protocol';
-import { Logger } from '@owox/internal-helpers';
 import { NextFunction, Request, Response } from 'express';
 import {
   IdentityOwoxClient,
@@ -11,6 +10,7 @@ import {
 } from '../client/index.js';
 import type { IdpOwoxConfig } from '../config/idp-owox-config.js';
 import { CORE_REFRESH_TOKEN_COOKIE } from '../core/constants.js';
+import { logger } from '../core/logger.js';
 import {
   AuthenticationException,
   ForbiddenException,
@@ -32,7 +32,6 @@ export class OwoxTokenFacade {
     private readonly identityClient: IdentityOwoxClient,
     private readonly store: DatabaseStore,
     private readonly config: IdpOwoxConfig,
-    private readonly logger: Logger,
     private readonly cookieName: string = CORE_REFRESH_TOKEN_COOKIE
   ) {
     const tokenCfg: TokenServiceConfig = {
@@ -79,7 +78,7 @@ export class OwoxTokenFacade {
   }
 
   async verifyToken(token: string): Promise<Payload | null> {
-    return this.tokenService.verify(token);
+    return this.tokenService.parse(token);
   }
 
   async refreshToken(refreshToken: string): Promise<AuthResult> {
@@ -130,7 +129,7 @@ export class OwoxTokenFacade {
     } catch (error: unknown) {
       clearCookie(res, this.cookieName, req);
       if (error instanceof ForbiddenException) {
-        this.logger.warn('Access Token middleware received 403 code', {
+        logger.warn('Access Token middleware received 403 code', {
           context: error.name,
           params: error.context,
           cause: error.cause,
@@ -139,7 +138,7 @@ export class OwoxTokenFacade {
       }
 
       if (error instanceof AuthenticationException) {
-        this.logger.info(this.tokenService.formatError(error), {
+        logger.info(this.tokenService.formatError(error), {
           context: error.name,
           params: error.context,
           cause: error.cause,
@@ -148,7 +147,7 @@ export class OwoxTokenFacade {
       }
 
       if (error instanceof IdpFailedException) {
-        this.logger.error(
+        logger.error(
           'Access Token middleware failed with unexpected code',
           error.context,
           error.cause
@@ -156,8 +155,8 @@ export class OwoxTokenFacade {
         return res.json({ reason: 'atm5' });
       }
 
-      this.logger.error(this.tokenService.formatError(error));
-      return res.json({ reason: 'atm6' });
+      logger.error(this.tokenService.formatError(error));
+      return res.status(502).json({ reason: 'atm6' });
     }
   }
 

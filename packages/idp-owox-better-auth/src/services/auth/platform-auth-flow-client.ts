@@ -11,7 +11,6 @@ export type UserInfoPayload = AuthFlowRequest;
 export class PlatformAuthFlowClient {
   constructor(private readonly identityClient: IdentityOwoxClient) {}
 
-  /** Exchanges user info for a one-time authorization code. */
   async completeAuthFlow(payload: UserInfoPayload): Promise<{ code: string }> {
     logger.info('Completing auth flow', {
       hasState: Boolean(payload.state),

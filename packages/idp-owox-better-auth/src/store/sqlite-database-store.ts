@@ -78,12 +78,14 @@ export class SqliteDatabaseStore implements DatabaseStore {
   }
 
   private mapUser(row: Record<string, unknown>): DatabaseUser {
+    const lastLoginMethod = row.lastLoginMethod ?? row.last_login_method;
     return {
       id: String(row.id),
       email: String(row.email),
       emailVerified: this.toBoolean(row.emailVerified),
       name: row.name != null ? String(row.name) : undefined,
       image: row.image != null ? String(row.image) : null,
+      lastLoginMethod: lastLoginMethod != null ? String(lastLoginMethod) : undefined,
       createdAt: this.toIso(row.createdAt),
     };
   }
@@ -173,10 +175,38 @@ export class SqliteDatabaseStore implements DatabaseStore {
   async getAccountByUserId(userId: string): Promise<DatabaseAccount | null> {
     await this.connect();
     const stmt = this.getDb().prepare(
-      'SELECT id, accountId, providerId, userId, createdAt FROM account WHERE userId = ? ORDER BY createdAt DESC LIMIT 1'
+      'SELECT id, accountId, providerId, userId, createdAt FROM account WHERE userId = ? ORDER BY updatedAt DESC LIMIT 1'
     );
     const row = stmt.get(userId) as Record<string, unknown> | undefined;
     return row ? this.mapAccount(row) : null;
+  }
+
+  async getAccountsByUserId(userId: string): Promise<DatabaseAccount[]> {
+    await this.connect();
+    const stmt = this.getDb().prepare(
+      'SELECT id, accountId, providerId, userId, createdAt FROM account WHERE userId = ? ORDER BY updatedAt DESC'
+    );
+    const rows = stmt.all(userId) as Array<Record<string, unknown>>;
+    return rows.map(row => this.mapAccount(row));
+  }
+
+  async getAccountByUserIdAndProvider(
+    userId: string,
+    providerId: string
+  ): Promise<DatabaseAccount | null> {
+    await this.connect();
+    const stmt = this.getDb().prepare(
+      'SELECT id, accountId, providerId, userId, createdAt FROM account WHERE userId = ? AND providerId = ? ORDER BY updatedAt DESC LIMIT 1'
+    );
+    const row = stmt.get(userId, providerId) as Record<string, unknown> | undefined;
+    return row ? this.mapAccount(row) : null;
+  }
+
+  async updateUserLastLoginMethod(userId: string, loginMethod: string): Promise<void> {
+    await this.connect();
+    this.getDb()
+      .prepare('UPDATE user SET lastLoginMethod = ? WHERE id = ?')
+      .run(loginMethod, userId);
   }
 
   async saveAuthState(state: string, codeVerifier: string, expiresAt?: Date | null): Promise<void> {
@@ -229,5 +259,54 @@ export class SqliteDatabaseStore implements DatabaseStore {
       )
       .run();
     return Number(res.changes ?? 0);
+  }
+
+  /**
+   * Escapes special LIKE pattern characters (%, _, \) to prevent SQL injection.
+   */
+  private escapeLikePattern(value: string): string {
+    return value.replace(/[%_\\]/g, '\\$&');
+  }
+
+  async findActiveMagicLink(
+    email: string
+  ): Promise<{ id: string; createdAt?: Date | null; expiresAt?: Date | null } | null> {
+    await this.connect();
+    const escapedEmail = this.escapeLikePattern(email.toLowerCase());
+    const pattern = `%\\"email\\":\\"${escapedEmail}\\"%`;
+    const row = this.getDb()
+      .prepare(
+        `SELECT id, createdAt, expiresAt 
+         FROM verification 
+         WHERE lower(value) LIKE ? 
+         ORDER BY expiresAt DESC 
+         LIMIT 1`
+      )
+      .get(pattern) as
+      | { id?: string; createdAt?: string | Date | null; expiresAt?: string | Date | null }
+      | undefined;
+
+    if (!row?.id) {
+      return null;
+    }
+
+    const expiresAt =
+      row.expiresAt instanceof Date
+        ? row.expiresAt
+        : row.expiresAt
+          ? new Date(String(row.expiresAt))
+          : null;
+    const createdAt =
+      row.createdAt instanceof Date
+        ? row.createdAt
+        : row.createdAt
+          ? new Date(String(row.createdAt))
+          : null;
+
+    return {
+      id: String(row.id),
+      createdAt: createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt : null,
+      expiresAt: expiresAt && !Number.isNaN(expiresAt.getTime()) ? expiresAt : null,
+    };
   }
 }

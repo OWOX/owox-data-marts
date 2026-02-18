@@ -4,18 +4,17 @@ import {
   type Response as ExpressResponse,
   type NextFunction,
 } from 'express';
-import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
 import { createBetterAuthConfig } from '../../config/idp-better-auth-config.js';
-import { BETTER_AUTH_SESSION_COOKIE } from '../../core/constants.js';
+import { BETTER_AUTH_BASE_PATH, BETTER_AUTH_SESSION_COOKIE } from '../../core/constants.js';
 import { logger } from '../../core/logger.js';
+import { convertExpressToFetchRequest } from '../../utils/express-compat.js';
 import { extractPlatformParams } from '../../utils/request-utils.js';
+import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
 
 /**
  * Proxies Better Auth requests and completes social login flow.
  */
-export class RequestHandlerService {
-  private static readonly AUTH_ROUTE_PREFIX = '/auth/better-auth';
-
+export class BetterAuthProxyHandler {
   constructor(
     private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
     private readonly pkceFlowOrchestrator: PkceFlowOrchestrator
@@ -23,7 +22,7 @@ export class RequestHandlerService {
 
   setupBetterAuthHandler(expressApp: Express): void {
     expressApp.use(async (req: ExpressRequest, res: ExpressResponse, next: NextFunction) => {
-      if (!req.path.startsWith(RequestHandlerService.AUTH_ROUTE_PREFIX)) {
+      if (!req.path.startsWith(BETTER_AUTH_BASE_PATH)) {
         return next();
       }
 
@@ -94,12 +93,14 @@ export class RequestHandlerService {
   ): Promise<boolean> {
     const sessionToken = this.getSessionTokenFromResponse(response);
     if (!sessionToken) return false;
+    const callbackProviderId = this.resolveCallbackProviderId(req.path);
 
     const redirectUrl = await this.pkceFlowOrchestrator.completeWithSocialSessionToken(
       sessionToken,
       extractPlatformParams(req),
       req,
-      res
+      res,
+      callbackProviderId
     );
     if (redirectUrl) {
       res.redirect(redirectUrl.toString());
@@ -108,59 +109,19 @@ export class RequestHandlerService {
     return false;
   }
 
-  convertExpressToFetchRequest(req: ExpressRequest): Request {
-    try {
-      const url = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
-      const method = req.method.toUpperCase();
-      const headers = new Headers();
-
-      for (const [key, value] of Object.entries(req.headers)) {
-        if (!value) continue;
-        if (Array.isArray(value)) {
-          headers.set(key, value.join(', '));
-        } else {
-          headers.set(key, String(value));
-        }
-      }
-
-      let body: string | Buffer | null = null;
-      if (method !== 'GET' && method !== 'HEAD') {
-        const rawBody = req.body;
-        if (rawBody !== undefined && rawBody !== null) {
-          if (Buffer.isBuffer(rawBody)) {
-            body = rawBody;
-          } else if (typeof rawBody === 'string') {
-            body = rawBody;
-          } else {
-            body = JSON.stringify(rawBody);
-            if (!headers.has('content-type')) {
-              headers.set('content-type', 'application/json');
-            }
-          }
-
-          // Ensure content-length matches the rebuilt payload (or let fetch set it)
-          headers.delete('content-length');
-          if (typeof body === 'string') {
-            headers.set('content-length', Buffer.byteLength(body).toString());
-          } else if (Buffer.isBuffer(body)) {
-            headers.set('content-length', body.byteLength.toString());
-          }
-        }
-      }
-
-      const fetchBody: BodyInit | null =
-        body === null ? null : typeof body === 'string' ? body : new Uint8Array(body);
-
-      const fetchRequest = new Request(url, {
-        method,
-        headers,
-        body: fetchBody ?? undefined,
-      });
-
-      return fetchRequest;
-    } catch (error) {
-      logger.error('Failed to convert Express request to Fetch request', {}, error as Error);
-      throw new Error('Failed to convert request format');
+  private resolveCallbackProviderId(path: string | undefined): string | undefined {
+    if (!path) return undefined;
+    const callbackMatch = path.match(/\/callback\/([^/]+)/);
+    if (callbackMatch?.[1]) {
+      return callbackMatch[1].trim().toLowerCase();
     }
+    if (path.includes('/sign-in/email') || path.includes('/sign-up/email')) {
+      return 'credential';
+    }
+    return undefined;
+  }
+
+  convertExpressToFetchRequest(req: ExpressRequest): globalThis.Request {
+    return convertExpressToFetchRequest(req, logger);
   }
 }

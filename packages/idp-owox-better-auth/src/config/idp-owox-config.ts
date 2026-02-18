@@ -5,7 +5,14 @@ import ms from 'ms';
 import type { PoolOptions } from 'mysql2';
 import { dirname, join } from 'path';
 import { z } from 'zod';
-import type { BetterAuthConfig, DatabaseConfig, SocialProvidersConfig } from '../types/index.js';
+import type {
+  BetterAuthConfig,
+  DatabaseConfig,
+  EmailConfig,
+  SocialProvidersConfig,
+  UiAuthProviders,
+} from '../types/index.js';
+import { BETTER_AUTH_BASE_PATH } from '../core/constants.js';
 
 const zMsString = z
   .string()
@@ -14,14 +21,14 @@ const zMsString = z
   })
   .transform(s => s as ms.StringValue);
 
+import { tryNormalizeOrigin } from '../utils/url-utils.js';
+
 function normalizeOrigin(value: string, label: string): string {
-  try {
-    return new URL(value).origin;
-  } catch (error) {
-    throw new Error(
-      `Invalid ${label} value: ${value}. ${error instanceof Error ? error.message : error}`
-    );
+  const origin = tryNormalizeOrigin(value);
+  if (!origin) {
+    throw new Error(`Invalid ${label} value: ${value}`);
   }
+  return origin;
 }
 
 function ensureValidUrl(value: string): string {
@@ -217,15 +224,31 @@ export type IdpOwoxConfig = {
 /** ---------- Better Auth (UI/auth) config ---------- */
 
 const DEFAULT_SESSION_MAX_AGE = 60 * 30; // 30 minutes
+const DEFAULT_MAGIC_LINK_TTL = 60 * 60; // 1 hour
 
 const BetterAuthEnvSchema = z.object({
   IDP_BETTER_AUTH_SECRET: z.string().min(32, 'IDP_BETTER_AUTH_SECRET is required'),
   IDP_BETTER_AUTH_SESSION_MAX_AGE: z.string().optional(),
   IDP_BETTER_AUTH_TRUSTED_ORIGINS: z.string().optional(),
+  IDP_BETTER_AUTH_MAGIC_LINK_TTL: z.string().optional(),
+  IDP_BETTER_AUTH_PROVIDERS: z.string().optional(),
   IDP_BETTER_AUTH_GOOGLE_CLIENT_ID: z.string().optional(),
   IDP_BETTER_AUTH_GOOGLE_CLIENT_SECRET: z.string().optional(),
   IDP_BETTER_AUTH_GOOGLE_PROMPT: z.string().optional(),
   IDP_BETTER_AUTH_GOOGLE_ACCESS_TYPE: z.string().optional(),
+  IDP_BETTER_AUTH_MICROSOFT_CLIENT_ID: z.string().optional(),
+  IDP_BETTER_AUTH_MICROSOFT_CLIENT_SECRET: z.string().optional(),
+  IDP_BETTER_AUTH_MICROSOFT_TENANT_ID: z.string().optional(),
+  IDP_BETTER_AUTH_MICROSOFT_AUTHORITY: z.string().optional(),
+  IDP_BETTER_AUTH_MICROSOFT_PROMPT: z.string().optional(),
+});
+
+const SendgridEnvSchema = z.object({
+  SENDGRID_API_KEY: z.string().min(1, 'SENDGRID_API_KEY is required'),
+  IDP_OWOX_SENDGRID_VERIFIED_SENDER_EMAIL: z
+    .string()
+    .email('IDP_OWOX_SENDGRID_VERIFIED_SENDER_EMAIL must be a valid email'),
+  IDP_OWOX_SENDGRID_VERIFIED_SENDER_NAME: z.string().trim().optional().default('Service @ OWOX'),
 });
 
 type Env = NodeJS.ProcessEnv;
@@ -257,6 +280,21 @@ function parseTrustedOrigins(raw: string | undefined, baseUrl: string | undefine
   return Array.from(new Set(origins));
 }
 
+function parseUiProviders(raw: string | undefined): UiAuthProviders {
+  const parts = (raw ?? 'google')
+    .split(',')
+    .map(x => x.trim().toLowerCase())
+    .filter(Boolean);
+
+  const providerSet = new Set(parts);
+
+  return {
+    google: true,
+    microsoft: providerSet.has('microsoft'),
+    email: providerSet.has('email'),
+  };
+}
+
 function buildSocialProviders(
   env: z.infer<typeof BetterAuthEnvSchema>,
   baseURL: string | undefined
@@ -268,10 +306,23 @@ function buildSocialProviders(
       clientId: env.IDP_BETTER_AUTH_GOOGLE_CLIENT_ID,
       clientSecret: env.IDP_BETTER_AUTH_GOOGLE_CLIENT_SECRET,
       redirectURI: baseURL
-        ? `${baseURL.replace(/\/$/, '')}/auth/better-auth/callback/google`
+        ? `${baseURL.replace(/\/$/, '')}${BETTER_AUTH_BASE_PATH}/callback/google`
         : undefined,
       prompt: env.IDP_BETTER_AUTH_GOOGLE_PROMPT ?? 'select_account',
       accessType: env.IDP_BETTER_AUTH_GOOGLE_ACCESS_TYPE ?? 'offline',
+    };
+  }
+
+  if (env.IDP_BETTER_AUTH_MICROSOFT_CLIENT_ID && env.IDP_BETTER_AUTH_MICROSOFT_CLIENT_SECRET) {
+    social.microsoft = {
+      clientId: env.IDP_BETTER_AUTH_MICROSOFT_CLIENT_ID,
+      clientSecret: env.IDP_BETTER_AUTH_MICROSOFT_CLIENT_SECRET,
+      tenantId: env.IDP_BETTER_AUTH_MICROSOFT_TENANT_ID ?? 'common',
+      authority: env.IDP_BETTER_AUTH_MICROSOFT_AUTHORITY ?? 'https://login.microsoftonline.com',
+      prompt: env.IDP_BETTER_AUTH_MICROSOFT_PROMPT ?? 'select_account',
+      redirectURI: baseURL
+        ? `${baseURL.replace(/\/$/, '')}${BETTER_AUTH_BASE_PATH}/callback/microsoft`
+        : undefined,
     };
   }
 
@@ -281,6 +332,8 @@ function buildSocialProviders(
 export type BetterAuthProviderConfig = {
   betterAuth: BetterAuthConfig;
   idpOwox: IdpOwoxConfig;
+  email: EmailConfig;
+  uiProviders: UiAuthProviders;
 };
 
 /**
@@ -315,17 +368,32 @@ export function loadBetterAuthProviderConfigFromEnv(
 ): BetterAuthProviderConfig {
   const idpOwox = loadIdpOwoxConfigFromEnv(env);
   const baEnv = BetterAuthEnvSchema.parse(env);
+  const sendgridEnv = SendgridEnvSchema.parse(env);
 
   const safeBaseURL = resolveBaseUrl(env);
+  const uiProviders = parseUiProviders(baEnv.IDP_BETTER_AUTH_PROVIDERS);
 
   const betterAuthConfig: BetterAuthConfig = {
     database: idpOwox.dbConfig,
     secret: baEnv.IDP_BETTER_AUTH_SECRET,
     baseURL: safeBaseURL,
     session: { maxAge: toNumber(baEnv.IDP_BETTER_AUTH_SESSION_MAX_AGE, DEFAULT_SESSION_MAX_AGE) },
+    magicLinkTtl: toNumber(baEnv.IDP_BETTER_AUTH_MAGIC_LINK_TTL, DEFAULT_MAGIC_LINK_TTL),
     trustedOrigins: parseTrustedOrigins(baEnv.IDP_BETTER_AUTH_TRUSTED_ORIGINS, safeBaseURL),
     socialProviders: buildSocialProviders(baEnv, safeBaseURL),
   };
 
-  return { betterAuth: betterAuthConfig, idpOwox };
+  return {
+    betterAuth: betterAuthConfig,
+    idpOwox,
+    email: {
+      provider: 'sendgrid',
+      sendgrid: {
+        apiKey: sendgridEnv.SENDGRID_API_KEY,
+        verifiedSenderEmail: sendgridEnv.IDP_OWOX_SENDGRID_VERIFIED_SENDER_EMAIL,
+        verifiedSenderName: sendgridEnv.IDP_OWOX_SENDGRID_VERIFIED_SENDER_NAME,
+      },
+    },
+    uiProviders,
+  };
 }

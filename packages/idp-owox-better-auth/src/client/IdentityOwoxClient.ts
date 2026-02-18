@@ -98,8 +98,15 @@ export class IdentityOwoxClient {
    * POST /api/idp/revocation
    */
   async revokeToken(req: RevocationRequest): Promise<RevocationResponse> {
-    const resp = await this.http.post<void>('/api/idp/revocation', req);
-    return { success: resp.status >= 200 && resp.status < 300 };
+    try {
+      const resp = await this.http.post<void>('/api/idp/revocation', req);
+      return { success: resp.status >= 200 && resp.status < 300 };
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        return { success: false };
+      }
+      throw err;
+    }
   }
 
   /**

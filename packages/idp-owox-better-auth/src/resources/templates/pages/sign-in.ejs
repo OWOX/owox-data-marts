@@ -1,66 +1,273 @@
 <!-- Sign In Content -->
 <div class="space-y-6">
-  <!-- Message -->
-  <p class="text-center text-sm text-muted-foreground">
-    Be confident that your data is protected by Google's infrastructure security standards.
-  </p>
+  <!-- Page Heading -->
+  <div class="text-center">
+    <h1 class="text-3xl font-semibold text-foreground tracking-tight">
+      Sign in
+    </h1>
+  </div>
+  <% const enabledProviders = providers || {}; %>
+  <% if (errorMessage) { %>
+    <div class="rounded-md border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
+      <%= errorMessage %>
+    </div>
+  <% } %>
+  <% if (infoMessage) { %>
+    <div class="rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700 px-4 py-3 text-sm">
+      <%= infoMessage %>
+    </div>
+  <% } %>
 
-  <!-- Sign in button -->
-  <button
-    id="google-signin"
-    type="button"
-    class="w-full inline-flex justify-center items-center gap-2 py-2 px-4 border border-border rounded-md text-sm font-medium text-foreground bg-background hover:bg-muted transition-colors"
-  >
-    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" x="0px" y="0px" width="100" height="100" viewBox="0 0 48 48">
-      <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"></path><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"></path><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"></path><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"></path>
-    </svg>
-    <span>Sign in with Google</span>
-  </button>
+  <!-- Social Authentication Buttons -->
+  <div class="space-y-3">
+    <% if (enabledProviders.google) { %>
+      <button
+        id="google-signin"
+        type="button"
+        class="relative w-full inline-flex justify-center items-center gap-2 py-2.5 px-4 border border-border rounded-md text-sm font-medium text-foreground bg-background hover:bg-muted transition-colors"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 48 48">
+          <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"></path><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"></path><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"></path><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"></path>
+        </svg>
+        <span>Continue with Google</span>
+        <span id="google-badge" class="hidden absolute -top-2 -right-2 bg-background text-primary text-xs font-semibold px-2 py-0.5 rounded border border-primary">Last used</span>
+      </button>
+    <% } %>
+    <% if (enabledProviders.microsoft) { %>
+      <button
+        id="microsoft-signin"
+        type="button"
+        class="relative w-full inline-flex justify-center items-center gap-2 py-2.5 px-4 border border-border rounded-md text-sm font-medium text-foreground bg-background hover:bg-muted transition-colors"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 23 23">
+          <rect width="10" height="10" x="1" y="1" fill="#f35325"></rect>
+          <rect width="10" height="10" x="12" y="1" fill="#81bc06"></rect>
+          <rect width="10" height="10" x="1" y="12" fill="#05a6f0"></rect>
+          <rect width="10" height="10" x="12" y="12" fill="#ffba08"></rect>
+        </svg>
+        <span>Continue with Microsoft</span>
+        <span id="microsoft-badge" class="hidden absolute -top-2 -right-2 bg-background text-primary text-xs font-semibold px-2 py-0.5 rounded border border-primary">Last used</span>
+      </button>
+    <% } %>
+  </div>
 
-  <!-- Sign up link -->
+  <% if (enabledProviders.email) { %>
+    <!-- OR Divider -->
+    <div class="relative">
+      <div class="absolute inset-0 flex items-center">
+        <div class="w-full border-t border-border"></div>
+      </div>
+      <div class="relative flex justify-center text-sm">
+        <span class="px-2 bg-card text-muted-foreground">OR</span>
+      </div>
+    </div>
+
+    <!-- Email/Password Form -->
+    <form id="email-signin-form" class="space-y-4" novalidate>
+      <div class="space-y-1">
+        <label for="email" class="block text-sm font-medium text-foreground">Email</label>
+        <input
+          id="email"
+          name="email"
+          type="email"
+          autocomplete="email"
+          required
+          class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+          placeholder="you.data.hero@example.com"
+        />
+      </div>
+      <div class="space-y-1">
+        <div class="flex items-center justify-between">
+          <label for="password" class="block text-sm font-medium text-foreground">Password</label>
+          <a href="/auth/forgot-password" class="text-xs text-primary hover:text-primary/80">Forgot password?</a>
+        </div>
+        <div class="relative">
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            required
+            class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary pr-10"
+            placeholder="••••••••"
+          />
+          <button
+            type="button"
+            id="toggle-password"
+            class="absolute inset-y-0 right-0 px-3 text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Toggle password visibility"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path id="eye-open" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+              <path id="eye-open-2" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+              <path id="eye-closed" class="hidden" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <button
+        id="email-signin-submit"
+        type="submit"
+        class="relative w-full inline-flex justify-center items-center gap-2 py-2 px-4 rounded-md text-sm font-medium text-foreground bg-secondary hover:bg-secondary/80 transition-colors disabled:opacity-60"
+      >
+        Sign in
+        <span id="email-badge" class="hidden absolute -top-2 -right-2 bg-background text-primary text-xs font-semibold px-2 py-0.5 rounded border border-primary">Last used</span>
+      </button>
+      <p id="email-signin-status" class="text-sm text-red-600 min-h-[20px]" aria-live="polite"></p>
+    </form>
+  <% } %>
+
   <p class="text-center text-sm text-muted-foreground">
     Don't have an account?
-    <a href="/auth/sign-up" class="font-medium text-primary hover:text-primary/80">Create one</a>
+    <a href="/auth/sign-up" class="font-medium text-primary hover:text-primary/80">Create your account</a>
   </p>
 </div>
 
+<%- include('../partials/social-auth') %>
 <script>
   const urlParams = new URLSearchParams(window.location.search);
   const redirect = urlParams.get('redirect');
   const googleButton = document.getElementById('google-signin');
+  const microsoftButton = document.getElementById('microsoft-signin');
+  const emailForm = document.getElementById('email-signin-form');
+  const statusEl = document.getElementById('email-signin-status');
+  const submitBtn = document.getElementById('email-signin-submit');
 
-  async function submitSocial(provider) {
-    const callbackURL = redirect || '/';
+  function setStatus(message, type = 'error') {
+    if (!statusEl) return;
+    statusEl.textContent = message || '';
+    if (type === 'error') {
+      statusEl.classList.remove('text-emerald-700');
+      statusEl.classList.add('text-red-600');
+    } else {
+      statusEl.classList.remove('text-red-600');
+      statusEl.classList.add('text-emerald-700');
+    }
+  }
+
+  // Last Used Provider Badge Logic
+  const LAST_PROVIDER_KEY = 'owox_last_auth_provider';
+  
+  function showLastUsedBadge() {
+    const lastProvider = localStorage.getItem(LAST_PROVIDER_KEY);
+    if (!lastProvider) return;
+    
+    // Hide all badges first
+    ['google-badge', 'microsoft-badge', 'email-badge'].forEach((badgeId) => {
+      document.getElementById(badgeId)?.classList.add('hidden');
+    });
+    
+    // Show badge for last used provider
+    const badgeId = `${lastProvider}-badge`;
+    document.getElementById(badgeId)?.classList.remove('hidden');
+  }
+  
+  function saveLastUsedProvider(provider) {
     try {
-      const response = await fetch('/auth/better-auth/sign-in/social', {
+      localStorage.setItem(LAST_PROVIDER_KEY, provider);
+    } catch (error) {
+      console.error('Failed to save last used provider', error);
+    }
+  }
+
+  async function submitEmailSignIn(event) {
+    event.preventDefault();
+    if (!emailForm || !submitBtn) return;
+
+    const email = emailForm.email?.value?.trim();
+    const password = emailForm.password?.value;
+    if (!email || !password) {
+      setStatus('Email and password are required.');
+      return;
+    }
+
+    submitBtn.disabled = true;
+    setStatus('');
+
+    try {
+      const response = await fetch('/auth/better-auth/sign-in/email', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ provider, callbackURL }),
+        body: JSON.stringify({
+          email,
+          password,
+          callbackURL: redirect || '/',
+        }),
         redirect: 'follow',
       });
 
       if (response.redirected) {
+        saveLastUsedProvider('email');
         window.location.href = response.url;
         return;
       }
 
       const contentType = response.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
-        const data = await response.json();
-        if (data?.url) {
-          window.location.href = data.url;
-          return;
+      if (response.ok) {
+        saveLastUsedProvider('email');
+        if (contentType.includes('application/json')) {
+          const data = await response.json();
+          if (data?.url) {
+            window.location.href = data.url;
+            return;
+          }
         }
+        window.location.reload();
+        return;
       }
 
-      // Fallback: reload to let server set cookies if any
-      window.location.reload();
+      let message = 'Unable to sign in. Please check your credentials.';
+      if (contentType.includes('application/json')) {
+        const data = await response.json().catch(() => null);
+        if (data?.error) {
+          message = data.error;
+        }
+      } else {
+        const text = await response.text().catch(() => '');
+        if (text) message = text;
+      }
+      setStatus(message);
     } catch (error) {
-      console.error('Social sign-in failed', error);
+      console.error('Email sign-in failed', error);
+      setStatus('Sign-in failed. Please try again or try a different sign-in method.');
+    } finally {
+      submitBtn.disabled = false;
     }
   }
 
   googleButton?.addEventListener('click', () => submitSocial('google'));
+  microsoftButton?.addEventListener('click', () => submitSocial('microsoft'));
+  emailForm?.addEventListener('submit', submitEmailSignIn);
+
+  // Password visibility toggle
+  const passwordInput = document.getElementById('password');
+  const togglePassword = document.getElementById('toggle-password');
+
+  function togglePasswordVisibility() {
+    if (!passwordInput || !togglePassword) return;
+    
+    const isPassword = passwordInput.type === 'password';
+    passwordInput.type = isPassword ? 'text' : 'password';
+    
+    const openPaths = togglePassword.querySelectorAll('#eye-open, #eye-open-2');
+    const closedPath = togglePassword.querySelector('#eye-closed');
+    
+    if (isPassword) {
+      // Showing password - show closed eye
+      openPaths.forEach(path => path.classList.add('hidden'));
+      closedPath?.classList.remove('hidden');
+    } else {
+      // Hiding password - show open eye
+      openPaths.forEach(path => path.classList.remove('hidden'));
+      closedPath?.classList.add('hidden');
+    }
+  }
+
+  togglePassword?.addEventListener('click', togglePasswordVisibility);
+
+  // Show last used badge on page load
+  showLastUsedBadge();
+
 </script>

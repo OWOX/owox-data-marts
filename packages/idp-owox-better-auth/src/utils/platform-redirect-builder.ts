@@ -1,4 +1,5 @@
 import { PlatformParams } from './request-utils.js';
+import { tryNormalizeOrigin } from './url-utils.js';
 
 export interface PlatformRedirectOptions {
   baseUrl?: string | null;
@@ -21,14 +22,6 @@ function isRelativePath(value: string): boolean {
   return value.startsWith('/') && !value.startsWith('//');
 }
 
-function normalizeOrigin(value: string): string | null {
-  try {
-    return new URL(value).origin;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Sanitizes redirect parameters to avoid open redirects.
  */
@@ -40,7 +33,7 @@ export function sanitizeRedirectParam(
   const trimmed = value.trim();
   if (!trimmed) return undefined;
   if (isRelativePath(trimmed)) return trimmed;
-  const origin = normalizeOrigin(trimmed);
+  const origin = tryNormalizeOrigin(trimmed);
   if (!origin || !allowedRedirectOrigins?.length) return undefined;
   return allowedRedirectOrigins.includes(origin) ? trimmed : undefined;
 }

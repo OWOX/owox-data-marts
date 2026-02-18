@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import type { Payload } from '@owox/idp-protocol';
-import type { Logger } from '@owox/internal-helpers';
 import { AuthenticationException } from '../../core/exceptions.js';
 import type { OwoxTokenFacade } from '../../facades/owox-token-facade.js';
 import type { DatabaseStore } from '../../store/database-store.js';
@@ -10,24 +9,22 @@ import { UserContextService } from './user-context-service.js';
 describe('UserContextService', () => {
   let store: jest.Mocked<DatabaseStore>;
   let tokenFacade: jest.Mocked<OwoxTokenFacade>;
-  let logger: jest.Mocked<Logger>;
   let service: UserContextService;
 
   beforeEach(() => {
     store = {
       getUserByEmail: jest.fn(),
       getAccountByUserId: jest.fn(),
+      getAccountsByUserId: jest.fn(),
+      getAccountByUserIdAndProvider: jest.fn(),
+      updateUserLastLoginMethod: jest.fn(),
     } as unknown as jest.Mocked<DatabaseStore>;
 
     tokenFacade = {
       parseToken: jest.fn(),
     } as unknown as jest.Mocked<OwoxTokenFacade>;
 
-    logger = {
-      debug: jest.fn(),
-    } as unknown as jest.Mocked<Logger>;
-
-    service = new UserContextService(store, tokenFacade, logger);
+    service = new UserContextService(store, tokenFacade);
   });
 
   it('normalizes email before lookup and resolves verified user context', async () => {
