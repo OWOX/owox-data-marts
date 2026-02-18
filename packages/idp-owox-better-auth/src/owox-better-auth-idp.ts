@@ -104,7 +104,6 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     );
   }
   async getProjectMembers(projectId: string): Promise<ProjectMember[]> {
-    this.logger.debug(`Getting project members for project ${projectId}`);
     const response = await this.identityClient.getProjectMembers(projectId);
 
     if (!response.projectMembers || response.projectMembers.length === 0) {
