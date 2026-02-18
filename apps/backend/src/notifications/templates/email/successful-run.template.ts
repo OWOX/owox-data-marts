@@ -2,8 +2,10 @@ import { EMAIL_STYLES } from './assets/styles';
 import { emailHeader, emailFooter, dmCardStart, dmCardEnd } from './assets/blocks';
 
 // Subject templates
-export const successfulRunEmailSubjectSingle = '🟢 Data Mart run completed: {{dataMartTitle}}';
-export const successfulRunEmailSubjectBatch = '🟢 {{count}} Data Mart runs completed';
+export const successfulRunEmailSubjectSingle =
+  '🟢 Data Mart run completed - Project: {{projectTitle}}';
+export const successfulRunEmailSubjectBatch =
+  '🟢 {{count}} Data Mart runs completed - Project: {{projectTitle}}';
 
 export const successfulRunEmailTemplate = `<!doctype html>
 <html lang="en">
@@ -15,8 +17,8 @@ export const successfulRunEmailTemplate = `<!doctype html>
 </head>
 <body style="Margin:0;padding:0;background-color:#f4f5f7;font-family:Arial, Helvetica, sans-serif;">
 
-  <div class="preheader" style="font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">
-    Data Mart runs completed successfully in project {{projectTitle}}
+  <div class="preheader" style="font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;">
+    Data is up to date and ready to use${'&nbsp;&zwnj;'.repeat(150)}
   </div>
 
   <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f4f5f7;">

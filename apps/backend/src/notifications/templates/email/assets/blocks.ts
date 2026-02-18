@@ -16,7 +16,7 @@ export const emailHeader = `
                     </a>
                   </td>
                   <td class="stack-column stack-column-center header-right" style="vertical-align:middle;text-align:right;font-size:13px;color:#6b7280;padding-left:12px;">
-                    <span style="display:inline-block;">Project: {{projectTitle}}</span>
+                    <span style="display:inline-block;">Project: <a href="{{projectUrl}}" target="_blank" rel="noopener noreferrer" style="color:#1E88E5;text-decoration:none;">{{projectTitle}}</a></span>
                   </td>
                 </tr>
               </table>
@@ -30,7 +30,7 @@ export const emailFooter = `
               <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="vertical-align:middle;text-align:left;font-size:13px;color:#6b7280;">
-                    <span>This is an automated notification from OWOX Data Marts.</span>
+                    <span>This is an <a href="{{projectNotificationsUrl}}" target="_blank" rel="noopener noreferrer" style="color:#1E88E5;text-decoration:none;">automated notification</a> from OWOX Data Marts.</span>
                   </td>
                   <td style="vertical-align:middle;text-align:right;font-size:13px;color:#6b7280;">
                     Need help?

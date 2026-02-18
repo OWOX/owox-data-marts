@@ -8,7 +8,9 @@ interface TitleFieldProps {
 export function TitleField({ title }: TitleFieldProps) {
   return (
     <FieldItem>
-      <FieldLabel tooltip='The name of this notification type'>Report title</FieldLabel>
+      <FieldLabel tooltip='The name of this notification. Disabled for service predefined notifications'>
+        Notification title
+      </FieldLabel>
       <Input value={title} disabled />
     </FieldItem>
   );

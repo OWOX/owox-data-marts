@@ -1,4 +1,4 @@
-export const OWOX_LOGO = `<img alt="OWOX Data Marts" width="24" style="display:inline-block;vertical-align:middle;" src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/67925ebc5ee92f1146111dd8_34665.png"/>`;
+export const OWOX_LOGO = `<img alt="" width="24" style="display:inline-block;vertical-align:middle;" src="https://cdn.prod.website-files.com/676a9690ef4ec151a6957187/67925ebc5ee92f1146111dd8_34665.png"/>`;
 
 // TODO: replace with CDN URL when available
 export const DM_ICON = '';

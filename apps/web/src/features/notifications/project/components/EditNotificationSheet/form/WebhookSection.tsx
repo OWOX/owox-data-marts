@@ -32,7 +32,9 @@ export function WebhookSection({
   return (
     <FormSection title='Webhook'>
       <FieldItem>
-        <FieldLabel tooltip='URL to send webhook notifications to'>URL</FieldLabel>
+        <FieldLabel tooltip='Enter the URL where webhook notifications should be sent'>
+          Webhook URL
+        </FieldLabel>
         <div className='flex gap-2'>
           <Input
             value={webhookUrl}
@@ -67,10 +69,10 @@ export function WebhookSection({
         <FieldDescription>
           <Accordion variant='common' type='single' collapsible>
             <AccordionItem value='webhook-info'>
-              <AccordionTrigger>What is this?</AccordionTrigger>
+              <AccordionTrigger>How webhooks work?</AccordionTrigger>
               <AccordionContent>
-                Webhooks allow you to receive real-time notifications to your own endpoint. The
-                payload includes event details in JSON format.
+                Webhooks send real-time notifications directly to your endpoint. The request payload
+                contains event details in JSON format.
               </AccordionContent>
             </AccordionItem>
           </Accordion>

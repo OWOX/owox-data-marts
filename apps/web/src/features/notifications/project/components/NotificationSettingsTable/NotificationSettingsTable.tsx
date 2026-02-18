@@ -17,8 +17,8 @@ export function NotificationSettingsTable({
   onToggleEnabled,
 }: NotificationSettingsTableProps) {
   const columns = useMemo(
-    () => getNotificationSettingsColumns({ onToggleEnabled }),
-    [onToggleEnabled]
+    () => getNotificationSettingsColumns({ onToggleEnabled, onEdit: onRowClick }),
+    [onToggleEnabled, onRowClick]
   );
 
   const { table } = useBaseTable<NotificationSettingsItem>({
@@ -45,7 +45,7 @@ export function NotificationSettingsTable({
         table={table}
         onRowClick={handleRowClick}
         ariaLabel='Notification settings table'
-        paginationProps={{ displaySelected: false }}
+        showPagination={false}
         renderEmptyState={() => (
           <span role='status' aria-live='polite'>
             No notification settings found
