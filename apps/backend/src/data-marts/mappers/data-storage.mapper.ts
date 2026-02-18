@@ -9,12 +9,15 @@ import { DeleteDataStorageCommand } from '../dto/domain/delete-data-storage.comm
 import { GetDataStorageCommand } from '../dto/domain/get-data-storage.command';
 import { ListDataStoragesCommand } from '../dto/domain/list-data-storages.command';
 import { UpdateDataStorageCommand } from '../dto/domain/update-data-storage.command';
+import { PublishDataStorageDraftsCommand } from '../dto/domain/publish-data-storage-drafts.command';
+import { PublishDataStorageDraftsResultDto } from '../dto/domain/publish-data-storage-drafts-result.dto';
 import { ValidateDataStorageAccessCommand } from '../dto/domain/validate-data-storage-access.command';
 import { CreateDataStorageApiDto } from '../dto/presentation/create-data-storage-api.dto';
 import { DataStorageAccessValidationResponseApiDto } from '../dto/presentation/data-storage-access-validation-response-api.dto';
 import { DataStorageListResponseApiDto } from '../dto/presentation/data-storage-list-response-api.dto';
 import { DataStorageResponseApiDto } from '../dto/presentation/data-storage-response-api.dto';
 import { UpdateDataStorageApiDto } from '../dto/presentation/update-data-storage-api.dto';
+import { PublishDataStorageDraftsResponseApiDto } from '../dto/presentation/publish-data-storage-drafts-response-api.dto';
 import { DataStorage } from '../entities/data-storage.entity';
 
 @Injectable()
@@ -42,7 +45,7 @@ export class DataStorageMapper {
     );
   }
 
-  toDomainDto(dataStorage: DataStorage, dataMartsCount = 0): DataStorageDto {
+  toDomainDto(dataStorage: DataStorage, publishedCount = 0, draftsCount = 0): DataStorageDto {
     return new DataStorageDto(
       dataStorage.id,
       dataStorage.title || toHumanReadable(dataStorage.type),
@@ -52,7 +55,8 @@ export class DataStorageMapper {
       dataStorage.config,
       dataStorage.createdAt,
       dataStorage.modifiedAt,
-      dataMartsCount
+      publishedCount,
+      draftsCount
     );
   }
 
@@ -91,12 +95,20 @@ export class DataStorageMapper {
       type: dataStorageDto.type,
       createdAt: dataStorageDto.createdAt,
       modifiedAt: dataStorageDto.modifiedAt,
-      dataMartsCount: dataStorageDto.dataMartsCount,
+      publishedDataMartsCount: dataStorageDto.dataMartsCount,
+      draftDataMartsCount: dataStorageDto.draftsCount,
     }));
   }
 
   toDeleteCommand(id: string, context: AuthorizationContext): DeleteDataStorageCommand {
     return new DeleteDataStorageCommand(id, context.projectId);
+  }
+
+  toPublishDraftsCommand(
+    id: string,
+    context: AuthorizationContext
+  ): PublishDataStorageDraftsCommand {
+    return new PublishDataStorageDraftsCommand(id, context.projectId, context.userId);
   }
 
   toValidateAccessCommand(
@@ -112,6 +124,15 @@ export class DataStorageMapper {
     return {
       valid: validationResult.valid,
       errorMessage: validationResult.errorMessage,
+    };
+  }
+
+  toPublishDraftsResponse(
+    result: PublishDataStorageDraftsResultDto
+  ): PublishDataStorageDraftsResponseApiDto {
+    return {
+      successCount: result.successCount,
+      failedCount: result.failedCount,
     };
   }
 }

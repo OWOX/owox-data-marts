@@ -1,11 +1,17 @@
 import type { AxiosRequestConfig } from '../../../../app/api';
 import { ApiService } from '../../../../services';
+import type { TaskStatus } from '../../../../shared/types/task-status.enum.ts';
 import type {
   CreateDataStorageRequestDto,
   DataStorageListResponseDto,
   DataStorageResponseDto,
+  PublishDataStorageDraftsResponseDto,
   UpdateDataStorageRequestDto,
 } from './types';
+
+interface TaskStatusResponseDto {
+  status: TaskStatus;
+}
 
 export interface DataStorageValidationResponseDto {
   valid: boolean;
@@ -82,6 +88,39 @@ export class DataStorageApiService extends ApiService {
     config?: AxiosRequestConfig
   ): Promise<DataStorageValidationResponseDto> {
     return this.post<DataStorageValidationResponseDto>(`/${id}/validate-access`, {}, config);
+  }
+
+  // Publish drafts trigger API
+  async createPublishDraftsTrigger(id: string): Promise<{ triggerId: string }> {
+    return this.post<{ triggerId: string }>(`/${id}/publish-drafts-triggers`, undefined, {
+      skipLoadingIndicator: true,
+    } as AxiosRequestConfig);
+  }
+
+  async getPublishDraftsTriggerStatus(id: string, triggerId: string): Promise<TaskStatus> {
+    const response = await this.get<TaskStatusResponseDto>(
+      `/${id}/publish-drafts-triggers/${triggerId}/status`,
+      undefined,
+      { skipLoadingIndicator: true } as AxiosRequestConfig
+    );
+    return response.status;
+  }
+
+  async getPublishDraftsTriggerResponse(
+    id: string,
+    triggerId: string
+  ): Promise<PublishDataStorageDraftsResponseDto> {
+    return this.get<PublishDataStorageDraftsResponseDto>(
+      `/${id}/publish-drafts-triggers/${triggerId}`,
+      undefined,
+      { skipLoadingIndicator: true } as AxiosRequestConfig
+    );
+  }
+
+  async abortPublishDraftsTrigger(id: string, triggerId: string): Promise<void> {
+    await this.delete(`/${id}/publish-drafts-triggers/${triggerId}`, {
+      skipLoadingIndicator: true,
+    } as AxiosRequestConfig);
   }
 }
 
