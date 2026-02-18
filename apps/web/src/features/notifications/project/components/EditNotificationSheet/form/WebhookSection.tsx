@@ -32,7 +32,7 @@ export function WebhookSection({
   return (
     <FormSection title='Webhook'>
       <FieldItem>
-        <FieldLabel tooltip='URL to send webhook notifications to'>URL</FieldLabel>
+        <FieldLabel tooltip='URL to send webhook notifications'>URL</FieldLabel>
         <div className='flex gap-2'>
           <Input
             value={webhookUrl}

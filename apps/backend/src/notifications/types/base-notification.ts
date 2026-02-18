@@ -178,8 +178,13 @@ export abstract class BaseNotification {
         ? allDataMarts.slice(0, limits.maxDataMarts)
         : allDataMarts;
 
+    const baseUrl = runtimeConfig?.appUrl ?? '';
+    const projectId = firstItem.projectId;
+
     const templateData = {
       projectTitle: firstItem.payload.projectTitle ?? 'Unknown Project',
+      projectUrl: `${baseUrl}/ui/${projectId}`,
+      projectNotificationsUrl: `${baseUrl}/ui/${projectId}/notifications`,
       groupingWindowLabel: this.getGroupingWindowLabel(settings.groupingDelayCron, actualWindowMs),
       dataMarts,
       hiddenDataMartsLabel:
@@ -193,6 +198,7 @@ export abstract class BaseNotification {
     const subject = Handlebars.compile(isBatch ? templates.subjectBatch : templates.subjectSingle)({
       dataMartTitle: dataMarts[0]?.dataMartTitle,
       count: queueItems.length,
+      projectTitle: templateData.projectTitle,
     });
 
     return { subject, bodyHtml };

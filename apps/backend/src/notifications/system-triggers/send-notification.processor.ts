@@ -50,49 +50,13 @@ export class SendNotificationProcessor extends BaseSystemTaskProcessor {
       SendNotificationProcessor.STALE_LOCK_TIMEOUT_MINUTES
     );
 
-    // Pull fresh member data from IDP into the local UserProjection cache before
-    // resolving receiver profiles, so emails/names are always up-to-date.
-    await this.refreshUserProjections();
-
+    // getProjectMembers() already calls IDP and updates local UserProjection cache
+    // for each project that has pending queue items — no separate bulk refresh needed.
     await this.notificationService.processQueue(async (projectId: string) =>
       this.getProjectMembers(projectId)
     );
 
     this.logger.debug('Send notification processor completed');
-  }
-
-  /**
-   * Call IDP for every project that has active notification settings and sync the
-   * response into the local UserProjection cache. Failures per-project are logged
-   * and skipped so one unavailable project does not block the others.
-   */
-  private async refreshUserProjections(): Promise<void> {
-    try {
-      this.logger.debug('Refreshing user projections from IDP');
-
-      const allSettings = await this.settingsService.findAllActive();
-      const projectIds = [...new Set(allSettings.map(s => s.projectId))];
-
-      this.logger.debug(`Refreshing projections for ${projectIds.length} projects`);
-
-      const CONCURRENCY = 3;
-      for (let i = 0; i < projectIds.length; i += CONCURRENCY) {
-        const batch = projectIds.slice(i, i + CONCURRENCY);
-        await Promise.allSettled(
-          batch.map(async projectId => {
-            try {
-              await this.idpProjectionsFacade.getProjectMembers(projectId);
-            } catch (error) {
-              this.logger.warn(`Failed to refresh projections for project ${projectId}`, error);
-            }
-          })
-        );
-      }
-
-      this.logger.debug('User projections refresh completed');
-    } catch (error) {
-      this.logger.error('Failed to refresh user projections', error);
-    }
   }
 
   /**

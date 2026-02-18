@@ -3,6 +3,7 @@ import { Switch } from '@owox/ui/components/switch';
 import { ReceiversAvatarGroup } from './ReceiversAvatarGroup';
 import { GROUPING_DELAY_OPTIONS } from '../../types';
 import type { NotificationSettingsItem } from '../../types';
+import { SortableHeader } from '../../../../../shared/components/Table/SortableHeader';
 
 export enum NotificationSettingsColumnKey {
   TITLE = 'title',
@@ -11,6 +12,14 @@ export enum NotificationSettingsColumnKey {
   GROUPING_DELAY = 'groupingDelayCron',
   ENABLED = 'enabled',
 }
+
+export const notificationSettingsColumnLabels: Record<NotificationSettingsColumnKey, string> = {
+  [NotificationSettingsColumnKey.TITLE]: 'Title',
+  [NotificationSettingsColumnKey.RECEIVERS]: 'Recipients',
+  [NotificationSettingsColumnKey.WEBHOOK_URL]: 'Webhook URL',
+  [NotificationSettingsColumnKey.GROUPING_DELAY]: 'Grouping Delay',
+  [NotificationSettingsColumnKey.ENABLED]: 'Status',
+};
 
 function getGroupingDelayLabel(cronExpression: string): string {
   const option = GROUPING_DELAY_OPTIONS.find(
@@ -30,28 +39,49 @@ export function getNotificationSettingsColumns({
     {
       id: NotificationSettingsColumnKey.TITLE,
       accessorKey: 'title',
-      header: 'Title',
       size: 300,
       minSize: 150,
+      meta: {
+        title: notificationSettingsColumnLabels[NotificationSettingsColumnKey.TITLE],
+      },
+      header: ({ column }) => (
+        <SortableHeader column={column}>
+          {notificationSettingsColumnLabels[NotificationSettingsColumnKey.TITLE]}
+        </SortableHeader>
+      ),
       cell: ({ row }) => <span className='font-medium'>{row.original.title}</span>,
     },
     {
       id: NotificationSettingsColumnKey.RECEIVERS,
       accessorKey: 'receivers',
-      header: 'Recipients',
       size: 160,
       enableSorting: false,
+      meta: {
+        title: notificationSettingsColumnLabels[NotificationSettingsColumnKey.RECEIVERS],
+      },
+      header: ({ column }) => (
+        <SortableHeader column={column}>
+          {notificationSettingsColumnLabels[NotificationSettingsColumnKey.RECEIVERS]}
+        </SortableHeader>
+      ),
       cell: ({ row }) => <ReceiversAvatarGroup receivers={row.original.receivers} />,
     },
     {
       id: NotificationSettingsColumnKey.WEBHOOK_URL,
       accessorKey: 'webhookUrl',
-      header: 'Webhook URL',
       size: 220,
       enableSorting: false,
+      meta: {
+        title: notificationSettingsColumnLabels[NotificationSettingsColumnKey.WEBHOOK_URL],
+      },
+      header: ({ column }) => (
+        <SortableHeader column={column}>
+          {notificationSettingsColumnLabels[NotificationSettingsColumnKey.WEBHOOK_URL]}
+        </SortableHeader>
+      ),
       cell: ({ row }) =>
         row.original.webhookUrl ? (
-          <span className='text-muted-foreground max-w-[200px] truncate text-sm'>
+          <span className='text-muted-foreground block min-w-0 truncate overflow-hidden text-sm whitespace-nowrap'>
             {row.original.webhookUrl}
           </span>
         ) : (
@@ -61,9 +91,16 @@ export function getNotificationSettingsColumns({
     {
       id: NotificationSettingsColumnKey.GROUPING_DELAY,
       accessorKey: 'groupingDelayCron',
-      header: 'Grouping delay',
       size: 140,
       enableSorting: false,
+      meta: {
+        title: notificationSettingsColumnLabels[NotificationSettingsColumnKey.GROUPING_DELAY],
+      },
+      header: ({ column }) => (
+        <SortableHeader column={column}>
+          {notificationSettingsColumnLabels[NotificationSettingsColumnKey.GROUPING_DELAY]}
+        </SortableHeader>
+      ),
       cell: ({ row }) => (
         <span className='text-muted-foreground text-sm'>
           {getGroupingDelayLabel(row.original.groupingDelayCron)}
@@ -73,9 +110,16 @@ export function getNotificationSettingsColumns({
     {
       id: NotificationSettingsColumnKey.ENABLED,
       accessorKey: 'enabled',
-      header: 'Status',
       size: 80,
       enableSorting: false,
+      meta: {
+        title: notificationSettingsColumnLabels[NotificationSettingsColumnKey.ENABLED],
+      },
+      header: ({ column }) => (
+        <SortableHeader column={column}>
+          {notificationSettingsColumnLabels[NotificationSettingsColumnKey.ENABLED]}
+        </SortableHeader>
+      ),
       cell: ({ row }) => (
         <Switch
           checked={row.original.enabled}

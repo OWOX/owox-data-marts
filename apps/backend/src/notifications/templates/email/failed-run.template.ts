@@ -2,8 +2,9 @@ import { EMAIL_STYLES } from './assets/styles';
 import { emailHeader, emailFooter, dmCardStart, dmCardEnd } from './assets/blocks';
 
 // Subject templates
-export const failedRunEmailSubjectSingle = '🔴 Data Mart run failed: {{dataMartTitle}}';
-export const failedRunEmailSubjectBatch = '🔴 {{count}} Data Mart runs failed';
+export const failedRunEmailSubjectSingle = '🔴 Data Mart run failed - Project: {{projectTitle}}';
+export const failedRunEmailSubjectBatch =
+  '🔴 {{count}} Data Mart runs failed - Project: {{projectTitle}}';
 
 export const failedRunEmailTemplate = `<!doctype html>
 <html lang="en">
@@ -15,8 +16,8 @@ export const failedRunEmailTemplate = `<!doctype html>
 </head>
 <body style="Margin:0;padding:0;background-color:#f4f5f7;font-family:Arial, Helvetica, sans-serif;">
 
-  <div class="preheader" style="font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">
-    Failed Data Mart runs detected in project {{projectTitle}}
+  <div class="preheader" style="font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;">
+    View details and retry the run${'&nbsp;&zwnj;'.repeat(150)}
   </div>
 
   <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f4f5f7;">
@@ -62,7 +63,7 @@ ${emailHeader}
                         <div style="padding-bottom:8px;">
                           <strong>Error{{#if errors.[1]}}s{{/if}}:</strong>
                           {{#each errors}}
-                          <div style="margin-top:4px;word-break:break-word;">{{message}}{{#if hasMore}}&hellip; <a href="{{../../dataMartRunHistoryUrl}}" target="_blank" rel="noopener noreferrer" style="color:#9ca3af;text-decoration:underline;">&lt;more&gt;</a>{{/if}}</div>
+                          <div style="margin-top:4px;word-break:break-word;">{{message}}{{#if hasMore}}&hellip; <a href="{{../../dataMartRunHistoryUrl}}" target="_blank" rel="noopener noreferrer" style="color:#9ca3af;text-decoration:none;">&lt;more&gt;</a>{{/if}}</div>
                           {{/each}}
                         </div>
                         {{/if}}
