@@ -151,7 +151,7 @@ export class AthenaApiAdapter {
 
     const resultsCommand = new GetQueryResultsCommand({
       QueryExecutionId: queryExecutionId,
-      MaxResults: maxResults,
+      MaxResults: Math.min(maxResults, 1000),
       NextToken: batchId,
     });
 
