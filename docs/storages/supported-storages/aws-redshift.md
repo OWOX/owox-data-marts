@@ -11,6 +11,8 @@ Click **AWS Redshift** to create a new **Storage** configuration.
 > You can create **Data Mart** entities and model a data structure for your project prior to configuring the **Storage**.
 > Note that **Data Mart** cannot be validated or published until the associated **Storage** is fully configured.
 
+![OWOX Data Marts interface showing the Storages menu option highlighted with a red arrow in the left sidebar, and the New Storage dialog displaying available storage types including Google BigQuery, AWS Athena, Snowflake, AWS Redshift, and Databricks, with AWS Redshift circled in red and a New Storage button indicated by a red arrow in the top right](../../res/screens/redshift_storage.png)
+
 ## 3. Add title and AWS region
 
 Give the storage configuration a clear **title**, eg `AWS Redshift Dev Database`.
@@ -19,6 +21,10 @@ Choose the AWS region where your Redshift cluster or workgroup is located:
 
 - Examples: `us-east-1`, `eu-west-1`, `ap-southeast-1`
 - You can find your region in the [AWS Redshift Console](https://console.aws.amazon.com/redshiftv2/home) in the top right corner or url.
+
+![AWS Redshift Serverless dashboard showing the region selector dropdown menu open in the top right corner. The dropdown displays available regions organized by geographic location including Europe (Stockholm, Frankfurt, Ireland, London, Paris), Asia Pacific (Sydney, Tokyo, ap-southeast-2, ap-northeast-1), Canada (Central, ca-central-1), and South America (São Paulo, sa-east-1) with Europe (Stockholm) currently selected and highlighted with a red circle and arrow indicating the region selection location.](../../res/screens/redshift_region.png)
+
+![OWOX Data Marts Configure Storage Provider dialog showing General and Connection Settings sections. The General section contains fields for Title (AWS Redshift Dev Database) and Storage Type (AWS Redshift). The Connection Settings section displays a Region field with eu-north-1 entered. Red arrows point to the Title field and Region field. The dialog includes an info link asking What is AWS Redshift and What is the AWS region. A blue Save button and Cancel button are visible at the bottom of the dialog against a dark background.](../../res/screens/redshift_configure.png)
 
 ### Choose Connection Type
 
@@ -32,6 +38,8 @@ AWS Redshift supports two deployment types (one is required). It's based on your
 - Navigate to **Workgroup configuration**
 - Copy the workgroup name (e.g., `default` or `my-workgroup`)
 
+![AWS Redshift Serverless console showing the Workgroup configuration page. The left sidebar displays menu options including Serverless dashboard, Query editor v2, Amazon SageMaker Unified Studio, and Workgroup configuration highlighted with a red arrow. The main content area shows a Workgroups table with one workgroup named owox circled in red, displaying its status as Available and creation date in December. The interface includes a Create workgroup button and search functionality for finding workgroups.](../../res/screens/redshift_workgroup.png)
+
 #### Option 2: Provisioned
 
 **Cluster Identifier:**
@@ -40,11 +48,15 @@ AWS Redshift supports two deployment types (one is required). It's based on your
 - Find your cluster in the list
 - Copy the **Cluster identifier** (e.g., `redshift-cluster-1`)
 
+![AWS Redshift Provisioned Clusters console displaying the clusters list page. The interface shows a Clusters (1) section with a table containing one cluster entry. The cluster named redshift-cluster-1 is circled in red and highlighted, showing details including its status as Available, cluster namespace, and region eu-north-1. The top navigation shows Amazon Redshift > Clusters with In my account and From other accounts tabs. Action buttons including Create cluster, Query data, and Actions are visible in the top right. A search field labeled Find clusters is present for filtering clusters.](../../res/screens/redshift_cluster.png)
+
 ### Enter Database Name
 
 - This is the name of the database within your Redshift cluster
 - Default Redshift database is typically `dev` or `defaultdb`
 - You can find this in the [AWS Redshift Query Editor](https://console.aws.amazon.com/redshiftv2/home)
+
+![AWS Redshift Query Editor v2 interface displaying the database selection panel on the left sidebar. The panel shows a hierarchical structure with Serverless: owox and redshift-cluster-1 deployments, followed by a native databases section containing the dev database highlighted in blue and sample_data_dev database below it. External databases section is collapsed at the bottom. The main editor area on the right shows an empty query window with Run, Limit 100, Explain, and Isolated session options visible.](../../res/screens/redshift_database.png)
 
 ### Authentication
 
