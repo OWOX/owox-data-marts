@@ -42,7 +42,7 @@ export class NotificationEmailService {
       return;
     }
 
-    const appUrl = this.configService.get<string>('APP_URL');
+    const appUrl = this.configService.get<string>('PUBLIC_ORIGIN');
     const { subject, bodyHtml } = handler.getEmailContent(queueItems, settings, { appUrl });
 
     await this.withRetry(

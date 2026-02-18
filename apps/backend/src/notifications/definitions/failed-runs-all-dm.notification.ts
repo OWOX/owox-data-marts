@@ -46,7 +46,7 @@ export class FailedRunsAllDmNotification extends BaseNotification {
     return runRepository.find({
       where: {
         finishedAt: MoreThan(since),
-        status: In([DataMartRunStatus.FAILED]),
+        status: In([DataMartRunStatus.FAILED, DataMartRunStatus.RESTRICTED]),
         dataMart: { projectId },
       },
       relations: ['dataMart'],

@@ -100,7 +100,7 @@ export function RecipientsSelector({
                       <AlertTriangle className='h-4 w-4 text-yellow-500' />
                     </TooltipTrigger>
                     <TooltipContent>
-                      This user has notifications disabled in their preferences
+                      This user has disabled notifications in their preferences
                     </TooltipContent>
                   </Tooltip>
                 )}
