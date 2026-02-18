@@ -1,5 +1,6 @@
 import ejs from 'ejs';
 import { readFileSync } from 'fs';
+import { MAGIC_LINK_INTENT } from '../../core/constants.js';
 import type { UiAuthProviders } from '../../types/index.js';
 import { resolveResourcePath } from '../../utils/template-paths.js';
 
@@ -52,7 +53,9 @@ export class TemplateService {
     );
   }
 
-  public static renderSignIn(data: Record<string, unknown> & { providers: UiAuthProviders }): string {
+  public static renderSignIn(
+    data: Record<string, unknown> & { providers: UiAuthProviders }
+  ): string {
     return this.renderWithLayout('pages/sign-in.ejs', 'layouts/auth.ejs', {
       pageTitle: 'Sign In - OWOX Data Marts',
       heading: 'Sign in to OWOX',
@@ -61,10 +64,13 @@ export class TemplateService {
     });
   }
 
-  public static renderSignUp(data: Record<string, unknown> & { providers: UiAuthProviders }): string {
+  public static renderSignUp(
+    data: Record<string, unknown> & { providers: UiAuthProviders }
+  ): string {
     return this.renderWithLayout('pages/sign-up.ejs', 'layouts/auth.ejs', {
       pageTitle: 'Sign Up - OWOX Data Marts',
       heading: 'Create your OWOX account',
+      magicLinkSignupIntent: MAGIC_LINK_INTENT.SIGNUP,
       ...data,
       providers: data.providers,
     });
@@ -74,6 +80,7 @@ export class TemplateService {
     return this.renderWithLayout('pages/magic-link-confirm.ejs', 'layouts/auth.ejs', {
       pageTitle: 'Confirm your email',
       heading: 'Confirm your email',
+      magicLinkResetIntent: MAGIC_LINK_INTENT.RESET,
       ...data,
     });
   }
@@ -82,7 +89,8 @@ export class TemplateService {
     return this.renderWithLayout('pages/password-setup.ejs', 'layouts/auth.ejs', {
       pageTitle: 'Set password',
       heading: 'Set your password',
-      intent: 'signup',
+      intent: MAGIC_LINK_INTENT.SIGNUP,
+      magicLinkResetIntent: MAGIC_LINK_INTENT.RESET,
       resetToken: '',
       errorMessage: '',
       infoMessage: '',
@@ -102,6 +110,7 @@ export class TemplateService {
     return this.renderWithLayout('pages/forgot-password.ejs', 'layouts/auth.ejs', {
       pageTitle: 'Forgot password',
       heading: 'Reset your password',
+      magicLinkResetIntent: MAGIC_LINK_INTENT.RESET,
       ...data,
     });
   }

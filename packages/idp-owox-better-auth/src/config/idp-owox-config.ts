@@ -12,6 +12,7 @@ import type {
   SocialProvidersConfig,
   UiAuthProviders,
 } from '../types/index.js';
+import { BETTER_AUTH_BASE_PATH } from '../core/constants.js';
 
 const zMsString = z
   .string()
@@ -305,7 +306,7 @@ function buildSocialProviders(
       clientId: env.IDP_BETTER_AUTH_GOOGLE_CLIENT_ID,
       clientSecret: env.IDP_BETTER_AUTH_GOOGLE_CLIENT_SECRET,
       redirectURI: baseURL
-        ? `${baseURL.replace(/\/$/, '')}/auth/better-auth/callback/google`
+        ? `${baseURL.replace(/\/$/, '')}${BETTER_AUTH_BASE_PATH}/callback/google`
         : undefined,
       prompt: env.IDP_BETTER_AUTH_GOOGLE_PROMPT ?? 'select_account',
       accessType: env.IDP_BETTER_AUTH_GOOGLE_ACCESS_TYPE ?? 'offline',
@@ -320,7 +321,7 @@ function buildSocialProviders(
       authority: env.IDP_BETTER_AUTH_MICROSOFT_AUTHORITY ?? 'https://login.microsoftonline.com',
       prompt: env.IDP_BETTER_AUTH_MICROSOFT_PROMPT ?? 'select_account',
       redirectURI: baseURL
-        ? `${baseURL.replace(/\/$/, '')}/auth/better-auth/callback/microsoft`
+        ? `${baseURL.replace(/\/$/, '')}${BETTER_AUTH_BASE_PATH}/callback/microsoft`
         : undefined,
     };
   }

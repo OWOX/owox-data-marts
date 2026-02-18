@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { AUTH_BASE_PATH, MAGIC_LINK_INTENT } from '../../core/constants.js';
 import type { DatabaseStore } from '../../store/database-store.js';
 import type { MagicLinkEmailService } from '../email/magic-link-email-service.js';
 import { MagicLinkService } from './magic-link-service.js';
@@ -49,12 +50,12 @@ describe('MagicLinkService', () => {
 
   it('returns not_initialized when auth is missing', async () => {
     const fresh = new MagicLinkService(store, emailService, 'https://auth.example.com');
-    const result = await fresh.generate('user@example.com', 'signup');
+    const result = await fresh.generate('user@example.com', MAGIC_LINK_INTENT.SIGNUP);
     expect(result).toEqual({ sent: false, reason: 'not_initialized' });
   });
 
   it('returns invalid_email for malformed email', async () => {
-    const result = await service.generate('invalid-email', 'signup');
+    const result = await service.generate('invalid-email', MAGIC_LINK_INTENT.SIGNUP);
     expect(result).toEqual({ sent: false, reason: 'invalid_email' });
     expect(handlerMock).not.toHaveBeenCalled();
   });
@@ -62,7 +63,7 @@ describe('MagicLinkService', () => {
   it('returns user_not_found on reset when user does not exist', async () => {
     store.getUserByEmail.mockResolvedValue(null);
 
-    const result = await service.generate('user@example.com', 'reset');
+    const result = await service.generate('user@example.com', MAGIC_LINK_INTENT.RESET);
 
     expect(result).toEqual({ sent: false, reason: 'user_not_found' });
     expect(handlerMock).not.toHaveBeenCalled();
@@ -83,7 +84,7 @@ describe('MagicLinkService', () => {
       },
     ]);
 
-    const result = await service.generate('user@example.com', 'reset');
+    const result = await service.generate('user@example.com', MAGIC_LINK_INTENT.RESET);
 
     expect(result).toEqual({ sent: false, reason: 'user_not_found' });
     expect(handlerMock).not.toHaveBeenCalled();
@@ -110,20 +111,20 @@ describe('MagicLinkService', () => {
       },
     ]);
 
-    const result = await service.generate('  User@Example.com  ', 'reset');
+    const result = await service.generate('  User@Example.com  ', MAGIC_LINK_INTENT.RESET);
 
     expect(result).toEqual({ sent: true });
     expect(requestPasswordResetMock).toHaveBeenCalledTimes(1);
     expect(requestPasswordResetMock).toHaveBeenCalledWith({
       body: expect.objectContaining({
         email: 'user@example.com',
-        redirectTo: expect.stringContaining('/auth/password/setup'),
+        redirectTo: expect.stringContaining(`${AUTH_BASE_PATH}/password/setup`),
       }),
     });
     const requestPayload = requestPasswordResetMock.mock.calls[0]?.[0] as {
       body: { redirectTo: string };
     };
-    expect(requestPayload.body.redirectTo).toContain('intent=reset');
+    expect(requestPayload.body.redirectTo).toContain(`intent=${MAGIC_LINK_INTENT.RESET}`);
     expect(handlerMock).not.toHaveBeenCalled();
   });
 
@@ -139,8 +140,8 @@ describe('MagicLinkService', () => {
     expect(emailService.send).toHaveBeenCalledTimes(1);
     expect(emailService.send).toHaveBeenCalledWith({
       email: 'user@example.com',
-      magicLink: expect.stringContaining('/auth/password/setup'),
-      intent: 'reset',
+      magicLink: expect.stringContaining(`${AUTH_BASE_PATH}/password/setup`),
+      intent: MAGIC_LINK_INTENT.RESET,
     });
     const payload = (emailService.send as jest.Mock).mock.calls[0]?.[0] as { magicLink: string };
     expect(payload.magicLink).toContain('token=reset-token-123');
@@ -153,7 +154,7 @@ describe('MagicLinkService', () => {
       expiresAt: new Date(Date.now() + 1000),
     });
 
-    const result = await service.generate('user@example.com', 'signup');
+    const result = await service.generate('user@example.com', MAGIC_LINK_INTENT.SIGNUP);
 
     expect(result).toMatchObject({
       sent: false,

@@ -1,18 +1,18 @@
-import React, { useReducer, useEffect, useCallback } from 'react';
-import { AuthStatus, type AuthState, type AuthSession, type User } from '../types';
-import { AuthContext, type AuthContextType } from './AuthContext.types';
+import React, { useCallback, useEffect, useReducer } from 'react';
 import {
-  signIn as signInApi,
-  signOut as signOutApi,
-  refreshAccessToken as refreshAccessTokenApi,
-  getUserApi,
-} from '../services';
-import {
-  setTokenProvider,
   clearTokenProvider,
   DefaultTokenProvider,
+  setTokenProvider,
 } from '../../../app/api/token-provider';
-import { pushToDataLayer, trackUserIdentified, trackLogout } from '../../../utils/data-layer';
+import { pushToDataLayer, trackLogout, trackUserIdentified } from '../../../utils/data-layer';
+import {
+  getUserApi,
+  refreshAccessToken as refreshAccessTokenApi,
+  signIn as signInApi,
+  signOut as signOutApi,
+} from '../services';
+import { AuthStatus, type AuthSession, type AuthState, type User } from '../types';
+import { AuthContext, type AuthContextType } from './AuthContext.types';
 
 /**
  * Auth reducer actions
@@ -99,21 +99,13 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [state, dispatch] = useReducer(authReducer, initialState);
 
-  useEffect(() => {
-    if (state.session?.accessToken) {
-      const tokenProvider = new DefaultTokenProvider(
-        () => state.session?.accessToken ?? null,
-        async () => {
-          // Need refresh with update session and user in the state
-          // for example when user change name we want to have updated user info
-          return await refresh();
-        }
-      );
-      setTokenProvider(tokenProvider);
-    } else {
-      clearTokenProvider();
+  const performSignOut = () => {
+    try {
+      trackLogout();
+    } finally {
+      signOutApi();
     }
-  }, [state.session?.accessToken]);
+  };
 
   /**
    * Redirect to sign-in page
@@ -122,7 +114,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     signInApi();
   }, []);
 
-  async function refresh(): Promise<string> {
+  const refresh = useCallback(async (): Promise<string> => {
     try {
       const response = await refreshAccessTokenApi();
 
@@ -151,16 +143,46 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch (error: unknown) {
       clearTokenProvider();
       dispatch({ type: 'SET_UNAUTHENTICATED' });
+
+      // Якщо бекенд повертає 403 (INACTIVE/blocked) — виконуємо локальний signOut без зовнішнього редіректу
+      if (
+        error &&
+        typeof error === 'object' &&
+        'statusCode' in error &&
+        (error as { statusCode?: number }).statusCode === 403
+      ) {
+        performSignOut();
+        const errObj = error as { message?: string; statusCode?: number; code?: string };
+        const forbiddenError = Object.assign(new Error(errObj.message ?? 'Forbidden'), errObj);
+        return Promise.reject(forbiddenError);
+      }
+
       throw error;
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    if (state.session?.accessToken) {
+      const tokenProvider = new DefaultTokenProvider(
+        () => state.session?.accessToken ?? null,
+        async () => {
+          // Need refresh with update session and user in the state
+          // for example when user change name we want to have updated user info
+          return await refresh();
+        }
+      );
+      setTokenProvider(tokenProvider);
+    } else {
+      clearTokenProvider();
+    }
+  }, [state.session?.accessToken, refresh]);
 
   /**
    * Refresh access token using http-only cookie
    */
   const refreshToken = useCallback(async () => {
     await refresh();
-  }, []);
+  }, [refresh]);
 
   /**
    * Initialize auth state from storage
@@ -171,8 +193,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       try {
         await refreshToken();
-      } catch {
+      } catch (err) {
         dispatch({ type: 'SET_UNAUTHENTICATED' });
+
+        // 403 -> виконуємо локальний signOut (очистка + редірект на sign-out сторінку IdP)
+        if (
+          err &&
+          typeof err === 'object' &&
+          'statusCode' in err &&
+          (err as { statusCode?: number }).statusCode === 403
+        ) {
+          performSignOut();
+          return;
+        }
+
         signIn();
       }
     } catch (error) {
@@ -186,11 +220,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * Redirect to sign-out page and clear local session
    */
   const signOut = useCallback(() => {
-    try {
-      trackLogout();
-    } finally {
-      signOutApi();
-    }
+    performSignOut();
   }, []);
 
   /**

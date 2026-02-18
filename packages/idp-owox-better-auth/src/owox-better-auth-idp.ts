@@ -7,7 +7,7 @@ import { createBetterAuthConfig } from './config/idp-better-auth-config.js';
 import type { BetterAuthProviderConfig } from './config/index.js';
 import { PageController } from './controllers/page-controller.js';
 import { PasswordFlowController } from './controllers/password-flow-controller.js';
-import { CORE_REFRESH_TOKEN_COOKIE, SOURCE } from './core/constants.js';
+import { AUTH_BASE_PATH, CORE_REFRESH_TOKEN_COOKIE, SOURCE } from './core/constants.js';
 import { AuthenticationException, IdpFailedException } from './core/exceptions.js';
 import { logger } from './core/logger.js';
 import { OwoxTokenFacade } from './facades/owox-token-facade.js';
@@ -135,23 +135,22 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     this.passwordFlowController.registerRoutes(app);
 
     app.get(
-      '/auth/idp-start',
+      `${AUTH_BASE_PATH}/idp-start`,
       this.authFlowMiddleware.idpStartMiddleware.bind(this.authFlowMiddleware)
     );
 
-    // Core callback route (PKCE code exchange)
-    app.get('/auth/callback', async (req, res) => {
+    app.get(`${AUTH_BASE_PATH}/callback`, async (req, res) => {
       const code = req.query.code as string | undefined;
       const state = req.query.state as string | undefined;
       if (!code) {
         logger.warn('Redirect url should contain code param');
-        return res.redirect(`/auth${ProtocolRoute.SIGN_IN}`);
+        return res.redirect(`${AUTH_BASE_PATH}${ProtocolRoute.SIGN_IN}`);
       }
 
       if (!state) {
         logger.warn('Redirect url should contain state param');
         clearPlatformCookies(res, req);
-        return res.redirect(`/auth${ProtocolRoute.SIGN_IN}`);
+        return res.redirect(`${AUTH_BASE_PATH}${ProtocolRoute.SIGN_IN}`);
       }
 
       try {
@@ -180,7 +179,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
         } else {
           logger.error(formatError(error));
         }
-        return res.redirect(`/auth${ProtocolRoute.SIGN_IN}`);
+        return res.redirect(`${AUTH_BASE_PATH}${ProtocolRoute.SIGN_IN}`);
       }
     });
   }
@@ -293,7 +292,8 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     clearCookie(res, CORE_REFRESH_TOKEN_COOKIE, req);
     clearBetterAuthCookies(res, req);
     const redirectUrl =
-      this.config.idpOwox.idpConfig.signOutRedirectUrl ?? `/auth${ProtocolRoute.SIGN_IN}`;
+      this.config.idpOwox.idpConfig.signOutRedirectUrl ??
+      `${AUTH_BASE_PATH}${ProtocolRoute.SIGN_IN}`;
     res.redirect(redirectUrl);
   }
 

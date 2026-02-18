@@ -1,7 +1,7 @@
 import { LogLevel } from '@owox/internal-helpers';
 import { betterAuth } from 'better-auth';
 import { magicLink } from 'better-auth/plugins';
-import { BETTER_AUTH_SESSION_COOKIE } from '../core/constants.js';
+import { BETTER_AUTH_BASE_PATH, BETTER_AUTH_SESSION_COOKIE } from '../core/constants.js';
 import { logger } from '../core/logger.js';
 import { GoogleProvider } from '../social/google-provider.js';
 import { MicrosoftProvider } from '../social/microsoft-provider.js';
@@ -46,7 +46,7 @@ export async function createBetterAuthConfig(
     emailAndPasswordConfig.resetPasswordTokenExpiresIn = config.magicLinkTtl ?? 60 * 60;
   }
 
-  const basePath = '/auth/better-auth';
+  const basePath = BETTER_AUTH_BASE_PATH;
 
   const trustedOrigins = Array.from(
     new Set([

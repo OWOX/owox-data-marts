@@ -93,6 +93,7 @@
 <script>
   const urlParams = new URLSearchParams(window.location.search);
   const redirect = urlParams.get('redirect');
+  const magicLinkSignupIntent = '<%= magicLinkSignupIntent %>';
   const signupForm = document.getElementById('signup-form');
   const signupStatus = document.getElementById('signup-status');
   const signupSubmit = document.getElementById('signup-submit');
@@ -163,7 +164,7 @@
     const response = await fetch('/auth/api/magic-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, intent: 'signup' }),
+      body: JSON.stringify({ email, intent: magicLinkSignupIntent }),
       });
 
       const contentType = response.headers.get('content-type') || '';

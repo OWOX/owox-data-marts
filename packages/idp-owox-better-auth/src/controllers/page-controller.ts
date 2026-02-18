@@ -4,11 +4,10 @@ import {
   type Request as ExpressRequest,
   type Response as ExpressResponse,
 } from 'express';
+import { AUTH_BASE_PATH, parseMagicLinkIntent } from '../core/constants.js';
 import { TemplateService } from '../services/rendering/template-service.js';
 import type { UiAuthProviders } from '../types/index.js';
 import { extractPlatformParams, persistPlatformContext } from '../utils/request-utils.js';
-
-const AUTH_BASE_PATH = '/auth';
 
 /**
  * Renders static auth pages and persists platform context.
@@ -26,14 +25,18 @@ export class PageController {
     this.persistPlatformContext(req, res);
     const errorMessage = typeof req.query?.error === 'string' ? req.query.error : undefined;
     const infoMessage = typeof req.query?.info === 'string' ? req.query.info : undefined;
-    res.send(TemplateService.renderSignIn({ errorMessage, infoMessage, providers: this.providers }));
+    res.send(
+      TemplateService.renderSignIn({ errorMessage, infoMessage, providers: this.providers })
+    );
   }
 
   async signUpPage(req: ExpressRequest, res: ExpressResponse): Promise<void> {
     this.persistPlatformContext(req, res);
     const errorMessage = typeof req.query?.error === 'string' ? req.query.error : undefined;
     const infoMessage = typeof req.query?.info === 'string' ? req.query.info : undefined;
-    res.send(TemplateService.renderSignUp({ errorMessage, infoMessage, providers: this.providers }));
+    res.send(
+      TemplateService.renderSignUp({ errorMessage, infoMessage, providers: this.providers })
+    );
   }
 
   private sanitizeCallbackURL(rawCallbackURL: string, req: ExpressRequest): string {
@@ -58,7 +61,7 @@ export class PageController {
       typeof req.query?.callbackURL === 'string' ? req.query.callbackURL : '',
       req
     );
-    const intent = typeof req.query?.intent === 'string' ? req.query.intent : undefined;
+    const intent = parseMagicLinkIntent(req.query?.intent);
     res.send(TemplateService.renderMagicLinkConfirm({ token, callbackURL, intent }));
   }
 

@@ -1,16 +1,10 @@
 import type { EmailProvider } from '@owox/internal-helpers';
 import ejs from 'ejs';
 import { readFileSync } from 'fs';
+import { MAGIC_LINK_INTENT } from '../../core/constants.js';
 import { logger } from '../../core/logger.js';
+import type { MagicLinkEmailPayload, MagicLinkIntent } from '../../types/magic-link.js';
 import { resolveResourcePath } from '../../utils/template-paths.js';
-
-export type MagicLinkIntent = 'signup' | 'reset' | undefined;
-
-export interface MagicLinkEmailPayload {
-  email: string;
-  magicLink: string;
-  intent?: MagicLinkIntent;
-}
 
 /**
  * Renders and sends magic-link emails using one shared template.
@@ -28,8 +22,9 @@ export class MagicLinkEmailService {
   }
 
   private buildViewModel(payload: MagicLinkEmailPayload): Record<string, string> {
-    const intent: MagicLinkIntent = payload.intent === 'reset' ? 'reset' : payload.intent;
-    const isReset = intent === 'reset';
+    const intent: MagicLinkIntent =
+      payload.intent === MAGIC_LINK_INTENT.RESET ? MAGIC_LINK_INTENT.RESET : payload.intent;
+    const isReset = intent === MAGIC_LINK_INTENT.RESET;
 
     return {
       title: isReset ? 'Reset your password' : 'Confirm your email',
@@ -43,7 +38,7 @@ export class MagicLinkEmailService {
   }
 
   private buildSubject(intent: MagicLinkIntent): string {
-    return intent === 'reset' ? 'Reset your password' : 'Confirm your email';
+    return intent === MAGIC_LINK_INTENT.RESET ? 'Reset your password' : 'Confirm your email';
   }
 
   render(payload: MagicLinkEmailPayload): string {

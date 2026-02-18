@@ -1,7 +1,9 @@
 import { betterAuth } from 'better-auth';
+import { MAGIC_LINK_INTENT, parseMagicLinkIntent } from '../../core/constants.js';
 import type { DatabaseStore } from '../../store/database-store.js';
+import type { MagicLinkIntent } from '../../types/magic-link.js';
 import { parseEmail } from '../../utils/email-utils.js';
-import { MagicLinkEmailService, type MagicLinkIntent } from '../email/magic-link-email-service.js';
+import { MagicLinkEmailService } from '../email/magic-link-email-service.js';
 
 type BetterAuthInstance = Awaited<ReturnType<typeof betterAuth>>;
 
@@ -67,13 +69,13 @@ export class MagicLinkService {
       }
 
       const resetUrl = new URL('/auth/password/setup', this.baseUrl);
-      resetUrl.searchParams.set('intent', 'reset');
+      resetUrl.searchParams.set('intent', MAGIC_LINK_INTENT.RESET);
       resetUrl.searchParams.set('token', token);
 
       await this.emailService.send({
         email: normalizedEmail,
         magicLink: resetUrl.toString(),
-        intent: 'reset',
+        intent: MAGIC_LINK_INTENT.RESET,
       });
     };
   }
@@ -92,7 +94,7 @@ export class MagicLinkService {
       return { sent: false, reason: 'invalid_email' };
     }
 
-    if (intent === 'reset') {
+    if (intent === MAGIC_LINK_INTENT.RESET) {
       const user = await this.store.getUserByEmail(normalizedEmail);
       if (!user) {
         return { sent: false, reason: 'user_not_found' };
@@ -104,7 +106,7 @@ export class MagicLinkService {
       }
 
       const redirectTo = new URL('/auth/password/setup', this.baseUrl);
-      redirectTo.searchParams.set('intent', 'reset');
+      redirectTo.searchParams.set('intent', MAGIC_LINK_INTENT.RESET);
       await this.auth.api.requestPasswordReset({
         body: {
           email: normalizedEmail,
@@ -181,15 +183,16 @@ export class MagicLinkService {
   }
 
   private extractIntent(callbackParam: string, intentFromUrl: string | null): MagicLinkIntent {
-    if (intentFromUrl === 'signup' || intentFromUrl === 'reset') {
-      return intentFromUrl;
+    const parsedIntentFromUrl = parseMagicLinkIntent(intentFromUrl);
+    if (parsedIntentFromUrl) {
+      return parsedIntentFromUrl;
     }
 
     try {
       const callbackUrl = new URL(callbackParam, 'http://localhost');
-      const intentFromCallback = callbackUrl.searchParams.get('intent');
-      if (intentFromCallback === 'signup' || intentFromCallback === 'reset') {
-        return intentFromCallback;
+      const parsedIntentFromCallback = parseMagicLinkIntent(callbackUrl.searchParams.get('intent'));
+      if (parsedIntentFromCallback) {
+        return parsedIntentFromCallback;
       }
     } catch {
       // ignore malformed callback url

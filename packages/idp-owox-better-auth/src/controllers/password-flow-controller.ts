@@ -5,16 +5,15 @@ import {
   type Response as ExpressResponse,
 } from 'express';
 import type { createBetterAuthConfig } from '../config/idp-better-auth-config.js';
+import { AUTH_BASE_PATH, MAGIC_LINK_INTENT, parseMagicLinkIntent } from '../core/constants.js';
 import { logger } from '../core/logger.js';
 import type { BetterAuthSessionService } from '../services/auth/better-auth-session-service.js';
 import { MagicLinkService } from '../services/auth/magic-link-service.js';
-import type { MagicLinkIntent } from '../services/email/magic-link-email-service.js';
+import type { MagicLinkIntent } from '../types/magic-link.js';
 import { TemplateService } from '../services/rendering/template-service.js';
 import { parseEmail } from '../utils/email-utils.js';
 import { convertExpressHeaders } from '../utils/express-compat.js';
 import { clearBetterAuthCookies } from '../utils/request-utils.js';
-
-const AUTH_BASE_PATH = '/auth';
 type BetterAuthInstance = Awaited<ReturnType<typeof createBetterAuthConfig>>;
 
 /**
@@ -30,7 +29,8 @@ export class PasswordFlowController {
 
   async sendMagicLink(req: ExpressRequest, res: ExpressResponse): Promise<void> {
     const email = parseEmail(req.body?.email);
-    const intent: MagicLinkIntent = req.body?.intent === 'reset' ? 'reset' : 'signup';
+    const intent: MagicLinkIntent =
+      parseMagicLinkIntent(req.body?.intent) ?? MAGIC_LINK_INTENT.SIGNUP;
 
     if (!email) {
       res.status(400).json({ error: 'A valid email is required.' });
@@ -79,14 +79,12 @@ export class PasswordFlowController {
     req: ExpressRequest,
     res: ExpressResponse
   ): Promise<void | ExpressResponse> {
-    const queryIntent: MagicLinkIntent =
-      req.query?.intent === 'reset'
-        ? 'reset'
-        : req.query?.intent === 'signup'
-          ? 'signup'
-          : undefined;
+    const queryIntent: MagicLinkIntent = parseMagicLinkIntent(req.query?.intent);
     const resetToken = typeof req.query?.token === 'string' ? req.query.token : '';
-    const intent: MagicLinkIntent = resetToken || queryIntent === 'reset' ? 'reset' : 'signup';
+    const intent: MagicLinkIntent =
+      resetToken || queryIntent === MAGIC_LINK_INTENT.RESET
+        ? MAGIC_LINK_INTENT.RESET
+        : MAGIC_LINK_INTENT.SIGNUP;
 
     const errorMessage = typeof req.query?.error === 'string' ? req.query.error : undefined;
     const infoMessage = typeof req.query?.info === 'string' ? req.query.info : undefined;
@@ -122,7 +120,8 @@ export class PasswordFlowController {
 
   async setPassword(req: ExpressRequest, res: ExpressResponse): Promise<void | ExpressResponse> {
     const password = typeof req.body?.password === 'string' ? req.body.password : '';
-    const intent: MagicLinkIntent = req.body?.intent === 'reset' ? 'reset' : 'signup';
+    const intent: MagicLinkIntent =
+      parseMagicLinkIntent(req.body?.intent) ?? MAGIC_LINK_INTENT.SIGNUP;
     const resetToken = typeof req.body?.token === 'string' ? req.body.token : '';
 
     if (!password || password.length < 8) {
@@ -139,7 +138,7 @@ export class PasswordFlowController {
       });
     }
 
-    if (intent === 'reset' || resetToken) {
+    if (intent === MAGIC_LINK_INTENT.RESET || resetToken) {
       if (!resetToken) {
         return res.status(400).json({ error: 'Reset link is invalid or has expired.' });
       }

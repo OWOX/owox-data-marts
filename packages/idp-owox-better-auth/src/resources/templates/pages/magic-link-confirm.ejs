@@ -2,7 +2,7 @@
   <!-- Page Heading -->
   <div class="text-center">
     <h1 class="text-3xl font-semibold text-foreground tracking-tight">
-      <%= intent === 'reset' ? 'Confirm to reset your password' : 'Confirm your email to continue' %>
+      <%= intent === magicLinkResetIntent ? 'Confirm to reset your password' : 'Confirm your email to continue' %>
     </h1>
   </div>
   <% if (!token || !callbackURL) { %>

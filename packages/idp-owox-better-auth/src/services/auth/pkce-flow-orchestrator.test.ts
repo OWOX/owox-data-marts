@@ -8,11 +8,12 @@ import type { BetterAuthSessionService } from '../auth/better-auth-session-servi
 import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
 import type { PlatformAuthFlowClient } from '../auth/platform-auth-flow-client.js';
 import type { IdpOwoxConfig } from '../../config/idp-owox-config.js';
-import { SOURCE } from '../../core/constants.js';
+import { AUTH_BASE_PATH, SOURCE } from '../../core/constants.js';
 import { AuthenticationException } from '../../core/exceptions.js';
 import type { OwoxTokenFacade } from '../../facades/owox-token-facade.js';
 import type { DatabaseAccount, DatabaseUser } from '../../types/database-models.js';
 import type { UserContextService } from './../core/user-context-service.js';
+import { ProtocolRoute } from '../../../../idp-protocol/src/index.js';
 
 const baseConfig: IdpOwoxConfig = {
   baseUrl: 'https://auth.test',
@@ -167,7 +168,7 @@ describe('PkceFlowOrchestrator', () => {
       res
     );
 
-    expect(url?.pathname).toBe('/auth/sign-in');
+    expect(url?.pathname).toBe(`${AUTH_BASE_PATH}${ProtocolRoute.SIGN_IN}`);
     expect(tokenFacade.revokeToken).toHaveBeenCalledWith('rt');
     expect(res.clearCookie).toHaveBeenCalled();
   });
@@ -215,7 +216,7 @@ describe('PkceFlowOrchestrator', () => {
       res
     );
 
-    expect(url?.pathname).toBe('/auth/sign-in');
+    expect(url?.pathname).toBe(`${AUTH_BASE_PATH}${ProtocolRoute.SIGN_IN}`);
     expect(res.clearCookie).toHaveBeenCalled();
   });
 });

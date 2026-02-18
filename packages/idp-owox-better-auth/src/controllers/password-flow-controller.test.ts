@@ -1,6 +1,7 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import type { Request, Response } from 'express';
 import type { createBetterAuthConfig } from '../config/idp-better-auth-config.js';
+import { AUTH_BASE_PATH, MAGIC_LINK_INTENT } from '../core/constants.js';
 import type { BetterAuthSessionService } from '../services/auth/better-auth-session-service.js';
 import type { MagicLinkService } from '../services/auth/magic-link-service.js';
 import { PasswordFlowController } from './password-flow-controller.js';
@@ -47,7 +48,9 @@ describe('PasswordFlowController.sendMagicLink', () => {
       magicLinkService
     );
 
-    const req = { body: { email: 'user@example.com', intent: 'signup' } } as unknown as Request;
+    const req = {
+      body: { email: 'user@example.com', intent: MAGIC_LINK_INTENT.SIGNUP },
+    } as unknown as Request;
     const res = createResponseMock();
 
     await service.sendMagicLink(req, res);
@@ -74,7 +77,7 @@ describe('PasswordFlowController.passwordSetupPage', () => {
       {} as MagicLinkService
     );
     const req = {
-      query: { token: 'reset-token', intent: 'reset' },
+      query: { token: 'reset-token', intent: MAGIC_LINK_INTENT.RESET },
     } as unknown as Request;
     const res = createResponseMock();
 
@@ -111,7 +114,11 @@ describe('PasswordFlowController.setPassword', () => {
       {} as MagicLinkService
     );
     const req = {
-      body: { password: 'NewPassw0rd', intent: 'reset', token: 'reset-token' },
+      body: {
+        password: 'NewPassw0rd',
+        intent: MAGIC_LINK_INTENT.RESET,
+        token: 'reset-token',
+      },
       headers: baseHeaders,
     } as unknown as Request;
     const res = createResponseMock();
@@ -125,7 +132,7 @@ describe('PasswordFlowController.setPassword', () => {
     const resetHeaders = resetPassword.mock.calls[0]?.[0]?.headers;
     expect(resetHeaders?.get('cookie')).toBe('session=token');
     expect(signOut).not.toHaveBeenCalled();
-    expect(res.redirect).toHaveBeenCalledWith('/auth/password/success');
+    expect(res.redirect).toHaveBeenCalledWith(`${AUTH_BASE_PATH}/password/success`);
   });
 
   it('uses resetPassword when token is provided even without intent', async () => {
@@ -181,7 +188,7 @@ describe('PasswordFlowController.setPassword', () => {
       {} as MagicLinkService
     );
     const req = {
-      body: { password: 'NewPassw0rd', intent: 'reset' },
+      body: { password: 'NewPassw0rd', intent: MAGIC_LINK_INTENT.RESET },
       headers: baseHeaders,
     } as unknown as Request;
     const res = createResponseMock();

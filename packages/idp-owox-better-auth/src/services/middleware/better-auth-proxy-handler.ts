@@ -5,7 +5,7 @@ import {
   type NextFunction,
 } from 'express';
 import { createBetterAuthConfig } from '../../config/idp-better-auth-config.js';
-import { BETTER_AUTH_SESSION_COOKIE } from '../../core/constants.js';
+import { BETTER_AUTH_BASE_PATH, BETTER_AUTH_SESSION_COOKIE } from '../../core/constants.js';
 import { logger } from '../../core/logger.js';
 import { convertExpressToFetchRequest } from '../../utils/express-compat.js';
 import { extractPlatformParams } from '../../utils/request-utils.js';
@@ -15,8 +15,6 @@ import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
  * Proxies Better Auth requests and completes social login flow.
  */
 export class BetterAuthProxyHandler {
-  private static readonly AUTH_ROUTE_PREFIX = '/auth/better-auth';
-
   constructor(
     private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
     private readonly pkceFlowOrchestrator: PkceFlowOrchestrator
@@ -24,7 +22,7 @@ export class BetterAuthProxyHandler {
 
   setupBetterAuthHandler(expressApp: Express): void {
     expressApp.use(async (req: ExpressRequest, res: ExpressResponse, next: NextFunction) => {
-      if (!req.path.startsWith(BetterAuthProxyHandler.AUTH_ROUTE_PREFIX)) {
+      if (!req.path.startsWith(BETTER_AUTH_BASE_PATH)) {
         return next();
       }
 
