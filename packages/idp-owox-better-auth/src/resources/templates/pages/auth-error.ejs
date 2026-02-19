@@ -1,0 +1,31 @@
+<div class="space-y-8 text-center">
+  <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      class="h-8 w-8 text-red-600"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.5"
+    >
+      <path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  </div>
+  <div class="space-y-3">
+    <h1 class="text-2xl font-semibold text-foreground"><%= heading %></h1>
+  </div>
+  <div class="mx-auto max-w-md rounded-md border border-red-200 bg-red-50 px-4 py-3 text-left">
+    <p class="mt-1 break-words text-sm leading-relaxed text-red-700"><%= errorMessage %></p>
+  </div>
+  <div>
+    <a
+      href="<%= homeHref %>"
+      class="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-6 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-primary-hover"
+    >
+      <span><%= homeLabel %></span>
+      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+      </svg>
+    </a>
+  </div>
+</div>

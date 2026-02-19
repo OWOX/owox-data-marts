@@ -1,7 +1,11 @@
 import { LogLevel } from '@owox/internal-helpers';
 import { betterAuth } from 'better-auth';
 import { magicLink } from 'better-auth/plugins';
-import { BETTER_AUTH_BASE_PATH, BETTER_AUTH_SESSION_COOKIE } from '../core/constants.js';
+import {
+  AUTH_BASE_PATH,
+  BETTER_AUTH_BASE_PATH,
+  BETTER_AUTH_SESSION_COOKIE,
+} from '../core/constants.js';
 import { logger } from '../core/logger.js';
 import { GoogleProvider } from '../social/google-provider.js';
 import { MicrosoftProvider } from '../social/microsoft-provider.js';
@@ -130,6 +134,9 @@ export async function createBetterAuthConfig(
             logger.log(LogLevel.INFO, message, { args });
         }
       },
+    },
+    onAPIError: {
+      errorURL: `${AUTH_BASE_PATH}/error`,
     },
     telemetry: { enabled: false },
     basePath,

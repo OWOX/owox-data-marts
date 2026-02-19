@@ -98,6 +98,16 @@ export function getCookie(req: Request, name: string): string | undefined {
 }
 
 /**
+ * Reads a single query string value by key.
+ * Returns the first item when query param is an array.
+ */
+export function readQueryString(req: Request, key: string): string | undefined {
+  const rawValue = req.query?.[key];
+  const value = Array.isArray(rawValue) ? rawValue[0] : rawValue;
+  return typeof value === 'string' ? value : undefined;
+}
+
+/**
  * Clears Platform flow cookies (state and params).
  */
 export function clearPlatformCookies(res: Response, req?: Request): void {

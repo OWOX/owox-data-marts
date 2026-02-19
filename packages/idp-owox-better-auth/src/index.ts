@@ -15,6 +15,7 @@ export {
 } from './owox-better-auth-idp.js';
 
 // Services
+export { AuthErrorController } from './controllers/auth-error-controller.js';
 export { PageController } from './controllers/page-controller.js';
 export { PasswordFlowController } from './controllers/password-flow-controller.js';
 export { BetterAuthSessionService } from './services/auth/better-auth-session-service.js';
