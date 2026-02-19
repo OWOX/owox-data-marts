@@ -97,11 +97,6 @@ export function getCookie(req: Request, name: string): string | undefined {
   }
 }
 
-type ReadQueryStringOptions = {
-  maxLength?: number;
-  collapseWhitespace?: boolean;
-};
-
 /**
  * Reads a single query string value by key.
  * Returns the first item when query param is an array.
@@ -110,29 +105,6 @@ export function readQueryString(req: Request, key: string): string | undefined {
   const rawValue = req.query?.[key];
   const value = Array.isArray(rawValue) ? rawValue[0] : rawValue;
   return typeof value === 'string' ? value : undefined;
-}
-
-/**
- * Reads, normalizes and truncates a query string value.
- */
-export function readNormalizedQueryString(
-  req: Request,
-  key: string,
-  options: ReadQueryStringOptions = {}
-): string | undefined {
-  const raw = readQueryString(req, key);
-  if (typeof raw !== 'string') {
-    return undefined;
-  }
-  const normalized =
-    options.collapseWhitespace === false ? raw.trim() : raw.replace(/\s+/g, ' ').trim();
-  if (!normalized) {
-    return undefined;
-  }
-  if (!options.maxLength || options.maxLength < 1) {
-    return normalized;
-  }
-  return normalized.slice(0, options.maxLength);
 }
 
 /**

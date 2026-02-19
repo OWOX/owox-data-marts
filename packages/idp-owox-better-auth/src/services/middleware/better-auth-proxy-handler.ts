@@ -12,7 +12,7 @@ import {
 } from '../../core/constants.js';
 import { logger } from '../../core/logger.js';
 import { convertExpressToFetchRequest } from '../../utils/express-compat.js';
-import { extractPlatformParams, readNormalizedQueryString } from '../../utils/request-utils.js';
+import { extractPlatformParams, readQueryString } from '../../utils/request-utils.js';
 import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
 
 /**
@@ -21,7 +21,6 @@ import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
 export class BetterAuthProxyHandler {
   private static readonly BETTER_AUTH_ERROR_PATH = `${BETTER_AUTH_BASE_PATH}/error`;
   private static readonly CUSTOM_AUTH_ERROR_PATH = `${AUTH_BASE_PATH}/error`;
-  private static readonly MAX_ERROR_QUERY_VALUE_LENGTH = 500;
 
   constructor(
     private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
@@ -66,18 +65,10 @@ export class BetterAuthProxyHandler {
       return false;
     }
     const params = new URLSearchParams();
-    const error = readNormalizedQueryString(req, 'error', {
-      maxLength: BetterAuthProxyHandler.MAX_ERROR_QUERY_VALUE_LENGTH,
-    });
-    const errorDescription = readNormalizedQueryString(req, 'error_description', {
-      maxLength: BetterAuthProxyHandler.MAX_ERROR_QUERY_VALUE_LENGTH,
-    });
+    const error = readQueryString(req, 'error');
 
     if (error) {
       params.set('error', error);
-    }
-    if (errorDescription) {
-      params.set('error_description', errorDescription);
     }
 
     const query = params.toString();

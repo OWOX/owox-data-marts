@@ -134,10 +134,30 @@ describe('BetterAuthProxyHandler', () => {
     const redirectUrl = new URL(redirectedTo, 'http://localhost');
     expect(redirectUrl.pathname).toBe('/auth/error');
     expect(redirectUrl.searchParams.get('error')).toBe('access_denied');
-    expect(redirectUrl.searchParams.get('error_description')).toBe(
-      'The user denied access to the requested scope'
-    );
+    expect(redirectUrl.searchParams.get('error_description')).toBeNull();
     expect(redirectUrl.searchParams.get('ignored')).toBeNull();
+  });
+
+  it('preserves raw error value and strips error_description on redirect', () => {
+    const handler = new BetterAuthProxyHandler(auth, mockPkceFlowOrchestrator);
+    const req = buildReq(undefined, `${BETTER_AUTH_BASE_PATH}/error`, {
+      error: ' STATE_MISMATCH ',
+      error_description: '  User   denied access  ',
+    });
+    const res = buildRes();
+
+    const tryRedirectToCustomErrorPage = (
+      handler as unknown as { tryRedirectToCustomErrorPage: TryRedirectToCustomErrorPage }
+    ).tryRedirectToCustomErrorPage.bind(handler) as TryRedirectToCustomErrorPage;
+
+    const redirected = tryRedirectToCustomErrorPage(req, res);
+
+    expect(redirected).toBe(true);
+    const redirectedTo = (res.redirect as unknown as jest.Mock).mock.calls[0]?.[0] as string;
+    expect(redirectedTo).toBeTruthy();
+    const redirectUrl = new URL(redirectedTo, 'http://localhost');
+    expect(redirectUrl.searchParams.get('error')).toBe(' STATE_MISMATCH ');
+    expect(redirectUrl.searchParams.get('error_description')).toBeNull();
   });
 
   it('does not redirect custom error page for non-error route', () => {

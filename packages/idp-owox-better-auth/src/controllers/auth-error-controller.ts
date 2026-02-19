@@ -5,11 +5,8 @@ import {
 } from 'express';
 import { AUTH_BASE_PATH } from '../core/constants.js';
 import { TemplateService } from '../services/rendering/template-service.js';
-import { readNormalizedQueryString } from '../utils/request-utils.js';
-import { normalizeOAuthErrorCode } from '../utils/url-utils.js';
+import { readQueryString } from '../utils/request-utils.js';
 
-const MAX_ERROR_MESSAGE_LENGTH = 500;
-const MAX_ERROR_CODE_LENGTH = 64;
 const DEFAULT_AUTH_ERROR_MESSAGE = 'Unable to complete sign in. Please try again.';
 
 /**
@@ -59,13 +56,7 @@ const KNOWN_AUTH_ERROR_MESSAGES: Record<string, string> = {
  * Handles rendering of custom auth error page.
  */
 export class AuthErrorController {
-  private resolveErrorMessage(
-    errorCode: string | undefined,
-    errorDescription: string | undefined
-  ): string {
-    if (errorDescription) {
-      return errorDescription;
-    }
+  private resolveErrorMessage(errorCode: string | undefined): string {
     if (errorCode && KNOWN_AUTH_ERROR_MESSAGES[errorCode]) {
       return KNOWN_AUTH_ERROR_MESSAGES[errorCode];
     }
@@ -73,19 +64,12 @@ export class AuthErrorController {
   }
 
   async errorPage(req: ExpressRequest, res: ExpressResponse): Promise<void> {
-    const rawErrorCode = readNormalizedQueryString(req, 'error', {
-      maxLength: MAX_ERROR_CODE_LENGTH,
-    });
-    const errorCode = normalizeOAuthErrorCode(rawErrorCode);
-    const errorDescription = readNormalizedQueryString(req, 'error_description', {
-      maxLength: MAX_ERROR_MESSAGE_LENGTH,
-    });
-    const errorMessage = this.resolveErrorMessage(errorCode, errorDescription);
+    const errorCode = readQueryString(req, 'error');
+    const errorMessage = this.resolveErrorMessage(errorCode);
 
     res.status(400).send(
       TemplateService.renderAuthError({
         heading: 'Sign in failed',
-        errorCode,
         errorMessage,
         homeHref: '/',
         homeLabel: 'Go to home',
