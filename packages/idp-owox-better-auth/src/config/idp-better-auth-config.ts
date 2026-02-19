@@ -6,6 +6,7 @@ import { logger } from '../core/logger.js';
 import { GoogleProvider } from '../social/google-provider.js';
 import { MicrosoftProvider } from '../social/microsoft-provider.js';
 import { BetterAuthConfig } from '../types/index.js';
+import { resolveNameWithFallback } from '../utils/email-utils.js';
 import { isSecureOrigin } from '../utils/url-utils.js';
 
 /**
@@ -67,6 +68,24 @@ export async function createBetterAuthConfig(
     baseURL: config.baseURL,
     secret: config.secret,
     emailAndPassword: emailAndPasswordConfig,
+    databaseHooks: {
+      user: {
+        create: {
+          before: async (user: Record<string, unknown>) => {
+            const resolvedName = resolveNameWithFallback(user.name, user.email);
+            if (!resolvedName) {
+              return;
+            }
+            return {
+              data: {
+                ...user,
+                name: resolvedName,
+              },
+            };
+          },
+        },
+      },
+    },
     user: {
       additionalFields: {
         lastLoginMethod: {

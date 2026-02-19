@@ -39,9 +39,33 @@ describe('buildUserInfoPayload', () => {
       account: baseAccount,
     });
 
-    expect(payload.userInfo.firstName).toBeUndefined();
+    expect(payload.userInfo.firstName).toBe('User');
     expect(payload.userInfo.lastName).toBeUndefined();
-    expect(payload.userInfo.fullName).toBeUndefined();
+    expect(payload.userInfo.fullName).toBe('User');
     expect(payload.userInfo.avatar).toBeUndefined();
+  });
+
+  it('generates name from email when missing', () => {
+    const payload = buildUserInfoPayload({
+      state: 'state-3',
+      user: { ...baseUser, name: undefined, email: 'john.doe@test.com' },
+      account: baseAccount,
+    });
+
+    expect(payload.userInfo.fullName).toBe('John Doe');
+    expect(payload.userInfo.firstName).toBe('John');
+    expect(payload.userInfo.lastName).toBe('Doe');
+  });
+
+  it('handles plus addressing when generating name', () => {
+    const payload = buildUserInfoPayload({
+      state: 'state-4',
+      user: { ...baseUser, name: '', email: 'alice+work@test.com' },
+      account: baseAccount,
+    });
+
+    expect(payload.userInfo.fullName).toBe('Alice');
+    expect(payload.userInfo.firstName).toBe('Alice');
+    expect(payload.userInfo.lastName).toBeUndefined();
   });
 });
