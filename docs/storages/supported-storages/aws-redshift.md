@@ -62,22 +62,15 @@ AWS Redshift supports two deployment types (one is required). It's based on your
 
 OWOX Data Marts uses AWS IAM credentials to authenticate with Redshift Data API.
 
-#### Access Key ID
-
-Your AWS Access Key ID for authentication.
+#### Access Key ID and Secret Access Key
 
 **How to create IAM credentials:**
 
 1. Go to [AWS IAM Console](https://console.aws.amazon.com/iam/)
 2. Navigate to **Users** → Select your user or create a new one
-3. Go to **Security credentials** tab
-4. Click **Create access key**
-5. Choose **Application running outside AWS**
-6. Copy the **Access key ID**
-
-#### Secret Access Key
-
-Your AWS Secret Access Key (shown only once during creation).
+3. Click **Create access key**
+4. Choose **Application running outside AWS**
+5. Copy the **Access key** and **Secret access key** or download .csv file with access keys.
 
 > **Security Best Practice:**
 >
@@ -85,6 +78,12 @@ Your AWS Secret Access Key (shown only once during creation).
 > - Store it securely (use AWS Secrets Manager or similar)
 > - Rotate keys regularly
 > - Use IAM policies to grant minimum required permissions
+
+![AWS IAM console showing the owox-user identity summary with ARN, creation date, and console access status. The Security credentials tab is open displaying the Console sign-in section. On the right side, under Access key 1, a blue Create access key link is visible with a red arrow indicating the location to click for generating new credentials. The interface shows a professional AWS management console layout with navigation menu on the left.](../../res/screens/redshift_createkey.png)
+
+![AWS Create Access Key dialog showing Step 1: Access key best practices and alternatives. The page explains to avoid long-term credentials and presents use case options including Command Line Interface, Local code, Application running on AWS compute service, Third-party service, and Application running outside AWS, which is selected with a blue highlight and red arrow. The interface has a professional layout with step navigation on the left side and informational content on the right.](../../res/screens/redshift_creatingkeyoption.png)
+
+![AWS IAM Access keys retrieval page displaying the newly created access key credentials, showing the Access Key ID and Secret Access Key fields with copy icons. The page indicates this is Step 3 of the access key creation process with options to view, download, or manage the credentials in a secure manner.](../../res/screens/redshift_accesskeys.png)
 
 ### Required IAM Permissions
 
@@ -133,11 +132,7 @@ Your IAM user or role needs the following permissions:
 > **Tip:** You can attach the AWS managed policy `AmazonRedshiftDataFullAccess` for quick setup, but consider using a custom policy with minimal permissions for production.
 > You can set permissions to certain database and tables for more security. Example: `"Resource": "arn:aws:redshift:us-east-1:123456789012"`
 
-## 5. Finalize Setup
-
-Review your entries and click **Save** to add the **Storage configuration**, or **Cancel** to exit without saving.
-
-Once saved, OWOX Data Marts will validate the connection to ensure all credentials are correct.
+![AWS IAM policy creation interface showing Step 1: Specify permissions with a policy editor displaying JSON policy syntax. The policy editor shows Version 2012-10-17 and a Statement array with Allow Effect and Action array containing redshift-data permissions: ExecuteStatement, DescribeStatement, GetStatementResult, and redshift-serverless:GetCredentials. The Resource field is set to asterisk. The top navigation shows IAM > Policies > Create policy breadcrumb. Step 2 Review and create is visible in the left sidebar. The interface has a professional AWS management console layout with Visual and JSON tabs, and Actions dropdown buttons in the top right corner.](../../res/screens/redshift_permissions.png)
 
 ## Grand Permissions to create schemas in database
 
@@ -149,6 +144,14 @@ GRANT CREATE ON DATABASE dev TO "IAM:<USERNAME_IN_IAM>";
 
 > **Tip:** You can find your username in IAM in the [AWS IAM Console](https://console.aws.amazon.com/iam/) in the **Users** tab.
 
+## 5. Finalize Setup
+
+Review your entries and click **Save** to add the **Storage configuration**, or **Cancel** to exit without saving.
+
+Once saved, OWOX Data Marts will validate the connection to ensure all credentials are correct.
+
+![OWOX Data Marts Configure Storage Provider dialog displaying the final configuration form. The form shows the region field set to eu-north-1, Workgroup Name field containing owox with Serverless and Provisioned tabs, Database field showing dev, and Authentication section with Access Key ID and Secret Access Key fields. A prominent blue Save button with a red arrow pointing to it is centered at the bottom of the dialog, alongside a Cancel button. The dialog has a dark background with professional layout and informational help icons throughout.](../../res/screens/redshift_saveconfig.png)
+
 ## Next Steps
 
 After configuring your AWS Redshift storage:
@@ -157,18 +160,6 @@ After configuring your AWS Redshift storage:
 2. **Define your data structure** with Redshift-specific field types
 3. **Configure a Connector** to load data into Redshift
 4. **Run reports** and export data from your Redshift tables
-
-## Understanding Schema Configuration
-
-Unlike other storage types, **Schema** is configured at the **Connector level**, not at the Storage level.
-
-When you create a connector:
-
-- **Step 5: Target Setup** will ask for:
-  - **Schema name** (required) - e.g., `public`, `analytics`, `my_schema`
-  - **Table name** (required) - e.g., `user_events`, `sales_data`
-
-The schema and table will be automatically created during the first Data Mart run if they don't exist.
 
 ## Troubleshooting
 
