@@ -104,7 +104,41 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
 
   const shouldShowInsights = checkVisible('INSIGHTS_ENABLED', 'true', flags);
 
-  const { showPromo } = useDataMartNextStepPromo();
+  const { showPromo, dismissAllPromos } = useDataMartNextStepPromo();
+
+  // Show promo every time a published data mart page is opened.
+  // For CONNECTOR type — show LOAD_DATA promo, for others — USE_DATA promo.
+  useEffect(() => {
+    if (!dataMartId) return;
+    if (dataMartStatus.code !== DataMartStatus.PUBLISHED) return;
+
+    const isConnector = dataMartDefinitionType === DataMartDefinitionType.CONNECTOR;
+
+    showPromo({
+      step: isConnector ? PromoStep.LOAD_DATA : PromoStep.USE_DATA,
+      projectId,
+      dataMartId,
+      isInsightsEnabled: shouldShowInsights,
+      suppressible: true,
+      onManualRunClick: () => {
+        setIsRunSheetOpen(true);
+      },
+    });
+  }, [
+    dataMartId,
+    dataMartStatus.code,
+    dataMartDefinitionType,
+    showPromo,
+    projectId,
+    shouldShowInsights,
+  ]);
+
+  // Dismiss all promo toasts when leaving the data mart page
+  useEffect(() => {
+    return () => {
+      dismissAllPromos();
+    };
+  }, [dismissAllPromos]);
 
   const navigation = [
     { name: 'Overview', path: 'overview' },
