@@ -1,6 +1,6 @@
 import type { UserInfoPayload } from '../services/auth/platform-auth-flow-client.js';
 import type { DatabaseAccount, DatabaseUser } from '../types/database-models.js';
-import { splitName } from '../utils/email-utils.js';
+import { resolveNameWithFallback, splitName } from '../utils/email-utils.js';
 
 /**
  * Builds the auth-flow payload from DB user and account data.
@@ -15,7 +15,8 @@ export function buildUserInfoPayload(params: {
     throw new Error('Email not found in DB');
   }
 
-  const { firstName, lastName, fullName } = splitName(params.user.name);
+  const resolvedName = resolveNameWithFallback(params.user.name, email) ?? '';
+  const { firstName, lastName, fullName } = splitName(resolvedName);
   const avatar = params.user.image ?? undefined;
 
   return {

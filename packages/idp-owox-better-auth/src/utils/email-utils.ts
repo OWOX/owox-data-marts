@@ -41,6 +41,68 @@ export function splitName(name?: string): {
 }
 
 /**
+ * Resolves display name: use explicit name if provided, otherwise generate from email.
+ * Returns null when neither value can produce a valid name.
+ */
+export function resolveNameWithFallback(rawName: unknown, rawEmail: unknown): string | null {
+  if (typeof rawName === 'string' && rawName.trim().length > 0) {
+    return rawName;
+  }
+
+  if (typeof rawEmail !== 'string') {
+    return null;
+  }
+
+  const normalizedEmail = parseEmail(rawEmail) ?? rawEmail.trim();
+  if (!normalizedEmail) {
+    return null;
+  }
+
+  const generatedName = generateNameFromEmail(normalizedEmail).trim();
+  return generatedName || null;
+}
+
+/**
+ * Generates a human-readable name from the local-part of email.
+ * - strips plus-addressing suffix (`+tag`)
+ * - treats `.`, `_`, `-` as word separators
+ * - collapses spaces and applies Title Case
+ * Falls back to the original email string when local-part is empty/invalid.
+ */
+export function generateNameFromEmail(email: string): string {
+  if (typeof email !== 'string') {
+    return '';
+  }
+
+  const atIndex = email.indexOf('@');
+  const hasAt = atIndex !== -1;
+  const localPart = hasAt ? email.slice(0, atIndex).trim() : email.trim();
+
+  if (!localPart) {
+    return email;
+  }
+
+  const plusIndex = localPart.indexOf('+');
+  const withoutTag = plusIndex !== -1 ? localPart.slice(0, plusIndex) : localPart;
+  const normalized = withoutTag.replace(/[._-]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  if (!normalized) {
+    return email;
+  }
+
+  const titled = normalized.split(' ').filter(Boolean).map(capitalizeWord).join(' ');
+
+  return titled || email;
+}
+
+function capitalizeWord(word: string): string {
+  if (!word) return '';
+  const first = word.charAt(0);
+  const rest = word.slice(1);
+  return first.toUpperCase() + rest.toLowerCase();
+}
+
+/**
  * Formats an error into a readable string with stack.
  */
 export function formatError(error: unknown): string {
