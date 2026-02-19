@@ -24,14 +24,3 @@ export function tryNormalizeOrigin(value: string): string | null {
     return null;
   }
 }
-
-/**
- * Normalizes OAuth error code from URL query parameters.
- */
-export function normalizeOAuthErrorCode(value: string | undefined): string | undefined {
-  if (!value) {
-    return undefined;
-  }
-  const normalized = value.toLowerCase().replace(/[^a-z0-9._-]/g, '');
-  return normalized || undefined;
-}
