@@ -13,15 +13,14 @@ export default function StorageTypeLegacyBigQueryDescription() {
         <AccordionTrigger>What is this storage type?</AccordionTrigger>
         <AccordionContent>
           <p className='mb-2'>
-            This is a system storage type created to maintain compatibility with the{' '}
+            This system storage type is created automatically to maintain compatibility with the{' '}
             <ExternalAnchor
               className='underline'
               href='https://workspace.google.com/marketplace/app/owox_bigquery_data_marts/263000453832'
             >
-              OWOX BigQuery™ Data Marts
+              OWOX extension
             </ExternalAnchor>{' '}
-            extension. It is automatically created by the system and cannot be manually added or
-            deleted.
+            for Google Sheets. It cannot be manually added or deleted.
           </p>
         </AccordionContent>
       </AccordionItem>

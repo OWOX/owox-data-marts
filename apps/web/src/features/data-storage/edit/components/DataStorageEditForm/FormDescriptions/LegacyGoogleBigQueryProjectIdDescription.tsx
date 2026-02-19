@@ -12,19 +12,20 @@ export default function LegacyGoogleBigQueryProjectIdDescription() {
       <AccordionItem value='project-id-details'>
         <AccordionTrigger>Why can't I change the project ID?</AccordionTrigger>
         <AccordionContent>
+          <p className='mb-2'>The project ID is fixed and cannot be changed.</p>
           <p className='mb-2'>
-            This is a system storage created to maintain compatibility with the{' '}
+            A separate system storage is created for each GCP project to maintain compatibility with
+            the{' '}
             <ExternalAnchor
               className='underline'
               href='https://workspace.google.com/marketplace/app/owox_bigquery_data_marts/263000453832'
             >
-              OWOX BigQuery™ Data Marts
+              OWOX extension
             </ExternalAnchor>
-            extension. A separate storage is created for each GCP project, so the project ID cannot
-            be changed.
+            for Google Sheets. Its project ID automatically matches the GCP project.
           </p>
           <p className='mb-2'>
-            If you don't have storage for the project you need, please contact support.
+            If you need storage for a different project, please contact support.
           </p>
         </AccordionContent>
       </AccordionItem>
