@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataMartSchemaMergerFacade } from '../data-storage-types/facades/data-mart-schema-merger.facade';
 import { DataMartSchemaProviderFacade } from '../data-storage-types/facades/data-mart-schema-provider.facade';
+import { DataMartDefinitionSchema } from '../dto/schemas/data-mart-table-definitions/data-mart-definition.schema';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataStorage } from '../entities/data-storage.entity';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
@@ -77,9 +78,20 @@ export class DataMartService {
     ]);
     const items = entities.map((item, index) => {
       if (raw[index]?.dm_definition) {
-        // raw values returned by TypeORM are strings, so we need to parse it back to JSON
         try {
-          item.definition = JSON.parse(raw[index].dm_definition);
+          // value can be returned as a string or as an object
+          const rawDefinition = raw[index].dm_definition;
+          const parsed =
+            typeof rawDefinition === 'string' ? JSON.parse(rawDefinition) : rawDefinition;
+          const result = DataMartDefinitionSchema.safeParse(parsed);
+          if (result.success) {
+            item.definition = result.data;
+          } else {
+            this.logger.error(
+              `Invalid definition schema for DataMart ${item.id}: ${result.error.message}`
+            );
+            item.definition = undefined;
+          }
         } catch (error) {
           this.logger.error(`Failed to parse definition for DataMart ${item.id}`, error);
           item.definition = undefined;
