@@ -1,5 +1,67 @@
 # owox
 
+## 0.19.0
+
+### Minor Changes
+
+![OWOX Data Marts – v0.19.0](https://github.com/user-attachments/assets/fb0a4e77-4334-43dd-b5a4-d9582086fc9c)
+
+- 2ab606c: # Add email and webhook notifications for Data Mart runs
+
+  Add notification settings per project with support for email and webhook channels. Notifications are grouped by a configurable delay window and sent automatically when Data Mart runs fail or succeed. Settings are created automatically on the first run of a project.
+
+- a23ec87: # Add batch publish action for draft data marts
+
+  Add the ability to publish multiple draft data marts at once from the list page.
+
+- 6e25a0a: # Add health status indicator for data storages
+
+  Display a live access-validation indicator (colored dot with details on hover) for each configured data storage — both in the storages list and in the storage selector when creating a new data mart.
+
+- 465891c: # Show data mart counts by status on the data storages list
+
+  Show separate counts for published and draft data marts in the data storages list.
+
+- 465891c: # Publish data storage drafts
+
+  Add a publish drafts action for data storages with confirmation and result toasts.
+
+- ee89c84: # Show actual error details when Google Sheets access check fails
+
+  Previously, when Google Sheets API access validation failed, the error message always displayed a generic "Access check failed" text. Now the actual error message from the Google Sheets API is shown, making it easier to understand and fix the issue.
+
+- ee89c84: # Add direct table link for AWS Redshift storages
+
+  Add a direct link to the AWS Redshift Query Editor v2 console from the Data Mart's input source. After the clicking to the table name opens the SQL Workbench for the configured AWS region, similar to the existing console links for BigQuery, Athena, and Snowflake.
+
+- 2f61b9b: # Fix Athena MaxResults exceeding API limit of 1000
+
+  Cap `MaxResults` parameter to 1000 in Athena `getQueryResults` to comply with the AWS Athena API limit. Previously, callers could pass values greater than 1000 (e.g., streaming batch size of 5000), causing `InvalidRequestException` errors.
+
+- ee89c84: # Fix LinkedIn Ads field type definitions
+  - Fix `runSchedule` field in campaign schema: remove duplicate entry and set correct type to `OBJECT` instead of `NUMBER`
+  - Fix `id` fields in account, campaign, and campaign group schemas to use `STRING` type matching the LinkedIn API
+  - Fix `dateRangeStart` and `dateRangeEnd` fields in analytics schema to use `DATE` type for proper date handling and BigQuery partitioning
+
+- 807c16d: # Fix Looker Studio connector requests with forFilterOnly fields
+
+  Remove incorrect `forFilterOnly` exclusion in `getRequestedFieldNames` to ensure all requested fields are returned in the connector data response.
+
+- ee89c84: # Update Snowflake storage configuration form
+  - Rename "Username & Password" authentication method to "Username & PAT" across the Snowflake setup form and all help descriptions
+  - Update help text and security tips to reference Programmatic Access Tokens (PAT) instead of password
+  - Update warehouse navigation instructions to match the current Snowflake UI
+
+### Patch Changes 0.19.0
+
+- @owox/internal-helpers@0.19.0
+- @owox/idp-protocol@0.19.0
+- @owox/idp-better-auth@0.19.0
+- @owox/idp-owox-better-auth@0.19.0
+- @owox/idp-owox@0.19.0
+- @owox/backend@0.19.0
+- @owox/web@0.19.0
+
 ## 0.18.0
 
 ### Minor Changes 0.18.0
@@ -1126,7 +1188,7 @@
 
   Now you can set up your data workflows to run exactly when you need them, ensuring your dashboards and reports always contain the most up-to-date information without manual intervention.
 
-### Patch Changes
+### Patch Changes 0.3.0
 
 - @owox/backend@0.3.0
 
