@@ -5,16 +5,24 @@ import {
   type NextFunction,
 } from 'express';
 import { createBetterAuthConfig } from '../../config/idp-better-auth-config.js';
-import { BETTER_AUTH_BASE_PATH, BETTER_AUTH_SESSION_COOKIE } from '../../core/constants.js';
+import {
+  AUTH_BASE_PATH,
+  BETTER_AUTH_BASE_PATH,
+  BETTER_AUTH_SESSION_COOKIE,
+} from '../../core/constants.js';
 import { logger } from '../../core/logger.js';
 import { convertExpressToFetchRequest } from '../../utils/express-compat.js';
-import { extractPlatformParams } from '../../utils/request-utils.js';
+import { extractPlatformParams, readNormalizedQueryString } from '../../utils/request-utils.js';
 import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
 
 /**
  * Proxies Better Auth requests and completes social login flow.
  */
 export class BetterAuthProxyHandler {
+  private static readonly BETTER_AUTH_ERROR_PATH = `${BETTER_AUTH_BASE_PATH}/error`;
+  private static readonly CUSTOM_AUTH_ERROR_PATH = `${AUTH_BASE_PATH}/error`;
+  private static readonly MAX_ERROR_QUERY_VALUE_LENGTH = 500;
+
   constructor(
     private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
     private readonly pkceFlowOrchestrator: PkceFlowOrchestrator
@@ -24,6 +32,10 @@ export class BetterAuthProxyHandler {
     expressApp.use(async (req: ExpressRequest, res: ExpressResponse, next: NextFunction) => {
       if (!req.path.startsWith(BETTER_AUTH_BASE_PATH)) {
         return next();
+      }
+
+      if (this.tryRedirectToCustomErrorPage(req, res)) {
+        return;
       }
 
       try {
@@ -47,6 +59,40 @@ export class BetterAuthProxyHandler {
         res.status(500).json({ error: 'Internal server error' });
       }
     });
+  }
+
+  private tryRedirectToCustomErrorPage(req: ExpressRequest, res: ExpressResponse): boolean {
+    if (!this.isBetterAuthErrorPath(req.path)) {
+      return false;
+    }
+    const params = new URLSearchParams();
+    const error = readNormalizedQueryString(req, 'error', {
+      maxLength: BetterAuthProxyHandler.MAX_ERROR_QUERY_VALUE_LENGTH,
+    });
+    const errorDescription = readNormalizedQueryString(req, 'error_description', {
+      maxLength: BetterAuthProxyHandler.MAX_ERROR_QUERY_VALUE_LENGTH,
+    });
+
+    if (error) {
+      params.set('error', error);
+    }
+    if (errorDescription) {
+      params.set('error_description', errorDescription);
+    }
+
+    const query = params.toString();
+    const redirectUrl = query
+      ? `${BetterAuthProxyHandler.CUSTOM_AUTH_ERROR_PATH}?${query}`
+      : BetterAuthProxyHandler.CUSTOM_AUTH_ERROR_PATH;
+    res.redirect(redirectUrl);
+    return true;
+  }
+
+  private isBetterAuthErrorPath(path: string | undefined): boolean {
+    return (
+      path === BetterAuthProxyHandler.BETTER_AUTH_ERROR_PATH ||
+      path === `${BetterAuthProxyHandler.BETTER_AUTH_ERROR_PATH}/`
+    );
   }
 
   private getSessionTokenFromResponse(response: Response): string | null {

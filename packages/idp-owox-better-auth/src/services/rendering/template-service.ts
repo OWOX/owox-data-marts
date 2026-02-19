@@ -106,6 +106,18 @@ export class TemplateService {
     });
   }
 
+  public static renderAuthError(data: Record<string, unknown> = {}): string {
+    return this.renderWithLayout('pages/auth-error.ejs', 'layouts/auth.ejs', {
+      pageTitle: 'Sign in failed',
+      heading: 'Sign in failed',
+      errorMessage: 'Unable to complete sign in. Please try again.',
+      errorCode: '',
+      homeHref: '/',
+      homeLabel: 'Go to home',
+      ...data,
+    });
+  }
+
   public static renderForgotPassword(data: Record<string, unknown> = {}): string {
     return this.renderWithLayout('pages/forgot-password.ejs', 'layouts/auth.ejs', {
       pageTitle: 'Forgot password',

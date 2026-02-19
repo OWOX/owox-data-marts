@@ -13,6 +13,7 @@ import e, { Express, NextFunction } from 'express';
 import { IdentityOwoxClient, TokenResponse } from './client/index.js';
 import { createBetterAuthConfig } from './config/idp-better-auth-config.js';
 import type { BetterAuthProviderConfig } from './config/index.js';
+import { AuthErrorController } from './controllers/auth-error-controller.js';
 import { PageController } from './controllers/page-controller.js';
 import { PasswordFlowController } from './controllers/password-flow-controller.js';
 import { AUTH_BASE_PATH, CORE_REFRESH_TOKEN_COOKIE, SOURCE } from './core/constants.js';
@@ -47,6 +48,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>;
   private readonly store: DatabaseStore;
   private readonly betterAuthProxyHandler: BetterAuthProxyHandler;
+  private readonly authErrorController: AuthErrorController;
   private readonly pageController: PageController;
   private readonly passwordFlowController: PasswordFlowController;
   private readonly betterAuthSessionService: BetterAuthSessionService;
@@ -90,6 +92,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       logger
     );
     this.betterAuthProxyHandler = new BetterAuthProxyHandler(this.auth, this.pkceFlowOrchestrator);
+    this.authErrorController = new AuthErrorController();
     this.pageController = new PageController(this.config.uiProviders);
     this.passwordFlowController = new PasswordFlowController(
       this.auth,
@@ -156,6 +159,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     app.use(cookieParser());
 
     this.betterAuthProxyHandler.setupBetterAuthHandler(app);
+    this.authErrorController.registerRoutes(app);
     this.pageController.registerRoutes(app);
     this.passwordFlowController.registerRoutes(app);
 
