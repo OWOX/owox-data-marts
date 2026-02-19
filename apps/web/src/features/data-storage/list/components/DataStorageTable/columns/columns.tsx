@@ -5,8 +5,6 @@ import { DataStorageTypeModel } from '../../../../shared/types/data-storage-type
 import { DataStorageActionsCell } from '../DataStorageActionsCell';
 import { DataStorageColumnKey } from './columnKeys';
 import { dataStorageColumnLabels } from './columnLabels';
-import { getDataStorageHealthSortRank } from '../../../../shared/utils';
-import { getCachedDataStorageHealthStatus } from '../../../../shared/services/data-storage-health-status.service';
 
 export interface DataStorageTableItem {
   id: string;
@@ -39,16 +37,8 @@ export const getDataStorageColumns = ({
       title: dataStorageColumnLabels[DataStorageColumnKey.HEALTH],
       showHeaderTitle: false,
     },
-    sortingFn: 'basic',
-    accessorFn: row => {
-      const cached = getCachedDataStorageHealthStatus(row.id);
-      return getDataStorageHealthSortRank(cached?.status);
-    },
-    header: ({ column }) => (
-      <SortableHeader column={column}>
-        {dataStorageColumnLabels[DataStorageColumnKey.HEALTH]}
-      </SortableHeader>
-    ),
+    enableSorting: false,
+    header: () => null,
     cell: ({ row }) => (
       <DataStorageHealthIndicator
         storageId={row.original.id}

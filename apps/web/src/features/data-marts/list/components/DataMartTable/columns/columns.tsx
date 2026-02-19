@@ -13,8 +13,6 @@ import { dataMartColumnLabels } from './columnLabels.ts';
 import type { ConnectorListItem } from '../../../../../connectors/shared/model/types/connector';
 import { RawBase64Icon } from '../../../../../../shared';
 import { SortableHeader, ToggleColumnsHeader } from '../../../../../../shared/components/Table';
-import { getCachedHealthStatus } from '../../../../shared/services/data-mart-health-status.service';
-import { getHealthStatusSortRank } from '../../../utils/data-mart-health-status.utils';
 
 interface DataMartTableColumnsProps {
   onDeleteSuccess?: () => void;
@@ -33,19 +31,8 @@ export const getDataMartColumns = ({
       title: dataMartColumnLabels[DataMartColumnKey.HEALTH_STATUS],
       showHeaderTitle: false,
     },
-    accessorFn: row => {
-      const cachedHealthStatus = getCachedHealthStatus(row.id);
-      return getHealthStatusSortRank({
-        dataMartStatus: row.status.code,
-        healthStatus: cachedHealthStatus?.healthStatus,
-      });
-    },
-    sortingFn: 'basic',
-    header: ({ column }) => (
-      <SortableHeader column={column}>
-        {dataMartColumnLabels[DataMartColumnKey.HEALTH_STATUS]}
-      </SortableHeader>
-    ),
+    enableSorting: false,
+    header: () => null,
     cell: ({ row }) => <DataMartHealthStatusCell row={row} />,
   },
   {
