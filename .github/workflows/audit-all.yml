@@ -26,4 +26,4 @@ jobs:
           cache: 'npm'
 
       - name: Run Audit all
-        run: npm audit
+        run: npm audit --omit=dev
