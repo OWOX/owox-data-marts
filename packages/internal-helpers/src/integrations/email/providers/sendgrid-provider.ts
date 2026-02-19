@@ -1,5 +1,5 @@
 import sendgrid from '@sendgrid/mail';
-import type { EmailProvider, EmailRecipient } from '../types.js';
+import type { EmailProvider, EmailRecipient, EmailSendOptions } from '../types.js';
 
 export interface SendgridMailingConfig {
   apiKey: string;
@@ -31,13 +31,20 @@ export class SendgridMailingProvider implements EmailProvider {
     this.sender = { email: verifiedSenderEmail, name: verifiedSenderName };
   }
 
-  async sendEmail(to: EmailRecipient, subject: string, bodyHtml: string): Promise<void> {
+  async sendEmail(
+    to: EmailRecipient,
+    subject: string,
+    bodyHtml: string,
+    options?: EmailSendOptions
+  ): Promise<void> {
     await sendgrid.send({
       from: this.sender,
       to,
       subject,
       html: bodyHtml,
-      isMultiple: true,
+      text: options?.bodyText,
+      categories: options?.categories,
+      isMultiple: options?.isMultiple ?? true,
     });
   }
 }

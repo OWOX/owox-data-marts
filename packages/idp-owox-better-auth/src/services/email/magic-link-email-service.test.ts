@@ -16,12 +16,22 @@ describe('MagicLinkEmailService', () => {
     });
 
     expect(sendEmail).toHaveBeenCalledTimes(1);
-    const [to, subject, html] = sendEmail.mock.calls[0] as [string, string, string];
+    const [to, subject, html, options] = sendEmail.mock.calls[0] as [
+      string,
+      string,
+      string,
+      { bodyText: string; categories: string[] },
+    ];
     expect(to).toBe('user@example.com');
     expect(subject).toBe('Confirm your email');
     expect(html).toContain('Confirm your email');
     expect(html).toContain('Confirm email');
     expect(html).toContain('https://auth.example.com/auth/magic-link?token=t1');
+    expect(options.categories).toEqual(['transactional', 'auth']);
+    expect(options.bodyText).toContain('Confirm your email');
+    expect(options.bodyText).toContain(
+      'Confirm email: https://auth.example.com/auth/magic-link?token=t1'
+    );
   });
 
   it('sends reset email with reset subject and content', async () => {
@@ -36,11 +46,21 @@ describe('MagicLinkEmailService', () => {
     });
 
     expect(sendEmail).toHaveBeenCalledTimes(1);
-    const [to, subject, html] = sendEmail.mock.calls[0] as [string, string, string];
+    const [to, subject, html, options] = sendEmail.mock.calls[0] as [
+      string,
+      string,
+      string,
+      { bodyText: string; categories: string[] },
+    ];
     expect(to).toBe('user@example.com');
     expect(subject).toBe('Reset your password');
     expect(html).toContain('Reset your password');
     expect(html).toContain('Reset password');
     expect(html).toContain('https://auth.example.com/auth/magic-link?token=t2');
+    expect(options.categories).toEqual(['transactional', 'auth']);
+    expect(options.bodyText).toContain('Reset your password');
+    expect(options.bodyText).toContain(
+      'Reset password: https://auth.example.com/auth/magic-link?token=t2'
+    );
   });
 });

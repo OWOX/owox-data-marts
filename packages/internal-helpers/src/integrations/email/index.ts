@@ -4,4 +4,10 @@ export {
   SendgridMailingProvider,
   type SendgridMailingConfig,
 } from './providers/sendgrid-provider.js';
-export type { EmailProvider, EmailRecipient, EmailLogger, EmailProviderName } from './types.js';
+export type {
+  EmailProvider,
+  EmailRecipient,
+  EmailSendOptions,
+  EmailLogger,
+  EmailProviderName,
+} from './types.js';
