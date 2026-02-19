@@ -103,10 +103,19 @@ export class BetterAuthProxyHandler {
       callbackProviderId
     );
     if (redirectUrl) {
-      res.redirect(redirectUrl.toString());
+      if (this.isJsonRequest(req)) {
+        res.json({ url: redirectUrl.toString() });
+      } else {
+        res.redirect(redirectUrl.toString());
+      }
       return true;
     }
     return false;
+  }
+
+  private isJsonRequest(req: ExpressRequest): boolean {
+    const contentType = req.headers['content-type'] || '';
+    return contentType.toLowerCase().includes('application/json');
   }
 
   private resolveCallbackProviderId(path: string | undefined): string | undefined {
