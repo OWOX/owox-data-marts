@@ -12,19 +12,20 @@ export default function LegacyGoogleBigQueryTitleDescription() {
       <AccordionItem value='title-details'>
         <AccordionTrigger>Why can't I change the title?</AccordionTrigger>
         <AccordionContent>
+          <p className='mb-2'>The title is fixed and cannot be changed.</p>
           <p className='mb-2'>
-            This is a system storage created to maintain compatibility with the{' '}
+            A separate system storage is created for each GCP project to maintain compatibility with
+            the{' '}
             <ExternalAnchor
               className='underline'
               href='https://workspace.google.com/marketplace/app/owox_bigquery_data_marts/263000453832'
             >
-              OWOX BigQuery™ Data Marts
+              OWOX extension
             </ExternalAnchor>
-            extension. A separate storage is created for each GCP project, and the title matches the
-            project ID, so it cannot be changed.
+            for Google Sheets. Its title automatically matches the project ID.
           </p>
           <p className='mb-2'>
-            If you don't have storage for the project you need, please contact support.
+            If you need storage for a different project, please contact support.
           </p>
         </AccordionContent>
       </AccordionItem>
