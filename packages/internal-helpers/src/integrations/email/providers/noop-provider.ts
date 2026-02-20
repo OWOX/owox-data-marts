@@ -9,7 +9,7 @@ const NOOP_ERROR_MESSAGE =
 export class NoopMailingProvider implements EmailProvider {
   constructor(private readonly logger: EmailLogger = console) {}
 
-  async sendEmail(): Promise<void> {
+  async sendEmail(..._args: Parameters<EmailProvider['sendEmail']>): Promise<void> {
     this.logger.error?.(NOOP_ERROR_MESSAGE);
     throw new Error(NOOP_ERROR_MESSAGE);
   }

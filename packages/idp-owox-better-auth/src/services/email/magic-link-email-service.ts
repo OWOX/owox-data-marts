@@ -41,16 +41,29 @@ export class MagicLinkEmailService {
     return intent === MAGIC_LINK_INTENT.RESET ? 'Reset your password' : 'Confirm your email';
   }
 
-  render(payload: MagicLinkEmailPayload): string {
-    const viewModel = this.buildViewModel(payload);
-    return ejs.render(this.template, viewModel);
+  private renderPlainText(viewModel: Record<string, string>): string {
+    return [
+      viewModel.title,
+      '',
+      viewModel.description,
+      '',
+      `${viewModel.buttonText}: ${viewModel.magicLink}`,
+      '',
+      viewModel.footer,
+    ].join('\n');
   }
 
   async send(payload: MagicLinkEmailPayload): Promise<void> {
-    const html = this.render(payload);
+    const viewModel = this.buildViewModel(payload);
+    const html = ejs.render(this.template, viewModel);
+    const plainText = this.renderPlainText(viewModel);
     const subject = this.buildSubject(payload.intent);
     try {
-      await this.emailProvider.sendEmail(payload.email, subject, html);
+      await this.emailProvider.sendEmail(payload.email, subject, html, {
+        bodyText: plainText,
+        categories: ['transactional', 'auth'],
+        isMultiple: false,
+      });
     } catch (error) {
       logger.error('Failed to send magic link email', { email: payload.email }, error as Error);
       throw error;
