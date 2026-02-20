@@ -14,9 +14,9 @@
   <div class="space-y-3">
     <h1 class="text-2xl font-semibold text-foreground"><%= heading %></h1>
   </div>
-  <div class="mx-auto max-w-md rounded-md border border-red-200 bg-red-50 px-4 py-3 text-left">
-    <p class="mt-1 break-words text-sm leading-relaxed text-red-700"><%= errorMessage %></p>
-  </div>
+  <p class="mx-auto max-w-md text-sm text-muted-foreground leading-relaxed break-words">
+    <%= errorMessage %>
+  </p>
   <div>
     <a
       href="<%= homeHref %>"
