@@ -1,21 +1,19 @@
 # AWS Redshift
 
-## 1. Go to the Storages Page
+Use this guide to configure **AWS Redshift as a storage** in **OWOX Data Marts**. The steps below walk you through creating a storage record, completing authentication, and finishing validation.
 
-In the OWOX Data Marts web application, navigate to **Storages** from the main navigation pane and click **+ New Storage**.
+## 1. Go to the Storages Page and choose Storage Type
 
-## 2. Choose Storage Type
-
-Click **AWS Redshift** to create a new **Storage** configuration.
+In the OWOX Data Marts web application, navigate to **Storages** from the main navigation pane and click **+ New Storage**. Click **AWS Redshift** to create a new **Storage** configuration.
 > Upon selecting the **+ New Storage** button and specifying the desired storage type, a Storage entry is created.
 > You can create **Data Mart** entities and model a data structure for your project prior to configuring the **Storage**.
 > Note that **Data Mart** cannot be validated or published until the associated **Storage** is fully configured.
 
 ![OWOX Data Marts interface showing the Storages menu option highlighted with a red arrow in the left sidebar, and the New Storage dialog displaying available storage types including Google BigQuery, AWS Athena, Snowflake, AWS Redshift, and Databricks, with AWS Redshift circled in red and a New Storage button indicated by a red arrow in the top right](../../res/screens/redshift_storage.png)
 
-## 3. Add title and AWS region
+## 2. Add title and AWS region
 
-Give the storage configuration a clear **title**, eg `AWS Redshift Dev Database`.
+Give the storage configuration a clear **title**, for example: `AWS Redshift Dev Database`.
 
 Choose the AWS region where your Redshift cluster or workgroup is located:
 
@@ -134,9 +132,9 @@ Your IAM user or role needs the following permissions:
 
 ![AWS IAM policy creation interface showing Step 1: Specify permissions with a policy editor displaying JSON policy syntax. The policy editor shows Version 2012-10-17 and a Statement array with Allow Effect and Action array containing redshift-data permissions: ExecuteStatement, DescribeStatement, GetStatementResult, and redshift-serverless:GetCredentials. The Resource field is set to asterisk. The top navigation shows IAM > Policies > Create policy breadcrumb. Step 2 Review and create is visible in the left sidebar. The interface has a professional AWS management console layout with Visual and JSON tabs, and Actions dropdown buttons in the top right corner.](../../res/screens/redshift_permissions.png)
 
-## Grand Permissions to create schemas in database
+## 3. Grand Permissions to create schemas in database
 
-If you want to create schemas in database (upload data from connector based data mart), you need to grant permissions to the user who will be used to upload data.
+If you want to create schemas in your database (to upload data from a connector-based data mart), you need to grant permissions to the IAM user who will upload the data.
 
 ```sql
 GRANT CREATE ON DATABASE dev TO "IAM:<USERNAME_IN_IAM>";
@@ -144,7 +142,7 @@ GRANT CREATE ON DATABASE dev TO "IAM:<USERNAME_IN_IAM>";
 
 > **Tip:** You can find your username in IAM in the [AWS IAM Console](https://console.aws.amazon.com/iam/) in the **Users** tab.
 
-## 5. Finalize Setup
+## 4. Finalize Setup
 
 Review your entries and click **Save** to add the **Storage configuration**, or **Cancel** to exit without saving.
 
