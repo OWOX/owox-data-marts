@@ -46,12 +46,10 @@ export class PasswordFlowController {
         return;
       }
       if (!result.sent && result.reason === 'blocked_email_policy') {
-        res
-          .status(400)
-          .json({
-            error:
-              "Please use a corporate or personal permanent email address so you don't lose access to your projects.",
-          });
+        res.status(400).json({
+          error:
+            "Please use a corporate or personal permanent email address so you don't lose access to your projects.",
+        });
         return;
       }
       if (!result.sent && result.reason === 'rate_limited') {
