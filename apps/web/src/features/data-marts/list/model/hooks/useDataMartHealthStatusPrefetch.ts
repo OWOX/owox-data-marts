@@ -1,13 +1,13 @@
 import { useEffect, useRef } from 'react';
 import type { Table } from '@tanstack/react-table';
 
-import { fetchAndCacheHealthStatus } from '../../../shared/services/data-mart-health-status.service';
+import { fetchAndCacheBatchHealthStatus } from '../../../shared/services/data-mart-health-status.service';
+
+const BATCH_SIZE = 100;
 
 interface UseDataMartHealthStatusPrefetchOptions<TData> {
   table: Table<TData>;
   isLoading?: boolean;
-  concurrency?: number;
-  maxPrefetch?: number;
 }
 
 /**
@@ -21,8 +21,6 @@ interface UseDataMartHealthStatusPrefetchOptions<TData> {
 export function useDataMartHealthStatusPrefetch<TData>({
   table,
   isLoading = false,
-  concurrency = 5,
-  maxPrefetch,
 }: UseDataMartHealthStatusPrefetchOptions<TData>) {
   const prefetchedIdsRef = useRef<Set<string>>(new Set());
 
@@ -37,29 +35,25 @@ export function useDataMartHealthStatusPrefetch<TData>({
     const rows = table.getPaginationRowModel().rows;
     if (!rows.length) return;
 
-    let ids = rows
+    const ids = rows
       .map(row => (row.original as { id: string }).id)
       .filter(id => !prefetchedIdsRef.current.has(id));
 
     if (!ids.length) return;
 
-    if (typeof maxPrefetch === 'number') {
-      ids = ids.slice(0, maxPrefetch);
-    }
-
     const prefetch = async () => {
-      for (let i = 0; i < ids.length; i += concurrency) {
-        const batch = ids.slice(i, i + concurrency);
+      // Limiting batch size and concurrency to reduce server load
+      for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+        const batch = ids.slice(i, i + BATCH_SIZE);
 
-        await Promise.allSettled(
-          batch.map(async id => {
-            await fetchAndCacheHealthStatus(id);
-            prefetchedIdsRef.current.add(id);
-          })
-        );
+        await fetchAndCacheBatchHealthStatus(batch);
+
+        for (const id of batch) {
+          prefetchedIdsRef.current.add(id);
+        }
       }
     };
 
     void prefetch();
-  }, [table, isLoading, concurrency, maxPrefetch, pageIndex, pageSize, sorting]);
+  }, [table, isLoading, pageIndex, pageSize, sorting]);
 }

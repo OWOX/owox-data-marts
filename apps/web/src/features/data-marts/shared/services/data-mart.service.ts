@@ -12,6 +12,7 @@ import type {
   UpdateDataMartDefinitionRequestDto,
   UpdateDataMartRequestDto,
   UpdateDataMartSchemaRequestDto,
+  BatchDataMartHealthStatusResponseDto,
 } from '../types/api';
 import type { CreateSqlDryRunTaskResponseDto } from '../types/api/response/create-sql-dry-run-task.response.dto.ts';
 import type { TaskStatusResponseDto } from '../types/api/response/task-status.response.dto.ts';
@@ -304,6 +305,19 @@ export class DataMartService extends ApiService {
    */
   async getDataMartsByConnectorName(connectorName: string): Promise<DataMartResponseDto[]> {
     return this.get<DataMartResponseDto[]>(`/by-connector/${connectorName}`);
+  }
+
+  /**
+   * Batch get health status for multiple data marts
+   * @param ids Array of Data Mart IDs
+   * @param config Optional Axios request config
+   * @returns Promise with batch health status response
+   */
+  async getBatchDataMartHealthStatus(
+    ids: string[],
+    config?: AxiosRequestConfig
+  ): Promise<BatchDataMartHealthStatusResponseDto> {
+    return this.post<BatchDataMartHealthStatusResponseDto>('/health-status', { ids }, config);
   }
 }
 export const dataMartService = new DataMartService();

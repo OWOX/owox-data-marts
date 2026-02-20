@@ -234,7 +234,6 @@ export function DataMartTable<TData, TValue>({
   useDataMartHealthStatusPrefetch({
     table,
     isLoading,
-    concurrency: 5,
   });
 
   // Show loading skeleton
