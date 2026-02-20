@@ -7,6 +7,9 @@ import { ConnectorState as ConnectorStateData } from '../connector-types/interfa
 import { toHumanReadable } from '../data-storage-types/enums/data-storage-type.enum';
 import { ValidationResult } from '../data-storage-types/interfaces/data-mart-validator.interface';
 import { ActualizeDataMartSchemaCommand } from '../dto/domain/actualize-data-mart-schema.command';
+import { BatchDataMartHealthStatusItemDto } from '../dto/domain/batch-data-mart-health-status-item.dto';
+import { BatchDataMartHealthStatusResponseDto } from '../dto/domain/batch-data-mart-health-status-response.dto';
+import { BatchDataMartHealthStatusCommand } from '../dto/domain/batch-data-mart-health-status.command';
 import { CancelDataMartRunCommand } from '../dto/domain/cancel-data-mart-run.command';
 import { CreateDataMartCommand } from '../dto/domain/create-data-mart.command';
 import { DataMartListItemDto } from '../dto/domain/data-mart-list-item.dto';
@@ -28,6 +31,9 @@ import { UpdateDataMartDescriptionCommand } from '../dto/domain/update-data-mart
 import { UpdateDataMartSchemaCommand } from '../dto/domain/update-data-mart-schema.command';
 import { UpdateDataMartTitleCommand } from '../dto/domain/update-data-mart-title.command';
 import { ValidateDataMartDefinitionCommand } from '../dto/domain/validate-data-mart-definition.command';
+import { BatchDataMartHealthStatusRequestApiDto } from '../dto/presentation/batch-data-mart-health-status-request-api.dto';
+import { BatchDataMartHealthStatusItemApiDto } from '../dto/presentation/batch-data-mart-health-status-item-api.dto';
+import { BatchDataMartHealthStatusResponseApiDto } from '../dto/presentation/batch-data-mart-health-status-response-api.dto';
 import { CreateDataMartRequestApiDto } from '../dto/presentation/create-data-mart-request-api.dto';
 import { CreateDataMartResponseApiDto } from '../dto/presentation/create-data-mart-response-api.dto';
 import { DataMartListItemResponseApiDto } from '../dto/presentation/data-mart-list-item-response-api.dto';
@@ -48,6 +54,7 @@ import { isConnectorDefinition } from '../dto/schemas/data-mart-table-definition
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMart } from '../entities/data-mart.entity';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
+import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { ConnectorSecretService } from '../services/connector-secret.service';
 import { DataStorageMapper } from './data-storage.mapper';
 
@@ -125,8 +132,65 @@ export class DataMartMapper {
     };
   }
 
+  toBatchHealthStatusCommand(
+    context: AuthorizationContext,
+    dto: BatchDataMartHealthStatusRequestApiDto
+  ): BatchDataMartHealthStatusCommand {
+    return new BatchDataMartHealthStatusCommand(context.projectId, dto.ids);
+  }
+
+  toBatchHealthStatusDomainResponse(
+    requestedIds: string[],
+    latestRuns: DataMartRun[],
+    userProjections: UserProjectionsListDto
+  ): BatchDataMartHealthStatusResponseDto {
+    const itemsMap = new Map<string, BatchDataMartHealthStatusItemDto>();
+
+    for (const id of requestedIds) {
+      itemsMap.set(id, new BatchDataMartHealthStatusItemDto(id));
+    }
+
+    const runDtos = this.toDataMartRunDtoList(latestRuns, userProjections);
+
+    for (const runDto of runDtos) {
+      const item = itemsMap.get(runDto.dataMartId);
+      if (item) {
+        if (runDto.type === DataMartRunType.CONNECTOR) {
+          item.connector = runDto;
+        } else if (runDto.type === DataMartRunType.INSIGHT) {
+          item.insight = runDto;
+        } else {
+          // Different kinds of reports
+          if (!item.report || runDto.createdAt > item.report.createdAt) {
+            item.report = runDto;
+          }
+        }
+      }
+    }
+
+    return new BatchDataMartHealthStatusResponseDto(Array.from(itemsMap.values()));
+  }
+
   async toResponseList(dtos: DataMartDto[]): Promise<DataMartResponseApiDto[]> {
     return Promise.all(dtos.map(dto => this.toResponse(dto)));
+  }
+
+  async toBatchHealthStatusResponse(
+    dto: BatchDataMartHealthStatusResponseDto
+  ): Promise<BatchDataMartHealthStatusResponseApiDto> {
+    const itemsPromises = dto.items.map(async item => {
+      const mappedItem: BatchDataMartHealthStatusItemApiDto = {
+        dataMartId: item.dataMartId,
+        connector: item.connector ? await this.toRunResponse(item.connector) : null,
+        report: item.report ? await this.toRunResponse(item.report) : null,
+        insight: item.insight ? await this.toRunResponse(item.insight) : null,
+      };
+      return mappedItem;
+    });
+
+    return {
+      items: await Promise.all(itemsPromises),
+    };
   }
 
   toUpdateDefinitionCommand(

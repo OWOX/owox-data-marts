@@ -83,6 +83,45 @@ export class DataMartRunService {
   }
 
   /**
+   * Retrieves the latest runs for each specified data mart and run type.
+   * Optimizes performance by using an INNER JOIN with a subquery on MAX(createdAt)
+   * avoiding window functions and N+1 queries.
+   */
+  public async getLatestRunsByTypeForDataMarts(
+    dataMartIds: string[],
+    projectId: string,
+    daysAgo: number = 30
+  ): Promise<DataMartRun[]> {
+    if (!dataMartIds.length) {
+      return [];
+    }
+
+    const fromDate = this.systemClock.now();
+    fromDate.setDate(fromDate.getDate() - daysAgo);
+
+    return this.dataMartRunRepository
+      .createQueryBuilder('run')
+      .innerJoin(
+        qb =>
+          qb
+            .select('r.dataMartId', 'dataMartId')
+            .addSelect('r.type', 'type')
+            .addSelect('MAX(r.createdAt)', 'maxCreatedAt')
+            .from(DataMartRun, 'r')
+            .where('r.dataMartId IN (:...ids)')
+            .andWhere('r.createdAt >= :fromDate')
+            .groupBy('r.dataMartId, r.type'),
+        'latest',
+        'run.dataMartId = latest.dataMartId AND run.type = latest.type AND run.createdAt = latest.maxCreatedAt'
+      )
+      .innerJoin(DataMart, 'dm', 'dm.id = run.dataMartId')
+      .where('run.dataMartId IN (:...ids)', { ids: dataMartIds })
+      .andWhere('run.createdAt >= :fromDate', { fromDate })
+      .andWhere('dm.projectId = :projectId', { projectId })
+      .getMany();
+  }
+
+  /**
    * Returns a run by id that belongs to specified Data Mart.
    */
   public async getByIdAndDataMartId(
