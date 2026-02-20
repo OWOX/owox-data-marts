@@ -53,11 +53,6 @@ export class MagicLinkEmailService {
     ].join('\n');
   }
 
-  render(payload: MagicLinkEmailPayload): string {
-    const viewModel = this.buildViewModel(payload);
-    return ejs.render(this.template, viewModel);
-  }
-
   async send(payload: MagicLinkEmailPayload): Promise<void> {
     const viewModel = this.buildViewModel(payload);
     const html = ejs.render(this.template, viewModel);
