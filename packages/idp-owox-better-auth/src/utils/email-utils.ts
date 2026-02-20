@@ -24,6 +24,31 @@ export function parseEmail(value: unknown): string | null {
 }
 
 /**
+ * Masks email local-part while preserving enough context for support/debug.
+ * Example: `username@example.com` -> `us****me@example.com`.
+ */
+export function maskEmail(email: string): string {
+  if (typeof email !== 'string') {
+    return '';
+  }
+
+  const normalized = email.trim();
+  const atIndex = normalized.indexOf('@');
+  if (atIndex <= 0 || atIndex >= normalized.length - 1) {
+    return normalized;
+  }
+
+  const localPart = normalized.slice(0, atIndex);
+  const domain = normalized.slice(atIndex + 1);
+
+  const keepStart = localPart.length <= 2 ? 1 : 2;
+  const keepEnd = localPart.length >= 6 ? 2 : localPart.length >= 4 ? 1 : 0;
+  const hiddenLength = Math.max(1, localPart.length - keepStart - keepEnd);
+
+  return `${localPart.slice(0, keepStart)}${'*'.repeat(hiddenLength)}${keepEnd > 0 ? localPart.slice(-keepEnd) : ''}@${domain}`;
+}
+
+/**
  * Splits a full name into first/last parts.
  */
 export function splitName(name?: string): {
@@ -100,14 +125,4 @@ function capitalizeWord(word: string): string {
   const first = word.charAt(0);
   const rest = word.slice(1);
   return first.toUpperCase() + rest.toLowerCase();
-}
-
-/**
- * Formats an error into a readable string with stack.
- */
-export function formatError(error: unknown): string {
-  if (error instanceof Error) {
-    return `${error.message}\n${error.stack ?? ''}`;
-  }
-  return String(error);
 }

@@ -7,31 +7,30 @@ import {
   Projects,
   ProtocolRoute,
 } from '@owox/idp-protocol';
-import { Logger } from '@owox/internal-helpers';
 import cookieParser from 'cookie-parser';
 import e, { Express, NextFunction } from 'express';
 import { IdentityOwoxClient, TokenResponse } from './client/index.js';
-import { createBetterAuthConfig } from './config/idp-better-auth-config.js';
+import { createBetterAuthConfig } from './config/index.js';
 import type { BetterAuthProviderConfig } from './config/index.js';
 import { AuthErrorController } from './controllers/auth-error-controller.js';
 import { PageController } from './controllers/page-controller.js';
 import { PasswordFlowController } from './controllers/password-flow-controller.js';
 import { AUTH_BASE_PATH, CORE_REFRESH_TOKEN_COOKIE, SOURCE } from './core/constants.js';
 import { AuthenticationException, IdpFailedException } from './core/exceptions.js';
-import { logger } from './core/logger.js';
+import { createServiceLogger } from './core/logger.js';
 import { OwoxTokenFacade } from './facades/owox-token-facade.js';
 import { BetterAuthSessionService } from './services/auth/better-auth-session-service.js';
 import { MagicLinkService } from './services/auth/magic-link-service.js';
 import { PkceFlowOrchestrator } from './services/auth/pkce-flow-orchestrator.js';
 import { PlatformAuthFlowClient } from './services/auth/platform-auth-flow-client.js';
 import { UserContextService } from './services/core/user-context-service.js';
+import { EmailValidationService } from './services/email/email-validation-service.js';
 import { MagicLinkEmailService } from './services/email/magic-link-email-service.js';
 import { AuthFlowMiddleware } from './services/middleware/auth-flow-middleware.js';
 import { BetterAuthProxyHandler } from './services/middleware/better-auth-proxy-handler.js';
 import { createDatabaseStore } from './store/database-store-factory.js';
 import type { DatabaseStore } from './store/database-store.js';
 import { clearCookie } from './utils/cookie-policy.js';
-import { formatError } from './utils/email-utils.js';
 import { buildPlatformEntryUrl } from './utils/platform-redirect-builder.js';
 import {
   clearBetterAuthCookies,
@@ -54,7 +53,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   private readonly betterAuthSessionService: BetterAuthSessionService;
   private readonly authFlowMiddleware: AuthFlowMiddleware;
   private readonly identityClient: IdentityOwoxClient;
-  private readonly logger: Logger;
+  private readonly log = createServiceLogger(OwoxBetterAuthIdp.name);
   private readonly tokenFacade: OwoxTokenFacade;
   private readonly userContextService: UserContextService;
   private readonly platformAuthFlowClient: PlatformAuthFlowClient;
@@ -88,8 +87,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       this.tokenFacade,
       this.userContextService,
       this.platformAuthFlowClient,
-      this.betterAuthSessionService,
-      logger
+      this.betterAuthSessionService
     );
     this.betterAuthProxyHandler = new BetterAuthProxyHandler(this.auth, this.pkceFlowOrchestrator);
     this.authErrorController = new AuthErrorController();
@@ -128,11 +126,14 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     const adapter = await store.getAdapter();
     const mailProvider = createMailingProvider(config.email);
     const magicLinkEmailService = new MagicLinkEmailService(mailProvider);
+    const emailValidationService = new EmailValidationService({
+      forbiddenDomains: config.betterAuth.forbiddenEmailDomains,
+    });
     const magicLinkService = new MagicLinkService(
       store,
       magicLinkEmailService,
       config.betterAuth.baseURL || config.idpOwox.baseUrl,
-      config.betterAuth.magicLinkTtl ?? 60 * 60
+      emailValidationService
     );
 
     const auth = await createBetterAuthConfig(config.betterAuth, {
@@ -172,12 +173,12 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       const code = req.query.code as string | undefined;
       const state = req.query.state as string | undefined;
       if (!code) {
-        logger.warn('Redirect url should contain code param');
+        this.log.warn('Redirect url should contain code param', { path: req.path });
         return res.redirect(`${AUTH_BASE_PATH}${ProtocolRoute.SIGN_IN}`);
       }
 
       if (!state) {
-        logger.warn('Redirect url should contain state param');
+        this.log.warn('Redirect url should contain state param', { path: req.path });
         clearPlatformCookies(res, req);
         return res.redirect(`${AUTH_BASE_PATH}${ProtocolRoute.SIGN_IN}`);
       }
@@ -194,19 +195,22 @@ export class OwoxBetterAuthIdp implements IdpProvider {
         res.redirect('/');
       } catch (error: unknown) {
         if (error instanceof AuthenticationException) {
-          logger.info(formatError(error), {
-            context: error.name,
-            params: error.context,
-            cause: error.cause,
+          this.log.info('Token exchange callback rejected', {
+            path: req.path,
+            ...error.context,
           });
         } else if (error instanceof IdpFailedException) {
-          logger.error(
-            'Token Exchange callback failed with unexpected code',
-            error.context,
-            error.cause
+          this.log.error(
+            'Token exchange callback failed with unexpected code',
+            { path: req.path, ...error.context },
+            error
           );
         } else {
-          logger.error(formatError(error));
+          this.log.error(
+            'Token exchange callback failed',
+            { path: req.path },
+            error instanceof Error ? error : undefined
+          );
         }
         return res.redirect(`${AUTH_BASE_PATH}${ProtocolRoute.SIGN_IN}`);
       }
@@ -222,7 +226,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     const queryState = typeof req.query?.state === 'string' ? req.query.state : '';
 
     if (stateManager.hasMismatch()) {
-      logger.warn('State mismatch detected during sign-in');
+      this.log.warn('State mismatch detected during sign-in', { path: req.path, queryState });
       clearPlatformCookies(res, req);
       return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignInUrl);
     }
@@ -274,17 +278,21 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     } catch (error: unknown) {
       if (error instanceof AuthenticationException) {
         clearCookie(res, CORE_REFRESH_TOKEN_COOKIE, req);
-        logger.warn('Refresh token rejected during sign-in, cookie cleared', {
-          context: error.context,
-          cause: error.cause,
+        this.log.warn('Refresh token rejected during sign-in, cookie cleared', {
+          path: req.path,
+          ...error.context,
         });
       } else if (error instanceof IdpFailedException) {
-        logger.warn('Sign-in refresh failed due to upstream IdP error', {
-          context: error.context,
-          cause: error.cause,
+        this.log.warn('Sign-in refresh failed due to upstream IdP error', {
+          path: req.path,
+          ...error.context,
         });
       } else {
-        logger.error(formatError(error));
+        this.log.error(
+          'Sign-in refresh failed unexpectedly',
+          { path: req.path },
+          error instanceof Error ? error : undefined
+        );
       }
       return false;
     }
@@ -298,7 +306,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     const stateManager = getStateManager(req);
     const queryState = typeof req.query?.state === 'string' ? req.query.state : '';
     if (stateManager.hasMismatch()) {
-      logger.warn('State mismatch detected during sign-up');
+      this.log.warn('State mismatch detected during sign-up', { path: req.path });
       clearPlatformCookies(res, req);
       return this.redirectToPlatform(req, res, this.config.idpOwox.idpConfig.platformSignUpUrl);
     }
@@ -391,7 +399,11 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     try {
       await this.store.shutdown();
     } catch (error) {
-      logger.error('Failed to shutdown BetterAuth store', {}, error as Error);
+      this.log.error(
+        'Failed to shutdown BetterAuth store',
+        undefined,
+        error instanceof Error ? error : undefined
+      );
     }
   }
 

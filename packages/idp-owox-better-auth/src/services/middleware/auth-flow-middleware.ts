@@ -1,9 +1,9 @@
 import type { NextFunction, Request, Response } from 'express';
 import ms from 'ms';
-import { IdpOwoxConfig } from '../../config/idp-owox-config.js';
+import { IdpOwoxConfig } from '../../config/index.js';
 import { PageController } from '../../controllers/page-controller.js';
 import { SOURCE } from '../../core/constants.js';
-import { logger } from '../../core/logger.js';
+import { createServiceLogger } from '../../core/logger.js';
 import { generatePkce, generateState } from '../../core/pkce.js';
 import type { DatabaseStore } from '../../store/database-store.js';
 import { buildAuthRequestContext } from '../../types/auth-request-context.js';
@@ -15,6 +15,8 @@ import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
  * Express middleware handlers for starting PKCE and fast-path sign-in.
  */
 export class AuthFlowMiddleware {
+  private readonly logger = createServiceLogger(AuthFlowMiddleware.name);
+
   constructor(
     private readonly pageController: PageController,
     private readonly idpOwoxConfig: IdpOwoxConfig,
@@ -44,7 +46,11 @@ export class AuthFlowMiddleware {
 
       return res.redirect(platformUrl.toString());
     } catch (error) {
-      logger.error('Failed to start IDP flow', {}, error as Error);
+      this.logger.error(
+        'Failed to start IDP flow',
+        { path: req.path },
+        error instanceof Error ? error : undefined
+      );
       res.status(500).end('Failed to start IDP flow');
     }
   }
@@ -63,7 +69,7 @@ export class AuthFlowMiddleware {
         res
       );
       if (fastRedirect) {
-        logger.info('Fast-path completeAuthFlow redirectUrl', {
+        this.logger.info('Fast-path completeAuthFlow redirectUrl', {
           redirectUrl: fastRedirect.toString(),
         });
         return res.redirect(fastRedirect.toString());

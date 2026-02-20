@@ -1,7 +1,7 @@
 import { type Request } from 'express';
 import { createBetterAuthConfig } from '../../config/idp-better-auth-config.js';
 import { BETTER_AUTH_SESSION_COOKIE } from '../../core/constants.js';
-import { logger } from '../../core/logger.js';
+import { createServiceLogger } from '../../core/logger.js';
 import { buildUserInfoPayload } from '../../mappers/user-info-payload-builder.js';
 import type { DatabaseStore } from '../../store/database-store.js';
 import { AuthSession } from '../../types/auth-session.js';
@@ -19,6 +19,8 @@ import { PlatformAuthFlowClient, type UserInfoPayload } from './platform-auth-fl
  * Core IdP tokens are handled in OwoxTokenFacade/PkceFlowOrchestrator.
  */
 export class BetterAuthSessionService {
+  private readonly logger = createServiceLogger(BetterAuthSessionService.name);
+
   constructor(
     private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
     private readonly store: DatabaseStore,
@@ -54,7 +56,7 @@ export class BetterAuthSessionService {
 
   async completeAuthFlow(req: Request): Promise<{ code: string; payload: UserInfoPayload }> {
     const payload = await this.buildUserInfoPayload(req);
-    logger.info('Sending auth flow payload', {
+    this.logger.info('Sending auth flow payload', {
       hasState: Boolean(payload.state),
       signinProvider: payload.userInfo.signinProvider,
       userId: payload.userInfo.uid,
@@ -64,7 +66,7 @@ export class BetterAuthSessionService {
     if (session?.user?.id) {
       await this.tryPersistLastLoginMethod(session.user.id, payload.userInfo.signinProvider);
     }
-    logger.info('OWOX client completed auth flow', { hasCode: Boolean(result.code) });
+    this.logger.info('OWOX client completed auth flow', { hasCode: Boolean(result.code) });
     return { code: result.code, payload };
   }
 
@@ -107,13 +109,14 @@ export class BetterAuthSessionService {
       account,
     });
 
-    logger.info('OWOX client sending auth flow payload with session token', {
+    this.logger.info('OWOX client sending auth flow payload with session token', {
       state: payload.state,
-      userInfo: payload.userInfo,
+      userId: dbUser.id,
+      provider: account.providerId,
     });
     const result = await this.platformAuthFlowClient.completeAuthFlow(payload);
     await this.tryPersistLastLoginMethod(dbUser.id, account.providerId);
-    logger.info('OWOX client completed auth flow with session token', {
+    this.logger.info('OWOX client completed auth flow with session token', {
       hasCode: Boolean(result.code),
     });
     return { code: result.code, payload };
@@ -158,8 +161,12 @@ export class BetterAuthSessionService {
         },
       };
     } catch (error) {
-      logger.error('Failed to get session', {}, error as Error);
-      throw new Error('Failed to get session');
+      this.logger.error(
+        'Failed to get Better Auth session',
+        undefined,
+        error instanceof Error ? error : undefined
+      );
+      throw new Error('Failed to get Better Auth session');
     }
   }
 
@@ -169,11 +176,14 @@ export class BetterAuthSessionService {
     try {
       await this.store.updateUserLastLoginMethod(userId, method);
     } catch (error) {
-      logger.warn('Failed to persist lastLoginMethod after successful authorization', {
-        userId,
-        method,
-        error: error instanceof Error ? error.message : String(error),
-      });
+      this.logger.warn(
+        'Failed to persist lastLoginMethod after successful authorization',
+        {
+          userId,
+          method,
+        },
+        error instanceof Error ? error : undefined
+      );
     }
   }
 }

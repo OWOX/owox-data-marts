@@ -1,4 +1,4 @@
-import { Logger, LoggerFactory } from '@owox/internal-helpers';
+import { createServiceLogger } from '../core/logger.js';
 import type { DatabaseAccount, DatabaseOperationResult, DatabaseUser } from '../types/index.js';
 import type { DatabaseStore } from './database-store.js';
 import { StoreResult } from './store-result.js';
@@ -27,12 +27,10 @@ export interface MysqlConnectionConfig {
  */
 export class MysqlDatabaseStore implements DatabaseStore {
   private pool?: MysqlPool;
-  private readonly logger: Logger;
+  private readonly logger = createServiceLogger(MysqlDatabaseStore.name);
   private authTableReady = false;
 
-  constructor(private readonly config: MysqlConnectionConfig) {
-    this.logger = LoggerFactory.createNamedLogger('BetterAuthMysqlDatabaseStore');
-  }
+  constructor(private readonly config: MysqlConnectionConfig) {}
 
   private async getPool(): Promise<MysqlPool> {
     if (this.pool) return this.pool;
@@ -54,7 +52,11 @@ export class MysqlDatabaseStore implements DatabaseStore {
         ssl: this.config.ssl,
       }) as MysqlPool;
     } catch (error) {
-      this.logger.error('Failed to initialize MySQL pool', { error });
+      this.logger.error(
+        'Failed to initialize MySQL pool',
+        undefined,
+        error instanceof Error ? error : undefined
+      );
       throw new Error('mysql2 is required for MySQL support. Install it with: npm install mysql2');
     }
 
@@ -264,7 +266,11 @@ export class MysqlDatabaseStore implements DatabaseStore {
       try {
         await this.pool.end();
       } catch (error) {
-        this.logger.error('Failed to close MySQL pool', { error });
+        this.logger.error(
+          'Failed to close MySQL pool',
+          undefined,
+          error instanceof Error ? error : undefined
+        );
       } finally {
         this.pool = undefined;
       }

@@ -1,6 +1,8 @@
-import { logger } from '../core/logger.js';
+import { createServiceLogger } from '../core/logger.js';
+
+const logger = createServiceLogger('AccountResolver');
 import type { DatabaseStore } from '../store/database-store.js';
-import type { DatabaseAccount } from '../types/database-models.js';
+import type { DatabaseAccount } from '../types/index.js';
 
 const CREDENTIAL_PROVIDER_ID = 'credential';
 const CREDENTIAL_LOGIN_METHODS = new Set(['email', 'email-password']);

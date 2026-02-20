@@ -1,5 +1,6 @@
-import { LogLevel } from '@owox/internal-helpers';
-import { Profile, ProviderLogger, SocialProvider, SocialUser } from './social-provider.js';
+import { createServiceLogger } from '../core/logger.js';
+import { maskEmail } from '../utils/email-utils.js';
+import { Profile, SocialProvider, SocialUser } from './social-provider.js';
 
 export type GoogleProviderOptions = {
   clientId?: string;
@@ -7,7 +8,6 @@ export type GoogleProviderOptions = {
   redirectURI?: string;
   prompt?: string;
   accessType?: string;
-  logger?: ProviderLogger;
 };
 
 /**
@@ -15,6 +15,7 @@ export type GoogleProviderOptions = {
  */
 export class GoogleProvider implements SocialProvider {
   public providerId = 'google';
+  private readonly logger = createServiceLogger(GoogleProvider.name);
 
   constructor(private readonly opts: GoogleProviderOptions) {
     this.validate();
@@ -50,8 +51,6 @@ export class GoogleProvider implements SocialProvider {
   }
 
   mapProfile(profile: Profile): SocialUser {
-    this.opts.logger?.log(LogLevel.INFO, `${this.providerId}-profile`, { profile });
-
     const p = profile as {
       sub?: string;
       email?: string;
@@ -60,6 +59,11 @@ export class GoogleProvider implements SocialProvider {
       picture?: string;
       email_verified?: boolean;
     };
+    const profileForLog: Record<string, unknown> = { ...profile };
+    if (typeof p.email === 'string') {
+      profileForLog.email = maskEmail(p.email);
+    }
+    this.logger.info(`${this.providerId}-profile`, { profile: profileForLog });
 
     const accountId = this.selectAccountId(p);
     if (!accountId) {

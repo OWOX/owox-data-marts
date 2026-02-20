@@ -61,6 +61,35 @@ describe('PasswordFlowController.sendMagicLink', () => {
       waitSeconds: undefined,
     });
   });
+
+  it('returns 400 with friendly error for blocked email policy', async () => {
+    const magicLinkService = {
+      generate: jest.fn(async () => ({
+        sent: false as const,
+        reason: 'blocked_email_policy' as const,
+        blockReason: 'forbidden_domain' as const,
+      })),
+    } as unknown as MagicLinkService;
+    const auth = {} as BetterAuthInstance;
+    const service = new PasswordFlowController(
+      auth,
+      {} as BetterAuthSessionService,
+      magicLinkService
+    );
+
+    const req = {
+      body: { email: 'user@company.test', intent: MAGIC_LINK_INTENT.SIGNUP },
+    } as unknown as Request;
+    const res = createResponseMock();
+
+    await service.sendMagicLink(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      error:
+        "Please use a corporate or personal permanent email address so you don't lose access to your projects.",
+    });
+  });
 });
 
 describe('PasswordFlowController.passwordSetupPage', () => {

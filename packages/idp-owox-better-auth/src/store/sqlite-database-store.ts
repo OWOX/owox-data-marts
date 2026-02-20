@@ -1,4 +1,4 @@
-import { logger } from '../core/logger.js';
+import { createServiceLogger } from '../core/logger.js';
 import type { DatabaseAccount, DatabaseOperationResult, DatabaseUser } from '../types/index.js';
 import type { DatabaseStore } from './database-store.js';
 import { StoreResult } from './store-result.js';
@@ -20,6 +20,7 @@ type SqliteDb = {
  */
 export class SqliteDatabaseStore implements DatabaseStore {
   private db?: SqliteDb;
+  private readonly logger = createServiceLogger(SqliteDatabaseStore.name);
   private authTableReady = false;
 
   constructor(private readonly dbPath: string) {}
@@ -123,7 +124,11 @@ export class SqliteDatabaseStore implements DatabaseStore {
     try {
       (this.db as { close?: () => void } | undefined)?.close?.();
     } catch (error) {
-      logger.error('Failed to close SQLite database', {}, error as Error);
+      this.logger.error(
+        'Failed to close SQLite database',
+        undefined,
+        error instanceof Error ? error : undefined
+      );
     } finally {
       this.db = undefined;
     }

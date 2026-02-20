@@ -74,11 +74,9 @@ export interface BetterAuthConfig {
   session?: {
     maxAge?: number;
   };
-  /**
-   * TTL для magic-link токенів (секунди).
-   */
   magicLinkTtl?: number;
   trustedOrigins?: string[];
+  forbiddenEmailDomains?: string[];
 }
 
 export * from './auth-session.js';
