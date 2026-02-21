@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { JWT } from 'google-auth-library';
+import { JWT, OAuth2Client } from 'google-auth-library';
 import { google, sheets_v4 } from 'googleapis';
 import { GoogleServiceAccountKey } from '../../../../common/schemas/google-service-account-key.schema';
 import { GoogleSheetsCredentials } from '../schemas/google-sheets-credentials.schema';
@@ -15,12 +15,13 @@ export class GoogleSheetsApiAdapter {
 
   /**
    * @param credentials - Google Sheets credentials containing service account key
+   * @param authClient - Optional pre-configured auth client (OAuth2Client or JWT). If provided, credentials are ignored.
    * @throws Error if invalid credentials are provided
    */
-  constructor(credentials: GoogleSheetsCredentials) {
+  constructor(credentials: GoogleSheetsCredentials, authClient?: OAuth2Client | JWT) {
     this.service = google.sheets({
       version: 'v4',
-      auth: GoogleSheetsApiAdapter.createAuthClient(credentials.serviceAccountKey),
+      auth: authClient ?? GoogleSheetsApiAdapter.createAuthClient(credentials.serviceAccountKey!),
     });
   }
 
@@ -32,7 +33,7 @@ export class GoogleSheetsApiAdapter {
    */
   public static async validateCredentials(credentials: GoogleSheetsCredentials): Promise<boolean> {
     try {
-      const authClient = GoogleSheetsApiAdapter.createAuthClient(credentials.serviceAccountKey);
+      const authClient = GoogleSheetsApiAdapter.createAuthClient(credentials.serviceAccountKey!);
       await authClient.getAccessToken();
       return true;
     } catch (error) {

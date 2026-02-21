@@ -27,7 +27,7 @@ export class RotateSecretKeyService {
 
     const rotatedCredentials = await this.secretKeyRotator.rotateSecretKey(
       entity.type,
-      entity.credentials
+      entity.credentials!
     );
 
     entity.credentials = rotatedCredentials;

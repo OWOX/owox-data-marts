@@ -4,4 +4,5 @@ import type { DataStorageConfigDto } from '../response';
 export interface UpdateDataStorageRequestDto {
   credentials?: DataStorageCredentialsDto | null;
   config: DataStorageConfigDto | null;
+  credentialId?: string | null;
 }

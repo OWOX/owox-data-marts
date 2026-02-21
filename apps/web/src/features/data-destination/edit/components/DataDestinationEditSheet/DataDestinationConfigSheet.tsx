@@ -109,6 +109,7 @@ export function DataDestinationConfigSheet({
             onDirtyChange={handleFormDirtyChange}
             isEditMode={!!dataDestination}
             allowedDestinationTypes={allowedDestinationTypes}
+            destinationId={dataDestination?.id}
           />
         </SheetContent>
       </Sheet>

@@ -29,4 +29,9 @@ export class UpdateDataStorageApiDto {
   })
   @IsObject()
   config: DataStorageConfig;
+
+  @ApiProperty({ type: 'string', nullable: true, required: false })
+  @IsString()
+  @IsOptional()
+  credentialId?: string | null;
 }

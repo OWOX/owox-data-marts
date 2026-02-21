@@ -10,8 +10,12 @@ export type CreateDataDestinationRequestDto =
       title: string;
       /** Type of the data destination */
       type: DataDestinationType.GOOGLE_SHEETS;
-      /** Credentials required for Google Sheets */
-      credentials: GoogleServiceAccountCredentialsDto;
+      /** Credentials for Google Sheets (SA key or minimal type-only for OAuth flow) */
+      credentials:
+        | GoogleServiceAccountCredentialsDto
+        | { type: DataDestinationCredentialsType.GOOGLE_SHEETS_CREDENTIALS };
+      /** Pre-created OAuth credential ID from standalone OAuth flow */
+      credentialId?: string;
     }
   | {
       /** Title of the data destination */

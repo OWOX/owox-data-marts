@@ -26,6 +26,7 @@ export class LegacyGoogleBigQueryMapper implements StorageMapper {
       modifiedAt: new Date(dto.modifiedAt),
       credentials: {
         serviceAccount: serviceAccountJson,
+        credentialId: dto.credentialId,
       },
       config: {
         projectId: config?.projectId ?? '',
@@ -38,6 +39,7 @@ export class LegacyGoogleBigQueryMapper implements StorageMapper {
     const result: {
       credentials?: GoogleBigQueryCredentialsDto;
       config: GoogleBigQueryConfigDto;
+      credentialId?: string | null;
     } = {
       config: {
         projectId: (formData.config as GoogleBigQueryConfigDto).projectId,
@@ -46,9 +48,26 @@ export class LegacyGoogleBigQueryMapper implements StorageMapper {
     };
 
     if (formData.credentials) {
-      result.credentials = {
-        ...JSON.parse((formData.credentials as GoogleBigQueryCredentials).serviceAccount),
-      } as GoogleBigQueryCredentialsDto;
+      const creds = formData.credentials as GoogleBigQueryCredentials;
+      const serviceAccount = creds.serviceAccount;
+      if (serviceAccount?.trim()) {
+        try {
+          const parsed: unknown = JSON.parse(serviceAccount);
+          if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+            throw new Error('Service Account must be a JSON object');
+          }
+          result.credentials = parsed as GoogleBigQueryCredentialsDto;
+        } catch (err) {
+          if (err instanceof SyntaxError) {
+            throw new Error('Invalid Service Account JSON');
+          }
+          throw err;
+        }
+      }
+      // null = user explicitly disconnected OAuth; pass it so backend can revoke
+      if (creds.credentialId === null) {
+        result.credentialId = null;
+      }
     }
 
     return result;

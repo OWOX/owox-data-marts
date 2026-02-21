@@ -89,7 +89,7 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
     }
     this.emailConfig = report.destinationConfig;
 
-    if (!isEmailCredentials(report.dataDestination.credentials)) {
+    if (!isEmailCredentials(report.dataDestination.credentials!)) {
       throw new Error('Invalid Email credentials provided');
     }
     this.emailCredentials = report.dataDestination.credentials;

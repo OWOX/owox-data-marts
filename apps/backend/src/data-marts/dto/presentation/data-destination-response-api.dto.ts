@@ -38,4 +38,7 @@ export class DataDestinationResponseApiDto {
 
   @ApiProperty({ example: '2024-01-02T15:30:00.000Z' })
   modifiedAt: Date;
+
+  @ApiProperty({ example: 'abc123e4-5678-90ab-cdef-1234567890ab', nullable: true, required: false })
+  credentialId?: string | null;
 }

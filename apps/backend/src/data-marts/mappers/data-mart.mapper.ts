@@ -118,7 +118,7 @@ export class DataMartMapper {
       id: dto.id,
       title: dto.title,
       status: dto.status,
-      storage: this.dataStorageMapper.toApiResponse(dto.storage),
+      storage: await this.dataStorageMapper.toApiResponse(dto.storage),
       definitionType: dto.definitionType,
       definition: maskedDefinition,
       description: dto.description,

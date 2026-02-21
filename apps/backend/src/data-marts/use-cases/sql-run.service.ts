@@ -3,12 +3,14 @@ import { SqlRunExecutorFacade } from '../data-storage-types/facades/sql-run-exec
 import { SqlRunCommand } from '../dto/domain/sql-run.command';
 import { DataMartService } from '../services/data-mart.service';
 import { SqlRunBatch } from '../dto/domain/sql-run-batch.dto';
+import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
 
 @Injectable()
 export class SqlRunService {
   constructor(
     private readonly dataMartService: DataMartService,
-    private readonly sqlRunExecutorFacade: SqlRunExecutorFacade
+    private readonly sqlRunExecutorFacade: SqlRunExecutorFacade,
+    private readonly credentialsResolver: DataStorageCredentialsResolver
   ) {}
 
   /**
@@ -24,13 +26,18 @@ export class SqlRunService {
     );
 
     const storage = dataMart.storage;
-    if (!storage?.type || !storage.credentials || !storage.config || !dataMart.definition) {
+    if (!storage?.type || !storage.config || !dataMart.definition) {
+      throw new Error('Storage setup is not finished.');
+    }
+    if (!storage.credentials && !storage.credentialId) {
       throw new Error('Storage setup is not finished.');
     }
 
+    const credentials = await this.credentialsResolver.resolve(storage);
+
     yield* this.sqlRunExecutorFacade.executeBatches<Row>(
       storage.type,
-      storage.credentials,
+      credentials,
       storage.config,
       dataMart.definition,
       command.sql,

@@ -30,6 +30,9 @@ export class DataStorage {
   @Column({ type: 'json', nullable: true })
   config?: DataStorageConfig;
 
+  @Column({ type: 'varchar', nullable: true })
+  credentialId?: string | null;
+
   @DeleteDateColumn({ nullable: true })
   deletedAt?: Date;
 

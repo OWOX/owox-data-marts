@@ -1,5 +1,4 @@
 import { Table, TableRow } from '@google-cloud/bigquery';
-import { BigQueryRange } from '@google-cloud/bigquery/build/src/bigquery';
 import { Injectable, Logger, Scope } from '@nestjs/common';
 import { ReportDataBatch } from '../../../dto/domain/report-data-batch.dto';
 import { ReportDataDescription } from '../../../dto/domain/report-data-description.dto';
@@ -13,7 +12,6 @@ import { Report } from '../../../entities/report.entity';
 import { DataMartDefinitionType } from '../../../enums/data-mart-definition-type.enum';
 import { isBigQueryDataMartSchema } from '../../data-mart-schema.guards';
 import { isBigQueryConfig } from '../../data-storage-config.guards';
-import { isBigQueryCredentials } from '../../data-storage-credentials.guards';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { DataStorageReportReaderState } from '../../interfaces/data-storage-report-reader-state.interface';
 import { DataStorageReportReader } from '../../interfaces/data-storage-report-reader.interface';
@@ -24,7 +22,10 @@ import {
   isBigQueryReaderState,
 } from '../interfaces/bigquery-reader-state.interface';
 import { BigQueryConfig } from '../schemas/bigquery-config.schema';
-import { BigQueryCredentials } from '../schemas/bigquery-credentials.schema';
+import {
+  BigQueryCredentials,
+  BigQueryServiceAccountCredentialsSchema,
+} from '../schemas/bigquery-credentials.schema';
 import { BigQueryQueryBuilder } from './bigquery-query.builder';
 import { BigQueryReportHeadersGenerator } from './bigquery-report-headers-generator.service';
 
@@ -57,7 +58,10 @@ export class BigQueryReportReader implements DataStorageReportReader {
       throw new Error('Data Mart is not properly configured');
     }
 
-    if (!isBigQueryCredentials(storage.credentials)) {
+    const credentialsParsed = BigQueryServiceAccountCredentialsSchema.safeParse(
+      storage.credentials
+    );
+    if (!credentialsParsed.success) {
       throw new Error('Google BigQuery credentials are not properly configured');
     }
 
@@ -74,7 +78,7 @@ export class BigQueryReportReader implements DataStorageReportReader {
     }
 
     this.reportConfig = {
-      storageCredentials: storage.credentials,
+      storageCredentials: credentialsParsed.data,
       storageConfig: storage.config,
       definitionType,
       definition,
@@ -196,76 +200,52 @@ export class BigQueryReportReader implements DataStorageReportReader {
     const rowData: unknown[] = [];
     for (let i = 0; i < columnNames.length; i++) {
       const fieldPathNodes = columnNames[i].split('.');
-
-      let cell = null;
-      for (let j = 0; j < fieldPathNodes.length; j++) {
-        cell = cell ? cell[fieldPathNodes[j]] : tableRow[fieldPathNodes[j]];
+      // TODO: Use type from the passed schema parameter to properly convert the value
+      let value = this.getValueByFieldPathNodes(tableRow, fieldPathNodes);
+      if (Buffer.isBuffer(value)) {
+        value = value.toString('base64');
       }
-
-      const cellValue = this.getReportCellValue(cell);
-      rowData.push(cellValue);
+      rowData.push(value);
     }
     return rowData;
   }
 
-  private getReportCellValue(cell: unknown): unknown {
-    const isCellPresent = cell !== null && cell !== undefined;
-    if (isCellPresent && cell instanceof Array) {
-      return JSON.stringify(cell.map(this.getReportCellValue.bind(this)), null, 2);
-    } else if (isCellPresent && cell instanceof BigQueryRange) {
-      return JSON.stringify(cell, null, 2);
-    } else if (isCellPresent && cell instanceof Buffer) {
-      return cell.toString('base64');
-    } else if (isCellPresent && typeof cell === 'object') {
-      if (cell.constructor.name === 'Big') {
-        // BigQuery NUMERIC and BIGNUMERIC wrapper handling
-        return cell.toString();
-      } else if (cell['value']) {
-        // other BigQuery types with wrappers
-        return cell['value'];
-      } else {
-        return cell;
-      }
-    } else {
-      return cell;
+  private getValueByFieldPathNodes(item: unknown, fieldPath: string[]): unknown {
+    if (fieldPath.length === 1) {
+      return item?.[fieldPath[0]];
     }
+    const [firstField, ...restFields] = fieldPath;
+    return this.getValueByFieldPathNodes(item?.[firstField], restFields);
   }
 
-  getState(): BigQueryReaderState | null {
-    if (!this.reportResultTable || !this.contextGcpProject) {
+  public getState(): BigQueryReaderState | null {
+    if (!this.reportConfig) {
       return null;
     }
 
     return {
       type: DataStorageType.GOOGLE_BIGQUERY,
-      reportResultTable: this.reportResultTable
-        ? {
-            projectId: this.reportResultTable.dataset.projectId!,
-            datasetId: this.reportResultTable.dataset.id!,
-            tableId: this.reportResultTable.id!,
-          }
-        : undefined,
+      reportConfig: this.reportConfig,
+      reportDataHeaders: this.reportDataHeaders,
       contextGcpProject: this.contextGcpProject,
     };
   }
 
-  async initFromState(
+  public async initFromState(
     state: DataStorageReportReaderState,
     reportDataHeaders: ReportDataHeader[]
   ): Promise<void> {
     if (!isBigQueryReaderState(state)) {
-      throw new Error('Invalid state type for BigQuery reader');
+      throw new Error('Invalid state for BigQuery reader');
     }
 
-    this.contextGcpProject = state.contextGcpProject;
+    this.reportConfig = state.reportConfig;
     this.reportDataHeaders = reportDataHeaders;
+    this.contextGcpProject = state.contextGcpProject;
 
-    if (state.reportResultTable && this.adapter) {
-      this.reportResultTable = this.adapter.createTableReference(
-        state.reportResultTable.projectId,
-        state.reportResultTable.datasetId,
-        state.reportResultTable.tableId
-      );
-    }
+    await this.prepareBigQuery(
+      this.reportConfig.storageCredentials,
+      this.reportConfig.storageConfig
+    );
   }
 }

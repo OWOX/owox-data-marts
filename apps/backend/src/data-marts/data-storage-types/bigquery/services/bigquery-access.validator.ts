@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { BigQueryConfigSchema } from '../schemas/bigquery-config.schema';
-import { BigQueryCredentialsSchema } from '../schemas/bigquery-credentials.schema';
+import {
+  BIGQUERY_OAUTH_TYPE,
+  BigQueryServiceAccountCredentialsSchema,
+  BigQueryOAuthCredentials,
+} from '../schemas/bigquery-credentials.schema';
 import {
   DataStorageAccessValidator,
   ValidationResult,
@@ -25,7 +29,24 @@ export class BigQueryAccessValidator implements DataStorageAccessValidator {
       return new ValidationResult(false, 'Invalid config', { errors: configOpt.error.errors });
     }
 
-    const credentialsOpt = BigQueryCredentialsSchema.safeParse(credentials);
+    const bigQueryConfig = configOpt.data;
+
+    if ((credentials as BigQueryOAuthCredentials).type === BIGQUERY_OAUTH_TYPE) {
+      const apiAdapter = new BigQueryApiAdapter(
+        credentials as BigQueryOAuthCredentials,
+        bigQueryConfig
+      );
+      try {
+        await apiAdapter.checkAccess();
+        return new ValidationResult(true);
+      } catch (error) {
+        this.logger.warn('OAuth access validation failed', error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        return new ValidationResult(false, errorMessage);
+      }
+    }
+
+    const credentialsOpt = BigQueryServiceAccountCredentialsSchema.safeParse(credentials);
     if (!credentialsOpt.success) {
       this.logger.warn('Invalid credentials', credentialsOpt.error);
       return new ValidationResult(false, 'Invalid credentials', {
@@ -33,7 +54,6 @@ export class BigQueryAccessValidator implements DataStorageAccessValidator {
       });
     }
 
-    const bigQueryConfig = configOpt.data;
     const apiAdapter = new BigQueryApiAdapter(credentialsOpt.data, bigQueryConfig);
     try {
       await apiAdapter.checkAccess();

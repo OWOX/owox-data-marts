@@ -7,11 +7,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
-import {
-  DataDestinationCredentials,
-  DataDestinationCredentialsSchema,
-} from '../data-destination-types/data-destination-credentials.type';
-import { createZodTransformer } from '../../common/zod/zod-transformer';
+import { DataDestinationCredentials } from '../data-destination-types/data-destination-credentials.type';
 
 @Entity()
 export class DataDestination {
@@ -27,11 +23,11 @@ export class DataDestination {
   @Column()
   projectId: string;
 
-  @Column({
-    type: 'json',
-    transformer: createZodTransformer<DataDestinationCredentials>(DataDestinationCredentialsSchema),
-  })
-  credentials: DataDestinationCredentials;
+  @Column({ type: 'json', nullable: true })
+  credentials?: DataDestinationCredentials;
+
+  @Column({ type: 'varchar', nullable: true })
+  credentialId?: string | null;
 
   @DeleteDateColumn({ nullable: true })
   deletedAt?: Date;

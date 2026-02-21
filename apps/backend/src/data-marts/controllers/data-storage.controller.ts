@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Auth, AuthContext, AuthorizationContext } from '../../idp';
 import { Role, Strategy } from '../../idp/types/role-config.types';
@@ -7,14 +7,24 @@ import { DataStorageAccessValidationResponseApiDto } from '../dto/presentation/d
 import { DataStorageListResponseApiDto } from '../dto/presentation/data-storage-list-response-api.dto';
 import { DataStorageResponseApiDto } from '../dto/presentation/data-storage-response-api.dto';
 import { UpdateDataStorageApiDto } from '../dto/presentation/update-data-storage-api.dto';
+import { GenerateAuthorizationUrlRequestDto } from '../dto/presentation/google-oauth/generate-authorization-url-request.dto';
+import { GenerateAuthorizationUrlResponseDto } from '../dto/presentation/google-oauth/generate-authorization-url-response.dto';
+import { ExchangeAuthorizationCodeRequestDto } from '../dto/presentation/google-oauth/exchange-authorization-code-request.dto';
+import { ExchangeAuthorizationCodeResponseDto } from '../dto/presentation/google-oauth/exchange-authorization-code-response.dto';
+import { GoogleOAuthStatusResponseDto } from '../dto/presentation/google-oauth/google-oauth-status-response.dto';
+import { GoogleOAuthSettingsResponseDto } from '../dto/presentation/google-oauth/oauth-settings-response.dto';
 import { DataStorageMapper } from '../mappers/data-storage.mapper';
 import { CreateDataStorageService } from '../use-cases/create-data-storage.service';
 import { DeleteDataStorageService } from '../use-cases/delete-data-storage.service';
 import { GetDataStorageService } from '../use-cases/get-data-storage.service';
 import { ListDataStoragesService } from '../use-cases/list-data-storages.service';
-
 import { UpdateDataStorageService } from '../use-cases/update-data-storage.service';
 import { ValidateDataStorageAccessService } from '../use-cases/validate-data-storage-access.service';
+import { GoogleOAuthFlowService } from '../services/google-oauth/google-oauth-flow.service';
+import { GetStorageOAuthStatusService } from '../use-cases/google-oauth/get-storage-oauth-status.service';
+import { GenerateStorageOAuthUrlService } from '../use-cases/google-oauth/generate-storage-oauth-url.service';
+import { RevokeStorageOAuthService } from '../use-cases/google-oauth/revoke-storage-oauth.service';
+import { ExchangeOAuthCodeService } from '../use-cases/google-oauth/exchange-oauth-code.service';
 import {
   CreateDataStorageSpec,
   DeleteDataStorageSpec,
@@ -22,6 +32,11 @@ import {
   ListDataStoragesSpec,
   UpdateDataStorageSpec,
   ValidateDataStorageAccessSpec,
+  OAuthSettingsSpec,
+  OAuthAuthorizeSpec,
+  OAuthExchangeSpec,
+  OAuthStatusSpec,
+  OAuthRevokeSpec,
 } from './spec/data-storage.api';
 
 @Controller('data-storages')
@@ -34,7 +49,12 @@ export class DataStorageController {
     private readonly listService: ListDataStoragesService,
     private readonly deleteService: DeleteDataStorageService,
     private readonly validateAccessService: ValidateDataStorageAccessService,
-    private readonly mapper: DataStorageMapper
+    private readonly mapper: DataStorageMapper,
+    private readonly googleOAuthFlowService: GoogleOAuthFlowService,
+    private readonly getOAuthStatusService: GetStorageOAuthStatusService,
+    private readonly generateOAuthUrlService: GenerateStorageOAuthUrlService,
+    private readonly revokeOAuthService: RevokeStorageOAuthService,
+    private readonly exchangeOAuthCodeService: ExchangeOAuthCodeService
   ) {}
 
   @Auth(Role.viewer(Strategy.PARSE))
@@ -73,6 +93,29 @@ export class DataStorageController {
     return this.mapper.toApiResponse(dataStorageDto);
   }
 
+  // --- OAuth endpoints (must be declared before parameterized :id routes) ---
+
+  @Auth(Role.viewer())
+  @Get('oauth/settings')
+  @OAuthSettingsSpec()
+  async getOAuthSettings(): Promise<GoogleOAuthSettingsResponseDto> {
+    return this.googleOAuthFlowService.getSettingsForType('storage');
+  }
+
+  @Auth(Role.editor())
+  @Post('oauth/exchange')
+  @HttpCode(200)
+  @OAuthExchangeSpec()
+  async exchangeOAuthCode(
+    @AuthContext() context: AuthorizationContext,
+    @Body() body: ExchangeAuthorizationCodeRequestDto
+  ): Promise<ExchangeAuthorizationCodeResponseDto> {
+    const command = this.mapper.toExchangeOAuthCodeCommand(context, body);
+    return this.exchangeOAuthCodeService.run(command);
+  }
+
+  // --- Parameterized :id routes ---
+
   @Auth(Role.viewer(Strategy.PARSE))
   @Get(':id')
   @GetDataStorageSpec()
@@ -106,5 +149,41 @@ export class DataStorageController {
     const command = this.mapper.toValidateAccessCommand(id, context);
     const validationResult = await this.validateAccessService.run(command);
     return this.mapper.toValidateAccessResponse(validationResult);
+  }
+
+  @Auth(Role.editor())
+  @Post(':id/oauth/authorize')
+  @HttpCode(200)
+  @OAuthAuthorizeSpec()
+  async generateOAuthAuthorizationUrl(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string,
+    @Body() body: GenerateAuthorizationUrlRequestDto
+  ): Promise<GenerateAuthorizationUrlResponseDto> {
+    const command = this.mapper.toGenerateOAuthUrlCommand(id, context, body);
+    return this.generateOAuthUrlService.run(command);
+  }
+
+  @Auth(Role.viewer())
+  @Get(':id/oauth/status')
+  @OAuthStatusSpec()
+  async getOAuthStatus(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string
+  ): Promise<GoogleOAuthStatusResponseDto> {
+    const command = this.mapper.toGetOAuthStatusCommand(id, context);
+    return this.getOAuthStatusService.run(command);
+  }
+
+  @Auth(Role.editor())
+  @Delete(':id/oauth')
+  @HttpCode(204)
+  @OAuthRevokeSpec()
+  async revokeOAuth(
+    @AuthContext() context: AuthorizationContext,
+    @Param('id') id: string
+  ): Promise<void> {
+    const command = this.mapper.toRevokeOAuthCommand(id, context);
+    await this.revokeOAuthService.run(command);
   }
 }

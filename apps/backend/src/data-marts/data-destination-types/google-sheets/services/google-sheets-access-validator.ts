@@ -8,7 +8,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { GoogleSheetsCredentialsSchema } from '../schemas/google-sheets-credentials.schema';
 import { GoogleSheetsConfigSchema } from '../schemas/google-sheets-config.schema';
 import { DataDestination } from '../../../entities/data-destination.entity';
-import { GoogleSheetsApiAdapter } from '../adapters/google-sheets-api.adapter';
+import { GoogleSheetsApiAdapterFactory } from '../adapters/google-sheets-api-adapter.factory';
 
 /**
  * Validator for Google Sheets access
@@ -18,6 +18,8 @@ import { GoogleSheetsApiAdapter } from '../adapters/google-sheets-api.adapter';
 export class GoogleSheetsAccessValidator implements DataDestinationAccessValidator {
   private readonly logger = new Logger(GoogleSheetsAccessValidator.name);
   readonly type = DataDestinationType.GOOGLE_SHEETS;
+
+  constructor(private readonly adapterFactory: GoogleSheetsApiAdapterFactory) {}
 
   /**
    * Validates access to a Google Sheets destination
@@ -49,7 +51,10 @@ export class GoogleSheetsAccessValidator implements DataDestinationAccessValidat
     }
 
     try {
-      const adapter = new GoogleSheetsApiAdapter(credentialsOpt.data);
+      const adapter = await this.adapterFactory.createWithOAuth(
+        credentialsOpt.data,
+        dataDestination.id
+      );
       const spreadsheet = await adapter.getSpreadsheet(
         configOpt.data.spreadsheetId,
         'properties.title,sheets.properties.sheetId,sheets.properties.title'

@@ -10,6 +10,12 @@ import { DataDestinationService } from '../services/data-destination.service';
 import { DataDestinationCredentialsValidatorFacade } from '../data-destination-types/facades/data-destination-credentials-validator.facade';
 import { DataDestinationCredentialsProcessorFacade } from '../data-destination-types/facades/data-destination-credentials-processor.facade';
 import { DataDestinationCredentials } from '../data-destination-types/data-destination-credentials.type';
+import { DataDestinationCredentialService } from '../services/data-destination-credential.service';
+import { GoogleOAuthClientService } from '../services/google-oauth/google-oauth-client.service';
+import {
+  resolveDestinationCredentialType,
+  extractDestinationIdentity,
+} from '../services/credential-type-resolver';
 
 @Injectable()
 export class UpdateDataDestinationService {
@@ -20,7 +26,9 @@ export class UpdateDataDestinationService {
     private readonly dataDestinationMapper: DataDestinationMapper,
     private readonly credentialsValidator: DataDestinationCredentialsValidatorFacade,
     private readonly credentialsProcessor: DataDestinationCredentialsProcessorFacade,
-    private readonly availableDestinationTypesService: AvailableDestinationTypesService
+    private readonly availableDestinationTypesService: AvailableDestinationTypesService,
+    private readonly dataDestinationCredentialService: DataDestinationCredentialService,
+    private readonly googleOAuthClientService: GoogleOAuthClientService
   ) {}
 
   async run(command: UpdateDataDestinationCommand): Promise<DataDestinationDto> {
@@ -31,20 +39,71 @@ export class UpdateDataDestinationService {
 
     this.availableDestinationTypesService.verifyIsAllowed(entity.type);
 
-    const credentialsToCheck = command.hasCredentials() ? command.credentials : entity.credentials;
-
-    await this.credentialsValidator.checkCredentials(
-      entity.type,
-      credentialsToCheck ?? ({} as DataDestinationCredentials)
-    );
+    // Handle OAuth credentialId disconnect (null = revoke)
+    if (command.credentialId === null && entity.credentialId) {
+      await this.dataDestinationCredentialService.softDelete(entity.credentialId);
+      entity.credentialId = null;
+    }
 
     if (command.hasCredentials()) {
+      if (command.credentialId) {
+        // New OAuth credential provided — validate by getting a fresh access token
+        const oauth2Client =
+          await this.googleOAuthClientService.getDestinationOAuth2ClientByCredentialId(
+            command.credentialId
+          );
+        await oauth2Client.getAccessToken();
+      } else {
+        const credentialsToCheck = command.credentials;
+        await this.credentialsValidator.checkCredentials(
+          entity.type,
+          credentialsToCheck ?? ({} as DataDestinationCredentials)
+        );
+      }
+
       // Process credentials with existing data to preserve backend-managed fields
-      entity.credentials = await this.credentialsProcessor.processCredentials(
+      const processedCredentials = await this.credentialsProcessor.processCredentials(
         entity.type,
         command.credentials,
         entity.credentials // Pass existing credentials to preserve backend-managed fields
       );
+
+      // Update or create credential record in the new table
+      const credentialType = resolveDestinationCredentialType(
+        processedCredentials as Record<string, unknown>
+      );
+      const identity = extractDestinationIdentity(
+        credentialType,
+        processedCredentials as Record<string, unknown>
+      );
+
+      if (entity.credentialId) {
+        await this.dataDestinationCredentialService.update(entity.credentialId, {
+          credentials: processedCredentials as Record<string, unknown>,
+          identity,
+        });
+      } else {
+        const newCredential = await this.dataDestinationCredentialService.create({
+          projectId: command.projectId,
+          type: credentialType,
+          credentials: processedCredentials as Record<string, unknown>,
+          identity,
+        });
+        entity.credentialId = newCredential.id;
+      }
+    } else if (!command.hasCredentials()) {
+      if (entity.credentialId) {
+        const oauth2Client =
+          await this.googleOAuthClientService.getDestinationOAuth2ClientByCredentialId(
+            entity.credentialId
+          );
+        await oauth2Client.getAccessToken();
+      } else {
+        await this.credentialsValidator.checkCredentials(
+          entity.type,
+          entity.credentials ?? ({} as DataDestinationCredentials)
+        );
+      }
     }
 
     entity.title = command.title;

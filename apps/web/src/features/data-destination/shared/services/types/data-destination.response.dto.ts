@@ -65,4 +65,9 @@ export interface DataDestinationResponseDto {
    * Last modification timestamp
    */
   modifiedAt: Date;
+
+  /**
+   * Credential ID (references data_destination_credentials table)
+   */
+  credentialId?: string;
 }

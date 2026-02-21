@@ -1,6 +1,5 @@
 import { DataDestinationType } from '../../enums';
 import type { DataDestinationCredentials } from './credentials.ts';
-import type { GoogleServiceAccountCredentials } from '../../../../../shared/types';
 import type { EmailCredentials } from './email-credentials.ts';
 import type { LookerStudioCredentials } from './looker-studio-credentials.ts';
 
@@ -18,9 +17,14 @@ export interface GoogleSheetsCredentials {
   serviceAccountKey: string;
 }
 
-export interface GoogleSheetsDataDestination extends BaseDataDestination<GoogleServiceAccountCredentials> {
+export interface GoogleSheetsOAuthCredentials {
+  serviceAccount: string;
+  credentialId?: string | null;
+}
+
+export interface GoogleSheetsDataDestination extends BaseDataDestination<GoogleSheetsOAuthCredentials> {
   type: DataDestinationType.GOOGLE_SHEETS;
-  credentials: GoogleServiceAccountCredentials;
+  credentials: GoogleSheetsOAuthCredentials;
 }
 
 export interface LookerStudioDataDestination extends BaseDataDestination<LookerStudioCredentials> {

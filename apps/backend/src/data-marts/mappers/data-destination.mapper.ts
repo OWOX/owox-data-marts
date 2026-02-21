@@ -11,18 +11,29 @@ import { GetDataDestinationCommand } from '../dto/domain/get-data-destination.co
 import { ListDataDestinationsCommand } from '../dto/domain/list-data-destinations.command';
 import { DataDestinationCredentialsUtils } from '../data-destination-types/data-destination-credentials.utils';
 import { RotateSecretKeyCommand } from '../dto/domain/rotate-secret-key.command';
+import { GetDestinationOAuthStatusCommand } from '../dto/domain/google-oauth/get-destination-oauth-status.command';
+import { GetDestinationOAuthCredentialStatusCommand } from '../dto/domain/google-oauth/get-destination-oauth-credential-status.command';
+import { GenerateDestinationOAuthUrlCommand } from '../dto/domain/google-oauth/generate-destination-oauth-url.command';
+import { RevokeDestinationOAuthCommand } from '../dto/domain/google-oauth/revoke-destination-oauth.command';
+import { ExchangeOAuthCodeCommand } from '../dto/domain/google-oauth/exchange-oauth-code.command';
+import { ExchangeAuthorizationCodeRequestDto } from '../dto/presentation/google-oauth/exchange-authorization-code-request.dto';
+import { GenerateAuthorizationUrlRequestDto } from '../dto/presentation/google-oauth/generate-authorization-url-request.dto';
 import { UpdateDataDestinationCommand } from '../dto/domain/update-data-destination.command';
 import { CreateDataDestinationApiDto } from '../dto/presentation/create-data-destination-api.dto';
 import { DataDestinationResponseApiDto } from '../dto/presentation/data-destination-response-api.dto';
 import { UpdateDataDestinationApiDto } from '../dto/presentation/update-data-destination-api.dto';
 import { DataDestination } from '../entities/data-destination.entity';
 import { PublicOriginService } from '../../common/config/public-origin.service';
+import { DataDestinationCredentialService } from '../services/data-destination-credential.service';
+import { DestinationCredentialType } from '../enums/destination-credential-type.enum';
+import { DataDestinationCredentials } from '../data-destination-types/data-destination-credentials.type';
 
 @Injectable()
 export class DataDestinationMapper {
   constructor(
     private readonly credentialsUtils: DataDestinationCredentialsUtils,
-    private readonly publicOriginService: PublicOriginService
+    private readonly publicOriginService: PublicOriginService,
+    private readonly dataDestinationCredentialService: DataDestinationCredentialService
   ) {}
   toCreateCommand(
     context: AuthorizationContext,
@@ -32,7 +43,8 @@ export class DataDestinationMapper {
       context.projectId,
       dto.title,
       dto.type,
-      dto.credentials
+      dto.credentials,
+      dto.credentialId
     );
   }
 
@@ -41,7 +53,13 @@ export class DataDestinationMapper {
     context: AuthorizationContext,
     dto: UpdateDataDestinationApiDto
   ): UpdateDataDestinationCommand {
-    return new UpdateDataDestinationCommand(id, context.projectId, dto.title, dto.credentials);
+    return new UpdateDataDestinationCommand(
+      id,
+      context.projectId,
+      dto.title,
+      dto.credentials,
+      dto.credentialId
+    );
   }
 
   toDomainDto(dataDestination: DataDestination): DataDestinationDto {
@@ -58,7 +76,8 @@ export class DataDestinationMapper {
           }
         : dataDestination.credentials) as DataDestinationCredentialsDto,
       dataDestination.createdAt,
-      dataDestination.modifiedAt
+      dataDestination.modifiedAt,
+      dataDestination.credentialId
     );
   }
 
@@ -66,19 +85,41 @@ export class DataDestinationMapper {
     return dataDestinations.map(dataDestination => this.toDomainDto(dataDestination));
   }
 
-  toApiResponse(dataDestinationDto: DataDestinationDto): DataDestinationResponseApiDto {
-    const publicCredentials = this.credentialsUtils.getPublicCredentials(
-      dataDestinationDto.type,
-      dataDestinationDto.credentials
-    );
+  async toApiResponse(
+    dataDestinationDto: DataDestinationDto
+  ): Promise<DataDestinationResponseApiDto> {
+    let publicCredentials: DataDestinationResponseApiDto['credentials'] = undefined;
+
+    if (dataDestinationDto.credentialId) {
+      const credential = await this.dataDestinationCredentialService.getById(
+        dataDestinationDto.credentialId
+      );
+      if (credential && credential.type !== DestinationCredentialType.GOOGLE_OAUTH) {
+        publicCredentials = this.credentialsUtils.getPublicCredentials(
+          dataDestinationDto.type,
+          credential.credentials as DataDestinationCredentials
+        );
+      }
+      // For OAuth credentials, publicCredentials stays undefined — the frontend uses the OAuth status endpoint
+    } else {
+      publicCredentials = this.credentialsUtils.getPublicCredentials(
+        dataDestinationDto.type,
+        dataDestinationDto.credentials
+      );
+      if (!publicCredentials) {
+        publicCredentials = dataDestinationDto.credentials;
+      }
+    }
+
     return {
       id: dataDestinationDto.id,
       title: dataDestinationDto.title,
       type: dataDestinationDto.type,
       projectId: dataDestinationDto.projectId,
-      credentials: publicCredentials || dataDestinationDto.credentials,
+      credentials: publicCredentials,
       createdAt: dataDestinationDto.createdAt,
       modifiedAt: dataDestinationDto.modifiedAt,
+      credentialId: dataDestinationDto.credentialId,
     };
   }
 
@@ -90,8 +131,10 @@ export class DataDestinationMapper {
     return new ListDataDestinationsCommand(context.projectId);
   }
 
-  toResponseList(dataDestinations: DataDestinationDto[]): DataDestinationResponseApiDto[] {
-    return dataDestinations.map(dataDestinationDto => this.toApiResponse(dataDestinationDto));
+  toResponseList(dataDestinations: DataDestinationDto[]): Promise<DataDestinationResponseApiDto[]> {
+    return Promise.all(
+      dataDestinations.map(dataDestinationDto => this.toApiResponse(dataDestinationDto))
+    );
   }
 
   toDeleteCommand(id: string, context: AuthorizationContext): DeleteDataDestinationCommand {
@@ -100,5 +143,42 @@ export class DataDestinationMapper {
 
   toRotateSecretKeyCommand(id: string, context: AuthorizationContext): RotateSecretKeyCommand {
     return new RotateSecretKeyCommand(id, context.projectId);
+  }
+
+  toGetOAuthStatusCommand(
+    id: string,
+    context: AuthorizationContext
+  ): GetDestinationOAuthStatusCommand {
+    return new GetDestinationOAuthStatusCommand(id, context.projectId);
+  }
+
+  toGetOAuthCredentialStatusCommand(
+    credentialId: string,
+    context: AuthorizationContext
+  ): GetDestinationOAuthCredentialStatusCommand {
+    return new GetDestinationOAuthCredentialStatusCommand(credentialId, context.projectId);
+  }
+
+  toGenerateOAuthUrlCommand(
+    context: AuthorizationContext,
+    dto: GenerateAuthorizationUrlRequestDto,
+    destinationId?: string
+  ): GenerateDestinationOAuthUrlCommand {
+    return new GenerateDestinationOAuthUrlCommand(
+      context.projectId,
+      dto.redirectUri,
+      destinationId
+    );
+  }
+
+  toExchangeOAuthCodeCommand(
+    context: AuthorizationContext,
+    dto: ExchangeAuthorizationCodeRequestDto
+  ): ExchangeOAuthCodeCommand {
+    return new ExchangeOAuthCodeCommand(dto.code, dto.state, context.userId, context.projectId);
+  }
+
+  toRevokeOAuthCommand(id: string, context: AuthorizationContext): RevokeDestinationOAuthCommand {
+    return new RevokeDestinationOAuthCommand(id, context.projectId);
   }
 }
