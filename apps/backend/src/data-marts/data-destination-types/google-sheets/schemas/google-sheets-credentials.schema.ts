@@ -7,8 +7,8 @@ import { GoogleServiceAccountKeySchema } from '../../../../common/schemas/google
 export const GoogleSheetsCredentialsType = 'google-sheets-credentials';
 
 /**
- * Schema for validating Google Sheets credentials
- * Defines the structure and validation rules for Google Sheets API authentication
+ * Schema for validating Google Sheets credentials (Service Account).
+ * OAuth is handled via credentialId on the parent entity, not inside credentials JSON.
  */
 export const GoogleSheetsCredentialsSchema = z
   .object({
@@ -20,8 +20,9 @@ export const GoogleSheetsCredentialsSchema = z
     /**
      * Google service account key used for authentication
      * Contains the necessary credentials for accessing Google Sheets API
+     * Optional when OAuth is used (credentials stored in data_destination_credentials table)
      */
-    serviceAccountKey: GoogleServiceAccountKeySchema,
+    serviceAccountKey: GoogleServiceAccountKeySchema.optional(),
   })
   .passthrough();
 

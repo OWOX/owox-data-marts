@@ -1,5 +1,6 @@
 export interface GoogleBigQueryCredentials {
   serviceAccount: string; // JSON string containing service account details
+  credentialId?: string | null; // ID of linked OAuth credential; null = explicitly disconnected
 }
 
 export interface AwsAthenaCredentials {

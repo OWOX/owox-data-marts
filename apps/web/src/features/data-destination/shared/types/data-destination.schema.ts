@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { DataDestinationType } from '../enums';
-import { googleServiceAccountSchema } from '../../../../shared';
+import { googleCredentialsWithOAuthSchema } from '../../../../shared';
 import { lookerStudioCredentialsSchema } from './looker-studio-credentials.schema.ts';
 import { emailCredentialsSchema } from './email-credentials.schema.ts';
 
@@ -10,10 +10,10 @@ const baseDataDestinationSchema = z.object({
   type: z.nativeEnum(DataDestinationType),
 });
 
-// Using the shared schema for Google Service Account credentials
+// Google Sheets supports both Service Account and OAuth authentication
 const googleSheetsDestinationSchema = baseDataDestinationSchema.extend({
   type: z.literal(DataDestinationType.GOOGLE_SHEETS),
-  credentials: googleServiceAccountSchema,
+  credentials: googleCredentialsWithOAuthSchema,
 });
 
 // Using the shared schema for Looker Studio credentials

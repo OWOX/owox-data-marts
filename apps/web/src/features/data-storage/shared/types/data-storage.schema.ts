@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { DataStorageType } from '../model/types';
-import { googleServiceAccountSchema } from '../../../../shared';
+import { googleCredentialsWithOAuthSchema } from '../../../../shared';
 import {
   SnowflakeAuthMethod,
   RedshiftConnectionType,
@@ -78,15 +78,17 @@ const baseSchema = z.object({
   title: z.string().min(1, 'Title is required').max(255, 'Title must be 255 characters or less'),
 });
 
+// Use OAuth-enabled schema for BigQuery (supports both Service Account and OAuth)
 export const googleBigQuerySchema = baseSchema.extend({
   type: z.literal(DataStorageType.GOOGLE_BIGQUERY),
-  credentials: googleServiceAccountSchema,
+  credentials: googleCredentialsWithOAuthSchema,
   config: googleConfigSchema,
 });
 
+// Legacy BigQuery uses the same OAuth-enabled schema as GOOGLE_BIGQUERY
 export const legacyGoogleBigQuerySchema = baseSchema.extend({
   type: z.literal(DataStorageType.LEGACY_GOOGLE_BIGQUERY),
-  credentials: googleServiceAccountSchema,
+  credentials: googleCredentialsWithOAuthSchema,
   config: googleConfigSchema,
 });
 

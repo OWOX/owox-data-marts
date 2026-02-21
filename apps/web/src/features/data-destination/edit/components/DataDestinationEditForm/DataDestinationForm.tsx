@@ -36,6 +36,7 @@ interface DataDestinationFormProps {
   onDirtyChange?: (isDirty: boolean) => void;
   isEditMode?: boolean;
   allowedDestinationTypes?: DataDestinationType[];
+  destinationId?: string;
 }
 
 export function DataDestinationForm({
@@ -45,6 +46,7 @@ export function DataDestinationForm({
   onDirtyChange,
   isEditMode,
   allowedDestinationTypes,
+  destinationId,
 }: DataDestinationFormProps) {
   const form = useForm<DataDestinationFormData>({
     resolver: zodResolver(dataDestinationSchema),
@@ -102,7 +104,7 @@ export function DataDestinationForm({
           />
 
           {destinationType === DataDestinationType.GOOGLE_SHEETS && (
-            <GoogleSheetsFields form={form} />
+            <GoogleSheetsFields form={form} destinationId={destinationId} />
           )}
 
           {destinationType === DataDestinationType.LOOKER_STUDIO && (

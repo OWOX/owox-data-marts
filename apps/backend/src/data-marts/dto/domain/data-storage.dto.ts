@@ -13,6 +13,7 @@ export class DataStorageDto {
     public readonly createdAt: Date,
     public readonly modifiedAt: Date,
     public readonly dataMartsCount: number = 0,
-    public readonly draftsCount: number = 0
+    public readonly draftsCount: number = 0,
+    public readonly credentialId: string | null | undefined = undefined
   ) {}
 }

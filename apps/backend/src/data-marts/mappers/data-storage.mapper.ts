@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { AuthorizationContext } from '../../idp';
 import { DataStorageCredentialsUtils } from '../data-storage-types/data-mart-schema.utils';
+import { DataStorageCredentials } from '../data-storage-types/data-storage-credentials.type';
 import { toHumanReadable } from '../data-storage-types/enums/data-storage-type.enum';
+import { DataStorageCredentialService } from '../services/data-storage-credential.service';
+import { StorageCredentialType } from '../enums/storage-credential-type.enum';
 import { ValidationResult } from '../data-storage-types/interfaces/data-storage-access-validator.interface';
 import { CreateDataStorageCommand } from '../dto/domain/create-data-storage.command';
 import { DataStorageDto } from '../dto/domain/data-storage.dto';
@@ -12,6 +15,12 @@ import { UpdateDataStorageCommand } from '../dto/domain/update-data-storage.comm
 import { PublishDataStorageDraftsCommand } from '../dto/domain/publish-data-storage-drafts.command';
 import { PublishDataStorageDraftsResultDto } from '../dto/domain/publish-data-storage-drafts-result.dto';
 import { ValidateDataStorageAccessCommand } from '../dto/domain/validate-data-storage-access.command';
+import { GetStorageOAuthStatusCommand } from '../dto/domain/google-oauth/get-storage-oauth-status.command';
+import { GenerateStorageOAuthUrlCommand } from '../dto/domain/google-oauth/generate-storage-oauth-url.command';
+import { RevokeStorageOAuthCommand } from '../dto/domain/google-oauth/revoke-storage-oauth.command';
+import { ExchangeOAuthCodeCommand } from '../dto/domain/google-oauth/exchange-oauth-code.command';
+import { ExchangeAuthorizationCodeRequestDto } from '../dto/presentation/google-oauth/exchange-authorization-code-request.dto';
+import { GenerateAuthorizationUrlRequestDto } from '../dto/presentation/google-oauth/generate-authorization-url-request.dto';
 import { CreateDataStorageApiDto } from '../dto/presentation/create-data-storage-api.dto';
 import { DataStorageAccessValidationResponseApiDto } from '../dto/presentation/data-storage-access-validation-response-api.dto';
 import { DataStorageListResponseApiDto } from '../dto/presentation/data-storage-list-response-api.dto';
@@ -22,7 +31,10 @@ import { DataStorage } from '../entities/data-storage.entity';
 
 @Injectable()
 export class DataStorageMapper {
-  constructor(private readonly credentialsUtils: DataStorageCredentialsUtils) {}
+  constructor(
+    private readonly credentialsUtils: DataStorageCredentialsUtils,
+    private readonly dataStorageCredentialService: DataStorageCredentialService
+  ) {}
 
   toCreateCommand(
     context: AuthorizationContext,
@@ -41,7 +53,8 @@ export class DataStorageMapper {
       context.projectId,
       dto.config,
       dto.title.trim(),
-      dto.credentials
+      dto.credentials,
+      dto.credentialId
     );
   }
 
@@ -56,7 +69,8 @@ export class DataStorageMapper {
       dataStorage.createdAt,
       dataStorage.modifiedAt,
       publishedCount,
-      draftsCount
+      draftsCount,
+      dataStorage.credentialId
     );
   }
 
@@ -64,19 +78,38 @@ export class DataStorageMapper {
     return dataStorages.map(dataStorage => this.toDomainDto(dataStorage));
   }
 
-  toApiResponse(dataStorageDto: DataStorageDto): DataStorageResponseApiDto {
+  async toApiResponse(dataStorageDto: DataStorageDto): Promise<DataStorageResponseApiDto> {
+    // When credentialId is set, read credentials from the credential table (source of truth).
+    // Inline credentials on the entity are kept only for backward compatibility during deployment.
+    let publicCredentials: DataStorageResponseApiDto['credentials'] = undefined;
+    if (dataStorageDto.credentialId) {
+      const credential = await this.dataStorageCredentialService.getById(
+        dataStorageDto.credentialId
+      );
+      if (credential && credential.type !== StorageCredentialType.GOOGLE_OAUTH) {
+        publicCredentials = this.credentialsUtils.getPublicCredentials(
+          dataStorageDto.type,
+          credential.credentials as DataStorageCredentials
+        );
+      }
+      // For OAuth credentials, publicCredentials stays undefined — the frontend uses the OAuth status endpoint
+    } else {
+      publicCredentials = this.credentialsUtils.getPublicCredentials(
+        dataStorageDto.type,
+        dataStorageDto.credentials
+      );
+    }
+
     return {
       id: dataStorageDto.id,
       title: dataStorageDto.title,
       type: dataStorageDto.type,
       projectId: dataStorageDto.projectId,
-      credentials: this.credentialsUtils.getPublicCredentials(
-        dataStorageDto.type,
-        dataStorageDto.credentials
-      ),
+      credentials: publicCredentials,
       config: dataStorageDto.config,
       createdAt: dataStorageDto.createdAt,
       modifiedAt: dataStorageDto.modifiedAt,
+      credentialId: dataStorageDto.credentialId,
     };
   }
 
@@ -125,6 +158,29 @@ export class DataStorageMapper {
       valid: validationResult.valid,
       errorMessage: validationResult.errorMessage,
     };
+  }
+
+  toGetOAuthStatusCommand(id: string, context: AuthorizationContext): GetStorageOAuthStatusCommand {
+    return new GetStorageOAuthStatusCommand(id, context.projectId);
+  }
+
+  toGenerateOAuthUrlCommand(
+    id: string,
+    context: AuthorizationContext,
+    dto: GenerateAuthorizationUrlRequestDto
+  ): GenerateStorageOAuthUrlCommand {
+    return new GenerateStorageOAuthUrlCommand(id, context.projectId, dto.redirectUri);
+  }
+
+  toExchangeOAuthCodeCommand(
+    context: AuthorizationContext,
+    dto: ExchangeAuthorizationCodeRequestDto
+  ): ExchangeOAuthCodeCommand {
+    return new ExchangeOAuthCodeCommand(dto.code, dto.state, context.userId, context.projectId);
+  }
+
+  toRevokeOAuthCommand(id: string, context: AuthorizationContext): RevokeStorageOAuthCommand {
+    return new RevokeStorageOAuthCommand(id, context.projectId);
   }
 
   toPublishDraftsResponse(

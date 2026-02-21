@@ -8,6 +8,12 @@ import { DataDestinationDto } from '../dto/domain/data-destination.dto';
 import { DataDestinationMapper } from '../mappers/data-destination.mapper';
 import { DataDestinationCredentialsValidatorFacade } from '../data-destination-types/facades/data-destination-credentials-validator.facade';
 import { DataDestinationCredentialsProcessorFacade } from '../data-destination-types/facades/data-destination-credentials-processor.facade';
+import { DataDestinationCredentialService } from '../services/data-destination-credential.service';
+import { GoogleOAuthClientService } from '../services/google-oauth/google-oauth-client.service';
+import {
+  resolveDestinationCredentialType,
+  extractDestinationIdentity,
+} from '../services/credential-type-resolver';
 
 @Injectable()
 export class CreateDataDestinationService {
@@ -17,11 +23,32 @@ export class CreateDataDestinationService {
     private readonly mapper: DataDestinationMapper,
     private readonly credentialsValidator: DataDestinationCredentialsValidatorFacade,
     private readonly credentialsProcessor: DataDestinationCredentialsProcessorFacade,
-    private readonly availableDestinationTypesService: AvailableDestinationTypesService
+    private readonly availableDestinationTypesService: AvailableDestinationTypesService,
+    private readonly dataDestinationCredentialService: DataDestinationCredentialService,
+    private readonly googleOAuthClientService: GoogleOAuthClientService
   ) {}
 
   async run(command: CreateDataDestinationCommand): Promise<DataDestinationDto> {
     this.availableDestinationTypesService.verifyIsAllowed(command.type);
+
+    // If a pre-created OAuth credential ID is provided, validate it by getting a fresh access token
+    if (command.credentialId) {
+      const oauth2Client =
+        await this.googleOAuthClientService.getDestinationOAuth2ClientByCredentialId(
+          command.credentialId
+        );
+      await oauth2Client.getAccessToken();
+
+      const entity = this.repository.create({
+        title: command.title,
+        type: command.type,
+        projectId: command.projectId,
+        credentialId: command.credentialId,
+      });
+
+      const savedEntity = await this.repository.save(entity);
+      return this.mapper.toDomainDto(savedEntity);
+    }
 
     await this.credentialsValidator.checkCredentials(command.type, command.credentials);
 
@@ -31,11 +58,27 @@ export class CreateDataDestinationService {
       command.credentials
     );
 
+    // Create credential record in the new table
+    const credentialType = resolveDestinationCredentialType(
+      processedCredentials as Record<string, unknown>
+    );
+    const identity = extractDestinationIdentity(
+      credentialType,
+      processedCredentials as Record<string, unknown>
+    );
+
+    const credentialRecord = await this.dataDestinationCredentialService.create({
+      projectId: command.projectId,
+      type: credentialType,
+      credentials: processedCredentials as Record<string, unknown>,
+      identity,
+    });
+
     const entity = this.repository.create({
       title: command.title,
       type: command.type,
       projectId: command.projectId,
-      credentials: processedCredentials,
+      credentialId: credentialRecord.id,
     });
 
     const savedEntity = await this.repository.save(entity);

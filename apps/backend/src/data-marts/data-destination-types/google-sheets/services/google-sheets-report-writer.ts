@@ -180,10 +180,14 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
       }
       this.destination = report.destinationConfig;
 
-      if (!isGoogleSheetsCredentials(report.dataDestination.credentials)) {
+      if (!isGoogleSheetsCredentials(report.dataDestination.credentials!)) {
         throw new Error('Invalid Google Sheets credentials provided');
       }
-      this.adapter = this.adapterFactory.create(report.dataDestination.credentials);
+
+      this.adapter = await this.adapterFactory.createWithOAuth(
+        report.dataDestination.credentials,
+        report.dataDestination.id
+      );
 
       const spreadsheet = await this.adapter
         .getSpreadsheet(this.destination.spreadsheetId)
