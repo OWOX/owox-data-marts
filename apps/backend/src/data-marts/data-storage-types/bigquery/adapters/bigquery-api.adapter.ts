@@ -45,15 +45,17 @@ export class BigQueryApiAdapter {
    * Executes a SQL query
    */
   public async executeQuery(query: string): Promise<{ jobId: string }> {
-    const [, , res] = await this.bigQuery.query(query, {
-      maxResults: 0,
+    const [job] = await this.bigQuery.createQueryJob({
+      query,
       ...this.getLocationOption(),
     });
-    if (!res || !res.jobReference || !res.jobReference.jobId) {
+    await job.getQueryResults({ maxResults: 0 });
+    const jobId = job.metadata?.jobReference?.jobId;
+    if (!jobId) {
       throw new Error('Unexpected error during getting sql result job id');
     }
-    this.setLocationFromJobReference(res.jobReference.location);
-    return { jobId: res.jobReference.jobId };
+    this.setLocationFromJob(job);
+    return { jobId };
   }
 
   /**
@@ -105,8 +107,12 @@ export class BigQueryApiAdapter {
    */
   public async checkAccess(): Promise<void> {
     try {
-      const [, , res] = await this.bigQuery.query('SELECT 1', this.getLocationOption());
-      this.setLocationFromJobReference(res?.jobReference?.location);
+      const [job] = await this.bigQuery.createQueryJob({
+        query: 'SELECT 1',
+        ...this.getLocationOption(),
+      });
+      await job.getQueryResults({ maxResults: 0 });
+      this.setLocationFromJob(job);
     } catch (e) {
       throw new Error(`BigQuery access error: ${e instanceof Error ? e.message : String(e)}`);
     }
