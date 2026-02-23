@@ -11,6 +11,8 @@ import {
 import { CreateDataMartRequestApiDto } from '../../dto/presentation/create-data-mart-request-api.dto';
 import { DataMartResponseApiDto } from '../../dto/presentation/data-mart-response-api.dto';
 import { CreateDataMartResponseApiDto } from '../../dto/presentation/create-data-mart-response-api.dto';
+import { BatchDataMartHealthStatusRequestApiDto } from '../../dto/presentation/batch-data-mart-health-status-request-api.dto';
+import { BatchDataMartHealthStatusResponseApiDto } from '../../dto/presentation/batch-data-mart-health-status-response-api.dto';
 import { UpdateDataMartDescriptionApiDto } from '../../dto/presentation/update-data-mart-description-api.dto';
 import { UpdateDataMartTitleApiDto } from '../../dto/presentation/update-data-mart-title-api.dto';
 import { UpdateDataMartDefinitionApiDto } from '../../dto/presentation/update-data-mart-definition-api.dto';
@@ -41,6 +43,14 @@ export function GetDataMartSpec() {
     ApiOperation({ summary: 'Get a DataMart by ID' }),
     ApiParam({ name: 'id', description: 'DataMart ID' }),
     ApiResponse({ status: 200, type: DataMartResponseApiDto })
+  );
+}
+
+export function BatchDataMartHealthStatusSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Batch get DataMart health status' }),
+    ApiBody({ type: BatchDataMartHealthStatusRequestApiDto }),
+    ApiOkResponse({ type: BatchDataMartHealthStatusResponseApiDto })
   );
 }
 

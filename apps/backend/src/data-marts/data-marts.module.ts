@@ -145,6 +145,7 @@ import { SyncLegacyDataMartService } from './use-cases/legacy-data-marts/sync-le
 import { SyncLegacyDataMartsByGcpService } from './use-cases/legacy-data-marts/sync-legacy-data-marts-by-gcp.service';
 import { LegacyDataMartsSyncController } from './controllers/internal/legacy-data-marts-sync.controller';
 import { ValidateDataStorageAccessService } from './use-cases/validate-data-storage-access.service';
+import { BatchDataMartHealthStatusService } from './use-cases/batch-data-mart-health-status.service';
 
 @Module({
   imports: [
@@ -298,6 +299,7 @@ import { ValidateDataStorageAccessService } from './use-cases/validate-data-stor
     SyncDataMartsByGcpTriggerHandler,
     SyncGcpStoragesForProjectTriggerHandler,
     ValidateDataStorageAccessService,
+    BatchDataMartHealthStatusService,
   ],
 })
 export class DataMartsModule {

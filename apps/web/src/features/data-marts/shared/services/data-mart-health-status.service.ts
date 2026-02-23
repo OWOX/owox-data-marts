@@ -1,27 +1,11 @@
 import type { AxiosRequestConfig } from '../../../../app/api';
-import { dataMartService } from './data-mart.service';
-import { mapDataMartRunListResponseDtoToEntity } from '../../edit/model/mappers/data-mart-run-mappers';
-import type { DataMartRunItem } from '../../edit/model/types/data-mart-run';
-import {
-  filterRunsByDateRange,
-  computeHealthStatusFromLatestRuns,
-} from '../../list/utils/data-mart-health-status.utils';
+import type { DataMartRunItem } from '../../edit';
+import { mapDataMartRunResponseDtoToEntity } from '../../edit/model/mappers';
+import { computeHealthStatusFromLatestRuns } from '../../list';
 import { DataMartHealthStatus } from '../types';
-import { DataMartRunType } from '../enums/data-mart-run-type.enum';
-
-/**
- * Configuration constants
- */
-const HEALTH_STATUS_DAYS_RANGE = 30;
-const HEALTH_STATUS_PAGE_SIZE = 100;
+import { dataMartService } from './data-mart.service';
 
 export interface CachedHealthStatus {
-  /**
-   * All runs within the configured time window.
-   * Used for UI (run history, hover details, etc).
-   */
-  recentRuns: DataMartRunItem[];
-
   /**
    * Aggregated health status computed ONLY
    * from the latest run of each type.
@@ -72,71 +56,34 @@ export function getCachedHealthStatus(dataMartId: string): CachedHealthStatus | 
 }
 
 /**
- * Builds CachedHealthStatus from a list of all runs.
- *
- * IMPORTANT BUSINESS LOGIC:
- * - First, we filter runs by date range.
- * - Then, we determine the latest run per type.
- * - Health status is computed ONLY from those latest runs.
- * - Historical runs do NOT affect health status.
- */
-export function buildCachedHealthStatus(allRuns: readonly DataMartRunItem[]): CachedHealthStatus {
-  // 1. Limit runs by time window
-  const recentRuns = filterRunsByDateRange(allRuns, HEALTH_STATUS_DAYS_RANGE);
-
-  // 2. Find latest run per type
-  const latestRunsByType: CachedHealthStatus['latestRunsByType'] = {
-    connector: null,
-    report: null,
-    insight: null,
-  };
-
-  for (const run of recentRuns) {
-    switch (run.type) {
-      case DataMartRunType.CONNECTOR: {
-        if (!latestRunsByType.connector || run.createdAt > latestRunsByType.connector.createdAt) {
-          latestRunsByType.connector = run;
-        }
-        break;
-      }
-
-      case DataMartRunType.INSIGHT: {
-        if (!latestRunsByType.insight || run.createdAt > latestRunsByType.insight.createdAt) {
-          latestRunsByType.insight = run;
-        }
-        break;
-      }
-
-      default: {
-        if (!latestRunsByType.report || run.createdAt > latestRunsByType.report.createdAt) {
-          latestRunsByType.report = run;
-        }
-      }
-    }
-  }
-
-  // 3. Compute health status ONLY from latest runs
-  const healthStatus = computeHealthStatusFromLatestRuns(latestRunsByType);
-
-  return {
-    recentRuns,
-    latestRunsByType,
-    healthStatus,
-  };
-}
-
-/**
  * Fetches run history, builds CachedHealthStatus and stores it in cache.
+ * Leverages the batch endpoint under the hood for consistency.
  */
 export async function fetchAndCacheHealthStatus(
   dataMartId: string,
   signal?: AbortSignal
 ): Promise<void> {
-  if (healthStatusCache.has(dataMartId) || inFlightRequests.has(dataMartId)) {
+  await fetchAndCacheBatchHealthStatus([dataMartId], signal);
+}
+
+/**
+ * Fetches batch run history, builds CachedHealthStatus and stores it in cache.
+ */
+export async function fetchAndCacheBatchHealthStatus(
+  dataMartIds: string[],
+  signal?: AbortSignal
+): Promise<void> {
+  const idsToFetch = dataMartIds.filter(
+    id => !healthStatusCache.has(id) && !inFlightRequests.has(id)
+  );
+
+  if (!idsToFetch.length) {
     return;
   }
 
-  inFlightRequests.add(dataMartId);
+  for (const id of idsToFetch) {
+    inFlightRequests.add(id);
+  }
 
   const config: AxiosRequestConfig = {
     skipLoadingIndicator: true,
@@ -144,19 +91,28 @@ export async function fetchAndCacheHealthStatus(
   };
 
   try {
-    const response = await dataMartService.getDataMartRuns(
-      dataMartId,
-      HEALTH_STATUS_PAGE_SIZE,
-      0,
-      config
-    );
+    const response = await dataMartService.getBatchDataMartHealthStatus(idsToFetch, config);
 
-    const allRuns = mapDataMartRunListResponseDtoToEntity(response);
-    const cachedHealthStatus = buildCachedHealthStatus(allRuns);
+    for (const item of response.items) {
+      const latestRunsByType: CachedHealthStatus['latestRunsByType'] = {
+        connector: item.connector ? mapDataMartRunResponseDtoToEntity(item.connector) : null,
+        report: item.report ? mapDataMartRunResponseDtoToEntity(item.report) : null,
+        insight: item.insight ? mapDataMartRunResponseDtoToEntity(item.insight) : null,
+      };
 
-    healthStatusCache.set(dataMartId, cachedHealthStatus);
+      const healthStatus = computeHealthStatusFromLatestRuns(latestRunsByType);
+
+      const cachedHealthStatus: CachedHealthStatus = {
+        latestRunsByType,
+        healthStatus,
+      };
+
+      healthStatusCache.set(item.dataMartId, cachedHealthStatus);
+    }
     notifySubscribers();
   } finally {
-    inFlightRequests.delete(dataMartId);
+    for (const id of idsToFetch) {
+      inFlightRequests.delete(id);
+    }
   }
 }

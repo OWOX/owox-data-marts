@@ -1,20 +1,22 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
+import { BatchDataMartHealthStatusRequestApiDto } from '../dto/presentation/batch-data-mart-health-status-request-api.dto';
+import { BatchDataMartHealthStatusResponseApiDto } from '../dto/presentation/batch-data-mart-health-status-response-api.dto';
 import { CreateDataMartRequestApiDto } from '../dto/presentation/create-data-mart-request-api.dto';
 import { CreateDataMartResponseApiDto } from '../dto/presentation/create-data-mart-response-api.dto';
 import { DataMartResponseApiDto } from '../dto/presentation/data-mart-response-api.dto';
-import { PaginatedDataMartsResponseApiDto } from '../dto/presentation/paginated-data-marts-response-api.dto';
-import { UpdateDataMartDefinitionApiDto } from '../dto/presentation/update-data-mart-definition-api.dto';
-import { UpdateDataMartDescriptionApiDto } from '../dto/presentation/update-data-mart-description-api.dto';
-import { UpdateDataMartTitleApiDto } from '../dto/presentation/update-data-mart-title-api.dto';
-
-import { ApiTags } from '@nestjs/swagger';
-import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
 import { DataMartRunResponseApiDto } from '../dto/presentation/data-mart-run-response-api.dto';
 import { DataMartRunsResponseApiDto } from '../dto/presentation/data-mart-runs-response-api.dto';
 import { DataMartValidationResponseApiDto } from '../dto/presentation/data-mart-validation-response-api.dto';
+import { PaginatedDataMartsResponseApiDto } from '../dto/presentation/paginated-data-marts-response-api.dto';
 import { RunDataMartRequestApiDto } from '../dto/presentation/run-data-mart-request-api.dto';
+import { UpdateDataMartDefinitionApiDto } from '../dto/presentation/update-data-mart-definition-api.dto';
+import { UpdateDataMartDescriptionApiDto } from '../dto/presentation/update-data-mart-description-api.dto';
 import { UpdateDataMartSchemaApiDto } from '../dto/presentation/update-data-mart-schema-api.dto';
+import { UpdateDataMartTitleApiDto } from '../dto/presentation/update-data-mart-title-api.dto';
 import { DataMartMapper } from '../mappers/data-mart.mapper';
+import { BatchDataMartHealthStatusService } from '../use-cases/batch-data-mart-health-status.service';
 import { CancelDataMartRunService } from '../use-cases/cancel-data-mart-run.service';
 import { CreateDataMartService } from '../use-cases/create-data-mart.service';
 import { DeleteDataMartService } from '../use-cases/delete-data-mart.service';
@@ -31,6 +33,7 @@ import { UpdateDataMartSchemaService } from '../use-cases/update-data-mart-schem
 import { UpdateDataMartTitleService } from '../use-cases/update-data-mart-title.service';
 import { ValidateDataMartDefinitionService } from '../use-cases/validate-data-mart-definition.service';
 import {
+  BatchDataMartHealthStatusSpec,
   CancelDataMartRunSpec,
   CreateDataMartSpec,
   DeleteDataMartSpec,
@@ -67,7 +70,8 @@ export class DataMartController {
     private readonly getDataMartRunsService: ListDataMartRunsService,
     private readonly getDataMartRunService: GetDataMartRunService,
     private readonly cancelDataMartRunService: CancelDataMartRunService,
-    private readonly listDataMartsByConnectorNameService: ListDataMartsByConnectorNameService
+    private readonly listDataMartsByConnectorNameService: ListDataMartsByConnectorNameService,
+    private readonly batchDataMartHealthStatusService: BatchDataMartHealthStatusService
   ) {}
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -256,5 +260,18 @@ export class DataMartController {
     const command = this.mapper.toGetDataMartRunCommand(id, runId, context);
     const runDto = await this.getDataMartRunService.run(command);
     return this.mapper.toRunResponse(runDto);
+  }
+
+  @Auth(Role.viewer(Strategy.PARSE))
+  @Post('health-status')
+  @HttpCode(200)
+  @BatchDataMartHealthStatusSpec()
+  async getBatchHealthStatus(
+    @AuthContext() context: AuthorizationContext,
+    @Body() dto: BatchDataMartHealthStatusRequestApiDto
+  ): Promise<BatchDataMartHealthStatusResponseApiDto> {
+    const command = this.mapper.toBatchHealthStatusCommand(context, dto);
+    const domainDto = await this.batchDataMartHealthStatusService.run(command);
+    return this.mapper.toBatchHealthStatusResponse(domainDto);
   }
 }
