@@ -11,11 +11,7 @@ import {
 import type { IdpOwoxConfig } from '../config/idp-owox-config.js';
 import { CORE_REFRESH_TOKEN_COOKIE } from '../core/constants.js';
 import { logger } from '../core/logger.js';
-import {
-  AuthenticationException,
-  ForbiddenException,
-  IdpFailedException,
-} from '../core/exceptions.js';
+import { AuthenticationException, IdpFailedException } from '../core/exceptions.js';
 import { toPayload } from '../mappers/client-payload-mapper.js';
 import { TokenService, type TokenServiceConfig } from '../services/core/token-service.js';
 import type { DatabaseStore } from '../store/database-store.js';
@@ -128,22 +124,13 @@ export class OwoxTokenFacade {
       return res.json(auth);
     } catch (error: unknown) {
       clearCookie(res, this.cookieName, req);
-      if (error instanceof ForbiddenException) {
-        logger.warn('Access Token middleware received 403 code', {
-          context: error.name,
-          params: error.context,
-          cause: error.cause,
-        });
-        return res.status(403).json({ reason: 'atm7', message: 'Forbidden' });
-      }
-
       if (error instanceof AuthenticationException) {
         logger.info(this.tokenService.formatError(error), {
           context: error.name,
           params: error.context,
           cause: error.cause,
         });
-        return res.json({ reason: 'atm4' });
+        return res.json({ reason: 'atm4', message: 'Unauthorized' });
       }
 
       if (error instanceof IdpFailedException) {
