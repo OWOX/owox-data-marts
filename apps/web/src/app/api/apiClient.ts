@@ -100,12 +100,22 @@ apiClient.interceptors.response.use(
       }
     }
 
-    if (error.response?.status === 404) {
-      showApiErrorToast(error, 'Resource not found');
+    // Handle 403 Forbidden - clear session immediately (no token refresh attempt)
+    if (error.response?.status === 403 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      authStateManager.clear();
+
+      window.dispatchEvent(
+        new CustomEvent('auth:logout', {
+          detail: { reason: 'forbidden' },
+        })
+      );
+
+      return Promise.reject(new Error('Access forbidden - session cleared'));
     }
 
-    if (error.response?.status === 403) {
-      showApiErrorToast(error, 'Access forbidden - insufficient permissions');
+    if (error.response?.status === 404) {
+      showApiErrorToast(error, 'Resource not found');
     }
 
     if (error.response?.status === 400) {
