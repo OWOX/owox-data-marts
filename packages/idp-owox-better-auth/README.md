@@ -36,7 +36,7 @@ IDP_BETTER_AUTH_SECRET=your-super-secret-key-at-least-32-characters-long
 IDP_BETTER_AUTH_MAGIC_LINK_TTL=3600
 IDP_BETTER_AUTH_PROVIDERS=google,email,microsoft
 
-# Magic-link email delivery (SendGrid)
+# Email delivery (SendGrid)
 SENDGRID_API_KEY=your-sendgrid-api-key
 IDP_OWOX_SENDGRID_VERIFIED_SENDER_EMAIL=verified-sender@example.com
 IDP_OWOX_SENDGRID_VERIFIED_SENDER_NAME=OWOX Data Marts
@@ -119,7 +119,7 @@ Ensure the user has permission for the action they're trying to perform.
 
 ### Component interaction
 
-```
+```text
 Entry point (OwoxBetterAuthIdp)
  ├── Config layer (idp-owox-config, idp-better-auth-config)
  ├── Client layer (IdentityOwoxClient)

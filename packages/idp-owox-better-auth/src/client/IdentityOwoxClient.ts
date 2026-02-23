@@ -3,11 +3,7 @@ import { ImpersonatedIdTokenFetcher } from '@owox/internal-helpers';
 import axios, { AxiosInstance } from 'axios';
 import ms from 'ms';
 import { IdentityOwoxClientConfig } from '../config/idp-owox-config.js';
-import {
-  AuthenticationException,
-  ForbiddenException,
-  IdpFailedException,
-} from '../core/exceptions.js';
+import { AuthenticationException, IdpFailedException } from '../core/exceptions.js';
 import {
   AuthFlowRequest,
   AuthFlowResponse,
@@ -78,7 +74,7 @@ export class IdentityOwoxClient {
         }
 
         if (status === 403) {
-          throw new ForbiddenException('Forbidden identity (inactive or blocked user)', {
+          throw new AuthenticationException('Identity inactive or blocked', {
             cause: err,
             context: { req },
           });
