@@ -50,6 +50,18 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
                   required: true,
                   store: 'secret',
                   key: 'refresh_token'
+                },
+                ClientId: {
+                  type: 'string',
+                  required: true,
+                  store: 'secret',
+                  key: 'client_id'
+                },
+                ClientSecret: {
+                  type: 'string',
+                  required: true,
+                  store: 'secret',
+                  key: 'client_secret'
                 }
               }
             },
@@ -171,12 +183,14 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
         grant_type: 'authorization_code',
         code: credentials.code,
         redirect_uri: variables.RedirectUri,
+        scope: 'https://ads.microsoft.com/msads.manage offline_access',
       };
 
       const options = {
         method: 'post',
-        contentType: 'application/x-www-form-urlencoded',
-        payload: payload,
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
         body: Object.entries(payload)
           .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
           .join('&')
@@ -194,25 +208,15 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
 
       const expiresIn = data.expires_in ?? 3600;
 
-      let userData = { id: 'unknown', name: 'Microsoft Ads User' };
-      try {
-        const meUrl = 'https://graph.microsoft.com/v1.0/me';
-        const meResp = await HttpUtils.fetch(meUrl, {
-          headers: { Authorization: `Bearer ${data.access_token}` }
-        });
-        const meData = await meResp.getAsJson();
-        if (!meData.error) {
-          userData = { id: meData.id, name: meData.displayName || meData.mail || meData.userPrincipalName };
-        }
-      } catch (e) {
-        console.warn('Failed to fetch user profile', e);
-      }
+      const userData = { id: 'unknown', name: 'Microsoft Ads User' };
 
       return OauthCredentialsDto.builder()
         .withUser(userData)
         .withSecret({
           refresh_token: data.refresh_token,
-          access_token: data.access_token
+          access_token: data.access_token,
+          client_id: variables.ClientId,
+          client_secret: variables.ClientSecret
         })
         .withExpiresIn(expiresIn)
         .build()
@@ -238,12 +242,16 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
 
     for (const scope of scopes) {
       try {
+        const clientId = this.config.AuthType?.items?.ClientId?.value || this.config.ClientID?.value || process.env.OAUTH_MICROSOFT_ADS_CLIENT_ID;
+        const clientSecret = this.config.AuthType?.items?.ClientSecret?.value || this.config.ClientSecret?.value || process.env.OAUTH_MICROSOFT_ADS_CLIENT_SECRET;
+        const refreshToken = this.config.AuthType?.items?.RefreshToken?.value || this.config.RefreshToken?.value;
+
         const form = {
-          client_id: this.config.AuthType?.items?.ClientId?.value || this.config.ClientID.value,
+          client_id: clientId,
           scope: scope,
-          refresh_token: this.config.AuthType?.items?.RefreshToken?.value || this.config.RefreshToken.value,
+          refresh_token: refreshToken,
           grant_type: 'refresh_token',
-          client_secret: this.config.AuthType?.items?.ClientSecret?.value || this.config.ClientSecret.value
+          client_secret: clientSecret
         };
 
         const options = {
