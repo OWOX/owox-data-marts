@@ -39,7 +39,10 @@ function createResponseMock(): Response & { body?: unknown; statusCode?: number 
 describe('PasswordFlowController.sendMagicLink', () => {
   it('returns 429 when magic link is rate limited', async () => {
     const magicLinkService = {
-      generate: jest.fn(async () => ({ sent: false as const, reason: 'rate_limited' as const })),
+      requestMagicLink: jest.fn(async () => ({
+        sent: false as const,
+        reason: 'rate_limited' as const,
+      })),
     } as unknown as MagicLinkService;
     const auth = {} as BetterAuthInstance;
     const service = new PasswordFlowController(
@@ -64,7 +67,7 @@ describe('PasswordFlowController.sendMagicLink', () => {
 
   it('returns 400 with friendly error for blocked email policy', async () => {
     const magicLinkService = {
-      generate: jest.fn(async () => ({
+      requestMagicLink: jest.fn(async () => ({
         sent: false as const,
         reason: 'blocked_email_policy' as const,
         blockReason: 'forbidden_domain' as const,

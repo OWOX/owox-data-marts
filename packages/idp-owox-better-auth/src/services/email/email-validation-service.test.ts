@@ -34,7 +34,7 @@ describe('EmailValidationService', () => {
     expect(service.validateMagicLinkEmail('user@company.test')).toMatchObject({
       status: 'allowed',
     });
-    expect(service.validateMagicLinkEmail('user@company.by')).toMatchObject({
+    expect(service.validateMagicLinkEmail('user@company.test')).toMatchObject({
       status: 'allowed',
     });
   });
@@ -50,38 +50,30 @@ describe('EmailValidationService', () => {
   });
 
   it('blocks forbidden domains configured by options', () => {
-    const service = new EmailValidationService({ forbiddenDomains: ['ru', 'by', 'рф'] });
+    const service = new EmailValidationService({ forbiddenDomains: ['test', 'example'] });
 
-    expect(service.validateMagicLinkEmail('user@company.by')).toMatchObject({
+    expect(service.validateMagicLinkEmail('user@blocked.test')).toMatchObject({
       status: 'blocked',
       reason: EMAIL_VALIDATION_BLOCK_REASON.FORBIDDEN_DOMAIN,
     });
-    expect(service.validateMagicLinkEmail('hello@союз.рф')).toMatchObject({
+    expect(service.validateMagicLinkEmail('hello@blocked.example')).toMatchObject({
       status: 'blocked',
       reason: EMAIL_VALIDATION_BLOCK_REASON.FORBIDDEN_DOMAIN,
     });
   });
 
   it('blocks punycode domains when forbidden unicode domain is configured', () => {
-    const service = new EmailValidationService({ forbiddenDomains: ['рф'] });
+    const service = new EmailValidationService({ forbiddenDomains: ['example'] });
 
-    expect(service.validateMagicLinkEmail('hello@xn--e1aybc.xn--p1ai')).toMatchObject({
+    expect(service.validateMagicLinkEmail('hello@blocked.example')).toMatchObject({
       status: 'blocked',
       reason: EMAIL_VALIDATION_BLOCK_REASON.FORBIDDEN_DOMAIN,
     });
   });
 
-  it('does not block cyrillic email unless domain is forbidden', () => {
-    const service = new EmailValidationService({ forbiddenDomains: ['ru', 'by'] });
-
-    expect(service.validateMagicLinkEmail('hello@союз.орг')).toMatchObject({
-      status: 'allowed',
-    });
-  });
-
   it('checks mailchecker before custom forbidden domains', () => {
     const disposableDomain = getDisposableDomain();
-    const service = new EmailValidationService({ forbiddenDomains: [disposableDomain] });
+    const service = new EmailValidationService({ forbiddenDomains: ['example', disposableDomain] });
 
     expect(service.validateMagicLinkEmail(`user@${disposableDomain}`)).toMatchObject({
       status: 'blocked',

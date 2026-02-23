@@ -42,7 +42,7 @@ describe('MagicLinkService', () => {
       store,
       emailService,
       'https://auth.example.com',
-      new EmailValidationService({ forbiddenDomains: ['ru', 'by', 'рф'] })
+      new EmailValidationService({ forbiddenDomains: ['test', 'example'] })
     );
     handlerMock = jest.fn();
     requestPasswordResetMock = jest.fn(async () => ({ status: true }));
@@ -67,7 +67,7 @@ describe('MagicLinkService', () => {
   });
 
   it('returns blocked_email_policy for forbidden domain email', async () => {
-    const result = await service.requestMagicLink('user@company.by', MAGIC_LINK_INTENT.SIGNUP);
+    const result = await service.requestMagicLink('user@blocked.test', MAGIC_LINK_INTENT.SIGNUP);
     expect(result).toEqual({
       sent: false,
       reason: 'blocked_email_policy',
@@ -168,7 +168,7 @@ describe('MagicLinkService', () => {
 
     await expect(
       sender({
-        email: 'user@company.by',
+        email: 'user@blocked.test',
         token: 'signup-token',
         url: 'https://auth.example.com/auth/better-auth/magic-link',
       })
@@ -182,7 +182,7 @@ describe('MagicLinkService', () => {
 
     await expect(
       sender({
-        email: 'hello@союз.рф',
+        email: 'user@blocked.example',
         token: 'reset-token-123',
         url: 'https://auth.example.com/ignored',
       })

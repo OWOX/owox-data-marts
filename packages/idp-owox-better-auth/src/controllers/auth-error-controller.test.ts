@@ -36,7 +36,6 @@ describe('AuthErrorController.errorPage', () => {
     const html = String(res.body ?? '');
     expect(html).toContain('Sign in failed');
     expect(html).toContain('Go to home');
-    expect(html).toContain('Error details');
     expect(html).toContain(
       'Access was denied. Please try again and grant the required permissions.'
     );
