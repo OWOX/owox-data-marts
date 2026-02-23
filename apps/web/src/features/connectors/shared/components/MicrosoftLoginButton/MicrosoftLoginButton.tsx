@@ -19,7 +19,7 @@ export type MicrosoftAuthMessage =
   | { type: 'MICROSOFT_AUTH_ERROR'; error: string };
 
 const MICROSOFT_AUTH_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize';
-const SCOPES = 'https://ads.microsoft.com/msads.manage offline_access user.read';
+const SCOPES = 'https://ads.microsoft.com/msads.manage offline_access';
 
 function isMicrosoftAuthMessage(data: unknown): data is MicrosoftAuthMessage {
   if (typeof data !== 'object' || data === null) return false;
@@ -131,6 +131,7 @@ export function MicrosoftLoginButton({
     url.searchParams.set('response_mode', 'query');
     url.searchParams.set('scope', SCOPES);
     url.searchParams.set('state', state);
+    url.searchParams.set('prompt', 'select_account'); //?
     return url.toString();
   };
 
