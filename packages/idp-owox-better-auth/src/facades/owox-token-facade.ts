@@ -8,10 +8,10 @@ import {
   TokenRequest,
   TokenResponse,
 } from '../client/index.js';
-import type { IdpOwoxConfig } from '../config/idp-owox-config.js';
+import type { IdpOwoxConfig } from '../config/index.js';
 import { CORE_REFRESH_TOKEN_COOKIE } from '../core/constants.js';
-import { logger } from '../core/logger.js';
 import { AuthenticationException, IdpFailedException } from '../core/exceptions.js';
+import { createServiceLogger } from '../core/logger.js';
 import { toPayload } from '../mappers/client-payload-mapper.js';
 import { TokenService, type TokenServiceConfig } from '../services/core/token-service.js';
 import type { DatabaseStore } from '../store/database-store.js';
@@ -22,6 +22,7 @@ import { buildCookieOptions, clearCookie } from '../utils/cookie-policy.js';
  * Wraps Identity OWOX token operations and refresh-token cookies.
  */
 export class OwoxTokenFacade {
+  private readonly logger = createServiceLogger(OwoxTokenFacade.name);
   private readonly tokenService: TokenService;
 
   constructor(
@@ -125,24 +126,22 @@ export class OwoxTokenFacade {
     } catch (error: unknown) {
       clearCookie(res, this.cookieName, req);
       if (error instanceof AuthenticationException) {
-        logger.info(this.tokenService.formatError(error), {
-          context: error.name,
-          params: error.context,
-          cause: error.cause,
+        this.logger.info('Access token middleware auth rejected', {
+          path: req.path,
+          ...error.context,
         });
         return res.json({ reason: 'atm4', message: 'Unauthorized' });
       }
 
       if (error instanceof IdpFailedException) {
-        logger.error(
-          'Access Token middleware failed with unexpected code',
-          error.context,
-          error.cause
+        this.logger.error(
+          'Access token middleware failed with unexpected code',
+          { path: req.path, ...error.context },
+          error
         );
         return res.json({ reason: 'atm5' });
       }
 
-      logger.error(this.tokenService.formatError(error));
       return res.status(502).json({ reason: 'atm6' });
     }
   }

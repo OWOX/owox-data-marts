@@ -52,44 +52,45 @@ IDP_OWOX_SENDGRID_VERIFIED_SENDER_NAME=OWOX Data Marts
 
 ## Configuration Reference
 
-| Variable                                  | Required |                   Default                   | Description                                                                      |
-| ----------------------------------------- | :------: | :-----------------------------------------: | -------------------------------------------------------------------------------- |
-| `IDP_PROVIDER`                            | **Yes**  |                      –                      | Set to `owox-better-auth`                                                        |
-| `IDP_OWOX_DB_TYPE`                        |    No    |                  `sqlite`                   | Database type: `sqlite` or `mysql`                                               |
-| `IDP_OWOX_SQLITE_DB_PATH`                 |    No    | `<app data>/sqlite/idp/owox-better-auth.db` | SQLite database file path                                                        |
-| `IDP_OWOX_MYSQL_HOST`                     |    No    |                      –                      | MySQL host                                                                       |
-| `IDP_OWOX_MYSQL_USER`                     |    No    |                      –                      | MySQL user                                                                       |
-| `IDP_OWOX_MYSQL_PASSWORD`                 |    No    |                      –                      | MySQL password                                                                   |
-| `IDP_OWOX_MYSQL_DB`                       |    No    |                      –                      | MySQL database                                                                   |
-| `IDP_OWOX_MYSQL_PORT`                     |    No    |                   `3306`                    | MySQL port                                                                       |
-| `IDP_OWOX_MYSQL_SSL`                      |    No    |                   `false`                   | Enable SSL: `true`, JSON, or string                                              |
-| `IDP_OWOX_CLIENT_BASE_URL`                | **Yes**  |                      –                      | Identity client base URL                                                         |
-| `IDP_OWOX_CLIENT_BACKCHANNEL_PREFIX`      | **Yes**  |                      –                      | Identity client path prefix for backchannel endpoints                            |
-| `IDP_OWOX_C2C_SERVICE_ACCOUNT`            | **Yes**  |                      –                      | Service account email for C2C impersonation                                      |
-| `IDP_OWOX_C2C_TARGET_AUDIENCE`            | **Yes**  |                      –                      | Target audience for C2C impersonation                                            |
-| `IDP_OWOX_CLIENT_ID`                      | **Yes**  |                      –                      | Client id for PKCE                                                               |
-| `IDP_OWOX_PLATFORM_SIGN_IN_URL`           | **Yes**  |                      –                      | Platform sign-in URL (redirect target)                                           |
-| `IDP_OWOX_PLATFORM_SIGN_UP_URL`           | **Yes**  |                      –                      | Platform sign-up URL (redirect target)                                           |
-| `IDP_OWOX_SIGN_OUT_REDIRECT_URL`          |    No    |               `/auth/sign-in`               | Custom redirect after sign-out                                                   |
-| `IDP_OWOX_ALLOWED_REDIRECT_ORIGINS`       |    No    |    origins from platform sign-in/up URLs    | Allowlist for redirect-to/app-redirect-to                                        |
-| `IDP_OWOX_JWT_ISSUER`                     | **Yes**  |                      –                      | Expected JWT issuer                                                              |
-| `IDP_OWOX_JWT_CACHE_TTL`                  |    No    |                    `1h`                     | JWKS cache TTL                                                                   |
-| `IDP_OWOX_JWT_CLOCK_TOLERANCE`            |    No    |                    `5s`                     | Clock skew tolerance                                                             |
-| `IDP_BETTER_AUTH_SECRET`                  | **Yes**  |                      –                      | Secret key for signing (min. 32 characters)                                      |
-| `PUBLIC_ORIGIN`                           |    No    |           `http://localhost:3000`           | Base URL for callbacks                                                           |
-| `IDP_BETTER_AUTH_SESSION_MAX_AGE`         |    No    |              `1800` (30 mins)               | Session duration (seconds)                                                       |
-| `IDP_BETTER_AUTH_TRUSTED_ORIGINS`         |    No    |               `PUBLIC_ORIGIN`               | Trusted origins for auth service                                                 |
-| `IDP_BETTER_AUTH_MAGIC_LINK_TTL`          |    No    |                   `3600`                    | Magic-link token TTL (seconds)                                                   |
-| `IDP_BETTER_AUTH_PROVIDERS`               |    No    |                  `google`                   | UI-only toggle: `google` always on; add `email`, `microsoft` separated by commas |
-| `IDP_BETTER_AUTH_GOOGLE_CLIENT_ID`        |    No    |                      –                      | Google OAuth client id (enables Google)                                          |
-| `IDP_BETTER_AUTH_GOOGLE_CLIENT_SECRET`    |    No    |                      –                      | Google OAuth client secret                                                       |
-| `IDP_BETTER_AUTH_MICROSOFT_CLIENT_ID`     |    No    |                      –                      | Microsoft OAuth client id (enables Microsoft)                                    |
-| `IDP_BETTER_AUTH_MICROSOFT_CLIENT_SECRET` |    No    |                      –                      | Microsoft OAuth client secret                                                    |
-| `IDP_BETTER_AUTH_MICROSOFT_TENANT_ID`     |    No    |                  `common`                   | Microsoft tenant id (e.g. common, consumers, or GUID)                            |
-| `IDP_BETTER_AUTH_MICROSOFT_AUTHORITY`     |    No    |     `https://login.microsoftonline.com`     | Microsoft authority URL                                                          |
-| `SENDGRID_API_KEY`                        | **Yes**  |                      –                      | SendGrid API key for magic-link emails                                           |
-| `IDP_OWOX_SENDGRID_VERIFIED_SENDER_EMAIL` | **Yes**  |                      –                      | Verified sender email in SendGrid                                                |
-| `IDP_OWOX_SENDGRID_VERIFIED_SENDER_NAME`  |    No    |                      –                      | Sender display name for auth emails                                              |
+| Variable                                  | Required |                   Default                   | Description                                                                                                   |
+| ----------------------------------------- | :------: | :-----------------------------------------: | ------------------------------------------------------------------------------------------------------------- |
+| `IDP_PROVIDER`                            | **Yes**  |                      –                      | Set to `owox-better-auth`                                                                                     |
+| `IDP_OWOX_DB_TYPE`                        |    No    |                  `sqlite`                   | Database type: `sqlite` or `mysql`                                                                            |
+| `IDP_OWOX_SQLITE_DB_PATH`                 |    No    | `<app data>/sqlite/idp/owox-better-auth.db` | SQLite database file path                                                                                     |
+| `IDP_OWOX_MYSQL_HOST`                     |    No    |                      –                      | MySQL host                                                                                                    |
+| `IDP_OWOX_MYSQL_USER`                     |    No    |                      –                      | MySQL user                                                                                                    |
+| `IDP_OWOX_MYSQL_PASSWORD`                 |    No    |                      –                      | MySQL password                                                                                                |
+| `IDP_OWOX_MYSQL_DB`                       |    No    |                      –                      | MySQL database                                                                                                |
+| `IDP_OWOX_MYSQL_PORT`                     |    No    |                   `3306`                    | MySQL port                                                                                                    |
+| `IDP_OWOX_MYSQL_SSL`                      |    No    |                   `false`                   | Enable SSL: `true`, JSON, or string                                                                           |
+| `IDP_OWOX_CLIENT_BASE_URL`                | **Yes**  |                      –                      | Identity client base URL                                                                                      |
+| `IDP_OWOX_CLIENT_BACKCHANNEL_PREFIX`      | **Yes**  |                      –                      | Identity client path prefix for backchannel endpoints                                                         |
+| `IDP_OWOX_C2C_SERVICE_ACCOUNT`            | **Yes**  |                      –                      | Service account email for C2C impersonation                                                                   |
+| `IDP_OWOX_C2C_TARGET_AUDIENCE`            | **Yes**  |                      –                      | Target audience for C2C impersonation                                                                         |
+| `IDP_OWOX_CLIENT_ID`                      | **Yes**  |                      –                      | Client id for PKCE                                                                                            |
+| `IDP_OWOX_PLATFORM_SIGN_IN_URL`           | **Yes**  |                      –                      | Platform sign-in URL (redirect target)                                                                        |
+| `IDP_OWOX_PLATFORM_SIGN_UP_URL`           | **Yes**  |                      –                      | Platform sign-up URL (redirect target)                                                                        |
+| `IDP_OWOX_SIGN_OUT_REDIRECT_URL`          |    No    |               `/auth/sign-in`               | Custom redirect after sign-out                                                                                |
+| `IDP_OWOX_ALLOWED_REDIRECT_ORIGINS`       |    No    |    origins from platform sign-in/up URLs    | Allowlist for redirect-to/app-redirect-to                                                                     |
+| `IDP_OWOX_JWT_ISSUER`                     | **Yes**  |                      –                      | Expected JWT issuer                                                                                           |
+| `IDP_OWOX_JWT_CACHE_TTL`                  |    No    |                    `1h`                     | JWKS cache TTL                                                                                                |
+| `IDP_OWOX_JWT_CLOCK_TOLERANCE`            |    No    |                    `5s`                     | Clock skew tolerance                                                                                          |
+| `IDP_BETTER_AUTH_SECRET`                  | **Yes**  |                      –                      | Secret key for signing (min. 32 characters)                                                                   |
+| `PUBLIC_ORIGIN`                           |    No    |           `http://localhost:3000`           | Base URL for callbacks                                                                                        |
+| `IDP_BETTER_AUTH_SESSION_MAX_AGE`         |    No    |              `1800` (30 mins)               | Session duration (seconds)                                                                                    |
+| `IDP_BETTER_AUTH_TRUSTED_ORIGINS`         |    No    |               `PUBLIC_ORIGIN`               | Trusted origins for auth service                                                                              |
+| `IDP_BETTER_AUTH_MAGIC_LINK_TTL`          |    No    |                   `3600`                    | Magic-link token TTL (seconds)                                                                                |
+| `IDP_BETTER_AUTH_FORBIDDEN_EMAIL_DOMAINS` |    No    |                      –                      | Comma-separated forbidden email domain suffixes (e.g. `test,example`). Empty by default (no domain blocking). |
+| `IDP_BETTER_AUTH_PROVIDERS`               |    No    |                  `google`                   | UI-only toggle: `google` always on; add `email`, `microsoft` separated by commas                              |
+| `IDP_BETTER_AUTH_GOOGLE_CLIENT_ID`        |    No    |                      –                      | Google OAuth client id (enables Google)                                                                       |
+| `IDP_BETTER_AUTH_GOOGLE_CLIENT_SECRET`    |    No    |                      –                      | Google OAuth client secret                                                                                    |
+| `IDP_BETTER_AUTH_MICROSOFT_CLIENT_ID`     |    No    |                      –                      | Microsoft OAuth client id (enables Microsoft)                                                                 |
+| `IDP_BETTER_AUTH_MICROSOFT_CLIENT_SECRET` |    No    |                      –                      | Microsoft OAuth client secret                                                                                 |
+| `IDP_BETTER_AUTH_MICROSOFT_TENANT_ID`     |    No    |                  `common`                   | Microsoft tenant id (e.g. common, consumers, or GUID)                                                         |
+| `IDP_BETTER_AUTH_MICROSOFT_AUTHORITY`     |    No    |     `https://login.microsoftonline.com`     | Microsoft authority URL                                                                                       |
+| `SENDGRID_API_KEY`                        | **Yes**  |                      –                      | SendGrid API key for magic-link emails                                                                        |
+| `IDP_OWOX_SENDGRID_VERIFIED_SENDER_EMAIL` | **Yes**  |                      –                      | Verified sender email in SendGrid                                                                             |
+| `IDP_OWOX_SENDGRID_VERIFIED_SENDER_NAME`  |    No    |                      –                      | Sender display name for auth emails                                                                           |
 
 ## Troubleshooting
 
@@ -118,7 +119,7 @@ Ensure the user has permission for the action they're trying to perform.
 
 ### Component interaction
 
-```
+```text
 Entry point (OwoxBetterAuthIdp)
  ├── Config layer (idp-owox-config, idp-better-auth-config)
  ├── Client layer (IdentityOwoxClient)

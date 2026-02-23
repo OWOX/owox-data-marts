@@ -2,14 +2,16 @@ import type { EmailProvider } from '@owox/internal-helpers';
 import ejs from 'ejs';
 import { readFileSync } from 'fs';
 import { MAGIC_LINK_INTENT } from '../../core/constants.js';
-import { logger } from '../../core/logger.js';
-import type { MagicLinkEmailPayload, MagicLinkIntent } from '../../types/magic-link.js';
+import { createServiceLogger } from '../../core/logger.js';
+import type { MagicLinkEmailPayload, MagicLinkIntent } from '../../types/index.js';
+import { maskEmail } from '../../utils/email-utils.js';
 import { resolveResourcePath } from '../../utils/template-paths.js';
 
 /**
  * Renders and sends magic-link emails using one shared template.
  */
 export class MagicLinkEmailService {
+  private readonly logger = createServiceLogger(MagicLinkEmailService.name);
   private readonly template: string;
 
   constructor(private readonly emailProvider: EmailProvider) {
@@ -65,7 +67,11 @@ export class MagicLinkEmailService {
         isMultiple: false,
       });
     } catch (error) {
-      logger.error('Failed to send magic link email', { email: payload.email }, error as Error);
+      this.logger.error(
+        'Failed to send magic link email',
+        { email: maskEmail(payload.email) },
+        error instanceof Error ? error : undefined
+      );
       throw error;
     }
   }

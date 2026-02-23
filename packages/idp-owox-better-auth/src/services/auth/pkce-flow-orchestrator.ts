@@ -1,13 +1,12 @@
 import { ProtocolRoute } from '@owox/idp-protocol';
-import { Logger } from '@owox/internal-helpers';
 import type { Request, Response } from 'express';
-import type { IdpOwoxConfig } from '../../config/idp-owox-config.js';
+import type { IdpOwoxConfig } from '../../config/index.js';
 import { CORE_REFRESH_TOKEN_COOKIE, SOURCE } from '../../core/constants.js';
 import { AuthenticationException, isStateExpiredError } from '../../core/exceptions.js';
+import { createServiceLogger } from '../../core/logger.js';
 import type { OwoxTokenFacade } from '../../facades/owox-token-facade.js';
 import { buildUserInfoPayload } from '../../mappers/user-info-payload-builder.js';
 import { clearCookie } from '../../utils/cookie-policy.js';
-import { formatError } from '../../utils/email-utils.js';
 import { buildPlatformRedirectUrl } from '../../utils/platform-redirect-builder.js';
 import {
   clearAllAuthCookies,
@@ -16,7 +15,7 @@ import {
   extractStateFromCookie,
   type PlatformParams,
 } from '../../utils/request-utils.js';
-import type { BetterAuthSessionService } from '../auth/better-auth-session-service.js';
+import type { BetterAuthSessionService } from './better-auth-session-service.js';
 import type { UserContextService } from '../core/user-context-service.js';
 import { PlatformAuthFlowClient, type UserInfoPayload } from './platform-auth-flow-client.js';
 
@@ -24,13 +23,14 @@ import { PlatformAuthFlowClient, type UserInfoPayload } from './platform-auth-fl
  * Orchestrates PKCE completion for Platform using core tokens or social login.
  */
 export class PkceFlowOrchestrator {
+  private readonly logger = createServiceLogger(PkceFlowOrchestrator.name);
+
   constructor(
     private readonly idpOwoxConfig: IdpOwoxConfig,
     private readonly tokenFacade: OwoxTokenFacade,
     private readonly userContextService: UserContextService,
     private readonly platformAuthFlowClient: PlatformAuthFlowClient,
-    private readonly betterAuthSessionService: BetterAuthSessionService,
-    private readonly logger: Logger
+    private readonly betterAuthSessionService: BetterAuthSessionService
   ) {}
 
   /**
@@ -45,10 +45,12 @@ export class PkceFlowOrchestrator {
       if (refreshToken) {
         await this.tokenFacade.revokeToken(refreshToken);
       }
-    } catch (revokeError) {
-      this.logger.warn('Failed to revoke refresh token during user-context recovery', {
-        error: formatError(revokeError),
-      });
+    } catch (error) {
+      this.logger.warn(
+        'Failed to revoke refresh token during user-context recovery',
+        undefined,
+        error instanceof Error ? error : undefined
+      );
     }
     clearCookie(res, CORE_REFRESH_TOKEN_COOKIE, req);
     clearBetterAuthCookies(res, req);
@@ -100,15 +102,21 @@ export class PkceFlowOrchestrator {
         return new URL(`/auth${ProtocolRoute.SIGN_IN}`, this.idpOwoxConfig.baseUrl);
       }
       if (error instanceof AuthenticationException) {
-        this.logger.warn('Failed to resolve user from access token, redirecting to sign-in', {
-          error: formatError(error),
-        });
+        this.logger.warn(
+          'Failed to resolve user from access token, redirecting to sign-in',
+          {
+            ...error.context,
+          },
+          error
+        );
         await this.revokeRefreshTokenAndClearCookies(refreshToken, req, res);
         return new URL(`/auth${ProtocolRoute.SIGN_IN}`, this.idpOwoxConfig.baseUrl);
       }
-      this.logger.warn('Platform fast-path failed, will fallback to UI', {
-        error: formatError(error),
-      });
+      this.logger.warn(
+        'Platform fast-path failed, will fallback to UI',
+        undefined,
+        error instanceof Error ? error : undefined
+      );
       return null;
     }
   }
@@ -159,7 +167,11 @@ export class PkceFlowOrchestrator {
         clearAllAuthCookies(res, req);
         return new URL(`/auth${ProtocolRoute.SIGN_IN}`, this.idpOwoxConfig.baseUrl);
       }
-      this.logger.warn('Auto-complete auth flow on callback failed', { error: formatError(error) });
+      this.logger.warn(
+        'Auto-complete auth flow on callback failed',
+        undefined,
+        error instanceof Error ? error : undefined
+      );
       clearAllAuthCookies(res, req);
       return null;
     }

@@ -1,9 +1,9 @@
 import { describe, expect, it } from '@jest/globals';
 
 import {
-  formatError,
   generateNameFromEmail,
   isValidEmail,
+  maskEmail,
   normalizeEmail,
   parseEmail,
   resolveNameWithFallback,
@@ -28,6 +28,13 @@ describe('email-utils', () => {
     expect(parseEmail(123)).toBeNull();
   });
 
+  it('masks email local-part while keeping domain readable', () => {
+    expect(maskEmail('username@example.com')).toBe('us****me@example.com');
+    expect(maskEmail('ab@example.com')).toBe('a*@example.com');
+    expect(maskEmail('  user@example.com  ')).toBe('us*r@example.com');
+    expect(maskEmail('not-an-email')).toBe('not-an-email');
+  });
+
   it('splits names into first and last with cleanup', () => {
     expect(splitName()).toEqual({ firstName: '', lastName: '', fullName: '' });
     expect(splitName('Alice')).toEqual({ firstName: 'Alice', lastName: '', fullName: 'Alice' });
@@ -36,13 +43,6 @@ describe('email-utils', () => {
       lastName: 'Marley',
       fullName: 'Bob   Marley',
     });
-  });
-
-  it('formats errors and non-error values', () => {
-    const errorResult = formatError(new Error('boom'));
-    expect(errorResult).toContain('boom');
-
-    expect(formatError({ a: 1 })).toBe('[object Object]');
   });
 
   describe('resolveNameWithFallback', () => {

@@ -4,14 +4,14 @@ import {
   type Request as ExpressRequest,
   type Response as ExpressResponse,
 } from 'express';
-import type { createBetterAuthConfig } from '../config/idp-better-auth-config.js';
+import type { createBetterAuthConfig } from '../config/index.js';
 import { AUTH_BASE_PATH, MAGIC_LINK_INTENT, parseMagicLinkIntent } from '../core/constants.js';
-import { logger } from '../core/logger.js';
+import { createServiceLogger } from '../core/logger.js';
 import type { BetterAuthSessionService } from '../services/auth/better-auth-session-service.js';
 import { MagicLinkService } from '../services/auth/magic-link-service.js';
-import type { MagicLinkIntent } from '../types/magic-link.js';
 import { TemplateService } from '../services/rendering/template-service.js';
-import { parseEmail } from '../utils/email-utils.js';
+import type { MagicLinkIntent } from '../types/index.js';
+import { maskEmail } from '../utils/email-utils.js';
 import { convertExpressHeaders } from '../utils/express-compat.js';
 import { clearBetterAuthCookies } from '../utils/request-utils.js';
 type BetterAuthInstance = Awaited<ReturnType<typeof createBetterAuthConfig>>;
@@ -21,6 +21,8 @@ type BetterAuthInstance = Awaited<ReturnType<typeof createBetterAuthConfig>>;
  * and password success pages.
  */
 export class PasswordFlowController {
+  private readonly logger = createServiceLogger(PasswordFlowController.name);
+
   constructor(
     private readonly auth: BetterAuthInstance,
     private readonly sessionService: BetterAuthSessionService,
@@ -28,17 +30,12 @@ export class PasswordFlowController {
   ) {}
 
   async sendMagicLink(req: ExpressRequest, res: ExpressResponse): Promise<void> {
-    const email = parseEmail(req.body?.email);
+    const rawEmail = req.body?.email;
     const intent: MagicLinkIntent =
       parseMagicLinkIntent(req.body?.intent) ?? MAGIC_LINK_INTENT.SIGNUP;
 
-    if (!email) {
-      res.status(400).json({ error: 'A valid email is required.' });
-      return;
-    }
-
     try {
-      const result = await this.magicLinkService.generate(email, intent);
+      const result = await this.magicLinkService.requestMagicLink(rawEmail, intent);
       if (!result.sent && result.reason === 'user_not_found') {
         // Silently succeed for non-existing users on reset
         res.json({ status: 'ok' });
@@ -46,6 +43,13 @@ export class PasswordFlowController {
       }
       if (!result.sent && result.reason === 'invalid_email') {
         res.status(400).json({ error: 'A valid email is required.' });
+        return;
+      }
+      if (!result.sent && result.reason === 'blocked_email_policy') {
+        res.status(400).json({
+          error:
+            "Please use a corporate or personal permanent email address so you don't lose access to your projects.",
+        });
         return;
       }
       if (!result.sent && result.reason === 'rate_limited') {
@@ -60,7 +64,11 @@ export class PasswordFlowController {
       }
       res.json({ status: 'ok' });
     } catch (error) {
-      logger.error('Failed to send magic link', { intent }, error as Error);
+      this.logger.error(
+        'Failed to send magic link',
+        { intent, email: typeof rawEmail === 'string' ? maskEmail(rawEmail) : undefined },
+        error instanceof Error ? error : undefined
+      );
       res.status(500).json({ error: 'Failed to send magic link' });
     }
   }
@@ -150,7 +158,11 @@ export class PasswordFlowController {
         clearBetterAuthCookies(res, req);
         return res.redirect(`${AUTH_BASE_PATH}/password/success`);
       } catch (error) {
-        logger.error('Failed to reset password', { intent }, error as Error);
+        this.logger.error(
+          'Failed to reset password',
+          { intent },
+          error instanceof Error ? error : undefined
+        );
         return res.status(400).json({ error: 'Reset link is invalid or has expired.' });
       }
     }
@@ -169,13 +181,21 @@ export class PasswordFlowController {
       try {
         await this.auth.api.signOut({ headers: convertExpressHeaders(req) });
       } catch (signOutError) {
-        logger.warn('Failed to sign out after password setup', {}, signOutError as Error);
+        this.logger.warn(
+          'Failed to sign out after password setup',
+          undefined,
+          signOutError instanceof Error ? signOutError : undefined
+        );
       }
 
       clearBetterAuthCookies(res, req);
       return res.redirect(`${AUTH_BASE_PATH}/password/success`);
     } catch (error) {
-      logger.error('Failed to set password', {}, error as Error);
+      this.logger.error(
+        'Failed to set password',
+        { intent },
+        error instanceof Error ? error : undefined
+      );
       return res.status(400).json({ error: 'Failed to set password. Please try again.' });
     }
   }

@@ -4,13 +4,13 @@ import {
   type Response as ExpressResponse,
   type NextFunction,
 } from 'express';
-import { createBetterAuthConfig } from '../../config/idp-better-auth-config.js';
+import { createBetterAuthConfig } from '../../config/index.js';
 import {
   AUTH_BASE_PATH,
   BETTER_AUTH_BASE_PATH,
   BETTER_AUTH_SESSION_COOKIE,
 } from '../../core/constants.js';
-import { logger } from '../../core/logger.js';
+import { createServiceLogger } from '../../core/logger.js';
 import { convertExpressToFetchRequest } from '../../utils/express-compat.js';
 import { extractPlatformParams, readQueryString } from '../../utils/request-utils.js';
 import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
@@ -21,6 +21,7 @@ import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
 export class BetterAuthProxyHandler {
   private static readonly BETTER_AUTH_ERROR_PATH = `${BETTER_AUTH_BASE_PATH}/error`;
   private static readonly CUSTOM_AUTH_ERROR_PATH = `${AUTH_BASE_PATH}/error`;
+  private readonly logger = createServiceLogger(BetterAuthProxyHandler.name);
 
   constructor(
     private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
@@ -54,7 +55,11 @@ export class BetterAuthProxyHandler {
         const body = await response.text();
         res.send(body);
       } catch (error) {
-        logger.error('Auth handler error', { path: req.path }, error as Error);
+        this.logger.error(
+          'Auth handler error',
+          { path: req.path, method: req.method },
+          error instanceof Error ? error : undefined
+        );
         res.status(500).json({ error: 'Internal server error' });
       }
     });
@@ -168,6 +173,6 @@ export class BetterAuthProxyHandler {
   }
 
   convertExpressToFetchRequest(req: ExpressRequest): globalThis.Request {
-    return convertExpressToFetchRequest(req, logger);
+    return convertExpressToFetchRequest(req, this.logger);
   }
 }

@@ -6,7 +6,7 @@ import {
   BETTER_AUTH_BASE_PATH,
   BETTER_AUTH_SESSION_COOKIE,
 } from '../core/constants.js';
-import { logger } from '../core/logger.js';
+import { createServiceLogger } from '../core/logger.js';
 import { GoogleProvider } from '../social/google-provider.js';
 import { MicrosoftProvider } from '../social/microsoft-provider.js';
 import { BetterAuthConfig } from '../types/index.js';
@@ -29,6 +29,7 @@ export async function createBetterAuthConfig(
   config: BetterAuthConfig,
   options?: AuthOptions
 ): Promise<ReturnType<typeof betterAuth>> {
+  const betterAuthLogger = createServiceLogger('BetterAuth');
   const database = options?.adapter;
   const plugins: unknown[] = [];
   const emailAndPasswordConfig: Record<string, unknown> = {
@@ -117,22 +118,14 @@ export async function createBetterAuthConfig(
       disableColors: true,
       level: 'error',
       log: (level: string, message: string, ...args: unknown[]) => {
-        switch (level) {
-          case 'error':
-            logger.log(LogLevel.ERROR, message, { args });
-            break;
-          case 'warn':
-            logger.log(LogLevel.WARN, message, { args });
-            break;
-          case 'info':
-            logger.log(LogLevel.INFO, message, { args });
-            break;
-          case 'debug':
-            logger.log(LogLevel.DEBUG, message, { args });
-            break;
-          default:
-            logger.log(LogLevel.INFO, message, { args });
-        }
+        const BA_LOG_LEVEL_MAP: Record<string, LogLevel> = {
+          error: LogLevel.ERROR,
+          warn: LogLevel.WARN,
+          info: LogLevel.INFO,
+          debug: LogLevel.DEBUG,
+        };
+        const logLevel = BA_LOG_LEVEL_MAP[level] ?? LogLevel.INFO;
+        betterAuthLogger.log(logLevel, message, { source: 'better-auth-internal', args });
       },
     },
     onAPIError: {
@@ -145,12 +138,7 @@ export async function createBetterAuthConfig(
   const defaultRedirect = (provider: string): string =>
     `${config.baseURL.replace(/\/$/, '')}${basePath}/callback/${provider}`;
 
-  const providerLogger = {
-    log: (level: LogLevel, message: string, meta?: Record<string, unknown>) =>
-      logger.log(level, message, meta),
-  };
-
-  const socialProviders = buildSocialProviders(config, providerLogger, defaultRedirect);
+  const socialProviders = buildSocialProviders(config, defaultRedirect);
   if (socialProviders) authConfig.socialProviders = socialProviders;
 
   plugins.push(
@@ -158,7 +146,7 @@ export async function createBetterAuthConfig(
       sendMagicLink: async ({ email, token, url }) => {
         const sender = options?.magicLinkSender;
         if (!sender) {
-          logger.log(LogLevel.ERROR, 'Magic link sender is not configured');
+          betterAuthLogger.error('Magic link sender is not configured');
           throw new Error('Magic link sender is not configured');
         }
         await sender({ email, token, url });
@@ -182,9 +170,6 @@ function isSecureBaseURL(baseURL: string): boolean {
 
 function buildSocialProviders(
   config: BetterAuthConfig,
-  providerLogger: {
-    log: (level: LogLevel, message: string, meta?: Record<string, unknown>) => void;
-  },
   redirectBuilder: (provider: string) => string
 ): Record<string, unknown> | undefined {
   if (!config.socialProviders) return undefined;
@@ -195,7 +180,6 @@ function buildSocialProviders(
     const googleProvider = new GoogleProvider({
       ...config.socialProviders.google,
       redirectURI: config.socialProviders.google.redirectURI ?? redirectBuilder('google'),
-      logger: providerLogger,
     });
     providers.google = googleProvider.buildConfig();
   }
@@ -204,7 +188,6 @@ function buildSocialProviders(
     const microsoftProvider = new MicrosoftProvider({
       ...config.socialProviders.microsoft,
       redirectURI: config.socialProviders.microsoft.redirectURI ?? redirectBuilder('microsoft'),
-      logger: providerLogger,
     });
     providers.microsoft = microsoftProvider.buildConfig();
   }

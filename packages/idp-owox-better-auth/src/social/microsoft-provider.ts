@@ -1,5 +1,6 @@
-import { LogLevel } from '@owox/internal-helpers';
-import { Profile, ProviderLogger, SocialProvider, SocialUser } from './social-provider.js';
+import { createServiceLogger } from '../core/logger.js';
+import { maskEmail } from '../utils/email-utils.js';
+import { Profile, SocialProvider, SocialUser } from './social-provider.js';
 
 export type MicrosoftProviderOptions = {
   clientId?: string;
@@ -8,7 +9,6 @@ export type MicrosoftProviderOptions = {
   tenantId?: string;
   authority?: string;
   prompt?: string;
-  logger?: ProviderLogger;
 };
 
 /**
@@ -16,6 +16,7 @@ export type MicrosoftProviderOptions = {
  */
 export class MicrosoftProvider implements SocialProvider {
   public providerId = 'microsoft';
+  private readonly logger = createServiceLogger(MicrosoftProvider.name);
 
   constructor(private readonly opts: MicrosoftProviderOptions) {
     this.validate();
@@ -53,8 +54,6 @@ export class MicrosoftProvider implements SocialProvider {
   }
 
   mapProfile(profile: Profile): SocialUser {
-    this.opts.logger?.log(LogLevel.INFO, `${this.providerId}-profile`, { profile });
-
     const p = profile as {
       oid?: string;
       tid?: string;
@@ -62,6 +61,14 @@ export class MicrosoftProvider implements SocialProvider {
       preferred_username?: string;
       name?: string;
     };
+    const profileForLog: Record<string, unknown> = { ...profile };
+    if (typeof p.email === 'string') {
+      profileForLog.email = maskEmail(p.email);
+    }
+    if (typeof p.preferred_username === 'string') {
+      profileForLog.preferred_username = maskEmail(p.preferred_username);
+    }
+    this.logger.info(`${this.providerId}-profile`, { profile: profileForLog });
 
     const accountId = this.selectAccountId(p);
     if (!accountId) {

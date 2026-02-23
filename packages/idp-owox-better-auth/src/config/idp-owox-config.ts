@@ -231,6 +231,7 @@ const BetterAuthEnvSchema = z.object({
   IDP_BETTER_AUTH_SESSION_MAX_AGE: z.string().optional(),
   IDP_BETTER_AUTH_TRUSTED_ORIGINS: z.string().optional(),
   IDP_BETTER_AUTH_MAGIC_LINK_TTL: z.string().optional(),
+  IDP_BETTER_AUTH_FORBIDDEN_EMAIL_DOMAINS: z.string().optional(),
   IDP_BETTER_AUTH_PROVIDERS: z.string().optional(),
   IDP_BETTER_AUTH_GOOGLE_CLIENT_ID: z.string().optional(),
   IDP_BETTER_AUTH_GOOGLE_CLIENT_SECRET: z.string().optional(),
@@ -293,6 +294,21 @@ function parseUiProviders(raw: string | undefined): UiAuthProviders {
     microsoft: providerSet.has('microsoft'),
     email: providerSet.has('email'),
   };
+}
+
+function parseForbiddenEmailDomains(raw: string | undefined): string[] {
+  if (raw === undefined) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      raw
+        .split(',')
+        .map(domain => domain.trim().toLowerCase())
+        .filter(Boolean)
+    )
+  );
 }
 
 function buildSocialProviders(
@@ -379,6 +395,9 @@ export function loadBetterAuthProviderConfigFromEnv(
     baseURL: safeBaseURL,
     session: { maxAge: toNumber(baEnv.IDP_BETTER_AUTH_SESSION_MAX_AGE, DEFAULT_SESSION_MAX_AGE) },
     magicLinkTtl: toNumber(baEnv.IDP_BETTER_AUTH_MAGIC_LINK_TTL, DEFAULT_MAGIC_LINK_TTL),
+    forbiddenEmailDomains: parseForbiddenEmailDomains(
+      baEnv.IDP_BETTER_AUTH_FORBIDDEN_EMAIL_DOMAINS
+    ),
     trustedOrigins: parseTrustedOrigins(baEnv.IDP_BETTER_AUTH_TRUSTED_ORIGINS, safeBaseURL),
     socialProviders: buildSocialProviders(baEnv, safeBaseURL),
   };
