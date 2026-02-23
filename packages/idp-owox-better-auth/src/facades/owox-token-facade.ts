@@ -130,7 +130,7 @@ export class OwoxTokenFacade {
           params: error.context,
           cause: error.cause,
         });
-        return res.status(401).json({ reason: 'atm4', message: 'Unauthorized' });
+        return res.json({ reason: 'atm4', message: 'Unauthorized' });
       }
 
       if (error instanceof IdpFailedException) {
