@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@owox/ui/components/button';
+import { useOAuthPopup } from '../../hooks/useOAuthPopup';
 
 interface TikTokLoginButtonProps {
   appId: string;
@@ -43,149 +43,38 @@ export function TikTokLoginButton({
   disabled = false,
   children,
 }: TikTokLoginButtonProps) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const authCompletedRef = useRef(false);
-  const stateRef = useRef<string | null>(null);
-
-  const handleMessage = useCallback(
-    (event: MessageEvent<unknown>) => {
-      try {
-        const redirectOrigin = new URL(redirectUri).origin;
-        if (event.origin !== redirectOrigin && event.origin !== window.location.origin) {
-          return;
-        }
-      } catch {
-        if (event.origin !== window.location.origin) {
-          return;
-        }
-      }
-
-      const data = event.data;
-
-      if (!isTikTokAuthMessage(data)) {
-        return;
-      }
-
-      const cleanup = () => {
-        if (pollTimerRef.current) {
-          clearInterval(pollTimerRef.current);
-          pollTimerRef.current = null;
-        }
-        setIsLoading(false);
-      };
-
-      const handleAuthError = (errorMsg: string) => {
-        cleanup();
-        const err = new Error(errorMsg);
-        setError(err.message);
-        onError?.(err);
-      };
-
-      const handleAuthSuccess = (code: string) => {
-        cleanup();
-        setError(null);
-        stateRef.current = null;
-        onSuccess({ authCode: code });
-      };
-
-      if (data.type === 'TIKTOK_AUTH_SUCCESS') {
-        if (authCompletedRef.current) return;
-
-        if (!data.state || data.state !== stateRef.current) {
-          console.error('State mismatch in LoginButton', {
-            received: data.state,
-            expected: stateRef.current,
-          });
-          handleAuthError('Security Error: OAuth State Mismatch');
-          return;
-        }
-
-        authCompletedRef.current = true;
-        handleAuthSuccess(data.authCode);
-      } else {
-        handleAuthError(data.error);
-      }
+  const { openPopup, isLoading, error } = useOAuthPopup<TikTokLoginResponse, TikTokAuthMessage>({
+    redirectUri,
+    buildAuthUrl: (state: string) => {
+      const url = new URL(TIKTOK_AUTH_URL);
+      url.searchParams.set('app_id', appId);
+      url.searchParams.set('redirect_uri', redirectUri);
+      url.searchParams.set('state', state);
+      return url.toString();
     },
-    [redirectUri, onSuccess, onError]
-  );
-
-  useEffect(() => {
-    window.addEventListener('message', handleMessage);
-    return () => {
-      window.removeEventListener('message', handleMessage);
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
+    onSuccess,
+    onError,
+    isAuthMessage: isTikTokAuthMessage,
+    getSuccessResponse: (msg: TikTokAuthMessage) => {
+      if (msg.type === 'TIKTOK_AUTH_SUCCESS') {
+        return { authCode: msg.authCode };
       }
-    };
-  }, [handleMessage]);
-
-  const buildAuthUrl = (state: string) => {
-    const url = new URL(TIKTOK_AUTH_URL);
-    url.searchParams.set('app_id', appId);
-    url.searchParams.set('redirect_uri', redirectUri);
-    url.searchParams.set('state', state);
-    return url.toString();
-  };
-
-  const openCenteredPopup = (url: string, title: string) => {
-    const width = 600;
-    const height = 700;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
-    return window.open(
-      url,
-      title,
-      `width=${String(width)},height=${String(height)},left=${String(left)},top=${String(top)},scrollbars=yes,resizable=yes`
-    );
-  };
-
-  const setupOAuthWindowPolling = (popup: Window) => {
-    if (pollTimerRef.current) {
-      clearInterval(pollTimerRef.current);
-    }
-    pollTimerRef.current = setInterval(() => {
-      if (popup.closed) {
-        if (pollTimerRef.current) {
-          clearInterval(pollTimerRef.current);
-          pollTimerRef.current = null;
-        }
-        setIsLoading(false);
-        if (!authCompletedRef.current) {
-          stateRef.current = null;
-        }
+      throw new Error('Invalid response');
+    },
+    getErrorMessage: (msg: TikTokAuthMessage) => {
+      if (msg.type === 'TIKTOK_AUTH_ERROR') {
+        return msg.error;
       }
-    }, 500);
-  };
+      return 'Unknown error';
+    },
+  });
 
   const handleLogin = () => {
     if (!appId || !redirectUri) {
-      const err = new Error('TikTok OAuth configuration is incomplete');
-      setError(err.message);
-      onError?.(err);
+      onError?.(new Error('TikTok OAuth configuration is incomplete'));
       return;
     }
-
-    setIsLoading(true);
-    setError(null);
-    authCompletedRef.current = false;
-
-    const state = crypto.randomUUID();
-    stateRef.current = state;
-
-    const popup = openCenteredPopup(buildAuthUrl(state), 'TikTok OAuth');
-
-    if (!popup) {
-      setIsLoading(false);
-      const err = new Error('Failed to open popup window. Please allow popups for this site.');
-      setError(err.message);
-      onError?.(err);
-      return;
-    }
-
-    setupOAuthWindowPolling(popup);
+    openPopup();
   };
 
   const isDisabled = disabled || isLoading || !appId || !redirectUri;

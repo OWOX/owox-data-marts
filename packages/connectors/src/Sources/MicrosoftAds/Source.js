@@ -74,11 +74,13 @@ var MicrosoftAdsSource = class MicrosoftAdsSource extends AbstractSource {
                 attributes: [CONFIG_ATTRIBUTES.SECRET]
               },
               ClientId: {
+                isRequired: true,
                 requiredType: "string",
                 label: "Client ID",
                 description: "Microsoft Ads Client ID",
               },
               ClientSecret: {
+                isRequired: true,
                 requiredType: "string",
                 label: "Client Secret",
                 description: "Microsoft Ads Client Secret",
