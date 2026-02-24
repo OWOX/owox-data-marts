@@ -23,7 +23,7 @@ import { BetterAuthSessionService } from './services/auth/better-auth-session-se
 import { MagicLinkService } from './services/auth/magic-link-service.js';
 import { PkceFlowOrchestrator } from './services/auth/pkce-flow-orchestrator.js';
 import { PlatformAuthFlowClient } from './services/auth/platform-auth-flow-client.js';
-import { FirstLoginPersistenceService } from './services/core/first-login-persistence-service.js';
+import { UserAuthInfoPersistenceService } from './services/core/user-auth-info-persistence-service.js';
 import { UserAccountResolver } from './services/core/user-account-resolver.js';
 import { UserContextService } from './services/core/user-context-service.js';
 import { EmailValidationService } from './services/email/email-validation-service.js';
@@ -58,7 +58,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   private readonly log = createServiceLogger(OwoxBetterAuthIdp.name);
   private readonly tokenFacade: OwoxTokenFacade;
   private readonly userContextService: UserContextService;
-  private readonly firstLoginPersistenceService: FirstLoginPersistenceService;
+  private readonly userAuthInfoPersistenceService: UserAuthInfoPersistenceService;
   private readonly platformAuthFlowClient: PlatformAuthFlowClient;
   private readonly pkceFlowOrchestrator: PkceFlowOrchestrator;
 
@@ -82,7 +82,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     const userAccountResolver = new UserAccountResolver(this.store);
 
     this.userContextService = new UserContextService(userAccountResolver, this.tokenFacade);
-    this.firstLoginPersistenceService = new FirstLoginPersistenceService(
+    this.userAuthInfoPersistenceService = new UserAuthInfoPersistenceService(
       this.store,
       this.tokenFacade
     );
@@ -198,7 +198,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       try {
         const response: TokenResponse = await this.tokenFacade.changeAuthCode(code, state);
 
-        await this.firstLoginPersistenceService.persistFirstLoginInfo(response.accessToken);
+        await this.userAuthInfoPersistenceService.persistAuthInfo(response.accessToken);
 
         this.tokenFacade.setTokenToCookie(
           res,

@@ -5,23 +5,26 @@ import type { DatabaseStore } from '../../store/database-store.js';
 import type { DatabaseUser } from '../../types/database-models.js';
 
 /**
- * Extracts first login information from token payload.
+ * Extracts authentication information from token payload.
  * Maps token fields to database fields:
  * - userId (token) -> biUserId (database)
  * - signinProvider (token) -> firstLoginMethod (database)
  */
-interface FirstLoginInfo {
+interface AuthInfo {
   biUserId: string | undefined;
   firstLoginMethod: string | undefined;
 }
 
 /**
- * Responsible for persisting first-time login information to the database.
- * This service handles one-time initialization of firstLoginMethod and biUserId
- * fields when a user authenticates for the first time.
+ * Responsible for persisting user authentication metadata to the database.
+ *
+ * This service is called on every successful authentication (via /callback).
+ * It handles:
+ * - One-time initialization of firstLoginMethod and biUserId (write-once fields)
+ * - Tracking the most recent login method in lastLoginMethod (updated every time)
  */
-export class FirstLoginPersistenceService {
-  private readonly logger = createServiceLogger(FirstLoginPersistenceService.name);
+export class UserAuthInfoPersistenceService {
+  private readonly logger = createServiceLogger(UserAuthInfoPersistenceService.name);
 
   constructor(
     private readonly store: DatabaseStore,
@@ -29,41 +32,44 @@ export class FirstLoginPersistenceService {
   ) {}
 
   /**
-   * Persists first login method and BI user ID from access token to the database.
-   * Only updates if the fields are not already set (one-time initialization).
-   * Also updates lastLoginMethod every time (tracks most recent login method).
+   * Persists authentication metadata from access token to the database.
+   *
+   * Called after every successful OAuth callback. Fields behavior:
+   * - firstLoginMethod: set only if not already present (tracks original auth method)
+   * - biUserId: set only if not already present (tracks original external user ID)
+   * - lastLoginMethod: updated on every call (tracks most recent auth method)
    *
    * @param accessToken - The access token to extract information from
    */
-  async persistFirstLoginInfo(accessToken: string): Promise<void> {
+  async persistAuthInfo(accessToken: string): Promise<void> {
     try {
       const payload = await this.tokenFacade.parseToken(accessToken);
       if (!payload?.email) {
-        this.logger.warn('Cannot persist first login info: email missing from token payload');
+        this.logger.warn('Cannot persist auth info: email missing from token payload');
         return;
       }
 
-      const loginInfo = this.extractFirstLoginInfo(payload);
-      if (!loginInfo.biUserId && !loginInfo.firstLoginMethod) {
-        this.logger.debug('No first login info to persist in token payload');
+      const authInfo = this.extractAuthInfo(payload);
+      if (!authInfo.biUserId && !authInfo.firstLoginMethod) {
+        this.logger.debug('No auth info to persist in token payload');
         return;
       }
 
       const user = await this.store.getUserByEmail(payload.email);
       if (!user) {
-        this.logger.warn('Cannot persist first login info: user not found in DB', {
+        this.logger.warn('Cannot persist auth info: user not found in DB', {
           email: payload.email,
         });
         return;
       }
 
       await Promise.all([
-        this.updateUserFirstLoginInfo(user, loginInfo),
-        this.updateUserLastLoginInfo(user, loginInfo),
+        this.updateUserFirstLoginInfo(user, authInfo),
+        this.updateUserLastLoginInfo(user, authInfo),
       ]);
     } catch (error) {
       this.logger.warn(
-        'Failed to persist first login info',
+        'Failed to persist auth info',
         undefined,
         error instanceof Error ? error : undefined
       );
@@ -71,12 +77,12 @@ export class FirstLoginPersistenceService {
   }
 
   /**
-   * Extracts first login information from token payload.
+   * Extracts authentication information from token payload.
    * Maps token field names to database field names:
    * - userId (token) -> biUserId (database)
    * - signinProvider (token) -> firstLoginMethod (database)
    */
-  private extractFirstLoginInfo(payload: Payload): FirstLoginInfo {
+  private extractAuthInfo(payload: Payload): AuthInfo {
     // Access extra fields via dynamic property access
     const extendedPayload = payload as Record<string, unknown>;
 
@@ -93,12 +99,9 @@ export class FirstLoginPersistenceService {
 
   /**
    * Updates user's first login information in the database.
-   * Only updates fields that are not already set.
+   * Only updates fields that are not already set (write-once behavior).
    */
-  private async updateUserFirstLoginInfo(
-    user: DatabaseUser,
-    loginInfo: FirstLoginInfo
-  ): Promise<void> {
+  private async updateUserFirstLoginInfo(user: DatabaseUser, loginInfo: AuthInfo): Promise<void> {
     const updates: Promise<void>[] = [];
 
     if (loginInfo.firstLoginMethod && !user.firstLoginMethod) {
@@ -145,10 +148,7 @@ export class FirstLoginPersistenceService {
    * Updates user's last login method in the database.
    * Updates every time (unlike firstLoginMethod which only sets once).
    */
-  private async updateUserLastLoginInfo(
-    user: DatabaseUser,
-    loginInfo: FirstLoginInfo
-  ): Promise<void> {
+  private async updateUserLastLoginInfo(user: DatabaseUser, loginInfo: AuthInfo): Promise<void> {
     if (!loginInfo.firstLoginMethod) {
       return;
     }

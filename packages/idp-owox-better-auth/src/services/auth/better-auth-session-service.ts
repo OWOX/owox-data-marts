@@ -29,20 +29,17 @@ export class BetterAuthSessionService {
     const stateManager = getStateManager(req);
     const session = await this.getSession(req);
     if (session?.user) {
-      const userAccountPair = await this.userAccountResolver.resolveByUserId(
-        session.user.id
-        // No preferredLoginMethod - resolver will use lastLoginMethod -> firstLoginMethod -> fallback
-      );
+      const userAccountPair = await this.userAccountResolver.resolveByUserId(session.user.id);
 
       if (!userAccountPair) {
         throw new Error(`User or account not found for session ${session.user.id}`);
       }
 
-      const { user: dbUser, account } = userAccountPair;
+      const { user, account } = userAccountPair;
 
       return buildUserInfoPayload({
         state: stateManager.extract(),
-        user: dbUser,
+        user,
         account,
       });
     }
@@ -83,11 +80,6 @@ export class BetterAuthSessionService {
       throw new Error('Failed to resolve session from Better Auth token');
     }
 
-    this.logger.info('⚠️ Better Auth session', {
-      session,
-    });
-
-    // Use callbackProviderId as preferredLoginMethod (e.g., 'google', 'github')
     const userAccountPair = await this.userAccountResolver.resolveByUserId(
       session.user.id,
       callbackProviderId
@@ -97,17 +89,17 @@ export class BetterAuthSessionService {
       throw new Error(`User or account not found for session ${session.user.id}`);
     }
 
-    const { user: dbUser, account } = userAccountPair;
+    const { user, account } = userAccountPair;
 
     const payload: UserInfoPayload = buildUserInfoPayload({
       state,
-      user: dbUser,
+      user,
       account,
     });
 
     this.logger.info('OWOX client sending auth flow payload with session token', {
       state: payload.state,
-      userId: dbUser.id,
+      userId: user.id,
       provider: account.providerId,
     });
     const result = await this.platformAuthFlowClient.completeAuthFlow(payload);
@@ -141,10 +133,6 @@ export class BetterAuthSessionService {
       if (!session || !session.user || !session.session) {
         return null;
       }
-
-      this.logger.info('⚠️ Better Auth session (getSession)', {
-        session,
-      });
 
       return {
         user: {

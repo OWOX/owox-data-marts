@@ -3,12 +3,12 @@ import type { Payload } from '@owox/idp-protocol';
 import type { OwoxTokenFacade } from '../../facades/owox-token-facade.js';
 import type { DatabaseStore } from '../../store/database-store.js';
 import type { DatabaseUser } from '../../types/database-models.js';
-import { FirstLoginPersistenceService } from './first-login-persistence-service.js';
+import { UserAuthInfoPersistenceService } from './user-auth-info-persistence-service.js';
 
-describe('FirstLoginPersistenceService', () => {
+describe('UserAuthInfoPersistenceService', () => {
   let store: jest.Mocked<DatabaseStore>;
   let tokenFacade: jest.Mocked<OwoxTokenFacade>;
-  let service: FirstLoginPersistenceService;
+  let service: UserAuthInfoPersistenceService;
 
   beforeEach(() => {
     store = {
@@ -22,7 +22,7 @@ describe('FirstLoginPersistenceService', () => {
       parseToken: jest.fn(),
     } as unknown as jest.Mocked<OwoxTokenFacade>;
 
-    service = new FirstLoginPersistenceService(store, tokenFacade);
+    service = new UserAuthInfoPersistenceService(store, tokenFacade);
   });
 
   it('persists both firstLoginMethod and biUserId for new user', async () => {
@@ -43,7 +43,7 @@ describe('FirstLoginPersistenceService', () => {
     tokenFacade.parseToken.mockResolvedValue(payload);
     store.getUserByEmail.mockResolvedValue(user);
 
-    await service.persistFirstLoginInfo('access-token');
+    await service.persistAuthInfo('access-token');
 
     expect(store.updateUserFirstLoginMethod).toHaveBeenCalledWith('ba-user-1', 'google');
     expect(store.updateUserBiUserId).toHaveBeenCalledWith('ba-user-1', 'ext-user-1');
@@ -70,7 +70,7 @@ describe('FirstLoginPersistenceService', () => {
     tokenFacade.parseToken.mockResolvedValue(payload);
     store.getUserByEmail.mockResolvedValue(user);
 
-    await service.persistFirstLoginInfo('access-token');
+    await service.persistAuthInfo('access-token');
 
     expect(store.updateUserFirstLoginMethod).not.toHaveBeenCalled();
     expect(store.updateUserBiUserId).toHaveBeenCalledWith('ba-user-1', 'ext-user-1');
@@ -95,7 +95,7 @@ describe('FirstLoginPersistenceService', () => {
     tokenFacade.parseToken.mockResolvedValue(payload);
     store.getUserByEmail.mockResolvedValue(user);
 
-    await service.persistFirstLoginInfo('access-token');
+    await service.persistAuthInfo('access-token');
 
     expect(store.updateUserFirstLoginMethod).toHaveBeenCalledWith('ba-user-1', 'google');
     expect(store.updateUserBiUserId).not.toHaveBeenCalled();
@@ -120,7 +120,7 @@ describe('FirstLoginPersistenceService', () => {
     tokenFacade.parseToken.mockResolvedValue(payload);
     store.getUserByEmail.mockResolvedValue(user);
 
-    await service.persistFirstLoginInfo('access-token');
+    await service.persistAuthInfo('access-token');
 
     expect(store.updateUserFirstLoginMethod).not.toHaveBeenCalled();
     expect(store.updateUserBiUserId).not.toHaveBeenCalled();
@@ -143,7 +143,7 @@ describe('FirstLoginPersistenceService', () => {
     tokenFacade.parseToken.mockResolvedValue(payload);
     store.getUserByEmail.mockResolvedValue(user);
 
-    await service.persistFirstLoginInfo('access-token');
+    await service.persistAuthInfo('access-token');
 
     expect(store.updateUserFirstLoginMethod).not.toHaveBeenCalled();
     expect(store.updateUserBiUserId).toHaveBeenCalledWith('ba-user-1', 'ext-user-1');
@@ -166,7 +166,7 @@ describe('FirstLoginPersistenceService', () => {
     tokenFacade.parseToken.mockResolvedValue(payload);
     store.getUserByEmail.mockResolvedValue(user);
 
-    await service.persistFirstLoginInfo('access-token');
+    await service.persistAuthInfo('access-token');
 
     expect(store.updateUserFirstLoginMethod).toHaveBeenCalledWith('ba-user-1', 'google');
     expect(store.updateUserBiUserId).not.toHaveBeenCalled();
@@ -181,7 +181,7 @@ describe('FirstLoginPersistenceService', () => {
 
     tokenFacade.parseToken.mockResolvedValue(payload);
 
-    await service.persistFirstLoginInfo('access-token');
+    await service.persistAuthInfo('access-token');
 
     expect(store.getUserByEmail).not.toHaveBeenCalled();
     expect(store.updateUserFirstLoginMethod).not.toHaveBeenCalled();
@@ -200,7 +200,7 @@ describe('FirstLoginPersistenceService', () => {
     tokenFacade.parseToken.mockResolvedValue(payload);
     store.getUserByEmail.mockResolvedValue(null);
 
-    await service.persistFirstLoginInfo('access-token');
+    await service.persistAuthInfo('access-token');
 
     expect(store.updateUserFirstLoginMethod).not.toHaveBeenCalled();
     expect(store.updateUserBiUserId).not.toHaveBeenCalled();
@@ -210,7 +210,7 @@ describe('FirstLoginPersistenceService', () => {
   it('gracefully handles token parsing errors', async () => {
     tokenFacade.parseToken.mockResolvedValue(null);
 
-    await service.persistFirstLoginInfo('invalid-token');
+    await service.persistAuthInfo('invalid-token');
 
     expect(store.getUserByEmail).not.toHaveBeenCalled();
     expect(store.updateUserFirstLoginMethod).not.toHaveBeenCalled();
@@ -221,7 +221,7 @@ describe('FirstLoginPersistenceService', () => {
   it('gracefully handles exceptions during persistence', async () => {
     tokenFacade.parseToken.mockRejectedValue(new Error('Token parsing failed'));
 
-    await expect(service.persistFirstLoginInfo('access-token')).resolves.not.toThrow();
+    await expect(service.persistAuthInfo('access-token')).resolves.not.toThrow();
 
     expect(store.getUserByEmail).not.toHaveBeenCalled();
     expect(store.updateUserLastLoginMethod).not.toHaveBeenCalled();
@@ -235,7 +235,7 @@ describe('FirstLoginPersistenceService', () => {
 
     tokenFacade.parseToken.mockResolvedValue(payload);
 
-    await service.persistFirstLoginInfo('access-token');
+    await service.persistAuthInfo('access-token');
 
     expect(store.getUserByEmail).not.toHaveBeenCalled();
     expect(store.updateUserFirstLoginMethod).not.toHaveBeenCalled();
@@ -262,7 +262,7 @@ describe('FirstLoginPersistenceService', () => {
     tokenFacade.parseToken.mockResolvedValue(payload);
     store.getUserByEmail.mockResolvedValue(user);
 
-    await service.persistFirstLoginInfo('access-token');
+    await service.persistAuthInfo('access-token');
 
     // firstLoginMethod and biUserId should NOT be updated since they are already set
     expect(store.updateUserFirstLoginMethod).not.toHaveBeenCalled();
