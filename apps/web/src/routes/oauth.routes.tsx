@@ -6,7 +6,7 @@ export const oauthRoutes: RouteObject = {
   path: 'oauth',
   children: [
     {
-      path: 'tiktok-ads/callback',
+      path: 'tiktok/callback',
       Component: TikTokCallback,
     },
     {
