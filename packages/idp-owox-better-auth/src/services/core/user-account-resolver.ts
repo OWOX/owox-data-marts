@@ -2,28 +2,30 @@ import { createServiceLogger } from '../../core/logger.js';
 import type { DatabaseStore } from '../../store/database-store.js';
 import type { DatabaseAccount, DatabaseUser } from '../../types/index.js';
 
-const logger = createServiceLogger('UserAccountResolver');
-
-const CREDENTIAL_PROVIDER_ID = 'credential';
-const CREDENTIAL_LOGIN_METHODS = new Set(['email', 'email-password']);
-
 export interface UserAccountPair {
   user: DatabaseUser;
   account: DatabaseAccount;
 }
 
+interface AccountResolutionStrategy {
+  name: string;
+  getProviderId: (user: DatabaseUser, preferred?: string) => string | null | undefined;
+}
+
+const PRIORITY_STRATEGIES: AccountResolutionStrategy[] = [
+  { name: 'preferred', getProviderId: (_, preferred) => preferred },
+  { name: 'lastLogin', getProviderId: user => user.lastLoginMethod },
+  { name: 'firstLogin', getProviderId: user => user.firstLoginMethod },
+];
+
 /**
- * Maps Better Auth login method (firstLoginMethod from DB or signinProvider from token)
- * to providerId used in account records.
+ * Normalizes provider ID by trimming and lowercasing.
+ * Returns undefined for null/empty/whitespace-only values.
  */
-function resolveProviderFromLoginMethod(
-  loginMethod: string | null | undefined
-): string | undefined {
-  if (!loginMethod) return undefined;
-  const normalized = loginMethod.trim().toLowerCase();
-  if (!normalized) return undefined;
-  if (CREDENTIAL_LOGIN_METHODS.has(normalized)) return CREDENTIAL_PROVIDER_ID;
-  return normalized;
+function normalizeProviderId(value: string | null | undefined): string | undefined {
+  if (!value) return undefined;
+  const normalized = value.trim().toLowerCase();
+  return normalized || undefined;
 }
 
 /**
@@ -35,6 +37,8 @@ function resolveProviderFromLoginMethod(
  * 4. Fallback to getAccountByUserId() (latest account)
  */
 export class UserAccountResolver {
+  private readonly logger = createServiceLogger(UserAccountResolver.name);
+
   constructor(private readonly store: DatabaseStore) {}
 
   /**
@@ -47,13 +51,13 @@ export class UserAccountResolver {
   ): Promise<UserAccountPair | null> {
     const user = await this.store.getUserById(userId);
     if (!user) {
-      logger.debug('User not found by ID', { userId });
+      this.logger.debug('User not found by ID', { userId });
       return null;
     }
 
     const account = await this.resolveAccountForUser(user, preferredLoginMethod);
     if (!account) {
-      logger.warn('No account found for user', { userId });
+      this.logger.warn('No account found for user', { userId });
       return null;
     }
 
@@ -70,13 +74,13 @@ export class UserAccountResolver {
   ): Promise<UserAccountPair | null> {
     const user = await this.store.getUserByEmail(email);
     if (!user) {
-      logger.debug('User not found by email', { email });
+      this.logger.debug('User not found by email', { email });
       return null;
     }
 
     const account = await this.resolveAccountForUser(user, preferredLoginMethod);
     if (!account) {
-      logger.warn('No account found for user', { userId: user.id, email });
+      this.logger.warn('No account found for user', { userId: user.id, email });
       return null;
     }
 
@@ -98,70 +102,30 @@ export class UserAccountResolver {
   ): Promise<DatabaseAccount | null> {
     const userId = user.id;
 
-    // Priority 1: Try preferredLoginMethod from parameter
-    if (preferredLoginMethod) {
-      const preferredProvider = resolveProviderFromLoginMethod(preferredLoginMethod);
-      if (preferredProvider) {
-        const account = await this.store.getAccountByUserIdAndProvider(userId, preferredProvider);
-        if (account) {
-          logger.debug('Resolved account from preferredLoginMethod', {
-            userId,
-            preferredProvider,
-            accountId: account.accountId,
-          });
-          return account;
-        }
-        logger.debug('Account for preferredLoginMethod not found, trying next priority', {
+    // Try each strategy in priority order
+    for (const strategy of PRIORITY_STRATEGIES) {
+      const providerId = normalizeProviderId(strategy.getProviderId(user, preferredLoginMethod));
+      if (!providerId) continue;
+
+      const account = await this.store.getAccountByUserIdAndProvider(userId, providerId);
+      if (account) {
+        this.logger.debug(`Resolved account from ${strategy.name}`, {
           userId,
-          preferredProvider,
+          providerId,
+          accountId: account.accountId,
         });
+        return account;
       }
+      this.logger.debug(`Account for ${strategy.name} not found, trying next priority`, {
+        userId,
+        providerId,
+      });
     }
 
-    // Priority 2: Try user.lastLoginMethod from DB
-    if (user.lastLoginMethod) {
-      const lastLoginProvider = resolveProviderFromLoginMethod(user.lastLoginMethod);
-      if (lastLoginProvider) {
-        const account = await this.store.getAccountByUserIdAndProvider(userId, lastLoginProvider);
-        if (account) {
-          logger.debug('Resolved account from lastLoginMethod', {
-            userId,
-            lastLoginProvider,
-            accountId: account.accountId,
-          });
-          return account;
-        }
-        logger.debug('Account for lastLoginMethod not found, trying next priority', {
-          userId,
-          lastLoginProvider,
-        });
-      }
-    }
-
-    // Priority 3: Try user.firstLoginMethod from DB
-    if (user.firstLoginMethod) {
-      const firstLoginProvider = resolveProviderFromLoginMethod(user.firstLoginMethod);
-      if (firstLoginProvider) {
-        const account = await this.store.getAccountByUserIdAndProvider(userId, firstLoginProvider);
-        if (account) {
-          logger.debug('Resolved account from firstLoginMethod', {
-            userId,
-            firstLoginProvider,
-            accountId: account.accountId,
-          });
-          return account;
-        }
-        logger.debug('Account for firstLoginMethod not found, falling back to latest', {
-          userId,
-          firstLoginProvider,
-        });
-      }
-    }
-
-    // Priority 4: Fallback to getAccountByUserId() (latest account)
+    // Fallback to getAccountByUserId() (latest account)
     const fallbackAccount = await this.store.getAccountByUserId(userId);
     if (fallbackAccount) {
-      logger.debug('Resolved account from fallback (latest)', {
+      this.logger.debug('Resolved account from fallback (latest)', {
         userId,
         providerId: fallbackAccount.providerId,
         accountId: fallbackAccount.accountId,
@@ -169,7 +133,7 @@ export class UserAccountResolver {
       return fallbackAccount;
     }
 
-    logger.warn('No account found for user after all priorities exhausted', { userId });
+    this.logger.warn('No account found for user after all priorities exhausted', { userId });
     return null;
   }
 }

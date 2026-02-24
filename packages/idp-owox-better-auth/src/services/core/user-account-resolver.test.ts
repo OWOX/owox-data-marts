@@ -24,13 +24,6 @@ describe('UserAccountResolver', () => {
     accountId: 'google-123',
   };
 
-  const credentialAccount: DatabaseAccount = {
-    id: 'acc-2',
-    userId: 'user-1',
-    providerId: 'credential',
-    accountId: 'credential-123',
-  };
-
   beforeEach(() => {
     store = {
       getUserById: jest.fn(),
@@ -96,11 +89,21 @@ describe('UserAccountResolver', () => {
     });
 
     it('resolves by firstLoginMethod when preferred and last not found (priority 3)', async () => {
-      const userWithNoLastLogin = { ...mockUser, lastLoginMethod: undefined };
+      const githubAccount: DatabaseAccount = {
+        id: 'acc-3',
+        userId: 'user-1',
+        providerId: 'github',
+        accountId: 'github-123',
+      };
+      const userWithNoLastLogin = {
+        ...mockUser,
+        lastLoginMethod: undefined,
+        firstLoginMethod: 'github',
+      };
       store.getUserById.mockResolvedValue(userWithNoLastLogin);
       store.getAccountByUserIdAndProvider.mockImplementation(async (userId, providerId) => {
-        if (providerId === 'credential') {
-          return credentialAccount;
+        if (providerId === 'github') {
+          return githubAccount;
         }
         return null;
       });
@@ -108,7 +111,8 @@ describe('UserAccountResolver', () => {
       const result = await resolver.resolveByUserId('user-1', 'nonexistent-provider');
 
       expect(result).not.toBeNull();
-      expect(result?.account.providerId).toBe('credential');
+      expect(result?.account.providerId).toBe('github');
+      expect(result?.account).toEqual(githubAccount);
     });
 
     it('falls back to getAccountByUserId when no login methods match (priority 4)', async () => {
@@ -126,39 +130,6 @@ describe('UserAccountResolver', () => {
       expect(result).not.toBeNull();
       expect(result?.account).toEqual(googleAccount);
       expect(store.getAccountByUserId).toHaveBeenCalledWith('user-1');
-    });
-
-    it('resolves credential provider from email login method', async () => {
-      const userWithEmailLogin = { ...mockUser, lastLoginMethod: 'email' };
-      store.getUserById.mockResolvedValue(userWithEmailLogin);
-      store.getAccountByUserIdAndProvider.mockImplementation(async (userId, providerId) => {
-        if (providerId === 'credential') {
-          return credentialAccount;
-        }
-        return null;
-      });
-
-      const result = await resolver.resolveByUserId('user-1');
-
-      expect(result).not.toBeNull();
-      expect(result?.account.providerId).toBe('credential');
-      expect(store.getAccountByUserIdAndProvider).toHaveBeenCalledWith('user-1', 'credential');
-    });
-
-    it('resolves credential provider from email-password login method', async () => {
-      const userWithEmailPasswordLogin = { ...mockUser, lastLoginMethod: 'email-password' };
-      store.getUserById.mockResolvedValue(userWithEmailPasswordLogin);
-      store.getAccountByUserIdAndProvider.mockImplementation(async (userId, providerId) => {
-        if (providerId === 'credential') {
-          return credentialAccount;
-        }
-        return null;
-      });
-
-      const result = await resolver.resolveByUserId('user-1');
-
-      expect(result).not.toBeNull();
-      expect(result?.account.providerId).toBe('credential');
     });
   });
 
