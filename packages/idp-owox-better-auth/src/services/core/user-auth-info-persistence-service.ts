@@ -63,10 +63,8 @@ export class UserAuthInfoPersistenceService {
         return;
       }
 
-      await Promise.all([
-        this.updateUserFirstLoginInfo(user, authInfo),
-        this.updateUserLastLoginInfo(user, authInfo),
-      ]);
+      await this.updateUserFirstLoginInfo(user, authInfo);
+      await this.updateUserLastLoginInfo(user, authInfo);
     } catch (error) {
       this.logger.warn(
         'Failed to persist auth info',
@@ -102,46 +100,21 @@ export class UserAuthInfoPersistenceService {
    * Only updates fields that are not already set (write-once behavior).
    */
   private async updateUserFirstLoginInfo(user: DatabaseUser, loginInfo: AuthInfo): Promise<void> {
-    const updates: Promise<void>[] = [];
-
     if (loginInfo.firstLoginMethod && !user.firstLoginMethod) {
-      const updatePromise = this.store.updateUserFirstLoginMethod(
-        user.id,
-        loginInfo.firstLoginMethod
-      );
-      // Handle both Promise and non-Promise returns (for tests)
-      if (updatePromise && typeof updatePromise.then === 'function') {
-        updates.push(
-          updatePromise.then(() => {
-            this.logger.debug('Persisted firstLoginMethod for user', {
-              userId: user.id,
-              firstLoginMethod: loginInfo.firstLoginMethod,
-            });
-          })
-        );
-      } else {
-        updates.push(Promise.resolve());
-      }
+      await this.store.updateUserFirstLoginMethod(user.id, loginInfo.firstLoginMethod);
+      this.logger.debug('Persisted firstLoginMethod for user', {
+        userId: user.id,
+        firstLoginMethod: loginInfo.firstLoginMethod,
+      });
     }
 
     if (loginInfo.biUserId && !user.biUserId) {
-      const updatePromise = this.store.updateUserBiUserId(user.id, loginInfo.biUserId);
-      // Handle both Promise and non-Promise returns (for tests)
-      if (updatePromise && typeof updatePromise.then === 'function') {
-        updates.push(
-          updatePromise.then(() => {
-            this.logger.debug('Persisted biUserId for user', {
-              userId: user.id,
-              biUserId: loginInfo.biUserId,
-            });
-          })
-        );
-      } else {
-        updates.push(Promise.resolve());
-      }
+      await this.store.updateUserBiUserId(user.id, loginInfo.biUserId);
+      this.logger.debug('Persisted biUserId for user', {
+        userId: user.id,
+        biUserId: loginInfo.biUserId,
+      });
     }
-
-    await Promise.all(updates);
   }
 
   /**
@@ -154,18 +127,11 @@ export class UserAuthInfoPersistenceService {
     }
 
     try {
-      const updatePromise = this.store.updateUserLastLoginMethod(
-        user.id,
-        loginInfo.firstLoginMethod
-      );
-      // Handle both Promise and non-Promise returns (for tests)
-      if (updatePromise && typeof updatePromise.then === 'function') {
-        await updatePromise;
-        this.logger.debug('Persisted lastLoginMethod for user', {
-          userId: user.id,
-          lastLoginMethod: loginInfo.firstLoginMethod,
-        });
-      }
+      await this.store.updateUserLastLoginMethod(user.id, loginInfo.firstLoginMethod);
+      this.logger.debug('Persisted lastLoginMethod for user', {
+        userId: user.id,
+        lastLoginMethod: loginInfo.firstLoginMethod,
+      });
     } catch (error) {
       this.logger.warn(
         'Failed to persist lastLoginMethod',

@@ -13,9 +13,9 @@ describe('UserAuthInfoPersistenceService', () => {
   beforeEach(() => {
     store = {
       getUserByEmail: jest.fn(),
-      updateUserFirstLoginMethod: jest.fn(),
-      updateUserBiUserId: jest.fn(),
-      updateUserLastLoginMethod: jest.fn(),
+      updateUserFirstLoginMethod: jest.fn(() => Promise.resolve()),
+      updateUserBiUserId: jest.fn(() => Promise.resolve()),
+      updateUserLastLoginMethod: jest.fn(() => Promise.resolve()),
     } as unknown as jest.Mocked<DatabaseStore>;
 
     tokenFacade = {
