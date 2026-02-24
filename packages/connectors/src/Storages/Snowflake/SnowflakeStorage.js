@@ -523,6 +523,16 @@ var SnowflakeStorage = class SnowflakeStorage extends AbstractStorage {
             const isoString = record[ columnName ].toISOString();
             columnValue = isoString.replace('T', ' ').substring(0, 19);
 
+          } else if( (columnType.toUpperCase().includes("TIMESTAMP") || columnType.toUpperCase() == "DATETIME") && typeof record[ columnName ] === 'string' ) {
+
+            // Handle ISO 8601 string timestamps
+            const parsed = new Date( record[ columnName ] );
+            if ( !isNaN( parsed.getTime() ) ) {
+              columnValue = parsed.toISOString().replace('T', ' ').substring(0, 19);
+            } else {
+              columnValue = this.obfuscateSpecialCharacters( record[ columnName ] );
+            }
+
           } else {
 
             columnValue = this.obfuscateSpecialCharacters( record[ columnName ] );
