@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useAuthState } from '../hooks';
+import { signIn } from '../services';
 import { FullScreenLoader } from '@owox/ui/components/common/loading-spinner';
 import { Button } from '@owox/ui/components/button';
 
@@ -9,7 +10,6 @@ import { Button } from '@owox/ui/components/button';
 export interface AuthGuardProps {
   children: React.ReactNode;
   fallback?: React.ReactNode;
-  redirectTo?: string;
 }
 
 /**
@@ -21,7 +21,13 @@ function UnauthenticatedFallback() {
       <div className='text-center'>
         <h2 className='mb-4 text-2xl font-bold text-gray-900'>Authentication Required</h2>
         <p className='mb-6 text-gray-600'>You need to sign in to access this page.</p>
-        <Button onClick={() => (window.location.href = '/api/auth/sign-in')}>Sign In</Button>
+        <Button
+          onClick={() => {
+            signIn();
+          }}
+        >
+          Sign In
+        </Button>
       </div>
     </div>
   );
@@ -31,8 +37,13 @@ function UnauthenticatedFallback() {
  * AuthGuard component
  * Protects routes by checking authentication status
  */
-export function AuthGuard({ children, fallback, redirectTo }: AuthGuardProps) {
+export function AuthGuard({ children, fallback }: AuthGuardProps) {
   const { isLoading, isAuthenticated, isUnauthenticated } = useAuthState();
+
+  useEffect(() => {
+    if (!isUnauthenticated) return;
+    signIn();
+  }, [isUnauthenticated]);
 
   if (isLoading) {
     return <FullScreenLoader />;
@@ -43,12 +54,7 @@ export function AuthGuard({ children, fallback, redirectTo }: AuthGuardProps) {
   }
 
   if (isUnauthenticated) {
-    if (redirectTo) {
-      window.location.href = redirectTo;
-      return <FullScreenLoader />;
-    }
-
-    return fallback ? <>{fallback}</> : <UnauthenticatedFallback />;
+    return <FullScreenLoader />;
   }
 
   return fallback ? <>{fallback}</> : <UnauthenticatedFallback />;

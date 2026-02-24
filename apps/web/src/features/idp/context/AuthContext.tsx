@@ -6,13 +6,14 @@ import {
   signOut as signOutApi,
   refreshAccessToken as refreshAccessTokenApi,
   getUserApi,
+  RedirectStorageService,
 } from '../services';
 import {
   setTokenProvider,
   clearTokenProvider,
   DefaultTokenProvider,
 } from '../../../app/api/token-provider';
-import { pushToDataLayer, trackUserIdentified, trackLogout } from '../../../utils/data-layer';
+import { pushToDataLayer, trackUserIdentified, trackLogout } from '../../../utils';
 
 /**
  * Auth reducer actions
@@ -106,7 +107,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         async () => {
           // Need refresh with update session and user in the state
           // for example when user change name we want to have updated user info
-          return await refresh();
+          const { accessToken } = await refresh();
+          return accessToken;
         }
       );
       setTokenProvider(tokenProvider);
@@ -122,7 +124,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     signInApi();
   }, []);
 
-  async function refresh(): Promise<string> {
+  async function refresh(): Promise<{ accessToken: string; user: User }> {
     try {
       const response = await refreshAccessTokenApi();
 
@@ -147,7 +149,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         type: 'SET_AUTHENTICATED',
         payload: { session: newSession },
       });
-      return accessToken;
+      return { accessToken, user };
     } catch (error: unknown) {
       clearTokenProvider();
       dispatch({ type: 'SET_UNAUTHENTICATED' });
@@ -170,7 +172,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
       dispatch({ type: 'SET_LOADING' });
 
       try {
-        await refreshToken();
+        const { user } = await refresh();
+
+        const storedRedirect = RedirectStorageService.retrieve();
+        if (storedRedirect) {
+          RedirectStorageService.clear();
+          const currentPath =
+            window.location.pathname + window.location.search + window.location.hash;
+          if (currentPath !== storedRedirect) {
+            const extractProjectId = (path: string) => /^\/ui\/([^/]+)/.exec(path)?.[1] ?? null;
+            const storedProjectId = extractProjectId(storedRedirect);
+            const currentUrlProjectId = extractProjectId(currentPath);
+
+            if (!storedProjectId || storedProjectId === user.projectId) {
+              window.location.replace(storedRedirect);
+              return;
+            } else if (currentUrlProjectId === storedProjectId) {
+              window.location.replace(`/ui/${user.projectId}`);
+              return;
+            }
+          }
+        }
       } catch {
         dispatch({ type: 'SET_UNAUTHENTICATED' });
         signIn();
@@ -180,7 +202,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       clearTokenProvider();
       dispatch({ type: 'SET_UNAUTHENTICATED' });
     }
-  }, [refreshToken, signIn]);
+  }, [signIn]);
 
   /**
    * Redirect to sign-out page and clear local session

@@ -31,7 +31,7 @@ function MainLayoutContent() {
       {/* Legacy react-hot-toast Toaster to keep previously configured toasts working */}
       <HotToaster />
       <GlobalLoader isLoading={isLoading} />
-      <AuthGuard redirectTo='/auth/sign-in'>
+      <AuthGuard>
         <AppSidebar variant='inset' collapsible='icon' />
         <SidebarInset className='min-w-0'>
           {showTrigger && <SidebarTrigger />}

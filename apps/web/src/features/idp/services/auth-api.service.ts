@@ -1,5 +1,6 @@
 import axios from 'axios';
 import type { AccessTokenResponse, AuthError, Projects, TokenPayload, User } from '../types';
+import { isSafePath, RedirectStorageService } from './redirect-storage.service';
 import { tokenPayloadToUser } from './auth.service.ts';
 
 /**
@@ -78,12 +79,22 @@ const authClient = axios.create({
  * Redirect to sign-in page
  * The sign-in page will handle authentication and set http-only cookies
  */
-export function signIn(): void {
-  const currentPath = window.location.pathname + window.location.search;
+export function signIn(options?: {
+  projectId?: string;
+  redirect?: string;
+  skipRedirectSave?: boolean;
+}): void {
+  const currentPath = window.location.pathname + window.location.search + window.location.hash;
   const signInUrl = new URL(AUTH_ENDPOINTS.SIGN_IN, window.location.origin);
+  const redirectTarget =
+    options?.redirect && isSafePath(options.redirect) ? options.redirect : currentPath;
 
-  if (!currentPath.startsWith('/auth/')) {
-    signInUrl.searchParams.set('redirect', currentPath);
+  if (!options?.skipRedirectSave) {
+    RedirectStorageService.save(redirectTarget);
+  }
+
+  if (options?.projectId) {
+    signInUrl.searchParams.set('projectId', options.projectId);
   }
 
   window.location.href = signInUrl.toString();
