@@ -4,7 +4,7 @@ Notification Settings let you control when and how your team gets notified about
 
 Each project has its own set of notification settings, one per notification type. Settings are created automatically the first time a run occurs in the project.
 
-![Notification settings table showing both notification types (Failed Runs, Successful Runs) with receivers avatars and enabled/disabled toggles](res/notification_settings_table_view.png)
+![Notification settings table showing both notification types (Failed Runs, Successful Runs) with receivers avatars and enabled/disabled toggles](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/cffe39ae-c32e-4a3e-2aa7-59130da57c00/public)
 
 ---
 
@@ -21,7 +21,7 @@ Each project has its own set of notification settings, one per notification type
 
 Click on a notification row to open its settings.
 
-![Notification settings drawer with the Receivers field highlighted, showing selected members](res/notification_settings_drawer_view.png)
+![Notification settings drawer with the Receivers field highlighted, showing selected members](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/3962d16d-86a4-4c96-3799-e00dfa62ba00/public)
 
 ### Enable / Disable
 
