@@ -1,16 +1,16 @@
 import type { RouteObject } from 'react-router-dom';
-import * as Pages from '../pages/oauth';
+import { TikTokCallback, MicrosoftCallback } from '../pages/oauth';
 
 export const oauthRoutes: RouteObject = {
   path: 'oauth',
   children: [
     {
       path: 'tiktok-ads/callback',
-      Component: Pages.TikTokCallback,
+      Component: TikTokCallback,
     },
     {
       path: 'microsoft-ads/callback',
-      Component: Pages.MicrosoftCallback,
+      Component: MicrosoftCallback,
     },
   ],
 };

@@ -1,8 +1,6 @@
+import { MicrosoftLoginButton } from '../../../../../../../shared/components/MicrosoftLoginButton';
+import type { MicrosoftLoginResponse } from '../../../../../../../shared/components/MicrosoftLoginButton';
 import type { OauthRenderComponentProps } from '../OauthRenderFactory';
-import {
-  MicrosoftLoginButton,
-  type MicrosoftLoginResponse,
-} from '../../../../../../../shared/components/MicrosoftLoginButton';
 
 export function MicrosoftOauthRender({
   isLoading,

@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@owox/ui/components/button';
+import { useOAuthPopup } from '../../hooks/useOAuthPopup';
 
 interface MicrosoftLoginButtonProps {
   clientId: string;
@@ -14,7 +14,7 @@ export interface MicrosoftLoginResponse {
   code: string;
 }
 
-export type MicrosoftAuthMessage =
+type MicrosoftAuthMessage =
   | { type: 'MICROSOFT_AUTH_SUCCESS'; code: string; state: string | null }
   | { type: 'MICROSOFT_AUTH_ERROR'; error: string };
 
@@ -44,153 +44,45 @@ export function MicrosoftLoginButton({
   disabled = false,
   children,
 }: MicrosoftLoginButtonProps) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const authCompletedRef = useRef(false);
-  const stateRef = useRef<string | null>(null);
-
-  const handleMessage = useCallback(
-    (event: MessageEvent<unknown>) => {
-      try {
-        const redirectOrigin = new URL(redirectUri).origin;
-        if (event.origin !== redirectOrigin && event.origin !== window.location.origin) {
-          return;
-        }
-      } catch {
-        if (event.origin !== window.location.origin) {
-          return;
-        }
-      }
-
-      const data = event.data;
-
-      if (!isMicrosoftAuthMessage(data)) {
-        return;
-      }
-
-      const cleanup = () => {
-        if (pollTimerRef.current) {
-          clearInterval(pollTimerRef.current);
-          pollTimerRef.current = null;
-        }
-        setIsLoading(false);
-      };
-
-      const handleAuthError = (errorMsg: string) => {
-        cleanup();
-        const err = new Error(errorMsg);
-        setError(err.message);
-        onError?.(err);
-      };
-
-      const handleAuthSuccess = (code: string) => {
-        cleanup();
-        setError(null);
-        stateRef.current = null;
-        onSuccess({ code });
-      };
-
-      if (data.type === 'MICROSOFT_AUTH_SUCCESS') {
-        if (authCompletedRef.current) return;
-
-        if (!data.state || data.state !== stateRef.current) {
-          console.error('State mismatch in LoginButton', {
-            received: data.state,
-            expected: stateRef.current,
-          });
-          handleAuthError('Security Error: OAuth State Mismatch');
-          return;
-        }
-
-        authCompletedRef.current = true;
-        handleAuthSuccess(data.code);
-      } else {
-        handleAuthError(data.error);
-      }
+  const { openPopup, isLoading, error } = useOAuthPopup<
+    MicrosoftLoginResponse,
+    MicrosoftAuthMessage
+  >({
+    redirectUri,
+    buildAuthUrl: (state: string) => {
+      const url = new URL(MICROSOFT_AUTH_URL);
+      url.searchParams.set('client_id', clientId);
+      url.searchParams.set('response_type', 'code');
+      url.searchParams.set('redirect_uri', redirectUri);
+      url.searchParams.set('response_mode', 'query');
+      url.searchParams.set('scope', SCOPES);
+      url.searchParams.set('state', state);
+      url.searchParams.set('prompt', 'select_account');
+      return url.toString();
     },
-    [redirectUri, onSuccess, onError]
-  );
-
-  useEffect(() => {
-    window.addEventListener('message', handleMessage);
-    return () => {
-      window.removeEventListener('message', handleMessage);
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
+    onSuccess,
+    onError,
+    isAuthMessage: isMicrosoftAuthMessage,
+    getSuccessResponse: (msg: MicrosoftAuthMessage) => {
+      if (msg.type === 'MICROSOFT_AUTH_SUCCESS') {
+        return { code: msg.code };
       }
-    };
-  }, [handleMessage]);
-
-  const buildAuthUrl = (state: string) => {
-    const url = new URL(MICROSOFT_AUTH_URL);
-    url.searchParams.set('client_id', clientId);
-    url.searchParams.set('response_type', 'code');
-    url.searchParams.set('redirect_uri', redirectUri);
-    url.searchParams.set('response_mode', 'query');
-    url.searchParams.set('scope', SCOPES);
-    url.searchParams.set('state', state);
-    url.searchParams.set('prompt', 'select_account'); //?
-    return url.toString();
-  };
-
-  const openCenteredPopup = (url: string, title: string) => {
-    const width = 600;
-    const height = 700;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
-    return window.open(
-      url,
-      title,
-      `width=${String(width)},height=${String(height)},left=${String(left)},top=${String(top)},scrollbars=yes,resizable=yes`
-    );
-  };
-
-  const setupOAuthWindowPolling = (popup: Window) => {
-    if (pollTimerRef.current) {
-      clearInterval(pollTimerRef.current);
-    }
-    pollTimerRef.current = setInterval(() => {
-      if (popup.closed) {
-        if (pollTimerRef.current) {
-          clearInterval(pollTimerRef.current);
-          pollTimerRef.current = null;
-        }
-        setIsLoading(false);
-        if (!authCompletedRef.current) {
-          stateRef.current = null;
-        }
+      throw new Error('Invalid response');
+    },
+    getErrorMessage: (msg: MicrosoftAuthMessage) => {
+      if (msg.type === 'MICROSOFT_AUTH_ERROR') {
+        return msg.error;
       }
-    }, 500);
-  };
+      return 'Unknown error';
+    },
+  });
 
   const handleLogin = () => {
     if (!clientId || !redirectUri) {
-      const err = new Error('Microsoft OAuth configuration is incomplete');
-      setError(err.message);
-      onError?.(err);
+      onError?.(new Error('Microsoft OAuth configuration is incomplete'));
       return;
     }
-
-    setIsLoading(true);
-    setError(null);
-    authCompletedRef.current = false;
-
-    const state = crypto.randomUUID();
-    stateRef.current = state;
-
-    const popup = openCenteredPopup(buildAuthUrl(state), 'Microsoft OAuth');
-
-    if (!popup) {
-      setIsLoading(false);
-      const err = new Error('Failed to open popup window. Please allow popups for this site.');
-      setError(err.message);
-      onError?.(err);
-      return;
-    }
-
-    setupOAuthWindowPolling(popup);
+    openPopup();
   };
 
   const isDisabled = disabled || isLoading || !clientId || !redirectUri;
