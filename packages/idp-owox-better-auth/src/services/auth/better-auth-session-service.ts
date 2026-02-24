@@ -5,12 +5,9 @@ import { createServiceLogger } from '../../core/logger.js';
 import { buildUserInfoPayload } from '../../mappers/user-info-payload-builder.js';
 import type { DatabaseStore } from '../../store/database-store.js';
 import { AuthSession } from '../../types/auth-session.js';
-import {
-  resolveAccountForUser,
-  resolveProviderFromLoginMethod,
-} from '../../utils/account-resolver.js';
 import { convertExpressHeaders } from '../../utils/express-compat.js';
 import { getStateManager } from '../../utils/request-utils.js';
+import { UserAccountResolver } from '../core/user-account-resolver.js';
 import { PlatformAuthFlowClient, type UserInfoPayload } from './platform-auth-flow-client.js';
 
 /**
@@ -24,26 +21,24 @@ export class BetterAuthSessionService {
   constructor(
     private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
     private readonly store: DatabaseStore,
-    private readonly platformAuthFlowClient: PlatformAuthFlowClient
+    private readonly platformAuthFlowClient: PlatformAuthFlowClient,
+    private readonly userAccountResolver: UserAccountResolver
   ) {}
 
   async buildUserInfoPayload(req: Request): Promise<UserInfoPayload> {
     const stateManager = getStateManager(req);
     const session = await this.getSession(req);
     if (session?.user) {
-      const dbUser = await this.store.getUserById(session.user.id);
-      if (!dbUser) {
-        throw new Error(`User not found in DB for session ${session.user.id}`);
+      const userAccountPair = await this.userAccountResolver.resolveByUserId(
+        session.user.id
+        // No preferredLoginMethod - resolver will use lastLoginMethod -> firstLoginMethod -> fallback
+      );
+
+      if (!userAccountPair) {
+        throw new Error(`User or account not found for session ${session.user.id}`);
       }
 
-      const account = await resolveAccountForUser(
-        this.store,
-        session.user.id,
-        dbUser.lastLoginMethod
-      );
-      if (!account) {
-        throw new Error(`No account found for user ${session.user.id}`);
-      }
+      const { user: dbUser, account } = userAccountPair;
 
       return buildUserInfoPayload({
         state: stateManager.extract(),
@@ -62,10 +57,6 @@ export class BetterAuthSessionService {
       userId: payload.userInfo.uid,
     });
     const result = await this.platformAuthFlowClient.completeAuthFlow(payload);
-    const session = await this.getSession(req);
-    if (session?.user?.id) {
-      await this.tryPersistLastLoginMethod(session.user.id, payload.userInfo.signinProvider);
-    }
     this.logger.info('OWOX client completed auth flow', { hasCode: Boolean(result.code) });
     return { code: result.code, payload };
   }
@@ -92,16 +83,21 @@ export class BetterAuthSessionService {
       throw new Error('Failed to resolve session from Better Auth token');
     }
 
-    const dbUser = await this.store.getUserById(session.user.id);
-    if (!dbUser) {
-      throw new Error(`User not found in DB for session ${session.user.id}`);
+    this.logger.info('⚠️ Better Auth session', {
+      session,
+    });
+
+    // Use callbackProviderId as preferredLoginMethod (e.g., 'google', 'github')
+    const userAccountPair = await this.userAccountResolver.resolveByUserId(
+      session.user.id,
+      callbackProviderId
+    );
+
+    if (!userAccountPair) {
+      throw new Error(`User or account not found for session ${session.user.id}`);
     }
 
-    const loginMethod = callbackProviderId || dbUser.lastLoginMethod;
-    const account = await resolveAccountForUser(this.store, session.user.id, loginMethod);
-    if (!account) {
-      throw new Error(`No account found for user ${session.user.id}`);
-    }
+    const { user: dbUser, account } = userAccountPair;
 
     const payload: UserInfoPayload = buildUserInfoPayload({
       state,
@@ -115,7 +111,6 @@ export class BetterAuthSessionService {
       provider: account.providerId,
     });
     const result = await this.platformAuthFlowClient.completeAuthFlow(payload);
-    await this.tryPersistLastLoginMethod(dbUser.id, account.providerId);
     this.logger.info('OWOX client completed auth flow with session token', {
       hasCode: Boolean(result.code),
     });
@@ -147,6 +142,10 @@ export class BetterAuthSessionService {
         return null;
       }
 
+      this.logger.info('⚠️ Better Auth session (getSession)', {
+        session,
+      });
+
       return {
         user: {
           id: session.user.id,
@@ -167,23 +166,6 @@ export class BetterAuthSessionService {
         error instanceof Error ? error : undefined
       );
       throw new Error('Failed to get Better Auth session');
-    }
-  }
-
-  private async tryPersistLastLoginMethod(userId: string, providerId: string): Promise<void> {
-    const method = resolveProviderFromLoginMethod(providerId) ?? providerId?.trim().toLowerCase();
-    if (!method) return;
-    try {
-      await this.store.updateUserLastLoginMethod(userId, method);
-    } catch (error) {
-      this.logger.warn(
-        'Failed to persist lastLoginMethod after successful authorization',
-        {
-          userId,
-          method,
-        },
-        error instanceof Error ? error : undefined
-      );
     }
   }
 }

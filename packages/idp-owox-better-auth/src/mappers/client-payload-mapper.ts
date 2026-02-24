@@ -5,6 +5,7 @@ const IdpOwoxToPayloadSchema = IdpOwoxPayloadSchema.transform((src: IdpOwoxPaylo
   userId: src.userId,
   projectId: src.projectId,
   email: src.userEmail,
+  signinProvider: src.signinProvider ?? undefined,
   fullName: src.userFullName,
   avatar: src.userAvatar ?? undefined,
   roles: src.roles,

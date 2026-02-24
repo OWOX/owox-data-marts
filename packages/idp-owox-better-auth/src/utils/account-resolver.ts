@@ -8,7 +8,11 @@ const CREDENTIAL_PROVIDER_ID = 'credential';
 const CREDENTIAL_LOGIN_METHODS = new Set(['email', 'email-password']);
 
 /**
- * Maps Better Auth last-login method to providerId used in account records.
+ * @deprecated Use UserAccountResolver.resolveAccountForUser() instead.
+ * This function is kept for backward compatibility but will be removed in a future version.
+ *
+ * Maps Better Auth login method (firstLoginMethod from DB or signinProvider from token)
+ * to providerId used in account records.
  */
 export function resolveProviderFromLoginMethod(
   loginMethod: string | null | undefined
@@ -21,7 +25,17 @@ export function resolveProviderFromLoginMethod(
 }
 
 /**
- * Resolves the best account for a user, preferring their last-login provider.
+ * @deprecated Use UserAccountResolver service instead. Import from '../services/core/user-account-resolver.js'
+ * and use resolveByUserId() or resolveByEmail() methods which provide better priority logic:
+ * 1. Preferred login method (parameter)
+ * 2. user.lastLoginMethod
+ * 3. user.firstLoginMethod
+ * 4. Fallback to getAccountByUserId()
+ *
+ * This function is kept for backward compatibility but will be removed in a future version.
+ *
+ * Resolves the best account for a user, preferring the provided login method
+ * (typically signinProvider from token or firstLoginMethod from DB).
  * Falls back to the latest account if the preferred provider is unavailable.
  */
 export async function resolveAccountForUser(
@@ -36,7 +50,7 @@ export async function resolveAccountForUser(
     if (preferredAccount) {
       return preferredAccount;
     }
-    logger.warn('Account for last-login provider not found, falling back to latest account', {
+    logger.warn('Account for preferred provider not found, falling back to latest account', {
       userId,
       preferredProvider,
     });

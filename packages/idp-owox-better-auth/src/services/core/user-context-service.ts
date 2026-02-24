@@ -2,10 +2,9 @@ import { Payload } from '@owox/idp-protocol';
 import { AuthenticationException } from '../../core/exceptions.js';
 import { createServiceLogger } from '../../core/logger.js';
 import { OwoxTokenFacade } from '../../facades/owox-token-facade.js';
-import type { DatabaseStore } from '../../store/database-store.js';
 import type { DatabaseAccount, DatabaseUser } from '../../types/index.js';
-import { resolveAccountForUser } from '../../utils/account-resolver.js';
 import { maskEmail, normalizeEmail } from '../../utils/email-utils.js';
+import { UserAccountResolver } from './user-account-resolver.js';
 
 export interface UserContext {
   payload: Payload;
@@ -21,7 +20,7 @@ export class UserContextService {
   private readonly logger = createServiceLogger(UserContextService.name);
 
   constructor(
-    private readonly store: DatabaseStore,
+    private readonly userAccountResolver: UserAccountResolver,
     private readonly tokenFacade: OwoxTokenFacade
   ) {}
 
@@ -40,12 +39,24 @@ export class UserContextService {
     }
     const normalizedEmail = normalized;
 
-    const user = await this.store.getUserByEmail(normalizedEmail);
-    if (!user) {
+    // Use preferredLoginMethod from payload.signinProvider if available
+    const preferredLoginMethod =
+      typeof payload.signinProvider === 'string' && payload.signinProvider.length > 0
+        ? payload.signinProvider
+        : undefined;
+
+    const userAccountPair = await this.userAccountResolver.resolveByEmail(
+      normalizedEmail,
+      preferredLoginMethod
+    );
+
+    if (!userAccountPair) {
       throw new AuthenticationException('User not found in Better Auth DB', {
         context: { email: maskEmail(normalizedEmail) },
       });
     }
+
+    const { user, account } = userAccountPair;
 
     if (user.emailVerified !== true) {
       throw new AuthenticationException('User email is not verified in Better Auth DB', {
@@ -54,13 +65,6 @@ export class UserContextService {
           userId: user.id,
           emailVerified: user.emailVerified,
         },
-      });
-    }
-
-    const account = await resolveAccountForUser(this.store, user.id, user.lastLoginMethod);
-    if (!account) {
-      throw new AuthenticationException('Account not found for user', {
-        context: { userId: user.id, email: maskEmail(normalizedEmail) },
       });
     }
 

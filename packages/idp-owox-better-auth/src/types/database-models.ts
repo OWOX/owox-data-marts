@@ -8,6 +8,8 @@ export interface DatabaseUser {
   name?: string;
   image?: string | null;
   lastLoginMethod?: string;
+  firstLoginMethod?: string;
+  biUserId?: string;
   createdAt?: string;
 }
 

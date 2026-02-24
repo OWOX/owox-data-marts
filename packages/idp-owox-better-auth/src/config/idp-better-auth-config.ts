@@ -98,6 +98,16 @@ export async function createBetterAuthConfig(
           required: false,
           input: false,
         },
+        firstLoginMethod: {
+          type: 'string',
+          required: false,
+          input: false,
+        },
+        biUserId: {
+          type: 'string',
+          required: false,
+          input: false,
+        },
       },
     },
     advanced: {

@@ -18,6 +18,7 @@ export const PayloadSchema = z
     avatar: z.string().url().optional(),
     roles: z.array(RoleEnum).nonempty().optional(),
     projectTitle: z.string().optional(),
+    signinProvider: z.string().optional(),
   })
   .passthrough();
 
