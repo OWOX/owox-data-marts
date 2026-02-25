@@ -83,7 +83,11 @@ const FormItemContext = React.createContext<FormItemContextValue>({} as FormItem
 /**
  * FormItem with custom styles for field container.
  */
-function FormItem({ className = '', ...props }: React.ComponentProps<'div'>) {
+interface FormItemProps extends React.ComponentProps<'div'> {
+  variant?: 'default' | 'light';
+}
+
+function FormItem({ className = '', variant = 'default', ...props }: FormItemProps) {
   const id = React.useId();
 
   return (
@@ -91,7 +95,9 @@ function FormItem({ className = '', ...props }: React.ComponentProps<'div'>) {
       <div
         data-slot='form-item'
         className={cn(
-          'group border-border flex flex-col gap-2 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-transparent dark:bg-white/4',
+          variant === 'default' &&
+            'group border-border flex flex-col gap-2 rounded-md border-b bg-white px-4 py-3 transition-shadow duration-200 hover:shadow-sm dark:border-transparent dark:bg-white/4',
+          variant === 'light' && '',
           className
         )}
         {...props}
@@ -240,10 +246,14 @@ function FormActions({
 }: {
   className?: string;
   children: React.ReactNode;
-  variant?: 'default' | 'light';
+  variant?: 'default' | 'light' | 'inline';
 }) {
   const wrapperClass =
-    variant === 'light' ? 'flex flex-col gap-1.5 pt-4' : 'flex flex-col gap-1.5 border-t px-4 py-3';
+    variant === 'inline'
+      ? 'flex items-center justify-between gap-2 border-t px-4 py-3'
+      : variant === 'light'
+        ? 'flex flex-col gap-1.5 pt-4'
+        : 'flex flex-col gap-1.5 border-t px-4 py-3';
 
   return <div className={cn(wrapperClass, className)}>{children}</div>;
 }
