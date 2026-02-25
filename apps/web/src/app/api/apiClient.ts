@@ -88,13 +88,13 @@ apiClient.interceptors.response.use(
         originalRequest.headers['X-OWOX-Authorization'] = `Bearer ${newAccessToken}`;
 
         return await apiClient(originalRequest);
-      } catch (refreshError) {
+      } catch (error) {
         authStateManager.clear();
 
         window.dispatchEvent(
           new CustomEvent('auth:logout', {
             detail: {
-              reason: isBlockedUserError(refreshError) ? 'user_blocked' : 'token_refresh_failed',
+              reason: isBlockedUserError(error) ? 'user_blocked' : 'token_refresh_failed',
             },
           })
         );
