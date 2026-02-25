@@ -23,6 +23,8 @@ import { BetterAuthSessionService } from './services/auth/better-auth-session-se
 import { MagicLinkService } from './services/auth/magic-link-service.js';
 import { PkceFlowOrchestrator } from './services/auth/pkce-flow-orchestrator.js';
 import { PlatformAuthFlowClient } from './services/auth/platform-auth-flow-client.js';
+import { UserAuthInfoPersistenceService } from './services/core/user-auth-info-persistence-service.js';
+import { UserAccountResolver } from './services/core/user-account-resolver.js';
 import { UserContextService } from './services/core/user-context-service.js';
 import { EmailValidationService } from './services/email/email-validation-service.js';
 import { MagicLinkEmailService } from './services/email/magic-link-email-service.js';
@@ -56,6 +58,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   private readonly log = createServiceLogger(OwoxBetterAuthIdp.name);
   private readonly tokenFacade: OwoxTokenFacade;
   private readonly userContextService: UserContextService;
+  private readonly userAuthInfoPersistenceService: UserAuthInfoPersistenceService;
   private readonly platformAuthFlowClient: PlatformAuthFlowClient;
   private readonly pkceFlowOrchestrator: PkceFlowOrchestrator;
 
@@ -74,13 +77,22 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       this.config.idpOwox,
       CORE_REFRESH_TOKEN_COOKIE
     );
-    this.userContextService = new UserContextService(this.store, this.tokenFacade);
+
+    // Create UserAccountResolver to be shared between services
+    const userAccountResolver = new UserAccountResolver(this.store);
+
+    this.userContextService = new UserContextService(userAccountResolver, this.tokenFacade);
+    this.userAuthInfoPersistenceService = new UserAuthInfoPersistenceService(
+      this.store,
+      this.tokenFacade
+    );
     this.platformAuthFlowClient = new PlatformAuthFlowClient(this.identityClient);
 
     this.betterAuthSessionService = new BetterAuthSessionService(
       this.auth,
       this.store,
-      this.platformAuthFlowClient
+      this.platformAuthFlowClient,
+      userAccountResolver
     );
     this.pkceFlowOrchestrator = new PkceFlowOrchestrator(
       this.config.idpOwox,
@@ -185,6 +197,9 @@ export class OwoxBetterAuthIdp implements IdpProvider {
 
       try {
         const response: TokenResponse = await this.tokenFacade.changeAuthCode(code, state);
+
+        await this.userAuthInfoPersistenceService.persistAuthInfo(response.accessToken);
+
         this.tokenFacade.setTokenToCookie(
           res,
           req,

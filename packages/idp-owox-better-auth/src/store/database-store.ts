@@ -30,6 +30,18 @@ export interface DatabaseStore {
   updateUserLastLoginMethod(userId: string, loginMethod: string): Promise<void>;
 
   /**
+   * Updates the user's first login method if not already set.
+   * This should only be called once per user during initial authentication.
+   */
+  updateUserFirstLoginMethod(userId: string, loginMethod: string): Promise<void>;
+
+  /**
+   * Updates the user's BI user ID if not already set.
+   * This should only be called once per user during initial authentication.
+   */
+  updateUserBiUserId(userId: string, biUserId: string): Promise<void>;
+
+  /**
    * Returns active (non-expired) magic-link verification entry for the email, if any.
    */
   findActiveMagicLink(

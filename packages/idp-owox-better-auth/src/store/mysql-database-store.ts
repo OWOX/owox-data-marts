@@ -98,6 +98,8 @@ export class MysqlDatabaseStore implements DatabaseStore {
 
   private mapUser(row: Record<string, unknown>): DatabaseUser {
     const lastLoginMethod = row.lastLoginMethod ?? row.last_login_method;
+    const firstLoginMethod = row.firstLoginMethod ?? row.first_login_method;
+    const biUserId = row.biUserId ?? row.bi_user_id;
     return {
       id: String(row.id),
       email: String(row.email),
@@ -105,6 +107,8 @@ export class MysqlDatabaseStore implements DatabaseStore {
       name: row.name != null ? String(row.name) : undefined,
       image: row.image != null ? String(row.image) : null,
       lastLoginMethod: lastLoginMethod != null ? String(lastLoginMethod) : undefined,
+      firstLoginMethod: firstLoginMethod != null ? String(firstLoginMethod) : undefined,
+      biUserId: biUserId != null ? String(biUserId) : undefined,
       createdAt: this.toIso(row.createdAt),
     };
   }
@@ -198,6 +202,22 @@ export class MysqlDatabaseStore implements DatabaseStore {
   async updateUserLastLoginMethod(userId: string, loginMethod: string): Promise<void> {
     const pool = await this.getPool();
     await pool.execute('UPDATE user SET lastLoginMethod = ? WHERE id = ?', [loginMethod, userId]);
+  }
+
+  async updateUserFirstLoginMethod(userId: string, loginMethod: string): Promise<void> {
+    const pool = await this.getPool();
+    await pool.execute(
+      'UPDATE user SET firstLoginMethod = ? WHERE id = ? AND firstLoginMethod IS NULL',
+      [loginMethod, userId]
+    );
+  }
+
+  async updateUserBiUserId(userId: string, biUserId: string): Promise<void> {
+    const pool = await this.getPool();
+    await pool.execute('UPDATE user SET biUserId = ? WHERE id = ? AND biUserId IS NULL', [
+      biUserId,
+      userId,
+    ]);
   }
 
   async saveAuthState(state: string, codeVerifier: string, expiresAt?: Date | null): Promise<void> {

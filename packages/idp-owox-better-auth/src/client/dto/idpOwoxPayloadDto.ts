@@ -28,6 +28,7 @@ export const IdpOwoxPayloadSchema = z
         .transform(arr => Array.from(new Set(arr)))
     ),
     projectTitle: z.string().min(1, 'projectTitle is required'),
+    signinProvider: z.string().optional().nullable(),
   })
   .passthrough();
 
