@@ -34,7 +34,7 @@ export const emailFooter = `
                   </td>
                   <td style="vertical-align:middle;text-align:right;font-size:13px;color:#6b7280;">
                     Need help?
-                    <a href="https://docs.owox.com/?utm_source=notifications&utm_medium=email&utm_campaign=service_notifications" target="_blank" rel="noopener noreferrer" style="color:#1E88E5;text-decoration:none;">Visit docs.owox.com</a>
+                    <a href="https://docs.owox.com/docs/notifications/notification-settings/?utm_source=notifications&utm_medium=email&utm_campaign=service_notifications" target="_blank" rel="noopener noreferrer" style="color:#1E88E5;text-decoration:none;">Visit docs.owox.com</a>
                   </td>
                 </tr>
               </table>

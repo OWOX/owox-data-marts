@@ -20,7 +20,7 @@ An email is sent when:
 
 The email contains a summary of all matching runs grouped by Data Mart.
 
-![Example "Failed runs" email showing the email subject, project name, and a list of Data Marts with their failed runs and error messages](res/notification_email_failed_example.png)
+![Example "Failed runs" email showing the email subject, project name, and a list of Data Marts with their failed runs and error messages](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/928fd39b-352f-47b2-f39b-6a90e2315100/public)
 
 For **Failed runs** emails, each Data Mart section shows:
 
@@ -28,7 +28,7 @@ For **Failed runs** emails, each Data Mart section shows:
 - Run timestamp and duration
 - Error message(s) that caused the failure
 
-![Example "Successful runs" email showing the email subject, project name, and a list of Data Marts with their successful runs](res/notification_email_success_example.png)
+![Example "Successful runs" email showing the email subject, project name, and a list of Data Marts with their successful runs](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/e118d72a-cfc5-4738-3ce7-b5d2ac9df000/public)
 
 For **Successful runs** emails, each Data Mart section shows:
 
