@@ -18,7 +18,7 @@ const DataMartTableWithContext = () => {
   const hasDraftWithLegacyStorage = items.some(
     item =>
       item.status.code === DataMartStatus.DRAFT &&
-      item.storageType === DataStorageType.GOOGLE_BIGQUERY
+      item.storageType === DataStorageType.LEGACY_GOOGLE_BIGQUERY
   );
 
   useEffect(() => {
