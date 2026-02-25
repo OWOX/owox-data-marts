@@ -22,6 +22,11 @@ export interface PlatformParams {
 
 const STATE_COOKIE = 'idp-owox-state';
 const PLATFORM_PARAMS_COOKIE = 'idp-owox-params';
+const PROJECT_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
+function normalizeProjectId(value: string | undefined): string | undefined {
+  return value && PROJECT_ID_PATTERN.test(value) ? value : undefined;
+}
 
 /**
  * Centralized state handling with single-source validation.
@@ -176,6 +181,10 @@ export function hasStateMismatch(req: Request): boolean {
  */
 export function extractPlatformParams(req: Request): PlatformParams {
   const cookiePayload = getCookie(req, PLATFORM_PARAMS_COOKIE);
+  const projectId = normalizeProjectId(
+    typeof req.query?.projectId === 'string' ? req.query.projectId : undefined
+  );
+
   if (cookiePayload) {
     try {
       const parsed = JSON.parse(decodeURIComponent(cookiePayload)) as Record<
@@ -188,7 +197,7 @@ export function extractPlatformParams(req: Request): PlatformParams {
         source: parsed.source,
         clientId: parsed.clientId,
         codeChallenge: parsed.codeChallenge,
-        projectId: parsed.projectId,
+        projectId: projectId || parsed.projectId,
       };
     } catch {
       // ignore malformed cookie
@@ -208,7 +217,6 @@ export function extractPlatformParams(req: Request): PlatformParams {
     (typeof req.query?.codeChallenge === 'string' && req.query.codeChallenge) ||
     (typeof req.query?.codechallenge === 'string' && req.query.codechallenge) ||
     undefined;
-  const projectId = typeof req.query?.projectId === 'string' ? req.query.projectId : undefined;
 
   return { redirectTo, appRedirectTo, source, clientId, codeChallenge, projectId };
 }

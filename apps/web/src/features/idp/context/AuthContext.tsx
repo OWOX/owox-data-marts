@@ -9,6 +9,7 @@ import {
   RedirectStorageService,
   isBlockedUserError,
 } from '../services';
+import { getProjectIdFromPath } from '../utils/project-id';
 import {
   setTokenProvider,
   clearTokenProvider,
@@ -122,7 +123,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * Redirect to sign-in page
    */
   const signIn = useCallback(() => {
-    signInApi();
+    const currentPath = window.location.pathname;
+    const projectId = getProjectIdFromPath(currentPath);
+    signInApi(projectId ? { projectId } : undefined);
   }, []);
 
   async function refresh(): Promise<{ accessToken: string; user: User }> {
@@ -192,9 +195,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
           const currentPath =
             window.location.pathname + window.location.search + window.location.hash;
           if (currentPath !== storedRedirect) {
-            const extractProjectId = (path: string) => /^\/ui\/([^/]+)/.exec(path)?.[1] ?? null;
-            const storedProjectId = extractProjectId(storedRedirect);
-            const currentUrlProjectId = extractProjectId(currentPath);
+            const storedProjectId = getProjectIdFromPath(storedRedirect);
+            const currentUrlProjectId = getProjectIdFromPath(currentPath);
 
             if (!storedProjectId || storedProjectId === user.projectId) {
               window.location.replace(storedRedirect);

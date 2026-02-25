@@ -40,6 +40,7 @@ import {
   extractPlatformParams,
   extractRefreshToken,
   getStateManager,
+  persistPlatformParams,
 } from './utils/request-utils.js';
 
 /**
@@ -207,6 +208,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
           response.refreshTokenExpiresIn
         );
 
+        clearPlatformCookies(res, req);
         res.redirect('/');
       } catch (error: unknown) {
         if (error instanceof AuthenticationException) {
@@ -432,9 +434,17 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     authUrl: string
   ): Promise<void | e.Response> {
     const params = extractPlatformParams(req);
+    const enhancedParams = {
+      ...params,
+      appRedirectTo:
+        params.projectId && !params.appRedirectTo
+          ? `/auth/idp-start?projectId=${encodeURIComponent(params.projectId)}`
+          : params.appRedirectTo,
+    };
+    persistPlatformParams(req, res, enhancedParams);
     const platformUrl = buildPlatformEntryUrl({
       authUrl,
-      params,
+      params: enhancedParams,
       defaultSource: SOURCE.APP,
       allowedRedirectOrigins: this.config.idpOwox.idpConfig.allowedRedirectOrigins,
     });

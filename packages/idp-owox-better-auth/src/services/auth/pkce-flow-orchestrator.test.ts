@@ -99,8 +99,7 @@ describe('PkceFlowOrchestrator', () => {
       tokenFacade,
       userContextService,
       platformAuthFlowClient,
-      betterAuthSessionService,
-      logger
+      betterAuthSessionService
     );
   });
 
