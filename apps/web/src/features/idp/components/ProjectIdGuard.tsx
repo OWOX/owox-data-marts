@@ -1,7 +1,8 @@
-import React, { useEffect, useRef } from 'react';
-import { useLocation, useParams } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { useAuthState, useUser } from '../hooks';
 import { signIn } from '../services';
+import { FullScreenLoader } from '@owox/ui/components/common/loading-spinner';
 
 /**
  * A React component that acts as a guard to ensure the user is accessing the correct project ID,
@@ -15,26 +16,20 @@ import { signIn } from '../services';
 export function ProjectIdGuard({ children }: { children: React.ReactNode }): React.ReactElement {
   const { isLoading } = useAuthState();
   const user = useUser();
-  const params = useParams<{ projectId?: string }>();
-  const location = useLocation();
-  const hasRedirected = useRef(false);
+  const { projectId: urlProjectId } = useParams<{ projectId?: string }>();
+
+  const userProjectId = user?.projectId;
+
+  const hasMismatch =
+    !isLoading && !!urlProjectId && !!userProjectId && userProjectId !== urlProjectId;
 
   useEffect(() => {
-    if (isLoading) return;
-    if (hasRedirected.current) return;
-
-    const urlProjectId = params.projectId;
-    const userProjectId = user?.projectId;
-
-    if (!urlProjectId) return;
-
-    if (location.pathname.startsWith('/auth/')) return;
-
-    if (user && userProjectId && userProjectId !== urlProjectId) {
-      hasRedirected.current = true;
+    if (hasMismatch) {
       signIn({ projectId: urlProjectId });
     }
-  }, [isLoading, user, params.projectId, location.pathname]);
+  }, [hasMismatch, urlProjectId]);
+
+  if (isLoading || hasMismatch) return <FullScreenLoader />;
 
   return <>{children}</>;
 }
