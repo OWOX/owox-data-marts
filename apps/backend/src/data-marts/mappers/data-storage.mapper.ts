@@ -64,7 +64,6 @@ export class DataStorageMapper {
       dataStorage.title || toHumanReadable(dataStorage.type),
       dataStorage.type,
       dataStorage.projectId,
-      dataStorage.credentials,
       dataStorage.config,
       dataStorage.createdAt,
       dataStorage.modifiedAt,
@@ -93,11 +92,6 @@ export class DataStorageMapper {
         );
       }
       // For OAuth credentials, publicCredentials stays undefined — the frontend uses the OAuth status endpoint
-    } else {
-      publicCredentials = this.credentialsUtils.getPublicCredentials(
-        dataStorageDto.type,
-        dataStorageDto.credentials
-      );
     }
 
     return {

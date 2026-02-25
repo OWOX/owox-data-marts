@@ -42,14 +42,6 @@ export class ValidateDataStorageAccessService {
       }
     }
 
-    if (!dataStorage.credentials) {
-      return { valid: false, errorMessage: 'Storage setup is incomplete' };
-    }
-
-    return await this.dataStorageValidationFacade.validateAccess(
-      dataStorage.type,
-      dataStorage.config,
-      dataStorage.credentials
-    );
+    return { valid: false, errorMessage: 'Storage setup is incomplete' };
   }
 }

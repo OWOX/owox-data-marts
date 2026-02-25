@@ -9,6 +9,7 @@ import { GoogleSheetsCredentialsSchema } from '../schemas/google-sheets-credenti
 import { GoogleSheetsConfigSchema } from '../schemas/google-sheets-config.schema';
 import { DataDestination } from '../../../entities/data-destination.entity';
 import { GoogleSheetsApiAdapterFactory } from '../adapters/google-sheets-api-adapter.factory';
+import { DataDestinationCredentialsResolver } from '../../data-destination-credentials-resolver.service';
 
 /**
  * Validator for Google Sheets access
@@ -19,7 +20,10 @@ export class GoogleSheetsAccessValidator implements DataDestinationAccessValidat
   private readonly logger = new Logger(GoogleSheetsAccessValidator.name);
   readonly type = DataDestinationType.GOOGLE_SHEETS;
 
-  constructor(private readonly adapterFactory: GoogleSheetsApiAdapterFactory) {}
+  constructor(
+    private readonly adapterFactory: GoogleSheetsApiAdapterFactory,
+    private readonly credentialsResolver: DataDestinationCredentialsResolver
+  ) {}
 
   /**
    * Validates access to a Google Sheets destination
@@ -32,9 +36,14 @@ export class GoogleSheetsAccessValidator implements DataDestinationAccessValidat
     destinationConfig: DataDestinationConfig,
     dataDestination: DataDestination
   ): Promise<ValidationResult> {
-    const credentials = dataDestination.credentials;
+    let resolvedCredentials;
+    try {
+      resolvedCredentials = await this.credentialsResolver.resolve(dataDestination);
+    } catch {
+      return new ValidationResult(false, 'Credentials are not configured');
+    }
 
-    const credentialsOpt = GoogleSheetsCredentialsSchema.safeParse(credentials);
+    const credentialsOpt = GoogleSheetsCredentialsSchema.safeParse(resolvedCredentials);
     if (!credentialsOpt.success) {
       this.logger.warn('Invalid credentials format', credentialsOpt.error);
       return new ValidationResult(false, 'Invalid credentials', {

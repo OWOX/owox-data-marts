@@ -7,7 +7,6 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
-import { DataDestinationCredentials } from '../data-destination-types/data-destination-credentials.type';
 
 @Entity()
 export class DataDestination {
@@ -22,9 +21,6 @@ export class DataDestination {
 
   @Column()
   projectId: string;
-
-  @Column({ type: 'json', nullable: true })
-  credentials?: DataDestinationCredentials;
 
   @Column({ type: 'varchar', nullable: true })
   credentialId?: string | null;

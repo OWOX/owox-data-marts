@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { DataDestination } from '../../../entities/data-destination.entity';
 import { DataDestinationConfig } from '../../data-destination-config.type';
+import { DataDestinationCredentialsResolver } from '../../data-destination-credentials-resolver.service';
 import { DataDestinationType } from '../../enums/data-destination-type.enum';
 import {
   DataDestinationAccessValidator,
@@ -15,11 +16,18 @@ export class LookerStudioConnectorAccessValidator implements DataDestinationAcce
   private readonly logger = new Logger(LookerStudioConnectorAccessValidator.name);
   readonly type = DataDestinationType.LOOKER_STUDIO;
 
+  constructor(private readonly credentialsResolver: DataDestinationCredentialsResolver) {}
+
   async validate(
     destinationConfig: DataDestinationConfig,
     dataDestination: DataDestination
   ): Promise<ValidationResult> {
-    const credentials = dataDestination.credentials;
+    let credentials;
+    try {
+      credentials = await this.credentialsResolver.resolve(dataDestination);
+    } catch {
+      return new ValidationResult(false, 'Credentials are not configured');
+    }
 
     const credentialsOpt = LookerStudioConnectorCredentialsSchema.safeParse(credentials);
     if (!credentialsOpt.success) {

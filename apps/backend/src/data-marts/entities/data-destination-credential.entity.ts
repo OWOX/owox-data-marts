@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { DestinationCredentialType } from '../enums/destination-credential-type.enum';
 import type { CredentialIdentity } from '../entities/credential-identity.type';
+import { DataDestinationCredentials } from '../data-destination-types/data-destination-credentials.type';
 
 @Entity('data_destination_credentials')
 export class DataDestinationCredential {
@@ -24,7 +25,7 @@ export class DataDestinationCredential {
   type: DestinationCredentialType;
 
   @Column({ type: 'json' })
-  credentials: Record<string, unknown>;
+  credentials: DataDestinationCredentials;
 
   @Column({ type: 'json', nullable: true })
   identity?: CredentialIdentity | null;

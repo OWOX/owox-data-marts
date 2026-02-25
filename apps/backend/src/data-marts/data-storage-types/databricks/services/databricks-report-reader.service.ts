@@ -19,6 +19,7 @@ import {
   DatabricksReaderState,
   isDatabricksReaderState,
 } from '../interfaces/databricks-reader-state.interface';
+import { DataStorageCredentialsResolver } from '../../data-storage-credentials-resolver.service';
 
 @Injectable({ scope: Scope.TRANSIENT })
 export class DatabricksReportReader implements DataStorageReportReader {
@@ -35,7 +36,8 @@ export class DatabricksReportReader implements DataStorageReportReader {
   constructor(
     private readonly adapterFactory: DatabricksApiAdapterFactory,
     private readonly queryBuilder: DatabricksQueryBuilder,
-    private readonly headersGenerator: DatabricksReportHeadersGenerator
+    private readonly headersGenerator: DatabricksReportHeadersGenerator,
+    private readonly credentialsResolver: DataStorageCredentialsResolver
   ) {}
 
   async prepareReportData(report: Report): Promise<ReportDataDescription> {
@@ -55,7 +57,8 @@ export class DatabricksReportReader implements DataStorageReportReader {
     this.reportConfig = { storage, definition };
     this.reportDataHeaders = this.headersGenerator.generateHeaders(schema);
 
-    await this.prepareApiAdapter(this.reportConfig.storage);
+    const resolvedCredentials = await this.credentialsResolver.resolve(storage);
+    await this.prepareApiAdapter(storage, resolvedCredentials);
 
     const query = this.queryBuilder.buildQuery(definition);
     this.logger.debug(`Executing query: ${query}`);
@@ -104,9 +107,9 @@ export class DatabricksReportReader implements DataStorageReportReader {
     this.allRows = [];
   }
 
-  private async prepareApiAdapter(storage: DataStorage): Promise<void> {
+  private async prepareApiAdapter(storage: DataStorage, credentials: unknown): Promise<void> {
     try {
-      if (!isDatabricksCredentials(storage.credentials)) {
+      if (!isDatabricksCredentials(credentials)) {
         throw new Error('Databricks credentials are not properly configured');
       }
 
@@ -114,7 +117,7 @@ export class DatabricksReportReader implements DataStorageReportReader {
         throw new Error('Databricks config is not properly configured');
       }
 
-      this.adapter = this.adapterFactory.create(storage.credentials, storage.config);
+      this.adapter = this.adapterFactory.create(credentials, storage.config);
 
       this.logger.debug('Databricks adapter created successfully');
     } catch (error) {

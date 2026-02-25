@@ -24,10 +24,12 @@ import {
 import { BigQueryConfig } from '../schemas/bigquery-config.schema';
 import {
   BigQueryCredentials,
+  BigQueryOAuthCredentialsSchema,
   BigQueryServiceAccountCredentialsSchema,
 } from '../schemas/bigquery-credentials.schema';
 import { BigQueryQueryBuilder } from './bigquery-query.builder';
 import { BigQueryReportHeadersGenerator } from './bigquery-report-headers-generator.service';
+import { DataStorageCredentialsResolver } from '../../data-storage-credentials-resolver.service';
 
 @Injectable({ scope: Scope.TRANSIENT })
 export class BigQueryReportReader implements DataStorageReportReader {
@@ -49,7 +51,8 @@ export class BigQueryReportReader implements DataStorageReportReader {
   constructor(
     protected readonly adapterFactory: BigQueryApiAdapterFactory,
     protected readonly bigQueryQueryBuilder: BigQueryQueryBuilder,
-    protected readonly headersGenerator: BigQueryReportHeadersGenerator
+    protected readonly headersGenerator: BigQueryReportHeadersGenerator,
+    protected readonly credentialsResolver: DataStorageCredentialsResolver
   ) {}
 
   public async prepareReportData(report: Report): Promise<ReportDataDescription> {
@@ -58,12 +61,15 @@ export class BigQueryReportReader implements DataStorageReportReader {
       throw new Error('Data Mart is not properly configured');
     }
 
-    const credentialsParsed = BigQueryServiceAccountCredentialsSchema.safeParse(
-      storage.credentials
-    );
-    if (!credentialsParsed.success) {
+    const resolvedCredentials = await this.credentialsResolver.resolve(storage);
+    const saParsed = BigQueryServiceAccountCredentialsSchema.safeParse(resolvedCredentials);
+    const oauthParsed = BigQueryOAuthCredentialsSchema.safeParse(resolvedCredentials);
+    if (!saParsed.success && !oauthParsed.success) {
       throw new Error('Google BigQuery credentials are not properly configured');
     }
+    const storageCredentials: BigQueryCredentials = saParsed.success
+      ? saParsed.data
+      : oauthParsed.data!;
 
     if (!isBigQueryConfig(storage.config)) {
       throw new Error('Google BigQuery config is not properly configured');
@@ -78,7 +84,7 @@ export class BigQueryReportReader implements DataStorageReportReader {
     }
 
     this.reportConfig = {
-      storageCredentials: credentialsParsed.data,
+      storageCredentials,
       storageConfig: storage.config,
       definitionType,
       definition,

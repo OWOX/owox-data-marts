@@ -19,6 +19,7 @@ import {
   SnowflakeReaderState,
   isSnowflakeReaderState,
 } from '../interfaces/snowflake-reader-state.interface';
+import { DataStorageCredentialsResolver } from '../../data-storage-credentials-resolver.service';
 
 @Injectable({ scope: Scope.TRANSIENT })
 export class SnowflakeReportReader implements DataStorageReportReader {
@@ -34,7 +35,8 @@ export class SnowflakeReportReader implements DataStorageReportReader {
   constructor(
     private readonly adapterFactory: SnowflakeApiAdapterFactory,
     private readonly queryBuilder: SnowflakeQueryBuilder,
-    private readonly headersGenerator: SnowflakeReportHeadersGenerator
+    private readonly headersGenerator: SnowflakeReportHeadersGenerator,
+    private readonly credentialsResolver: DataStorageCredentialsResolver
   ) {}
 
   async prepareReportData(report: Report): Promise<ReportDataDescription> {
@@ -54,7 +56,8 @@ export class SnowflakeReportReader implements DataStorageReportReader {
     this.reportConfig = { storage, definition };
     this.reportDataHeaders = this.headersGenerator.generateHeaders(schema);
 
-    await this.prepareApiAdapter(this.reportConfig.storage);
+    const resolvedCredentials = await this.credentialsResolver.resolve(storage);
+    await this.prepareApiAdapter(storage, resolvedCredentials);
 
     const query = this.queryBuilder.buildQuery(definition);
     this.logger.debug(`Executing query: ${query}`);
@@ -100,9 +103,9 @@ export class SnowflakeReportReader implements DataStorageReportReader {
     }
   }
 
-  private async prepareApiAdapter(storage: DataStorage): Promise<void> {
+  private async prepareApiAdapter(storage: DataStorage, credentials: unknown): Promise<void> {
     try {
-      if (!isSnowflakeCredentials(storage.credentials)) {
+      if (!isSnowflakeCredentials(credentials)) {
         throw new Error('Snowflake credentials are not properly configured');
       }
 
@@ -110,7 +113,7 @@ export class SnowflakeReportReader implements DataStorageReportReader {
         throw new Error('Snowflake config is not properly configured');
       }
 
-      this.adapter = this.adapterFactory.create(storage.credentials, storage.config);
+      this.adapter = this.adapterFactory.create(credentials, storage.config);
 
       this.logger.debug('Snowflake adapter created successfully');
     } catch (error) {

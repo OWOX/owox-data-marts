@@ -34,9 +34,13 @@ export class UpdateDataStorageService {
       command.id
     );
 
-    const credentialsToCheck = command.hasCredentials()
-      ? command.credentials
-      : dataStorageEntity.credentials;
+    let credentialsToCheck: DataStorageCredentials | undefined = command.credentials;
+    if (!command.hasCredentials() && dataStorageEntity.credentialId) {
+      const existingCred = await this.dataStorageCredentialService.getById(
+        dataStorageEntity.credentialId
+      );
+      credentialsToCheck = existingCred?.credentials as DataStorageCredentials | undefined;
+    }
 
     const isLegacyStorage = dataStorageEntity.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY;
     if (isLegacyStorage && command.hasConfig()) {

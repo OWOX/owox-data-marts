@@ -25,7 +25,7 @@ export class SqlDryRunService {
     if (!storage || !storage.type || !storage.config) {
       return SqlDryRunResult.failed('Storage setup is not finished…');
     }
-    if (!storage.credentials && !storage.credentialId) {
+    if (!storage.credentialId) {
       return SqlDryRunResult.failed('Storage setup is not finished…');
     }
 

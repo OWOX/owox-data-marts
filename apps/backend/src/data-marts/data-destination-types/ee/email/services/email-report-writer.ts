@@ -32,13 +32,13 @@ import {
   ReportRunLogger,
 } from '../../../../report-run-logging/report-run-logger';
 import { ConsumptionTrackingService } from '../../../../services/consumption-tracking.service';
+import { DataDestinationCredentialsResolver } from '../../../data-destination-credentials-resolver.service';
 import { isEmailConfig } from '../../../data-destination-config.guards';
-import { isEmailCredentials } from '../../../data-destination-credentials.guards';
 import { DataDestinationType } from '../../../enums/data-destination-type.enum';
 import { ReportCondition } from '../../../enums/report-condition.enum';
 import { DataDestinationReportWriter } from '../../../interfaces/data-destination-report-writer.interface';
 import { EmailConfig } from '../schemas/email-config.schema';
-import { EmailCredentials } from '../schemas/email-credentials.schema';
+import { EmailCredentialsSchema, type EmailCredentials } from '../schemas/email-credentials.schema';
 import { renderEmailReportTemplate } from '../templates/email-report.template';
 
 /**
@@ -73,7 +73,8 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
     private readonly publicOriginService: PublicOriginService,
     private readonly insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
     private readonly consumptionTrackingService: ConsumptionTrackingService,
-    private readonly producer: OwoxProducer
+    private readonly producer: OwoxProducer,
+    private readonly credentialsResolver: DataDestinationCredentialsResolver
   ) {}
 
   public setExecutionContext(ctx: ReportRunExecutionContext): void {
@@ -89,10 +90,12 @@ abstract class BaseEmailReportWriter implements DataDestinationReportWriter {
     }
     this.emailConfig = report.destinationConfig;
 
-    if (!isEmailCredentials(report.dataDestination.credentials!)) {
+    const resolvedCredentials = await this.credentialsResolver.resolve(report.dataDestination);
+    const parsed = EmailCredentialsSchema.safeParse(resolvedCredentials);
+    if (!parsed.success) {
       throw new Error('Invalid Email credentials provided');
     }
-    this.emailCredentials = report.dataDestination.credentials;
+    this.emailCredentials = parsed.data;
 
     this.reportDataDescription = reportDataDescription;
     this.report = report;
@@ -334,7 +337,8 @@ export class EmailReportWriter extends BaseEmailReportWriter {
     insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
     consumptionTrackingService: ConsumptionTrackingService,
     @Inject(OWOX_PRODUCER)
-    producer: OwoxProducer
+    producer: OwoxProducer,
+    credentialsResolver: DataDestinationCredentialsResolver
   ) {
     super(
       emailProvider,
@@ -342,7 +346,8 @@ export class EmailReportWriter extends BaseEmailReportWriter {
       publicOriginService,
       insightTemplateFacade,
       consumptionTrackingService,
-      producer
+      producer,
+      credentialsResolver
     );
   }
 }
@@ -359,7 +364,8 @@ export class SlackReportWriter extends BaseEmailReportWriter {
     insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
     consumptionTrackingService: ConsumptionTrackingService,
     @Inject(OWOX_PRODUCER)
-    producer: OwoxProducer
+    producer: OwoxProducer,
+    credentialsResolver: DataDestinationCredentialsResolver
   ) {
     super(
       emailProvider,
@@ -367,7 +373,8 @@ export class SlackReportWriter extends BaseEmailReportWriter {
       publicOriginService,
       insightTemplateFacade,
       consumptionTrackingService,
-      producer
+      producer,
+      credentialsResolver
     );
   }
 }
@@ -384,7 +391,8 @@ export class MsTeamsReportWriter extends BaseEmailReportWriter {
     insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
     consumptionTrackingService: ConsumptionTrackingService,
     @Inject(OWOX_PRODUCER)
-    producer: OwoxProducer
+    producer: OwoxProducer,
+    credentialsResolver: DataDestinationCredentialsResolver
   ) {
     super(
       emailProvider,
@@ -392,7 +400,8 @@ export class MsTeamsReportWriter extends BaseEmailReportWriter {
       publicOriginService,
       insightTemplateFacade,
       consumptionTrackingService,
-      producer
+      producer,
+      credentialsResolver
     );
   }
 }
@@ -409,7 +418,8 @@ export class GoogleChatReportWriter extends BaseEmailReportWriter {
     insightTemplateFacade: DataMartInsightTemplateFacadeImpl,
     consumptionTrackingService: ConsumptionTrackingService,
     @Inject(OWOX_PRODUCER)
-    producer: OwoxProducer
+    producer: OwoxProducer,
+    credentialsResolver: DataDestinationCredentialsResolver
   ) {
     super(
       emailProvider,
@@ -417,7 +427,8 @@ export class GoogleChatReportWriter extends BaseEmailReportWriter {
       publicOriginService,
       insightTemplateFacade,
       consumptionTrackingService,
-      producer
+      producer,
+      credentialsResolver
     );
   }
 }
