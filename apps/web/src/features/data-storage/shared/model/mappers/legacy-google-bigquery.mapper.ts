@@ -50,7 +50,7 @@ export class LegacyGoogleBigQueryMapper implements StorageMapper {
     if (formData.credentials) {
       const creds = formData.credentials as GoogleBigQueryCredentials;
       const serviceAccount = creds.serviceAccount;
-      if (serviceAccount?.trim()) {
+      if (serviceAccount.trim()) {
         try {
           const parsed: unknown = JSON.parse(serviceAccount);
           if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
