@@ -1,5 +1,5 @@
 import type * as monacoEditor from 'monaco-editor';
-import { Editor, type Monaco } from '@monaco-editor/react';
+import { Editor } from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
 import { useEffect, useRef, useState } from 'react';
 import { Command, CommandInput, CommandItem, CommandList } from '@owox/ui/components/command';
@@ -22,6 +22,7 @@ interface InsightEditorProps {
   showLineNumbers?: boolean;
   excludeInsightId?: string;
 }
+type Monaco = typeof monacoEditor;
 
 /**
  * InsightEditor is a component for rendering a markdown editor with customizable options.
