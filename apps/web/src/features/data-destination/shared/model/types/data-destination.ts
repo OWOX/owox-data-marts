@@ -18,7 +18,7 @@ export interface GoogleSheetsCredentials {
 }
 
 export interface GoogleSheetsOAuthCredentials {
-  serviceAccount: string;
+  serviceAccount?: string;
   credentialId?: string | null;
 }
 
