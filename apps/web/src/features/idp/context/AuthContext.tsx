@@ -207,7 +207,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
       } catch (error) {
         dispatch({ type: 'SET_UNAUTHENTICATED' });
-        // Blocked users need sign-out on both services, others just sign-in
         if (isBlockedUserError(error)) {
           signOut();
         } else {
@@ -245,10 +244,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     const handleLogout = (event: CustomEvent) => {
-      const detail = (event.detail ?? {}) as { reason?: string; requiresSignOut?: boolean };
+      const detail = (event.detail ?? {}) as { reason?: string };
 
-      // Blocked/inactive users need sign-out on both web and Platform
-      if (detail.reason === 'user_blocked' || detail.requiresSignOut) {
+      // Blocked/inactive users need sign-out
+      if (detail.reason === 'user_blocked') {
         signOut();
       } else {
         // Regular token refresh failure - just redirect to sign-in

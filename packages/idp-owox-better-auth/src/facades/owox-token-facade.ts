@@ -134,7 +134,7 @@ export class OwoxTokenFacade {
           path: req.path,
           ...error.context,
         });
-        return res.json({ reason: 'atm403', message: 'Identity inactive or blocked' });
+        return res.json({ reason: 'atm9', message: 'Identity inactive or blocked' });
       }
       if (error instanceof AuthenticationException) {
         this.logger.info('Access token middleware auth rejected', {

@@ -91,13 +91,10 @@ apiClient.interceptors.response.use(
       } catch (refreshError) {
         authStateManager.clear();
 
-        const isBlocked = isBlockedUserError(refreshError);
-
         window.dispatchEvent(
           new CustomEvent('auth:logout', {
             detail: {
-              reason: isBlocked ? 'user_blocked' : 'token_refresh_failed',
-              requiresSignOut: isBlocked,
+              reason: isBlockedUserError(refreshError) ? 'user_blocked' : 'token_refresh_failed',
             },
           })
         );

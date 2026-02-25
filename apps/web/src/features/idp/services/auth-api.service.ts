@@ -113,19 +113,18 @@ export function signOut(): void {
 }
 
 /**
- * Get new access token using refresh token from http-only cookie
- */
-/**
- * Check if the error indicates a blocked/inactive user (atm403)
- * This is a centralized check to avoid code duplication (DRY principle)
+ * Check if the error indicates a blocked/inactive user
  */
 export function isBlockedUserError(error: unknown): boolean {
   if (error instanceof Error) {
-    return error.message.includes('atm403');
+    return error.message.includes('atm9');
   }
   return false;
 }
 
+/**
+ * Get new access token using refresh token from http-only cookie
+ */
 export async function refreshAccessToken(): Promise<AccessTokenResponse> {
   try {
     const response = await authClient.post<AccessTokenResponse>(AUTH_ENDPOINTS.ACCESS_TOKEN, {});
