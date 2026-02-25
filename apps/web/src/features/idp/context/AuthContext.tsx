@@ -1,19 +1,20 @@
-import React, { useReducer, useEffect, useCallback } from 'react';
-import { AuthStatus, type AuthState, type AuthSession, type User } from '../types';
-import { AuthContext, type AuthContextType } from './AuthContext.types';
+import React, { useCallback, useEffect, useReducer } from 'react';
 import {
-  signIn as signInApi,
-  signOut as signOutApi,
-  refreshAccessToken as refreshAccessTokenApi,
-  getUserApi,
-  RedirectStorageService,
-} from '../services';
-import {
-  setTokenProvider,
   clearTokenProvider,
   DefaultTokenProvider,
+  setTokenProvider,
 } from '../../../app/api/token-provider';
-import { pushToDataLayer, trackUserIdentified, trackLogout } from '../../../utils';
+import { pushToDataLayer, trackLogout, trackUserIdentified } from '../../../utils';
+import {
+  getUserApi,
+  isBlockedUserError,
+  RedirectStorageService,
+  refreshAccessToken as refreshAccessTokenApi,
+  signIn as signInApi,
+  signOut as signOutApi,
+} from '../services';
+import { AuthStatus, type AuthSession, type AuthState, type User } from '../types';
+import { AuthContext, type AuthContextType } from './AuthContext.types';
 
 /**
  * Auth reducer actions
@@ -165,6 +166,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   /**
+   * Redirect to sign-out page and clear local session
+   */
+  const signOut = useCallback(() => {
+    try {
+      trackLogout();
+    } finally {
+      signOutApi();
+    }
+  }, []);
+
+  /**
    * Initialize auth state from storage
    */
   const initializeAuth = useCallback(async () => {
@@ -193,27 +205,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
             }
           }
         }
-      } catch {
+      } catch (error) {
         dispatch({ type: 'SET_UNAUTHENTICATED' });
-        signIn();
+        // Blocked users need sign-out on both services, others just sign-in
+        if (isBlockedUserError(error)) {
+          signOut();
+        } else {
+          signIn();
+        }
       }
     } catch (error) {
       console.error('Failed to initialize auth:', error);
       clearTokenProvider();
       dispatch({ type: 'SET_UNAUTHENTICATED' });
     }
-  }, [signIn]);
-
-  /**
-   * Redirect to sign-out page and clear local session
-   */
-  const signOut = useCallback(() => {
-    try {
-      trackLogout();
-    } finally {
-      signOutApi();
-    }
-  }, []);
+  }, [signIn, signOut]);
 
   /**
    * Clear error state
@@ -238,17 +244,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [state.user]);
 
   useEffect(() => {
-    const handleLogout = () => {
-      signOut();
+    const handleLogout = (event: CustomEvent) => {
+      const detail = (event.detail ?? {}) as { reason?: string; requiresSignOut?: boolean };
+
+      // Blocked/inactive users need sign-out on both web and Platform
+      if (detail.reason === 'user_blocked' || detail.requiresSignOut) {
+        signOut();
+      } else {
+        // Regular token refresh failure - just redirect to sign-in
+        signIn();
+      }
     };
 
-    window.addEventListener('auth:logout', handleLogout);
+    window.addEventListener('auth:logout', handleLogout as EventListener);
 
     return () => {
-      window.removeEventListener('auth:logout', handleLogout);
+      window.removeEventListener('auth:logout', handleLogout as EventListener);
       clearTokenProvider();
     };
-  }, [signOut]);
+  }, [signIn, signOut]);
 
   const contextValue: AuthContextType = {
     ...state,

@@ -115,9 +115,30 @@ export function signOut(): void {
 /**
  * Get new access token using refresh token from http-only cookie
  */
+/**
+ * Check if the error indicates a blocked/inactive user (atm403)
+ * This is a centralized check to avoid code duplication (DRY principle)
+ */
+export function isBlockedUserError(error: unknown): boolean {
+  if (error instanceof Error) {
+    return error.message.includes('atm403');
+  }
+  return false;
+}
+
 export async function refreshAccessToken(): Promise<AccessTokenResponse> {
   try {
     const response = await authClient.post<AccessTokenResponse>(AUTH_ENDPOINTS.ACCESS_TOKEN, {});
+
+    // Check if server returned an error reason instead of access token
+    if (
+      'reason' in response.data &&
+      typeof (response.data as { reason?: string }).reason === 'string'
+    ) {
+      const reason = (response.data as { reason: string }).reason;
+      throw new Error(`Token refresh failed: ${reason}`);
+    }
+
     return response.data;
   } catch (error: unknown) {
     const authError = handleAuthError(error);
