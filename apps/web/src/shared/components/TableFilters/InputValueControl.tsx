@@ -21,8 +21,8 @@ export function InputValueControl({ value, onChange }: InputValueControlProps) {
         const next = e.target.value;
         setInputValue(next);
 
-        if (next.trim()) {
-          onChange([next.trim()]);
+        if (next.length > 0) {
+          onChange([next]);
         } else {
           onChange([]);
         }
