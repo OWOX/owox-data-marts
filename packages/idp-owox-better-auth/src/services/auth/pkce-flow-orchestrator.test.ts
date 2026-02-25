@@ -2,7 +2,6 @@
  * Tests for PkceFlowOrchestrator behavior and redirects.
  */
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import type { Logger } from '@owox/internal-helpers';
 import type { Request, Response } from 'express';
 import type { BetterAuthSessionService } from '../auth/better-auth-session-service.js';
 import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
@@ -68,7 +67,6 @@ describe('PkceFlowOrchestrator', () => {
   let platformAuthFlowClient: jest.Mocked<PlatformAuthFlowClient>;
   let betterAuthSessionService: jest.Mocked<BetterAuthSessionService>;
   let userContextService: jest.Mocked<UserContextService>;
-  let logger: jest.Mocked<Logger>;
   let service: PkceFlowOrchestrator;
 
   beforeEach(() => {
@@ -89,10 +87,6 @@ describe('PkceFlowOrchestrator', () => {
     userContextService = {
       resolveFromToken: jest.fn(),
     } as unknown as jest.Mocked<UserContextService>;
-
-    logger = {
-      warn: jest.fn(),
-    } as unknown as jest.Mocked<Logger>;
 
     service = new PkceFlowOrchestrator(
       baseConfig,
