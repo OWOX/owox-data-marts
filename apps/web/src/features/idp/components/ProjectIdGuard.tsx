@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import { useAuthState, useUser } from '../hooks';
+import { signIn } from '../services';
 
 /**
  * A React component that acts as a guard to ensure the user is accessing the correct project ID,
@@ -11,25 +12,27 @@ import { useAuthState, useUser } from '../hooks';
  * @param {React.ReactNode} props.children - The child components to render within the guard.
  * @return {React.ReactElement} Returns the rendered child elements if the guard conditions pass.
  */
-export function ProjectIdGuard({ children }: { children: React.ReactNode }) {
+export function ProjectIdGuard({ children }: { children: React.ReactNode }): React.ReactElement {
   const { isLoading } = useAuthState();
   const user = useUser();
   const params = useParams<{ projectId?: string }>();
   const location = useLocation();
+  const hasRedirected = useRef(false);
 
   useEffect(() => {
     if (isLoading) return;
+    if (hasRedirected.current) return;
 
     const urlProjectId = params.projectId;
     const userProjectId = user?.projectId;
 
     if (!urlProjectId) return;
 
-    if (location.pathname.startsWith('/auth')) return;
+    if (location.pathname.startsWith('/auth/')) return;
 
     if (user && userProjectId && userProjectId !== urlProjectId) {
-      const search = new URLSearchParams({ projectId: urlProjectId }).toString();
-      window.location.href = `/auth/sign-in?${search}`;
+      hasRedirected.current = true;
+      signIn({ projectId: urlProjectId });
     }
   }, [isLoading, user, params.projectId, location.pathname]);
 

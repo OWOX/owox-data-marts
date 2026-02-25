@@ -44,8 +44,8 @@ export interface AuthState {
  * Authentication actions
  */
 export interface AuthActions {
-  signIn: () => void; // Now redirects to sign-in page
-  signOut: () => void; // Now redirects to sign-out page
+  signIn: (options?: { projectId?: string; redirect?: string; skipRedirectSave?: boolean }) => void;
+  signOut: () => void;
   refreshToken: () => Promise<void>;
   clearError: () => void;
 }
