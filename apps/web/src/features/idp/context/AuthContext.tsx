@@ -1,20 +1,20 @@
-import React, { useCallback, useEffect, useReducer } from 'react';
+import React, { useReducer, useEffect, useCallback } from 'react';
+import { AuthStatus, type AuthState, type AuthSession, type User } from '../types';
+import { AuthContext, type AuthContextType } from './AuthContext.types';
 import {
-  clearTokenProvider,
-  DefaultTokenProvider,
-  setTokenProvider,
-} from '../../../app/api/token-provider';
-import { pushToDataLayer, trackLogout, trackUserIdentified } from '../../../utils';
-import {
-  getUserApi,
-  isBlockedUserError,
-  RedirectStorageService,
-  refreshAccessToken as refreshAccessTokenApi,
   signIn as signInApi,
   signOut as signOutApi,
+  refreshAccessToken as refreshAccessTokenApi,
+  getUserApi,
+  RedirectStorageService,
+  isBlockedUserError,
 } from '../services';
-import { AuthStatus, type AuthSession, type AuthState, type User } from '../types';
-import { AuthContext, type AuthContextType } from './AuthContext.types';
+import {
+  setTokenProvider,
+  clearTokenProvider,
+  DefaultTokenProvider,
+} from '../../../app/api/token-provider';
+import { pushToDataLayer, trackUserIdentified, trackLogout } from '../../../utils';
 
 /**
  * Auth reducer actions
