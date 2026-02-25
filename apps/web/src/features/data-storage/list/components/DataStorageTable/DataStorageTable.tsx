@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { DataStorageDetailsDialog } from '../DataStorageDetailsDialog';
 import { type DataStorageTableItem } from './columns';
@@ -10,6 +10,15 @@ import {
 } from '../../../../../shared/components/Table';
 import { EmptyDataStoragesState } from './EmptyDataStoragesState';
 import { DataStorageColumnKey } from './columns/columnKeys';
+import { usePersistentFilters } from '../../../../../shared/hooks/usePersistentFilters';
+import { applyFiltersToData } from '../../../../../shared/components/TableFilters/filter-utils';
+import {
+  buildDataStorageTableFilters,
+  dataStorageFilterAccessors,
+  type DataStorageFilterKey,
+} from './DataStorageTableFilters.config';
+import { DataStorageTableFilters } from './DataStorageTableFilters';
+import { useParams } from 'react-router-dom';
 
 interface DataStorageTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -28,10 +37,34 @@ export function DataStorageTable<TData, TValue>({
 }: DataStorageTableProps<TData, TValue>) {
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [selectedDataStorage] = useState<DataStorageTableItem | null>(null);
+  const { projectId = '' } = useParams<{ projectId: string }>();
+  const tableId = 'data-storage-table';
+
+  const filtersConfig = useMemo(
+    () => buildDataStorageTableFilters(data as DataStorageTableItem[]),
+    [data]
+  );
+
+  const { appliedState, apply, clear } = usePersistentFilters<DataStorageFilterKey>({
+    projectId,
+    tableId,
+    urlParam: 'filters',
+    config: filtersConfig,
+  });
+
+  const filteredData = useMemo(
+    () =>
+      applyFiltersToData<DataStorageFilterKey, DataStorageTableItem>(
+        data as DataStorageTableItem[],
+        appliedState,
+        dataStorageFilterAccessors
+      ) as TData[],
+    [data, appliedState]
+  );
 
   // Initialize table with shared hook
   const { table } = useBaseTable<TData>({
-    data,
+    data: filteredData,
     columns: columns as ColumnDef<TData>[],
     storageKeyPrefix: 'data-storage-list',
     enableRowSelection: false,
@@ -60,8 +93,6 @@ export function DataStorageTable<TData, TValue>({
     );
   }
 
-  const tableId = 'data-storage-table';
-
   return (
     <div className='dm-card'>
       {selectedDataStorage && (
@@ -79,12 +110,20 @@ export function DataStorageTable<TData, TValue>({
         onRowClick={handleRowClick}
         ariaLabel='Storages table'
         paginationProps={{ displaySelected: false }}
-        renderToolbarLeft={table => (
-          <TableColumnSearch
-            table={table}
-            columnId={DataStorageColumnKey.TITLE}
-            placeholder='Search by title'
-          />
+        renderToolbarLeft={() => (
+          <>
+            <DataStorageTableFilters
+              appliedState={appliedState}
+              config={filtersConfig}
+              onApply={apply}
+              onClear={clear}
+            />
+            <TableColumnSearch
+              table={table}
+              columnId={DataStorageColumnKey.TITLE}
+              placeholder='Search'
+            />
+          </>
         )}
         renderToolbarRight={() => (
           <TableCTAButton onClick={onOpenTypeDialog}>New Storage</TableCTAButton>
