@@ -6,6 +6,7 @@ import axios, {
   AxiosHeaders,
 } from 'axios';
 import { showApiErrorToast } from '../../shared/utils';
+import { isBlockedUserError } from '../../features/idp/services/auth-api.service';
 import { AuthStateManager } from './auth-state-manager';
 import { getTokenProvider } from './token-provider';
 
@@ -87,12 +88,14 @@ apiClient.interceptors.response.use(
         originalRequest.headers['X-OWOX-Authorization'] = `Bearer ${newAccessToken}`;
 
         return await apiClient(originalRequest);
-      } catch {
+      } catch (error) {
         authStateManager.clear();
 
         window.dispatchEvent(
           new CustomEvent('auth:logout', {
-            detail: { reason: 'token_refresh_failed' },
+            detail: {
+              reason: isBlockedUserError(error) ? 'user_blocked' : 'token_refresh_failed',
+            },
           })
         );
 

@@ -7,6 +7,7 @@ import {
   refreshAccessToken as refreshAccessTokenApi,
   getUserApi,
   RedirectStorageService,
+  isBlockedUserError,
 } from '../services';
 import {
   setTokenProvider,
@@ -165,6 +166,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   /**
+   * Redirect to sign-out page and clear local session
+   */
+  const signOut = useCallback(() => {
+    try {
+      trackLogout();
+    } finally {
+      signOutApi();
+    }
+  }, []);
+
+  /**
    * Initialize auth state from storage
    */
   const initializeAuth = useCallback(async () => {
@@ -193,27 +205,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
             }
           }
         }
-      } catch {
+      } catch (error) {
         dispatch({ type: 'SET_UNAUTHENTICATED' });
-        signIn();
+        if (isBlockedUserError(error)) {
+          signOut();
+        } else {
+          signIn();
+        }
       }
     } catch (error) {
       console.error('Failed to initialize auth:', error);
       clearTokenProvider();
       dispatch({ type: 'SET_UNAUTHENTICATED' });
     }
-  }, [signIn]);
-
-  /**
-   * Redirect to sign-out page and clear local session
-   */
-  const signOut = useCallback(() => {
-    try {
-      trackLogout();
-    } finally {
-      signOutApi();
-    }
-  }, []);
+  }, [signIn, signOut]);
 
   /**
    * Clear error state
@@ -238,17 +243,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [state.user]);
 
   useEffect(() => {
-    const handleLogout = () => {
-      signOut();
+    const handleLogout = (event: CustomEvent) => {
+      const detail = (event.detail ?? {}) as { reason?: string };
+
+      // Blocked/inactive users need sign-out
+      if (detail.reason === 'user_blocked') {
+        signOut();
+      } else {
+        // Regular token refresh failure - just redirect to sign-in
+        signIn();
+      }
     };
 
-    window.addEventListener('auth:logout', handleLogout);
+    window.addEventListener('auth:logout', handleLogout as EventListener);
 
     return () => {
-      window.removeEventListener('auth:logout', handleLogout);
+      window.removeEventListener('auth:logout', handleLogout as EventListener);
       clearTokenProvider();
     };
-  }, [signOut]);
+  }, [signIn, signOut]);
 
   const contextValue: AuthContextType = {
     ...state,

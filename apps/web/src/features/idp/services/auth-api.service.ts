@@ -113,11 +113,31 @@ export function signOut(): void {
 }
 
 /**
+ * Check if the error indicates a blocked/inactive user
+ */
+export function isBlockedUserError(error: unknown): boolean {
+  if (error instanceof Error) {
+    return error.message.includes('atm9');
+  }
+  return false;
+}
+
+/**
  * Get new access token using refresh token from http-only cookie
  */
 export async function refreshAccessToken(): Promise<AccessTokenResponse> {
   try {
     const response = await authClient.post<AccessTokenResponse>(AUTH_ENDPOINTS.ACCESS_TOKEN, {});
+
+    // Check if server returned an error reason instead of access token
+    if (
+      'reason' in response.data &&
+      typeof (response.data as { reason?: string }).reason === 'string'
+    ) {
+      const reason = (response.data as { reason: string }).reason;
+      throw new Error(`Token refresh failed: ${reason}`);
+    }
+
     return response.data;
   } catch (error: unknown) {
     const authError = handleAuthError(error);
