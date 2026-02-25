@@ -2,10 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AuthorizationContext } from '../../idp';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { CreateDataDestinationCommand } from '../dto/domain/create-data-destination.command';
-import {
-  DataDestinationCredentialsDto,
-  DataDestinationDto,
-} from '../dto/domain/data-destination.dto';
+import { DataDestinationDto } from '../dto/domain/data-destination.dto';
 import { DeleteDataDestinationCommand } from '../dto/domain/delete-data-destination.command';
 import { GetDataDestinationCommand } from '../dto/domain/get-data-destination.command';
 import { ListDataDestinationsCommand } from '../dto/domain/list-data-destinations.command';
@@ -68,13 +65,6 @@ export class DataDestinationMapper {
       dataDestination.title,
       dataDestination.type,
       dataDestination.projectId,
-      (dataDestination.type === DataDestinationType.LOOKER_STUDIO
-        ? {
-            ...dataDestination.credentials,
-            destinationId: dataDestination.id,
-            deploymentUrl: this.publicOriginService.getLookerStudioDeploymentUrl(),
-          }
-        : dataDestination.credentials) as DataDestinationCredentialsDto,
       dataDestination.createdAt,
       dataDestination.modifiedAt,
       dataDestination.credentialId
@@ -95,20 +85,21 @@ export class DataDestinationMapper {
         dataDestinationDto.credentialId
       );
       if (credential && credential.type !== DestinationCredentialType.GOOGLE_OAUTH) {
-        publicCredentials = this.credentialsUtils.getPublicCredentials(
-          dataDestinationDto.type,
-          credential.credentials as DataDestinationCredentials
-        );
+        const creds = credential.credentials as DataDestinationCredentials;
+        if (dataDestinationDto.type === DataDestinationType.LOOKER_STUDIO) {
+          publicCredentials = {
+            ...creds,
+            destinationId: dataDestinationDto.id,
+            deploymentUrl: this.publicOriginService.getLookerStudioDeploymentUrl(),
+          };
+        } else {
+          publicCredentials = this.credentialsUtils.getPublicCredentials(
+            dataDestinationDto.type,
+            creds
+          );
+        }
       }
       // For OAuth credentials, publicCredentials stays undefined — the frontend uses the OAuth status endpoint
-    } else {
-      publicCredentials = this.credentialsUtils.getPublicCredentials(
-        dataDestinationDto.type,
-        dataDestinationDto.credentials
-      );
-      if (!publicCredentials) {
-        publicCredentials = dataDestinationDto.credentials;
-      }
     }
 
     return {

@@ -50,6 +50,8 @@ import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { ConnectorSourceCredentialsService } from './connector-source-credentials.service';
 import { ConnectorService } from './connector.service';
 import { ProjectBalanceService } from './project-balance.service';
+import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
+import { DataStorageCredentials } from '../data-storage-types/data-storage-credentials.type';
 
 interface ConfigurationExecutionResult {
   configIndex: number;
@@ -77,7 +79,8 @@ export class ConnectorExecutionService {
     private readonly producer: OwoxProducer,
     private readonly connectorSourceCredentialsService: ConnectorSourceCredentialsService,
     private readonly connectorService: ConnectorService,
-    private readonly projectBalanceService: ProjectBalanceService
+    private readonly projectBalanceService: ProjectBalanceService,
+    private readonly storageCredentialsResolver: DataStorageCredentialsResolver
   ) {}
 
   async cancelRun(dataMartId: string, runId: string): Promise<void> {
@@ -454,7 +457,7 @@ export class ConnectorExecutionService {
             refreshedConfig,
             configId
           ),
-          storage: this.getStorageConfig(dataMart),
+          storage: await this.getStorageConfig(dataMart),
         });
 
         // Get state for this specific configuration
@@ -683,25 +686,27 @@ export class ConnectorExecutionService {
     });
   }
 
-  private getStorageConfig(dataMart: DataMart): StorageConfigDto {
+  private async getStorageConfig(dataMart: DataMart): Promise<StorageConfigDto> {
     const definition = dataMart.definition as DataMartConnectorDefinition;
     const { connector } = definition;
 
+    const credentials = await this.storageCredentialsResolver.resolve(dataMart.storage);
+
     switch (dataMart.storage.type as DataStorageType) {
       case DataStorageType.GOOGLE_BIGQUERY:
-        return this.createBigQueryStorageConfig(dataMart, connector);
+        return this.createBigQueryStorageConfig(dataMart, connector, credentials);
 
       case DataStorageType.AWS_ATHENA:
-        return this.createAthenaStorageConfig(dataMart, connector);
+        return this.createAthenaStorageConfig(dataMart, connector, credentials);
 
       case DataStorageType.SNOWFLAKE:
-        return this.createSnowflakeStorageConfig(dataMart, connector);
+        return this.createSnowflakeStorageConfig(dataMart, connector, credentials);
 
       case DataStorageType.AWS_REDSHIFT:
-        return this.createRedshiftStorageConfig(dataMart, connector);
+        return this.createRedshiftStorageConfig(dataMart, connector, credentials);
 
       case DataStorageType.DATABRICKS:
-        return this.createDatabricksStorageConfig(dataMart, connector);
+        return this.createDatabricksStorageConfig(dataMart, connector, credentials);
 
       default:
         throw new ConnectorExecutionError(
@@ -718,10 +723,11 @@ export class ConnectorExecutionService {
 
   private createBigQueryStorageConfig(
     dataMart: DataMart,
-    connector: DataMartConnectorDefinition['connector']
+    connector: DataMartConnectorDefinition['connector'],
+    credentials: DataStorageCredentials
   ): StorageConfigDto {
     const storageConfig = dataMart.storage.config as BigQueryConfig;
-    const credentials = dataMart.storage.credentials as BigQueryCredentials;
+    const bqCredentials = credentials as BigQueryCredentials;
     const datasetId = connector.storage?.fullyQualifiedName.split('.')[0];
 
     return new StorageConfigDto({
@@ -733,24 +739,25 @@ export class ConnectorExecutionService {
         DestinationDatasetName: datasetId,
         DestinationTableNameOverride: `${connector.source.node} ${connector.storage?.fullyQualifiedName.split('.')[1]}`,
         ProjectID: storageConfig.projectId,
-        ServiceAccountJson: JSON.stringify(credentials),
+        ServiceAccountJson: JSON.stringify(bqCredentials),
       },
     });
   }
 
   private createAthenaStorageConfig(
     dataMart: DataMart,
-    connector: DataMartConnectorDefinition['connector']
+    connector: DataMartConnectorDefinition['connector'],
+    credentials: DataStorageCredentials
   ): StorageConfigDto {
     const storageConfig = dataMart.storage.config as AthenaConfig;
-    const credentials = dataMart.storage.credentials as AthenaCredentials;
+    const athenaCredentials = credentials as AthenaCredentials;
     const clearBucketName = storageConfig.outputBucket.replace(/^s3:\/\//, '').replace(/\/$/, '');
     return new StorageConfigDto({
       name: DataStorageType.AWS_ATHENA,
       config: {
         AWSRegion: storageConfig.region,
-        AWSAccessKeyId: credentials.accessKeyId,
-        AWSSecretAccessKey: credentials.secretAccessKey,
+        AWSAccessKeyId: athenaCredentials.accessKeyId,
+        AWSSecretAccessKey: athenaCredentials.secretAccessKey,
         S3BucketName: clearBucketName,
         S3Prefix: dataMart.id,
         AthenaDatabaseName: connector.storage?.fullyQualifiedName.split('.')[0],
@@ -762,10 +769,11 @@ export class ConnectorExecutionService {
 
   private createSnowflakeStorageConfig(
     dataMart: DataMart,
-    connector: DataMartConnectorDefinition['connector']
+    connector: DataMartConnectorDefinition['connector'],
+    credentials: DataStorageCredentials
   ): StorageConfigDto {
     const storageConfig = dataMart.storage.config as SnowflakeConfig;
-    const credentials = dataMart.storage.credentials as SnowflakeCredentials;
+    const sfCredentials = credentials as SnowflakeCredentials;
 
     const fqnParts = connector.storage?.fullyQualifiedName.split('.') || [];
     const database = fqnParts[0];
@@ -779,13 +787,13 @@ export class ConnectorExecutionService {
       SnowflakeSchema: schema,
       SnowflakeRole: storageConfig.role || '',
       DestinationTableNameOverride: `${connector.source.node} ${tableName}`,
-      SnowflakeUsername: credentials.username,
+      SnowflakeUsername: sfCredentials.username,
     };
 
     const authConfig =
-      credentials.authMethod === 'PASSWORD'
+      sfCredentials.authMethod === 'PASSWORD'
         ? {
-            SnowflakePassword: credentials.password,
+            SnowflakePassword: sfCredentials.password,
             SnowflakeAuthenticator: 'SNOWFLAKE',
             SnowflakePrivateKey: '',
             SnowflakePrivateKeyPassphrase: '',
@@ -793,8 +801,8 @@ export class ConnectorExecutionService {
         : {
             SnowflakePassword: '',
             SnowflakeAuthenticator: 'SNOWFLAKE_JWT',
-            SnowflakePrivateKey: credentials.privateKey,
-            SnowflakePrivateKeyPassphrase: credentials.privateKeyPassphrase || '',
+            SnowflakePrivateKey: sfCredentials.privateKey,
+            SnowflakePrivateKeyPassphrase: sfCredentials.privateKeyPassphrase || '',
           };
 
     return new StorageConfigDto({
@@ -808,10 +816,11 @@ export class ConnectorExecutionService {
 
   private createRedshiftStorageConfig(
     dataMart: DataMart,
-    connector: DataMartConnectorDefinition['connector']
+    connector: DataMartConnectorDefinition['connector'],
+    credentials: DataStorageCredentials
   ): StorageConfigDto {
     const storageConfig = dataMart.storage.config as RedshiftConfig;
-    const credentials = dataMart.storage.credentials as RedshiftCredentials;
+    const rsCredentials = credentials as RedshiftCredentials;
 
     const fqnParts = connector.storage?.fullyQualifiedName.split('.') || [];
 
@@ -848,8 +857,8 @@ export class ConnectorExecutionService {
       name: DataStorageType.AWS_REDSHIFT,
       config: {
         AWSRegion: storageConfig.region,
-        AWSAccessKeyId: credentials.accessKeyId,
-        AWSSecretAccessKey: credentials.secretAccessKey,
+        AWSAccessKeyId: rsCredentials.accessKeyId,
+        AWSSecretAccessKey: rsCredentials.secretAccessKey,
         Database: storageConfig.database,
         Schema: schema,
         WorkgroupName:
@@ -867,10 +876,11 @@ export class ConnectorExecutionService {
 
   private createDatabricksStorageConfig(
     dataMart: DataMart,
-    connector: DataMartConnectorDefinition['connector']
+    connector: DataMartConnectorDefinition['connector'],
+    credentials: DataStorageCredentials
   ): StorageConfigDto {
     const storageConfig = dataMart.storage.config as DatabricksConfig;
-    const credentials = dataMart.storage.credentials as DatabricksCredentials;
+    const dbCredentials = credentials as DatabricksCredentials;
 
     const fqnParts = connector.storage?.fullyQualifiedName.split('.') || [];
     const catalog = fqnParts[0];
@@ -894,7 +904,7 @@ export class ConnectorExecutionService {
       config: {
         DatabricksHost: storageConfig.host,
         DatabricksHttpPath: storageConfig.httpPath,
-        DatabricksToken: credentials.token,
+        DatabricksToken: dbCredentials.token,
         DatabricksCatalog: catalog,
         DatabricksSchema: schema,
         DestinationTableNameOverride: `${connector.source.node} ${tableName}`,

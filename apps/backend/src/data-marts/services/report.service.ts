@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Raw, Repository, OptimisticLockVersionMismatchError } from 'typeorm';
+import { Repository, OptimisticLockVersionMismatchError } from 'typeorm';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { LookerStudioConnectorCredentialsType } from '../data-destination-types/looker-studio-connector/schemas/looker-studio-connector-credentials.schema';
 import { Report } from '../entities/report.entity';
@@ -91,23 +91,24 @@ export class ReportService {
     destinationId: string,
     secret: string
   ): Promise<Report[]> {
-    return await this.repository.find({
-      where: {
-        dataDestination: {
-          type: DataDestinationType.LOOKER_STUDIO,
-          id: destinationId,
-          credentials: Raw(
-            alias =>
-              `JSON_EXTRACT(${alias}, '$.type') = :credType AND JSON_EXTRACT(${alias}, '$.destinationSecretKey') = :secret`,
-            {
-              credType: LookerStudioConnectorCredentialsType,
-              secret,
-            }
-          ),
-        },
-      },
-      relations: ['dataMart', 'dataDestination'],
-    });
+    return await this.repository
+      .createQueryBuilder('report')
+      .innerJoinAndSelect('report.dataDestination', 'dest')
+      .innerJoinAndSelect('report.dataMart', 'dataMart')
+      .innerJoin(
+        'data_destination_credentials',
+        'cred',
+        'cred.id = dest.credentialId AND cred.deletedAt IS NULL'
+      )
+      .where('dest.type = :destType', { destType: DataDestinationType.LOOKER_STUDIO })
+      .andWhere('dest.id = :destinationId', { destinationId })
+      .andWhere(`JSON_EXTRACT(cred.credentials, '$.type') = :credType`, {
+        credType: LookerStudioConnectorCredentialsType,
+      })
+      .andWhere(`JSON_EXTRACT(cred.credentials, '$.destinationSecretKey') = :secret`, {
+        secret,
+      })
+      .getMany();
   }
 
   /**
@@ -118,23 +119,26 @@ export class ReportService {
    * @returns Report if found and secret matches, null otherwise
    */
   async getByIdAndLookerStudioSecret(id: string, secret: string): Promise<Report | null> {
-    return await this.repository.findOne({
-      where: {
-        id,
-        dataDestination: {
-          type: DataDestinationType.LOOKER_STUDIO,
-          credentials: Raw(
-            alias =>
-              `JSON_EXTRACT(${alias}, '$.type') = :credType AND JSON_EXTRACT(${alias}, '$.destinationSecretKey') = :secret`,
-            {
-              credType: LookerStudioConnectorCredentialsType,
-              secret,
-            }
-          ),
-        },
-      },
-      relations: ['dataMart', 'dataDestination'],
-    });
+    return (
+      (await this.repository
+        .createQueryBuilder('report')
+        .innerJoinAndSelect('report.dataDestination', 'dest')
+        .innerJoinAndSelect('report.dataMart', 'dataMart')
+        .innerJoin(
+          'data_destination_credentials',
+          'cred',
+          'cred.id = dest.credentialId AND cred.deletedAt IS NULL'
+        )
+        .where('report.id = :id', { id })
+        .andWhere('dest.type = :destType', { destType: DataDestinationType.LOOKER_STUDIO })
+        .andWhere(`JSON_EXTRACT(cred.credentials, '$.type') = :credType`, {
+          credType: LookerStudioConnectorCredentialsType,
+        })
+        .andWhere(`JSON_EXTRACT(cred.credentials, '$.destinationSecretKey') = :secret`, {
+          secret,
+        })
+        .getOne()) ?? null
+    );
   }
 
   /**

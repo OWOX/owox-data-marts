@@ -62,10 +62,19 @@ export class UpdateDataDestinationService {
       }
 
       // Process credentials with existing data to preserve backend-managed fields
+      let existingCredentials: DataDestinationCredentials | undefined;
+      if (entity.credentialId) {
+        const existingCredential = await this.dataDestinationCredentialService.getById(
+          entity.credentialId
+        );
+        existingCredentials = existingCredential?.credentials as
+          | DataDestinationCredentials
+          | undefined;
+      }
       const processedCredentials = await this.credentialsProcessor.processCredentials(
         entity.type,
         command.credentials,
-        entity.credentials // Pass existing credentials to preserve backend-managed fields
+        existingCredentials
       );
 
       // Update or create credential record in the new table
@@ -99,9 +108,14 @@ export class UpdateDataDestinationService {
           );
         await oauth2Client.getAccessToken();
       } else {
+        let existingCreds: DataDestinationCredentials | undefined;
+        if (entity.credentialId) {
+          const cred = await this.dataDestinationCredentialService.getById(entity.credentialId);
+          existingCreds = cred?.credentials as DataDestinationCredentials | undefined;
+        }
         await this.credentialsValidator.checkCredentials(
           entity.type,
-          entity.credentials ?? ({} as DataDestinationCredentials)
+          existingCreds ?? ({} as DataDestinationCredentials)
         );
       }
     }

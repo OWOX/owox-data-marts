@@ -246,6 +246,7 @@ import { GetDestinationOAuthCredentialStatusService } from './use-cases/google-o
 import { GenerateDestinationOAuthUrlService } from './use-cases/google-oauth/generate-destination-oauth-url.service';
 import { RevokeDestinationOAuthService } from './use-cases/google-oauth/revoke-destination-oauth.service';
 import { DataStorageCredentialsResolver } from './data-storage-types/data-storage-credentials-resolver.service';
+import { DataDestinationCredentialsResolver } from './data-destination-types/data-destination-credentials-resolver.service';
 import { DataStorageCredential } from './entities/data-storage-credential.entity';
 import { DataDestinationCredential } from './entities/data-destination-credential.entity';
 import { DataStorageCredentialService } from './services/data-storage-credential.service';
@@ -502,6 +503,7 @@ import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-c
     ValueTagHandler,
     ListAvailableTagsTool,
     DataStorageCredentialsResolver,
+    DataDestinationCredentialsResolver,
     DataStorageCredentialService,
     DataDestinationCredentialService,
     GoogleOAuthFlowService,

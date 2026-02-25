@@ -53,7 +53,7 @@ export class DataDestinationCredentialService {
     }
 
     if (params.credentials !== undefined) {
-      existing.credentials = params.credentials;
+      existing.credentials = params.credentials as DataDestinationCredential['credentials'];
     }
     if (params.identity !== undefined) {
       existing.identity = params.identity;

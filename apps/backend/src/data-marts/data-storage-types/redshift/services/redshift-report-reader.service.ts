@@ -16,6 +16,7 @@ import { isRedshiftDataMartSchema } from '../../data-mart-schema.guards';
 import { RedshiftReaderState } from '../interfaces/redshift-reader-state.interface';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import { DataStorage } from '../../../entities/data-storage.entity';
+import { DataStorageCredentialsResolver } from '../../data-storage-credentials-resolver.service';
 
 @Injectable({ scope: Scope.TRANSIENT })
 export class RedshiftReportReader implements DataStorageReportReader {
@@ -33,7 +34,8 @@ export class RedshiftReportReader implements DataStorageReportReader {
   constructor(
     private readonly adapterFactory: RedshiftApiAdapterFactory,
     private readonly queryBuilder: RedshiftQueryBuilder,
-    private readonly headersGenerator: RedshiftReportHeadersGenerator
+    private readonly headersGenerator: RedshiftReportHeadersGenerator,
+    private readonly credentialsResolver: DataStorageCredentialsResolver
   ) {}
 
   async prepareReportData(report: Report): Promise<ReportDataDescription> {
@@ -50,7 +52,8 @@ export class RedshiftReportReader implements DataStorageReportReader {
     this.reportConfig = { storage, definition };
     this.reportDataHeaders = this.headersGenerator.generateHeaders(schema);
 
-    if (!isRedshiftCredentials(storage.credentials)) {
+    const resolvedCredentials = await this.credentialsResolver.resolve(storage);
+    if (!isRedshiftCredentials(resolvedCredentials)) {
       throw new Error('Redshift credentials are not properly configured');
     }
 
@@ -58,7 +61,7 @@ export class RedshiftReportReader implements DataStorageReportReader {
       throw new Error('Redshift config is not properly configured');
     }
 
-    this.adapter = this.adapterFactory.create(storage.credentials, storage.config);
+    this.adapter = this.adapterFactory.create(resolvedCredentials, storage.config);
 
     return new ReportDataDescription(this.reportDataHeaders);
   }
