@@ -25,10 +25,13 @@ export function DataMartCodeEditor({ initialValue, onChange }: DataMartCodeEdito
     }
   }
   return (
-    <div className='shadow-xs'>
+    <div
+      className='resize-y overflow-auto rounded-md border border-gray-200 shadow-xs dark:border-gray-200/4'
+      style={{ height: '30vh', minHeight: '240px' }}
+    >
       <Editor
-        className='overflow-hidden rounded-md border border-gray-200 dark:border-gray-200/4'
-        height='30vh'
+        className='h-full w-full'
+        height='100%'
         language='sql'
         value={sqlCode}
         onChange={handleEditorChange}
@@ -41,6 +44,7 @@ export function DataMartCodeEditor({ initialValue, onChange }: DataMartCodeEdito
           },
           scrollBeyondLastLine: false,
           overviewRulerBorder: false,
+          automaticLayout: true,
         }}
       />
     </div>
