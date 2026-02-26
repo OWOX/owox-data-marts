@@ -63,26 +63,28 @@ describe('AgentFlowPromptBuilder', () => {
       },
     });
 
-    expect(initialMessages).toHaveLength(2);
+    expect(initialMessages).toHaveLength(3);
     expect(initialMessages[0].role).toBe(AiRole.SYSTEM);
-    expect(initialMessages[1].role).toBe(AiRole.USER);
+    expect(initialMessages[1].role).toBe(AiRole.SYSTEM);
+    expect(initialMessages[2].role).toBe(AiRole.USER);
     expect(initialMessages[0].content).toContain('Output format:');
     expect(initialMessages[0].content).toContain('JSON Schema for the final response object:');
     expect(initialMessages[0].content).toContain('templateEditIntent');
     expect(initialMessages[0].content).toContain('[[TAG:<id>]]');
     expect(initialMessages[0].content).toContain('Do NOT write raw template tags');
     expect(initialMessages[0].content).not.toContain('"const": "apply_template_text_patch"');
-    expect(initialMessages[1].content).not.toContain('State snapshot:');
-    expect(initialMessages[1].content).toContain('Conversation snapshot:');
-    expect(initialMessages[1].content).toContain('Recent turns:');
-    expect(initialMessages[1].content).toContain(
+    expect(initialMessages[1].content).toContain('State snapshot:');
+    expect(initialMessages[1].content).toContain('"sqlRevisions":[]');
+    expect(initialMessages[2].content).toContain('Conversation snapshot:');
+    expect(initialMessages[2].content).toContain('Recent turns:');
+    expect(initialMessages[2].content).toContain(
       '[Current user message]: show me monthly consumption'
     );
-    expect(initialMessages[1].content).not.toContain('[3] user: show me monthly consumption');
-    expect(initialMessages[1].content).toContain(
+    expect(initialMessages[2].content).not.toContain('[3] user: show me monthly consumption');
+    expect(initialMessages[2].content).toContain(
       'Your final message MUST be a valid JSON object matching the schema specification.'
     );
-    expect(initialMessages[1].content).toContain(
+    expect(initialMessages[2].content).toContain(
       '"reasonDescription" must be an internal concise rationale.'
     );
   });

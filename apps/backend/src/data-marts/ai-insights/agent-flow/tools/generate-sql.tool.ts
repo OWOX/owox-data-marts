@@ -100,6 +100,7 @@ export class GenerateSqlTool {
 
     const { delegatedRequest, baseAssistantMessageId, hasBaseSql } =
       await this.buildDelegatedRequest(args, request);
+    this.logger.debug('GenerateSqlTool: orchestrator request', { request, delegatedRequest });
 
     const response = await this.orchestrator.run(delegatedRequest, args.mode);
 

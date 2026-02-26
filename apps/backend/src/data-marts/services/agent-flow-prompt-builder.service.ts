@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AiMessage, AiRole } from '../../common/ai-insights/agent/ai-core';
 import {
+  buildAgentFlowContextSystemPrompt,
   buildAgentFlowSystemPrompt,
   buildAgentFlowUserPrompt,
 } from '../ai-insights/agent-flow/prompts/agent-flow.prompt';
@@ -13,6 +14,9 @@ export class AgentFlowPromptBuilder {
     promptContext: AgentFlowPromptContext;
   }): AiMessage[] {
     const { promptContext } = params;
+    const contextSystemPrompt = buildAgentFlowContextSystemPrompt({
+      stateSnapshot: promptContext.stateSnapshot,
+    });
 
     const userPrompt = buildAgentFlowUserPrompt({
       recentTurns: promptContext.recentTurns,
@@ -20,6 +24,10 @@ export class AgentFlowPromptBuilder {
     });
 
     const messages: AiMessage[] = [{ role: AiRole.SYSTEM, content: buildAgentFlowSystemPrompt() }];
+
+    if (contextSystemPrompt) {
+      messages.push({ role: AiRole.SYSTEM, content: contextSystemPrompt });
+    }
 
     messages.push({ role: AiRole.USER, content: userPrompt });
 
