@@ -1,5 +1,5 @@
 ---
-'@owox/docs': patch
+'owox': minor
 ---
 
 # AWS Redshift documentation improvements
