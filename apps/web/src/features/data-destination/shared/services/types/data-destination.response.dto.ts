@@ -19,6 +19,10 @@ export interface LookerStudioCredentialsResponse {
   type: DataDestinationCredentialsType.LOOKER_STUDIO_CREDENTIALS;
 }
 
+export interface GoogleSheetsOAuthCredentialsResponse {
+  type: DataDestinationCredentialsType.GOOGLE_SHEETS_OAUTH_CREDENTIALS;
+}
+
 export interface EmailCredentialsResponse {
   to: string[];
   type: DataDestinationCredentialsType.EMAIL_CREDENTIALS;
@@ -53,6 +57,7 @@ export interface DataDestinationResponseDto {
    */
   credentials:
     | GoogleSheetsCredentialsResponse
+    | GoogleSheetsOAuthCredentialsResponse
     | LookerStudioCredentialsResponse
     | EmailCredentialsResponse;
 

@@ -17,7 +17,6 @@ export class GoogleSheetsMapper implements DestinationMapper {
   mapFromDto(dto: DataDestinationResponseDto): GoogleSheetsDataDestination {
     let serviceAccountJson = '';
     try {
-      // Check if credentials are of type GoogleSheetsCredentialsResponse
       if (dto.credentials.type === DataDestinationCredentialsType.GOOGLE_SHEETS_CREDENTIALS) {
         serviceAccountJson = JSON.stringify(dto.credentials.serviceAccountKey, null, 2);
       }
