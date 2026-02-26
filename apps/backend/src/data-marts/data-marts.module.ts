@@ -7,6 +7,8 @@ import { LookerStudioConnectorController } from './controllers/external/looker-s
 import { MarkdownParserController } from './controllers/markdown-parser.controller';
 import { ReportController } from './controllers/report.controller';
 import { InsightController } from './controllers/insight.controller';
+import { AiAssistantController } from './controllers/ai-assistant.controller';
+import { AiAssistantRunTriggerController } from './controllers/ai-assistant-run-trigger.controller';
 import { InsightArtifactController } from './controllers/insight-artifact.controller';
 import { InsightArtifactSqlPreviewTriggerController } from './controllers/insight-artifact-sql-preview-trigger.controller';
 import { InsightTemplateController } from './controllers/insight-template.controller';
@@ -54,6 +56,11 @@ import { DeleteScheduledTriggerService } from './use-cases/delete-scheduled-trig
 import { DataMart } from './entities/data-mart.entity';
 import { DataStorage } from './entities/data-storage.entity';
 import { DataMartRun } from './entities/data-mart-run.entity';
+import { AiAssistantSession } from './entities/ai-assistant-session.entity';
+import { AiAssistantMessage } from './entities/ai-assistant-message.entity';
+import { AiAssistantContext } from './entities/ai-assistant-context.entity';
+import { AiAssistantRunTrigger } from './entities/ai-assistant-run-trigger.entity';
+import { AiAssistantApplyAction } from './entities/ai-assistant-apply-action.entity';
 import { dataStorageFacadesProviders } from './data-storage-types/data-storage-facades';
 import { dataStorageResolverProviders } from './data-storage-types/data-storage-providers';
 import { dataDestinationFacadesProviders } from './data-destination-types/data-destination-facades';
@@ -80,6 +87,7 @@ import { Insight } from './entities/insight.entity';
 import { InsightArtifact } from './entities/insight-artifact.entity';
 import { InsightArtifactSqlPreviewTrigger } from './entities/insight-artifact-sql-preview-trigger.entity';
 import { InsightTemplate } from './entities/insight-template.entity';
+import { InsightTemplateSourceEntity } from './entities/insight-template-source.entity';
 import { ConnectorController } from './controllers/connector.controller';
 import { AvailableConnectorService } from './use-cases/connector/available-connector.service';
 import { ConnectorService } from './services/connector.service';
@@ -103,6 +111,13 @@ import { InsightArtifactSqlPreviewTriggerHandlerService } from './services/insig
 import { InsightArtifactSqlPreviewTriggerService } from './services/insight-artifact-sql-preview-trigger.service';
 import { InsightTemplateService } from './services/insight-template.service';
 import { InsightTemplateValidationService } from './services/insight-template-validation.service';
+import { TemplatePlaceholderValidator } from './services/template-edit-placeholder-tags/template-placeholder-validator.service';
+import { TemplateTagContractValidator } from './services/template-edit-placeholder-tags/template-tag-contract-validator.service';
+import { TemplateTagRenderer } from './services/template-edit-placeholder-tags/template-tag-renderer.service';
+import { TemplateTemplateAssembler } from './services/template-edit-placeholder-tags/template-template-assembler.service';
+import { TemplateFinalValidator } from './services/template-edit-placeholder-tags/template-final-validator.service';
+import { TemplatePlaceholderTagsRendererService } from './services/template-edit-placeholder-tags/template-placeholder-tags-renderer.service';
+import { TemplateFullReplaceApplyService } from './services/template-edit-placeholder-tags/template-full-replace-apply.service';
 import { ConnectorOutputCaptureService } from './connector-types/connector-message/services/connector-output-capture.service';
 import { ConnectorMessageParserService } from './connector-types/connector-message/services/connector-message-parser.service';
 import { ConnectorStateService } from './connector-types/connector-message/services/connector-state.service';
@@ -130,6 +145,9 @@ import { LookerStudioReportRunService } from './services/looker-studio-report-ru
 import { InsightMapper } from './mappers/insight.mapper';
 import { InsightArtifactMapper } from './mappers/insight-artifact.mapper';
 import { InsightTemplateMapper } from './mappers/insight-template.mapper';
+import { AiAssistantMapper } from './mappers/ai-assistant.mapper';
+import { AiAssistantApplyActionMapper } from './mappers/ai-assistant-apply-action.mapper';
+import { AgentFlowRequestMapper } from './mappers/agent-flow-request.mapper';
 import { CreateInsightService } from './use-cases/create-insight.service';
 import { CreateInsightWithAiService } from './use-cases/create-insight-with-ai.service';
 import { GetInsightService } from './use-cases/get-insight.service';
@@ -175,6 +193,41 @@ import { DataMartTableReferenceService } from './services/data-mart-table-refere
 import { InsightTemplateSourceDataService } from './services/insight-template-source-data.service';
 import { DataMartSqlTableService } from './services/data-mart-sql-table.service';
 import { DataMartTemplateFacadeImpl } from './template/data-mart-template.facade.impl';
+import { AiAssistantSessionService } from './services/ai-assistant-session.service';
+import { AiAssistantContextService } from './services/ai-assistant-context.service';
+import { AiSourceApplyService } from './services/ai-source-apply.service';
+import { AiSourceApplyExecutionService } from './services/ai-source-apply-execution.service';
+import { AiAssistantRunTriggerService } from './services/ai-assistant-run-trigger.service';
+import { CreateAiAssistantSessionService } from './use-cases/create-ai-assistant-session.service';
+import { GetAiAssistantSessionService } from './use-cases/get-ai-assistant-session.service';
+import { ListAiAssistantSessionsService } from './use-cases/list-ai-assistant-sessions.service';
+import { UpdateAiAssistantSessionTitleService } from './use-cases/update-ai-assistant-session-title.service';
+import { DeleteAiAssistantSessionService } from './use-cases/delete-ai-assistant-session.service';
+import { CreateAiAssistantMessageService } from './use-cases/create-ai-assistant-message.service';
+import { ApplyAiAssistantSessionService } from './use-cases/apply-ai-assistant-session.service';
+
+import { SourceResolverToolsService } from './ai-insights/agent-flow/source-resolver-tools.service';
+import { AiAssistantOrchestratorService } from './ai-insights/agent-flow/ai-assistant-orchestrator.service';
+import { AiAssistantRunTriggerHandlerService } from './services/ai-assistant-run-trigger-handler.service';
+import { RunAiAssistantService } from './use-cases/run-ai-assistant.service';
+import { InsightArtifactRepository } from './repositories/insight-artifact.repository';
+import { AgentFlowService } from './ai-insights/agent-flow/agent-flow.service';
+import { AgentFlowAgent } from './ai-insights/agent-flow/agent-flow.agent';
+import { AgentFlowPolicySanitizerService } from './ai-insights/agent-flow/agent-flow-policy-sanitizer.service';
+import { AgentFlowToolsRegistrar } from './ai-insights/agent-flow/agent-flow-tools.registrar';
+import { AgentFlowContextManager } from './services/agent-flow-context-manager.service';
+import { AgentFlowPromptBuilder } from './services/agent-flow-prompt-builder.service';
+import { AgentFlowHistorySnapshotAgent } from './services/agent-flow-history-snapshot-agent.service';
+import { ListTemplateSourcesTool } from './ai-insights/agent-flow/tools/list-template-sources.tool';
+import { ListArtifactsTool } from './ai-insights/agent-flow/tools/list-artifacts.tool';
+import { GetTemplateContentTool } from './ai-insights/agent-flow/tools/get-template-content.tool';
+import { ProposeRemoveSourceTool } from './ai-insights/agent-flow/tools/propose-remove-source.tool';
+import { GenerateSqlTool } from './ai-insights/agent-flow/tools/generate-sql.tool';
+import { TemplateTagsService } from './services/template-tags/template-tags.service';
+import { TableTagHandler } from '../common/template/handlers/base/table-tag.handler';
+import { ValueTagHandler } from '../common/template/handlers/base/value-tag.handler';
+import { ListAvailableTagsTool } from './ai-insights/agent-flow/tools/list-available-tags.tool';
+import { DataMartSampleDataService } from './services/data-mart-sample-data.service';
 import { LegacyDataStorageService } from './services/legacy-data-marts/legacy-data-storage.service';
 import { LegacySyncTriggersService } from './services/legacy-data-marts/legacy-sync-triggers.service';
 import { SyncLegacyDataMartService } from './use-cases/legacy-data-marts/sync-legacy-data-mart.service';
@@ -194,6 +247,7 @@ import { BatchDataMartHealthStatusService } from './use-cases/batch-data-mart-he
       InsightArtifact,
       InsightArtifactSqlPreviewTrigger,
       InsightTemplate,
+      InsightTemplateSourceEntity,
       DataMartRun,
       DataMartScheduledTrigger,
       ConnectorState,
@@ -206,6 +260,11 @@ import { BatchDataMartHealthStatusService } from './use-cases/batch-data-mart-he
       ConnectorSourceCredentials,
       SyncDataMartsByGcpTrigger,
       SyncGcpStoragesForProjectTrigger,
+      AiAssistantSession,
+      AiAssistantMessage,
+      AiAssistantContext,
+      AiAssistantRunTrigger,
+      AiAssistantApplyAction,
     ]),
     CommonModule,
     IdpModule,
@@ -216,6 +275,8 @@ import { BatchDataMartHealthStatusService } from './use-cases/batch-data-mart-he
     DataDestinationController,
     ReportController,
     InsightController,
+    AiAssistantController,
+    AiAssistantRunTriggerController,
     InsightArtifactController,
     InsightArtifactSqlPreviewTriggerController,
     InsightTemplateController,
@@ -280,12 +341,23 @@ import { BatchDataMartHealthStatusService } from './use-cases/batch-data-mart-he
     InsightMapper,
     InsightArtifactMapper,
     InsightTemplateMapper,
+    AiAssistantMapper,
+    AiAssistantApplyActionMapper,
+    AgentFlowRequestMapper,
     InsightService,
+    InsightArtifactRepository,
     InsightArtifactService,
     InsightArtifactSqlPreviewTriggerService,
     InsightArtifactSqlPreviewTriggerHandlerService,
     InsightTemplateService,
     InsightTemplateValidationService,
+    TemplatePlaceholderValidator,
+    TemplateTagContractValidator,
+    TemplateTagRenderer,
+    TemplateTemplateAssembler,
+    TemplateFinalValidator,
+    TemplatePlaceholderTagsRendererService,
+    TemplateFullReplaceApplyService,
     CreateInsightService,
     CreateInsightWithAiService,
     GetInsightService,
@@ -314,6 +386,7 @@ import { BatchDataMartHealthStatusService } from './use-cases/batch-data-mart-he
     InsightTemplateSourceDataService,
     DataMartTableReferenceService,
     DataMartSqlTableService,
+    DataMartSampleDataService,
     GetDataMartRunService,
     AvailableConnectorService,
     ConnectorService,
@@ -362,6 +435,23 @@ import { BatchDataMartHealthStatusService } from './use-cases/batch-data-mart-he
     InsightTemplateRunTriggerService,
     InsightTemplateRunTriggerHandlerService,
     ConnectorSourceCredentialsService,
+    AiAssistantSessionService,
+    AiAssistantContextService,
+    AiSourceApplyService,
+    AiSourceApplyExecutionService,
+    AiAssistantRunTriggerService,
+    AiAssistantRunTriggerHandlerService,
+    CreateAiAssistantSessionService,
+    ListAiAssistantSessionsService,
+    GetAiAssistantSessionService,
+    UpdateAiAssistantSessionTitleService,
+    DeleteAiAssistantSessionService,
+    CreateAiAssistantMessageService,
+    ApplyAiAssistantSessionService,
+    RunAiAssistantService,
+
+    SourceResolverToolsService,
+    AiAssistantOrchestratorService,
     ConnectorOauthService,
     UserProjectionsFetcherService,
     DeleteLegacyDataMartService,
@@ -372,6 +462,23 @@ import { BatchDataMartHealthStatusService } from './use-cases/batch-data-mart-he
     SyncGcpStoragesForProjectTriggerHandler,
     ValidateDataStorageAccessService,
     BatchDataMartHealthStatusService,
+    AgentFlowService,
+    AgentFlowAgent,
+    AgentFlowPolicySanitizerService,
+    AgentFlowToolsRegistrar,
+    AgentFlowContextManager,
+    AgentFlowPromptBuilder,
+    AgentFlowHistorySnapshotAgent,
+    ListTemplateSourcesTool,
+    ListArtifactsTool,
+    GetTemplateContentTool,
+    ProposeRemoveSourceTool,
+    GenerateSqlTool,
+    GenerateSqlTool,
+    TemplateTagsService,
+    TableTagHandler,
+    ValueTagHandler,
+    ListAvailableTagsTool,
   ],
 })
 export class DataMartsModule {

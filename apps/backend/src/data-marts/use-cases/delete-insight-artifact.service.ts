@@ -12,6 +12,11 @@ export class DeleteInsightArtifactService {
       command.dataMartId,
       command.projectId
     );
+    await this.insightArtifactService.ensureNotUsedInTemplateSources(
+      command.insightArtifactId,
+      command.dataMartId,
+      command.projectId
+    );
 
     await this.insightArtifactService.softDelete(command.insightArtifactId);
   }

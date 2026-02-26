@@ -1,4 +1,4 @@
-import { Database, FileText, Sparkles } from 'lucide-react';
+import { Bot, Database, FileText, Sparkles } from 'lucide-react';
 import { DataDestinationType, DataDestinationTypeModel } from '../../../../data-destination';
 import { DataMartRunType } from '../../../shared';
 import { RawBase64Icon } from '../../../../../shared/icons';
@@ -48,6 +48,9 @@ export function TypeIcon({ type, base64Icon }: DataMartRunTypeIconProps) {
     }
     case DataMartRunType.INSIGHT_TEMPLATE: {
       return <FileText className='text-brand-blue-500' size={iconSize} />;
+    }
+    case DataMartRunType.AI_ASSISTANT: {
+      return <Bot className='text-brand-blue-500' size={iconSize} />;
     }
     default:
       return <Database className='text-muted-foreground' size={iconSize} />;

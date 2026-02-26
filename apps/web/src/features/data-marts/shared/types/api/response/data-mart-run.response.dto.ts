@@ -1,6 +1,7 @@
 import type { UserProjectionDto } from '../../../../../../shared/types/api';
 
 import type {
+  DataMartRunAiSourceDefinitionDto,
   DataMartRunInsightDefinitionDto,
   DataMartRunInsightTemplateDefinitionDto,
   DataMartRunReportDefinitionDto,
@@ -26,5 +27,6 @@ export interface DataMartRunResponseDto {
   insightId: string | null;
   insightTemplateDefinition: DataMartRunInsightTemplateDefinitionDto | null;
   insightTemplateId: string | null;
+  aiSourceDefinition: DataMartRunAiSourceDefinitionDto | null;
   createdByUser: UserProjectionDto | null;
 }

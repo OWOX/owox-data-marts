@@ -2,6 +2,7 @@ import { HelperOptions } from 'handlebars';
 import { TagRenderedResult } from '../../types/render-template.types';
 import { TagHandlerException } from '../tag-handler.exception';
 import { TagHandler } from '../tag-handler.interface';
+import { TagHandlerMetaAware, TagMeta } from '../tag-handler-meta-aware.interface';
 
 export interface DataTableHeader {
   name: string;
@@ -14,6 +15,12 @@ export interface DataTablePayload {
   dataRows: unknown[][];
 }
 
+interface TableSourceContext {
+  dataHeaders?: DataTablePayload['dataHeaders'];
+  dataRows?: DataTablePayload['dataRows'];
+}
+
+const DEFAULT_SOURCE_KEY = 'main';
 const DEFAULT_TABLE_ROWS = 10;
 const MAX_TABLE_ROWS = 100;
 
@@ -22,23 +29,55 @@ type SliceFrom = 'start' | 'end';
 /**
  * Tag handler for rendering data tables as Markdown.
  *
+ * Resolves data from `context.tableSources[source]` where `source`
+ * is a hash parameter (defaults to 'main').
+ *
  * Supported hash parameters:
- *  - `dataHeaders` - array of column descriptors (fallback: context)
- *  - `dataRows` - 2D array of cell values (fallback: context)
- *  - `limit` - max rows to display (default: 10, cap: 100)
- *  - `from` - slice origin: "start" (default) or "end"
+ *  - `source`  - key in tableSources (default: 'main')
+ *  - `limit`   - max rows to display (default: 10, cap: 100)
+ *  - `from`    - slice origin: "start" (default) or "end"
  *  - `columns` - comma-separated column names/aliases to include
  */
-export class DataTableTagHandler implements TagHandler<DataTablePayload, TagRenderedResult<void>> {
-  readonly tag = 'data-table' as const;
+export class TableTagHandler
+  implements TagHandler<DataTablePayload, TagRenderedResult<void>>, TagHandlerMetaAware
+{
+  readonly tag = 'table' as const;
   readonly immediate = true as const;
+
+  tagMetaInfo(): TagMeta {
+    return {
+      name: 'table',
+      description: 'Inserts a data table for the specified source.',
+      parameters: [
+        {
+          name: 'source',
+          type: 'string',
+          required: false,
+          default: DEFAULT_SOURCE_KEY,
+          description: `The source key of the data to display. Default is "${DEFAULT_SOURCE_KEY}".`,
+        },
+      ],
+    };
+  }
 
   buildPayload(_args: unknown[], options: HelperOptions, context: unknown): DataTablePayload {
     const hash = (options.hash ?? {}) as Record<string, unknown>;
-    const ctx = (context ?? {}) as Record<string, unknown>;
+    const sourceRaw = hash['source'];
 
-    const dataHeaders = this.resolveHeaders(hash, ctx);
-    const dataRows = this.resolveRows(hash, ctx);
+    if (sourceRaw != null && typeof sourceRaw !== 'string') {
+      throw new TagHandlerException(`[${this.tag}] "source" must be a string`);
+    }
+
+    const source = (sourceRaw as string | undefined)?.trim() || DEFAULT_SOURCE_KEY;
+    const tableSource = this.resolveSourceContext(context, source);
+
+    if (!tableSource) {
+      throw new TagHandlerException(`[${this.tag}] source "${source}" is not configured`);
+    }
+
+    const dataHeaders = (tableSource.dataHeaders ?? []) as DataTableHeader[];
+    const dataRows = (tableSource.dataRows ?? []) as unknown[][];
+
     const limit = Math.min((hash['limit'] as number) ?? DEFAULT_TABLE_ROWS, MAX_TABLE_ROWS);
     const from = this.resolveFrom(hash);
     const columns = hash['columns'] as string | undefined;
@@ -53,6 +92,10 @@ export class DataTableTagHandler implements TagHandler<DataTablePayload, TagRend
   handle(input: DataTablePayload): TagRenderedResult<void> {
     const { dataHeaders, dataRows } = input;
 
+    if (!dataRows.length || !dataHeaders.length) {
+      return { rendered: '', meta: undefined as void };
+    }
+
     const headerCells = dataHeaders.map(h => h.alias ?? h.name);
     const headerLine = `| ${headerCells.join(' | ')} |`;
     const separatorLine = `| ${dataHeaders.map(() => '---').join(' | ')} |`;
@@ -66,23 +109,11 @@ export class DataTableTagHandler implements TagHandler<DataTablePayload, TagRend
     return { rendered, meta: undefined as void };
   }
 
-  private resolveHeaders(
-    hash: Record<string, unknown>,
-    ctx: Record<string, unknown>
-  ): DataTableHeader[] {
-    const value = hash['dataHeaders'] ?? ctx['dataHeaders'];
-    if (!Array.isArray(value) || value.length === 0) {
-      throw new TagHandlerException(`[${this.tag}] "dataHeaders" must be a non-empty array`);
-    }
-    return value as DataTableHeader[];
-  }
+  private resolveSourceContext(context: unknown, source: string): TableSourceContext | null {
+    const ctx = (context ?? {}) as Record<string, unknown>;
+    const tableSources = (ctx['tableSources'] ?? {}) as Record<string, TableSourceContext>;
 
-  private resolveRows(hash: Record<string, unknown>, ctx: Record<string, unknown>): unknown[][] {
-    const value = hash['dataRows'] ?? ctx['dataRows'];
-    if (!Array.isArray(value)) {
-      throw new TagHandlerException(`[${this.tag}] "dataRows" must be an array`);
-    }
-    return value as unknown[][];
+    return tableSources[source] ?? null;
   }
 
   private resolveFrom(hash: Record<string, unknown>): SliceFrom {

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const MAX_TEMPLATE_SOURCES = 5;
+export const MAX_TEMPLATE_SOURCES = 10;
 
 export enum InsightTemplateSourceType {
   CURRENT_DATA_MART = 'CURRENT_DATA_MART',
@@ -8,9 +8,10 @@ export enum InsightTemplateSourceType {
 }
 
 export const InsightTemplateSourceSchema = z.object({
+  templateSourceId: z.string().uuid().optional().nullable(),
   key: z.string().trim().min(1).max(64),
   type: z.nativeEnum(InsightTemplateSourceType),
-  artifactId: z.string().uuid().optional().nullable(),
+  artifactId: z.string().uuid(),
 });
 
 export const InsightTemplateSourcesSchema = z

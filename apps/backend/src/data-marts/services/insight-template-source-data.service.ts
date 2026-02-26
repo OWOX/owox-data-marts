@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
-import { DataTableHeader } from '../../common/template/handlers/base/data-table-tag.handler';
+import { DataTableHeader } from '../../common/template/handlers/base/table-tag.handler';
 import {
   InsightTemplateSource,
   InsightTemplateSourceType,
@@ -14,7 +14,7 @@ import { InsightTemplateValidationService } from './insight-template-validation.
 import { DataMartSqlTableService } from './data-mart-sql-table.service';
 
 const DEFAULT_SOURCE_KEY = 'main';
-const MAX_SOURCE_ROWS_IN_MEMORY = 100;
+const MAX_LOADED_SOURCE = 100;
 
 export interface InsightTemplateTableSourceContext {
   dataHeaders: DataTableHeader[];
@@ -40,17 +40,10 @@ export class InsightTemplateSourceDataService {
       projectId: dataMart.projectId,
     });
 
-    const sourceRegistry: InsightTemplateSource[] = [
-      {
-        key: DEFAULT_SOURCE_KEY,
-        type: InsightTemplateSourceType.CURRENT_DATA_MART,
-      },
-      ...(insightTemplate.sources ?? []),
-    ];
-
     const tableSources: Record<string, InsightTemplateTableSourceContext> = {};
+    tableSources[DEFAULT_SOURCE_KEY] = await this.resolveCurrentDataMartSourceContext(dataMart);
 
-    for (const source of sourceRegistry) {
+    for (const source of insightTemplate.sources ?? []) {
       tableSources[source.key] = await this.resolveSourceContext(source, dataMart);
     }
 
@@ -62,19 +55,7 @@ export class InsightTemplateSourceDataService {
     dataMart: DataMart
   ): Promise<InsightTemplateTableSourceContext> {
     if (source.type === InsightTemplateSourceType.CURRENT_DATA_MART) {
-      const { columns, rows } = await this.dataMartSqlTableService.executeSqlToTable(
-        dataMart,
-        undefined,
-        {
-          limit: MAX_SOURCE_ROWS_IN_MEMORY,
-        }
-      );
-
-      return this.buildContext(columns, rows);
-    }
-
-    if (!source.artifactId) {
-      throw new BusinessViolationException(`Source "${source.key}" must provide artifactId`);
+      return this.resolveCurrentDataMartSourceContext(dataMart);
     }
 
     const artifact = await this.insightArtifactService.getByIdAndDataMartIdAndProjectId(
@@ -95,7 +76,7 @@ export class InsightTemplateSourceDataService {
         dataMart,
         sql,
         {
-          limit: MAX_SOURCE_ROWS_IN_MEMORY,
+          limit: MAX_LOADED_SOURCE,
         }
       );
       const context = this.buildContext(columns, rows);
@@ -120,6 +101,20 @@ export class InsightTemplateSourceDataService {
         `Failed to execute artifact source "${artifact.title}": ${message}`
       );
     }
+  }
+
+  private async resolveCurrentDataMartSourceContext(
+    dataMart: DataMart
+  ): Promise<InsightTemplateTableSourceContext> {
+    const { columns, rows } = await this.dataMartSqlTableService.executeSqlToTable(
+      dataMart,
+      undefined,
+      {
+        limit: MAX_LOADED_SOURCE,
+      }
+    );
+
+    return this.buildContext(columns, rows);
   }
 
   private async prepareArtifactSql(artifact: InsightArtifact, dataMart: DataMart): Promise<string> {

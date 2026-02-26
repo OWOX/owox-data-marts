@@ -103,8 +103,13 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   }, [canActualizeSchema, runActualizeSchemaInternal]);
 
   const shouldShowInsights = checkVisible('INSIGHTS_ENABLED', 'true', flags);
-  const shouldShowInsightTemplates =
-    checkVisible('INSIGHT_TEMPLATES_ENABLED', 'true', flags) || shouldShowInsights;
+  const insightAssistantEnabledProjectIds =
+    typeof flags?.INSIGHT_ASSISTANT_ENABLED_PROJECT_IDS === 'string'
+      ? flags.INSIGHT_ASSISTANT_ENABLED_PROJECT_IDS.split(',')
+          .map(item => item.trim())
+          .filter(Boolean)
+      : [];
+  const shouldShowInsightTemplates = insightAssistantEnabledProjectIds.includes(projectId);
 
   const { showPromo, dismissAllPromos } = useDataMartNextStepPromo();
 

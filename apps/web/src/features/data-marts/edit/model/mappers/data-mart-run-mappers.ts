@@ -1,6 +1,7 @@
 import type { DataMartRunItem } from '../types';
 import type { DataMartRunResponseDto } from '../../../shared/types/api';
 import type {
+  DataMartRunAiAssistantDefinition,
   DataMartDefinitionConfig,
   DataMartRunInsightTemplateDefinition,
   DataMartRunReportDefinition,
@@ -31,6 +32,9 @@ export const mapDataMartRunResponseDtoToEntity = (
     ? (dto.insightTemplateDefinition as DataMartRunInsightTemplateDefinition)
     : null,
   insightTemplateId: dto.insightTemplateId,
+  aiAssistantDefinition: dto.aiSourceDefinition
+    ? (dto.aiSourceDefinition as DataMartRunAiAssistantDefinition)
+    : null,
   createdByUser: dto.createdByUser,
 });
 

@@ -68,8 +68,25 @@ export class DataMartSqlTableService {
     }
 
     const headerNames = columns.length > 0 ? columns : Object.keys(rowObjects[0] ?? {});
-    const rows = rowObjects.map(row => headerNames.map(name => row[name]));
+    const rows = rowObjects.map(row => headerNames.map(name => flattenCell(row[name])));
 
     return { columns: headerNames, rows };
   }
+}
+
+/**
+ * Normalizes a cell value to a primitive.
+ * Some storage SDKs (e.g. BigQuery) return complex objects for DATE, TIMESTAMP, etc.
+ * with a `.value` property containing the string representation.
+ */
+function flattenCell(cell: unknown): unknown {
+  if (cell == null) return cell;
+  if (typeof cell !== 'object') return cell;
+
+  const obj = cell as Record<string, unknown>;
+  if ('value' in obj && Object.keys(obj).length === 1) {
+    return obj.value;
+  }
+
+  return JSON.stringify(cell);
 }

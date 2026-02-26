@@ -7,6 +7,7 @@ import { DataMartRunReportDefinitionSchema } from './data-mart-run-report-defini
 import { DataMartDefinitionSchema } from '../data-mart-table-definitions/data-mart-definition.schema';
 import { DataMartRunInsightDefinitionSchema } from './data-mart-run-insight-definition.schema';
 import { DataMartRunInsightTemplateDefinitionSchema } from './data-mart-run-insight-template-definition.schema';
+import { DataMartRunAiSourceDefinitionSchema } from './data-mart-run-ai-source-definition.schema';
 
 export const DataMartRunSchema = z.object({
   id: z.string(),
@@ -21,6 +22,7 @@ export const DataMartRunSchema = z.object({
   insightDefinition: DataMartRunInsightDefinitionSchema.nullable(),
   insightTemplateId: z.string().nullable(),
   insightTemplateDefinition: DataMartRunInsightTemplateDefinitionSchema.nullable(),
+  aiSourceDefinition: DataMartRunAiSourceDefinitionSchema.nullable(),
   logs: z.array(z.string()).nullable(),
   errors: z.array(z.string()).nullable(),
   createdAt: z.date(),

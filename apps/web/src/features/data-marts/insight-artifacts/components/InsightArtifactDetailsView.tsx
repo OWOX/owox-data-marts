@@ -234,7 +234,7 @@ export default function InsightArtifactDetailsView() {
   }
 
   return (
-    <div className='flex h-full w-full flex-col gap-2'>
+    <div className='flex h-full min-h-0 flex-col gap-2'>
       <div className='flex items-center justify-between gap-2'>
         <Breadcrumb>
           <BreadcrumbList>
@@ -287,111 +287,112 @@ export default function InsightArtifactDetailsView() {
         </DropdownMenu>
       </div>
 
-      <div className='bg-background flex-1 rounded-md border'>
-        <ResizableColumns
-          storageKey='insight_artifact_details_split'
-          initialRatio={0.5}
-          left={
-            <div className='flex h-full min-h-0 flex-col'>
-              <div className='flex min-h-0 flex-1 flex-col'>
-                <div className='flex items-center justify-between border-b px-4 py-2'>
-                  <div className='text-sm font-medium'>SQL</div>
-                  <div className='text-muted-foreground text-xs'>
-                    Status: {artifact.validationStatus}
-                  </div>
-                </div>
-                <Editor
-                  className='overflow-hidden'
-                  language='sql'
-                  value={sql}
-                  onChange={value => {
-                    setSql(value ?? '');
-                  }}
-                  height='calc(100vh - 320px)'
-                  theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
-                  options={{
-                    minimap: { enabled: false },
-                    scrollBeyondLastLine: false,
-                    wordWrap: 'on',
-                    automaticLayout: true,
-                    overviewRulerBorder: false,
-                    overviewRulerLanes: 0,
-                    readOnly: !canEdit,
-                  }}
-                />
-              </div>
-
-              <div className='border-t px-4 py-2'>
-                <div className='flex items-center gap-4'>
-                  <div className='flex items-center gap-2'>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div>
-                          <Button
-                            onClick={() => void handleRunSqlPreview()}
-                            disabled={!canEdit || !sql.trim() || isPreviewRunning || saving}
-                          >
-                            {isPreviewRunning || saving ? (
-                              <>
-                                <Loader2 className='h-4 w-4 animate-spin' />
-                                Running…
-                              </>
-                            ) : (
-                              <>
-                                <Play className='h-4 w-4' />
-                                {isDirty ? 'Save & Run' : 'Run'}
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      </TooltipTrigger>
-                      {!canEdit && <TooltipContent>{NO_PERMISSION_MESSAGE}</TooltipContent>}
-                    </Tooltip>
-                  </div>
-
-                  <div className='flex items-center'>
-                    <div className='h-6 w-px bg-gray-300'></div>
-                    <SqlValidator
-                      sql={sql}
-                      dataMartId={dataMart.id}
-                      onValidationStateChange={handleValidationStateChange}
+      <div className='flex h-full min-h-0 flex-1 items-stretch overflow-hidden'>
+        <div className='min-w-0 flex-1'>
+          <div className='bg-background h-full rounded-md border'>
+            <ResizableColumns
+              storageKey='insight_artifact_details_split'
+              initialRatio={0.5}
+              left={
+                <div className='flex h-full min-h-0 flex-col'>
+                  <div className='flex min-h-0 flex-1 flex-col'>
+                    <div className='mb-2 flex items-center justify-between border-b px-4 py-2'>
+                      <div className='text-sm font-medium'>SQL</div>
+                    </div>
+                    <Editor
+                      className='overflow-hidden'
+                      language='sql'
+                      value={sql}
+                      onChange={value => {
+                        setSql(value ?? '');
+                      }}
+                      height='calc(100vh - 320px)'
+                      theme={resolvedTheme === 'dark' ? 'vs-dark' : 'light'}
+                      options={{
+                        minimap: { enabled: false },
+                        scrollBeyondLastLine: false,
+                        wordWrap: 'on',
+                        automaticLayout: true,
+                        overviewRulerBorder: false,
+                        overviewRulerLanes: 0,
+                        readOnly: !canEdit,
+                      }}
                     />
                   </div>
-                </div>
-                {validationState?.isValid === false && validationState.error && (
-                  <div className='mt-2 rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700'>
-                    {validationState.error}
+
+                  <div className='border-t px-4 py-2'>
+                    <div className='flex items-center gap-4'>
+                      <div className='flex items-center gap-2'>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div>
+                              <Button
+                                onClick={() => void handleRunSqlPreview()}
+                                disabled={!canEdit || !sql.trim() || isPreviewRunning || saving}
+                              >
+                                {isPreviewRunning || saving ? (
+                                  <>
+                                    <Loader2 className='h-4 w-4 animate-spin' />
+                                    Running…
+                                  </>
+                                ) : (
+                                  <>
+                                    <Play className='h-4 w-4' />
+                                    {isDirty ? 'Save & Run' : 'Run'}
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          </TooltipTrigger>
+                          {!canEdit && <TooltipContent>{NO_PERMISSION_MESSAGE}</TooltipContent>}
+                        </Tooltip>
+                      </div>
+
+                      <div className='flex items-center'>
+                        <div className='h-6 w-px bg-gray-300'></div>
+                        <SqlValidator
+                          sql={sql}
+                          dataMartId={dataMart.id}
+                          onValidationStateChange={handleValidationStateChange}
+                        />
+                      </div>
+                    </div>
+                    {validationState?.isValid === false && validationState.error && (
+                      <div className='mt-2 rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700'>
+                        {validationState.error}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </div>
-          }
-          right={
-            <div className='h-full'>
-              <div className='flex h-full min-h-0 flex-col gap-2'>
-                <div className='relative min-h-0 flex-1 overflow-hidden'>
-                  {previewExecutionError ? (
-                    <div className='text-destructive p-3 text-sm'>{previewExecutionError}</div>
-                  ) : (
-                    <MarkdownEditorPreview
-                      html={markdownPreview.html}
-                      loading={markdownPreview.loading}
-                      error={markdownPreview.error}
-                      height='100%'
-                      emptyState={
-                        <div className='text-muted-foreground p-3 text-sm'>
-                          {hasPreviewResult
-                            ? 'No rows returned.'
-                            : `Run SQL to preview rows as a table.`}
-                        </div>
-                      }
-                    />
-                  )}
                 </div>
-              </div>
-            </div>
-          }
-        />
+              }
+              right={
+                <div className='h-full'>
+                  <div className='flex h-full min-h-0 flex-col gap-2'>
+                    <div className='relative min-h-0 flex-1 overflow-hidden'>
+                      {previewExecutionError ? (
+                        <div className='text-destructive p-3 text-sm'>{previewExecutionError}</div>
+                      ) : (
+                        <MarkdownEditorPreview
+                          html={markdownPreview.html}
+                          loading={markdownPreview.loading}
+                          error={markdownPreview.error}
+                          height='100%'
+                          emptyState={
+                            <div className='text-muted-foreground p-3 text-sm'>
+                              {hasPreviewResult
+                                ? 'No rows returned.'
+                                : `Run SQL to preview rows as a table.`}
+                            </div>
+                          }
+                        />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              }
+            />
+          </div>
+        </div>
       </div>
 
       <ConfirmationDialog

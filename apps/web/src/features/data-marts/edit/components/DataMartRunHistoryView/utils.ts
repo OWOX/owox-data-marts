@@ -157,6 +157,10 @@ export const getRunSummaryParts = (
       title = run.insightTemplateDefinition?.title ?? '';
       runType = 'insight template';
       break;
+    case DataMartRunType.AI_ASSISTANT:
+      title = run.aiAssistantDefinition?.route ?? '';
+      runType = 'ai assistant';
+      break;
     default:
       break;
   }

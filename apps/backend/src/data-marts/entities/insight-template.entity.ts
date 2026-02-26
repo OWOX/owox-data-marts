@@ -5,16 +5,17 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { CreatorAwareEntity } from './creator-aware-entity.interface';
 import { DataMart } from './data-mart.entity';
-import { createZodTransformer } from '../../common/zod/zod-transformer';
 import {
   InsightTemplateSources,
   InsightTemplateSourcesSchema,
 } from '../dto/schemas/insight-template/insight-template-source.schema';
+import { InsightTemplateSourceEntity } from './insight-template-source.entity';
 
 @Entity()
 export class InsightTemplate implements CreatorAwareEntity {
@@ -27,18 +28,55 @@ export class InsightTemplate implements CreatorAwareEntity {
   @Column({ type: 'text', nullable: true })
   template?: string;
 
-  @Column({
-    type: 'json',
-    transformer: createZodTransformer<InsightTemplateSources>(InsightTemplateSourcesSchema),
-    default: [],
+  @OneToMany(() => InsightTemplateSourceEntity, sourceEntity => sourceEntity.insightTemplate, {
+    cascade: true,
+    eager: true,
+    orphanedRowAction: 'delete',
   })
-  sources: InsightTemplateSources;
+  sourceEntities: InsightTemplateSourceEntity[];
+
+  get sources(): InsightTemplateSources {
+    return (this.sourceEntities ?? []).map(sourceEntity => ({
+      templateSourceId: sourceEntity.id ?? null,
+      key: sourceEntity.key,
+      type: sourceEntity.type,
+      artifactId: sourceEntity.artifactId,
+    }));
+  }
+
+  set sources(value: InsightTemplateSources) {
+    const normalizedSources = InsightTemplateSourcesSchema.parse(value ?? []);
+    const existingByTemplateSourceId = new Map(
+      (this.sourceEntities ?? [])
+        .filter((sourceEntity): sourceEntity is InsightTemplateSourceEntity =>
+          Boolean(sourceEntity.id?.length)
+        )
+        .map(sourceEntity => [sourceEntity.id, sourceEntity])
+    );
+    const existingByKey = new Map(
+      (this.sourceEntities ?? []).map(sourceEntity => [sourceEntity.key, sourceEntity])
+    );
+
+    this.sourceEntities = normalizedSources.map(source => {
+      const sourceEntity =
+        (source.templateSourceId
+          ? existingByTemplateSourceId.get(source.templateSourceId)
+          : undefined) ??
+        existingByKey.get(source.key) ??
+        new InsightTemplateSourceEntity();
+      sourceEntity.key = source.key;
+      sourceEntity.type = source.type;
+      sourceEntity.artifactId = source.artifactId;
+      sourceEntity.insightTemplate = this;
+      return sourceEntity;
+    });
+  }
 
   @Column({ type: 'text', nullable: true })
-  output?: string;
+  lastRenderedTemplate?: string;
 
   @Column({ nullable: true })
-  outputUpdatedAt?: Date;
+  lastRenderedTemplateUpdatedAt?: Date;
 
   @Column({ nullable: true })
   lastManualDataMartRunId?: string;

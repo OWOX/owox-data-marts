@@ -40,6 +40,7 @@ import {
   mapInsightArtifactListFromDto,
   type InsightArtifactEntity,
 } from '../../insight-artifacts';
+import { AiAssistantPanel } from '../../ai-assistant/components/AiAssistantPanel.tsx';
 import type { DataMartRunResponseDto } from '../../shared/types/api';
 import { InsightTemplateEditor } from './InsightTemplateEditor';
 import { InsightTemplateSourcesBottomPanel } from './InsightTemplateSourcesBottomPanel';
@@ -62,8 +63,8 @@ export default function InsightTemplateDetailsView() {
   const [runErrorMessage, setRunErrorMessage] = useState<string | null>(null);
 
   const preview = useMarkdownPreview({
-    markdown: entity?.output ?? '',
-    enabled: Boolean(entity?.output),
+    markdown: entity?.lastRenderedTemplate ?? '',
+    enabled: Boolean(entity?.lastRenderedTemplate),
     debounceMs: 0,
   });
 
@@ -313,93 +314,111 @@ export default function InsightTemplateDetailsView() {
         </DropdownMenu>
       </div>
 
-      <div className='bg-background flex-1 rounded-md border'>
-        <ResizableColumns
-          storageKey='insight_template_details_split'
-          initialRatio={0.56}
-          left={
-            <div className='flex h-full min-h-0 flex-col'>
-              <div className='relative min-h-[280px] flex-1 overflow-hidden'>
-                <InsightTemplateEditor
-                  value={template}
-                  onChange={setTemplate}
-                  readOnly={!canEdit || isRunning || saving}
-                  height='calc(100vh - 320px)'
-                />
-                <InsightTemplateSourcesBottomPanel
-                  dataMartId={dataMart.id}
-                  insightTemplateId={insightTemplateId}
-                  sources={sources}
-                  setSources={setSources}
-                  artifacts={artifacts}
-                  canEdit={canEdit}
-                  isRunning={isRunning}
-                  saving={saving}
-                  duplicatedKeys={duplicatedKeys}
-                />
-              </div>
-
-              <div className='flex items-center gap-2 border-t px-4 py-2'>
-                <div className='flex w-full items-center gap-3'>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className='inline-flex'>
-                        <Button
-                          onClick={() => void (isDirty ? handleSaveAndRun() : handleRun())}
-                          disabled={
-                            !canEdit || isRunning || saving || isDraft || duplicatedKeys.size > 0
-                          }
-                        >
-                          {isRunning || saving ? (
-                            <>
-                              <Loader2 className='h-4 w-4 animate-spin' />
-                              Running…
-                            </>
-                          ) : (
-                            <>
-                              <Play className='h-4 w-4' />
-                              {isDirty ? 'Save & Run' : 'Run'}
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </TooltipTrigger>
-                    {isDraft && canEdit && (
-                      <TooltipContent>Publish Data Mart first to run templates</TooltipContent>
-                    )}
-                    {!canEdit && <TooltipContent>{NO_PERMISSION_MESSAGE}</TooltipContent>}
-                  </Tooltip>
-                  {runErrorMessage && (
-                    <div className='min-w-0 flex-1 text-xs text-red-700'>
-                      <p className='truncate' title={`Run failed: ${runErrorMessage}`}>
-                        Run failed: {runErrorMessage}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          }
-          right={
-            <div className='h-full'>
-              <div className='flex h-full min-h-0 flex-col gap-2'>
-                <div className='relative min-h-0 flex-1 overflow-hidden'>
-                  <MarkdownEditorPreview
-                    html={preview.html}
-                    loading={preview.loading}
-                    error={preview.error}
-                    height='100%'
-                    emptyState={
-                      <div className='text-muted-foreground p-3 text-sm'>
-                        Run template to see output.
-                      </div>
-                    }
-                  />
-                </div>
-              </div>
-            </div>
-          }
+      <div className='flex h-full min-h-0 flex-1 items-stretch overflow-hidden'>
+        <AiAssistantPanel
+          dataMartId={dataMart.id}
+          scope='template'
+          templateId={insightTemplateId}
+          canEdit={canEdit}
+          onApplied={() => {
+            void loadEntity();
+          }}
         />
+
+        <div className='min-w-0 flex-1 pl-2'>
+          <div className='bg-background h-full rounded-md border'>
+            <ResizableColumns
+              storageKey='insight_template_details_split'
+              initialRatio={0.56}
+              left={
+                <div className='flex h-full min-h-0 flex-col'>
+                  <div className='relative min-h-[280px] flex-1 overflow-hidden'>
+                    <InsightTemplateEditor
+                      value={template}
+                      onChange={setTemplate}
+                      readOnly={!canEdit || isRunning || saving}
+                      height='calc(100vh - 320px)'
+                    />
+                    <InsightTemplateSourcesBottomPanel
+                      dataMartId={dataMart.id}
+                      insightTemplateId={insightTemplateId}
+                      sources={sources}
+                      setSources={setSources}
+                      artifacts={artifacts}
+                      canEdit={canEdit}
+                      isRunning={isRunning}
+                      saving={saving}
+                      duplicatedKeys={duplicatedKeys}
+                    />
+                  </div>
+
+                  <div className='flex items-center gap-2 border-t px-4 py-2'>
+                    <div className='flex w-full items-center gap-3'>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className='inline-flex'>
+                            <Button
+                              onClick={() => void (isDirty ? handleSaveAndRun() : handleRun())}
+                              disabled={
+                                !canEdit ||
+                                isRunning ||
+                                saving ||
+                                isDraft ||
+                                duplicatedKeys.size > 0
+                              }
+                            >
+                              {isRunning || saving ? (
+                                <>
+                                  <Loader2 className='h-4 w-4 animate-spin' />
+                                  Running…
+                                </>
+                              ) : (
+                                <>
+                                  <Play className='h-4 w-4' />
+                                  {isDirty ? 'Save & Run' : 'Run'}
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </TooltipTrigger>
+                        {isDraft && canEdit && (
+                          <TooltipContent>Publish Data Mart first to run templates</TooltipContent>
+                        )}
+                        {!canEdit && <TooltipContent>{NO_PERMISSION_MESSAGE}</TooltipContent>}
+                      </Tooltip>
+                      {runErrorMessage && (
+                        <div className='min-w-0 flex-1 text-xs text-red-700'>
+                          <p className='truncate' title={`Run failed: ${runErrorMessage}`}>
+                            Run failed: {runErrorMessage}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              }
+              right={
+                <div className='h-full'>
+                  <div className='flex h-full min-h-0 flex-col gap-2'>
+                    <div className='relative min-h-0 flex-1 overflow-hidden'>
+                      <MarkdownEditorPreview
+                        html={preview.html}
+                        loading={preview.loading}
+                        error={preview.error}
+                        height='100%'
+                        emptyState={
+                          <div className='text-muted-foreground p-3 text-sm'>
+                            Run template to see output.
+                          </div>
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+              }
+            />
+          </div>
+        </div>
       </div>
 
       <ConfirmationDialog

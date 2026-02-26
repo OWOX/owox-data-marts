@@ -12,6 +12,16 @@ const slashCommands: SlashCommand[] = [
     insertText: '{{table source="main"}}',
     documentation: 'Insert a table tag with source binding',
   },
+  {
+    label: 'Single Value (Path)',
+    insertText: '{{value source="${1:main}" path=".${2:column_name}[${3:1}]"}}',
+    documentation: 'Insert a value tag using path syntax',
+  },
+  {
+    label: 'Single Value (Column/Row)',
+    insertText: '{{value source="${1:main}" column="${2:1}" row="${3:1}"}}',
+    documentation: 'Insert a value tag using column/row syntax',
+  },
 ];
 
 const registeredLanguagesByMonaco = new WeakMap<typeof monaco, Set<string>>();

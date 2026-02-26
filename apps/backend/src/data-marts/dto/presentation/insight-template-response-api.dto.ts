@@ -16,10 +16,10 @@ export class InsightTemplateResponseApiDto {
   sources: InsightTemplateSourceApiDto[];
 
   @ApiProperty({ nullable: true })
-  output: string | null;
+  lastRenderedTemplate: string | null;
 
   @ApiProperty({ nullable: true })
-  outputUpdatedAt: string | Date | null;
+  lastRenderedTemplateUpdatedAt: string | Date | null;
 
   @ApiProperty({ example: '540734f6-8eb1-48a9-bf86-22010d3bddfd' })
   createdById: string;

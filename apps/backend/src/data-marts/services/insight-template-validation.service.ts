@@ -14,11 +14,6 @@ export class InsightTemplateValidationService {
     if (!template) {
       return;
     }
-
-    // In InsightTemplate flow {{prompt}} and {{#prompt}} are not supported.
-    if (/{{\s*#?\s*prompt\b/i.test(template)) {
-      throw new BusinessViolationException('`prompt` tag is not supported for Insight Templates');
-    }
   }
 
   async validateSources(

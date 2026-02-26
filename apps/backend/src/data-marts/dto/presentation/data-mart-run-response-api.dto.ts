@@ -6,6 +6,9 @@ import { DataMartDefinition } from '../schemas/data-mart-table-definitions/data-
 import { DataMartRunReportDefinition } from '../schemas/data-mart-run/data-mart-run-report-definition.schema';
 import { DataMartRunInsightDefinition } from '../schemas/data-mart-run/data-mart-run-insight-definition.schema';
 import { DataMartRunInsightTemplateDefinition } from '../schemas/data-mart-run/data-mart-run-insight-template-definition.schema';
+import { DataMartRunAiSourceDefinition } from '../schemas/data-mart-run/data-mart-run-ai-source-definition.schema';
+
+export type DataMartRunAiSourceResponseDefinition = Omit<DataMartRunAiSourceDefinition, 'trace'>;
 
 export class DataMartRunResponseApiDto {
   @ApiProperty({ example: '0b0f5a1e-6f66-4a7d-8b8d-123456789abc' })
@@ -85,12 +88,26 @@ export class DataMartRunResponseApiDto {
     example: {
       title: 'Summary',
       template: '### Summary\\n{{table source="main"}}',
-      sources: [{ key: 'main', type: 'CURRENT_DATA_MART' }],
+      sources: [{ key: 'main', type: 'CURRENT_DATA_MART', kind: 'TABLE' }],
     },
     required: false,
     nullable: true,
   })
   insightTemplateDefinition: DataMartRunInsightTemplateDefinition | null;
+
+  @ApiProperty({
+    example: {
+      sessionId: 'e7f7e087-2042-4de0-b1fc-67dddbaf88dd',
+      scope: 'template',
+      route: 'full_generation',
+      templateId: '6f093b03-30c1-43e0-b9ed-6d87d33edf15',
+      artifactId: null,
+      turnId: '6742f3e8-1a02-4642-bbf4-e7f8710f9507',
+    },
+    required: false,
+    nullable: true,
+  })
+  aiSourceDefinition: DataMartRunAiSourceResponseDefinition | null;
 
   @ApiProperty({
     example: ['{"type":"log","at":"2025-10-09T15:13:06.930Z","message":"Started"}'],

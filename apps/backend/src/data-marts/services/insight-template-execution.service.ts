@@ -45,8 +45,8 @@ export class InsightTemplateExecutionService {
 
     await this.insightTemplateRepository.update(insightTemplate.id, {
       lastManualDataMartRunId: dataMartRun.id,
-      output: '',
-      outputUpdatedAt: this.systemTimeService.now(),
+      lastRenderedTemplate: '',
+      lastRenderedTemplateUpdatedAt: this.systemTimeService.now(),
     });
 
     await this.execute(dataMart, insightTemplate, dataMartRun).catch(error => {
@@ -151,8 +151,8 @@ export class InsightTemplateExecutionService {
       };
 
       if (generatedOutput !== null) {
-        updatePayload.output = generatedOutput;
-        updatePayload.outputUpdatedAt = this.systemTimeService.now();
+        updatePayload.lastRenderedTemplate = generatedOutput;
+        updatePayload.lastRenderedTemplateUpdatedAt = this.systemTimeService.now();
       }
 
       await this.insightTemplateRepository.update(insightTemplate.id, updatePayload);

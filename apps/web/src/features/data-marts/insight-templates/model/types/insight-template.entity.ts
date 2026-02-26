@@ -7,8 +7,8 @@ export interface InsightTemplateEntity {
   template: string | null;
   sources: InsightTemplateSourceDto[];
   sourcesCount?: number;
-  output: string | null;
-  outputUpdatedAt: Date | null;
+  lastRenderedTemplate: string | null;
+  lastRenderedTemplateUpdatedAt: Date | null;
   lastRun: Pick<DataMartRunItem, 'status' | 'id'> | null;
   createdById: string;
   createdAt: Date;

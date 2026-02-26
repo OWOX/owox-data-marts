@@ -19,15 +19,7 @@ import {
 import { Button } from '@owox/ui/components/button';
 import { Input } from '@owox/ui/components/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
-import {
-  ChevronDown,
-  ChevronUp,
-  GripHorizontal,
-  Plus,
-  Table2,
-  Trash2,
-  Variable,
-} from 'lucide-react';
+import { ChevronDown, ChevronUp, GripHorizontal, Plus, Table2, Trash2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { NO_PERMISSION_MESSAGE } from '../../../../app/permissions';
 import { Combobox } from '../../../../shared/components/Combobox/combobox.tsx';
@@ -41,8 +33,6 @@ const SOURCES_PANEL_DEFAULT_HEIGHT = 260;
 const SOURCES_PANEL_MIN_HEIGHT = 120;
 const SOURCES_PANEL_MAX_HEIGHT = 560;
 const SOURCES_PANEL_COLLAPSED_HEIGHT = 72;
-
-type SourceKind = 'table' | 'variable';
 
 interface InsightTemplateSourcesBottomPanelProps {
   dataMartId?: string;
@@ -217,6 +207,7 @@ export function InsightTemplateSourcesBottomPanel({
     const nextSource: InsightTemplateSourceDto = {
       key: nextKey,
       type: 'INSIGHT_ARTIFACT',
+      kind: 'TABLE',
       artifactId: firstAvailableArtifactId,
     };
 
@@ -265,8 +256,6 @@ export function InsightTemplateSourcesBottomPanel({
       setExpandedSourceId(null);
     }
   }, [sources.length]);
-
-  const getSourceKind = (): SourceKind => 'table';
 
   return (
     <div
@@ -344,8 +333,7 @@ export function InsightTemplateSourcesBottomPanel({
             <div className='min-h-0 flex-1 overflow-auto p-3'>
               {sources.length === 0 ? (
                 <div className='text-muted-foreground rounded border border-dashed p-3 text-sm'>
-                  Add a source to preview SQL from Insight Artifacts. Source type `variable` will be
-                  available later.
+                  Add a source to template
                 </div>
               ) : (
                 <Accordion
@@ -359,9 +347,8 @@ export function InsightTemplateSourcesBottomPanel({
                 >
                   {sources.map((source, index) => {
                     const itemId = `source-${String(index)}`;
-                    const sourceKind = getSourceKind();
-                    const SourceIcon = sourceKind === 'table' ? Table2 : Variable;
-                    const sourceKindLabel = sourceKind === 'table' ? 'table' : 'variable';
+                    const SourceIcon = Table2;
+                    const sourceKindLabel = 'table';
                     const hasDuplicate =
                       duplicatedKeys.has(source.key.trim()) && source.key.trim().length > 0;
                     const selectedArtifact = source.artifactId
@@ -395,17 +382,27 @@ export function InsightTemplateSourcesBottomPanel({
 
                     return (
                       <AccordionItem key={itemId} value={itemId}>
-                        <AccordionTrigger className='px-3 py-2 hover:no-underline'>
+                        <AccordionTrigger className='w-full px-3 py-2 hover:no-underline'>
                           <div className='flex min-w-0 flex-1 items-center gap-2'>
                             <SourceIcon className='text-muted-foreground h-4 w-4 shrink-0' />
-                            <span className='truncate text-sm font-medium'>
+                            <span
+                              className='truncate text-sm font-medium'
+                              title={source.key || `source_${String(index + 1)}`}
+                            >
                               {source.key || `source_${String(index + 1)}`}
                             </span>
                             <span className='text-muted-foreground rounded border px-1.5 py-0.5 text-[10px] uppercase'>
                               {sourceKindLabel}
                             </span>
                           </div>
-                          <span className='text-muted-foreground max-w-[300px] truncate text-xs'>
+                          <span
+                            className='text-muted-foreground max-w-[45%] min-w-0 shrink truncate text-xs'
+                            title={
+                              source.type === 'INSIGHT_ARTIFACT'
+                                ? (selectedArtifact?.title ?? 'Select artifact')
+                                : 'Current Data Mart'
+                            }
+                          >
                             {source.type === 'INSIGHT_ARTIFACT'
                               ? (selectedArtifact?.title ?? 'Select artifact')
                               : 'Current Data Mart'}

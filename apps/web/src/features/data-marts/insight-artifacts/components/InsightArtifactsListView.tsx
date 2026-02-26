@@ -6,7 +6,6 @@ import { Button } from '@owox/ui/components/button';
 import type { ColumnDef } from '@tanstack/react-table';
 import {
   Empty,
-  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -156,8 +155,8 @@ export default function InsightArtifactsListView() {
       {
         accessorKey: 'validationStatus',
         size: 200,
-        meta: { title: 'Validation' },
-        header: ({ column }) => <SortableHeader column={column}>Validation</SortableHeader>,
+        meta: { title: 'Status' },
+        header: ({ column }) => <SortableHeader column={column}>Status</SortableHeader>,
         cell: ({ row }) => (
           <div className='text-muted-foreground text-xs'>{row.original.validationStatus}</div>
         ),
@@ -269,12 +268,6 @@ export default function InsightArtifactsListView() {
                 Create your first artifact to use it as a source in Insight Templates.
               </EmptyDescription>
             </EmptyHeader>
-            <EmptyContent>
-              <Button onClick={() => void handleCreate()} disabled={!canCreate || creating}>
-                <Plus className='h-4 w-4' />
-                Create artifact
-              </Button>
-            </EmptyContent>
           </Empty>
         ) : (
           <BaseTable

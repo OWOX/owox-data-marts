@@ -3,6 +3,11 @@ import { InsightTemplateSourceType } from '../schemas/insight-template/insight-t
 import { IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 export class InsightTemplateSourceApiDto {
+  @ApiProperty({ required: false, nullable: true })
+  @IsOptional()
+  @IsUUID()
+  templateSourceId?: string | null;
+
   @ApiProperty({ example: 'last_30d', maxLength: 64 })
   @IsString()
   @MaxLength(64)

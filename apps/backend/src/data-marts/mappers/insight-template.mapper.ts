@@ -14,6 +14,10 @@ import { UpdateInsightTemplateRequestApiDto } from '../dto/presentation/update-i
 import { UpdateInsightTemplateTitleApiDto } from '../dto/presentation/update-insight-template-title-api.dto';
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { InsightTemplate } from '../entities/insight-template.entity';
+import {
+  InsightTemplateSources,
+  InsightTemplateSourcesSchema,
+} from '../dto/schemas/insight-template/insight-template-source.schema';
 import { DataMartMapper } from './data-mart.mapper';
 
 @Injectable()
@@ -31,7 +35,7 @@ export class InsightTemplateMapper {
       context.userId,
       dto.title,
       dto.template,
-      dto.sources ?? []
+      this.normalizeSources(dto.sources)
     );
   }
 
@@ -48,8 +52,8 @@ export class InsightTemplateMapper {
       entity.title,
       entity.template ?? null,
       entity.sources ?? [],
-      entity.output ?? null,
-      entity.outputUpdatedAt ?? null,
+      entity.lastRenderedTemplate ?? null,
+      entity.lastRenderedTemplateUpdatedAt ?? null,
       entity.createdById,
       entity.createdAt,
       entity.modifiedAt,
@@ -67,8 +71,8 @@ export class InsightTemplateMapper {
       title: dto.title,
       template: dto.template,
       sources: dto.sources,
-      output: dto.output,
-      outputUpdatedAt: dto.outputUpdatedAt,
+      lastRenderedTemplate: dto.lastRenderedTemplate,
+      lastRenderedTemplateUpdatedAt: dto.lastRenderedTemplateUpdatedAt,
       createdById: dto.createdById,
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,
@@ -83,7 +87,7 @@ export class InsightTemplateMapper {
       id: dto.id,
       title: dto.title,
       sourcesCount: dto.sources.length,
-      outputUpdatedAt: dto.outputUpdatedAt,
+      lastRenderedTemplateUpdatedAt: dto.lastRenderedTemplateUpdatedAt,
       createdById: dto.createdById,
       createdAt: dto.createdAt,
       modifiedAt: dto.modifiedAt,
@@ -118,7 +122,7 @@ export class InsightTemplateMapper {
       context.projectId,
       dto.title,
       dto.template,
-      dto.sources
+      dto.sources ? this.normalizeSources(dto.sources) : undefined
     );
   }
 
@@ -142,5 +146,9 @@ export class InsightTemplateMapper {
     context: AuthorizationContext
   ): DeleteInsightTemplateCommand {
     return new DeleteInsightTemplateCommand(insightTemplateId, dataMartId, context.projectId);
+  }
+
+  private normalizeSources(sources: unknown): InsightTemplateSources {
+    return InsightTemplateSourcesSchema.parse(sources ?? []);
   }
 }

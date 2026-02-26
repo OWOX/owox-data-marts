@@ -13,10 +13,12 @@ export const mapInsightTemplateFromDto = (
   id: dto.id,
   title: dto.title,
   template: dto.template,
-  sources: dto.sources,
+  sources: dto.sources.map(source => ({ ...source })),
   sourcesCount: dto.sources.length,
-  output: dto.output ?? null,
-  outputUpdatedAt: dto.outputUpdatedAt ? new Date(dto.outputUpdatedAt) : null,
+  lastRenderedTemplate: dto.lastRenderedTemplate ?? null,
+  lastRenderedTemplateUpdatedAt: dto.lastRenderedTemplateUpdatedAt
+    ? new Date(dto.lastRenderedTemplateUpdatedAt)
+    : null,
   lastRun: dto.lastManualDataMartRun
     ? { status: dto.lastManualDataMartRun.status, id: dto.lastManualDataMartRun.id }
     : null,
@@ -33,8 +35,10 @@ export const mapInsightTemplateListItemFromDto = (
   template: null,
   sources: [],
   sourcesCount: dto.sourcesCount,
-  output: null,
-  outputUpdatedAt: dto.outputUpdatedAt ? new Date(dto.outputUpdatedAt) : null,
+  lastRenderedTemplate: null,
+  lastRenderedTemplateUpdatedAt: dto.lastRenderedTemplateUpdatedAt
+    ? new Date(dto.lastRenderedTemplateUpdatedAt)
+    : null,
   lastRun: null,
   createdById: dto.createdById,
   createdAt: new Date(dto.createdAt),
@@ -52,7 +56,7 @@ export const mapToCreateInsightTemplateRequest = (data: {
 }): CreateInsightTemplateRequestDto => ({
   title: data.title,
   template: data.template ?? null,
-  sources: data.sources ?? [],
+  sources: (data.sources ?? []).map(source => ({ ...source })),
 });
 
 export const mapToUpdateInsightTemplateRequest = (data: {
@@ -62,5 +66,5 @@ export const mapToUpdateInsightTemplateRequest = (data: {
 }): UpdateInsightTemplateRequestDto => ({
   title: data.title,
   template: data.template ?? null,
-  sources: data.sources ?? [],
+  sources: (data.sources ?? []).map(source => ({ ...source })),
 });

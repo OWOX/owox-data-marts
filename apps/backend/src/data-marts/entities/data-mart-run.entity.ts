@@ -15,6 +15,7 @@ import { DataMartRunType } from '../enums/data-mart-run-type.enum';
 import { DataMartRunReportDefinition } from '../dto/schemas/data-mart-run/data-mart-run-report-definition.schema';
 import { DataMartRunInsightDefinition } from '../dto/schemas/data-mart-run/data-mart-run-insight-definition.schema';
 import { DataMartRunInsightTemplateDefinition } from '../dto/schemas/data-mart-run/data-mart-run-insight-template-definition.schema';
+import { DataMartRunAiSourceDefinition } from '../dto/schemas/data-mart-run/data-mart-run-ai-source-definition.schema';
 
 @Entity()
 export class DataMartRun implements CreatorAwareEntity {
@@ -45,6 +46,9 @@ export class DataMartRun implements CreatorAwareEntity {
 
   @Column({ type: 'json', nullable: true })
   insightTemplateDefinition?: DataMartRunInsightTemplateDefinition | null;
+
+  @Column({ type: 'json', nullable: true })
+  aiSourceDefinition?: DataMartRunAiSourceDefinition | null;
 
   @Column({ type: 'varchar', nullable: true })
   reportId?: string | null;

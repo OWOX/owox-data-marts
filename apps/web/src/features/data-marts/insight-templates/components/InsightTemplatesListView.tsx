@@ -6,7 +6,6 @@ import { Button } from '@owox/ui/components/button';
 import type { ColumnDef } from '@tanstack/react-table';
 import {
   Empty,
-  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -205,7 +204,6 @@ export default function InsightTemplatesListView() {
     try {
       const dto = await insightTemplatesService.createInsightTemplate(dataMart.id, {
         title: 'Untitled template',
-        template: '### Result\n{{table source="main"}}',
         sources: [],
       });
       const insightTemplate = mapInsightTemplateFromDto(dto);
@@ -273,12 +271,6 @@ export default function InsightTemplatesListView() {
                 Create your first template and render it with data-table sources.
               </EmptyDescription>
             </EmptyHeader>
-            <EmptyContent>
-              <Button onClick={() => void handleCreate()} disabled={!canCreate || creating}>
-                <Plus className='h-4 w-4' />
-                Create template
-              </Button>
-            </EmptyContent>
           </Empty>
         ) : (
           <BaseTable

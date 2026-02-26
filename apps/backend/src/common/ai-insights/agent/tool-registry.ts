@@ -26,13 +26,22 @@ export class ToolRegistry {
     context: AiContext
   ): Promise<ToolRunResult> {
     const tool = this.tools.get(name);
-    if (!tool) throw new Error(`Unknown tool: ${name}`);
+    if (!tool) {
+      const available = Array.from(this.tools.keys()).join(', ');
+      return {
+        name,
+        content: { error: `Unknown tool "${name}". Available tools: ${available}` },
+      };
+    }
 
     let parsed: unknown;
     try {
       parsed = argsJson ? JSON.parse(argsJson) : {};
     } catch (e) {
-      throw new Error(`Invalid JSON arguments for ${name}: ${castError(e).stack}`);
+      return {
+        name,
+        content: { error: `Invalid JSON arguments for ${name}: ${castError(e).message}` },
+      };
     }
 
     const validated = tool.inputZod.parse(parsed);

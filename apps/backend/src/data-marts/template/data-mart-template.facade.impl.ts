@@ -9,11 +9,13 @@ import {
   DataMartTemplateInput,
   DataMartTemplateOutput,
 } from './data-mart-template.facade';
-import { InsightTemplateDataTableTagHandler } from './handlers/insight-template-data-table-tag.handler';
+import { TableTagHandler } from '../../common/template/handlers/base/table-tag.handler';
+import { ValueTagHandler } from '../../common/template/handlers/base/value-tag.handler';
 
 @Injectable()
 export class DataMartTemplateFacadeImpl implements DataMartTemplateFacade {
-  private readonly dataTableHandler = new InsightTemplateDataTableTagHandler();
+  private readonly dataTableHandler = new TableTagHandler();
+  private readonly singleValueHandler = new ValueTagHandler();
 
   constructor(
     @Inject(TEMPLATE_RENDER_FACADE)
@@ -26,7 +28,7 @@ export class DataMartTemplateFacadeImpl implements DataMartTemplateFacade {
         template: input.template,
         context: input.context,
       },
-      [this.dataTableHandler],
+      [this.dataTableHandler, this.singleValueHandler],
       true
     );
 

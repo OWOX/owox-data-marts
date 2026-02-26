@@ -5,6 +5,7 @@ import { SystemTimeService } from '../../common/scheduler/services/system-time.s
 
 import { RunType } from '../../common/scheduler/shared/types';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
+import { AiAssistantSession } from '../entities/ai-assistant-session.entity';
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { DataMart } from '../entities/data-mart.entity';
 import { Insight } from '../entities/insight.entity';
@@ -46,6 +47,21 @@ export interface InsightTemplateRunFinishContext {
   status: DataMartRunStatus.SUCCESS | DataMartRunStatus.FAILED | DataMartRunStatus.CANCELLED;
   logs?: string[];
   errors?: string[];
+}
+
+/**
+ * Context for finalizing an AI_ASSISTANT run.
+ */
+export interface AiSourceRunFinishContext {
+  status: DataMartRunStatus.SUCCESS | DataMartRunStatus.FAILED | DataMartRunStatus.CANCELLED;
+  logs?: string[];
+  errors?: string[];
+}
+
+export interface AiSourceRunContext {
+  createdById: string;
+  runType: RunType;
+  turnId?: string | null;
 }
 
 /**
@@ -349,6 +365,67 @@ export class DataMartRunService {
     });
 
     return this.dataMartRunRepository.save(run);
+  }
+
+  /**
+   * Creates a new AI_ASSISTANT run in PENDING state.
+   */
+  public async createAndMarkAiSourceRunAsPending(
+    dataMart: DataMart,
+    session: AiAssistantSession,
+    context: AiSourceRunContext
+  ): Promise<DataMartRun> {
+    const run = this.dataMartRunRepository.create({
+      dataMartId: dataMart.id,
+      type: DataMartRunType.AI_ASSISTANT,
+      status: DataMartRunStatus.PENDING,
+      createdById: context.createdById,
+      runType: context.runType,
+      definitionRun: dataMart.definition,
+      aiSourceDefinition: {
+        sessionId: session.id,
+        scope: session.scope,
+        templateId: session.templateId ?? null,
+        turnId: context.turnId ?? null,
+      },
+      logs: [],
+      errors: [],
+    });
+
+    return this.dataMartRunRepository.save(run);
+  }
+
+  /**
+   * Marks existing AI_ASSISTANT run as RUNNING and sets start timestamp.
+   */
+  public async markAiSourceRunAsStarted(dataMartRun: DataMartRun): Promise<DataMartRun> {
+    dataMartRun.status = DataMartRunStatus.RUNNING;
+    dataMartRun.startedAt = this.systemClock.now();
+
+    return await this.dataMartRunRepository.save(dataMartRun);
+  }
+
+  /**
+   * Finalizes AI_ASSISTANT run by setting finish timestamp and optional logs/errors.
+   */
+  public async markAiSourceRunAsFinished(
+    dataMartRun: DataMartRun,
+    context?: AiSourceRunFinishContext
+  ): Promise<void> {
+    if (context) {
+      dataMartRun.status = context.status;
+
+      if (context.logs && context.logs.length) {
+        dataMartRun.logs = [...(dataMartRun.logs || []), ...context.logs];
+      }
+
+      if (context.errors && context.errors.length) {
+        dataMartRun.errors = [...(dataMartRun.errors || []), ...context.errors];
+      }
+    }
+    dataMartRun.finishedAt = this.systemClock.now();
+
+    await this.dataMartRunRepository.save(dataMartRun);
   }
 
   /**

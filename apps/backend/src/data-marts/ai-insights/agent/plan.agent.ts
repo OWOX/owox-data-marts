@@ -22,6 +22,7 @@ export class PlanAgent implements Agent<PlanAgentInput, PlanAgentResult> {
 
     const tools = this.toolRegistry.findToolByNames([
       DataMartsAiInsightsTools.GET_TABLE_FULLY_QUALIFIED_NAME,
+      DataMartsAiInsightsTools.SAMPLE_TABLE_DATA,
     ]);
 
     const initialMessages: AiMessage[] = [
