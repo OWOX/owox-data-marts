@@ -126,15 +126,21 @@ export abstract class BaseNotification {
     runtimeConfig?: NotificationRuntimeConfig,
     limits?: NotificationEmailLimits
   ): EmailContent {
-    const isBatch = queueItems.length > 1;
-    const firstItem = queueItems[0];
+    const sortedItems = [...queueItems].sort((a, b) => {
+      const timeA = a.payload.finishedAt ?? a.payload.startedAt ?? '';
+      const timeB = b.payload.finishedAt ?? b.payload.startedAt ?? '';
+      return timeB > timeA ? 1 : timeB < timeA ? -1 : 0;
+    });
+
+    const isBatch = sortedItems.length > 1;
+    const firstItem = sortedItems[0];
 
     const dataMartMap = new Map<
       string,
       { dataMartTitle: string; dataMartUrl: string; dataMartRunHistoryUrl: string; runs: object[] }
     >();
 
-    for (const item of queueItems) {
+    for (const item of sortedItems) {
       const dataMartId = item.dataMartId ?? 'N/A';
       const dataMartTitle = item.payload.dataMartTitle ?? '<title>';
       const dataMartUrl = this.buildDataMartUrl(item, runtimeConfig);
