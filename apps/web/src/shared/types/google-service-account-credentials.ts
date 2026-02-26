@@ -7,5 +7,5 @@ export interface GoogleServiceAccountCredentials {
 export function isGoogleServiceAccountCredentials(
   credentials: DataDestination['credentials']
 ): credentials is GoogleServiceAccountCredentials {
-  return 'serviceAccount' in credentials;
+  return 'serviceAccount' in credentials && Boolean(credentials.serviceAccount);
 }

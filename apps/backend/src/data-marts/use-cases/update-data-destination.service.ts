@@ -17,6 +17,7 @@ import {
   extractDestinationIdentity,
 } from '../services/credential-type-resolver';
 import type { StoredDestinationCredentials } from '../entities/stored-destination-credentials.type';
+import { DestinationCredentialType } from '../enums/destination-credential-type.enum';
 
 @Injectable()
 export class UpdateDataDestinationService {
@@ -101,23 +102,16 @@ export class UpdateDataDestinationService {
         });
         entity.credentialId = newCredential.id;
       }
-    } else if (!command.hasCredentials()) {
-      if (entity.credentialId) {
+    } else if (!command.hasCredentials() && entity.credentialId) {
+      const existingCredential = await this.dataDestinationCredentialService.getById(
+        entity.credentialId
+      );
+      if (existingCredential?.type === DestinationCredentialType.GOOGLE_OAUTH) {
         const oauth2Client =
           await this.googleOAuthClientService.getDestinationOAuth2ClientByCredentialId(
             entity.credentialId
           );
         await oauth2Client.getAccessToken();
-      } else {
-        let existingCreds: DataDestinationCredentials | undefined;
-        if (entity.credentialId) {
-          const cred = await this.dataDestinationCredentialService.getById(entity.credentialId);
-          existingCreds = cred?.credentials as DataDestinationCredentials | undefined;
-        }
-        await this.credentialsValidator.checkCredentials(
-          entity.type,
-          existingCreds ?? ({} as DataDestinationCredentials)
-        );
       }
     }
 

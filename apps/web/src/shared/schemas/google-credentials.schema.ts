@@ -43,7 +43,8 @@ export const googleServiceAccountSchema = z.object({
 /**
  * Schema for Google credentials that supports both Service Account and OAuth.
  * OAuth is managed via credentialId on the parent entity.
- * Either serviceAccount OR credentialId must be provided (but not both).
+ * At least one authentication method must be provided: a new serviceAccount JSON
+ * or an existing credentialId (which could be either a SA or OAuth credential).
  */
 export const googleCredentialsWithOAuthSchema = z
   .object({
@@ -53,12 +54,11 @@ export const googleCredentialsWithOAuthSchema = z
   .refine(
     data => {
       const hasServiceAccount = !!data.serviceAccount && data.serviceAccount.trim().length > 0;
-      const hasOAuth = !!data.credentialId && data.credentialId.trim().length > 0;
-      // Require exactly one authentication method
-      return (hasServiceAccount && !hasOAuth) || (!hasServiceAccount && hasOAuth);
+      const hasCredentialId = !!data.credentialId && data.credentialId.trim().length > 0;
+      return hasServiceAccount || hasCredentialId;
     },
     {
-      message: 'Either Service Account or OAuth connection must be provided (but not both)',
+      message: 'Either Service Account or OAuth connection must be provided',
       path: ['serviceAccount'],
     }
   );

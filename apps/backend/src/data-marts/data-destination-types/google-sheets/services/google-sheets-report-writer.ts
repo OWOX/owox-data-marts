@@ -5,10 +5,7 @@ import { DataDestinationType } from '../../enums/data-destination-type.enum';
 import { Inject, Injectable, Logger, Scope } from '@nestjs/common';
 import { isGoogleSheetsConfig } from '../../data-destination-config.guards';
 import { DataDestinationCredentialsResolver } from '../../data-destination-credentials-resolver.service';
-import {
-  GoogleSheetsCredentialsSchema,
-  type GoogleSheetsCredentials,
-} from '../schemas/google-sheets-credentials.schema';
+import { GoogleSheetsCredentialsSchema } from '../schemas/google-sheets-credentials.schema';
 import { GoogleSheetsConfig } from '../schemas/google-sheets-config.schema';
 import { DateTime } from 'luxon';
 import { Report } from '../../../entities/report.entity';
@@ -187,15 +184,19 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
 
       const resolvedCredentials = await this.credentialsResolver.resolve(report.dataDestination);
       const parsed = GoogleSheetsCredentialsSchema.safeParse(resolvedCredentials);
-      if (!parsed.success) {
-        throw new Error('Invalid Google Sheets credentials provided');
-      }
-      const credentials: GoogleSheetsCredentials = parsed.data;
+      const credentials = parsed.success ? parsed.data : undefined;
 
-      this.adapter = await this.adapterFactory.createWithOAuth(
+      const adapter = await this.adapterFactory.createWithOAuth(
         credentials,
         report.dataDestination.id
       );
+
+      if (!adapter) {
+        throw new Error(
+          'No authentication method available for Google Sheets: neither OAuth nor Service Account credentials found'
+        );
+      }
+      this.adapter = adapter;
 
       const spreadsheet = await this.adapter
         .getSpreadsheet(this.destination.spreadsheetId)
