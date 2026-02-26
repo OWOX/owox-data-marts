@@ -37,27 +37,31 @@ export class GoogleSheetsApiAdapterFactory {
    *
    * Attempts to use OAuth2Client if destinationId is provided, falls back to Service Account JWT.
    *
-   * @param credentials - Google Sheets Service Account credentials (used as fallback)
+   * @param credentials - Google Sheets Service Account credentials (used as fallback). Can be undefined for OAuth-only destinations.
    * @param destinationId - Optional Data Destination ID for OAuth lookup
-   * @returns A new Google Sheets API adapter instance
+   * @returns A new Google Sheets API adapter instance, or undefined if no auth method is available
    */
   async createWithOAuth(
-    credentials: GoogleSheetsCredentials,
+    credentials: GoogleSheetsCredentials | undefined,
     destinationId?: string
-  ): Promise<GoogleSheetsApiAdapter> {
+  ): Promise<GoogleSheetsApiAdapter | undefined> {
     if (destinationId) {
       try {
         const oauth2Client =
           await this.googleOAuthClientService.getDestinationOAuth2Client(destinationId);
 
         if (oauth2Client) {
-          return new GoogleSheetsApiAdapter(credentials, oauth2Client);
+          return new GoogleSheetsApiAdapter(undefined, oauth2Client);
         }
       } catch (error) {
-        this.logger.debug(
-          `OAuth not available for destination ${destinationId}, using Service Account: ${error.message}`
+        this.logger.error(
+          `OAuth not available for destination ${destinationId}, falling back: ${error.message}`
         );
       }
+    }
+
+    if (!credentials) {
+      return undefined;
     }
 
     this.logger.debug(`Creating Google Sheets adapter with Service Account`);

@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { AuthorizationContext } from '../../idp';
-import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
 import { CreateDataDestinationCommand } from '../dto/domain/create-data-destination.command';
 import { DataDestinationDto } from '../dto/domain/data-destination.dto';
 import { DeleteDataDestinationCommand } from '../dto/domain/delete-data-destination.command';

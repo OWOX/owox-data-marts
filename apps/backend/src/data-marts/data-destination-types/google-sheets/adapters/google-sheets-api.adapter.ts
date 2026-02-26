@@ -14,14 +14,19 @@ export class GoogleSheetsApiAdapter {
   private readonly service: sheets_v4.Sheets;
 
   /**
-   * @param credentials - Google Sheets credentials containing service account key
+   * @param credentials - Google Sheets credentials containing service account key. Can be undefined when authClient is provided.
    * @param authClient - Optional pre-configured auth client (OAuth2Client or JWT). If provided, credentials are ignored.
-   * @throws Error if invalid credentials are provided
+   * @throws Error if neither authClient nor valid credentials are provided
    */
-  constructor(credentials: GoogleSheetsCredentials, authClient?: OAuth2Client | JWT) {
+  constructor(credentials: GoogleSheetsCredentials | undefined, authClient: OAuth2Client | JWT);
+  constructor(credentials: GoogleSheetsCredentials);
+  constructor(credentials: GoogleSheetsCredentials | undefined, authClient?: OAuth2Client | JWT) {
+    if (!authClient && !credentials) {
+      throw new Error('Either authClient or credentials must be provided');
+    }
     this.service = google.sheets({
       version: 'v4',
-      auth: authClient ?? GoogleSheetsApiAdapter.createAuthClient(credentials.serviceAccountKey!),
+      auth: authClient ?? GoogleSheetsApiAdapter.createAuthClient(credentials!.serviceAccountKey!),
     });
   }
 

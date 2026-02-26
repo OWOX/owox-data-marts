@@ -36,21 +36,6 @@ export class GoogleSheetsAccessValidator implements DataDestinationAccessValidat
     destinationConfig: DataDestinationConfig,
     dataDestination: DataDestination
   ): Promise<ValidationResult> {
-    let resolvedCredentials;
-    try {
-      resolvedCredentials = await this.credentialsResolver.resolve(dataDestination);
-    } catch {
-      return new ValidationResult(false, 'Credentials are not configured');
-    }
-
-    const credentialsOpt = GoogleSheetsCredentialsSchema.safeParse(resolvedCredentials);
-    if (!credentialsOpt.success) {
-      this.logger.warn('Invalid credentials format', credentialsOpt.error);
-      return new ValidationResult(false, 'Invalid credentials', {
-        errors: credentialsOpt.error.errors,
-      });
-    }
-
     const configOpt = GoogleSheetsConfigSchema.safeParse(destinationConfig);
     if (!configOpt.success) {
       this.logger.warn('Invalid configuration format', configOpt.error);
@@ -60,10 +45,23 @@ export class GoogleSheetsAccessValidator implements DataDestinationAccessValidat
     }
 
     try {
-      const adapter = await this.adapterFactory.createWithOAuth(
-        credentialsOpt.data,
-        dataDestination.id
-      );
+      let resolvedCredentials: unknown;
+      try {
+        resolvedCredentials = await this.credentialsResolver.resolve(dataDestination);
+      } catch {
+        // No credentials resolved — will rely on OAuth via destinationId
+      }
+
+      const credentialsOpt = GoogleSheetsCredentialsSchema.safeParse(resolvedCredentials);
+      const credentials = credentialsOpt.success ? credentialsOpt.data : undefined;
+
+      const adapter = await this.adapterFactory.createWithOAuth(credentials, dataDestination.id);
+      if (!adapter) {
+        return new ValidationResult(
+          false,
+          'No authentication method available: neither OAuth nor Service Account credentials found'
+        );
+      }
       const spreadsheet = await adapter.getSpreadsheet(
         configOpt.data.spreadsheetId,
         'properties.title,sheets.properties.sheetId,sheets.properties.title'

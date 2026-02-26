@@ -51,6 +51,26 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
             isRequired: false,
             requiredType: "string",
             default: null
+          },
+          OAuthAccessToken: {
+            isRequired: false,
+            requiredType: "string",
+            default: null
+          },
+          OAuthRefreshToken: {
+            isRequired: false,
+            requiredType: "string",
+            default: null
+          },
+          OAuthClientId: {
+            isRequired: false,
+            requiredType: "string",
+            default: null
+          },
+          OAuthClientSecret: {
+            isRequired: false,
+            requiredType: "string",
+            default: null
           }
         }),
         uniqueKeyColumns,
@@ -501,7 +521,21 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
      */
     async executeQuery(query) {
       let bigqueryClient = null;
-      if (this.config.ServiceAccountJson && this.config.ServiceAccountJson.value) {
+      if (this.config.OAuthAccessToken && this.config.OAuthAccessToken.value) {
+        const { OAuth2Client } = require('google-auth-library');
+        const oauth2Client = new OAuth2Client(
+          this.config.OAuthClientId.value,
+          this.config.OAuthClientSecret.value
+        );
+        oauth2Client.setCredentials({
+          access_token: this.config.OAuthAccessToken.value,
+          refresh_token: this.config.OAuthRefreshToken?.value || undefined,
+        });
+        bigqueryClient = new BigQuery({
+          projectId: this.config.ProjectID.value,
+          authClient: oauth2Client,
+        });
+      } else if (this.config.ServiceAccountJson && this.config.ServiceAccountJson.value) {
         const { JWT } = require('google-auth-library');
         const credentials = JSON.parse(this.config.ServiceAccountJson.value);
         const authClient = new JWT({
@@ -514,7 +548,7 @@ var GoogleBigQueryStorage = class GoogleBigQueryStorage extends AbstractStorage 
           authClient
         });
       } else {
-        throw new Error("Service account JSON is required to connect to Google BigQuery in Node.js environment");
+        throw new Error("Either OAuth token or Service Account JSON is required to connect to Google BigQuery");
       }
 
       const options = {

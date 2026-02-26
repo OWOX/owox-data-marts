@@ -23,7 +23,11 @@ import { DataStorageType } from '../data-storage-types/enums/data-storage-type.e
 import { BigQueryConfig } from '../data-storage-types/bigquery/schemas/bigquery-config.schema';
 import { AthenaConfig } from '../data-storage-types/athena/schemas/athena-config.schema';
 import { AthenaCredentials } from '../data-storage-types/athena/schemas/athena-credentials.schema';
-import { BigQueryCredentials } from '../data-storage-types/bigquery/schemas/bigquery-credentials.schema';
+import {
+  BIGQUERY_OAUTH_TYPE,
+  type BigQueryCredentials,
+  type BigQueryOAuthCredentials,
+} from '../data-storage-types/bigquery/schemas/bigquery-credentials.schema';
 import { SnowflakeConfig } from '../data-storage-types/snowflake/schemas/snowflake-config.schema';
 import { SnowflakeCredentials } from '../data-storage-types/snowflake/schemas/snowflake-credentials.schema';
 import { RedshiftConfig } from '../data-storage-types/redshift/schemas/redshift-config.schema';
@@ -52,6 +56,7 @@ import { ConnectorService } from './connector.service';
 import { ProjectBalanceService } from './project-balance.service';
 import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
 import { DataStorageCredentials } from '../data-storage-types/data-storage-credentials.type';
+import { GoogleOAuthConfigService } from './google-oauth/google-oauth-config.service';
 
 interface ConfigurationExecutionResult {
   configIndex: number;
@@ -80,7 +85,8 @@ export class ConnectorExecutionService {
     private readonly connectorSourceCredentialsService: ConnectorSourceCredentialsService,
     private readonly connectorService: ConnectorService,
     private readonly projectBalanceService: ProjectBalanceService,
-    private readonly storageCredentialsResolver: DataStorageCredentialsResolver
+    private readonly storageCredentialsResolver: DataStorageCredentialsResolver,
+    private readonly googleOAuthConfigService: GoogleOAuthConfigService
   ) {}
 
   async cancelRun(dataMartId: string, runId: string): Promise<void> {
@@ -721,24 +727,56 @@ export class ConnectorExecutionService {
     }
   }
 
-  private createBigQueryStorageConfig(
+  private async createBigQueryStorageConfig(
     dataMart: DataMart,
     connector: DataMartConnectorDefinition['connector'],
     credentials: DataStorageCredentials
-  ): StorageConfigDto {
+  ): Promise<StorageConfigDto> {
     const storageConfig = dataMart.storage.config as BigQueryConfig;
     const bqCredentials = credentials as BigQueryCredentials;
     const datasetId = connector.storage?.fullyQualifiedName.split('.')[0];
 
+    const baseConfig = {
+      DestinationLocation: storageConfig?.location,
+      DestinationDatasetID: `${storageConfig.projectId}.${datasetId}`,
+      DestinationProjectID: storageConfig.projectId,
+      DestinationDatasetName: datasetId,
+      DestinationTableNameOverride: `${connector.source.node} ${connector.storage?.fullyQualifiedName.split('.')[1]}`,
+      ProjectID: storageConfig.projectId,
+    };
+
+    if (bqCredentials.type === BIGQUERY_OAUTH_TYPE) {
+      const oauthCredentials = bqCredentials as BigQueryOAuthCredentials;
+      const tokenResponse = await oauthCredentials.oauth2Client.getAccessToken();
+      const accessToken = tokenResponse.token;
+      if (!accessToken) {
+        throw new ConnectorExecutionError(
+          'Failed to obtain OAuth access token for BigQuery',
+          undefined,
+          {
+            dataMartId: dataMart.id,
+            projectId: dataMart.projectId,
+          }
+        );
+      }
+      const refreshToken = oauthCredentials.oauth2Client.credentials.refresh_token;
+
+      return new StorageConfigDto({
+        name: DataStorageType.GOOGLE_BIGQUERY,
+        config: {
+          ...baseConfig,
+          OAuthAccessToken: accessToken,
+          OAuthRefreshToken: refreshToken ?? '',
+          OAuthClientId: this.googleOAuthConfigService.getStorageClientId(),
+          OAuthClientSecret: this.googleOAuthConfigService.getStorageClientSecret(),
+        },
+      });
+    }
+
     return new StorageConfigDto({
       name: DataStorageType.GOOGLE_BIGQUERY,
       config: {
-        DestinationLocation: storageConfig?.location,
-        DestinationDatasetID: `${storageConfig.projectId}.${datasetId}`,
-        DestinationProjectID: storageConfig.projectId,
-        DestinationDatasetName: datasetId,
-        DestinationTableNameOverride: `${connector.source.node} ${connector.storage?.fullyQualifiedName.split('.')[1]}`,
-        ProjectID: storageConfig.projectId,
+        ...baseConfig,
         ServiceAccountJson: JSON.stringify(bqCredentials),
       },
     });
