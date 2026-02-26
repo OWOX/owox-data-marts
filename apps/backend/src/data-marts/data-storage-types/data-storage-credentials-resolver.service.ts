@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { DataStorageCredentials } from './data-storage-credentials.type';
 import {
   BIGQUERY_OAUTH_TYPE,
@@ -15,7 +17,9 @@ export class DataStorageCredentialsResolver {
 
   constructor(
     private readonly googleOAuthClientService: GoogleOAuthClientService,
-    private readonly dataStorageCredentialService: DataStorageCredentialService
+    private readonly dataStorageCredentialService: DataStorageCredentialService,
+    @InjectRepository(DataStorage)
+    private readonly dataStorageRepository: Repository<DataStorage>
   ) {}
 
   async resolve(storage: DataStorage): Promise<DataStorageCredentials> {
@@ -35,5 +39,13 @@ export class DataStorageCredentialsResolver {
     }
 
     throw new Error('Storage credentials are not configured');
+  }
+
+  async resolveById(storageId: string): Promise<DataStorageCredentials> {
+    const storage = await this.dataStorageRepository.findOne({ where: { id: storageId } });
+    if (!storage) {
+      throw new Error(`Storage not found: ${storageId}`);
+    }
+    return this.resolve(storage);
   }
 }

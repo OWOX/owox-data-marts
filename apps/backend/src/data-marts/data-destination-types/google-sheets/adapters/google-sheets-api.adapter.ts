@@ -21,8 +21,10 @@ export class GoogleSheetsApiAdapter {
   constructor(credentials: GoogleSheetsCredentials | undefined, authClient: OAuth2Client | JWT);
   constructor(credentials: GoogleSheetsCredentials);
   constructor(credentials: GoogleSheetsCredentials | undefined, authClient?: OAuth2Client | JWT) {
-    if (!authClient && !credentials) {
-      throw new Error('Either authClient or credentials must be provided');
+    if (!authClient && !credentials?.serviceAccountKey) {
+      throw new Error(
+        'Either an auth client or credentials with a service account key must be provided'
+      );
     }
     this.service = google.sheets({
       version: 'v4',
@@ -37,8 +39,14 @@ export class GoogleSheetsApiAdapter {
    * @returns True if credentials are valid, false otherwise
    */
   public static async validateCredentials(credentials: GoogleSheetsCredentials): Promise<boolean> {
+    if (!credentials.serviceAccountKey) {
+      GoogleSheetsApiAdapter.LOGGER.warn(
+        'Cannot validate Google Sheets credentials: no service account key provided'
+      );
+      return false;
+    }
     try {
-      const authClient = GoogleSheetsApiAdapter.createAuthClient(credentials.serviceAccountKey!);
+      const authClient = GoogleSheetsApiAdapter.createAuthClient(credentials.serviceAccountKey);
       await authClient.getAccessToken();
       return true;
     } catch (error) {

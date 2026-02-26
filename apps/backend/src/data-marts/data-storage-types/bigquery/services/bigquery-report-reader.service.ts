@@ -41,6 +41,7 @@ export class BigQueryReportReader implements DataStorageReportReader {
   private reportDataHeaders: ReportDataHeader[];
   private contextGcpProject: string;
 
+  private storageId: string;
   private reportConfig: {
     storageCredentials: BigQueryCredentials;
     storageConfig: BigQueryConfig;
@@ -83,6 +84,7 @@ export class BigQueryReportReader implements DataStorageReportReader {
       throw new Error('Google BigQuery data mart schema is expected');
     }
 
+    this.storageId = storage.id;
     this.reportConfig = {
       storageCredentials,
       storageConfig: storage.config,
@@ -231,7 +233,12 @@ export class BigQueryReportReader implements DataStorageReportReader {
 
     return {
       type: DataStorageType.GOOGLE_BIGQUERY,
-      reportConfig: this.reportConfig,
+      storageId: this.storageId,
+      reportConfig: {
+        storageConfig: this.reportConfig.storageConfig,
+        definition: this.reportConfig.definition,
+        definitionType: this.reportConfig.definitionType,
+      },
       reportDataHeaders: this.reportDataHeaders,
       contextGcpProject: this.contextGcpProject,
     };
@@ -245,7 +252,18 @@ export class BigQueryReportReader implements DataStorageReportReader {
       throw new Error('Invalid state for BigQuery reader');
     }
 
-    this.reportConfig = state.reportConfig;
+    // Re-resolve credentials from storage rather than deserializing them,
+    // because OAuth credentials contain non-serializable OAuth2Client instances.
+    const storageCredentials = (await this.credentialsResolver.resolveById(
+      state.storageId
+    )) as BigQueryCredentials;
+    this.storageId = state.storageId;
+    this.reportConfig = {
+      storageCredentials,
+      storageConfig: state.reportConfig.storageConfig,
+      definition: state.reportConfig.definition,
+      definitionType: state.reportConfig.definitionType,
+    };
     this.reportDataHeaders = reportDataHeaders;
     this.contextGcpProject = state.contextGcpProject;
 
