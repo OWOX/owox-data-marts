@@ -8,6 +8,7 @@ import { RotateSecretKeyCommand } from '../dto/domain/rotate-secret-key.command'
 import { DataDestinationSecretKeyRotatorFacade } from '../data-destination-types/facades/data-destination-secret-key-rotator.facade';
 import { DataDestinationCredentialService } from '../services/data-destination-credential.service';
 import { DataDestinationCredentials } from '../data-destination-types/data-destination-credentials.type';
+import type { StoredDestinationCredentials } from '../entities/stored-destination-credentials.type';
 
 @Injectable()
 export class RotateSecretKeyService {
@@ -43,7 +44,7 @@ export class RotateSecretKeyService {
     );
 
     await this.credentialService.update(entity.credentialId, {
-      credentials: rotatedCredentials as Record<string, unknown>,
+      credentials: rotatedCredentials as StoredDestinationCredentials,
     });
 
     return this.mapper.toDomainDto(entity);

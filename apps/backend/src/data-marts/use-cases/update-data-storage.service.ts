@@ -16,6 +16,7 @@ import {
   resolveStorageCredentialType,
   extractStorageIdentity,
 } from '../services/credential-type-resolver';
+import type { StoredStorageCredentials } from '../entities/stored-storage-credentials.type';
 
 @Injectable()
 export class UpdateDataStorageService {
@@ -76,23 +77,23 @@ export class UpdateDataStorageService {
       // Create or update credential record in the new table
       const credentialType = resolveStorageCredentialType(
         dataStorageEntity.type,
-        command.credentials as Record<string, unknown>
+        command.credentials as StoredStorageCredentials
       );
       const identity = extractStorageIdentity(
         credentialType,
-        command.credentials as Record<string, unknown>
+        command.credentials as StoredStorageCredentials
       );
 
       if (dataStorageEntity.credentialId) {
         await this.dataStorageCredentialService.update(dataStorageEntity.credentialId, {
-          credentials: command.credentials as Record<string, unknown>,
+          credentials: command.credentials as StoredStorageCredentials,
           identity,
         });
       } else {
         const newCredential = await this.dataStorageCredentialService.create({
           projectId: command.projectId,
           type: credentialType,
-          credentials: command.credentials as Record<string, unknown>,
+          credentials: command.credentials as StoredStorageCredentials,
           identity,
         });
         dataStorageEntity.credentialId = newCredential.id;

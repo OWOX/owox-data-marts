@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { StorageCredentialType } from '../enums/storage-credential-type.enum';
 import type { CredentialIdentity } from '../entities/credential-identity.type';
+import type { StoredStorageCredentials } from '../entities/stored-storage-credentials.type';
 
 @Entity('data_storage_credentials')
 export class DataStorageCredential {
@@ -24,7 +25,7 @@ export class DataStorageCredential {
   type: StorageCredentialType;
 
   @Column({ type: 'json' })
-  credentials: Record<string, unknown>;
+  credentials: StoredStorageCredentials;
 
   @Column({ type: 'json', nullable: true })
   identity?: CredentialIdentity | null;

@@ -16,6 +16,7 @@ import {
   resolveDestinationCredentialType,
   extractDestinationIdentity,
 } from '../services/credential-type-resolver';
+import type { StoredDestinationCredentials } from '../entities/stored-destination-credentials.type';
 
 @Injectable()
 export class UpdateDataDestinationService {
@@ -79,23 +80,23 @@ export class UpdateDataDestinationService {
 
       // Update or create credential record in the new table
       const credentialType = resolveDestinationCredentialType(
-        processedCredentials as Record<string, unknown>
+        processedCredentials as StoredDestinationCredentials
       );
       const identity = extractDestinationIdentity(
         credentialType,
-        processedCredentials as Record<string, unknown>
+        processedCredentials as StoredDestinationCredentials
       );
 
       if (entity.credentialId) {
         await this.dataDestinationCredentialService.update(entity.credentialId, {
-          credentials: processedCredentials as Record<string, unknown>,
+          credentials: processedCredentials as StoredDestinationCredentials,
           identity,
         });
       } else {
         const newCredential = await this.dataDestinationCredentialService.create({
           projectId: command.projectId,
           type: credentialType,
-          credentials: processedCredentials as Record<string, unknown>,
+          credentials: processedCredentials as StoredDestinationCredentials,
           identity,
         });
         entity.credentialId = newCredential.id;

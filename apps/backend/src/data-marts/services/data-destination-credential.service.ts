@@ -4,6 +4,7 @@ import { Repository, IsNull, LessThan } from 'typeorm';
 import { DataDestinationCredential } from '../entities/data-destination-credential.entity';
 import { DestinationCredentialType } from '../enums/destination-credential-type.enum';
 import type { CredentialIdentity } from '../entities/credential-identity.type';
+import type { StoredDestinationCredentials } from '../entities/stored-destination-credentials.type';
 
 @Injectable()
 export class DataDestinationCredentialService {
@@ -16,7 +17,7 @@ export class DataDestinationCredentialService {
     projectId: string;
     createdById?: string | null;
     type: DestinationCredentialType;
-    credentials: Record<string, unknown>;
+    credentials: StoredDestinationCredentials;
     identity?: CredentialIdentity | null;
     expiresAt?: Date | null;
   }): Promise<DataDestinationCredential> {
@@ -42,7 +43,7 @@ export class DataDestinationCredentialService {
   async update(
     id: string,
     params: {
-      credentials?: Record<string, unknown>;
+      credentials?: StoredDestinationCredentials;
       identity?: CredentialIdentity | null;
       expiresAt?: Date | null;
     }
@@ -53,7 +54,7 @@ export class DataDestinationCredentialService {
     }
 
     if (params.credentials !== undefined) {
-      existing.credentials = params.credentials as DataDestinationCredential['credentials'];
+      existing.credentials = params.credentials;
     }
     if (params.identity !== undefined) {
       existing.identity = params.identity;
