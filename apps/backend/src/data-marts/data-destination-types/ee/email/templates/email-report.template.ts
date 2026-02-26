@@ -1,3 +1,5 @@
+import { buildDataMartUrl } from '../../../../../common/helpers/data-mart-url.helper';
+
 export interface EmailReportTemplateProps {
   reportBody: string;
   dataMartTitle: string;
@@ -85,7 +87,7 @@ export function renderEmailReportTemplate(props: EmailReportTemplateProps): stri
                     ${props.dataMartTitle}
                   </td>
                   <td style="vertical-align:middle;text-align:right;font-size:13px;color:#6b7280;">
-                    <a href="${props.publicOrigin}/ui/${props.projectId}/data-marts/${props.dataMartId}/reports" target="_blank" rel="noopener noreferrer" style="color:#1E88E5;text-decoration:none;">Edit report</a>
+                    <a href="${buildDataMartUrl(props.publicOrigin, props.projectId, props.dataMartId, '/reports')}" target="_blank" rel="noopener noreferrer" style="color:#1E88E5;text-decoration:none;">Edit report</a>
                   </td>
                 </tr>
               </table>

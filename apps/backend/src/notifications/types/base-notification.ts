@@ -14,6 +14,7 @@ import {
   NotificationRuntimeConfig,
 } from './notification-context';
 import { RUN_TYPE_ICONS } from '../templates/email/assets/img';
+import { buildDataMartUrl } from '../../common/helpers/data-mart-url.helper';
 
 export interface EmailContent {
   subject: string;
@@ -209,7 +210,7 @@ export abstract class BaseNotification {
     runtimeConfig?: NotificationRuntimeConfig
   ): string {
     const baseUrl = runtimeConfig?.appUrl ?? '';
-    return `${baseUrl}/ui/${queueItem.projectId}/data-marts/${queueItem.dataMartId}`;
+    return buildDataMartUrl(baseUrl, queueItem.projectId, queueItem.dataMartId);
   }
 
   protected buildProjectDataMartsUrl(
@@ -217,7 +218,7 @@ export abstract class BaseNotification {
     runtimeConfig?: NotificationRuntimeConfig
   ): string {
     const baseUrl = runtimeConfig?.appUrl ?? '';
-    return `${baseUrl}/ui/${queueItem.projectId}/data-marts`;
+    return buildDataMartUrl(baseUrl, queueItem.projectId);
   }
 
   protected buildDataMartRunHistoryUrl(
@@ -226,7 +227,7 @@ export abstract class BaseNotification {
     runtimeConfig?: NotificationRuntimeConfig
   ): string {
     const baseUrl = runtimeConfig?.appUrl ?? '';
-    return `${baseUrl}/ui/${projectId}/data-marts/${dataMartId}/run-history`;
+    return buildDataMartUrl(baseUrl, projectId, dataMartId, '/run-history');
   }
 
   protected formatRunType(type?: string): string | undefined {
