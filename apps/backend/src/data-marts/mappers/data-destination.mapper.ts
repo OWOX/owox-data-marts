@@ -176,8 +176,7 @@ export class DataDestinationMapper {
         };
       }
 
-      case DestinationCredentialType.GOOGLE_SERVICE_ACCOUNT:
-      case DestinationCredentialType.EMAIL: {
+      case DestinationCredentialType.GOOGLE_SERVICE_ACCOUNT: {
         const creds = credential.credentials as DataDestinationCredentials;
         const publicCreds = this.credentialsUtils.getPublicCredentials(dto.type, creds);
         if (!publicCreds) {
@@ -187,6 +186,9 @@ export class DataDestinationMapper {
         }
         return publicCreds;
       }
+
+      case DestinationCredentialType.EMAIL:
+        return credential.credentials as DataDestinationCredentials;
 
       default:
         throw new Error(
