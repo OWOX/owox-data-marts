@@ -36,6 +36,10 @@ export function GoogleSheetsFields({ form, destinationId }: GoogleSheetsFieldsPr
     const sa = form.getValues('credentials.serviceAccount');
     return sa?.trim() ? 'service-account' : 'oauth';
   });
+  const [stashedServiceAccount, setStashedServiceAccount] = useState<string | undefined>(undefined);
+  const [stashedCredentialId, setStashedCredentialId] = useState<string | null | undefined>(
+    undefined
+  );
 
   useEffect(() => {
     destinationOAuthApi
@@ -89,12 +93,20 @@ export function GoogleSheetsFields({ form, destinationId }: GoogleSheetsFieldsPr
   };
 
   const handleAuthMethodChange = (value: 'oauth' | 'service-account') => {
-    setAuthMethod(value);
     if (value === 'oauth') {
+      setStashedServiceAccount(form.getValues('credentials.serviceAccount'));
       form.setValue('credentials.serviceAccount', '');
+      if (stashedCredentialId) {
+        form.setValue('credentials.credentialId', stashedCredentialId);
+      }
     } else {
+      setStashedCredentialId(form.getValues('credentials.credentialId'));
       form.setValue('credentials.credentialId', null);
+      if (stashedServiceAccount) {
+        form.setValue('credentials.serviceAccount', stashedServiceAccount);
+      }
     }
+    setAuthMethod(value);
   };
 
   return (

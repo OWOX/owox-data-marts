@@ -52,6 +52,10 @@ export const LegacyGoogleBigQueryFields = ({
     const sa = form.getValues('credentials.serviceAccount');
     return sa?.trim() ? 'service-account' : 'oauth';
   });
+  const [stashedServiceAccount, setStashedServiceAccount] = useState<string | undefined>(undefined);
+  const [stashedCredentialId, setStashedCredentialId] = useState<string | null | undefined>(
+    undefined
+  );
 
   useEffect(() => {
     storageOAuthApi
@@ -86,12 +90,20 @@ export const LegacyGoogleBigQueryFields = ({
   };
 
   const handleAuthMethodChange = (value: 'oauth' | 'service-account') => {
-    setAuthMethod(value);
-    if (value === 'service-account') {
-      form.setValue('credentials.credentialId', null);
-    } else {
+    if (value === 'oauth') {
+      setStashedServiceAccount(form.getValues('credentials.serviceAccount'));
       form.setValue('credentials.serviceAccount', '');
+      if (stashedCredentialId) {
+        form.setValue('credentials.credentialId', stashedCredentialId);
+      }
+    } else {
+      setStashedCredentialId(form.getValues('credentials.credentialId'));
+      form.setValue('credentials.credentialId', null);
+      if (stashedServiceAccount) {
+        form.setValue('credentials.serviceAccount', stashedServiceAccount);
+      }
     }
+    setAuthMethod(value);
   };
 
   const handleEdit = () => {
