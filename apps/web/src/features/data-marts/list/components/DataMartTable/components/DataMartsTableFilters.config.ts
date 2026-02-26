@@ -9,30 +9,38 @@ import { DataStorageTypeModel } from '../../../../../data-storage/shared/types/d
 import { DataMartDefinitionTypeModel } from '../../../../shared/types/data-mart-definition-type.model';
 import { DataMartDefinitionType } from '../../../../shared/enums/data-mart-definition-type.enum';
 import type { ConnectorListItem } from '../../../../../connectors/shared/model/types/connector';
+import { DataMartColumnKey } from '../columns/columnKeys';
+import { DataMartStatus } from '../../../../shared/enums/data-mart-status.enum';
+import { DataMartStatusModel } from '../../../../shared/types/data-mart-status.model';
+import { dataMartColumnLabels } from '../columns/columnLabels';
 
 /* ---------------------------------------------------------------------------
  * Filter keys
  * ------------------------------------------------------------------------ */
+enum AdditionalFilterKeys {
+  STORAGE_TITLE = 'storageTitle',
+  INPUT_SOURCE = 'inputSource',
+}
 
 export type DataMartFilterKey =
-  | 'status'
-  | 'storageType'
-  | 'storageTitle'
-  | 'title'
-  | 'definitionType'
-  | 'inputSource';
+  | DataMartColumnKey.STATUS
+  | DataMartColumnKey.STORAGE_TYPE
+  | AdditionalFilterKeys.STORAGE_TITLE
+  | DataMartColumnKey.TITLE
+  | DataMartColumnKey.DEFINITION_TYPE
+  | AdditionalFilterKeys.INPUT_SOURCE;
 
 /* ---------------------------------------------------------------------------
  * Accessors (used both for filtering and option collection)
  * ------------------------------------------------------------------------ */
 
 export const dataMartsFilterAccessors: FilterAccessors<DataMartFilterKey, DataMartListItem> = {
-  status: row => row.status.code,
-  storageType: row => row.storageType,
-  storageTitle: row => row.storageTitle,
-  title: row => row.title,
-  definitionType: row => row.definitionType,
-  inputSource: row => {
+  [DataMartColumnKey.STATUS]: row => row.status.code,
+  [DataMartColumnKey.STORAGE_TYPE]: row => row.storageType,
+  [AdditionalFilterKeys.STORAGE_TITLE]: row => row.storageTitle,
+  [DataMartColumnKey.TITLE]: row => row.title,
+  [DataMartColumnKey.DEFINITION_TYPE]: row => row.definitionType,
+  [AdditionalFilterKeys.INPUT_SOURCE]: row => {
     if (row.definitionType === DataMartDefinitionType.CONNECTOR) {
       return row.connectorSourceName;
     }
@@ -53,14 +61,14 @@ export function buildDataMartsTableFilters(
    * --------------------------- */
   const statusOptions: SelectOption[] = collectOptionsFromData(
     data,
-    dataMartsFilterAccessors.status,
+    dataMartsFilterAccessors[DataMartColumnKey.STATUS],
     {
       labelMapper: value => {
-        switch (value) {
-          case 'DRAFT':
-            return 'Draft';
-          case 'PUBLISHED':
-            return 'Published';
+        switch (value as DataMartStatus) {
+          case DataMartStatus.DRAFT:
+            return DataMartStatusModel.getInfo(DataMartStatus.DRAFT).displayName;
+          case DataMartStatus.PUBLISHED:
+            return DataMartStatusModel.getInfo(DataMartStatus.PUBLISHED).displayName;
           default:
             return value;
         }
@@ -73,7 +81,7 @@ export function buildDataMartsTableFilters(
    * --------------------------- */
   const storageTypeOptions: SelectOption[] = collectOptionsFromData(
     data,
-    dataMartsFilterAccessors.storageType,
+    dataMartsFilterAccessors[DataMartColumnKey.STORAGE_TYPE],
     {
       labelMapper: value => {
         const info = DataStorageTypeModel.getInfo(value as never);
@@ -87,20 +95,23 @@ export function buildDataMartsTableFilters(
    * --------------------------- */
   const storageTitleOptions: SelectOption[] = collectOptionsFromData(
     data,
-    dataMartsFilterAccessors.storageTitle
+    dataMartsFilterAccessors[AdditionalFilterKeys.STORAGE_TITLE]
   );
 
   /* -----------------------------
    * Title options
    * --------------------------- */
-  const titleOptions: SelectOption[] = collectOptionsFromData(data, dataMartsFilterAccessors.title);
+  const titleOptions: SelectOption[] = collectOptionsFromData(
+    data,
+    dataMartsFilterAccessors[DataMartColumnKey.TITLE]
+  );
 
   /* -----------------------------
    * Definition type options
    * --------------------------- */
   const definitionTypeOptions: SelectOption[] = collectOptionsFromData(
     data,
-    dataMartsFilterAccessors.definitionType,
+    dataMartsFilterAccessors[DataMartColumnKey.DEFINITION_TYPE],
     {
       labelMapper: value => {
         const info = DataMartDefinitionTypeModel.getInfo(value as never);
@@ -114,7 +125,7 @@ export function buildDataMartsTableFilters(
    * --------------------------- */
   const inputSourceOptions: SelectOption[] = collectOptionsFromData(
     data,
-    dataMartsFilterAccessors.inputSource
+    dataMartsFilterAccessors[AdditionalFilterKeys.INPUT_SOURCE]
   ).map(option => {
     if (option.value === 'OTHER') {
       return {
@@ -133,43 +144,43 @@ export function buildDataMartsTableFilters(
 
   return [
     {
-      id: 'title',
-      label: 'Title',
+      id: DataMartColumnKey.TITLE,
+      label: dataMartColumnLabels[DataMartColumnKey.TITLE],
       dataType: 'string',
       operators: ['contains', 'not_contains', 'eq', 'neq'],
       options: titleOptions,
     },
     {
-      id: 'inputSource',
-      label: 'Input source',
+      id: AdditionalFilterKeys.INPUT_SOURCE,
+      label: dataMartColumnLabels[DataMartColumnKey.DEFINITION_TYPE],
       dataType: 'enum',
       operators: ['eq', 'neq'],
       options: inputSourceOptions,
     },
     {
-      id: 'definitionType',
+      id: DataMartColumnKey.DEFINITION_TYPE,
       label: 'Definition',
       dataType: 'enum',
       operators: ['eq', 'neq'],
       options: definitionTypeOptions,
     },
     {
-      id: 'storageType',
+      id: DataMartColumnKey.STORAGE_TYPE,
       label: 'Storage type',
       dataType: 'enum',
       operators: ['eq', 'neq'],
       options: storageTypeOptions,
     },
     {
-      id: 'storageTitle',
+      id: AdditionalFilterKeys.STORAGE_TITLE,
       label: 'Storage title',
       dataType: 'string',
       operators: ['contains', 'not_contains', 'eq', 'neq'],
       options: storageTitleOptions,
     },
     {
-      id: 'status',
-      label: 'Status',
+      id: DataMartColumnKey.STATUS,
+      label: dataMartColumnLabels[DataMartColumnKey.STATUS],
       dataType: 'enum',
       operators: ['eq', 'neq'],
       options: statusOptions,

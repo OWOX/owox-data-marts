@@ -6,12 +6,14 @@ import {
 } from '../../../../../shared/components/TableFilters/collectOptions.utils';
 import type { DataStorageTableItem } from './columns/columns';
 import { DataStorageTypeModel } from '../../../shared/types/data-storage-type.model';
+import { DataStorageColumnKey } from './columns/columnKeys';
+import { dataStorageColumnLabels } from './columns/columnLabels';
 
 /* ---------------------------------------------------------------------------
  * Filter keys
  * ------------------------------------------------------------------------ */
 
-export type DataStorageFilterKey = 'title' | 'type';
+export type DataStorageFilterKey = DataStorageColumnKey.TITLE | DataStorageColumnKey.TYPE;
 
 /* ---------------------------------------------------------------------------
  * Accessors (used both for filtering and option collection)
@@ -21,8 +23,8 @@ export const dataStorageFilterAccessors: FilterAccessors<
   DataStorageFilterKey,
   DataStorageTableItem
 > = {
-  title: row => row.title,
-  type: row => row.type,
+  [DataStorageColumnKey.TITLE]: row => row.title,
+  [DataStorageColumnKey.TYPE]: row => row.type,
 };
 
 /* ---------------------------------------------------------------------------
@@ -37,7 +39,7 @@ export function buildDataStorageTableFilters(
    * --------------------------- */
   const storageTitleOptions: SelectOption[] = collectOptionsFromData(
     data,
-    dataStorageFilterAccessors.title
+    dataStorageFilterAccessors[DataStorageColumnKey.TITLE]
   );
 
   /* -----------------------------
@@ -45,7 +47,7 @@ export function buildDataStorageTableFilters(
    * --------------------------- */
   const typeOptions: SelectOption[] = collectOptionsFromData(
     data,
-    dataStorageFilterAccessors.type,
+    dataStorageFilterAccessors[DataStorageColumnKey.TYPE],
     {
       labelMapper: value => {
         const info = DataStorageTypeModel.getInfo(value as never);
@@ -56,15 +58,15 @@ export function buildDataStorageTableFilters(
 
   return [
     {
-      id: 'title',
-      label: 'Storage title',
+      id: DataStorageColumnKey.TITLE,
+      label: dataStorageColumnLabels[DataStorageColumnKey.TITLE],
       dataType: 'string',
       operators: ['contains', 'not_contains', 'eq', 'neq'],
       options: storageTitleOptions,
     },
     {
-      id: 'type',
-      label: 'Storage type',
+      id: DataStorageColumnKey.TYPE,
+      label: dataStorageColumnLabels[DataStorageColumnKey.TYPE],
       dataType: 'enum',
       operators: ['eq', 'neq'],
       options: typeOptions,
