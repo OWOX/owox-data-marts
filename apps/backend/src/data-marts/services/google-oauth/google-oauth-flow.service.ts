@@ -10,6 +10,8 @@ import { DataStorage } from '../../entities/data-storage.entity';
 import { DataDestination } from '../../entities/data-destination.entity';
 import { StorageCredentialType } from '../../enums/storage-credential-type.enum';
 import { DestinationCredentialType } from '../../enums/destination-credential-type.enum';
+import type { StoredStorageCredentials } from '../../entities/stored-storage-credentials.type';
+import type { StoredDestinationCredentials } from '../../entities/stored-destination-credentials.type';
 import {
   OAuthNotConfiguredException,
   InvalidOAuthStateException,
@@ -29,7 +31,7 @@ export interface GoogleOAuthUser {
   picture?: string;
 }
 
-interface GoogleOAuthTokens {
+export interface GoogleOAuthTokens {
   access_token: string;
   refresh_token?: string;
   token_type: string;
@@ -215,7 +217,7 @@ export class GoogleOAuthFlowService {
         projectId: statePayload.projectId,
         createdById: userId,
         type: StorageCredentialType.GOOGLE_OAUTH,
-        credentials: tokens as unknown as Record<string, unknown>,
+        credentials: tokens,
         identity,
       });
 
@@ -232,7 +234,7 @@ export class GoogleOAuthFlowService {
         projectId: statePayload.projectId,
         createdById: userId,
         type: DestinationCredentialType.GOOGLE_OAUTH,
-        credentials: tokens as unknown as Record<string, unknown>,
+        credentials: tokens,
         identity,
       });
 
@@ -257,7 +259,7 @@ export class GoogleOAuthFlowService {
       throw new CredentialsNotFoundException(credentialId, type);
     }
 
-    const refreshToken = (credential.credentials as unknown as GoogleOAuthTokens).refresh_token;
+    const refreshToken = (credential.credentials as GoogleOAuthTokens).refresh_token;
     if (!refreshToken) {
       throw new CredentialsExpiredException(credentialId, type);
     }
@@ -283,10 +285,11 @@ export class GoogleOAuthFlowService {
       refreshClient.setCredentials({ refresh_token: refreshToken });
       const { credentials: newTokens } = await refreshClient.refreshAccessToken();
 
-      const updatedTokens = {
-        ...(credential.credentials as Record<string, unknown>),
-        access_token: newTokens.access_token,
-        expiry_date: newTokens.expiry_date,
+      const currentTokens = credential.credentials as GoogleOAuthTokens;
+      const updatedTokens: GoogleOAuthTokens = {
+        ...currentTokens,
+        access_token: newTokens.access_token!,
+        expiry_date: newTokens.expiry_date ?? undefined,
       };
 
       const service =
@@ -363,9 +366,11 @@ export class GoogleOAuthFlowService {
 
   // Private helpers
 
-  private isCredentialValid(credential: { credentials: Record<string, unknown> } | null): boolean {
+  private isCredentialValid(
+    credential: { credentials: StoredStorageCredentials | StoredDestinationCredentials } | null
+  ): boolean {
     if (!credential) return false;
-    return !!(credential.credentials as unknown as GoogleOAuthTokens).refresh_token;
+    return !!(credential.credentials as GoogleOAuthTokens).refresh_token;
   }
 
   private async revokeCredential(credentialId: string, type: OAuthResourceType): Promise<void> {
@@ -377,7 +382,7 @@ export class GoogleOAuthFlowService {
     const credential = await credService.getById(credentialId);
     if (credential) {
       try {
-        const tokens = credential.credentials as unknown as GoogleOAuthTokens;
+        const tokens = credential.credentials as GoogleOAuthTokens;
         // Prefer revoking refresh_token (invalidates all associated access tokens).
         // Fall back to access_token if no refresh_token is available.
         const tokenToRevoke = tokens.refresh_token || tokens.access_token;

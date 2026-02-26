@@ -2,10 +2,12 @@ import { DataStorageType } from '../data-storage-types/enums/data-storage-type.e
 import { StorageCredentialType } from '../enums/storage-credential-type.enum';
 import { DestinationCredentialType } from '../enums/destination-credential-type.enum';
 import type { CredentialIdentity } from '../entities/credential-identity.type';
+import type { StoredStorageCredentials } from '../entities/stored-storage-credentials.type';
+import type { StoredDestinationCredentials } from '../entities/stored-destination-credentials.type';
 
 export function resolveStorageCredentialType(
   storageType: DataStorageType,
-  credentials: Record<string, unknown>
+  credentials: StoredStorageCredentials
 ): StorageCredentialType {
   switch (storageType) {
     case DataStorageType.GOOGLE_BIGQUERY:
@@ -15,7 +17,8 @@ export function resolveStorageCredentialType(
     case DataStorageType.AWS_REDSHIFT:
       return StorageCredentialType.AWS_IAM;
     case DataStorageType.SNOWFLAKE:
-      if (credentials.authMethod === 'KEY_PAIR') return StorageCredentialType.SNOWFLAKE_KEY_PAIR;
+      if ('authMethod' in credentials && credentials.authMethod === 'KEY_PAIR')
+        return StorageCredentialType.SNOWFLAKE_KEY_PAIR;
       return StorageCredentialType.SNOWFLAKE_PASSWORD;
     case DataStorageType.DATABRICKS:
       return StorageCredentialType.DATABRICKS_PAT;
@@ -25,9 +28,9 @@ export function resolveStorageCredentialType(
 }
 
 export function resolveDestinationCredentialType(
-  credentials: Record<string, unknown>
+  credentials: StoredDestinationCredentials
 ): DestinationCredentialType {
-  const credType = credentials.type as string | undefined;
+  const credType = 'type' in credentials ? (credentials.type as string | undefined) : undefined;
   switch (credType) {
     case 'google-sheets-credentials':
       return DestinationCredentialType.GOOGLE_SERVICE_ACCOUNT;
@@ -42,16 +45,20 @@ export function resolveDestinationCredentialType(
 
 export function extractStorageIdentity(
   type: StorageCredentialType,
-  credentials: Record<string, unknown>
+  credentials: StoredStorageCredentials
 ): CredentialIdentity | null {
   switch (type) {
     case StorageCredentialType.GOOGLE_SERVICE_ACCOUNT:
-      return credentials.client_email ? { clientEmail: credentials.client_email as string } : null;
+      return 'client_email' in credentials
+        ? { clientEmail: credentials.client_email as string }
+        : null;
     case StorageCredentialType.SNOWFLAKE_PASSWORD:
     case StorageCredentialType.SNOWFLAKE_KEY_PAIR:
-      return credentials.username ? { username: credentials.username as string } : null;
+      return 'username' in credentials ? { username: credentials.username as string } : null;
     case StorageCredentialType.AWS_IAM:
-      return credentials.accessKeyId ? { accessKeyId: credentials.accessKeyId as string } : null;
+      return 'accessKeyId' in credentials
+        ? { accessKeyId: credentials.accessKeyId as string }
+        : null;
     default:
       return null;
   }
@@ -59,9 +66,12 @@ export function extractStorageIdentity(
 
 export function extractDestinationIdentity(
   type: DestinationCredentialType,
-  credentials: Record<string, unknown>
+  credentials: StoredDestinationCredentials
 ): CredentialIdentity | null {
-  if (type === DestinationCredentialType.GOOGLE_SERVICE_ACCOUNT) {
+  if (
+    type === DestinationCredentialType.GOOGLE_SERVICE_ACCOUNT &&
+    'serviceAccountKey' in credentials
+  ) {
     const saKey = credentials.serviceAccountKey as Record<string, unknown> | undefined;
     return saKey?.client_email ? { clientEmail: saKey.client_email as string } : null;
   }

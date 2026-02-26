@@ -4,6 +4,7 @@ import { Repository, IsNull, LessThan } from 'typeorm';
 import { DataStorageCredential } from '../entities/data-storage-credential.entity';
 import { StorageCredentialType } from '../enums/storage-credential-type.enum';
 import type { CredentialIdentity } from '../entities/credential-identity.type';
+import type { StoredStorageCredentials } from '../entities/stored-storage-credentials.type';
 
 @Injectable()
 export class DataStorageCredentialService {
@@ -16,7 +17,7 @@ export class DataStorageCredentialService {
     projectId: string;
     createdById?: string | null;
     type: StorageCredentialType;
-    credentials: Record<string, unknown>;
+    credentials: StoredStorageCredentials;
     identity?: CredentialIdentity | null;
     expiresAt?: Date | null;
   }): Promise<DataStorageCredential> {
@@ -42,7 +43,7 @@ export class DataStorageCredentialService {
   async update(
     id: string,
     params: {
-      credentials?: Record<string, unknown>;
+      credentials?: StoredStorageCredentials;
       identity?: CredentialIdentity | null;
       expiresAt?: Date | null;
     }

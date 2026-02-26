@@ -3,7 +3,7 @@ import { OAuth2Client, Credentials } from 'google-auth-library';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { GoogleOAuthConfigService } from './google-oauth-config.service';
-import { GoogleOAuthFlowService } from './google-oauth-flow.service';
+import { GoogleOAuthFlowService, type GoogleOAuthTokens } from './google-oauth-flow.service';
 import { DataStorageCredentialService } from '../data-storage-credential.service';
 import { DataDestinationCredentialService } from '../data-destination-credential.service';
 import { DataStorage } from '../../entities/data-storage.entity';
@@ -44,8 +44,8 @@ export class GoogleOAuthClientService {
       throw new CredentialsNotFoundException(storageId, 'storage');
     }
 
-    const expiryDate = (credential.credentials as { expiry_date?: number }).expiry_date;
-    if (expiryDate && expiryDate < Date.now() + this.TOKEN_REFRESH_BUFFER_MS) {
+    const tokens = credential.credentials as GoogleOAuthTokens;
+    if (tokens.expiry_date && tokens.expiry_date < Date.now() + this.TOKEN_REFRESH_BUFFER_MS) {
       await this.refreshWithLock(credential.id, 'storage');
       credential = await this.dataStorageCredentialService.getById(credential.id);
       if (!credential) {
@@ -53,7 +53,7 @@ export class GoogleOAuthClientService {
       }
     }
 
-    return this.createOAuth2Client(credential.credentials, 'storage');
+    return this.createOAuth2Client(credential.credentials as GoogleOAuthTokens, 'storage');
   }
 
   async getDestinationOAuth2Client(destinationId: string): Promise<OAuth2Client> {
@@ -73,8 +73,11 @@ export class GoogleOAuthClientService {
       throw new CredentialsNotFoundException(credentialId, 'destination');
     }
 
-    const expiryDate = (credential.credentials as { expiry_date?: number }).expiry_date;
-    if (expiryDate && expiryDate < Date.now() + this.TOKEN_REFRESH_BUFFER_MS) {
+    const destTokens = credential.credentials as GoogleOAuthTokens;
+    if (
+      destTokens.expiry_date &&
+      destTokens.expiry_date < Date.now() + this.TOKEN_REFRESH_BUFFER_MS
+    ) {
       await this.refreshWithLock(credential.id, 'destination');
       credential = await this.dataDestinationCredentialService.getById(credential.id);
       if (!credential) {
@@ -82,7 +85,7 @@ export class GoogleOAuthClientService {
       }
     }
 
-    return this.createOAuth2Client(credential.credentials, 'destination');
+    return this.createOAuth2Client(credential.credentials as GoogleOAuthTokens, 'destination');
   }
 
   /**
@@ -109,7 +112,7 @@ export class GoogleOAuthClientService {
   }
 
   private createOAuth2Client(
-    credentials: Record<string, unknown>,
+    credentials: GoogleOAuthTokens,
     type: 'storage' | 'destination'
   ): OAuth2Client {
     const clientId =
