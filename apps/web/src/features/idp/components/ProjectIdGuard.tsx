@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuthState, useUser } from '../hooks';
 import { signIn } from '../services';
+import { normalizeProjectId } from '../utils/project-id';
 import { FullScreenLoader } from '@owox/ui/components/common/loading-spinner';
 
 /**
@@ -19,15 +20,16 @@ export function ProjectIdGuard({ children }: { children: React.ReactNode }): Rea
   const { projectId: urlProjectId } = useParams<{ projectId?: string }>();
 
   const userProjectId = user?.projectId;
+  const safeUrlProjectId = normalizeProjectId(urlProjectId);
 
   const hasMismatch =
-    !isLoading && !!urlProjectId && !!userProjectId && userProjectId !== urlProjectId;
+    !isLoading && !!safeUrlProjectId && !!userProjectId && userProjectId !== safeUrlProjectId;
 
   useEffect(() => {
     if (hasMismatch) {
-      signIn({ projectId: urlProjectId });
+      signIn({ projectId: safeUrlProjectId });
     }
-  }, [hasMismatch, urlProjectId]);
+  }, [hasMismatch, safeUrlProjectId]);
 
   if (isLoading || hasMismatch) return <FullScreenLoader />;
 

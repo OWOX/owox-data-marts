@@ -95,6 +95,9 @@ export class PkceFlowOrchestrator {
       if (!redirectUrl) {
         this.logger.warn('Failed to build redirect URL after identity refresh');
       }
+      if (redirectUrl) {
+        clearBetterAuthCookies(res, req);
+      }
       return redirectUrl;
     } catch (error) {
       if (isStateExpiredError(error)) {
@@ -159,7 +162,7 @@ export class PkceFlowOrchestrator {
         allowedRedirectOrigins: this.idpOwoxConfig.idpConfig.allowedRedirectOrigins,
       });
       if (redirectUrl) {
-        clearAllAuthCookies(res, req);
+        clearBetterAuthCookies(res, req);
         return redirectUrl;
       }
     } catch (error) {
