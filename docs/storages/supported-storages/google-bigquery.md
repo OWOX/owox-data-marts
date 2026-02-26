@@ -58,6 +58,6 @@ To get the JSON key, you'll need to create or use an existing service account in
 - If the API isn’t enabled, click **Enable**
 - If already enabled, you’ll see the API dashboard
 
-### 5. Finalize Setup
+## 5. Finalize Setup
 
 Review your entries and click **Save** to add the **Storage configuration**, or **Cancel** to exit without saving.
