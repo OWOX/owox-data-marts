@@ -22,9 +22,7 @@ export async function main() {
     const app = express();
     app.set('trust proxy', 1);
     app.get('/api/flags', (_req, res) => {
-      res.json({
-        LICENSED_APP_EDITION: 'ENTERPRISE',
-      });
+      res.json({});
     });
     await setupIdp(app);
 
