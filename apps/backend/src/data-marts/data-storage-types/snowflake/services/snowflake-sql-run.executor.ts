@@ -39,10 +39,11 @@ export class SnowflakeSqlRunExecutor implements SqlRunExecutor {
     }
 
     try {
-      const { rows } = await adapter.executeQuery(sql);
+      const { rows, metadata } = await adapter.executeQuery(sql);
+      const columns = metadata?.columns?.map(column => column.name).filter(Boolean);
 
       if (!rows || rows.length === 0) {
-        yield new SqlRunBatch<Row>([], null);
+        yield new SqlRunBatch<Row>([], null, columns ?? null);
         return;
       }
 
@@ -52,7 +53,7 @@ export class SnowflakeSqlRunExecutor implements SqlRunExecutor {
         const batch = rows.slice(i, i + maxRowsPerBatch) as Row[];
         const isLast = i + maxRowsPerBatch >= rows.length;
         const nextBatchId = isLast ? null : String(i + maxRowsPerBatch);
-        yield new SqlRunBatch<Row>(batch, nextBatchId);
+        yield new SqlRunBatch<Row>(batch, nextBatchId, columns);
       }
     } finally {
       await adapter.destroy();

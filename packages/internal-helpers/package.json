@@ -18,8 +18,11 @@
     "url": "git+https://github.com/OWOX/owox-data-marts.git"
   },
   "scripts": {
-    "build": "tsc",
-    "build:clean": "shx rm -rf dist tsconfig.tsbuildinfo",
+    "build": "npm run build:esm && npm run build:cjs && npm run build:cjs:pkg",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:cjs:pkg": "shx cp cjs-package.json dist-cjs/package.json",
+    "build:clean": "shx rm -rf dist dist-cjs tsconfig.tsbuildinfo",
+    "build:esm": "tsc -p tsconfig.json",
     "format": "prettier --write \"**/*.{ts,js,json}\" --ignore-path ../../.prettierignore",
     "format:check": "prettier --check \"**/*.{ts,js,json}\" --ignore-path ../../.prettierignore",
     "lint": "eslint . --config ./eslint.config.js",
@@ -51,12 +54,13 @@
     "@types/node": "^22.10.7"
   },
   "files": [
-    "dist"
+    "dist",
+    "dist-cjs"
   ],
   "exports": {
     ".": {
       "import": "./dist/index.js",
-      "require": "./dist/index.js",
+      "require": "./dist-cjs/index.js",
       "types": "./dist/index.d.ts"
     }
   },

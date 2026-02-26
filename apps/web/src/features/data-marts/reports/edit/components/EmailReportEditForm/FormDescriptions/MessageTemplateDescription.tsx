@@ -40,6 +40,35 @@ export default function MessageTemplateDescription() {
           </p>
         </AccordionContent>
       </AccordionItem>
+      <AccordionItem value='data-table-details'>
+        <AccordionTrigger>How can I add data into my message?</AccordionTrigger>
+        <AccordionContent>
+          <p className='mb-2'>
+            Use the <code>{'{{#data-table}}{{/data-table}}'}</code> tag to render data mart data as
+            a table.
+          </p>
+          <p className='mb-2'>
+            Optional parameters:
+            <br />
+            limit=20 - max rows to display (default: 10, max: 100)
+            <br />
+            from="end" - show last N rows instead of first
+            <br />
+            columns="id, revenue" - show only specific columns
+          </p>
+          <p className='mb-2'>
+            Example:
+            <br />
+            <code>
+              {'{{#data-table limit=20 from="end" columns="id, revenue"}}{{/data-table}}'}
+            </code>
+          </p>
+          <p className='mb-2'>
+            You can also use <code>{'{{dataHeadersCount}}'}</code> and{' '}
+            <code>{'{{dataRowsCount}}'}</code> variables.
+          </p>
+        </AccordionContent>
+      </AccordionItem>
     </Accordion>
   );
 }

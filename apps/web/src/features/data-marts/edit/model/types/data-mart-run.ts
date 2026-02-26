@@ -2,6 +2,8 @@ import type { DataMartDefinitionConfig } from './data-mart-definition-config';
 import type { DataMartRunTriggerType, DataMartRunType } from '../../../shared';
 import type { DataMartRunReportDefinition } from './data-mart-run-report-definition';
 import type { DataMartRunInsightDefinition } from './data-mart-run-insight-definition';
+import type { DataMartRunInsightTemplateDefinition } from './data-mart-run-insight-template-definition';
+import type { DataMartRunAiAssistantDefinition } from './data-mart-run-ai-assistant-definition.ts';
 import { DataMartRunStatus } from '../../../shared';
 import type { UserProjection } from '../../../../../shared/types';
 
@@ -20,5 +22,8 @@ export interface DataMartRunItem {
   reportId: string | null;
   insightDefinition: DataMartRunInsightDefinition | null;
   insightId: string | null;
+  insightTemplateDefinition: DataMartRunInsightTemplateDefinition | null;
+  insightTemplateId: string | null;
+  aiAssistantDefinition: DataMartRunAiAssistantDefinition | null;
   createdByUser: UserProjection | null;
 }

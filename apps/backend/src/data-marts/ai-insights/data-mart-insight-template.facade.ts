@@ -43,15 +43,21 @@ export class DataMartInsightTemplateFacadeImpl implements DataMartInsightTemplat
       additionalParams: { ...input.params, wholeTemplate: input.template },
     };
 
-    const { rendered, meta } = await this.templateRenderer.render(baseInput, [this.promptHandler]);
+    const { rendered, meta } = await this.templateRenderer.render(
+      baseInput,
+      [this.promptHandler],
+      input.disableBaseTagHandlers
+    );
 
     const tags = meta?.tags ?? [];
 
-    const prompts: DataMartPromptMetaEntry[] = tags.map(tag => ({
-      payload: tag.payload,
-      meta: tag.resultMeta,
-      promptAnswer: tag.result as string,
-    }));
+    const prompts: DataMartPromptMetaEntry[] = tags
+      .filter(t => t.tag === this.promptHandler.tag)
+      .map(tag => ({
+        payload: tag.payload,
+        meta: tag.resultMeta,
+        promptAnswer: tag.result as string,
+      }));
 
     const consumptionContext = input.consumptionContext;
     if (consumptionContext) {

@@ -3,7 +3,9 @@ import { UserProjectionDto } from '../../../idp/dto/domain/user-projection.dto';
 import { DataMartRunStatus } from '../../enums/data-mart-run-status.enum';
 import { DataMartRunType } from '../../enums/data-mart-run-type.enum';
 import { DataMartRunInsightDefinition } from '../schemas/data-mart-run/data-mart-run-insight-definition.schema';
+import { DataMartRunInsightTemplateDefinition } from '../schemas/data-mart-run/data-mart-run-insight-template-definition.schema';
 import { DataMartRunReportDefinition } from '../schemas/data-mart-run/data-mart-run-report-definition.schema';
+import { DataMartRunAiSourceDefinition } from '../schemas/data-mart-run/data-mart-run-ai-source-definition.schema';
 import { DataMartDefinition } from '../schemas/data-mart-table-definitions/data-mart-definition';
 
 export class DataMartRunDto {
@@ -18,6 +20,9 @@ export class DataMartRunDto {
     public readonly reportDefinition: DataMartRunReportDefinition | null,
     public readonly insightId: string | null,
     public readonly insightDefinition: DataMartRunInsightDefinition | null,
+    public readonly insightTemplateId: string | null,
+    public readonly insightTemplateDefinition: DataMartRunInsightTemplateDefinition | null,
+    public readonly aiSourceDefinition: DataMartRunAiSourceDefinition | null,
     public readonly logs: string[] | null,
     public readonly errors: string[] | null,
     public readonly createdAt: Date,

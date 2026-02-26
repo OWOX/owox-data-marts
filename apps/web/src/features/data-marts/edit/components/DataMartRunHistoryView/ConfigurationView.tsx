@@ -2,18 +2,24 @@ import React from 'react';
 import { CopyButton, CopyButtonVariant } from '@owox/ui/components/common/copy-button';
 import type { DataMartDefinitionConfig } from '../../model/types/data-mart-definition-config';
 import { useClipboard } from '../../../../../hooks/useClipboard';
-import type { DataMartRunReportDefinition, DataMartRunInsightDefinition } from '../../model';
+import type {
+  DataMartRunInsightDefinition,
+  DataMartRunInsightTemplateDefinition,
+  DataMartRunReportDefinition,
+} from '../../model';
 
 interface ConfigurationViewProps {
   definitionRun: DataMartDefinitionConfig | null;
   reportDefinition: DataMartRunReportDefinition | null;
   insightDefinition: DataMartRunInsightDefinition | null;
+  insightTemplateDefinition: DataMartRunInsightTemplateDefinition | null;
 }
 
 export function ConfigurationView({
   definitionRun,
   reportDefinition,
   insightDefinition,
+  insightTemplateDefinition,
 }: ConfigurationViewProps) {
   const { copiedSection, handleCopy } = useClipboard();
 
@@ -51,6 +57,16 @@ export function ConfigurationView({
               <h4 className='text-foreground mt-3 mb-3 text-sm font-medium'>Insight definition:</h4>
               <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
                 {JSON.stringify(insightDefinition, null, 2)}
+              </pre>
+            </>
+          )}
+          {insightTemplateDefinition && (
+            <>
+              <h4 className='text-foreground mt-3 mb-3 text-sm font-medium'>
+                Insight template definition:
+              </h4>
+              <pre className='bg-muted text-foreground overflow-x-auto rounded p-3 font-mono text-xs whitespace-pre-wrap dark:bg-white/3'>
+                {JSON.stringify(insightTemplateDefinition, null, 2)}
               </pre>
             </>
           )}

@@ -1,6 +1,7 @@
 # Standard ignores
 node_modules
 dist
+dist-cjs
 build
 coverage
 

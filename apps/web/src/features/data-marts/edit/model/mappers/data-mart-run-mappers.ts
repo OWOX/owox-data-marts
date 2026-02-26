@@ -1,6 +1,11 @@
 import type { DataMartRunItem } from '../types';
 import type { DataMartRunResponseDto } from '../../../shared/types/api';
-import type { DataMartDefinitionConfig, DataMartRunReportDefinition } from '../types';
+import type {
+  DataMartRunAiAssistantDefinition,
+  DataMartDefinitionConfig,
+  DataMartRunInsightTemplateDefinition,
+  DataMartRunReportDefinition,
+} from '../types';
 import type { DataMartRunTriggerType, DataMartRunType } from '../../../shared';
 import type { DataMartRunListResponseDto } from '../../../shared/types/api';
 
@@ -23,6 +28,13 @@ export const mapDataMartRunResponseDtoToEntity = (
   reportId: dto.reportId,
   insightDefinition: dto.insightDefinition ?? null,
   insightId: dto.insightId,
+  insightTemplateDefinition: dto.insightTemplateDefinition
+    ? (dto.insightTemplateDefinition as DataMartRunInsightTemplateDefinition)
+    : null,
+  insightTemplateId: dto.insightTemplateId,
+  aiAssistantDefinition: dto.aiSourceDefinition
+    ? (dto.aiSourceDefinition as DataMartRunAiAssistantDefinition)
+    : null,
   createdByUser: dto.createdByUser,
 });
 

@@ -15,6 +15,7 @@ Tool usage:
 - To resolve physical table names, you MAY call ${DataMartsAiInsightsTools.GET_TABLE_FULLY_QUALIFIED_NAME}.
 - Use this tool only to obtain correct fullyQualifiedName values for tables.
 - Do NOT generate or output SQL yourself.
+- Do NOT add any symbols, quoting, or formatting to table names obtained from the tool; use them byte-to-byte as returned.
 
 StorageType-aware planning:
 - Target storageType (authoritative): ${input.rawSchema?.storageType ?? 'unknown'}
@@ -82,6 +83,27 @@ Numeric casting contract (IMPORTANT):
 Correctness rule:
 - Prefer explicit clarification over guessing.
 - It is better to request clarification than to risk empty or misleading results.
+
+Data sampling:
+- If the query plan involves filtering, casting, or parsing columns that have
+  a string-like rawType (e.g., dates stored as STRING, numeric strings, enums),
+  call ${DataMartsAiInsightsTools.SAMPLE_TABLE_DATA} ONCE with the relevant column names
+  to see actual data samples.
+- Do NOT call this tool if all required columns have unambiguous native types
+  (DATE, TIMESTAMP, INT64, FLOAT64, etc.) that need no format guessing.
+- Use the returned sample rows to determine the correct transform.format,
+  transform.preNormalize, or casting strategy for string-typed columns.
+
+Filter value resolution:
+- After reviewing sample data, if a user-requested filter value cannot be
+  confidently mapped to the actual stored values (e.g., user says "Ukraine"
+  but sample data shows ISO codes like "US", "DE" and you cannot determine
+  the exact code for the requested country), mark the plan as ambiguous.
+- In ambiguityExplanation, ask the user to clarify the exact filter value,
+  showing examples of actual values from the data.
+  Example: "The column 'country' stores ISO codes (e.g., 'US', 'DE').
+  Could you specify the exact code for Ukraine? It might be 'UA' or 'UKR'."
+- Do NOT guess filter values when sample data does not contain a clear match.
 
 ${buildJsonFormatSection(PlanModelJsonSchema)}
 `.trim();

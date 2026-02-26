@@ -1,4 +1,5 @@
 import { castError, extractJsonFromText, parseJsonWithSchema } from '@owox/internal-helpers';
+import { buildJsonSchema } from './utils/build-json-schema-by-zod-schema';
 import { AiChatProvider, AiChatRequest, AiMessage, AiRole, AiToolCall } from './agent/ai-core';
 import {
   AgentTelemetry,
@@ -110,6 +111,7 @@ async function ensureValidJson(params: {
   schema: ZodTypeAny;
 }): Promise<AiMessage> {
   const { aiProvider, telemetry, logger, messages, temperature, maxTokens, schema } = params;
+  let lastValidationError = '';
 
   let finalAssistant = messages[messages.length - 1];
 
@@ -118,6 +120,7 @@ async function ensureValidJson(params: {
     parseJsonWithSchema(schema, finalAssistant.content, 'Response');
     return finalAssistant;
   } catch (error: unknown) {
+    lastValidationError = castError(error).message;
     logger.debug('FinalResponse: invalid JSON or schema mismatch on raw content.', {
       error: castError(error),
     });
@@ -140,6 +143,7 @@ async function ensureValidJson(params: {
       logger.debug('FinalResponse: successfully fixed JSON locally (no LLM call needed).');
       return finalAssistant;
     } catch (error: unknown) {
+      lastValidationError = castError(error).message;
       logger.log(
         'FinalResponse: extracted JSON still does not match schema, will ask model to fix.',
         { error: castError(error) }
@@ -149,19 +153,34 @@ async function ensureValidJson(params: {
     logger.log('FinalResponse: could not extract JSON substring, will ask model to fix.');
   }
 
-  // 3) Fallback: ask model to re-output pure JSON object
+  // 3) Fallback: ask model to re-output pure JSON object with specific error details
+  const lastAssistantContent = finalAssistant.content ?? '';
+  const schemaDescription = JSON.stringify(buildJsonSchema(schema), null, 2);
+
   const fixSystemMessage: AiMessage = {
     role: AiRole.SYSTEM,
     content:
-      'The previous assistant message was not valid JSON or did not match the required JSON schema. ' +
-      'You MUST now respond again with ONLY a valid JSON object that fully matches the expected schema. ' +
+      'The previous assistant message was not valid JSON or did not match the required JSON schema.\n\n' +
+      `Validation error: ${lastValidationError}\n\n` +
+      `Expected JSON schema:\n${schemaDescription}\n\n` +
+      'You MUST now respond with ONLY a valid JSON object that matches the schema above. ' +
       'Do not include any explanations, comments, or Markdown. Only the JSON object.',
   };
+
+  // Trim context: keep only system prompt + last assistant message + fix instruction
+  const systemMessage = messages.find(m => m.role === AiRole.SYSTEM);
+  const fixMessages: AiMessage[] = [
+    ...(systemMessage ? [systemMessage] : []),
+    { role: AiRole.ASSISTANT, content: lastAssistantContent },
+    fixSystemMessage,
+  ];
+
+  // Also push to full history for telemetry
   messages.push(fixSystemMessage);
   telemetry.messageHistory.push(fixSystemMessage);
 
   const fixRequest: AiChatRequest = {
-    messages,
+    messages: fixMessages,
     tools: [],
     toolMode: 'auto',
     temperature,

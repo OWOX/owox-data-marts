@@ -10,3 +10,5 @@ export * from './data-mart-run';
 export * from './data-mart-run-report-definition';
 export * from './copied-configuration';
 export * from './data-mart-run-insight-definition';
+export * from './data-mart-run-insight-template-definition';
+export * from './data-mart-run-ai-assistant-definition.ts';

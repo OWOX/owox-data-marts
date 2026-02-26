@@ -18,6 +18,7 @@ SQL construction rules (MUST follow):
 - Use ONLY SELECT or WITH queries (no INSERT, UPDATE, DELETE, MERGE, or any DDL).
 - Use table names ONLY from plan.tables[*].fullyQualifiedName.
   - Use fullyQualifiedName byte-to-byte exactly as provided.
+  - Do not add any anything to it (e.g., aliases, version) that is not already present in the provided fullyQualifiedName.
   - Do NOT add/remove quoting. Do NOT change casing. Do NOT rewrite catalog/schema.
 - Use ONLY columns that are present in plan.requiredColumnsMeta.
   - Do NOT reference any other columns, even if they appear in rawSchema.

@@ -28,6 +28,10 @@ import {
   ErrorPayload,
   ErrorPayloadSchema,
 } from '../error';
+import {
+  GPT5_CHAT_COMPLETIONS_MODEL_OPTIONS_ADAPTER,
+  OpenAiModelRequestOptionsAdapter,
+} from './openai-model-request-options.adapter';
 
 /**
  * OpenAI-specific adapter that maps our domain-level request/response
@@ -68,6 +72,14 @@ export class OpenAiChatProvider implements AiChatProvider {
    */
   protected getProviderName(): string {
     return 'AI';
+  }
+
+  /**
+   * Hook method to adapt model-specific request option fields (temperature, token params, etc).
+   * Can be overridden by subclasses to add/replace adapters.
+   */
+  protected getModelRequestOptionsAdapters(): ReadonlyArray<OpenAiModelRequestOptionsAdapter> {
+    return [GPT5_CHAT_COMPLETIONS_MODEL_OPTIONS_ADAPTER];
   }
 
   async chat(request: AiChatRequest): Promise<AiChatResponse> {
@@ -139,11 +151,12 @@ export class OpenAiChatProvider implements AiChatProvider {
   }
 
   private buildRequestBody(request: AiChatRequest): Record<string, unknown> {
+    const modelRequestOptionFields = this.buildModelRequestOptionFields(request);
+
     return {
       model: this.model,
       messages: request.messages.map(m => mapDomainMessageToOpenAi(m)),
-      temperature: request.temperature ?? 0.1,
-      max_tokens: request.maxTokens ?? 5000,
+      ...modelRequestOptionFields,
       tools: request.tools?.map(t => ({
         type: 'function' as const,
         function: {
@@ -156,6 +169,22 @@ export class OpenAiChatProvider implements AiChatProvider {
       response_format: request.responseFormat,
       // Add provider-specific fields
       ...this.getProviderSpecificFields(),
+    };
+  }
+
+  private buildModelRequestOptionFields(request: AiChatRequest): Record<string, unknown> {
+    const adapter = this.getModelRequestOptionsAdapters().find(candidate =>
+      candidate.modelNames.includes(this.model)
+    );
+
+    if (adapter) {
+      return adapter.buildFields(request);
+    }
+
+    // Default fields if no adapter found for this model
+    return {
+      temperature: request.temperature ?? 0.1,
+      max_tokens: request.maxTokens ?? 5000,
     };
   }
 

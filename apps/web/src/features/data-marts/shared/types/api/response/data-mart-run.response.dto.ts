@@ -1,6 +1,11 @@
 import type { UserProjectionDto } from '../../../../../../shared/types/api';
 
-import type { DataMartRunInsightDefinitionDto, DataMartRunReportDefinitionDto } from '../shared';
+import type {
+  DataMartRunAiSourceDefinitionDto,
+  DataMartRunInsightDefinitionDto,
+  DataMartRunInsightTemplateDefinitionDto,
+  DataMartRunReportDefinitionDto,
+} from '../shared';
 import type { DataMartDefinitionDto } from './data-mart-definition.dto';
 import { DataMartRunStatus } from '../../../enums';
 
@@ -20,5 +25,8 @@ export interface DataMartRunResponseDto {
   reportId: string | null;
   insightDefinition: DataMartRunInsightDefinitionDto | null;
   insightId: string | null;
+  insightTemplateDefinition: DataMartRunInsightTemplateDefinitionDto | null;
+  insightTemplateId: string | null;
+  aiSourceDefinition: DataMartRunAiSourceDefinitionDto | null;
   createdByUser: UserProjectionDto | null;
 }

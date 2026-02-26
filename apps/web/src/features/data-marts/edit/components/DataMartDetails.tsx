@@ -103,6 +103,13 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   }, [canActualizeSchema, runActualizeSchemaInternal]);
 
   const shouldShowInsights = checkVisible('INSIGHTS_ENABLED', 'true', flags);
+  const insightAssistantEnabledProjectIds =
+    typeof flags?.INSIGHT_ASSISTANT_ENABLED_PROJECT_IDS === 'string'
+      ? flags.INSIGHT_ASSISTANT_ENABLED_PROJECT_IDS.split(',')
+          .map(item => item.trim())
+          .filter(Boolean)
+      : [];
+  const shouldShowInsightTemplates = insightAssistantEnabledProjectIds.includes(projectId);
 
   const { showPromo, dismissAllPromos } = useDataMartNextStepPromo();
 
@@ -144,6 +151,12 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     { name: 'Overview', path: 'overview' },
     { name: 'Data Setup', path: 'data-setup' },
     ...(shouldShowInsights ? [{ name: 'Insights', path: 'insights' }] : []),
+    ...(shouldShowInsightTemplates
+      ? [
+          { name: 'Insight Artifacts', path: 'insight-artifacts' },
+          { name: 'Insight Templates', path: 'insight-templates' },
+        ]
+      : []),
     { name: 'Destinations', path: 'reports' },
     { name: 'Triggers', path: 'triggers' },
     { name: 'Run History', path: 'run-history' },
