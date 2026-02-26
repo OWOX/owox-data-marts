@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
 import { DataDestination } from '../entities/data-destination.entity';
@@ -47,21 +47,25 @@ export class UpdateDataDestinationService {
       entity.credentialId = null;
     }
 
-    if (command.hasCredentials()) {
-      if (command.credentialId) {
-        // New OAuth credential provided — validate by getting a fresh access token
-        const oauth2Client =
-          await this.googleOAuthClientService.getDestinationOAuth2ClientByCredentialId(
-            command.credentialId
-          );
-        await oauth2Client.getAccessToken();
-      } else {
-        const credentialsToCheck = command.credentials;
-        await this.credentialsValidator.checkCredentials(
-          entity.type,
-          credentialsToCheck ?? ({} as DataDestinationCredentials)
-        );
+    if (command.credentialId) {
+      // OAuth credential provided — validate ownership, verify token, and link
+      const credential = await this.dataDestinationCredentialService.getById(command.credentialId);
+      if (!credential || credential.projectId !== command.projectId) {
+        throw new ForbiddenException('Credential does not belong to this project');
       }
+      const oauth2Client =
+        await this.googleOAuthClientService.getDestinationOAuth2ClientByCredentialId(
+          command.credentialId
+        );
+      try {
+        await oauth2Client.getAccessToken();
+      } catch {
+        throw new BadRequestException('OAuth token verification failed. Please re-authenticate.');
+      }
+      entity.credentialId = command.credentialId;
+    } else if (command.hasCredentials()) {
+      // Service account credentials — validate, process, and store
+      await this.credentialsValidator.checkCredentials(entity.type, command.credentials);
 
       // Process credentials with existing data to preserve backend-managed fields
       let existingCredentials: DataDestinationCredentials | undefined;
@@ -111,7 +115,11 @@ export class UpdateDataDestinationService {
           await this.googleOAuthClientService.getDestinationOAuth2ClientByCredentialId(
             entity.credentialId
           );
-        await oauth2Client.getAccessToken();
+        try {
+          await oauth2Client.getAccessToken();
+        } catch {
+          throw new BadRequestException('OAuth token verification failed. Please re-authenticate.');
+        }
       }
     }
 
