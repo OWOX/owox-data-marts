@@ -3,7 +3,6 @@ import { DataDestinationCredentials } from '../../data-destination-types/data-de
 import { DataDestinationType } from '../../data-destination-types/enums/data-destination-type.enum';
 
 export type DataDestinationCredentialsPublic = {
-  // Google Sheets credentials
   type: 'google-sheets-credentials';
   serviceAccountKey: {
     type: 'service_account';
@@ -11,6 +10,10 @@ export type DataDestinationCredentialsPublic = {
     client_email: string;
     client_id: string;
   };
+};
+
+export type GoogleSheetsOAuthCredentialsPublic = {
+  type: 'google-sheets-oauth-credentials';
 };
 
 export class DataDestinationResponseApiDto {
@@ -31,7 +34,10 @@ export class DataDestinationResponseApiDto {
     additionalProperties: true,
     description: 'Credentials without sensitive fields',
   })
-  credentials: DataDestinationCredentials | DataDestinationCredentialsPublic | undefined;
+  credentials:
+    | DataDestinationCredentials
+    | DataDestinationCredentialsPublic
+    | GoogleSheetsOAuthCredentialsPublic;
 
   @ApiProperty({ example: '2024-01-01T12:00:00.000Z' })
   createdAt: Date;

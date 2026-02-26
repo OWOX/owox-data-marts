@@ -78,29 +78,7 @@ export class DataDestinationMapper {
   async toApiResponse(
     dataDestinationDto: DataDestinationDto
   ): Promise<DataDestinationResponseApiDto> {
-    let publicCredentials: DataDestinationResponseApiDto['credentials'] = undefined;
-
-    if (dataDestinationDto.credentialId) {
-      const credential = await this.dataDestinationCredentialService.getById(
-        dataDestinationDto.credentialId
-      );
-      if (credential && credential.type !== DestinationCredentialType.GOOGLE_OAUTH) {
-        const creds = credential.credentials as DataDestinationCredentials;
-        if (dataDestinationDto.type === DataDestinationType.LOOKER_STUDIO) {
-          publicCredentials = {
-            ...creds,
-            destinationId: dataDestinationDto.id,
-            deploymentUrl: this.publicOriginService.getLookerStudioDeploymentUrl(),
-          };
-        } else {
-          publicCredentials = this.credentialsUtils.getPublicCredentials(
-            dataDestinationDto.type,
-            creds
-          );
-        }
-      }
-      // For OAuth credentials, publicCredentials stays undefined — the frontend uses the OAuth status endpoint
-    }
+    const publicCredentials = await this.resolvePublicCredentials(dataDestinationDto);
 
     return {
       id: dataDestinationDto.id,
@@ -171,5 +149,49 @@ export class DataDestinationMapper {
 
   toRevokeOAuthCommand(id: string, context: AuthorizationContext): RevokeDestinationOAuthCommand {
     return new RevokeDestinationOAuthCommand(id, context.projectId);
+  }
+
+  private async resolvePublicCredentials(
+    dto: DataDestinationDto
+  ): Promise<DataDestinationResponseApiDto['credentials']> {
+    if (!dto.credentialId) {
+      throw new Error(`Destination ${dto.id} has no credentialId`);
+    }
+
+    const credential = await this.dataDestinationCredentialService.getById(dto.credentialId);
+    if (!credential) {
+      throw new Error(`Credential ${dto.credentialId} not found for destination ${dto.id}`);
+    }
+
+    switch (credential.type) {
+      case DestinationCredentialType.GOOGLE_OAUTH:
+        return { type: 'google-sheets-oauth-credentials' as const };
+
+      case DestinationCredentialType.LOOKER_STUDIO: {
+        const creds = credential.credentials as DataDestinationCredentials;
+        return {
+          ...creds,
+          destinationId: dto.id,
+          deploymentUrl: this.publicOriginService.getLookerStudioDeploymentUrl(),
+        };
+      }
+
+      case DestinationCredentialType.GOOGLE_SERVICE_ACCOUNT:
+      case DestinationCredentialType.EMAIL: {
+        const creds = credential.credentials as DataDestinationCredentials;
+        const publicCreds = this.credentialsUtils.getPublicCredentials(dto.type, creds);
+        if (!publicCreds) {
+          throw new Error(
+            `Failed to resolve public credentials for destination ${dto.id} (type: ${dto.type})`
+          );
+        }
+        return publicCreds;
+      }
+
+      default:
+        throw new Error(
+          `Unknown credential type ${String(credential.type)} for destination ${dto.id}`
+        );
+    }
   }
 }
