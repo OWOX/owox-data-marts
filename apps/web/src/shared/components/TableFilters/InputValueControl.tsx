@@ -1,4 +1,4 @@
-import * as React from 'react';
+import { useState, useEffect } from 'react';
 import { Input } from '@owox/ui/components/input';
 
 interface InputValueControlProps {
@@ -7,9 +7,9 @@ interface InputValueControlProps {
 }
 
 export function InputValueControl({ value, onChange }: InputValueControlProps) {
-  const [inputValue, setInputValue] = React.useState(value[0] ?? '');
+  const [inputValue, setInputValue] = useState(value[0] ?? '');
 
-  React.useEffect(() => {
+  useEffect(() => {
     setInputValue(value[0] ?? '');
   }, [value]);
 

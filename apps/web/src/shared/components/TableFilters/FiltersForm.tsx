@@ -1,6 +1,4 @@
-'use client';
-
-import * as React from 'react';
+import { useMemo, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { Form, FormField, FormItem, FormControl } from '@owox/ui/components/form';
 import {
@@ -162,13 +160,13 @@ function FilterBlock({
   const allowedOperators = configItem?.operators ?? [];
 
   // Fields available for this row: unselected fields + own current field
-  const availableConfig = React.useMemo(
+  const availableConfig = useMemo(
     () => config.filter(c => !usedFieldIds.has(c.id) || c.id === selectedFieldId),
     [config, usedFieldIds, selectedFieldId]
   );
 
   // Auto-set first operator when field changes
-  React.useEffect(() => {
+  useEffect(() => {
     if (!selectedFieldId) return;
     const currentOperator = watch(opPath);
     if (currentOperator) return;
@@ -180,7 +178,7 @@ function FilterBlock({
   }, [selectedFieldId, config, opPath, setValue, watch]);
 
   // Clamp value array to 1 when operator changes to contains / not_contains
-  React.useEffect(() => {
+  useEffect(() => {
     if (selectedOperator !== 'contains' && selectedOperator !== 'not_contains') return;
     const current = watch(valPath);
     if (current.length > 1) {
@@ -292,7 +290,7 @@ function FilterBlock({
  * Component
  * ------------------------------------------------------------------------ */
 
-export const FiltersForm = React.forwardRef<FiltersFormRef, FiltersFormProps>(function FiltersForm(
+export const FiltersForm = forwardRef<FiltersFormRef, FiltersFormProps>(function FiltersForm(
   { config, defaultValues, onStateChange },
   ref
 ) {
@@ -307,7 +305,7 @@ export const FiltersForm = React.forwardRef<FiltersFormRef, FiltersFormProps>(fu
     name: 'filters',
   });
 
-  React.useImperativeHandle(ref, () => ({
+  useImperativeHandle(ref, () => ({
     getValues: () => toFiltersState(form.getValues()),
     reset: (state: FiltersState) => {
       form.reset(toFormValues(state));
@@ -317,14 +315,14 @@ export const FiltersForm = React.forwardRef<FiltersFormRef, FiltersFormProps>(fu
   // Report state changes to parent (for Apply button enable/disable)
   const watchedFilters = useWatch({ control, name: 'filters' });
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!onStateChange) return;
     onStateChange(toFiltersState(form.getValues()));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchedFilters, onStateChange]);
 
   // Compute used field IDs across all rows for field exclusion
-  const usedFieldIds = React.useMemo(
+  const usedFieldIds = useMemo(
     () => new Set(watchedFilters.map(f => f.fieldId).filter(Boolean)),
     [watchedFilters]
   );

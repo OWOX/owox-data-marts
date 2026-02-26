@@ -1,7 +1,5 @@
-'use client';
-
-import * as React from 'react';
 import { Popover } from '@owox/ui/components/popover';
+import { createContext, useContext, useState, useMemo } from 'react';
 import { DEFAULT_FILTERS_STATE, type FiltersState } from './types';
 
 /* ---------------------------------------------------------------------------
@@ -16,11 +14,11 @@ interface TableFiltersContextValue<K extends string = string> {
   onClear: () => void;
 }
 
-const TableFiltersContext = React.createContext<TableFiltersContextValue | null>(null);
+const TableFiltersContext = createContext<TableFiltersContextValue | null>(null);
 
 // eslint-disable-next-line react-refresh/only-export-components
 export function useTableFilters<K extends string = string>() {
-  const ctx = React.useContext(TableFiltersContext);
+  const ctx = useContext(TableFiltersContext);
   if (!ctx) {
     throw new Error('TableFilters components must be used within <TableFilters>');
   }
@@ -48,9 +46,9 @@ export function TableFilters<K extends string = string>({
   onApply = noop,
   onClear = noop,
 }: TableFiltersProps<K>) {
-  const [open, setOpen] = React.useState(false);
+  const [open, setOpen] = useState(false);
 
-  const value = React.useMemo<TableFiltersContextValue<K>>(
+  const value = useMemo<TableFiltersContextValue<K>>(
     () => ({ open, setOpen, appliedState, onApply, onClear }),
     [open, appliedState, onApply, onClear]
   );
