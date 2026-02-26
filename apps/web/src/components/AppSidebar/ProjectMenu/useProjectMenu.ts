@@ -12,7 +12,7 @@ export function useProjectMenu() {
   const { loadProjects, projects } = useProjects();
   const { id } = useProject();
 
-  const isOwoxIdpProvider = checkVisible('IDP_PROVIDER', ['owox', 'owox-better-auth'], flags);
+  const isOwoxIdpProvider = checkVisible('IDP_PROVIDER', ['owox-better-auth'], flags);
 
   useEffect(() => {
     if (isOwoxIdpProvider) {

@@ -4,7 +4,6 @@
 export enum IdpProvider {
   NULL = 'idp-null',
   BETTER_AUTH = 'idp-better-auth',
-  OWOX = 'idp-owox',
   OWOX_BETTER_AUTH = 'idp-owox-better-auth',
 }
 

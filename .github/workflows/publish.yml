@@ -112,15 +112,6 @@ jobs:
             sleep 10
           done
 
-          for i in {1..30}; do
-            if npm view @owox/idp-owox@${{ steps.extract_latest_version.outputs.version }} > /dev/null 2>&1; then
-              echo "✅ @owox/idp-owox@${{ steps.extract_latest_version.outputs.version }} exists on npm"
-              break
-            fi
-            echo "Waiting for @owox/idp-owox@${{ steps.extract_latest_version.outputs.version }} to appear on npm ($i/30)..."
-            sleep 10
-          done
-
           #  Check owox app package always last!
           for i in {1..30}; do
             if npm view owox@${{ steps.extract_latest_version.outputs.version }} > /dev/null 2>&1; then
@@ -230,15 +221,6 @@ jobs:
               break
             fi
             echo "Waiting for @owox/idp-owox-better-auth@${{ steps.extract_next_version.outputs.version }} to appear on npm ($i/30)..."
-            sleep 10
-          done
-
-          for i in {1..30}; do
-            if npm view @owox/idp-owox@${{ steps.extract_next_version.outputs.version }} > /dev/null 2>&1; then
-              echo "✅ @owox/idp-owox@${{ steps.extract_next_version.outputs.version }} exists on npm"
-              break
-            fi
-            echo "Waiting for @owox/idp-owox@${{ steps.extract_next_version.outputs.version }} to appear on npm ($i/30)..."
             sleep 10
           done
 
