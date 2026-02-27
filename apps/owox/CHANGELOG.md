@@ -1,5 +1,114 @@
 # owox
 
+## 0.20.0
+
+### Minor Changes
+
+- d141171: # Add data mart link to Google Sheets metadata notes
+
+  Google Sheets exports now include a link to your data mart in the cell note. The link takes you directly to the data mart page for quick access.
+
+- 800ec3c: # Data table support in email-based report templates
+
+  You can now embed data mart results as a Markdown table in your email report message using the `{{#data-table}}{{/data-table}}` tag.
+
+  ## Supported parameters
+  - **`limit`** - max rows to display (default: 10, max: 100)
+  - **`from`** - `"start"` (default) or `"end"` to show first or last N rows
+  - **`columns`** - comma-separated list of column names to include
+
+  ## Examples
+
+  Basic table (first 10 rows, all columns):
+
+  ```handlebars
+  {{#data-table}}{{/data-table}}
+  ```
+
+  Last 20 rows with specific columns:
+
+  ```handlebars
+  {{#data-table limit=20 from='end' columns='date, revenue, sessions'}}{{/data-table}}
+  ```
+
+  You can also use `{{dataHeadersCount}}` and `{{dataRowsCount}}` variables in your message template.
+
+  ## Value tag support in deterministic insight templates
+
+  You can now insert a single value inline in deterministic insight templates using the `{{value}}` tag.
+
+  ### Value tag parameters
+  - **`source`** - source key to read from (default: `main`)
+  - **`path`** - path syntax like `.revenue[1]` (`row` is optional); cannot be combined with `row`/`column`
+  - **`row`** - 1-based row index (default: `1`)
+  - **`column`** - column name or 1-based column index (default: `1`)
+
+  ### Value tag examples
+
+  Inline value by path:
+
+  ```handlebars
+  Total revenue: {{value source='main' path='.revenue[1]'}}
+  ```
+
+  Inline value by row/column:
+
+  ```handlebars
+  Total revenue: {{value source='main' column='revenue' row='1'}}
+  ```
+
+  ## Chat assistant for deterministic template generation
+
+  Added chat assistant support in the Insight Template editor to help generate and refine deterministic templates.
+
+  The assistant can be used directly while editing an Insight Template and works with the deterministic template workflow (including template/source updates via proposed actions).
+
+- c7cff50: # Fix string timestamp handling in Snowflake storage
+  - Added support for ISO 8601 string values in TIMESTAMP and DATETIME columns
+  - String timestamps are now parsed and formatted to `YYYY-MM-DD HH:MM:SS` before being written to Snowflake
+  - Invalid timestamp strings fall back to the existing special-character obfuscation path
+
+- 458cead: # AWS Redshift documentation improvements
+  - Restructured the setup guide into 4 clear steps with a new introductory paragraph
+  - Added annotated screenshots covering every stage: storage selection, region and title, workgroup/cluster lookup, database identification, IAM key creation, permissions policy, and saving the configuration
+  - Moved the "Database Name" field after connection type selection to match the natural AWS Console lookup order
+  - Consolidated IAM credential instructions (Access Key ID and Secret Access Key) into a single streamlined section
+
+- 9198b94: # Sort runs in notification emails by time (newest first)
+
+  Previously, runs in notification emails appeared in the order they were added to the queue, which could result in non-chronological ordering (e.g., 2:48, 3:02, 3:03). Now runs are sorted by finished time in descending order, so the most recent runs appear first.
+
+- 55ecd48: # Table Filters for Data Marts and Data Storages
+
+  We’ve overhauled the table filtering experience to help you navigate large datasets with precision and speed.
+
+  ## Filter with logical conditions
+
+  Build complex queries effortlessly. You can now apply multiple filters simultaneously using intuitive operators:
+  - **Equals / Doesn't equal**
+  - **Contains / Doesn't contain**
+
+  ## Persistent filter states
+
+  Your workflow is no longer interrupted by navigation. Applied filters are **automatically saved**, meaning they stay active when you switch between pages or return to the platform later.
+
+  ## Shareable, deep-linked views
+
+  The table’s state is now reflected directly in the **page URL**. You can bookmark specific views or share links with teammates, ensuring everyone sees the exact same filtered data instantly.
+
+  ## At-a-glance status
+  - **Active Count:** The filter button now displays a badge showing exactly how many filters are currently applied.
+  - **Unified UI:** Enjoy a consistent filtering interface across all Data Marts and Data Storages for a more predictable workflow.
+
+### Patch Changes
+
+- @owox/internal-helpers@0.20.0
+- @owox/idp-protocol@0.20.0
+- @owox/idp-better-auth@0.20.0
+- @owox/idp-owox-better-auth@0.20.0
+- @owox/backend@0.20.0
+- @owox/web@0.20.0
+
 ## 0.19.0
 
 ### Minor Changes
@@ -1172,7 +1281,6 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
-
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -1180,7 +1288,6 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
-
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
