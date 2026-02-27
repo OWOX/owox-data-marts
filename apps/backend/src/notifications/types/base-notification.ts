@@ -216,7 +216,7 @@ export abstract class BaseNotification {
     runtimeConfig?: NotificationRuntimeConfig
   ): string {
     const baseUrl = runtimeConfig?.appUrl ?? '';
-    return buildDataMartUrl(baseUrl, queueItem.projectId, queueItem.dataMartId);
+    return buildDataMartUrl(baseUrl, queueItem.projectId, queueItem.dataMartId, '/run-history');
   }
 
   protected buildProjectDataMartsUrl(
