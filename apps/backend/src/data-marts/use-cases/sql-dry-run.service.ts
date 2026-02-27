@@ -11,7 +11,7 @@ export class SqlDryRunService {
   constructor(
     private readonly dataMartService: DataMartService,
     private readonly sqlDryRunExecutorFacade: SqlDryRunExecutorFacade,
-    private readonly dataMartSqlTableService: DataMartSqlTableService
+    private readonly dataMartSqlTableService: DataMartSqlTableService,
     private readonly credentialsResolver: DataStorageCredentialsResolver
   ) {}
 
@@ -33,11 +33,6 @@ export class SqlDryRunService {
 
     const sql = await this.dataMartSqlTableService.resolveDataMartTableMacro(dataMart, command.sql);
 
-    return this.sqlDryRunExecutorFacade.execute(
-      storage.type,
-      credentials,
-      storage.config,
-      sql
-    );
+    return this.sqlDryRunExecutorFacade.execute(storage.type, credentials, storage.config, sql);
   }
 }

@@ -1,4 +1,5 @@
 import { Table, TableRow } from '@google-cloud/bigquery';
+import { BigQueryRange } from '@google-cloud/bigquery/build/src/bigquery';
 import { Injectable, Logger, Scope } from '@nestjs/common';
 import { ReportDataBatch } from '../../../dto/domain/report-data-batch.dto';
 import { ReportDataDescription } from '../../../dto/domain/report-data-description.dto';
@@ -208,26 +209,43 @@ export class BigQueryReportReader implements DataStorageReportReader {
     const rowData: unknown[] = [];
     for (let i = 0; i < columnNames.length; i++) {
       const fieldPathNodes = columnNames[i].split('.');
-      // TODO: Use type from the passed schema parameter to properly convert the value
-      let value = this.getValueByFieldPathNodes(tableRow, fieldPathNodes);
-      if (Buffer.isBuffer(value)) {
-        value = value.toString('base64');
+
+      let cell = null;
+      for (let j = 0; j < fieldPathNodes.length; j++) {
+        cell = cell ? cell[fieldPathNodes[j]] : tableRow[fieldPathNodes[j]];
       }
-      rowData.push(value);
+
+      const cellValue = this.getReportCellValue(cell);
+      rowData.push(cellValue);
     }
     return rowData;
   }
 
-  private getValueByFieldPathNodes(item: unknown, fieldPath: string[]): unknown {
-    if (fieldPath.length === 1) {
-      return item?.[fieldPath[0]];
+  private getReportCellValue(cell: unknown): unknown {
+    const isCellPresent = cell !== null && cell !== undefined;
+    if (isCellPresent && cell instanceof Array) {
+      return JSON.stringify(cell.map(this.getReportCellValue.bind(this)), null, 2);
+    } else if (isCellPresent && cell instanceof BigQueryRange) {
+      return JSON.stringify(cell, null, 2);
+    } else if (isCellPresent && cell instanceof Buffer) {
+      return cell.toString('base64');
+    } else if (isCellPresent && typeof cell === 'object') {
+      if (cell.constructor.name === 'Big') {
+        // BigQuery NUMERIC and BIGNUMERIC wrapper handling
+        return cell.toString();
+      } else if (cell['value']) {
+        // other BigQuery types with wrappers
+        return cell['value'];
+      } else {
+        return cell;
+      }
+    } else {
+      return cell;
     }
-    const [firstField, ...restFields] = fieldPath;
-    return this.getValueByFieldPathNodes(item?.[firstField], restFields);
   }
 
-  public getState(): BigQueryReaderState | null {
-    if (!this.reportConfig) {
+  getState(): BigQueryReaderState | null {
+    if (!this.reportResultTable || !this.contextGcpProject) {
       return null;
     }
 
@@ -241,19 +259,24 @@ export class BigQueryReportReader implements DataStorageReportReader {
       },
       reportDataHeaders: this.reportDataHeaders,
       contextGcpProject: this.contextGcpProject,
+      reportResultTable: this.reportResultTable
+        ? {
+            projectId: this.reportResultTable.dataset.projectId!,
+            datasetId: this.reportResultTable.dataset.id!,
+            tableId: this.reportResultTable.id!,
+          }
+        : undefined,
     };
   }
 
-  public async initFromState(
+  async initFromState(
     state: DataStorageReportReaderState,
     reportDataHeaders: ReportDataHeader[]
   ): Promise<void> {
     if (!isBigQueryReaderState(state)) {
-      throw new Error('Invalid state for BigQuery reader');
+      throw new Error('Invalid state type for BigQuery reader');
     }
 
-    // Re-resolve credentials from storage rather than deserializing them,
-    // because OAuth credentials contain non-serializable OAuth2Client instances.
     const storageCredentials = (await this.credentialsResolver.resolveById(
       state.storageId
     )) as BigQueryCredentials;
@@ -264,12 +287,20 @@ export class BigQueryReportReader implements DataStorageReportReader {
       definition: state.reportConfig.definition,
       definitionType: state.reportConfig.definitionType,
     };
-    this.reportDataHeaders = reportDataHeaders;
     this.contextGcpProject = state.contextGcpProject;
+    this.reportDataHeaders = reportDataHeaders;
 
     await this.prepareBigQuery(
       this.reportConfig.storageCredentials,
       this.reportConfig.storageConfig
     );
+
+    if (state.reportResultTable) {
+      this.reportResultTable = this.adapter.createTableReference(
+        state.reportResultTable.projectId,
+        state.reportResultTable.datasetId,
+        state.reportResultTable.tableId
+      );
+    }
   }
 }

@@ -22,6 +22,11 @@ export interface BigQueryReaderState {
   };
   reportDataHeaders: ReportDataHeader[];
   contextGcpProject: string;
+  reportResultTable?: {
+    projectId: string;
+    datasetId: string;
+    tableId: string;
+  };
 }
 
 /**
