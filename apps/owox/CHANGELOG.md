@@ -2,7 +2,7 @@
 
 ## 0.20.0
 
-### Minor Changes
+### Minor Changes 0.20.0
 
 - d141171: # Add data mart link to Google Sheets metadata notes
 
@@ -13,6 +13,7 @@
   You can now embed data mart results as a Markdown table in your email report message using the `{{#data-table}}{{/data-table}}` tag.
 
   ## Supported parameters
+
   - **`limit`** - max rows to display (default: 10, max: 100)
   - **`from`** - `"start"` (default) or `"end"` to show first or last N rows
   - **`columns`** - comma-separated list of column names to include
@@ -38,6 +39,7 @@
   You can now insert a single value inline in deterministic insight templates using the `{{value}}` tag.
 
   ### Value tag parameters
+
   - **`source`** - source key to read from (default: `main`)
   - **`path`** - path syntax like `.revenue[1]` (`row` is optional); cannot be combined with `row`/`column`
   - **`row`** - 1-based row index (default: `1`)
@@ -97,6 +99,7 @@
   The table’s state is now reflected directly in the **page URL**. You can bookmark specific views or share links with teammates, ensuring everyone sees the exact same filtered data instantly.
 
   ## At-a-glance status
+
   - **Active Count:** The filter button now displays a badge showing exactly how many filters are currently applied.
   - **Unified UI:** Enjoy a consistent filtering interface across all Data Marts and Data Storages for a more predictable workflow.
 
@@ -111,7 +114,7 @@
 
 ## 0.19.0
 
-### Minor Changes
+### Minor Changes 0.19.0
 
 ![OWOX Data Marts – v0.19.0](https://github.com/user-attachments/assets/fb0a4e77-4334-43dd-b5a4-d9582086fc9c)
 
@@ -1281,6 +1284,7 @@
   We're excited to introduce **Time Triggers** - a powerful new feature that allows you to schedule your reports and connectors to run automatically at specified times!
 
   ## Benefits
+
   - ✅ **Save Time**: Automate routine data refreshes without manual intervention
   - 🔄 **Stay Updated**: Keep your data fresh with regular scheduled updates
   - 📊 **Consistent Reporting**: Ensure your reports are generated on a reliable schedule
@@ -1288,6 +1292,7 @@
   - 🔧 **Flexible Scheduling Options**: Choose from daily, weekly, monthly, or interval-based schedules
 
   ## Scheduling Options
+
   - **Daily**: Run your reports or connectors at the same time every day
   - **Weekly**: Select specific days of the week for execution
   - **Monthly**: Schedule runs on specific days of the month
