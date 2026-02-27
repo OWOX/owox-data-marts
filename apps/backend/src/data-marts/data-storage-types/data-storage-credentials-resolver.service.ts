@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DataStorageCredentials } from './data-storage-credentials.type';
@@ -13,8 +13,6 @@ import { DataStorage } from '../entities/data-storage.entity';
 
 @Injectable()
 export class DataStorageCredentialsResolver {
-  private readonly logger = new Logger(DataStorageCredentialsResolver.name);
-
   constructor(
     private readonly googleOAuthClientService: GoogleOAuthClientService,
     private readonly dataStorageCredentialService: DataStorageCredentialService,
@@ -23,26 +21,30 @@ export class DataStorageCredentialsResolver {
   ) {}
 
   async resolve(storage: DataStorage): Promise<DataStorageCredentials> {
-    if (storage.credentialId) {
-      const credential = await this.dataStorageCredentialService.getById(storage.credentialId);
-      if (!credential) {
-        this.logger.error(`Credential record not found: ${storage.credentialId}`);
-        throw new Error(`Credential record not found: ${storage.credentialId}`);
-      }
+    // Use loaded relation if available, otherwise fall back to getById
+    const credential =
+      storage.credential ??
+      (storage.credentialId
+        ? await this.dataStorageCredentialService.getById(storage.credentialId)
+        : null);
 
-      if (credential.type === StorageCredentialType.GOOGLE_OAUTH) {
-        const oauth2Client = await this.googleOAuthClientService.getStorageOAuth2Client(storage.id);
-        return { type: BIGQUERY_OAUTH_TYPE, oauth2Client } satisfies BigQueryOAuthCredentials;
-      }
-
-      return credential.credentials as DataStorageCredentials;
+    if (!credential) {
+      throw new Error('Storage credentials are not configured');
     }
 
-    throw new Error('Storage credentials are not configured');
+    if (credential.type === StorageCredentialType.GOOGLE_OAUTH) {
+      const oauth2Client = await this.googleOAuthClientService.getStorageOAuth2Client(storage.id);
+      return { type: BIGQUERY_OAUTH_TYPE, oauth2Client } satisfies BigQueryOAuthCredentials;
+    }
+
+    return credential.credentials as DataStorageCredentials;
   }
 
   async resolveById(storageId: string): Promise<DataStorageCredentials> {
-    const storage = await this.dataStorageRepository.findOne({ where: { id: storageId } });
+    const storage = await this.dataStorageRepository.findOne({
+      where: { id: storageId },
+      relations: ['credential'],
+    });
     if (!storage) {
       throw new Error(`Storage not found: ${storageId}`);
     }

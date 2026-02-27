@@ -32,15 +32,15 @@ export class UpdateDataStorageService {
   async run(command: UpdateDataStorageCommand): Promise<DataStorageDto> {
     const dataStorageEntity = await this.dataStorageService.getByProjectIdAndId(
       command.projectId,
-      command.id
+      command.id,
+      { relations: ['credential'] }
     );
 
     let credentialsToCheck: DataStorageCredentials | undefined = command.credentials;
-    if (!command.hasCredentials() && dataStorageEntity.credentialId) {
-      const existingCred = await this.dataStorageCredentialService.getById(
-        dataStorageEntity.credentialId
-      );
-      credentialsToCheck = existingCred?.credentials as DataStorageCredentials | undefined;
+    if (!command.hasCredentials() && dataStorageEntity.credential) {
+      credentialsToCheck = dataStorageEntity.credential.credentials as
+        | DataStorageCredentials
+        | undefined;
     }
 
     const isLegacyStorage = dataStorageEntity.type === DataStorageType.LEGACY_GOOGLE_BIGQUERY;
@@ -52,12 +52,9 @@ export class UpdateDataStorageService {
 
     // When credentialId is explicitly null, the user is disconnecting OAuth.
     // Soft-delete the credential record and clear the entity field before access validation.
-    if (command.credentialId === null && dataStorageEntity.credentialId) {
-      const credential = await this.dataStorageCredentialService.getById(
-        dataStorageEntity.credentialId
-      );
-      if (credential?.type === StorageCredentialType.GOOGLE_OAUTH) {
-        await this.dataStorageCredentialService.softDelete(credential.id);
+    if (command.credentialId === null && dataStorageEntity.credential) {
+      if (dataStorageEntity.credential.type === StorageCredentialType.GOOGLE_OAUTH) {
+        await this.dataStorageCredentialService.softDelete(dataStorageEntity.credential.id);
       }
       dataStorageEntity.credentialId = null;
     }
