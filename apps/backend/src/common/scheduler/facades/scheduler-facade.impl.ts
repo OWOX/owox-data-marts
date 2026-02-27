@@ -81,13 +81,16 @@ export class SchedulerFacadeImpl implements SchedulerFacade {
       triggerHandler.processingBatchLimit?.()
     );
 
+    const waitForCompletion = triggerHandler.waitForBatchCompletion?.() ?? false;
+
     // Create and start processing job
     const processingJob = this.createProcessingCronJob(
       handlerName,
       handlerCronExp,
       timezone,
       fetcher,
-      runner
+      runner,
+      waitForCompletion
     );
     this.startCronJob(handlerName, processingJob);
 
@@ -108,6 +111,7 @@ export class SchedulerFacadeImpl implements SchedulerFacade {
    * @param timezone The timezone for cron execution
    * @param fetcher The trigger fetcher instance
    * @param runner The trigger runner instance
+   * @param waitForBatchCompletion Whether to wait for the previous batch to complete before starting a new one
    * @returns The created CronJob instance
    */
   private createProcessingCronJob<T extends Trigger>(
@@ -115,8 +119,11 @@ export class SchedulerFacadeImpl implements SchedulerFacade {
     cronExpression: string,
     timezone: string | undefined,
     fetcher: TriggerFetcherService<T>,
-    runner: TriggerRunnerService<T>
+    runner: TriggerRunnerService<T>,
+    waitForBatchCompletion: boolean
   ): CronJob {
+    let isRunning = false;
+
     return new CronJob(
       cronExpression,
       () => {
@@ -125,9 +132,19 @@ export class SchedulerFacadeImpl implements SchedulerFacade {
           return Promise.resolve();
         }
 
+        if (waitForBatchCompletion && isRunning) {
+          this.logger.debug(`[${handlerName}] Previous batch still running, skipping tick.`);
+          return Promise.resolve();
+        }
+
+        isRunning = true;
+
         return fetcher
           .fetchTriggersReadyForProcessing()
-          .then(triggers => runner.runTriggers(triggers));
+          .then(triggers => runner.runTriggers(triggers))
+          .finally(() => {
+            isRunning = false;
+          });
       },
       null,
       false,

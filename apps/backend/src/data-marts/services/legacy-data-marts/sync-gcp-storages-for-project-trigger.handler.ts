@@ -49,6 +49,10 @@ export class SyncGcpStoragesForProjectTriggerHandler
     return 10;
   }
 
+  waitForBatchCompletion(): boolean {
+    return true;
+  }
+
   async onModuleInit(): Promise<void> {
     await this.schedulerFacade.registerTriggerHandler(this);
   }

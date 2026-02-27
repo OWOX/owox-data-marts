@@ -64,4 +64,14 @@ export interface TriggerHandler<T extends Trigger> {
    * in a single batch when processing triggers in parallel.
    */
   processingBatchLimit?(): number;
+
+  /**
+   * Whether the processing cron should wait for the previous batch to complete
+   * before starting a new one. When true, if a batch is still being processed
+   * when the next cron tick fires, the tick will be skipped.
+   *
+   * @returns true to wait for previous batch completion, false to allow parallel batches.
+   * Defaults to false (current behavior — parallel batches allowed).
+   */
+  waitForBatchCompletion?(): boolean;
 }
