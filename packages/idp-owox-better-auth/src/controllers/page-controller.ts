@@ -13,7 +13,10 @@ import { extractPlatformParams, persistPlatformContext } from '../utils/request-
  * Renders static auth pages and persists platform context.
  */
 export class PageController {
-  constructor(private readonly providers: UiAuthProviders) {}
+  constructor(
+    private readonly providers: UiAuthProviders,
+    private readonly gtmContainerId?: string
+  ) {}
 
   private persistPlatformContext(req: ExpressRequest, res: ExpressResponse): void {
     const state = typeof req.query?.state === 'string' ? req.query.state : undefined;
@@ -26,7 +29,12 @@ export class PageController {
     const errorMessage = typeof req.query?.error === 'string' ? req.query.error : undefined;
     const infoMessage = typeof req.query?.info === 'string' ? req.query.info : undefined;
     res.send(
-      TemplateService.renderSignIn({ errorMessage, infoMessage, providers: this.providers })
+      TemplateService.renderSignIn({
+        errorMessage,
+        infoMessage,
+        providers: this.providers,
+        gtmContainerId: this.gtmContainerId,
+      })
     );
   }
 
@@ -35,7 +43,12 @@ export class PageController {
     const errorMessage = typeof req.query?.error === 'string' ? req.query.error : undefined;
     const infoMessage = typeof req.query?.info === 'string' ? req.query.info : undefined;
     res.send(
-      TemplateService.renderSignUp({ errorMessage, infoMessage, providers: this.providers })
+      TemplateService.renderSignUp({
+        errorMessage,
+        infoMessage,
+        providers: this.providers,
+        gtmContainerId: this.gtmContainerId,
+      })
     );
   }
 
@@ -62,13 +75,26 @@ export class PageController {
       req
     );
     const intent = parseMagicLinkIntent(req.query?.intent);
-    res.send(TemplateService.renderMagicLinkConfirm({ token, callbackURL, intent }));
+    res.send(
+      TemplateService.renderMagicLinkConfirm({
+        token,
+        callbackURL,
+        intent,
+        gtmContainerId: this.gtmContainerId,
+      })
+    );
   }
 
   async forgotPasswordPage(req: ExpressRequest, res: ExpressResponse): Promise<void> {
     const errorMessage = typeof req.query?.error === 'string' ? req.query.error : undefined;
     const infoMessage = typeof req.query?.info === 'string' ? req.query.info : undefined;
-    res.send(TemplateService.renderForgotPassword({ errorMessage, infoMessage }));
+    res.send(
+      TemplateService.renderForgotPassword({
+        errorMessage,
+        infoMessage,
+        gtmContainerId: this.gtmContainerId,
+      })
+    );
   }
 
   registerRoutes(express: Express): void {

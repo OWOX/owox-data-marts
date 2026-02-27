@@ -26,7 +26,8 @@ export class PasswordFlowController {
   constructor(
     private readonly auth: BetterAuthInstance,
     private readonly sessionService: BetterAuthSessionService,
-    private readonly magicLinkService: MagicLinkService
+    private readonly magicLinkService: MagicLinkService,
+    private readonly gtmContainerId?: string
   ) {}
 
   async sendMagicLink(req: ExpressRequest, res: ExpressResponse): Promise<void> {
@@ -104,6 +105,7 @@ export class PasswordFlowController {
           resetToken,
           errorMessage,
           infoMessage,
+          gtmContainerId: this.gtmContainerId,
         })
       );
       return;
@@ -122,6 +124,7 @@ export class PasswordFlowController {
         intent,
         errorMessage,
         infoMessage,
+        gtmContainerId: this.gtmContainerId,
       })
     );
   }
@@ -201,7 +204,7 @@ export class PasswordFlowController {
   }
 
   async passwordSuccessPage(_req: ExpressRequest, res: ExpressResponse): Promise<void> {
-    res.send(TemplateService.renderPasswordSuccess());
+    res.send(TemplateService.renderPasswordSuccess({ gtmContainerId: this.gtmContainerId }));
   }
 
   registerRoutes(express: Express): void {

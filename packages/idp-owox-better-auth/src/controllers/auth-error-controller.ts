@@ -56,6 +56,8 @@ const KNOWN_AUTH_ERROR_MESSAGES: Record<string, string> = {
  * Handles rendering of custom auth error page.
  */
 export class AuthErrorController {
+  constructor(private readonly gtmContainerId?: string) {}
+
   private resolveErrorMessage(errorCode: string | undefined): string {
     if (errorCode && KNOWN_AUTH_ERROR_MESSAGES[errorCode]) {
       return KNOWN_AUTH_ERROR_MESSAGES[errorCode];
@@ -73,6 +75,7 @@ export class AuthErrorController {
         errorMessage,
         homeHref: '/',
         homeLabel: 'Go to home',
+        gtmContainerId: this.gtmContainerId,
       })
     );
   }

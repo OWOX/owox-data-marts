@@ -91,6 +91,7 @@ IDP_OWOX_SENDGRID_VERIFIED_SENDER_NAME=OWOX Data Marts
 | `SENDGRID_API_KEY`                        | **Yes**  |                      –                      | SendGrid API key for magic-link emails                                                                        |
 | `IDP_OWOX_SENDGRID_VERIFIED_SENDER_EMAIL` | **Yes**  |                      –                      | Verified sender email in SendGrid                                                                             |
 | `IDP_OWOX_SENDGRID_VERIFIED_SENDER_NAME`  |    No    |                      –                      | Sender display name for auth emails                                                                           |
+| `GOOGLE_TAG_MANAGER_CONTAINER_ID`         |    No    |                      –                      | Google Tag Manager container ID (e.g., `GTM-XXXXXXX`). When set, GTM scripts are injected on all auth pages.  |
 
 ## Troubleshooting
 

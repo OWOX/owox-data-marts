@@ -242,6 +242,7 @@ const BetterAuthEnvSchema = z.object({
   IDP_BETTER_AUTH_MICROSOFT_TENANT_ID: z.string().optional(),
   IDP_BETTER_AUTH_MICROSOFT_AUTHORITY: z.string().optional(),
   IDP_BETTER_AUTH_MICROSOFT_PROMPT: z.string().optional(),
+  GOOGLE_TAG_MANAGER_CONTAINER_ID: z.string().optional(),
 });
 
 const SendgridEnvSchema = z.object({
@@ -350,6 +351,7 @@ export type BetterAuthProviderConfig = {
   idpOwox: IdpOwoxConfig;
   email: EmailConfig;
   uiProviders: UiAuthProviders;
+  gtmContainerId?: string;
 };
 
 /**
@@ -414,5 +416,6 @@ export function loadBetterAuthProviderConfigFromEnv(
       },
     },
     uiProviders,
+    gtmContainerId: baEnv.GOOGLE_TAG_MANAGER_CONTAINER_ID,
   };
 }
