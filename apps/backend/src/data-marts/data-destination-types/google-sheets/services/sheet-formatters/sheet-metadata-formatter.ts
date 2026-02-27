@@ -65,7 +65,7 @@ export class SheetMetadataFormatter {
     let metadataNote =
       `Imported via OWOX Data Marts${editionSuffix} at ${dateFormatted}\n` +
       `Data Mart: ${dataMartTitle}\n` +
-      `Data Mart URL: ${dataMartUrl}`;
+      `Data Mart page: ${dataMartUrl}`;
 
     if (firstColumnDescription) {
       metadataNote += `\n---\n${firstColumnDescription}`;
