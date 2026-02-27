@@ -15,6 +15,8 @@ export const ListArtifactsInputJsonSchema = {
 
 export interface ArtifactItem {
   id: string;
+  /** Opaque handle for refining SQL via source_generate_sql (mode="refine") */
+  baseSqlHandle: string;
   title?: string;
   /** Full SQL of this artifact — LLM reads it to decide if it answers the user's question */
   sql?: string;
@@ -53,6 +55,7 @@ export class ListArtifactsTool {
 
     const artifacts: ArtifactItem[] = result.artifacts.map(artifact => ({
       id: artifact.artifactId,
+      baseSqlHandle: `art:${artifact.artifactId}`,
       title: artifact.artifactTitle,
       sql: artifact.sqlSummary,
     }));

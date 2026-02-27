@@ -25,8 +25,8 @@ import { InsightTemplateService } from './insight-template.service';
 const MAX_RECENT_TURN_CHARS = 1200;
 const MAX_RECENT_TURNS = 12;
 const MAX_CONTEXT_CHARS = 12000;
-const MAX_SNAPSHOT_SOURCES = 40;
-const MAX_ACTION_DIGEST_ITEMS = 30;
+const MAX_SNAPSHOT_SOURCES = 10;
+const MAX_ACTION_DIGEST_ITEMS = 10;
 const MAX_SQL_REVISIONS = 5;
 const SQL_PREVIEW_CHARS = 600;
 
@@ -428,6 +428,7 @@ export class AgentFlowContextManager {
 
       revisions.push({
         sqlRevisionId: message.id,
+        baseSqlHandle: `rev:${message.id}`,
         sqlPreview: normalizedSql.slice(0, SQL_PREVIEW_CHARS),
         createdAt: (message.createdAt ?? new Date(0)).toISOString(),
       });

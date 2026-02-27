@@ -42,6 +42,10 @@ export class InsightTemplateSourceEntity {
   @JoinColumn({ name: 'artifactId' })
   insightArtifact: InsightArtifact;
 
+  sql(): string {
+    return (this.insightArtifact ? this.insightArtifact.sql : null)?.trim() ?? '';
+  }
+
   @CreateDateColumn()
   createdAt: Date;
 

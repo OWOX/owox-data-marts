@@ -139,8 +139,8 @@ describe('AgentFlowContextManager', () => {
     expect(context.stateSnapshot.appliedActions).toHaveLength(1);
     expect(context.stateSnapshot.pendingActions).toHaveLength(1);
     expect(context.stateSnapshot.sqlRevisions).toEqual([
-      expect.objectContaining({ sqlRevisionId: 'message-19' }),
-      expect.objectContaining({ sqlRevisionId: 'message-17' }),
+      expect.objectContaining({ sqlRevisionId: 'message-19', baseSqlHandle: 'rev:message-19' }),
+      expect.objectContaining({ sqlRevisionId: 'message-17', baseSqlHandle: 'rev:message-17' }),
     ]);
     expect(aiAssistantContextService.saveIfChanged).toHaveBeenCalledWith(
       expect.objectContaining({

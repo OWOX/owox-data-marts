@@ -14,8 +14,12 @@ export const ListTemplateSourcesInputJsonSchema = {
 };
 
 export interface TemplateSourceItem {
+  /** Stable source link ID inside template.sources */
+  templateSourceId?: string;
   /** Source key used in the template tag, e.g. "consumption" */
   key: string;
+  /** Opaque handle for refining SQL via source_generate_sql (mode="refine"), if source is linked */
+  baseSqlHandle?: string;
   /** The artifact ID this source points to */
   artifactId?: string;
   /** Title of the linked artifact */
@@ -40,8 +44,12 @@ export class ListTemplateSourcesTool {
     const result = await this.sourceResolver.listTemplateSources(context.request);
 
     const sources: TemplateSourceItem[] = result.sources.map(source => {
+      const srcHandleId = source.templateSourceId ?? source.key;
+
       return {
+        templateSourceId: source.templateSourceId,
         key: source.key,
+        baseSqlHandle: source.artifactId ? `src:${srcHandleId}` : undefined,
         artifactId: source.artifactId,
         artifactTitle: source.artifactTitle,
         // sqlSummary is a lightweight text extracted from SQL — we use it as 'sql' field name

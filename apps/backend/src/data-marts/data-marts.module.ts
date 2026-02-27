@@ -191,6 +191,7 @@ import { ConnectorSourceCredentialsService } from './services/connector-source-c
 import { ConnectorOauthService } from './services/connector/connector-oauth.service';
 import { DataMartTableReferenceService } from './services/data-mart-table-reference.service';
 import { InsightTemplateSourceDataService } from './services/insight-template-source-data.service';
+import { InsightTemplateSourceService } from './services/insight-template-source.service';
 import { DataMartSqlTableService } from './services/data-mart-sql-table.service';
 import { DataMartTemplateFacadeImpl } from './template/data-mart-template.facade.impl';
 import { AiAssistantSessionService } from './services/ai-assistant-session.service';
@@ -207,6 +208,7 @@ import { CreateAiAssistantMessageService } from './use-cases/create-ai-assistant
 import { ApplyAiAssistantSessionService } from './use-cases/apply-ai-assistant-session.service';
 
 import { SourceResolverToolsService } from './ai-insights/agent-flow/source-resolver-tools.service';
+import { BaseSqlHandleResolverService } from './ai-insights/agent-flow/base-sql-handle-resolver.service';
 import { AiAssistantOrchestratorService } from './ai-insights/agent-flow/ai-assistant-orchestrator.service';
 import { AiAssistantRunTriggerHandlerService } from './services/ai-assistant-run-trigger-handler.service';
 import { RunAiAssistantService } from './use-cases/run-ai-assistant.service';
@@ -350,6 +352,7 @@ import { BatchDataMartHealthStatusService } from './use-cases/batch-data-mart-he
     InsightArtifactSqlPreviewTriggerService,
     InsightArtifactSqlPreviewTriggerHandlerService,
     InsightTemplateService,
+    InsightTemplateSourceService,
     InsightTemplateValidationService,
     TemplatePlaceholderValidator,
     TemplateTagContractValidator,
@@ -451,6 +454,7 @@ import { BatchDataMartHealthStatusService } from './use-cases/batch-data-mart-he
     RunAiAssistantService,
 
     SourceResolverToolsService,
+    BaseSqlHandleResolverService,
     AiAssistantOrchestratorService,
     ConnectorOauthService,
     UserProjectionsFetcherService,

@@ -64,7 +64,8 @@ export class AgentFlowToolsRegistrar {
       description:
         'Returns the list of data sources already linked to the current insight template. ' +
         'Each source includes its key, kind (table/value), linked artifact ID, and the full SQL. ' +
-        'Use this first to understand what data is already present in the report.',
+        'Use this first to understand what data is already present in the report. ' +
+        'Linked sources also include baseSqlHandle for source_generate_sql refine mode.',
       inputJsonSchema: ListTemplateSourcesInputJsonSchema,
       inputZod: ListTemplateSourcesInputSchema,
       execute: (args: unknown, ctx: AiContext) =>
@@ -77,7 +78,8 @@ export class AgentFlowToolsRegistrar {
       description:
         'Returns all data artifacts in this data mart that are NOT yet linked to the current template. ' +
         'Each artifact includes its ID, title, and full SQL. ' +
-        "Read the SQL to determine if an artifact already answers the user's question.",
+        "Read the SQL to determine if an artifact already answers the user's question. " +
+        'Artifacts include baseSqlHandle for source_generate_sql refine mode.',
       inputJsonSchema: ListArtifactsInputJsonSchema,
       inputZod: ListArtifactsInputSchema,
       execute: (args: unknown, ctx: AiContext) =>
@@ -118,9 +120,10 @@ export class AgentFlowToolsRegistrar {
         "Generates new SQL or refines existing SQL to answer the user's data question. " +
         'Internally runs the full SQL pipeline (triage → plan → build → dry-run → repair). ' +
         'For new SQL use mode="create" (optionally pass taskPrompt to scope one subtask from a multi-task message; this prevents mixing tasks in one SQL). ' +
-        'For refine use mode="refine" with BOTH sqlRevisionId and refineInstructions. ' +
+        'For refine use mode="refine" with BOTH baseSqlHandle and refineInstructions (preferred). ' +
+        'Use baseSqlText only as a fallback when the user explicitly pasted SQL and no handle exists. ' +
         'Do not send refine fields in create mode. ' +
-        'Base SQL is resolved server-side by sqlRevisionId.',
+        'Base SQL is resolved server-side from baseSqlHandle (rev:/src:/art:).',
       inputJsonSchema: GenerateSqlInputJsonSchema,
       inputZod: GenerateSqlInputSchema,
       execute: (args: unknown, ctx: AiContext) =>
