@@ -93,6 +93,7 @@ export interface AgentFlowStateSnapshotActionDigest {
 
 export interface AgentFlowStateSnapshotSqlRevision {
   sqlRevisionId: string;
+  baseSqlHandle: string;
   sqlPreview: string;
   createdAt: string;
 }
@@ -144,7 +145,8 @@ export const AgentFlowTemplateEditIntentSchema = z
       .string()
       .min(1)
       .describe(
-        'Template text (markdown or plain text) with placeholders like [[TAG:t1]]. ' +
+        'Full resulting template document text (markdown or plain text) with placeholders like [[TAG:t1]]. ' +
+          'Must NOT be a snippet-only fragment. ' +
           'Do NOT include raw template tags {{...}} here.'
       ),
     tags: z

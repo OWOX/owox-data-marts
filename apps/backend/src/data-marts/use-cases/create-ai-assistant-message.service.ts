@@ -73,7 +73,7 @@ export class CreateAiAssistantMessageService {
       AiAssistantExecutionMode.HEAVY,
       runId,
       null,
-      this.mapper.toDomainMessageDto(userMessage),
+      this.mapper.toDomainMessageDto(userMessage, userMessage.proposedActions ?? null),
       null
     );
   }

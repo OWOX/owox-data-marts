@@ -1,4 +1,10 @@
-import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
@@ -93,6 +99,7 @@ export class AiSourceApplyService {
     }
 
     const session = await this.applyExecutionService.getSession(command);
+    await this.ensureLatestSessionAction(command);
     if (!loadedAction) {
       loadedAction = await this.createApplyActionFromAssistantMessage(command);
     }
@@ -233,6 +240,41 @@ export class AiSourceApplyService {
     }
 
     return proposedActions.find(action => action.id === requestId) ?? null;
+  }
+
+  private async ensureLatestSessionAction(command: ApplyAiAssistantSessionCommand): Promise<void> {
+    const latestMessage =
+      await this.aiAssistantSessionService.getLatestAssistantMessageWithProposedActionsBySession(
+        command.sessionId
+      );
+
+    if (!latestMessage) {
+      throw new BadRequestException('No active action to apply');
+    }
+
+    const latestRequestIds = this.findProposedActionRequestIds(latestMessage.proposedActions);
+    const isLatest =
+      latestMessage.id === command.assistantMessageId &&
+      latestRequestIds.includes(command.requestId);
+    if (isLatest) {
+      return;
+    }
+
+    throw new BadRequestException(
+      'Apply action is outdated. Please apply the latest action from the session.'
+    );
+  }
+
+  private findProposedActionRequestIds(
+    proposedActions: AssistantProposedAction[] | null | undefined
+  ): string[] {
+    if (!Array.isArray(proposedActions)) {
+      return [];
+    }
+
+    return proposedActions
+      .map(action => action?.id)
+      .filter((actionId): actionId is string => Boolean(actionId));
   }
 
   private logApplyDecision(params: {

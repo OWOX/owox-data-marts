@@ -2,7 +2,7 @@ jest.mock('typeorm-transactional', () => ({
   Transactional: () => () => undefined,
 }));
 
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import {
   ApplyAiAssistantActionPayload,
@@ -65,6 +65,7 @@ describe('AiSourceApplyService', () => {
       apply: jest.fn(),
     };
     const applyActionMapper = new AiAssistantApplyActionMapper();
+    let lastRequestedRequestId: string | null = null;
 
     const storedActionsByRequestId: Record<string, ApplyAiAssistantActionPayload> = {
       'request-1': {
@@ -168,6 +169,7 @@ describe('AiSourceApplyService', () => {
         if (!requestId) {
           return null;
         }
+        lastRequestedRequestId = requestId;
 
         const selectedAction = storedActionsByRequestId[requestId];
         if (!selectedAction) {
@@ -215,6 +217,28 @@ describe('AiSourceApplyService', () => {
       content: 'Generated SQL candidate',
       sqlCandidate: 'select 1',
     });
+    messageRepository.find.mockImplementation(() => {
+      if (!lastRequestedRequestId) {
+        return Promise.resolve([]);
+      }
+
+      return Promise.resolve([
+        {
+          id: 'assistant-message-1',
+          sessionId: 'session-1',
+          role: AiAssistantMessageRole.ASSISTANT,
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          proposedActions: [
+            {
+              id: lastRequestedRequestId,
+              type: 'apply_sql_to_artifact',
+              confidence: 0.9,
+              payload: {},
+            },
+          ],
+        },
+      ]);
+    });
 
     return {
       service,
@@ -231,13 +255,8 @@ describe('AiSourceApplyService', () => {
   };
 
   it('creates artifact, binds session and stores idempotent response', async () => {
-    const {
-      service,
-      sessionRepository,
-      messageRepository,
-      applyActionRepository,
-      artifactRepository,
-    } = createService();
+    const { service, sessionRepository, applyActionRepository, artifactRepository } =
+      createService();
 
     const command = new ApplyAiAssistantSessionCommand(
       'session-1',
@@ -261,7 +280,6 @@ describe('AiSourceApplyService', () => {
     applyActionRepository.create.mockReturnValue({});
     applyActionRepository.insert.mockResolvedValue(undefined);
     sessionRepository.findOne.mockResolvedValue(session);
-    messageRepository.find.mockResolvedValue([]);
     artifactRepository.create.mockReturnValue({
       title: 'Source A',
       sql: 'select 1',
@@ -330,11 +348,13 @@ describe('AiSourceApplyService', () => {
     sessionRepository.findOne.mockResolvedValue(session);
     messageRepository.find.mockResolvedValue([
       {
-        id: 'assistant-message-latest',
+        id: 'assistant-message-1',
+        sessionId: 'session-1',
         role: AiAssistantMessageRole.ASSISTANT,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
         proposedActions: [
           {
-            id: 'act-1',
+            id: 'request-intent-1',
             type: 'create_source_and_attach',
             confidence: 0.9,
             payload: {
@@ -720,6 +740,121 @@ describe('AiSourceApplyService', () => {
     expect(sessionRepository.findOne).not.toHaveBeenCalled();
   });
 
+  it('rejects outdated apply action when a newer action exists in the same session', async () => {
+    const { service, sessionRepository, messageRepository, applyActionRepository } =
+      createService();
+
+    const command = new ApplyAiAssistantSessionCommand(
+      'session-1',
+      'data-mart-1',
+      'project-1',
+      'user-1',
+      'request-1',
+      'assistant-message-1',
+      'select 1'
+    );
+
+    sessionRepository.findOne.mockResolvedValue({
+      id: 'session-1',
+      dataMartId: 'data-mart-1',
+      createdById: 'user-1',
+      scope: AiAssistantScope.TEMPLATE,
+      templateId: 'template-1',
+      artifactId: null,
+    });
+    messageRepository.find.mockResolvedValue([
+      {
+        id: 'assistant-message-2',
+        sessionId: 'session-1',
+        role: AiAssistantMessageRole.ASSISTANT,
+        createdAt: new Date('2026-01-02T00:00:00.000Z'),
+        proposedActions: [
+          {
+            id: 'request-newer',
+            type: 'apply_sql_to_artifact',
+            confidence: 0.9,
+            payload: {},
+          },
+        ],
+      },
+    ]);
+
+    await expect(service.apply(command)).rejects.toBeInstanceOf(BadRequestException);
+    expect(applyActionRepository.update).not.toHaveBeenCalled();
+  });
+
+  it('allows apply for any action id from the latest message actions list', async () => {
+    const {
+      service,
+      sessionRepository,
+      messageRepository,
+      artifactRepository,
+      applyActionRepository,
+      createStoredAction,
+    } = createService();
+
+    const command = new ApplyAiAssistantSessionCommand(
+      'session-1',
+      'data-mart-1',
+      'project-1',
+      'user-1',
+      'request-1',
+      'assistant-message-latest',
+      'select 1'
+    );
+
+    sessionRepository.findOne.mockResolvedValue({
+      id: 'session-1',
+      dataMartId: 'data-mart-1',
+      createdById: 'user-1',
+      scope: AiAssistantScope.TEMPLATE,
+      templateId: 'template-1',
+      artifactId: null,
+    });
+    applyActionRepository.findOne.mockResolvedValue({
+      ...createStoredAction('request-1', { type: 'update_existing_source' }),
+      response: {
+        ...createStoredAction('request-1', { type: 'update_existing_source' }).response,
+        assistantMessageId: 'assistant-message-latest',
+      },
+    });
+    messageRepository.find.mockResolvedValue([
+      {
+        id: 'assistant-message-latest',
+        sessionId: 'session-1',
+        role: AiAssistantMessageRole.ASSISTANT,
+        createdAt: new Date('2026-01-02T00:00:00.000Z'),
+        proposedActions: [
+          {
+            id: 'request-1',
+            type: 'apply_sql_to_artifact',
+            confidence: 0.9,
+            payload: {},
+          },
+          {
+            id: 'request-extra',
+            type: 'create_source_and_attach',
+            confidence: 0.8,
+            payload: {},
+          },
+        ],
+      },
+    ]);
+    artifactRepository.findOne.mockResolvedValue({
+      id: 'artifact-session',
+      title: 'Session source',
+      sql: 'select old',
+      dataMart: { id: 'data-mart-1', projectId: 'project-1' },
+    });
+    artifactRepository.save.mockResolvedValue({
+      id: 'artifact-session',
+      title: 'Session source',
+      sql: 'select 1',
+    });
+
+    await expect(service.apply(command)).resolves.toBeDefined();
+  });
+
   it('throws 409 when assistantMessageId conflicts with selected action owner', async () => {
     const {
       service,
@@ -771,6 +906,22 @@ describe('AiSourceApplyService', () => {
         assistantMessageId: 'assistant-message-other',
       },
     });
+    messageRepository.find.mockResolvedValue([
+      {
+        id: 'assistant-message-1',
+        sessionId: 'session-1',
+        role: AiAssistantMessageRole.ASSISTANT,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        proposedActions: [
+          {
+            id: 'request-conflict-1',
+            type: 'apply_sql_to_artifact',
+            confidence: 0.9,
+            payload: {},
+          },
+        ],
+      },
+    ]);
     applyActionRepository.insert.mockResolvedValue(undefined);
     sessionRepository.findOne.mockResolvedValue({
       id: 'session-1',

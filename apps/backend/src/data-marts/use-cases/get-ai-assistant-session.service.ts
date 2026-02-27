@@ -5,6 +5,7 @@ import { AiAssistantMessageApplyStatus } from '../dto/domain/ai-assistant-messag
 import { AiAssistantMapper } from '../mappers/ai-assistant.mapper';
 import { AiAssistantSessionService } from '../services/ai-assistant-session.service';
 import { AiAssistantMessageRole } from '../enums/ai-assistant-message-role.enum';
+import type { AssistantProposedAction } from '../ai-insights/agent-flow/ai-assistant-types';
 
 @Injectable()
 export class GetAiAssistantSessionService {
@@ -21,7 +22,7 @@ export class GetAiAssistantSessionService {
       command.userId
     );
 
-    const [messages, applySnapshots] = await Promise.all([
+    const [messages, applySnapshots, latestMessageWithProposedActions] = await Promise.all([
       this.aiAssistantSessionService.listMessagesBySessionIdAndDataMartIdAndProjectId(
         command.sessionId,
         command.dataMartId,
@@ -32,6 +33,9 @@ export class GetAiAssistantSessionService {
         sessionId: command.sessionId,
         createdById: command.userId,
       }),
+      this.aiAssistantSessionService.getLatestAssistantMessageWithProposedActionsBySession(
+        command.sessionId
+      ),
     ]);
 
     const appliedByAssistantMessageId = new Map<
@@ -59,9 +63,14 @@ export class GetAiAssistantSessionService {
     return this.mapper.toDomainSessionDto(
       session,
       messages.map(message => {
+        const visibleProposedActions = this.resolveVisibleProposedActions(
+          message.id,
+          message.proposedActions,
+          latestMessageWithProposedActions?.id
+        );
         const applied = appliedByAssistantMessageId.get(message.id);
         if (applied) {
-          return this.mapper.toDomainMessageDto(message, {
+          return this.mapper.toDomainMessageDto(message, visibleProposedActions, {
             applyStatus: AiAssistantMessageApplyStatus.APPLIED,
             appliedAt: applied.appliedAt,
             appliedRequestId: applied.requestId,
@@ -70,10 +79,10 @@ export class GetAiAssistantSessionService {
 
         const hasPendingActions =
           message.role === AiAssistantMessageRole.ASSISTANT &&
-          Array.isArray(message.proposedActions) &&
-          message.proposedActions.length > 0;
+          Array.isArray(visibleProposedActions) &&
+          visibleProposedActions.length > 0;
 
-        return this.mapper.toDomainMessageDto(message, {
+        return this.mapper.toDomainMessageDto(message, visibleProposedActions, {
           applyStatus: hasPendingActions
             ? AiAssistantMessageApplyStatus.PENDING
             : AiAssistantMessageApplyStatus.NONE,
@@ -82,5 +91,21 @@ export class GetAiAssistantSessionService {
         });
       })
     );
+  }
+
+  private resolveVisibleProposedActions(
+    messageId: string,
+    proposedActions: AssistantProposedAction[] | null | undefined,
+    latestAssistantMessageId: string | undefined
+  ): AssistantProposedAction[] | null {
+    if (!Array.isArray(proposedActions) || proposedActions.length === 0) {
+      return null;
+    }
+
+    if (!latestAssistantMessageId || latestAssistantMessageId !== messageId) {
+      return null;
+    }
+
+    return proposedActions;
   }
 }

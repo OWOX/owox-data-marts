@@ -23,16 +23,21 @@ describe('SourceResolverToolsService', () => {
       getByIdAndDataMartIdAndProjectId: jest.fn(),
       listByDataMartIdAndProjectIdExcludingArtifactIds: jest.fn(),
     };
+    const insightTemplateSourceService = {
+      getByIdAndTemplateId: jest.fn(),
+    };
 
     const service = new SourceResolverToolsService(
       insightTemplateService as never,
-      insightArtifactService as never
+      insightArtifactService as never,
+      insightTemplateSourceService as never
     );
 
     return {
       service,
       insightTemplateService,
       insightArtifactService,
+      insightTemplateSourceService,
     };
   };
 
@@ -87,5 +92,33 @@ describe('SourceResolverToolsService', () => {
     expect(result.artifacts).toHaveLength(1);
     expect(result.artifacts[0]?.artifactId).toBe('artifact-2');
     expect(result.artifacts[0]?.artifactTitle).toBe('Consumption 2026');
+  });
+
+  it('resolves template source SQL by template source id from source entity relation', async () => {
+    const { service, insightTemplateSourceService } = createService();
+    const request = buildTemplateRequest('refine source sql');
+
+    insightTemplateSourceService.getByIdAndTemplateId.mockResolvedValue({
+      id: 'template-source-1',
+      key: 'monthly_consumption_2025',
+      artifactId: 'artifact-1',
+      sql: () => 'SELECT * FROM monthly_consumption',
+    });
+
+    const result = await service.resolveTemplateSourceSqlByTemplateSourceId({
+      request,
+      templateSourceId: 'template-source-1',
+    });
+
+    expect(insightTemplateSourceService.getByIdAndTemplateId).toHaveBeenCalledWith(
+      'template-source-1',
+      'template-1'
+    );
+    expect(result).toEqual({
+      templateSourceId: 'template-source-1',
+      sourceKey: 'monthly_consumption_2025',
+      artifactId: 'artifact-1',
+      sql: 'SELECT * FROM monthly_consumption',
+    });
   });
 });

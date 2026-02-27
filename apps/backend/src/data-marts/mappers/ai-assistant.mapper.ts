@@ -34,6 +34,7 @@ import {
 import { CreateAiAssistantSessionRequestApiDto } from '../dto/presentation/create-ai-assistant-session-request-api.dto';
 import { CreateAiAssistantSessionResponseApiDto } from '../dto/presentation/create-ai-assistant-session-response-api.dto';
 import { UpdateAiAssistantSessionTitleRequestApiDto } from '../dto/presentation/update-ai-assistant-session-title-request-api.dto';
+import type { AssistantProposedAction } from '../ai-insights/agent-flow/ai-assistant-types';
 import { AiAssistantMessage } from '../entities/ai-assistant-message.entity';
 import { AiAssistantSession } from '../entities/ai-assistant-session.entity';
 import { AiAssistantMessageRole } from '../enums/ai-assistant-message-role.enum';
@@ -161,16 +162,18 @@ export class AiAssistantMapper {
 
   toDomainMessageDto(
     entity: AiAssistantMessage,
+    proposedActions: AssistantProposedAction[] | null,
     applyState?: MessageApplyState
   ): AiAssistantMessageDto {
-    const resolvedApplyState = applyState ?? this.resolveDefaultMessageApplyState(entity);
+    const resolvedApplyState =
+      applyState ?? this.resolveDefaultMessageApplyState(entity, proposedActions);
 
     return new AiAssistantMessageDto(
       entity.id,
       entity.sessionId,
       entity.role,
       entity.content,
-      entity.proposedActions ?? null,
+      proposedActions,
       entity.sqlCandidate ?? null,
       entity.meta ?? null,
       entity.createdAt,
@@ -185,7 +188,9 @@ export class AiAssistantMapper {
     messages: Array<AiAssistantMessage | AiAssistantMessageDto>
   ): AiAssistantSessionDto {
     const messageDtos = messages.map(message =>
-      message instanceof AiAssistantMessageDto ? message : this.toDomainMessageDto(message)
+      message instanceof AiAssistantMessageDto
+        ? message
+        : this.toDomainMessageDto(message, message.proposedActions ?? null)
     );
 
     return new AiAssistantSessionDto(
@@ -306,11 +311,14 @@ export class AiAssistantMapper {
     };
   }
 
-  private resolveDefaultMessageApplyState(entity: AiAssistantMessage): MessageApplyState {
+  private resolveDefaultMessageApplyState(
+    entity: AiAssistantMessage,
+    proposedActions: AssistantProposedAction[] | null
+  ): MessageApplyState {
     const hasPendingActions =
       entity.role === AiAssistantMessageRole.ASSISTANT &&
-      Array.isArray(entity.proposedActions) &&
-      entity.proposedActions.length > 0;
+      Array.isArray(proposedActions) &&
+      proposedActions.length > 0;
 
     return {
       applyStatus: hasPendingActions

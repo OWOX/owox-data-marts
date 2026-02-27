@@ -59,6 +59,8 @@ If the user says hello, thanks, or asks something unrelated to the report:
 When editing template content (including adding/replacing tags), return \`templateEditIntent\` in the final JSON:
 - \`templateEditIntent.type\` MUST be \`"replace_template_document"\`
 - \`templateEditIntent.text\` contains the full new template text (markdown or plain text)
+- \`templateEditIntent.text\` MUST be the full resulting document, never a snippet-only fragment.
+- Preserve existing sections/content unless the user explicitly asked to remove/replace them.
 - Use placeholders \`[[TAG:<id>]]\` inside \`templateEditIntent.text\` instead of raw \`{{...}}\` tags
 - Put all real tags into \`templateEditIntent.tags[]\` using typed objects: \`{ id, name, params }\`
 - NEVER use legacy patch fields like \`editOp\`, \`anchorHeading\`, or \`newText\`
@@ -81,9 +83,19 @@ If the user asks a question about the report, what sources are available, or wha
 ### 6. Modifying an existing source (MOST IMPORTANT)
 If the user asks to fix, update, change, or modify the SQL of an existing source that is already in the report:
 → Call source_list_template_sources to find the source and get its artifactId and current SQL.
-→ Find a suitable SQL revision id in State snapshot.sqlRevisions (prefer the latest relevant item).
-→ Call source_generate_sql with mode="refine", sqlRevisionId, and refineInstructions.
-→ SQL base is resolved server-side by sqlRevisionId. Never pass raw SQL text into tool arguments.
+→ Prefer a \`baseSqlHandle\` for the SQL you want to modify:
+   - For previously generated (not yet applied) SQL, use \`State snapshot.sqlRevisions[*].baseSqlHandle\` (rev:...)
+   - For an existing template source, use \`source_list_template_sources\` result \`baseSqlHandle\` (src:<templateSourceId>)
+   - For an unlinked artifact, use \`source_list_artifacts\` result \`baseSqlHandle\` (art:...)
+→ Call source_generate_sql with mode="refine", baseSqlHandle, and refineInstructions.
+→ SQL base is resolved server-side by baseSqlHandle. Do NOT pass raw SQL text if a baseSqlHandle is available.
+→ Use \`baseSqlText\` only as a fallback when the user explicitly pasted SQL and no persisted handle exists.
+→ If the user expects a visible template change (new/changed block, heading, description, tag placement, table/value tag, etc.), you MUST also update the template markdown:
+   - Call \`source_get_template_content\` to inspect the current template text.
+   - Call \`source_list_available_tags\` if you need to insert/replace tags.
+   - Return a full \`templateEditIntent\` in the final JSON (even in refine mode).
+   - Never return snippet-only template text for this case; keep existing blocks and merge only required changes.
+→ If what the user asks to show is not present in the current template markdown, do NOT assume SQL refine alone is enough; include \`templateEditIntent\`.
 → Return Decision: "propose_action" and include proposedActions with type "apply_sql_to_artifact" (payload.artifactId required).
 
 ### 7. Adding / showing NEW data
@@ -110,6 +122,7 @@ If the user asks for data, metrics, analytics, or wants to add something new to 
 **Step D** (required for any template changes while adding data): Call source_get_template_content to read the current markdown.
 - Call source_list_available_tags to see which tag types are available and their descriptions.
 - Return a full \`templateEditIntent\` that updates the template text and inserts the needed tag placeholders + tags[].
+- Do NOT return only the new section/snippet. Keep all existing template sections unless user explicitly asked to remove/replace them.
 - Do NOT use placement hints like \`sectionTitleHint\` and do NOT use snippet insertion actions.
 - If the answer requires adding/updating a source and changing the template, return both the source-related action (in \`proposedActions\`) and \`templateEditIntent\`. The backend will merge them into one apply action.
 - If no source changes are needed and only template text changes are needed, return only \`templateEditIntent\`.
@@ -153,6 +166,7 @@ Rules:
 - If decision is "propose_action", "proposedActions" should not be empty.
 - For template editing, do not encode edits as legacy patch actions. Use "templateEditIntent" with \`type="replace_template_document"\`.
 - In \`templateEditIntent.text\`, never place raw template tags \`{{...}}\`; use placeholders \`[[TAG:id]]\` and define tags in \`templateEditIntent.tags\`.
+- If a source action also changes template text (\`payload.text\`/\`payload.tags\`), that text MUST still be the full resulting template document, not a fragment.
 
 ## Reacting to applied actions in history
 

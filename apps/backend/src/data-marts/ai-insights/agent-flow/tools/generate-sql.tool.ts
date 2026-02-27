@@ -3,13 +3,16 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { AgentFlowContext } from '../types';
 import { AiAssistantOrchestratorService } from '../ai-assistant-orchestrator.service';
 import { AssistantChatMessage, AssistantOrchestratorResponse } from '../ai-assistant-types';
-import { AiAssistantSessionService } from '../../../services/ai-assistant-session.service';
 import { appendNormalizedTelemetry } from '../agent-telemetry.utils';
 import { AgentFlowRequestMapper } from '../../../mappers/agent-flow-request.mapper';
 import {
   getLastUserMessage,
   replaceLastUserMessage as replaceLastUserMessageInHistory,
 } from '../ai-assistant-orchestrator.utils';
+import {
+  BaseSqlHandleResolverService,
+  BaseSqlHandleKind,
+} from '../base-sql-handle-resolver.service';
 
 const GenerateSqlCreateInputSchema = z.object({
   mode: z.literal('create').describe('Generate new SQL from scratch.'),
@@ -25,12 +28,25 @@ const GenerateSqlCreateInputSchema = z.object({
 });
 
 const GenerateSqlRefineInputSchema = z.object({
-  mode: z.literal('refine').describe('Refine previously generated SQL revision.'),
-  sqlRevisionId: z
+  mode: z.literal('refine').describe('Refine an existing SQL query.'),
+  baseSqlHandle: z
     .string()
     .trim()
     .min(1)
-    .describe('Assistant message id that owns the base SQL revision (sqlCandidate).'),
+    .optional()
+    .describe(
+      'Preferred. Opaque handle to base SQL returned by state snapshot or source/artifact tools. ' +
+        'Examples: rev:<assistantMessageId>, src:<templateSourceId>, art:<artifactId>.'
+    ),
+  baseSqlText: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      'Fallback raw SQL text to refine when no persisted baseSqlHandle exists. ' +
+        'Use this only when the user explicitly provided SQL text.'
+    ),
   refineInstructions: z.string().trim().min(1).describe('Specific instructions for refining SQL.'),
 });
 
@@ -45,7 +61,8 @@ export const GenerateSqlInputJsonSchema = {
   description:
     'Generate or refine SQL. ' +
     'Use mode="create" for new SQL (optionally with taskPrompt for one scoped subtask from a multi-task user message). ' +
-    'Use mode="refine" only with sqlRevisionId + refineInstructions.',
+    'Use mode="refine" with baseSqlHandle + refineInstructions in normal cases. ' +
+    'Use baseSqlText + refineInstructions only when the user explicitly pasted SQL.',
   properties: {
     mode: {
       type: 'string',
@@ -59,11 +76,17 @@ export const GenerateSqlInputJsonSchema = {
         'Optional scoped subtask when the original user message has multiple tasks. ' +
         'Use only with mode="create". If provided, generate SQL ONLY for this subtask and ignore other tasks.',
     },
-    sqlRevisionId: {
+    baseSqlHandle: {
       type: 'string',
       description:
-        'Required when mode="refine". Assistant message id containing the base sqlCandidate to refine. ' +
-        'Do not send this for mode="create".',
+        'Preferred when mode="refine". Opaque handle returned by tools/state snapshot. ' +
+        'Examples: rev:<assistantMessageId>, src:<templateSourceId>, art:<artifactId>.',
+    },
+    baseSqlText: {
+      type: 'string',
+      description:
+        'Fallback when mode="refine". Raw SQL to refine if no persisted handle exists ' +
+        '(for example, user pasted SQL in chat). Prefer baseSqlHandle when available.',
     },
     refineInstructions: {
       type: 'string',
@@ -85,20 +108,26 @@ export interface GenerateSqlOutput {
   diagnostics?: AssistantOrchestratorResponse['meta']['diagnostics'];
 }
 
+interface ResolvedBaseSql {
+  baseSql: string;
+  baseAssistantMessageId?: string;
+  origin: { type: 'handle'; handle: string; kind: BaseSqlHandleKind } | { type: 'text' };
+}
+
 @Injectable()
 export class GenerateSqlTool {
   private readonly logger = new Logger(GenerateSqlTool.name);
 
   constructor(
     private readonly orchestrator: AiAssistantOrchestratorService,
-    private readonly aiAssistantSessionService: AiAssistantSessionService,
-    private readonly agentFlowRequestMapper: AgentFlowRequestMapper
+    private readonly agentFlowRequestMapper: AgentFlowRequestMapper,
+    private readonly baseSqlHandleResolverService: BaseSqlHandleResolverService
   ) {}
 
   async execute(args: GenerateSqlInput, context: AgentFlowContext): Promise<GenerateSqlOutput> {
     const { request } = context;
 
-    const { delegatedRequest, baseAssistantMessageId, hasBaseSql } =
+    const { delegatedRequest, baseAssistantMessageId, hasBaseSql, refineBaseOrigin } =
       await this.buildDelegatedRequest(args, request);
     this.logger.debug('GenerateSqlTool: orchestrator request', { request, delegatedRequest });
 
@@ -108,7 +137,7 @@ export class GenerateSqlTool {
       status: response.status,
       decision: response.decision,
       mode: args.mode,
-      sqlRevisionId: args.mode === 'refine' ? args.sqlRevisionId : undefined,
+      refineBaseOrigin: args.mode === 'refine' ? refineBaseOrigin : undefined,
       baseAssistantMessageId,
       hasBaseSql,
     });
@@ -141,10 +170,7 @@ export class GenerateSqlTool {
     request: AgentFlowContext['request']
   ) {
     if (args.mode === 'refine') {
-      const base = await this.resolveBaseSqlForRefine(
-        request.sessionContext.sessionId,
-        args.sqlRevisionId
-      );
+      const base = await this.resolveBaseSqlForRefine(args, request);
 
       return {
         delegatedRequest: this.agentFlowRequestMapper.toAssistantOrchestratorRequest({
@@ -154,6 +180,7 @@ export class GenerateSqlTool {
         }),
         baseAssistantMessageId: base.baseAssistantMessageId,
         hasBaseSql: true,
+        refineBaseOrigin: base.origin,
       };
     }
 
@@ -168,33 +195,26 @@ export class GenerateSqlTool {
       }),
       baseAssistantMessageId: undefined,
       hasBaseSql: false,
+      refineBaseOrigin: undefined,
     };
   }
 
   private async resolveBaseSqlForRefine(
-    paramsSessionId: string,
-    sqlRevisionId: string
-  ): Promise<{
-    baseAssistantMessageId: string;
-    baseSql: string;
-  }> {
-    const baseMessage = await this.aiAssistantSessionService.getAssistantMessageByIdAndSessionId(
-      sqlRevisionId,
-      paramsSessionId
-    );
-    const baseSql =
-      typeof baseMessage.sqlCandidate === 'string' ? baseMessage.sqlCandidate.trim() : '';
-
-    if (!baseSql) {
-      throw new BadRequestException(
-        `SQL revision "${sqlRevisionId}" has empty sqlCandidate and cannot be refined`
-      );
+    args: Extract<GenerateSqlInput, { mode: 'refine' }>,
+    request: AgentFlowContext['request']
+  ): Promise<ResolvedBaseSql> {
+    if (typeof args.baseSqlHandle === 'string') {
+      return this.baseSqlHandleResolverService.resolve(args.baseSqlHandle, request);
     }
 
-    return {
-      baseAssistantMessageId: baseMessage.id,
-      baseSql,
-    };
+    if (typeof args.baseSqlText === 'string') {
+      return {
+        baseSql: args.baseSqlText.trim(),
+        origin: { type: 'text' },
+      };
+    }
+
+    throw new BadRequestException('Refine mode requires baseSqlHandle or baseSqlText');
   }
 
   private replaceLastUserMessageOrThrow(

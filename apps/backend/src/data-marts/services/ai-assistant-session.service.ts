@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, IsNull, Repository } from 'typeorm';
+import { FindOptionsWhere, IsNull, Not, Repository } from 'typeorm';
 import { AiAssistantMessageRole } from '../enums/ai-assistant-message-role.enum';
 import type { AssistantProposedAction } from '../ai-insights/agent-flow/ai-assistant-types';
 import { AiAssistantMessage } from '../entities/ai-assistant-message.entity';
@@ -267,6 +267,25 @@ export class AiAssistantSessionService {
       lifecycleStatus: action.response?.lifecycleStatus ?? null,
       modifiedAt: action.modifiedAt,
     }));
+  }
+
+  async getLatestAssistantMessageWithProposedActionsBySession(
+    sessionId: string
+  ): Promise<AiAssistantMessage | null> {
+    const [latestMessage] = await this.messageRepository.find({
+      where: {
+        sessionId,
+        role: AiAssistantMessageRole.ASSISTANT,
+        proposedActions: Not(IsNull()),
+      },
+      order: {
+        createdAt: 'DESC',
+        id: 'DESC',
+      },
+      take: 1,
+    });
+
+    return latestMessage ?? null;
   }
 
   private extractProposedActionsFromMessage(
