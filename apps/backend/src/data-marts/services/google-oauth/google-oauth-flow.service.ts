@@ -347,21 +347,21 @@ export class GoogleOAuthFlowService {
   }
 
   async isStorageOAuthValid(storageId: string): Promise<boolean> {
-    const storage = await this.dataStorageRepository.findOne({ where: { id: storageId } });
-    if (!storage?.credentialId) return false;
-    const credential = await this.dataStorageCredentialService.getById(storage.credentialId);
-    return this.isCredentialValid(credential);
+    const storage = await this.dataStorageRepository.findOne({
+      where: { id: storageId },
+      relations: ['credential'],
+    });
+    if (!storage?.credential) return false;
+    return this.isCredentialValid(storage.credential);
   }
 
   async isDestinationOAuthValid(destinationId: string): Promise<boolean> {
     const destination = await this.dataDestinationRepository.findOne({
       where: { id: destinationId },
+      relations: ['credential'],
     });
-    if (!destination?.credentialId) return false;
-    const credential = await this.dataDestinationCredentialService.getById(
-      destination.credentialId
-    );
-    return this.isCredentialValid(credential);
+    if (!destination?.credential) return false;
+    return this.isCredentialValid(destination.credential);
   }
 
   // Private helpers

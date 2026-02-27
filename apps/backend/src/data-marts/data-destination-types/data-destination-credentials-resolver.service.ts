@@ -1,29 +1,26 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { DataDestinationCredentials } from './data-destination-credentials.type';
 import { DataDestinationCredentialService } from '../services/data-destination-credential.service';
 import { DataDestination } from '../entities/data-destination.entity';
 
 @Injectable()
 export class DataDestinationCredentialsResolver {
-  private readonly logger = new Logger(DataDestinationCredentialsResolver.name);
-
   constructor(
     private readonly dataDestinationCredentialService: DataDestinationCredentialService
   ) {}
 
   async resolve(destination: DataDestination): Promise<DataDestinationCredentials> {
-    if (destination.credentialId) {
-      const credential = await this.dataDestinationCredentialService.getById(
-        destination.credentialId
-      );
-      if (!credential) {
-        this.logger.error(`Credential record not found: ${destination.credentialId}`);
-        throw new Error(`Credential record not found: ${destination.credentialId}`);
-      }
+    // Use loaded relation if available, otherwise fall back to getById
+    const credential =
+      destination.credential ??
+      (destination.credentialId
+        ? await this.dataDestinationCredentialService.getById(destination.credentialId)
+        : null);
 
-      return credential.credentials as DataDestinationCredentials;
+    if (!credential) {
+      throw new Error('Destination credentials are not configured');
     }
 
-    throw new Error('Destination credentials are not configured');
+    return credential.credentials as DataDestinationCredentials;
   }
 }

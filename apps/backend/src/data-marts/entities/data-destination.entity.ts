@@ -3,10 +3,13 @@ import {
   CreateDateColumn,
   DeleteDateColumn,
   Entity,
+  JoinColumn,
+  OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
+import { DataDestinationCredential } from './data-destination-credential.entity';
 
 @Entity()
 export class DataDestination {
@@ -24,6 +27,10 @@ export class DataDestination {
 
   @Column({ type: 'varchar', nullable: true })
   credentialId?: string | null;
+
+  @OneToOne(() => DataDestinationCredential, { nullable: true })
+  @JoinColumn({ name: 'credentialId' })
+  credential?: DataDestinationCredential | null;
 
   @DeleteDateColumn({ nullable: true })
   deletedAt?: Date;

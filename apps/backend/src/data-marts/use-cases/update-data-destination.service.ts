@@ -36,7 +36,8 @@ export class UpdateDataDestinationService {
   async run(command: UpdateDataDestinationCommand): Promise<DataDestinationDto> {
     const entity = await this.dataDestinationService.getByIdAndProjectId(
       command.id,
-      command.projectId
+      command.projectId,
+      { relations: ['credential'] }
     );
 
     this.availableDestinationTypesService.verifyIsAllowed(entity.type);
@@ -69,11 +70,8 @@ export class UpdateDataDestinationService {
 
       // Process credentials with existing data to preserve backend-managed fields
       let existingCredentials: DataDestinationCredentials | undefined;
-      if (entity.credentialId) {
-        const existingCredential = await this.dataDestinationCredentialService.getById(
-          entity.credentialId
-        );
-        existingCredentials = existingCredential?.credentials as
+      if (entity.credential) {
+        existingCredentials = entity.credential.credentials as
           | DataDestinationCredentials
           | undefined;
       }
@@ -106,14 +104,11 @@ export class UpdateDataDestinationService {
         });
         entity.credentialId = newCredential.id;
       }
-    } else if (!command.hasCredentials() && entity.credentialId) {
-      const existingCredential = await this.dataDestinationCredentialService.getById(
-        entity.credentialId
-      );
-      if (existingCredential?.type === DestinationCredentialType.GOOGLE_OAUTH) {
+    } else if (!command.hasCredentials() && entity.credential) {
+      if (entity.credential.type === DestinationCredentialType.GOOGLE_OAUTH) {
         const oauth2Client =
           await this.googleOAuthClientService.getDestinationOAuth2ClientByCredentialId(
-            entity.credentialId
+            entity.credential.id
           );
         try {
           await oauth2Client.getAccessToken();
