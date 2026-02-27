@@ -11,7 +11,9 @@ export class DataStorageService {
   ) {}
 
   async getByProjectIdAndId(projectId: string, id: string): Promise<DataStorage> {
-    const entity = await this.dataStorageRepository.findOne({ where: { id, projectId } });
+    const entity = await this.dataStorageRepository.findOne({
+      where: { id, projectId },
+    });
 
     if (!entity) {
       throw new NotFoundException(`DataStorage with id ${id} and projectId ${projectId} not found`);

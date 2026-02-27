@@ -61,7 +61,9 @@ export class ReportMapper {
       id: dto.id,
       title: dto.title,
       dataMart: await this.dataMartMapper.toResponse(dto.dataMart),
-      dataDestinationAccess: this.dataDestinationMapper.toApiResponse(dto.dataDestinationAccess),
+      dataDestinationAccess: await this.dataDestinationMapper.toApiResponse(
+        dto.dataDestinationAccess
+      ),
       destinationConfig: dto.destinationConfig,
       lastRunAt: dto.lastRunAt,
       lastRunStatus: dto.lastRunStatus,

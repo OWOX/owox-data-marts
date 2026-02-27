@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { AvailableDestinationTypesService } from '../data-destination-types/available-destination-types.service';
 import { DataDestination } from '../entities/data-destination.entity';
@@ -10,6 +10,14 @@ import { DataDestinationService } from '../services/data-destination.service';
 import { DataDestinationCredentialsValidatorFacade } from '../data-destination-types/facades/data-destination-credentials-validator.facade';
 import { DataDestinationCredentialsProcessorFacade } from '../data-destination-types/facades/data-destination-credentials-processor.facade';
 import { DataDestinationCredentials } from '../data-destination-types/data-destination-credentials.type';
+import { DataDestinationCredentialService } from '../services/data-destination-credential.service';
+import { GoogleOAuthClientService } from '../services/google-oauth/google-oauth-client.service';
+import {
+  resolveDestinationCredentialType,
+  extractDestinationIdentity,
+} from '../services/credential-type-resolver';
+import type { StoredDestinationCredentials } from '../entities/stored-destination-credentials.type';
+import { DestinationCredentialType } from '../enums/destination-credential-type.enum';
 
 @Injectable()
 export class UpdateDataDestinationService {
@@ -20,7 +28,9 @@ export class UpdateDataDestinationService {
     private readonly dataDestinationMapper: DataDestinationMapper,
     private readonly credentialsValidator: DataDestinationCredentialsValidatorFacade,
     private readonly credentialsProcessor: DataDestinationCredentialsProcessorFacade,
-    private readonly availableDestinationTypesService: AvailableDestinationTypesService
+    private readonly availableDestinationTypesService: AvailableDestinationTypesService,
+    private readonly dataDestinationCredentialService: DataDestinationCredentialService,
+    private readonly googleOAuthClientService: GoogleOAuthClientService
   ) {}
 
   async run(command: UpdateDataDestinationCommand): Promise<DataDestinationDto> {
@@ -31,20 +41,80 @@ export class UpdateDataDestinationService {
 
     this.availableDestinationTypesService.verifyIsAllowed(entity.type);
 
-    const credentialsToCheck = command.hasCredentials() ? command.credentials : entity.credentials;
+    // Handle OAuth credentialId disconnect (null = revoke)
+    if (command.credentialId === null && entity.credentialId) {
+      await this.dataDestinationCredentialService.softDelete(entity.credentialId);
+      entity.credentialId = null;
+    }
 
-    await this.credentialsValidator.checkCredentials(
-      entity.type,
-      credentialsToCheck ?? ({} as DataDestinationCredentials)
-    );
+    if (command.credentialId) {
+      // OAuth credential provided — validate ownership, verify token, and link
+      const credential = await this.dataDestinationCredentialService.getById(command.credentialId);
+      if (!credential || credential.projectId !== command.projectId) {
+        throw new ForbiddenException('Credential does not belong to this project');
+      }
+      const oauth2Client =
+        await this.googleOAuthClientService.getDestinationOAuth2ClientByCredentialId(
+          command.credentialId
+        );
+      try {
+        await oauth2Client.getAccessToken();
+      } catch {
+        throw new BadRequestException('OAuth token verification failed. Please re-authenticate.');
+      }
+      entity.credentialId = command.credentialId;
+    } else if (command.hasCredentials()) {
+      // Service account credentials — validate, process, and store
+      await this.credentialsValidator.checkCredentials(entity.type, command.credentials);
 
-    if (command.hasCredentials()) {
       // Process credentials with existing data to preserve backend-managed fields
-      entity.credentials = await this.credentialsProcessor.processCredentials(
+      let existingCredentials: DataDestinationCredentials | undefined;
+      if (entity.credential) {
+        existingCredentials = entity.credential.credentials as
+          | DataDestinationCredentials
+          | undefined;
+      }
+      const processedCredentials = await this.credentialsProcessor.processCredentials(
         entity.type,
         command.credentials,
-        entity.credentials // Pass existing credentials to preserve backend-managed fields
+        existingCredentials
       );
+
+      // Update or create credential record in the new table
+      const credentialType = resolveDestinationCredentialType(
+        processedCredentials as StoredDestinationCredentials
+      );
+      const identity = extractDestinationIdentity(
+        credentialType,
+        processedCredentials as StoredDestinationCredentials
+      );
+
+      if (entity.credentialId) {
+        await this.dataDestinationCredentialService.update(entity.credentialId, {
+          credentials: processedCredentials as StoredDestinationCredentials,
+          identity,
+        });
+      } else {
+        const newCredential = await this.dataDestinationCredentialService.create({
+          projectId: command.projectId,
+          type: credentialType,
+          credentials: processedCredentials as StoredDestinationCredentials,
+          identity,
+        });
+        entity.credentialId = newCredential.id;
+      }
+    } else if (!command.hasCredentials() && entity.credential) {
+      if (entity.credential.type === DestinationCredentialType.GOOGLE_OAUTH) {
+        const oauth2Client =
+          await this.googleOAuthClientService.getDestinationOAuth2ClientByCredentialId(
+            entity.credential.id
+          );
+        try {
+          await oauth2Client.getAccessToken();
+        } catch {
+          throw new BadRequestException('OAuth token verification failed. Please re-authenticate.');
+        }
+      }
     }
 
     entity.title = command.title;

@@ -2,35 +2,34 @@ import { BigQuery, Job, Table, TableSchema } from '@google-cloud/bigquery';
 import { Logger } from '@nestjs/common';
 import { JWT } from 'google-auth-library';
 import { BIGQUERY_AUTODETECT_LOCATION, BigQueryConfig } from '../schemas/bigquery-config.schema';
-import { BigQueryCredentials } from '../schemas/bigquery-credentials.schema';
+import { BIGQUERY_OAUTH_TYPE, BigQueryCredentials } from '../schemas/bigquery-credentials.schema';
 
 /**
- * Adapter for BigQuery API operations
+ * Adapter for BigQuery API operations.
+ * Accepts either Service Account credentials or pre-resolved OAuth credentials.
  */
 export class BigQueryApiAdapter {
   private readonly logger = new Logger(BigQueryApiAdapter.name);
   private readonly bigQuery: BigQuery;
   private location?: string;
 
-  /**
-   * @param credentials - BigQuery credentials
-   * @param config - BigQuery configuration
-   * @throws Error if invalid credentials or config are provided
-   */
   constructor(credentials: BigQueryCredentials, config: BigQueryConfig) {
-    const authClient = new JWT({
-      email: credentials.client_email,
-      key: credentials.private_key,
-      scopes: [
-        'https://www.googleapis.com/auth/bigquery',
-        'https://www.googleapis.com/auth/drive.readonly',
-      ],
-    });
+    const auth =
+      credentials.type === BIGQUERY_OAUTH_TYPE
+        ? credentials.oauth2Client
+        : new JWT({
+            email: credentials.client_email,
+            key: credentials.private_key,
+            scopes: [
+              'https://www.googleapis.com/auth/bigquery',
+              'https://www.googleapis.com/auth/drive.readonly',
+            ],
+          });
 
     const shouldAutodetectLocation = config.location === BIGQUERY_AUTODETECT_LOCATION;
     this.bigQuery = new BigQuery({
       projectId: config.projectId,
-      authClient,
+      authClient: auth,
       ...(shouldAutodetectLocation ? {} : { location: config.location }),
     });
 

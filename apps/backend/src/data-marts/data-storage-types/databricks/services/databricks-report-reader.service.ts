@@ -10,8 +10,6 @@ import { DataStorageReportReaderState } from '../../interfaces/data-storage-repo
 import { DataStorage } from '../../../entities/data-storage.entity';
 import { DatabricksApiAdapter } from '../adapters/databricks-api.adapter';
 import { DatabricksApiAdapterFactory } from '../adapters/databricks-api-adapter.factory';
-import { isDatabricksCredentials } from '../../data-storage-credentials.guards';
-import { isDatabricksConfig } from '../../data-storage-config.guards';
 import { DatabricksQueryBuilder } from './databricks-query.builder';
 import { DatabricksReportHeadersGenerator } from './databricks-report-headers-generator.service';
 import { isDatabricksDataMartSchema } from '../../data-mart-schema.guards';
@@ -19,7 +17,6 @@ import {
   DatabricksReaderState,
   isDatabricksReaderState,
 } from '../interfaces/databricks-reader-state.interface';
-
 @Injectable({ scope: Scope.TRANSIENT })
 export class DatabricksReportReader implements DataStorageReportReader {
   private readonly logger = new Logger(DatabricksReportReader.name);
@@ -55,7 +52,7 @@ export class DatabricksReportReader implements DataStorageReportReader {
     this.reportConfig = { storage, definition };
     this.reportDataHeaders = this.headersGenerator.generateHeaders(schema);
 
-    await this.prepareApiAdapter(this.reportConfig.storage);
+    this.adapter = await this.adapterFactory.createFromStorage(storage);
 
     const query = this.queryBuilder.buildQuery(definition);
     this.logger.debug(`Executing query: ${query}`);
@@ -102,25 +99,6 @@ export class DatabricksReportReader implements DataStorageReportReader {
     }
 
     this.allRows = [];
-  }
-
-  private async prepareApiAdapter(storage: DataStorage): Promise<void> {
-    try {
-      if (!isDatabricksCredentials(storage.credentials)) {
-        throw new Error('Databricks credentials are not properly configured');
-      }
-
-      if (!isDatabricksConfig(storage.config)) {
-        throw new Error('Databricks config is not properly configured');
-      }
-
-      this.adapter = this.adapterFactory.create(storage.credentials, storage.config);
-
-      this.logger.debug('Databricks adapter created successfully');
-    } catch (error) {
-      this.logger.error('Failed to create adapter', error);
-      throw error;
-    }
   }
 
   private mapRowsToHeaders(rows: Record<string, unknown>[]): unknown[][] {

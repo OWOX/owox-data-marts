@@ -10,8 +10,6 @@ import { RedshiftApiAdapterFactory } from '../adapters/redshift-api-adapter.fact
 import { RedshiftApiAdapter } from '../adapters/redshift-api.adapter';
 import { RedshiftQueryBuilder } from './redshift-query.builder';
 import { RedshiftReportHeadersGenerator } from './redshift-report-headers-generator.service';
-import { isRedshiftCredentials } from '../../data-storage-credentials.guards';
-import { isRedshiftConfig } from '../../data-storage-config.guards';
 import { isRedshiftDataMartSchema } from '../../data-mart-schema.guards';
 import { RedshiftReaderState } from '../interfaces/redshift-reader-state.interface';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
@@ -50,15 +48,7 @@ export class RedshiftReportReader implements DataStorageReportReader {
     this.reportConfig = { storage, definition };
     this.reportDataHeaders = this.headersGenerator.generateHeaders(schema);
 
-    if (!isRedshiftCredentials(storage.credentials)) {
-      throw new Error('Redshift credentials are not properly configured');
-    }
-
-    if (!isRedshiftConfig(storage.config)) {
-      throw new Error('Redshift config is not properly configured');
-    }
-
-    this.adapter = this.adapterFactory.create(storage.credentials, storage.config);
+    this.adapter = await this.adapterFactory.createFromStorage(storage);
 
     return new ReportDataDescription(this.reportDataHeaders);
   }

@@ -13,7 +13,6 @@ import { Report } from '../../../entities/report.entity';
 import { DataMartDefinitionType } from '../../../enums/data-mart-definition-type.enum';
 import { isBigQueryDataMartSchema } from '../../data-mart-schema.guards';
 import { isBigQueryConfig } from '../../data-storage-config.guards';
-import { isBigQueryCredentials } from '../../data-storage-credentials.guards';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { DataStorageReportReaderState } from '../../interfaces/data-storage-report-reader-state.interface';
 import { DataStorageReportReader } from '../../interfaces/data-storage-report-reader.interface';
@@ -27,6 +26,7 @@ import { BigQueryConfig } from '../schemas/bigquery-config.schema';
 import { BigQueryCredentials } from '../schemas/bigquery-credentials.schema';
 import { BigQueryQueryBuilder } from './bigquery-query.builder';
 import { BigQueryReportHeadersGenerator } from './bigquery-report-headers-generator.service';
+import { DataStorageCredentialsResolver } from '../../data-storage-credentials-resolver.service';
 
 @Injectable({ scope: Scope.TRANSIENT })
 export class BigQueryReportReader implements DataStorageReportReader {
@@ -38,8 +38,8 @@ export class BigQueryReportReader implements DataStorageReportReader {
   private reportDataHeaders: ReportDataHeader[];
   private contextGcpProject: string;
 
+  private storageId: string;
   private reportConfig: {
-    storageCredentials: BigQueryCredentials;
     storageConfig: BigQueryConfig;
     definition: DataMartDefinition;
     definitionType: DataMartDefinitionType;
@@ -48,17 +48,14 @@ export class BigQueryReportReader implements DataStorageReportReader {
   constructor(
     protected readonly adapterFactory: BigQueryApiAdapterFactory,
     protected readonly bigQueryQueryBuilder: BigQueryQueryBuilder,
-    protected readonly headersGenerator: BigQueryReportHeadersGenerator
+    protected readonly headersGenerator: BigQueryReportHeadersGenerator,
+    protected readonly credentialsResolver: DataStorageCredentialsResolver
   ) {}
 
   public async prepareReportData(report: Report): Promise<ReportDataDescription> {
     const { storage, definitionType, definition, schema } = report.dataMart;
     if (!storage || !definition || !definitionType) {
       throw new Error('Data Mart is not properly configured');
-    }
-
-    if (!isBigQueryCredentials(storage.credentials)) {
-      throw new Error('Google BigQuery credentials are not properly configured');
     }
 
     if (!isBigQueryConfig(storage.config)) {
@@ -73,8 +70,8 @@ export class BigQueryReportReader implements DataStorageReportReader {
       throw new Error('Google BigQuery data mart schema is expected');
     }
 
+    this.storageId = storage.id;
     this.reportConfig = {
-      storageCredentials: storage.credentials,
       storageConfig: storage.config,
       definitionType,
       definition,
@@ -82,10 +79,8 @@ export class BigQueryReportReader implements DataStorageReportReader {
 
     this.reportDataHeaders = this.headersGenerator.generateHeaders(schema);
 
-    await this.prepareBigQuery(
-      this.reportConfig.storageCredentials,
-      this.reportConfig.storageConfig
-    );
+    this.adapter = await this.adapterFactory.createFromStorage(storage, storage.config);
+    this.contextGcpProject = storage.config.projectId;
 
     return new ReportDataDescription(this.reportDataHeaders);
   }
@@ -238,6 +233,14 @@ export class BigQueryReportReader implements DataStorageReportReader {
 
     return {
       type: DataStorageType.GOOGLE_BIGQUERY,
+      storageId: this.storageId,
+      reportConfig: {
+        storageConfig: this.reportConfig.storageConfig,
+        definition: this.reportConfig.definition,
+        definitionType: this.reportConfig.definitionType,
+      },
+      reportDataHeaders: this.reportDataHeaders,
+      contextGcpProject: this.contextGcpProject,
       reportResultTable: this.reportResultTable
         ? {
             projectId: this.reportResultTable.dataset.projectId!,
@@ -245,7 +248,6 @@ export class BigQueryReportReader implements DataStorageReportReader {
             tableId: this.reportResultTable.id!,
           }
         : undefined,
-      contextGcpProject: this.contextGcpProject,
     };
   }
 
@@ -257,10 +259,21 @@ export class BigQueryReportReader implements DataStorageReportReader {
       throw new Error('Invalid state type for BigQuery reader');
     }
 
+    const storageCredentials = (await this.credentialsResolver.resolveById(
+      state.storageId
+    )) as BigQueryCredentials;
+    this.storageId = state.storageId;
+    this.reportConfig = {
+      storageConfig: state.reportConfig.storageConfig,
+      definition: state.reportConfig.definition,
+      definitionType: state.reportConfig.definitionType,
+    };
     this.contextGcpProject = state.contextGcpProject;
     this.reportDataHeaders = reportDataHeaders;
 
-    if (state.reportResultTable && this.adapter) {
+    await this.prepareBigQuery(storageCredentials, this.reportConfig.storageConfig);
+
+    if (state.reportResultTable) {
       this.reportResultTable = this.adapter.createTableReference(
         state.reportResultTable.projectId,
         state.reportResultTable.datasetId,

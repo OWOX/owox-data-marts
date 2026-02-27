@@ -6,12 +6,14 @@ import { DATA_MART_VALIDATOR_RESOLVER } from '../data-storage-providers';
 import { isConnectorDefinition } from '../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { DataMart } from '../../entities/data-mart.entity';
 import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
+import { DataStorageCredentialsResolver } from '../data-storage-credentials-resolver.service';
 
 @Injectable()
 export class DataMartDefinitionValidatorFacade {
   constructor(
     @Inject(DATA_MART_VALIDATOR_RESOLVER)
-    private readonly resolver: TypeResolver<DataStorageType, DataMartValidator>
+    private readonly resolver: TypeResolver<DataStorageType, DataMartValidator>,
+    private readonly credentialsResolver: DataStorageCredentialsResolver
   ) {}
 
   async validate(dataMart: DataMart): Promise<ValidationResult> {
@@ -29,10 +31,11 @@ export class DataMartDefinitionValidatorFacade {
       return new ValidationResult(false, 'DataMart storage config not found');
     }
 
-    const credentials = dataMart.storage.credentials;
-    if (!credentials) {
+    if (!dataMart.storage.credentialId) {
       return new ValidationResult(false, 'DataMart storage credentials not found');
     }
+
+    const credentials = await this.credentialsResolver.resolve(dataMart.storage);
 
     const validator = await this.resolver.resolve(dataMart.storage.type);
     return validator.validate(definition, config, credentials);

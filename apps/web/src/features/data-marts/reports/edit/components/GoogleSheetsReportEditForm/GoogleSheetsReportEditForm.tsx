@@ -261,19 +261,20 @@ export const GoogleSheetsReportEditForm = forwardRef<
                         {filteredDestinations.map(destination => {
                           const typeInfo = DataDestinationTypeModel.getInfo(destination.type);
                           const IconComponent = typeInfo.icon;
+                          const saEmail = isGoogleServiceAccountCredentials(destination.credentials)
+                            ? extractServiceAccountEmail(destination.credentials.serviceAccount)
+                            : null;
                           return (
                             <SelectItem key={destination.id} value={destination.id}>
                               <div className='flex w-full min-w-0 items-center gap-2'>
                                 <IconComponent className='flex-shrink-0' size={18} />
                                 <div className='flex min-w-0 flex-col'>
                                   <span className='truncate'>{destination.title}</span>
-                                  <span className='text-muted-foreground truncate text-xs'>
-                                    {(isGoogleServiceAccountCredentials(destination.credentials) &&
-                                      extractServiceAccountEmail(
-                                        destination.credentials.serviceAccount
-                                      )) ??
-                                      'No email found'}
-                                  </span>
+                                  {saEmail && (
+                                    <span className='text-muted-foreground truncate text-xs'>
+                                      {saEmail}
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             </SelectItem>
@@ -303,24 +304,18 @@ export const GoogleSheetsReportEditForm = forwardRef<
                           destination => destination.id === field.value
                         );
                         if (selectedDestination) {
+                          const saEmail = isGoogleServiceAccountCredentials(
+                            selectedDestination.credentials
+                          )
+                            ? extractServiceAccountEmail(
+                                selectedDestination.credentials.serviceAccount
+                              )
+                            : null;
+                          if (!saEmail) return null;
                           return (
                             <div className='mt-2 flex flex-col gap-1'>
                               <FormLabel>Service Account Email</FormLabel>
-                              <CopyableField
-                                value={
-                                  isGoogleServiceAccountCredentials(selectedDestination.credentials)
-                                    ? (extractServiceAccountEmail(
-                                        selectedDestination.credentials.serviceAccount
-                                      ) ?? 'No email found')
-                                    : ''
-                                }
-                              >
-                                {isGoogleServiceAccountCredentials(selectedDestination.credentials)
-                                  ? extractServiceAccountEmail(
-                                      selectedDestination.credentials.serviceAccount
-                                    )
-                                  : 'No email found'}
-                              </CopyableField>
+                              <CopyableField value={saEmail}>{saEmail}</CopyableField>
                             </div>
                           );
                         }

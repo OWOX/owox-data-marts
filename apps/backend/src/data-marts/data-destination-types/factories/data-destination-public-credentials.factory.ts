@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { DataDestinationCredentialsPublic } from '../../dto/presentation/data-destination-response-api.dto';
+import {
+  DataDestinationCredentialsPublic,
+  GoogleSheetsOAuthCredentialsPublic,
+} from '../../dto/presentation/data-destination-response-api.dto';
 import {
   DataDestinationCredentials,
   DataDestinationCredentialsSchema,
@@ -12,7 +15,7 @@ export class DataDestinationPublicCredentialsFactory {
   create(
     type: DataDestinationType,
     credentials: DataDestinationCredentials
-  ): DataDestinationCredentialsPublic | undefined {
+  ): DataDestinationCredentialsPublic | GoogleSheetsOAuthCredentialsPublic | undefined {
     if (!credentials) {
       throw new Error(`Credentials are required for destination type: ${type}`);
     }
@@ -21,6 +24,9 @@ export class DataDestinationPublicCredentialsFactory {
 
     switch (validatedCredentials.type) {
       case GoogleSheetsCredentialsType: {
+        if (!validatedCredentials.serviceAccountKey) {
+          return { type: 'google-sheets-oauth-credentials' as const };
+        }
         return {
           type: 'google-sheets-credentials',
           serviceAccountKey: {

@@ -17,11 +17,9 @@ import { AthenaApiAdapter } from '../adapters/athena-api.adapter';
 import { AthenaApiAdapterFactory } from '../adapters/athena-api-adapter.factory';
 import { S3ApiAdapter } from '../adapters/s3-api.adapter';
 import { S3ApiAdapterFactory } from '../adapters/s3-api-adapter.factory';
-import { isAthenaCredentials } from '../../data-storage-credentials.guards';
 import { isAthenaConfig } from '../../data-storage-config.guards';
 import { AthenaQueryBuilder } from './athena-query.builder';
 import { AthenaReportHeadersGenerator } from './athena-report-headers-generator.service';
-
 @Injectable({ scope: Scope.TRANSIENT })
 export class AthenaReportReader implements DataStorageReportReader {
   private readonly logger = new Logger(AthenaReportReader.name);
@@ -60,7 +58,7 @@ export class AthenaReportReader implements DataStorageReportReader {
 
     this.reportDataHeaders = this.headersGenerator.generateHeaders(schema);
 
-    await this.prepareApiAdapters(this.reportConfig.storage);
+    await this.prepareApiAdapters(storage);
 
     return new ReportDataDescription(this.reportDataHeaders);
   }
@@ -156,24 +154,13 @@ export class AthenaReportReader implements DataStorageReportReader {
   }
 
   private async prepareApiAdapters(storage: DataStorage): Promise<void> {
-    try {
-      if (!isAthenaCredentials(storage.credentials)) {
-        throw new Error('Athena credentials are not properly configured');
-      }
-
-      if (!isAthenaConfig(storage.config)) {
-        throw new Error('Athena config is not properly configured');
-      }
-
-      this.athenaAdapter = this.athenaAdapterFactory.create(storage.credentials, storage.config);
-      this.s3Adapter = this.s3AdapterFactory.create(storage.credentials, storage.config);
-      this.outputBucket = storage.config.outputBucket;
-
-      this.logger.debug('Athena and S3 adapters created successfully');
-    } catch (error) {
-      this.logger.error('Failed to create adapters', error);
-      throw error;
+    if (!isAthenaConfig(storage.config)) {
+      throw new Error('Athena config is not properly configured');
     }
+
+    this.athenaAdapter = await this.athenaAdapterFactory.createFromStorage(storage);
+    this.s3Adapter = await this.s3AdapterFactory.createFromStorage(storage);
+    this.outputBucket = storage.config.outputBucket;
   }
 
   private async prepareQueryExecution(dataMartDefinition: DataMartDefinition): Promise<void> {
