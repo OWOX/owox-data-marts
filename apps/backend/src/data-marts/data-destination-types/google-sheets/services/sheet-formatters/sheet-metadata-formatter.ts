@@ -47,6 +47,8 @@ export class SheetMetadataFormatter {
    * @param sheetId - ID of the sheet to add the note to
    * @param dateFormatted - Formatted date string for the metadata note
    * @param dataMartTitle - Title of the data mart
+   * @param dataMartUrl - URL to the data mart
+   * @param isCommunityEdition - Whether the app is running in Community Edition
    * @param firstColumnDescription - Optional description for the first column
    * @returns Google Sheets API request object for metadata note
    */
@@ -54,11 +56,16 @@ export class SheetMetadataFormatter {
     sheetId: number,
     dateFormatted: string,
     dataMartTitle: string,
+    dataMartUrl: string,
+    isCommunityEdition: boolean,
     firstColumnDescription?: string
   ): sheets_v4.Schema$Request {
+    const editionSuffix = isCommunityEdition ? ' Community Edition' : '';
+
     let metadataNote =
-      `Imported via OWOX Data Marts Community Edition at ${dateFormatted}\n` +
-      `Data Mart: ${dataMartTitle}`;
+      `Imported via OWOX Data Marts${editionSuffix} at ${dateFormatted}\n` +
+      `Data Mart: ${dataMartTitle}\n` +
+      `Data Mart page: ${dataMartUrl}`;
 
     if (firstColumnDescription) {
       metadataNote += `\n---\n${firstColumnDescription}`;

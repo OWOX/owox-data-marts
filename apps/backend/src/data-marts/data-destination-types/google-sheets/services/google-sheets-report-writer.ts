@@ -20,6 +20,9 @@ import { OWOX_PRODUCER } from '../../../../common/producer/producer.module';
 import { OwoxProducer } from '@owox/internal-helpers';
 import { GoogleSheetNotFound } from '../../../errors/google-sheet-not-found.error';
 import { BusinessViolationException } from 'src/common/exceptions/business-violation.exception';
+import { AppEditionConfig } from '../../../../common/config/app-edition-config.service';
+import { PublicOriginService } from '../../../../common/config/public-origin.service';
+import { buildDataMartUrl } from '../../../../common/helpers/data-mart-url.helper';
 
 /**
  * Service for writing report data to Google Sheets
@@ -51,6 +54,8 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
     private readonly valuesFormatter: SheetValuesFormatter,
     private readonly adapterFactory: GoogleSheetsApiAdapterFactory,
     private readonly consumptionTrackingService: ConsumptionTrackingService,
+    private readonly appEditionConfig: AppEditionConfig,
+    private readonly publicOriginService: PublicOriginService,
     @Inject(OWOX_PRODUCER)
     private readonly producer: OwoxProducer
   ) {}
@@ -124,12 +129,24 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
         const dateNowFormatted = `${dateNow.toFormat('yyyy LLL d, HH:mm:ss')} ${dateNow.zoneName}`;
         const firstColumnDescription = this.reportDataHeaders[0].description;
 
+        const dataMart = this.report.dataMart;
+        const isCommunityEdition = !this.appEditionConfig.isEnterpriseEdition();
+        const publicOrigin = this.publicOriginService.getPublicOrigin();
+        const dataMartUrl = buildDataMartUrl(
+          publicOrigin,
+          dataMart.projectId,
+          dataMart.id,
+          '/data-setup'
+        );
+
         await this.adapter.batchUpdate(this.destination.spreadsheetId, [
           this.metadataFormatter.createTabColorAndFreezeHeaderRequest(this.destination.sheetId),
           this.metadataFormatter.createMetadataNoteRequest(
             this.destination.sheetId,
             dateNowFormatted,
             this.dataMartTitle,
+            dataMartUrl,
+            isCommunityEdition,
             firstColumnDescription
           ),
         ]);
