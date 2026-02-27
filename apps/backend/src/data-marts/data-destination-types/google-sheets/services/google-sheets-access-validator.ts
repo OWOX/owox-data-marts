@@ -5,11 +5,9 @@ import {
 import { DataDestinationType } from '../../enums/data-destination-type.enum';
 import { DataDestinationConfig } from '../../data-destination-config.type';
 import { Injectable, Logger } from '@nestjs/common';
-import { GoogleSheetsCredentialsSchema } from '../schemas/google-sheets-credentials.schema';
 import { GoogleSheetsConfigSchema } from '../schemas/google-sheets-config.schema';
 import { DataDestination } from '../../../entities/data-destination.entity';
 import { GoogleSheetsApiAdapterFactory } from '../adapters/google-sheets-api-adapter.factory';
-import { DataDestinationCredentialsResolver } from '../../data-destination-credentials-resolver.service';
 
 /**
  * Validator for Google Sheets access
@@ -20,10 +18,7 @@ export class GoogleSheetsAccessValidator implements DataDestinationAccessValidat
   private readonly logger = new Logger(GoogleSheetsAccessValidator.name);
   readonly type = DataDestinationType.GOOGLE_SHEETS;
 
-  constructor(
-    private readonly adapterFactory: GoogleSheetsApiAdapterFactory,
-    private readonly credentialsResolver: DataDestinationCredentialsResolver
-  ) {}
+  constructor(private readonly adapterFactory: GoogleSheetsApiAdapterFactory) {}
 
   /**
    * Validates access to a Google Sheets destination
@@ -45,17 +40,7 @@ export class GoogleSheetsAccessValidator implements DataDestinationAccessValidat
     }
 
     try {
-      let resolvedCredentials: unknown;
-      try {
-        resolvedCredentials = await this.credentialsResolver.resolve(dataDestination);
-      } catch {
-        // No credentials resolved — will rely on OAuth via destinationId
-      }
-
-      const credentialsOpt = GoogleSheetsCredentialsSchema.safeParse(resolvedCredentials);
-      const credentials = credentialsOpt.success ? credentialsOpt.data : undefined;
-
-      const adapter = await this.adapterFactory.createWithOAuth(credentials, dataDestination.id);
+      const adapter = await this.adapterFactory.createFromDestination(dataDestination);
       if (!adapter) {
         return new ValidationResult(
           false,

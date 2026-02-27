@@ -7,7 +7,6 @@ import {
   BigQueryOAuthCredentials,
 } from './bigquery/schemas/bigquery-credentials.schema';
 import { GoogleOAuthClientService } from '../services/google-oauth/google-oauth-client.service';
-import { DataStorageCredentialService } from '../services/data-storage-credential.service';
 import { StorageCredentialType } from '../enums/storage-credential-type.enum';
 import { DataStorage } from '../entities/data-storage.entity';
 
@@ -15,18 +14,12 @@ import { DataStorage } from '../entities/data-storage.entity';
 export class DataStorageCredentialsResolver {
   constructor(
     private readonly googleOAuthClientService: GoogleOAuthClientService,
-    private readonly dataStorageCredentialService: DataStorageCredentialService,
     @InjectRepository(DataStorage)
     private readonly dataStorageRepository: Repository<DataStorage>
   ) {}
 
   async resolve(storage: DataStorage): Promise<DataStorageCredentials> {
-    // Use loaded relation if available, otherwise fall back to getById
-    const credential =
-      storage.credential ??
-      (storage.credentialId
-        ? await this.dataStorageCredentialService.getById(storage.credentialId)
-        : null);
+    const credential = storage.credential;
 
     if (!credential) {
       throw new Error('Storage credentials are not configured');
@@ -43,7 +36,6 @@ export class DataStorageCredentialsResolver {
   async resolveById(storageId: string): Promise<DataStorageCredentials> {
     const storage = await this.dataStorageRepository.findOne({
       where: { id: storageId },
-      relations: ['credential'],
     });
     if (!storage) {
       throw new Error(`Storage not found: ${storageId}`);

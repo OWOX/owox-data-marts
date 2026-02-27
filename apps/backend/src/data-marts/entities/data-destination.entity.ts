@@ -28,7 +28,7 @@ export class DataDestination {
   @Column({ type: 'varchar', nullable: true })
   credentialId?: string | null;
 
-  @OneToOne(() => DataDestinationCredential, { nullable: true })
+  @OneToOne(() => DataDestinationCredential, { nullable: true, eager: true })
   @JoinColumn({ name: 'credentialId' })
   credential?: DataDestinationCredential | null;
 

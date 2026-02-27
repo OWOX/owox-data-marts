@@ -349,7 +349,6 @@ export class GoogleOAuthFlowService {
   async isStorageOAuthValid(storageId: string): Promise<boolean> {
     const storage = await this.dataStorageRepository.findOne({
       where: { id: storageId },
-      relations: ['credential'],
     });
     if (!storage?.credential) return false;
     return this.isCredentialValid(storage.credential);
@@ -358,7 +357,6 @@ export class GoogleOAuthFlowService {
   async isDestinationOAuthValid(destinationId: string): Promise<boolean> {
     const destination = await this.dataDestinationRepository.findOne({
       where: { id: destinationId },
-      relations: ['credential'],
     });
     if (!destination?.credential) return false;
     return this.isCredentialValid(destination.credential);
