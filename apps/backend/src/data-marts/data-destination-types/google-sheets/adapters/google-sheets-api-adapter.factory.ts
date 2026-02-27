@@ -74,6 +74,7 @@ export class GoogleSheetsApiAdapterFactory {
     try {
       resolvedCredentials = await this.credentialsResolver.resolve(destination);
     } catch {
+      this.logger.debug(`No credentials found for destination ${destination.id}, will try OAuth`);
     }
     const parsed = GoogleSheetsCredentialsSchema.safeParse(resolvedCredentials);
     return this.createWithOAuth(parsed.success ? parsed.data : undefined, destination.id);

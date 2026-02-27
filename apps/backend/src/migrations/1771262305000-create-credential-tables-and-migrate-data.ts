@@ -39,7 +39,7 @@ export class CreateCredentialTablesAndMigrateData1771262305000 implements Migrat
           ],
         })
       );
-      // 3. Indexes on data_storage_credentials
+      // Indexes on data_storage_credentials
       await queryRunner.createIndex(
         'data_storage_credentials',
         new TableIndex({
@@ -85,7 +85,7 @@ export class CreateCredentialTablesAndMigrateData1771262305000 implements Migrat
           ],
         })
       );
-      // 4. Indexes on data_destination_credentials
+      // Indexes on data_destination_credentials
       await queryRunner.createIndex(
         'data_destination_credentials',
         new TableIndex({
@@ -220,7 +220,7 @@ export class CreateCredentialTablesAndMigrateData1771262305000 implements Migrat
 
   private async migrateStorageCredentials(queryRunner: QueryRunner): Promise<void> {
     const storages = (await queryRunner.query(
-      `SELECT id, projectId, type, credentials FROM data_storage WHERE credentials IS NOT NULL AND deletedAt IS NULL`
+      `SELECT id, projectId, type, credentials FROM data_storage WHERE credentials IS NOT NULL`
     )) as Array<{ id: string; projectId: string; type: string; credentials: string }>;
 
     if (storages.length === 0) return;
@@ -259,22 +259,17 @@ export class CreateCredentialTablesAndMigrateData1771262305000 implements Migrat
       flatParams
     );
 
-    // Batch UPDATE in chunks of 500 to avoid huge queries
-    const CHUNK = 500;
-    for (let i = 0; i < idMapping.length; i += CHUNK) {
-      const chunk = idMapping.slice(i, i + CHUNK);
-      for (const { newId, storageId } of chunk) {
-        await queryRunner.query(`UPDATE data_storage SET credentialId = ? WHERE id = ?`, [
-          newId,
-          storageId,
-        ]);
-      }
+    for (const { newId, storageId } of idMapping) {
+      await queryRunner.query(`UPDATE data_storage SET credentialId = ? WHERE id = ?`, [
+        newId,
+        storageId,
+      ]);
     }
   }
 
   private async migrateDestinationCredentials(queryRunner: QueryRunner): Promise<void> {
     const destinations = (await queryRunner.query(
-      `SELECT id, projectId, credentials FROM data_destination WHERE credentials IS NOT NULL AND deletedAt IS NULL`
+      `SELECT id, projectId, credentials FROM data_destination WHERE credentials IS NOT NULL`
     )) as Array<{ id: string; projectId: string; credentials: string }>;
 
     if (destinations.length === 0) return;
@@ -311,15 +306,11 @@ export class CreateCredentialTablesAndMigrateData1771262305000 implements Migrat
       flatParams
     );
 
-    const CHUNK = 500;
-    for (let i = 0; i < idMapping.length; i += CHUNK) {
-      const chunk = idMapping.slice(i, i + CHUNK);
-      for (const { newId, destId } of chunk) {
-        await queryRunner.query(`UPDATE data_destination SET credentialId = ? WHERE id = ?`, [
-          newId,
-          destId,
-        ]);
-      }
+    for (const { newId, destId } of idMapping) {
+      await queryRunner.query(`UPDATE data_destination SET credentialId = ? WHERE id = ?`, [
+        newId,
+        destId,
+      ]);
     }
   }
 
