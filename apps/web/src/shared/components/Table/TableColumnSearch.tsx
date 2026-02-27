@@ -30,7 +30,7 @@ export function TableColumnSearch<TData>({
   }
 
   return (
-    <div className='relative w-48 md:w-52 lg:w-96 xl:w-128'>
+    <div className='relative w-full md:w-48 lg:w-80 xl:w-128'>
       <Search className='text-muted-foreground absolute top-2.5 left-2 h-4 w-4' />
       <Input
         placeholder={placeholder}

@@ -33,6 +33,7 @@ const DataMartTableWithContext = () => {
     <>
       {hasDraftWithLegacyStorage && <PageNotificationLegacyStorageSetup />}
       <DataMartTable
+        connectors={connectors}
         columns={getDataMartColumns({ connectors })}
         data={items}
         deleteDataMart={deleteDataMart}

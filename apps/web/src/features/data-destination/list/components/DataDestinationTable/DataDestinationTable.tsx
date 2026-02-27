@@ -70,7 +70,7 @@ export function DataDestinationTable<TData, TValue>({
           <TableColumnSearch
             table={table}
             columnId={DataDestinationColumnKey.TITLE}
-            placeholder='Search by title'
+            placeholder='Search'
           />
         )}
         renderToolbarRight={() => (

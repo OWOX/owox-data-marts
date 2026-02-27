@@ -172,7 +172,7 @@ export function BaseTable<TData>({
                   colSpan={table.getVisibleLeafColumns().length}
                   className='text-muted-foreground h-32 text-center'
                 >
-                  Oops! Nothing matched your search
+                  Oops! No data found
                 </TableCell>
               </TableRow>
             )}

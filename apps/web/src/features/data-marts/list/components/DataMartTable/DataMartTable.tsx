@@ -13,7 +13,7 @@ import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { Check, CircleCheckBig, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useContentPopovers } from '../../../../../app/store/hooks/useContentPopovers';
 import { storageService } from '../../../../../services';
 import { CardSkeleton } from '../../../../../shared/components/CardSkeleton';
@@ -23,16 +23,26 @@ import {
   TableCTAButton,
 } from '../../../../../shared/components/Table';
 import { useBaseTable, useProjectRoute } from '../../../../../shared/hooks';
+import { usePersistentFilters } from '../../../../../shared/hooks/usePersistentFilters';
+import { applyFiltersToData } from '../../../../../shared/components/TableFilters/filter-utils';
 import { DataStorageType } from '../../../../data-storage';
 import { DataMartStatus } from '../../../shared';
 import { useDataMartHealthStatusPrefetch } from '../../model/hooks/useDataMartHealthStatusPrefetch';
 import type { DataMartListItem } from '../../model/types';
 import { DataMartColumnKey } from './columns';
 import { EmptyDataMartsState } from './components';
+import { DataMartsTableFilters } from './components/DataMartsTableFilters';
+import {
+  buildDataMartsTableFilters,
+  dataMartsFilterAccessors,
+  type DataMartFilterKey,
+} from './components/DataMartsTableFilters.config';
+import type { ConnectorListItem } from '../../../../connectors/shared/model/types/connector';
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  connectors: ConnectorListItem[];
   deleteDataMart: (id: string) => Promise<void>;
   publishDataMart: (id: string) => Promise<void>;
   refetchDataMarts: () => Promise<void>;
@@ -42,12 +52,37 @@ interface DataTableProps<TData, TValue> {
 export function DataMartTable<TData, TValue>({
   columns,
   data,
+  connectors,
   deleteDataMart,
   publishDataMart,
   refetchDataMarts,
   isLoading,
 }: DataTableProps<TData, TValue>) {
   const { navigate, scope } = useProjectRoute();
+  const { projectId = '' } = useParams<{ projectId: string }>();
+  const tableId = 'data-marts-table';
+
+  const filtersConfig = useMemo(
+    () => buildDataMartsTableFilters(data as DataMartListItem[], connectors),
+    [data, connectors]
+  );
+
+  const { appliedState, apply, clear } = usePersistentFilters<DataMartFilterKey>({
+    projectId,
+    tableId,
+    urlParam: 'filters',
+    config: filtersConfig,
+  });
+
+  const filteredData = useMemo(
+    () =>
+      applyFiltersToData<DataMartFilterKey, DataMartListItem>(
+        data as DataMartListItem[],
+        appliedState,
+        dataMartsFilterAccessors
+      ) as TData[],
+    [data, appliedState]
+  );
 
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -128,9 +163,9 @@ export function DataMartTable<TData, TValue>({
     [columns]
   );
 
-  // Initialize table with shared hook
+  // Initialize table with shared hook (uses pre-filtered data)
   const { table } = useBaseTable<TData>({
-    data,
+    data: filteredData,
     columns: columnsWithSelection,
     storageKeyPrefix: 'data-mart-list',
     defaultColumnVisibility: {
@@ -250,8 +285,6 @@ export function DataMartTable<TData, TValue>({
     return <EmptyDataMartsState />;
   }
 
-  const tableId = 'data-marts-table';
-
   return (
     <div className='dm-card'>
       <BaseTable
@@ -263,38 +296,45 @@ export function DataMartTable<TData, TValue>({
           <>
             {/* BTNs for selected Rows */}
             {hasSelectedRows && (
-              <Button
-                variant='outline'
-                size='sm'
-                onClick={() => {
-                  setShowDeleteConfirmation(true);
-                }}
-                disabled={isDeleting}
-                title='Delete selected data marts'
-              >
-                <Trash2 className='h-4 w-4' />
-                <span className='hidden md:block'>Delete</span>
-              </Button>
+              <div className='mr-2 flex items-center gap-2 border-r pr-4'>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  onClick={() => {
+                    setShowDeleteConfirmation(true);
+                  }}
+                  disabled={isDeleting}
+                  title='Delete selected data marts'
+                >
+                  <Trash2 className='h-4 w-4' />
+                  <span className='hidden md:block'>Delete</span>
+                </Button>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  onClick={() => {
+                    setShowPublishConfirmation(true);
+                  }}
+                  disabled={!hasSelectedDrafts || isPublishing}
+                  title='Publish selected data marts'
+                >
+                  <CircleCheckBig className='h-4 w-4' />
+                  <span className='hidden md:block'>Publish</span>
+                </Button>
+              </div>
             )}
-            {hasSelectedRows && (
-              <Button
-                variant='outline'
-                size='sm'
-                onClick={() => {
-                  setShowPublishConfirmation(true);
-                }}
-                disabled={!hasSelectedDrafts || isPublishing}
-                title='Publish selected data marts'
-              >
-                <CircleCheckBig className='h-4 w-4' />
-                <span className='hidden md:block'>Publish</span>
-              </Button>
-            )}
+            {/* Filters */}
+            <DataMartsTableFilters
+              appliedState={appliedState}
+              config={filtersConfig}
+              onApply={apply}
+              onClear={clear}
+            />
             {/* Search */}
             <TableColumnSearch
               table={table}
               columnId={DataMartColumnKey.TITLE}
-              placeholder='Search by title'
+              placeholder='Search'
             />
           </>
         )}
@@ -302,7 +342,7 @@ export function DataMartTable<TData, TValue>({
           <TableCTAButton asChild>
             <Link to={scope('/data-marts/create')}>
               <Plus className='h-4 w-4' />
-              New Data Mart
+              <span className='hidden lg:block'>New Data Mart</span>
             </Link>
           </TableCTAButton>
         )}
