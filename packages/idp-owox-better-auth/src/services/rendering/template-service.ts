@@ -54,18 +54,19 @@ export class TemplateService {
   }
 
   public static renderSignIn(
-    data: Record<string, unknown> & { providers: UiAuthProviders }
+    data: Record<string, unknown> & { providers: UiAuthProviders; gtmContainerId?: string }
   ): string {
     return this.renderWithLayout('pages/sign-in.ejs', 'layouts/auth.ejs', {
       pageTitle: 'Sign In - OWOX Data Marts',
       heading: 'Sign in to OWOX',
       ...data,
       providers: data.providers,
+      gtmContainerId: data.gtmContainerId,
     });
   }
 
   public static renderSignUp(
-    data: Record<string, unknown> & { providers: UiAuthProviders }
+    data: Record<string, unknown> & { providers: UiAuthProviders; gtmContainerId?: string }
   ): string {
     return this.renderWithLayout('pages/sign-up.ejs', 'layouts/auth.ejs', {
       pageTitle: 'Sign Up - OWOX Data Marts',
@@ -73,19 +74,25 @@ export class TemplateService {
       magicLinkSignupIntent: MAGIC_LINK_INTENT.SIGNUP,
       ...data,
       providers: data.providers,
+      gtmContainerId: data.gtmContainerId,
     });
   }
 
-  public static renderMagicLinkConfirm(data: Record<string, unknown> = {}): string {
+  public static renderMagicLinkConfirm(
+    data: Record<string, unknown> & { gtmContainerId?: string } = {}
+  ): string {
     return this.renderWithLayout('pages/magic-link-confirm.ejs', 'layouts/auth.ejs', {
       pageTitle: 'Confirm your email',
       heading: 'Confirm your email',
       magicLinkResetIntent: MAGIC_LINK_INTENT.RESET,
       ...data,
+      gtmContainerId: data.gtmContainerId,
     });
   }
 
-  public static renderPasswordSetup(data: Record<string, unknown> = {}): string {
+  public static renderPasswordSetup(
+    data: Record<string, unknown> & { gtmContainerId?: string } = {}
+  ): string {
     return this.renderWithLayout('pages/password-setup.ejs', 'layouts/auth.ejs', {
       pageTitle: 'Set password',
       heading: 'Set your password',
@@ -95,18 +102,24 @@ export class TemplateService {
       errorMessage: '',
       infoMessage: '',
       ...data,
+      gtmContainerId: data.gtmContainerId,
     });
   }
 
-  public static renderPasswordSuccess(data: Record<string, unknown> = {}): string {
+  public static renderPasswordSuccess(
+    data: Record<string, unknown> & { gtmContainerId?: string } = {}
+  ): string {
     return this.renderWithLayout('pages/password-success.ejs', 'layouts/auth.ejs', {
       pageTitle: 'Password updated',
       heading: 'Password updated',
       ...data,
+      gtmContainerId: data.gtmContainerId,
     });
   }
 
-  public static renderAuthError(data: Record<string, unknown> = {}): string {
+  public static renderAuthError(
+    data: Record<string, unknown> & { gtmContainerId?: string } = {}
+  ): string {
     return this.renderWithLayout('pages/auth-error.ejs', 'layouts/auth.ejs', {
       pageTitle: 'Sign in failed',
       heading: 'Sign in failed',
@@ -115,15 +128,19 @@ export class TemplateService {
       homeHref: '/',
       homeLabel: 'Go to home',
       ...data,
+      gtmContainerId: data.gtmContainerId,
     });
   }
 
-  public static renderForgotPassword(data: Record<string, unknown> = {}): string {
+  public static renderForgotPassword(
+    data: Record<string, unknown> & { gtmContainerId?: string } = {}
+  ): string {
     return this.renderWithLayout('pages/forgot-password.ejs', 'layouts/auth.ejs', {
       pageTitle: 'Forgot password',
       heading: 'Reset your password',
       magicLinkResetIntent: MAGIC_LINK_INTENT.RESET,
       ...data,
+      gtmContainerId: data.gtmContainerId,
     });
   }
 }
