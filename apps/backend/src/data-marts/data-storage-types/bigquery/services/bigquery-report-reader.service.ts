@@ -23,11 +23,7 @@ import {
   isBigQueryReaderState,
 } from '../interfaces/bigquery-reader-state.interface';
 import { BigQueryConfig } from '../schemas/bigquery-config.schema';
-import {
-  BigQueryCredentials,
-  BigQueryOAuthCredentialsSchema,
-  BigQueryServiceAccountCredentialsSchema,
-} from '../schemas/bigquery-credentials.schema';
+import { BigQueryCredentials } from '../schemas/bigquery-credentials.schema';
 import { BigQueryQueryBuilder } from './bigquery-query.builder';
 import { BigQueryReportHeadersGenerator } from './bigquery-report-headers-generator.service';
 import { DataStorageCredentialsResolver } from '../../data-storage-credentials-resolver.service';
@@ -44,7 +40,6 @@ export class BigQueryReportReader implements DataStorageReportReader {
 
   private storageId: string;
   private reportConfig: {
-    storageCredentials: BigQueryCredentials;
     storageConfig: BigQueryConfig;
     definition: DataMartDefinition;
     definitionType: DataMartDefinitionType;
@@ -63,16 +58,6 @@ export class BigQueryReportReader implements DataStorageReportReader {
       throw new Error('Data Mart is not properly configured');
     }
 
-    const resolvedCredentials = await this.credentialsResolver.resolve(storage);
-    const saParsed = BigQueryServiceAccountCredentialsSchema.safeParse(resolvedCredentials);
-    const oauthParsed = BigQueryOAuthCredentialsSchema.safeParse(resolvedCredentials);
-    if (!saParsed.success && !oauthParsed.success) {
-      throw new Error('Google BigQuery credentials are not properly configured');
-    }
-    const storageCredentials: BigQueryCredentials = saParsed.success
-      ? saParsed.data
-      : oauthParsed.data!;
-
     if (!isBigQueryConfig(storage.config)) {
       throw new Error('Google BigQuery config is not properly configured');
     }
@@ -87,7 +72,6 @@ export class BigQueryReportReader implements DataStorageReportReader {
 
     this.storageId = storage.id;
     this.reportConfig = {
-      storageCredentials,
       storageConfig: storage.config,
       definitionType,
       definition,
@@ -95,10 +79,8 @@ export class BigQueryReportReader implements DataStorageReportReader {
 
     this.reportDataHeaders = this.headersGenerator.generateHeaders(schema);
 
-    await this.prepareBigQuery(
-      this.reportConfig.storageCredentials,
-      this.reportConfig.storageConfig
-    );
+    this.adapter = await this.adapterFactory.createFromStorage(storage, storage.config);
+    this.contextGcpProject = storage.config.projectId;
 
     return new ReportDataDescription(this.reportDataHeaders);
   }
@@ -282,7 +264,6 @@ export class BigQueryReportReader implements DataStorageReportReader {
     )) as BigQueryCredentials;
     this.storageId = state.storageId;
     this.reportConfig = {
-      storageCredentials,
       storageConfig: state.reportConfig.storageConfig,
       definition: state.reportConfig.definition,
       definitionType: state.reportConfig.definitionType,
@@ -290,10 +271,7 @@ export class BigQueryReportReader implements DataStorageReportReader {
     this.contextGcpProject = state.contextGcpProject;
     this.reportDataHeaders = reportDataHeaders;
 
-    await this.prepareBigQuery(
-      this.reportConfig.storageCredentials,
-      this.reportConfig.storageConfig
-    );
+    await this.prepareBigQuery(storageCredentials, this.reportConfig.storageConfig);
 
     if (state.reportResultTable) {
       this.reportResultTable = this.adapter.createTableReference(

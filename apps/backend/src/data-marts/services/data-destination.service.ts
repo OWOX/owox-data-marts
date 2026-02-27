@@ -10,14 +10,9 @@ export class DataDestinationService {
     private readonly dataDestinationRepository: Repository<DataDestination>
   ) {}
 
-  async getByIdAndProjectId(
-    id: string,
-    projectId: string,
-    options?: { relations?: string[] }
-  ): Promise<DataDestination> {
+  async getByIdAndProjectId(id: string, projectId: string): Promise<DataDestination> {
     const entity = await this.dataDestinationRepository.findOne({
       where: { id, projectId },
-      relations: options?.relations,
     });
 
     if (!entity) {

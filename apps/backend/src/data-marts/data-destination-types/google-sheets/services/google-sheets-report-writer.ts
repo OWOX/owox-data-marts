@@ -4,8 +4,6 @@ import { DataDestinationReportWriter } from '../../interfaces/data-destination-r
 import { DataDestinationType } from '../../enums/data-destination-type.enum';
 import { Inject, Injectable, Logger, Scope } from '@nestjs/common';
 import { isGoogleSheetsConfig } from '../../data-destination-config.guards';
-import { DataDestinationCredentialsResolver } from '../../data-destination-credentials-resolver.service';
-import { GoogleSheetsCredentialsSchema } from '../schemas/google-sheets-credentials.schema';
 import { GoogleSheetsConfig } from '../schemas/google-sheets-config.schema';
 import { DateTime } from 'luxon';
 import { Report } from '../../../entities/report.entity';
@@ -58,8 +56,7 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
     private readonly appEditionConfig: AppEditionConfig,
     private readonly publicOriginService: PublicOriginService,
     @Inject(OWOX_PRODUCER)
-    private readonly producer: OwoxProducer,
-    private readonly credentialsResolver: DataDestinationCredentialsResolver
+    private readonly producer: OwoxProducer
   ) {}
 
   /**
@@ -182,14 +179,7 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
       }
       this.destination = report.destinationConfig;
 
-      const resolvedCredentials = await this.credentialsResolver.resolve(report.dataDestination);
-      const parsed = GoogleSheetsCredentialsSchema.safeParse(resolvedCredentials);
-      const credentials = parsed.success ? parsed.data : undefined;
-
-      const adapter = await this.adapterFactory.createWithOAuth(
-        credentials,
-        report.dataDestination.id
-      );
+      const adapter = await this.adapterFactory.createFromDestination(report.dataDestination);
 
       if (!adapter) {
         throw new Error(

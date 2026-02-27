@@ -10,13 +10,10 @@ import { RedshiftApiAdapterFactory } from '../adapters/redshift-api-adapter.fact
 import { RedshiftApiAdapter } from '../adapters/redshift-api.adapter';
 import { RedshiftQueryBuilder } from './redshift-query.builder';
 import { RedshiftReportHeadersGenerator } from './redshift-report-headers-generator.service';
-import { isRedshiftCredentials } from '../../data-storage-credentials.guards';
-import { isRedshiftConfig } from '../../data-storage-config.guards';
 import { isRedshiftDataMartSchema } from '../../data-mart-schema.guards';
 import { RedshiftReaderState } from '../interfaces/redshift-reader-state.interface';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import { DataStorage } from '../../../entities/data-storage.entity';
-import { DataStorageCredentialsResolver } from '../../data-storage-credentials-resolver.service';
 
 @Injectable({ scope: Scope.TRANSIENT })
 export class RedshiftReportReader implements DataStorageReportReader {
@@ -34,8 +31,7 @@ export class RedshiftReportReader implements DataStorageReportReader {
   constructor(
     private readonly adapterFactory: RedshiftApiAdapterFactory,
     private readonly queryBuilder: RedshiftQueryBuilder,
-    private readonly headersGenerator: RedshiftReportHeadersGenerator,
-    private readonly credentialsResolver: DataStorageCredentialsResolver
+    private readonly headersGenerator: RedshiftReportHeadersGenerator
   ) {}
 
   async prepareReportData(report: Report): Promise<ReportDataDescription> {
@@ -52,16 +48,7 @@ export class RedshiftReportReader implements DataStorageReportReader {
     this.reportConfig = { storage, definition };
     this.reportDataHeaders = this.headersGenerator.generateHeaders(schema);
 
-    const resolvedCredentials = await this.credentialsResolver.resolve(storage);
-    if (!isRedshiftCredentials(resolvedCredentials)) {
-      throw new Error('Redshift credentials are not properly configured');
-    }
-
-    if (!isRedshiftConfig(storage.config)) {
-      throw new Error('Redshift config is not properly configured');
-    }
-
-    this.adapter = this.adapterFactory.create(resolvedCredentials, storage.config);
+    this.adapter = await this.adapterFactory.createFromStorage(storage);
 
     return new ReportDataDescription(this.reportDataHeaders);
   }

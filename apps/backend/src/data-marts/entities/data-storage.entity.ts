@@ -32,7 +32,7 @@ export class DataStorage {
   @Column({ type: 'varchar', nullable: true })
   credentialId?: string | null;
 
-  @OneToOne(() => DataStorageCredential, { nullable: true })
+  @OneToOne(() => DataStorageCredential, { nullable: true, eager: true })
   @JoinColumn({ name: 'credentialId' })
   credential?: DataStorageCredential | null;
 

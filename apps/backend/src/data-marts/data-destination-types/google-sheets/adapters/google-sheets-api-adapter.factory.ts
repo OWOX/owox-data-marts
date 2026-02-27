@@ -1,22 +1,21 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { GoogleSheetsApiAdapter } from './google-sheets-api.adapter';
-import { GoogleSheetsCredentials } from '../schemas/google-sheets-credentials.schema';
+import {
+  GoogleSheetsCredentials,
+  GoogleSheetsCredentialsSchema,
+} from '../schemas/google-sheets-credentials.schema';
 import { GoogleOAuthClientService } from '../../../services/google-oauth/google-oauth-client.service';
+import { DataDestinationCredentialsResolver } from '../../data-destination-credentials-resolver.service';
+import { DataDestination } from '../../../entities/data-destination.entity';
 
-/**
- * Factory for creating Google Sheets API adapters with OAuth or Service Account authentication
- *
- * Priority:
- * 1. OAuth2Client (if destinationId provided and credentials exist)
- * 2. Service Account JWT (fallback)
- *
- * Auto-refreshes OAuth tokens if needed via GoogleOAuthService.
- */
 @Injectable()
 export class GoogleSheetsApiAdapterFactory {
   private readonly logger = new Logger(GoogleSheetsApiAdapterFactory.name);
 
-  constructor(private readonly googleOAuthClientService: GoogleOAuthClientService) {}
+  constructor(
+    private readonly googleOAuthClientService: GoogleOAuthClientService,
+    private readonly credentialsResolver: DataDestinationCredentialsResolver
+  ) {}
 
   /**
    * Creates a new Google Sheets API adapter (synchronous, Service Account only)
@@ -66,5 +65,17 @@ export class GoogleSheetsApiAdapterFactory {
 
     this.logger.debug(`Creating Google Sheets adapter with Service Account`);
     return new GoogleSheetsApiAdapter(credentials);
+  }
+
+  async createFromDestination(
+    destination: DataDestination
+  ): Promise<GoogleSheetsApiAdapter | undefined> {
+    let resolvedCredentials: unknown;
+    try {
+      resolvedCredentials = await this.credentialsResolver.resolve(destination);
+    } catch {
+    }
+    const parsed = GoogleSheetsCredentialsSchema.safeParse(resolvedCredentials);
+    return this.createWithOAuth(parsed.success ? parsed.data : undefined, destination.id);
   }
 }

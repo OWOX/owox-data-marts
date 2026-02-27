@@ -36,8 +36,7 @@ export class UpdateDataDestinationService {
   async run(command: UpdateDataDestinationCommand): Promise<DataDestinationDto> {
     const entity = await this.dataDestinationService.getByIdAndProjectId(
       command.id,
-      command.projectId,
-      { relations: ['credential'] }
+      command.projectId
     );
 
     this.availableDestinationTypesService.verifyIsAllowed(entity.type);

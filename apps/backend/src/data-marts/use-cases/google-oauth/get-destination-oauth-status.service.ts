@@ -11,8 +11,7 @@ export class GetDestinationOAuthStatusService {
   async run(command: GetDestinationOAuthStatusCommand): Promise<GoogleOAuthStatusResponseDto> {
     const destination = await this.dataDestinationService.getByIdAndProjectId(
       command.destinationId,
-      command.projectId,
-      { relations: ['credential'] }
+      command.projectId
     );
 
     if (!destination.credential) {

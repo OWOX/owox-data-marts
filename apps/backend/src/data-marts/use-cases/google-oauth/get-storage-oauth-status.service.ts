@@ -11,8 +11,7 @@ export class GetStorageOAuthStatusService {
   async run(command: GetStorageOAuthStatusCommand): Promise<GoogleOAuthStatusResponseDto> {
     const storage = await this.dataStorageService.getByProjectIdAndId(
       command.projectId,
-      command.storageId,
-      { relations: ['credential'] }
+      command.storageId
     );
 
     if (!storage.credential) {

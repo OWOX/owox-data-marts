@@ -32,8 +32,7 @@ export class UpdateDataStorageService {
   async run(command: UpdateDataStorageCommand): Promise<DataStorageDto> {
     const dataStorageEntity = await this.dataStorageService.getByProjectIdAndId(
       command.projectId,
-      command.id,
-      { relations: ['credential'] }
+      command.id
     );
 
     let credentialsToCheck: DataStorageCredentials | undefined = command.credentials;
