@@ -6,7 +6,7 @@ import {
   CollapsibleCardFooter,
   CollapsibleCardHeaderActions,
 } from '../../../shared/components/CollapsibleCard/index.ts';
-import { Info, FileText, Database } from 'lucide-react';
+import { Info, Database, BookOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '../../../shared/components/Button/index.tsx';
 import { useProjectRoute } from '../../../shared/hooks';
@@ -29,7 +29,7 @@ export default function PageNotificationLegacyStorageSetup() {
             <div className='flex flex-col gap-4 p-4 text-sm xl:p-6'>
               <div className='flex flex-col gap-2 xl:text-center'>
                 <p>
-                  Your existing Data Marts, created with{' '}
+                  Your Data Marts created with{' '}
                   <a
                     href='https://workspace.google.com/marketplace/app/owox_bigquery_data_marts/263000453832'
                     target='_blank'
@@ -38,20 +38,24 @@ export default function PageNotificationLegacyStorageSetup() {
                   >
                     OWOX Reports
                   </a>{' '}
-                  (Google Sheets extension), are listed below and currently in the{' '}
+                  (Google Sheets extension) are listed below and currently in the{' '}
                   <span className='font-semibold'>Draft</span> status.
                 </p>
                 <p>
-                  This happens because BigQuery access requires a one-time storage setup. Follow the
-                  instructions below to complete storage setup and{' '}
-                  <span className='font-semibold'>publish your Data Marts</span>.
+                  To activate and publish them, complete a one-time BigQuery storage setup.
+                  You&apos;ll select a storage, grant access, and then publish your Data Marts in
+                  just a few steps.
                 </p>
               </div>
               <div className='flex items-center gap-2 xl:justify-center'>
                 <Button asChild>
-                  <Link to={scope('/data-storages')}>
+                  <Link
+                    to={scope(
+                      `/data-storages?filters=%5B%7B"f"%3A"type"%2C"o"%3A"eq"%2C"v"%3A%5B"LEGACY_GOOGLE_BIGQUERY"%5D%7D%5D`
+                    )}
+                  >
                     <Database className='size-4' />
-                    Choose a storage
+                    Choose a BigQuery storage
                   </Link>
                 </Button>
                 <Button variant='outline' asChild>
@@ -60,8 +64,8 @@ export default function PageNotificationLegacyStorageSetup() {
                     target='_blank'
                     rel='noopener noreferrer'
                   >
-                    <FileText className='size-4' />
-                    Read step-by-step guide
+                    <BookOpen className='size-4' />
+                    View setup guide
                   </Link>
                 </Button>
               </div>
