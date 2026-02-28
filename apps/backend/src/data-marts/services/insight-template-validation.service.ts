@@ -5,6 +5,7 @@ import {
   InsightTemplateSources,
 } from '../dto/schemas/insight-template/insight-template-source.schema';
 import { InsightArtifactService } from './insight-artifact.service';
+import { findTemplateTagBySourceKey } from './template-source-key-in-template.util';
 
 @Injectable()
 export class InsightTemplateValidationService {
@@ -57,5 +58,16 @@ export class InsightTemplateValidationService {
         params.projectId
       );
     }
+  }
+
+  ensureSourceKeyIsNotUsedInTemplate(template: string | null | undefined, sourceKey: string): void {
+    const tag = findTemplateTagBySourceKey(template ?? '', sourceKey);
+    if (!tag) {
+      return;
+    }
+
+    throw new BusinessViolationException(
+      `Cannot delete source "${sourceKey}" because it is used in template`
+    );
   }
 }

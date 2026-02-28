@@ -8,6 +8,7 @@ import { UpdateInsightTemplateRequestApiDto } from '../dto/presentation/update-i
 import { UpdateInsightTemplateTitleApiDto } from '../dto/presentation/update-insight-template-title-api.dto';
 import { InsightTemplateMapper } from '../mappers/insight-template.mapper';
 import { CreateInsightTemplateService } from '../use-cases/create-insight-template.service';
+import { DeleteInsightTemplateSourceService } from '../use-cases/delete-insight-template-source.service';
 import { DeleteInsightTemplateService } from '../use-cases/delete-insight-template.service';
 import { GetInsightTemplateService } from '../use-cases/get-insight-template.service';
 import { ListInsightTemplatesService } from '../use-cases/list-insight-templates.service';
@@ -15,6 +16,7 @@ import { UpdateInsightTemplateService } from '../use-cases/update-insight-templa
 import { UpdateInsightTemplateTitleService } from '../use-cases/update-insight-template-title.service';
 import {
   CreateInsightTemplateSpec,
+  DeleteInsightTemplateSourceSpec,
   DeleteInsightTemplateSpec,
   GetInsightTemplateSpec,
   ListInsightTemplatesSpec,
@@ -31,6 +33,7 @@ export class InsightTemplateController {
     private readonly listInsightTemplatesService: ListInsightTemplatesService,
     private readonly updateInsightTemplateService: UpdateInsightTemplateService,
     private readonly deleteInsightTemplateService: DeleteInsightTemplateService,
+    private readonly deleteInsightTemplateSourceService: DeleteInsightTemplateSourceService,
     private readonly updateInsightTemplateTitleService: UpdateInsightTemplateTitleService,
     private readonly mapper: InsightTemplateMapper
   ) {}
@@ -114,5 +117,24 @@ export class InsightTemplateController {
   ): Promise<void> {
     const command = this.mapper.toDeleteCommand(insightTemplateId, dataMartId, context);
     await this.deleteInsightTemplateService.run(command);
+  }
+
+  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Delete(':insightTemplateId/sources/:sourceId')
+  @DeleteInsightTemplateSourceSpec()
+  @HttpCode(204)
+  async deleteSource(
+    @AuthContext() context: AuthorizationContext,
+    @Param('dataMartId') dataMartId: string,
+    @Param('insightTemplateId') insightTemplateId: string,
+    @Param('sourceId') sourceId: string
+  ): Promise<void> {
+    const command = this.mapper.toDeleteSourceCommand(
+      sourceId,
+      insightTemplateId,
+      dataMartId,
+      context
+    );
+    await this.deleteInsightTemplateSourceService.run(command);
   }
 }

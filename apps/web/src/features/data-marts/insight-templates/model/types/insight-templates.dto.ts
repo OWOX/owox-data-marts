@@ -5,6 +5,7 @@ export type InsightTemplateSourceType = 'CURRENT_DATA_MART' | 'INSIGHT_ARTIFACT'
 export type InsightTemplateSourceKind = 'TABLE' | 'VALUE';
 
 export interface InsightTemplateSourceDto {
+  templateSourceId?: string | null;
   key: string;
   type: InsightTemplateSourceType;
   kind?: InsightTemplateSourceKind;

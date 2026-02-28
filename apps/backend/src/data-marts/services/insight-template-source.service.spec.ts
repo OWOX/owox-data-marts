@@ -6,6 +6,7 @@ describe('InsightTemplateSourceService', () => {
   const createService = () => {
     const repository = {
       findOne: jest.fn(),
+      delete: jest.fn(),
     } as unknown as Repository<InsightTemplateSourceEntity>;
 
     return {
@@ -31,6 +32,17 @@ describe('InsightTemplateSourceService', () => {
         templateId: 'template-1',
       },
       relations: ['insightArtifact'],
+    });
+  });
+
+  it('hard-deletes source by id and template id', async () => {
+    const { service, repository } = createService();
+
+    await service.hardDeleteByIdAndTemplateId('source-1', 'template-1');
+
+    expect(repository.delete).toHaveBeenCalledWith({
+      id: 'source-1',
+      templateId: 'template-1',
     });
   });
 });

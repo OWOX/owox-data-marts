@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AuthorizationContext } from '../../idp';
 import { CreateInsightTemplateCommand } from '../dto/domain/create-insight-template.command';
+import { DeleteInsightTemplateSourceCommand } from '../dto/domain/delete-insight-template-source.command';
 import { DeleteInsightTemplateCommand } from '../dto/domain/delete-insight-template.command';
 import { GetInsightTemplateCommand } from '../dto/domain/get-insight-template.command';
 import { InsightTemplateDto } from '../dto/domain/insight-template.dto';
@@ -146,6 +147,20 @@ export class InsightTemplateMapper {
     context: AuthorizationContext
   ): DeleteInsightTemplateCommand {
     return new DeleteInsightTemplateCommand(insightTemplateId, dataMartId, context.projectId);
+  }
+
+  toDeleteSourceCommand(
+    sourceId: string,
+    insightTemplateId: string,
+    dataMartId: string,
+    context: AuthorizationContext
+  ): DeleteInsightTemplateSourceCommand {
+    return new DeleteInsightTemplateSourceCommand(
+      sourceId,
+      insightTemplateId,
+      dataMartId,
+      context.projectId
+    );
   }
 
   private normalizeSources(sources: unknown): InsightTemplateSources {

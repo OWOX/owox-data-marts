@@ -39,6 +39,7 @@ interface InsightTemplateSourcesBottomPanelProps {
   insightTemplateId?: string;
   sources: InsightTemplateSourceDto[];
   setSources: Dispatch<SetStateAction<InsightTemplateSourceDto[]>>;
+  onDeletePersistedSource?: (source: InsightTemplateSourceDto) => Promise<boolean>;
   artifacts: InsightArtifactEntity[];
   canEdit: boolean;
   isRunning: boolean;
@@ -51,6 +52,7 @@ export function InsightTemplateSourcesBottomPanel({
   insightTemplateId,
   sources,
   setSources,
+  onDeletePersistedSource,
   artifacts,
   canEdit,
   isRunning,
@@ -459,7 +461,18 @@ export function InsightTemplateSourcesBottomPanel({
                                   size='icon'
                                   variant='ghost'
                                   onClick={() => {
-                                    removeSource(index);
+                                    void (async () => {
+                                      const sourceToRemove = sources[index];
+                                      if (
+                                        sourceToRemove.templateSourceId &&
+                                        onDeletePersistedSource &&
+                                        !(await onDeletePersistedSource(sourceToRemove))
+                                      ) {
+                                        return;
+                                      }
+
+                                      removeSource(index);
+                                    })();
                                   }}
                                   disabled={!canEdit || isRunning || saving}
                                   aria-label='Remove source'

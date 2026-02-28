@@ -187,6 +187,39 @@ export default function InsightTemplateDetailsView() {
     }
   }, [canEdit, dataMart?.id, entity, insightTemplateId, sources, template]);
 
+  const handleDeletePersistedSource = useCallback(
+    async (source: InsightTemplateSourceDto): Promise<boolean> => {
+      if (!dataMart?.id || !insightTemplateId || !source.templateSourceId) {
+        return true;
+      }
+
+      try {
+        await insightTemplatesService.deleteInsightTemplateSource(
+          dataMart.id,
+          insightTemplateId,
+          source.templateSourceId
+        );
+
+        setEntity(prev =>
+          prev
+            ? {
+                ...prev,
+                sources: prev.sources.filter(
+                  item => item.templateSourceId !== source.templateSourceId
+                ),
+              }
+            : prev
+        );
+        toast.success('Source deleted');
+        return true;
+      } catch {
+        toast.error('Failed to delete source');
+        return false;
+      }
+    },
+    [dataMart?.id, insightTemplateId]
+  );
+
   const handleRun = useCallback(async () => {
     if (!dataMart?.id || !insightTemplateId || isRunning || isDraft) return;
     setRunErrorMessage(null);
@@ -344,6 +377,7 @@ export default function InsightTemplateDetailsView() {
                       insightTemplateId={insightTemplateId}
                       sources={sources}
                       setSources={setSources}
+                      onDeletePersistedSource={handleDeletePersistedSource}
                       artifacts={artifacts}
                       canEdit={canEdit}
                       isRunning={isRunning}

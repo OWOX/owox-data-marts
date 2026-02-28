@@ -30,4 +30,11 @@ export class InsightTemplateSourceService {
 
     return source;
   }
+
+  async hardDeleteByIdAndTemplateId(sourceId: string, templateId: string): Promise<void> {
+    await this.repository.delete({
+      id: sourceId,
+      templateId,
+    });
+  }
 }

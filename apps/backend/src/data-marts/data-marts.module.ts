@@ -167,6 +167,7 @@ import { GetInsightTemplateService } from './use-cases/get-insight-template.serv
 import { ListInsightTemplatesService } from './use-cases/list-insight-templates.service';
 import { UpdateInsightTemplateService } from './use-cases/update-insight-template.service';
 import { UpdateInsightTemplateTitleService } from './use-cases/update-insight-template-title.service';
+import { DeleteInsightTemplateSourceService } from './use-cases/delete-insight-template-source.service';
 import { DeleteInsightTemplateService } from './use-cases/delete-insight-template.service';
 import { RetryInterruptedConnectorRunsProcessor } from './system-triggers/processors/retry-interrupted-connector-runs-processor';
 import { SqlRunService } from './use-cases/sql-run.service';
@@ -380,6 +381,7 @@ import { BatchDataMartHealthStatusService } from './use-cases/batch-data-mart-he
     ListInsightTemplatesService,
     UpdateInsightTemplateService,
     UpdateInsightTemplateTitleService,
+    DeleteInsightTemplateSourceService,
     DeleteInsightTemplateService,
     InsightExecutionService,
     RunInsightService,
