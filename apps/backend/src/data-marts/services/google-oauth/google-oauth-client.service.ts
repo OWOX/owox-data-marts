@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { OAuth2Client, Credentials } from 'google-auth-library';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -18,6 +18,7 @@ import { CredentialsNotFoundException } from '../../exceptions/google-oauth.exce
  */
 @Injectable()
 export class GoogleOAuthClientService {
+  private readonly logger = new Logger(GoogleOAuthClientService.name);
   private readonly TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
   // Per-credential refresh locks to prevent concurrent thundering-herd refreshes
   private readonly refreshLocks = new Map<string, Promise<void>>();
@@ -46,6 +47,7 @@ export class GoogleOAuthClientService {
 
     const tokens = credential.credentials as GoogleOAuthTokens;
     if (tokens.expiry_date && tokens.expiry_date < Date.now() + this.TOKEN_REFRESH_BUFFER_MS) {
+      this.logger.debug(`Token expiring soon for storage credential ${credential.id}, refreshing`);
       await this.refreshWithLock(credential.id, 'storage');
       credential = await this.dataStorageCredentialService.getById(credential.id);
       if (!credential) {
@@ -78,6 +80,7 @@ export class GoogleOAuthClientService {
       destTokens.expiry_date &&
       destTokens.expiry_date < Date.now() + this.TOKEN_REFRESH_BUFFER_MS
     ) {
+      this.logger.debug(`Token expiring soon for destination credential ${credential.id}, refreshing`);
       await this.refreshWithLock(credential.id, 'destination');
       credential = await this.dataDestinationCredentialService.getById(credential.id);
       if (!credential) {
@@ -100,8 +103,10 @@ export class GoogleOAuthClientService {
   ): Promise<void> {
     const existing = this.refreshLocks.get(credentialId);
     if (existing) {
+      this.logger.debug(`Refresh already in-flight for credential ${credentialId}, waiting`);
       return existing;
     }
+    this.logger.debug(`Starting token refresh for ${type} credential ${credentialId}`);
     const refreshPromise = this.googleOAuthFlowService
       .refreshTokensByCredentialId(credentialId, type)
       .finally(() => {

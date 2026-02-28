@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { z } from 'zod';
+import { OAuthNotConfiguredException } from '../../exceptions/google-oauth.exceptions';
 
 /**
  * Zod schema for a single OAuth client (storage or destination)
@@ -174,27 +175,19 @@ export class GoogleOAuthConfigService {
 
   private ensureStorageConfigured(): void {
     if (!this.isStorageConfigured()) {
-      throw new Error(
-        'Google OAuth for storage is not configured. ' +
-          'Set GOOGLE_OAUTH_STORAGE_CLIENT_ID, GOOGLE_OAUTH_STORAGE_CLIENT_SECRET, ' +
-          'GOOGLE_OAUTH_REDIRECT_URI, and GOOGLE_OAUTH_JWT_SECRET.'
-      );
+      throw new OAuthNotConfiguredException();
     }
   }
 
   private ensureDestinationConfigured(): void {
     if (!this.isDestinationConfigured()) {
-      throw new Error(
-        'Google OAuth for destination is not configured. ' +
-          'Set GOOGLE_OAUTH_DESTINATION_CLIENT_ID, GOOGLE_OAUTH_DESTINATION_CLIENT_SECRET, ' +
-          'GOOGLE_OAUTH_REDIRECT_URI, and GOOGLE_OAUTH_JWT_SECRET.'
-      );
+      throw new OAuthNotConfiguredException();
     }
   }
 
   private ensureSharedConfigured(): void {
     if (!this.sharedConfig) {
-      throw new Error('Google OAuth shared configuration is not available.');
+      throw new OAuthNotConfiguredException();
     }
   }
 }
