@@ -133,6 +133,13 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         label: "Clean Up To Keep Window",
         description: "Number of days to keep data before cleaning up",
         attributes: [CONFIG_ATTRIBUTES.ADVANCED]
+      },
+      Limit: {
+        requiredType: "number",
+        default: 100,
+        label: "API Page Limit",
+        description: "Maximum number of records per API request page. Reduce this value (e.g. to 25) if you encounter 'reduce the amount of data' errors for specific accounts",
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED]
       }
     }));
 
@@ -308,11 +315,11 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         break;
 
       case 'ad-account/ads':
-        url += `act_${accountId}/ads?fields=${this._buildFieldsString({ nodeName, fields })}&limit=${this.fieldsSchema[nodeName].limit}`;
+        url += `act_${accountId}/ads?fields=${this._buildFieldsString({ nodeName, fields })}&limit=${this.config.Limit.value}`;
         break;
 
       case 'ad-account/adcreatives':
-        url += `act_${accountId}/adcreatives?fields=${fields.join(",")}&limit=${this.fieldsSchema[nodeName].limit}`;
+        url += `act_${accountId}/adcreatives?fields=${fields.join(",")}&limit=${this.config.Limit.value}`;
         break;
 
       case 'ad-account/insights':
@@ -326,7 +333,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         return await this._fetchInsightsData({ nodeName, accountId, fields, timeRange, url });
 
       case 'ad-group':
-        url += `act_${accountId}/ads?fields=${this._buildFieldsString({ nodeName, fields })}&limit=${this.fieldsSchema[nodeName].limit}`;
+        url += `act_${accountId}/ads?fields=${this._buildFieldsString({ nodeName, fields })}&limit=${this.config.Limit.value}`;
         break;
 
       default:
@@ -482,7 +489,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
    */
   _buildInsightsUrl({ accountId, fields, breakdowns, timeRange, nodeName, url }) {
     console.log('Insights request fields for', nodeName, ':', fields);
-    let insightsUrl = `${url}act_${accountId}/insights?level=ad&period=day&time_range=${timeRange}&fields=${fields.join(",")}&limit=${this.fieldsSchema[nodeName].limit}`;
+    let insightsUrl = `${url}act_${accountId}/insights?level=ad&period=day&time_range=${timeRange}&fields=${fields.join(",")}&limit=${this.config.Limit.value}`;
     if (breakdowns.length > 0) {
       insightsUrl += `&breakdowns=${breakdowns.join(",")}`;
     }
