@@ -57,6 +57,18 @@ export class NotificationService {
 
     try {
       const projectMembers = await getProjectMembers(projectId);
+
+      // Remove receivers who are no longer project members from the database.
+      // Skip cleanup when member list is empty — likely an IDP failure, not an empty project.
+      if (projectMembers.length > 0) {
+        const memberIds = new Set(projectMembers.map(m => m.userId));
+        const currentReceivers = settings.receivers.filter(id => memberIds.has(id));
+        if (currentReceivers.length !== settings.receivers.length) {
+          settings.receivers = currentReceivers;
+          await this.settingsService.updateReceivers(settings.id, currentReceivers);
+        }
+      }
+
       const validReceivers = this.getValidReceivers(settings, projectMembers);
 
       if (validReceivers.length === 0 && !settings.webhookUrl) {

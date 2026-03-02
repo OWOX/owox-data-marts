@@ -4,7 +4,6 @@ import { BaseSystemTaskProcessor } from '../../common/scheduler/system-tasks/bas
 import { SystemTriggerType } from '../../common/scheduler/system-tasks/system-trigger-type';
 import { NotificationService } from '../services/notification.service';
 import { NotificationQueueService } from '../services/notification-queue.service';
-import { ProjectNotificationSettingsService } from '../services/project-notification-settings.service';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { UserInfo } from '../services/notification-email.service';
 import { ConfigService } from '@nestjs/config';
@@ -18,7 +17,6 @@ export class SendNotificationProcessor extends BaseSystemTaskProcessor {
   constructor(
     private readonly notificationService: NotificationService,
     private readonly queueService: NotificationQueueService,
-    private readonly settingsService: ProjectNotificationSettingsService,
     private readonly idpProjectionsFacade: IdpProjectionsFacade,
     private readonly configService: ConfigService
   ) {
@@ -60,35 +58,17 @@ export class SendNotificationProcessor extends BaseSystemTaskProcessor {
   }
 
   /**
-   * Resolve profile data (email, name, notification preferences) for all configured
-   * receivers of a project.
-   *
-   * Reads only the user IDs explicitly listed in the project's notification settings,
-   * not all project members. Profile data comes from IDP and includes the user's
-   * notification preference (hasNotificationsEnabled).
+   * Resolve all project members from IDP. The full list is needed so that
+   * NotificationService can both clean up stale receivers and filter by
+   * notification preferences at send time.
    */
   private async getProjectMembers(projectId: string): Promise<UserInfo[]> {
     this.logger.debug(`Getting project members for project ${projectId}`);
 
-    const settings = await this.settingsService.findByProjectId(projectId);
-    const allReceiverIds = new Set<string>();
-    for (const s of settings) {
-      for (const receiverId of s.receivers) {
-        allReceiverIds.add(receiverId);
-      }
-    }
-
-    this.logger.debug(`All receiver IDs: ${Array.from(allReceiverIds)}`);
-    if (allReceiverIds.size === 0) {
-      return [];
-    }
-
     const members = await this.idpProjectionsFacade.getProjectMembers(projectId);
-    const memberMap = new Map(members.map(m => [m.userId, m]));
 
-    return Array.from(allReceiverIds)
-      .map(userId => memberMap.get(userId))
-      .filter((m): m is NonNullable<typeof m> => m !== undefined && !!m.email)
+    return members
+      .filter(m => !!m.email)
       .map(m => ({
         userId: m.userId,
         email: m.email,
