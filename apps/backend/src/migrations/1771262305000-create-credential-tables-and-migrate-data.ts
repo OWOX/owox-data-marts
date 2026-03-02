@@ -251,7 +251,7 @@ export class CreateCredentialTablesAndMigrateData1771262305000 implements Migrat
     }
 
     // Single bulk INSERT for all credential rows
-    const now = new Date().toISOString();
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const placeholders = insertRows.map(() => `(?, ?, NULL, ?, ?, ?, NULL, ?, ?, NULL)`).join(',');
     const flatParams = insertRows.flatMap(row => [...row, now, now]);
     await queryRunner.query(
@@ -298,7 +298,7 @@ export class CreateCredentialTablesAndMigrateData1771262305000 implements Migrat
       idMapping.push({ newId, destId: dest.id });
     }
 
-    const now = new Date().toISOString();
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const placeholders = insertRows.map(() => `(?, ?, NULL, ?, ?, ?, NULL, ?, ?, NULL)`).join(',');
     const flatParams = insertRows.flatMap(row => [...row, now, now]);
     await queryRunner.query(
