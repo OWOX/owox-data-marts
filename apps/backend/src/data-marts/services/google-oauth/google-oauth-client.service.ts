@@ -80,7 +80,9 @@ export class GoogleOAuthClientService {
       destTokens.expiry_date &&
       destTokens.expiry_date < Date.now() + this.TOKEN_REFRESH_BUFFER_MS
     ) {
-      this.logger.debug(`Token expiring soon for destination credential ${credential.id}, refreshing`);
+      this.logger.debug(
+        `Token expiring soon for destination credential ${credential.id}, refreshing`
+      );
       await this.refreshWithLock(credential.id, 'destination');
       credential = await this.dataDestinationCredentialService.getById(credential.id);
       if (!credential) {

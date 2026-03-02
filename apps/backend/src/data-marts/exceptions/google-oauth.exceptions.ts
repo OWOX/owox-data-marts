@@ -36,7 +36,7 @@ export class GoogleOAuthException extends HttpException {
 export class OAuthNotConfiguredException extends GoogleOAuthException {
   constructor(details?: unknown) {
     super(
-      'Google OAuth is not configured. Please set GOOGLE_OAUTH_STORAGE_CLIENT_ID/SECRET and/or GOOGLE_OAUTH_DESTINATION_CLIENT_ID/SECRET, plus GOOGLE_OAUTH_REDIRECT_URI and GOOGLE_OAUTH_JWT_SECRET.',
+      'Google OAuth is not configured. Please set OAUTH_GOOGLE_STORAGE_CLIENT_ID/SECRET and/or OAUTH_GOOGLE_DESTINATION_CLIENT_ID/SECRET, plus OAUTH_GOOGLE_REDIRECT_URI and OAUTH_GOOGLE_JWT_SECRET.',
       'OAUTH_NOT_CONFIGURED',
       HttpStatus.SERVICE_UNAVAILABLE,
       details

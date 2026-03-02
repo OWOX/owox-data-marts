@@ -15,8 +15,8 @@ const GoogleOAuthClientSchema = z.object({
  * Zod schema for shared OAuth configuration
  */
 const GoogleOAuthSharedSchema = z.object({
-  redirectUri: z.string().url('GOOGLE_OAUTH_REDIRECT_URI must be a valid URL'),
-  jwtSecret: z.string().min(1, 'GOOGLE_OAUTH_JWT_SECRET is required'),
+  redirectUri: z.string().url('OAUTH_GOOGLE_REDIRECT_URI must be a valid URL'),
+  jwtSecret: z.string().min(1, 'OAUTH_GOOGLE_JWT_SECRET is required'),
   bigQueryScopes: z
     .array(z.string())
     .default(['https://www.googleapis.com/auth/bigquery', 'openid', 'email', 'profile']),
@@ -32,10 +32,10 @@ export type GoogleOAuthSharedConfig = z.infer<typeof GoogleOAuthSharedSchema>;
  * Configuration service for Google OAuth
  *
  * Supports separate OAuth apps for storage (BigQuery) and destination (Google Sheets):
- * - GOOGLE_OAUTH_STORAGE_CLIENT_ID / GOOGLE_OAUTH_STORAGE_CLIENT_SECRET
- * - GOOGLE_OAUTH_DESTINATION_CLIENT_ID / GOOGLE_OAUTH_DESTINATION_CLIENT_SECRET
- * - GOOGLE_OAUTH_REDIRECT_URI (shared)
- * - GOOGLE_OAUTH_JWT_SECRET (shared)
+ * - OAUTH_GOOGLE_STORAGE_CLIENT_ID / OAUTH_GOOGLE_STORAGE_CLIENT_SECRET
+ * - OAUTH_GOOGLE_DESTINATION_CLIENT_ID / OAUTH_GOOGLE_DESTINATION_CLIENT_SECRET
+ * - OAUTH_GOOGLE_REDIRECT_URI (shared)
+ * - OAUTH_GOOGLE_JWT_SECRET (shared)
  *
  * Each resource type is independently optional.
  * Shared config (redirect URI, JWT secret) is required if at least one is configured.
@@ -48,18 +48,18 @@ export class GoogleOAuthConfigService {
   private sharedConfig: GoogleOAuthSharedConfig | null = null;
 
   constructor(private readonly configService: ConfigService) {
-    const storageClientId = this.configService.get<string>('GOOGLE_OAUTH_STORAGE_CLIENT_ID');
+    const storageClientId = this.configService.get<string>('OAUTH_GOOGLE_STORAGE_CLIENT_ID');
     const storageClientSecret = this.configService.get<string>(
-      'GOOGLE_OAUTH_STORAGE_CLIENT_SECRET'
+      'OAUTH_GOOGLE_STORAGE_CLIENT_SECRET'
     );
     const destinationClientId = this.configService.get<string>(
-      'GOOGLE_OAUTH_DESTINATION_CLIENT_ID'
+      'OAUTH_GOOGLE_DESTINATION_CLIENT_ID'
     );
     const destinationClientSecret = this.configService.get<string>(
-      'GOOGLE_OAUTH_DESTINATION_CLIENT_SECRET'
+      'OAUTH_GOOGLE_DESTINATION_CLIENT_SECRET'
     );
-    const redirectUri = this.configService.get<string>('GOOGLE_OAUTH_REDIRECT_URI');
-    const jwtSecret = this.configService.get<string>('GOOGLE_OAUTH_JWT_SECRET');
+    const redirectUri = this.configService.get<string>('OAUTH_GOOGLE_REDIRECT_URI');
+    const jwtSecret = this.configService.get<string>('OAUTH_GOOGLE_JWT_SECRET');
 
     const hasStorage = !!(storageClientId && storageClientSecret);
     const hasDestination = !!(destinationClientId && destinationClientSecret);
@@ -67,27 +67,27 @@ export class GoogleOAuthConfigService {
     if (!hasStorage && !hasDestination) {
       this.logger.warn(
         'Google OAuth not configured. OAuth features will be disabled. ' +
-          'Set GOOGLE_OAUTH_STORAGE_CLIENT_ID/SECRET and/or ' +
-          'GOOGLE_OAUTH_DESTINATION_CLIENT_ID/SECRET to enable.'
+          'Set OAUTH_GOOGLE_STORAGE_CLIENT_ID/SECRET and/or ' +
+          'OAUTH_GOOGLE_DESTINATION_CLIENT_ID/SECRET to enable.'
       );
       return;
     }
 
     if (!redirectUri || !jwtSecret) {
       this.logger.warn(
-        'Google OAuth partially configured: GOOGLE_OAUTH_REDIRECT_URI and GOOGLE_OAUTH_JWT_SECRET ' +
+        'Google OAuth partially configured: OAUTH_GOOGLE_REDIRECT_URI and OAUTH_GOOGLE_JWT_SECRET ' +
           'are required when any OAuth client is configured. OAuth features will be disabled.'
       );
       return;
     }
 
     try {
-      const bigQueryScopesStr = this.configService.get<string>('GOOGLE_OAUTH_BIGQUERY_SCOPE');
+      const bigQueryScopesStr = this.configService.get<string>('OAUTH_GOOGLE_BIGQUERY_SCOPE');
       const bigQueryScopes = bigQueryScopesStr
         ? bigQueryScopesStr.split(',').map(s => s.trim())
         : undefined;
 
-      const sheetsScopesStr = this.configService.get<string>('GOOGLE_OAUTH_SHEETS_SCOPE');
+      const sheetsScopesStr = this.configService.get<string>('OAUTH_GOOGLE_SHEETS_SCOPE');
       const sheetsScopes = sheetsScopesStr
         ? sheetsScopesStr.split(',').map(s => s.trim())
         : undefined;
