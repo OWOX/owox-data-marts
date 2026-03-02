@@ -152,7 +152,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         throw new OauthFlowException({ message: 'Invalid token', payload: debugData.data?.error?.message });
       }
 
-      const exchangeUrl = new URL('https://graph.facebook.com/v23.0/oauth/access_token');
+      const exchangeUrl = new URL('https://graph.facebook.com/v25.0/oauth/access_token');
       exchangeUrl.searchParams.set('grant_type', 'fb_exchange_token');
       exchangeUrl.searchParams.set('client_id', variables.AppId);
       exchangeUrl.searchParams.set('client_secret', variables.AppSecret);
@@ -173,7 +173,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         });
       }
 
-      const userInfoUrl = new URL('https://graph.facebook.com/v23.0/me');
+      const userInfoUrl = new URL('https://graph.facebook.com/v25.0/me');
       userInfoUrl.searchParams.set('fields', 'id,name');
       userInfoUrl.searchParams.set('access_token', longLivedData.access_token);
       const userInfo = await HttpUtils.fetch(userInfoUrl.toString());
@@ -185,7 +185,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
         .withSecret({ accessToken: longLivedData.access_token })
         .withExpiresIn(expiresIn);
 
-      const adAccountsUrl = new URL('https://graph.facebook.com/v23.0/me/adaccounts');
+      const adAccountsUrl = new URL('https://graph.facebook.com/v25.0/me/adaccounts');
       adAccountsUrl.searchParams.set('fields', 'id,name,account_status');
       adAccountsUrl.searchParams.set('access_token', longLivedData.access_token);
       const adAccountsResponse = await HttpUtils.fetch(adAccountsUrl.toString());
@@ -288,7 +288,7 @@ var FacebookMarketingSource = class FacebookMarketingSource extends AbstractSour
 
     //console.log(`Fetching data from ${nodeName}/${accountId}/${fields} for ${startDate}`);
 
-    let url = 'https://graph.facebook.com/v23.0/';
+    let url = 'https://graph.facebook.com/v25.0/';
 
     let formattedDate = null;
     let timeRange = null;

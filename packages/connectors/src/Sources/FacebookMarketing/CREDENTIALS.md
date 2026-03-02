@@ -55,11 +55,11 @@ First, ensure your app is in **Development Mode**:
 Please, build the authorization URL. Use the template below and replace `YOUR_APP_ID` with your actual **App ID**.  
 
 ``` code
-https://www.facebook.com/v23.0/dialog/oauth?client_id=YOUR_APP_ID&redirect_uri=http://localhost:8080/&scope=ads_read,read_insights&state=abc123
+https://www.facebook.com/v25.0/dialog/oauth?client_id=YOUR_APP_ID&redirect_uri=http://localhost:8080/&scope=ads_read,read_insights&state=abc123
 ```
 
 > **Example**:
-> `https://www.facebook.com/v23.0/dialog/oauth?client_id=665881219608750&redirect_uri=http://localhost:8080/&response_type=code&scope=ads_read,read_insights&state=abc123`
+> `https://www.facebook.com/v25.0/dialog/oauth?client_id=665881219608750&redirect_uri=http://localhost:8080/&response_type=code&scope=ads_read,read_insights&state=abc123`
 
 - Open the generated URL in your browser  
 - Make sure you are logged in with the account that has access to the desired ad account  
@@ -80,7 +80,7 @@ Now, exchange the authorization code for an **Access Token**. Go to [ReqBin](htt
 Send a `POST` request to:
 
 ``` code
-https://graph.facebook.com/v23.0/oauth/access_token
+https://graph.facebook.com/v25.0/oauth/access_token
 ```
 
 with the following parameters in the **Body** tab:
