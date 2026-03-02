@@ -53,8 +53,8 @@ export class GoogleSheetsApiAdapterFactory {
           return new GoogleSheetsApiAdapter(undefined, oauth2Client);
         }
       } catch (error) {
-        this.logger.error(
-          `OAuth not available for destination ${destinationId}, falling back: ${error.message}`
+        this.logger.debug(
+          `OAuth not available for destination ${destinationId}, falling back to SA: ${error.message}`
         );
       }
     }
@@ -77,6 +77,9 @@ export class GoogleSheetsApiAdapterFactory {
       this.logger.debug(`No credentials found for destination ${destination.id}, will try OAuth`);
     }
     const parsed = GoogleSheetsCredentialsSchema.safeParse(resolvedCredentials);
-    return this.createWithOAuth(parsed.success ? parsed.data : undefined, destination.id);
+    if (parsed.success) {
+      return new GoogleSheetsApiAdapter(parsed.data);
+    }
+    return this.createWithOAuth(undefined, destination.id);
   }
 }
