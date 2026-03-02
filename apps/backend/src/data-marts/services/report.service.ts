@@ -124,6 +124,7 @@ export class ReportService {
         .createQueryBuilder('report')
         .innerJoinAndSelect('report.dataDestination', 'dest')
         .innerJoinAndSelect('report.dataMart', 'dataMart')
+        .innerJoinAndSelect('dataMart.storage', 'storage')
         .innerJoin(
           'data_destination_credentials',
           'cred',

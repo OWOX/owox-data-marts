@@ -14,6 +14,7 @@ import {
 import type { UseFormReturn } from 'react-hook-form';
 import GoogleBigQueryServiceAccountDescription from './FormDescriptions/GoogleBigQueryServiceAccountDescription';
 import GoogleBigQueryOAuthDescription from './FormDescriptions/GoogleBigQueryOAuthDescription';
+import GoogleBigQueryAuthMethodDescription from './FormDescriptions/GoogleBigQueryAuthMethodDescription';
 import GoogleBigQueryProjectIdDescription from './FormDescriptions/GoogleBigQueryProjectIdDescription.tsx';
 import GoogleBigQueryLocationDescription from './FormDescriptions/GoogleBigQueryLocationDescription.tsx';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
@@ -177,6 +178,9 @@ export const GoogleBigQueryFields = ({ form, storageId }: GoogleBigQueryFieldsPr
                   </TabsList>
                 </Tabs>
               </div>
+              <FormDescription>
+                <GoogleBigQueryAuthMethodDescription />
+              </FormDescription>
             </FormItem>
           )}
 

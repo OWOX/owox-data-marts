@@ -14,6 +14,7 @@ import { type UseFormReturn } from 'react-hook-form';
 import { type DataDestinationFormData } from '../../../shared';
 import GoogleSheetsServiceAccountDescription from './FormDescriptions/GoogleSheetsServiceAccountDescription';
 import GoogleSheetsOAuthDescription from './FormDescriptions/GoogleSheetsOAuthDescription';
+import GoogleSheetsAuthMethodDescription from './FormDescriptions/GoogleSheetsAuthMethodDescription';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 import { getServiceAccountLink } from '../../../../../utils/google-cloud-utils';
@@ -128,13 +129,16 @@ export function GoogleSheetsFields({ form, destinationId }: GoogleSheetsFieldsPr
                 </TabsList>
               </Tabs>
             </div>
+            <FormDescription>
+              <GoogleSheetsAuthMethodDescription />
+            </FormDescription>
           </FormItem>
         )}
 
         {isOAuthAvailable && authMethod === 'oauth' && (
           <FormItem>
             <div className='mb-4 flex items-center justify-between'>
-              <FormLabel tooltip='Authorize Owox to access your Google Sheets'>
+              <FormLabel tooltip='Authorize OWOX to access your Google Sheets'>
                 Connect with Google OAuth
               </FormLabel>
             </div>

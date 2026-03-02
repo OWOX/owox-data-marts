@@ -25,10 +25,12 @@ export class GoogleOAuthException extends HttpException {
     this.internalDetails = details;
 
     if (details) {
-      GoogleOAuthException.logger.error(
-        `[${code}] ${message}`,
-        details instanceof Error ? details.stack : details
-      );
+      const logPayload = details instanceof Error ? details.stack : details;
+      if (statusCode >= 500) {
+        GoogleOAuthException.logger.error(`[${code}] ${message}`, logPayload);
+      } else {
+        GoogleOAuthException.logger.warn(`[${code}] ${message}`, logPayload);
+      }
     }
   }
 }
