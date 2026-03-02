@@ -11,7 +11,9 @@ export class DataDestinationService {
   ) {}
 
   async getByIdAndProjectId(id: string, projectId: string): Promise<DataDestination> {
-    const entity = await this.dataDestinationRepository.findOne({ where: { id, projectId } });
+    const entity = await this.dataDestinationRepository.findOne({
+      where: { id, projectId },
+    });
 
     if (!entity) {
       throw new NotFoundException(

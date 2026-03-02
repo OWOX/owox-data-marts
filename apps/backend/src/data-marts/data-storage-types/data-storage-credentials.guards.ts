@@ -1,6 +1,8 @@
 import {
+  BIGQUERY_OAUTH_TYPE,
   BigQueryCredentials,
-  BigQueryCredentialsSchema,
+  BigQueryServiceAccountCredentialsSchema,
+  BigQueryOAuthCredentials,
 } from './bigquery/schemas/bigquery-credentials.schema';
 import {
   AthenaCredentials,
@@ -19,8 +21,23 @@ import {
   DatabricksCredentialsSchema,
 } from './databricks/schemas/databricks-credentials.schema';
 
-export function isBigQueryCredentials(credentials: unknown): credentials is BigQueryCredentials {
-  return BigQueryCredentialsSchema.safeParse(credentials).success;
+export function isBigQueryOAuthCredentials(
+  credentials: unknown
+): credentials is BigQueryOAuthCredentials {
+  return (
+    typeof credentials === 'object' &&
+    credentials !== null &&
+    (credentials as { type?: string }).type === BIGQUERY_OAUTH_TYPE
+  );
+}
+
+export function isBigQueryCredentials(
+  credentials: unknown
+): credentials is BigQueryCredentials | BigQueryOAuthCredentials {
+  return (
+    isBigQueryOAuthCredentials(credentials) ||
+    BigQueryServiceAccountCredentialsSchema.safeParse(credentials).success
+  );
 }
 
 export function isAthenaCredentials(credentials: unknown): credentials is AthenaCredentials {

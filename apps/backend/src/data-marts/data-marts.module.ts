@@ -237,6 +237,23 @@ import { SyncLegacyDataMartsByGcpService } from './use-cases/legacy-data-marts/s
 import { LegacyDataMartsSyncController } from './controllers/internal/legacy-data-marts-sync.controller';
 import { ValidateDataStorageAccessService } from './use-cases/validate-data-storage-access.service';
 import { BatchDataMartHealthStatusService } from './use-cases/batch-data-mart-health-status.service';
+import { GetStorageOAuthStatusService } from './use-cases/google-oauth/get-storage-oauth-status.service';
+import { GenerateStorageOAuthUrlService } from './use-cases/google-oauth/generate-storage-oauth-url.service';
+import { RevokeStorageOAuthService } from './use-cases/google-oauth/revoke-storage-oauth.service';
+import { ExchangeOAuthCodeService } from './use-cases/google-oauth/exchange-oauth-code.service';
+import { GetDestinationOAuthStatusService } from './use-cases/google-oauth/get-destination-oauth-status.service';
+import { GetDestinationOAuthCredentialStatusService } from './use-cases/google-oauth/get-destination-oauth-credential-status.service';
+import { GenerateDestinationOAuthUrlService } from './use-cases/google-oauth/generate-destination-oauth-url.service';
+import { RevokeDestinationOAuthService } from './use-cases/google-oauth/revoke-destination-oauth.service';
+import { DataStorageCredentialsResolver } from './data-storage-types/data-storage-credentials-resolver.service';
+import { DataDestinationCredentialsResolver } from './data-destination-types/data-destination-credentials-resolver.service';
+import { DataStorageCredential } from './entities/data-storage-credential.entity';
+import { DataDestinationCredential } from './entities/data-destination-credential.entity';
+import { DataStorageCredentialService } from './services/data-storage-credential.service';
+import { DataDestinationCredentialService } from './services/data-destination-credential.service';
+import { GoogleOAuthFlowService } from './services/google-oauth/google-oauth-flow.service';
+import { GoogleOAuthClientService } from './services/google-oauth/google-oauth-client.service';
+import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-config.service';
 
 @Module({
   imports: [
@@ -260,6 +277,8 @@ import { BatchDataMartHealthStatusService } from './use-cases/batch-data-mart-he
       InsightRunTrigger,
       InsightTemplateRunTrigger,
       ConnectorSourceCredentials,
+      DataStorageCredential,
+      DataDestinationCredential,
       SyncDataMartsByGcpTrigger,
       SyncGcpStoragesForProjectTrigger,
       AiAssistantSession,
@@ -483,6 +502,21 @@ import { BatchDataMartHealthStatusService } from './use-cases/batch-data-mart-he
     TableTagHandler,
     ValueTagHandler,
     ListAvailableTagsTool,
+    DataStorageCredentialsResolver,
+    DataDestinationCredentialsResolver,
+    DataStorageCredentialService,
+    DataDestinationCredentialService,
+    GoogleOAuthFlowService,
+    GoogleOAuthClientService,
+    GoogleOAuthConfigService,
+    GetStorageOAuthStatusService,
+    GenerateStorageOAuthUrlService,
+    RevokeStorageOAuthService,
+    ExchangeOAuthCodeService,
+    GetDestinationOAuthStatusService,
+    GetDestinationOAuthCredentialStatusService,
+    GenerateDestinationOAuthUrlService,
+    RevokeDestinationOAuthService,
   ],
 })
 export class DataMartsModule {

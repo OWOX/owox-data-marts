@@ -14,4 +14,9 @@ export interface UpdateDataDestinationRequestDto {
    * Credentials for the selected destination type
    */
   credentials?: GoogleServiceAccountCredentialsDto | EmailCredentials;
+
+  /**
+   * Credential ID for OAuth-based authentication (null to disconnect)
+   */
+  credentialId?: string | null;
 }

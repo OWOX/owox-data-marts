@@ -3,15 +3,13 @@ import {
   CreateDateColumn,
   DeleteDateColumn,
   Entity,
+  JoinColumn,
+  OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';
-import {
-  DataDestinationCredentials,
-  DataDestinationCredentialsSchema,
-} from '../data-destination-types/data-destination-credentials.type';
-import { createZodTransformer } from '../../common/zod/zod-transformer';
+import { DataDestinationCredential } from './data-destination-credential.entity';
 
 @Entity()
 export class DataDestination {
@@ -27,11 +25,12 @@ export class DataDestination {
   @Column()
   projectId: string;
 
-  @Column({
-    type: 'json',
-    transformer: createZodTransformer<DataDestinationCredentials>(DataDestinationCredentialsSchema),
-  })
-  credentials: DataDestinationCredentials;
+  @Column({ type: 'varchar', nullable: true })
+  credentialId?: string | null;
+
+  @OneToOne(() => DataDestinationCredential, { nullable: true, eager: true })
+  @JoinColumn({ name: 'credentialId' })
+  credential?: DataDestinationCredential | null;
 
   @DeleteDateColumn({ nullable: true })
   deletedAt?: Date;

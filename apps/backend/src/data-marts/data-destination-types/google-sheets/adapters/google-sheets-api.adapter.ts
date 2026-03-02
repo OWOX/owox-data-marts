@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { JWT } from 'google-auth-library';
+import { JWT, OAuth2Client } from 'google-auth-library';
 import { google, sheets_v4 } from 'googleapis';
 import { GoogleServiceAccountKey } from '../../../../common/schemas/google-service-account-key.schema';
 import { GoogleSheetsCredentials } from '../schemas/google-sheets-credentials.schema';
@@ -14,13 +14,21 @@ export class GoogleSheetsApiAdapter {
   private readonly service: sheets_v4.Sheets;
 
   /**
-   * @param credentials - Google Sheets credentials containing service account key
-   * @throws Error if invalid credentials are provided
+   * @param credentials - Google Sheets credentials containing service account key. Can be undefined when authClient is provided.
+   * @param authClient - Optional pre-configured auth client (OAuth2Client or JWT). If provided, credentials are ignored.
+   * @throws Error if neither authClient nor valid credentials are provided
    */
-  constructor(credentials: GoogleSheetsCredentials) {
+  constructor(credentials: GoogleSheetsCredentials | undefined, authClient: OAuth2Client | JWT);
+  constructor(credentials: GoogleSheetsCredentials);
+  constructor(credentials: GoogleSheetsCredentials | undefined, authClient?: OAuth2Client | JWT) {
+    if (!authClient && !credentials?.serviceAccountKey) {
+      throw new Error(
+        'Either an auth client or credentials with a service account key must be provided'
+      );
+    }
     this.service = google.sheets({
       version: 'v4',
-      auth: GoogleSheetsApiAdapter.createAuthClient(credentials.serviceAccountKey),
+      auth: authClient ?? GoogleSheetsApiAdapter.createAuthClient(credentials!.serviceAccountKey!),
     });
   }
 
@@ -31,6 +39,12 @@ export class GoogleSheetsApiAdapter {
    * @returns True if credentials are valid, false otherwise
    */
   public static async validateCredentials(credentials: GoogleSheetsCredentials): Promise<boolean> {
+    if (!credentials.serviceAccountKey) {
+      GoogleSheetsApiAdapter.LOGGER.warn(
+        'Cannot validate Google Sheets credentials: no service account key provided'
+      );
+      return false;
+    }
     try {
       const authClient = GoogleSheetsApiAdapter.createAuthClient(credentials.serviceAccountKey);
       await authClient.getAccessToken();

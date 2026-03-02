@@ -5,10 +5,9 @@ import {
 import { DataDestinationType } from '../../enums/data-destination-type.enum';
 import { DataDestinationConfig } from '../../data-destination-config.type';
 import { Injectable, Logger } from '@nestjs/common';
-import { GoogleSheetsCredentialsSchema } from '../schemas/google-sheets-credentials.schema';
 import { GoogleSheetsConfigSchema } from '../schemas/google-sheets-config.schema';
 import { DataDestination } from '../../../entities/data-destination.entity';
-import { GoogleSheetsApiAdapter } from '../adapters/google-sheets-api.adapter';
+import { GoogleSheetsApiAdapterFactory } from '../adapters/google-sheets-api-adapter.factory';
 
 /**
  * Validator for Google Sheets access
@@ -18,6 +17,8 @@ import { GoogleSheetsApiAdapter } from '../adapters/google-sheets-api.adapter';
 export class GoogleSheetsAccessValidator implements DataDestinationAccessValidator {
   private readonly logger = new Logger(GoogleSheetsAccessValidator.name);
   readonly type = DataDestinationType.GOOGLE_SHEETS;
+
+  constructor(private readonly adapterFactory: GoogleSheetsApiAdapterFactory) {}
 
   /**
    * Validates access to a Google Sheets destination
@@ -30,16 +31,6 @@ export class GoogleSheetsAccessValidator implements DataDestinationAccessValidat
     destinationConfig: DataDestinationConfig,
     dataDestination: DataDestination
   ): Promise<ValidationResult> {
-    const credentials = dataDestination.credentials;
-
-    const credentialsOpt = GoogleSheetsCredentialsSchema.safeParse(credentials);
-    if (!credentialsOpt.success) {
-      this.logger.warn('Invalid credentials format', credentialsOpt.error);
-      return new ValidationResult(false, 'Invalid credentials', {
-        errors: credentialsOpt.error.errors,
-      });
-    }
-
     const configOpt = GoogleSheetsConfigSchema.safeParse(destinationConfig);
     if (!configOpt.success) {
       this.logger.warn('Invalid configuration format', configOpt.error);
@@ -49,7 +40,13 @@ export class GoogleSheetsAccessValidator implements DataDestinationAccessValidat
     }
 
     try {
-      const adapter = new GoogleSheetsApiAdapter(credentialsOpt.data);
+      const adapter = await this.adapterFactory.createFromDestination(dataDestination);
+      if (!adapter) {
+        return new ValidationResult(
+          false,
+          'No authentication method available: neither OAuth nor Service Account credentials found'
+        );
+      }
       const spreadsheet = await adapter.getSpreadsheet(
         configOpt.data.spreadsheetId,
         'properties.title,sheets.properties.sheetId,sheets.properties.title'

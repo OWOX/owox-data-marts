@@ -5,7 +5,8 @@ export class UpdateDataDestinationCommand {
     public readonly id: string,
     public readonly projectId: string,
     public readonly title: string,
-    public readonly credentials: DataDestinationCredentials
+    public readonly credentials: DataDestinationCredentials,
+    public readonly credentialId?: string | null
   ) {}
 
   hasCredentials(): boolean {

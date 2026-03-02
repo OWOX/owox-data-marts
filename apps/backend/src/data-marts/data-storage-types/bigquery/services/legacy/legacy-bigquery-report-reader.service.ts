@@ -1,5 +1,6 @@
 import { Injectable, Logger, Scope } from '@nestjs/common';
 import { DataStorageType } from '../../../enums/data-storage-type.enum';
+import { DataStorageCredentialsResolver } from '../../../data-storage-credentials-resolver.service';
 import { BigQueryApiAdapterFactory } from '../../adapters/bigquery-api-adapter.factory';
 import { BigQueryReportReader } from '../bigquery-report-reader.service';
 import { LegacyBigQueryQueryBuilder } from './legacy-bigquery-query.builder';
@@ -13,8 +14,9 @@ export class LegacyBigQueryReportReader extends BigQueryReportReader {
   constructor(
     protected readonly adapterFactory: BigQueryApiAdapterFactory,
     protected readonly bigQueryQueryBuilder: LegacyBigQueryQueryBuilder,
-    protected readonly headersGenerator: LegacyBigQueryReportHeadersGenerator
+    protected readonly headersGenerator: LegacyBigQueryReportHeadersGenerator,
+    protected readonly credentialsResolver: DataStorageCredentialsResolver
   ) {
-    super(adapterFactory, bigQueryQueryBuilder, headersGenerator);
+    super(adapterFactory, bigQueryQueryBuilder, headersGenerator, credentialsResolver);
   }
 }

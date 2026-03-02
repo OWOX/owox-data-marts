@@ -43,8 +43,21 @@ Select **Google Sheets** from the **Destination Type** dropdown.
 #### 3. Set Configuration Details
 
 - **Title**: Provide a unique name for this **Destination** (e.g., "Marketing Reports").
-- **Service Account JSON**: Paste the JSON key file from your Service Account.
 
-#### 4. Finalize Setup
+#### 4. Choose Authentication Method
+
+OWOX Data Marts supports two authentication methods for Google Sheets:
+
+##### Option A: Service Account (JSON Key)
+
+Paste the JSON key file from your Service Account into the **Service Account JSON** field. This method is recommended for automated, unattended workflows.
+
+##### Option B: Google OAuth
+
+Click **Connect Google Account** to authenticate using your personal Google account via OAuth. You will be redirected to Google's consent screen to grant access. Once authorized, your account will be linked to this Destination.
+
+> **Note:** OAuth tokens are automatically refreshed. If your session expires or access is revoked, you can reconnect at any time by clicking **Connect Google Account** again.
+
+#### 5. Finalize Setup
 
 Review your entries and click **Save** to integrate the **Destination**, or **Cancel** to discard changes.

@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsObject, IsString, IsOptional } from 'class-validator';
+import { IsNotEmpty, IsObject, IsString, IsOptional, IsUUID } from 'class-validator';
 import { DataDestinationCredentials } from '../../data-destination-types/data-destination-credentials.type';
 
 export class UpdateDataDestinationApiDto {
@@ -16,4 +16,14 @@ export class UpdateDataDestinationApiDto {
   @IsObject()
   @IsOptional()
   credentials: DataDestinationCredentials;
+
+  @ApiProperty({
+    example: 'abc123e4-5678-90ab-cdef-1234567890ab',
+    nullable: true,
+    required: false,
+    description: 'Credential ID for OAuth-based authentication (null to disconnect)',
+  })
+  @IsUUID()
+  @IsOptional()
+  credentialId?: string | null;
 }

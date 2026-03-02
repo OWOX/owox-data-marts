@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { DataDestinationType } from '../../data-destination-types/enums/data-destination-type.enum';
-import { IsEnum, IsNotEmpty, IsObject, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID } from 'class-validator';
 import { DataDestinationCredentials } from '../../data-destination-types/data-destination-credentials.type';
 
 export class CreateDataDestinationApiDto {
@@ -20,4 +20,9 @@ export class CreateDataDestinationApiDto {
   })
   @IsObject()
   credentials: DataDestinationCredentials;
+
+  @ApiProperty({ required: false, description: 'Pre-created OAuth credential ID' })
+  @IsUUID()
+  @IsOptional()
+  credentialId?: string;
 }

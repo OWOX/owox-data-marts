@@ -16,8 +16,8 @@ export class DataDestinationDto {
     public readonly title: string,
     public readonly type: DataDestinationType,
     public readonly projectId: string,
-    public readonly credentials: DataDestinationCredentialsDto,
     public readonly createdAt: Date,
-    public readonly modifiedAt: Date
+    public readonly modifiedAt: Date,
+    public readonly credentialId: string | null | undefined = undefined
   ) {}
 }

@@ -4,7 +4,6 @@ import { DataDestinationReportWriter } from '../../interfaces/data-destination-r
 import { DataDestinationType } from '../../enums/data-destination-type.enum';
 import { Inject, Injectable, Logger, Scope } from '@nestjs/common';
 import { isGoogleSheetsConfig } from '../../data-destination-config.guards';
-import { isGoogleSheetsCredentials } from '../../data-destination-credentials.guards';
 import { GoogleSheetsConfig } from '../schemas/google-sheets-config.schema';
 import { DateTime } from 'luxon';
 import { Report } from '../../../entities/report.entity';
@@ -180,10 +179,14 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
       }
       this.destination = report.destinationConfig;
 
-      if (!isGoogleSheetsCredentials(report.dataDestination.credentials)) {
-        throw new Error('Invalid Google Sheets credentials provided');
+      const adapter = await this.adapterFactory.createFromDestination(report.dataDestination);
+
+      if (!adapter) {
+        throw new Error(
+          'No authentication method available for Google Sheets: neither OAuth nor Service Account credentials found'
+        );
       }
-      this.adapter = this.adapterFactory.create(report.dataDestination.credentials);
+      this.adapter = adapter;
 
       const spreadsheet = await this.adapter
         .getSpreadsheet(this.destination.spreadsheetId)

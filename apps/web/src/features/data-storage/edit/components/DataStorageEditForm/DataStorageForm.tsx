@@ -27,10 +27,13 @@ import { useForm } from 'react-hook-form';
 import { createFormPayload } from '../../../../../utils/form-utils';
 import {
   type DataStorageFormData,
+  type GoogleBigQueryFormData,
+  type LegacyGoogleBigQueryFormData,
   dataStorageSchema,
   DataStorageStatus,
   DataStorageType,
 } from '../../../shared';
+import type { UseFormReturn } from 'react-hook-form';
 import { DataStorageTypeModel } from '../../../shared/types/data-storage-type.model.ts';
 import { AwsAthenaFields } from './AwsAthenaFields';
 import { DatabricksFields } from './DatabricksFields';
@@ -47,7 +50,7 @@ import { RedshiftFields } from './RedshiftFields';
 import { SnowflakeFields } from './SnowflakeFields';
 
 interface DataStorageFormProps {
-  initialData?: DataStorageFormData;
+  initialData?: DataStorageFormData & { id?: string };
   onSubmit: (data: DataStorageFormData) => Promise<void>;
   onCancel: () => void;
   onDirtyChange?: (isDirty: boolean) => void;
@@ -70,6 +73,7 @@ export function DataStorageForm({
     formState: { isDirty, isSubmitting },
   } = form;
   const selectedType = watch('type');
+  const storageId = initialData?.id;
 
   React.useEffect(() => {
     onDirtyChange?.(isDirty);
@@ -180,9 +184,17 @@ export function DataStorageForm({
               )}
             />
           </FormSection>
-          {selectedType === DataStorageType.GOOGLE_BIGQUERY && <GoogleBigQueryFields form={form} />}
+          {selectedType === DataStorageType.GOOGLE_BIGQUERY && (
+            <GoogleBigQueryFields
+              form={form as UseFormReturn<GoogleBigQueryFormData>}
+              storageId={storageId}
+            />
+          )}
           {selectedType === DataStorageType.LEGACY_GOOGLE_BIGQUERY && (
-            <LegacyGoogleBigQueryFields form={form} />
+            <LegacyGoogleBigQueryFields
+              form={form as UseFormReturn<LegacyGoogleBigQueryFormData>}
+              storageId={storageId}
+            />
           )}
           {selectedType === DataStorageType.AWS_ATHENA && <AwsAthenaFields form={form} />}
           {selectedType === DataStorageType.SNOWFLAKE && <SnowflakeFields form={form} />}
