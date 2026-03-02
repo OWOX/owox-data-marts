@@ -98,7 +98,7 @@ export function FacebookLoginButton({
           appId: globalAppId,
           cookie: true,
           xfbml: true,
-          version: 'v23.0',
+          version: 'v25.0',
         });
         setSdkReady(true);
       }
