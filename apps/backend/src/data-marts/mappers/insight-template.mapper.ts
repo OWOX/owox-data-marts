@@ -16,8 +16,8 @@ import { UpdateInsightTemplateTitleApiDto } from '../dto/presentation/update-ins
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { InsightTemplate } from '../entities/insight-template.entity';
 import {
-  InsightTemplateSources,
-  InsightTemplateSourcesSchema,
+  InsightTemplateSourcesCommand,
+  InsightTemplateSourcesCommandSchema,
 } from '../dto/schemas/insight-template/insight-template-source.schema';
 import { DataMartMapper } from './data-mart.mapper';
 
@@ -163,7 +163,7 @@ export class InsightTemplateMapper {
     );
   }
 
-  private normalizeSources(sources: unknown): InsightTemplateSources {
-    return InsightTemplateSourcesSchema.parse(sources ?? []);
+  private normalizeSources(sources: unknown): InsightTemplateSourcesCommand {
+    return InsightTemplateSourcesCommandSchema.parse(sources ?? []);
   }
 }

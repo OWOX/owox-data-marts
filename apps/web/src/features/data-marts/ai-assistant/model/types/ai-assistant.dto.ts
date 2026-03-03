@@ -296,6 +296,19 @@ export interface AiRunTriggerStatusResponseDto {
   status: TaskStatus;
 }
 
+export interface AiRunTriggerListItemDto {
+  id: string;
+  sessionId: string;
+  status: TaskStatus;
+  uiResponse: AiRunTriggerResponseDto | null;
+  createdAt: string;
+  modifiedAt: string;
+}
+
+export interface AiRunTriggersListResponseDto {
+  data: AiRunTriggerListItemDto[];
+}
+
 export type AiRunTriggerResponseDto =
   | {
       runId: string;

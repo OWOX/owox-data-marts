@@ -52,6 +52,10 @@ import { AiAssistantScope } from '../../enums/ai-assistant-scope.enum';
 import { AgentFlowAgent } from './agent-flow.agent';
 import { AgentFlowContentPolicyRestrictedError } from './agent-flow-policy-sanitizer.service';
 import { AgentFlowPromptContext } from './types';
+import type {
+  AgentFlowValidationRetryEvaluationResult,
+  AgentFlowValidationRetryRule,
+} from './agent-flow-validation-retry.types';
 
 describe('AgentFlowAgent', () => {
   const runAgentLoopMock = runAgentLoop as jest.Mock;
@@ -95,7 +99,7 @@ describe('AgentFlowAgent', () => {
   const createAgent = () => {
     const toolsRegistrar = { registerTools: jest.fn() };
     const promptBuilder = {
-      buildInitialMessages: jest.fn().mockReturnValue([
+      buildInitialMessages: jest.fn().mockImplementation(() => [
         { role: AiRole.SYSTEM, content: 'system prompt' },
         { role: AiRole.USER, content: 'user prompt' },
       ]),
@@ -103,15 +107,43 @@ describe('AgentFlowAgent', () => {
     const policySanitizer = {
       sanitizeLastUserMessageForRetry: jest.fn(),
     };
+    const rules: AgentFlowValidationRetryRule[] = [
+      {
+        key: 'dummy',
+        maxRetries: 2,
+        retryLogMessage: 'Dummy rule retry',
+        validate: () => ({ ok: true }),
+        buildRetryHint: () => 'dummy feedback',
+        toTerminalError: () => new Error('dummy'),
+      },
+    ];
+    const validationRetryRules = {
+      getRules: jest.fn().mockReturnValue(rules),
+    };
+    const validationRetryEngine = {
+      evaluate: jest
+        .fn()
+        .mockReturnValue({ type: 'pass' } satisfies AgentFlowValidationRetryEvaluationResult),
+    };
 
     const agent = new AgentFlowAgent(
       {} as never,
       toolsRegistrar as never,
       promptBuilder as never,
-      policySanitizer as never
+      policySanitizer as never,
+      validationRetryRules as never,
+      validationRetryEngine as never
     );
 
-    return { agent, toolsRegistrar, promptBuilder, policySanitizer };
+    return {
+      agent,
+      toolsRegistrar,
+      promptBuilder,
+      policySanitizer,
+      validationRetryRules,
+      validationRetryEngine,
+      rules,
+    };
   };
 
   beforeEach(() => {
@@ -119,7 +151,7 @@ describe('AgentFlowAgent', () => {
   });
 
   it('returns result on first attempt without sanitizer retry', async () => {
-    const { agent, promptBuilder, policySanitizer } = createAgent();
+    const { agent, promptBuilder, policySanitizer, validationRetryEngine } = createAgent();
     const request = createRequest('build SQL');
     const promptContext = createPromptContext('build SQL');
     const telemetry = createTelemetry();
@@ -147,11 +179,12 @@ describe('AgentFlowAgent', () => {
       request,
       promptContext,
     });
+    expect(validationRetryEngine.evaluate).toHaveBeenCalledTimes(1);
     expect(output.context.request).toEqual(request);
   });
 
   it('retries once with sanitized message after policy error', async () => {
-    const { agent, promptBuilder, policySanitizer } = createAgent();
+    const { agent, promptBuilder, policySanitizer, validationRetryEngine } = createAgent();
     const request = createRequest('unsafe SQL request');
     const promptContext = createPromptContext('unsafe SQL request');
     const telemetry = createTelemetry();
@@ -193,6 +226,7 @@ describe('AgentFlowAgent', () => {
       request: sanitizedRequest,
       promptContext: sanitizedPromptContext,
     });
+    expect(validationRetryEngine.evaluate).toHaveBeenCalledTimes(1);
     expect(output.context.request).toEqual(sanitizedRequest);
     expect(output.context.sanitizedLastUserMessage).toBe('safe SQL request');
     expect(output.result).toEqual({
@@ -203,7 +237,7 @@ describe('AgentFlowAgent', () => {
   });
 
   it('throws restricted error when retry also fails with policy error', async () => {
-    const { agent, policySanitizer } = createAgent();
+    const { agent, policySanitizer, validationRetryEngine } = createAgent();
     const request = createRequest('unsafe SQL request');
     const promptContext = createPromptContext('unsafe SQL request');
     const telemetry = createTelemetry();
@@ -229,5 +263,233 @@ describe('AgentFlowAgent', () => {
     expect(thrown).toMatchObject({
       sanitizedLastUserMessage: 'safe SQL request',
     });
+    expect(validationRetryEngine.evaluate).not.toHaveBeenCalled();
+  });
+
+  it('retries when validation engine asks for retry and succeeds on second response', async () => {
+    const { agent, validationRetryEngine } = createAgent();
+    const request = createRequest('edit template');
+    const promptContext = createPromptContext('edit template');
+    const telemetry = createTelemetry();
+
+    runAgentLoopMock
+      .mockResolvedValueOnce({
+        result: {
+          decision: 'edit_template',
+          explanation: 'first',
+          reasonDescription: 'first',
+          templateEditIntent: {
+            type: 'replace_template_document',
+            text: '# Report\n\n[[TAG:t1]]',
+            tags: [],
+          },
+        },
+        messages: [],
+        toolExecutions: [],
+      })
+      .mockResolvedValueOnce({
+        result: {
+          decision: 'edit_template',
+          explanation: 'second',
+          reasonDescription: 'second',
+          templateEditIntent: {
+            type: 'replace_template_document',
+            text: '# Report\n\n[[TAG:t1]]',
+            tags: [{ id: 't1', name: 'table', params: { source: 'main' } }],
+          },
+        },
+        messages: [],
+        toolExecutions: [],
+      });
+    validationRetryEngine.evaluate
+      .mockReturnValueOnce({
+        type: 'retry',
+        ruleKey: 'template_edit_intent',
+        retry: 1,
+        feedback: 'Your previous response had an invalid templateEditIntent.',
+        logMessage: 'template invalid',
+        logMeta: { code: 'template_placeholder_unknown_id' },
+      } satisfies AgentFlowValidationRetryEvaluationResult)
+      .mockReturnValueOnce({ type: 'pass' } satisfies AgentFlowValidationRetryEvaluationResult);
+
+    const output = await agent.run(request as never, telemetry, promptContext);
+
+    expect(runAgentLoopMock).toHaveBeenCalledTimes(2);
+    const secondCallArgs = runAgentLoopMock.mock.calls[1][0];
+    expect(secondCallArgs.initialMessages.at(-1)).toEqual({
+      role: AiRole.SYSTEM,
+      content: 'Your previous response had an invalid templateEditIntent.',
+    });
+    expect(output.result.explanation).toBe('second');
+  });
+
+  it('throws terminal validation error from retry engine', async () => {
+    const { agent, validationRetryEngine } = createAgent();
+    const request = createRequest('edit template');
+    const promptContext = createPromptContext('edit template');
+    const telemetry = createTelemetry();
+
+    runAgentLoopMock.mockResolvedValue({
+      result: {
+        decision: 'edit_template',
+        explanation: 'invalid',
+        reasonDescription: 'invalid',
+        templateEditIntent: {
+          type: 'replace_template_document',
+          text: '# Report\n\n[[TAG:t1]]',
+          tags: [],
+        },
+      },
+      messages: [],
+      toolExecutions: [],
+    });
+    validationRetryEngine.evaluate.mockImplementation(() => {
+      throw new Error('template_edit_intent_invalid_after_2_retries');
+    });
+
+    await expect(agent.run(request as never, telemetry, promptContext)).rejects.toThrow(
+      'template_edit_intent_invalid_after_2_retries'
+    );
+    expect(runAgentLoopMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses isolated context per validation retry attempt', async () => {
+    const { agent, validationRetryEngine } = createAgent();
+    const request = createRequest('edit template');
+    const promptContext = createPromptContext('edit template');
+    const telemetry = createTelemetry();
+
+    runAgentLoopMock
+      .mockImplementationOnce(async ({ context }) => {
+        context.collectedProposedActions.push({
+          type: 'apply_sql_to_artifact',
+          id: 'act_from_failed_attempt',
+          confidence: 0.9,
+          payload: { artifactId: 'artifact-1' },
+        });
+        context.lastGeneratedSql = 'SELECT 1';
+
+        return {
+          result: {
+            decision: 'edit_template',
+            explanation: 'first',
+            reasonDescription: 'first',
+            templateEditIntent: {
+              type: 'replace_template_document',
+              text: '# Report\n\n[[TAG:t1]]',
+              tags: [],
+            },
+          },
+          messages: [],
+          toolExecutions: [],
+        };
+      })
+      .mockResolvedValueOnce({
+        result: {
+          decision: 'edit_template',
+          explanation: 'second',
+          reasonDescription: 'second',
+          templateEditIntent: {
+            type: 'replace_template_document',
+            text: '# Report\n\n[[TAG:t1]]',
+            tags: [{ id: 't1', name: 'table', params: { source: 'main' } }],
+          },
+        },
+        messages: [],
+        toolExecutions: [],
+      });
+    validationRetryEngine.evaluate
+      .mockReturnValueOnce({
+        type: 'retry',
+        ruleKey: 'template_edit_intent',
+        retry: 1,
+        feedback: 'retry feedback',
+        logMessage: 'invalid',
+        logMeta: {},
+      } satisfies AgentFlowValidationRetryEvaluationResult)
+      .mockReturnValueOnce({ type: 'pass' } satisfies AgentFlowValidationRetryEvaluationResult);
+
+    const output = await agent.run(request as never, telemetry, promptContext);
+
+    expect(runAgentLoopMock).toHaveBeenCalledTimes(2);
+
+    const firstContext = runAgentLoopMock.mock.calls[0][0].context;
+    const secondContext = runAgentLoopMock.mock.calls[1][0].context;
+    expect(firstContext).not.toBe(secondContext);
+    expect(firstContext.collectedProposedActions).toHaveLength(1);
+    expect(secondContext.collectedProposedActions).toHaveLength(0);
+
+    expect(output.context).toBe(secondContext);
+    expect(output.context.collectedProposedActions).toEqual([]);
+    expect(output.context.lastGeneratedSql).toBeUndefined();
+  });
+
+  it('resets retry feedback and state after content policy recovery', async () => {
+    const { agent, policySanitizer, validationRetryEngine } = createAgent();
+    const request = createRequest('unsafe SQL request');
+    const promptContext = createPromptContext('unsafe SQL request');
+    const telemetry = createTelemetry();
+    const sanitizedRequest = createRequest('safe SQL request');
+    const sanitizedPromptContext = createPromptContext('safe SQL request');
+
+    runAgentLoopMock
+      .mockResolvedValueOnce({
+        result: {
+          decision: 'edit_template',
+          explanation: 'first',
+          reasonDescription: 'first',
+          templateEditIntent: {
+            type: 'replace_template_document',
+            text: '# Report\n\n[[TAG:t1]]',
+            tags: [],
+          },
+        },
+        messages: [],
+        toolExecutions: [],
+      })
+      .mockRejectedValueOnce(new AiContentFilterError('openai'))
+      .mockResolvedValueOnce({
+        result: {
+          decision: 'explain',
+          explanation: 'ok after sanitize',
+          reasonDescription: 'ok',
+        },
+        messages: [],
+        toolExecutions: [],
+      });
+    validationRetryEngine.evaluate
+      .mockReturnValueOnce({
+        type: 'retry',
+        ruleKey: 'template_edit_intent',
+        retry: 1,
+        feedback: 'retry feedback',
+        logMessage: 'invalid',
+        logMeta: {},
+      } satisfies AgentFlowValidationRetryEvaluationResult)
+      .mockReturnValueOnce({ type: 'pass' } satisfies AgentFlowValidationRetryEvaluationResult);
+    policySanitizer.sanitizeLastUserMessageForRetry.mockResolvedValue({
+      type: 'retry',
+      request: sanitizedRequest,
+      promptContext: sanitizedPromptContext,
+      sanitizedLastUserMessage: 'safe SQL request',
+    });
+
+    const output = await agent.run(request as never, telemetry, promptContext);
+
+    expect(runAgentLoopMock).toHaveBeenCalledTimes(3);
+    expect(runAgentLoopMock.mock.calls[1][0].initialMessages.at(-1)).toEqual({
+      role: AiRole.SYSTEM,
+      content: 'retry feedback',
+    });
+    expect(runAgentLoopMock.mock.calls[2][0].initialMessages.at(-1)).toEqual({
+      role: AiRole.USER,
+      content: 'user prompt',
+    });
+
+    const firstState = validationRetryEngine.evaluate.mock.calls[0][0].state;
+    const secondState = validationRetryEngine.evaluate.mock.calls[1][0].state;
+    expect(firstState).not.toBe(secondState);
+
+    expect(output.context.request).toEqual(sanitizedRequest);
   });
 });

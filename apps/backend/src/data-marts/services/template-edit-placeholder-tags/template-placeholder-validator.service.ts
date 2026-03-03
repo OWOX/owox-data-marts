@@ -18,6 +18,7 @@ export interface TemplatePlaceholderConsistencyInput {
 
 const PLACEHOLDER_LIKE_GLOBAL_PATTERN = /\[\[TAG:([^\]]*)]]/g;
 const PLACEHOLDER_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
+const RAW_TEMPLATE_TAG_PATTERN = /{{[\s\S]*?}}/;
 
 @Injectable()
 export class TemplatePlaceholderValidator {
@@ -71,6 +72,17 @@ export class TemplatePlaceholderValidator {
   validateText(
     text: string
   ): TemplatePlaceholderTagValidationResult<TemplatePlaceholderValidationOutput> {
+    const rawTagMatch = text.match(RAW_TEMPLATE_TAG_PATTERN);
+    if (rawTagMatch) {
+      return failTemplatePlaceholderTagValidation({
+        code: 'template_text_contains_raw_tag_syntax',
+        message:
+          `Raw template tag syntax "${rawTagMatch[0]}" is not allowed in text. ` +
+          'Use [[TAG:id]] placeholders and define tags[] separately.',
+        path: ['text'],
+      });
+    }
+
     const placeholderIdsInOrder: string[] = [];
     const placeholderLikeMatches = [...text.matchAll(PLACEHOLDER_LIKE_GLOBAL_PATTERN)];
 

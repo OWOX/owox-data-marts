@@ -34,4 +34,22 @@ export class AiAssistantRunTriggerService extends UiTriggerService<AiRunTriggerR
     const saved = await this.triggerRepository.save(trigger);
     return saved.id;
   }
+
+  async listBySession(params: {
+    userId: string;
+    projectId: string;
+    dataMartId: string;
+    sessionId: string;
+  }): Promise<AiAssistantRunTrigger[]> {
+    const { userId, projectId, dataMartId, sessionId } = params;
+    return (this.triggerRepository as Repository<AiAssistantRunTrigger>).find({
+      where: {
+        userId,
+        projectId,
+        dataMartId,
+        sessionId,
+      },
+      order: { createdAt: 'DESC' },
+    });
+  }
 }

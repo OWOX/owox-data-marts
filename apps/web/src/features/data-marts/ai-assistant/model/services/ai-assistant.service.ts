@@ -4,6 +4,7 @@ import type {
   AiAssistantSessionListItemDto,
   AiAssistantSessionDto,
   AiRunTriggerResponseDto,
+  AiRunTriggersListResponseDto,
   AiRunTriggerStatusResponseDto,
   ApplyAiAssistantSessionRequestDto,
   ApplyAiAssistantSessionResponseDto,
@@ -107,6 +108,17 @@ export class AiAssistantService extends ApiService {
     return this.delete(`/${dataMartId}/ai-assistant/run-triggers/${triggerId}`, {
       skipLoadingIndicator: true,
     } as AxiosRequestConfig);
+  }
+
+  async listRunTriggers(
+    dataMartId: string,
+    sessionId: string
+  ): Promise<AiRunTriggersListResponseDto> {
+    return this.get<AiRunTriggersListResponseDto>(
+      `/${dataMartId}/ai-assistant/run-triggers`,
+      { sessionId },
+      { skipLoadingIndicator: true } as AxiosRequestConfig
+    );
   }
 }
 

@@ -52,10 +52,7 @@ describe('AgentFlowService', () => {
     const agent = {
       run: jest.fn().mockRejectedValue(new AgentFlowContentPolicyRestrictedError('safe text')),
     };
-    const templatePlaceholderTagsRenderer = {
-      render: jest.fn(),
-    };
-    const service = new AgentFlowService(agent as never, templatePlaceholderTagsRenderer as never);
+    const service = new AgentFlowService(agent as never);
 
     const response = await service.run(createRequest(), createPromptContext());
 
@@ -81,10 +78,7 @@ describe('AgentFlowService', () => {
         },
       }),
     };
-    const templatePlaceholderTagsRenderer = {
-      render: jest.fn(),
-    };
-    const service = new AgentFlowService(agent as never, templatePlaceholderTagsRenderer as never);
+    const service = new AgentFlowService(agent as never);
 
     const response = await service.run(createRequest(), createPromptContext());
 
@@ -115,16 +109,7 @@ describe('AgentFlowService', () => {
         },
       }),
     };
-    const templatePlaceholderTagsRenderer = {
-      render: jest.fn().mockReturnValue({
-        ok: true,
-        value: {
-          template: '# Report\n\n{{table source="main"}}',
-          renderedTagsById: { t1: '{{table source="main"}}' },
-        },
-      }),
-    };
-    const service = new AgentFlowService(agent as never, templatePlaceholderTagsRenderer as never);
+    const service = new AgentFlowService(agent as never);
 
     const response = await service.run(request, createPromptContext());
 

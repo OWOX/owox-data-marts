@@ -45,6 +45,7 @@ describe('SourceResolverToolsService', () => {
     const { service } = createService();
     const sources = [
       {
+        templateSourceId: 'template-source-1',
         key: 'consumption_2025',
         artifactId: 'artifact-1',
         sourceIntentResolution: 'none' as const,

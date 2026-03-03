@@ -51,7 +51,7 @@ describe('TemplatePlaceholderTagsRendererService', () => {
     });
   });
 
-  it('allows mixed raw template tags and placeholder tags', () => {
+  it('rejects mixed raw template tags and placeholder tags', () => {
     const result = service.render({
       text: '# Report\n{{table source="main"}}\nTotal: [[TAG:t1]]',
       tags: [{ id: 't1', name: 'value', params: { source: 'main' } }],
@@ -60,14 +60,9 @@ describe('TemplatePlaceholderTagsRendererService', () => {
       },
     });
 
-    expect(result).toEqual({
-      ok: true,
-      value: {
-        renderedTagsById: {
-          t1: '{{value source="main"}}',
-        },
-        template: '# Report\n{{table source="main"}}\nTotal: {{value source="main"}}',
-      },
-    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe('template_text_contains_raw_tag_syntax');
+    }
   });
 });

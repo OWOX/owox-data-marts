@@ -9,7 +9,10 @@ import {
 import { AiAssistantRunLogger } from '../ai-insights/agent-flow/ai-assistant-run-logger';
 import { AgentFlowService } from '../ai-insights/agent-flow/agent-flow.service';
 import { AgentFlowRequest } from '../ai-insights/agent-flow/types';
-import { AssistantOrchestratorResponse } from '../ai-insights/agent-flow/ai-assistant-types';
+import {
+  AssistantOrchestratorResponse,
+  AssistantProposedActionsSchema,
+} from '../ai-insights/agent-flow/ai-assistant-types';
 import { DataMartRunStatus } from '../enums/data-mart-run-status.enum';
 import { AiAssistantMessageRole } from '../enums/ai-assistant-message-role.enum';
 import { DataMartService } from '../services/data-mart.service';
@@ -141,6 +144,10 @@ export class RunAiAssistantService {
         });
       }
 
+      const validatedProposedActions = Array.isArray(agentResponse.proposedActions)
+        ? AssistantProposedActionsSchema.parse(agentResponse.proposedActions)
+        : null;
+
       const assistantMessage = await this.aiAssistantSessionService.addMessage({
         sessionId: session.id,
         role: AiAssistantMessageRole.ASSISTANT,
@@ -150,7 +157,7 @@ export class RunAiAssistantService {
           (agentResponse.status === 'ok'
             ? 'SQL candidate is ready.'
             : 'Unable to process request.'),
-        proposedActions: agentResponse.proposedActions ?? null,
+        proposedActions: validatedProposedActions,
         sqlCandidate: agentResponse.result?.sqlCandidate ?? null,
         meta: {
           decision: agentResponse.decision,

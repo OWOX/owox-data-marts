@@ -57,7 +57,7 @@ export class ListArtifactsTool {
       id: artifact.artifactId,
       baseSqlHandle: `art:${artifact.artifactId}`,
       title: artifact.artifactTitle,
-      sql: artifact.sqlSummary,
+      sql: artifact.sql,
     }));
 
     return { artifacts, diagnostics: result.diagnostics };

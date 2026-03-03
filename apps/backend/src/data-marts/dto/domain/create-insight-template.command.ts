@@ -1,4 +1,4 @@
-import { InsightTemplateSources } from '../schemas/insight-template/insight-template-source.schema';
+import { InsightTemplateSourcesCommand } from '../schemas/insight-template/insight-template-source.schema';
 
 export class CreateInsightTemplateCommand {
   constructor(
@@ -7,6 +7,6 @@ export class CreateInsightTemplateCommand {
     public readonly userId: string,
     public readonly title: string,
     public readonly template?: string,
-    public readonly sources: InsightTemplateSources = []
+    public readonly sources: InsightTemplateSourcesCommand = []
   ) {}
 }

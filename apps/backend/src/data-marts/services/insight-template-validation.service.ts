@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import {
   InsightTemplateSourceType,
-  InsightTemplateSources,
+  InsightTemplateSourcesCommand,
 } from '../dto/schemas/insight-template/insight-template-source.schema';
 import { InsightArtifactService } from './insight-artifact.service';
 import { findTemplateTagBySourceKey } from './template-source-key-in-template.util';
@@ -18,7 +18,7 @@ export class InsightTemplateValidationService {
   }
 
   async validateSources(
-    sources: InsightTemplateSources | undefined,
+    sources: InsightTemplateSourcesCommand | undefined,
     params: {
       dataMartId: string;
       projectId: string;
