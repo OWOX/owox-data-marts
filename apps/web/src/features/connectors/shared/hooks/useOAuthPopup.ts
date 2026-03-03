@@ -25,24 +25,9 @@ export function useOAuthPopup<TResponse, TAuthMessage>({
   const authCompletedRef = useRef(false);
   const stateRef = useRef<string | null>(null);
 
-  const handleMessage = useCallback(
-    (event: MessageEvent<unknown>) => {
-      try {
-        const redirectOrigin = new URL(redirectUri).origin;
-        if (event.origin !== redirectOrigin && event.origin !== window.location.origin) {
-          return;
-        }
-      } catch {
-        if (event.origin !== window.location.origin) {
-          return;
-        }
-      }
-
-      const data = event.data;
-
-      if (!isAuthMessage(data)) {
-        return;
-      }
+  const processAuthData = useCallback(
+    (data: unknown) => {
+      if (!isAuthMessage(data)) return;
 
       const cleanup = () => {
         if (pollTimerRef.current) {
@@ -87,19 +72,44 @@ export function useOAuthPopup<TResponse, TAuthMessage>({
         handleAuthError(getErrorMessage(data) || 'Authentication failed');
       }
     },
-    [redirectUri, onSuccess, onError, isAuthMessage, getSuccessResponse, getErrorMessage]
+    [onSuccess, onError, isAuthMessage, getSuccessResponse, getErrorMessage]
+  );
+
+  const handleMessage = useCallback(
+    (event: MessageEvent<unknown>) => {
+      try {
+        const redirectOrigin = new URL(redirectUri).origin;
+        if (event.origin !== redirectOrigin && event.origin !== window.location.origin) {
+          return;
+        }
+      } catch {
+        if (event.origin !== window.location.origin) {
+          return;
+        }
+      }
+      processAuthData(event.data);
+    },
+    [redirectUri, processAuthData]
   );
 
   useEffect(() => {
     window.addEventListener('message', handleMessage);
+
+    // BroadcastChannel fallback for when window.opener is severed by COOP headers
+    const bc = new BroadcastChannel('oauth_channel');
+    bc.onmessage = (event: MessageEvent<unknown>) => {
+      processAuthData(event.data);
+    };
+
     return () => {
       window.removeEventListener('message', handleMessage);
+      bc.close();
       if (pollTimerRef.current) {
         clearInterval(pollTimerRef.current);
         pollTimerRef.current = null;
       }
     };
-  }, [handleMessage]);
+  }, [handleMessage, processAuthData]);
 
   const openCenteredPopup = (url: string, title: string) => {
     const width = 600;
