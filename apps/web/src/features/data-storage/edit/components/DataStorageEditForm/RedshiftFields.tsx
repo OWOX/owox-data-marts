@@ -19,12 +19,21 @@ import RedshiftClusterDescription from './FormDescriptions/RedshiftClusterDescri
 import RedshiftDatabaseDescription from './FormDescriptions/RedshiftDatabaseDescription.tsx';
 import RedshiftAccessKeyIdDescription from './FormDescriptions/RedshiftAccessKeyIdDescription.tsx';
 import RedshiftSecretAccessKeyDescription from './FormDescriptions/RedshiftSecretAccessKeyDescription.tsx';
+import { AuthenticationSectionHeader } from '../../../../../shared/components/AuthenticationSectionHeader';
+import { CopyStorageCredentialsButton } from '../CopyStorageCredentialsButton';
+import { useCopyCredentialContext } from '../../model/context/useCopyCredentialContext';
 
 interface RedshiftFieldsProps {
   form: UseFormReturn<DataStorageFormData>;
 }
 
 export const RedshiftFields = ({ form }: RedshiftFieldsProps) => {
+  const {
+    entityId: storageId,
+    onSourceSelect: onSourceStorageSelect,
+    selectedSource,
+    onSourceClear,
+  } = useCopyCredentialContext();
   const [maskedSecretValue, setMaskedSecretValue] = useState<string>('');
 
   // Set default connectionType if not set
@@ -154,48 +163,63 @@ export const RedshiftFields = ({ form }: RedshiftFieldsProps) => {
       </FormSection>
 
       {/* Authentication */}
-      <FormSection title='Authentication'>
-        <FormField
-          control={form.control}
-          name='credentials.accessKeyId'
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel tooltip='Your AWS Access Key ID used for authentication'>
-                Access Key ID
-              </FormLabel>
-              <FormControl>
-                <Input {...field} placeholder='Enter an access key id' />
-              </FormControl>
-              <FormDescription>
-                <RedshiftAccessKeyIdDescription />
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
+      <section>
+        <AuthenticationSectionHeader
+          copyButton={
+            <CopyStorageCredentialsButton
+              storageType={DataStorageType.AWS_REDSHIFT}
+              currentStorageId={storageId}
+              onSelect={onSourceStorageSelect}
+            />
+          }
+          selectedSource={selectedSource}
+          onSourceClear={onSourceClear}
         />
-        <FormField
-          control={form.control}
-          name='credentials.secretAccessKey'
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel tooltip='Your AWS Secret Access Key used for authentication'>
-                Secret Access Key
-              </FormLabel>
-              <FormControl>
-                <Input
-                  {...field}
-                  type='password'
-                  placeholder={maskedSecretValue || 'Enter a secret access key'}
-                />
-              </FormControl>
-              <FormDescription>
-                <RedshiftSecretAccessKeyDescription />
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </FormSection>
+        {!selectedSource && (
+          <div className='flex flex-col gap-2'>
+            <FormField
+              control={form.control}
+              name='credentials.accessKeyId'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel tooltip='Your AWS Access Key ID used for authentication'>
+                    Access Key ID
+                  </FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder='Enter an access key id' />
+                  </FormControl>
+                  <FormDescription>
+                    <RedshiftAccessKeyIdDescription />
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='credentials.secretAccessKey'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel tooltip='Your AWS Secret Access Key used for authentication'>
+                    Secret Access Key
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      type='password'
+                      placeholder={maskedSecretValue || 'Enter a secret access key'}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    <RedshiftSecretAccessKeyDescription />
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        )}
+      </section>
     </>
   );
 };

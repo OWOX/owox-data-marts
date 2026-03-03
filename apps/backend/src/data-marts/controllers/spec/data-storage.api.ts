@@ -11,6 +11,7 @@ import { CreateDataStorageApiDto } from '../../dto/presentation/create-data-stor
 import { DataStorageAccessValidationResponseApiDto } from '../../dto/presentation/data-storage-access-validation-response-api.dto';
 import { DataStorageListResponseApiDto } from '../../dto/presentation/data-storage-list-response-api.dto';
 import { DataStorageResponseApiDto } from '../../dto/presentation/data-storage-response-api.dto';
+import { DataStorageByTypeResponseApiDto } from '../../dto/presentation/data-storage-by-type-response-api.dto';
 import { UpdateDataStorageApiDto } from '../../dto/presentation/update-data-storage-api.dto';
 import { GenerateAuthorizationUrlRequestDto } from '../../dto/presentation/google-oauth/generate-authorization-url-request.dto';
 import { GenerateAuthorizationUrlResponseDto } from '../../dto/presentation/google-oauth/generate-authorization-url-response.dto';
@@ -18,6 +19,15 @@ import { ExchangeAuthorizationCodeRequestDto } from '../../dto/presentation/goog
 import { ExchangeAuthorizationCodeResponseDto } from '../../dto/presentation/google-oauth/exchange-authorization-code-response.dto';
 import { GoogleOAuthStatusResponseDto } from '../../dto/presentation/google-oauth/google-oauth-status-response.dto';
 import { GoogleOAuthSettingsResponseDto } from '../../dto/presentation/google-oauth/oauth-settings-response.dto';
+import { DataStorageType } from '../../data-storage-types/enums/data-storage-type.enum';
+
+export function ListDataStoragesByTypeSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'List Data Storages by type (for credential copy)' }),
+    ApiParam({ name: 'type', description: 'Data Storage type', enum: DataStorageType }),
+    ApiOkResponse({ type: [DataStorageByTypeResponseApiDto] })
+  );
+}
 
 export function CreateDataStorageSpec() {
   return applyDecorators(
@@ -32,7 +42,7 @@ export function UpdateDataStorageSpec() {
     ApiOperation({ summary: 'Update Data Storage by ID' }),
     ApiParam({ name: 'id', description: 'Data Storage ID' }),
     ApiBody({ type: UpdateDataStorageApiDto }),
-    ApiResponse({ status: 200, type: DataStorageResponseApiDto })
+    ApiOkResponse({ type: DataStorageResponseApiDto })
   );
 }
 
@@ -40,14 +50,14 @@ export function GetDataStorageSpec() {
   return applyDecorators(
     ApiOperation({ summary: 'Get a Data Storage by ID' }),
     ApiParam({ name: 'id', description: 'Data Storage ID' }),
-    ApiResponse({ status: 200, type: DataStorageResponseApiDto })
+    ApiOkResponse({ type: DataStorageResponseApiDto })
   );
 }
 
 export function ListDataStoragesSpec() {
   return applyDecorators(
     ApiOperation({ summary: 'Get all Data Storages' }),
-    ApiResponse({ status: 200, type: [DataStorageListResponseApiDto] })
+    ApiOkResponse({ type: [DataStorageListResponseApiDto] })
   );
 }
 

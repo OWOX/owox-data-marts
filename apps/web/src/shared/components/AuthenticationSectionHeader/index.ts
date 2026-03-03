@@ -1,0 +1,1 @@
+export { AuthenticationSectionHeader } from './AuthenticationSectionHeader';

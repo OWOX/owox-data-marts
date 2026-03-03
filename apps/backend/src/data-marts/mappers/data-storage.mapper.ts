@@ -27,6 +27,8 @@ import { DataStorageListResponseApiDto } from '../dto/presentation/data-storage-
 import { DataStorageResponseApiDto } from '../dto/presentation/data-storage-response-api.dto';
 import { UpdateDataStorageApiDto } from '../dto/presentation/update-data-storage-api.dto';
 import { PublishDataStorageDraftsResponseApiDto } from '../dto/presentation/publish-data-storage-drafts-response-api.dto';
+import { DataStorageByTypeResponseApiDto } from '../dto/presentation/data-storage-by-type-response-api.dto';
+import { ListDataStoragesByTypeItemDto } from '../dto/domain/list-data-storages-by-type-item.dto';
 import { DataStorage } from '../entities/data-storage.entity';
 
 @Injectable()
@@ -54,7 +56,8 @@ export class DataStorageMapper {
       dto.config,
       dto.title.trim(),
       dto.credentials,
-      dto.credentialId
+      dto.credentialId,
+      dto.sourceStorageId
     );
   }
 
@@ -175,6 +178,15 @@ export class DataStorageMapper {
 
   toRevokeOAuthCommand(id: string, context: AuthorizationContext): RevokeStorageOAuthCommand {
     return new RevokeStorageOAuthCommand(id, context.projectId);
+  }
+
+  toByTypeResponse(items: ListDataStoragesByTypeItemDto[]): DataStorageByTypeResponseApiDto[] {
+    return items.map(item => ({
+      id: item.id,
+      title: item.title,
+      dataMartName: item.dataMartName,
+      identity: item.identity,
+    }));
   }
 
   toPublishDraftsResponse(

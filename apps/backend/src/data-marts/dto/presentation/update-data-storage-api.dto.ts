@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsObject, IsString, MaxLength, IsOptional } from 'class-validator';
+import { IsObject, IsString, MaxLength, IsOptional, IsUUID } from 'class-validator';
 import { DataStorageConfig } from '../../data-storage-types/data-storage-config.type';
 import { DataStorageCredentials } from '../../data-storage-types/data-storage-credentials.type';
 
@@ -20,7 +20,7 @@ export class UpdateDataStorageApiDto {
   })
   @IsObject()
   @IsOptional()
-  credentials: DataStorageCredentials;
+  credentials?: DataStorageCredentials;
 
   @ApiProperty({
     type: 'object',
@@ -31,7 +31,16 @@ export class UpdateDataStorageApiDto {
   config: DataStorageConfig;
 
   @ApiProperty({ type: 'string', nullable: true, required: false })
-  @IsString()
+  @IsUUID()
   @IsOptional()
   credentialId?: string | null;
+
+  @ApiProperty({
+    required: false,
+    description: 'Source Storage ID to copy credentials from (mutually exclusive with credentials)',
+    type: 'string',
+  })
+  @IsUUID()
+  @IsOptional()
+  sourceStorageId?: string;
 }

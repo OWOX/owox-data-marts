@@ -22,9 +22,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@owox/ui/components/select';
-import React from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import type { CredentialIdentity } from '../../../../../shared/types/credential-identity';
+import { CopyCredentialContext } from '../../model/context/copy-credential-context';
 import { createFormPayload } from '../../../../../utils/form-utils';
+import { COPY_SOURCE_CREDENTIAL_PLACEHOLDER } from '../../../../../shared/utils/credential-identity-utils';
 import {
   type DataStorageFormData,
   type GoogleBigQueryFormData,
@@ -51,7 +54,10 @@ import { SnowflakeFields } from './SnowflakeFields';
 
 interface DataStorageFormProps {
   initialData?: DataStorageFormData & { id?: string };
-  onSubmit: (data: DataStorageFormData) => Promise<void>;
+  onSubmit: (
+    data: DataStorageFormData,
+    source?: { id: string; title: string } | null
+  ) => Promise<void>;
   onCancel: () => void;
   onDirtyChange?: (isDirty: boolean) => void;
 }
@@ -67,6 +73,40 @@ export function DataStorageForm({
     defaultValues: initialData,
   });
 
+  const [selectedSource, setSelectedSource] = useState<{
+    id: string;
+    title: string;
+    identity: CredentialIdentity | null;
+  } | null>(null);
+
+  const handleSourceSelect = (
+    id: string,
+    title: string,
+    identity: CredentialIdentity | null
+  ) => {
+    setSelectedSource({ id, title, identity });
+    // For Google types, set a placeholder credentialId so Zod validation passes.
+    // Non-Google types don't have credentialId in their schemas, so we skip this.
+    // Credentials are copied server-side via sourceStorageId; the placeholder is
+    // stripped from the payload in handleSubmit.
+    const currentType = form.getValues('type');
+    if (
+      currentType === DataStorageType.GOOGLE_BIGQUERY ||
+      currentType === DataStorageType.LEGACY_GOOGLE_BIGQUERY
+    ) {
+      form.setValue('credentials.credentialId', COPY_SOURCE_CREDENTIAL_PLACEHOLDER, {
+        shouldDirty: false,
+        shouldValidate: true,
+      });
+    }
+  };
+
+  const handleSourceClear = () => {
+    setSelectedSource(null);
+    // Restore credential field to its original value from initialData
+    form.resetField('credentials.credentialId');
+  };
+
   const {
     watch,
     control,
@@ -75,19 +115,31 @@ export function DataStorageForm({
   const selectedType = watch('type');
   const storageId = initialData?.id;
 
-  React.useEffect(() => {
-    onDirtyChange?.(isDirty);
-  }, [isDirty, onDirtyChange]);
+  useEffect(() => {
+    onDirtyChange?.(isDirty || selectedSource !== null);
+  }, [isDirty, selectedSource, onDirtyChange]);
+
+  const copyCredentialCtx = useMemo(
+    () => ({
+      entityId: storageId,
+      onSourceSelect: handleSourceSelect,
+      selectedSource,
+      onSourceClear: handleSourceClear,
+    }),
+    [storageId, selectedSource]
+  );
 
   const handleSubmit = async (data: DataStorageFormData) => {
     const { dirtyFields } = form.formState;
     const payload = createFormPayload(data);
 
-    if (!dirtyFields.credentials) {
+    // Strip credentials when copying from another source (server handles it via sourceStorageId)
+    // or when no credential fields were touched by the user.
+    if (!dirtyFields.credentials || selectedSource) {
       delete (payload as Partial<DataStorageFormData>).credentials;
     }
 
-    return onSubmit(payload);
+    return onSubmit(payload, selectedSource);
   };
 
   return (
@@ -184,22 +236,20 @@ export function DataStorageForm({
               )}
             />
           </FormSection>
-          {selectedType === DataStorageType.GOOGLE_BIGQUERY && (
-            <GoogleBigQueryFields
-              form={form as UseFormReturn<GoogleBigQueryFormData>}
-              storageId={storageId}
-            />
-          )}
-          {selectedType === DataStorageType.LEGACY_GOOGLE_BIGQUERY && (
-            <LegacyGoogleBigQueryFields
-              form={form as UseFormReturn<LegacyGoogleBigQueryFormData>}
-              storageId={storageId}
-            />
-          )}
-          {selectedType === DataStorageType.AWS_ATHENA && <AwsAthenaFields form={form} />}
-          {selectedType === DataStorageType.SNOWFLAKE && <SnowflakeFields form={form} />}
-          {selectedType === DataStorageType.AWS_REDSHIFT && <RedshiftFields form={form} />}
-          {selectedType === DataStorageType.DATABRICKS && <DatabricksFields form={form} />}
+          <CopyCredentialContext.Provider value={copyCredentialCtx}>
+            {selectedType === DataStorageType.GOOGLE_BIGQUERY && (
+              <GoogleBigQueryFields form={form as UseFormReturn<GoogleBigQueryFormData>} />
+            )}
+            {selectedType === DataStorageType.LEGACY_GOOGLE_BIGQUERY && (
+              <LegacyGoogleBigQueryFields
+                form={form as UseFormReturn<LegacyGoogleBigQueryFormData>}
+              />
+            )}
+            {selectedType === DataStorageType.AWS_ATHENA && <AwsAthenaFields form={form} />}
+            {selectedType === DataStorageType.SNOWFLAKE && <SnowflakeFields form={form} />}
+            {selectedType === DataStorageType.AWS_REDSHIFT && <RedshiftFields form={form} />}
+            {selectedType === DataStorageType.DATABRICKS && <DatabricksFields form={form} />}
+          </CopyCredentialContext.Provider>
         </FormLayout>
         <FormActions>
           <Button
@@ -207,7 +257,7 @@ export function DataStorageForm({
             type='submit'
             className='w-full'
             aria-label='Save'
-            disabled={!isDirty || isSubmitting}
+            disabled={(!isDirty && !selectedSource) || isSubmitting}
           >
             Save
           </Button>

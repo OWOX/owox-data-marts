@@ -3,7 +3,9 @@ import type {
   CreateDataDestinationRequestDto,
   DataDestinationResponseDto,
   UpdateDataDestinationRequestDto,
+  DataDestinationByTypeResponseDto,
 } from './types';
+import type { DataDestinationType } from '../enums';
 
 /**
  * Data Destination Service
@@ -73,6 +75,17 @@ export class DataDestinationService extends ApiService {
    */
   async rotateSecretKey(id: string): Promise<DataDestinationResponseDto> {
     return this.post<DataDestinationResponseDto>(`/${id}/rotate-secret-key`);
+  }
+
+  /**
+   * Get data destinations by type
+   * @param type Data destination type
+   * @returns Promise with list of data destinations of the given type
+   */
+  async getDataDestinationsByType(
+    type: DataDestinationType
+  ): Promise<DataDestinationByTypeResponseDto> {
+    return this.get<DataDestinationByTypeResponseDto>(`/by-type/${type}`);
   }
 }
 

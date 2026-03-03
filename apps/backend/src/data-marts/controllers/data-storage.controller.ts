@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseEnumPipe,
+  Post,
+  Put,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Auth, AuthContext, AuthorizationContext } from '../../idp';
 import { Role, Strategy } from '../../idp/types/role-config.types';
@@ -25,11 +35,16 @@ import { GetStorageOAuthStatusService } from '../use-cases/google-oauth/get-stor
 import { GenerateStorageOAuthUrlService } from '../use-cases/google-oauth/generate-storage-oauth-url.service';
 import { RevokeStorageOAuthService } from '../use-cases/google-oauth/revoke-storage-oauth.service';
 import { ExchangeOAuthCodeService } from '../use-cases/google-oauth/exchange-oauth-code.service';
+import { ListDataStoragesByTypeService } from '../use-cases/list-data-storages-by-type.service';
+import { ListDataStoragesByTypeCommand } from '../dto/domain/list-data-storages-by-type.command';
+import { DataStorageByTypeResponseApiDto } from '../dto/presentation/data-storage-by-type-response-api.dto';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import {
   CreateDataStorageSpec,
   DeleteDataStorageSpec,
   GetDataStorageSpec,
   ListDataStoragesSpec,
+  ListDataStoragesByTypeSpec,
   UpdateDataStorageSpec,
   ValidateDataStorageAccessSpec,
   OAuthSettingsSpec,
@@ -54,7 +69,8 @@ export class DataStorageController {
     private readonly getOAuthStatusService: GetStorageOAuthStatusService,
     private readonly generateOAuthUrlService: GenerateStorageOAuthUrlService,
     private readonly revokeOAuthService: RevokeStorageOAuthService,
-    private readonly exchangeOAuthCodeService: ExchangeOAuthCodeService
+    private readonly exchangeOAuthCodeService: ExchangeOAuthCodeService,
+    private readonly listByTypeService: ListDataStoragesByTypeService
   ) {}
 
   @Auth(Role.viewer(Strategy.PARSE))
@@ -91,6 +107,18 @@ export class DataStorageController {
     const command = this.mapper.toCreateCommand(context, dto);
     const dataStorageDto = await this.createService.run(command);
     return this.mapper.toApiResponse(dataStorageDto);
+  }
+
+  @Auth(Role.viewer(Strategy.PARSE))
+  @Get('by-type/:type')
+  @ListDataStoragesByTypeSpec()
+  async getByType(
+    @AuthContext() context: AuthorizationContext,
+    @Param('type', new ParseEnumPipe(DataStorageType)) type: DataStorageType
+  ): Promise<DataStorageByTypeResponseApiDto[]> {
+    const command = new ListDataStoragesByTypeCommand(context.projectId, type);
+    const items = await this.listByTypeService.run(command);
+    return this.mapper.toByTypeResponse(items);
   }
 
   // --- OAuth endpoints (must be declared before parameterized :id routes) ---

@@ -11,12 +11,22 @@ import {
 import { CreateDataDestinationApiDto } from '../../dto/presentation/create-data-destination-api.dto';
 import { UpdateDataDestinationApiDto } from '../../dto/presentation/update-data-destination-api.dto';
 import { DataDestinationResponseApiDto } from '../../dto/presentation/data-destination-response-api.dto';
+import { DataDestinationByTypeResponseApiDto } from '../../dto/presentation/data-destination-by-type-response-api.dto';
 import { GenerateAuthorizationUrlRequestDto } from '../../dto/presentation/google-oauth/generate-authorization-url-request.dto';
 import { GenerateAuthorizationUrlResponseDto } from '../../dto/presentation/google-oauth/generate-authorization-url-response.dto';
 import { ExchangeAuthorizationCodeRequestDto } from '../../dto/presentation/google-oauth/exchange-authorization-code-request.dto';
 import { ExchangeAuthorizationCodeResponseDto } from '../../dto/presentation/google-oauth/exchange-authorization-code-response.dto';
 import { GoogleOAuthStatusResponseDto } from '../../dto/presentation/google-oauth/google-oauth-status-response.dto';
 import { GoogleOAuthSettingsResponseDto } from '../../dto/presentation/google-oauth/oauth-settings-response.dto';
+import { DataDestinationType } from '../../data-destination-types/enums/data-destination-type.enum';
+
+export function ListDataDestinationsByTypeSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'List Data Destinations by type (for credential copy)' }),
+    ApiParam({ name: 'type', description: 'Data Destination type', enum: DataDestinationType }),
+    ApiOkResponse({ type: [DataDestinationByTypeResponseApiDto] })
+  );
+}
 
 export function CreateDataDestinationSpec() {
   return applyDecorators(

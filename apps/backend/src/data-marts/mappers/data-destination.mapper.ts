@@ -23,6 +23,8 @@ import { PublicOriginService } from '../../common/config/public-origin.service';
 import { DataDestinationCredentialService } from '../services/data-destination-credential.service';
 import { DestinationCredentialType } from '../enums/destination-credential-type.enum';
 import { DataDestinationCredentials } from '../data-destination-types/data-destination-credentials.type';
+import { DataDestinationByTypeResponseApiDto } from '../dto/presentation/data-destination-by-type-response-api.dto';
+import { ListDataDestinationsByTypeItemDto } from '../dto/domain/list-data-destinations-by-type-item.dto';
 
 @Injectable()
 export class DataDestinationMapper {
@@ -56,7 +58,8 @@ export class DataDestinationMapper {
       context.projectId,
       dto.title,
       dto.credentials,
-      dto.credentialId
+      dto.credentialId,
+      dto.sourceDestinationId
     );
   }
 
@@ -146,6 +149,15 @@ export class DataDestinationMapper {
     dto: ExchangeAuthorizationCodeRequestDto
   ): ExchangeOAuthCodeCommand {
     return new ExchangeOAuthCodeCommand(dto.code, dto.state, context.userId, context.projectId);
+  }
+
+  toByTypeResponse(items: ListDataDestinationsByTypeItemDto[]): DataDestinationByTypeResponseApiDto[] {
+    return items.map(item => ({
+      id: item.id,
+      title: item.title,
+      dataMartName: item.dataMartName,
+      identity: item.identity,
+    }));
   }
 
   toRevokeOAuthCommand(id: string, context: AuthorizationContext): RevokeDestinationOAuthCommand {

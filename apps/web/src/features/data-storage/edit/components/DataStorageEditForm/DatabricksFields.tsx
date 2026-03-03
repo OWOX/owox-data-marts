@@ -15,12 +15,21 @@ import type { UseFormReturn } from 'react-hook-form';
 import DatabricksHostDescription from './FormDescriptions/DatabricksHostDescription.tsx';
 import DatabricksHttpPathDescription from './FormDescriptions/DatabricksHttpPathDescription.tsx';
 import DatabricksTokenDescription from './FormDescriptions/DatabricksTokenDescription.tsx';
+import { AuthenticationSectionHeader } from '../../../../../shared/components/AuthenticationSectionHeader';
+import { CopyStorageCredentialsButton } from '../CopyStorageCredentialsButton';
+import { useCopyCredentialContext } from '../../model/context/useCopyCredentialContext';
 
 interface DatabricksFieldsProps {
   form: UseFormReturn<DataStorageFormData>;
 }
 
 export const DatabricksFields = ({ form }: DatabricksFieldsProps) => {
+  const {
+    entityId: storageId,
+    onSourceSelect: onSourceStorageSelect,
+    selectedSource,
+    onSourceClear,
+  } = useCopyCredentialContext();
   const [maskedTokenValue, setMaskedTokenValue] = useState<string>('');
 
   useEffect(() => {
@@ -76,30 +85,45 @@ export const DatabricksFields = ({ form }: DatabricksFieldsProps) => {
       </FormSection>
 
       {/* Authentication */}
-      <FormSection title='Authentication'>
-        <FormField
-          control={form.control}
-          name='credentials.token'
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel tooltip='Your Databricks Personal Access Token'>
-                Personal Access Token
-              </FormLabel>
-              <FormControl>
-                <Input
-                  {...field}
-                  type='password'
-                  placeholder={maskedTokenValue || 'Enter your token'}
-                />
-              </FormControl>
-              <FormDescription>
-                <DatabricksTokenDescription />
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
+      <section>
+        <AuthenticationSectionHeader
+          copyButton={
+            <CopyStorageCredentialsButton
+              storageType={DataStorageType.DATABRICKS}
+              currentStorageId={storageId}
+              onSelect={onSourceStorageSelect}
+            />
+          }
+          selectedSource={selectedSource}
+          onSourceClear={onSourceClear}
         />
-      </FormSection>
+        {!selectedSource && (
+          <div className='flex flex-col gap-2'>
+            <FormField
+              control={form.control}
+              name='credentials.token'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel tooltip='Your Databricks Personal Access Token'>
+                    Personal Access Token
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      type='password'
+                      placeholder={maskedTokenValue || 'Enter your token'}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    <DatabricksTokenDescription />
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        )}
+      </section>
     </>
   );
 };
