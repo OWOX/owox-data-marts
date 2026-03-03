@@ -27,7 +27,7 @@
     "@owox/idp-protocol": "*",
     "@owox/internal-helpers": "*",
     "axios": "^1.11.0",
-    "better-auth": "~1.5.1",
+    "better-auth": "~1.5.2",
     "better-sqlite3": "^12.2.0",
     "cookie-parser": "^1.4.7",
     "ejs": "^3.1.10",
