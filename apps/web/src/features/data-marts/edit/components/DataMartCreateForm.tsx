@@ -12,10 +12,11 @@ import {
   FormMessage,
 } from '@owox/ui/components/form';
 import { Input } from '@owox/ui/components/input';
-import { Combobox } from '../../../../shared/components/Combobox/combobox';
+import { Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { Combobox } from '../../../../shared/components/Combobox/combobox';
 import { useForm } from 'react-hook-form';
-import { DataStorageType } from '../../../data-storage';
+import { DataStorageHealthIndicator, DataStorageType } from '../../../data-storage';
 import { DataStorageTypeDialog } from '../../../data-storage/shared/components/DataStorageTypeDialog';
 import { useDataStorage } from '../../../data-storage/shared/model/hooks/useDataStorage';
 import { type DataMart, type DataMartFormData, dataMartSchema, useDataMartForm } from '../model';
@@ -84,7 +85,7 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
         value: storage.id,
         label: storage.title,
       })),
-    { value: 'create_new', label: '+ Create new storage' },
+    { value: 'create_new', label: 'Create new storage' },
   ];
   return (
     <>
@@ -138,6 +139,26 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
                       placeholder={loadingStorages ? 'Loading...' : 'Select a storage'}
                       emptyMessage='No storages found'
                       disabled={isSubmitting || loadingStorages}
+                      className='w-full'
+                      renderLabel={option =>
+                        option.value === 'create_new' ? (
+                          <div className='flex min-w-0 items-center gap-2'>
+                            <div className='flex h-6 w-6 items-center justify-center'>
+                              <Plus size={16} />
+                            </div>
+                            <span className='truncate'>{option.label}</span>
+                          </div>
+                        ) : (
+                          <div className='flex min-w-0 items-center gap-2'>
+                            <DataStorageHealthIndicator
+                              storageId={option.value}
+                              storageTitle={option.label}
+                              hovercardSide='left'
+                            />
+                            <span className='truncate'>{option.label}</span>
+                          </div>
+                        )
+                      }
                     />
                   </FormControl>
                   <FormMessage />
