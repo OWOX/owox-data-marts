@@ -42,6 +42,7 @@ import {
   getStateManager,
   persistPlatformParams,
 } from './utils/request-utils.js';
+import { getMigrations } from 'better-auth/db/migration';
 
 /**
  * Main IdP implementation that wires core PKCE flow and Better Auth.
@@ -162,7 +163,6 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   }
 
   async initialize(): Promise<void> {
-    const { getMigrations } = await import('better-auth/db');
     const { runMigrations } = await getMigrations(this.auth.options);
     await this.store.initialize();
     await runMigrations();

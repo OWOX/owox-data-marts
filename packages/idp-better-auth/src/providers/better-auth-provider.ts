@@ -24,6 +24,7 @@ import { PageService } from '../services/page-service.js';
 import type { DatabaseStore } from '../store/DatabaseStore.js';
 import { createDatabaseStore } from '../store/DatabaseStoreFactory.js';
 import { logger } from '../logger.js';
+import { getMigrations } from 'better-auth/db/migration';
 
 export class BetterAuthProvider
   implements
@@ -152,7 +153,6 @@ export class BetterAuthProvider
   }
 
   async initialize(): Promise<void> {
-    const { getMigrations } = await import('better-auth/db');
     const { runMigrations } = await getMigrations(this.auth.options);
     await runMigrations();
 
