@@ -17,7 +17,11 @@ export class MagicLinkService {
     delete (global as unknown as { lastMagicLink?: string }).lastMagicLink;
 
     // Generate magic link directly through Better Auth internals
-    const baseURL = this.auth.options.baseURL || 'http://localhost:3000';
+    const baseUrlConfig = this.auth.options.baseURL;
+    const baseURL =
+      typeof baseUrlConfig === 'string'
+        ? baseUrlConfig
+        : (baseUrlConfig as { fallback?: string } | undefined)?.fallback || 'http://localhost:3000';
     const encodedRole = await this.cryptoService.encrypt(role);
 
     const callbackURL = `${baseURL}${MagicLinkService.DEFAULT_CALLBACK_URL}?role=${encodedRole}`;

@@ -31,7 +31,11 @@ export class UserManagementService {
     private readonly cryptoService: CryptoService | undefined,
     private readonly store: DatabaseStore
   ) {
-    this.baseURL = this.auth.options.baseURL || 'http://localhost:3000';
+    const baseUrlConfig = this.auth.options.baseURL;
+    this.baseURL =
+      typeof baseUrlConfig === 'string'
+        ? baseUrlConfig
+        : (baseUrlConfig as { fallback?: string } | undefined)?.fallback || 'http://localhost:3000';
   }
 
   async addUserViaMagicLink(username: string): Promise<AddUserCommandResponse> {
