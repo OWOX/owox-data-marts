@@ -1,6 +1,10 @@
 import { DeleteInsightTemplateSourceCommand } from '../dto/domain/delete-insight-template-source.command';
 import { DeleteInsightTemplateSourceService } from './delete-insight-template-source.service';
 
+jest.mock('typeorm-transactional', () => ({
+  Transactional: () => () => undefined,
+}));
+
 describe('DeleteInsightTemplateSourceService', () => {
   const createService = () => {
     const insightTemplateService = {
@@ -13,16 +17,21 @@ describe('DeleteInsightTemplateSourceService', () => {
     const insightTemplateValidationService = {
       ensureSourceKeyIsNotUsedInTemplate: jest.fn(),
     };
+    const insightArtifactService = {
+      softDelete: jest.fn(),
+    };
 
     return {
       service: new DeleteInsightTemplateSourceService(
         insightTemplateService as never,
         insightTemplateSourceService as never,
-        insightTemplateValidationService as never
+        insightTemplateValidationService as never,
+        insightArtifactService as never
       ),
       insightTemplateService,
       insightTemplateSourceService,
       insightTemplateValidationService,
+      insightArtifactService,
     };
   };
 
@@ -39,6 +48,7 @@ describe('DeleteInsightTemplateSourceService', () => {
       insightTemplateService,
       insightTemplateSourceService,
       insightTemplateValidationService,
+      insightArtifactService,
     } = createService();
     insightTemplateService.getByIdAndDataMartIdAndProjectId.mockResolvedValue({
       id: 'template-1',
@@ -47,6 +57,7 @@ describe('DeleteInsightTemplateSourceService', () => {
     insightTemplateSourceService.getByIdAndTemplateId.mockResolvedValue({
       id: 'source-1',
       key: 'consumption_2025',
+      artifactId: 'artifact-1',
     });
 
     await service.run(command);
@@ -58,6 +69,7 @@ describe('DeleteInsightTemplateSourceService', () => {
       'source-1',
       'template-1'
     );
+    expect(insightArtifactService.softDelete).toHaveBeenCalledWith('artifact-1');
   });
 
   it('does not delete source when template usage validation fails', async () => {
@@ -66,6 +78,7 @@ describe('DeleteInsightTemplateSourceService', () => {
       insightTemplateService,
       insightTemplateSourceService,
       insightTemplateValidationService,
+      insightArtifactService,
     } = createService();
     insightTemplateService.getByIdAndDataMartIdAndProjectId.mockResolvedValue({
       id: 'template-1',
@@ -74,6 +87,7 @@ describe('DeleteInsightTemplateSourceService', () => {
     insightTemplateSourceService.getByIdAndTemplateId.mockResolvedValue({
       id: 'source-1',
       key: 'consumption_2025',
+      artifactId: 'artifact-1',
     });
     insightTemplateValidationService.ensureSourceKeyIsNotUsedInTemplate.mockImplementation(() => {
       throw new Error('Cannot delete source');
@@ -81,5 +95,6 @@ describe('DeleteInsightTemplateSourceService', () => {
 
     await expect(service.run(command)).rejects.toThrow('Cannot delete source');
     expect(insightTemplateSourceService.hardDeleteByIdAndTemplateId).not.toHaveBeenCalled();
+    expect(insightArtifactService.softDelete).not.toHaveBeenCalled();
   });
 });

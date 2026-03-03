@@ -1,25 +1,35 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Auth, AuthContext, AuthorizationContext, Role, Strategy } from '../../idp';
 import { CreateInsightTemplateRequestApiDto } from '../dto/presentation/create-insight-template-request-api.dto';
+import { CreateInsightTemplateSourceRequestApiDto } from '../dto/presentation/create-insight-template-source-request-api.dto';
 import { InsightTemplateListItemResponseApiDto } from '../dto/presentation/insight-template-list-item-response-api.dto';
 import { InsightTemplateResponseApiDto } from '../dto/presentation/insight-template-response-api.dto';
+import { InsightTemplateSourceDetailsApiDto } from '../dto/presentation/insight-template-source-details-api.dto';
 import { UpdateInsightTemplateRequestApiDto } from '../dto/presentation/update-insight-template-request-api.dto';
+import { UpdateInsightTemplateSourceRequestApiDto } from '../dto/presentation/update-insight-template-source-request-api.dto';
 import { UpdateInsightTemplateTitleApiDto } from '../dto/presentation/update-insight-template-title-api.dto';
 import { InsightTemplateMapper } from '../mappers/insight-template.mapper';
+import { InsightTemplateSourceMapper } from '../mappers/insight-template-source.mapper';
+import { CreateInsightTemplateSourceService } from '../use-cases/create-insight-template-source.service';
 import { CreateInsightTemplateService } from '../use-cases/create-insight-template.service';
 import { DeleteInsightTemplateSourceService } from '../use-cases/delete-insight-template-source.service';
 import { DeleteInsightTemplateService } from '../use-cases/delete-insight-template.service';
 import { GetInsightTemplateService } from '../use-cases/get-insight-template.service';
+import { ListInsightTemplateSourcesService } from '../use-cases/list-insight-template-sources.service';
 import { ListInsightTemplatesService } from '../use-cases/list-insight-templates.service';
+import { UpdateInsightTemplateSourceService } from '../use-cases/update-insight-template-source.service';
 import { UpdateInsightTemplateService } from '../use-cases/update-insight-template.service';
 import { UpdateInsightTemplateTitleService } from '../use-cases/update-insight-template-title.service';
 import {
+  CreateInsightTemplateSourceSpec,
   CreateInsightTemplateSpec,
   DeleteInsightTemplateSourceSpec,
   DeleteInsightTemplateSpec,
+  ListInsightTemplateSourcesSpec,
   GetInsightTemplateSpec,
   ListInsightTemplatesSpec,
+  UpdateInsightTemplateSourceSpec,
   UpdateInsightTemplateSpec,
   UpdateInsightTemplateTitleSpec,
 } from './spec/insight-template.api';
@@ -33,9 +43,13 @@ export class InsightTemplateController {
     private readonly listInsightTemplatesService: ListInsightTemplatesService,
     private readonly updateInsightTemplateService: UpdateInsightTemplateService,
     private readonly deleteInsightTemplateService: DeleteInsightTemplateService,
+    private readonly listInsightTemplateSourcesService: ListInsightTemplateSourcesService,
+    private readonly createInsightTemplateSourceService: CreateInsightTemplateSourceService,
+    private readonly updateInsightTemplateSourceService: UpdateInsightTemplateSourceService,
     private readonly deleteInsightTemplateSourceService: DeleteInsightTemplateSourceService,
     private readonly updateInsightTemplateTitleService: UpdateInsightTemplateTitleService,
-    private readonly mapper: InsightTemplateMapper
+    private readonly mapper: InsightTemplateMapper,
+    private readonly sourceMapper: InsightTemplateSourceMapper
   ) {}
 
   @Auth(Role.editor(Strategy.INTROSPECT))
@@ -129,12 +143,63 @@ export class InsightTemplateController {
     @Param('insightTemplateId') insightTemplateId: string,
     @Param('sourceId') sourceId: string
   ): Promise<void> {
-    const command = this.mapper.toDeleteSourceCommand(
+    const command = this.sourceMapper.toDeleteCommand(
       sourceId,
       insightTemplateId,
       dataMartId,
       context
     );
     await this.deleteInsightTemplateSourceService.run(command);
+  }
+
+  @Auth(Role.viewer(Strategy.PARSE))
+  @Get(':insightTemplateId/sources')
+  @ListInsightTemplateSourcesSpec()
+  async listSources(
+    @AuthContext() context: AuthorizationContext,
+    @Param('dataMartId') dataMartId: string,
+    @Param('insightTemplateId') insightTemplateId: string
+  ): Promise<{ data: InsightTemplateSourceDetailsApiDto[] }> {
+    const command = this.sourceMapper.toListCommand(insightTemplateId, dataMartId, context);
+    const sources = await this.listInsightTemplateSourcesService.run(command);
+
+    return { data: this.sourceMapper.toResponseList(sources) };
+  }
+
+  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Post(':insightTemplateId/sources')
+  @CreateInsightTemplateSourceSpec()
+  async createSource(
+    @AuthContext() context: AuthorizationContext,
+    @Param('dataMartId') dataMartId: string,
+    @Param('insightTemplateId') insightTemplateId: string,
+    @Body() dto: CreateInsightTemplateSourceRequestApiDto
+  ): Promise<InsightTemplateSourceDetailsApiDto> {
+    const command = this.sourceMapper.toCreateCommand(insightTemplateId, dataMartId, context, dto);
+    const source = await this.createInsightTemplateSourceService.run(command);
+
+    return this.sourceMapper.toResponse(source);
+  }
+
+  @Auth(Role.editor(Strategy.INTROSPECT))
+  @Patch(':insightTemplateId/sources/:sourceId')
+  @UpdateInsightTemplateSourceSpec()
+  async updateSource(
+    @AuthContext() context: AuthorizationContext,
+    @Param('dataMartId') dataMartId: string,
+    @Param('insightTemplateId') insightTemplateId: string,
+    @Param('sourceId') sourceId: string,
+    @Body() dto: UpdateInsightTemplateSourceRequestApiDto
+  ): Promise<InsightTemplateSourceDetailsApiDto> {
+    const command = this.sourceMapper.toUpdateCommand(
+      sourceId,
+      insightTemplateId,
+      dataMartId,
+      context,
+      dto
+    );
+    const source = await this.updateInsightTemplateSourceService.run(command);
+
+    return this.sourceMapper.toResponse(source);
   }
 }
