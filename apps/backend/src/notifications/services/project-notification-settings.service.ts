@@ -114,6 +114,10 @@ export class ProjectNotificationSettingsService {
     return new Date(fromDate.getTime() + intervalMs);
   }
 
+  async updateReceivers(id: string, receivers: string[]): Promise<void> {
+    await this.repository.update(id, { receivers });
+  }
+
   async getOrCreateDefaultSettings(
     projectId: string,
     resolveDefaultReceivers?: (type: NotificationType) => string[]

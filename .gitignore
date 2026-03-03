@@ -27,6 +27,7 @@ yarn-error.log*
 .cursor/
 .claude/
 .cursorignore
+.planning/
 *.swp
 *.swo
 .DS_Store
