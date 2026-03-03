@@ -91,7 +91,12 @@ export function Combobox({
         align='start'
         sideOffset={5}
       >
-        <Command>
+        <Command
+          filter={(value, search, keywords) => {
+            const searchTarget = keywords?.join(' ') ?? value;
+            return searchTarget.toLowerCase().includes(search.toLowerCase()) ? 1 : 0;
+          }}
+        >
           <CommandInput
             placeholder={`Search ${placeholder.toLowerCase()}...`}
             value={searchQuery}
