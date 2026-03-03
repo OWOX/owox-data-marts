@@ -19,10 +19,10 @@ import { SelectValueControl, InputValueControl } from './index';
  * ------------------------------------------------------------------------ */
 
 const OPERATOR_LABELS: Record<FilterOperator, string> = {
-  eq: 'equal',
-  neq: "doesn't equal",
+  eq: 'is',
+  neq: 'is not',
   contains: 'contains',
-  not_contains: "doesn't contain",
+  not_contains: 'does not contain',
 };
 
 /* ---------------------------------------------------------------------------
