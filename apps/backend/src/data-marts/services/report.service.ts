@@ -95,6 +95,8 @@ export class ReportService {
       .createQueryBuilder('report')
       .innerJoinAndSelect('report.dataDestination', 'dest')
       .innerJoinAndSelect('report.dataMart', 'dataMart')
+      .innerJoinAndSelect('dataMart.storage', 'storage')
+      .innerJoinAndSelect('storage.credential', 'storageCredential')
       .innerJoin(
         'data_destination_credentials',
         'cred',
@@ -125,6 +127,7 @@ export class ReportService {
         .innerJoinAndSelect('report.dataDestination', 'dest')
         .innerJoinAndSelect('report.dataMart', 'dataMart')
         .innerJoinAndSelect('dataMart.storage', 'storage')
+        .innerJoinAndSelect('storage.credential', 'storageCredential')
         .innerJoin(
           'data_destination_credentials',
           'cred',

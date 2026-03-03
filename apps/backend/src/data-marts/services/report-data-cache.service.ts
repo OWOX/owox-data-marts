@@ -113,7 +113,12 @@ export class ReportDataCacheService {
       where: {
         expiresAt: LessThan(now),
       },
-      relations: ['report', 'report.dataMart', 'report.dataMart.storage'],
+      relations: [
+        'report',
+        'report.dataMart',
+        'report.dataMart.storage',
+        'report.dataMart.storage.credential',
+      ],
     });
 
     if (expiredEntries.length === 0) {
