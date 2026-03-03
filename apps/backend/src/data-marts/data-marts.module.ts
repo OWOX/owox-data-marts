@@ -146,6 +146,7 @@ import { LookerStudioReportRunService } from './services/looker-studio-report-ru
 import { InsightMapper } from './mappers/insight.mapper';
 import { InsightArtifactMapper } from './mappers/insight-artifact.mapper';
 import { InsightTemplateMapper } from './mappers/insight-template.mapper';
+import { InsightTemplateSourceMapper } from './mappers/insight-template-source.mapper';
 import { AiAssistantMapper } from './mappers/ai-assistant.mapper';
 import { AiAssistantRunTriggerMapper } from './mappers/ai-assistant-run-trigger.mapper';
 import { AiAssistantApplyActionMapper } from './mappers/ai-assistant-apply-action.mapper';
@@ -167,8 +168,11 @@ import { DeleteInsightArtifactService } from './use-cases/delete-insight-artifac
 import { CreateInsightTemplateService } from './use-cases/create-insight-template.service';
 import { GetInsightTemplateService } from './use-cases/get-insight-template.service';
 import { ListInsightTemplatesService } from './use-cases/list-insight-templates.service';
+import { ListInsightTemplateSourcesService } from './use-cases/list-insight-template-sources.service';
 import { UpdateInsightTemplateService } from './use-cases/update-insight-template.service';
 import { UpdateInsightTemplateTitleService } from './use-cases/update-insight-template-title.service';
+import { CreateInsightTemplateSourceService } from './use-cases/create-insight-template-source.service';
+import { UpdateInsightTemplateSourceService } from './use-cases/update-insight-template-source.service';
 import { DeleteInsightTemplateSourceService } from './use-cases/delete-insight-template-source.service';
 import { DeleteInsightTemplateService } from './use-cases/delete-insight-template.service';
 import { RetryInterruptedConnectorRunsProcessor } from './system-triggers/processors/retry-interrupted-connector-runs-processor';
@@ -371,6 +375,7 @@ import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-c
     InsightMapper,
     InsightArtifactMapper,
     InsightTemplateMapper,
+    InsightTemplateSourceMapper,
     AiAssistantMapper,
     AiAssistantRunTriggerMapper,
     AiAssistantApplyActionMapper,
@@ -408,8 +413,11 @@ import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-c
     CreateInsightTemplateService,
     GetInsightTemplateService,
     ListInsightTemplatesService,
+    ListInsightTemplateSourcesService,
     UpdateInsightTemplateService,
     UpdateInsightTemplateTitleService,
+    CreateInsightTemplateSourceService,
+    UpdateInsightTemplateSourceService,
     DeleteInsightTemplateSourceService,
     DeleteInsightTemplateService,
     InsightExecutionService,
