@@ -2,19 +2,19 @@ import { useOAuthCallback } from '../../features/connectors/shared/hooks/useOAut
 import { OAuthCallbackUI } from '../../features/connectors/shared/components/OAuthCallbackUI';
 
 /**
- * OAuth callback page for TikTok authentication.
- * This page handles the redirect from TikTok OAuth flow,
+ * OAuth callback page for Microsoft authentication.
+ * This page handles the redirect from Microsoft OAuth flow,
  * extracts the authorization code, and passes it back to the opener window.
  */
-export function TikTokCallback() {
+export function MicrosoftCallback() {
   const { status, errorMessage } = useOAuthCallback({
-    providerName: 'TikTok',
-    successType: 'TIKTOK_AUTH_SUCCESS',
-    errorType: 'TIKTOK_AUTH_ERROR',
+    providerName: 'Microsoft',
+    successType: 'MICROSOFT_AUTH_SUCCESS',
+    errorType: 'MICROSOFT_AUTH_ERROR',
     getSuccessPayload: searchParams => ({
-      authCode: searchParams.get('auth_code') ?? '',
+      code: searchParams.get('code') ?? '',
     }),
-    hasSuccessData: searchParams => !!searchParams.get('auth_code'),
+    hasSuccessData: searchParams => !!searchParams.get('code'),
   });
 
   return <OAuthCallbackUI status={status} errorMessage={errorMessage} />;

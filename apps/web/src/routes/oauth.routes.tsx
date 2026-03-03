@@ -1,6 +1,6 @@
 import type { RouteObject } from 'react-router-dom';
-import { TikTokCallback } from '../pages/oauth';
 import { GoogleOAuthCallbackPage } from '../features/google-oauth/pages/GoogleOAuthCallbackPage';
+import { TikTokCallback, MicrosoftCallback } from '../pages/oauth';
 
 export const oauthRoutes: RouteObject = {
   path: 'oauth',
@@ -8,6 +8,10 @@ export const oauthRoutes: RouteObject = {
     {
       path: 'tiktok/callback',
       element: <TikTokCallback />,
+    },
+    {
+      path: 'microsoft-ads/callback',
+      element: <MicrosoftCallback />,
     },
     {
       path: 'google/callback',
