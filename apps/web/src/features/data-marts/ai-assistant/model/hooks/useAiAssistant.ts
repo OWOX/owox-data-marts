@@ -272,17 +272,40 @@ export function useAiAssistant({
     [dataMartId, refreshSession, safeSetState]
   );
 
+  const restoreActiveTriggerPolling = useCallback(
+    async (sessionId: string): Promise<void> => {
+      if (!dataMartId || !sessionId || activeTriggerRef.current) {
+        return;
+      }
+
+      try {
+        const response = await aiAssistantService.listRunTriggers(dataMartId, sessionId);
+        const activeTrigger = response.data
+          .sort((a, b) => new Date(b.modifiedAt).getTime() - new Date(a.modifiedAt).getTime())
+          .find(
+            trigger =>
+              !FINAL_TRIGGER_STATUSES.includes(
+                trigger.status as (typeof FINAL_TRIGGER_STATUSES)[number]
+              )
+          );
+
+        if (activeTrigger?.id) {
+          void pollHeavyTrigger(activeTrigger.id);
+        }
+      } catch {
+        // ignore restore errors: session and messages remain usable without trigger recovery
+      }
+    },
+    [dataMartId, pollHeavyTrigger]
+  );
+
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
-      const activeTrigger = activeTriggerRef.current;
       activeTriggerRef.current = null;
-      if (activeTrigger && dataMartId) {
-        void aiAssistantService.abortRunTrigger(dataMartId, activeTrigger);
-      }
     };
-  }, [dataMartId]);
+  }, []);
 
   useEffect(() => {
     if (!enabled || !dataMartId) {
@@ -295,12 +318,14 @@ export function useAiAssistant({
       setIsInitializing(true);
       setIsHistoryLoading(true);
       setError(null);
+      setIsHeavyProcessing(false);
       setSession(null);
       setSessions([]);
       setMessages([]);
       setLastResponse(null);
       setActiveAssistantMessageId(null);
       setActiveRouteTrace(null);
+      activeTriggerRef.current = null;
       activeSessionIdRef.current = null;
 
       try {
@@ -321,6 +346,7 @@ export function useAiAssistant({
           setSessions(nextSessions);
           updateFromSession(loaded);
         });
+        await restoreActiveTriggerPolling(loaded.id);
       } catch (cause) {
         const apiError = extractApiError(cause);
         if (!cancelled) {
@@ -364,7 +390,8 @@ export function useAiAssistant({
 
       try {
         await abortActiveTrigger();
-        await loadSessionById(sessionId);
+        const loaded = await loadSessionById(sessionId);
+        await restoreActiveTriggerPolling(loaded.id);
       } catch (cause) {
         const apiError = extractApiError(cause);
         safeSetState(() => {
@@ -376,7 +403,14 @@ export function useAiAssistant({
         });
       }
     },
-    [abortActiveTrigger, dataMartId, loadSessionById, safeSetState, session?.id]
+    [
+      abortActiveTrigger,
+      dataMartId,
+      loadSessionById,
+      restoreActiveTriggerPolling,
+      safeSetState,
+      session?.id,
+    ]
   );
 
   const sendMessage = useCallback(

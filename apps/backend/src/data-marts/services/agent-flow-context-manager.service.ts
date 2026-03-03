@@ -21,6 +21,7 @@ import type { AiAssistantSessionApplyActionSnapshot } from './ai-assistant-sessi
 import { AgentFlowHistorySnapshotAgent } from './agent-flow-history-snapshot-agent.service';
 import { InsightArtifactService } from './insight-artifact.service';
 import { InsightTemplateService } from './insight-template.service';
+import { normalizeString } from '../../common/helpers/normalize-string.helper';
 
 const MAX_RECENT_TURN_CHARS = 1200;
 const MAX_RECENT_TURNS = 12;
@@ -421,7 +422,7 @@ export class AgentFlowContextManager {
         continue;
       }
 
-      const normalizedSql = this.normalizeSqlCandidate(message.sqlCandidate);
+      const normalizedSql = normalizeString(message.sqlCandidate);
       if (!normalizedSql) {
         continue;
       }
@@ -439,15 +440,6 @@ export class AgentFlowContextManager {
     }
 
     return revisions;
-  }
-
-  private normalizeSqlCandidate(value: string | null | undefined): string | null {
-    if (typeof value !== 'string') {
-      return null;
-    }
-
-    const normalized = value.replace(/\s+/g, ' ').trim();
-    return normalized.length > 0 ? normalized : null;
   }
 
   private measureContextChars(context: AgentFlowPromptContext): number {

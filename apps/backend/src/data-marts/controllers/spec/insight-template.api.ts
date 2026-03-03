@@ -80,3 +80,13 @@ export function DeleteInsightTemplateSpec() {
     ApiNoContentResponse({ description: 'Insight Template deleted' })
   );
 }
+
+export function DeleteInsightTemplateSourceSpec() {
+  return applyDecorators(
+    ApiOperation({ summary: 'Delete Insight Template Source' }),
+    ApiParam({ name: 'dataMartId', description: 'DataMart ID' }),
+    ApiParam({ name: 'insightTemplateId', description: 'Insight Template ID' }),
+    ApiParam({ name: 'sourceId', description: 'Insight Template Source ID' }),
+    ApiNoContentResponse({ description: 'Insight Template Source deleted' })
+  );
+}

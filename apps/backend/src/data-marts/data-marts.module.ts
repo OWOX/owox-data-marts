@@ -118,6 +118,7 @@ import { TemplateTemplateAssembler } from './services/template-edit-placeholder-
 import { TemplateFinalValidator } from './services/template-edit-placeholder-tags/template-final-validator.service';
 import { TemplatePlaceholderTagsRendererService } from './services/template-edit-placeholder-tags/template-placeholder-tags-renderer.service';
 import { TemplateFullReplaceApplyService } from './services/template-edit-placeholder-tags/template-full-replace-apply.service';
+import { TemplateToPlaceholderTagsConverterService } from './services/template-edit-placeholder-tags/template-to-placeholder-tags-converter.service';
 import { ConnectorOutputCaptureService } from './connector-types/connector-message/services/connector-output-capture.service';
 import { ConnectorMessageParserService } from './connector-types/connector-message/services/connector-message-parser.service';
 import { ConnectorStateService } from './connector-types/connector-message/services/connector-state.service';
@@ -146,6 +147,7 @@ import { InsightMapper } from './mappers/insight.mapper';
 import { InsightArtifactMapper } from './mappers/insight-artifact.mapper';
 import { InsightTemplateMapper } from './mappers/insight-template.mapper';
 import { AiAssistantMapper } from './mappers/ai-assistant.mapper';
+import { AiAssistantRunTriggerMapper } from './mappers/ai-assistant-run-trigger.mapper';
 import { AiAssistantApplyActionMapper } from './mappers/ai-assistant-apply-action.mapper';
 import { AgentFlowRequestMapper } from './mappers/agent-flow-request.mapper';
 import { CreateInsightService } from './use-cases/create-insight.service';
@@ -167,6 +169,7 @@ import { GetInsightTemplateService } from './use-cases/get-insight-template.serv
 import { ListInsightTemplatesService } from './use-cases/list-insight-templates.service';
 import { UpdateInsightTemplateService } from './use-cases/update-insight-template.service';
 import { UpdateInsightTemplateTitleService } from './use-cases/update-insight-template-title.service';
+import { DeleteInsightTemplateSourceService } from './use-cases/delete-insight-template-source.service';
 import { DeleteInsightTemplateService } from './use-cases/delete-insight-template.service';
 import { RetryInterruptedConnectorRunsProcessor } from './system-triggers/processors/retry-interrupted-connector-runs-processor';
 import { SqlRunService } from './use-cases/sql-run.service';
@@ -216,6 +219,12 @@ import { InsightArtifactRepository } from './repositories/insight-artifact.repos
 import { AgentFlowService } from './ai-insights/agent-flow/agent-flow.service';
 import { AgentFlowAgent } from './ai-insights/agent-flow/agent-flow.agent';
 import { AgentFlowPolicySanitizerService } from './ai-insights/agent-flow/agent-flow-policy-sanitizer.service';
+import { AgentFlowCreateSourceKeyValidatorService } from './ai-insights/agent-flow/agent-flow-create-source-key-validator.service';
+import { AgentFlowProposedActionsTemplateValidatorService } from './ai-insights/agent-flow/agent-flow-proposed-actions-template-validator.service';
+import { AgentFlowTemplateEditIntentValidatorService } from './ai-insights/agent-flow/agent-flow-template-edit-intent-validator.service';
+import { AgentFlowTemplateValidationFeedbackService } from './ai-insights/agent-flow/agent-flow-template-validation-feedback.service';
+import { AgentFlowValidationRetryRulesService } from './ai-insights/agent-flow/agent-flow-validation-retry-rules.service';
+import { AgentFlowValidationRetryEngineService } from './ai-insights/agent-flow/agent-flow-validation-retry-engine.service';
 import { AgentFlowToolsRegistrar } from './ai-insights/agent-flow/agent-flow-tools.registrar';
 import { AgentFlowContextManager } from './services/agent-flow-context-manager.service';
 import { AgentFlowPromptBuilder } from './services/agent-flow-prompt-builder.service';
@@ -363,6 +372,7 @@ import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-c
     InsightArtifactMapper,
     InsightTemplateMapper,
     AiAssistantMapper,
+    AiAssistantRunTriggerMapper,
     AiAssistantApplyActionMapper,
     AgentFlowRequestMapper,
     InsightService,
@@ -380,6 +390,7 @@ import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-c
     TemplateFinalValidator,
     TemplatePlaceholderTagsRendererService,
     TemplateFullReplaceApplyService,
+    TemplateToPlaceholderTagsConverterService,
     CreateInsightService,
     CreateInsightWithAiService,
     GetInsightService,
@@ -399,6 +410,7 @@ import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-c
     ListInsightTemplatesService,
     UpdateInsightTemplateService,
     UpdateInsightTemplateTitleService,
+    DeleteInsightTemplateSourceService,
     DeleteInsightTemplateService,
     InsightExecutionService,
     RunInsightService,
@@ -488,6 +500,12 @@ import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-c
     AgentFlowService,
     AgentFlowAgent,
     AgentFlowPolicySanitizerService,
+    AgentFlowCreateSourceKeyValidatorService,
+    AgentFlowProposedActionsTemplateValidatorService,
+    AgentFlowTemplateEditIntentValidatorService,
+    AgentFlowTemplateValidationFeedbackService,
+    AgentFlowValidationRetryRulesService,
+    AgentFlowValidationRetryEngineService,
     AgentFlowToolsRegistrar,
     AgentFlowContextManager,
     AgentFlowPromptBuilder,

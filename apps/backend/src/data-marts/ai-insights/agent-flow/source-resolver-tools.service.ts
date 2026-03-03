@@ -7,11 +7,11 @@ import { InsightTemplateSourceService } from '../../services/insight-template-so
 import { AssistantOrchestratorRequest } from './ai-assistant-types';
 
 export interface ResolvedTemplateSource {
-  templateSourceId?: string;
+  templateSourceId: string;
   key: string;
   artifactId?: string;
   artifactTitle?: string;
-  sqlSummary?: string;
+  sql?: string;
 }
 
 export interface ListTemplateSourcesResult {
@@ -22,7 +22,7 @@ export interface ListTemplateSourcesResult {
 export interface UnlinkedArtifactCandidate {
   artifactId: string;
   artifactTitle?: string;
-  sqlSummary?: string;
+  sql?: string;
 }
 
 export interface ListUnlinkedArtifactSourcesResult {
@@ -37,7 +37,7 @@ export interface ResolveSourceByKeyResult {
 }
 
 export interface ResolveTemplateSourceSqlByKeyResult {
-  templateSourceId?: string;
+  templateSourceId: string;
   sourceKey: string;
   artifactId: string;
   sql: string;
@@ -143,7 +143,7 @@ export class SourceResolverToolsService {
     );
 
     const sources: ResolvedTemplateSource[] = (template.sources ?? []).map(source => ({
-      templateSourceId: source.templateSourceId ?? undefined,
+      templateSourceId: source.templateSourceId,
       key: source.key,
       artifactId: source.artifactId ?? undefined,
     }));
@@ -238,11 +238,11 @@ export class SourceResolverToolsService {
   ): Promise<ResolvedTemplateSource> {
     if (!source.artifactId) {
       return {
-        templateSourceId: source.templateSourceId ?? undefined,
+        templateSourceId: source.templateSourceId,
         key: source.key,
         artifactId: source.artifactId ?? undefined,
         artifactTitle: undefined,
-        sqlSummary: undefined,
+        sql: undefined,
       };
     }
 
@@ -254,11 +254,11 @@ export class SourceResolverToolsService {
       );
 
       return {
-        templateSourceId: source.templateSourceId ?? undefined,
+        templateSourceId: source.templateSourceId,
         key: source.key,
         artifactId: source.artifactId,
         artifactTitle: artifact.title ?? undefined,
-        sqlSummary: this.buildSqlSummary(artifact.sql),
+        sql: this.normalizeSql(artifact.sql),
       };
     } catch (error: unknown) {
       diagnostics.push(
@@ -270,11 +270,11 @@ export class SourceResolverToolsService {
         error: error instanceof Error ? error.message : String(error),
       });
       return {
-        templateSourceId: source.templateSourceId ?? undefined,
+        templateSourceId: source.templateSourceId,
         key: source.key,
         artifactId: source.artifactId,
         artifactTitle: undefined,
-        sqlSummary: undefined,
+        sql: undefined,
       };
     }
   }
@@ -285,21 +285,17 @@ export class SourceResolverToolsService {
     return {
       artifactId: artifact.id,
       artifactTitle: artifact.title ?? undefined,
-      sqlSummary: this.buildSqlSummary(artifact.sql),
+      sql: this.normalizeSql(artifact.sql),
     };
   }
 
-  private buildSqlSummary(sql: string | null | undefined): string | undefined {
-    const compact = (sql ?? '').replace(/\s+/g, ' ').trim();
-    if (!compact) {
+  private normalizeSql(sql: string | null | undefined): string | undefined {
+    const normalized = (sql ?? '').trim();
+    if (!normalized) {
       return undefined;
     }
 
-    if (compact.length <= 180) {
-      return compact;
-    }
-
-    return `${compact.slice(0, 177)}...`;
+    return normalized;
   }
 
   private normalizeIdentifier(value: string | null | undefined): string {

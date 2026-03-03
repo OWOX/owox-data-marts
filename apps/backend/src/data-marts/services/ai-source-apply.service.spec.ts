@@ -463,11 +463,11 @@ describe('AiSourceApplyService', () => {
     expect(templateRepository.save).toHaveBeenCalledWith(
       expect.objectContaining({
         sources: [
-          {
+          expect.objectContaining({
             key: 'source_new',
             type: InsightTemplateSourceType.INSIGHT_ARTIFACT,
             artifactId: 'artifact-1',
-          },
+          }),
         ],
       })
     );
@@ -688,11 +688,11 @@ describe('AiSourceApplyService', () => {
     expect(templateRepository.save).toHaveBeenCalledWith(
       expect.objectContaining({
         sources: [
-          {
+          expect.objectContaining({
             key: 'consumption_2025',
             type: InsightTemplateSourceType.INSIGHT_ARTIFACT,
             artifactId: 'artifact-1',
-          },
+          }),
         ],
       })
     );

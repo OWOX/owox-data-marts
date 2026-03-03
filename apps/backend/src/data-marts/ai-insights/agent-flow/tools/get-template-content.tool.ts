@@ -3,6 +3,8 @@ import { Injectable } from '@nestjs/common';
 import { InsightTemplateService } from '../../../services/insight-template.service';
 import { AgentFlowContext } from '../types';
 import { isDefaultInsightTemplate } from '../../../template/default-insight-template';
+import { TemplateEditPlaceholderTag } from '../../../services/template-edit-placeholder-tags/template-edit-placeholder-tags.contracts';
+import { TemplateToPlaceholderTagsConverterService } from '../../../services/template-edit-placeholder-tags/template-to-placeholder-tags-converter.service';
 
 export const GetTemplateContentInputSchema = z.object({});
 export type GetTemplateContentInput = z.infer<typeof GetTemplateContentInputSchema>;
@@ -15,12 +17,18 @@ export const GetTemplateContentInputJsonSchema = {
 };
 
 export interface GetTemplateContentOutput {
-  template: string | null;
+  template: {
+    text: string;
+    tags: TemplateEditPlaceholderTag[];
+  } | null;
 }
 
 @Injectable()
 export class GetTemplateContentTool {
-  constructor(private readonly insightTemplateService: InsightTemplateService) {}
+  constructor(
+    private readonly insightTemplateService: InsightTemplateService,
+    private readonly templateToPlaceholderTagsConverter: TemplateToPlaceholderTagsConverterService
+  ) {}
 
   async execute(
     _args: GetTemplateContentInput,
@@ -38,7 +46,9 @@ export class GetTemplateContentTool {
     const shouldHideDefaultTemplate = isDefaultInsightTemplate(templateContent);
 
     return {
-      template: shouldHideDefaultTemplate ? null : templateContent,
+      template: shouldHideDefaultTemplate
+        ? null
+        : this.templateToPlaceholderTagsConverter.toPlaceholderDocument(templateContent),
     };
   }
 }

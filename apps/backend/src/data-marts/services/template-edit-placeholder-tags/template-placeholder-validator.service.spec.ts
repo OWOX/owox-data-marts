@@ -22,19 +22,16 @@ describe('TemplatePlaceholderValidator', () => {
     });
   });
 
-  it('allows raw template tag syntax in text', () => {
+  it('rejects raw template tag syntax in text', () => {
     const result = service.validate({
       text: '## Result\n{{table source="main"}}',
       tags: [],
     });
 
-    expect(result).toEqual({
-      ok: true,
-      value: {
-        placeholderIdsInOrder: [],
-        placeholderIdsUnique: [],
-      },
-    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe('template_text_contains_raw_tag_syntax');
+    }
   });
 
   it('rejects malformed placeholder syntax', () => {

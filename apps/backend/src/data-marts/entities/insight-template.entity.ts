@@ -13,7 +13,8 @@ import { CreatorAwareEntity } from './creator-aware-entity.interface';
 import { DataMart } from './data-mart.entity';
 import {
   InsightTemplateSources,
-  InsightTemplateSourcesSchema,
+  InsightTemplateSourcesCommand,
+  InsightTemplateSourcesCommandSchema,
 } from '../dto/schemas/insight-template/insight-template-source.schema';
 import { InsightTemplateSourceEntity } from './insight-template-source.entity';
 
@@ -37,15 +38,15 @@ export class InsightTemplate implements CreatorAwareEntity {
 
   get sources(): InsightTemplateSources {
     return (this.sourceEntities ?? []).map(sourceEntity => ({
-      templateSourceId: sourceEntity.id ?? null,
+      templateSourceId: sourceEntity.id,
       key: sourceEntity.key,
       type: sourceEntity.type,
       artifactId: sourceEntity.artifactId,
     }));
   }
 
-  set sources(value: InsightTemplateSources) {
-    const normalizedSources = InsightTemplateSourcesSchema.parse(value ?? []);
+  set sources(value: InsightTemplateSourcesCommand) {
+    const normalizedSources = InsightTemplateSourcesCommandSchema.parse(value ?? []);
     const existingByTemplateSourceId = new Map(
       (this.sourceEntities ?? [])
         .filter((sourceEntity): sourceEntity is InsightTemplateSourceEntity =>

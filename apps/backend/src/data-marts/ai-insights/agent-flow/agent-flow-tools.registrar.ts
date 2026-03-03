@@ -90,8 +90,9 @@ export class AgentFlowToolsRegistrar {
     registry.register({
       name: AgentFlowTools.GET_TEMPLATE_CONTENT,
       description:
-        'Returns the full markdown content of the current insight template. ' +
-        'Use this to read and understand the template structure before making text edits.',
+        'Returns the current insight template in canonical editable format: ' +
+        'template.text with placeholders [[TAG:id]] and template.tags[] with typed tag definitions. ' +
+        'Use this canonical representation before making any template edits.',
       inputJsonSchema: GetTemplateContentInputJsonSchema,
       inputZod: GetTemplateContentInputSchema,
       execute: (args: unknown, ctx: AiContext) =>

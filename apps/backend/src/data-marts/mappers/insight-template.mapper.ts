@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AuthorizationContext } from '../../idp';
 import { CreateInsightTemplateCommand } from '../dto/domain/create-insight-template.command';
+import { DeleteInsightTemplateSourceCommand } from '../dto/domain/delete-insight-template-source.command';
 import { DeleteInsightTemplateCommand } from '../dto/domain/delete-insight-template.command';
 import { GetInsightTemplateCommand } from '../dto/domain/get-insight-template.command';
 import { InsightTemplateDto } from '../dto/domain/insight-template.dto';
@@ -15,8 +16,8 @@ import { UpdateInsightTemplateTitleApiDto } from '../dto/presentation/update-ins
 import { DataMartRun } from '../entities/data-mart-run.entity';
 import { InsightTemplate } from '../entities/insight-template.entity';
 import {
-  InsightTemplateSources,
-  InsightTemplateSourcesSchema,
+  InsightTemplateSourcesCommand,
+  InsightTemplateSourcesCommandSchema,
 } from '../dto/schemas/insight-template/insight-template-source.schema';
 import { DataMartMapper } from './data-mart.mapper';
 
@@ -148,7 +149,21 @@ export class InsightTemplateMapper {
     return new DeleteInsightTemplateCommand(insightTemplateId, dataMartId, context.projectId);
   }
 
-  private normalizeSources(sources: unknown): InsightTemplateSources {
-    return InsightTemplateSourcesSchema.parse(sources ?? []);
+  toDeleteSourceCommand(
+    sourceId: string,
+    insightTemplateId: string,
+    dataMartId: string,
+    context: AuthorizationContext
+  ): DeleteInsightTemplateSourceCommand {
+    return new DeleteInsightTemplateSourceCommand(
+      sourceId,
+      insightTemplateId,
+      dataMartId,
+      context.projectId
+    );
+  }
+
+  private normalizeSources(sources: unknown): InsightTemplateSourcesCommand {
+    return InsightTemplateSourcesCommandSchema.parse(sources ?? []);
   }
 }

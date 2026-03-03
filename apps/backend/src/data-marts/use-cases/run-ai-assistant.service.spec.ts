@@ -287,4 +287,59 @@ describe('RunAiAssistantService', () => {
       })
     );
   });
+
+  it('fails before saving assistant message when proposedActions are invalid', async () => {
+    const {
+      service,
+      dataMartService,
+      dataMartRunService,
+      aiAssistantSessionService,
+      agentFlowService,
+      systemTimeService,
+    } = createService();
+
+    dataMartService.getByIdAndProjectId.mockResolvedValue(dataMart);
+    aiAssistantSessionService.getSessionByIdAndDataMartIdAndProjectId.mockResolvedValue(session);
+    dataMartRunService.createAndMarkAiSourceRunAsPending.mockResolvedValue(run);
+    dataMartRunService.markAiSourceRunAsStarted.mockResolvedValue({
+      ...run,
+      status: DataMartRunStatus.RUNNING,
+    });
+    aiAssistantSessionService.listMessagesBySessionIdAndDataMartIdAndProjectId.mockResolvedValue([
+      userMessage,
+    ]);
+    agentFlowService.run.mockResolvedValue({
+      status: 'ok',
+      decision: 'propose_action',
+      explanation: 'I prepared an action.',
+      proposedActions: [
+        {
+          id: 'request-1',
+          type: 'apply_sql_to_artifact',
+          confidence: 0.9,
+          payload: {},
+        },
+      ],
+      meta: {
+        sanitizedLastUserMessage: null,
+        reasonDescription: 'Ready',
+        telemetry: {
+          llmCalls: [],
+          toolCalls: [],
+          messageHistory: [],
+        },
+      },
+    });
+    systemTimeService.now.mockReturnValue(now);
+
+    await expect(service.run(command)).rejects.toThrow('artifactId');
+
+    expect(aiAssistantSessionService.addMessage).not.toHaveBeenCalled();
+    expect(dataMartRunService.markAiSourceRunAsFinished).toHaveBeenCalledWith(
+      run,
+      expect.objectContaining({
+        status: DataMartRunStatus.FAILED,
+      })
+    );
+  });
 });

@@ -52,6 +52,14 @@ export class InsightTemplatesService extends ApiService {
     return this.delete(`/${dataMartId}/insight-templates/${id}`);
   }
 
+  async deleteInsightTemplateSource(
+    dataMartId: string,
+    insightTemplateId: string,
+    sourceId: string
+  ): Promise<void> {
+    return this.delete(`/${dataMartId}/insight-templates/${insightTemplateId}/sources/${sourceId}`);
+  }
+
   async startInsightTemplateExecution(
     dataMartId: string,
     insightTemplateId: string

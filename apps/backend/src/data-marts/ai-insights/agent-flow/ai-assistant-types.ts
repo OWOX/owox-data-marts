@@ -41,60 +41,102 @@ export const TurnPromptTypeSchema = z.enum(['template_edit', 'explain_or_status'
 
 export const AssistantTaskModeSchema = z.enum(['new_task', 'refine_existing', 'ambiguous_mode']);
 
+function validateTemplateEditPayloadPair(
+  payload: { text?: string; tags?: unknown[] },
+  ctx: z.RefinementCtx
+): void {
+  const hasText = typeof payload.text === 'string' && payload.text.trim().length > 0;
+  const hasTags = Array.isArray(payload.tags);
+
+  if (hasText === hasTags) {
+    return;
+  }
+
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    path: hasText ? ['tags'] : ['text'],
+    message: 'payload.text and payload.tags must be provided together',
+  });
+}
+
 export const AssistantProposedActionSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('attach_source_to_template'),
     id: z.string().min(1),
     confidence: z.number().min(0).max(1),
-    payload: z.object({
-      suggestedSourceKey: z.string().min(1, 'suggestedSourceKey is required'),
-      targetArtifactId: z.string().min(1).optional(),
-      insertTag: z.boolean().optional(),
-      suggestedArtifactTitle: z.string().min(1).optional(),
-      suggestedTemplateSnippet: z.string().min(1).optional(),
-      text: z.string().min(1).optional(),
-      tags: z.array(TemplateEditPlaceholderTagSchema).optional(),
-      suggestedTemplateEditDiffPreview: z.string().optional(),
-    }),
+    payload: z
+      .object({
+        suggestedSourceKey: z.string().min(1, 'suggestedSourceKey is required'),
+        targetArtifactId: z.string().min(1).optional(),
+        insertTag: z.boolean().optional(),
+        suggestedArtifactTitle: z.string().min(1).optional(),
+        suggestedTemplateSnippet: z.string().min(1).optional(),
+        text: z.string().min(1).optional(),
+        tags: z.array(TemplateEditPlaceholderTagSchema).optional(),
+        suggestedTemplateEditDiffPreview: z.string().optional(),
+      })
+      .superRefine((payload, ctx) => {
+        validateTemplateEditPayloadPair(payload, ctx);
+      }),
   }),
   z.object({
     type: z.literal('apply_sql_to_artifact'),
     id: z.string().min(1),
     confidence: z.number().min(0).max(1),
-    payload: z.object({
-      artifactId: z.string().min(1).optional(),
-      suggestedArtifactTitle: z.string().min(1).optional(),
-      text: z.string().min(1).optional(),
-      tags: z.array(TemplateEditPlaceholderTagSchema).optional(),
-      suggestedTemplateEditDiffPreview: z.string().optional(),
-    }),
+    payload: z
+      .object({
+        artifactId: z.string().min(1, 'artifactId is required'),
+        suggestedArtifactTitle: z.string().min(1).optional(),
+        text: z.string().min(1).optional(),
+        tags: z.array(TemplateEditPlaceholderTagSchema).optional(),
+        suggestedTemplateEditDiffPreview: z.string().optional(),
+      })
+      .superRefine((payload, ctx) => {
+        validateTemplateEditPayloadPair(payload, ctx);
+      }),
   }),
   z.object({
     type: z.literal('apply_changes_to_source'),
     id: z.string().min(1),
     confidence: z.number().min(0).max(1),
-    payload: z.object({
-      sourceId: z.string().min(1).optional(),
-      sourceKey: z.string().min(1).optional(),
-      artifactId: z.string().min(1).optional(),
-      suggestedArtifactTitle: z.string().min(1).optional(),
-      text: z.string().min(1).optional(),
-      tags: z.array(TemplateEditPlaceholderTagSchema).optional(),
-      suggestedTemplateEditDiffPreview: z.string().optional(),
-    }),
+    payload: z
+      .object({
+        sourceId: z.string().min(1).optional(),
+        sourceKey: z.string().min(1).optional(),
+        artifactId: z.string().min(1).optional(),
+        suggestedArtifactTitle: z.string().min(1).optional(),
+        text: z.string().min(1).optional(),
+        tags: z.array(TemplateEditPlaceholderTagSchema).optional(),
+        suggestedTemplateEditDiffPreview: z.string().optional(),
+      })
+      .superRefine((payload, ctx) => {
+        validateTemplateEditPayloadPair(payload, ctx);
+
+        if (!payload.sourceKey && !payload.artifactId) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['sourceKey'],
+            message: 'Either payload.sourceKey or payload.artifactId must be provided',
+          });
+        }
+      }),
   }),
   z.object({
     type: z.literal('create_source_and_attach'),
     id: z.string().min(1),
     confidence: z.number().min(0).max(1),
-    payload: z.object({
-      suggestedSourceKey: z.string().min(1).optional(),
-      suggestedArtifactTitle: z.string().min(1).optional(),
-      suggestedTemplateSnippet: z.string().min(1).optional(),
-      text: z.string().min(1).optional(),
-      tags: z.array(TemplateEditPlaceholderTagSchema).optional(),
-      suggestedTemplateEditDiffPreview: z.string().optional(),
-    }),
+    payload: z
+      .object({
+        suggestedSourceKey: z.string().min(1, 'suggestedSourceKey is required'),
+        suggestedArtifactTitle: z.string().min(1).optional(),
+        suggestedTemplateSnippet: z.string().min(1).optional(),
+        text: z.string().min(1).optional(),
+        tags: z.array(TemplateEditPlaceholderTagSchema).optional(),
+        suggestedTemplateEditDiffPreview: z.string().optional(),
+      })
+      .superRefine((payload, ctx) => {
+        validateTemplateEditPayloadPair(payload, ctx);
+      }),
   }),
   z.object({
     type: z.literal('replace_template_document'),
@@ -119,17 +161,22 @@ export const AssistantProposedActionSchema = z.discriminatedUnion('type', [
     type: z.literal('reuse_source_without_changes'),
     id: z.string().min(1),
     confidence: z.number().min(0).max(1),
-    payload: z.object({
-      sourceId: z.string().min(1).optional(),
-      sourceKey: z.string().min(1).optional(),
-      artifactId: z.string().min(1).optional(),
-      text: z.string().min(1).optional(),
-      tags: z.array(TemplateEditPlaceholderTagSchema).optional(),
-      suggestedTemplateEditDiffPreview: z.string().optional(),
-    }),
+    payload: z
+      .object({
+        sourceId: z.string().min(1).optional(),
+        sourceKey: z.string().min(1, 'sourceKey is required'),
+        artifactId: z.string().min(1).optional(),
+        text: z.string().min(1).optional(),
+        tags: z.array(TemplateEditPlaceholderTagSchema).optional(),
+        suggestedTemplateEditDiffPreview: z.string().optional(),
+      })
+      .superRefine((payload, ctx) => {
+        validateTemplateEditPayloadPair(payload, ctx);
+      }),
   }),
 ]);
 export type AssistantProposedAction = z.infer<typeof AssistantProposedActionSchema>;
+export const AssistantProposedActionsSchema = z.array(AssistantProposedActionSchema);
 
 export const AssistantContextResolutionSchema = z.enum([
   'explicit_key',

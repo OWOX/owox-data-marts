@@ -13,6 +13,7 @@ import type {
   CreateAiAssistantSessionInput,
   ListAiAssistantSessionsParams,
 } from './ai-assistant-session.service.types';
+import { normalizeString } from '../../common/helpers/normalize-string.helper';
 
 @Injectable()
 export class AiAssistantSessionService {
@@ -232,7 +233,7 @@ export class AiAssistantSessionService {
           continue;
         }
 
-        const normalized = this.normalizeContextHint(action.payload.suggestedArtifactTitle);
+        const normalized = normalizeString(action.payload.suggestedArtifactTitle);
         if (normalized) {
           return normalized;
         }
@@ -296,14 +297,5 @@ export class AiAssistantSessionService {
     }
 
     return [];
-  }
-
-  private normalizeContextHint(value: unknown): string | null {
-    if (typeof value !== 'string') {
-      return null;
-    }
-
-    const normalized = value.trim();
-    return normalized.length > 0 ? normalized : null;
   }
 }

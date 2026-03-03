@@ -9,7 +9,7 @@ import {
 import type { AiAssistantApplyStatus } from '../dto/domain/ai-assistant-apply.types';
 import {
   InsightTemplateSourceType,
-  InsightTemplateSources,
+  InsightTemplateSourcesCommand,
 } from '../dto/schemas/insight-template/insight-template-source.schema';
 import { AiAssistantSession } from '../entities/ai-assistant-session.entity';
 import { DataMart } from '../entities/data-mart.entity';
@@ -21,6 +21,7 @@ import { InsightArtifactService } from './insight-artifact.service';
 import { InsightTemplateService } from './insight-template.service';
 import { InsightTemplateValidationService } from './insight-template-validation.service';
 import { TemplateFullReplaceApplyService } from './template-edit-placeholder-tags/template-full-replace-apply.service';
+import { normalizeString } from '../../common/helpers/normalize-string.helper';
 
 interface AttachResult {
   templateUpdated: boolean;
@@ -128,7 +129,7 @@ export class AiSourceApplyExecutionService {
       return this.applyTemplateEditAfterSourceIfPresent(session, command, action, reuseResult);
     }
 
-    const explicitTargetArtifactId = this.normalizeOptional(action.targetArtifactId);
+    const explicitTargetArtifactId = normalizeString(action.targetArtifactId);
     if (explicitTargetArtifactId) {
       const artifact = await this.insightArtifactService.getByIdAndDataMartIdAndProjectId(
         explicitTargetArtifactId,
@@ -179,7 +180,7 @@ export class AiSourceApplyExecutionService {
     command: ApplyAiAssistantSessionCommand,
     attachPayload: ResolvedAttachPayload
   ): Promise<ApplyExecutionResult | null> {
-    const templateId = this.normalizeOptional(attachPayload.templateId);
+    const templateId = normalizeString(attachPayload.templateId);
     if (!templateId) {
       return null;
     }
@@ -204,7 +205,7 @@ export class AiSourceApplyExecutionService {
           command.projectId
         )
       : null;
-    const sqlOverride = this.normalizeOptional(command.sql);
+    const sqlOverride = normalizeString(command.sql);
 
     const templateUpdated = false;
     let status: AiAssistantApplyStatus = 'already_present';
@@ -373,7 +374,7 @@ export class AiSourceApplyExecutionService {
   }
 
   private hasTemplateEditPayload(action: ApplyAiAssistantActionPayload): boolean {
-    const text = this.normalizeOptional(action.text);
+    const text = normalizeString(action.text);
     return Boolean(text && Array.isArray(action.tags));
   }
 
@@ -381,14 +382,14 @@ export class AiSourceApplyExecutionService {
     session: AiAssistantSession,
     action: ApplyAiAssistantActionPayload
   ): ResolvedAttachPayload {
-    const sourceKey = this.normalizeOptional(action.sourceKey);
+    const sourceKey = normalizeString(action.sourceKey);
     if (!sourceKey) {
       throw new BusinessViolationException(
         'sourceKey is required for create_and_attach_source action'
       );
     }
 
-    const templateId = this.normalizeOptional(session.templateId);
+    const templateId = normalizeString(session.templateId);
     if (!templateId) {
       throw new BusinessViolationException(
         'templateId is required for attach operation in template scope'
@@ -405,7 +406,7 @@ export class AiSourceApplyExecutionService {
     session: AiAssistantSession,
     _action: ApplyAiAssistantActionPayload
   ): string {
-    const templateId = this.normalizeOptional(session.templateId);
+    const templateId = normalizeString(session.templateId);
     if (!templateId) {
       throw new BusinessViolationException(
         'templateId is required for template-scoped apply action'
@@ -416,7 +417,7 @@ export class AiSourceApplyExecutionService {
   }
 
   private resolveSourceKeyForAction(action: ApplyAiAssistantActionPayload): string {
-    const sourceKey = this.normalizeOptional(action.sourceKey);
+    const sourceKey = normalizeString(action.sourceKey);
     if (!sourceKey) {
       throw new BusinessViolationException('sourceKey is required for snippet apply action');
     }
@@ -435,7 +436,7 @@ export class AiSourceApplyExecutionService {
     session: AiAssistantSession,
     command: ApplyAiAssistantSessionCommand
   ): Promise<string> {
-    const sqlOverride = this.normalizeOptional(command.sql);
+    const sqlOverride = normalizeString(command.sql);
     if (sqlOverride) {
       return sqlOverride;
     }
@@ -456,7 +457,7 @@ export class AiSourceApplyExecutionService {
   }
 
   private extractSqlCandidateFromMessage(message: { sqlCandidate?: string | null }): string | null {
-    return this.normalizeOptional(message.sqlCandidate);
+    return normalizeString(message.sqlCandidate);
   }
 
   private async applySqlToArtifact(
@@ -465,7 +466,7 @@ export class AiSourceApplyExecutionService {
     sql: string,
     action?: ApplyAiAssistantActionPayload
   ): Promise<InsightArtifact> {
-    const explicitArtifactTitle = this.normalizeOptional(command.artifactTitle);
+    const explicitArtifactTitle = normalizeString(command.artifactTitle);
     const targetArtifactId = await this.resolveTargetArtifactId(session, command, action);
 
     if (targetArtifactId) {
@@ -511,17 +512,17 @@ export class AiSourceApplyExecutionService {
     command: ApplyAiAssistantSessionCommand,
     action?: ApplyAiAssistantActionPayload
   ): Promise<string | null> {
-    const directTargetArtifactId = this.normalizeOptional(action?.targetArtifactId);
+    const directTargetArtifactId = normalizeString(action?.targetArtifactId);
     if (directTargetArtifactId) {
       return directTargetArtifactId;
     }
 
-    const sourceKey = this.normalizeOptional(action?.sourceKey);
+    const sourceKey = normalizeString(action?.sourceKey);
     if (!sourceKey) {
       return null;
     }
 
-    const templateId = this.normalizeOptional(session.templateId);
+    const templateId = normalizeString(session.templateId);
     if (!templateId) {
       return null;
     }
@@ -532,7 +533,7 @@ export class AiSourceApplyExecutionService {
       command.projectId
     );
     const matchedSource = (template.sources ?? []).find(source => source.key === sourceKey);
-    return this.normalizeOptional(matchedSource?.artifactId ?? null);
+    return normalizeString(matchedSource?.artifactId ?? null);
   }
 
   private async attachArtifactToTemplate(
@@ -541,7 +542,7 @@ export class AiSourceApplyExecutionService {
     projectId: string,
     attachToTemplate: ResolvedAttachPayload
   ): Promise<AttachResult> {
-    const sourceKey = this.normalizeOptional(attachToTemplate.sourceKey);
+    const sourceKey = normalizeString(attachToTemplate.sourceKey);
     if (!sourceKey) {
       throw new BusinessViolationException('sourceKey is required for attach operation');
     }
@@ -556,7 +557,7 @@ export class AiSourceApplyExecutionService {
       );
     }
 
-    const templateId = attachToTemplate.templateId ?? this.normalizeOptional(session.templateId);
+    const templateId = attachToTemplate.templateId ?? session.templateId;
     if (!templateId) {
       throw new BusinessViolationException(
         'templateId is required for attach operation in template scope'
@@ -587,7 +588,7 @@ export class AiSourceApplyExecutionService {
       };
     }
 
-    const updatedSources: InsightTemplateSources = [
+    const updatedSources: InsightTemplateSourcesCommand = [
       ...existingSources,
       {
         key: sourceKey,
@@ -610,15 +611,6 @@ export class AiSourceApplyExecutionService {
       templateId: template.id,
       sourceKey,
     };
-  }
-
-  private normalizeOptional(value?: string | null): string | null {
-    if (typeof value !== 'string') {
-      return null;
-    }
-
-    const normalized = value.trim();
-    return normalized.length ? normalized : null;
   }
 
   private normalizeSqlForComparison(value: string | null | undefined): string {

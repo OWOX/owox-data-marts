@@ -21,6 +21,7 @@ import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDi
 import { InlineEditTitle } from '../../../../shared/components/InlineEditTitle/InlineEditTitle.tsx';
 import ResizableColumns from '../../../../shared/components/ResizableColumns/ResizableColumns';
 import { useDataMartContext } from '../../edit/model';
+import { DATA_MART_RUNS_PAGE_SIZE } from '../../edit/constants';
 import { DataMartRunStatus, DataMartStatus } from '../../shared';
 import { NO_PERMISSION_MESSAGE, usePermissions } from '../../../../app/permissions';
 import { TaskStatus } from '../../../../shared/types/task-status.enum.ts';
@@ -48,7 +49,7 @@ import { InsightTemplateSourcesBottomPanel } from './InsightTemplateSourcesBotto
 export default function InsightTemplateDetailsView() {
   const navigate = useNavigate();
   const { insightTemplateId } = useParams<{ insightTemplateId: string }>();
-  const { dataMart } = useDataMartContext();
+  const { dataMart, getDataMartRuns } = useDataMartContext();
   const { canEdit, canDelete } = usePermissions();
 
   const [entity, setEntity] = useState<InsightTemplateEntity | null>(null);
@@ -59,6 +60,7 @@ export default function InsightTemplateDetailsView() {
   const [saving, setSaving] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [triggerId, setTriggerId] = useState<string | null>(null);
+  const [isAiAssistantHeavyProcessing, setIsAiAssistantHeavyProcessing] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [runErrorMessage, setRunErrorMessage] = useState<string | null>(null);
 
@@ -159,6 +161,23 @@ export default function InsightTemplateDetailsView() {
     };
   }, [dataMart?.id, insightTemplateId, loadEntity, triggerId]);
 
+  useEffect(() => {
+    if (!isAiAssistantHeavyProcessing || !dataMart?.id) {
+      return;
+    }
+
+    const refreshRuns = () => {
+      void getDataMartRuns(dataMart.id, DATA_MART_RUNS_PAGE_SIZE, 0, { silent: true });
+    };
+
+    refreshRuns();
+    const intervalId = window.setInterval(refreshRuns, 5000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [dataMart?.id, getDataMartRuns, isAiAssistantHeavyProcessing]);
+
   const handleSave = useCallback(async (): Promise<InsightTemplateEntity | null> => {
     if (!dataMart?.id || !insightTemplateId || !entity || !canEdit) return null;
 
@@ -186,6 +205,39 @@ export default function InsightTemplateDetailsView() {
       setSaving(false);
     }
   }, [canEdit, dataMart?.id, entity, insightTemplateId, sources, template]);
+
+  const handleDeletePersistedSource = useCallback(
+    async (source: InsightTemplateSourceDto): Promise<boolean> => {
+      if (!dataMart?.id || !insightTemplateId || !source.templateSourceId) {
+        return true;
+      }
+
+      try {
+        await insightTemplatesService.deleteInsightTemplateSource(
+          dataMart.id,
+          insightTemplateId,
+          source.templateSourceId
+        );
+
+        setEntity(prev =>
+          prev
+            ? {
+                ...prev,
+                sources: prev.sources.filter(
+                  item => item.templateSourceId !== source.templateSourceId
+                ),
+              }
+            : prev
+        );
+        toast.success('Source deleted');
+        return true;
+      } catch {
+        toast.error('Failed to delete source');
+        return false;
+      }
+    },
+    [dataMart?.id, insightTemplateId]
+  );
 
   const handleRun = useCallback(async () => {
     if (!dataMart?.id || !insightTemplateId || isRunning || isDraft) return;
@@ -320,6 +372,7 @@ export default function InsightTemplateDetailsView() {
           scope='template'
           templateId={insightTemplateId}
           canEdit={canEdit}
+          onHeavyProcessingChange={setIsAiAssistantHeavyProcessing}
           onApplied={() => {
             void loadEntity();
           }}
@@ -344,6 +397,7 @@ export default function InsightTemplateDetailsView() {
                       insightTemplateId={insightTemplateId}
                       sources={sources}
                       setSources={setSources}
+                      onDeletePersistedSource={handleDeletePersistedSource}
                       artifacts={artifacts}
                       canEdit={canEdit}
                       isRunning={isRunning}

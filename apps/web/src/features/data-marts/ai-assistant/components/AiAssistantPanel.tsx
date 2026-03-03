@@ -37,6 +37,7 @@ interface AiAssistantPanelProps {
   templateId?: string;
   canEdit: boolean;
   onApplied?: (result: ApplyAiAssistantSessionResponseDto) => void;
+  onHeavyProcessingChange?: (isProcessing: boolean) => void;
 }
 
 const PANEL_STORAGE_KEY_PREFIX = 'ai_assistant_panel_collapsed';
@@ -47,6 +48,7 @@ export function AiAssistantPanel({
   templateId,
   canEdit,
   onApplied,
+  onHeavyProcessingChange,
 }: AiAssistantPanelProps) {
   const [prompt, setPrompt] = useState('');
   const [lastApplyResult, setLastApplyResult] = useState<ApplyAiAssistantSessionResponseDto | null>(
@@ -89,6 +91,10 @@ export function AiAssistantPanel({
     if (!error) return;
     toast.error(error);
   }, [error]);
+
+  useEffect(() => {
+    onHeavyProcessingChange?.(isHeavyProcessing);
+  }, [isHeavyProcessing, onHeavyProcessingChange]);
 
   const hasSqlCandidate = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {

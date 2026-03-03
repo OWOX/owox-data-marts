@@ -2,11 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { AgentFlowAgent } from './agent-flow.agent';
 import { AssistantOrchestratorResponse } from './ai-assistant-types';
 import { AiContentFilterError } from '../../../common/ai-insights/services/error';
-import { AgentFlowPromptContext, AgentFlowRequest, AgentFlowTemplateEditIntent } from './types';
+import { AgentFlowPromptContext, AgentFlowRequest } from './types';
 import { createTelemetry } from './agent-telemetry.utils';
 import { AgentFlowContentPolicyRestrictedError } from './agent-flow-policy-sanitizer.service';
 import { resolveAgentFlowProposedActions } from './agent-flow-proposed-actions.utils';
-import { TemplatePlaceholderTagsRendererService } from '../../services/template-edit-placeholder-tags/template-placeholder-tags-renderer.service';
 import { castError } from '@owox/internal-helpers';
 
 /**
@@ -20,10 +19,7 @@ import { castError } from '@owox/internal-helpers';
 export class AgentFlowService {
   private readonly logger = new Logger(AgentFlowService.name);
 
-  constructor(
-    private readonly agent: AgentFlowAgent,
-    private readonly templatePlaceholderTagsRenderer: TemplatePlaceholderTagsRendererService
-  ) {}
+  constructor(private readonly agent: AgentFlowAgent) {}
 
   async run(
     request: AgentFlowRequest,
@@ -33,7 +29,6 @@ export class AgentFlowService {
 
     try {
       const { result, context } = await this.agent.run(request, telemetry, promptContext);
-      this.validateTemplateEditIntent(result.templateEditIntent);
 
       const proposedActions = resolveAgentFlowProposedActions({
         resultProposedActions: result.proposedActions,
@@ -105,28 +100,6 @@ export class AgentFlowService {
           telemetry,
         },
       };
-    }
-  }
-
-  private validateTemplateEditIntent(
-    templateEditIntent: AgentFlowTemplateEditIntent | undefined
-  ): void {
-    if (!templateEditIntent) {
-      return;
-    }
-
-    const renderResult = this.templatePlaceholderTagsRenderer.render({
-      text: templateEditIntent.text,
-      tags: templateEditIntent.tags,
-      tagValidationOptions: {
-        allowMainSource: true,
-      },
-    });
-
-    if (!renderResult.ok) {
-      throw new Error(
-        `template_edit_intent_invalid:${renderResult.error.code}:${renderResult.error.message}`
-      );
     }
   }
 }

@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { AgentFlowContext } from '../types';
 import { InsightTemplateService } from '../../../services/insight-template.service';
+import { findTemplateTagBySourceKey } from '../../../services/template-source-key-in-template.util';
 
 export const ProposeRemoveSourceInputSchema = z.object({
   sourceKey: z.string().min(1).describe('The source key to remove, e.g. "consumption_2025".'),
@@ -45,11 +46,7 @@ export class ProposeRemoveSourceTool {
 
     const templateText = templateEntity.template ?? '';
 
-    // Detect the exact tag in the template markdown
-    const tagMatch = templateText.match(
-      new RegExp(`\\{\\{[^}]*source=["']${escapeRegex(args.sourceKey)}["'][^}]*\\}\\}`)
-    );
-    const tagToRemove = tagMatch?.[0] ?? null;
+    const tagToRemove = findTemplateTagBySourceKey(templateText, args.sourceKey);
 
     context.collectedProposedActions.push({
       type: 'remove_source_from_template',
@@ -66,8 +63,4 @@ export class ProposeRemoveSourceTool {
       tagToRemove,
     };
   }
-}
-
-function escapeRegex(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
