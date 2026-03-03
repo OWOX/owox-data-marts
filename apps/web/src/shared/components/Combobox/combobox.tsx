@@ -27,6 +27,7 @@ interface ComboboxProps {
   emptyMessage?: string;
   className?: string;
   disabled?: boolean;
+  renderLabel?: (option: ComboboxOption) => React.ReactNode;
 }
 
 export function Combobox({
@@ -37,6 +38,7 @@ export function Combobox({
   emptyMessage = 'No results found.',
   className,
   disabled = false,
+  renderLabel,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
@@ -115,7 +117,11 @@ export function Combobox({
                         value === option.value ? 'opacity-100' : 'opacity-0'
                       )}
                     />
-                    <span className='truncate'>{option.label}</span>
+                    {renderLabel ? (
+                      renderLabel(option)
+                    ) : (
+                      <span className='truncate'>{option.label}</span>
+                    )}
                   </CommandItem>
                 ))}
               </CommandGroup>
