@@ -7,11 +7,11 @@ export const oauthRoutes: RouteObject = {
   children: [
     {
       path: 'tiktok/callback',
-      Component: TikTokCallback,
+      element: <TikTokCallback />,
     },
     {
       path: 'microsoft-ads/callback',
-      Component: MicrosoftCallback,
+      element: <MicrosoftCallback />,
     },
     {
       path: 'google/callback',
