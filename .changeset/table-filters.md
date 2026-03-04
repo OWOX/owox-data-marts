@@ -10,8 +10,8 @@ We’ve overhauled the table filtering experience to help you navigate large dat
 
 Build complex queries effortlessly. You can now apply multiple filters simultaneously using intuitive operators:
 
-- **Equals / Doesn't equal**
-- **Contains / Doesn't contain**
+- **Is / Is not**
+- **Contains / Does not contain**
 
 ## Persistent filter states
 
