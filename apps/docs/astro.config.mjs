@@ -115,20 +115,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           autogenerate: { directory: 'packages/connectors/src/sources' },
         },
         {
-          label: 'Google Sheets Connectors',
-          items: [
-            'docs/editions/appsscript-edition',
-            'docs/google-sheets-connectors/facebook-ads',
-            'docs/google-sheets-connectors/tiktok-ads',
-            'docs/google-sheets-connectors/linkedin-ads',
-            'docs/google-sheets-connectors/microsoft-ads',
-            'docs/google-sheets-connectors/reddit-ads',
-            'docs/google-sheets-connectors/x-ads',
-            'docs/google-sheets-connectors/open-exchange-rates',
-          ],
-          collapsed: true,
-        },
-        {
           label: 'Contributing',
           items: [
             {
