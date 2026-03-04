@@ -987,7 +987,7 @@ export class ConnectorExecutionService {
   async getDataMartConnectorRunsByStatus(status: DataMartRunStatus): Promise<DataMartRun[]> {
     const runs = await this.dataMartRunRepository.find({
       where: { status },
-      relations: ['dataMart'],
+      relations: ['dataMart', 'dataMart.storage', 'dataMart.storage.credential'],
     });
 
     return runs.filter(run => run.type === DataMartRunType.CONNECTOR);
