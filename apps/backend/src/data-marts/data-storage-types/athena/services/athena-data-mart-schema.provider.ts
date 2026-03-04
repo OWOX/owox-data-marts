@@ -1,6 +1,11 @@
-import { ColumnInfo } from '@aws-sdk/client-athena';
+import { ColumnInfo, Datum, GetQueryResultsOutput } from '@aws-sdk/client-athena';
 import { Injectable, Logger } from '@nestjs/common';
 import { DataMartDefinition } from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition';
+import {
+  isConnectorDefinition,
+  isTableDefinition,
+  isViewDefinition,
+} from '../../../dto/schemas/data-mart-table-definitions/data-mart-definition.guards';
 import { DataMartSchema } from '../../data-mart-schema.type';
 import { isAthenaConfig } from '../../data-storage-config.guards';
 import { DataStorageConfig } from '../../data-storage-config.type';
@@ -10,6 +15,7 @@ import { DataMartSchemaFieldStatus } from '../../enums/data-mart-schema-field-st
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { DataMartSchemaProvider } from '../../interfaces/data-mart-schema-provider.interface';
 import { AthenaApiAdapterFactory } from '../adapters/athena-api-adapter.factory';
+import { AthenaApiAdapter } from '../adapters/athena-api.adapter';
 import { S3ApiAdapterFactory } from '../adapters/s3-api-adapter.factory';
 import { AthenaFieldType, parseAthenaFieldType } from '../enums/athena-field-type.enum';
 import {
@@ -73,10 +79,19 @@ export class AthenaDataMartSchemaProvider implements DataMartSchemaProvider {
         throw new Error('Failed to get real data mart schema');
       }
 
+      const columnComments = await this.getColumnComments(
+        adapter,
+        dataMartDefinition,
+        config.outputBucket,
+        outputPrefix
+      );
+
       return {
         type: AthenaDataMartSchemaType,
         fields: metadata.ColumnInfo.map(column => {
-          return this.createField(column);
+          const columnName = column.Label || column.Name;
+          const description = columnName ? columnComments[columnName] : undefined;
+          return this.createField(column, description);
         }),
       };
     } finally {
@@ -94,10 +109,11 @@ export class AthenaDataMartSchemaProvider implements DataMartSchemaProvider {
    * Creates a field definition for Athena data mart schema from Athena column metadata.
    *
    * @param column - Athena column metadata
+   * @param description - Optional column description (comment)
    * @returns AthenaDataMartSchema field object
    * @throws Error if the column name is missing
    */
-  private createField(column: ColumnInfo): AthenaDataMartSchema['fields'][0] {
+  private createField(column: ColumnInfo, description?: string): AthenaDataMartSchema['fields'][0] {
     const name = column.Label || column.Name;
     if (!name) {
       throw new Error(`Failed to get field name for column ${column}`);
@@ -114,6 +130,7 @@ export class AthenaDataMartSchemaProvider implements DataMartSchemaProvider {
     return {
       name,
       type,
+      description,
       isPrimaryKey: false,
       status: DataMartSchemaFieldStatus.CONNECTED,
     };
@@ -126,5 +143,98 @@ export class AthenaDataMartSchemaProvider implements DataMartSchemaProvider {
    */
   private getOutputPrefix(): string {
     return `athena-schema-fetch/${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+  }
+
+  /**
+   * Fetches column comments from information_schema.columns.
+   */
+  private async getColumnComments(
+    adapter: AthenaApiAdapter,
+    definition: DataMartDefinition,
+    outputBucket: string,
+    outputPrefix: string
+  ): Promise<Record<string, string>> {
+    const tableInfo = this.getSchemaAndTable(definition);
+    if (!tableInfo) {
+      return {};
+    }
+
+    try {
+      const commentsQuery = `SELECT column_name, comment FROM information_schema.columns WHERE table_schema = '${tableInfo.schema}' AND table_name = '${tableInfo.table}' AND comment IS NOT NULL`;
+      const { queryExecutionId } = await adapter.executeQuery(
+        commentsQuery,
+        outputBucket,
+        `${outputPrefix}-comments`
+      );
+      await adapter.waitForQueryToComplete(queryExecutionId);
+
+      const results = await adapter.getQueryResults(queryExecutionId);
+      return this.parseCommentResults(results);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to fetch column comments for ${tableInfo.schema}.${tableInfo.table}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+      return {};
+    }
+  }
+
+  /**
+   * Extracts schema and table name from a data mart definition.
+   */
+  private getSchemaAndTable(
+    definition: DataMartDefinition
+  ): { schema: string; table: string } | null {
+    let fullyQualifiedName: string | undefined;
+
+    if (isTableDefinition(definition) || isViewDefinition(definition)) {
+      fullyQualifiedName = definition.fullyQualifiedName;
+    } else if (isConnectorDefinition(definition)) {
+      fullyQualifiedName = definition.connector.storage.fullyQualifiedName;
+    }
+
+    if (!fullyQualifiedName) {
+      return null;
+    }
+
+    const parts = fullyQualifiedName.split('.').map(p => p.replace(/^"|"$/g, ''));
+    if (parts.length < 2) {
+      return null;
+    }
+
+    const table = parts.pop() as string;
+    const schema = parts.pop() as string;
+
+    return { schema, table };
+  }
+
+  /**
+   * Parses the raw Athena query results into a map of column names to comments.
+   */
+  private parseCommentResults(results: GetQueryResultsOutput): Record<string, string> {
+    const comments: Record<string, string> = {};
+
+    if (results.ResultSet?.Rows && results.ResultSet.Rows.length > 1) {
+      const rows = results.ResultSet.Rows;
+      const headers = rows[0].Data?.map((d: Datum) => d.VarCharValue);
+      const colIdx = headers?.indexOf('column_name');
+      const commentIdx = headers?.indexOf('comment');
+
+      if (colIdx !== undefined && colIdx >= 0 && commentIdx !== undefined && commentIdx >= 0) {
+        for (let i = 1; i < rows.length; i++) {
+          const rowData = rows[i].Data;
+          if (rowData) {
+            const colName = rowData[colIdx]?.VarCharValue;
+            const comment = rowData[commentIdx]?.VarCharValue;
+            if (colName && comment) {
+              comments[colName] = comment;
+            }
+          }
+        }
+      }
+    }
+
+    return comments;
   }
 }

@@ -58,6 +58,8 @@ export class AthenaSchemaMerger implements DataMartSchemaMerger {
       if (newField) {
         return {
           ...existingField,
+          description: newField.description || existingField.description,
+          alias: existingField.alias || newField.alias,
           status:
             existingField.type === newField.type
               ? DataMartSchemaFieldStatus.CONNECTED
