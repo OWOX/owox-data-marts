@@ -58,7 +58,6 @@ export class AgentFlowAgent {
 
     const tools = toolRegistry.findToolByNames([
       AgentFlowTools.LIST_TEMPLATE_SOURCES,
-      AgentFlowTools.LIST_ARTIFACTS,
       AgentFlowTools.GET_TEMPLATE_CONTENT,
       AgentFlowTools.PROPOSE_REMOVE_SOURCE,
       AgentFlowTools.GENERATE_SQL,

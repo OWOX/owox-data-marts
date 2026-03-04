@@ -110,7 +110,7 @@ export class AgentFlowContextManager {
     appliedActions: Array<{
       actionType: string | null;
       sourceKey: string | null;
-      artifactTitle: string | null;
+      sourceTitle: string | null;
       templateUpdated: boolean;
       appliedAt: Date;
     }>
@@ -317,9 +317,9 @@ export class AgentFlowContextManager {
       const sql = artifact?.sql;
 
       return {
+        sourceId: source.templateSourceId,
         sourceKey: source.key,
-        artifactId: artifactId ?? null,
-        artifactTitle: artifact?.title ?? null,
+        sourceTitle: artifact?.title ?? null,
         isAttachedToTemplate: true,
         sqlHash: sql ? this.buildSqlHash(sql) : null,
         sqlPreview: sql ? sql.slice(0, SQL_PREVIEW_CHARS) : null,
@@ -379,7 +379,7 @@ export class AgentFlowContextManager {
   private formatAppliedActionEvent(action: {
     actionType: string | null;
     sourceKey: string | null;
-    artifactTitle: string | null;
+    sourceTitle: string | null;
     templateUpdated: boolean;
   }): string {
     const parts: string[] = ['[Action applied]'];
@@ -389,8 +389,8 @@ export class AgentFlowContextManager {
     if (action.sourceKey) {
       parts.push(`source: "${action.sourceKey}"`);
     }
-    if (action.artifactTitle) {
-      parts.push(`"${action.artifactTitle}"`);
+    if (action.sourceTitle) {
+      parts.push(`"${action.sourceTitle}"`);
     }
     parts.push(action.templateUpdated ? 'template updated' : 'template not changed');
 

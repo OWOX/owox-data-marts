@@ -1,6 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InsightTemplateSource } from '../../dto/schemas/insight-template/insight-template-source.schema';
-import { InsightArtifact } from '../../entities/insight-artifact.entity';
 import { InsightArtifactService } from '../../services/insight-artifact.service';
 import { InsightTemplateService } from '../../services/insight-template.service';
 import { InsightTemplateSourceService } from '../../services/insight-template-source.service';
@@ -9,24 +8,12 @@ import { AssistantOrchestratorRequest } from './ai-assistant-types';
 export interface ResolvedTemplateSource {
   templateSourceId: string;
   key: string;
-  artifactId?: string;
-  artifactTitle?: string;
+  sourceTitle?: string;
   sql?: string;
 }
 
 export interface ListTemplateSourcesResult {
   sources: ResolvedTemplateSource[];
-  diagnostics: string[];
-}
-
-export interface UnlinkedArtifactCandidate {
-  artifactId: string;
-  artifactTitle?: string;
-  sql?: string;
-}
-
-export interface ListUnlinkedArtifactSourcesResult {
-  artifacts: UnlinkedArtifactCandidate[];
   diagnostics: string[];
 }
 
@@ -39,12 +26,6 @@ export interface ResolveSourceByKeyResult {
 export interface ResolveTemplateSourceSqlByKeyResult {
   templateSourceId: string;
   sourceKey: string;
-  artifactId: string;
-  sql: string;
-}
-
-export interface ResolveArtifactSqlByIdResult {
-  artifactId: string;
   sql: string;
 }
 
@@ -74,32 +55,6 @@ export class SourceResolverToolsService {
     );
 
     return { sources, diagnostics };
-  }
-
-  async listUnlinkedArtifactSources(params: {
-    request: AssistantOrchestratorRequest;
-    linkedArtifactIds: string[];
-  }): Promise<ListUnlinkedArtifactSourcesResult> {
-    const { request, linkedArtifactIds } = params;
-    const diagnostics: string[] = [];
-    const normalizedLinkedArtifactIds = [...new Set(linkedArtifactIds.map(id => id.trim()))].filter(
-      Boolean
-    );
-
-    const artifacts =
-      await this.insightArtifactService.listByDataMartIdAndProjectIdExcludingArtifactIds({
-        dataMartId: request.dataMartId,
-        projectId: request.projectId,
-        excludedArtifactIds: normalizedLinkedArtifactIds,
-      });
-
-    const unlinkedArtifacts: UnlinkedArtifactCandidate[] = [];
-    for (const artifact of artifacts) {
-      const candidate = this.buildResolvedUnlinkedArtifactCandidate(artifact);
-      unlinkedArtifacts.push(candidate);
-    }
-
-    return { artifacts: unlinkedArtifacts, diagnostics };
   }
 
   resolveSourceByKey(
@@ -142,25 +97,26 @@ export class SourceResolverToolsService {
       request.projectId
     );
 
-    const sources: ResolvedTemplateSource[] = (template.sources ?? []).map(source => ({
+    const sources = (template.sources ?? []).map(source => ({
       templateSourceId: source.templateSourceId,
       key: source.key,
-      artifactId: source.artifactId ?? undefined,
     }));
 
     const matched = this.resolveSourceByKey(sources, sourceKey);
     if (!matched.matchedSource) {
       throw new NotFoundException(`Template source "${sourceKey}" not found`);
     }
+    const matchedSource = matched.matchedSource;
 
-    if (!matched.matchedSource.artifactId) {
-      throw new BadRequestException(
-        `Template source "${matched.matchedSource.key}" is not linked to an artifact`
-      );
+    const matchedTemplateSource = (template.sources ?? []).find(
+      source => source.templateSourceId === matchedSource.templateSourceId
+    );
+    if (!matchedTemplateSource?.artifactId) {
+      throw new BadRequestException(`Template source "${matchedSource.key}" has no SQL link`);
     }
 
     const artifact = await this.insightArtifactService.getByIdAndDataMartIdAndProjectId(
-      matched.matchedSource.artifactId,
+      matchedTemplateSource.artifactId,
       request.dataMartId,
       request.projectId
     );
@@ -168,14 +124,13 @@ export class SourceResolverToolsService {
     const sql = (artifact.sql ?? '').trim();
     if (!sql) {
       throw new BadRequestException(
-        `Artifact "${artifact.id}" linked to source "${matched.matchedSource.key}" has empty SQL`
+        `Artifact "${artifact.id}" linked to source "${matchedSource.key}" has empty SQL`
       );
     }
 
     return {
-      templateSourceId: matched.matchedSource.templateSourceId,
-      sourceKey: matched.matchedSource.key,
-      artifactId: artifact.id,
+      templateSourceId: matchedSource.templateSourceId,
+      sourceKey: matchedSource.key,
       sql,
     };
   }
@@ -202,31 +157,6 @@ export class SourceResolverToolsService {
     return {
       templateSourceId: source.id,
       sourceKey: source.key,
-      artifactId: source.artifactId,
-      sql,
-    };
-  }
-
-  async resolveArtifactSqlById(params: {
-    request: AssistantOrchestratorRequest;
-    artifactId: string;
-  }): Promise<ResolveArtifactSqlByIdResult> {
-    const { request, artifactId } = params;
-    const artifact = await this.insightArtifactService.getByIdAndDataMartIdAndProjectId(
-      artifactId,
-      request.dataMartId,
-      request.projectId
-    );
-
-    const sql = (artifact.sql ?? '').trim();
-    if (!sql) {
-      throw new BadRequestException(
-        `Artifact "${artifact.id}" has empty SQL and cannot be refined`
-      );
-    }
-
-    return {
-      artifactId: artifact.id,
       sql,
     };
   }
@@ -240,8 +170,7 @@ export class SourceResolverToolsService {
       return {
         templateSourceId: source.templateSourceId,
         key: source.key,
-        artifactId: source.artifactId ?? undefined,
-        artifactTitle: undefined,
+        sourceTitle: undefined,
         sql: undefined,
       };
     }
@@ -256,14 +185,11 @@ export class SourceResolverToolsService {
       return {
         templateSourceId: source.templateSourceId,
         key: source.key,
-        artifactId: source.artifactId,
-        artifactTitle: artifact.title ?? undefined,
+        sourceTitle: artifact.title ?? undefined,
         sql: this.normalizeSql(artifact.sql),
       };
     } catch (error: unknown) {
-      diagnostics.push(
-        `Source "${source.key}" artifact "${source.artifactId}" is unavailable for matching.`
-      );
+      diagnostics.push(`Source "${source.key}" SQL source is unavailable for matching.`);
       this.logger.warn('Failed to load source artifact while building resolver candidates', {
         sourceKey: source.key,
         artifactId: source.artifactId,
@@ -272,21 +198,10 @@ export class SourceResolverToolsService {
       return {
         templateSourceId: source.templateSourceId,
         key: source.key,
-        artifactId: source.artifactId,
-        artifactTitle: undefined,
+        sourceTitle: undefined,
         sql: undefined,
       };
     }
-  }
-
-  private buildResolvedUnlinkedArtifactCandidate(
-    artifact: InsightArtifact
-  ): UnlinkedArtifactCandidate {
-    return {
-      artifactId: artifact.id,
-      artifactTitle: artifact.title ?? undefined,
-      sql: this.normalizeSql(artifact.sql),
-    };
   }
 
   private normalizeSql(sql: string | null | undefined): string | undefined {

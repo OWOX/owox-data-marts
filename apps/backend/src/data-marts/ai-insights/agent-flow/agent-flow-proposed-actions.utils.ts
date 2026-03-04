@@ -58,7 +58,6 @@ function isSourceActionForTemplateMerge(action: AssistantProposedAction): boolea
     action.type === 'create_source_and_attach' ||
     action.type === 'attach_source_to_template' ||
     action.type === 'apply_changes_to_source' ||
-    action.type === 'apply_sql_to_artifact' ||
     action.type === 'reuse_source_without_changes'
   );
 }

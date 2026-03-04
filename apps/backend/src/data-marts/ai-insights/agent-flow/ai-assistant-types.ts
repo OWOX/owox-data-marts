@@ -67,26 +67,10 @@ export const AssistantProposedActionSchema = z.discriminatedUnion('type', [
     payload: z
       .object({
         suggestedSourceKey: z.string().min(1, 'suggestedSourceKey is required'),
-        targetArtifactId: z.string().min(1).optional(),
+        sourceId: z.string().min(1).optional(),
         insertTag: z.boolean().optional(),
-        suggestedArtifactTitle: z.string().min(1).optional(),
+        suggestedSourceTitle: z.string().min(1).optional(),
         suggestedTemplateSnippet: z.string().min(1).optional(),
-        text: z.string().min(1).optional(),
-        tags: z.array(TemplateEditPlaceholderTagSchema).optional(),
-        suggestedTemplateEditDiffPreview: z.string().optional(),
-      })
-      .superRefine((payload, ctx) => {
-        validateTemplateEditPayloadPair(payload, ctx);
-      }),
-  }),
-  z.object({
-    type: z.literal('apply_sql_to_artifact'),
-    id: z.string().min(1),
-    confidence: z.number().min(0).max(1),
-    payload: z
-      .object({
-        artifactId: z.string().min(1, 'artifactId is required'),
-        suggestedArtifactTitle: z.string().min(1).optional(),
         text: z.string().min(1).optional(),
         tags: z.array(TemplateEditPlaceholderTagSchema).optional(),
         suggestedTemplateEditDiffPreview: z.string().optional(),
@@ -103,8 +87,7 @@ export const AssistantProposedActionSchema = z.discriminatedUnion('type', [
       .object({
         sourceId: z.string().min(1).optional(),
         sourceKey: z.string().min(1).optional(),
-        artifactId: z.string().min(1).optional(),
-        suggestedArtifactTitle: z.string().min(1).optional(),
+        suggestedSourceTitle: z.string().min(1).optional(),
         text: z.string().min(1).optional(),
         tags: z.array(TemplateEditPlaceholderTagSchema).optional(),
         suggestedTemplateEditDiffPreview: z.string().optional(),
@@ -112,11 +95,11 @@ export const AssistantProposedActionSchema = z.discriminatedUnion('type', [
       .superRefine((payload, ctx) => {
         validateTemplateEditPayloadPair(payload, ctx);
 
-        if (!payload.sourceKey && !payload.artifactId) {
+        if (!payload.sourceKey && !payload.sourceId) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: ['sourceKey'],
-            message: 'Either payload.sourceKey or payload.artifactId must be provided',
+            message: 'Either payload.sourceKey or payload.sourceId must be provided',
           });
         }
       }),
@@ -128,7 +111,7 @@ export const AssistantProposedActionSchema = z.discriminatedUnion('type', [
     payload: z
       .object({
         suggestedSourceKey: z.string().min(1, 'suggestedSourceKey is required'),
-        suggestedArtifactTitle: z.string().min(1).optional(),
+        suggestedSourceTitle: z.string().min(1).optional(),
         suggestedTemplateSnippet: z.string().min(1).optional(),
         text: z.string().min(1).optional(),
         tags: z.array(TemplateEditPlaceholderTagSchema).optional(),
@@ -165,7 +148,6 @@ export const AssistantProposedActionSchema = z.discriminatedUnion('type', [
       .object({
         sourceId: z.string().min(1).optional(),
         sourceKey: z.string().min(1, 'sourceKey is required'),
-        artifactId: z.string().min(1).optional(),
         text: z.string().min(1).optional(),
         tags: z.array(TemplateEditPlaceholderTagSchema).optional(),
         suggestedTemplateEditDiffPreview: z.string().optional(),
@@ -181,15 +163,14 @@ export const AssistantProposedActionsSchema = z.array(AssistantProposedActionSch
 export const AssistantContextResolutionSchema = z.enum([
   'explicit_key',
   'inferred_key',
-  'inferred_unlinked_artifact',
   'none',
   'ambiguous_implicit',
   'explicit_not_found',
 ]);
 
 export const AssistantResolvedContextSchema = z.object({
+  targetSourceId: z.string().min(1).optional(),
   targetSourceKey: z.string().min(1).optional(),
-  targetArtifactId: z.string().min(1).optional(),
   targetKind: z.enum(['TABLE', 'VALUE']).optional(),
   contextResolution: AssistantContextResolutionSchema.optional(),
 });
@@ -228,7 +209,7 @@ export const AssistantOrchestratorRequestSchema = z
       sessionId: z.string().min(1, 'sessionId is required'),
       scope: AssistantOrchestratorScopeSchema,
       templateId: z.string().min(1),
-      currentArtifactSql: z.string().optional(),
+      currentSourceSql: z.string().optional(),
     }),
     options: AiFlowOptionsSchema.optional(),
   })

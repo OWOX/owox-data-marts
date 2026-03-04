@@ -9,12 +9,6 @@ import {
   ListTemplateSourcesInputJsonSchema,
 } from './tools/list-template-sources.tool';
 import {
-  ListArtifactsTool,
-  ListArtifactsInput,
-  ListArtifactsInputSchema,
-  ListArtifactsInputJsonSchema,
-} from './tools/list-artifacts.tool';
-import {
   GetTemplateContentTool,
   GetTemplateContentInput,
   GetTemplateContentInputSchema,
@@ -36,7 +30,6 @@ import { ListAvailableTagsTool } from './tools/list-available-tags.tool';
 
 export enum AgentFlowTools {
   LIST_TEMPLATE_SOURCES = 'source_list_template_sources',
-  LIST_ARTIFACTS = 'source_list_artifacts',
   GET_TEMPLATE_CONTENT = 'source_get_template_content',
   PROPOSE_REMOVE_SOURCE = 'source_propose_remove_source',
   GENERATE_SQL = 'source_generate_sql',
@@ -51,7 +44,6 @@ function asFlowCtx(ctx: AiContext): AgentFlowContext {
 export class AgentFlowToolsRegistrar {
   constructor(
     private readonly listTemplateSourcesTool: ListTemplateSourcesTool,
-    private readonly listArtifactsTool: ListArtifactsTool,
     private readonly getTemplateContentTool: GetTemplateContentTool,
     private readonly proposeRemoveSourceTool: ProposeRemoveSourceTool,
     private readonly generateSqlTool: GenerateSqlTool,
@@ -63,27 +55,13 @@ export class AgentFlowToolsRegistrar {
       name: AgentFlowTools.LIST_TEMPLATE_SOURCES,
       description:
         'Returns the list of data sources already linked to the current insight template. ' +
-        'Each source includes its key, kind (table/value), linked artifact ID, and the full SQL. ' +
+        'Each source includes its key, source title, and the full SQL. ' +
         'Use this first to understand what data is already present in the report. ' +
         'Linked sources also include baseSqlHandle for source_generate_sql refine mode.',
       inputJsonSchema: ListTemplateSourcesInputJsonSchema,
       inputZod: ListTemplateSourcesInputSchema,
       execute: (args: unknown, ctx: AiContext) =>
         this.listTemplateSourcesTool.execute(args as ListTemplateSourcesInput, asFlowCtx(ctx)),
-      isFinal: false,
-    });
-
-    registry.register({
-      name: AgentFlowTools.LIST_ARTIFACTS,
-      description:
-        'Returns all data artifacts in this data mart that are NOT yet linked to the current template. ' +
-        'Each artifact includes its ID, title, and full SQL. ' +
-        "Read the SQL to determine if an artifact already answers the user's question. " +
-        'Artifacts include baseSqlHandle for source_generate_sql refine mode.',
-      inputJsonSchema: ListArtifactsInputJsonSchema,
-      inputZod: ListArtifactsInputSchema,
-      execute: (args: unknown, ctx: AiContext) =>
-        this.listArtifactsTool.execute(args as ListArtifactsInput, asFlowCtx(ctx)),
       isFinal: false,
     });
 
@@ -124,7 +102,7 @@ export class AgentFlowToolsRegistrar {
         'For refine use mode="refine" with BOTH baseSqlHandle and refineInstructions (preferred). ' +
         'Use baseSqlText only as a fallback when the user explicitly pasted SQL and no handle exists. ' +
         'Do not send refine fields in create mode. ' +
-        'Base SQL is resolved server-side from baseSqlHandle (rev:/src:/art:).',
+        'Base SQL is resolved server-side from baseSqlHandle (rev:/src:).',
       inputJsonSchema: GenerateSqlInputJsonSchema,
       inputZod: GenerateSqlInputSchema,
       execute: (args: unknown, ctx: AiContext) =>

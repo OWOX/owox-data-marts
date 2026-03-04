@@ -47,7 +47,6 @@ describe('SourceResolverToolsService', () => {
       {
         templateSourceId: 'template-source-1',
         key: 'consumption_2025',
-        artifactId: 'artifact-1',
         sourceIntentResolution: 'none' as const,
       },
     ];
@@ -61,38 +60,49 @@ describe('SourceResolverToolsService', () => {
     expect(notByAlias.confidence).toBe(0);
   });
 
-  it('builds unlinked artifact catalog excluding linked artifact ids', async () => {
-    const { service, insightArtifactService } = createService();
-    insightArtifactService.listByDataMartIdAndProjectIdExcludingArtifactIds.mockResolvedValue([
-      {
-        id: 'artifact-2',
-        title: 'Consumption 2026',
-        sql: `
-          SELECT
-            month,
-            SUM(consumption) AS consumption
-          FROM usage
-          WHERE year = 2026
-          GROUP BY month
-        `,
-      },
-    ]);
+  it('lists template sources in source-only format', async () => {
+    const { service, insightTemplateService, insightArtifactService } = createService();
+    const request = buildTemplateRequest('show consumption for 2026');
 
-    const result = await service.listUnlinkedArtifactSources({
-      request: buildTemplateRequest('show consumption for 2026'),
-      linkedArtifactIds: ['artifact-1'],
+    insightTemplateService.getByIdAndDataMartIdAndProjectId.mockResolvedValue({
+      id: 'template-1',
+      sources: [
+        {
+          templateSourceId: 'template-source-1',
+          key: 'consumption_2026',
+          artifactId: 'artifact-2',
+        },
+      ],
+    });
+    insightArtifactService.getByIdAndDataMartIdAndProjectId.mockResolvedValue({
+      id: 'artifact-2',
+      title: 'Consumption 2026',
+      sql: 'SELECT 1',
     });
 
-    expect(
-      insightArtifactService.listByDataMartIdAndProjectIdExcludingArtifactIds
-    ).toHaveBeenCalledWith({
-      dataMartId: 'data-mart-1',
-      projectId: 'project-1',
-      excludedArtifactIds: ['artifact-1'],
+    const result = await service.listTemplateSources(request);
+
+    expect(insightTemplateService.getByIdAndDataMartIdAndProjectId).toHaveBeenCalledWith(
+      'template-1',
+      'data-mart-1',
+      'project-1'
+    );
+    expect(insightArtifactService.getByIdAndDataMartIdAndProjectId).toHaveBeenCalledWith(
+      'artifact-2',
+      'data-mart-1',
+      'project-1'
+    );
+    expect(result).toEqual({
+      sources: [
+        {
+          templateSourceId: 'template-source-1',
+          key: 'consumption_2026',
+          sourceTitle: 'Consumption 2026',
+          sql: 'SELECT 1',
+        },
+      ],
+      diagnostics: [],
     });
-    expect(result.artifacts).toHaveLength(1);
-    expect(result.artifacts[0]?.artifactId).toBe('artifact-2');
-    expect(result.artifacts[0]?.artifactTitle).toBe('Consumption 2026');
   });
 
   it('resolves template source SQL by template source id from source entity relation', async () => {
@@ -118,7 +128,6 @@ describe('SourceResolverToolsService', () => {
     expect(result).toEqual({
       templateSourceId: 'template-source-1',
       sourceKey: 'monthly_consumption_2025',
-      artifactId: 'artifact-1',
       sql: 'SELECT * FROM monthly_consumption',
     });
   });

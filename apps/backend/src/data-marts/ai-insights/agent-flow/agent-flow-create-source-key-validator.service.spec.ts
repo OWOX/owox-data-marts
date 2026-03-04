@@ -4,10 +4,10 @@ describe('AgentFlowCreateSourceKeyValidatorService', () => {
   const createStateSnapshot = (sourceKeys: string[]) => ({
     sessionId: 'session-1',
     templateId: 'template-1',
-    sources: sourceKeys.map(sourceKey => ({
+    sources: sourceKeys.map((sourceKey, index) => ({
+      sourceId: `template-source-${index + 1}`,
       sourceKey,
-      artifactId: null,
-      artifactTitle: null,
+      sourceTitle: null,
       isAttachedToTemplate: true,
       sqlHash: null,
       sqlPreview: null,
@@ -24,10 +24,10 @@ describe('AgentFlowCreateSourceKeyValidatorService', () => {
     const result = service.validate({
       proposedActions: [
         {
-          type: 'apply_sql_to_artifact',
+          type: 'apply_changes_to_source',
           id: 'act_1',
           confidence: 0.9,
-          payload: { artifactId: 'artifact-1' },
+          payload: { sourceKey: 'monthly_consumption' },
         },
       ],
       stateSnapshot: createStateSnapshot(['monthly_consumption']),

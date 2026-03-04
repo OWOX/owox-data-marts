@@ -35,8 +35,8 @@ const GenerateSqlRefineInputSchema = z.object({
     .min(1)
     .optional()
     .describe(
-      'Preferred. Opaque handle to base SQL returned by state snapshot or source/artifact tools. ' +
-        'Examples: rev:<assistantMessageId>, src:<templateSourceId>, art:<artifactId>.'
+      'Preferred. Opaque handle to base SQL returned by state snapshot or source tools. ' +
+        'Examples: rev:<assistantMessageId>, src:<templateSourceId>.'
     ),
   baseSqlText: z
     .string()
@@ -80,7 +80,7 @@ export const GenerateSqlInputJsonSchema = {
       type: 'string',
       description:
         'Preferred when mode="refine". Opaque handle returned by tools/state snapshot. ' +
-        'Examples: rev:<assistantMessageId>, src:<templateSourceId>, art:<artifactId>.',
+        'Examples: rev:<assistantMessageId>, src:<templateSourceId>.',
     },
     baseSqlText: {
       type: 'string',
@@ -176,7 +176,7 @@ export class GenerateSqlTool {
         delegatedRequest: this.agentFlowRequestMapper.toAssistantOrchestratorRequest({
           request,
           history: this.replaceLastUserMessageOrThrow(request.history, args.refineInstructions),
-          currentArtifactSql: base.baseSql,
+          currentSourceSql: base.baseSql,
         }),
         baseAssistantMessageId: base.baseAssistantMessageId,
         hasBaseSql: true,

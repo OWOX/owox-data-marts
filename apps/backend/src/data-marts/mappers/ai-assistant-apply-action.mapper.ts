@@ -12,7 +12,6 @@ import type { TemplateEditPlaceholderTag } from '../services/template-edit-place
 export interface AiAssistantApplyDecisionActionSnapshot {
   actionId: string;
   actionType: ApplyAiAssistantActionType;
-  targetArtifactId?: string;
   templateSourceId?: string;
   sourceKey?: string;
   insertTag?: boolean;
@@ -29,7 +28,6 @@ export interface BuildCreatedApplyActionResponseParams {
 export interface BuildStoredApplyActionResponseContext {
   lifecycleStatus: AiAssistantApplyLifecycleStatus;
   assistantMessageId: string | null;
-  targetArtifactId?: string | null;
   templateSourceId?: string | null;
   action: ApplyAiAssistantActionPayload | null;
 }
@@ -40,7 +38,7 @@ export class AiAssistantApplyActionMapper {
     return new AiAssistantApplyResultDto(
       response.requestId,
       response.artifactId,
-      response.artifactTitle,
+      response.sourceTitle,
       response.templateUpdated,
       response.templateId,
       response.sourceKey,
@@ -63,7 +61,6 @@ export class AiAssistantApplyActionMapper {
     return this.mapSnapshotActionToPayload({
       actionId: response.requestId,
       actionType: response.actionType,
-      targetArtifactId: response.targetArtifactId ?? undefined,
       templateSourceId: response.templateSourceId ?? undefined,
       sourceKey: response.sourceKey ?? undefined,
       insertTag: response.insertTag ?? undefined,
@@ -77,16 +74,16 @@ export class AiAssistantApplyActionMapper {
       case 'update_existing_source':
         return {
           type: 'update_existing_source',
+          sourceId: snapshotAction.templateSourceId,
           sourceKey: snapshotAction.sourceKey,
-          targetArtifactId: snapshotAction.targetArtifactId,
           text: snapshotAction.text,
           tags: snapshotAction.tags,
         };
       case 'create_and_attach_source':
         return {
           type: 'create_and_attach_source',
+          sourceId: snapshotAction.templateSourceId,
           sourceKey: snapshotAction.sourceKey,
-          targetArtifactId: snapshotAction.targetArtifactId,
           insertTag: snapshotAction.insertTag,
           text: snapshotAction.text,
           tags: snapshotAction.tags,
@@ -135,13 +132,12 @@ export class AiAssistantApplyActionMapper {
       requestId: snapshotAction.actionId,
       lifecycleStatus: 'created',
       artifactId: null,
-      artifactTitle: null,
+      sourceTitle: null,
       templateUpdated: false,
       templateId: null,
       sourceKey: snapshotAction.sourceKey ?? null,
       assistantMessageId: params.assistantMessageId,
       actionType: snapshotAction.actionType,
-      targetArtifactId: snapshotAction.targetArtifactId ?? null,
       templateSourceId: snapshotAction.templateSourceId ?? null,
       insertTag: snapshotAction.insertTag ?? null,
       selectedAction: params.selectedAction,
@@ -159,13 +155,12 @@ export class AiAssistantApplyActionMapper {
       requestId: result.requestId,
       lifecycleStatus: context.lifecycleStatus,
       artifactId: result.artifactId,
-      artifactTitle: result.artifactTitle,
+      sourceTitle: result.sourceTitle,
       templateUpdated: result.templateUpdated,
       templateId: result.templateId,
       sourceKey: result.sourceKey,
       assistantMessageId: context.assistantMessageId,
       actionType: action?.type ?? null,
-      targetArtifactId: context.targetArtifactId ?? action?.targetArtifactId ?? null,
       templateSourceId: context.templateSourceId ?? null,
       insertTag: action?.insertTag ?? null,
       selectedAction: action,
@@ -182,17 +177,8 @@ export class AiAssistantApplyActionMapper {
         return {
           actionId: action.id,
           actionType: 'update_existing_source',
-          targetArtifactId: action.payload.artifactId,
           templateSourceId: action.payload.sourceId,
           sourceKey: action.payload.sourceKey,
-          text: action.payload.text,
-          tags: action.payload.tags,
-        };
-      case 'apply_sql_to_artifact':
-        return {
-          actionId: action.id,
-          actionType: 'update_existing_source',
-          targetArtifactId: action.payload.artifactId,
           text: action.payload.text,
           tags: action.payload.tags,
         };
@@ -209,7 +195,7 @@ export class AiAssistantApplyActionMapper {
           actionId: action.id,
           actionType: 'create_and_attach_source',
           sourceKey: action.payload.suggestedSourceKey,
-          targetArtifactId: action.payload.targetArtifactId,
+          templateSourceId: action.payload.sourceId,
           insertTag: action.payload.insertTag ?? true,
           text: action.payload.text,
           tags: action.payload.tags,
@@ -233,7 +219,6 @@ export class AiAssistantApplyActionMapper {
           actionType: 'create_and_attach_source',
           templateSourceId: action.payload.sourceId,
           sourceKey: action.payload.sourceKey,
-          targetArtifactId: action.payload.artifactId,
           text: action.payload.text,
           tags: action.payload.tags,
         };

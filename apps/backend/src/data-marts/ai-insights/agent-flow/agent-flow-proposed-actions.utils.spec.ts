@@ -5,21 +5,21 @@ describe('resolveAgentFlowProposedActions', () => {
     const resolved = resolveAgentFlowProposedActions({
       resultProposedActions: [
         {
-          type: 'apply_sql_to_artifact',
+          type: 'apply_changes_to_source',
           id: 'act_result',
           confidence: 0.9,
           payload: {
-            artifactId: 'artifact-result',
+            sourceKey: 'source_result',
           },
         },
       ],
       contextProposedActions: [
         {
-          type: 'apply_sql_to_artifact',
+          type: 'apply_changes_to_source',
           id: 'act_context',
           confidence: 0.8,
           payload: {
-            artifactId: 'artifact-context',
+            sourceKey: 'source_context',
           },
         },
       ],
@@ -34,11 +34,11 @@ describe('resolveAgentFlowProposedActions', () => {
       resultProposedActions: [],
       contextProposedActions: [
         {
-          type: 'apply_sql_to_artifact',
+          type: 'apply_changes_to_source',
           id: 'act_context',
           confidence: 0.8,
           payload: {
-            artifactId: 'artifact-context',
+            sourceKey: 'source_context',
           },
         },
       ],

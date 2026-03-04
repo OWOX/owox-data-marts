@@ -4,7 +4,7 @@ export class AiAssistantApplyResultDto {
   constructor(
     public readonly requestId: string,
     public readonly artifactId: string | null,
-    public readonly artifactTitle: string | null,
+    public readonly sourceTitle: string | null,
     public readonly templateUpdated: boolean,
     public readonly templateId: string | null,
     public readonly sourceKey: string | null,

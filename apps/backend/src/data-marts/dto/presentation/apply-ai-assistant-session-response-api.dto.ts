@@ -16,11 +16,11 @@ export class ApplyAiAssistantSessionResponseApiDto {
   artifactId: string | null;
 
   @ApiPropertyOptional({
-    description: 'Artifact title after apply',
+    description: 'Source title after apply',
     nullable: true,
     example: 'Monthly product consumption source',
   })
-  artifactTitle: string | null;
+  sourceTitle: string | null;
 
   @ApiProperty({
     description: 'Whether template sources/template text changed',

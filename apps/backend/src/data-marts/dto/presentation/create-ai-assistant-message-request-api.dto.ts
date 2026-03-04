@@ -1,14 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import {
-  IsIn,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  IsUUID,
-  MaxLength,
-  ValidateNested,
-} from 'class-validator';
+import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
 
 export class CreateAiAssistantMessageTurnContextApiDto {
   @ApiPropertyOptional({
@@ -19,14 +11,6 @@ export class CreateAiAssistantMessageTurnContextApiDto {
   @IsString()
   @MaxLength(128)
   sourceKeyHint?: string;
-
-  @ApiPropertyOptional({
-    description: 'Artifact id hint from current UI context',
-    example: '6742f3e8-1a02-4642-bbf4-e7f8710f9507',
-  })
-  @IsOptional()
-  @IsUUID()
-  artifactIdHint?: string;
 
   @ApiPropertyOptional({
     description: 'Preferred snippet type for template insertion',
