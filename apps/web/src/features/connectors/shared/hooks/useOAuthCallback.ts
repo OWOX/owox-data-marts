@@ -38,7 +38,7 @@ export function useOAuthCallback({
       if (opener) {
         opener.postMessage(message, TARGET_ORIGIN);
       } else {
-        const bc = new BroadcastChannel('oauth_channel');
+        const bc = new BroadcastChannel(state ? `oauth_channel_${state}` : 'oauth_channel');
         bc.postMessage(message);
         bc.close();
       }

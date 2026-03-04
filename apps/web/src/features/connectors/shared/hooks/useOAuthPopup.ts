@@ -95,15 +95,8 @@ export function useOAuthPopup<TResponse, TAuthMessage>({
   useEffect(() => {
     window.addEventListener('message', handleMessage);
 
-    // BroadcastChannel fallback for when window.opener is severed by COOP headers
-    const bc = new BroadcastChannel('oauth_channel');
-    bc.onmessage = (event: MessageEvent<unknown>) => {
-      processAuthData(event.data);
-    };
-
     return () => {
       window.removeEventListener('message', handleMessage);
-      bc.close();
       if (pollTimerRef.current) {
         clearInterval(pollTimerRef.current);
         pollTimerRef.current = null;
@@ -151,7 +144,14 @@ export function useOAuthPopup<TResponse, TAuthMessage>({
 
     const popup = openCenteredPopup(buildAuthUrl(state), 'OAuth Application');
 
+    const bc = new BroadcastChannel(`oauth_channel_${state}`);
+    bc.onmessage = event => {
+      processAuthData(event.data);
+      bc.close();
+    };
+
     if (!popup) {
+      bc.close();
       setIsLoading(false);
       const err = new Error('Failed to open popup window. Please allow popups for this site.');
       setError(err.message);
