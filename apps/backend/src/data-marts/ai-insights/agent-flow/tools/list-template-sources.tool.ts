@@ -20,11 +20,9 @@ export interface TemplateSourceItem {
   key: string;
   /** Opaque handle for refining SQL via source_generate_sql (mode="refine"), if source is linked */
   baseSqlHandle?: string;
-  /** The artifact ID this source points to */
-  artifactId?: string;
-  /** Title of the linked artifact */
-  artifactTitle?: string;
-  /** Full SQL of the linked artifact — LLM reads this to understand what the source does */
+  /** Human-readable title for this source */
+  sourceTitle?: string;
+  /** Full SQL for this source — LLM reads this to understand what the source does */
   sql?: string;
 }
 
@@ -48,8 +46,7 @@ export class ListTemplateSourcesTool {
         templateSourceId: source.templateSourceId,
         key: source.key,
         baseSqlHandle: `src:${source.templateSourceId}`,
-        artifactId: source.artifactId,
-        artifactTitle: source.artifactTitle,
+        sourceTitle: source.sourceTitle,
         sql: source.sql,
       };
     });

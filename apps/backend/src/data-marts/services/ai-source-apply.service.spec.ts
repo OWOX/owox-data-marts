@@ -78,7 +78,6 @@ describe('AiSourceApplyService', () => {
         type: 'create_and_attach_source',
         templateId: 'template-1',
         sourceKey: 'source_new',
-        targetArtifactId: 'artifact-1',
         insertTag: true,
       },
       'request-reuse-1': {
@@ -97,7 +96,6 @@ describe('AiSourceApplyService', () => {
         type: 'create_and_attach_source',
         templateId: 'template-1',
         sourceKey: 'consumption_2025',
-        targetArtifactId: 'artifact-1',
         insertTag: true,
       },
       'request-conflict-1': {
@@ -114,7 +112,6 @@ describe('AiSourceApplyService', () => {
       'request-refine-1': {
         type: 'update_existing_source',
         sourceKey: 'consumption_2025',
-        targetArtifactId: 'artifact-target',
       },
       'request-remove-source-1': {
         type: 'remove_source_from_template',
@@ -124,15 +121,14 @@ describe('AiSourceApplyService', () => {
       'request-attach-existing-1': {
         type: 'create_and_attach_source',
         templateId: 'template-1',
+        sourceId: 'template-source-2026',
         sourceKey: 'consumption_2026',
-        targetArtifactId: 'artifact-existing',
         insertTag: true,
       },
       'request-5': {
         type: 'create_and_attach_source',
         templateId: 'template-1',
         sourceKey: 'source_conflict',
-        targetArtifactId: 'artifact-other',
         insertTag: true,
       },
     };
@@ -149,13 +145,12 @@ describe('AiSourceApplyService', () => {
         requestId,
         lifecycleStatus: 'created',
         artifactId: null,
-        artifactTitle: null,
+        sourceTitle: null,
         templateUpdated: false,
         templateId: selectedAction.templateId ?? null,
         sourceKey: selectedAction.sourceKey ?? null,
         assistantMessageId: 'assistant-message-1',
         actionType: selectedAction.type,
-        targetArtifactId: selectedAction.targetArtifactId ?? null,
         templateSourceId: null,
         insertTag: selectedAction.insertTag ?? null,
         selectedAction,
@@ -231,7 +226,7 @@ describe('AiSourceApplyService', () => {
           proposedActions: [
             {
               id: lastRequestedRequestId,
-              type: 'apply_sql_to_artifact',
+              type: 'apply_changes_to_source',
               confidence: 0.9,
               payload: {},
             },
@@ -358,7 +353,7 @@ describe('AiSourceApplyService', () => {
             type: 'create_source_and_attach',
             confidence: 0.9,
             payload: {
-              suggestedArtifactTitle: 'Consumption 2025',
+              suggestedSourceTitle: 'Consumption 2025',
             },
           },
         ],
@@ -418,7 +413,7 @@ describe('AiSourceApplyService', () => {
       createdById: 'user-1',
       scope: AiAssistantScope.TEMPLATE,
       templateId: 'template-1',
-      artifactId: 'artifact-1',
+      artifactId: null,
     };
 
     const template = {
@@ -430,15 +425,17 @@ describe('AiSourceApplyService', () => {
     applyActionRepository.create.mockReturnValue({});
     applyActionRepository.insert.mockResolvedValue(undefined);
     sessionRepository.findOne.mockResolvedValue(session);
-    artifactRepository.findOne.mockResolvedValue({
-      id: 'artifact-1',
-      title: 'Existing',
-      sql: 'select old',
-      dataMart: { id: 'data-mart-1', projectId: 'project-1' },
+    artifactRepository.create.mockReturnValue({
+      title: 'Untitled source',
+      sql: 'select 2',
+      dataMart: { id: 'data-mart-1' },
+      createdById: 'user-1',
+      validationStatus: InsightArtifactValidationStatus.VALID,
+      validationError: null,
     });
     artifactRepository.save.mockResolvedValue({
-      id: 'artifact-1',
-      title: 'Existing',
+      id: 'artifact-new',
+      title: 'Untitled source',
       sql: 'select 2',
     });
     templateRepository.findOne.mockResolvedValue(template);
@@ -449,7 +446,7 @@ describe('AiSourceApplyService', () => {
         {
           key: 'source_new',
           type: InsightTemplateSourceType.INSIGHT_ARTIFACT,
-          artifactId: 'artifact-1',
+          artifactId: 'artifact-new',
         },
       ],
     });
@@ -466,7 +463,7 @@ describe('AiSourceApplyService', () => {
           expect.objectContaining({
             key: 'source_new',
             type: InsightTemplateSourceType.INSIGHT_ARTIFACT,
-            artifactId: 'artifact-1',
+            artifactId: 'artifact-new',
           }),
         ],
       })
@@ -646,7 +643,7 @@ describe('AiSourceApplyService', () => {
       createdById: 'user-1',
       scope: AiAssistantScope.TEMPLATE,
       templateId: 'template-1',
-      artifactId: 'artifact-1',
+      artifactId: null,
     };
 
     const template = {
@@ -658,15 +655,17 @@ describe('AiSourceApplyService', () => {
     applyActionRepository.create.mockReturnValue({});
     applyActionRepository.insert.mockResolvedValue(undefined);
     sessionRepository.findOne.mockResolvedValue(session);
-    artifactRepository.findOne.mockResolvedValue({
-      id: 'artifact-1',
-      title: 'Consumption in 2025 by month',
-      sql: 'select old',
-      dataMart: { id: 'data-mart-1', projectId: 'project-1' },
+    artifactRepository.create.mockReturnValue({
+      title: 'Untitled source',
+      sql: 'select 2',
+      dataMart: { id: 'data-mart-1' },
+      createdById: 'user-1',
+      validationStatus: InsightArtifactValidationStatus.VALID,
+      validationError: null,
     });
     artifactRepository.save.mockResolvedValue({
-      id: 'artifact-1',
-      title: 'Consumption in 2025 by month',
+      id: 'artifact-new',
+      title: 'Untitled source',
       sql: 'select 2',
     });
     templateRepository.findOne.mockResolvedValue(template);
@@ -678,7 +677,7 @@ describe('AiSourceApplyService', () => {
         {
           key: 'consumption_2025',
           type: InsightTemplateSourceType.INSIGHT_ARTIFACT,
-          artifactId: 'artifact-1',
+          artifactId: 'artifact-new',
         },
       ],
     });
@@ -691,7 +690,7 @@ describe('AiSourceApplyService', () => {
           expect.objectContaining({
             key: 'consumption_2025',
             type: InsightTemplateSourceType.INSIGHT_ARTIFACT,
-            artifactId: 'artifact-1',
+            artifactId: 'artifact-new',
           }),
         ],
       })
@@ -720,7 +719,7 @@ describe('AiSourceApplyService', () => {
         requestId: 'request-3',
         lifecycleStatus: 'applied',
         artifactId: 'artifact-3',
-        artifactTitle: 'Source 3',
+        sourceTitle: 'Source 3',
         templateUpdated: false,
         templateId: null,
         sourceKey: null,
@@ -771,7 +770,7 @@ describe('AiSourceApplyService', () => {
         proposedActions: [
           {
             id: 'request-newer',
-            type: 'apply_sql_to_artifact',
+            type: 'apply_changes_to_source',
             confidence: 0.9,
             payload: {},
           },
@@ -827,7 +826,7 @@ describe('AiSourceApplyService', () => {
         proposedActions: [
           {
             id: 'request-1',
-            type: 'apply_sql_to_artifact',
+            type: 'apply_changes_to_source',
             confidence: 0.9,
             payload: {},
           },
@@ -915,7 +914,7 @@ describe('AiSourceApplyService', () => {
         proposedActions: [
           {
             id: 'request-conflict-1',
-            type: 'apply_sql_to_artifact',
+            type: 'apply_changes_to_source',
             confidence: 0.9,
             payload: {},
           },
@@ -990,13 +989,14 @@ describe('AiSourceApplyService', () => {
     expect(applyActionRepository.update).not.toHaveBeenCalled();
   });
 
-  it('uses targetArtifactId from snapshot for refine apply', async () => {
+  it('resolves refine target by sourceKey from template sources', async () => {
     const {
       service,
       sessionRepository,
       messageRepository,
       applyActionRepository,
       artifactRepository,
+      templateRepository,
     } = createService();
 
     messageRepository.findOne.mockResolvedValue({
@@ -1009,7 +1009,6 @@ describe('AiSourceApplyService', () => {
           path: 'source_task>refine_existing_source_sql',
           finalRoute: 'refine_existing_source_sql',
           actionType: 'update_existing_source',
-          targetArtifactId: 'artifact-target',
           sourceKey: 'consumption_2025',
           decisionTraceId: 'trace-2',
         },
@@ -1038,6 +1037,18 @@ describe('AiSourceApplyService', () => {
       scope: AiAssistantScope.TEMPLATE,
       templateId: 'template-1',
       artifactId: 'artifact-session',
+    });
+    templateRepository.findOne.mockResolvedValue({
+      id: 'template-1',
+      template: '## Report',
+      sources: [
+        {
+          key: 'consumption_2025',
+          type: InsightTemplateSourceType.INSIGHT_ARTIFACT,
+          artifactId: 'artifact-target',
+        },
+      ],
+      dataMart: { id: 'data-mart-1', projectId: 'project-1' },
     });
     artifactRepository.findOne.mockImplementation(
       async ({ where: { id } }: { where: { id: string } }) => {
@@ -1080,7 +1091,7 @@ describe('AiSourceApplyService', () => {
       expect.objectContaining({
         response: expect.objectContaining({
           assistantMessageId: 'assistant-message-1',
-          targetArtifactId: 'artifact-target',
+          artifactId: 'artifact-target',
         }),
       })
     );
@@ -1135,7 +1146,7 @@ describe('AiSourceApplyService', () => {
     );
   });
 
-  it('attaches explicit targetArtifactId without SQL generation for create_and_attach_source', async () => {
+  it('reuses existing source by sourceId without SQL generation for create_and_attach_source', async () => {
     const {
       service,
       sessionRepository,
@@ -1179,19 +1190,27 @@ describe('AiSourceApplyService', () => {
     templateRepository.findOne.mockResolvedValue({
       id: 'template-1',
       template: '## Report',
-      sources: [],
+      sources: [
+        {
+          templateSourceId: 'template-source-2026',
+          key: 'consumption_2026',
+          type: InsightTemplateSourceType.INSIGHT_ARTIFACT,
+          artifactId: 'artifact-existing',
+        },
+      ],
       dataMart: { id: 'data-mart-1', projectId: 'project-1' },
     });
     templateRepository.save.mockResolvedValue(undefined);
 
     const result = await service.apply(command);
 
-    expect(result.status).toBe('updated');
-    expect(result.reason).toBe('attach_existing_source');
+    expect(result.status).toBe('already_present');
+    expect(result.reason).toBe('source_already_in_template');
     expect(result.artifactId).toBe('artifact-existing');
     expect(result.sourceKey).toBe('consumption_2026');
-    expect(result.templateUpdated).toBe(true);
+    expect(result.templateUpdated).toBe(false);
     expect(artifactRepository.save).not.toHaveBeenCalled();
+    expect(templateRepository.save).not.toHaveBeenCalled();
   });
 
   it('updates conflicting source key target artifact instead of failing', async () => {

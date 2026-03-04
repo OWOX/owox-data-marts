@@ -4,8 +4,8 @@ import type { TemplateEditPlaceholderTag } from '../../services/template-edit-pl
 export interface ApplyAiAssistantActionPayload {
   type: ApplyAiAssistantActionType;
   templateId?: string;
+  sourceId?: string;
   sourceKey?: string;
-  targetArtifactId?: string;
   insertTag?: boolean;
   text?: string;
   tags?: TemplateEditPlaceholderTag[];
@@ -21,6 +21,6 @@ export class ApplyAiAssistantSessionCommand {
     public readonly requestId: string,
     public readonly assistantMessageId: string,
     public readonly sql?: string,
-    public readonly artifactTitle?: string
+    public readonly sourceTitle?: string
   ) {}
 }

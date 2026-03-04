@@ -110,7 +110,7 @@ export class AiAssistantOrchestratorService {
 
     const prompt = this.buildPromptFromHistory(
       history,
-      request.sessionContext.currentArtifactSql,
+      request.sessionContext.currentSourceSql,
       mode
     );
     const shared = this.createSharedContext(request, prompt, telemetry);
@@ -363,7 +363,7 @@ export class AiAssistantOrchestratorService {
 
   private buildPromptFromHistory(
     history: AssistantChatMessage[],
-    currentArtifactSql: string | undefined,
+    currentSourceSql: string | undefined,
     mode: SqlOrchestratorMode
   ): string {
     const decision = this.toDecision(mode);
@@ -371,20 +371,20 @@ export class AiAssistantOrchestratorService {
       .map((message, index) => `[${index + 1}] ${message.role}: ${message.content}`)
       .join('\n');
 
-    const artifactSqlBlock = currentArtifactSql?.trim()
+    const sourceSqlBlock = currentSourceSql?.trim()
       ? [
-          'Current artifact SQL context:',
+          'Current source SQL context:',
           '--- CURRENT SQL START ---',
-          currentArtifactSql,
+          currentSourceSql,
           '--- CURRENT SQL END ---',
         ].join('\n')
-      : 'Current artifact SQL context: none';
+      : 'Current source SQL context: none';
 
     return [
       `Route: ${decision}`,
       'Conversation history (source of truth):',
       historyBlock,
-      artifactSqlBlock,
+      sourceSqlBlock,
       'Instruction: build SQL candidate that satisfies latest user intent and conversation context.',
     ].join('\n\n');
   }

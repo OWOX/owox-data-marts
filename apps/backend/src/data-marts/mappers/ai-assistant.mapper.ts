@@ -62,7 +62,7 @@ export class AiAssistantMapper {
       dto.requestId,
       dto.assistantMessageId,
       dto.sql,
-      dto.artifactTitle
+      dto.sourceTitle
     );
   }
 
@@ -290,7 +290,7 @@ export class AiAssistantMapper {
     return {
       requestId: dto.requestId,
       artifactId: dto.artifactId,
-      artifactTitle: dto.artifactTitle,
+      sourceTitle: dto.sourceTitle,
       templateUpdated: dto.templateUpdated,
       templateId: dto.templateId,
       sourceKey: dto.sourceKey,
@@ -301,12 +301,10 @@ export class AiAssistantMapper {
 
   private toCreateMessageTurnContext(dto: CreateAiAssistantMessageTurnContextApiDto): {
     sourceKeyHint?: string;
-    artifactIdHint?: string;
     preferredSnippetType?: 'table' | 'single_value';
   } {
     return {
       sourceKeyHint: dto.sourceKeyHint,
-      artifactIdHint: dto.artifactIdHint,
       preferredSnippetType: dto.preferredSnippetType,
     };
   }

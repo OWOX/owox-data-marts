@@ -205,7 +205,7 @@ export class AiAssistantSessionService {
     return message;
   }
 
-  async getSuggestedArtifactTitleFromLatestAssistantActions(
+  async getSuggestedSourceTitleFromLatestAssistantActions(
     sessionId: string
   ): Promise<string | null> {
     const messagesRaw = await this.messageRepository.find({
@@ -226,14 +226,14 @@ export class AiAssistantSessionService {
 
       for (const action of proposedActions) {
         if (
-          action.type !== 'apply_sql_to_artifact' &&
           action.type !== 'apply_changes_to_source' &&
-          action.type !== 'create_source_and_attach'
+          action.type !== 'create_source_and_attach' &&
+          action.type !== 'attach_source_to_template'
         ) {
           continue;
         }
 
-        const normalized = normalizeString(action.payload.suggestedArtifactTitle);
+        const normalized = normalizeString(action.payload.suggestedSourceTitle);
         if (normalized) {
           return normalized;
         }

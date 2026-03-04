@@ -32,11 +32,12 @@ interface AttachResult {
 interface ResolvedAttachPayload {
   templateId: string;
   sourceKey: string;
+  sourceId?: string;
 }
 
 export interface ApplyExecutionResult {
   artifactId: string | null;
-  artifactTitle: string | null;
+  sourceTitle: string | null;
   templateUpdated: boolean;
   templateId: string | null;
   sourceKey: string | null;
@@ -100,10 +101,10 @@ export class AiSourceApplyExecutionService {
     action: ApplyAiAssistantActionPayload
   ): Promise<ApplyExecutionResult> {
     const sql = await this.resolveSqlToApply(session, command);
-    const artifact = await this.applySqlToArtifact(session, command, sql, action);
+    const artifact = await this.applySqlToSource(session, command, sql, action);
     const sourceResult: ApplyExecutionResult = {
       artifactId: artifact.id,
-      artifactTitle: artifact.title,
+      sourceTitle: artifact.title,
       templateUpdated: false,
       templateId: null,
       sourceKey: null,
@@ -129,33 +130,8 @@ export class AiSourceApplyExecutionService {
       return this.applyTemplateEditAfterSourceIfPresent(session, command, action, reuseResult);
     }
 
-    const explicitTargetArtifactId = normalizeString(action.targetArtifactId);
-    if (explicitTargetArtifactId) {
-      const artifact = await this.insightArtifactService.getByIdAndDataMartIdAndProjectId(
-        explicitTargetArtifactId,
-        session.dataMartId,
-        command.projectId
-      );
-      const attachResult = await this.attachArtifactToTemplate(
-        session,
-        artifact,
-        command.projectId,
-        attachPayload
-      );
-      const sourceResult: ApplyExecutionResult = {
-        artifactId: artifact.id,
-        artifactTitle: artifact.title,
-        templateUpdated: attachResult.templateUpdated,
-        templateId: attachResult.templateId,
-        sourceKey: attachResult.sourceKey,
-        status: attachResult.templateUpdated ? 'updated' : 'already_present',
-        reason: 'attach_existing_source',
-      };
-      return this.applyTemplateEditAfterSourceIfPresent(session, command, action, sourceResult);
-    }
-
     const sql = await this.resolveSqlToApply(session, command);
-    const artifact = await this.applySqlToArtifact(session, command, sql, action);
+    const artifact = await this.applySqlToSource(session, command, sql, action);
     const attachResult = await this.attachArtifactToTemplate(
       session,
       artifact,
@@ -165,7 +141,7 @@ export class AiSourceApplyExecutionService {
 
     const sourceResult: ApplyExecutionResult = {
       artifactId: artifact.id,
-      artifactTitle: artifact.title,
+      sourceTitle: artifact.title,
       templateUpdated: attachResult.templateUpdated,
       templateId: attachResult.templateId,
       sourceKey: attachResult.sourceKey,
@@ -191,7 +167,9 @@ export class AiSourceApplyExecutionService {
       command.projectId
     );
     const existingSource = (template.sources ?? []).find(
-      source => source.key === attachPayload.sourceKey
+      source =>
+        (attachPayload.sourceId ? source.templateSourceId === attachPayload.sourceId : false) ||
+        source.key === attachPayload.sourceKey
     );
     if (!existingSource) {
       return null;
@@ -219,7 +197,7 @@ export class AiSourceApplyExecutionService {
       this.normalizeSqlForComparison(existingArtifact.sql) !==
         this.normalizeSqlForComparison(sqlOverride)
     ) {
-      resolvedArtifact = await this.applySqlToArtifact(session, command, sqlOverride, {
+      resolvedArtifact = await this.applySqlToSource(session, command, sqlOverride, {
         type: 'update_existing_source',
         sourceKey: attachPayload.sourceKey,
       });
@@ -229,10 +207,10 @@ export class AiSourceApplyExecutionService {
 
     return {
       artifactId: resolvedArtifact?.id ?? existingArtifactId,
-      artifactTitle: resolvedArtifact?.title ?? null,
+      sourceTitle: resolvedArtifact?.title ?? null,
       templateUpdated,
       templateId: template.id,
-      sourceKey: attachPayload.sourceKey,
+      sourceKey: existingSource.key,
       status,
       reason,
     };
@@ -268,7 +246,7 @@ export class AiSourceApplyExecutionService {
 
     return {
       artifactId: null,
-      artifactTitle: null,
+      sourceTitle: null,
       templateUpdated: applyResult.templateUpdated,
       templateId: applyResult.templateId,
       sourceKey: null,
@@ -297,7 +275,7 @@ export class AiSourceApplyExecutionService {
     if (!sourceRemoved) {
       return {
         artifactId: null,
-        artifactTitle: null,
+        sourceTitle: null,
         templateUpdated: false,
         templateId: template.id,
         sourceKey,
@@ -318,7 +296,7 @@ export class AiSourceApplyExecutionService {
       if (this.isTemplateValidationFailure(error)) {
         return {
           artifactId: null,
-          artifactTitle: null,
+          sourceTitle: null,
           templateUpdated: false,
           templateId: template.id,
           sourceKey,
@@ -332,7 +310,7 @@ export class AiSourceApplyExecutionService {
 
     return {
       artifactId: null,
-      artifactTitle: null,
+      sourceTitle: null,
       templateUpdated: true,
       templateId: template.id,
       sourceKey,
@@ -361,7 +339,7 @@ export class AiSourceApplyExecutionService {
 
     return {
       artifactId: sourceResult.artifactId,
-      artifactTitle: sourceResult.artifactTitle,
+      sourceTitle: sourceResult.sourceTitle,
       templateUpdated: sourceResult.templateUpdated || templateEditResult.templateUpdated,
       templateId: templateEditResult.templateId ?? sourceResult.templateId,
       sourceKey: sourceResult.sourceKey,
@@ -399,6 +377,7 @@ export class AiSourceApplyExecutionService {
     return {
       templateId,
       sourceKey,
+      sourceId: normalizeString(action.sourceId) ?? undefined,
     };
   }
 
@@ -460,18 +439,18 @@ export class AiSourceApplyExecutionService {
     return normalizeString(message.sqlCandidate);
   }
 
-  private async applySqlToArtifact(
+  private async applySqlToSource(
     session: AiAssistantSession,
     command: ApplyAiAssistantSessionCommand,
     sql: string,
     action?: ApplyAiAssistantActionPayload
   ): Promise<InsightArtifact> {
-    const explicitArtifactTitle = normalizeString(command.artifactTitle);
-    const targetArtifactId = await this.resolveTargetArtifactId(session, command, action);
+    const explicitSourceTitle = normalizeString(command.sourceTitle);
+    const linkedArtifactId = await this.resolveLinkedArtifactIdBySource(session, command, action);
 
-    if (targetArtifactId) {
+    if (linkedArtifactId) {
       const artifact = await this.insightArtifactService.getByIdAndDataMartIdAndProjectId(
-        targetArtifactId,
+        linkedArtifactId,
         session.dataMartId,
         command.projectId
       );
@@ -480,22 +459,22 @@ export class AiSourceApplyExecutionService {
       artifact.validationStatus = InsightArtifactValidationStatus.VALID;
       artifact.validationError = null;
 
-      if (explicitArtifactTitle) {
-        artifact.title = explicitArtifactTitle;
+      if (explicitSourceTitle) {
+        artifact.title = explicitSourceTitle;
       }
 
       const saved = await this.artifactRepository.save(artifact);
       return saved;
     }
 
-    const suggestedArtifactTitle =
-      await this.aiAssistantSessionService.getSuggestedArtifactTitleFromLatestAssistantActions(
+    const suggestedSourceTitle =
+      await this.aiAssistantSessionService.getSuggestedSourceTitleFromLatestAssistantActions(
         session.id
       );
-    const artifactTitle = explicitArtifactTitle ?? suggestedArtifactTitle ?? 'Untitled source';
+    const sourceTitle = explicitSourceTitle ?? suggestedSourceTitle ?? 'Untitled source';
 
     const created = this.artifactRepository.create({
-      title: artifactTitle,
+      title: sourceTitle,
       sql,
       dataMart: { id: session.dataMartId } as DataMart,
       createdById: command.userId,
@@ -507,18 +486,14 @@ export class AiSourceApplyExecutionService {
     return saved;
   }
 
-  private async resolveTargetArtifactId(
+  private async resolveLinkedArtifactIdBySource(
     session: AiAssistantSession,
     command: ApplyAiAssistantSessionCommand,
     action?: ApplyAiAssistantActionPayload
   ): Promise<string | null> {
-    const directTargetArtifactId = normalizeString(action?.targetArtifactId);
-    if (directTargetArtifactId) {
-      return directTargetArtifactId;
-    }
-
+    const sourceId = normalizeString(action?.sourceId);
     const sourceKey = normalizeString(action?.sourceKey);
-    if (!sourceKey) {
+    if (!sourceId && !sourceKey) {
       return null;
     }
 
@@ -532,7 +507,13 @@ export class AiSourceApplyExecutionService {
       session.dataMartId,
       command.projectId
     );
-    const matchedSource = (template.sources ?? []).find(source => source.key === sourceKey);
+    const matchedSource = (template.sources ?? []).find(source => {
+      if (sourceId && source.templateSourceId === sourceId) {
+        return true;
+      }
+
+      return sourceKey ? source.key === sourceKey : false;
+    });
     return normalizeString(matchedSource?.artifactId ?? null);
   }
 

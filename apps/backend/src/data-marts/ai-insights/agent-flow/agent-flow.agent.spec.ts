@@ -22,7 +22,6 @@ jest.mock('./agent-flow-tools.registrar', () => ({
   AgentFlowToolsRegistrar: function AgentFlowToolsRegistrarMock() {},
   AgentFlowTools: {
     LIST_TEMPLATE_SOURCES: 'source_list_template_sources',
-    LIST_ARTIFACTS: 'source_list_artifacts',
     GET_TEMPLATE_CONTENT: 'source_get_template_content',
     PROPOSE_REMOVE_SOURCE: 'source_propose_remove_source',
     GENERATE_SQL: 'source_generate_sql',

@@ -17,7 +17,7 @@ type TestCommandInput = {
   requestId?: string;
   assistantMessageId?: string;
   sql?: string;
-  artifactTitle?: string;
+  sourceTitle?: string;
 };
 
 const createCommand = (input: TestCommandInput = {}): ApplyAiAssistantSessionCommand =>
@@ -29,7 +29,7 @@ const createCommand = (input: TestCommandInput = {}): ApplyAiAssistantSessionCom
     input.requestId ?? 'request-1',
     input.assistantMessageId ?? 'assistant-message-1',
     input.sql,
-    input.artifactTitle
+    input.sourceTitle
   );
 
 const createSession = (patch: Partial<AiAssistantSession> = {}): AiAssistantSession =>
@@ -72,7 +72,7 @@ describe('AiSourceApplyExecutionService', () => {
     const aiAssistantSessionService = {
       getSessionByIdAndDataMartIdAndProjectId: jest.fn(),
       getAssistantMessageByIdAndSessionId: jest.fn(),
-      getSuggestedArtifactTitleFromLatestAssistantActions: jest.fn().mockResolvedValue(null),
+      getSuggestedSourceTitleFromLatestAssistantActions: jest.fn().mockResolvedValue(null),
     };
     const insightArtifactService = {
       getByIdAndDataMartIdAndProjectId: jest.fn(),
@@ -141,16 +141,21 @@ describe('AiSourceApplyExecutionService', () => {
   });
 
   it('updates explicit target artifact using SQL override', async () => {
-    const { service, insightArtifactService, artifactRepository, aiAssistantSessionService } =
-      createService();
+    const {
+      service,
+      insightArtifactService,
+      insightTemplateService,
+      artifactRepository,
+      aiAssistantSessionService,
+    } = createService();
     const session = createSession();
     const command = createCommand({
       sql: 'SELECT month, SUM(credits) AS credits FROM source GROUP BY month',
-      artifactTitle: 'New artifact title',
+      sourceTitle: 'New artifact title',
     });
     const action: ApplyAiAssistantActionPayload = {
       type: 'update_existing_source',
-      targetArtifactId: 'artifact-1',
+      sourceKey: 'source_existing',
     };
     const artifact = createArtifact({
       id: 'artifact-1',
@@ -158,6 +163,18 @@ describe('AiSourceApplyExecutionService', () => {
       sql: 'select old',
     });
 
+    insightTemplateService.getByIdAndDataMartIdAndProjectId.mockResolvedValue(
+      createTemplate({
+        sources: [
+          {
+            templateSourceId: 'template-source-1',
+            key: 'source_existing',
+            type: InsightTemplateSourceType.INSIGHT_ARTIFACT,
+            artifactId: 'artifact-1',
+          },
+        ],
+      })
+    );
     insightArtifactService.getByIdAndDataMartIdAndProjectId.mockResolvedValue(artifact);
     artifactRepository.save.mockImplementation(async entity => entity);
 
@@ -174,7 +191,7 @@ describe('AiSourceApplyExecutionService', () => {
     expect(result).toEqual(
       expect.objectContaining({
         artifactId: 'artifact-1',
-        artifactTitle: 'New artifact title',
+        sourceTitle: 'New artifact title',
         status: 'updated',
         reason: 'update_existing_source',
       })
@@ -182,19 +199,36 @@ describe('AiSourceApplyExecutionService', () => {
   });
 
   it('resolves SQL from assistant message when override is absent', async () => {
-    const { service, insightArtifactService, artifactRepository, aiAssistantSessionService } =
-      createService();
+    const {
+      service,
+      insightArtifactService,
+      insightTemplateService,
+      artifactRepository,
+      aiAssistantSessionService,
+    } = createService();
     const session = createSession();
     const command = createCommand();
     const action: ApplyAiAssistantActionPayload = {
       type: 'update_existing_source',
-      targetArtifactId: 'artifact-1',
+      sourceKey: 'source_existing',
     };
     const artifact = createArtifact({
       id: 'artifact-1',
       sql: 'select old',
     });
 
+    insightTemplateService.getByIdAndDataMartIdAndProjectId.mockResolvedValue(
+      createTemplate({
+        sources: [
+          {
+            templateSourceId: 'template-source-1',
+            key: 'source_existing',
+            type: InsightTemplateSourceType.INSIGHT_ARTIFACT,
+            artifactId: 'artifact-1',
+          },
+        ],
+      })
+    );
     aiAssistantSessionService.getAssistantMessageByIdAndSessionId.mockResolvedValue({
       id: 'assistant-message-1',
       sqlCandidate: 'SELECT 1',
@@ -217,15 +251,20 @@ describe('AiSourceApplyExecutionService', () => {
   });
 
   it('applies template edit together with source update when template payload is present', async () => {
-    const { service, insightArtifactService, artifactRepository, templateFullReplaceApplyService } =
-      createService();
+    const {
+      service,
+      insightArtifactService,
+      insightTemplateService,
+      artifactRepository,
+      templateFullReplaceApplyService,
+    } = createService();
     const session = createSession();
     const command = createCommand({
       sql: 'SELECT 42',
     });
     const action: ApplyAiAssistantActionPayload = {
       type: 'update_existing_source',
-      targetArtifactId: 'artifact-1',
+      sourceKey: 'source_existing',
       templateId: 'template-1',
       text: '# Report\n\n[[TAG:t1]]',
       tags: [{ id: 't1', name: 'table', params: { source: 'main' } }],
@@ -235,6 +274,18 @@ describe('AiSourceApplyExecutionService', () => {
       sql: 'select old',
     });
 
+    insightTemplateService.getByIdAndDataMartIdAndProjectId.mockResolvedValue(
+      createTemplate({
+        sources: [
+          {
+            templateSourceId: 'template-source-1',
+            key: 'source_existing',
+            type: InsightTemplateSourceType.INSIGHT_ARTIFACT,
+            artifactId: 'artifact-1',
+          },
+        ],
+      })
+    );
     insightArtifactService.getByIdAndDataMartIdAndProjectId.mockResolvedValue(artifact);
     artifactRepository.save.mockImplementation(async entity => entity);
     templateFullReplaceApplyService.apply.mockResolvedValue({
@@ -265,14 +316,27 @@ describe('AiSourceApplyExecutionService', () => {
   });
 
   it('fails when neither SQL override nor sqlCandidate is provided', async () => {
-    const { service, aiAssistantSessionService, insightArtifactService } = createService();
+    const { service, aiAssistantSessionService, insightArtifactService, insightTemplateService } =
+      createService();
     const session = createSession();
     const command = createCommand();
     const action: ApplyAiAssistantActionPayload = {
       type: 'update_existing_source',
-      targetArtifactId: 'artifact-1',
+      sourceKey: 'source_existing',
     };
 
+    insightTemplateService.getByIdAndDataMartIdAndProjectId.mockResolvedValue(
+      createTemplate({
+        sources: [
+          {
+            templateSourceId: 'template-source-1',
+            key: 'source_existing',
+            type: InsightTemplateSourceType.INSIGHT_ARTIFACT,
+            artifactId: 'artifact-1',
+          },
+        ],
+      })
+    );
     aiAssistantSessionService.getAssistantMessageByIdAndSessionId.mockResolvedValue({
       id: 'assistant-message-1',
       sqlCandidate: null,
@@ -308,7 +372,7 @@ describe('AiSourceApplyExecutionService', () => {
       .mockResolvedValueOnce(createTemplate())
       .mockResolvedValueOnce(createTemplate())
       .mockResolvedValueOnce(createTemplate());
-    aiAssistantSessionService.getSuggestedArtifactTitleFromLatestAssistantActions.mockResolvedValue(
+    aiAssistantSessionService.getSuggestedSourceTitleFromLatestAssistantActions.mockResolvedValue(
       'Suggested title'
     );
     artifactRepository.create.mockReturnValue(
@@ -358,7 +422,7 @@ describe('AiSourceApplyExecutionService', () => {
     );
   });
 
-  it('attaches explicit target artifact without SQL resolution', async () => {
+  it('reuses existing source by sourceId without SQL resolution', async () => {
     const {
       service,
       artifactRepository,
@@ -373,34 +437,43 @@ describe('AiSourceApplyExecutionService', () => {
     const action: ApplyAiAssistantActionPayload = {
       type: 'create_and_attach_source',
       templateId: 'template-1',
-      sourceKey: 'source_new',
-      targetArtifactId: 'artifact-existing',
+      sourceId: 'template-source-existing',
+      sourceKey: 'source_existing',
       insertTag: true,
     };
 
-    insightTemplateService.getByIdAndDataMartIdAndProjectId
-      .mockResolvedValueOnce(createTemplate())
-      .mockResolvedValueOnce(createTemplate());
-    insightArtifactService.getByIdAndDataMartIdAndProjectId.mockResolvedValue(
+    insightTemplateService.getByIdAndDataMartIdAndProjectId.mockResolvedValue(
+      createTemplate({
+        sources: [
+          {
+            templateSourceId: 'template-source-existing',
+            key: 'source_existing',
+            type: InsightTemplateSourceType.INSIGHT_ARTIFACT,
+            artifactId: 'artifact-existing',
+          },
+        ],
+      })
+    );
+    insightArtifactService.getByIdAndDataMartIdAndProjectIdSafe.mockResolvedValue(
       createArtifact({
         id: 'artifact-existing',
         title: 'Existing artifact',
       })
     );
-    templateRepository.save.mockResolvedValue(createTemplate());
 
     const result = await service.execute(session, command, action);
 
     expect(aiAssistantSessionService.getAssistantMessageByIdAndSessionId).not.toHaveBeenCalled();
     expect(artifactRepository.create).not.toHaveBeenCalled();
     expect(artifactRepository.save).not.toHaveBeenCalled();
-    expect(insightTemplateValidationService.validateSources).toHaveBeenCalled();
+    expect(templateRepository.save).not.toHaveBeenCalled();
+    expect(insightTemplateValidationService.validateSources).not.toHaveBeenCalled();
     expect(result).toEqual(
       expect.objectContaining({
         artifactId: 'artifact-existing',
-        sourceKey: 'source_new',
-        status: 'updated',
-        reason: 'attach_existing_source',
+        sourceKey: 'source_existing',
+        status: 'already_present',
+        reason: 'source_already_in_template',
       })
     );
   });

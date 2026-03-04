@@ -83,7 +83,6 @@ describe('RunAiAssistantService', () => {
         },
         resolvedContext: {
           targetSourceKey: 'consumption_2025',
-          targetArtifactId: 'artifact-1',
           targetKind: 'TABLE',
           contextResolution: 'inferred_key',
         },
@@ -315,7 +314,7 @@ describe('RunAiAssistantService', () => {
       proposedActions: [
         {
           id: 'request-1',
-          type: 'apply_sql_to_artifact',
+          type: 'apply_changes_to_source',
           confidence: 0.9,
           payload: {},
         },
@@ -332,7 +331,7 @@ describe('RunAiAssistantService', () => {
     });
     systemTimeService.now.mockReturnValue(now);
 
-    await expect(service.run(command)).rejects.toThrow('artifactId');
+    await expect(service.run(command)).rejects.toThrow('sourceKey');
 
     expect(aiAssistantSessionService.addMessage).not.toHaveBeenCalled();
     expect(dataMartRunService.markAiSourceRunAsFinished).toHaveBeenCalledWith(

@@ -1,6 +1,5 @@
 export interface CreateAiAssistantMessageTurnContext {
   sourceKeyHint?: string;
-  artifactIdHint?: string;
   preferredSnippetType?: 'table' | 'single_value';
 }
 

@@ -10,9 +10,9 @@ export class AgentFlowRequestMapper {
   toAssistantOrchestratorRequest(params: {
     request: AgentFlowRequest;
     history?: AssistantChatMessage[];
-    currentArtifactSql?: string;
+    currentSourceSql?: string;
   }): AssistantOrchestratorRequest {
-    const { request, history, currentArtifactSql } = params;
+    const { request, history, currentSourceSql } = params;
 
     return {
       projectId: request.projectId,
@@ -22,7 +22,7 @@ export class AgentFlowRequestMapper {
         sessionId: request.sessionContext.sessionId,
         scope: request.sessionContext.scope,
         templateId: request.sessionContext.templateId,
-        ...(typeof currentArtifactSql === 'string' ? { currentArtifactSql } : {}),
+        ...(typeof currentSourceSql === 'string' ? { currentSourceSql } : {}),
       },
       ...(request.options ? { options: request.options } : {}),
     };

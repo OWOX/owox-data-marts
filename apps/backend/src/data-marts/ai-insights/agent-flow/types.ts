@@ -75,9 +75,9 @@ export const AgentFlowConversationSnapshotSchema =
 export type AgentFlowConversationSnapshot = z.infer<typeof AgentFlowConversationSnapshotSchema>;
 
 export interface AgentFlowStateSnapshotSource {
+  sourceId: string;
   sourceKey: string;
-  artifactId: string | null;
-  artifactTitle: string | null;
+  sourceTitle: string | null;
   isAttachedToTemplate: boolean;
   sqlHash: string | null;
   sqlPreview: string | null;

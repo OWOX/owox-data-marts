@@ -3,7 +3,7 @@ import { AgentFlowRequest } from './types';
 import { AiAssistantSessionService } from '../../services/ai-assistant-session.service';
 import { SourceResolverToolsService } from './source-resolver-tools.service';
 
-export const BASE_SQL_HANDLE_KINDS = ['rev', 'src', 'art'] as const;
+export const BASE_SQL_HANDLE_KINDS = ['rev', 'src'] as const;
 export type BaseSqlHandleKind = (typeof BASE_SQL_HANDLE_KINDS)[number];
 
 export interface ResolvedBaseSqlFromHandle {
@@ -39,7 +39,6 @@ export class BaseSqlHandleResolverService {
     const handlers: Record<BaseSqlHandleKind, () => Promise<ResolvedBaseSqlFromHandle | null>> = {
       rev: () => this.tryResolveRevBaseSqlHandle({ raw, id, request }),
       src: () => this.tryResolveSrcBaseSqlHandle({ raw, id, request }),
-      art: () => this.tryResolveArtBaseSqlHandle({ raw, id, request }),
     };
 
     for (const kind of resolverOrder) {
@@ -99,33 +98,6 @@ export class BaseSqlHandleResolverService {
     } catch (error) {
       this.logger.log('BaseSqlHandleResolver: handle candidate resolve miss', {
         kind: 'src',
-        handle: raw,
-        id,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return null;
-    }
-  }
-
-  private async tryResolveArtBaseSqlHandle(params: {
-    raw: string;
-    id: string;
-    request: AgentFlowRequest;
-  }): Promise<ResolvedBaseSqlFromHandle | null> {
-    const { raw, id, request } = params;
-
-    try {
-      const resolved = await this.sourceResolverToolsService.resolveArtifactSqlById({
-        request,
-        artifactId: id,
-      });
-      return {
-        baseSql: resolved.sql,
-        origin: { type: 'handle', handle: raw, kind: 'art' },
-      };
-    } catch (error) {
-      this.logger.log('BaseSqlHandleResolver: handle candidate resolve miss', {
-        kind: 'art',
         handle: raw,
         id,
         error: error instanceof Error ? error.message : String(error),

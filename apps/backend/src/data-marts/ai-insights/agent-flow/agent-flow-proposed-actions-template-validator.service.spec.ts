@@ -4,10 +4,10 @@ describe('AgentFlowProposedActionsTemplateValidatorService', () => {
   const createStateSnapshot = (sourceKeys: string[]) => ({
     sessionId: 'session-1',
     templateId: 'template-1',
-    sources: sourceKeys.map(sourceKey => ({
+    sources: sourceKeys.map((sourceKey, index) => ({
+      sourceId: `template-source-${index + 1}`,
       sourceKey,
-      artifactId: null,
-      artifactTitle: null,
+      sourceTitle: null,
       isAttachedToTemplate: true,
       sqlHash: null,
       sqlPreview: null,

@@ -29,12 +29,12 @@ export class ApplyAiAssistantSessionRequestApiDto {
   sql?: string;
 
   @ApiPropertyOptional({
-    description: 'Title override for created or updated artifact',
+    description: 'Title override for created or updated source',
     example: 'Monthly product consumption source',
   })
   @IsOptional()
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
-  artifactTitle?: string;
+  sourceTitle?: string;
 }

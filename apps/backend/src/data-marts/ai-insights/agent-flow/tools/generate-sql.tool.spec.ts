@@ -96,7 +96,7 @@ describe('GenerateSqlTool', () => {
           }),
         ],
         sessionContext: expect.objectContaining({
-          currentArtifactSql: 'SELECT 42',
+          currentSourceSql: 'SELECT 42',
         }),
       }),
       'refine'
@@ -264,7 +264,7 @@ describe('GenerateSqlTool', () => {
     expect(orchestrator.run).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionContext: expect.objectContaining({
-          currentArtifactSql: 'SELECT * FROM artifact_source',
+          currentSourceSql: 'SELECT * FROM artifact_source',
         }),
       }),
       'refine'
@@ -306,7 +306,7 @@ describe('GenerateSqlTool', () => {
     expect(orchestrator.run).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionContext: expect.objectContaining({
-          currentArtifactSql: 'SELECT * FROM raw_artifact',
+          currentSourceSql: 'SELECT * FROM raw_artifact',
         }),
       }),
       'refine'
@@ -339,7 +339,7 @@ describe('GenerateSqlTool', () => {
     expect(orchestrator.run).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionContext: expect.objectContaining({
-          currentArtifactSql: 'SELECT 1',
+          currentSourceSql: 'SELECT 1',
         }),
       }),
       'refine'

@@ -234,7 +234,6 @@ import { AgentFlowContextManager } from './services/agent-flow-context-manager.s
 import { AgentFlowPromptBuilder } from './services/agent-flow-prompt-builder.service';
 import { AgentFlowHistorySnapshotAgent } from './services/agent-flow-history-snapshot-agent.service';
 import { ListTemplateSourcesTool } from './ai-insights/agent-flow/tools/list-template-sources.tool';
-import { ListArtifactsTool } from './ai-insights/agent-flow/tools/list-artifacts.tool';
 import { GetTemplateContentTool } from './ai-insights/agent-flow/tools/get-template-content.tool';
 import { ProposeRemoveSourceTool } from './ai-insights/agent-flow/tools/propose-remove-source.tool';
 import { GenerateSqlTool } from './ai-insights/agent-flow/tools/generate-sql.tool';
@@ -519,7 +518,6 @@ import { GoogleOAuthConfigService } from './services/google-oauth/google-oauth-c
     AgentFlowPromptBuilder,
     AgentFlowHistorySnapshotAgent,
     ListTemplateSourcesTool,
-    ListArtifactsTool,
     GetTemplateContentTool,
     ProposeRemoveSourceTool,
     GenerateSqlTool,

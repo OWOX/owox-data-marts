@@ -56,7 +56,7 @@ export class AiSourceApplyService {
     Array<{
       actionType: string | null;
       sourceKey: string | null;
-      artifactTitle: string | null;
+      sourceTitle: string | null;
       templateUpdated: boolean;
       appliedAt: Date;
     }>
@@ -71,7 +71,7 @@ export class AiSourceApplyService {
       .map(a => ({
         actionType: a.response?.actionType ?? null,
         sourceKey: a.response?.sourceKey ?? null,
-        artifactTitle: a.response?.artifactTitle ?? null,
+        sourceTitle: a.response?.sourceTitle ?? null,
         templateUpdated: a.response?.templateUpdated ?? false,
         appliedAt: a.modifiedAt,
       }));
@@ -90,8 +90,6 @@ export class AiSourceApplyService {
         resultStatus: existing.dto.status,
         reason: existing.dto.reason,
         actionType: existing.response.actionType ?? loadedAction.action.type,
-        targetArtifactId:
-          existing.response.targetArtifactId ?? loadedAction.action.targetArtifactId ?? null,
         templateSourceId: existing.response.templateSourceId ?? null,
         sourceKey: existing.response.sourceKey ?? loadedAction.action.sourceKey ?? null,
       });
@@ -118,7 +116,7 @@ export class AiSourceApplyService {
     const result = new AiAssistantApplyResultDto(
       command.requestId,
       executionResult.artifactId,
-      executionResult.artifactTitle,
+      executionResult.sourceTitle,
       executionResult.templateUpdated,
       executionResult.templateId,
       executionResult.sourceKey,
@@ -134,8 +132,6 @@ export class AiSourceApplyService {
           assistantMessageId:
             loadedAction.response.assistantMessageId ?? command.assistantMessageId,
           action,
-          targetArtifactId:
-            action.targetArtifactId ?? loadedAction.response.targetArtifactId ?? null,
           templateSourceId: loadedAction.response.templateSourceId,
         }) as unknown as never,
       }
@@ -146,7 +142,6 @@ export class AiSourceApplyService {
       resultStatus: result.status,
       reason: result.reason,
       actionType: action.type,
-      targetArtifactId: action.targetArtifactId ?? loadedAction.response.targetArtifactId ?? null,
       templateSourceId: loadedAction.response.templateSourceId ?? null,
       sourceKey: result.sourceKey ?? action.sourceKey ?? null,
     });
@@ -282,7 +277,6 @@ export class AiSourceApplyService {
     resultStatus: AiAssistantApplyStatus;
     reason: string | null;
     actionType?: ApplyAiAssistantActionType;
-    targetArtifactId?: string | null;
     templateSourceId?: string | null;
     sourceKey?: string | null;
   }): void {
@@ -291,7 +285,6 @@ export class AiSourceApplyService {
       requestId: params.command.requestId,
       assistantMessageId: params.command.assistantMessageId,
       actionType: params.actionType ?? null,
-      targetArtifactId: params.targetArtifactId ?? null,
       templateSourceId: params.templateSourceId ?? null,
       sourceKey: params.sourceKey ?? null,
       resultStatus: params.resultStatus,
