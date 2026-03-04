@@ -41,11 +41,6 @@ const getBaseSlashCommands = (sources: InsightTemplateSourceEntity[]): SlashComm
       label: 'Value (Column/Row)',
       insertText: '{{value source="${1:main}" column="${2:1}" row="${3:1}"}}',
       documentation: 'Insert a value tag using column/row syntax',
-    },
-    {
-      label: 'Value (DM)',
-      insertText: '{{value source="main" column="${1:1}" row="${2:1}"}}',
-      documentation: 'Insert a value tag bound to current Data Mart',
     }
   );
 
