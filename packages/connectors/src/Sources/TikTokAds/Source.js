@@ -303,6 +303,24 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
   }
 
   /**
+   * Retrieves and validates the data level from the configuration
+   * 
+   * @return {string} - The validated data level string
+   */
+  getValidatedDataLevel() {
+    let dataLevel = this.config.DataLevel && this.config.DataLevel.value ?
+      this.config.DataLevel.value : "AUCTION_AD";
+
+    const validDataLevels = ["AUCTION_ADVERTISER", "AUCTION_CAMPAIGN", "AUCTION_ADGROUP", "AUCTION_AD"];
+    if (!validDataLevels.includes(dataLevel)) {
+      this.config.logMessage(`Invalid data_level: ${dataLevel}. Using default AUCTION_AD.`);
+      dataLevel = "AUCTION_AD";
+    }
+
+    return dataLevel;
+  }
+
+  /**
    * Get dimensions based on the specified data level
    * 
    * @param {string} dataLevel - The reporting data level
@@ -324,6 +342,20 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
       default:
         dimensions = ["ad_id", "stat_time_day"];
         break;
+    }
+    return dimensions;
+  }
+
+  /**
+   * Appends a new dimension to an existing dimensions array
+   * 
+   * @param {array} dimensions - The initial dimensions array
+   * @param {string} newDimension - The dimension to append
+   * @return {array} - Array of dimension fields with the new one added
+   */
+  populateDimensions(dimensions, newDimension) {
+    if (!dimensions.includes(newDimension)) {
+      return [...dimensions, newDimension];
     }
     return dimensions;
   }
@@ -434,22 +466,10 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
           allData = await provider.getAds(advertiserId, filteredFields, filtering);
           break;
 
-        case 'ad_insights':
-          // Format for ad reporting endpoint
-          let dataLevel = this.config.DataLevel && this.config.DataLevel.value ?
-            this.config.DataLevel.value : "AUCTION_AD";
-
-          // Validate the data level
-          const validDataLevels = ["AUCTION_ADVERTISER", "AUCTION_CAMPAIGN", "AUCTION_ADGROUP", "AUCTION_AD"];
-          if (!validDataLevels.includes(dataLevel)) {
-            this.config.logMessage(`Invalid data_level: ${dataLevel}. Using default AUCTION_AD.`);
-            dataLevel = "AUCTION_AD";
-          }
-
-          // Set dimensions based on data level
+        case 'ad_insights': {
+          let dataLevel = this.getValidatedDataLevel();
           let dimensions = this.getDimensionsForDataLevel(dataLevel);
 
-          // Use only metrics that are in our known valid list
           const validMetricsList = provider.getValidAdInsightsMetrics();
           let metricFields = this.getFilteredMetrics(filteredFields, dimensions, validMetricsList);
 
@@ -462,6 +482,26 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
             endDate: formattedEndDate
           });
           break;
+        }
+
+        case 'ad_insights_by_country': {
+          let dataLevel = this.getValidatedDataLevel();
+          let dimensions = this.getDimensionsForDataLevel(dataLevel);
+          let countryDimensions = this.populateDimensions(dimensions, 'country_code');
+
+          const validMetricsList = provider.getValidAdInsightsMetrics();
+          let metricFields = this.getFilteredMetrics(filteredFields, countryDimensions, validMetricsList);
+
+          allData = await provider.getAdInsights({
+            advertiserId: advertiserId,
+            dataLevel: dataLevel,
+            dimensions: countryDimensions,
+            metrics: metricFields,
+            startDate: formattedStartDate,
+            endDate: formattedEndDate
+          });
+          break;
+        }
 
         case 'audiences':
           allData = await provider.getAudiences(advertiserId);
@@ -521,8 +561,8 @@ var TikTokAdsSource = class TikTokAdsSource extends AbstractSource {
     // Maximum string length to prevent exceeding column limits
     const MAX_STRING_LENGTH = 50000;
 
-    // Special handling for metrics field in ad_insights
-    if (nodeName === 'ad_insights') {
+    // Special handling for metrics/dimensions fields in ad_insights and ad_insights_by_country
+    if (nodeName === 'ad_insights' || nodeName === 'ad_insights_by_country') {
       if (record.metrics) {
         // Flatten metrics object into the main record
         for (const metricKey in record.metrics) {

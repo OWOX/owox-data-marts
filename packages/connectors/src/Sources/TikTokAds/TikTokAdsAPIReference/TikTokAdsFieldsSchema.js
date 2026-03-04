@@ -47,6 +47,15 @@ var TikTokAdsFieldsSchema = {
     "destinationName": "tiktok_ads_ad_insights",
     "isTimeSeries": true
   },
+  "ad_insights_by_country": {
+    "title": "Ad Insights by Country",
+    "description": "TikTok Ad Insights Metrics broken down by country code",
+    "documentation": "https://ads.tiktok.com/marketing_api/docs?id=1738864915188737",
+    "fields": adInsightsByCountryFields,
+    "uniqueKeys": ["ad_id", "stat_time_day", "country_code"],
+    "destinationName": "tiktok_ads_ad_insights_by_country",
+    "isTimeSeries": true
+  },
   "audiences": {
     "title": "Audiences",
     "description": "TikTok Custom Audiences",
