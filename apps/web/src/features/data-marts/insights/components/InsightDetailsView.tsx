@@ -1,26 +1,47 @@
+import type * as monacoEditor from 'monaco-editor';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import ResizableColumns from '../../../../shared/components/ResizableColumns/ResizableColumns';
-import InsightEditor from '../../../../features/data-marts/insights/components/InsightEditor.tsx';
+import {
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Circle,
+  Copy,
+  History,
+  Loader2,
+  MessageSquare,
+  MoreVertical,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
+  Play,
+  Plus,
+  Sparkles,
+  Trash2,
+} from 'lucide-react';
+import type { ImperativePanelHandle } from 'react-resizable-panels';
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from '@owox/ui/components/resizable';
+import { toast } from 'react-hot-toast';
+import { Button } from '@owox/ui/components/button';
 import {
   Breadcrumb,
-  BreadcrumbList,
   BreadcrumbItem,
   BreadcrumbLink,
+  BreadcrumbList,
   BreadcrumbSeparator,
 } from '@owox/ui/components/breadcrumb';
-import { InlineEditTitle } from '../../../../shared/components/InlineEditTitle/InlineEditTitle.tsx';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@owox/ui/components/dropdown-menu';
-import { Button } from '@owox/ui/components/button';
-import { MoreVertical, Trash2, Sparkles, Loader2, Send, Copy } from 'lucide-react';
-import toast from 'react-hot-toast';
-import { useClipboard } from '../../../../hooks/useClipboard';
-import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import {
   Empty,
   EmptyDescription,
@@ -28,199 +49,405 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@owox/ui/components/empty';
-import { useInsightForm, useInsightExecutionPolling } from '../hooks';
+import { ConfirmationDialog } from '../../../../shared/components/ConfirmationDialog';
+import { InlineEditTitle } from '../../../../shared/components/InlineEditTitle/InlineEditTitle.tsx';
+
 import { useDataMartContext } from '../../edit/model';
 import {
-  useMarkdownPreview,
-  MarkdownEditorPreview,
-} from '../../../../shared/components/MarkdownEditor';
-import { useInsights } from '../model';
-import { useInsightsPermissions } from '../hooks/useInsightsPermissions';
-import { EmailReportEditSheet } from '../../reports/edit';
-import { ReportFormMode, ReportsProvider } from '../../reports/shared';
-import { DataDestinationType } from '../../../data-destination';
-import { InsightLoader } from './InsightMinerLoader.tsx';
-import RelativeTime from '@owox/ui/components/common/relative-time';
+  DataMartRunStatus,
+  DataMartStatus,
+  isDataMartRunFinalStatus,
+  isTaskFinalStatus,
+} from '../../shared';
+import { NO_PERMISSION_MESSAGE, usePermissions } from '../../../../app/permissions';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@owox/ui/components/tooltip';
-import { formatDateShort, trackEvent } from '../../../../utils';
-import { DataMartStatus } from '../../shared';
-import { NO_PERMISSION_MESSAGE } from '../../../../app/permissions';
+  MarkdownEditorPreview,
+  useMarkdownPreview,
+} from '../../../../shared/components/MarkdownEditor';
+import type { InsightTemplateEntity } from '../model';
+import {
+  useInsightTemplateSources,
+  insightTemplatesService,
+  mapInsightTemplateFromDto,
+} from '../model';
+
+import {
+  readAiPref,
+  readAiSize,
+  readPreviewPref,
+  readPreviewSize,
+  saveAiPref,
+  saveAiSize,
+  savePreviewPref,
+  savePreviewSize,
+  AI_CONSTANTS,
+  PREVIEW_CONSTANTS,
+} from '../utils/insight-view-persistence.utils.ts';
+import { AiAssistantPanel } from './AiAssistantPanel.tsx';
+import { InsightTemplateEditor } from './InsightTemplateEditor';
+import { InsightSourcesPanel } from './InsightSourcesPanel';
+import { InsightLoader } from './InsightLoader';
+import type { AiAssistantPanelHandle } from '../model/ai-assistant/types/ai-assistant-panel.types.ts';
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function InsightDetailsView() {
   const navigate = useNavigate();
   const { insightId } = useParams<{ insightId: string }>();
-  const storageKey = useMemo(() => 'insight_details_split', []);
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const { dataMart } = useDataMartContext();
-  const isDraft = dataMart?.status.code === DataMartStatus.DRAFT;
+  const { canEdit, canDelete } = usePermissions();
 
-  const {
-    activeInsight: insight,
-    insightLoading,
-    isRunning,
-    triggerId,
-    updateInsight,
-    updateInsightTitle,
-    getInsight,
-    runInsight,
-    deleteInsight,
-    resetTriggerId,
-    ensureActiveRunPolling,
-  } = useInsights();
-  const { canEdit, canDelete, canRun, canSendAndSchedule } = useInsightsPermissions();
+  const [entity, setEntity] = useState<InsightTemplateEntity | null>(null);
+  const [template, setTemplate] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
+  const [triggerId, setTriggerId] = useState<string | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [runErrorMessage, setRunErrorMessage] = useState<string | null>(null);
 
-  const {
-    handleSubmit,
-    setValue,
-    isTemplateDirty,
-    isSubmitting,
-    titleValue,
-    templateValue,
-    handleTitleUpdate,
-    onSubmit,
-  } = useInsightForm(insight, updateInsight, updateInsightTitle);
+  // ── Preview panel ──────────────────────────────────────────────────────────
+  // Closed by default; restored from localStorage.
+  const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(readPreviewPref);
+  const isSystemPreviewToggle = useRef(false);
+  const previewPanelRef = useRef<ImperativePanelHandle>(null);
+  const previewDefaultSize = useMemo(
+    () => (readPreviewPref() ? PREVIEW_CONSTANTS.COLLAPSED_SIZE : readPreviewSize()),
+    []
+  );
+
+  // ── AI Assistant panel ─────────────────────────────────────────────────────
+  // Open by default; restored from localStorage.
+  const [isAiCollapsed, setIsAiCollapsed] = useState(readAiPref);
+  const aiPanelRef = useRef<ImperativePanelHandle>(null);
+  const aiDefaultSize = useMemo(
+    () => (readAiPref() ? AI_CONSTANTS.COLLAPSED_SIZE : readAiSize()),
+    []
+  );
+  // AI Assistant internal state controlled from panel header
+  const [isAiHistoryView, setIsAiHistoryView] = useState(false);
+  const [isAiBusy, setIsAiBusy] = useState(false);
+  const aiAssistantRef = useRef<AiAssistantPanelHandle>(null);
+
+  // ── Copy preview markdown ──────────────────────────────────────────────────
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleCopyMarkdown = useCallback(() => {
+    const markdown = entity?.lastRenderedTemplate;
+    if (!markdown) return;
+    void navigator.clipboard.writeText(markdown).then(() => {
+      setIsCopied(true);
+      setTimeout(() => {
+        setIsCopied(false);
+      }, 2000);
+    });
+  }, [entity?.lastRenderedTemplate]);
+
+  // ── Other panels ───────────────────────────────────────────────────────────
+  const [isArtifactsCollapsed, setIsArtifactsCollapsed] = useState(false);
+  const artifactsPanelRef = useRef<ImperativePanelHandle>(null);
+  const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(null);
+
+  const handleEditorMount = useCallback((editor: monacoEditor.editor.IStandaloneCodeEditor) => {
+    editorRef.current = editor;
+  }, []);
+
+  const handleInsertTemplate = useCallback((key: string) => {
+    if (!editorRef.current) return;
+    const editor = editorRef.current;
+    const selection = editor.getSelection();
+    if (!selection) return;
+    const text = `{{table source="${key}"}}`;
+    editor.executeEdits('insert-template', [{ range: selection, text, forceMoveMarkers: true }]);
+    editor.focus();
+  }, []);
+
+  // ── Preview panel handlers ─────────────────────────────────────────────────
+
+  const handlePreviewCollapse = useCallback(() => {
+    setIsPreviewCollapsed(true);
+    if (!isSystemPreviewToggle.current) savePreviewPref(true);
+    isSystemPreviewToggle.current = false;
+  }, []);
+
+  const handlePreviewExpand = useCallback(() => {
+    setIsPreviewCollapsed(false);
+    if (!isSystemPreviewToggle.current) savePreviewPref(false);
+    isSystemPreviewToggle.current = false;
+  }, []);
+
+  const handlePreviewResize = useCallback((size: number) => {
+    if (size > PREVIEW_CONSTANTS.COLLAPSED_SIZE) savePreviewSize(size);
+  }, []);
+
+  const expandPreview = useCallback((isSystem: boolean) => {
+    isSystemPreviewToggle.current = isSystem;
+    previewPanelRef.current?.resize(readPreviewSize());
+  }, []);
+
+  const togglePreview = useCallback(() => {
+    if (isPreviewCollapsed) {
+      expandPreview(false);
+    } else {
+      previewPanelRef.current?.collapse();
+    }
+  }, [expandPreview, isPreviewCollapsed]);
+
+  // ── AI Assistant panel handlers ────────────────────────────────────────────
+
+  const handleAiCollapse = useCallback(() => {
+    setIsAiCollapsed(true);
+    saveAiPref(true);
+  }, []);
+
+  const handleAiExpand = useCallback(() => {
+    setIsAiCollapsed(false);
+    saveAiPref(false);
+  }, []);
+
+  const handleAiResize = useCallback((size: number) => {
+    if (size > AI_CONSTANTS.COLLAPSED_SIZE) saveAiSize(size);
+  }, []);
+
+  const toggleAi = useCallback(() => {
+    if (isAiCollapsed) {
+      aiPanelRef.current?.resize(readAiSize()); // restore to last saved size
+    } else {
+      aiPanelRef.current?.collapse();
+    }
+  }, [isAiCollapsed]);
+
+  // ── Artifacts panel handlers ───────────────────────────────────────────────
+
+  const toggleArtifacts = useCallback(() => {
+    if (isArtifactsCollapsed) {
+      artifactsPanelRef.current?.expand();
+    } else {
+      artifactsPanelRef.current?.collapse();
+    }
+  }, [isArtifactsCollapsed]);
+
+  // ── Preview rendering ──────────────────────────────────────────────────────
 
   const preview = useMarkdownPreview({
-    markdown: insight?.output ?? '',
-    enabled: !!insight?.output,
+    markdown: entity?.lastRenderedTemplate ?? '',
+    enabled: Boolean(entity?.lastRenderedTemplate),
     debounceMs: 0,
   });
 
-  // TODO:: Remove this toggle to show raw markdown output in read-only editor instead of HTML preview
-  const [showRawOutput, setShowRawOutput] = useState(false);
-  const [isReportSheetOpen, setIsReportSheetOpen] = useState(false);
+  const isDraft = dataMart?.status.code === DataMartStatus.DRAFT;
 
-  const { copyToClipboard } = useClipboard();
+  const isDirty = useMemo(() => {
+    if (!entity) return false;
+    return entity.template !== template;
+  }, [entity, template]);
 
-  const handleCopyOutput = useCallback(async () => {
-    const text = insight?.output ?? '';
-    if (!text) return;
-    const ok = await copyToClipboard(text, 'insight-output');
-    if (ok) {
-      toast.success('Markdown copied to clipboard');
-    } else {
-      toast.error('Failed to copy to clipboard');
+  // ── Data loading ───────────────────────────────────────────────────────────
+
+  const loadEntity = useCallback(async (): Promise<string | null> => {
+    if (!dataMart?.id || !insightId) return null;
+    try {
+      const templateDto = await insightTemplatesService.getInsightTemplateById(
+        dataMart.id,
+        insightId
+      );
+      const mapped = mapInsightTemplateFromDto(templateDto);
+      setEntity(mapped);
+      setTemplate(mapped.template ?? '');
+      const runError = extractLatestRunError(templateDto.lastManualDataMartRun);
+      setRunErrorMessage(runError);
+
+      return runError;
+    } catch {
+      toast.error('Failed to load insight');
+      void navigate('..');
+      return null;
     }
-    trackEvent({
-      event: 'insight_output_copied',
-      category: 'Insights',
-      action: 'Copy',
+  }, [dataMart?.id, insightId, navigate]);
+
+  const ensureActiveRunPolling = useCallback(async () => {
+    if (!dataMart?.id || !insightId || triggerId) return;
+
+    try {
+      const res = await insightTemplatesService.getInsightTemplateRunTriggers(
+        dataMart.id,
+        insightId,
+        { skipLoadingIndicator: true }
+      );
+      const active = res.data
+        .sort((a, b) => new Date(b.modifiedAt).getTime() - new Date(a.modifiedAt).getTime())
+        .find(t => !isTaskFinalStatus(t.status));
+
+      if (active?.id) {
+        setIsRunning(true);
+        setTriggerId(active.id);
+      }
+    } catch (error) {
+      console.error('Failed to ensure active run polling', error);
+    }
+  }, [dataMart?.id, insightId, triggerId]);
+
+  useEffect(() => {
+    void loadEntity().then(() => {
+      if (entity?.lastRun && !isDataMartRunFinalStatus(entity.lastRun.status)) {
+        void ensureActiveRunPolling();
+      }
     });
-  }, [insight?.output, copyToClipboard]);
+  }, [loadEntity]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Run polling ────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const isCmdOrCtrl = e.metaKey || e.ctrlKey;
-      if (isCmdOrCtrl && e.shiftKey && (e.key === 'M' || e.key === 'm')) {
-        e.preventDefault();
-        setShowRawOutput(prev => !prev);
-        trackEvent({
-          event: 'insight_raw_output_toggle',
-          category: 'Insights',
-          action: 'ToggleRawOutput',
-        });
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
+    if (!triggerId || !dataMart?.id || !insightId) return;
+
+    const controller = new AbortController();
+    const interval = window.setInterval(() => {
+      void (async () => {
+        try {
+          const statusResponse = await insightTemplatesService.checkInsightTemplateExecutionStatus(
+            dataMart.id,
+            triggerId,
+            insightId,
+            { skipLoadingIndicator: true, signal: controller.signal }
+          );
+
+          const status = statusResponse.status;
+          if (status === 'SUCCESS' || status === 'ERROR' || status === 'CANCELLED') {
+            window.clearInterval(interval);
+            setTriggerId(null);
+            setIsRunning(false);
+
+            const runError = await loadEntity();
+            if (status === 'CANCELLED') {
+              toast.error('Insight run was cancelled');
+            } else if (runError) {
+              toast.error('Insight run failed');
+            } else {
+              toast.success('Insight run completed');
+            }
+          }
+        } catch (err) {
+          if (err instanceof Error && err.name === 'AbortError') {
+            return;
+          }
+          window.clearInterval(interval);
+          setTriggerId(null);
+          setIsRunning(false);
+          const message = 'Failed to check insight run status';
+          setRunErrorMessage(message);
+          toast.error(message);
+        }
+      })();
+    }, 2500);
+
     return () => {
-      window.removeEventListener('keydown', onKeyDown);
+      controller.abort();
+      window.clearInterval(interval);
     };
-  }, []);
+  }, [dataMart?.id, insightId, loadEntity, triggerId]);
 
-  const handleDelete = useCallback(async () => {
-    if (!insight) return;
-    await deleteInsight(insight.id);
-    void navigate('..');
-  }, [insight, deleteInsight, navigate]);
+  // ── Actions ────────────────────────────────────────────────────────────────
 
-  const isOutputEmpty = !insightLoading && !insight?.output;
+  const handleSave = useCallback(async (): Promise<InsightTemplateEntity | null> => {
+    if (!dataMart?.id || !insightId || !entity || !canEdit) return null;
 
-  useEffect(() => {
-    if (!insightId) return;
-    void getInsight(insightId);
-  }, [insightId, getInsight]);
-
-  useEffect(() => {
-    if (insight?.id) {
-      void ensureActiveRunPolling();
+    setSaving(true);
+    try {
+      const dto = await insightTemplatesService.updateInsightTemplate(dataMart.id, insightId, {
+        title: entity.title,
+        template,
+      });
+      const updated = mapInsightTemplateFromDto(dto);
+      setEntity(updated);
+      setTemplate(updated.template ?? '');
+      toast.success('Insight saved');
+      return updated;
+    } catch {
+      toast.error('Failed to save insight');
+      return null;
+    } finally {
+      setSaving(false);
     }
-  }, [insight?.id, ensureActiveRunPolling]);
-
-  useInsightExecutionPolling({
-    triggerId,
-    dataMartId: dataMart?.id ?? '',
-    insightId: insight?.id ?? '',
-    onRunFinished: useCallback(() => {
-      resetTriggerId();
-      if (insight?.id) {
-        void getInsight(insight.id);
-      }
-    }, [insight?.id, getInsight, resetTriggerId]),
-    onError: useCallback(() => {
-      resetTriggerId();
-    }, [resetTriggerId]),
-  });
+  }, [canEdit, dataMart?.id, entity, insightId, template]);
 
   const handleRun = useCallback(async () => {
-    if (!insight?.id) {
-      console.error('Insight ID is not available');
-      return;
-    }
-    try {
-      await runInsight(insight.id);
-    } catch (error) {
-      console.error('Failed to run insight');
-      throw error;
-    }
-  }, [insight?.id, runInsight]);
+    if (!dataMart?.id || !insightId || isRunning || isDraft) return;
+    setRunErrorMessage(null);
+    setIsRunning(true);
 
-  const handleSaveAndRun = useCallback(
-    () =>
-      handleSubmit(async values => {
-        await onSubmit(values);
-        if (!insight?.id) {
-          console.error('Insight ID is not available');
-          return;
-        }
-        try {
-          await runInsight(insight.id);
-        } catch (error) {
-          console.error('Failed to run insight');
-          throw error;
-        }
-      })(),
-    [handleSubmit, insight?.id, onSubmit, runInsight]
+    expandPreview(true);
+
+    try {
+      const { triggerId: nextTriggerId } =
+        await insightTemplatesService.startInsightTemplateExecution(dataMart.id, insightId);
+      setTriggerId(nextTriggerId);
+    } catch {
+      setIsRunning(false);
+      toast.error('Failed to start insight run');
+    }
+  }, [dataMart?.id, expandPreview, insightId, isDraft, isRunning]);
+
+  const handleCancelRun = useCallback(async () => {
+    if (!dataMart?.id || !insightId || !triggerId) return;
+    try {
+      await insightTemplatesService.abortInsightTemplateExecution(
+        dataMart.id,
+        insightId,
+        triggerId
+      );
+      toast.success('Run cancelled');
+    } catch {
+      toast.error('Failed to cancel run');
+    }
+  }, [dataMart?.id, insightId, triggerId]);
+
+  const handleDelete = useCallback(async () => {
+    if (!dataMart?.id || !insightId || !canDelete) return;
+    try {
+      await insightTemplatesService.deleteInsightTemplate(dataMart.id, insightId);
+      toast.success('Insight deleted');
+      void navigate('..');
+    } catch {
+      toast.error('Failed to delete insight');
+    }
+  }, [canDelete, dataMart?.id, insightId, navigate]);
+
+  const { data: sources = [], refetch: refetchSources } = useInsightTemplateSources(
+    dataMart?.id ?? '',
+    insightId ?? ''
   );
 
-  if (insightLoading) {
-    // TODO:: Add skeleton loading indicator
-    return <div className='text-muted-foreground flex flex-col gap-2 text-sm'>Loading...</div>;
-  }
+  const handleApplied = useCallback(() => {
+    void loadEntity();
+    void refetchSources();
+  }, [loadEntity, refetchSources]);
 
-  if (!insight || !dataMart) {
-    return (
-      <Empty>
-        <EmptyHeader>
-          <EmptyMedia variant='icon'>
-            <Sparkles />
-          </EmptyMedia>
-        </EmptyHeader>
-        <EmptyTitle>Insight not found</EmptyTitle>
-        <EmptyDescription>
-          The insight you're looking for doesn't exist or couldn't be loaded
-        </EmptyDescription>
-      </Empty>
-    );
-  }
+  const canRun = !isDraft;
+  const isRunPending = isRunning || triggerId !== null;
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      const ua = navigator.userAgent || '';
+      const isMac = /\bMac|iPod|iPhone|iPad\b/.test(ua);
+      const ctrlOrCmd = isMac ? event.metaKey : event.ctrlKey;
+      if (!ctrlOrCmd) return;
+
+      if (event.key === 's') {
+        event.preventDefault();
+        if (isDirty && !saving) void handleSave();
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        if (canRun && !isRunPending) void handleRun();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => {
+      window.removeEventListener('keydown', handler);
+    };
+  }, [canRun, handleRun, handleSave, isDirty, isRunPending, saving]);
 
   return (
     <div className='flex h-full w-full flex-col gap-2'>
-      <div className='flex items-center justify-between gap-2'>
+      <div className='flex items-center gap-3'>
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
@@ -232,11 +459,17 @@ export default function InsightDetailsView() {
             <BreadcrumbItem>
               <span aria-current='page' className='block max-w-[480px] truncate'>
                 <InlineEditTitle
-                  title={titleValue || 'Untitled insight'}
-                  onUpdate={handleTitleUpdate}
-                  className='font-medium'
-                  errorMessage='Title cannot be empty'
-                  minWidth='200px'
+                  title={entity?.title ?? ''}
+                  onUpdate={async (value: string) => {
+                    if (!entity || !dataMart?.id || !insightId) return;
+                    await insightTemplatesService.updateInsightTemplateTitle(
+                      dataMart.id,
+                      insightId,
+                      value
+                    );
+                    setEntity({ ...entity, title: value });
+                    toast.success('Title updated');
+                  }}
                   readOnly={!canEdit}
                 />
               </span>
@@ -244,302 +477,353 @@ export default function InsightDetailsView() {
           </BreadcrumbList>
         </Breadcrumb>
 
-        <div className='flex items-center gap-2'>
+        <div className='ml-auto flex items-center gap-2'>
+          {isDirty && (
+            <span className='flex items-center gap-1.5 text-xs font-medium text-yellow-600'>
+              <Circle className='h-2 w-2 fill-current' />
+              Unsaved changes
+            </span>
+          )}
+          <Button
+            variant='secondary'
+            disabled={!isDirty || saving || !canEdit}
+            onClick={() => void handleSave()}
+          >
+            {saving ? <Loader2 className='mr-2 h-4 w-4 animate-spin' /> : null}
+            Save
+          </Button>
+          <Button
+            disabled={!canRun || isRunPending || isDirty}
+            onClick={() => void handleRun()}
+            variant='default'
+          >
+            {isRunPending ? (
+              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+            ) : (
+              <Play className='mr-2 h-4 w-4' />
+            )}
+            {isRunPending ? 'Running…' : 'Run'}
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant='ghost' size='icon' aria-label='Insight actions'>
+              <Button variant='ghost' size='icon'>
                 <MoreVertical className='h-4 w-4' />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end'>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className='w-full'>
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setIsDeleteOpen(true);
-                      }}
-                      className='text-destructive'
-                      disabled={!canDelete}
-                    >
-                      <Trash2 className='h-4 w-4 text-red-600' />{' '}
-                      <span className='text-red-600'>Delete insight</span>
-                    </DropdownMenuItem>
-                  </div>
-                </TooltipTrigger>
-                {!canDelete && <TooltipContent side='left'>{NO_PERMISSION_MESSAGE}</TooltipContent>}
-              </Tooltip>
+              <DropdownMenuItem
+                disabled={!canDelete}
+                onClick={() => {
+                  if (!canDelete) {
+                    toast.error(NO_PERMISSION_MESSAGE);
+                    return;
+                  }
+                  setIsDeleteDialogOpen(true);
+                }}
+              >
+                <Trash2 className='mr-2 h-4 w-4 text-red-600' />
+                <span className='text-red-600'>Delete insight</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={!isRunPending} onClick={() => void handleCancelRun()}>
+                Cancel run
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
 
-      <div className='bg-background flex-1 rounded-md border'>
-        <ResizableColumns
-          storageKey={storageKey}
-          initialRatio={0.5}
-          left={
-            <div className='flex h-full min-h-0 flex-col'>
-              <div className='min-h-0 flex-1 overflow-hidden'>
-                <InsightEditor
-                  value={templateValue ?? ''}
-                  onChange={v => {
-                    setValue('template', v, { shouldDirty: true });
-                  }}
-                  height={'calc(100vh - 275px)'}
-                  placeholder='Type / to view available commands...'
-                  readOnly={isRunning || !canEdit}
-                  excludeInsightId={insightId}
-                />
-              </div>
-              <div className='flex items-center justify-between gap-4 border-t px-4 py-2'>
-                <div className='flex items-center gap-2'>
-                  {(() => {
-                    if (isDraft) {
-                      return (
-                        <Tooltip delayDuration={150}>
-                          <TooltipTrigger asChild>
-                            <span className='inline-flex' tabIndex={0}>
-                              <Button
-                                variant='default'
-                                size='default'
-                                disabled={isSubmitting || isRunning || !canRun}
-                                onClick={() => {
-                                  if (isTemplateDirty) {
-                                    void handleSubmit(async values => {
-                                      await onSubmit(values);
-                                    })();
-                                  }
-                                }}
-                              >
-                                {isTemplateDirty ? (
-                                  <span className='inline-flex items-center gap-2'>
-                                    <Sparkles /> Save Insight
-                                  </span>
-                                ) : (
-                                  <span className='inline-flex items-center gap-2'>
-                                    <Sparkles /> Run Insight
-                                  </span>
-                                )}
-                              </Button>
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side='top'>
-                            {canRun ? (
-                              <p>To run an insight, publish the Data Mart first</p>
-                            ) : (
-                              <p>{NO_PERMISSION_MESSAGE}</p>
-                            )}
-                          </TooltipContent>
-                        </Tooltip>
-                      );
-                    }
-                    return (
-                      <Tooltip delayDuration={150}>
-                        <TooltipTrigger asChild>
-                          <div className='inline-flex'>
-                            <Button
-                              variant='default'
-                              size='default'
-                              disabled={isSubmitting || isRunning || !canRun}
-                              onClick={() =>
-                                void (isTemplateDirty ? handleSaveAndRun() : handleRun())
-                              }
-                            >
-                              {isRunning ? (
-                                <span className='inline-flex items-center gap-2'>
-                                  <Loader2 className='h-3 w-3 animate-spin' /> Running…
-                                </span>
-                              ) : isTemplateDirty ? (
-                                <span className='inline-flex items-center gap-2'>
-                                  <Sparkles /> Save & Run Insight
-                                </span>
-                              ) : (
-                                <span className='inline-flex items-center gap-2'>
-                                  <Sparkles /> Run Insight
-                                </span>
-                              )}
-                            </Button>
-                          </div>
-                        </TooltipTrigger>
-                        {!canRun && (
-                          <TooltipContent side='top'>{NO_PERMISSION_MESSAGE}</TooltipContent>
-                        )}
-                      </Tooltip>
-                    );
-                  })()}
-                  <Tooltip delayDuration={1500}>
-                    <TooltipTrigger asChild>
-                      {(() => {
-                        return (
-                          <span className='inline-flex' tabIndex={0}>
-                            <Button
-                              variant='outline'
-                              size='default'
-                              onClick={() => {
-                                trackEvent({
-                                  event: 'insight_send_schedule',
-                                  category: 'Insights',
-                                  action: 'SendSchedule',
-                                  label: insightId,
-                                });
-                                if (!isDraft && canSendAndSchedule) setIsReportSheetOpen(true);
-                              }}
-                              disabled={isDraft || !canSendAndSchedule}
-                              className='gap-2'
-                            >
-                              <Send className='text-muted-foreground h-4 w-4' />
-                              Send & Schedule ...
-                            </Button>
-                          </span>
-                        );
-                      })()}
-                    </TooltipTrigger>
-                    <TooltipContent side='top'>
-                      {(() => {
-                        if (isDraft) {
-                          return (
-                            <p>
-                              You can schedule and send reports only after publishing the Data Mart
-                            </p>
-                          );
-                        }
-                        if (!canSendAndSchedule) {
-                          return <p>{NO_PERMISSION_MESSAGE}</p>;
-                        }
-                        return (
-                          <p>
-                            You can schedule this insight to run at a specific time or send it to a
-                            recipient
-                          </p>
-                        );
-                      })()}
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-                {insight.outputUpdatedAt && (
-                  <TooltipProvider>
+      <ResizablePanelGroup direction='horizontal' className='flex-1 gap-1 overflow-hidden'>
+        {/* AI Assistant panel */}
+        <ResizablePanel
+          ref={aiPanelRef}
+          defaultSize={aiDefaultSize}
+          minSize={15}
+          collapsible
+          collapsedSize={AI_CONSTANTS.COLLAPSED_SIZE}
+          onCollapse={handleAiCollapse}
+          onExpand={handleAiExpand}
+          onResize={handleAiResize}
+          className='overflow-hidden rounded-lg border'
+          style={isAiCollapsed ? undefined : { minWidth: '300px' }}
+        >
+          <div className='flex h-full flex-col'>
+            {isAiCollapsed ? (
+              <button
+                onClick={toggleAi}
+                className='text-muted-foreground hover:text-foreground flex h-full w-full flex-col items-center gap-3 py-3 transition-colors'
+                title='Expand AI Assistant'
+              >
+                <PanelLeftOpen className='h-4 w-4 shrink-0' />
+                <span className='rotate-180 text-xs font-medium [writing-mode:vertical-rl]'>
+                  AI Assistant
+                </span>
+              </button>
+            ) : (
+              <>
+                <div className='flex h-12 shrink-0 items-center justify-between border-b px-4'>
+                  <div className='text-sm font-medium'>AI Assistant</div>
+                  <div className='flex items-center gap-1'>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div className='text-muted-foreground/75 text-sm'>
-                          <RelativeTime date={insight.outputUpdatedAt} />
+                        <div className='inline-flex'>
+                          <Button
+                            size='icon'
+                            variant='ghost'
+                            className='h-8 w-8'
+                            aria-label='New chat'
+                            disabled={!canEdit || isAiBusy}
+                            onClick={() => void aiAssistantRef.current?.startNewConversation()}
+                          >
+                            <Plus className='h-4 w-4' />
+                          </Button>
                         </div>
                       </TooltipTrigger>
-                      <TooltipContent side='top'>
-                        <p>Last run: {formatDateShort(insight.outputUpdatedAt)}</p>
+                      <TooltipContent>
+                        {!canEdit ? NO_PERMISSION_MESSAGE : 'New chat'}
                       </TooltipContent>
                     </Tooltip>
-                  </TooltipProvider>
-                )}
-              </div>
-            </div>
-          }
-          right={
-            <div className='h-full'>
-              {isRunning ? (
-                <InsightLoader />
-              ) : isOutputEmpty ? (
-                <Empty className='h-full'>
-                  <EmptyHeader>
-                    <EmptyMedia variant='icon'>
-                      <Sparkles />
-                    </EmptyMedia>
-                    <EmptyTitle>Even data needs a little spark</EmptyTitle>
-                    <EmptyDescription>
-                      Write prompt to&nbsp;uncover the story behind your data!
-                    </EmptyDescription>
-                  </EmptyHeader>
-                </Empty>
-              ) : (
-                <div className='flex h-full min-h-0 flex-col gap-2'>
-                  <div className='relative min-h-0 flex-1 overflow-hidden'>
-                    {showRawOutput ? (
-                      <InsightEditor
-                        value={insight.output ?? ''}
-                        onChange={() => {
-                          // TODO:: Dont allow editing output in read-only mode. After rollout Insights feature should be removed
-                        }}
-                        height={'100%'}
-                        className='h-full'
-                        readOnly
-                        excludeInsightId={insightId}
-                      />
-                    ) : preview.error ? (
-                      <div className='text-destructive'>{preview.error}</div>
-                    ) : (
-                      <>
-                        <MarkdownEditorPreview
-                          html={preview.html}
-                          loading={preview.loading}
-                          error={preview.error}
-                          height='100%'
-                        />
-                        {!!insight.output && !preview.loading && !preview.error && (
-                          <div className='absolute top-2 right-2 z-10'>
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant='outline'
-                                    size='icon'
-                                    className='h-8 w-8'
-                                    aria-label='Copy markdown to clipboard'
-                                    onClick={() => void handleCopyOutput()}
-                                  >
-                                    <Copy className='h-4 w-4' />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent side='left'>
-                                  <p>Copy markdown to clipboard</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </div>
-                        )}
-                      </>
-                    )}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size='icon'
+                          variant='ghost'
+                          className='h-8 w-8'
+                          aria-label={isAiHistoryView ? 'Back to chat' : 'Chat history'}
+                          disabled={isAiBusy}
+                          onClick={() => {
+                            setIsAiHistoryView(prev => !prev);
+                          }}
+                        >
+                          {isAiHistoryView ? (
+                            <MessageSquare className='h-4 w-4' />
+                          ) : (
+                            <History className='h-4 w-4' />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {isAiHistoryView ? 'Back to chat' : 'Chat history'}
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button size='icon' variant='ghost' className='h-8 w-8' onClick={toggleAi}>
+                          <PanelLeftClose className='h-4 w-4' />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Hide</TooltipContent>
+                    </Tooltip>
                   </div>
                 </div>
-              )}
-            </div>
-          }
-        />
-      </div>
+                {dataMart?.id ? (
+                  <AiAssistantPanel
+                    ref={aiAssistantRef}
+                    dataMartId={dataMart.id}
+                    scope='template'
+                    templateId={insightId}
+                    canEdit={canEdit}
+                    isHistoryView={isAiHistoryView}
+                    onHistoryViewChange={setIsAiHistoryView}
+                    onBusyChange={setIsAiBusy}
+                    onApplied={handleApplied}
+                    onRun={handleRun}
+                  />
+                ) : (
+                  <div className='text-muted-foreground p-4 text-sm'>No data mart context.</div>
+                )}
+              </>
+            )}
+          </div>
+        </ResizablePanel>
+
+        <ResizableHandle className='bg-transparent after:w-3' />
+
+        <ResizablePanel defaultSize={72} minSize={30} className='overflow-hidden'>
+          <ResizablePanelGroup direction='horizontal' className='h-full gap-1'>
+            {/* Editor panel */}
+            <ResizablePanel
+              defaultSize={55}
+              minSize={20}
+              className='overflow-hidden rounded-lg border'
+            >
+              <div className='flex h-full flex-col'>
+                <div className='flex h-12 shrink-0 items-center justify-between border-b px-4'>
+                  <div className='text-sm font-medium'>Insight editor</div>
+                  <span className='text-muted-foreground text-xs'>Markdown</span>
+                </div>
+                <ResizablePanelGroup
+                  direction='vertical'
+                  className='min-h-0 flex-1'
+                  autoSaveId='insight-editor-artifacts-v'
+                >
+                  <ResizablePanel defaultSize={65} minSize={20}>
+                    <InsightTemplateEditor
+                      value={template}
+                      onChange={setTemplate}
+                      sources={sources}
+                      readOnly={!canEdit}
+                      height='100%'
+                      onMount={handleEditorMount}
+                    />
+                  </ResizablePanel>
+                  <ResizableHandle withHandle className='after:w-3' />
+                  <ResizablePanel
+                    ref={artifactsPanelRef}
+                    defaultSize={35}
+                    minSize={15}
+                    collapsible
+                    collapsedSize={0}
+                    onCollapse={() => {
+                      setIsArtifactsCollapsed(true);
+                    }}
+                    onExpand={() => {
+                      setIsArtifactsCollapsed(false);
+                    }}
+                  >
+                    <InsightSourcesPanel
+                      dataMartId={dataMart?.id ?? ''}
+                      insightId={insightId ?? ''}
+                      canEdit={canEdit}
+                      isRunning={isRunPending}
+                      saving={saving}
+                      onInsertTemplate={handleInsertTemplate}
+                    />
+                  </ResizablePanel>
+                </ResizablePanelGroup>
+                <div className='bg-muted/50 text-muted-foreground flex h-9 shrink-0 items-center border-t px-3 text-xs'>
+                  Data Artifacts ({sources.length}/5)
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    className='ml-auto h-7 px-2'
+                    onClick={toggleArtifacts}
+                  >
+                    {isArtifactsCollapsed ? (
+                      <ChevronUp className='h-4 w-4' />
+                    ) : (
+                      <ChevronDown className='h-4 w-4' />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </ResizablePanel>
+
+            <ResizableHandle className='bg-transparent after:w-3' />
+
+            {/* Preview panel */}
+            <ResizablePanel
+              ref={previewPanelRef}
+              defaultSize={previewDefaultSize}
+              minSize={15}
+              collapsible
+              collapsedSize={PREVIEW_CONSTANTS.COLLAPSED_SIZE}
+              onCollapse={handlePreviewCollapse}
+              onExpand={handlePreviewExpand}
+              onResize={handlePreviewResize}
+              className='overflow-hidden rounded-lg border'
+            >
+              <div className='flex h-full flex-col'>
+                {isPreviewCollapsed ? (
+                  <button
+                    onClick={togglePreview}
+                    className='text-muted-foreground hover:text-foreground flex h-full w-full flex-col items-center gap-3 py-3 transition-colors'
+                    title='Expand Preview'
+                  >
+                    <PanelRightOpen className='h-4 w-4 shrink-0' />
+                    <span className='rotate-180 text-xs font-medium [writing-mode:vertical-rl]'>
+                      Preview
+                    </span>
+                  </button>
+                ) : (
+                  <>
+                    <div className='flex h-12 shrink-0 items-center justify-between border-b px-4'>
+                      <div className='text-sm font-medium'>Preview</div>
+                      <div className='flex items-center gap-2'>
+                        {runErrorMessage ? (
+                          <span className='text-xs text-red-500'>Last run failed</span>
+                        ) : null}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size='icon'
+                              variant='ghost'
+                              className='h-8 w-8'
+                              disabled={!entity?.lastRenderedTemplate}
+                              onClick={handleCopyMarkdown}
+                            >
+                              {isCopied ? (
+                                <Check className='h-4 w-4' />
+                              ) : (
+                                <Copy className='h-4 w-4' />
+                              )}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>{isCopied ? 'Copied!' : 'Copy markdown'}</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size='icon'
+                              variant='ghost'
+                              className='h-8 w-8'
+                              onClick={togglePreview}
+                            >
+                              <PanelRightClose className='h-4 w-4' />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Hide</TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </div>
+                    <div className='flex min-h-0 flex-1 flex-col overflow-hidden p-1'>
+                      {isRunPending ? (
+                        <InsightLoader />
+                      ) : preview.loading ? (
+                        <InsightLoader />
+                      ) : preview.html ? (
+                        <MarkdownEditorPreview
+                          html={preview.html}
+                          height='100%'
+                          className='flex-1'
+                        />
+                      ) : (
+                        <Empty className='h-full'>
+                          <EmptyHeader>
+                            <EmptyMedia variant='icon'>
+                              <Sparkles />
+                            </EmptyMedia>
+                            <EmptyTitle>Even data needs a little spark</EmptyTitle>
+                            <EmptyDescription>
+                              Run the insight to uncover the story behind your data!
+                            </EmptyDescription>
+                          </EmptyHeader>
+                        </Empty>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        </ResizablePanel>
+      </ResizablePanelGroup>
 
       <ConfirmationDialog
-        open={isDeleteOpen}
-        onOpenChange={setIsDeleteOpen}
-        title='Delete Insight'
-        description='Are you sure you want to delete this insight? This action cannot be undone.'
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        onConfirm={() => void handleDelete()}
+        title='Delete insight'
+        description='This action cannot be undone. Delete this insight?'
         confirmLabel='Delete'
-        cancelLabel='Cancel'
         variant='destructive'
-        onConfirm={() => {
-          void handleDelete();
-        }}
       />
-
-      <ReportsProvider>
-        <EmailReportEditSheet
-          isOpen={isReportSheetOpen}
-          onClose={() => {
-            setIsReportSheetOpen(false);
-          }}
-          mode={ReportFormMode.CREATE}
-          preSelectedDestination={null}
-          prefill={{
-            title: insight.title || titleValue || 'New report',
-            subject: `Insight: ${insight.title || titleValue || ''}`.trim(),
-            messageTemplate: templateValue ?? '',
-          }}
-          allowedDestinationTypes={[
-            DataDestinationType.EMAIL,
-            DataDestinationType.SLACK,
-            DataDestinationType.MS_TEAMS,
-            DataDestinationType.GOOGLE_CHAT,
-          ]}
-        />
-      </ReportsProvider>
     </div>
   );
+}
+
+function extractLatestRunError(
+  run: { status?: string | null; id?: string | null } | null | undefined
+): string | null {
+  if (run?.status !== DataMartRunStatus.FAILED) return null;
+  return 'Execution failed';
 }

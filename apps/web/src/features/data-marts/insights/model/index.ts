@@ -1,5 +1,3 @@
-export * from './types';
-export * from './hooks';
-export { InsightsProvider } from './context/insights.provider';
-export { insightsReducer } from './reducer/insights.reducer';
-export { insightsService, InsightsService } from './services/insights.service';
+export { InsightsProvider } from './provider';
+export * from './templates';
+export type { TaskStatusCode } from './templates/types/insight-templates.dto';

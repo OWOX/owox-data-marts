@@ -9,7 +9,7 @@ import { Skeleton } from '@owox/ui/components/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { cn } from '@owox/ui/lib/utils';
 import { ArrowLeft, CircleCheckBig, MoreVertical, Play, Trash2 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useFlags } from '../../../../app/store/hooks';
@@ -103,13 +103,16 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   }, [canActualizeSchema, runActualizeSchemaInternal]);
 
   const shouldShowInsights = checkVisible('INSIGHTS_ENABLED', 'true', flags);
-  const insightAssistantEnabledProjectIds =
-    typeof flags?.INSIGHT_ASSISTANT_ENABLED_PROJECT_IDS === 'string'
-      ? flags.INSIGHT_ASSISTANT_ENABLED_PROJECT_IDS.split(',')
-          .map(item => item.trim())
-          .filter(Boolean)
-      : [];
-  const shouldShowInsightTemplates = insightAssistantEnabledProjectIds.includes(projectId);
+
+  const shouldShowNextInsights = useMemo(() => {
+    if (!shouldShowInsights) return false;
+    const allowedIds = flags?.INSIGHT_ASSISTANT_ENABLED_PROJECT_IDS;
+    if (typeof allowedIds !== 'string' || !allowedIds) return false;
+    return allowedIds
+      .split(',')
+      .map(id => id.trim())
+      .includes(projectId);
+  }, [shouldShowInsights, flags, projectId]);
 
   const { showPromo, dismissAllPromos } = useDataMartNextStepPromo();
 
@@ -151,12 +154,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
     { name: 'Overview', path: 'overview' },
     { name: 'Data Setup', path: 'data-setup' },
     ...(shouldShowInsights ? [{ name: 'Insights', path: 'insights' }] : []),
-    ...(shouldShowInsightTemplates
-      ? [
-          { name: 'Insight Artifacts', path: 'insight-artifacts' },
-          { name: 'Insight Templates', path: 'insight-templates' },
-        ]
-      : []),
+    ...(shouldShowNextInsights ? [{ name: 'Next Insights', path: 'next-insights' }] : []),
     { name: 'Destinations', path: 'reports' },
     { name: 'Triggers', path: 'triggers' },
     { name: 'Run History', path: 'run-history' },
@@ -296,7 +294,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   }
 
   return (
-    <div className={'px-12 py-6'}>
+    <div className='px-12 py-6'>
       <div className='mb-4 flex items-center justify-between'>
         <div className='flex items-center space-x-1 md:-ml-10'>
           <Button

@@ -1,8 +1,7 @@
 import { useLayoutEffect, useRef } from 'react';
 import { Outlet } from 'react-router-dom';
-import { InsightsProvider } from '../../../features/data-marts/insights-prev/model';
 
-export default function DataMartInsightsContent() {
+export default function DataMartNextInsightsContent() {
   const ref = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
@@ -25,10 +24,8 @@ export default function DataMartInsightsContent() {
   }, []);
 
   return (
-    <InsightsProvider>
-      <div ref={ref} className='overflow-hidden'>
-        <Outlet />
-      </div>
-    </InsightsProvider>
+    <div ref={ref} className='overflow-hidden'>
+      <Outlet />
+    </div>
   );
 }
