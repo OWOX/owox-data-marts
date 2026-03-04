@@ -4,6 +4,7 @@ import { DataMartStatus } from '../enums';
 import { DataMartRunStatus } from '../enums';
 import { ReportStatusEnum } from '../../reports/shared';
 import { TaskStatus } from '../../../../shared/types/task-status.enum.ts';
+import type { TaskStatusCode } from '../../insights';
 
 /**
  * Maps DataMart status to StatusTypeEnum for use with StatusLabel component
@@ -135,8 +136,12 @@ export const isDataMartRunFinalStatus = (status?: DataMartRunStatus): boolean =>
  * @param status The Task status
  * @returns True if the status indicates the task has finished
  */
-export const isTaskFinalStatus = (status?: TaskStatus): boolean => {
+export const isTaskFinalStatus = (status?: TaskStatus | TaskStatusCode): boolean => {
   if (!status) return true;
-  const finalStatuses = [TaskStatus.SUCCESS, TaskStatus.ERROR, TaskStatus.CANCELLED];
+  const finalStatuses: (TaskStatus | TaskStatusCode)[] = [
+    TaskStatus.SUCCESS,
+    TaskStatus.ERROR,
+    TaskStatus.CANCELLED,
+  ];
   return finalStatuses.includes(status);
 };

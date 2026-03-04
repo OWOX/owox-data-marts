@@ -1,1 +1,6 @@
 /* App.css */
+
+/* Make Monaco "No suggestions." message smaller so it fits within the widget */
+.monaco-editor .suggest-widget .message {
+  font-size: 11px;
+}

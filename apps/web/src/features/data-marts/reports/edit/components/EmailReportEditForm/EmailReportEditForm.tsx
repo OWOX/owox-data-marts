@@ -42,8 +42,8 @@ import {
   MarkdownEditorTabs,
   useMarkdownPreview,
 } from '../../../../../../shared/components/MarkdownEditor';
-import { InsightEditor } from '../../../../insights/components/InsightEditor';
-import { InsightsProvider } from '../../../../insights/model';
+import { InsightTemplateEditor } from '../../../../insights';
+import { InsightsProvider } from '../../../../insights';
 import MessageTemplateDescription from './FormDescriptions/MessageTemplateDescription.tsx';
 import SendingConditionDescription from './FormDescriptions/SendingConditionDescription.tsx';
 import { DataDestinationConfigSheet } from '../../../../../data-destination/edit';
@@ -338,13 +338,12 @@ export const EmailReportEditForm = forwardRef<HTMLFormElement, EmailReportEditFo
                         <div className='overflow-hidden rounded-md border'>
                           {messageTab === 'markdown' ? (
                             <InsightsProvider>
-                              <InsightEditor
+                              <InsightTemplateEditor
                                 value={field.value}
-                                onChange={v => {
+                                onChange={(v: string) => {
                                   field.onChange(v);
                                 }}
                                 height={240}
-                                showLineNumbers={false}
                               />
                             </InsightsProvider>
                           ) : (

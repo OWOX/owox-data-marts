@@ -3,6 +3,9 @@ import { config } from '@owox/eslint-config/vite-react';
 
 export default tseslint.config(
   ...config,
+  {
+    ignores: ['src/features/data-marts/insights-prev/**'],
+  },
   // Disable TypeScript type-checking for config files in root
   {
     files: ['*.config.{js,mjs,ts}'],

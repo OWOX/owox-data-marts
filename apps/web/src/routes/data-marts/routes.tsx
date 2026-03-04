@@ -4,19 +4,12 @@ import DataMartDataSetupContent from '../../pages/data-marts/edit/DataMartDataSe
 import DataMartDestinationsContent from '../../pages/data-marts/edit/DataMartDestinationsContent.tsx';
 import DataMartRunHistoryContent from '../../pages/data-marts/edit/DataMartRunHistoryContent.tsx';
 import DataMartInsightsContent from '../../pages/data-marts/edit/DataMartInsightsContent.tsx';
-import DataMartInsightArtifactsContent from '../../pages/data-marts/edit/DataMartInsightArtifactsContent.tsx';
-import DataMartInsightTemplatesContent from '../../pages/data-marts/edit/DataMartInsightTemplatesContent.tsx';
+import DataMartNextInsightsContent from '../../pages/data-marts/edit/DataMartNextInsightsContent.tsx';
 import DataMartTriggersContent from '../../pages/data-marts/edit/DataMartTriggersContent.tsx';
+import PrevInsightsListView from '../../features/data-marts/insights-prev/components/InsightsListView.tsx';
+import PrevInsightDetailsView from '../../features/data-marts/insights-prev/components/InsightDetailsView.tsx';
 import InsightsListView from '../../features/data-marts/insights/components/InsightsListView.tsx';
 import InsightDetailsView from '../../features/data-marts/insights/components/InsightDetailsView.tsx';
-import {
-  InsightArtifactsListView,
-  InsightArtifactDetailsView,
-} from '../../features/data-marts/insight-artifacts';
-import {
-  InsightTemplatesListView,
-  InsightTemplateDetailsView,
-} from '../../features/data-marts/insight-templates';
 
 export const dataMartDetailsRoutes: RouteObject[] = [
   {
@@ -31,24 +24,16 @@ export const dataMartDetailsRoutes: RouteObject[] = [
     path: 'insights',
     element: <DataMartInsightsContent />,
     children: [
+      { index: true, element: <PrevInsightsListView /> },
+      { path: ':insightId', element: <PrevInsightDetailsView /> },
+    ],
+  },
+  {
+    path: 'next-insights',
+    element: <DataMartNextInsightsContent />,
+    children: [
       { index: true, element: <InsightsListView /> },
       { path: ':insightId', element: <InsightDetailsView /> },
-    ],
-  },
-  {
-    path: 'insight-artifacts',
-    element: <DataMartInsightArtifactsContent />,
-    children: [
-      { index: true, element: <InsightArtifactsListView /> },
-      { path: ':insightArtifactId', element: <InsightArtifactDetailsView /> },
-    ],
-  },
-  {
-    path: 'insight-templates',
-    element: <DataMartInsightTemplatesContent />,
-    children: [
-      { index: true, element: <InsightTemplatesListView /> },
-      { path: ':insightTemplateId', element: <InsightTemplateDetailsView /> },
     ],
   },
   {

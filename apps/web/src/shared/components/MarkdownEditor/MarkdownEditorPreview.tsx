@@ -1,7 +1,14 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { SkeletonText } from '@owox/ui/components/common/skeleton-text';
 import { useTheme } from 'next-themes';
-import { useEffect, useState } from 'react';
+
+function readThemeColors(): { bg: string; fg: string } {
+  if (typeof window === 'undefined') return { bg: '#fff', fg: '#000' };
+  const s = getComputedStyle(document.documentElement);
+  const bg = s.getPropertyValue('--background').trim() || '#fff';
+  const fg = s.getPropertyValue('--foreground').trim() || '#000';
+  return { bg, fg };
+}
 
 export interface MarkdownEditorPreviewProps {
   html: string;
@@ -21,26 +28,10 @@ export function MarkdownEditorPreview({
   emptyState = <div className='text-muted-foreground text-sm'>Nothing to preview</div>,
 }: MarkdownEditorPreviewProps) {
   const { resolvedTheme } = useTheme();
-  const [colors, setColors] = useState({ bg: '#fff', fg: '#000' });
+  const [colors, setColors] = useState(() => readThemeColors());
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    let frame2: number;
-    const frame1 = requestAnimationFrame(() => {
-      frame2 = requestAnimationFrame(() => {
-        const s = getComputedStyle(document.documentElement);
-        const bg = s.getPropertyValue('--background').trim() || '#fff';
-        const fg = s.getPropertyValue('--foreground').trim() || '#000';
-
-        setColors({ bg, fg });
-      });
-    });
-
-    return () => {
-      cancelAnimationFrame(frame1);
-      cancelAnimationFrame(frame2);
-    };
+    setColors(readThemeColors());
   }, [resolvedTheme]);
 
   return (
