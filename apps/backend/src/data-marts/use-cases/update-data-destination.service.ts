@@ -91,6 +91,7 @@ export class UpdateDataDestinationService {
 
       if (entity.credentialId) {
         await this.dataDestinationCredentialService.update(entity.credentialId, {
+          type: credentialType,
           credentials: processedCredentials as StoredDestinationCredentials,
           identity,
         });
