@@ -2,7 +2,7 @@ jest.mock('typeorm-transactional', () => ({
   Transactional: () => () => undefined,
 }));
 
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { UpdateDataStorageCommand } from '../dto/domain/update-data-storage.command';
 import { UpdateDataStorageService } from './update-data-storage.service';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';

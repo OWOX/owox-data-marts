@@ -3,11 +3,7 @@ import type { CredentialIdentity } from '../../../../../shared/types/credential-
 
 export interface CopyCredentialContextValue {
   entityId?: string;
-  onSourceSelect: (
-    sourceId: string,
-    title: string,
-    identity: CredentialIdentity | null
-  ) => void;
+  onSourceSelect: (sourceId: string, title: string, identity: CredentialIdentity | null) => void;
   selectedSource: { id: string; title: string; identity: CredentialIdentity | null } | null;
   onSourceClear: () => void;
 }

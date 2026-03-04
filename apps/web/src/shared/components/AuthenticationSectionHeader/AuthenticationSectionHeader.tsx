@@ -77,7 +77,7 @@ export function AuthenticationSectionHeader({
             <button
               type='button'
               onClick={onSourceClear}
-              className='text-muted-foreground hover:text-foreground cursor-pointer -mr-1 rounded-sm p-0.5 transition-colors'
+              className='text-muted-foreground hover:text-foreground -mr-1 cursor-pointer rounded-sm p-0.5 transition-colors'
               aria-label='Clear source selection'
             >
               <X className='h-4 w-4' />

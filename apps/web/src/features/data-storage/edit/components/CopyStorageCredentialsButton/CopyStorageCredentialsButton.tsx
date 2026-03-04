@@ -7,11 +7,7 @@ import type { DataStorageType } from '../../../shared';
 interface CopyStorageCredentialsButtonProps {
   storageType: DataStorageType;
   currentStorageId?: string;
-  onSelect: (
-    sourceStorageId: string,
-    title: string,
-    identity: CredentialIdentity | null
-  ) => void;
+  onSelect: (sourceStorageId: string, title: string, identity: CredentialIdentity | null) => void;
 }
 
 export function CopyStorageCredentialsButton({

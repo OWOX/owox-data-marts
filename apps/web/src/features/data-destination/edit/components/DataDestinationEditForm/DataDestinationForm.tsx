@@ -69,11 +69,7 @@ export function DataDestinationForm({
     identity: CredentialIdentity | null;
   } | null>(null);
 
-  const handleSourceSelect = (
-    id: string,
-    title: string,
-    identity: CredentialIdentity | null
-  ) => {
+  const handleSourceSelect = (id: string, title: string, identity: CredentialIdentity | null) => {
     setSelectedSource({ id, title, identity });
     // Set placeholder credentialId so Zod validation passes.
     // Credentials are copied server-side; this value is stripped from the payload

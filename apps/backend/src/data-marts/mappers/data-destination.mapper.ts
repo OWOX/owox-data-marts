@@ -151,7 +151,9 @@ export class DataDestinationMapper {
     return new ExchangeOAuthCodeCommand(dto.code, dto.state, context.userId, context.projectId);
   }
 
-  toByTypeResponse(items: ListDataDestinationsByTypeItemDto[]): DataDestinationByTypeResponseApiDto[] {
+  toByTypeResponse(
+    items: ListDataDestinationsByTypeItemDto[]
+  ): DataDestinationByTypeResponseApiDto[] {
     return items.map(item => ({
       id: item.id,
       title: item.title,

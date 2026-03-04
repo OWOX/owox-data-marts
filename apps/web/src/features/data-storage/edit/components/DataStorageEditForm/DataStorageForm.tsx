@@ -79,11 +79,7 @@ export function DataStorageForm({
     identity: CredentialIdentity | null;
   } | null>(null);
 
-  const handleSourceSelect = (
-    id: string,
-    title: string,
-    identity: CredentialIdentity | null
-  ) => {
+  const handleSourceSelect = (id: string, title: string, identity: CredentialIdentity | null) => {
     setSelectedSource({ id, title, identity });
     // For Google types, set a placeholder credentialId so Zod validation passes.
     // Non-Google types don't have credentialId in their schemas, so we skip this.

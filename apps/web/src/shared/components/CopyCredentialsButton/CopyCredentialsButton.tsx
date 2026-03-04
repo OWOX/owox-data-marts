@@ -15,21 +15,14 @@ import {
   TooltipTrigger,
 } from '@owox/ui/components/tooltip';
 import type { CredentialIdentity } from '../../types/credential-identity';
-import {
-  getIdentityDisplayString,
-  getAuthTypeLabel,
-} from '../../utils/credential-identity-utils';
+import { getIdentityDisplayString, getAuthTypeLabel } from '../../utils/credential-identity-utils';
 import type { CopyCredentialsItem } from './types';
 
 interface CopyCredentialsButtonProps {
   entityLabel: string;
   currentEntityId?: string;
   fetchItems: () => Promise<CopyCredentialsItem[]>;
-  onSelect: (
-    sourceId: string,
-    title: string,
-    identity: CredentialIdentity | null
-  ) => void;
+  onSelect: (sourceId: string, title: string, identity: CredentialIdentity | null) => void;
 }
 
 export function CopyCredentialsButton({

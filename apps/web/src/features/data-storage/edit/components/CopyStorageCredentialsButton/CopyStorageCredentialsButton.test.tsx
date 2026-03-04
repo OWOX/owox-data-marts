@@ -279,6 +279,8 @@ describe('CopyStorageCredentialsButton', () => {
     expect(marketingItem).toBeDefined();
     fireEvent.click(marketingItem!);
 
-    expect(onSelect).toHaveBeenCalledWith('storage-1', 'Storage 1', { clientEmail: 'sa@project.iam' });
+    expect(onSelect).toHaveBeenCalledWith('storage-1', 'Storage 1', {
+      clientEmail: 'sa@project.iam',
+    });
   });
 });

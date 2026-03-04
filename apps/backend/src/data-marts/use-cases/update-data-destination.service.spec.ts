@@ -12,7 +12,7 @@ jest.mock('../../common/markdown/markdown-parser.service', () => ({
   GITHUB_MARKDOWN_CSS: '',
 }));
 
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { UpdateDataDestinationCommand } from '../dto/domain/update-data-destination.command';
 import { UpdateDataDestinationService } from './update-data-destination.service';
 import { DataDestinationType } from '../data-destination-types/enums/data-destination-type.enum';

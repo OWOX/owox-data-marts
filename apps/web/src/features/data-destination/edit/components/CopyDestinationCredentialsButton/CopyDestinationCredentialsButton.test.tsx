@@ -267,6 +267,8 @@ describe('CopyDestinationCredentialsButton', () => {
     expect(marketingItem).toBeDefined();
     fireEvent.click(marketingItem!);
 
-    expect(onSelect).toHaveBeenCalledWith('destination-1', 'Destination 1', { clientEmail: 'sa@project.iam' });
+    expect(onSelect).toHaveBeenCalledWith('destination-1', 'Destination 1', {
+      clientEmail: 'sa@project.iam',
+    });
   });
 });
