@@ -82,6 +82,7 @@ export class UpdateDataStorageService {
 
       if (dataStorageEntity.credentialId) {
         await this.dataStorageCredentialService.update(dataStorageEntity.credentialId, {
+          type: credentialType,
           credentials: command.credentials as StoredStorageCredentials,
           identity,
         });

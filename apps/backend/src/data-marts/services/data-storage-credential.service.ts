@@ -43,6 +43,7 @@ export class DataStorageCredentialService {
   async update(
     id: string,
     params: {
+      type?: StorageCredentialType;
       credentials?: StoredStorageCredentials;
       identity?: CredentialIdentity | null;
       expiresAt?: Date | null;
@@ -53,6 +54,9 @@ export class DataStorageCredentialService {
       throw new Error(`Storage credential not found: ${id}`);
     }
 
+    if (params.type !== undefined) {
+      existing.type = params.type;
+    }
     if (params.credentials !== undefined) {
       existing.credentials = params.credentials;
     }

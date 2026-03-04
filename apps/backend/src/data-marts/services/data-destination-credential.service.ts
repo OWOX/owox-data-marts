@@ -43,6 +43,7 @@ export class DataDestinationCredentialService {
   async update(
     id: string,
     params: {
+      type?: DestinationCredentialType;
       credentials?: StoredDestinationCredentials;
       identity?: CredentialIdentity | null;
       expiresAt?: Date | null;
@@ -53,6 +54,9 @@ export class DataDestinationCredentialService {
       throw new Error(`Destination credential not found: ${id}`);
     }
 
+    if (params.type !== undefined) {
+      existing.type = params.type;
+    }
     if (params.credentials !== undefined) {
       existing.credentials = params.credentials;
     }
