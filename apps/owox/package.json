@@ -1,7 +1,7 @@
 {
   "name": "owox",
   "description": "OWOX Data Marts CLI: Simple command-line interface to start the OWOX Data Marts application with backend and frontend components.",
-  "version": "0.19.0",
+  "version": "0.20.0",
   "publishConfig": {
     "access": "public"
   },

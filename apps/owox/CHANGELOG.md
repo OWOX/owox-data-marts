@@ -1,8 +1,83 @@
 # owox
 
+## 0.20.0
+
+### Minor Changes 0.20.0
+
+![OWOX Data Marts – v0.20.0](https://github.com/user-attachments/assets/22f124c9-ab12-4666-ba13-bb9926e145d4)
+
+- cc5553d: # **New Sign Up options**: Email/Password and Microsoft Authentication in the Cloud edition on app.owox.com
+
+  Users can now sign up using their email and password, or through Microsoft account integration for seamless access.
+  
+- 55ecd48: # **Table Filters** for Data Marts and Data Storages
+
+  We’ve overhauled the table filtering experience to help you navigate large datasets with precision and speed:
+  - Filter with logical conditions (Is / Is not / Contains / Does not contain)
+  - Persistent filter states
+  - Shareable, deep-linked views
+  - At-a-glance status
+
+- 800ec3c: # **Data table support** in email-based report templates
+
+  You can now embed data mart results as a Markdown table in your email-based reports using the `{{table}}` tag with optional parameters.
+
+- b88510a: # Add **Microsoft Ads OAuth** Integration
+  - Implemented OAuth2 authentication flow for the Microsoft Ads connector to support secure, long-lived access.
+  - Added frontend components (`MicrosoftLoginButton` and callback routing) to handle the user authorization process.
+  - Updated the backend source configuration to parse and validate `AuthType` with Client ID, Client Secret, and Refresh Token.
+  - Implemented `exchangeOauthCredentials` and automatic token refreshing (`getAccessToken`) using the `offline_access` scope for persistent background data fetching.
+  - Created database migrations to support storing the new `AuthType` JSON configuration for Microsoft Ads datamarts.
+
+- 8b935a2: # **Google OAuth authentication** for BigQuery and Google Sheets
+
+  BigQuery storages (including Legacy BigQuery) and Google Sheets destinations now support Google OAuth as an alternative to service account JSON. Users can connect their Google account directly via an OAuth button in the settings form and switch between authentication methods at any time.
+
+- 01e6516: # Upgrade API Version in **Facebook Marketing Connector to v25.0**
+
+  Updated all Facebook Graph API / Marketing API endpoints from `v23.0` to `v25.0` across the Facebook Marketing connector.
+
+- 089e45b: # Facebook Marketing **API Page Limit**
+
+  Added a user-configurable `Limit` parameter to the Facebook Marketing source to control API page size, helping resolve 'reduce the amount of data' errors for specific ad accounts.
+
+- cc5553d: # **Adaptive input for SQL Query**
+
+  The SQL Query block has been made more convenient for use on small screens. The ability to control the size of the block has been added.
+
+- a03a952: # **TikTok Ads Country Dimension**
+
+  Added `country_code` dimension to TikTok Ads connector with a new `ad_insights_by_country` node to support geographic breakdown in reporting.
+
+- d141171: # Add data mart **link to Google Sheets metadata notes**
+
+  Google Sheets exports now include a link to your data mart in the cell note (A1). The link takes you directly to the data mart page for quick access.
+
+- aec648d: # **AWS Redshift Storage UI improvements**
+
+  Moved the "Database Name" field after connection type selection to match the natural AWS Console lookup order.
+
+- 9198b94: # **Sort runs in notification emails** by time (newest first)
+
+  Previously, runs in notification emails appeared in the order they were added to the queue, which could result in non-chronological ordering (e.g., 2:48, 3:02, 3:03). Now runs are sorted by finished time in descending order, so the most recent runs appear first.
+
+- c7cff50: # **Fix string timestamp** handling in Snowflake storage
+  - Added support for ISO 8601 string values in TIMESTAMP and DATETIME columns
+  - String timestamps are now parsed and formatted to `YYYY-MM-DD HH:MM:SS` before being written to Snowflake
+  - Invalid timestamp strings fall back to the existing special-character obfuscation path
+
+### Patch Changes
+
+- @owox/internal-helpers@0.20.0
+- @owox/idp-protocol@0.20.0
+- @owox/idp-better-auth@0.20.0
+- @owox/idp-owox-better-auth@0.20.0
+- @owox/backend@0.20.0
+- @owox/web@0.20.0
+
 ## 0.19.0
 
-### Minor Changes
+### Minor Changes 0.19.0
 
 ![OWOX Data Marts – v0.19.0](https://github.com/user-attachments/assets/fb0a4e77-4334-43dd-b5a4-d9582086fc9c)
 
