@@ -92,6 +92,12 @@
     },
     "@oclif/core": {
       "minimatch": "^10.2.1"
-    }
+    },
+    "http-proxy-agent": "^7.0.0",
+    "monaco-editor": {
+      "dompurify": "^3.3.2"
+    },
+    "svgo": "^4.0.1",
+    "multer": "^2.1.1"
   }
 }
