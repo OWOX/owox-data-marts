@@ -55,6 +55,10 @@ export class SystemTriggerHandlerService implements TriggerHandler<SystemTrigger
     return '* * * * *'; // every minute
   }
 
+  stuckTriggerTimeoutSeconds(): number {
+    return 60 * 60; // 60 minutes
+  }
+
   async onModuleInit(): Promise<void> {
     await this.discoverProcessors();
     await this.ensureTriggersFromProcessors();
