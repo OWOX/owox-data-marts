@@ -1,7 +1,7 @@
 import { resolveAgentFlowProposedActions } from './agent-flow-proposed-actions.utils';
 
 describe('resolveAgentFlowProposedActions', () => {
-  it('prefers actions from final model result over context actions', () => {
+  it('returns actions from final model result', () => {
     const resolved = resolveAgentFlowProposedActions({
       resultProposedActions: [
         {
@@ -13,39 +13,18 @@ describe('resolveAgentFlowProposedActions', () => {
           },
         },
       ],
-      contextProposedActions: [
-        {
-          type: 'apply_changes_to_source',
-          id: 'act_context',
-          confidence: 0.8,
-          payload: {
-            sourceKey: 'source_context',
-          },
-        },
-      ],
     });
 
     expect(resolved).toHaveLength(1);
     expect(resolved[0].id).toBe('act_result');
   });
 
-  it('falls back to context actions when model result has none', () => {
+  it('returns empty array when model result has none', () => {
     const resolved = resolveAgentFlowProposedActions({
       resultProposedActions: [],
-      contextProposedActions: [
-        {
-          type: 'apply_changes_to_source',
-          id: 'act_context',
-          confidence: 0.8,
-          payload: {
-            sourceKey: 'source_context',
-          },
-        },
-      ],
     });
 
-    expect(resolved).toHaveLength(1);
-    expect(resolved[0].id).toBe('act_context');
+    expect(resolved).toEqual([]);
   });
 
   it('keeps template-scoped actions without injecting templateId', () => {

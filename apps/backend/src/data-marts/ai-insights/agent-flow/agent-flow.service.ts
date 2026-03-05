@@ -32,7 +32,6 @@ export class AgentFlowService {
 
       const proposedActions = resolveAgentFlowProposedActions({
         resultProposedActions: result.proposedActions,
-        contextProposedActions: context.collectedProposedActions,
         templateEditIntent: result.templateEditIntent,
       });
       const lastGeneratedSql = context.lastGeneratedSql;
@@ -40,11 +39,7 @@ export class AgentFlowService {
         context.lastGeneratedSqlReasonDescription ?? result.reasonDescription ?? result.explanation;
       const diagnostics = context.lastGeneratedSqlDiagnostics;
 
-      this.logger.log('AgentFlowService: completed', {
-        decision: result.decision,
-        proposedActionsCount: proposedActions.length,
-        hasSqlCandidate: !!lastGeneratedSql,
-      });
+      this.logger.log('AgentFlowService: completed', { context, result });
 
       return {
         status: 'ok',

@@ -18,7 +18,6 @@ describe('ListTemplateSourcesTool', () => {
           templateId: 'template-1',
         },
       },
-      collectedProposedActions: [],
     }) as never;
 
   it('builds src handle strictly from templateSourceId', async () => {

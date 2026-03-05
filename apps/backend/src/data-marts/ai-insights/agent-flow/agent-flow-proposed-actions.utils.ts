@@ -4,22 +4,17 @@ import type { AgentFlowTemplateEditIntent } from './types';
 
 interface ResolveAgentFlowProposedActionsInput {
   resultProposedActions?: AssistantProposedAction[];
-  contextProposedActions?: AssistantProposedAction[];
   templateEditIntent?: AgentFlowTemplateEditIntent;
 }
 
 /**
  * Source of truth for action selection in AgentFlow:
- * - Prefer explicit actions returned in final model JSON.
- * - Fallback to legacy actions collected by tools in context.
+ * - Use explicit actions returned in final model JSON.
  */
 export function resolveAgentFlowProposedActions(
   input: ResolveAgentFlowProposedActionsInput
 ): AssistantProposedAction[] {
-  const selected =
-    input.resultProposedActions && input.resultProposedActions.length > 0
-      ? input.resultProposedActions
-      : (input.contextProposedActions ?? []);
+  const selected = input.resultProposedActions ?? [];
 
   return withMergedTemplateEditIntent(selected, {
     templateEditIntent: input.templateEditIntent,

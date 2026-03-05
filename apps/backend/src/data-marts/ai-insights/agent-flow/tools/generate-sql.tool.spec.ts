@@ -34,7 +34,6 @@ describe('GenerateSqlTool', () => {
         templateId: 'template-1',
       },
     },
-    collectedProposedActions: [],
   });
 
   const createService = () => {

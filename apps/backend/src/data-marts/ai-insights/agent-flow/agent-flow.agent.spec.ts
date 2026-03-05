@@ -365,12 +365,6 @@ describe('AgentFlowAgent', () => {
 
     runAgentLoopMock
       .mockImplementationOnce(async ({ context }) => {
-        context.collectedProposedActions.push({
-          type: 'apply_sql_to_artifact',
-          id: 'act_from_failed_attempt',
-          confidence: 0.9,
-          payload: { artifactId: 'artifact-1' },
-        });
         context.lastGeneratedSql = 'SELECT 1';
 
         return {
@@ -420,11 +414,10 @@ describe('AgentFlowAgent', () => {
     const firstContext = runAgentLoopMock.mock.calls[0][0].context;
     const secondContext = runAgentLoopMock.mock.calls[1][0].context;
     expect(firstContext).not.toBe(secondContext);
-    expect(firstContext.collectedProposedActions).toHaveLength(1);
-    expect(secondContext.collectedProposedActions).toHaveLength(0);
+    expect(firstContext.lastGeneratedSql).toBe('SELECT 1');
+    expect(secondContext.lastGeneratedSql).toBeUndefined();
 
     expect(output.context).toBe(secondContext);
-    expect(output.context.collectedProposedActions).toEqual([]);
     expect(output.context.lastGeneratedSql).toBeUndefined();
   });
 

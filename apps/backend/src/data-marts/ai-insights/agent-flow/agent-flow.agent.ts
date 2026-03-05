@@ -83,7 +83,6 @@ export class AgentFlowAgent {
           });
           const resolvedProposedActions = resolveAgentFlowProposedActions({
             resultProposedActions: result.proposedActions,
-            contextProposedActions: agentContext.collectedProposedActions,
             templateEditIntent: result.templateEditIntent,
           });
           const validationContext: AgentFlowValidationContext = {
@@ -192,7 +191,6 @@ export class AgentFlowAgent {
     return {
       telemetry: params.telemetry,
       request: params.request,
-      collectedProposedActions: [],
       sanitizedLastUserMessage: params.sanitizedLastUserMessage,
     };
   }

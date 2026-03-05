@@ -78,7 +78,6 @@ describe('AgentFlowService', () => {
         context: {
           request: createRequest(),
           telemetry: { llmCalls: [], toolCalls: [], messageHistory: [] },
-          collectedProposedActions: [],
           sanitizedLastUserMessage: 'safe text',
         },
       }),
@@ -109,7 +108,6 @@ describe('AgentFlowService', () => {
         context: {
           request,
           telemetry: { llmCalls: [], toolCalls: [], messageHistory: [] },
-          collectedProposedActions: [],
           sanitizedLastUserMessage: null,
         },
       }),
