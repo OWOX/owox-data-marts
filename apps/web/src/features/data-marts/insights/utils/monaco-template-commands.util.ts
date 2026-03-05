@@ -21,7 +21,7 @@ const getBaseSlashCommands = (sources: InsightTemplateSourceEntity[]): SlashComm
   } else {
     commands.push({
       label: 'Table',
-      insertText: '{{table source="main"}}',
+      insertText: '{{table}}',
       documentation: 'Insert a table tag with source binding',
     });
   }
