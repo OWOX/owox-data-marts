@@ -1,6 +1,6 @@
 {
   "name": "@owox/idp-owox-better-auth",
-  "version": "0.19.0",
+  "version": "0.20.0",
   "type": "module",
   "author": "OWOX",
   "license": "ELv2",
@@ -57,7 +57,9 @@
   "engines": {
     "node": ">=22.16.0"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "exports": {
     ".": {
       "import": "./dist/index.js",

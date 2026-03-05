@@ -1,6 +1,6 @@
 {
   "name": "@owox/idp-better-auth",
-  "version": "0.19.0",
+  "version": "0.20.0",
   "type": "module",
   "author": "OWOX",
   "license": "ELv2",
@@ -25,7 +25,12 @@
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run lint && npm run typecheck"
   },
-  "keywords": ["idp", "better-auth", "authentication", "owox"],
+  "keywords": [
+    "idp",
+    "better-auth",
+    "authentication",
+    "owox"
+  ],
   "peerDependencies": {
     "express": "^5",
     "zod": "^3.23"
@@ -53,7 +58,9 @@
     "jest": "^30.2.0",
     "ts-jest": "^29.4.6"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "exports": {
     ".": {
       "import": "./dist/index.js",
