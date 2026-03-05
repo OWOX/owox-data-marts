@@ -88,8 +88,10 @@ export class AgentFlowContextManager {
 
     const context = this.applyContextBudget(
       {
-        recentTurns: this.buildRecentTurnsForPrompt(turnTimeline, conversationSnapshot),
-        conversationSnapshot,
+        conversationContext: {
+          turns: this.buildRecentTurnsForPrompt(turnTimeline, conversationSnapshot),
+          conversationSnapshot,
+        },
         stateSnapshot,
       },
       turnTimeline
@@ -98,7 +100,7 @@ export class AgentFlowContextManager {
     await this.persistContext({
       sessionId: input.session.id,
       storedContext,
-      conversationSnapshot: context.conversationSnapshot,
+      conversationSnapshot: context.conversationContext.conversationSnapshot,
       stateSnapshot: context.stateSnapshot,
     });
 
@@ -332,11 +334,17 @@ export class AgentFlowContextManager {
     context: AgentFlowPromptContext,
     turnTimeline: AssistantChatMessage[]
   ): AgentFlowPromptContext {
-    const trimmedTurns = [...context.recentTurns];
+    const trimmedTurns = [...context.conversationContext.turns];
     const lastUserTurn = this.getLastUserTurn(turnTimeline);
 
     while (
-      this.measureContextChars({ ...context, recentTurns: trimmedTurns }) > MAX_CONTEXT_CHARS &&
+      this.measureContextChars({
+        ...context,
+        conversationContext: {
+          ...context.conversationContext,
+          turns: trimmedTurns,
+        },
+      }) > MAX_CONTEXT_CHARS &&
       trimmedTurns.length > 1
     ) {
       trimmedTurns.shift();
@@ -347,8 +355,10 @@ export class AgentFlowContextManager {
     }
 
     return {
-      recentTurns: trimmedTurns.slice(-MAX_RECENT_TURNS),
-      conversationSnapshot: context.conversationSnapshot,
+      conversationContext: {
+        ...context.conversationContext,
+        turns: trimmedTurns.slice(-MAX_RECENT_TURNS),
+      },
       stateSnapshot: context.stateSnapshot,
     };
   }

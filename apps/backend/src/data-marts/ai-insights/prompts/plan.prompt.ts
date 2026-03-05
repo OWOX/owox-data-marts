@@ -1,13 +1,47 @@
 import { PlanAgentInput, PlanModelJsonSchema } from '../agent/types';
 import { DataMartsAiInsightsTools } from '../tools/data-marts-ai-insights-tools.registrar';
 import { buildJsonFormatSection, buildOutputRules } from './json-format.prompt';
+import { getLastUserMessage } from '../agent-flow/ai-assistant-orchestrator.utils';
+
+export function buildPlanContextSystemPrompt(input: PlanAgentInput): string | null {
+  const context = input.conversationContext;
+  if (!context) {
+    return null;
+  }
+
+  const modeBlock = context.mode ? `SQL task mode: ${context.mode}` : 'SQL task mode: unspecified';
+  const currentSourceSqlBlock = context.currentSourceSql
+    ? `
+Current source SQL context:
+--- CURRENT SQL START ---
+${context.currentSourceSql}
+--- CURRENT SQL END ---
+`.trim()
+    : 'Current source SQL context: none';
+  const snapshotBlock =
+    context.conversationSnapshot != null
+      ? `
+Conversation snapshot (non-user memory context):
+--- CONVERSATION SNAPSHOT START ---
+${JSON.stringify(context.conversationSnapshot)}
+--- CONVERSATION SNAPSHOT END ---
+`.trim()
+      : '';
+
+  return `
+${modeBlock}
+
+${currentSourceSqlBlock}
+${snapshotBlock ? `\n\n${snapshotBlock}` : ''}
+`.trim();
+}
 
 export function buildPlanSystemPrompt(input: PlanAgentInput): string {
   return `
 You are the PLAN agent in a multi-step analytics pipeline.
 
 Your role:
-- Read the user's analytics question and the data-mart schema context.
+- Read the user's analytics request from conversation history and context.
 - Design a single, coherent query plan that can later be translated into SQL by another agent.
 - Choose the appropriate fact table(s), dimensions, metrics, filters, and date field.
 
@@ -20,6 +54,7 @@ Tool usage:
 StorageType-aware planning:
 - Target storageType (authoritative): ${input.rawSchema?.storageType ?? 'unknown'}
 - You MUST take this storageType into account when producing requiredColumnsMeta.
+- You MUST produce metricSpecs/whereSpecs/orderBySpecs as structured SQL contracts.
 - Provide requiredColumnsMeta for every column in requiredColumns using rawSchema:
   - rawType
   - semanticType
@@ -36,6 +71,13 @@ StorageType-aware planning:
 - requiredColumnsMeta must be abstract and MUST NOT contain SQL expressions.
 
 Date/time parsing contract (IMPORTANT):
+
+- If schema metadata and/or SAMPLE_TABLE_DATA provide enough evidence to determine
+  a reliable date/timestamp format for a string-like column, you MUST:
+  - set transform.kind to "parse_date" or "parse_timestamp",
+  - set requiredColumnsMeta[column].transform.format,
+  - plan typed date filters via whereSpecs operators such as =, between, >=, < (as applicable),
+  - avoid lexical date filtering (LIKE/ILIKE/prefix matching) for date intent.
 
 - If you set transform.kind to "parse_date" or "parse_timestamp" for a string-like rawType
   AND the query requires true date/time arithmetic
@@ -58,18 +100,11 @@ Date/time parsing contract (IMPORTANT):
 - If you cannot determine a reliable format from schema metadata
   (e.g., column description lacks examples/format hints OR examples contain extra text and no preNormalize evidence exists):
 
-  1) If the requested time filter can be expressed without true date/time arithmetic
-     (e.g., whole year or whole month),
-     you MAY rely on a format-compatible string-based filter semantics
-     (such as year/month prefix matching),
-     and document this intent via transform.kind = "parse_date" WITHOUT format,
-     indicating that lexical comparison is sufficient.
-
-  2) If the requested time filter requires true date/time arithmetic,
-     you MUST NOT guess the format, and you MUST NOT invent preNormalize steps without evidence from schema examples.
-     You MUST NOT use TRY/SAFE parsing semantics.
-     In this case, you MUST mark the plan as ambiguous and request clarification from the user
-     (e.g., ask for example values, exact format, or schema type correction).
+  - you MUST NOT guess the format, and you MUST NOT invent preNormalize steps without evidence from schema examples.
+  - you MUST NOT use lexical date filtering as a fallback for date intent.
+  - you MUST NOT use TRY/SAFE parsing semantics.
+  - In this case, you MUST mark the plan as ambiguous and request clarification from the user
+    (e.g., ask for example values, exact format, or schema type correction).
 
 Numeric casting contract (IMPORTANT):
 - If a required column has rawType string-like and semanticType is "number":
@@ -83,6 +118,7 @@ Numeric casting contract (IMPORTANT):
 Correctness rule:
 - Prefer explicit clarification over guessing.
 - It is better to request clarification than to risk empty or misleading results.
+- A plan that is syntactically complete but does not solve the user intent from conversation history is invalid.
 
 Data sampling:
 - If the query plan involves filtering, casting, or parsing columns that have
@@ -110,13 +146,21 @@ ${buildJsonFormatSection(PlanModelJsonSchema)}
 }
 
 export function buildPlanUserPrompt(input: PlanAgentInput): string {
-  const { prompt, schemaSummary, rawSchema } = input;
+  const { prompt, schemaSummary, rawSchema, conversationContext } = input;
+  const turns = conversationContext?.turns;
+  const latestUserMessage = getLastUserMessage(turns ?? []) || prompt;
+  const conversationHint =
+    turns && turns.length > 0
+      ? 'Conversation turns are provided as separate chat messages above.'
+      : 'Conversation turns were not provided separately; use the latest request below as context.';
 
   return `
-User analytics request:
---- PROMPT START ---
-${prompt}
---- PROMPT END ---
+Latest user request to plan for:
+--- USER REQUEST START ---
+${latestUserMessage}
+--- USER REQUEST END ---
+
+${conversationHint}
 
 Schema summary (primary reference):
 ${schemaSummary ?? '(not provided)'}
@@ -141,10 +185,14 @@ Instructions:
 - Carefully choose:
   - the main fact table(s),
   - relevant dimensions and metrics,
+  - metricSpecs[] with required aggregation/source/alias for every metric used,
   - the primary dateField and dateFilterDescription (if the question implies a time range),
-  - whereConditions and grouping,
+  - whereConditions + whereSpecs (structured filters),
+  - grouping,
+  - orderBySpecs (structured sorting when needed),
   - requiredColumns so that the SQL agent has all necessary fields.
 - When schema column descriptions include example values or format hints, use them to define parsing/casting transforms.
+- If filtering or sorting is needed by user intent, corresponding whereSpecs/orderBySpecs MUST be non-empty.
 
 ${buildOutputRules()}
 `.trim();

@@ -6,13 +6,16 @@ describe('BaseSqlHandleResolverService', () => {
   const createRequest = () => ({
     projectId: 'project-1',
     dataMartId: 'data-mart-1',
-    history: [
-      {
-        role: AiAssistantMessageRole.USER,
-        content: 'refine sql',
-        createdAt: '2026-02-27T10:00:00.000Z',
-      },
-    ],
+    conversationContext: {
+      turns: [
+        {
+          role: AiAssistantMessageRole.USER,
+          content: 'refine sql',
+          createdAt: '2026-02-27T10:00:00.000Z',
+        },
+      ],
+      conversationSnapshot: null,
+    },
     sessionContext: {
       sessionId: 'session-1',
       scope: AiAssistantScope.TEMPLATE,
@@ -26,8 +29,6 @@ describe('BaseSqlHandleResolverService', () => {
     };
     const sourceResolverToolsService = {
       resolveTemplateSourceSqlByTemplateSourceId: jest.fn(),
-      resolveTemplateSourceSqlByKey: jest.fn(),
-      resolveArtifactSqlById: jest.fn(),
     };
 
     return {
@@ -72,10 +73,6 @@ describe('BaseSqlHandleResolverService', () => {
     sourceResolverToolsService.resolveTemplateSourceSqlByTemplateSourceId.mockRejectedValue(
       new Error('not found')
     );
-    sourceResolverToolsService.resolveTemplateSourceSqlByKey.mockRejectedValue(
-      new Error('not found')
-    );
-    sourceResolverToolsService.resolveArtifactSqlById.mockRejectedValue(new Error('not found'));
 
     await expect(service.resolve('unknown-handle', request)).rejects.toThrow(
       'Unable to resolve SQL for baseSqlHandle "unknown-handle"'

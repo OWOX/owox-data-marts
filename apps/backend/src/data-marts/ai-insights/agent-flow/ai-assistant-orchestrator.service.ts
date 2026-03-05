@@ -19,7 +19,6 @@ import { buildNarrowMetadata } from '../utils/narrow-datamart-metadata';
 import { SqlDryRunCommand } from '../../dto/domain/sql-dry-run.command';
 import { SqlDryRunService } from '../../use-cases/sql-dry-run.service';
 import {
-  AssistantChatMessage,
   AssistantMatchDebug,
   AssistantOrchestratorRequest,
   AssistantOrchestratorResponse,
@@ -68,7 +67,6 @@ export class AiAssistantOrchestratorService {
     mode: SqlOrchestratorMode,
     options?: { prefillTelemetry?: AgentTelemetry }
   ): Promise<AssistantOrchestratorResponse> {
-    const originalLastUserMessage = getLastUserMessage(request.history);
     const prefillTelemetry = options?.prefillTelemetry;
     const telemetry = createTelemetry();
     mergeTelemetry(telemetry, prefillTelemetry);
@@ -78,8 +76,6 @@ export class AiAssistantOrchestratorService {
         request,
         mode,
         telemetry,
-        history: request.history,
-        originalLastUserMessage,
         sanitizedLastUserMessage: null,
       });
     } catch (error: unknown) {
@@ -101,20 +97,20 @@ export class AiAssistantOrchestratorService {
     request: AssistantOrchestratorRequest;
     mode: SqlOrchestratorMode;
     telemetry: AgentTelemetry;
-    history: AssistantChatMessage[];
-    originalLastUserMessage: string;
     sanitizedLastUserMessage: string | null;
   }): Promise<AssistantOrchestratorResponse> {
-    const { request, mode, telemetry, history, sanitizedLastUserMessage } = params;
+    const { request, mode, telemetry, sanitizedLastUserMessage } = params;
     const decision = this.toDecision(mode);
-
-    const prompt = this.buildPromptFromHistory(
-      history,
-      request.sessionContext.currentSourceSql,
-      mode
-    );
+    const conversationContext = request.conversationContext;
+    const prompt = getLastUserMessage(conversationContext.turns ?? []) || '';
     const shared = this.createSharedContext(request, prompt, telemetry);
-    const triage = await this.triageAgent.run({ prompt }, shared);
+    const triage = await this.triageAgent.run(
+      {
+        prompt,
+        conversationContext,
+      },
+      shared
+    );
     if (triage.outcome !== TriageOutcome.OK) {
       const status: AssistantOrchestratorStatus =
         triage.outcome === TriageOutcome.NOT_RELEVANT ? 'not_relevant' : 'cannot_answer';
@@ -138,6 +134,7 @@ export class AiAssistantOrchestratorService {
         promptLanguage: triage.promptLanguage,
         schemaSummary: triage.schemaSummary,
         rawSchema: triage.rawSchema,
+        conversationContext,
       },
       shared
     );
@@ -167,6 +164,7 @@ export class AiAssistantOrchestratorService {
       rawSchema: narrowedMetadata,
       shared,
       request,
+      conversationContext,
     });
 
     if (sqlCandidateResult.status !== 'ok') {
@@ -216,8 +214,9 @@ export class AiAssistantOrchestratorService {
     rawSchema: GetMetadataOutput;
     shared: SharedAgentContext;
     request: AssistantOrchestratorRequest;
+    conversationContext: AssistantOrchestratorRequest['conversationContext'];
   }): Promise<SqlCandidateBuildResult> {
-    const { prompt, plan, schemaSummary, rawSchema, shared, request } = params;
+    const { prompt, plan, schemaSummary, rawSchema, shared, request, conversationContext } = params;
     const maxRepairAttempts = 4;
     const attempts: QueryRepairAttempt[] = [];
     let sql = (
@@ -227,6 +226,7 @@ export class AiAssistantOrchestratorService {
           plan,
           schemaSummary,
           rawSchema,
+          conversationContext,
         },
         shared
       )
@@ -359,34 +359,6 @@ export class AiAssistantOrchestratorService {
       ok: true,
       bytes: dryRun.bytes,
     };
-  }
-
-  private buildPromptFromHistory(
-    history: AssistantChatMessage[],
-    currentSourceSql: string | undefined,
-    mode: SqlOrchestratorMode
-  ): string {
-    const decision = this.toDecision(mode);
-    const historyBlock = history
-      .map((message, index) => `[${index + 1}] ${message.role}: ${message.content}`)
-      .join('\n');
-
-    const sourceSqlBlock = currentSourceSql?.trim()
-      ? [
-          'Current source SQL context:',
-          '--- CURRENT SQL START ---',
-          currentSourceSql,
-          '--- CURRENT SQL END ---',
-        ].join('\n')
-      : 'Current source SQL context: none';
-
-    return [
-      `Route: ${decision}`,
-      'Conversation history (source of truth):',
-      historyBlock,
-      sourceSqlBlock,
-      'Instruction: build SQL candidate that satisfies latest user intent and conversation context.',
-    ].join('\n\n');
   }
 
   private buildErrorResponse(

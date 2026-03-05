@@ -5,17 +5,22 @@ import {
   GetMetadataOutputSchema,
   SharedAgentContext,
 } from '../ai-insights-types';
-import { AiMessage, AiRole } from '../../../common/ai-insights/agent/ai-core';
 import { ToolRegistry } from '../../../common/ai-insights/agent/tool-registry';
 import { Injectable, Logger } from '@nestjs/common';
 import { DataMartsAiInsightsTools } from '../tools/data-marts-ai-insights-tools.registrar';
-import { buildTriageSystemPrompt, buildTriageUserPrompt } from '../prompts/triage.prompt';
+import {
+  buildTriageContextSystemPrompt,
+  buildTriageSystemPrompt,
+  buildTriageUserPrompt,
+} from '../prompts/triage.prompt';
 import { runAgentLoop } from '../../../common/ai-insights/llm-tool-runner';
 import { extractToolResult } from '../utils/extract-tool-result';
-import { TriageModelJsonSchema, TriageResult } from './types';
+import { AgentConversationContext, TriageModelJsonSchema, TriageResult } from './types';
+import { buildAgentInitialMessages } from '../utils/build-agent-initial-messages';
 
 export interface TriageAgentInput {
   prompt: string;
+  conversationContext?: AgentConversationContext;
 }
 
 @Injectable()
@@ -29,16 +34,19 @@ export class TriageAgent implements Agent<TriageAgentInput, TriageResult> {
     const { aiProvider, telemetry, budgets, projectId, dataMartId } = shared;
 
     const system = buildTriageSystemPrompt();
-    const user = buildTriageUserPrompt(input.prompt);
+    const contextSystem = buildTriageContextSystemPrompt(input);
+    const user = buildTriageUserPrompt(input);
 
     const tools = this.toolRegistry.findToolByNames([
       DataMartsAiInsightsTools.GET_DATAMART_METADATA,
     ]);
 
-    const initialMessages: AiMessage[] = [
-      { role: AiRole.SYSTEM, content: system },
-      { role: AiRole.USER, content: user },
-    ];
+    const initialMessages = buildAgentInitialMessages({
+      systemPrompt: system,
+      contextSystemPrompt: contextSystem,
+      conversationTurns: input.conversationContext?.turns,
+      userPrompt: user,
+    });
 
     const context: DataMartInsightsContext = {
       projectId,

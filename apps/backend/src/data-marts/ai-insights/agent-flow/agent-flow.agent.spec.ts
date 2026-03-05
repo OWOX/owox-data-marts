@@ -62,13 +62,16 @@ describe('AgentFlowAgent', () => {
   const createRequest = (userText: string) => ({
     projectId: 'project-1',
     dataMartId: 'data-mart-1',
-    history: [
-      {
-        role: AiAssistantMessageRole.USER,
-        content: userText,
-        createdAt: '2026-02-21T10:00:00.000Z',
-      },
-    ],
+    conversationContext: {
+      turns: [
+        {
+          role: AiAssistantMessageRole.USER,
+          content: userText,
+          createdAt: '2026-02-21T10:00:00.000Z',
+        },
+      ],
+      conversationSnapshot: null,
+    },
     sessionContext: {
       sessionId: 'session-1',
       scope: AiAssistantScope.TEMPLATE,
@@ -77,14 +80,16 @@ describe('AgentFlowAgent', () => {
   });
 
   const createPromptContext = (userText: string): AgentFlowPromptContext => ({
-    recentTurns: [
-      {
-        role: AiAssistantMessageRole.USER,
-        content: userText,
-        createdAt: '2026-02-21T10:00:00.000Z',
-      },
-    ],
-    conversationSnapshot: null,
+    conversationContext: {
+      turns: [
+        {
+          role: AiAssistantMessageRole.USER,
+          content: userText,
+          createdAt: '2026-02-21T10:00:00.000Z',
+        },
+      ],
+      conversationSnapshot: null,
+    },
     stateSnapshot: {
       sessionId: 'session-1',
       templateId: 'template-1',

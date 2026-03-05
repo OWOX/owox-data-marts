@@ -168,15 +168,29 @@ export class GenerateSqlTool {
   private async buildDelegatedRequest(
     args: GenerateSqlInput,
     request: AgentFlowContext['request']
-  ) {
+  ): Promise<{
+    delegatedRequest: ReturnType<AgentFlowRequestMapper['toAssistantOrchestratorRequest']>;
+    baseAssistantMessageId?: string;
+    hasBaseSql: boolean;
+    refineBaseOrigin?: ResolvedBaseSql['origin'];
+  }> {
     if (args.mode === 'refine') {
       const base = await this.resolveBaseSqlForRefine(args, request);
+      const delegatedTurns = this.replaceLastUserMessageOrThrow(
+        request.conversationContext.turns,
+        args.refineInstructions
+      );
+      const conversationContext = this.agentFlowRequestMapper.toAgentConversationContext({
+        request,
+        mode: 'refine',
+        turns: delegatedTurns,
+        currentSourceSql: base.baseSql,
+      });
 
       return {
         delegatedRequest: this.agentFlowRequestMapper.toAssistantOrchestratorRequest({
           request,
-          history: this.replaceLastUserMessageOrThrow(request.history, args.refineInstructions),
-          currentSourceSql: base.baseSql,
+          conversationContext,
         }),
         baseAssistantMessageId: base.baseAssistantMessageId,
         hasBaseSql: true,
@@ -184,14 +198,19 @@ export class GenerateSqlTool {
       };
     }
 
+    const delegatedTurns = args.taskPrompt
+      ? this.replaceLastUserMessageOrThrow(request.conversationContext.turns, args.taskPrompt)
+      : request.conversationContext.turns;
+    const conversationContext = this.agentFlowRequestMapper.toAgentConversationContext({
+      request,
+      mode: 'create',
+      turns: delegatedTurns,
+    });
+
     return {
       delegatedRequest: this.agentFlowRequestMapper.toAssistantOrchestratorRequest({
         request,
-        ...(args.taskPrompt
-          ? {
-              history: this.replaceLastUserMessageOrThrow(request.history, args.taskPrompt),
-            }
-          : {}),
+        conversationContext,
       }),
       baseAssistantMessageId: undefined,
       hasBaseSql: false,

@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { GetMetadataOutput, QueryRow, SqlStepError } from '../ai-insights-types';
 import { DataMartSchema } from '../../data-storage-types/data-mart-schema.type';
+import { AiRole } from '../../../common/ai-insights/agent/ai-core';
+import type { AgentFlowConversationSnapshot } from '../agent-flow/conversation-snapshot.schema';
 
 export function isFinalReasonAnswer(value: FinalReason) {
   return value === FinalReason.ANSWER;
@@ -176,6 +178,62 @@ export const RequiredColumnMetaSchema = z.object({
   transform: ColumnTransformSchema.optional().describe('Abstract transformation hint (NO SQL).'),
 });
 
+export const QueryPlanMetricAggregationSchema = z.enum([
+  'sum',
+  'count',
+  'avg',
+  'min',
+  'max',
+  'count_distinct',
+]);
+
+export const QueryPlanMetricSpecSchema = z.object({
+  name: z.string().min(1),
+  aggregation: QueryPlanMetricAggregationSchema,
+  sourceColumn: z.string().min(1),
+  alias: z.string().min(1),
+  required: z.boolean().default(true),
+});
+
+export const QueryPlanWhereOperatorSchema = z.enum([
+  '=',
+  '!=',
+  '>',
+  '>=',
+  '<',
+  '<=',
+  'in',
+  'between',
+  'like',
+  'ilike',
+  'is_null',
+  'is_not_null',
+]);
+
+export const QueryPlanWhereSpecSchema = z.object({
+  field: z.string().min(1),
+  operator: QueryPlanWhereOperatorSchema,
+  value: z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.array(z.string()),
+    z.array(z.number()),
+    z.null(),
+  ]),
+  required: z.boolean().default(true),
+  notes: z.string().optional(),
+});
+
+export const QueryPlanOrderByDirectionSchema = z.enum(['asc', 'desc']);
+
+export const QueryPlanOrderBySpecSchema = z.object({
+  fieldOrAlias: z.string().min(1),
+  direction: QueryPlanOrderByDirectionSchema,
+  priority: z.number().int().min(1),
+  required: z.boolean().default(true),
+});
+
 export const QueryPlanSchema = z.object({
   tables: z
     .array(QueryPlanTableSchema)
@@ -199,6 +257,16 @@ export const QueryPlanSchema = z.object({
     .describe(
       'Columns that will be aggregated in the query (SUM, COUNT, AVG, etc.). ' +
         'For example: impressions, clicks, spend, revenue.'
+    ),
+
+  metricSpecs: z
+    .array(QueryPlanMetricSpecSchema)
+    .describe(
+      [
+        'Required metric contract for SQL generation.',
+        'Each metric MUST define exact aggregation, source column, and output alias.',
+        'SQL builder must follow these specs exactly.',
+      ].join('\n')
     ),
 
   dateField: z
@@ -229,12 +297,30 @@ export const QueryPlanSchema = z.object({
         'These are NOT raw SQL fragments, but human-readable descriptions.'
     ),
 
+  whereSpecs: z
+    .array(QueryPlanWhereSpecSchema)
+    .describe(
+      [
+        'Structured filter contract for SQL generation.',
+        'When user intent requires filtering, this field must include all required filter specs.',
+      ].join('\n')
+    ),
+
   grouping: z
     .array(z.string())
     .default([])
     .describe(
       'Final set of grouping columns. Usually the same as dimensions, ' +
         'but can differ if some dimensions are not used directly in GROUP BY.'
+    ),
+
+  orderBySpecs: z
+    .array(QueryPlanOrderBySpecSchema)
+    .describe(
+      [
+        'Structured sorting contract for SQL generation.',
+        'When user intent requires sorting, this field must include required ordering specs.',
+      ].join('\n')
     ),
 
   /**
@@ -302,11 +388,24 @@ export const PlanModelJsonSchema = z.object({
 
 export type QueryPlan = z.infer<typeof QueryPlanSchema>;
 
+export type ConversationTurn = {
+  role: AiRole.SYSTEM | AiRole.USER | AiRole.ASSISTANT;
+  content: string;
+};
+
+export interface AgentConversationContext {
+  mode?: 'create_new_source_sql' | 'refine_existing_sql';
+  turns?: ConversationTurn[];
+  currentSourceSql?: string | null;
+  conversationSnapshot?: AgentFlowConversationSnapshot | null;
+}
+
 export interface PlanAgentInput {
   prompt: string;
   promptLanguage: string;
   schemaSummary?: string;
   rawSchema?: GetMetadataOutput;
+  conversationContext?: AgentConversationContext;
 }
 
 export interface PlanAgentResult {
@@ -320,6 +419,7 @@ export interface SqlAgentInput {
   plan: QueryPlan;
   schemaSummary?: string;
   rawSchema?: GetMetadataOutput;
+  conversationContext?: AgentConversationContext;
 }
 
 export function isSqlExecutionErrorStatus(status: SqlExecutionStatus) {

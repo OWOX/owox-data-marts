@@ -8,7 +8,10 @@ describe('ListTemplateSourcesTool', () => {
       request: {
         projectId: 'project-1',
         dataMartId: 'data-mart-1',
-        history: [{ role: AiAssistantMessageRole.USER, content: 'show sources' }],
+        conversationContext: {
+          turns: [{ role: AiAssistantMessageRole.USER, content: 'show sources' }],
+          conversationSnapshot: null,
+        },
         sessionContext: {
           sessionId: 'session-1',
           scope: AiAssistantScope.TEMPLATE,

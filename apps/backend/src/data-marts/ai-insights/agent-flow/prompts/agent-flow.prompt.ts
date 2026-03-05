@@ -179,12 +179,12 @@ ${buildJsonFormatSection(AgentFlowResultSchema)}
 }
 
 export interface AgentFlowUserPromptInput {
-  recentTurns: Array<{ role: string; content: string }>;
-  conversationSnapshot?: AgentFlowConversationSnapshot | null;
+  latestUserMessage: string;
 }
 
 export interface AgentFlowContextSystemPromptInput {
   stateSnapshot?: AgentFlowStateSnapshot | null;
+  conversationSnapshot?: AgentFlowConversationSnapshot | null;
 }
 
 export function buildAgentFlowContextSystemPrompt(
@@ -196,47 +196,27 @@ export function buildAgentFlowContextSystemPrompt(
     parts.push(`State snapshot:\n${JSON.stringify(input.stateSnapshot)}`);
   }
 
-  return parts.join('\n\n');
-}
-
-export function buildAgentFlowUserPrompt(input: AgentFlowUserPromptInput): string {
-  const parts: string[] = [];
-
   if (input.conversationSnapshot) {
     parts.push(`Conversation snapshot:\n${JSON.stringify(input.conversationSnapshot)}`);
   }
 
-  const turns = input.recentTurns;
-  const currentUserTurnIndex = turns.findLastIndex(turn => turn.role === 'user');
-  const recentTurnsRows: string[] = [];
-
-  if (turns.length === 0) {
-    recentTurnsRows.push('No recent turns');
-  } else {
-    let ordinal = 1;
-
-    turns.forEach((turn, index) => {
-      if (index === currentUserTurnIndex) {
-        recentTurnsRows.push(`[Current user message]: ${turn.content}`);
-        return;
-      }
-
-      recentTurnsRows.push(`[${ordinal}] ${turn.role}: ${turn.content}`);
-      ordinal++;
-    });
-  }
-
-  parts.push(`Recent turns:\n${recentTurnsRows.join('\n')}`);
-
-  parts.push(
-    'Analyze this message, use tools if needed, and respond. ' +
-      'Remember: "explanation" must be the actual user reply text, and ' +
-      '"reasonDescription" must be an internal concise rationale. ' +
-      'If the user asked multiple independent tasks, do not force them into one SQL/source; ' +
-      'handle one coherent task and list remaining tasks in explanation. ' +
-      'Return action proposals only via "proposedActions".'
-  );
-  parts.push(buildOutputRules().trim());
-
   return parts.join('\n\n');
+}
+
+export function buildAgentFlowUserPrompt(input: AgentFlowUserPromptInput): string {
+  return `
+Latest user message to handle:
+--- USER MESSAGE START ---
+${input.latestUserMessage}
+--- USER MESSAGE END ---
+
+Conversation turns are provided as separate chat messages above.
+
+Analyze this message, use tools if needed, and respond.
+Remember: "explanation" must be the actual user reply text, and "reasonDescription" must be an internal concise rationale.
+If the user asked multiple independent tasks, do not force them into one SQL/source; handle one coherent task and list remaining tasks in explanation.
+Return action proposals only via "proposedActions".
+
+${buildOutputRules().trim()}
+`.trim();
 }

@@ -33,8 +33,7 @@ export class AgentFlowPolicySanitizerService {
   }): Promise<AgentFlowPolicySanitizationResult> {
     const { request, promptContext, telemetry } = params;
 
-    const latestUserMessage =
-      getLastUserMessage(promptContext.recentTurns) || getLastUserMessage(request.history);
+    const latestUserMessage = getLastUserMessage(promptContext.conversationContext.turns);
     if (!latestUserMessage.trim()) {
       return { type: 'restricted', sanitizedLastUserMessage: null };
     }
@@ -52,11 +51,17 @@ export class AgentFlowPolicySanitizerService {
       type: 'retry',
       request: {
         ...request,
-        history: replaceLastUserMessage(request.history, sanitizedPrompt),
+        conversationContext: {
+          ...request.conversationContext,
+          turns: replaceLastUserMessage(request.conversationContext.turns, sanitizedPrompt),
+        },
       },
       promptContext: {
         ...promptContext,
-        recentTurns: replaceLastUserMessage(promptContext.recentTurns, sanitizedPrompt),
+        conversationContext: {
+          ...promptContext.conversationContext,
+          turns: replaceLastUserMessage(promptContext.conversationContext.turns, sanitizedPrompt),
+        },
       },
       sanitizedLastUserMessage: sanitizedPrompt,
     };

@@ -12,17 +12,30 @@ import {
   TemplateEditPlaceholderTag,
   TemplateEditPlaceholderTagSchema,
 } from '../../services/template-edit-placeholder-tags/template-edit-placeholder-tags.contracts';
+import {
+  AgentFlowConversationSnapshotContentSchema,
+  AgentFlowConversationSnapshotSchema,
+} from './conversation-snapshot.schema';
+import type {
+  AgentFlowConversationSnapshot,
+  AgentFlowConversationSnapshotContent,
+} from './conversation-snapshot.schema';
 
 export interface AgentFlowRequest {
   projectId: string;
   dataMartId: string;
-  history: AssistantChatMessage[];
+  conversationContext: AgentFlowConversationContext;
   sessionContext: {
     sessionId: AssistantOrchestratorRequest['sessionContext']['sessionId'];
     scope: AssistantOrchestratorRequest['sessionContext']['scope'];
     templateId: AssistantOrchestratorRequest['sessionContext']['templateId'];
   };
   options?: AiFlowOptions;
+}
+
+export interface AgentFlowConversationContext {
+  turns: AssistantChatMessage[];
+  conversationSnapshot: AgentFlowConversationSnapshot | null;
 }
 
 /**
@@ -53,26 +66,8 @@ export interface AgentFlowContext extends AiContext {
   sanitizedLastUserMessage?: string | null;
 }
 
-export const AgentFlowConversationSnapshotContentSchema = z.object({
-  goal: z.string().nullable(),
-  decisions: z.array(z.string()),
-  appliedChanges: z.array(z.string()),
-  openQuestions: z.array(z.string()),
-  importantFacts: z.array(z.string()),
-  lastUserIntent: z.string().nullable(),
-});
-
-export type AgentFlowConversationSnapshotContent = z.infer<
-  typeof AgentFlowConversationSnapshotContentSchema
->;
-
-export const AgentFlowConversationSnapshotSchema =
-  AgentFlowConversationSnapshotContentSchema.extend({
-    compressedTurns: z.number().int().nonnegative(),
-    updatedAt: z.string().min(1),
-  });
-
-export type AgentFlowConversationSnapshot = z.infer<typeof AgentFlowConversationSnapshotSchema>;
+export { AgentFlowConversationSnapshotContentSchema, AgentFlowConversationSnapshotSchema };
+export type { AgentFlowConversationSnapshot, AgentFlowConversationSnapshotContent };
 
 export interface AgentFlowStateSnapshotSource {
   sourceId: string;
@@ -108,8 +103,7 @@ export interface AgentFlowStateSnapshot {
 }
 
 export interface AgentFlowPromptContext {
-  recentTurns: AssistantChatMessage[];
-  conversationSnapshot: AgentFlowConversationSnapshot | null;
+  conversationContext: AgentFlowConversationContext;
   stateSnapshot: AgentFlowStateSnapshot;
 }
 

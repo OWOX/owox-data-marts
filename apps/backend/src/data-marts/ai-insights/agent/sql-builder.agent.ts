@@ -1,12 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Agent, DataMartInsightsContext, SharedAgentContext } from '../ai-insights-types';
-import { AiMessage, AiRole } from '../../../common/ai-insights/agent/ai-core';
+import { AiMessage } from '../../../common/ai-insights/agent/ai-core';
 import { SqlAgentInput, SqlBuilderResponse, SqlBuilderResponseSchema } from './types';
 import { runAgentLoop } from '../../../common/ai-insights/llm-tool-runner';
 import {
+  buildSqlBuilderContextSystemPrompt,
   buildSqlBuilderSystemPrompt,
   buildSqlBuilderUserPrompt,
 } from '../prompts/sql-builder.prompt';
+import { buildAgentInitialMessages } from '../utils/build-agent-initial-messages';
 
 @Injectable()
 export class SqlBuilderAgent implements Agent<SqlAgentInput, SqlBuilderResponse> {
@@ -15,12 +17,14 @@ export class SqlBuilderAgent implements Agent<SqlAgentInput, SqlBuilderResponse>
 
   async run(input: SqlAgentInput, shared: SharedAgentContext): Promise<SqlBuilderResponse> {
     const system = buildSqlBuilderSystemPrompt(shared.budgets);
+    const contextSystem = buildSqlBuilderContextSystemPrompt(input);
     const user = buildSqlBuilderUserPrompt(input);
-
-    const initialMessages: AiMessage[] = [
-      { role: AiRole.SYSTEM, content: system },
-      { role: AiRole.USER, content: user },
-    ];
+    const initialMessages = buildAgentInitialMessages({
+      systemPrompt: system,
+      contextSystemPrompt: contextSystem,
+      conversationTurns: input.conversationContext?.turns,
+      userPrompt: user,
+    });
 
     return this.runLoop(shared, input, initialMessages);
   }

@@ -1,9 +1,18 @@
-import { BadRequestException, Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InsightTemplateSource } from '../../dto/schemas/insight-template/insight-template-source.schema';
 import { InsightArtifactService } from '../../services/insight-artifact.service';
 import { InsightTemplateService } from '../../services/insight-template.service';
 import { InsightTemplateSourceService } from '../../services/insight-template-source.service';
-import { AssistantOrchestratorRequest } from './ai-assistant-types';
+
+export interface SourceResolverRequestContext {
+  projectId: string;
+  dataMartId: string;
+  sessionContext: {
+    templateId: string;
+    sessionId?: string;
+    scope?: string;
+  };
+}
 
 export interface ResolvedTemplateSource {
   templateSourceId: string;
@@ -23,7 +32,7 @@ export interface ResolveSourceByKeyResult {
   reason: string;
 }
 
-export interface ResolveTemplateSourceSqlByKeyResult {
+export interface ResolveTemplateSourceSqlResult {
   templateSourceId: string;
   sourceKey: string;
   sql: string;
@@ -40,7 +49,7 @@ export class SourceResolverToolsService {
   ) {}
 
   async listTemplateSources(
-    request: AssistantOrchestratorRequest
+    request: SourceResolverRequestContext
   ): Promise<ListTemplateSourcesResult> {
     const template = await this.insightTemplateService.getByIdAndDataMartIdAndProjectId(
       request.sessionContext.templateId,
@@ -86,59 +95,10 @@ export class SourceResolverToolsService {
     };
   }
 
-  async resolveTemplateSourceSqlByKey(params: {
-    request: AssistantOrchestratorRequest;
-    sourceKey: string;
-  }): Promise<ResolveTemplateSourceSqlByKeyResult> {
-    const { request, sourceKey } = params;
-    const template = await this.insightTemplateService.getByIdAndDataMartIdAndProjectId(
-      request.sessionContext.templateId,
-      request.dataMartId,
-      request.projectId
-    );
-
-    const sources = (template.sources ?? []).map(source => ({
-      templateSourceId: source.templateSourceId,
-      key: source.key,
-    }));
-
-    const matched = this.resolveSourceByKey(sources, sourceKey);
-    if (!matched.matchedSource) {
-      throw new NotFoundException(`Template source "${sourceKey}" not found`);
-    }
-    const matchedSource = matched.matchedSource;
-
-    const matchedTemplateSource = (template.sources ?? []).find(
-      source => source.templateSourceId === matchedSource.templateSourceId
-    );
-    if (!matchedTemplateSource?.artifactId) {
-      throw new BadRequestException(`Template source "${matchedSource.key}" has no SQL link`);
-    }
-
-    const artifact = await this.insightArtifactService.getByIdAndDataMartIdAndProjectId(
-      matchedTemplateSource.artifactId,
-      request.dataMartId,
-      request.projectId
-    );
-
-    const sql = (artifact.sql ?? '').trim();
-    if (!sql) {
-      throw new BadRequestException(
-        `Artifact "${artifact.id}" linked to source "${matchedSource.key}" has empty SQL`
-      );
-    }
-
-    return {
-      templateSourceId: matchedSource.templateSourceId,
-      sourceKey: matchedSource.key,
-      sql,
-    };
-  }
-
   async resolveTemplateSourceSqlByTemplateSourceId(params: {
-    request: AssistantOrchestratorRequest;
+    request: SourceResolverRequestContext;
     templateSourceId: string;
-  }): Promise<ResolveTemplateSourceSqlByKeyResult> {
+  }): Promise<ResolveTemplateSourceSqlResult> {
     const { request, templateSourceId } = params;
     const normalizedTemplateSourceId = templateSourceId.trim();
 
@@ -163,7 +123,7 @@ export class SourceResolverToolsService {
 
   private async buildResolvedSourceCandidate(
     source: InsightTemplateSource,
-    request: AssistantOrchestratorRequest,
+    request: SourceResolverRequestContext,
     diagnostics: string[]
   ): Promise<ResolvedTemplateSource> {
     if (!source.artifactId) {

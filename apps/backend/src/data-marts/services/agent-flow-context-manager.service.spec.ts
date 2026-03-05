@@ -129,13 +129,13 @@ describe('AgentFlowContextManager', () => {
     });
 
     expect(historySnapshotAgent.buildSnapshot).toHaveBeenCalledTimes(1);
-    expect(context.conversationSnapshot).toEqual(
+    expect(context.conversationContext.conversationSnapshot).toEqual(
       expect.objectContaining({
         goal: 'Build monthly source',
         compressedTurns: 18,
       })
     );
-    expect(context.recentTurns).toHaveLength(3);
+    expect(context.conversationContext.turns).toHaveLength(3);
     expect(context.stateSnapshot.appliedActions).toHaveLength(1);
     expect(context.stateSnapshot.pendingActions).toHaveLength(1);
     expect(context.stateSnapshot.sqlRevisions).toEqual([
@@ -227,7 +227,7 @@ describe('AgentFlowContextManager', () => {
     });
 
     expect(historySnapshotAgent.buildSnapshot).not.toHaveBeenCalled();
-    expect(context.conversationSnapshot).toEqual(
+    expect(context.conversationContext.conversationSnapshot).toEqual(
       expect.objectContaining({
         goal: 'Current goal',
         compressedTurns: 10,
