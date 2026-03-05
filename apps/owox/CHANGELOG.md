@@ -4,133 +4,67 @@
 
 ### Minor Changes 0.20.0
 
-- d141171: # Add data mart link to Google Sheets metadata notes
+![OWOX Data Marts – v0.20.0](https://github.com/user-attachments/assets/22f124c9-ab12-4666-ba13-bb9926e145d4)
 
-  Google Sheets exports now include a link to your data mart in the cell note. The link takes you directly to the data mart page for quick access.
+- cc5553d: # **New Sign Up options**: Email/Password and Microsoft Authentication in the Cloud edition on app.owox.com
 
-- 800ec3c: # Data table support in email-based report templates
+  Users can now sign up using their email and password, or through Microsoft account integration for seamless access.
+  
+- 55ecd48: # **Table Filters** for Data Marts and Data Storages
 
-  You can now embed data mart results as a Markdown table in your email report message using the `{{#data-table}}{{/data-table}}` tag.
+  We’ve overhauled the table filtering experience to help you navigate large datasets with precision and speed:
+  - Filter with logical conditions (Is / Is not / Contains / Does not contain)
+  - Persistent filter states
+  - Shareable, deep-linked views
+  - At-a-glance status
 
-  ## Supported parameters
+- 800ec3c: # **Data table support** in email-based report templates
 
-  - **`limit`** - max rows to display (default: 10, max: 100)
-  - **`from`** - `"start"` (default) or `"end"` to show first or last N rows
-  - **`columns`** - comma-separated list of column names to include
+  You can now embed data mart results as a Markdown table in your email-based reports using the `{{table}}` tag with optional parameters.
 
-  ## Examples
-
-  Basic table (first 10 rows, all columns):
-
-  ```handlebars
-  {{#data-table}}{{/data-table}}
-  ```
-
-  Last 20 rows with specific columns:
-
-  ```handlebars
-  {{#data-table limit=20 from='end' columns='date, revenue, sessions'}}{{/data-table}}
-  ```
-
-  You can also use `{{dataHeadersCount}}` and `{{dataRowsCount}}` variables in your message template.
-
-  ## Value tag support in deterministic insight templates
-
-  You can now insert a single value inline in deterministic insight templates using the `{{value}}` tag.
-
-  ### Value tag parameters
-
-  - **`source`** - source key to read from (default: `main`)
-  - **`path`** - path syntax like `.revenue[1]` (`row` is optional); cannot be combined with `row`/`column`
-  - **`row`** - 1-based row index (default: `1`)
-  - **`column`** - column name or 1-based column index (default: `1`)
-
-  ### Value tag examples
-
-  Inline value by path:
-
-  ```handlebars
-  Total revenue: {{value source='main' path='.revenue[1]'}}
-  ```
-
-  Inline value by row/column:
-
-  ```handlebars
-  Total revenue: {{value source='main' column='revenue' row='1'}}
-  ```
-
-  ## Chat assistant for deterministic template generation
-
-  Added chat assistant support in the Insight Template editor to help generate and refine deterministic templates.
-
-  The assistant can be used directly while editing an Insight Template and works with the deterministic template workflow (including template/source updates via proposed actions).
-
-- b88510a: # Add Microsoft Ads OAuth Integration
+- b88510a: # Add **Microsoft Ads OAuth** Integration
   - Implemented OAuth2 authentication flow for the Microsoft Ads connector to support secure, long-lived access.
   - Added frontend components (`MicrosoftLoginButton` and callback routing) to handle the user authorization process.
   - Updated the backend source configuration to parse and validate `AuthType` with Client ID, Client Secret, and Refresh Token.
   - Implemented `exchangeOauthCredentials` and automatic token refreshing (`getAccessToken`) using the `offline_access` scope for persistent background data fetching.
   - Created database migrations to support storing the new `AuthType` JSON configuration for Microsoft Ads datamarts.
 
-- 8b935a2: # Google OAuth authentication for BigQuery and Google Sheets
+- 8b935a2: # **Google OAuth authentication** for BigQuery and Google Sheets
 
   BigQuery storages (including Legacy BigQuery) and Google Sheets destinations now support Google OAuth as an alternative to service account JSON. Users can connect their Google account directly via an OAuth button in the settings form and switch between authentication methods at any time.
 
-- cc5553d: # Email/Password and Microsoft Authentication to the Cloud edition on app.owox.com
-
-  Users can now sign in using their email and password, or through Microsoft account integration for seamless access.
-
-- 01e6516: # Upgrade API Version in Facebook Marketing Connector to v25.0
+- 01e6516: # Upgrade API Version in **Facebook Marketing Connector to v25.0**
 
   Updated all Facebook Graph API / Marketing API endpoints from `v23.0` to `v25.0` across the Facebook Marketing connector.
 
-- 089e45b: # Facebook Marketing API Page Limit
+- 089e45b: # Facebook Marketing **API Page Limit**
 
   Added a user-configurable `Limit` parameter to the Facebook Marketing source to control API page size, helping resolve 'reduce the amount of data' errors for specific ad accounts.
 
-- c7cff50: # Fix string timestamp handling in Snowflake storage
-  - Added support for ISO 8601 string values in TIMESTAMP and DATETIME columns
-  - String timestamps are now parsed and formatted to `YYYY-MM-DD HH:MM:SS` before being written to Snowflake
-  - Invalid timestamp strings fall back to the existing special-character obfuscation path
-
-- aec648d: # AWS Redshift Storage UI improvements
-
-  Moved the "Database Name" field after connection type selection to match the natural AWS Console lookup order.
-
-- 9198b94: # Sort runs in notification emails by time (newest first)
-
-  Previously, runs in notification emails appeared in the order they were added to the queue, which could result in non-chronological ordering (e.g., 2:48, 3:02, 3:03). Now runs are sorted by finished time in descending order, so the most recent runs appear first.
-
-- cc5553d: # Adaptive input for SQL Query
+- cc5553d: # **Adaptive input for SQL Query**
 
   The SQL Query block has been made more convenient for use on small screens. The ability to control the size of the block has been added.
 
-- 55ecd48: # Table Filters for Data Marts and Data Storages
-
-  We’ve overhauled the table filtering experience to help you navigate large datasets with precision and speed.
-
-  ## Filter with logical conditions
-
-  Build complex queries effortlessly. You can now apply multiple filters simultaneously using intuitive operators:
-  - **Is / Is not**
-  - **Contains / Does not contain**
-
-  ## Persistent filter states
-
-  Your workflow is no longer interrupted by navigation. Applied filters are **automatically saved**, meaning they stay active when you switch between pages or return to the platform later.
-
-  ## Shareable, deep-linked views
-
-  The table’s state is now reflected directly in the **page URL**. You can bookmark specific views or share links with teammates, ensuring everyone sees the exact same filtered data instantly.
-
-  ## At-a-glance status
-
-  - **Active Count:** The filter button now displays a badge showing exactly how many filters are currently applied.
-  - **Unified UI:** Enjoy a consistent filtering interface across all Data Marts and Data Storages for a more predictable workflow.
-
-- a03a952: # TikTok Ads Country Dimension
+- a03a952: # **TikTok Ads Country Dimension**
 
   Added `country_code` dimension to TikTok Ads connector with a new `ad_insights_by_country` node to support geographic breakdown in reporting.
+
+- d141171: # Add data mart **link to Google Sheets metadata notes**
+
+  Google Sheets exports now include a link to your data mart in the cell note (A1). The link takes you directly to the data mart page for quick access.
+
+- aec648d: # **AWS Redshift Storage UI improvements**
+
+  Moved the "Database Name" field after connection type selection to match the natural AWS Console lookup order.
+
+- 9198b94: # **Sort runs in notification emails** by time (newest first)
+
+  Previously, runs in notification emails appeared in the order they were added to the queue, which could result in non-chronological ordering (e.g., 2:48, 3:02, 3:03). Now runs are sorted by finished time in descending order, so the most recent runs appear first.
+
+- c7cff50: # **Fix string timestamp** handling in Snowflake storage
+  - Added support for ISO 8601 string values in TIMESTAMP and DATETIME columns
+  - String timestamps are now parsed and formatted to `YYYY-MM-DD HH:MM:SS` before being written to Snowflake
+  - Invalid timestamp strings fall back to the existing special-character obfuscation path
 
 ### Patch Changes
 
