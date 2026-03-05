@@ -25,24 +25,9 @@ export function useOAuthPopup<TResponse, TAuthMessage>({
   const authCompletedRef = useRef(false);
   const stateRef = useRef<string | null>(null);
 
-  const handleMessage = useCallback(
-    (event: MessageEvent<unknown>) => {
-      try {
-        const redirectOrigin = new URL(redirectUri).origin;
-        if (event.origin !== redirectOrigin && event.origin !== window.location.origin) {
-          return;
-        }
-      } catch {
-        if (event.origin !== window.location.origin) {
-          return;
-        }
-      }
-
-      const data = event.data;
-
-      if (!isAuthMessage(data)) {
-        return;
-      }
+  const processAuthData = useCallback(
+    (data: unknown) => {
+      if (!isAuthMessage(data)) return;
 
       const cleanup = () => {
         if (pollTimerRef.current) {
@@ -87,11 +72,29 @@ export function useOAuthPopup<TResponse, TAuthMessage>({
         handleAuthError(getErrorMessage(data) || 'Authentication failed');
       }
     },
-    [redirectUri, onSuccess, onError, isAuthMessage, getSuccessResponse, getErrorMessage]
+    [onSuccess, onError, isAuthMessage, getSuccessResponse, getErrorMessage]
+  );
+
+  const handleMessage = useCallback(
+    (event: MessageEvent<unknown>) => {
+      try {
+        const redirectOrigin = new URL(redirectUri).origin;
+        if (event.origin !== redirectOrigin && event.origin !== window.location.origin) {
+          return;
+        }
+      } catch {
+        if (event.origin !== window.location.origin) {
+          return;
+        }
+      }
+      processAuthData(event.data);
+    },
+    [redirectUri, processAuthData]
   );
 
   useEffect(() => {
     window.addEventListener('message', handleMessage);
+
     return () => {
       window.removeEventListener('message', handleMessage);
       if (pollTimerRef.current) {
@@ -99,7 +102,7 @@ export function useOAuthPopup<TResponse, TAuthMessage>({
         pollTimerRef.current = null;
       }
     };
-  }, [handleMessage]);
+  }, [handleMessage, processAuthData]);
 
   const openCenteredPopup = (url: string, title: string) => {
     const width = 600;
@@ -141,7 +144,14 @@ export function useOAuthPopup<TResponse, TAuthMessage>({
 
     const popup = openCenteredPopup(buildAuthUrl(state), 'OAuth Application');
 
+    const bc = new BroadcastChannel(`oauth_channel_${state}`);
+    bc.onmessage = event => {
+      processAuthData(event.data);
+      bc.close();
+    };
+
     if (!popup) {
+      bc.close();
       setIsLoading(false);
       const err = new Error('Failed to open popup window. Please allow popups for this site.');
       setError(err.message);

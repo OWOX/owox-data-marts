@@ -32,19 +32,22 @@ export function useOAuthCallback({
     const opener = window.opener as Window | null;
     const TARGET_ORIGIN = window.location.origin;
 
-    if (!opener) {
-      console.error(`${providerName}Callback: Window opener is missing`);
-      setStatus('error');
-      setErrorMessage(
-        'Window opener is missing. Cannot complete authentication. Please try again from the main application.'
-      );
-      return;
-    }
+    // Send message via window.opener if available, otherwise use BroadcastChannel as fallback
+    // (Microsoft's COOP header can sever window.opener during cross-origin redirects)
+    const sendMessage = (message: Record<string, unknown>) => {
+      if (opener) {
+        opener.postMessage(message, TARGET_ORIGIN);
+      } else {
+        const bc = new BroadcastChannel(state ? `oauth_channel_${state}` : 'oauth_channel');
+        bc.postMessage(message);
+        bc.close();
+      }
+    };
 
     const handleAuthFailure = (errorMsg: string) => {
       setStatus('error');
       setErrorMessage(errorMsg);
-      opener.postMessage({ type: errorType, error: errorMsg }, TARGET_ORIGIN);
+      sendMessage({ type: errorType, error: errorMsg });
     };
 
     if (error) {
@@ -65,14 +68,11 @@ export function useOAuthCallback({
     }
 
     setStatus('success');
-    opener.postMessage(
-      {
-        type: successType,
-        state,
-        ...getSuccessPayload(searchParams),
-      },
-      TARGET_ORIGIN
-    );
+    sendMessage({
+      type: successType,
+      state,
+      ...getSuccessPayload(searchParams),
+    });
 
     setTimeout(() => {
       window.close();
