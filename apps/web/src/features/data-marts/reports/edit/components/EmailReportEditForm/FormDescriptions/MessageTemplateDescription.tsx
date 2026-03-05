@@ -44,28 +44,30 @@ export default function MessageTemplateDescription() {
         <AccordionTrigger>How can I add data into my message?</AccordionTrigger>
         <AccordionContent>
           <p className='mb-2'>
-            Use the <code>{'{{#data-table}}{{/data-table}}'}</code> tag to render data mart data as
-            a table.
+            Use the <code>{'{{#table}}{{/table}}'}</code> tag to render your data mart results as a
+            table. Type <code>/</code> in the editor to insert it quickly, or paste it manually.
           </p>
           <p className='mb-2'>
             Optional parameters:
             <br />
-            limit=20 - max rows to display (default: 10, max: 100)
+            <code>limit</code> — max rows to display. Accepts 1 to 100. Default: <code>100</code>.
+            Example: <code>limit=20</code>
             <br />
-            from="end" - show last N rows instead of first
+            <code>from</code> — start from the beginning or end of the table. Accepts{' '}
+            <code>"start"</code> or <code>"end"</code>. Example: <code>{'from="end"'}</code>
             <br />
-            columns="id, revenue" - show only specific columns
+            <code>columns</code> — comma-separated list of columns to show. Example:{' '}
+            <code>{'columns="id, revenue"'}</code>
           </p>
           <p className='mb-2'>
             Example:
             <br />
-            <code>
-              {'{{#data-table limit=20 from="end" columns="id, revenue"}}{{/data-table}}'}
-            </code>
+            <code>{'{{#table limit=20 from="end" columns="id, revenue"}}{{/table}}'}</code>
           </p>
           <p className='mb-2'>
             You can also use <code>{'{{dataHeadersCount}}'}</code> and{' '}
-            <code>{'{{dataRowsCount}}'}</code> variables.
+            <code>{'{{dataRowsCount}}'}</code> variables to display the total number of columns and
+            rows.
           </p>
         </AccordionContent>
       </AccordionItem>
