@@ -763,6 +763,10 @@ function SourceEditSheet({
                         minimap: { enabled: false },
                         scrollBeyondLastLine: false,
                         automaticLayout: true,
+                        wordWrap: 'on',
+                        stickyScroll: {
+                          enabled: true,
+                        },
                         fontSize: 12,
                       }}
                     />

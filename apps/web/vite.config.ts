@@ -10,6 +10,10 @@ export default defineConfig(({ mode }) => ({
     minify: mode === 'production',
     sourcemap: mode === 'development',
   },
+  test: {
+    environment: 'happy-dom',
+    setupFiles: [],
+  },
   server: {
     host: '0.0.0.0',
     hmr: {

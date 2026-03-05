@@ -1,14 +1,9 @@
 import { ChevronDown, ChevronRight, Sparkles } from 'lucide-react';
-import { Button } from '@owox/ui/components/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@owox/ui/components/dropdown-menu';
 import type { AiAssistantMessageDto } from '../../model/ai-assistant/types/ai-assistant.dto.ts';
 import type { AssistantMessageDetails } from '../../model/ai-assistant/types/ai-assistant-panel.types.ts';
+import { ACTION_LABELS } from '../../model/ai-assistant/utils/action-labels.ts';
 import { SqlPreview } from './SqlPreview.tsx';
+import { SplitActionButton } from './SplitActionButton.tsx';
 
 interface AiAssistantMessageProps {
   message: AiAssistantMessageDto;
@@ -96,103 +91,89 @@ export function AiAssistantMessage({
               ) : (
                 <div className='flex flex-wrap gap-2'>
                   {applyChangesActionId && (
-                    <Button
-                      variant='outline'
-                      size='sm'
-                      onClick={() => {
+                    <SplitActionButton
+                      label={ACTION_LABELS.applyChanges}
+                      onApply={() => {
                         onApplyAction({
                           assistantMessageId: message.id,
                           actionId: applyChangesActionId,
+                          shouldRun: true,
+                        });
+                      }}
+                      onApplyOnly={() => {
+                        onApplyAction({
+                          assistantMessageId: message.id,
+                          actionId: applyChangesActionId,
+                          shouldRun: false,
                         });
                       }}
                       disabled={!canEdit || isApplying || isHeavyProcessing}
-                    >
-                      Apply changes to source
-                    </Button>
+                    />
                   )}
                   {createAndAttachActionId && (
-                    <Button
-                      variant='outline'
-                      size='sm'
-                      onClick={() => {
+                    <SplitActionButton
+                      label={ACTION_LABELS.createAndAttach}
+                      onApply={() => {
                         onApplyAction({
                           assistantMessageId: message.id,
                           actionId: createAndAttachActionId,
+                          shouldRun: true,
+                        });
+                      }}
+                      onApplyOnly={() => {
+                        onApplyAction({
+                          assistantMessageId: message.id,
+                          actionId: createAndAttachActionId,
+                          shouldRun: false,
                         });
                       }}
                       disabled={!canEdit || isApplying || isHeavyProcessing}
-                    >
-                      Create source and attach
-                    </Button>
+                    />
                   )}
                   {insertIntoTemplateActionId && (
-                    <Button
-                      variant='outline'
-                      size='sm'
-                      onClick={() => {
+                    <SplitActionButton
+                      label={ACTION_LABELS.reuseSource}
+                      onApply={() => {
                         onApplyAction({
                           assistantMessageId: message.id,
                           actionId: insertIntoTemplateActionId,
+                          shouldRun: true,
+                        });
+                      }}
+                      onApplyOnly={() => {
+                        onApplyAction({
+                          assistantMessageId: message.id,
+                          actionId: insertIntoTemplateActionId,
+                          shouldRun: false,
                         });
                       }}
                       disabled={!canEdit || isApplying || isHeavyProcessing}
-                    >
-                      Reuse source
-                    </Button>
+                    />
                   )}
                   {applyTemplateEditActionId && (
-                    <div className='group bg-background hover:bg-accent flex items-center overflow-hidden rounded-md border transition-colors'>
-                      <Button
-                        variant='ghost'
-                        size='sm'
-                        className='h-8 rounded-none border-r px-3'
-                        onClick={() => {
-                          onApplyAction({
-                            assistantMessageId: message.id,
-                            actionId: applyTemplateEditActionId,
-                            shouldRun: true,
-                          });
-                        }}
-                        disabled={
-                          !canEdit ||
-                          isApplying ||
-                          isHeavyProcessing ||
-                          (details !== null && !details.hasTemplateEditPayload)
-                        }
-                      >
-                        Apply & Run
-                      </Button>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant='ghost'
-                            size='sm'
-                            className='h-8 w-8 rounded-none px-0'
-                            disabled={
-                              !canEdit ||
-                              isApplying ||
-                              isHeavyProcessing ||
-                              (details !== null && !details.hasTemplateEditPayload)
-                            }
-                          >
-                            <ChevronDown className='h-4 w-4' />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align='end'>
-                          <DropdownMenuItem
-                            onClick={() => {
-                              onApplyAction({
-                                assistantMessageId: message.id,
-                                actionId: applyTemplateEditActionId,
-                                shouldRun: false,
-                              });
-                            }}
-                          >
-                            Apply only
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
+                    <SplitActionButton
+                      label={ACTION_LABELS.applyTemplateEdit}
+                      onApply={() => {
+                        onApplyAction({
+                          assistantMessageId: message.id,
+                          actionId: applyTemplateEditActionId,
+                          shouldRun: true,
+                        });
+                      }}
+                      onApplyOnly={() => {
+                        onApplyAction({
+                          assistantMessageId: message.id,
+                          actionId: applyTemplateEditActionId,
+                          shouldRun: false,
+                        });
+                      }}
+                      disabled={
+                        !canEdit ||
+                        isApplying ||
+                        isHeavyProcessing ||
+                        (details !== null && !details.hasTemplateEditPayload)
+                      }
+                    />
                   )}
                 </div>
               )}

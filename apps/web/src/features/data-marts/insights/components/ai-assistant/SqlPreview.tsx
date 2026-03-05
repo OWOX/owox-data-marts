@@ -10,7 +10,7 @@ export function SqlPreview({ sql }: { sql: string }) {
   });
 
   return (
-    <div className='border-border overflow-hidden rounded-md border'>
+    <div className='border-border overflow-hidden rounded-md border p-2'>
       <Editor
         language='sql'
         value={sql}
@@ -26,6 +26,7 @@ export function SqlPreview({ sql }: { sql: string }) {
           minimap: { enabled: false },
           lineNumbers: 'off',
           scrollBeyondLastLine: false,
+          scrollBeyondLastColumn: 4,
           wordWrap: 'on',
           automaticLayout: true,
           overviewRulerBorder: false,
@@ -33,7 +34,7 @@ export function SqlPreview({ sql }: { sql: string }) {
           scrollbar: { vertical: 'auto', horizontal: 'auto', alwaysConsumeMouseWheel: false },
           folding: false,
           glyphMargin: false,
-          lineDecorationsWidth: 0,
+          lineDecorationsWidth: 12,
           lineNumbersMinChars: 0,
           renderLineHighlight: 'none',
           contextmenu: false,
