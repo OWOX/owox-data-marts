@@ -28,6 +28,7 @@ if (!hasFileArguments) {
     '!**/node_modules/**', // Exclude all node_modules folders
     // '!**/CHANGELOG.md', // Exclude specific file
     '!.changeset/*.md', // Exclude specific directory
+    '!.planning/**', // Exclude planning docs
   ];
 
   if (process.env.MDLINT_CONTEXT === 'root') {

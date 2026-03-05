@@ -30,6 +30,7 @@ export default function DataMartTriggersContent() {
   }, []);
 
   return (
+    <div data-testid="triggerTab">
     <CollapsibleCard>
       <CollapsibleCardHeader>
         <CollapsibleCardHeaderTitle
@@ -39,7 +40,7 @@ export default function DataMartTriggersContent() {
           Time triggers
         </CollapsibleCardHeaderTitle>
         <CollapsibleCardHeaderActions>
-          <Button variant='outline' onClick={handleOpenFormSheet} aria-label='Add new trigger'>
+          <Button variant='outline' onClick={handleOpenFormSheet} aria-label='Add new trigger' data-testid="triggerCreateButton">
             <Plus className='h-4 w-4' aria-hidden='true' />
             Add Trigger
           </Button>
@@ -63,5 +64,6 @@ export default function DataMartTriggersContent() {
       </CollapsibleCardContent>
       <CollapsibleCardFooter></CollapsibleCardFooter>
     </CollapsibleCard>
+    </div>
   );
 }

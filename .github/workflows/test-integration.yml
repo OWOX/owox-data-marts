@@ -1,0 +1,43 @@
+name: Integration Tests (Real DB)
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration-tests:
+    name: Real Database Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
+
+      - name: Build all workspace packages
+        run: npm run build --workspaces --if-present
+
+      - name: Run integration tests
+        run: npm run test:integration -w @owox/backend
+        env:
+          NODE_ENV: test
+          BQ_PROJECT_ID: ${{ secrets.BQ_PROJECT_ID }}
+          BQ_DATASET: ${{ secrets.BQ_DATASET }}
+          BQ_SERVICE_ACCOUNT_KEY: ${{ secrets.BQ_SERVICE_ACCOUNT_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          ATHENA_REGION: ${{ secrets.ATHENA_REGION }}
+          ATHENA_OUTPUT_BUCKET: ${{ secrets.ATHENA_OUTPUT_BUCKET }}
+          ATHENA_DATABASE: ${{ secrets.ATHENA_DATABASE }}

@@ -28,7 +28,7 @@ export function ReportListRenderer({ destination, onEditReport }: ReportListRend
       );
 
     case DataDestinationType.LOOKER_STUDIO:
-      return <LookerStudioReportCard destination={destination} onEditReport={onEditReport} />;
+      return <LookerStudioReportCard data-testid="reportCard" destination={destination} onEditReport={onEditReport} />;
 
     default: {
       return null;

@@ -277,7 +277,7 @@ export function DataMartTable<TData, TValue>({
   }
 
   return (
-    <div className='dm-card'>
+    <div className='dm-card' data-testid="datamartTable">
       <BaseTable
         tableId={tableId}
         table={table}
@@ -315,18 +315,22 @@ export function DataMartTable<TData, TValue>({
               </div>
             )}
             {/* Filters */}
-            <DataMartsTableFilters
-              appliedState={appliedState}
-              config={filtersConfig}
-              onApply={apply}
-              onClear={clear}
-            />
+            <div data-testid="datamartStatusFilter">
+              <DataMartsTableFilters
+                appliedState={appliedState}
+                config={filtersConfig}
+                onApply={apply}
+                onClear={clear}
+              />
+            </div>
             {/* Search */}
-            <TableColumnSearch
-              table={table}
-              columnId={DataMartColumnKey.TITLE}
-              placeholder='Search'
-            />
+            <div data-testid="datamartSearchInput">
+              <TableColumnSearch
+                table={table}
+                columnId={DataMartColumnKey.TITLE}
+                placeholder='Search'
+              />
+            </div>
           </>
         )}
         renderToolbarRight={() => (

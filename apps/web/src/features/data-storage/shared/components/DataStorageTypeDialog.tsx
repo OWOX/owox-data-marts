@@ -28,7 +28,7 @@ export const DataStorageTypeDialog = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className='sm:max-w-sm'>
+      <DialogContent className='sm:max-w-sm' data-testid="storageTypeDialog">
         <DialogHeader>
           <DialogTitle>New Storage</DialogTitle>
           <DialogDescription>Choose the type of storage you want to create</DialogDescription>

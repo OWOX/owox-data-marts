@@ -1,0 +1,37 @@
+name: E2E API Tests
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e-api:
+    name: API E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
+
+      # ts-jest resolves TypeScript directly, so backend build is not needed.
+      # Only shared packages (e.g. @owox/test-utils) must be compiled.
+      - name: Build all workspace packages
+        run: npm run build --workspaces --if-present
+
+      - name: Run API E2E tests
+        run: npm run test:e2e -w @owox/backend
+        env:
+          NODE_ENV: test

@@ -157,7 +157,7 @@ export const DataDestinationList = ({
   });
 
   return (
-    <div>
+    <div data-testid="destTab">
       <DataDestinationTable
         columns={columns}
         data={tableData}

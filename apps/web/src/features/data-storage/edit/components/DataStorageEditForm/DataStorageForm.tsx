@@ -147,6 +147,7 @@ export function DataStorageForm({
   return (
     <Form {...form}>
       <AppForm
+        data-testid="storageEditForm"
         onSubmit={e => {
           void form.handleSubmit(handleSubmit)(e);
         }}

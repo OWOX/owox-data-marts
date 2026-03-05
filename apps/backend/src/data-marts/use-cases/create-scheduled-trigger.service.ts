@@ -46,7 +46,13 @@ export class CreateScheduledTriggerService {
 
     // Schedule the next run based on the cron expression
     if (trigger.isActive) {
-      trigger.scheduleNextRun();
+      try {
+        trigger.scheduleNextRun();
+      } catch {
+        throw new BusinessViolationException('Invalid cron expression', {
+          cronExpression: command.cronExpression,
+        });
+      }
     }
 
     const newTrigger = await this.triggerRepository.save(trigger);

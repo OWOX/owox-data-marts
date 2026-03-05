@@ -62,7 +62,7 @@ export function ProjectNotificationsPage() {
   }
 
   return (
-    <div className='dm-page'>
+    <div className='dm-page' data-testid="notifPage">
       <header className='dm-page-header'>
         <h1 className='dm-page-header-title'>Notification settings</h1>
       </header>

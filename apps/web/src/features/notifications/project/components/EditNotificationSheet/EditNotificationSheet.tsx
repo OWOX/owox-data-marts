@@ -118,7 +118,7 @@ export function EditNotificationSheet({
         if (!open) onClose();
       }}
     >
-      <SheetContent>
+      <SheetContent data-testid="notifEditSheet">
         <SheetHeader>
           <SheetTitle>Edit notification</SheetTitle>
           <SheetDescription>Update the notification settings</SheetDescription>

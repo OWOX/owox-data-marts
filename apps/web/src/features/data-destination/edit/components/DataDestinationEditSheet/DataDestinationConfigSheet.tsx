@@ -116,7 +116,7 @@ export function DataDestinationConfigSheet({
           }
         }}
       >
-        <SheetContent>
+        <SheetContent data-testid="destEditSheet">
           <SheetHeader>
             <SheetTitle>Configure destination</SheetTitle>
             <SheetDescription>Customize settings for your destination</SheetDescription>

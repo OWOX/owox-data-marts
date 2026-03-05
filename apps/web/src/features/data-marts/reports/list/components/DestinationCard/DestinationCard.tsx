@@ -47,6 +47,7 @@ export function DestinationCard({ destination, dataMartStatus }: DestinationCard
   return (
     <>
       {/* Collapsible card container for a single destination */}
+      <div data-testid="destCard">
       <CollapsibleCard name={destination.id} collapsible defaultCollapsed={false}>
         <CollapsibleCardHeader>
           {/* Card title with destination icon */}
@@ -70,6 +71,7 @@ export function DestinationCard({ destination, dataMartStatus }: DestinationCard
 
         <CollapsibleCardFooter />
       </CollapsibleCard>
+      </div>
 
       {/* Single Report Modal (used for both Add and Edit modes) */}
       <ReportEditSheetRenderer

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 
 // @ts-expect-error - Package lacks TypeScript declarations
 import { AvailableConnectors, Connectors, Core } from '@owox/connectors';
@@ -424,11 +424,11 @@ export class ConnectorService {
 
   private validateConnectorExists(connectorName: string): void {
     if (Object.keys(Connectors).length === 0) {
-      throw new Error('No connectors found');
+      throw new NotFoundException('No connectors found');
     }
 
     if (!Object.keys(Connectors).includes(connectorName)) {
-      throw new Error(`Connector '${connectorName}' not found`);
+      throw new NotFoundException(`Connector '${connectorName}' not found`);
     }
   }
 

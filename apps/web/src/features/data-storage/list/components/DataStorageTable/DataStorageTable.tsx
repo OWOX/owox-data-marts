@@ -94,7 +94,7 @@ export function DataStorageTable<TData, TValue>({
   }
 
   return (
-    <div className='dm-card'>
+    <div className='dm-card' data-testid="storageTable">
       {selectedDataStorage && (
         <DataStorageDetailsDialog
           isOpen={isDetailsDialogOpen}

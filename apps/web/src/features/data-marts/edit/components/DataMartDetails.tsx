@@ -284,7 +284,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   }
 
   return (
-    <div className='min-w-[600px] px-12 py-6'>
+    <div className='min-w-[600px] px-12 py-6' data-testid='datamartDetails'>
       {dataMartStatus.code === DataMartStatus.DRAFT && (
         <div
           className='bg-brand-blue-500/10 text-brand-blue-500 relative mb-3.5 space-x-2 rounded-lg px-4 py-2 text-center text-sm leading-relaxed sm:px-10 md:-mx-10 md:-mt-4'
@@ -328,11 +328,13 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
           >
             <ArrowLeft className='h-5 w-5' />
           </Button>
-          <InlineEditTitle
-            title={dataMartTitle}
-            onUpdate={handleTitleUpdate}
-            className='text-2xl font-medium'
-          />
+          <div data-testid="datamartTitleInput">
+            <InlineEditTitle
+              title={dataMartTitle}
+              onUpdate={handleTitleUpdate}
+              className='text-2xl font-medium'
+            />
+          </div>
         </div>
 
         {/* Publish button and status */}
@@ -370,11 +372,12 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                   }}
                   disabled={isPublishing || !canPublish}
                   className='relative z-10'
-                >
-                  <CircleCheckBig className='h-4 w-4' />
-                  Publish Data Mart
-                </Button>
-                <div
+                      data-testid='datamartPublishButton'
+                    >
+                      <CircleCheckBig className='h-4 w-4' />
+                      Publish Data Mart
+                    </Button>
+                  <div
                   className={cn(
                     'bg-brand-blue-500/15 absolute -top-1.5 -right-1.5 -bottom-1.5 -left-1.5 z-0 rounded-lg',
                     !canPublish ? '' : 'dark:bg-brand-blue-500/50 animate-pulse'
@@ -414,6 +417,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                 </>
               )}
               <DropdownMenuItem
+                data-testid="datamartDeleteButton"
                 onClick={() => {
                   setIsDeleteDialogOpen(true);
                 }}
@@ -431,6 +435,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
           className='no-scrollbar -mb-px flex gap-2 overflow-x-auto border-b whitespace-nowrap'
           aria-label='Tabs'
           role='tablist'
+          data-testid='datamartTabNav'
         >
           {navigation.map(item => {
             return (

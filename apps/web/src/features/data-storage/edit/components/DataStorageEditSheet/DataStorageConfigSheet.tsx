@@ -86,7 +86,7 @@ export function DataStorageConfigSheet({
           }
         }}
       >
-        <SheetContent>
+        <SheetContent data-testid="storageConfigSheet">
           <SheetHeader>
             <SheetTitle>Configure Storage Provider</SheetTitle>
             <SheetDescription>Customize settings for your storage provider</SheetDescription>
