@@ -47,7 +47,8 @@ export class TableTagHandler
   tagMetaInfo(): TagMeta {
     return {
       name: 'table',
-      description: 'Inserts a data table for the specified source.',
+      description:
+        'Inserts a multi-row data table for the specified source. Use for breakdowns, rankings, and timelines.',
       parameters: [
         {
           name: 'source',

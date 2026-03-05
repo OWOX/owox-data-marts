@@ -89,6 +89,11 @@ describe('AgentFlowPromptBuilder', () => {
     expect(initialMessages[0].content).toContain('templateEditIntent');
     expect(initialMessages[0].content).toContain('[[TAG:<id>]]');
     expect(initialMessages[0].content).toContain('Do NOT write raw template tags');
+    expect(initialMessages[0].content).toContain('Prefer `value` when the user asks');
+    expect(initialMessages[0].content).toContain('do NOT merge KPI tasks into the breakdown SQL');
+    expect(initialMessages[0].content).toContain(
+      'For requests like "insights", "key insights", "trends", or "takeaways"'
+    );
     expect(initialMessages[0].content).not.toContain('"const": "apply_template_text_patch"');
     expect(initialMessages[1].content).toContain('State snapshot:');
     expect(initialMessages[1].content).toContain('"sqlRevisions":[]');

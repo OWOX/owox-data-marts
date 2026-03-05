@@ -22,6 +22,7 @@ describe('DataTableTagHandler', () => {
     it('should return meta with name "table" and source parameter', () => {
       const meta = handler.tagMetaInfo();
       expect(meta.name).toBe('table');
+      expect(meta.description).toContain('multi-row');
       expect(meta.parameters).toEqual(
         expect.arrayContaining([expect.objectContaining({ name: 'source', type: 'string' })])
       );

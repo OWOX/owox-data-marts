@@ -35,13 +35,15 @@ export class ValueTagHandler
   tagMetaInfo(): TagMeta {
     return {
       name: 'value',
-      description: 'Inserts a single metric value from the specified source. Usually used inline.',
+      description:
+        'Inserts one scalar metric from the specified source. Prefer this for KPI questions like "how many", "count", and "total".',
       parameters: [
         {
           name: 'source',
           type: 'string',
-          required: true,
-          description: `The source key of the data. Default is ${DEFAULT_SOURCE_KEY}`,
+          required: false,
+          default: DEFAULT_SOURCE_KEY,
+          description: `The source key of the data. Default is "${DEFAULT_SOURCE_KEY}".`,
         },
         {
           name: 'path',

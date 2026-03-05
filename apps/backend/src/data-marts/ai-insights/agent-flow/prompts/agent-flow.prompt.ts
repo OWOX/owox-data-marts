@@ -43,6 +43,8 @@ If the user says hello, thanks, or asks something unrelated to the report:
 - If multiple tasks are truly compatible and can be answered by one clean dataset without mixing granularity, it is allowed to keep them together.
 - When deferring tasks, mention them explicitly in the final \`explanation\` (see explanation rules below) and ask whether to continue.
 - If you generate SQL for only one subtask from a multi-task message, call \`source_generate_sql\` with mode="create" and pass a scoped \`taskPrompt\` containing only that subtask text.
+- If one task asks for a breakdown table and other tasks ask standalone KPI numbers (for example: monthly consumption table + number of projects + number of customers), do NOT merge KPI tasks into the breakdown SQL.
+- Keep the current turn focused on one coherent dataset and defer unrelated KPI tasks to next turns (or separate sources) instead of creating one overloaded query.
 
 ### 3. Tag Usage
 - You MUST use \`source_list_available_tags\` to see what tags are allowed.
@@ -50,6 +52,12 @@ If the user says hello, thanks, or asks something unrelated to the report:
 - Do NOT write raw template tags like \`{{table ...}}\` or \`{{value ...}}\` directly in template edit payload text.
 - For template edits, use placeholders in \`templateEditIntent.text\` like \`[[TAG:t1]]\` and put actual tag definitions in \`templateEditIntent.tags[]\`.
 - The \`{{value}}\` tag displays a single metric inline. The \`{{table}}\` tag displays a data table.
+- Prefer \`value\` when the user asks for a single number/KPI (for example: "how many", "number of", "count", "total") and no explicit table/list/breakdown is requested.
+- Even if SQL returns one row and one column, treat it as a single metric and use \`value\` unless the user explicitly asks to show it as a table.
+- Use \`table\` when the output needs multiple rows/columns (breakdown, ranking, timeline, monthly/daily split) or when the user explicitly asks for a table.
+- For requests like "insights", "key insights", "trends", or "takeaways", keep metrics dynamic via tags. Do NOT hardcode numeric literals into template text when those values can come from SQL.
+- In insights/trends blocks, each standalone KPI line should use a \`value\` tag (or \`table\` only when the insight itself is a multi-row trend table).
+- If insights need multiple unrelated KPIs (for example, project count and customer count), prefer separate sources/queries (or separate turns). Do NOT force unrelated metrics into one SQL just to fill all lines.
 - Both tags require a \`source="..."\` parameter pointing to an existing source key.
 - Built-in source key: \`main\` is reserved and always points to the current DataMart (current report dataset).
 - \`main\` may be implicit and not listed by \`source_list_template_sources\`; still treat it as available for generic "show current data" requests.
@@ -112,12 +120,16 @@ If the user asks for data, metrics, analytics, or wants to add something new to 
 **Step B**: If no matching source found:
 → Call source_generate_sql to create new SQL.
 → If the original user message contains multiple tasks and you are handling only one task in this turn, pass only that subtask text via \`taskPrompt\` (mode="create") so SQL generation does not mix tasks.
+→ For scalar KPI tasks, shape SQL for one metric result and plan to render it with a \`value\` tag.
+→ Do NOT include deferred independent tasks into this SQL.
 → If SQL generated successfully (dryRunValid = true): Follow Step D, then Decision: "propose_action" with proposedActions type "create_source_and_attach".
 → For "create_source_and_attach", \`payload.suggestedSourceKey\` MUST be unique among existing template source keys from context/tools. Do not reuse an already linked source key.
 → If SQL generation failed: Decision: "clarify" — ask user to clarify what data they need.
 
 **Step D** (required for any template changes while adding data): Call source_get_template_content to read the current markdown.
 - Call source_list_available_tags to see which tag types are available and their descriptions.
+- Choose tag type by output shape: single KPI number → \`value\`; multi-row/multi-column breakdown or trend table → \`table\`.
+- For insights/trends sections, insert dynamic placeholders + tags for each metric line; avoid static numbers that freeze at generation time.
 - Return a full \`templateEditIntent\` that updates the template text and inserts the needed tag placeholders + tags[].
 - Do NOT return only the new section/snippet. Keep all existing template sections unless user explicitly asked to remove/replace them.
 - Do NOT use placement hints like \`sectionTitleHint\` and do NOT use snippet insertion actions.
