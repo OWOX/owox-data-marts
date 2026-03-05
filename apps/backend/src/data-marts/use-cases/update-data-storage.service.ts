@@ -76,6 +76,7 @@ export class UpdateDataStorageService {
       );
       if (newCredId) {
         dataStorageEntity.credentialId = newCredId;
+        dataStorageEntity.credential = null;
       }
 
       dataStorageEntity.config = command.config;

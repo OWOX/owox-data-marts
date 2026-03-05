@@ -1,6 +1,7 @@
 import { ApiService } from '../../../../services';
 import type {
   CreateDataDestinationRequestDto,
+  CreateDataDestinationCopyRequestDto,
   DataDestinationResponseDto,
   UpdateDataDestinationRequestDto,
   DataDestinationByTypeResponseDto,
@@ -42,7 +43,7 @@ export class DataDestinationService extends ApiService {
    * @returns Promise with created data destination
    */
   async createDataDestination(
-    data: CreateDataDestinationRequestDto
+    data: CreateDataDestinationRequestDto | CreateDataDestinationCopyRequestDto
   ): Promise<DataDestinationResponseDto> {
     return this.post<DataDestinationResponseDto>('', data);
   }

@@ -53,10 +53,22 @@ export function DataDestinationConfigSheet({
     const mapper = DestinationMapperFactory.getMapper(data.type);
 
     if (!dataDestination) {
-      const createData = mapper.mapToCreateRequest(data);
-      const newDestination = await createDataDestination(createData);
-      if (newDestination) {
-        onSaveSuccess(newDestination);
+      if (source) {
+        const createData = {
+          title: data.title,
+          type: data.type,
+          sourceDestinationId: source.id,
+        };
+        const newDestination = await createDataDestination(createData);
+        if (newDestination) {
+          onSaveSuccess(newDestination);
+        }
+      } else {
+        const createData = mapper.mapToCreateRequest(data);
+        const newDestination = await createDataDestination(createData);
+        if (newDestination) {
+          onSaveSuccess(newDestination);
+        }
       }
     } else {
       const updateData = mapper.mapToUpdateRequest(data);

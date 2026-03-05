@@ -5,6 +5,7 @@ import { dataDestinationService } from '../../services';
 import { mapDataDestinationFromDto } from '../mappers/data-destination.mapper';
 import type {
   CreateDataDestinationRequestDto,
+  CreateDataDestinationCopyRequestDto,
   UpdateDataDestinationRequestDto,
 } from '../../services/types';
 import toast from 'react-hot-toast';
@@ -64,7 +65,7 @@ export function useDataDestination() {
   );
 
   const createDataDestination = useCallback(
-    async (requestData: CreateDataDestinationRequestDto) => {
+    async (requestData: CreateDataDestinationRequestDto | CreateDataDestinationCopyRequestDto) => {
       dispatch({ type: DataDestinationActionType.CREATE_DESTINATION_START });
       try {
         const response = await dataDestinationService.createDataDestination(requestData);

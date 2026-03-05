@@ -44,7 +44,8 @@ export class DataDestinationMapper {
       dto.title,
       dto.type,
       dto.credentials,
-      dto.credentialId
+      dto.credentialId,
+      dto.sourceDestinationId
     );
   }
 

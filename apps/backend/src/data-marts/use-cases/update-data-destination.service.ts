@@ -81,6 +81,7 @@ export class UpdateDataDestinationService {
       );
       if (newCredId) {
         entity.credentialId = newCredId;
+        entity.credential = null;
       }
 
       // After copy, save title and return — skip credential validation/processing
