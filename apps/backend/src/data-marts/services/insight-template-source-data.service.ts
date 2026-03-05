@@ -12,8 +12,8 @@ import { DataMart } from '../entities/data-mart.entity';
 import { InsightArtifactService } from './insight-artifact.service';
 import { InsightTemplateValidationService } from './insight-template-validation.service';
 import { DataMartSqlTableService } from './data-mart-sql-table.service';
+import { DEFAULT_SOURCE_KEY } from '../../common/template/handlers/tag-handler.interface';
 
-const DEFAULT_SOURCE_KEY = 'main';
 const MAX_LOADED_SOURCE = 100;
 
 export interface InsightTemplateTableSourceContext {

@@ -1,5 +1,7 @@
 import { HelperOptions } from 'handlebars';
 
+export const DEFAULT_SOURCE_KEY = 'main';
+
 /**
  * Interface for handling custom tags in markdown templates.
  */

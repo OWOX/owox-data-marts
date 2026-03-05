@@ -1,7 +1,7 @@
 import { HelperOptions } from 'handlebars';
 import { TagRenderedResult } from '../../types/render-template.types';
 import { TagHandlerException } from '../tag-handler.exception';
-import { TagHandler } from '../tag-handler.interface';
+import { DEFAULT_SOURCE_KEY, TagHandler } from '../tag-handler.interface';
 import { TagHandlerMetaAware, TagMeta } from '../tag-handler-meta-aware.interface';
 
 export interface DataTableHeader {
@@ -20,7 +20,6 @@ interface TableSourceContext {
   dataRows?: DataTablePayload['dataRows'];
 }
 
-const DEFAULT_SOURCE_KEY = 'main';
 const DEFAULT_TABLE_ROWS = 10;
 const MAX_TABLE_ROWS = 100;
 

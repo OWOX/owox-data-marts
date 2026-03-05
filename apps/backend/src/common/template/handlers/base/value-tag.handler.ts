@@ -1,7 +1,7 @@
 import { HelperOptions } from 'handlebars';
 import { wrapCautionBlock } from '../../../markdown/helpers/blockquote-alert-wrapper';
 import { DataTableHeader } from './table-tag.handler';
-import { TagHandler } from '../tag-handler.interface';
+import { DEFAULT_SOURCE_KEY, TagHandler } from '../tag-handler.interface';
 import { TagRenderedResult } from '../../types/render-template.types';
 
 interface SingleValueSourceContext {
@@ -19,7 +19,6 @@ interface SingleValueTagPayload {
   error?: string;
 }
 
-const DEFAULT_SOURCE_KEY = 'main';
 const DEFAULT_ROW = '1';
 const DEFAULT_COLUMN = '1';
 const PATH_PATTERN = /^\.(?<column>[A-Za-z_][A-Za-z0-9_]*)(?:\[(?<row>\d+)\])?$/;
