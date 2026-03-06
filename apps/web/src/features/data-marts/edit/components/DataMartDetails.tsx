@@ -8,7 +8,7 @@ import {
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { cn } from '@owox/ui/lib/utils';
-import { ArrowLeft, CircleCheckBig, MoreVertical, Play, Trash2 } from 'lucide-react';
+import { ArrowLeft, CircleCheckBig, Rocket, MoreVertical, Play, Trash2, Info } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { NavLink, Outlet } from 'react-router-dom';
@@ -28,7 +28,7 @@ import {
   DataMartRunTriggerType,
   DataMartRunType,
   DataMartStatus,
-  getValidationErrorMessages,
+  getRequiredSetupActions,
 } from '../../shared';
 import { useSchemaActualizeTrigger } from '../../shared/hooks/useSchemaActualizeTrigger';
 import { PromoStep, useDataMartNextStepPromo } from '../hooks/useDataMartNextStepPromo';
@@ -294,9 +294,38 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
   }
 
   return (
-    <div className='px-12 py-6'>
-      <div className='mb-4 flex items-center justify-between'>
-        <div className='flex items-center space-x-1 md:-ml-10'>
+    <div className='min-w-[600px] px-12 py-6'>
+      {dataMartStatus.code === DataMartStatus.DRAFT && (
+        <div
+          className='bg-brand-blue-500/10 text-brand-blue-500 relative mb-3.5 space-x-2 rounded-lg px-4 py-2 text-center text-sm leading-relaxed sm:px-10 md:-mx-10 md:-mt-4'
+          aria-live='polite'
+        >
+          {!canPublish ? (
+            <>
+              <Info className='-mt-0.5 inline-block h-4 w-4 shrink-0' />
+              <span>
+                You can publish this Data Mart after you{' '}
+                {getRequiredSetupActions(dataMartValidationErrors).map((action, index) => (
+                  <span key={action}>
+                    {index > 0 && ' and '}
+                    <span className='font-medium'>{action}</span>
+                  </span>
+                ))}
+                .
+              </span>
+            </>
+          ) : (
+            <>
+              <Rocket className='-mt-0.5 inline-block h-4 w-4 shrink-0' />
+              <span>Ready to publish.</span>
+            </>
+          )}
+          <span className='border-t-brand-blue-500/10 pointer-events-none absolute right-32 -bottom-2 h-0 w-0 border-t-[8px] border-r-[8px] border-l-[8px] border-r-transparent border-l-transparent select-none md:right-40' />
+        </div>
+      )}
+      <div className='items-top mb-4 flex flex-col-reverse justify-between gap-4 md:flex-row md:gap-0'>
+        {/* Title and back button */}
+        <div className='-ml-10 flex items-center space-x-1'>
           <Button
             onClick={() => {
               navigate('/data-marts');
@@ -315,14 +344,15 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
             className='text-2xl font-medium'
           />
         </div>
+
+        {/* Publish button and status */}
         <div
-          className={'flex items-center gap-2' + (isPublishing ? ' opacity-50' : '')}
-          style={{ minWidth: '120px' }}
+          className={cn('flex min-w-[120px] items-center gap-2', isPublishing ? 'opacity-50' : '')}
         >
-          <div className='ml-4 flex items-center gap-2'>
+          <div className='flex w-full items-center justify-between gap-2 md:w-auto'>
             <Tooltip>
               <TooltipTrigger asChild>
-                <div>
+                <div className={cn('mr-4', !canPublish ? 'pt-1.5' : '')}>
                   <StatusLabel
                     type={
                       dataMartStatus.code === DataMartStatus.PUBLISHED
@@ -335,44 +365,32 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                   </StatusLabel>
                 </div>
               </TooltipTrigger>
-              <TooltipContent>
+              <TooltipContent side='bottom'>
                 {dataMartStatus.code === DataMartStatus.PUBLISHED
                   ? 'Your published Data Mart is ready for scheduled runs'
                   : 'Draft Data Mart is not available for scheduled runs. Publish it to activate scheduling.'}
               </TooltipContent>
             </Tooltip>
             {dataMartStatus.code === DataMartStatus.DRAFT && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div>
-                    <Button
-                      variant='default'
-                      onClick={() => {
-                        void handlePublish();
-                      }}
-                      disabled={isPublishing || !canPublish}
-                      className='ml-2 flex items-center gap-1'
-                    >
-                      <CircleCheckBig className='h-4 w-4' />
-                      Publish Data Mart
-                    </Button>
-                  </div>
-                </TooltipTrigger>
-                {!canPublish && (
-                  <TooltipContent>
-                    <div>Cannot publish Data Mart. Fix the issues below.</div>
-                    {dataMartValidationErrors.length > 0 && (
-                      <ul className='mt-1 list-disc space-y-1 pl-4'>
-                        {getValidationErrorMessages(dataMartValidationErrors).map(
-                          (message, index) => (
-                            <li key={index}>{message}</li>
-                          )
-                        )}
-                      </ul>
-                    )}
-                  </TooltipContent>
-                )}
-              </Tooltip>
+              <div className='relative'>
+                <Button
+                  variant='default'
+                  onClick={() => {
+                    void handlePublish();
+                  }}
+                  disabled={isPublishing || !canPublish}
+                  className='relative z-10'
+                >
+                  <CircleCheckBig className='h-4 w-4' />
+                  Publish Data Mart
+                </Button>
+                <div
+                  className={cn(
+                    'bg-brand-blue-500/15 absolute -top-1.5 -right-1.5 -bottom-1.5 -left-1.5 z-0 rounded-lg',
+                    !canPublish ? '' : 'dark:bg-brand-blue-500/50 animate-pulse'
+                  )}
+                />
+              </div>
             )}
           </div>
           <DropdownMenu>
@@ -431,7 +449,7 @@ export function DataMartDetails({ id }: DataMartDetailsProps) {
                 to={item.path}
                 className={({ isActive }) =>
                   cn(
-                    'border-b-2 px-4 py-3 text-sm font-medium whitespace-nowrap sm:py-2',
+                    'border-b-2 px-4 py-4 text-sm font-medium whitespace-nowrap',
                     isActive
                       ? 'border-primary text-primary'
                       : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:border-gray-200 dark:hover:text-gray-200'

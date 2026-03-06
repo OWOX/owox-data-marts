@@ -43,9 +43,9 @@ export const DataMartDataStorageView = ({
 
     if (!storageIsValid) {
       return (
-        <div className='flex items-center space-x-2 text-sm'>
-          <AlertTriangle className='h-4 w-4 text-red-500' />
-          <span className='text-red-500'>Storage configuration is incomplete</span>
+        <div className='flex items-center gap-1 text-sm text-red-500'>
+          <AlertTriangle className='h-4 w-4 shrink-0' />
+          <span>Storage configuration is incomplete</span>
         </div>
       );
     }
