@@ -158,6 +158,7 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
                                       storageId={storage.id}
                                       storageTitle={storage.title}
                                       hovercardSide='left'
+                                      variant='compact'
                                     />
                                     <Icon size={20} />
                                     <span>{storage.title}</span>

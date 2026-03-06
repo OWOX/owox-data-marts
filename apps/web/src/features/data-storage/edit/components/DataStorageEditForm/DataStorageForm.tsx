@@ -32,6 +32,7 @@ import {
   type DataStorageFormData,
   type GoogleBigQueryFormData,
   type LegacyGoogleBigQueryFormData,
+  DataStorageHealthIndicator,
   dataStorageSchema,
   DataStorageStatus,
   DataStorageType,
@@ -148,6 +149,11 @@ export function DataStorageForm({
       >
         <FormLayout>
           <FormSection title='General'>
+            {storageId && (
+              <FormItem>
+                <DataStorageHealthIndicator storageId={storageId} />
+              </FormItem>
+            )}
             <FormField
               control={control}
               name='title'
