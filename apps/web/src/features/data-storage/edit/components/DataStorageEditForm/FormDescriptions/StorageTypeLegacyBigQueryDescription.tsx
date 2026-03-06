@@ -9,7 +9,7 @@ import { ExternalAnchor } from '@owox/ui/components/common/external-anchor';
 export default function StorageTypeLegacyBigQueryDescription() {
   return (
     <Accordion variant='common' type='single' collapsible>
-      <AccordionItem value='storage-type-details'>
+      <AccordionItem value='legacy-bigquery-storage-type-details'>
         <AccordionTrigger>What is this storage type?</AccordionTrigger>
         <AccordionContent>
           <p className='mb-2'>
