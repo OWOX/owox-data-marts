@@ -10,18 +10,27 @@ import {
   buildPlanUserPrompt,
 } from '../prompts/plan.prompt';
 import { buildAgentInitialMessages } from '../utils/build-agent-initial-messages';
+import { StorageRelatedPromptResolver } from '../prompts/storage-related-prompt.resolver';
+import { StorageRelatedPromptSection } from '../prompts/storage-related-prompt.types';
 
 @Injectable()
 export class PlanAgent implements Agent<PlanAgentInput, PlanAgentResult> {
   readonly name = 'PlanAgent';
   private readonly logger = new Logger(PlanAgent.name);
 
-  constructor(private readonly toolRegistry: ToolRegistry) {}
+  constructor(
+    private readonly toolRegistry: ToolRegistry,
+    private readonly storageRelatedPromptResolver: StorageRelatedPromptResolver
+  ) {}
 
   async run(input: PlanAgentInput, shared: SharedAgentContext): Promise<PlanAgentResult> {
     const { aiProvider, telemetry, budgets, projectId, dataMartId } = shared;
 
-    const system = buildPlanSystemPrompt(input);
+    const storageRelatedPrompt = this.storageRelatedPromptResolver.resolve(
+      StorageRelatedPromptSection.PLAN_SYSTEM,
+      input.rawSchema?.storageType
+    );
+    const system = buildPlanSystemPrompt(input, storageRelatedPrompt);
     const contextSystem = buildPlanContextSystemPrompt(input);
     const user = buildPlanUserPrompt(input);
 

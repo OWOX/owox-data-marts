@@ -2,9 +2,14 @@ import { AgentBudgets } from '../../../common/ai-insights/agent/types';
 import { buildJsonFormatSection, buildOutputRules } from './json-format.prompt';
 import { QueryPlan, QueryRepairResponseSchema } from '../agent/types';
 import { GetMetadataOutput, SqlStepError } from '../ai-insights-types';
+import { buildStorageRelatedRulesBlock } from './storage-related-prompt.utils';
 
-export function buildQueryRepairSystemPrompt(budgets: AgentBudgets): string {
+export function buildQueryRepairSystemPrompt(
+  budgets: AgentBudgets,
+  storageRelatedPrompt?: string | null
+): string {
   const maxRows = budgets.maxRows ?? 30;
+  const storageRulesBlock = buildStorageRelatedRulesBlock(storageRelatedPrompt);
 
   return `
 You are a Query Repair agent.
@@ -59,6 +64,8 @@ Date/time parsing policy:
 Division by zero policy:
 - Repair by making division safe while preserving intent (e.g., denominator != 0 filter or NULLIF),
   but do NOT silently change semantics beyond what the user likely expects.
+
+${storageRulesBlock}
 
 ${buildJsonFormatSection(QueryRepairResponseSchema)}
 `.trim();

@@ -4,6 +4,7 @@ import { DataMartSchema, DataMartSchemaSchema } from '../data-storage-types/data
 import { AiChatProvider } from '../../common/ai-insights/agent/ai-core';
 import { ToolRegistry } from '../../common/ai-insights/agent/tool-registry';
 import { DataMartPromptMetaEntry, PromptAnswer } from './data-mart-insights.types';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 
 export const AI_INSIGHTS_FACADE = Symbol('AI_INSIGHTS_FACADE');
 
@@ -58,7 +59,7 @@ export type GetMetadataInput = z.infer<typeof GetMetadataInputSchema>;
 export const GetMetadataOutputSchema = z.object({
   title: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
-  storageType: z.string(),
+  storageType: z.nativeEnum(DataStorageType),
   schema: DataMartSchemaSchema,
 });
 export type GetMetadataOutput = z.infer<typeof GetMetadataOutputSchema>;

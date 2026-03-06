@@ -2,6 +2,7 @@ import { PlanAgentInput, PlanModelJsonSchema } from '../agent/types';
 import { DataMartsAiInsightsTools } from '../tools/data-marts-ai-insights-tools.registrar';
 import { buildJsonFormatSection, buildOutputRules } from './json-format.prompt';
 import { getLastUserMessage } from '../agent-flow/ai-assistant-orchestrator.utils';
+import { buildStorageRelatedRulesBlock } from './storage-related-prompt.utils';
 
 export function buildPlanContextSystemPrompt(input: PlanAgentInput): string | null {
   const context = input.conversationContext;
@@ -36,7 +37,12 @@ ${snapshotBlock ? `\n\n${snapshotBlock}` : ''}
 `.trim();
 }
 
-export function buildPlanSystemPrompt(input: PlanAgentInput): string {
+export function buildPlanSystemPrompt(
+  input: PlanAgentInput,
+  storageRelatedPrompt?: string | null
+): string {
+  const storageRulesBlock = buildStorageRelatedRulesBlock(storageRelatedPrompt);
+
   return `
 You are the PLAN agent in a multi-step analytics pipeline.
 
@@ -140,6 +146,8 @@ Filter value resolution:
   Example: "The column 'country' stores ISO codes (e.g., 'US', 'DE').
   Could you specify the exact code for Ukraine? It might be 'UA' or 'UKR'."
 - Do NOT guess filter values when sample data does not contain a clear match.
+
+${storageRulesBlock}
 
 ${buildJsonFormatSection(PlanModelJsonSchema)}
 `.trim();

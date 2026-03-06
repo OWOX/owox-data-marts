@@ -31,11 +31,13 @@ import { GenerateInsightAgent } from './agent/generate-insight.agent';
 import { SqlErrorAdvisorAgent } from './agent/sql-error-advisor.agent';
 import { QueryRepairAgent } from './agent/query-repair.agent';
 import { PromptProcessedEventsService } from './prompt-processed-events.service';
+import { StorageRelatedPromptResolver } from './prompts/storage-related-prompt.resolver';
 
 export const aiInsightsProviders = [
   OpenAiChatProvider,
   OpenRouterChatProvider,
   PromptSanitizerService,
+  StorageRelatedPromptResolver,
   AiInsightsFacadeImpl,
   AiInsightsOrchestratorService,
   TriageAgent,

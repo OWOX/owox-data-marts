@@ -9,18 +9,27 @@ import {
   buildQueryRepairUserPrompt,
 } from '../prompts/query-repair.prompt';
 import { QueryRepairInput, QueryRepairResponse, QueryRepairResponseSchema } from './types';
+import { StorageRelatedPromptResolver } from '../prompts/storage-related-prompt.resolver';
+import { StorageRelatedPromptSection } from '../prompts/storage-related-prompt.types';
 
 @Injectable()
 export class QueryRepairAgent implements Agent<QueryRepairInput, QueryRepairResponse> {
   readonly name = 'QueryRepairAgent';
   private readonly logger = new Logger(QueryRepairAgent.name);
 
-  constructor(private readonly toolRegistry: ToolRegistry) {}
+  constructor(
+    private readonly toolRegistry: ToolRegistry,
+    private readonly storageRelatedPromptResolver: StorageRelatedPromptResolver
+  ) {}
 
   async run(input: QueryRepairInput, shared: SharedAgentContext): Promise<QueryRepairResponse> {
     const { aiProvider, telemetry, budgets, projectId, dataMartId } = shared;
 
-    const system = buildQueryRepairSystemPrompt(budgets);
+    const storageRelatedPrompt = this.storageRelatedPromptResolver.resolve(
+      StorageRelatedPromptSection.QUERY_REPAIR_SYSTEM,
+      input.schema?.storageType
+    );
+    const system = buildQueryRepairSystemPrompt(budgets, storageRelatedPrompt);
     const user = buildQueryRepairUserPrompt({
       prompt: input.prompt,
       plan: input.queryPlan,

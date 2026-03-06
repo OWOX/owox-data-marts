@@ -2,6 +2,7 @@ import { AgentBudgets } from '../../../common/ai-insights/agent/types';
 import { SqlAgentInput, SqlBuilderResponseSchema } from '../agent/types';
 import { getLastUserMessage } from '../agent-flow/ai-assistant-orchestrator.utils';
 import { buildJsonFormatSection, buildOutputRules } from './json-format.prompt';
+import { buildStorageRelatedRulesBlock } from './storage-related-prompt.utils';
 
 export function buildSqlBuilderContextSystemPrompt(input: SqlAgentInput): string | null {
   const context = input.conversationContext;
@@ -36,8 +37,12 @@ ${snapshotBlock ? `\n\n${snapshotBlock}` : ''}
 `.trim();
 }
 
-export function buildSqlBuilderSystemPrompt(budgets: AgentBudgets): string {
+export function buildSqlBuilderSystemPrompt(
+  budgets: AgentBudgets,
+  storageRelatedPrompt?: string | null
+): string {
   const maxRows = budgets.maxRows ?? 30;
+  const storageRulesBlock = buildStorageRelatedRulesBlock(storageRelatedPrompt);
 
   return `
 You are an SQL Builder agent.
@@ -107,6 +112,8 @@ Correctness rule:
   - required whereSpecs are implemented;
   - required orderBySpecs are implemented;
   - query answers the user intent derived from conversation history.
+
+${storageRulesBlock}
 
 ${buildJsonFormatSection(SqlBuilderResponseSchema)}
 `.trim();

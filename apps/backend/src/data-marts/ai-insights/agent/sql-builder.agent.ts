@@ -9,14 +9,22 @@ import {
   buildSqlBuilderUserPrompt,
 } from '../prompts/sql-builder.prompt';
 import { buildAgentInitialMessages } from '../utils/build-agent-initial-messages';
+import { StorageRelatedPromptResolver } from '../prompts/storage-related-prompt.resolver';
+import { StorageRelatedPromptSection } from '../prompts/storage-related-prompt.types';
 
 @Injectable()
 export class SqlBuilderAgent implements Agent<SqlAgentInput, SqlBuilderResponse> {
   readonly name = 'SqlBuilderAgent';
   private readonly logger = new Logger(SqlBuilderAgent.name);
 
+  constructor(private readonly storageRelatedPromptResolver: StorageRelatedPromptResolver) {}
+
   async run(input: SqlAgentInput, shared: SharedAgentContext): Promise<SqlBuilderResponse> {
-    const system = buildSqlBuilderSystemPrompt(shared.budgets);
+    const storageRelatedPrompt = this.storageRelatedPromptResolver.resolve(
+      StorageRelatedPromptSection.SQL_BUILDER_SYSTEM,
+      input.rawSchema?.storageType
+    );
+    const system = buildSqlBuilderSystemPrompt(shared.budgets, storageRelatedPrompt);
     const contextSystem = buildSqlBuilderContextSystemPrompt(input);
     const user = buildSqlBuilderUserPrompt(input);
     const initialMessages = buildAgentInitialMessages({
